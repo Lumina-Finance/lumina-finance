@@ -127,13 +127,16 @@ async def disable_two_factor(db: AsyncSession, user: User, password: str, code: 
 
 
 async def regenerate_recovery_codes(db: AsyncSession, user: User, password: str, code: str) -> list[str]:
-    """Replace the recovery codes after step-up reauthentication
+    """Stage a fresh recovery code batch after step-up reauthentication
+
+    The batch is staged, so the current codes keep working until the user acknowledges the new ones
+    through confirm_recovery_codes. Abandoning the screen therefore never strands the account
 
     Args:
         db: Active database session
         user: Authenticated user regenerating codes
         password: Account password
-        code: A current TOTP code or a recovery code
+        code: A current TOTP code
 
     Returns:
         The fresh plaintext recovery codes to show once
@@ -145,6 +148,26 @@ async def regenerate_recovery_codes(db: AsyncSession, user: User, password: str,
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=_NOT_ENABLED_DETAIL)
 
     await verify_step_up(db, user, password, code)
-    codes = await generate_recovery_codes(db, user.id)
+    codes = await generate_recovery_codes(db, user.id, pending=True)
     await db.commit()
     return codes
+
+
+async def confirm_recovery_codes(db: AsyncSession, user_id: uuid.UUID) -> None:
+    """Activate a staged recovery code batch once the user acknowledges it
+
+    Promotes the pending batch and discards the superseded active codes. A staged batch only exists
+    after a step-up regeneration, so requiring it keeps this from wiping the active codes
+
+    Args:
+        db: Active database session
+        user_id: User confirming the new codes
+
+    Raises:
+        HTTPException: There is no staged batch to confirm
+    """
+    if not await has_pending_recovery_codes(db, user_id):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No pending recovery codes to confirm")
+
+    await activate_pending_recovery_codes(db, user_id)
+    await db.commit()

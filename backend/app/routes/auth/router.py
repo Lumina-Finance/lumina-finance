@@ -35,6 +35,7 @@ from app.services.auth import (
     begin_totp_setup,
     change_password,
     complete_totp_enrollment,
+    confirm_recovery_codes,
     confirm_totp_enrollment,
     disable_two_factor,
     is_totp_enabled,
@@ -276,10 +277,12 @@ async def regenerate_recovery_codes_route(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Replace the recovery codes after step-up reauthentication
+    """Stage a fresh recovery code batch after step-up reauthentication
+
+    The current codes keep working until the user acknowledges these through the confirm route
 
     Args:
-        data: Password and a current second factor
+        data: Password and a current authenticator code
         user: Authenticated user resolved from the access token
         db: Active database session
 
@@ -291,6 +294,23 @@ async def regenerate_recovery_codes_route(
     """
     codes = await regenerate_recovery_codes(db, user, data.password, data.code)
     return RecoveryCodesResponse(recovery_codes=codes)
+
+
+@router.post("/2fa/recovery-codes/confirm", status_code=status.HTTP_204_NO_CONTENT)
+async def confirm_recovery_codes_route(
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Activate a staged recovery code batch once the user has saved it
+
+    Args:
+        user: Authenticated user resolved from the access token
+        db: Active database session
+
+    Raises:
+        HTTPException: There is no staged batch to confirm
+    """
+    await confirm_recovery_codes(db, user.id)
 
 
 @router.post("/2fa/verify", response_model=AuthResponse)

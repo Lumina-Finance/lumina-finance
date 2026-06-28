@@ -148,9 +148,9 @@ async def test_disable_requires_two_factor_enabled(client):
     assert disable.status_code == 400
 
 
-async def test_regenerate_replaces_the_codes(client):
-    """Regenerating returns a fresh batch that does not overlap the old one"""
-    auth, secret, codes = await _enroll(client)
+async def test_regenerate_then_confirm_swaps_the_codes(client):
+    """Confirming a regeneration activates the new batch and retires the old one"""
+    auth, secret, old_codes = await _enroll(client)
 
     regenerate = await client.post(
         "/auth/2fa/recovery-codes", headers=auth, json={"password": _PASSWORD, "code": pyotp.TOTP(secret).now()}
@@ -158,7 +158,34 @@ async def test_regenerate_replaces_the_codes(client):
     assert regenerate.status_code == 200
     new_codes = regenerate.json()["recovery_codes"]
     assert len(new_codes) == 6
-    assert set(new_codes).isdisjoint(codes)
+    assert set(new_codes).isdisjoint(old_codes)
+
+    confirm = await client.post("/auth/2fa/recovery-codes/confirm", headers=auth)
+    assert confirm.status_code == 204
+
+    assert (await _login_with_code(client, old_codes[0])).status_code == 401
+    assert (await _login_with_code(client, new_codes[0])).status_code == 200
+
+
+async def test_abandoned_regenerate_keeps_old_codes(client):
+    """A staged regeneration that is never confirmed leaves the existing codes working"""
+    auth, secret, old_codes = await _enroll(client)
+
+    regenerate = await client.post(
+        "/auth/2fa/recovery-codes", headers=auth, json={"password": _PASSWORD, "code": pyotp.TOTP(secret).now()}
+    )
+    assert regenerate.status_code == 200
+
+    # No confirm, so an existing code still signs in
+    assert (await _login_with_code(client, old_codes[0])).status_code == 200
+
+
+async def test_confirm_recovery_codes_requires_a_staged_batch(client):
+    """Confirming with nothing staged is refused so it cannot wipe the active codes"""
+    auth, _, _ = await _enroll(client)
+
+    confirm = await client.post("/auth/2fa/recovery-codes/confirm", headers=auth)
+    assert confirm.status_code == 400
 
 
 async def test_regenerate_rejects_a_recovery_code_as_second_factor(client):
