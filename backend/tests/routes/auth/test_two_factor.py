@@ -99,6 +99,21 @@ async def test_complete_without_confirm_is_rejected(client):
     assert status.json()["totp_enabled"] is False
 
 
+async def test_restarting_setup_discards_staged_codes(client):
+    """Restarting setup clears a stale staged batch, so completion still needs a fresh confirm"""
+    auth = _get_auth_header(await _create_user(client))
+    secret = (await client.post("/auth/2fa/setup", headers=auth)).json()["secret"]
+    await client.post("/auth/2fa/confirm", headers=auth, json={"code": pyotp.TOTP(secret).now()})
+
+    # Restart setup without confirming the new secret, then try to finish off the stale staged batch
+    await client.post("/auth/2fa/setup", headers=auth)
+    complete = await client.post("/auth/2fa/complete", headers=auth)
+    assert complete.status_code == 400
+
+    status = await client.get("/auth/2fa/status", headers=auth)
+    assert status.json()["totp_enabled"] is False
+
+
 async def test_confirm_rejects_a_wrong_code(client):
     """Confirming with an invalid code returns 400 and does not enable 2FA"""
     auth = _get_auth_header(await _create_user(client))

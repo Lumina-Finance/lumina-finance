@@ -43,6 +43,18 @@ async def delete_recovery_codes(db: AsyncSession, user_id: uuid.UUID) -> None:
     await db.execute(delete(RecoveryCode).where(RecoveryCode.user_id == user_id))
 
 
+async def delete_pending_recovery_codes(db: AsyncSession, user_id: uuid.UUID) -> None:
+    """Delete only the staged recovery codes, leaving any active batch in force
+
+    The caller commits, so discarding a stale staged batch stays atomic with starting a fresh enrolment
+
+    Args:
+        db: Active database session
+        user_id: User whose staged codes are cleared
+    """
+    await db.execute(delete(RecoveryCode).where(RecoveryCode.user_id == user_id, RecoveryCode.pending.is_(True)))
+
+
 async def generate_recovery_codes(db: AsyncSession, user_id: uuid.UUID, *, pending: bool = False) -> list[str]:
     """Issue a fresh batch of recovery codes and return the plaintext
 
@@ -60,9 +72,7 @@ async def generate_recovery_codes(db: AsyncSession, user_id: uuid.UUID, *, pendi
     """
     if pending:
         # Replace only a prior staged batch so the active codes keep working until completion
-        await db.execute(
-            delete(RecoveryCode).where(RecoveryCode.user_id == user_id, RecoveryCode.pending.is_(True))
-        )
+        await delete_pending_recovery_codes(db, user_id)
     else:
         await delete_recovery_codes(db, user_id)
 
