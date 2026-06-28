@@ -1,5 +1,8 @@
 import { useRef, type ClipboardEvent, type KeyboardEvent } from 'react';
 
+/** Digit count of a TOTP code, the single source of truth for every one-time-code input */
+export const OTP_LENGTH = 6;
+
 interface OtpInputProps {
   value: string;
   onChange: (value: string) => void;
@@ -13,7 +16,7 @@ const DIGIT_PATTERN = /\d/;
 /**
  * Renders a fixed-length one-time code as individual digit boxes with focus advance, backspace, and paste
  */
-export function OtpInput({ value, onChange, length = 6, disabled = false, autoFocus = false }: OtpInputProps) {
+export function OtpInput({ value, onChange, length = OTP_LENGTH, disabled = false, autoFocus = false }: OtpInputProps) {
   const inputsRef = useRef<Array<HTMLInputElement | null>>([]);
 
   /**

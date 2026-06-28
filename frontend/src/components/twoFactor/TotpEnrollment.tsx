@@ -3,12 +3,10 @@ import { AnimatePresence, motion } from 'motion/react';
 import { Check, Copy } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useCompleteTotp, useConfirmTotp, useSetupTotp } from '@/api/twoFactor';
-import { OtpInput } from '@/components/OtpInput';
+import { OtpInput, OTP_LENGTH } from '@/components/OtpInput';
 import { RecoveryCodesPanel } from '@/components/twoFactor/RecoveryCodesPanel';
 import { copyText } from '@/utils/clipboard';
 import { delayToMinimum } from '@/utils/timing';
-
-const OTP_LENGTH = 6;
 
 // How long the copied confirmation stays before reverting to the copy affordance
 const COPIED_FEEDBACK_MS = 1500;

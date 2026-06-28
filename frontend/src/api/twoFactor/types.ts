@@ -19,6 +19,6 @@ export interface TotpStatusResponse {
 
 export interface StepUpPayload {
   password: string;
-  /** A current TOTP code or a recovery code */
+  /** A current TOTP code, step-up does not accept recovery codes */
   code: string;
 }

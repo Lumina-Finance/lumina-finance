@@ -16,7 +16,7 @@ export interface UpdateProfilePayload {
 export interface ChangePasswordPayload {
   current_password: string;
   new_password: string;
-  /** Current TOTP or recovery code, required when two-factor is enabled */
+  /** Current TOTP code, required when two-factor is enabled, recovery codes are not accepted */
   code?: string;
 }
 

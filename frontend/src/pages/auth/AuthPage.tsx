@@ -2,7 +2,7 @@ import { useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import { useCurrencies } from '@/api/currency';
-import { OtpInput } from '@/components/OtpInput';
+import { OtpInput, OTP_LENGTH } from '@/components/OtpInput';
 import { TotpEnrollment } from '@/components/twoFactor/TotpEnrollment';
 import { WarningCallout } from '@/components/twoFactor/WarningCallout';
 import { AuthAnimatedTitle } from '@/pages/auth/components/AnimatedTitle';
@@ -14,7 +14,7 @@ import { AuthTextField } from '@/pages/auth/components/fields/TextField';
 import { PasswordRequirements } from '@/pages/auth/components/feedback/PasswordRequirements';
 import { AUTH_VIEW_TRANSITION, SIGNUP_FIELD_ANIMATION } from '@/pages/auth/constants/authAnimations';
 import { useAuthFormWorkflow } from '@/pages/auth/hooks/useAuthFormWorkflow';
-import { MFA_CODE_LENGTH, getAuthMode } from '@/pages/auth/utils/authForm';
+import { getAuthMode } from '@/pages/auth/utils/authForm';
 
 const DETECTED_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
@@ -147,7 +147,7 @@ const AuthPage = () => {
                   type="submit"
                   disabled={
                     mfaSubmitting ||
-                    (mfaUseRecoveryCode ? mfaCode.trim().length === 0 : mfaCode.length < MFA_CODE_LENGTH)
+                    (mfaUseRecoveryCode ? mfaCode.trim().length === 0 : mfaCode.length < OTP_LENGTH)
                   }
                   className={`app-primary-button transition-all duration-300 ${
                     mfaSubmitting ? 'app-primary-button-loading' : 'w-full'

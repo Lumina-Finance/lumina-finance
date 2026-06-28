@@ -32,7 +32,6 @@ const AUTH_FIELD_ERROR_KEYS: ReadonlySet<keyof AuthFormValues> = new Set([
 export const LOCKOUT_KEY = 'lumina:auth_lockout'
 export const LOCKOUT_MS = 30 * 60 * 1000 + 30 * 1000
 export const FADE_OUT_MS = 300
-export const MFA_CODE_LENGTH = 6
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 

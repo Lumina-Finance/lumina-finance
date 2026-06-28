@@ -3,12 +3,12 @@ import { useNavigate } from 'react-router-dom'
 import { animate } from 'motion/react'
 import { forgotPassword, isMfaRequired, type AuthResponse, type LoginResult } from '@/api/auth'
 import type { Currency } from '@/api/currency'
+import { OTP_LENGTH } from '@/components/OtpInput'
 import { useAuth } from '@/hooks/useAuth'
 import { delayToMinimum } from '@/utils/timing'
 import {
   FADE_OUT_MS,
   LOCKOUT_KEY,
-  MFA_CODE_LENGTH,
   buildInitialAuthForm,
   buildLoginPayload,
   buildSignupPayload,
@@ -245,7 +245,7 @@ export function useAuthFormWorkflow({
 
     // A recovery code is a free-form string while an authenticator code is a fixed-length number
     const code = mfaUseRecoveryCode ? mfaCode.trim() : mfaCode
-    const codeReady = mfaUseRecoveryCode ? code.length > 0 : code.length >= MFA_CODE_LENGTH
+    const codeReady = mfaUseRecoveryCode ? code.length > 0 : code.length >= OTP_LENGTH
     if (!mfaToken || !codeReady) return
 
     setMfaSubmitting(true)
