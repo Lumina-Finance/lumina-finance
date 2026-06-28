@@ -1,5 +1,10 @@
 import { useState } from 'react'
-import { useDisableTotp, useRegenerateRecoveryCodes, useTotpStatus } from '@/api/twoFactor'
+import {
+  useConfirmRecoveryCodes,
+  useDisableTotp,
+  useRegenerateRecoveryCodes,
+  useTotpStatus,
+} from '@/api/twoFactor'
 import type { StepUpCredentials } from '@/components/twoFactor/StepUpModal'
 
 type TwoFactorModal = 'none' | 'manage' | 'enable' | 'disable' | 'regenerate'
@@ -12,6 +17,7 @@ export function useTwoFactorManagement() {
   const status = useTotpStatus()
   const disable = useDisableTotp()
   const regenerate = useRegenerateRecoveryCodes()
+  const confirmCodes = useConfirmRecoveryCodes()
   const [openModal, setOpenModal] = useState<TwoFactorModal>('none')
   const [regeneratedCodes, setRegeneratedCodes] = useState<string[] | null>(null)
 
@@ -26,12 +32,20 @@ export function useTwoFactorManagement() {
   }
 
   /**
-   * Rotates the recovery codes, then reveals the new batch once the step-up succeeds
+   * Stages a fresh batch and reveals it once the step-up succeeds, leaving the active codes live
    */
   async function confirmRegenerate({ password, code }: StepUpCredentials) {
     const result = await regenerate.mutateAsync({ password, code })
     setRegeneratedCodes(result.recovery_codes)
     setOpenModal('none')
+  }
+
+  /**
+   * Activates the staged batch after the user acknowledges it, then closes the codes modal
+   */
+  async function acknowledgeRegeneratedCodes() {
+    await confirmCodes.mutateAsync()
+    setRegeneratedCodes(null)
   }
 
   return {
@@ -46,6 +60,7 @@ export function useTwoFactorManagement() {
     confirmDisable,
     confirmRegenerate,
     regeneratedCodes,
+    acknowledgeRegeneratedCodes,
     dismissRegeneratedCodes: () => setRegeneratedCodes(null),
   }
 }

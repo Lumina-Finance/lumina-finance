@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { twoFactorKeys } from '@/api/cache/queryKeys';
 import {
   completeTotp,
+  confirmRecoveryCodes,
   confirmTotp,
   disableTotp,
   fetchTotpStatus,
@@ -73,8 +74,15 @@ export function useDisableTotp() {
 }
 
 /**
- * Replaces the recovery codes for the current user
+ * Stages a fresh recovery code batch for the current user
  */
 export function useRegenerateRecoveryCodes() {
   return useMutation({ mutationFn: regenerateRecoveryCodes });
+}
+
+/**
+ * Activates the staged recovery code batch once the user acknowledges it
+ */
+export function useConfirmRecoveryCodes() {
+  return useMutation({ mutationFn: confirmRecoveryCodes });
 }

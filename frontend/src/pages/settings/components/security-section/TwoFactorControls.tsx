@@ -33,6 +33,7 @@ export default function TwoFactorControls() {
     confirmDisable,
     confirmRegenerate,
     regeneratedCodes,
+    acknowledgeRegeneratedCodes,
     dismissRegeneratedCodes,
   } = useTwoFactorManagement()
 
@@ -101,6 +102,7 @@ export default function TwoFactorControls() {
       <RecoveryCodesModal
         open={regeneratedCodes !== null}
         codes={regeneratedCodes}
+        onConfirm={acknowledgeRegeneratedCodes}
         onClose={dismissRegeneratedCodes}
       />
     </>

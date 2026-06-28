@@ -49,11 +49,18 @@ export function disableTotp(payload: StepUpPayload) {
 }
 
 /**
- * Replaces the recovery codes after a step-up reauthentication
+ * Stages a fresh recovery code batch after a step-up reauthentication, leaving the active codes live
  */
 export function regenerateRecoveryCodes(payload: StepUpPayload) {
   return authenticatedFetch<RecoveryCodesResponse>('/auth/2fa/recovery-codes', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
+}
+
+/**
+ * Activates the staged recovery code batch once the user acknowledges it
+ */
+export function confirmRecoveryCodes() {
+  return authenticatedFetch<void>('/auth/2fa/recovery-codes/confirm', { method: 'POST' });
 }

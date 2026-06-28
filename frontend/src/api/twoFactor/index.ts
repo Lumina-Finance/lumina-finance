@@ -8,6 +8,7 @@ export type {
 
 export {
   completeTotp,
+  confirmRecoveryCodes,
   confirmTotp,
   disableTotp,
   fetchTotpStatus,
@@ -17,6 +18,7 @@ export {
 
 export {
   useCompleteTotp,
+  useConfirmRecoveryCodes,
   useConfirmTotp,
   useDisableTotp,
   useRegenerateRecoveryCodes,
