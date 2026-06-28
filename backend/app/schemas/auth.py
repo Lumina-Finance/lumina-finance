@@ -111,13 +111,6 @@ class ResetPasswordRequest(BaseModel):
         return validate_password_strength(v)
 
 
-class TokenResponse(BaseModel):
-    """Access token response payload"""
-
-    access_token: str
-    token_type: str = "bearer"
-
-
 class UserInfo(BaseModel):
     """Minimal user info returned alongside auth responses"""
 

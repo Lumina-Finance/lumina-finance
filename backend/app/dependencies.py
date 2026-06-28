@@ -28,7 +28,7 @@ _current_session_id: ContextVar[uuid.UUID | None] = ContextVar("current_session_
 
 
 def get_current_session_id() -> uuid.UUID | None:
-    """Return the authenticated session id for the current request."""
+    """Return the authenticated session id for the current request"""
     return _current_session_id.get()
 
 
@@ -36,22 +36,21 @@ async def get_authenticated_user(
     credentials: Annotated[HTTPAuthorizationCredentials, Depends(_security)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> User:
-    """Extract and validate the access JWT from the Authorization header.
+    """Validate the access JWT and load the user, without enforcing the re-enrolment restriction
 
-    Decodes the Bearer token using the access public key, verifies the access
-    token and session are allowlisted, then loads the corresponding user from
-    the database. This resolver does not enforce the re-enrolment restriction, so
-    only the routes a restricted session may reach should depend on it directly.
+    Decodes the bearer token with the access public key, checks the access token and session are
+    allowlisted, then loads the user. Only the routes a restricted session may reach should depend
+    on this directly, since get_current_user adds the restriction check
 
     Args:
-        credentials: Bearer token extracted from the Authorization header.
-        db: Async database session.
+        credentials: Bearer token from the Authorization header
+        db: Async database session
 
     Returns:
-        The authenticated User.
+        The authenticated user
 
     Raises:
-        HTTPException 401: Token is missing, invalid, expired, not allowlisted, or user not found.
+        HTTPException 401: Token is missing, invalid, expired, not allowlisted, or the user is gone
     """
     try:
         payload = jwt.decode(
@@ -120,19 +119,19 @@ async def get_authenticated_user(
 
 
 async def get_current_user(user: Annotated[User, Depends(get_authenticated_user)]) -> User:
-    """Resolve the authenticated user and refuse a session pending TOTP re-enrolment.
+    """Resolve the authenticated user and refuse a session pending TOTP re-enrolment
 
-    This is the default for protected routes, so a recovery-code login can reach only the
-    re-enrolment endpoints until the user confirms a fresh authenticator.
+    The default for protected routes, so a recovery-code login can reach only the re-enrolment
+    endpoints until a fresh authenticator is confirmed
 
     Args:
-        user: Authenticated user from get_authenticated_user.
+        user: Authenticated user from get_authenticated_user
 
     Returns:
-        The authenticated User.
+        The authenticated user
 
     Raises:
-        HTTPException 403: The session must re-enrol TOTP before doing anything else.
+        HTTPException 403: The session must re-enrol TOTP first
     """
     if user.totp_reenrollment_required:
         raise HTTPException(

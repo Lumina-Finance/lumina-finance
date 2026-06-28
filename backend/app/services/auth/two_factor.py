@@ -30,8 +30,8 @@ async def verify_login_second_factor(db: AsyncSession, user_id: uuid.UUID, code:
     """Verify the second factor presented at login
 
     A valid TOTP code passes login unchanged. A recovery code instead is treated as a lost
-    authenticator: it is consumed, the TOTP secret is revoked, and re-enrolment is required, so the
-    session is held to the re-enrol flow until a fresh authenticator is confirmed. The caller commits
+    authenticator: it is consumed, the TOTP secret is revoked, and re-enrolment is required. The
+    caller commits, since revoking the secret and setting the flag belong to its transaction
 
     Args:
         db: Active database session
@@ -112,7 +112,7 @@ async def disable_two_factor(db: AsyncSession, user: User, password: str, code: 
         db: Active database session
         user: Authenticated user disabling two-factor
         password: Account password
-        code: A current TOTP code or a recovery code
+        code: A current TOTP code
 
     Raises:
         HTTPException: Two-factor is not enabled, or the step-up check fails
