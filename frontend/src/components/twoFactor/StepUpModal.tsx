@@ -1,11 +1,7 @@
 import { useState } from 'react';
-import { createPortal } from 'react-dom';
-import { AnimatePresence, motion } from 'motion/react';
-import { OtpInput } from '@/components/OtpInput';
+import { OtpInput, OTP_LENGTH } from '@/components/OtpInput';
+import { TwoFactorModalShell } from '@/components/twoFactor/TwoFactorModalShell';
 import { delayToMinimum } from '@/utils/timing';
-
-const OTP_LENGTH = 6;
-const EASE = [0.25, 0.1, 0.25, 1] as const;
 
 export interface StepUpCredentials {
   /** Empty when the modal does not collect a password */
@@ -83,74 +79,50 @@ export function StepUpModal({
   };
 
   /**
-   * Closes the modal unless a verification is in flight
+   * Resets the inputs as the modal closes
    */
   const handleClose = () => {
-    if (verifying) return;
     reset();
     onClose();
   };
 
-  return createPortal(
-    <AnimatePresence>
-      {open && (
-        <motion.div
-          className="app-modal-backdrop z-50"
-          onClick={handleClose}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.2 }}
-        >
-          <motion.div
-            role="dialog"
-            aria-modal="true"
-            className="app-modal-panel w-full max-w-sm space-y-5 p-6"
-            onClick={(event) => event.stopPropagation()}
-            initial={{ opacity: 0, scale: 0.96, y: 12 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.96, y: 12 }}
-            transition={{ duration: 0.25, ease: EASE }}
-          >
-            <div className="space-y-1">
-              <h3 className="text-base font-semibold">{title}</h3>
-              <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                {description}
-              </p>
-            </div>
+  return (
+    <TwoFactorModalShell open={open} onClose={handleClose} closeDisabled={verifying}>
+      <div className="space-y-1">
+        <h3 className="text-base font-semibold">{title}</h3>
+        <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+          {description}
+        </p>
+      </div>
 
-            {requirePassword && (
-              <input
-                className="app-input w-full"
-                type="password"
-                placeholder="Current password"
-                autoComplete="current-password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                autoFocus
-              />
-            )}
-
-            <OtpInput value={otp} onChange={setOtp} disabled={verifying} autoFocus={!requirePassword} />
-
-            {error && (
-              <p className="text-center text-sm" style={{ color: 'var(--app-negative)' }}>
-                {error}
-              </p>
-            )}
-
-            <button
-              type="button"
-              onClick={handleVerify}
-              disabled={!canSubmit || verifying}
-              className={`${danger ? 'app-danger-button' : 'app-primary-button'} w-full`}
-            >
-              {verifying ? <div className="app-spinner" /> : confirmLabel}
-            </button>
-          </motion.div>
-        </motion.div>
+      {requirePassword && (
+        <input
+          className="app-input w-full"
+          type="password"
+          placeholder="Current password"
+          autoComplete="current-password"
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+          autoFocus
+        />
       )}
-    </AnimatePresence>,
-    document.body,
+
+      <OtpInput value={otp} onChange={setOtp} disabled={verifying} autoFocus={!requirePassword} />
+
+      {error && (
+        <p className="text-center text-sm" style={{ color: 'var(--app-negative)' }}>
+          {error}
+        </p>
+      )}
+
+      <button
+        type="button"
+        onClick={handleVerify}
+        disabled={!canSubmit || verifying}
+        className={`${danger ? 'app-danger-button' : 'app-primary-button'} w-full`}
+      >
+        {verifying ? <div className="app-spinner" /> : confirmLabel}
+      </button>
+    </TwoFactorModalShell>
   );
 }
