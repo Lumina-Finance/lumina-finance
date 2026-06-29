@@ -1,6 +1,8 @@
 export type { Passkey, PasskeyConfig, RegisterPasskeyPayload } from '@/api/passkeys/types';
 
 export {
+  authenticatePasskey,
+  fetchPasskeyAuthenticationOptions,
   fetchPasskeyConfig,
   fetchPasskeyRegistrationOptions,
   fetchPasskeys,
@@ -10,6 +12,7 @@ export {
 } from '@/api/passkeys/requests';
 
 export {
+  useAuthenticatePasskey,
   usePasskeyConfig,
   usePasskeys,
   useRegisterPasskey,

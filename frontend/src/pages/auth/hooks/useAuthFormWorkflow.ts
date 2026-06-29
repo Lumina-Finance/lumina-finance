@@ -3,8 +3,11 @@ import { useNavigate } from 'react-router-dom'
 import { animate } from 'motion/react'
 import { forgotPassword, isMfaRequired, type AuthResponse, type LoginResult } from '@/api/auth'
 import type { Currency } from '@/api/currency'
+import { useAuthenticatePasskey, usePasskeyConfig } from '@/api/passkeys'
 import { OTP_LENGTH } from '@/components/OtpInput'
 import { useAuth } from '@/hooks/useAuth'
+import { getPasskeySignInMessage, isPasskeyCeremonyCancelled } from '@/utils/passkeyErrors'
+import { assessPasskeySupport } from '@/utils/passkeySupport'
 import { delayToMinimum } from '@/utils/timing'
 import {
   FADE_OUT_MS,
@@ -46,6 +49,8 @@ export function useAuthFormWorkflow({
   mode,
 }: UseAuthFormWorkflowParams) {
   const { login, verifyMfa, signup, setSession, primeAccessToken } = useAuth()
+  const passkeyConfig = usePasskeyConfig()
+  const passkeySignIn = useAuthenticatePasskey()
   const navigate = useNavigate()
   const pendingAuthRef = useRef<AuthResponse | null>(null)
   const [form, setForm] = useState<AuthFormValues>(() => buildInitialAuthForm(detectedTimezone))
@@ -67,6 +72,11 @@ export function useAuthFormWorkflow({
   const currencyPlaceholder = getCurrencyPlaceholder(currenciesError, currencies.length)
   const displayError = getDisplayAuthError(error, mode, currenciesError, currencies.length)
   const submitDisabled = isAuthSubmitDisabled(submitting, fieldErrors, mode, currencies.length)
+
+  // The passkey button only shows where a ceremony can actually run, so an unsupported origin such as
+  // a bare IP simply offers password login instead of a button that always fails
+  const canUsePasskeys =
+    passkeyConfig.data !== undefined && assessPasskeySupport(passkeyConfig.data.rp_id).supported
 
   /**
    * Returns the remaining local lockout time and clears expired lockout state
@@ -225,6 +235,31 @@ export function useAuthFormWorkflow({
   }
 
   /**
+   * Signs in with a passkey, committing the session when the assertion verifies
+   *
+   * A user-verified passkey is complete authentication on its own, so this skips the second-factor
+   * step entirely. A cancelled prompt is left silent rather than shown as an error
+   */
+  const handlePasskeySignIn = async () => {
+    setError('')
+
+    let res: AuthResponse
+    try {
+      res = await passkeySignIn.mutateAsync()
+    } catch (err) {
+      if (isPasskeyCeremonyCancelled(err)) return
+      setError(getPasskeySignInMessage(err))
+      return
+    }
+
+    if (containerRef.current) {
+      await animate(containerRef.current, { opacity: 0 }, { duration: FADE_OUT_MS / 1000 })
+    }
+    setSession(res)
+    navigate('/', { replace: true })
+  }
+
+  /**
    * Leaves the signup 2FA step for the app, whether the user enrolled or skipped
    */
   const finishEnrollment = async () => {
@@ -311,6 +346,9 @@ export function useAuthFormWorkflow({
     submitting,
     switchMode,
     touched,
+    canUsePasskeys,
+    handlePasskeySignIn,
+    passkeySigningIn: passkeySignIn.isPending,
     mfaActive,
     mfaCode,
     setMfaCode,

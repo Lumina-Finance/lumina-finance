@@ -1,7 +1,9 @@
-import { startRegistration } from '@simplewebauthn/browser';
+import { startAuthentication, startRegistration } from '@simplewebauthn/browser';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { passkeyKeys } from '@/api/cache/queryKeys';
 import {
+  authenticatePasskey,
+  fetchPasskeyAuthenticationOptions,
   fetchPasskeyConfig,
   fetchPasskeyRegistrationOptions,
   fetchPasskeys,
@@ -22,6 +24,22 @@ export function usePasskeyConfig() {
     queryFn: fetchPasskeyConfig,
     staleTime: Infinity,
     refetchOnWindowFocus: false,
+  });
+}
+
+/**
+ * Runs the full passwordless sign-in ceremony, resolving to the new session
+ *
+ * The browser prompt sits between the options and verify requests so the assertion answers a challenge
+ * this server issued. The caller commits the returned session
+ */
+export function useAuthenticatePasskey() {
+  return useMutation({
+    mutationFn: async () => {
+      const optionsJSON = await fetchPasskeyAuthenticationOptions();
+      const credential = await startAuthentication({ optionsJSON });
+      return authenticatePasskey(credential);
+    },
   });
 }
 

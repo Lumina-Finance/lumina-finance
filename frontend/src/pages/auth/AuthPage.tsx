@@ -1,5 +1,6 @@
 import { useRef } from 'react';
 import { useLocation } from 'react-router-dom';
+import { KeyRound } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useCurrencies } from '@/api/currency';
 import { OtpInput, OTP_LENGTH } from '@/components/OtpInput';
@@ -52,6 +53,9 @@ const AuthPage = () => {
     submitting,
     switchMode,
     touched,
+    canUsePasskeys,
+    handlePasskeySignIn,
+    passkeySigningIn,
     mfaActive,
     mfaCode,
     setMfaCode,
@@ -303,6 +307,34 @@ const AuthPage = () => {
                   {submitting ? <div className="app-spinner" /> : submitLabel}
                 </button>
               </div>
+
+              {isLogin && canUsePasskeys && (
+                <div className="mt-4 space-y-4">
+                  <div className="flex items-center gap-3">
+                    <span className="h-px flex-1" style={{ backgroundColor: 'var(--app-border)' }} />
+                    <span className="text-xs" style={{ color: 'var(--app-text-subtle)' }}>
+                      or
+                    </span>
+                    <span className="h-px flex-1" style={{ backgroundColor: 'var(--app-border)' }} />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handlePasskeySignIn}
+                    disabled={passkeySigningIn}
+                    className="app-secondary-button flex w-full items-center justify-center gap-2"
+                  >
+                    {passkeySigningIn ? (
+                      <div className="app-spinner" />
+                    ) : (
+                      <>
+                        <KeyRound size={16} aria-hidden />
+                        Sign in with a passkey
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
 
               <p className="mt-5 text-center text-sm" style={{ color: 'var(--app-text-muted)' }}>
                 {switchPrompt}
