@@ -10,6 +10,7 @@ from app.dependencies import get_authenticated_user, get_current_session_id, get
 from app.models.user import User
 from app.routes.auth.jwks_helpers import build_jwks_response
 from app.routes.auth.logout_helpers import logout_auth_session
+from app.routes.auth.passkeys import router as passkeys_router
 from app.routes.auth.refresh_helpers import refresh_auth_tokens
 from app.routes.auth.token_helpers import (
     complete_mfa_challenge,
@@ -31,7 +32,6 @@ from app.schemas.auth import (
     TotpSetupResponse,
     TotpStatusResponse,
 )
-from app.services.auth.account_lockout import get_password_credential, reset_failed_attempts
 from app.services.auth import (
     begin_totp_setup,
     change_password,
@@ -47,10 +47,14 @@ from app.services.auth import (
     reset_password,
     signup,
 )
+from app.services.auth.account_lockout import get_password_credential, reset_failed_attempts
 
 _security = HTTPBearer(auto_error=False)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+# Passkey registration and management share the /auth prefix through their own router
+router.include_router(passkeys_router)
 
 
 @router.post("/signup", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)

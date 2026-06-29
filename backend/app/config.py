@@ -154,6 +154,9 @@ WEBAUTHN_RP_ID = os.getenv("WEBAUTHN_RP_ID", "").strip() or (urlparse(APP_URL).h
 # Origins a passkey ceremony is accepted from, defaulting to the app origin
 WEBAUTHN_ORIGINS = _unique_values([o for o in (_optional_csv_env("WEBAUTHN_ORIGINS") or [APP_URL]) if o])
 
+# A ceremony challenge is short-lived since it only has to survive one round trip to the authenticator
+WEBAUTHN_CHALLENGE_EXPIRE_SECONDS = int(os.getenv("WEBAUTHN_CHALLENGE_EXPIRE_SECONDS", "300"))
+
 # --- FX ---
 
 FRANKFURTER_URL = os.getenv("FRANKFURTER_URL", "https://api.frankfurter.dev/v2").strip().rstrip("/")

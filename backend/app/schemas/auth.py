@@ -3,6 +3,7 @@
 import re
 import uuid
 from datetime import datetime
+from typing import Any
 from zoneinfo import available_timezones
 
 from pydantic import BaseModel, EmailStr, field_validator
@@ -11,6 +12,9 @@ _VALID_TIMEZONES = available_timezones()
 
 _MIN_PASSWORD_LENGTH = 12
 _MAX_PASSWORD_LENGTH = 128
+
+# Matches the name column width on webauthn_credentials so the label always persists
+_MAX_PASSKEY_NAME_LENGTH = 100
 _UPPERCASE_PATTERN = re.compile(r"[A-Z]")
 _DIGIT_PATTERN = re.compile(r"\d")
 _SPECIAL_CHARACTER_PATTERN = re.compile(r"[^A-Za-z0-9]")
@@ -186,3 +190,59 @@ class TotpStatusResponse(BaseModel):
     """Whether the current user has confirmed two-factor authentication"""
 
     totp_enabled: bool
+
+
+def validate_passkey_name(value: str) -> str:
+    """Trim a passkey label and reject one that is empty or too long for the column"""
+    trimmed = value.strip()
+    if not trimmed:
+        msg = "Passkey name cannot be empty"
+        raise ValueError(msg)
+    if len(trimmed) > _MAX_PASSKEY_NAME_LENGTH:
+        msg = f"Passkey name must be at most {_MAX_PASSKEY_NAME_LENGTH} characters"
+        raise ValueError(msg)
+    return trimmed
+
+
+class PasskeyConfigResponse(BaseModel):
+    """Public passkey settings the client needs before starting a ceremony"""
+
+    rp_id: str  # relying party id the browser binds a passkey to, blank when passkeys are unconfigured
+
+
+class PasskeyRegisterRequest(BaseModel):
+    """A finished registration ceremony paired with the label to store it under"""
+
+    name: str
+
+    # The authenticator's attestation response, passed straight to the WebAuthn library to verify
+    credential: dict[str, Any]
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, v: str) -> str:
+        """Normalize the label at the API boundary"""
+        return validate_passkey_name(v)
+
+
+class PasskeyRenameRequest(BaseModel):
+    """A new label for an existing passkey"""
+
+    name: str
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, v: str) -> str:
+        """Normalize the label at the API boundary"""
+        return validate_passkey_name(v)
+
+
+class PasskeySummary(BaseModel):
+    """A registered passkey as shown in the security settings list"""
+
+    id: uuid.UUID
+    name: str
+    created_at: datetime
+    last_used_at: datetime | None
+
+    model_config = {"from_attributes": True}
