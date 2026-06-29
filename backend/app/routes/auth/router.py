@@ -39,6 +39,7 @@ from app.services.auth import (
     confirm_recovery_codes,
     confirm_totp_enrollment,
     disable_two_factor,
+    is_passkey_registered,
     is_totp_enabled,
     issue_mfa_challenge,
     login,
@@ -112,12 +113,19 @@ async def login_route(
     await prune_stale_passkey_staging(db, user.id)
     await db.commit()
 
-    # A confirmed second factor, or a pending re-enrolment whose only key is a recovery code, holds
-    # back tokens until the verify endpoint clears the challenge
+    # Any confirmed second factor, or a pending re-enrolment whose only key is a recovery code, holds
+    # back tokens until the verify endpoint clears the challenge. A passkey is the preferred factor when
+    # present, with a recovery code the only path once no factor remains
     totp_enabled = await is_totp_enabled(db, user.id)
-    if totp_enabled or user.totp_reenrollment_required:
+    passkey_available = await is_passkey_registered(db, user.id)
+    if totp_enabled or passkey_available or user.totp_reenrollment_required:
         challenge_token = await issue_mfa_challenge(db, user.id)
-        return MfaRequiredResponse(mfa_token=challenge_token, recovery_only=not totp_enabled)
+        return MfaRequiredResponse(
+            mfa_token=challenge_token,
+            totp_enabled=totp_enabled,
+            passkey_available=passkey_available,
+            recovery_only=not totp_enabled and not passkey_available,
+        )
 
     # A login with no second factor is complete here, so clear the shared lockout counter
     credential = await get_password_credential(db, user.id)

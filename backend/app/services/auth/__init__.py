@@ -18,6 +18,7 @@ from app.services.auth.two_factor import (
 from app.services.auth.webauthn import (
     build_passkey_authentication_options,
     build_passkey_registration_options,
+    build_passkey_second_factor_options,
     confirm_passkey_registration,
     is_passkey_registered,
     list_passkeys,
@@ -26,12 +27,14 @@ from app.services.auth.webauthn import (
     remove_passkey,
     rename_passkey,
     verify_passkey_authentication,
+    verify_passkey_second_factor,
 )
 
 __all__ = [
     "begin_totp_setup",
     "build_passkey_authentication_options",
     "build_passkey_registration_options",
+    "build_passkey_second_factor_options",
     "change_password",
     "complete_totp_enrollment",
     "confirm_passkey_registration",
@@ -56,4 +59,5 @@ __all__ = [
     "reset_password",
     "signup",
     "verify_passkey_authentication",
+    "verify_passkey_second_factor",
 ]

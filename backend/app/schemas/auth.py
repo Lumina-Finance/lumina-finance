@@ -176,7 +176,9 @@ class MfaRequiredResponse(BaseModel):
 
     mfa_required: bool = True
     mfa_token: str  # short-lived challenge token exchanged at the verify endpoint
-    recovery_only: bool = False  # true once the authenticator is revoked, so only a recovery code works
+    totp_enabled: bool = False  # an authenticator code can be used
+    passkey_available: bool = False  # a passkey can be used, the preferred factor when present
+    recovery_only: bool = False  # no usable factor remains, so only a recovery code works
 
 
 class MfaVerifyRequest(BaseModel):
@@ -229,6 +231,19 @@ class PasskeyAuthenticationRequest(BaseModel):
     """A finished sign-in ceremony to verify"""
 
     # The authenticator's assertion response, passed straight to the WebAuthn library to verify
+    credential: dict[str, Any]
+
+
+class PasskeyMfaOptionsRequest(BaseModel):
+    """The login challenge token whose user a passkey second-factor ceremony is scoped to"""
+
+    mfa_token: str
+
+
+class PasskeyMfaVerifyRequest(BaseModel):
+    """A passkey assertion answering the second-factor step of a password login"""
+
+    mfa_token: str
     credential: dict[str, Any]
 
 

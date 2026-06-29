@@ -456,3 +456,76 @@ async def test_login_prunes_stale_passkey_staging(client):
         )
     assert staged is None
     assert pending is None
+
+
+async def _login(client, email: str = SIGNUP_PAYLOAD["email"]):
+    """Submit the password login for a seeded user"""
+    return await client.post("/auth/login", json={"email": email, "password": SIGNUP_PAYLOAD["password"]})
+
+
+async def test_login_requires_passkey_second_factor(client):
+    """A user with a passkey but no TOTP is challenged for the passkey at login"""
+    signup = await _create_user(client)
+    await _seed_passkey(signup.json()["user"]["id"], b"login-2fa-key")
+
+    login = await _login(client)
+    assert login.status_code == 200
+    body = login.json()
+    assert body["mfa_required"] is True
+    assert body["passkey_available"] is True
+    assert body["totp_enabled"] is False
+    assert body["recovery_only"] is False
+
+
+async def test_passkey_second_factor_completes_login(client, monkeypatch):
+    """The scoped passkey ceremony completes a password login and advances the counter"""
+    signup = await _create_user(client)
+    user_id = signup.json()["user"]["id"]
+    credential_id = b"second-factor-key"
+    await _seed_passkey(user_id, credential_id)
+
+    mfa_token = (await _login(client)).json()["mfa_token"]
+
+    options = (await client.post("/auth/passkeys/mfa/options", json={"mfa_token": mfa_token})).json()
+    assert bytes_to_base64url(credential_id) in {entry["id"] for entry in options["allowCredentials"]}
+
+    assertion = _build_assertion(options["challenge"], credential_id, user_id)
+    monkeypatch.setattr(
+        webauthn_service,
+        "verify_authentication_response",
+        lambda **_: SimpleNamespace(new_sign_count=9),
+    )
+
+    verified = await client.post(
+        "/auth/passkeys/mfa/verify", json={"mfa_token": mfa_token, "credential": assertion}
+    )
+    assert verified.status_code == 200
+    assert verified.json()["user"]["id"] == user_id
+
+    stored = await _read_passkey(credential_id)
+    assert stored.sign_count == 9
+
+
+async def test_mfa_options_rejects_invalid_token(client):
+    """Passkey second-factor options are refused for a token that does not verify"""
+    response = await client.post("/auth/passkeys/mfa/options", json={"mfa_token": "not-a-token"})
+    assert response.status_code == 401
+
+
+async def test_passkey_second_factor_rejects_another_users_passkey(client):
+    """An assertion signed by a different user's passkey cannot satisfy the challenge"""
+    signup = await _create_user(client)
+    user_id = signup.json()["user"]["id"]
+    await _seed_passkey(user_id, b"owner-key")
+    other = await _create_second_user(client)
+    await _seed_passkey(other.json()["user"]["id"], b"foreign-key")
+
+    mfa_token = (await _login(client)).json()["mfa_token"]
+    options = (await client.post("/auth/passkeys/mfa/options", json={"mfa_token": mfa_token})).json()
+
+    # Present the other user's credential against this user's challenge
+    assertion = _build_assertion(options["challenge"], b"foreign-key", user_id)
+    response = await client.post(
+        "/auth/passkeys/mfa/verify", json={"mfa_token": mfa_token, "credential": assertion}
+    )
+    assert response.status_code == 401

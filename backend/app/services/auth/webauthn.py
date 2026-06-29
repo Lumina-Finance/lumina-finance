@@ -341,6 +341,86 @@ async def verify_passkey_authentication(db: AsyncSession, credential: dict) -> U
     return user
 
 
+async def build_passkey_second_factor_options(db: AsyncSession, user_id: uuid.UUID) -> str:
+    """Begin a passkey second-factor step for a user who has already passed their password
+
+    The user's own passkeys are listed so the browser prompts for one of them, and the challenge is
+    scoped to the user since the login challenge token already established who they are
+
+    Args:
+        db: Active database session
+        user_id: User completing the second factor
+
+    Returns:
+        The ceremony options serialized as JSON for the browser
+    """
+    await _delete_expired_challenges(db)
+
+    allow_credentials = [
+        PublicKeyCredentialDescriptor(
+            id=passkey.credential_id,
+            transports=_known_transports(passkey.transports.split(_TRANSPORT_SEPARATOR)) if passkey.transports else None,
+        )
+        for passkey in await list_passkeys(db, user_id)
+    ]
+
+    # User verification is preferred rather than required, since the password already proved knowledge
+    # and the passkey only has to prove possession here
+    options = generate_authentication_options(
+        rp_id=WEBAUTHN_RP_ID,
+        allow_credentials=allow_credentials,
+        user_verification=UserVerificationRequirement.PREFERRED,
+    )
+
+    expires_at = datetime.now(UTC) + timedelta(seconds=WEBAUTHN_CHALLENGE_EXPIRE_SECONDS)
+    db.add(WebauthnChallenge(
+        challenge=options.challenge,
+        user_id=user_id,
+        purpose=_AUTHENTICATION_PURPOSE,
+        expires_at=expires_at,
+    ))
+    await db.commit()
+
+    return options_to_json(options)
+
+
+async def verify_passkey_second_factor(db: AsyncSession, user_id: uuid.UUID, credential: dict) -> None:
+    """Verify a passkey assertion presented as the second factor of a password login
+
+    The assertion must answer the user's own scoped challenge and be signed by one of their passkeys.
+    Unlike a passwordless sign-in this does not adopt an identity or issue tokens, since the caller
+    already holds the login challenge and commits the surrounding transaction
+
+    Args:
+        db: Active database session
+        user_id: User the login challenge belongs to
+        credential: Assertion response returned by the browser
+
+    Raises:
+        HTTPException: The challenge is unknown or expired, the passkey is not the user's, or the
+            assertion fails to verify
+    """
+    challenge = await _claim_authentication_challenge(db, credential, user_id=user_id)
+    passkey = await _resolve_credential(db, credential)
+    if passkey.user_id != user_id:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Passkey sign-in failed")
+
+    try:
+        verification = verify_authentication_response(
+            credential=credential,
+            expected_challenge=challenge,
+            expected_rp_id=WEBAUTHN_RP_ID,
+            expected_origin=WEBAUTHN_ORIGINS,
+            credential_public_key=passkey.public_key,
+            credential_current_sign_count=passkey.sign_count,
+        )
+    except InvalidAuthenticationResponse as error:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Passkey sign-in failed") from error
+
+    passkey.sign_count = verification.new_sign_count
+    passkey.last_used_at = datetime.now(UTC)
+
+
 async def list_passkeys(db: AsyncSession, user_id: uuid.UUID) -> list[WebauthnCredential]:
     """Return the user's active passkeys, newest first
 
@@ -473,15 +553,19 @@ async def _claim_registration_challenge(
     return challenge
 
 
-async def _claim_authentication_challenge(db: AsyncSession, credential: dict) -> bytes:
+async def _claim_authentication_challenge(
+    db: AsyncSession, credential: dict, user_id: uuid.UUID | None = None
+) -> bytes:
     """Consume the stored authentication challenge that the assertion answers
 
-    A usernameless ceremony stores the challenge with no user, so it is claimed by its value alone. The
-    single delete makes it single-use, which is what stops a captured assertion being replayed
+    A usernameless sign-in stores the challenge with no user and is claimed by its value alone, while a
+    second-factor ceremony scopes the challenge to the user it was issued for. The single delete makes
+    it single-use, which is what stops a captured assertion being replayed
 
     Args:
         db: Active database session
         credential: Assertion response returned by the browser
+        user_id: User the challenge must belong to, for a second-factor ceremony
 
     Returns:
         The raw challenge bytes to verify the assertion against
@@ -491,12 +575,15 @@ async def _claim_authentication_challenge(db: AsyncSession, credential: dict) ->
     """
     challenge = _read_challenge_bytes(credential)
 
-    claim_query = delete(WebauthnChallenge).where(
+    conditions = [
         WebauthnChallenge.challenge == challenge,
         WebauthnChallenge.purpose == _AUTHENTICATION_PURPOSE,
         WebauthnChallenge.expires_at > sa_func.now(),
-    )
-    result = await db.execute(claim_query)
+    ]
+    if user_id is not None:
+        conditions.append(WebauthnChallenge.user_id == user_id)
+
+    result = await db.execute(delete(WebauthnChallenge).where(*conditions))
     if result.rowcount != 1:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Passkey challenge expired")
 

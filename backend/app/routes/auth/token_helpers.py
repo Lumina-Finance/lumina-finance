@@ -1,5 +1,6 @@
 """Auth token route helpers"""
 import uuid
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -30,7 +31,7 @@ from app.services.auth.account_lockout import (
     record_failed_attempt,
     reset_failed_attempts,
 )
-from app.services.auth.mfa_challenge import consume_mfa_challenge
+from app.services.auth.mfa_challenge import consume_mfa_challenge, is_mfa_challenge_active
 from app.services.auth.sessions import (
     create_auth_session,
     create_auth_token,
@@ -40,6 +41,7 @@ from app.services.auth.sessions import (
 )
 from app.services.auth.tokens import MFA_CHALLENGE_TOKEN_USE, create_access_token, create_refresh_token
 from app.services.auth.two_factor import verify_login_second_factor
+from app.services.auth.webauthn import verify_passkey_second_factor
 
 _refresh_public_key = load_pem_private_key(JWT_REFRESH_PRIVATE_KEY.encode(), password=None).public_key()
 _access_public_key = load_pem_private_key(JWT_ACCESS_PRIVATE_KEY.encode(), password=None).public_key()
@@ -129,22 +131,59 @@ def _raise_for_token_use(payload: dict[str, Any], expected_token_use: str) -> No
 
 
 async def complete_mfa_challenge(db: AsyncSession, mfa_token: str, code: str) -> User:
-    """Verify a second factor against a challenge token and return the authenticated user
-
-    The challenge is consumed and committed before the code is checked, so a wrong code still
-    spends this single-use token and the user must log in again. A verified code adopts the
-    user's identity to load their row under the self-only policy
+    """Complete a second-factor login with an authenticator or recovery code
 
     Args:
         db: Active database session
         mfa_token: Challenge token issued when login required a second factor
-        code: Submitted authenticator code
+        code: Submitted authenticator or recovery code
 
     Returns:
         The user who passed the second factor
 
     Raises:
         HTTPException: The challenge or the code does not verify
+    """
+    return await _complete_mfa_challenge(db, mfa_token, lambda user_id: verify_login_second_factor(db, user_id, code))
+
+
+async def complete_mfa_challenge_with_passkey(db: AsyncSession, mfa_token: str, credential: dict[str, Any]) -> User:
+    """Complete a second-factor login with a passkey assertion
+
+    Args:
+        db: Active database session
+        mfa_token: Challenge token issued when login required a second factor
+        credential: Passkey assertion returned by the browser
+
+    Returns:
+        The user who passed the second factor
+
+    Raises:
+        HTTPException: The challenge or the assertion does not verify
+    """
+    return await _complete_mfa_challenge(db, mfa_token, lambda user_id: verify_passkey_second_factor(db, user_id, credential))
+
+
+async def _complete_mfa_challenge(
+    db: AsyncSession, mfa_token: str, verify_second_factor: Callable[[uuid.UUID], Awaitable[None]]
+) -> User:
+    """Spend the challenge, run the given second-factor check, and return the authenticated user
+
+    The challenge is consumed and committed before the factor is checked, so a wrong factor still
+    spends this single-use token and the user must log in again. The verified subject adopts the user's
+    identity to load their row under the self-only policy, and a wrong factor counts toward the shared
+    lockout while a success clears it
+
+    Args:
+        db: Active database session
+        mfa_token: Challenge token issued when login required a second factor
+        verify_second_factor: Coroutine factory that raises HTTPException unless the factor verifies
+
+    Returns:
+        The user who passed the second factor
+
+    Raises:
+        HTTPException: The challenge or the second factor does not verify
     """
     try:
         payload = decode_mfa_challenge_token(mfa_token)
@@ -158,21 +197,19 @@ async def complete_mfa_challenge(db: AsyncSession, mfa_token: str, code: str) ->
     # transactions below stamp onto their connection for the self-only users policy
     current_user_id_ctx.set(user_id)
 
-    # The lockout counter is shared with the password step, so a code grind trips the same lock
+    # The lockout counter is shared with the password step, so a factor grind trips the same lock
     credential = await get_password_credential(db, user_id)
     if credential is not None and is_account_locked(credential):
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="Account temporarily locked")
 
-    # Consume and commit before checking the code so a wrong code still burns the single-use challenge
+    # Consume and commit before checking the factor so a wrong factor still burns the single-use challenge
     challenge_valid = await consume_mfa_challenge(db, challenge_jti, user_id)
     await db.commit()
     if not challenge_valid:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired challenge")
 
-    # A wrong second factor counts toward the lockout, a recovery code revokes TOTP and flags
-    # re-enrolment, and a success clears the counter, all committed here
     try:
-        await verify_login_second_factor(db, user_id, code)
+        await verify_second_factor(user_id)
     except HTTPException:
         if credential is not None:
             await record_failed_attempt(db, credential)
@@ -188,6 +225,37 @@ async def complete_mfa_challenge(db: AsyncSession, mfa_token: str, code: str) ->
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired challenge")
 
     return user
+
+
+async def get_mfa_challenge_user_id(db: AsyncSession, mfa_token: str) -> uuid.UUID:
+    """Return the user a live challenge token belongs to without spending the challenge
+
+    The passkey second-factor ceremony issues its options before the challenge is consumed, so this
+    validates the signed token and that its challenge is still live, then adopts the identity
+
+    Args:
+        db: Active database session
+        mfa_token: Challenge token issued when login required a second factor
+
+    Returns:
+        The user the challenge was issued to
+
+    Raises:
+        HTTPException: The token is invalid or its challenge is spent or expired
+    """
+    try:
+        payload = decode_mfa_challenge_token(mfa_token)
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired challenge") from None
+
+    user_id = uuid.UUID(payload["sub"])
+    challenge_jti = uuid.UUID(payload["jti"])
+    current_user_id_ctx.set(user_id)
+
+    if not await is_mfa_challenge_active(db, challenge_jti, user_id):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired challenge")
+
+    return user_id
 
 
 async def get_active_token_by_jti(

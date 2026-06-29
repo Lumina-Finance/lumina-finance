@@ -10,11 +10,17 @@ from app.config import WEBAUTHN_RP_ID
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
-from app.routes.auth.token_helpers import issue_and_store_tokens
+from app.routes.auth.token_helpers import (
+    complete_mfa_challenge_with_passkey,
+    get_mfa_challenge_user_id,
+    issue_and_store_tokens,
+)
 from app.schemas.auth import (
     AuthResponse,
     PasskeyAuthenticationRequest,
     PasskeyConfigResponse,
+    PasskeyMfaOptionsRequest,
+    PasskeyMfaVerifyRequest,
     PasskeyRegisterRequest,
     PasskeyRegisterResponse,
     PasskeyRenameRequest,
@@ -23,6 +29,7 @@ from app.schemas.auth import (
 from app.services.auth import (
     build_passkey_authentication_options,
     build_passkey_registration_options,
+    build_passkey_second_factor_options,
     confirm_passkey_registration,
     list_passkeys,
     register_passkey,
@@ -92,6 +99,55 @@ async def authenticate_passkey_route(
         HTTPException: The challenge, passkey, or assertion does not verify
     """
     user = await verify_passkey_authentication(db, data.credential)
+    return await issue_and_store_tokens(db, request, response, user)
+
+
+@router.post("/mfa/options")
+async def passkey_second_factor_options_route(
+    data: PasskeyMfaOptionsRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Begin the passkey second-factor step for a login that passed its password
+
+    The challenge token names the user, so their own passkeys are offered without a session
+
+    Args:
+        data: The login challenge token
+        db: Active database session
+
+    Returns:
+        WebAuthn authentication options as raw JSON
+
+    Raises:
+        HTTPException: The challenge token is invalid or its challenge is spent or expired
+    """
+    user_id = await get_mfa_challenge_user_id(db, data.mfa_token)
+    options_json = await build_passkey_second_factor_options(db, user_id)
+    return Response(content=options_json, media_type=_OPTIONS_MEDIA_TYPE)
+
+
+@router.post("/mfa/verify", response_model=AuthResponse)
+async def verify_passkey_second_factor_route(
+    data: PasskeyMfaVerifyRequest,
+    request: Request,
+    response: Response,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Complete a password login by verifying a passkey as the second factor and issuing tokens
+
+    Args:
+        data: The login challenge token and the passkey assertion
+        request: FastAPI request object
+        response: FastAPI response object for setting the refresh cookie
+        db: Active database session
+
+    Returns:
+        Auth response with user info and access token
+
+    Raises:
+        HTTPException: The challenge or the assertion does not verify
+    """
+    user = await complete_mfa_challenge_with_passkey(db, data.mfa_token, data.credential)
     return await issue_and_store_tokens(db, request, response, user)
 
 

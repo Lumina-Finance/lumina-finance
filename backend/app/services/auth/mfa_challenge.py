@@ -2,7 +2,7 @@
 
 import uuid
 
-from sqlalchemy import delete
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import func as sa_func
 
@@ -38,6 +38,29 @@ async def issue_mfa_challenge(db: AsyncSession, user_id: uuid.UUID) -> str:
     db.add(MfaChallenge(jti=jti, user_id=user_id, expires_at=expires_at))
     await db.commit()
     return challenge_token
+
+
+async def is_mfa_challenge_active(db: AsyncSession, jti: uuid.UUID, user_id: uuid.UUID) -> bool:
+    """Return whether an unexpired challenge still exists without consuming it
+
+    A passkey second-factor ceremony issues its options before the challenge is spent, so this checks
+    the challenge is still live without claiming it
+
+    Args:
+        db: Active database session
+        jti: Challenge identifier from the verified token claims
+        user_id: User the verified token claims to belong to
+
+    Returns:
+        Whether a matching unexpired challenge exists
+    """
+    active_query = select(MfaChallenge.jti).where(
+        MfaChallenge.jti == jti,
+        MfaChallenge.user_id == user_id,
+        MfaChallenge.expires_at > sa_func.now(),
+    )
+    result = await db.execute(active_query)
+    return result.first() is not None
 
 
 async def consume_mfa_challenge(db: AsyncSession, jti: uuid.UUID, user_id: uuid.UUID) -> bool:
