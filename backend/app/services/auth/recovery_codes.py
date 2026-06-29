@@ -110,7 +110,6 @@ async def has_pending_recovery_codes(db: AsyncSession, user_id: uuid.UUID) -> bo
     Returns:
         Whether at least one pending recovery code exists
     """
-
     # Probe for a single row rather than counting the whole batch
     result = await db.execute(
         select(RecoveryCode.id).where(RecoveryCode.user_id == user_id, RecoveryCode.pending.is_(True)).limit(1)
