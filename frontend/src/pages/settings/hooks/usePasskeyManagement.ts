@@ -55,7 +55,9 @@ export function usePasskeyManagement() {
     passkeys: passkeys.data ?? [],
     registerPasskey,
     isRegistering: register.isPending,
-    renamePasskey: (passkeyId: string, name: string) => rename.mutateAsync({ passkeyId, name }),
+    renamePasskey: async (passkeyId: string, name: string) => {
+      await rename.mutateAsync({ passkeyId, name });
+    },
     removePasskey: (passkeyId: string) => remove.mutateAsync(passkeyId),
     isMutating: rename.isPending || remove.isPending,
     pendingRecoveryCodes,
