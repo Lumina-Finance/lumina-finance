@@ -1,9 +1,9 @@
-import { WebAuthnError } from '@simplewebauthn/browser';
 import { useState } from 'react';
 import type { Passkey } from '@/api/passkeys';
 import { PasskeyRow } from '@/components/passkeys/PasskeyRow';
 import { TwoFactorModalShell } from '@/components/twoFactor/TwoFactorModalShell';
 import { WarningCallout } from '@/components/twoFactor/WarningCallout';
+import { getPasskeyRegistrationMessage } from '@/utils/passkeyErrors';
 import type { PasskeySupport } from '@/utils/passkeySupport';
 
 interface ManagePasskeysDialogProps {
@@ -17,22 +17,6 @@ interface ManagePasskeysDialogProps {
   onRename: (passkeyId: string, name: string) => Promise<void>;
   onRemove: (passkeyId: string) => Promise<void>;
   isMutating: boolean;
-}
-
-/**
- * Turns a failed registration ceremony into a message the user can act on
- *
- * A cancelled or already-registered authenticator are the common cases and read more clearly than the
- * raw library text, while anything else falls back to the server or library message
- */
-function describeRegistrationError(error: unknown): string {
-  if (error instanceof WebAuthnError) {
-    if (error.code === 'ERROR_CEREMONY_ABORTED') return 'Passkey setup was cancelled or timed out.';
-    if (error.code === 'ERROR_AUTHENTICATOR_PREVIOUSLY_REGISTERED') {
-      return 'This device already has a passkey for your account.';
-    }
-  }
-  return error instanceof Error && error.message ? error.message : 'Could not add this passkey.';
 }
 
 /**
@@ -69,7 +53,7 @@ export function ManagePasskeysDialog({
       await onRegister(trimmed);
       setName('');
     } catch (registrationError) {
-      setError(describeRegistrationError(registrationError));
+      setError(getPasskeyRegistrationMessage(registrationError));
     }
   }
 

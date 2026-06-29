@@ -22,3 +22,19 @@ export function getPasskeySignInMessage(error: unknown): string {
   }
   return error instanceof Error && error.message ? error.message : 'Passkey sign-in failed.';
 }
+
+/**
+ * Turns a failed passkey registration into a message the user can act on
+ *
+ * A cancelled prompt and an already-registered authenticator are the common cases and read more
+ * clearly than the raw library text, while anything else falls back to the server or library message
+ */
+export function getPasskeyRegistrationMessage(error: unknown): string {
+  if (error instanceof WebAuthnError) {
+    if (error.code === 'ERROR_CEREMONY_ABORTED') return 'Passkey setup was cancelled or timed out.';
+    if (error.code === 'ERROR_AUTHENTICATOR_PREVIOUSLY_REGISTERED') {
+      return 'This device already has a passkey for your account.';
+    }
+  }
+  return error instanceof Error && error.message ? error.message : 'Could not add this passkey.';
+}
