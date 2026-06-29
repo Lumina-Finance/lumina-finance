@@ -3,6 +3,7 @@ import type React from 'react'
 import SettingsCard from '@/pages/settings/components/Card'
 import SettingsField from '@/pages/settings/components/Field'
 import SettingsSectionHeader from '@/pages/settings/components/SectionHeader'
+import PasskeyControls from '@/pages/settings/components/security-section/PasskeyControls'
 import TwoFactorControls from '@/pages/settings/components/security-section/TwoFactorControls'
 import { NEW_PASSWORD_RULES } from '@/utils/passwordPolicy'
 import type { PasswordFormState } from '@/pages/settings/hooks/useSecuritySettingsForm'
@@ -121,6 +122,10 @@ export default function SecuritySection({
 
             <div className="border-t pt-6" style={{ borderColor: 'var(--app-border)' }}>
               <TwoFactorControls />
+            </div>
+
+            <div className="border-t pt-6" style={{ borderColor: 'var(--app-border)' }}>
+              <PasskeyControls />
             </div>
           </div>
         </SettingsCard>
