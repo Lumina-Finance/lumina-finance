@@ -19,6 +19,7 @@ dependencies = [
     "python-dotenv>=1.2.2",
     "sqlalchemy>=2.0.48",
     "uvicorn>=0.44.0",
+    "webauthn>=2.8.0",
 ]
 
 [dependency-groups]

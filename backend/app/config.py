@@ -2,6 +2,7 @@
 
 import os
 from pathlib import Path
+from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 
@@ -142,6 +143,16 @@ APP_URL = os.getenv("APP_URL", "").strip()
 # APP_URL is the public CORS origin. ALLOWED_ORIGINS appends extra internal origins.
 _configured_origins = [APP_URL, *_optional_csv_env("ALLOWED_ORIGINS")]
 ALLOWED_ORIGINS = _unique_values([origin for origin in _configured_origins if origin]) or ["*"]
+
+# --- WebAuthn ---
+
+# The RP ID is the registrable domain a passkey is bound to and must match the page origin, so a
+# bare IP is invalid and development must run over localhost. It defaults to the APP_URL host
+WEBAUTHN_RP_NAME = os.getenv("WEBAUTHN_RP_NAME", "Lumina Finance").strip()
+WEBAUTHN_RP_ID = os.getenv("WEBAUTHN_RP_ID", "").strip() or (urlparse(APP_URL).hostname or "")
+
+# Origins a passkey ceremony is accepted from, defaulting to the app origin
+WEBAUTHN_ORIGINS = _unique_values([o for o in (_optional_csv_env("WEBAUTHN_ORIGINS") or [APP_URL]) if o])
 
 # --- FX ---
 

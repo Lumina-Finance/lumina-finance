@@ -3,7 +3,18 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import VARCHAR, Boolean, DateTime, ForeignKey, Integer, Text, UniqueConstraint, func
+from sqlalchemy import (
+    VARCHAR,
+    BigInteger,
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Integer,
+    LargeBinary,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import AuthProvider, Base
@@ -90,5 +101,40 @@ class MfaChallenge(Base):
 
     jti: Mapped[uuid.UUID] = mapped_column(primary_key=True)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class WebauthnCredential(Base):
+    """Stores a registered passkey: the public key and signature counter used to verify assertions"""
+
+    __tablename__ = "webauthn_credentials"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    # Raw WebAuthn credential id the authenticator returns, the lookup key during authentication
+    credential_id: Mapped[bytes] = mapped_column(LargeBinary, nullable=False, unique=True)
+    public_key: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)  # COSE public key, not secret
+
+    # Advanced on each use to detect a cloned authenticator replaying an old signature
+    sign_count: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    transports: Mapped[str | None] = mapped_column(Text)  # comma-separated transport hints for the next prompt
+    name: Mapped[str] = mapped_column(VARCHAR(100), nullable=False)  # user-facing label
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class WebauthnChallenge(Base):
+    """Stores a single-use, short-lived passkey ceremony challenge keyed by its random value"""
+
+    __tablename__ = "webauthn_challenges"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    challenge: Mapped[bytes] = mapped_column(LargeBinary, nullable=False, unique=True)
+
+    # Null for a usernameless authentication ceremony, where the user is only known once the assertion resolves
+    user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    purpose: Mapped[str] = mapped_column(VARCHAR(20), nullable=False)  # registration or authentication
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())

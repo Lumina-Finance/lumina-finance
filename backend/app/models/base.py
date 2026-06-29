@@ -17,6 +17,7 @@ class AuthProvider(enum.StrEnum):
     """Authentication provider identifiers"""
 
     PASSWORD = "password"  # noqa: S105 — enum value, not a hardcoded secret
+    WEBAUTHN = "webauthn"
 
 
 class AuthTokenKind(enum.StrEnum):

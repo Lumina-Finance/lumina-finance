@@ -80,6 +80,8 @@ AUTH_TABLES = (
     "mfa_challenges",
     "totp_credentials",
     "recovery_codes",
+    "webauthn_credentials",
+    "webauthn_challenges",
 )
 
 
