@@ -30,7 +30,7 @@ describe('assessPasskeySupport', () => {
   })
 
   it('blocks an insecure context such as IP over HTTP', () => {
-    stubOrigin(false, '10.0.0.100')
+    stubOrigin(false, '192.0.2.10')
     expect(assessPasskeySupport('example.com')).toMatchObject({ supported: false, reason: 'insecure-context' })
   })
 
