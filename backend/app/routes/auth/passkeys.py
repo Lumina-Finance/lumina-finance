@@ -3,25 +3,30 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import WEBAUTHN_RP_ID
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
+from app.routes.auth.token_helpers import issue_and_store_tokens
 from app.schemas.auth import (
+    AuthResponse,
+    PasskeyAuthenticationRequest,
     PasskeyConfigResponse,
     PasskeyRegisterRequest,
     PasskeyRenameRequest,
     PasskeySummary,
 )
 from app.services.auth import (
+    build_passkey_authentication_options,
     build_passkey_registration_options,
     list_passkeys,
     register_passkey,
     remove_passkey,
     rename_passkey,
+    verify_passkey_authentication,
 )
 
 # Browsers reject ceremonies whose options are not raw WebAuthn JSON, so they are returned untouched
@@ -40,6 +45,52 @@ async def passkey_config_route():
         The configured relying party id
     """
     return PasskeyConfigResponse(rp_id=WEBAUTHN_RP_ID)
+
+
+@router.post("/authenticate/options")
+async def passkey_authentication_options_route(
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Begin a passwordless sign-in by returning ceremony options for the browser
+
+    Public and usernameless, so the browser offers any passkey registered for this site
+
+    Args:
+        db: Active database session
+
+    Returns:
+        WebAuthn authentication options as raw JSON
+    """
+    options_json = await build_passkey_authentication_options(db)
+    return Response(content=options_json, media_type=_OPTIONS_MEDIA_TYPE)
+
+
+@router.post("/authenticate", response_model=AuthResponse)
+async def authenticate_passkey_route(
+    data: PasskeyAuthenticationRequest,
+    request: Request,
+    response: Response,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Verify a sign-in assertion and issue a token pair
+
+    A user-verified passkey stands in for both factors, so a verified assertion completes login with
+    no second-factor step
+
+    Args:
+        data: The browser's assertion response
+        request: FastAPI request object
+        response: FastAPI response object for setting the refresh cookie
+        db: Active database session
+
+    Returns:
+        Auth response with user info and access token
+
+    Raises:
+        HTTPException: The challenge, passkey, or assertion does not verify
+    """
+    user = await verify_passkey_authentication(db, data.credential)
+    return await issue_and_store_tokens(db, request, response, user)
 
 
 @router.get("", response_model=list[PasskeySummary])

@@ -1,7 +1,7 @@
-"""Passkey registration and management route tests
+"""Passkey registration, management, and sign-in route tests
 
-The attestation crypto belongs to the WebAuthn library and is verified there, so the registration
-happy path stubs only that one call and exercises the real challenge, storage, and identity logic
+The attestation and assertion crypto belong to the WebAuthn library and are verified there, so the
+happy paths stub only that one call and exercise the real challenge, storage, and identity logic
 """
 
 import json
@@ -269,3 +269,114 @@ async def test_management_requires_authentication(client):
     """Listing passkeys without a token is rejected"""
     response = await client.get("/auth/passkeys")
     assert response.status_code in (401, 403)
+
+
+def _build_assertion(challenge: str, credential_id: bytes, user_id: str) -> dict:
+    """Assemble a sign-in assertion whose client data carries the given challenge"""
+    client_data = {
+        "type": "webauthn.get",
+        "challenge": challenge,
+        "origin": WEBAUTHN_ORIGINS[0],
+    }
+    return {
+        "id": bytes_to_base64url(credential_id),
+        "rawId": bytes_to_base64url(credential_id),
+        "type": "public-key",
+        "response": {
+            "clientDataJSON": bytes_to_base64url(json.dumps(client_data).encode()),
+            "authenticatorData": bytes_to_base64url(b"stub-authenticator-data"),
+            "signature": bytes_to_base64url(b"stub-signature"),
+            "userHandle": bytes_to_base64url(uuid.UUID(user_id).bytes),
+        },
+        "clientExtensionResults": {},
+    }
+
+
+async def _read_passkey(credential_id: bytes) -> WebauthnCredential | None:
+    """Return a stored passkey by its raw credential id"""
+    async with TestSession() as db:
+        return await db.scalar(
+            select(WebauthnCredential).where(WebauthnCredential.credential_id == credential_id)
+        )
+
+
+async def test_authentication_options_persist_unscoped_challenge(client):
+    """The options endpoint is public, requires user verification, and stores a userless challenge"""
+    response = await client.post("/auth/passkeys/authenticate/options")
+    assert response.status_code == 200
+
+    options = response.json()
+    assert "challenge" in options
+    assert options["userVerification"] == "required"
+    assert options["rpId"] == WEBAUTHN_RP_ID
+
+    async with TestSession() as db:
+        rows = list(
+            await db.scalars(
+                select(WebauthnChallenge).where(WebauthnChallenge.purpose == "authentication")
+            )
+        )
+    assert len(rows) == 1
+    assert rows[0].user_id is None
+
+
+async def test_authenticate_signs_in_and_advances_counter(client, monkeypatch):
+    """A verified assertion issues tokens, advances the signature counter, and spends the challenge"""
+    signup = await _create_user(client)
+    user_id = signup.json()["user"]["id"]
+    credential_id = b"sign-in-credential"
+    await _seed_passkey(user_id, credential_id)
+
+    options = (await client.post("/auth/passkeys/authenticate/options")).json()
+    assertion = _build_assertion(options["challenge"], credential_id, user_id)
+
+    # The assertion crypto is the library's responsibility, so only its verdict is stubbed
+    monkeypatch.setattr(
+        webauthn_service,
+        "verify_authentication_response",
+        lambda **_: SimpleNamespace(new_sign_count=7),
+    )
+
+    signed_in = await client.post("/auth/passkeys/authenticate", json={"credential": assertion})
+    assert signed_in.status_code == 200
+    body = signed_in.json()
+    assert body["access_token"]
+    assert body["user"]["id"] == user_id
+
+    stored = await _read_passkey(credential_id)
+    assert stored.sign_count == 7
+    assert stored.last_used_at is not None
+
+    # The challenge is single-use, so replaying the same assertion is refused
+    replay = await client.post("/auth/passkeys/authenticate", json={"credential": assertion})
+    assert replay.status_code == 400
+
+
+async def test_authenticate_rejects_unknown_challenge(client):
+    """An assertion whose challenge was never issued is refused before any verification"""
+    signup = await _create_user(client)
+    user_id = signup.json()["user"]["id"]
+    credential_id = b"unknown-challenge-credential"
+    await _seed_passkey(user_id, credential_id)
+
+    assertion = _build_assertion(bytes_to_base64url(b"never-issued"), credential_id, user_id)
+    response = await client.post("/auth/passkeys/authenticate", json={"credential": assertion})
+    assert response.status_code == 400
+
+
+async def test_authenticate_rejects_unrecognized_credential(client):
+    """A valid challenge with a credential id that matches no stored passkey is refused"""
+    signup = await _create_user(client)
+    user_id = signup.json()["user"]["id"]
+
+    options = (await client.post("/auth/passkeys/authenticate/options")).json()
+    assertion = _build_assertion(options["challenge"], b"no-such-credential", user_id)
+
+    response = await client.post("/auth/passkeys/authenticate", json={"credential": assertion})
+    assert response.status_code == 401
+
+
+async def test_authenticate_rejects_malformed_response(client):
+    """An assertion missing the client data is rejected as malformed"""
+    response = await client.post("/auth/passkeys/authenticate", json={"credential": {"rawId": "x"}})
+    assert response.status_code == 400

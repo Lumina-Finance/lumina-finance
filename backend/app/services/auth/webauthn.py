@@ -13,9 +13,15 @@ from fastapi import HTTPException, status
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import func as sa_func
-from webauthn import generate_registration_options, options_to_json, verify_registration_response
+from webauthn import (
+    generate_authentication_options,
+    generate_registration_options,
+    options_to_json,
+    verify_authentication_response,
+    verify_registration_response,
+)
 from webauthn.helpers import base64url_to_bytes
-from webauthn.helpers.exceptions import InvalidRegistrationResponse
+from webauthn.helpers.exceptions import InvalidAuthenticationResponse, InvalidRegistrationResponse
 from webauthn.helpers.structs import (
     AuthenticatorSelectionCriteria,
     AuthenticatorTransport,
@@ -30,11 +36,14 @@ from app.config import (
     WEBAUTHN_RP_ID,
     WEBAUTHN_RP_NAME,
 )
+from app.database import current_user_id_ctx
 from app.models.auth import AuthIdentity, WebauthnChallenge, WebauthnCredential
 from app.models.base import AuthProvider
+from app.models.user import User
 
 # Distinguishes a registration challenge from an authentication one in the shared challenge table
 _REGISTRATION_PURPOSE = "registration"
+_AUTHENTICATION_PURPOSE = "authentication"
 
 # Transport hints round-trip as a comma-separated string, so the value is recognized on the next prompt
 _TRANSPORT_SEPARATOR = ","
@@ -147,6 +156,85 @@ async def register_passkey(
     return passkey
 
 
+async def build_passkey_authentication_options(db: AsyncSession) -> str:
+    """Begin a usernameless sign-in by issuing ceremony options and storing their challenge
+
+    No credentials are listed, so the browser offers any passkey discoverable for this site and the
+    user is only known once the assertion resolves. The challenge carries no user id for the same reason
+
+    Args:
+        db: Active database session
+
+    Returns:
+        The ceremony options serialized as JSON for the browser
+    """
+    await _delete_expired_challenges(db)
+
+    options = generate_authentication_options(
+        rp_id=WEBAUTHN_RP_ID,
+        user_verification=UserVerificationRequirement.REQUIRED,
+    )
+
+    expires_at = datetime.now(UTC) + timedelta(seconds=WEBAUTHN_CHALLENGE_EXPIRE_SECONDS)
+    db.add(WebauthnChallenge(
+        challenge=options.challenge,
+        user_id=None,
+        purpose=_AUTHENTICATION_PURPOSE,
+        expires_at=expires_at,
+    ))
+    await db.commit()
+
+    return options_to_json(options)
+
+
+async def verify_passkey_authentication(db: AsyncSession, credential: dict) -> User:
+    """Verify a sign-in assertion and return the user it authenticates
+
+    The credential id resolves which stored passkey signed the assertion, and its public key verifies
+    the signature. A user-verified assertion stands in for both factors, so the caller issues a full
+    session. The signature counter is advanced to detect a cloned authenticator on a later sign-in
+
+    Args:
+        db: Active database session
+        credential: Assertion response returned by the browser
+
+    Returns:
+        The authenticated user
+
+    Raises:
+        HTTPException: The challenge is unknown or expired, the passkey is unrecognized, or the
+            assertion fails to verify
+    """
+    challenge = await _claim_authentication_challenge(db, credential)
+    passkey = await _resolve_credential(db, credential)
+
+    try:
+        verification = verify_authentication_response(
+            credential=credential,
+            expected_challenge=challenge,
+            expected_rp_id=WEBAUTHN_RP_ID,
+            expected_origin=WEBAUTHN_ORIGINS,
+            credential_public_key=passkey.public_key,
+            credential_current_sign_count=passkey.sign_count,
+            require_user_verification=True,
+        )
+    except InvalidAuthenticationResponse as error:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Passkey sign-in failed") from error
+
+    passkey.sign_count = verification.new_sign_count
+    passkey.last_used_at = datetime.now(UTC)
+
+    # The lookups above ran before any identity existed, so adopt the resolved user and reopen the
+    # transaction, so loading the user re-stamps it for the self-only users policy
+    current_user_id_ctx.set(passkey.user_id)
+    await db.commit()
+
+    user = await db.get(User, passkey.user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Passkey sign-in failed")
+    return user
+
+
 async def list_passkeys(db: AsyncSession, user_id: uuid.UUID) -> list[WebauthnCredential]:
     """Return the user's registered passkeys, newest first
 
@@ -227,10 +315,23 @@ async def _get_owned_passkey(
     return passkey
 
 
+def _read_challenge_bytes(credential: dict) -> bytes:
+    """Return the challenge the browser echoed back in the response client data
+
+    Raises:
+        HTTPException: The response is missing or carries malformed client data
+    """
+    try:
+        client_data = json.loads(base64url_to_bytes(credential["response"]["clientDataJSON"]))
+        return base64url_to_bytes(client_data["challenge"])
+    except (KeyError, TypeError, ValueError) as error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Malformed passkey response") from error
+
+
 async def _claim_registration_challenge(
     db: AsyncSession, user_id: uuid.UUID, credential: dict
 ) -> bytes:
-    """Consume the stored challenge that the registration response answers
+    """Consume the stored registration challenge that the response answers
 
     Reading the challenge out of the client data ties the response to the exact stored row, so two
     overlapping registration ceremonies cannot claim each other's challenge. The row is deleted in the
@@ -247,11 +348,7 @@ async def _claim_registration_challenge(
     Raises:
         HTTPException: The response is malformed, or the challenge is unknown or expired
     """
-    try:
-        client_data = json.loads(base64url_to_bytes(credential["response"]["clientDataJSON"]))
-        challenge = base64url_to_bytes(client_data["challenge"])
-    except (KeyError, TypeError, ValueError) as error:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Malformed passkey response") from error
+    challenge = _read_challenge_bytes(credential)
 
     # Claim the matching unexpired registration challenge in one delete so a replay finds it gone
     claim_query = delete(WebauthnChallenge).where(
@@ -265,6 +362,64 @@ async def _claim_registration_challenge(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Passkey challenge expired")
 
     return challenge
+
+
+async def _claim_authentication_challenge(db: AsyncSession, credential: dict) -> bytes:
+    """Consume the stored authentication challenge that the assertion answers
+
+    A usernameless ceremony stores the challenge with no user, so it is claimed by its value alone. The
+    single delete makes it single-use, which is what stops a captured assertion being replayed
+
+    Args:
+        db: Active database session
+        credential: Assertion response returned by the browser
+
+    Returns:
+        The raw challenge bytes to verify the assertion against
+
+    Raises:
+        HTTPException: The response is malformed, or the challenge is unknown or expired
+    """
+    challenge = _read_challenge_bytes(credential)
+
+    claim_query = delete(WebauthnChallenge).where(
+        WebauthnChallenge.challenge == challenge,
+        WebauthnChallenge.purpose == _AUTHENTICATION_PURPOSE,
+        WebauthnChallenge.expires_at > sa_func.now(),
+    )
+    result = await db.execute(claim_query)
+    if result.rowcount != 1:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Passkey challenge expired")
+
+    return challenge
+
+
+async def _resolve_credential(db: AsyncSession, credential: dict) -> WebauthnCredential:
+    """Return the stored passkey the assertion was signed with
+
+    Args:
+        db: Active database session
+        credential: Assertion response returned by the browser
+
+    Returns:
+        The passkey whose raw credential id matches the assertion
+
+    Raises:
+        HTTPException: The response is malformed, or no passkey matches the credential id
+    """
+    try:
+        raw_credential_id = base64url_to_bytes(credential["rawId"])
+    except (KeyError, TypeError, ValueError) as error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Malformed passkey response") from error
+
+    # The credential id is unique across users, so it alone identifies the signing passkey
+    result = await db.execute(
+        select(WebauthnCredential).where(WebauthnCredential.credential_id == raw_credential_id)
+    )
+    passkey = result.scalar_one_or_none()
+    if passkey is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Passkey not recognized")
+    return passkey
 
 
 async def _ensure_webauthn_identity(db: AsyncSession, user_id: uuid.UUID) -> None:

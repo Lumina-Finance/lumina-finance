@@ -225,6 +225,13 @@ class PasskeyRegisterRequest(BaseModel):
         return validate_passkey_name(v)
 
 
+class PasskeyAuthenticationRequest(BaseModel):
+    """A finished sign-in ceremony to verify"""
+
+    # The authenticator's assertion response, passed straight to the WebAuthn library to verify
+    credential: dict[str, Any]
+
+
 class PasskeyRenameRequest(BaseModel):
     """A new label for an existing passkey"""
 
