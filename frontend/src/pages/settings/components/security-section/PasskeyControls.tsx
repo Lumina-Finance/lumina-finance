@@ -1,7 +1,11 @@
 import { ManagePasskeysDialog } from '@/components/passkeys/ManagePasskeysDialog';
+import { RecoveryCodesModal } from '@/components/twoFactor/RecoveryCodesModal';
 import { usePasskeyManagement } from '@/pages/settings/hooks/usePasskeyManagement';
 
 const BADGE_BASE_CLASS = 'rounded-full px-2 py-0.5 text-xs font-medium';
+
+const FIRST_PASSKEY_CODES_DESCRIPTION =
+  "Save these recovery codes. They're the only way back into your account if you lose your passkey. You won't see them again.";
 
 const ACTIVE_BADGE_STYLE = {
   backgroundColor: 'var(--app-positive-soft)',
@@ -62,6 +66,14 @@ export default function PasskeyControls() {
         onRename={management.renamePasskey}
         onRemove={management.removePasskey}
         isMutating={management.isMutating}
+      />
+
+      <RecoveryCodesModal
+        open={management.pendingRecoveryCodes !== null}
+        codes={management.pendingRecoveryCodes}
+        description={FIRST_PASSKEY_CODES_DESCRIPTION}
+        onConfirm={management.acknowledgeRecoveryCodes}
+        onClose={management.dismissRecoveryCodes}
       />
     </>
   );

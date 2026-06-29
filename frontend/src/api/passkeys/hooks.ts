@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { passkeyKeys } from '@/api/cache/queryKeys';
 import {
   authenticatePasskey,
+  confirmPasskeyRegistration,
   fetchPasskeyAuthenticationOptions,
   fetchPasskeyConfig,
   fetchPasskeyRegistrationOptions,
@@ -59,7 +60,8 @@ export function usePasskeys() {
  * Runs the full registration ceremony for a named passkey, then refreshes the list
  *
  * The three steps stay in one mutation so the browser prompt sits between requests this server
- * issued, and a thrown WebAuthnError from a cancelled or unsupported prompt surfaces to the caller
+ * issued, and a thrown WebAuthnError from a cancelled or unsupported prompt surfaces to the caller. A
+ * first passkey comes back staged with recovery codes, so the list only changes once it is confirmed
  */
 export function useRegisterPasskey() {
   const queryClient = useQueryClient();
@@ -69,6 +71,17 @@ export function useRegisterPasskey() {
       const credential = await startRegistration({ optionsJSON });
       return registerPasskey({ name, credential });
     },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: passkeyKeys.list() }),
+  });
+}
+
+/**
+ * Activates a staged first passkey once its recovery codes are acknowledged, then refreshes the list
+ */
+export function useConfirmPasskeyRegistration() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: confirmPasskeyRegistration,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: passkeyKeys.list() }),
   });
 }

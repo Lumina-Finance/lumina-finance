@@ -7,7 +7,7 @@ import { ApiError } from '@/api/auth/errors';
 import type { AuthResponse } from '@/api/auth/types';
 import { authenticatedFetch } from '@/api/client';
 import { API_BASE } from '@/api/config';
-import type { Passkey, PasskeyConfig, RegisterPasskeyPayload } from '@/api/passkeys/types';
+import type { Passkey, PasskeyConfig, RegisterPasskeyPayload, RegisterPasskeyResult } from '@/api/passkeys/types';
 
 /**
  * Reads the relying party id from the public config endpoint
@@ -75,12 +75,22 @@ export function fetchPasskeyRegistrationOptions() {
 
 /**
  * Verifies a finished ceremony and stores the passkey under the given label
+ *
+ * A first passkey comes back staged with recovery codes to acknowledge, a later one is active with no
+ * codes
  */
 export function registerPasskey(payload: RegisterPasskeyPayload) {
-  return authenticatedFetch<Passkey>('/auth/passkeys/register', {
+  return authenticatedFetch<RegisterPasskeyResult>('/auth/passkeys/register', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
+}
+
+/**
+ * Activates a staged first passkey after its recovery codes have been saved
+ */
+export function confirmPasskeyRegistration() {
+  return authenticatedFetch<void>('/auth/passkeys/register/confirm', { method: 'POST' });
 }
 
 /**

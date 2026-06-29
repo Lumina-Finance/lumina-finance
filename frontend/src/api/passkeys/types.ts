@@ -21,3 +21,10 @@ export interface RegisterPasskeyPayload {
   name: string;
   credential: RegistrationResponseJSON;
 }
+
+/** The stored passkey and, for a first passkey, the shared recovery codes to acknowledge */
+export interface RegisterPasskeyResult {
+  passkey: Passkey;
+  // Present only when this is the first second factor and the passkey is staged until these are saved
+  recovery_codes: string[] | null;
+}

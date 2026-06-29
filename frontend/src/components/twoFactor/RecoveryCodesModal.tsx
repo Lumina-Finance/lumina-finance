@@ -3,6 +3,9 @@ import { RecoveryCodesPanel } from '@/components/twoFactor/RecoveryCodesPanel';
 import { TwoFactorModalShell } from '@/components/twoFactor/TwoFactorModalShell';
 import { delayToMinimum } from '@/utils/timing';
 
+const DEFAULT_DESCRIPTION =
+  "These replace your current codes once you confirm. Store them somewhere safe, you won't see them again.";
+
 interface RecoveryCodesModalProps {
   open: boolean;
   codes: string[] | null;
@@ -10,13 +13,21 @@ interface RecoveryCodesModalProps {
   onConfirm: () => Promise<void>;
   /** Dismisses without activating, leaving the current codes in force */
   onClose: () => void;
+  /** Overrides the body copy, since first-time issuance reads differently from a rotation */
+  description?: string;
 }
 
 /**
  * Reveals a freshly staged batch of recovery codes and only swaps them in once the user acknowledges
  * them, so closing without confirming leaves the existing codes working
  */
-export function RecoveryCodesModal({ open, codes, onConfirm, onClose }: RecoveryCodesModalProps) {
+export function RecoveryCodesModal({
+  open,
+  codes,
+  onConfirm,
+  onClose,
+  description = DEFAULT_DESCRIPTION,
+}: RecoveryCodesModalProps) {
   const [acknowledged, setAcknowledged] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState('');
@@ -61,8 +72,7 @@ export function RecoveryCodesModal({ open, codes, onConfirm, onClose }: Recovery
       <div className="space-y-1">
         <h3 className="text-base font-semibold">Your new recovery codes</h3>
         <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-          These replace your current codes once you confirm. Store them somewhere safe, you won't see
-          them again.
+          {description}
         </p>
       </div>
 
