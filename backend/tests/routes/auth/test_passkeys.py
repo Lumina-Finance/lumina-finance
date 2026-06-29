@@ -6,14 +6,15 @@ happy paths stub only that one call and exercise the real challenge, storage, an
 
 import json
 import uuid
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 from sqlalchemy import select
 from webauthn.helpers import bytes_to_base64url
 
 import app.services.auth.webauthn as webauthn_service
-from app.config import WEBAUTHN_ORIGINS, WEBAUTHN_RP_ID
-from app.models.auth import AuthIdentity, WebauthnChallenge, WebauthnCredential
+from app.config import TWO_FACTOR_STAGING_EXPIRE_SECONDS, WEBAUTHN_ORIGINS, WEBAUTHN_RP_ID
+from app.models.auth import AuthIdentity, RecoveryCode, WebauthnChallenge, WebauthnCredential
 from app.models.base import AuthProvider
 from tests.conftest import TestSession
 from tests.routes.support import SIGNUP_PAYLOAD, _create_user, _get_auth_header
@@ -43,6 +44,7 @@ async def _seed_passkey(user_id: str, credential_id: bytes, name: str = "Seeded 
             public_key=b"public-key-bytes",
             sign_count=0,
             name=name,
+            confirmed_at=datetime.now(UTC),
         )
         db.add(passkey)
 
@@ -130,13 +132,8 @@ async def test_registration_options_exclude_existing_passkeys(client):
     assert bytes_to_base64url(credential_id) in excluded
 
 
-async def test_register_stores_passkey_and_records_identity(client, monkeypatch):
-    """A verified ceremony stores the passkey, records the identity, and spends the challenge once"""
-    signup = await _create_user(client)
-    auth = _get_auth_header(signup)
-    user_id = signup.json()["user"]["id"]
-    credential_id = b"new-credential-id"
-
+async def _register_passkey(client, auth, monkeypatch, credential_id: bytes, name: str):
+    """Run a stubbed registration ceremony and return the register response"""
     options = (await client.post("/auth/passkeys/register/options", headers=auth)).json()
     credential = _build_credential(options["challenge"], credential_id)
 
@@ -151,15 +148,13 @@ async def test_register_stores_passkey_and_records_identity(client, monkeypatch)
         ),
     )
 
-    registered = await client.post(
-        "/auth/passkeys/register", headers=auth, json={"name": "My laptop", "credential": credential}
+    return await client.post(
+        "/auth/passkeys/register", headers=auth, json={"name": name, "credential": credential}
     )
-    assert registered.status_code == 201
-    assert registered.json()["name"] == "My laptop"
 
-    listing = await client.get("/auth/passkeys", headers=auth)
-    assert [passkey["name"] for passkey in listing.json()] == ["My laptop"]
 
+async def _has_webauthn_identity(user_id: str) -> bool:
+    """Return whether the user has a WebAuthn auth identity"""
     async with TestSession() as db:
         identity = await db.scalar(
             select(AuthIdentity).where(
@@ -167,13 +162,52 @@ async def test_register_stores_passkey_and_records_identity(client, monkeypatch)
                 AuthIdentity.auth_provider == AuthProvider.WEBAUTHN,
             )
         )
-        assert identity is not None
+        return identity is not None
 
-    # The challenge is single-use, so replaying the same response is refused
-    replay = await client.post(
-        "/auth/passkeys/register", headers=auth, json={"name": "My laptop", "credential": credential}
-    )
-    assert replay.status_code == 400
+
+async def test_first_passkey_is_staged_until_recovery_codes_confirmed(client, monkeypatch):
+    """A first passkey returns recovery codes and stays inactive until they are acknowledged"""
+    signup = await _create_user(client)
+    auth = _get_auth_header(signup)
+    user_id = signup.json()["user"]["id"]
+
+    registered = await _register_passkey(client, auth, monkeypatch, b"first-key", "My laptop")
+    assert registered.status_code == 201
+    body = registered.json()
+    assert body["passkey"]["name"] == "My laptop"
+    assert len(body["recovery_codes"]) == 10
+
+    # Staged: not yet listed, no identity, until the recovery codes are confirmed
+    assert (await client.get("/auth/passkeys", headers=auth)).json() == []
+    assert await _has_webauthn_identity(user_id) is False
+
+    confirmed = await client.post("/auth/passkeys/register/confirm", headers=auth)
+    assert confirmed.status_code == 204
+
+    assert [p["name"] for p in (await client.get("/auth/passkeys", headers=auth)).json()] == ["My laptop"]
+    assert await _has_webauthn_identity(user_id) is True
+
+
+async def test_second_passkey_activates_without_new_codes(client, monkeypatch):
+    """Once recovery codes exist, a further passkey is active immediately and issues no new codes"""
+    auth = _get_auth_header(await _create_user(client))
+
+    await _register_passkey(client, auth, monkeypatch, b"first-key", "First")
+    await client.post("/auth/passkeys/register/confirm", headers=auth)
+
+    second = await _register_passkey(client, auth, monkeypatch, b"second-key", "Second")
+    assert second.status_code == 201
+    assert second.json()["recovery_codes"] is None
+
+    names = {p["name"] for p in (await client.get("/auth/passkeys", headers=auth)).json()}
+    assert names == {"First", "Second"}
+
+
+async def test_confirm_without_staged_passkey_is_rejected(client):
+    """Confirming when nothing is staged is refused"""
+    auth = _get_auth_header(await _create_user(client))
+    response = await client.post("/auth/passkeys/register/confirm", headers=auth)
+    assert response.status_code == 400
 
 
 async def test_register_rejects_unknown_challenge(client):
@@ -380,3 +414,45 @@ async def test_authenticate_rejects_malformed_response(client):
     """An assertion missing the client data is rejected as malformed"""
     response = await client.post("/auth/passkeys/authenticate", json={"credential": {"rawId": "x"}})
     assert response.status_code == 400
+
+
+async def _seed_stale_staged_passkey(user_id: str, credential_id: bytes) -> None:
+    """Insert a staged passkey and a pending recovery code old enough to be pruned"""
+    stale = datetime.now(UTC) - timedelta(seconds=TWO_FACTOR_STAGING_EXPIRE_SECONDS + 60)
+    async with TestSession() as db:
+        db.add(WebauthnCredential(
+            user_id=uuid.UUID(user_id),
+            credential_id=credential_id,
+            public_key=b"public-key-bytes",
+            sign_count=0,
+            name="Staged",
+            confirmed_at=None,
+            created_at=stale,
+        ))
+        db.add(RecoveryCode(user_id=uuid.UUID(user_id), code_hash="stale-hash", pending=True, created_at=stale))
+        await db.commit()
+
+
+async def test_login_prunes_stale_passkey_staging(client):
+    """Logging in sweeps a staged passkey and its pending recovery codes once they are stale"""
+    signup = await _create_user(client)
+    user_id = signup.json()["user"]["id"]
+    await _seed_stale_staged_passkey(user_id, b"stale-staged-key")
+
+    login = await client.post(
+        "/auth/login",
+        json={"email": SIGNUP_PAYLOAD["email"], "password": SIGNUP_PAYLOAD["password"]},
+    )
+    assert login.status_code == 200
+
+    async with TestSession() as db:
+        staged = await db.scalar(
+            select(WebauthnCredential).where(WebauthnCredential.credential_id == b"stale-staged-key")
+        )
+        pending = await db.scalar(
+            select(RecoveryCode).where(
+                RecoveryCode.user_id == uuid.UUID(user_id), RecoveryCode.pending.is_(True)
+            )
+        )
+    assert staged is None
+    assert pending is None

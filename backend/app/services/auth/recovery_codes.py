@@ -100,6 +100,26 @@ async def activate_pending_recovery_codes(db: AsyncSession, user_id: uuid.UUID) 
     )
 
 
+async def has_active_recovery_codes(db: AsyncSession, user_id: uuid.UUID) -> bool:
+    """Return whether the account already holds an active recovery batch
+
+    This is the signal that a second factor is already established, so registering another factor
+    reuses the existing shared codes instead of issuing a new batch
+
+    Args:
+        db: Active database session
+        user_id: User to check
+
+    Returns:
+        Whether at least one active recovery code exists
+    """
+    # Probe for a single row rather than counting the whole batch
+    result = await db.execute(
+        select(RecoveryCode.id).where(RecoveryCode.user_id == user_id, RecoveryCode.pending.is_(False)).limit(1)
+    )
+    return result.first() is not None
+
+
 async def has_pending_recovery_codes(db: AsyncSession, user_id: uuid.UUID) -> bool:
     """Return whether a staged batch exists, the signal that enrolment was confirmed
 

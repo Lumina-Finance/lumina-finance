@@ -157,6 +157,10 @@ WEBAUTHN_ORIGINS = _unique_values([o for o in (_optional_csv_env("WEBAUTHN_ORIGI
 # A ceremony challenge is short-lived since it only has to survive one round trip to the authenticator
 WEBAUTHN_CHALLENGE_EXPIRE_SECONDS = int(os.getenv("WEBAUTHN_CHALLENGE_EXPIRE_SECONDS", "300"))
 
+# How long a staged first passkey and its unsaved recovery codes survive before an ordinary action
+# such as login prunes them, since there is no reliable signal that a user abandoned the flow
+TWO_FACTOR_STAGING_EXPIRE_SECONDS = int(os.getenv("TWO_FACTOR_STAGING_EXPIRE_SECONDS", "1800"))
+
 # --- FX ---
 
 FRANKFURTER_URL = os.getenv("FRANKFURTER_URL", "https://api.frankfurter.dev/v2").strip().rstrip("/")

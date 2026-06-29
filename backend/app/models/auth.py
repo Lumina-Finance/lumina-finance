@@ -121,6 +121,10 @@ class WebauthnCredential(Base):
     sign_count: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
     transports: Mapped[str | None] = mapped_column(Text)  # comma-separated transport hints for the next prompt
     name: Mapped[str] = mapped_column(VARCHAR(100), nullable=False)  # user-facing label
+
+    # Null while a first passkey is staged, so it counts as a usable factor and can sign in only once
+    # the shared recovery codes issued alongside it have been acknowledged
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 

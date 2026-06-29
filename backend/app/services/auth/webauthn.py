@@ -31,15 +31,22 @@ from webauthn.helpers.structs import (
 )
 
 from app.config import (
+    TWO_FACTOR_STAGING_EXPIRE_SECONDS,
     WEBAUTHN_CHALLENGE_EXPIRE_SECONDS,
     WEBAUTHN_ORIGINS,
     WEBAUTHN_RP_ID,
     WEBAUTHN_RP_NAME,
 )
 from app.database import current_user_id_ctx
-from app.models.auth import AuthIdentity, WebauthnChallenge, WebauthnCredential
+from app.models.auth import AuthIdentity, RecoveryCode, WebauthnChallenge, WebauthnCredential
 from app.models.base import AuthProvider
 from app.models.user import User
+from app.services.auth.recovery_codes import (
+    activate_pending_recovery_codes,
+    generate_recovery_codes,
+    has_active_recovery_codes,
+    has_pending_recovery_codes,
+)
 
 # Distinguishes a registration challenge from an authentication one in the shared challenge table
 _REGISTRATION_PURPOSE = "registration"
@@ -71,13 +78,15 @@ async def build_passkey_registration_options(db: AsyncSession, user_id: uuid.UUI
     """
     await _delete_expired_challenges(db)
 
-    existing = await list_passkeys(db, user_id)
+    # Exclude every credential the user already holds, including a staged one, so the same authenticator
+    # cannot be enrolled twice while a first passkey is still pending acknowledgement
+    existing = await db.execute(select(WebauthnCredential).where(WebauthnCredential.user_id == user_id))
     exclude_credentials = [
         PublicKeyCredentialDescriptor(
             id=passkey.credential_id,
             transports=_known_transports(passkey.transports.split(_TRANSPORT_SEPARATOR)) if passkey.transports else None,
         )
-        for passkey in existing
+        for passkey in existing.scalars()
     ]
 
     options = generate_registration_options(
@@ -107,12 +116,16 @@ async def build_passkey_registration_options(db: AsyncSession, user_id: uuid.UUI
 
 async def register_passkey(
     db: AsyncSession, user_id: uuid.UUID, credential: dict, name: str
-) -> WebauthnCredential:
+) -> tuple[WebauthnCredential, list[str] | None]:
     """Verify a finished registration ceremony and store the new passkey
 
     The challenge embedded in the response locates the stored challenge so concurrent ceremonies stay
-    independent, and the challenge is single-use because it is deleted once claimed. The first passkey
-    also records a WebAuthn auth identity so the account is recognized as passkey-capable
+    independent, and the challenge is single-use because it is deleted once claimed.
+
+    A first passkey, on an account with no recovery codes yet, is the account's first second factor, so
+    it is stored inactive and a shared recovery batch is staged for the user to save. It only becomes a
+    usable factor once those codes are acknowledged. Any later passkey activates immediately and reuses
+    the existing recovery codes
 
     Args:
         db: Active database session
@@ -121,7 +134,7 @@ async def register_passkey(
         name: Label to store the passkey under
 
     Returns:
-        The stored passkey credential
+        The stored passkey and, when it is the first second factor, the recovery codes to save once
 
     Raises:
         HTTPException: The challenge is unknown or expired, or the attestation fails to verify
@@ -139,6 +152,8 @@ async def register_passkey(
     except InvalidRegistrationResponse as error:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Passkey registration failed") from error
 
+    recovery_established = await has_active_recovery_codes(db, user_id)
+
     transports = credential.get("response", {}).get("transports") or []
     passkey = WebauthnCredential(
         user_id=user_id,
@@ -147,13 +162,104 @@ async def register_passkey(
         sign_count=verification.sign_count,
         transports=_TRANSPORT_SEPARATOR.join(transports) or None,
         name=name,
+        confirmed_at=None if not recovery_established else datetime.now(UTC),
     )
     db.add(passkey)
 
-    await _ensure_webauthn_identity(db, user_id)
+    # A first second factor stays inactive with no identity until its recovery codes are acknowledged
+    recovery_codes = None
+    if recovery_established:
+        await _ensure_webauthn_identity(db, user_id)
+    else:
+        recovery_codes = await generate_recovery_codes(db, user_id, pending=True)
+
     await db.commit()
     await db.refresh(passkey)
-    return passkey
+    return passkey, recovery_codes
+
+
+async def confirm_passkey_registration(db: AsyncSession, user_id: uuid.UUID) -> None:
+    """Activate a staged first passkey once the user has saved the recovery codes issued with it
+
+    Both the staged passkey and the staged recovery batch are promoted together, so the account never
+    has an enforced passkey factor whose recovery codes were never saved
+
+    Args:
+        db: Active database session
+        user_id: User confirming their first passkey
+
+    Raises:
+        HTTPException: No staged passkey with pending recovery codes is awaiting confirmation
+    """
+    staged = await _staged_passkeys(db, user_id)
+    if not staged or not await has_pending_recovery_codes(db, user_id):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No passkey awaiting confirmation")
+
+    confirmed_at = datetime.now(UTC)
+    for passkey in staged:
+        passkey.confirmed_at = confirmed_at
+
+    await activate_pending_recovery_codes(db, user_id)
+    await _ensure_webauthn_identity(db, user_id)
+    await db.commit()
+
+
+async def is_passkey_registered(db: AsyncSession, user_id: uuid.UUID) -> bool:
+    """Return whether the user has at least one active passkey
+
+    A staged passkey awaiting recovery-code acknowledgement does not count, since it cannot yet be used
+    as a factor
+
+    Args:
+        db: Active database session
+        user_id: User to check
+
+    Returns:
+        Whether a confirmed passkey exists
+    """
+    result = await db.execute(
+        select(WebauthnCredential.id)
+        .where(WebauthnCredential.user_id == user_id, WebauthnCredential.confirmed_at.is_not(None))
+        .limit(1)
+    )
+    return result.first() is not None
+
+
+async def prune_stale_passkey_staging(db: AsyncSession, user_id: uuid.UUID) -> None:
+    """Delete the user's staged passkeys and recovery codes that have gone stale
+
+    There is no reliable signal that a user abandoned setup, so stale staged rows are swept by ordinary
+    actions such as login rather than at the moment they are left. The caller commits
+
+    Args:
+        db: Active database session
+        user_id: User whose stale staged rows are cleared
+    """
+    cutoff = datetime.now(UTC) - timedelta(seconds=TWO_FACTOR_STAGING_EXPIRE_SECONDS)
+    await db.execute(
+        delete(WebauthnCredential).where(
+            WebauthnCredential.user_id == user_id,
+            WebauthnCredential.confirmed_at.is_(None),
+            WebauthnCredential.created_at < cutoff,
+        )
+    )
+    await db.execute(
+        delete(RecoveryCode).where(
+            RecoveryCode.user_id == user_id,
+            RecoveryCode.pending.is_(True),
+            RecoveryCode.created_at < cutoff,
+        )
+    )
+
+
+async def _staged_passkeys(db: AsyncSession, user_id: uuid.UUID) -> list[WebauthnCredential]:
+    """Return the user's passkeys still awaiting recovery-code acknowledgement"""
+    result = await db.execute(
+        select(WebauthnCredential).where(
+            WebauthnCredential.user_id == user_id, WebauthnCredential.confirmed_at.is_(None)
+        )
+    )
+    return list(result.scalars().all())
 
 
 async def build_passkey_authentication_options(db: AsyncSession) -> str:
@@ -236,19 +342,22 @@ async def verify_passkey_authentication(db: AsyncSession, credential: dict) -> U
 
 
 async def list_passkeys(db: AsyncSession, user_id: uuid.UUID) -> list[WebauthnCredential]:
-    """Return the user's registered passkeys, newest first
+    """Return the user's active passkeys, newest first
+
+    A staged passkey awaiting recovery-code acknowledgement is left out, since it is not yet a usable
+    credential and must not appear as a managed one
 
     Args:
         db: Active database session
         user_id: User whose passkeys to list
 
     Returns:
-        The user's passkey credentials
+        The user's confirmed passkey credentials
     """
     # Scoped to the user explicitly since the auth tables carry no row-level security
     passkeys_query = (
         select(WebauthnCredential)
-        .where(WebauthnCredential.user_id == user_id)
+        .where(WebauthnCredential.user_id == user_id, WebauthnCredential.confirmed_at.is_not(None))
         .order_by(WebauthnCredential.created_at.desc())
     )
     result = await db.execute(passkeys_query)
@@ -412,9 +521,13 @@ async def _resolve_credential(db: AsyncSession, credential: dict) -> WebauthnCre
     except (KeyError, TypeError, ValueError) as error:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Malformed passkey response") from error
 
-    # The credential id is unique across users, so it alone identifies the signing passkey
+    # The credential id is unique across users, so it alone identifies the signing passkey. A staged
+    # passkey cannot sign in, so only a confirmed one resolves
     result = await db.execute(
-        select(WebauthnCredential).where(WebauthnCredential.credential_id == raw_credential_id)
+        select(WebauthnCredential).where(
+            WebauthnCredential.credential_id == raw_credential_id,
+            WebauthnCredential.confirmed_at.is_not(None),
+        )
     )
     passkey = result.scalar_one_or_none()
     if passkey is None:
@@ -423,7 +536,7 @@ async def _resolve_credential(db: AsyncSession, credential: dict) -> WebauthnCre
 
 
 async def _ensure_webauthn_identity(db: AsyncSession, user_id: uuid.UUID) -> None:
-    """Record a WebAuthn auth identity for the user when the first passkey is registered"""
+    """Record a WebAuthn auth identity once the user has an active passkey, if not already present"""
     identity_query = select(AuthIdentity).where(
         AuthIdentity.user_id == user_id,
         AuthIdentity.auth_provider == AuthProvider.WEBAUTHN,

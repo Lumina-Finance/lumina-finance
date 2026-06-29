@@ -253,3 +253,13 @@ class PasskeySummary(BaseModel):
     last_used_at: datetime | None
 
     model_config = {"from_attributes": True}
+
+
+class PasskeyRegisterResponse(BaseModel):
+    """The stored passkey and, for a first passkey, the recovery codes to acknowledge"""
+
+    passkey: PasskeySummary
+
+    # Present only when this passkey is the account's first second factor and is staged pending until
+    # these shared recovery codes are saved
+    recovery_codes: list[str] | None

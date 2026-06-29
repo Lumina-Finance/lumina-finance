@@ -16,12 +16,14 @@ from app.schemas.auth import (
     PasskeyAuthenticationRequest,
     PasskeyConfigResponse,
     PasskeyRegisterRequest,
+    PasskeyRegisterResponse,
     PasskeyRenameRequest,
     PasskeySummary,
 )
 from app.services.auth import (
     build_passkey_authentication_options,
     build_passkey_registration_options,
+    confirm_passkey_registration,
     list_passkeys,
     register_passkey,
     remove_passkey,
@@ -128,7 +130,7 @@ async def passkey_registration_options_route(
     return Response(content=options_json, media_type=_OPTIONS_MEDIA_TYPE)
 
 
-@router.post("/register", response_model=PasskeySummary, status_code=status.HTTP_201_CREATED)
+@router.post("/register", response_model=PasskeyRegisterResponse, status_code=status.HTTP_201_CREATED)
 async def register_passkey_route(
     data: PasskeyRegisterRequest,
     user: Annotated[User, Depends(get_current_user)],
@@ -136,18 +138,39 @@ async def register_passkey_route(
 ):
     """Verify a finished registration ceremony and store the passkey
 
+    A first passkey comes back with recovery codes and stays staged until they are confirmed, while a
+    later passkey is active immediately with no codes
+
     Args:
         data: The browser's attestation response and the label to store it under
         user: Authenticated user resolved from the access token
         db: Active database session
 
     Returns:
-        The stored passkey summary
+        The stored passkey and, for a first passkey, the recovery codes to save
 
     Raises:
         HTTPException: The challenge is unknown or expired, or the attestation fails to verify
     """
-    return await register_passkey(db, user.id, data.credential, data.name)
+    passkey, recovery_codes = await register_passkey(db, user.id, data.credential, data.name)
+    return PasskeyRegisterResponse(passkey=PasskeySummary.model_validate(passkey), recovery_codes=recovery_codes)
+
+
+@router.post("/register/confirm", status_code=status.HTTP_204_NO_CONTENT)
+async def confirm_passkey_registration_route(
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Activate a staged first passkey after its recovery codes have been saved
+
+    Args:
+        user: Authenticated user resolved from the access token
+        db: Active database session
+
+    Raises:
+        HTTPException: No staged passkey with pending recovery codes is awaiting confirmation
+    """
+    await confirm_passkey_registration(db, user.id)
 
 
 @router.patch("/{passkey_id}", response_model=PasskeySummary)
