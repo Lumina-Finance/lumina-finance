@@ -45,6 +45,9 @@ class TotpCredential(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), primary_key=True)
     secret_encrypted: Mapped[str] = mapped_column(Text, nullable=False)
     confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # Non-null once a code is verified
+
+    # Highest TOTP time step already accepted, so a code cannot be replayed within its validity window
+    last_used_step: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
 

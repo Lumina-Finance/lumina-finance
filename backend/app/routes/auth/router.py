@@ -31,6 +31,7 @@ from app.schemas.auth import (
     TotpSetupResponse,
     TotpStatusResponse,
 )
+from app.services.auth.account_lockout import get_password_credential, reset_failed_attempts
 from app.services.auth import (
     begin_totp_setup,
     change_password,
@@ -107,6 +108,11 @@ async def login_route(
     if totp_enabled or user.totp_reenrollment_required:
         challenge_token = await issue_mfa_challenge(db, user.id)
         return MfaRequiredResponse(mfa_token=challenge_token, recovery_only=not totp_enabled)
+
+    # A login with no second factor is complete here, so clear the shared lockout counter
+    credential = await get_password_credential(db, user.id)
+    if credential is not None:
+        await reset_failed_attempts(db, credential)
 
     auth_response = await issue_and_store_tokens(db, request, response, user)
     return auth_response

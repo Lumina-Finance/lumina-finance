@@ -66,7 +66,7 @@ async def test_confirm_returns_recovery_codes_but_leaves_two_factor_pending(clie
     assert confirm.status_code == 200
 
     codes = confirm.json()["recovery_codes"]
-    assert len(codes) == 6
+    assert len(codes) == 10
     assert all(code.count("-") == 4 for code in codes)
 
     # Closing the recovery code screen without completing must leave two-factor un-enrolled
@@ -172,7 +172,7 @@ async def test_regenerate_then_confirm_swaps_the_codes(client):
     )
     assert regenerate.status_code == 200
     new_codes = regenerate.json()["recovery_codes"]
-    assert len(new_codes) == 6
+    assert len(new_codes) == 10
     assert set(new_codes).isdisjoint(old_codes)
 
     confirm = await client.post("/auth/2fa/recovery-codes/confirm", headers=auth)
@@ -214,6 +214,51 @@ async def test_regenerate_rejects_a_recovery_code_as_second_factor(client):
 
     # The rejected code is not consumed, so it still works at login
     assert (await _login_with_code(client, codes[0])).status_code == 200
+
+
+async def test_totp_code_cannot_be_replayed(client):
+    """A TOTP code accepted once is refused on reuse within its validity window"""
+    auth, secret, _ = await _enroll(client)
+    code = pyotp.TOTP(secret).now()
+
+    first = await client.post(
+        "/auth/2fa/recovery-codes", headers=auth, json={"password": _PASSWORD, "code": code}
+    )
+    assert first.status_code == 200
+
+    replay = await client.post(
+        "/auth/2fa/recovery-codes", headers=auth, json={"password": _PASSWORD, "code": code}
+    )
+    assert replay.status_code == 401
+
+
+async def test_repeated_wrong_2fa_codes_lock_the_account(client):
+    """Wrong second-factor codes count toward the lockout, so the authenticator cannot be ground"""
+    await _enroll(client)
+
+    for _ in range(5):
+        login = await client.post("/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": _PASSWORD})
+        assert login.status_code == 200
+        verify = await client.post("/auth/2fa/verify", json={"mfa_token": login.json()["mfa_token"], "code": "000000"})
+        assert verify.status_code == 401
+
+    # The shared counter has hit the limit, so even a correct password is now refused
+    locked = await client.post("/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": _PASSWORD})
+    assert locked.status_code == 423
+
+
+async def test_correct_2fa_clears_the_lockout_counter(client):
+    """A correct second factor resets the counter, so an earlier wrong code does not pre-lock login"""
+    _, secret, _ = await _enroll(client)
+
+    first = await client.post("/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": _PASSWORD})
+    await client.post("/auth/2fa/verify", json={"mfa_token": first.json()["mfa_token"], "code": "000000"})
+
+    second = await client.post("/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": _PASSWORD})
+    verify = await client.post(
+        "/auth/2fa/verify", json={"mfa_token": second.json()["mfa_token"], "code": pyotp.TOTP(secret).now()}
+    )
+    assert verify.status_code == 200
 
 
 async def test_verify_completes_login_with_a_valid_code(client):

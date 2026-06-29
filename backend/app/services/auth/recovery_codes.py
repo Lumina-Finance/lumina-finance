@@ -8,7 +8,7 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.auth import RecoveryCode
-from app.services.auth.token_hashing import hash_token
+from app.services.auth.secret_hashing import hash_secret, is_secret_valid
 
 # BIP-39 English wordlist, vendored from bitcoin/bips bip-0039/english.txt
 _WORDLIST_PATH = Path(__file__).parent / "bip39_english.txt"
@@ -19,7 +19,7 @@ _WORDS = _WORDLIST_PATH.read_text().split()
 if len(_WORDS) != _EXPECTED_WORD_COUNT:
     raise RuntimeError(f"Expected {_EXPECTED_WORD_COUNT} recovery words, found {len(_WORDS)}")
 
-_RECOVERY_CODE_COUNT = 6
+_RECOVERY_CODE_COUNT = 10
 _WORDS_PER_CODE = 4
 _RECOVERY_CODE_DIGITS = 3
 
@@ -78,7 +78,7 @@ async def generate_recovery_codes(db: AsyncSession, user_id: uuid.UUID, *, pendi
 
     codes = [_build_recovery_code() for _ in range(_RECOVERY_CODE_COUNT)]
     for code in codes:
-        db.add(RecoveryCode(user_id=user_id, code_hash=hash_token(code), pending=pending))
+        db.add(RecoveryCode(user_id=user_id, code_hash=hash_secret(code), pending=pending))
 
     return codes
 
@@ -121,8 +121,9 @@ async def has_pending_recovery_codes(db: AsyncSession, user_id: uuid.UUID) -> bo
 async def consume_recovery_code(db: AsyncSession, user_id: uuid.UUID, code: str) -> bool:
     """Redeem one active recovery code by deleting its row
 
-    The delete is scoped by user and hash so a code is single use and cannot redeem against
-    another user, and staged codes are excluded so they only work once activated. The caller commits
+    Argon2 salts each hash, so the submitted code is verified against each active code rather than
+    matched by equality. The scan is scoped to the user and skips staged codes, and the match is
+    deleted so a code is single use. The caller commits
 
     Args:
         db: Active database session
@@ -132,11 +133,13 @@ async def consume_recovery_code(db: AsyncSession, user_id: uuid.UUID, code: str)
     Returns:
         Whether a matching active code existed and was claimed
     """
-    result = await db.execute(
-        delete(RecoveryCode).where(
-            RecoveryCode.user_id == user_id,
-            RecoveryCode.code_hash == hash_token(code),
-            RecoveryCode.pending.is_(False),
-        )
+    active_codes_query = select(RecoveryCode).where(
+        RecoveryCode.user_id == user_id, RecoveryCode.pending.is_(False)
     )
-    return result.rowcount == 1
+    result = await db.execute(active_codes_query)
+    for recovery_code in result.scalars():
+        if is_secret_valid(code, recovery_code.code_hash):
+            await db.delete(recovery_code)
+            return True
+
+    return False

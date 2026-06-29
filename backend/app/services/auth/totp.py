@@ -1,5 +1,6 @@
 """TOTP secret generation, code verification, and credential persistence"""
 
+import secrets
 import uuid
 from datetime import UTC, datetime
 
@@ -41,6 +42,31 @@ def build_totp_provisioning_uri(secret: str, account_name: str) -> str:
     return totp.provisioning_uri(name=account_name, issuer_name=_TOTP_ISSUER)
 
 
+def match_totp_step(secret: str, code: str) -> int | None:
+    """Return the time step a code matches within the accepted window, or None for no match
+
+    Returning the step lets callers reject a step that was already spent, which blocks replay of a
+    code within its validity window
+
+    Args:
+        secret: Base32 TOTP secret
+        code: Submitted code from the authenticator app
+
+    Returns:
+        The matching time step, or None when the code matches no step in the window
+    """
+    totp = pyotp.TOTP(secret, digits=_TOTP_DIGITS, interval=_TOTP_PERIOD_SECONDS)
+    current_step = int(datetime.now(UTC).timestamp()) // _TOTP_PERIOD_SECONDS
+
+    # Compare against each step in the window with a constant-time check rather than relying on verify,
+    # so the matched step is known and can be recorded
+    for step in range(current_step - _TOTP_VALID_WINDOW, current_step + _TOTP_VALID_WINDOW + 1):
+        if secrets.compare_digest(totp.at(step * _TOTP_PERIOD_SECONDS), code):
+            return step
+
+    return None
+
+
 def is_totp_code_valid(secret: str, code: str) -> bool:
     """Return whether a submitted code matches the secret within the accepted time window
 
@@ -51,8 +77,7 @@ def is_totp_code_valid(secret: str, code: str) -> bool:
     Returns:
         Whether the code is valid for the current or an adjacent time step
     """
-    totp = pyotp.TOTP(secret, digits=_TOTP_DIGITS, interval=_TOTP_PERIOD_SECONDS)
-    return totp.verify(code, valid_window=_TOTP_VALID_WINDOW)
+    return match_totp_step(secret, code) is not None
 
 
 async def begin_totp_setup(db: AsyncSession, user_id: uuid.UUID, account_name: str) -> tuple[str, str]:
@@ -155,7 +180,10 @@ async def is_totp_enabled(db: AsyncSession, user_id: uuid.UUID) -> bool:
 
 
 async def is_user_totp_code_valid(db: AsyncSession, user_id: uuid.UUID, code: str) -> bool:
-    """Return whether a code matches the user's confirmed TOTP secret
+    """Return whether a code matches the user's confirmed TOTP secret, rejecting a replayed code
+
+    A matching step at or before the last accepted one is refused, so a code cannot be reused within
+    its validity window. The caller commits the recorded step
 
     Args:
         db: Active database session
@@ -163,13 +191,21 @@ async def is_user_totp_code_valid(db: AsyncSession, user_id: uuid.UUID, code: st
         code: Submitted code from the authenticator app
 
     Returns:
-        Whether the user has a confirmed credential and the code is valid
+        Whether the user has a confirmed credential and the code is valid and unused
     """
     credential = await db.get(TotpCredential, user_id)
     if credential is None or credential.confirmed_at is None:
         return False
 
-    return is_totp_code_valid(decrypt(credential.secret_encrypted), code)
+    step = match_totp_step(decrypt(credential.secret_encrypted), code)
+    if step is None:
+        return False
+
+    if credential.last_used_step is not None and step <= credential.last_used_step:
+        return False
+
+    credential.last_used_step = step
+    return True
 
 
 async def disable_totp(db: AsyncSession, user_id: uuid.UUID) -> None:

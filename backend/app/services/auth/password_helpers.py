@@ -1,14 +1,5 @@
 """Password credential helpers"""
-import os
-
-import argon2
-
-# Use lighter password hashing parameters in tests to keep the suite fast
-_PASSWORD_HASHER = (
-    argon2.PasswordHasher(time_cost=1, memory_cost=8, parallelism=1, hash_len=8, salt_len=8)
-    if os.getenv("TESTING")
-    else argon2.PasswordHasher()
-)
+from app.services.auth.secret_hashing import hash_dummy_secret_for_timing, hash_secret, is_secret_valid
 
 
 def hash_password(password: str) -> str:
@@ -20,8 +11,7 @@ def hash_password(password: str) -> str:
     Returns:
         Argon2id hash string for database storage
     """
-    password_hash = _PASSWORD_HASHER.hash(password)
-    return password_hash
+    return hash_secret(password)
 
 
 def is_password_valid(password: str, password_hash: str) -> bool:
@@ -34,14 +24,9 @@ def is_password_valid(password: str, password_hash: str) -> bool:
     Returns:
         Whether the plaintext password matches the stored hash
     """
-    try:
-        is_valid = _PASSWORD_HASHER.verify(password_hash, password)
-    except argon2.exceptions.VerifyMismatchError:
-        return False
-
-    return is_valid
+    return is_secret_valid(password, password_hash)
 
 
 def hash_dummy_password_for_timing() -> None:
     """Run one password hash to reduce missing-user timing differences"""
-    _PASSWORD_HASHER.hash("dummy-password")
+    hash_dummy_secret_for_timing()

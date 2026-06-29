@@ -24,6 +24,12 @@ from app.models.base import AuthTokenKind
 from app.models.user import User
 from app.routes.auth.cookie_helpers import set_refresh_cookie
 from app.schemas.auth import AuthResponse, UserInfo
+from app.services.auth.account_lockout import (
+    get_password_credential,
+    is_account_locked,
+    record_failed_attempt,
+    reset_failed_attempts,
+)
 from app.services.auth.mfa_challenge import consume_mfa_challenge
 from app.services.auth.sessions import (
     create_auth_session,
@@ -152,15 +158,30 @@ async def complete_mfa_challenge(db: AsyncSession, mfa_token: str, code: str) ->
     # transactions below stamp onto their connection for the self-only users policy
     current_user_id_ctx.set(user_id)
 
+    # The lockout counter is shared with the password step, so a code grind trips the same lock
+    credential = await get_password_credential(db, user_id)
+    if credential is not None and is_account_locked(credential):
+        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="Account temporarily locked")
+
     # Consume and commit before checking the code so a wrong code still burns the single-use challenge
     challenge_valid = await consume_mfa_challenge(db, challenge_jti, user_id)
     await db.commit()
     if not challenge_valid:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired challenge")
 
-    # A recovery code here revokes TOTP and flags re-enrolment, so commit those writes before loading
-    await verify_login_second_factor(db, user_id, code)
-    await db.commit()
+    # A wrong second factor counts toward the lockout, a recovery code revokes TOTP and flags
+    # re-enrolment, and a success clears the counter, all committed here
+    try:
+        await verify_login_second_factor(db, user_id, code)
+    except HTTPException:
+        if credential is not None:
+            await record_failed_attempt(db, credential)
+        raise
+
+    if credential is not None:
+        await reset_failed_attempts(db, credential)
+    else:
+        await db.commit()
 
     user = await db.get(User, user_id)
     if user is None:
