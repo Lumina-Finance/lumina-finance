@@ -2,8 +2,8 @@
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-# Stream a compressed dump of the remote staging database to stdout so callers
-# can pipe it into whichever local target they restore into
+# Stream a compressed dump of the remote production database to stdout so callers
+# can pipe it into whichever target they restore into
 remote_ssh_host="$(read_env_var "$dev_dir/.env" REMOTE_SSH_HOST)"
 remote_db_container="$(read_env_var "$dev_dir/.env" REMOTE_DB_CONTAINER)"
 

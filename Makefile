@@ -5,7 +5,7 @@ DEV_DIR ?= dev
 
 .PHONY: new-worktree cleanup-worktree \
 	reset-dev-db dev-db-recreate dev-db-create dev-db-restore dev-db-reassign dev-db-migrate dev-db-apply-rls \
-	reset-test-stack test-stack-down test-stack-build test-stack-restore test-stack-app-up
+	reset-dev-server dev-server-down dev-server-build dev-server-restore dev-server-app-up
 
 # Create a fully isolated worktree with its own database, dependencies, and port
 new-worktree:
@@ -42,21 +42,23 @@ dev-db-migrate:
 dev-db-apply-rls:
 	@"$(DEV_DIR)/dev-db/apply-rls.sh"
 
-# Rebuild and reset the local Docker test stack
-reset-test-stack: test-stack-down test-stack-build test-stack-restore test-stack-app-up
+# Rebuild and reset the remote dev server from a fresh production snapshot. The app
+# entrypoint provisions roles, transfers ownership, migrates, re-applies row-level
+# security, and seeds, so no separate grant-rebuild step is needed here
+reset-dev-server: dev-server-down dev-server-build dev-server-restore dev-server-app-up
 
-# Tear down the test stack and its volumes
-test-stack-down:
-	@"$(DEV_DIR)/test-stack/down.sh"
+# Tear down the dev server stack and its volumes
+dev-server-down:
+	@"$(DEV_DIR)/dev-server/down.sh"
 
-# Build the test stack image
-test-stack-build:
-	@"$(DEV_DIR)/test-stack/build.sh"
+# Build the app image on the dev server daemon from the local working tree
+dev-server-build:
+	@"$(DEV_DIR)/dev-server/build.sh"
 
-# Start the test stack Postgres and restore remote staging data into it
-test-stack-restore:
-	@"$(DEV_DIR)/test-stack/restore.sh"
+# Start the dev server Postgres and restore remote production data into it
+dev-server-restore:
+	@"$(DEV_DIR)/dev-server/restore.sh"
 
-# Start the test stack app so its entrypoint migrates and seeds
-test-stack-app-up:
-	@"$(DEV_DIR)/test-stack/app-up.sh"
+# Start the dev server app so its entrypoint migrates, re-applies RLS, and seeds
+dev-server-app-up:
+	@"$(DEV_DIR)/dev-server/app-up.sh"
