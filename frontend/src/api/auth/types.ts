@@ -42,7 +42,11 @@ export interface ResetPasswordPayload {
 export interface MfaRequiredResponse {
   mfa_required: true;
   mfa_token: string;
-  // True once the authenticator is revoked, so the screen offers only the recovery-code input
+  // An authenticator code can be used
+  totp_enabled: boolean;
+  // A passkey can be used, the preferred factor when present
+  passkey_available: boolean;
+  // True once no usable factor remains, so the screen offers only the recovery-code input
   recovery_only: boolean;
 }
 

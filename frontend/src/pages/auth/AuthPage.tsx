@@ -65,6 +65,14 @@ const AuthPage = () => {
     mfaSubmitting,
     handleMfaSubmit,
     cancelMfa,
+    mfaUsePasskey,
+    mfaPasskeyAvailable,
+    mfaTotpEnabled,
+    handlePasskeyMfa,
+    passkeyMfaSubmitting,
+    switchToAuthenticatorMfa,
+    switchToRecoveryMfa,
+    switchToPasskeyMfa,
     enrolling,
     finishEnrollment,
   } = useAuthFormWorkflow({
@@ -112,74 +120,140 @@ const AuthPage = () => {
               <TotpEnrollment onComplete={finishEnrollment} onSkip={finishEnrollment} />
             </motion.div>
           ) : mfaActive ? (
-            <motion.div key="mfa-code" className="mt-5 space-y-6" {...AUTH_VIEW_TRANSITION}>
-              <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                {mfaRecoveryOnly
-                  ? 'Your authenticator was removed. Enter a recovery code to continue.'
-                  : mfaUseRecoveryCode
-                    ? 'Enter one of your recovery codes.'
-                    : 'Enter the 6-digit code from your authenticator app.'}
-              </p>
+            <motion.div key="mfa-step" className="mt-5 space-y-6" {...AUTH_VIEW_TRANSITION}>
+              {mfaUsePasskey ? (
+                <>
+                  <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                    Verify with your passkey to finish signing in.
+                  </p>
 
-              {mfaUseRecoveryCode && (
-                <WarningCallout>
-                  {mfaRecoveryOnly
-                    ? "Each recovery-code sign-in spends one of your remaining codes. If you run out before you set up a new authenticator, you'll be permanently locked out of your account."
-                    : "Using a recovery code removes your current authenticator. You'll be required to set up a new one before you can access your account again."}
-                </WarningCallout>
-              )}
+                  <button
+                    type="button"
+                    onClick={handlePasskeyMfa}
+                    disabled={passkeyMfaSubmitting}
+                    className="app-primary-button flex w-full items-center justify-center gap-2"
+                  >
+                    {passkeyMfaSubmitting ? (
+                      <div className="app-spinner" />
+                    ) : (
+                      <>
+                        <KeyRound size={16} aria-hidden />
+                        Verify with a passkey
+                      </>
+                    )}
+                  </button>
 
-              {mfaUseRecoveryCode ? (
-                <input
-                  className="app-input w-full"
-                  placeholder="Recovery code"
-                  // A recovery code is not a TOTP code, so suppress one-time-code autofill from password managers
-                  autoComplete="off"
-                  data-1p-ignore
-                  data-lpignore="true"
-                  value={mfaCode}
-                  onChange={(event) => setMfaCode(event.target.value)}
-                  disabled={mfaSubmitting}
-                  autoFocus
-                />
+                  {mfaTotpEnabled && (
+                    <button
+                      type="button"
+                      onClick={switchToAuthenticatorMfa}
+                      className="block w-full text-center text-sm font-medium underline underline-offset-2 transition-colors duration-200"
+                      style={{ color: 'var(--app-accent)' }}
+                    >
+                      Use authenticator code instead
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={switchToRecoveryMfa}
+                    className="block w-full text-center text-sm font-medium underline underline-offset-2 transition-colors duration-200"
+                    style={{ color: 'var(--app-accent)' }}
+                  >
+                    Enter a recovery code instead
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={cancelMfa}
+                    className="block w-full text-center text-sm font-medium underline underline-offset-2 transition-colors duration-200"
+                    style={{ color: 'var(--app-text-muted)' }}
+                  >
+                    Back to login
+                  </button>
+                </>
               ) : (
-                <OtpInput value={mfaCode} onChange={setMfaCode} disabled={mfaSubmitting} autoFocus />
+                <>
+                  <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                    {mfaRecoveryOnly
+                      ? 'Your authenticator was removed. Enter a recovery code to continue.'
+                      : mfaUseRecoveryCode
+                        ? 'Enter one of your recovery codes.'
+                        : 'Enter the 6-digit code from your authenticator app.'}
+                  </p>
+
+                  {mfaUseRecoveryCode && (
+                    <WarningCallout>
+                      {mfaRecoveryOnly
+                        ? "Each recovery-code sign-in spends one of your remaining codes. If you run out before you set up a new authenticator, you'll be permanently locked out of your account."
+                        : "Using a recovery code removes your current authenticator. You'll be required to set up a new one before you can access your account again."}
+                    </WarningCallout>
+                  )}
+
+                  {mfaUseRecoveryCode ? (
+                    <input
+                      className="app-input w-full"
+                      placeholder="Recovery code"
+                      // A recovery code is not a TOTP code, so suppress one-time-code autofill from password managers
+                      autoComplete="off"
+                      data-1p-ignore
+                      data-lpignore="true"
+                      value={mfaCode}
+                      onChange={(event) => setMfaCode(event.target.value)}
+                      disabled={mfaSubmitting}
+                      autoFocus
+                    />
+                  ) : (
+                    <OtpInput value={mfaCode} onChange={setMfaCode} disabled={mfaSubmitting} autoFocus />
+                  )}
+
+                  <div className="flex justify-center">
+                    <button
+                      type="submit"
+                      disabled={
+                        mfaSubmitting ||
+                        (mfaUseRecoveryCode ? mfaCode.trim().length === 0 : mfaCode.length < OTP_LENGTH)
+                      }
+                      className={`app-primary-button transition-all duration-300 ${
+                        mfaSubmitting ? 'app-primary-button-loading' : 'w-full'
+                      }`}
+                    >
+                      {mfaSubmitting ? <div className="app-spinner" /> : 'Verify'}
+                    </button>
+                  </div>
+
+                  {mfaTotpEnabled && (
+                    <button
+                      type="button"
+                      onClick={toggleMfaRecoveryCode}
+                      className="block w-full text-center text-sm font-medium underline underline-offset-2 transition-colors duration-200"
+                      style={{ color: 'var(--app-accent)' }}
+                    >
+                      {mfaUseRecoveryCode ? 'Use authenticator code' : 'Enter a recovery code instead'}
+                    </button>
+                  )}
+
+                  {mfaPasskeyAvailable && (
+                    <button
+                      type="button"
+                      onClick={switchToPasskeyMfa}
+                      className="block w-full text-center text-sm font-medium underline underline-offset-2 transition-colors duration-200"
+                      style={{ color: 'var(--app-accent)' }}
+                    >
+                      Use a passkey instead
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={cancelMfa}
+                    className="block w-full text-center text-sm font-medium underline underline-offset-2 transition-colors duration-200"
+                    style={{ color: 'var(--app-text-muted)' }}
+                  >
+                    Back to login
+                  </button>
+                </>
               )}
-
-              <div className="flex justify-center">
-                <button
-                  type="submit"
-                  disabled={
-                    mfaSubmitting ||
-                    (mfaUseRecoveryCode ? mfaCode.trim().length === 0 : mfaCode.length < OTP_LENGTH)
-                  }
-                  className={`app-primary-button transition-all duration-300 ${
-                    mfaSubmitting ? 'app-primary-button-loading' : 'w-full'
-                  }`}
-                >
-                  {mfaSubmitting ? <div className="app-spinner" /> : 'Verify'}
-                </button>
-              </div>
-
-              {!mfaRecoveryOnly && (
-                <button
-                  type="button"
-                  onClick={toggleMfaRecoveryCode}
-                  className="block w-full text-center text-sm font-medium underline underline-offset-2 transition-colors duration-200"
-                  style={{ color: 'var(--app-accent)' }}
-                >
-                  {mfaUseRecoveryCode ? 'Use authenticator code' : 'Enter a recovery code instead'}
-                </button>
-              )}
-
-              <button
-                type="button"
-                onClick={cancelMfa}
-                className="block w-full text-center text-sm font-medium underline underline-offset-2 transition-colors duration-200"
-                style={{ color: 'var(--app-text-muted)' }}
-              >
-                Back to login
-              </button>
             </motion.div>
           ) : isForgot && submitted ? (
             <motion.div key="forgot-confirmation" className="mt-5 space-y-6" {...AUTH_VIEW_TRANSITION}>

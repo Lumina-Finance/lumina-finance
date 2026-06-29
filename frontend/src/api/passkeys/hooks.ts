@@ -6,11 +6,13 @@ import {
   confirmPasskeyRegistration,
   fetchPasskeyAuthenticationOptions,
   fetchPasskeyConfig,
+  fetchPasskeyMfaOptions,
   fetchPasskeyRegistrationOptions,
   fetchPasskeys,
   registerPasskey,
   removePasskey,
   renamePasskey,
+  verifyPasskeyMfa,
 } from '@/api/passkeys/requests';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -40,6 +42,22 @@ export function useAuthenticatePasskey() {
       const optionsJSON = await fetchPasskeyAuthenticationOptions();
       const credential = await startAuthentication({ optionsJSON });
       return authenticatePasskey(credential);
+    },
+  });
+}
+
+/**
+ * Runs the passkey second-factor ceremony for a password login, resolving to the new session
+ *
+ * The options request does not spend the login challenge, so a cancelled prompt leaves the user free
+ * to retry or fall back to a code, while a verified assertion completes the login
+ */
+export function useVerifyPasskeyMfa() {
+  return useMutation({
+    mutationFn: async (mfaToken: string) => {
+      const optionsJSON = await fetchPasskeyMfaOptions(mfaToken);
+      const credential = await startAuthentication({ optionsJSON });
+      return verifyPasskeyMfa(mfaToken, credential);
     },
   });
 }

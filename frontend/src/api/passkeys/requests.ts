@@ -74,6 +74,43 @@ export function fetchPasskeyRegistrationOptions() {
 }
 
 /**
+ * Begins the passkey second-factor step for a login that passed its password
+ */
+export async function fetchPasskeyMfaOptions(mfaToken: string): Promise<PublicKeyCredentialRequestOptionsJSON> {
+  const response = await fetch(`${API_BASE}/auth/passkeys/mfa/options`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mfa_token: mfaToken }),
+  });
+  if (!response.ok) {
+    const body = (await response.json().catch(() => null)) as { detail?: string } | null;
+    throw new ApiError(body?.detail ?? `Failed to start passkey verification (${response.status})`, response.status);
+  }
+  return response.json();
+}
+
+/**
+ * Verifies a passkey assertion as the second factor of a password login
+ */
+export async function verifyPasskeyMfa(
+  mfaToken: string,
+  credential: AuthenticationResponseJSON,
+): Promise<AuthResponse> {
+  const response = await fetch(`${API_BASE}/auth/passkeys/mfa/verify`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mfa_token: mfaToken, credential }),
+  });
+  if (!response.ok) {
+    const body = (await response.json().catch(() => null)) as { detail?: string } | null;
+    throw new ApiError(body?.detail ?? `Passkey verification failed (${response.status})`, response.status);
+  }
+  return response.json();
+}
+
+/**
  * Verifies a finished ceremony and stores the passkey under the given label
  *
  * A first passkey comes back staged with recovery codes to acknowledge, a later one is active with no
