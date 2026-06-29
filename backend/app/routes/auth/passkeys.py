@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import WEBAUTHN_RP_ID
 from app.database import get_db
-from app.dependencies import get_current_user
+from app.dependencies import get_authenticated_user, get_current_user
 from app.models.user import User
 from app.routes.auth.token_helpers import (
     complete_mfa_challenge_with_passkey,
@@ -170,10 +170,12 @@ async def list_passkeys_route(
 
 @router.post("/register/options")
 async def passkey_registration_options_route(
-    user: Annotated[User, Depends(get_current_user)],
+    user: Annotated[User, Depends(get_authenticated_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     """Begin registration by returning ceremony options for the browser
+
+    Uses the permissive resolver so a recovery-code login can re-establish a second factor with a passkey
 
     Args:
         user: Authenticated user resolved from the access token
@@ -189,13 +191,14 @@ async def passkey_registration_options_route(
 @router.post("/register", response_model=PasskeyRegisterResponse, status_code=status.HTTP_201_CREATED)
 async def register_passkey_route(
     data: PasskeyRegisterRequest,
-    user: Annotated[User, Depends(get_current_user)],
+    user: Annotated[User, Depends(get_authenticated_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     """Verify a finished registration ceremony and store the passkey
 
     A first passkey comes back with recovery codes and stays staged until they are confirmed, while a
-    later passkey is active immediately with no codes
+    later passkey is active immediately with no codes. The permissive resolver lets a recovery-code
+    login re-establish a second factor here, which also lifts the restriction
 
     Args:
         data: The browser's attestation response and the label to store it under
@@ -214,10 +217,13 @@ async def register_passkey_route(
 
 @router.post("/register/confirm", status_code=status.HTTP_204_NO_CONTENT)
 async def confirm_passkey_registration_route(
-    user: Annotated[User, Depends(get_current_user)],
+    user: Annotated[User, Depends(get_authenticated_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     """Activate a staged first passkey after its recovery codes have been saved
+
+    Uses the permissive resolver so a recovery-code login that re-establishes with a passkey can finish
+    here, which also lifts the restriction
 
     Args:
         user: Authenticated user resolved from the access token

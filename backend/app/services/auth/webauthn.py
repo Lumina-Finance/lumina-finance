@@ -170,6 +170,7 @@ async def register_passkey(
     recovery_codes = None
     if recovery_established:
         await _ensure_webauthn_identity(db, user_id)
+        await _clear_reenrollment_restriction(db, user_id)
     else:
         recovery_codes = await generate_recovery_codes(db, user_id, pending=True)
 
@@ -201,6 +202,7 @@ async def confirm_passkey_registration(db: AsyncSession, user_id: uuid.UUID) -> 
 
     await activate_pending_recovery_codes(db, user_id)
     await _ensure_webauthn_identity(db, user_id)
+    await _clear_reenrollment_restriction(db, user_id)
     await db.commit()
 
 
@@ -620,6 +622,17 @@ async def _resolve_credential(db: AsyncSession, credential: dict) -> WebauthnCre
     if passkey is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Passkey not recognized")
     return passkey
+
+
+async def _clear_reenrollment_restriction(db: AsyncSession, user_id: uuid.UUID) -> None:
+    """Lift any second-factor re-enrolment restriction now that the user has an active passkey
+
+    A recovery-code login restricts the session until a second factor is re-established, and an active
+    passkey satisfies that the same way completing a fresh TOTP enrolment does. The caller commits
+    """
+    user = await db.get(User, user_id)
+    if user is not None:
+        user.totp_reenrollment_required = False
 
 
 async def _ensure_webauthn_identity(db: AsyncSession, user_id: uuid.UUID) -> None:

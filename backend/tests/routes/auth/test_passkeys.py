@@ -16,6 +16,7 @@ import app.services.auth.webauthn as webauthn_service
 from app.config import TWO_FACTOR_STAGING_EXPIRE_SECONDS, WEBAUTHN_ORIGINS, WEBAUTHN_RP_ID
 from app.models.auth import AuthIdentity, RecoveryCode, WebauthnChallenge, WebauthnCredential
 from app.models.base import AuthProvider
+from app.models.user import User
 from tests.conftest import TestSession
 from tests.routes.support import SIGNUP_PAYLOAD, _create_user, _get_auth_header
 
@@ -529,3 +530,51 @@ async def test_passkey_second_factor_rejects_another_users_passkey(client):
         "/auth/passkeys/mfa/verify", json={"mfa_token": mfa_token, "credential": assertion}
     )
     assert response.status_code == 401
+
+
+async def _set_reenrollment_required(user_id: str) -> None:
+    """Restrict the user as a recovery-code login would, pending second-factor re-establishment"""
+    async with TestSession() as db:
+        user = await db.get(User, uuid.UUID(user_id))
+        user.totp_reenrollment_required = True
+        await db.commit()
+
+
+async def _seed_active_recovery_code(user_id: str) -> None:
+    """Insert one active recovery code, standing in for a batch that survives a recovery login"""
+    async with TestSession() as db:
+        db.add(RecoveryCode(user_id=uuid.UUID(user_id), code_hash="active-hash", pending=False))
+        await db.commit()
+
+
+async def _is_reenrollment_required(user_id: str) -> bool:
+    """Return whether the user is still restricted to second-factor re-establishment"""
+    async with TestSession() as db:
+        user = await db.get(User, uuid.UUID(user_id))
+        return user.totp_reenrollment_required
+
+
+async def test_restricted_session_reestablishes_with_passkey(client, monkeypatch):
+    """A recovery-code login can register a passkey, which lifts the re-enrolment restriction"""
+    signup = await _create_user(client)
+    auth = _get_auth_header(signup)
+    user_id = signup.json()["user"]["id"]
+    await _seed_active_recovery_code(user_id)
+    await _set_reenrollment_required(user_id)
+
+    registered = await _register_passkey(client, auth, monkeypatch, b"reestablish-key", "Recovery key")
+    assert registered.status_code == 201
+    assert registered.json()["recovery_codes"] is None
+
+    assert await _is_reenrollment_required(user_id) is False
+    assert [p["name"] for p in (await client.get("/auth/passkeys", headers=auth)).json()] == ["Recovery key"]
+
+
+async def test_restricted_session_cannot_manage_passkeys(client):
+    """A restricted session is still kept out of passkey management until it re-establishes"""
+    signup = await _create_user(client)
+    auth = _get_auth_header(signup)
+    await _set_reenrollment_required(signup.json()["user"]["id"])
+
+    response = await client.get("/auth/passkeys", headers=auth)
+    assert response.status_code == 403
