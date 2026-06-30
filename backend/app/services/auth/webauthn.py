@@ -257,6 +257,25 @@ async def prune_stale_passkey_staging(db: AsyncSession, user_id: uuid.UUID) -> N
     )
 
 
+async def revoke_all_passkeys(db: AsyncSession, user_id: uuid.UUID) -> None:
+    """Delete every passkey and the WebAuthn identity for a user
+
+    A recovery-code sign-in wipes all second factors, so both staged and active passkeys are removed
+    together with the identity that let a passkey stand in for a login. The caller commits
+
+    Args:
+        db: Active database session
+        user_id: User whose passkeys and WebAuthn identity are removed
+    """
+    await db.execute(delete(WebauthnCredential).where(WebauthnCredential.user_id == user_id))
+    await db.execute(
+        delete(AuthIdentity).where(
+            AuthIdentity.user_id == user_id,
+            AuthIdentity.auth_provider == AuthProvider.WEBAUTHN,
+        )
+    )
+
+
 async def _staged_passkeys(db: AsyncSession, user_id: uuid.UUID) -> list[WebauthnCredential]:
     """Return the user's passkeys still awaiting recovery-code acknowledgement"""
     result = await db.execute(

@@ -14,6 +14,7 @@ from app.services.auth.recovery_codes import (
     has_active_recovery_codes,
     has_pending_recovery_codes,
 )
+from app.services.auth.sessions import delete_all_user_auth_sessions
 from app.services.auth.step_up import verify_step_up
 from app.services.auth.totp import (
     disable_totp,
@@ -22,6 +23,7 @@ from app.services.auth.totp import (
     is_user_totp_code_valid,
     mark_totp_confirmed,
 )
+from app.services.auth.webauthn import revoke_all_passkeys
 
 # Shared message so disabling and regenerating reject identically when 2FA is off
 _NOT_ENABLED_DETAIL = "Two-factor authentication is not enabled"
@@ -30,9 +32,11 @@ _NOT_ENABLED_DETAIL = "Two-factor authentication is not enabled"
 async def verify_login_second_factor(db: AsyncSession, user_id: uuid.UUID, code: str) -> None:
     """Verify the second factor presented at login
 
-    A valid TOTP code passes login unchanged. A recovery code instead is treated as a lost
-    authenticator: it is consumed, the TOTP secret is revoked, and re-enrolment is required. The
-    caller commits, since revoking the secret and setting the flag belong to its transaction
+    A valid TOTP code passes login unchanged. A recovery code instead is treated as lost
+    authenticators: it is consumed, every factor is wiped, all existing sessions are revoked, and
+    re-enrolment is required, so the recovery path grants only a fresh restricted session and nothing
+    it can ride. The remaining codes stay valid, so an abandoned re-enrol is not a lockout. The caller
+    commits, since the wipe and the flag belong to its transaction
 
     Args:
         db: Active database session
@@ -47,6 +51,8 @@ async def verify_login_second_factor(db: AsyncSession, user_id: uuid.UUID, code:
 
     if await consume_recovery_code(db, user_id, code):
         await disable_totp(db, user_id)
+        await revoke_all_passkeys(db, user_id)
+        await delete_all_user_auth_sessions(db, user_id)
         user = await db.get(User, user_id)
         user.totp_reenrollment_required = True
         return

@@ -372,6 +372,21 @@ async def test_recovery_code_login_forces_reenrollment(client):
     assert body["user"]["totp_reenrollment_required"] is True
 
 
+async def test_recovery_code_login_signs_out_existing_sessions(client):
+    """Signing in with a recovery code revokes every session the account already held"""
+    auth, _, codes = await _enroll(client)
+
+    # The signup session is valid before the recovery sign-in
+    assert (await client.get("/auth/2fa/status", headers=auth)).status_code == 200
+
+    verify = await _login_with_code(client, codes[0])
+    assert verify.status_code == 200
+
+    # The pre-existing session is revoked, so it returns 401 rather than the 403 a live restricted
+    # session would get
+    assert (await client.get("/auth/2fa/status", headers=auth)).status_code == 401
+
+
 async def test_restricted_session_is_blocked_from_normal_routes(client):
     """A recovery-code session cannot reach a normal protected route until it re-enrols"""
     _, _, codes = await _enroll(client)

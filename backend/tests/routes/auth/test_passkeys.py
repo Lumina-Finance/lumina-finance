@@ -597,6 +597,31 @@ async def test_restricted_session_reestablishes_with_passkey(client, monkeypatch
     assert [p["name"] for p in (await client.get("/auth/passkeys", headers=auth)).json()] == ["Recovery key"]
 
 
+async def test_recovery_code_login_wipes_all_passkeys(client, monkeypatch):
+    """A recovery-code sign-in deletes every passkey and the WebAuthn identity"""
+    signup = await _create_user(client)
+    auth = _get_auth_header(signup)
+    user_id = signup.json()["user"]["id"]
+
+    registered = await _register_passkey(client, auth, monkeypatch, b"to-wipe-key", "Laptop")
+    codes = registered.json()["recovery_codes"]
+    await client.post("/auth/passkeys/register/confirm", headers=auth)
+    assert await _has_webauthn_identity(user_id) is True
+
+    login = await client.post("/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": SIGNUP_PAYLOAD["password"]})
+    verify = await client.post("/auth/2fa/verify", json={"mfa_token": login.json()["mfa_token"], "code": codes[0]})
+    assert verify.status_code == 200
+    assert verify.json()["user"]["totp_reenrollment_required"] is True
+
+    # The passkey rows and the WebAuthn identity are gone, leaving only the forced re-enrol path
+    async with TestSession() as db:
+        remaining = (
+            await db.execute(select(WebauthnCredential).where(WebauthnCredential.user_id == uuid.UUID(user_id)))
+        ).scalars().all()
+        assert remaining == []
+    assert await _has_webauthn_identity(user_id) is False
+
+
 async def test_restricted_session_cannot_manage_passkeys(client):
     """A restricted session is still kept out of passkey management until it re-establishes"""
     signup = await _create_user(client)
