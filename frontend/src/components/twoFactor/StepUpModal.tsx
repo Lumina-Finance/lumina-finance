@@ -1,5 +1,6 @@
 import { KeyRound } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import type { AuthenticationResponseJSON } from '@simplewebauthn/browser';
 import { usePasskeyConfig, usePasskeys } from '@/api/passkeys';
 import { requestPasskeyStepUpAssertion } from '@/api/passkeys/requests';
@@ -9,7 +10,7 @@ import { WarningCallout } from '@/components/twoFactor/WarningCallout';
 import { useAuth } from '@/hooks/useAuth';
 import { isPasskeyCeremonyCancelled } from '@/utils/passkeyErrors';
 import { assessPasskeySupport } from '@/utils/passkeySupport';
-import { delayToMinimum } from '@/utils/timing';
+import { delayToMinimum, MFA_LOADING_MIN_MS } from '@/utils/timing';
 
 export interface StepUpCredentials {
   /** Empty when the modal does not collect a password */
@@ -24,7 +25,7 @@ interface StepUpModalProps {
   open: boolean;
   title: string;
   description: string;
-  /** Collects the current password alongside the factor, for actions the backend re-checks it on */
+  /** Collects the current password on a first step, for actions the backend re-checks it on */
   requirePassword?: boolean;
   /** Confirm button text, defaulting to a neutral verify label */
   confirmLabel?: string;
@@ -41,11 +42,21 @@ interface StepUpModalProps {
 
 const GENERIC_STEP_UP_ERROR = 'That did not work. Check your details and try again.';
 
+// Cross-fade with a small slide so the password and factor steps give way smoothly
+const VIEW_TRANSITION = {
+  initial: { opacity: 0, y: 8 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: -8 },
+  transition: { duration: 0.2, ease: [0.25, 0.1, 0.25, 1] as const },
+};
+
 /**
- * Re-verifies a current second factor before a sensitive action. A passkey is offered first when the
- * user has one, with a TOTP code as the fallback. A recovery code is never accepted: losing every
- * factor is handled by the recovery escape, which signs out so the user resets through a recovery
- * sign-in. The parent closes the modal by flipping `open` once onVerify resolves
+ * Re-verifies a current second factor before a sensitive action across two steps: the password first,
+ * then the factor. The split gives a just-used authenticator code time to roll over so it is not
+ * rejected as a replay. A passkey is offered first when the user has one, with a TOTP code as the
+ * fallback. A recovery code is never accepted: losing every factor is handled by the recovery escape,
+ * which signs out so the user resets through a recovery sign-in. The parent closes the modal by
+ * flipping `open` once onVerify resolves
  */
 export function StepUpModal({
   open,
@@ -68,6 +79,7 @@ export function StepUpModal({
   const [verifyingPath, setVerifyingPath] = useState<'code' | 'passkey' | null>(null);
   const [confirmingReset, setConfirmingReset] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [step, setStep] = useState<'password' | 'factor'>(requirePassword ? 'password' : 'factor');
 
   // Tracks which control is in flight so only the invoked button shows a spinner, while either path
   // disables both
@@ -76,9 +88,7 @@ export function StepUpModal({
   // Only offer a passkey when the origin can run a ceremony and the user actually has one to present
   const passkeySupported = passkeyConfig.data ? assessPasskeySupport(passkeyConfig.data.rp_id).supported : false;
   const canUsePasskey = allowPasskey && passkeySupported && (passkeys.data?.length ?? 0) > 0;
-
-  const passwordReady = !requirePassword || password.length > 0;
-  const canSubmitCode = otp.length === OTP_LENGTH && passwordReady;
+  const canSubmitCode = otp.length === OTP_LENGTH;
   const actionButtonClass = `${danger ? 'app-danger-button' : 'app-primary-button'} w-full`;
 
   /**
@@ -90,6 +100,7 @@ export function StepUpModal({
     setError('');
     setConfirmingReset(false);
     setResetting(false);
+    setStep(requirePassword ? 'password' : 'factor');
   };
 
   /**
@@ -103,10 +114,10 @@ export function StepUpModal({
     const start = Date.now();
     try {
       await action();
-      await delayToMinimum(start);
+      await delayToMinimum(start, MFA_LOADING_MIN_MS);
       reset();
     } catch (stepUpError) {
-      await delayToMinimum(start);
+      await delayToMinimum(start, MFA_LOADING_MIN_MS);
       if (!isPasskeyCeremonyCancelled(stepUpError)) setError(GENERIC_STEP_UP_ERROR);
       setOtp('');
     } finally {
@@ -115,8 +126,19 @@ export function StepUpModal({
   };
 
   /**
-   * Submitting the form runs the code path. The confirm button is the form's only submit control, so a
-   * password manager that autofills and auto-submits lands on the action rather than the recovery escape
+   * Advances from the password step to the factor step. The action itself only runs once the factor is
+   * verified, so a wrong password surfaces there rather than here
+   */
+  const handleContinue = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!password) return;
+    setError('');
+    setStep('factor');
+  };
+
+  /**
+   * Submitting the factor form runs the code path. The confirm button is the form's only submit
+   * control, so a password manager that autofills and auto-submits lands on the action, not the escape
    */
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -125,7 +147,7 @@ export function StepUpModal({
   };
 
   const handlePasskeyVerify = () => {
-    if (!passwordReady || verifying) return;
+    if (verifying) return;
     void runStepUp('passkey', async () => {
       const assertion = await requestPasskeyStepUpAssertion();
       await onVerify({ password, passkey: assertion });
@@ -155,7 +177,7 @@ export function StepUpModal({
   };
 
   return (
-    <TwoFactorModalShell open={open} onClose={handleClose} closeDisabled={verifying}>
+    <TwoFactorModalShell open={open} onClose={handleClose} closeDisabled={verifying || resetting}>
       <div className="space-y-1">
         <h3 className="text-base font-semibold">{title}</h3>
         <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
@@ -165,84 +187,104 @@ export function StepUpModal({
         </p>
       </div>
 
-      {confirmingReset ? (
-        <>
-          <WarningCallout>
-            This removes all your authenticators and passkeys and signs you out everywhere. You'll sign in
-            with a recovery code and set up a new factor.
-          </WarningCallout>
-          <button type="button" onClick={handleRecoveryReset} disabled={resetting} className="app-danger-button w-full">
-            {resetting ? <div className="app-spinner" /> : 'Sign out and reset'}
-          </button>
-          <button
-            type="button"
-            onClick={() => setConfirmingReset(false)}
-            disabled={resetting}
-            className="block w-full text-center text-sm font-medium underline underline-offset-2"
-            style={{ color: 'var(--app-text-muted)' }}
-          >
-            Back
-          </button>
-        </>
-      ) : (
-        <>
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {requirePassword && (
-              <input
-                className="app-input w-full"
-                type="password"
-                placeholder="Current password"
-                autoComplete="current-password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                autoFocus
-              />
-            )}
-
-            {canUsePasskey && (
-              <>
-                <button
-                  type="button"
-                  onClick={handlePasskeyVerify}
-                  disabled={!passwordReady || verifying}
-                  className="app-primary-button flex w-full items-center justify-center gap-2"
-                >
-                  {verifyingPath === 'passkey' ? <div className="app-spinner" /> : <KeyRound size={16} aria-hidden />}
-                  Verify with a passkey
-                </button>
-                <p className="text-center text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                  or enter a code from your authenticator app
-                </p>
-              </>
-            )}
-
-            <OtpInput value={otp} onChange={setOtp} disabled={verifying} autoFocus={!requirePassword && !canUsePasskey} />
-
-            {error && (
-              <p className="text-center text-sm" style={{ color: 'var(--app-negative)' }}>
-                {error}
-              </p>
-            )}
-
-            <button type="submit" disabled={!canSubmitCode || verifying} className={actionButtonClass}>
-              {verifyingPath === 'code' ? <div className="app-spinner" /> : confirmLabel}
+      <AnimatePresence mode="wait" initial={false}>
+        {confirmingReset ? (
+          <motion.div key="reset" className="space-y-5" {...VIEW_TRANSITION}>
+            <WarningCallout>
+              This removes all your authenticators and passkeys and signs you out everywhere. You'll sign in
+              with a recovery code and set up a new factor.
+            </WarningCallout>
+            <button type="button" onClick={handleRecoveryReset} disabled={resetting} className="app-danger-button w-full">
+              {resetting ? <div className="app-spinner" /> : 'Sign out and reset'}
             </button>
-          </form>
-
-          {/* Outside the form so a password manager's autofill-and-submit cannot land on this destructive escape */}
-          {allowRecoveryReset && (
             <button
               type="button"
-              onClick={() => setConfirmingReset(true)}
-              disabled={verifying}
+              onClick={() => setConfirmingReset(false)}
+              disabled={resetting}
               className="block w-full text-center text-sm font-medium underline underline-offset-2"
               style={{ color: 'var(--app-text-muted)' }}
             >
-              Lost your authenticator?
+              Back
             </button>
-          )}
-        </>
-      )}
+          </motion.div>
+        ) : step === 'password' ? (
+          <motion.form key="password" onSubmit={handleContinue} className="space-y-5" {...VIEW_TRANSITION}>
+            <input
+              className="app-input w-full"
+              type="password"
+              placeholder="Current password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              autoFocus
+            />
+            <button type="submit" disabled={!password} className="app-primary-button w-full">
+              Continue
+            </button>
+          </motion.form>
+        ) : (
+          <motion.div key="factor" className="space-y-5" {...VIEW_TRANSITION}>
+            <form onSubmit={handleSubmit} className="space-y-5">
+              {canUsePasskey && (
+                <>
+                  <button
+                    type="button"
+                    onClick={handlePasskeyVerify}
+                    disabled={verifying}
+                    className="app-primary-button flex w-full items-center justify-center gap-2"
+                  >
+                    {verifyingPath === 'passkey' ? <div className="app-spinner" /> : <KeyRound size={16} aria-hidden />}
+                    Verify with a passkey
+                  </button>
+                  <p className="text-center text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                    or enter a code from your authenticator app
+                  </p>
+                </>
+              )}
+
+              <OtpInput value={otp} onChange={setOtp} disabled={verifying} autoFocus={!canUsePasskey} />
+
+              {error && (
+                <p className="text-center text-sm" style={{ color: 'var(--app-negative)' }}>
+                  {error}
+                </p>
+              )}
+
+              <button type="submit" disabled={!canSubmitCode || verifying} className={actionButtonClass}>
+                {verifyingPath === 'code' ? <div className="app-spinner" /> : confirmLabel}
+              </button>
+            </form>
+
+            {/* Links sit outside the form so a password manager's autofill-and-submit cannot land on them */}
+            {requirePassword && (
+              <button
+                type="button"
+                onClick={() => {
+                  setStep('password');
+                  setOtp('');
+                  setError('');
+                }}
+                disabled={verifying}
+                className="block w-full text-center text-sm underline underline-offset-2"
+                style={{ color: 'var(--app-text-muted)' }}
+              >
+                Back
+              </button>
+            )}
+            {allowRecoveryReset && (
+              <button
+                type="button"
+                onClick={() => setConfirmingReset(true)}
+                disabled={verifying}
+                className="block w-full text-center text-sm font-medium underline underline-offset-2"
+                style={{ color: 'var(--app-text-muted)' }}
+              >
+                Lost your authenticator?
+              </button>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </TwoFactorModalShell>
   );
 }

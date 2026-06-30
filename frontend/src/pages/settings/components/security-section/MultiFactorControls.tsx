@@ -113,7 +113,7 @@ export default function MultiFactorControls() {
       <StepUpModal
         open={totp.openModal === 'disable'}
         title="Turn off two-factor authentication"
-        description="Enter your password and verify with a passkey or a current code to turn two-factor off."
+        description="Confirm it's you to turn two-factor off."
         requirePassword
         confirmLabel="Turn off"
         danger
@@ -126,7 +126,7 @@ export default function MultiFactorControls() {
       <StepUpModal
         open={totp.openModal === 'regenerate'}
         title="Regenerate recovery codes"
-        description="Enter your password and verify with a passkey or a current code to replace your recovery codes."
+        description="Confirm it's you to replace your recovery codes."
         requirePassword
         confirmLabel="Regenerate"
         allowPasskey
@@ -155,7 +155,7 @@ export default function MultiFactorControls() {
       <StepUpModal
         open={passkey.isRemovalOpen}
         title="Remove this passkey"
-        description="Enter your password and verify with a passkey or a current code to remove it."
+        description="Confirm it's you to remove this passkey."
         requirePassword
         confirmLabel="Remove"
         danger

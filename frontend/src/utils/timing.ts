@@ -1,6 +1,9 @@
 /** Minimum visible loading time shared across auth actions so a quick request does not flash */
 export const AUTH_LOADING_MIN_MS = 1000
 
+/** Minimum visible loading time for two-factor management actions so a quick request does not flash */
+export const MFA_LOADING_MIN_MS = 800
+
 /**
  * Resolves after a fixed delay for minimum loading and feedback states
  */
