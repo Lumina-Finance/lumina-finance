@@ -104,7 +104,7 @@ export function MultiFactorModal({ open, onClose }: MultiFactorModalProps) {
               )}
             </div>
             <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-              One-time codes from an app like 1Password or Authy.
+              One-time codes from an authenticator app when you sign in.
             </p>
           </div>
           {totp.isEnabled ? (
