@@ -19,15 +19,14 @@ from app.routes.auth.token_helpers import (
 from app.schemas.auth import (
     AuthResponse,
     ChangePasswordRequest,
-    DisableTotpRequest,
     ForgotPasswordRequest,
     LoginRequest,
     MfaRequiredResponse,
     MfaVerifyRequest,
     RecoveryCodesResponse,
-    RegenerateRecoveryCodesRequest,
     ResetPasswordRequest,
     SignupRequest,
+    StepUpRequest,
     TotpConfirmRequest,
     TotpSetupResponse,
     TotpStatusResponse,
@@ -278,7 +277,7 @@ async def complete_totp_route(
 
 @router.post("/2fa/disable", status_code=status.HTTP_204_NO_CONTENT)
 async def disable_totp_route(
-    data: DisableTotpRequest,
+    data: StepUpRequest,
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
@@ -297,7 +296,7 @@ async def disable_totp_route(
 
 @router.post("/2fa/recovery-codes", response_model=RecoveryCodesResponse)
 async def regenerate_recovery_codes_route(
-    data: RegenerateRecoveryCodesRequest,
+    data: StepUpRequest,
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
