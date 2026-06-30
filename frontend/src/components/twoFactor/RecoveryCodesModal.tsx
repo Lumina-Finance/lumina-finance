@@ -29,12 +29,16 @@ export function RecoveryCodesModal({
   description = DEFAULT_DESCRIPTION,
 }: RecoveryCodesModalProps) {
   const [acknowledged, setAcknowledged] = useState(false);
+  const [lockoutAcknowledged, setLockoutAcknowledged] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState('');
+
+  const ready = acknowledged && lockoutAcknowledged;
 
   // The component stays mounted between rotations, so reset transient state on each close
   const reset = () => {
     setAcknowledged(false);
+    setLockoutAcknowledged(false);
     setConfirming(false);
     setError('');
   };
@@ -43,7 +47,7 @@ export function RecoveryCodesModal({
    * Activates the staged codes, surfacing a retryable error on failure
    */
   const handleConfirm = async () => {
-    if (!acknowledged || confirming) return;
+    if (!ready || confirming) return;
 
     setError('');
     setConfirming(true);
@@ -78,14 +82,29 @@ export function RecoveryCodesModal({
 
       {codes && <RecoveryCodesPanel codes={codes} />}
 
-      <label className="flex items-center gap-2 text-sm" style={{ color: 'var(--app-text-muted)' }}>
-        <input
-          type="checkbox"
-          checked={acknowledged}
-          onChange={(event) => setAcknowledged(event.target.checked)}
-        />
-        I've saved my new recovery codes
-      </label>
+      <div className="space-y-2">
+        <label className="flex items-center gap-2 text-sm" style={{ color: 'var(--app-text-muted)' }}>
+          <input
+            type="checkbox"
+            checked={acknowledged}
+            onChange={(event) => setAcknowledged(event.target.checked)}
+          />
+          I've saved my new recovery codes
+        </label>
+
+        <label className="flex items-start gap-2 text-sm" style={{ color: 'var(--app-text-muted)' }}>
+          <input
+            type="checkbox"
+            className="mt-0.5 shrink-0"
+            checked={lockoutAcknowledged}
+            onChange={(event) => setLockoutAcknowledged(event.target.checked)}
+          />
+          <span>
+            I understand that losing my recovery codes and my passkey or authenticator at the same time
+            may permanently lock me out of my account
+          </span>
+        </label>
+      </div>
 
       {error && (
         <p className="text-center text-sm" style={{ color: 'var(--app-negative)' }}>
@@ -96,7 +115,7 @@ export function RecoveryCodesModal({
       <button
         type="button"
         onClick={handleConfirm}
-        disabled={!acknowledged || confirming}
+        disabled={!ready || confirming}
         className="app-primary-button w-full"
       >
         {confirming ? <div className="app-spinner" /> : 'Done'}
