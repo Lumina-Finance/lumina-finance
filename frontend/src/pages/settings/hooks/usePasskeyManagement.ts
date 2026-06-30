@@ -76,11 +76,14 @@ export function usePasskeyManagement() {
     registerPasskey,
     isRegistering: register.isPending,
     renamePasskey: async (passkeyId: string, name: string) => {
+      // Clear the just-added reminder so it does not linger past an unrelated action
+      setReuseReminderVisible(false);
       await rename.mutateAsync({ passkeyId, name });
     },
 
     // Removal opens a step-up prompt rather than deleting directly, since the backend re-checks a factor
     beginRemovePasskey: async (passkeyId: string) => {
+      setReuseReminderVisible(false);
       setRemovalTarget(passkeyId);
     },
     isRemovalOpen: removalTarget !== null,

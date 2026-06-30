@@ -76,9 +76,12 @@ export function ManagePasskeysDialog({ open, onClose, management }: ManagePasske
             </p>
           )}
           {management.reuseReminder && !error && (
-            <p className="text-xs" style={{ color: 'var(--app-text-muted)' }}>
-              Passkey added. Your existing recovery codes also cover it, so there are no new codes to save.
-            </p>
+            <div className="space-y-1">
+              <p className="text-sm font-medium">Passkey added</p>
+              <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                Your existing recovery codes also cover it, so there are no new codes to save.
+              </p>
+            </div>
           )}
         </div>
       )}
