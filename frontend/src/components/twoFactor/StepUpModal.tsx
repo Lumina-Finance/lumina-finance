@@ -1,5 +1,5 @@
 import { KeyRound } from 'lucide-react';
-import { useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import type { AuthenticationResponseJSON } from '@simplewebauthn/browser';
 import { usePasskeyConfig, usePasskeys } from '@/api/passkeys';
 import { requestPasskeyStepUpAssertion } from '@/api/passkeys/requests';
@@ -107,7 +107,12 @@ export function StepUpModal({
     }
   };
 
-  const handleCodeVerify = () => {
+  /**
+   * Submitting the form runs the code path. The confirm button is the form's only submit control, so a
+   * password manager that autofills and auto-submits lands on the action rather than the recovery escape
+   */
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
     if (!canSubmitCode || verifying) return;
     void runStepUp(() => onVerify({ password, code: otp }));
   };
@@ -159,47 +164,50 @@ export function StepUpModal({
         </>
       ) : (
         <>
-          {requirePassword && (
-            <input
-              className="app-input w-full"
-              type="password"
-              placeholder="Current password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              autoFocus
-            />
-          )}
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {requirePassword && (
+              <input
+                className="app-input w-full"
+                type="password"
+                placeholder="Current password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                autoFocus
+              />
+            )}
 
-          {canUsePasskey && (
-            <>
-              <button
-                type="button"
-                onClick={handlePasskeyVerify}
-                disabled={!passwordReady || verifying}
-                className="app-primary-button flex w-full items-center justify-center gap-2"
-              >
-                {verifying ? <div className="app-spinner" /> : <KeyRound size={16} aria-hidden />}
-                Verify with a passkey
-              </button>
-              <p className="text-center text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                or enter a code from your authenticator app
+            {canUsePasskey && (
+              <>
+                <button
+                  type="button"
+                  onClick={handlePasskeyVerify}
+                  disabled={!passwordReady || verifying}
+                  className="app-primary-button flex w-full items-center justify-center gap-2"
+                >
+                  {verifying ? <div className="app-spinner" /> : <KeyRound size={16} aria-hidden />}
+                  Verify with a passkey
+                </button>
+                <p className="text-center text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                  or enter a code from your authenticator app
+                </p>
+              </>
+            )}
+
+            <OtpInput value={otp} onChange={setOtp} disabled={verifying} autoFocus={!requirePassword && !canUsePasskey} />
+
+            {error && (
+              <p className="text-center text-sm" style={{ color: 'var(--app-negative)' }}>
+                {error}
               </p>
-            </>
-          )}
+            )}
 
-          <OtpInput value={otp} onChange={setOtp} disabled={verifying} autoFocus={!requirePassword && !canUsePasskey} />
+            <button type="submit" disabled={!canSubmitCode || verifying} className={actionButtonClass}>
+              {verifying ? <div className="app-spinner" /> : confirmLabel}
+            </button>
+          </form>
 
-          {error && (
-            <p className="text-center text-sm" style={{ color: 'var(--app-negative)' }}>
-              {error}
-            </p>
-          )}
-
-          <button type="button" onClick={handleCodeVerify} disabled={!canSubmitCode || verifying} className={actionButtonClass}>
-            {verifying ? <div className="app-spinner" /> : confirmLabel}
-          </button>
-
+          {/* Outside the form so a password manager's autofill-and-submit cannot land on this destructive escape */}
           {allowRecoveryReset && (
             <button
               type="button"
