@@ -22,7 +22,6 @@ export function usePasskeyManagement() {
   const confirmRegistration = useConfirmPasskeyRegistration();
   const rename = useRenamePasskey();
   const remove = useRemovePasskey();
-  const [isManageOpen, setIsManageOpen] = useState(false);
   const [pendingRecoveryCodes, setPendingRecoveryCodes] = useState<string[] | null>(null);
   const [reuseReminderVisible, setReuseReminderVisible] = useState(false);
   const [removalTarget, setRemovalTarget] = useState<string | null>(null);
@@ -63,10 +62,8 @@ export function usePasskeyManagement() {
   }
 
   return {
-    isManageOpen,
-    openManage: () => setIsManageOpen(true),
-    closeManage: () => {
-      setIsManageOpen(false);
+    // Clears the transient reminder and removal target when the multi-factor modal closes
+    reset: () => {
       setReuseReminderVisible(false);
       setRemovalTarget(null);
     },

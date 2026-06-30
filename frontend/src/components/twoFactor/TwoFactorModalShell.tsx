@@ -54,7 +54,7 @@ export function TwoFactorModalShell({ open, onClose, closeDisabled = false, chil
     <AnimatePresence>
       {open && (
         <motion.div
-          className="app-modal-backdrop z-50"
+          className="app-modal-backdrop z-[70]"
           onClick={handleBackdropClick}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
