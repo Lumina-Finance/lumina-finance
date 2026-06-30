@@ -186,6 +186,22 @@ async def test_disable_requires_two_factor_enabled(client):
     assert disable.status_code == 400
 
 
+async def test_repeated_wrong_step_up_codes_lock_the_account(client):
+    """Grinding the authenticator at step-up trips the shared lockout and signs the session out"""
+    auth, _, _ = await _enroll(client)
+
+    for _ in range(5):
+        rejected = await client.post(
+            "/auth/2fa/disable", headers=auth, json={"password": _PASSWORD, "code": "000000"}
+        )
+        assert rejected.status_code == 401
+
+    # Tripping the lock signed the step-up session out, and a correct password is now refused at login
+    assert (await client.get("/auth/2fa/status", headers=auth)).status_code == 401
+    locked = await client.post("/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": _PASSWORD})
+    assert locked.status_code == 423
+
+
 async def test_regenerate_then_confirm_swaps_the_codes(client):
     """Confirming a regeneration activates the new batch and retires the old one"""
     auth, secret, old_codes = await _enroll(client)
