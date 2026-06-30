@@ -58,11 +58,11 @@ async def ensure_roles() -> None:
 
 
 async def transfer_schema_ownership() -> None:
-    """Transfer every public table, sequence, and function to the migrator role
+    """Transfer every public table, sequence, function, and enum type to the migrator role
 
-    Functions are included because a restored dump owns them as the restoring superuser,
-    while the row-level security re-apply must run as the migrator that owns the objects
-    it drops and rebuilds
+    A restored dump owns these as the restoring superuser, while migrations and the row-level
+    security re-apply run as the migrator and must own the objects they change. Enum types are
+    included so a later migration can alter one, such as adding an enum value
     """
     engine = create_async_engine(admin_database_url(), isolation_level="AUTOCOMMIT")
     try:
@@ -85,6 +85,16 @@ async def transfer_schema_ownership() -> None:
                 "SELECT p.oid::regprocedure::text FROM pg_proc p "
                 "JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' LOOP "
                 f"EXECUTE format('ALTER FUNCTION %s OWNER TO %I', function_signature, '{MIGRATOR_DB_USER}'); "
+                "END LOOP; END $$"
+            ))
+
+            # Enum types are reassigned so the migrator can alter them, such as adding an enum value
+            await conn.execute(text(
+                "DO $$ DECLARE type_name text; BEGIN "  # noqa: S608
+                "FOR type_name IN SELECT t.typname FROM pg_type t "
+                "JOIN pg_namespace n ON n.oid = t.typnamespace "
+                "WHERE n.nspname = 'public' AND t.typtype = 'e' LOOP "
+                f"EXECUTE format('ALTER TYPE public.%I OWNER TO %I', type_name, '{MIGRATOR_DB_USER}'); "
                 "END LOOP; END $$"
             ))
     finally:
