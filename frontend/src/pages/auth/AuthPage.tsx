@@ -120,7 +120,11 @@ const AuthPage = () => {
               <TotpEnrollment onComplete={finishEnrollment} onSkip={finishEnrollment} />
             </motion.div>
           ) : mfaActive ? (
-            <motion.div key="mfa-step" className="mt-5 space-y-6" {...AUTH_VIEW_TRANSITION}>
+            <motion.div
+              key={`mfa-step-${mfaUsePasskey ? 'passkey' : mfaUseRecoveryCode ? 'recovery' : 'code'}`}
+              className="mt-5 space-y-6"
+              {...AUTH_VIEW_TRANSITION}
+            >
               {mfaUsePasskey ? (
                 <>
                   <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
