@@ -5,6 +5,10 @@ import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 const EASE = [0.25, 0.1, 0.25, 1] as const;
 
+// A stack of the open modal shells so a single Escape press only closes the top-most one. Each shell
+// registers its own window listener, so without this guard one press would close every stacked modal
+const openModalStack: symbol[] = [];
+
 interface TwoFactorModalShellProps {
   open: boolean;
   onClose: () => void;
@@ -23,11 +27,19 @@ export function TwoFactorModalShell({ open, onClose, closeDisabled = false, chil
   useEffect(() => {
     if (!open || closeDisabled) return;
 
+    const token = Symbol('two-factor-modal');
+    openModalStack.push(token);
+
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
+      // Only the top-most open shell reacts, so Escape never closes a modal stacked underneath
+      if (event.key === 'Escape' && openModalStack[openModalStack.length - 1] === token) onClose();
     };
     window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      const index = openModalStack.indexOf(token);
+      if (index !== -1) openModalStack.splice(index, 1);
+    };
   }, [closeDisabled, onClose, open]);
 
   /**
