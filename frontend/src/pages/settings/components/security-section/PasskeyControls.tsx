@@ -63,6 +63,7 @@ export default function PasskeyControls() {
         passkeys={management.passkeys}
         onRegister={management.registerPasskey}
         isRegistering={management.isRegistering}
+        reuseReminder={management.reuseReminder}
         onRename={management.renamePasskey}
         onRemove={management.removePasskey}
         isMutating={management.isMutating}

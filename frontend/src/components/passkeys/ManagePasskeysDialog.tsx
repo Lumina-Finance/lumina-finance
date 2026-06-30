@@ -14,6 +14,8 @@ interface ManagePasskeysDialogProps {
   passkeys: Passkey[];
   onRegister: (name: string) => Promise<void>;
   isRegistering: boolean;
+  /** True after a passkey reused the account's existing recovery codes, so no new batch was issued */
+  reuseReminder: boolean;
   onRename: (passkeyId: string, name: string) => Promise<void>;
   onRemove: (passkeyId: string) => Promise<void>;
   isMutating: boolean;
@@ -32,6 +34,7 @@ export function ManagePasskeysDialog({
   passkeys,
   onRegister,
   isRegistering,
+  reuseReminder,
   onRename,
   onRemove,
   isMutating,
@@ -91,6 +94,11 @@ export function ManagePasskeysDialog({
           {error && (
             <p className="text-xs" style={{ color: 'var(--app-negative)' }}>
               {error}
+            </p>
+          )}
+          {reuseReminder && !error && (
+            <p className="text-xs" style={{ color: 'var(--app-text-muted)' }}>
+              Passkey added. Your existing recovery codes also cover it, so there are no new codes to save.
             </p>
           )}
         </div>

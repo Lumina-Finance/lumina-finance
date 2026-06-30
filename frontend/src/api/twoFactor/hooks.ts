@@ -45,10 +45,17 @@ export function useSetupTotp() {
 }
 
 /**
- * Confirms the enrolment code and returns recovery codes, leaving two-factor pending until completion
+ * Confirms the enrolment code, returning recovery codes or turning two-factor on directly
+ *
+ * When the account already has recovery codes, confirm enables two-factor itself and returns an empty
+ * batch, so the enabled status is refreshed here rather than waiting for a completion step
  */
 export function useConfirmTotp() {
-  return useMutation({ mutationFn: confirmTotp });
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: confirmTotp,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: twoFactorKeys.status() }),
+  });
 }
 
 /**

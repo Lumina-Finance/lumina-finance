@@ -40,6 +40,7 @@ export function TotpEnrollment({ onComplete, onSkip }: TotpEnrollmentProps) {
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [recoveryCodes, setRecoveryCodes] = useState<string[] | null>(null);
+  const [enabledViaReuse, setEnabledViaReuse] = useState(false);
   const [savedAcknowledged, setSavedAcknowledged] = useState(false);
   const [lockoutAcknowledged, setLockoutAcknowledged] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -86,7 +87,14 @@ export function TotpEnrollment({ onComplete, onSkip }: TotpEnrollmentProps) {
     try {
       const result = await confirm.mutateAsync({ code });
       await delayToMinimum(start);
-      setRecoveryCodes(result.recovery_codes);
+
+      // An empty batch means the account already had recovery codes, so two-factor turned on now and
+      // there is nothing to acknowledge
+      if (result.recovery_codes.length > 0) {
+        setRecoveryCodes(result.recovery_codes);
+      } else {
+        setEnabledViaReuse(true);
+      }
     } catch {
       await delayToMinimum(start);
       setError('That code was incorrect. Try again.');
@@ -118,7 +126,20 @@ export function TotpEnrollment({ onComplete, onSkip }: TotpEnrollmentProps) {
 
   return (
     <AnimatePresence mode="wait" initial={false}>
-      {recoveryCodes ? (
+      {enabledViaReuse ? (
+        <motion.div key="reuse-done" className="space-y-5" {...VIEW_TRANSITION}>
+          <div className="space-y-1">
+            <h3 className="text-base font-semibold">Two-factor is on</h3>
+            <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+              Your existing recovery codes also cover your authenticator, so there are no new codes to save.
+            </p>
+          </div>
+
+          <button type="button" onClick={onComplete} className="app-primary-button w-full">
+            Done
+          </button>
+        </motion.div>
+      ) : recoveryCodes ? (
         <motion.div key="recovery-codes" className="space-y-5" {...VIEW_TRANSITION}>
           <div className="space-y-1">
             <h3 className="text-base font-semibold">Save your recovery codes</h3>

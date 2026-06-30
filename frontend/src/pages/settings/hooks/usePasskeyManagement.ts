@@ -23,18 +23,23 @@ export function usePasskeyManagement() {
   const remove = useRemovePasskey();
   const [isManageOpen, setIsManageOpen] = useState(false);
   const [pendingRecoveryCodes, setPendingRecoveryCodes] = useState<string[] | null>(null);
+  const [reuseReminderVisible, setReuseReminderVisible] = useState(false);
 
   // The badge and Manage button stay disabled until both the list and the relying party id are known
   const isLoading = passkeys.isLoading || config.isLoading;
   const support: PasskeySupport | null = config.data ? assessPasskeySupport(config.data.rp_id) : null;
 
   /**
-   * Registers a passkey, revealing the recovery codes to acknowledge when it is the first one
+   * Registers a passkey, revealing the recovery codes to acknowledge when a fresh batch is issued, or
+   * a reminder that the existing batch already covers the new passkey when codes were reused
    */
   async function registerPasskey(name: string) {
+    setReuseReminderVisible(false);
     const result = await register.mutateAsync(name);
     if (result.recovery_codes) {
       setPendingRecoveryCodes(result.recovery_codes);
+    } else {
+      setReuseReminderVisible(true);
     }
   }
 
@@ -49,7 +54,10 @@ export function usePasskeyManagement() {
   return {
     isManageOpen,
     openManage: () => setIsManageOpen(true),
-    closeManage: () => setIsManageOpen(false),
+    closeManage: () => {
+      setIsManageOpen(false);
+      setReuseReminderVisible(false);
+    },
     isLoading,
     support,
     passkeys: passkeys.data ?? [],
@@ -62,6 +70,7 @@ export function usePasskeyManagement() {
     isMutating: rename.isPending || remove.isPending,
     pendingRecoveryCodes,
     acknowledgeRecoveryCodes,
+    reuseReminder: reuseReminderVisible,
 
     // Dismissing without acknowledging leaves the passkey staged, a later login prunes it
     dismissRecoveryCodes: () => setPendingRecoveryCodes(null),
