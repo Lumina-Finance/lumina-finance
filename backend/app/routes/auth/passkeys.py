@@ -168,6 +168,27 @@ async def list_passkeys_route(
     return await list_passkeys(db, user.id)
 
 
+@router.post("/step-up/options")
+async def passkey_step_up_options_route(
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Begin a passkey step-up for a sensitive two-factor change
+
+    The user is already authenticated, so their own passkeys are offered to reauthorize an action such
+    as disabling TOTP, removing a passkey, or regenerating recovery codes
+
+    Args:
+        user: Authenticated user resolved from the access token
+        db: Active database session
+
+    Returns:
+        WebAuthn authentication options as raw JSON
+    """
+    options_json = await build_passkey_second_factor_options(db, user.id)
+    return Response(content=options_json, media_type=_OPTIONS_MEDIA_TYPE)
+
+
 @router.post("/register/options")
 async def passkey_registration_options_route(
     user: Annotated[User, Depends(get_authenticated_user)],

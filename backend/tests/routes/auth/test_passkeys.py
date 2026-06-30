@@ -9,6 +9,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
+import pyotp
 from sqlalchemy import select
 from webauthn.helpers import bytes_to_base64url
 
@@ -521,6 +522,53 @@ async def test_passkey_second_factor_completes_login(client, monkeypatch):
 
     stored = await _read_passkey(credential_id)
     assert stored.sign_count == 9
+
+
+async def test_disable_totp_via_passkey_step_up(client, monkeypatch):
+    """TOTP can be disabled by stepping up with a passkey instead of an authenticator code"""
+    signup = await _create_user(client)
+    auth = _get_auth_header(signup)
+    user_id = signup.json()["user"]["id"]
+    credential_id = b"disable-step-up-key"
+    await _seed_passkey(user_id, credential_id)
+
+    # Enrol TOTP on top of the passkey so both factors exist
+    secret = (await client.post("/auth/2fa/setup", headers=auth)).json()["secret"]
+    await client.post("/auth/2fa/confirm", headers=auth, json={"code": pyotp.TOTP(secret).now()})
+    await client.post("/auth/2fa/complete", headers=auth)
+
+    options = (await client.post("/auth/passkeys/step-up/options", headers=auth)).json()
+    assertion = _build_assertion(options["challenge"], credential_id, user_id)
+    monkeypatch.setattr(
+        webauthn_service, "verify_authentication_response", lambda **_: SimpleNamespace(new_sign_count=3)
+    )
+
+    disabled = await client.post(
+        "/auth/2fa/disable", headers=auth, json={"password": SIGNUP_PAYLOAD["password"], "passkey": assertion}
+    )
+    assert disabled.status_code == 204
+    assert (await client.get("/auth/2fa/status", headers=auth)).json()["totp_enabled"] is False
+
+
+async def test_regenerate_recovery_codes_via_passkey_step_up(client, monkeypatch):
+    """A passkey-only user can regenerate recovery codes by stepping up with their passkey"""
+    signup = await _create_user(client)
+    auth = _get_auth_header(signup)
+    user_id = signup.json()["user"]["id"]
+    credential_id = b"regen-step-up-key"
+    await _seed_passkey(user_id, credential_id)
+
+    options = (await client.post("/auth/passkeys/step-up/options", headers=auth)).json()
+    assertion = _build_assertion(options["challenge"], credential_id, user_id)
+    monkeypatch.setattr(
+        webauthn_service, "verify_authentication_response", lambda **_: SimpleNamespace(new_sign_count=4)
+    )
+
+    regenerated = await client.post(
+        "/auth/2fa/recovery-codes", headers=auth, json={"password": SIGNUP_PAYLOAD["password"], "passkey": assertion}
+    )
+    assert regenerated.status_code == 200
+    assert len(regenerated.json()["recovery_codes"]) == 10
 
 
 async def test_mfa_options_rejects_invalid_token(client):

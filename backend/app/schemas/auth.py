@@ -152,17 +152,19 @@ class TotpConfirmRequest(BaseModel):
 
 
 class DisableTotpRequest(BaseModel):
-    """Password and a current authenticator code authorizing TOTP to be disabled"""
+    """Password and a current second factor authorizing TOTP to be disabled"""
 
     password: str
-    code: str  # a current TOTP code, recovery codes are not accepted for step-up
+    code: str | None = None  # a current TOTP code, recovery codes are not accepted for step-up
+    passkey: dict[str, Any] | None = None  # a passkey assertion, taking priority over a code
 
 
 class RegenerateRecoveryCodesRequest(BaseModel):
-    """Password and a current authenticator code authorizing a fresh recovery code batch"""
+    """Password and a current second factor authorizing a fresh recovery code batch"""
 
     password: str
-    code: str  # a current TOTP code, recovery codes are not accepted for step-up
+    code: str | None = None  # a current TOTP code, recovery codes are not accepted for step-up
+    passkey: dict[str, Any] | None = None  # a passkey assertion, taking priority over a code
 
 
 class RecoveryCodesResponse(BaseModel):

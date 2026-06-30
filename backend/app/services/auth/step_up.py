@@ -12,25 +12,35 @@ from app.services.auth.account_lockout import (
 )
 from app.services.auth.password_helpers import is_password_valid
 from app.services.auth.totp import is_user_totp_code_valid
+from app.services.auth.webauthn import verify_passkey_second_factor
 
 
-async def verify_step_up(db: AsyncSession, user: User, password: str, code: str) -> None:
-    """Authorize a sensitive two-factor change with the password and a current authenticator code
+async def verify_step_up(
+    db: AsyncSession,
+    user: User,
+    password: str,
+    *,
+    code: str | None = None,
+    passkey: dict | None = None,
+) -> None:
+    """Authorize a sensitive two-factor change with the password and a current second factor
 
-    Step-up shares the login lockout counter, so a session cannot grind the password or the
-    authenticator here any more than it can at login, and tripping the lock signs every session out.
-    Step-up accepts only a primary factor and a TOTP code, never a recovery code: a recovery code is a
-    break-glass key for login that forces re-enrolment, so allowing it here would let it rotate or
-    disable two-factor in session and renew itself indefinitely. The caller commits
+    Step-up takes the password, then a real second factor: a passkey, which is preferred, or a TOTP
+    code. A recovery code is never accepted here, since it is a login-only break-glass that means the
+    real factors are gone, so it routes through the destructive recovery sign-in instead. Step-up shares
+    the login lockout counter, so a session cannot grind the password or a factor here any more than it
+    can at login, and tripping the lock signs every session out. The caller commits
 
     Args:
         db: Active database session
         user: Authenticated user performing the change
         password: Account password
-        code: A current TOTP code
+        code: A current TOTP code, when verifying by authenticator
+        passkey: A passkey assertion, when verifying by passkey, taking priority over a code
 
     Raises:
-        HTTPException: The account is locked, or the password or authenticator code does not verify
+        HTTPException: The account is locked, the password is wrong, no factor was supplied, or the
+            supplied factor does not verify
     """
     credential = await get_password_credential(db, user.id)
     if credential is not None and is_account_locked(credential):
@@ -41,8 +51,17 @@ async def verify_step_up(db: AsyncSession, user: User, password: str, code: str)
             await record_failed_attempt(db, credential)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
-    if not await is_user_totp_code_valid(db, user.id, code):
-        await record_failed_attempt(db, credential)
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid two-factor code")
+    if passkey is not None:
+        try:
+            await verify_passkey_second_factor(db, user.id, passkey)
+        except HTTPException:
+            await record_failed_attempt(db, credential)
+            raise
+    elif code is not None:
+        if not await is_user_totp_code_valid(db, user.id, code):
+            await record_failed_attempt(db, credential)
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid two-factor code")
+    else:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="A second factor is required")
 
     await reset_failed_attempts(db, credential)

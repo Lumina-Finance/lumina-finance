@@ -285,14 +285,14 @@ async def disable_totp_route(
     """Disable two-factor authentication after step-up reauthentication
 
     Args:
-        data: Password and a current second factor
+        data: Password and a current second factor, a passkey assertion or a TOTP code
         user: Authenticated user resolved from the access token
         db: Active database session
 
     Raises:
         HTTPException: Two-factor is not enabled, or the step-up check fails
     """
-    await disable_two_factor(db, user, data.password, data.code)
+    await disable_two_factor(db, user, data.password, code=data.code, passkey=data.passkey)
 
 
 @router.post("/2fa/recovery-codes", response_model=RecoveryCodesResponse)
@@ -306,7 +306,7 @@ async def regenerate_recovery_codes_route(
     The current codes keep working until the user acknowledges these through the confirm route
 
     Args:
-        data: Password and a current authenticator code
+        data: Password and a current second factor, a passkey assertion or a TOTP code
         user: Authenticated user resolved from the access token
         db: Active database session
 
@@ -314,9 +314,9 @@ async def regenerate_recovery_codes_route(
         The fresh recovery codes to show once
 
     Raises:
-        HTTPException: Two-factor is not enabled, or the step-up check fails
+        HTTPException: No second factor is enabled, or the step-up check fails
     """
-    codes = await regenerate_recovery_codes(db, user, data.password, data.code)
+    codes = await regenerate_recovery_codes(db, user, data.password, code=data.code, passkey=data.passkey)
     return RecoveryCodesResponse(recovery_codes=codes)
 
 

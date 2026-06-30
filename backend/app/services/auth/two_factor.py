@@ -23,7 +23,7 @@ from app.services.auth.totp import (
     is_user_totp_code_valid,
     mark_totp_confirmed,
 )
-from app.services.auth.webauthn import revoke_all_passkeys
+from app.services.auth.webauthn import is_passkey_registered, revoke_all_passkeys
 
 # Shared message so disabling and regenerating reject identically when 2FA is off
 _NOT_ENABLED_DETAIL = "Two-factor authentication is not enabled"
@@ -146,14 +146,17 @@ async def complete_totp_enrollment(db: AsyncSession, user_id: uuid.UUID) -> None
     await db.commit()
 
 
-async def disable_two_factor(db: AsyncSession, user: User, password: str, code: str) -> None:
+async def disable_two_factor(
+    db: AsyncSession, user: User, password: str, *, code: str | None = None, passkey: dict | None = None
+) -> None:
     """Disable TOTP and clear the recovery codes after step-up reauthentication
 
     Args:
         db: Active database session
         user: Authenticated user disabling two-factor
         password: Account password
-        code: A current TOTP code
+        code: A current TOTP code, when stepping up by authenticator
+        passkey: A passkey assertion, when stepping up by passkey
 
     Raises:
         HTTPException: Two-factor is not enabled, or the step-up check fails
@@ -161,13 +164,15 @@ async def disable_two_factor(db: AsyncSession, user: User, password: str, code: 
     if not await is_totp_enabled(db, user.id):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=_NOT_ENABLED_DETAIL)
 
-    await verify_step_up(db, user, password, code)
+    await verify_step_up(db, user, password, code=code, passkey=passkey)
     await disable_totp(db, user.id)
     await delete_recovery_codes(db, user.id)
     await db.commit()
 
 
-async def regenerate_recovery_codes(db: AsyncSession, user: User, password: str, code: str) -> list[str]:
+async def regenerate_recovery_codes(
+    db: AsyncSession, user: User, password: str, *, code: str | None = None, passkey: dict | None = None
+) -> list[str]:
     """Stage a fresh recovery code batch after step-up reauthentication
 
     The batch is staged, so the current codes keep working until the user acknowledges the new ones
@@ -177,18 +182,19 @@ async def regenerate_recovery_codes(db: AsyncSession, user: User, password: str,
         db: Active database session
         user: Authenticated user regenerating codes
         password: Account password
-        code: A current TOTP code
+        code: A current TOTP code, when stepping up by authenticator
+        passkey: A passkey assertion, when stepping up by passkey
 
     Returns:
         The fresh plaintext recovery codes to show once
 
     Raises:
-        HTTPException: Two-factor is not enabled, or the step-up check fails
+        HTTPException: No second factor is enabled, or the step-up check fails
     """
-    if not await is_totp_enabled(db, user.id):
+    if not await is_totp_enabled(db, user.id) and not await is_passkey_registered(db, user.id):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=_NOT_ENABLED_DETAIL)
 
-    await verify_step_up(db, user, password, code)
+    await verify_step_up(db, user, password, code=code, passkey=passkey)
     codes = await generate_recovery_codes(db, user.id, pending=True)
     await db.commit()
     return codes
