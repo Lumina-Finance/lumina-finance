@@ -214,6 +214,26 @@ async def test_login_locked_account_rejects_valid_credentials(client):
     assert resp.status_code == 423
 
 
+async def test_lockout_signs_out_all_existing_sessions(client):
+    """Tripping the lockout revokes every session and token the user already holds"""
+    await _create_user(client)
+    bad_login = {"email": "test@example.com", "password": "wrongpassword"}
+
+    # Signup leaves one active session, which the fifth failure should tear down
+    async with TestSession() as session:
+        existing_sessions = (await session.execute(select(AuthSession))).scalars().all()
+        assert len(existing_sessions) == 1
+
+    for _ in range(5):
+        await client.post("/auth/login", json=bad_login)
+
+    async with TestSession() as session:
+        remaining_sessions = (await session.execute(select(AuthSession))).scalars().all()
+        remaining_tokens = (await session.execute(select(AuthToken))).scalars().all()
+        assert remaining_sessions == []
+        assert remaining_tokens == []
+
+
 async def test_successful_login_resets_failed_attempt_count(client):
     """A successful login after failed attempts resets the counter to zero."""
     await _create_user(client)

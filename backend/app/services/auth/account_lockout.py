@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.auth import PasswordCredential
+from app.services.auth.sessions import delete_all_user_auth_sessions
 
 _MAX_FAILED_ATTEMPTS = 5
 _LOCKOUT_MINUTES = 30
@@ -41,7 +42,9 @@ async def record_failed_attempt(db: AsyncSession, credential: PasswordCredential
     """Count a failed authentication attempt and lock the account once the limit is reached
 
     Password and second-factor failures share this counter, so a known password cannot grind the
-    second factor without tripping the same lock. The caller's surrounding commit persists it
+    second factor without tripping the same lock. Tripping the lock also revokes every session, so a
+    grinder who already holds a token cannot keep using it while the account is locked. The caller's
+    surrounding commit persists it
 
     Args:
         db: Active database session
@@ -50,6 +53,7 @@ async def record_failed_attempt(db: AsyncSession, credential: PasswordCredential
     credential.failed_attempt_count += 1
     if credential.failed_attempt_count >= _MAX_FAILED_ATTEMPTS:
         credential.locked_until = datetime.now(UTC) + timedelta(minutes=_LOCKOUT_MINUTES)
+        await delete_all_user_auth_sessions(db, credential.user_id)
     await db.commit()
 
 
