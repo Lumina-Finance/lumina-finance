@@ -149,7 +149,7 @@ async def complete_totp_enrollment(db: AsyncSession, user_id: uuid.UUID) -> None
 async def disable_two_factor(
     db: AsyncSession, user: User, password: str, *, code: str | None = None, passkey: dict | None = None
 ) -> None:
-    """Disable TOTP and clear the recovery codes after step-up reauthentication
+    """Disable TOTP after step-up, clearing the recovery codes only when no passkey still relies on them
 
     Args:
         db: Active database session
@@ -166,7 +166,10 @@ async def disable_two_factor(
 
     await verify_step_up(db, user, password, code=code, passkey=passkey)
     await disable_totp(db, user.id)
-    await delete_recovery_codes(db, user.id)
+
+    # The recovery batch is shared with passkeys, so keep it while a passkey still relies on it
+    if not await is_passkey_registered(db, user.id):
+        await delete_recovery_codes(db, user.id)
     await db.commit()
 
 

@@ -3,6 +3,7 @@
 import uuid
 
 import pyotp
+from sqlalchemy import select
 
 from app.models.auth import RecoveryCode
 from app.services.auth.mfa_challenge import issue_mfa_challenge
@@ -184,6 +185,22 @@ async def test_disable_requires_two_factor_enabled(client):
 
     disable = await client.post("/auth/2fa/disable", headers=auth, json={"password": _PASSWORD, "code": "000000"})
     assert disable.status_code == 400
+
+
+async def test_disabling_only_totp_clears_recovery_codes(client):
+    """Disabling the sole second factor clears the shared recovery batch"""
+    auth, secret, user_id = await _enroll_with_id(client)
+
+    disable = await client.post(
+        "/auth/2fa/disable", headers=auth, json={"password": _PASSWORD, "code": pyotp.TOTP(secret).now()}
+    )
+    assert disable.status_code == 204
+
+    async with TestSession() as db:
+        remaining = (
+            await db.execute(select(RecoveryCode).where(RecoveryCode.user_id == uuid.UUID(user_id)))
+        ).scalars().all()
+    assert remaining == []
 
 
 async def test_repeated_wrong_step_up_codes_lock_the_account(client):
