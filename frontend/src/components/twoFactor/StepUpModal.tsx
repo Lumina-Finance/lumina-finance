@@ -65,8 +65,13 @@ export function StepUpModal({
   const [password, setPassword] = useState('');
   const [otp, setOtp] = useState('');
   const [error, setError] = useState('');
-  const [verifying, setVerifying] = useState(false);
+  const [verifyingPath, setVerifyingPath] = useState<'code' | 'passkey' | null>(null);
   const [confirmingReset, setConfirmingReset] = useState(false);
+  const [resetting, setResetting] = useState(false);
+
+  // Tracks which control is in flight so only the invoked button shows a spinner, while either path
+  // disables both
+  const verifying = verifyingPath !== null;
 
   // Only offer a passkey when the origin can run a ceremony and the user actually has one to present
   const passkeySupported = passkeyConfig.data ? assessPasskeySupport(passkeyConfig.data.rp_id).supported : false;
@@ -84,15 +89,17 @@ export function StepUpModal({
     setOtp('');
     setError('');
     setConfirmingReset(false);
+    setResetting(false);
   };
 
   /**
    * Runs the supplied action with the minimum delay and shared error handling, so a failure does not
-   * time how long the checks took and a cancelled passkey prompt stays silent
+   * time how long the checks took and a cancelled passkey prompt stays silent. The path drives which
+   * button shows a spinner
    */
-  const runStepUp = async (action: () => Promise<void>) => {
+  const runStepUp = async (path: 'code' | 'passkey', action: () => Promise<void>) => {
     setError('');
-    setVerifying(true);
+    setVerifyingPath(path);
     const start = Date.now();
     try {
       await action();
@@ -103,7 +110,7 @@ export function StepUpModal({
       if (!isPasskeyCeremonyCancelled(stepUpError)) setError(GENERIC_STEP_UP_ERROR);
       setOtp('');
     } finally {
-      setVerifying(false);
+      setVerifyingPath(null);
     }
   };
 
@@ -114,15 +121,29 @@ export function StepUpModal({
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!canSubmitCode || verifying) return;
-    void runStepUp(() => onVerify({ password, code: otp }));
+    void runStepUp('code', () => onVerify({ password, code: otp }));
   };
 
   const handlePasskeyVerify = () => {
     if (!passwordReady || verifying) return;
-    void runStepUp(async () => {
+    void runStepUp('passkey', async () => {
       const assertion = await requestPasskeyStepUpAssertion();
       await onVerify({ password, passkey: assertion });
     });
+  };
+
+  /**
+   * Signs out so the user can reset a lost factor through a recovery sign-in, guarding against a
+   * double-click while the request is in flight
+   */
+  const handleRecoveryReset = async () => {
+    if (resetting) return;
+    setResetting(true);
+    try {
+      await logout();
+    } catch {
+      setResetting(false);
+    }
   };
 
   /**
@@ -150,12 +171,13 @@ export function StepUpModal({
             This removes all your authenticators and passkeys and signs you out everywhere. You'll sign in
             with a recovery code and set up a new factor.
           </WarningCallout>
-          <button type="button" onClick={() => logout()} className="app-danger-button w-full">
-            Sign out and reset
+          <button type="button" onClick={handleRecoveryReset} disabled={resetting} className="app-danger-button w-full">
+            {resetting ? <div className="app-spinner" /> : 'Sign out and reset'}
           </button>
           <button
             type="button"
             onClick={() => setConfirmingReset(false)}
+            disabled={resetting}
             className="block w-full text-center text-sm font-medium underline underline-offset-2"
             style={{ color: 'var(--app-text-muted)' }}
           >
@@ -185,7 +207,7 @@ export function StepUpModal({
                   disabled={!passwordReady || verifying}
                   className="app-primary-button flex w-full items-center justify-center gap-2"
                 >
-                  {verifying ? <div className="app-spinner" /> : <KeyRound size={16} aria-hidden />}
+                  {verifyingPath === 'passkey' ? <div className="app-spinner" /> : <KeyRound size={16} aria-hidden />}
                   Verify with a passkey
                 </button>
                 <p className="text-center text-xs" style={{ color: 'var(--app-text-muted)' }}>
@@ -203,7 +225,7 @@ export function StepUpModal({
             )}
 
             <button type="submit" disabled={!canSubmitCode || verifying} className={actionButtonClass}>
-              {verifying ? <div className="app-spinner" /> : confirmLabel}
+              {verifyingPath === 'code' ? <div className="app-spinner" /> : confirmLabel}
             </button>
           </form>
 
