@@ -9,6 +9,7 @@ import type { AuthResponse } from '@/api/auth/types';
 import { authenticatedFetch } from '@/api/client';
 import { API_BASE } from '@/api/config';
 import type { Passkey, PasskeyConfig, RegisterPasskeyPayload, RegisterPasskeyResult } from '@/api/passkeys/types';
+import type { StepUpPayload } from '@/api/twoFactor/types';
 
 /**
  * Reads the relying party id from the public config endpoint
@@ -164,8 +165,11 @@ export function renamePasskey(passkeyId: string, name: string) {
 }
 
 /**
- * Deletes one of the current user's passkeys
+ * Deletes one of the current user's passkeys after step-up reauthentication
  */
-export function removePasskey(passkeyId: string) {
-  return authenticatedFetch<void>(`/auth/passkeys/${passkeyId}`, { method: 'DELETE' });
+export function removePasskey(passkeyId: string, payload: StepUpPayload) {
+  return authenticatedFetch<void>(`/auth/passkeys/${passkeyId}/remove`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
 }

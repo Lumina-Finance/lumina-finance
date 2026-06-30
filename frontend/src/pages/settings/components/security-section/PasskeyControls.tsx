@@ -1,5 +1,6 @@
 import { ManagePasskeysDialog } from '@/components/passkeys/ManagePasskeysDialog';
 import { RecoveryCodesModal } from '@/components/twoFactor/RecoveryCodesModal';
+import { StepUpModal } from '@/components/twoFactor/StepUpModal';
 import { usePasskeyManagement } from '@/pages/settings/hooks/usePasskeyManagement';
 
 const BADGE_BASE_CLASS = 'rounded-full px-2 py-0.5 text-xs font-medium';
@@ -65,7 +66,7 @@ export default function PasskeyControls() {
         isRegistering={management.isRegistering}
         reuseReminder={management.reuseReminder}
         onRename={management.renamePasskey}
-        onRemove={management.removePasskey}
+        onRemove={management.beginRemovePasskey}
         isMutating={management.isMutating}
       />
 
@@ -75,6 +76,19 @@ export default function PasskeyControls() {
         description={FIRST_PASSKEY_CODES_DESCRIPTION}
         onConfirm={management.acknowledgeRecoveryCodes}
         onClose={management.dismissRecoveryCodes}
+      />
+
+      <StepUpModal
+        open={management.isRemovalOpen}
+        title="Remove this passkey"
+        description="Enter your password and verify with a passkey or a current code to remove it."
+        requirePassword
+        confirmLabel="Remove"
+        danger
+        allowPasskey
+        allowRecoveryReset
+        onClose={management.cancelRemoval}
+        onVerify={management.confirmRemoval}
       />
     </>
   );

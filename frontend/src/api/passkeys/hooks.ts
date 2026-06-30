@@ -14,6 +14,7 @@ import {
   renamePasskey,
   verifyPasskeyMfa,
 } from '@/api/passkeys/requests';
+import type { StepUpPayload } from '@/api/twoFactor/types';
 import { useAuth } from '@/hooks/useAuth';
 
 /**
@@ -116,12 +117,13 @@ export function useRenamePasskey() {
 }
 
 /**
- * Removes a passkey, then refreshes the list
+ * Removes a passkey after a step-up reauthentication, then refreshes the list
  */
 export function useRemovePasskey() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (passkeyId: string) => removePasskey(passkeyId),
+    mutationFn: ({ passkeyId, payload }: { passkeyId: string; payload: StepUpPayload }) =>
+      removePasskey(passkeyId, payload),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: passkeyKeys.list() }),
   });
 }

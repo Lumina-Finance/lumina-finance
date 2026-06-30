@@ -7,6 +7,7 @@ import {
   useRemovePasskey,
   useRenamePasskey,
 } from '@/api/passkeys';
+import type { StepUpCredentials } from '@/components/twoFactor/StepUpModal';
 import { assessPasskeySupport, type PasskeySupport } from '@/utils/passkeySupport';
 
 /**
@@ -24,6 +25,7 @@ export function usePasskeyManagement() {
   const [isManageOpen, setIsManageOpen] = useState(false);
   const [pendingRecoveryCodes, setPendingRecoveryCodes] = useState<string[] | null>(null);
   const [reuseReminderVisible, setReuseReminderVisible] = useState(false);
+  const [removalTarget, setRemovalTarget] = useState<string | null>(null);
 
   // The badge and Manage button stay disabled until both the list and the relying party id are known
   const isLoading = passkeys.isLoading || config.isLoading;
@@ -51,12 +53,22 @@ export function usePasskeyManagement() {
     setPendingRecoveryCodes(null);
   }
 
+  /**
+   * Removes the targeted passkey once the step-up reauthentication succeeds, then closes the prompt
+   */
+  async function confirmRemoval(credentials: StepUpCredentials) {
+    if (!removalTarget) return;
+    await remove.mutateAsync({ passkeyId: removalTarget, payload: credentials });
+    setRemovalTarget(null);
+  }
+
   return {
     isManageOpen,
     openManage: () => setIsManageOpen(true),
     closeManage: () => {
       setIsManageOpen(false);
       setReuseReminderVisible(false);
+      setRemovalTarget(null);
     },
     isLoading,
     support,
@@ -66,7 +78,14 @@ export function usePasskeyManagement() {
     renamePasskey: async (passkeyId: string, name: string) => {
       await rename.mutateAsync({ passkeyId, name });
     },
-    removePasskey: (passkeyId: string) => remove.mutateAsync(passkeyId),
+
+    // Removal opens a step-up prompt rather than deleting directly, since the backend re-checks a factor
+    beginRemovePasskey: async (passkeyId: string) => {
+      setRemovalTarget(passkeyId);
+    },
+    isRemovalOpen: removalTarget !== null,
+    confirmRemoval,
+    cancelRemoval: () => setRemovalTarget(null),
     isMutating: rename.isPending || remove.isPending,
     pendingRecoveryCodes,
     acknowledgeRecoveryCodes,

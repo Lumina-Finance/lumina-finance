@@ -25,10 +25,10 @@ interface PasskeyRowProps {
 }
 
 /**
- * One registered passkey with inline rename and a two-step remove confirmation
+ * One registered passkey with inline rename and a remove action that opens a step-up prompt
  *
- * Rename and removal are kept inline rather than stacking another modal on the manage dialog, so the
- * list stays the single surface for managing passkeys
+ * Rename stays inline, while removal confirms inline and then steps up, since the backend re-checks a
+ * current second factor before deleting a passkey
  */
 export function PasskeyRow({ passkey, onRename, onRemove, disabled }: PasskeyRowProps) {
   const [mode, setMode] = useState<RowMode>('view');
@@ -52,12 +52,13 @@ export function PasskeyRow({ passkey, onRename, onRemove, disabled }: PasskeyRow
   }
 
   /**
-   * Removes the passkey, leaving the confirmation visible if the request fails
+   * Starts removal, which opens a step-up prompt, and collapses this inline confirmation behind it
    */
   async function confirmRemove() {
     setError(null);
     try {
       await onRemove();
+      setMode('view');
     } catch {
       setError('Could not remove this passkey.');
     }
