@@ -1,7 +1,7 @@
+import { ManagePasskeysDialog } from '@/components/passkeys/ManagePasskeysDialog';
 import { RecoveryCodesModal } from '@/components/twoFactor/RecoveryCodesModal';
 import { StepUpModal } from '@/components/twoFactor/StepUpModal';
 import { TotpEnrollmentModal } from '@/components/twoFactor/TotpEnrollmentModal';
-import { PasskeyManager } from '@/pages/settings/components/security-section/PasskeyManager';
 import { usePasskeyManagement } from '@/pages/settings/hooks/usePasskeyManagement';
 import { useTwoFactorManagement } from '@/pages/settings/hooks/useTwoFactorManagement';
 
@@ -29,7 +29,8 @@ export default function MultiFactorControls() {
   const totp = useTwoFactorManagement();
   const passkey = usePasskeyManagement();
 
-  const hasAnyFactor = totp.isEnabled || passkey.passkeys.length > 0;
+  const hasPasskeys = passkey.passkeys.length > 0;
+  const hasAnyFactor = totp.isEnabled || hasPasskeys;
 
   return (
     <div className="space-y-6">
@@ -68,7 +69,27 @@ export default function MultiFactorControls() {
         )}
       </div>
 
-      <PasskeyManager management={passkey} />
+      <div className="flex items-center justify-between gap-4">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <h4 className="text-sm font-semibold">Passkeys</h4>
+            {!passkey.isLoading && (
+              <span
+                className={hasPasskeys ? BADGE_BASE_CLASS : `${BADGE_BASE_CLASS} border`}
+                style={hasPasskeys ? ENABLED_BADGE_STYLE : OFF_BADGE_STYLE}
+              >
+                {hasPasskeys ? `${passkey.passkeys.length} active` : 'Off'}
+              </span>
+            )}
+          </div>
+          <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+            Sign in with your fingerprint, face, or device PIN instead of a password.
+          </p>
+        </div>
+        <button type="button" onClick={passkey.openManage} disabled={passkey.isLoading} className="app-secondary-button shrink-0">
+          Manage
+        </button>
+      </div>
 
       <div className="flex items-center justify-between gap-4 border-t pt-6" style={{ borderColor: 'var(--app-border)' }}>
         <div className="space-y-1">
@@ -120,6 +141,8 @@ export default function MultiFactorControls() {
         onConfirm={totp.acknowledgeRegeneratedCodes}
         onClose={totp.dismissRegeneratedCodes}
       />
+
+      <ManagePasskeysDialog open={passkey.isManageOpen} onClose={passkey.closeManage} management={passkey} />
 
       <RecoveryCodesModal
         open={passkey.pendingRecoveryCodes !== null}
