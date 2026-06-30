@@ -40,7 +40,7 @@ export function ManagePasskeysDialog({ open, onClose, management }: ManagePasske
   }
 
   return (
-    <TwoFactorModalShell open={open} onClose={onClose} closeDisabled={management.isRegistering}>
+    <TwoFactorModalShell open={open} onClose={onClose} closeDisabled={management.isRegistering || management.isMutating}>
       <div className="space-y-1">
         <h3 className="text-base font-semibold">Manage passkeys</h3>
         <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
