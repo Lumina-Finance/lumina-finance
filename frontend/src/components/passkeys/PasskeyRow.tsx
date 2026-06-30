@@ -1,8 +1,18 @@
 import { Check, Pencil, Trash2, X } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
 import { useState } from 'react';
 import type { Passkey } from '@/api/passkeys';
 
 const CREATED_DATE_OPTIONS: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'short', day: 'numeric' };
+
+// Cross-fade with a small slide so toggling the remove confirmation eases between states
+const ACTION_TRANSITION = { duration: 0.15, ease: [0.25, 0.1, 0.25, 1] as const };
+const ACTION_MOTION = {
+  initial: { opacity: 0, x: 6 },
+  animate: { opacity: 1, x: 0 },
+  exit: { opacity: 0, x: 6 },
+  transition: ACTION_TRANSITION,
+};
 
 type RowMode = 'view' | 'rename' | 'confirm-remove';
 
@@ -95,46 +105,48 @@ export function PasskeyRow({ passkey, onRename, onRemove, disabled }: PasskeyRow
         )}
       </div>
 
-      {mode === 'confirm-remove' ? (
-        <div className="flex shrink-0 items-center gap-2">
-          <button type="button" onClick={confirmRemove} disabled={disabled} className="app-danger-button">
-            Remove
-          </button>
-          <button type="button" onClick={() => setMode('view')} className="app-secondary-button">
-            Cancel
-          </button>
-        </div>
-      ) : (
-        <div className="flex shrink-0 items-center gap-1">
-          <button
-            type="button"
-            onClick={() => {
-              setDraftName(passkey.name);
-              setError(null);
-              setMode('rename');
-            }}
-            disabled={disabled}
-            className="rounded-md p-2"
-            style={{ color: 'var(--app-text-muted)' }}
-            aria-label={`Rename ${passkey.name}`}
-          >
-            <Pencil size={16} aria-hidden />
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setError(null);
-              setMode('confirm-remove');
-            }}
-            disabled={disabled}
-            className="rounded-md p-2"
-            style={{ color: 'var(--app-negative)' }}
-            aria-label={`Remove ${passkey.name}`}
-          >
-            <Trash2 size={16} aria-hidden />
-          </button>
-        </div>
-      )}
+      <AnimatePresence mode="wait" initial={false}>
+        {mode === 'confirm-remove' ? (
+          <motion.div key="confirm" className="flex shrink-0 items-center gap-2" {...ACTION_MOTION}>
+            <button type="button" onClick={confirmRemove} disabled={disabled} className="app-danger-button">
+              Remove
+            </button>
+            <button type="button" onClick={() => setMode('view')} className="app-secondary-button">
+              Cancel
+            </button>
+          </motion.div>
+        ) : (
+          <motion.div key="actions" className="flex shrink-0 items-center gap-1" {...ACTION_MOTION}>
+            <button
+              type="button"
+              onClick={() => {
+                setDraftName(passkey.name);
+                setError(null);
+                setMode('rename');
+              }}
+              disabled={disabled}
+              className="rounded-md p-2"
+              style={{ color: 'var(--app-text-muted)' }}
+              aria-label={`Rename ${passkey.name}`}
+            >
+              <Pencil size={16} aria-hidden />
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setError(null);
+                setMode('confirm-remove');
+              }}
+              disabled={disabled}
+              className="rounded-md p-2"
+              style={{ color: 'var(--app-negative)' }}
+              aria-label={`Remove ${passkey.name}`}
+            >
+              <Trash2 size={16} aria-hidden />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
