@@ -47,6 +47,7 @@ from app.services.auth.recovery_codes import (
     has_active_recovery_codes,
     has_pending_recovery_codes,
 )
+from app.services.auth.sessions import delete_all_user_auth_sessions
 
 # Distinguishes a registration challenge from an authentication one in the shared challenge table
 _REGISTRATION_PURPOSE = "registration"
@@ -183,14 +184,16 @@ async def register_passkey(
 
 
 async def confirm_passkey_registration(db: AsyncSession, user_id: uuid.UUID) -> None:
-    """Activate a staged first passkey once the user has saved the recovery codes issued with it
+    """Activate a staged passkey once the user has saved the recovery codes issued with it
 
     Both the staged passkey and the staged recovery batch are promoted together, so the account never
-    has an enforced passkey factor whose recovery codes were never saved
+    has an enforced passkey factor whose recovery codes were never saved. When this finishes a forced
+    re-enrol it also signs out every session, so the recovery path ends in a fresh login rather than
+    promoting its restricted session
 
     Args:
         db: Active database session
-        user_id: User confirming their first passkey
+        user_id: User confirming their staged passkey
 
     Raises:
         HTTPException: No staged passkey with pending recovery codes is awaiting confirmation
@@ -199,6 +202,9 @@ async def confirm_passkey_registration(db: AsyncSession, user_id: uuid.UUID) -> 
     if not staged or not await has_pending_recovery_codes(db, user_id):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No passkey awaiting confirmation")
 
+    user = await db.get(User, user_id)
+    was_forced_reenrollment = user.totp_reenrollment_required
+
     confirmed_at = datetime.now(UTC)
     for passkey in staged:
         passkey.confirmed_at = confirmed_at
@@ -206,6 +212,12 @@ async def confirm_passkey_registration(db: AsyncSession, user_id: uuid.UUID) -> 
     await activate_pending_recovery_codes(db, user_id)
     await _ensure_webauthn_identity(db, user_id)
     await _clear_reenrollment_restriction(db, user_id)
+
+    # A forced re-enrol grants only a re-enrol session, so completing it signs out everywhere and sends
+    # the user back to a fresh login with the new factor
+    if was_forced_reenrollment:
+        await delete_all_user_auth_sessions(db, user_id)
+
     await db.commit()
 
 

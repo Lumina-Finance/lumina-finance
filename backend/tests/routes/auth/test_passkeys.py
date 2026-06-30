@@ -593,8 +593,21 @@ async def test_restricted_session_reestablishes_with_passkey(client, monkeypatch
     confirmed = await client.post("/auth/passkeys/register/confirm", headers=auth)
     assert confirmed.status_code == 204
 
+    # Restriction lifted, but completing the forced re-enrol signed the restricted session out
     assert await _is_reenrollment_required(user_id) is False
-    assert [p["name"] for p in (await client.get("/auth/passkeys", headers=auth)).json()] == ["Recovery key"]
+    assert (await client.get("/auth/passkeys", headers=auth)).status_code == 401
+
+    # The passkey is active on the account, ready for the user's fresh login
+    async with TestSession() as db:
+        active = (
+            await db.execute(
+                select(WebauthnCredential).where(
+                    WebauthnCredential.user_id == uuid.UUID(user_id),
+                    WebauthnCredential.confirmed_at.is_not(None),
+                )
+            )
+        ).scalars().all()
+    assert [passkey.name for passkey in active] == ["Recovery key"]
 
 
 async def test_recovery_code_login_wipes_all_passkeys(client, monkeypatch):

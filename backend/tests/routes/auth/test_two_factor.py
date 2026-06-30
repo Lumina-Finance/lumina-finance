@@ -398,7 +398,7 @@ async def test_restricted_session_is_blocked_from_normal_routes(client):
 
 
 async def test_restricted_session_re_enrols_with_fresh_codes(client):
-    """A recovery-code session re-enrols through setup, confirm, and complete, getting a fresh batch"""
+    """A recovery-code session re-enrols, gets a fresh batch, and is sent back to a fresh login"""
     _, _, old_codes = await _enroll(client)
     token = (await _login_with_code(client, old_codes[0])).json()["access_token"]
     restricted = {"Authorization": f"Bearer {token}"}
@@ -412,9 +412,16 @@ async def test_restricted_session_re_enrols_with_fresh_codes(client):
     complete = await client.post("/auth/2fa/complete", headers=restricted)
     assert complete.status_code == 204
 
-    unlocked = await client.get("/auth/2fa/status", headers=restricted)
-    assert unlocked.status_code == 200
-    assert unlocked.json()["totp_enabled"] is True
+    # Completing the forced re-enrol signs the restricted session out
+    assert (await client.get("/auth/2fa/status", headers=restricted)).status_code == 401
+
+    # A fresh login with the new authenticator now succeeds with no restriction
+    relogin = await client.post("/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": _PASSWORD})
+    verify = await client.post(
+        "/auth/2fa/verify", json={"mfa_token": relogin.json()["mfa_token"], "code": pyotp.TOTP(secret).now()}
+    )
+    assert verify.status_code == 200
+    assert verify.json()["user"]["totp_reenrollment_required"] is False
 
     # The old batch is replaced, so a leftover old code no longer signs in
     assert (await _login_with_code(client, old_codes[1])).status_code == 401

@@ -114,12 +114,13 @@ async def confirm_totp_enrollment(db: AsyncSession, user_id: uuid.UUID, code: st
 
 
 async def complete_totp_enrollment(db: AsyncSession, user_id: uuid.UUID) -> None:
-    """Turn on two-factor once the user has acknowledged their first recovery code batch
+    """Turn on two-factor once the user has acknowledged their staged recovery code batch
 
-    Used only when confirm issued a batch, so the staged codes are promoted and the re-enrolment
-    restriction lifted in the same commit as enabling, never leaving it half on. A staged batch only
-    exists after a confirmed code, so requiring it keeps two-factor from being enabled around an
-    unverified secret
+    The staged codes are promoted and any re-enrolment restriction lifted in the same commit as
+    enabling, never leaving it half on. When this finishes a forced re-enrol it also signs out every
+    session, so the recovery path ends in a fresh login rather than promoting its restricted session. A
+    staged batch only exists after a confirmed code, so requiring it keeps two-factor from being enabled
+    around an unverified secret
 
     Args:
         db: Active database session
@@ -131,8 +132,17 @@ async def complete_totp_enrollment(db: AsyncSession, user_id: uuid.UUID) -> None
     if not await has_pending_recovery_codes(db, user_id):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Confirm an authenticator code first")
 
+    user = await db.get(User, user_id)
+    was_forced_reenrollment = user.totp_reenrollment_required
+
     await _enable_totp(db, user_id)
     await activate_pending_recovery_codes(db, user_id)
+
+    # A forced re-enrol grants only a re-enrol session, so completing it signs out everywhere and sends
+    # the user back to a fresh login with the new factor
+    if was_forced_reenrollment:
+        await delete_all_user_auth_sessions(db, user_id)
+
     await db.commit()
 
 
