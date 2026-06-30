@@ -187,6 +187,21 @@ async def test_disable_requires_two_factor_enabled(client):
     assert disable.status_code == 400
 
 
+async def test_disable_rejects_a_recovery_code_and_a_missing_factor(client):
+    """Step-up at disable refuses a recovery code and a missing second factor, leaving 2FA on"""
+    auth, _, codes = await _enroll(client)
+
+    # A recovery code is a login-only break-glass, not a step-up factor
+    with_recovery = await client.post("/auth/2fa/disable", headers=auth, json={"password": _PASSWORD, "code": codes[0]})
+    assert with_recovery.status_code == 401
+
+    # Neither a code nor a passkey is a bad request
+    missing = await client.post("/auth/2fa/disable", headers=auth, json={"password": _PASSWORD})
+    assert missing.status_code == 400
+
+    assert (await client.get("/auth/2fa/status", headers=auth)).json()["totp_enabled"] is True
+
+
 async def test_disabling_only_totp_clears_recovery_codes(client):
     """Disabling the sole second factor clears the shared recovery batch"""
     auth, secret, user_id = await _enroll_with_id(client)

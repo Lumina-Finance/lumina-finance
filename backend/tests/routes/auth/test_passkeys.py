@@ -669,6 +669,75 @@ async def test_regenerate_recovery_codes_via_passkey_step_up(client, monkeypatch
     assert len(regenerated.json()["recovery_codes"]) == 10
 
 
+async def test_passkey_step_up_protocol_error_does_not_lock(client):
+    """A passkey step-up with a never-issued challenge fails as a protocol error without counting toward the lockout"""
+    signup = await _create_user(client)
+    auth = _get_auth_header(signup)
+    user_id = signup.json()["user"]["id"]
+    credential_id = b"slow-ceremony-key"
+    await _seed_passkey(user_id, credential_id)
+
+    # Enrol TOTP too so both factors exist and disabling is permitted
+    secret = (await client.post("/auth/2fa/setup", headers=auth)).json()["secret"]
+    await client.post("/auth/2fa/confirm", headers=auth, json={"code": pyotp.TOTP(secret).now()})
+    await client.post("/auth/2fa/complete", headers=auth)
+
+    # An assertion whose challenge was never issued is a 400 protocol error, not a factor failure
+    bogus = _build_assertion(bytes_to_base64url(b"never-issued-challenge"), credential_id, user_id)
+    for _ in range(6):
+        rejected = await client.post(
+            "/auth/2fa/disable", headers=auth, json={"password": SIGNUP_PAYLOAD["password"], "passkey": bogus}
+        )
+        assert rejected.status_code == 400
+
+    # Six protocol errors did not trip the lockout, so a password login is still accepted
+    login = await client.post(
+        "/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": SIGNUP_PAYLOAD["password"]}
+    )
+    assert login.status_code == 200
+
+
+async def test_removing_passkey_keeps_recovery_codes_when_another_passkey_survives(client, monkeypatch):
+    """Removing one passkey while another remains keeps the shared recovery batch"""
+    signup = await _create_user(client)
+    auth = _get_auth_header(signup)
+    user_id = signup.json()["user"]["id"]
+
+    # The first passkey issues the batch and a second one reuses it, so two confirmed passkeys share it
+    registered = await _register_passkey(client, auth, monkeypatch, b"first-pk", "First")
+    first_id = registered.json()["passkey"]["id"]
+    await client.post("/auth/passkeys/register/confirm", headers=auth)
+    await _register_passkey(client, auth, monkeypatch, b"second-pk", "Second")
+
+    body = await _step_up_with_passkey(client, auth, monkeypatch, user_id, b"second-pk")
+    removed = await client.post(f"/auth/passkeys/{first_id}/remove", headers=auth, json=body)
+    assert removed.status_code == 204
+
+    async with TestSession() as db:
+        active = (
+            await db.execute(
+                select(RecoveryCode).where(
+                    RecoveryCode.user_id == uuid.UUID(user_id), RecoveryCode.pending.is_(False)
+                )
+            )
+        ).scalars().all()
+    assert len(active) == 10
+
+
+async def test_removing_passkey_via_step_up_with_the_same_passkey(client, monkeypatch):
+    """A passkey can authorize its own removal, the verification running before the row is deleted"""
+    signup = await _create_user(client)
+    auth = _get_auth_header(signup)
+    user_id = signup.json()["user"]["id"]
+    credential_id = b"self-remove-key"
+    passkey_id = await _seed_passkey(user_id, credential_id)
+
+    body = await _step_up_with_passkey(client, auth, monkeypatch, user_id, credential_id)
+    removed = await client.post(f"/auth/passkeys/{passkey_id}/remove", headers=auth, json=body)
+    assert removed.status_code == 204
+    assert (await client.get("/auth/passkeys", headers=auth)).json() == []
+
+
 async def test_mfa_options_rejects_invalid_token(client):
     """Passkey second-factor options are refused for a token that does not verify"""
     response = await client.post("/auth/passkeys/mfa/options", json={"mfa_token": "not-a-token"})
