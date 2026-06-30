@@ -20,17 +20,18 @@ const BACK_LINK_CLASS =
  * into the app. Where passkeys cannot run, the authenticator flow is shown straight away
  */
 export default function ForcedReenrollScreen() {
-  const { user, setUser } = useAuth();
+  const { logout } = useAuth();
   const config = usePasskeyConfig();
   const [method, setMethod] = useState<ReenrollMethod>('choose');
 
   const passkeysSupported = config.data ? assessPasskeySupport(config.data.rp_id).supported : false;
 
   /**
-   * Clears the restriction locally once a factor is re-established so the protected routes render
+   * Completing a forced re-enrol revokes the session on the server, so sign out locally and return to
+   * the login screen to start a fresh session with the new factor
    */
   const handleComplete = () => {
-    if (user) setUser({ ...user, second_factor_reenrollment_required: false });
+    void logout();
   };
 
   return (
@@ -43,8 +44,8 @@ export default function ForcedReenrollScreen() {
 
         <div className="mt-5 space-y-5">
           <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-            You signed in with a recovery code, so your previous two-factor method was removed. Set up a
-            new one to get back into your account.
+            You signed in with a recovery code, so your previous two-factor methods were removed. Set up
+            a new one, then sign in again to get back into your account.
           </p>
 
           <WarningCallout>
