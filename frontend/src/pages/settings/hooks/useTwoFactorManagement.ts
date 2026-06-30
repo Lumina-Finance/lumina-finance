@@ -7,7 +7,7 @@ import {
 } from '@/api/twoFactor'
 import type { StepUpCredentials } from '@/components/twoFactor/StepUpModal'
 
-type TwoFactorModal = 'none' | 'manage' | 'enable' | 'disable' | 'regenerate'
+type TwoFactorModal = 'none' | 'enable' | 'disable' | 'regenerate'
 
 /**
  * Owns the two-factor management state: which modal is open, the disable and regenerate actions,
@@ -52,7 +52,6 @@ export function useTwoFactorManagement() {
     isEnabled,
     isStatusLoading: status.isLoading,
     openModal,
-    showManage: () => setOpenModal('manage'),
     showEnable: () => setOpenModal('enable'),
     showDisable: () => setOpenModal('disable'),
     showRegenerate: () => setOpenModal('regenerate'),
