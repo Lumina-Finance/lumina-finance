@@ -257,6 +257,32 @@ async def test_successful_login_resets_failed_attempt_count(client):
         assert credential.locked_until is None
 
 
+async def test_failed_attempt_after_expired_lock_starts_fresh(client):
+    """Once the lockout window passes, a new failure restarts the count instead of re-locking immediately"""
+    from app.models.auth import PasswordCredential
+
+    await _create_user(client)
+    bad_login = {"email": "test@example.com", "password": "wrongpassword"}
+
+    for _ in range(5):
+        await client.post("/auth/login", json=bad_login)
+
+    # Move the lock into the past, as if the 30-minute window had elapsed
+    async with TestSession() as session:
+        credential = (await session.execute(select(PasswordCredential))).scalar_one()
+        credential.locked_until = datetime.now(UTC) - timedelta(minutes=1)
+        await session.commit()
+
+    # A single failure after the window must not re-lock, and the count restarts at one
+    resp = await client.post("/auth/login", json=bad_login)
+    assert resp.status_code == 401
+
+    async with TestSession() as session:
+        credential = (await session.execute(select(PasswordCredential))).scalar_one()
+        assert credential.failed_attempt_count == 1
+        assert credential.locked_until is None
+
+
 # --- Refresh ---
 
 

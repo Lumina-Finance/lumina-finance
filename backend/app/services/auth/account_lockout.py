@@ -50,6 +50,12 @@ async def record_failed_attempt(db: AsyncSession, credential: PasswordCredential
         db: Active database session
         credential: Password credential receiving the failed attempt
     """
+    # A lock that has already expired starts a fresh count, so waiting out the window restores the full
+    # allowance instead of leaving the account one failure away from re-locking
+    if credential.locked_until is not None and credential.locked_until <= datetime.now(UTC):
+        credential.failed_attempt_count = 0
+        credential.locked_until = None
+
     credential.failed_attempt_count += 1
     if credential.failed_attempt_count >= _MAX_FAILED_ATTEMPTS:
         credential.locked_until = datetime.now(UTC) + timedelta(minutes=_LOCKOUT_MINUTES)
