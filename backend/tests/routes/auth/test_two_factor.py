@@ -4,6 +4,7 @@ import uuid
 
 import pyotp
 
+from app.models.auth import RecoveryCode
 from app.services.auth.mfa_challenge import issue_mfa_challenge
 from tests.conftest import TestSession
 from tests.routes.support import SIGNUP_PAYLOAD, _create_user, _get_auth_header
@@ -34,6 +35,28 @@ async def _enroll(client):
     confirm = await client.post("/auth/2fa/confirm", headers=auth, json={"code": pyotp.TOTP(secret).now()})
     await client.post("/auth/2fa/complete", headers=auth)
     return auth, secret, confirm.json()["recovery_codes"]
+
+
+async def _seed_active_recovery_code(user_id: str) -> None:
+    """Insert one active recovery code, standing in for a batch issued by another second factor"""
+    async with TestSession() as db:
+        db.add(RecoveryCode(user_id=uuid.UUID(user_id), code_hash="seeded-active-code", pending=False))
+        await db.commit()
+
+
+async def test_totp_enrolment_reuses_existing_recovery_codes(client):
+    """Enrolling TOTP when recovery codes already exist turns it on without issuing a new batch"""
+    signup = await _create_user(client)
+    auth = _get_auth_header(signup)
+    await _seed_active_recovery_code(signup.json()["user"]["id"])
+
+    secret = (await client.post("/auth/2fa/setup", headers=auth)).json()["secret"]
+    confirm = await client.post("/auth/2fa/confirm", headers=auth, json={"code": pyotp.TOTP(secret).now()})
+
+    # No new codes, and two-factor is on with no completion step
+    assert confirm.status_code == 200
+    assert confirm.json()["recovery_codes"] == []
+    assert (await client.get("/auth/2fa/status", headers=auth)).json()["totp_enabled"] is True
 
 
 async def test_status_reflects_enrolment(client):

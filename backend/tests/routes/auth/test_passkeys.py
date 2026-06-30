@@ -204,6 +204,22 @@ async def test_second_passkey_activates_without_new_codes(client, monkeypatch):
     assert names == {"First", "Second"}
 
 
+async def test_passkey_after_existing_codes_reuses_them(client, monkeypatch):
+    """Registering a passkey when recovery codes already exist issues no new batch and activates now
+
+    The codes are account-level and shared, so a passkey added after TOTP reuses the existing batch
+    rather than replacing it, the same way TOTP enrolment reuses a passkey's batch
+    """
+    signup = await _create_user(client)
+    auth = _get_auth_header(signup)
+    await _seed_active_recovery_code(signup.json()["user"]["id"])
+
+    registered = await _register_passkey(client, auth, monkeypatch, b"after-totp-key", "Phone")
+    assert registered.status_code == 201
+    assert registered.json()["recovery_codes"] is None
+    assert [p["name"] for p in (await client.get("/auth/passkeys", headers=auth)).json()] == ["Phone"]
+
+
 async def test_confirm_without_staged_passkey_is_rejected(client):
     """Confirming when nothing is staged is refused"""
     auth = _get_auth_header(await _create_user(client))
@@ -555,7 +571,11 @@ async def _is_reenrollment_required(user_id: str) -> bool:
 
 
 async def test_restricted_session_reestablishes_with_passkey(client, monkeypatch):
-    """A recovery-code login can register a passkey, which lifts the re-enrolment restriction"""
+    """A recovery-code login re-enrols a passkey with a fresh batch, lifting the restriction on confirm
+
+    A forced re-enrol never reuses the surviving recovery codes, so the passkey is staged with a fresh
+    batch and stays restricted until those codes are acknowledged
+    """
     signup = await _create_user(client)
     auth = _get_auth_header(signup)
     user_id = signup.json()["user"]["id"]
@@ -564,7 +584,14 @@ async def test_restricted_session_reestablishes_with_passkey(client, monkeypatch
 
     registered = await _register_passkey(client, auth, monkeypatch, b"reestablish-key", "Recovery key")
     assert registered.status_code == 201
-    assert registered.json()["recovery_codes"] is None
+    assert len(registered.json()["recovery_codes"]) == 10
+
+    # Staged and still restricted until the fresh codes are acknowledged
+    assert await _is_reenrollment_required(user_id) is True
+    assert (await client.get("/auth/passkeys", headers=auth)).status_code == 403
+
+    confirmed = await client.post("/auth/passkeys/register/confirm", headers=auth)
+    assert confirmed.status_code == 204
 
     assert await _is_reenrollment_required(user_id) is False
     assert [p["name"] for p in (await client.get("/auth/passkeys", headers=auth)).json()] == ["Recovery key"]

@@ -124,8 +124,8 @@ async def register_passkey(
 
     A first passkey, on an account with no recovery codes yet, is the account's first second factor, so
     it is stored inactive and a shared recovery batch is staged for the user to save. It only becomes a
-    usable factor once those codes are acknowledged. Any later passkey activates immediately and reuses
-    the existing recovery codes
+    usable factor once those codes are acknowledged. A routine later passkey activates immediately and
+    reuses the existing recovery codes, while a forced re-enrol is excluded so it stages a fresh batch
 
     Args:
         db: Active database session
@@ -152,7 +152,11 @@ async def register_passkey(
     except InvalidRegistrationResponse as error:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Passkey registration failed") from error
 
-    recovery_established = await has_active_recovery_codes(db, user_id)
+    user = await db.get(User, user_id)
+
+    # Reuse the account's batch only for a routine added factor, never during a forced re-enrol, which
+    # must stage a fresh batch like a first factor
+    reuse_existing_codes = await has_active_recovery_codes(db, user_id) and not user.totp_reenrollment_required
 
     transports = credential.get("response", {}).get("transports") or []
     passkey = WebauthnCredential(
@@ -162,15 +166,14 @@ async def register_passkey(
         sign_count=verification.sign_count,
         transports=_TRANSPORT_SEPARATOR.join(transports) or None,
         name=name,
-        confirmed_at=None if not recovery_established else datetime.now(UTC),
+        confirmed_at=datetime.now(UTC) if reuse_existing_codes else None,
     )
     db.add(passkey)
 
-    # A first second factor stays inactive with no identity until its recovery codes are acknowledged
+    # A first factor or a forced re-enrol stays inactive until its fresh recovery codes are acknowledged
     recovery_codes = None
-    if recovery_established:
+    if reuse_existing_codes:
         await _ensure_webauthn_identity(db, user_id)
-        await _clear_reenrollment_restriction(db, user_id)
     else:
         recovery_codes = await generate_recovery_codes(db, user_id, pending=True)
 
