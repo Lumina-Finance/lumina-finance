@@ -1,3 +1,5 @@
+import type { AuthenticationResponseJSON } from '@simplewebauthn/browser';
+
 export interface TotpSetupResponse {
   /** Base32 secret for manual entry into an authenticator app */
   secret: string;
@@ -19,6 +21,8 @@ export interface TotpStatusResponse {
 
 export interface StepUpPayload {
   password: string;
-  /** A current TOTP code, step-up does not accept recovery codes */
-  code: string;
+  /** A current TOTP code, used when stepping up by authenticator. Recovery codes are not accepted */
+  code?: string;
+  /** A passkey assertion, used when stepping up by passkey, taking priority over a code */
+  passkey?: AuthenticationResponseJSON;
 }

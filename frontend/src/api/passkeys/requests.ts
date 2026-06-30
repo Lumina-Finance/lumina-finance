@@ -1,3 +1,4 @@
+import { startAuthentication } from '@simplewebauthn/browser';
 import type {
   AuthenticationResponseJSON,
   PublicKeyCredentialCreationOptionsJSON,
@@ -108,6 +109,28 @@ export async function verifyPasskeyMfa(
     throw new ApiError(body?.detail ?? `Passkey verification failed (${response.status})`, response.status);
   }
   return response.json();
+}
+
+/**
+ * Begins a passkey step-up for a sensitive two-factor change, returning the ceremony options
+ *
+ * Authenticated because the caller already holds a session, unlike the login ceremonies
+ */
+export function fetchPasskeyStepUpOptions() {
+  return authenticatedFetch<PublicKeyCredentialRequestOptionsJSON>('/auth/passkeys/step-up/options', {
+    method: 'POST',
+  });
+}
+
+/**
+ * Runs the passkey step-up ceremony, resolving to the assertion the action endpoint then verifies
+ *
+ * The browser prompt sits between the options and the action request so the assertion answers a
+ * challenge this server issued
+ */
+export async function requestPasskeyStepUpAssertion(): Promise<AuthenticationResponseJSON> {
+  const optionsJSON = await fetchPasskeyStepUpOptions();
+  return startAuthentication({ optionsJSON });
 }
 
 /**

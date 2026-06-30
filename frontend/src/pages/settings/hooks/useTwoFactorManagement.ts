@@ -24,18 +24,18 @@ export function useTwoFactorManagement() {
   const isEnabled = status.data?.totp_enabled ?? false
 
   /**
-   * Turns two-factor off after the step-up reauthentication succeeds
+   * Turns two-factor off after the step-up reauthentication succeeds, by passkey or authenticator code
    */
-  async function confirmDisable({ password, code }: StepUpCredentials) {
-    await disable.mutateAsync({ password, code })
+  async function confirmDisable(credentials: StepUpCredentials) {
+    await disable.mutateAsync(credentials)
     setOpenModal('none')
   }
 
   /**
    * Stages a fresh batch and reveals it once the step-up succeeds, leaving the active codes live
    */
-  async function confirmRegenerate({ password, code }: StepUpCredentials) {
-    const result = await regenerate.mutateAsync({ password, code })
+  async function confirmRegenerate(credentials: StepUpCredentials) {
+    const result = await regenerate.mutateAsync(credentials)
     setRegeneratedCodes(result.recovery_codes)
     setOpenModal('none')
   }

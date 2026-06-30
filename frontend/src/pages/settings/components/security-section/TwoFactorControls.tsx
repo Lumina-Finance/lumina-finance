@@ -81,10 +81,12 @@ export default function TwoFactorControls() {
       <StepUpModal
         open={openModal === 'disable'}
         title="Turn off two-factor authentication"
-        description="Enter your password and a current code to turn two-factor off."
+        description="Enter your password and verify with a passkey or a current code to turn two-factor off."
         requirePassword
         confirmLabel="Turn off"
         danger
+        allowPasskey
+        allowRecoveryReset
         onClose={closeModal}
         onVerify={confirmDisable}
       />
@@ -92,9 +94,11 @@ export default function TwoFactorControls() {
       <StepUpModal
         open={openModal === 'regenerate'}
         title="Regenerate recovery codes"
-        description="Enter your password and a current code to replace your recovery codes."
+        description="Enter your password and verify with a passkey or a current code to replace your recovery codes."
         requirePassword
         confirmLabel="Regenerate"
+        allowPasskey
+        allowRecoveryReset
         onClose={closeModal}
         onVerify={confirmRegenerate}
       />

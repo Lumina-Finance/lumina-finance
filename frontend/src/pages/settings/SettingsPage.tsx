@@ -148,7 +148,7 @@ export default function SettingsPage() {
             title="Confirm it's you"
             description="Enter your authenticator code to change your password."
             onClose={closeStepUp}
-            onVerify={({ code }) => verifyPasswordStepUp(code)}
+            onVerify={({ code }) => verifyPasswordStepUp(code ?? '')}
           />
           <RunwaySection
             loading={runwayLoading}
