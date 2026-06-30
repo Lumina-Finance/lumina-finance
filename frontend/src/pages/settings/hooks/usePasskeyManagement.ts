@@ -90,6 +90,7 @@ export function usePasskeyManagement() {
     pendingRecoveryCodes,
     acknowledgeRecoveryCodes,
     reuseReminder: reuseReminderVisible,
+    dismissReuseReminder: () => setReuseReminderVisible(false),
 
     // Dismissing without acknowledging leaves the passkey staged, a later login prunes it
     dismissRecoveryCodes: () => setPendingRecoveryCodes(null),

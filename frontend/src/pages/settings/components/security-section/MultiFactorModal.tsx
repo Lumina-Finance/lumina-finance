@@ -5,6 +5,7 @@ import { MultiFactorModalShell } from '@/components/twoFactor/MultiFactorModalSh
 import { RecoveryCodesModal } from '@/components/twoFactor/RecoveryCodesModal';
 import { StepUpModal } from '@/components/twoFactor/StepUpModal';
 import { TotpEnrollmentModal } from '@/components/twoFactor/TotpEnrollmentModal';
+import { TwoFactorModalShell } from '@/components/twoFactor/TwoFactorModalShell';
 import { WarningCallout } from '@/components/twoFactor/WarningCallout';
 import { usePasskeyManagement } from '@/pages/settings/hooks/usePasskeyManagement';
 import { useTwoFactorManagement } from '@/pages/settings/hooks/useTwoFactorManagement';
@@ -50,6 +51,7 @@ export function MultiFactorModal({ open, onClose }: MultiFactorModalProps) {
     totp.openModal !== 'none' ||
     totp.regeneratedCodes !== null ||
     passkey.pendingRecoveryCodes !== null ||
+    passkey.reuseReminder ||
     passkey.isRemovalOpen;
 
   const resetAddForm = () => {
@@ -183,17 +185,9 @@ export function MultiFactorModal({ open, onClose }: MultiFactorModalProps) {
               {addError}
             </p>
           )}
-          {passkey.reuseReminder && !addError && (
-            <div className="space-y-1">
-              <p className="text-sm font-medium">Passkey added</p>
-              <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                Your existing recovery codes also cover it, so there are no new codes to save.
-              </p>
-            </div>
-          )}
 
           {hasPasskeys && (
-            <div className="divide-y" style={{ borderColor: 'var(--app-border)' }}>
+            <div className="divide-y overflow-hidden rounded-lg border" style={{ borderColor: 'var(--app-border)' }}>
               {passkey.passkeys.map((registeredPasskey) => (
                 <PasskeyRow
                   key={registeredPasskey.id}
@@ -270,6 +264,18 @@ export function MultiFactorModal({ open, onClose }: MultiFactorModalProps) {
         onConfirm={passkey.acknowledgeRecoveryCodes}
         onClose={passkey.dismissRecoveryCodes}
       />
+
+      <TwoFactorModalShell open={passkey.reuseReminder} onClose={passkey.dismissReuseReminder}>
+        <div className="space-y-1">
+          <h3 className="text-base font-semibold">Passkey added</h3>
+          <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+            Your existing recovery codes also cover it, so there are no new codes to save.
+          </p>
+        </div>
+        <button type="button" onClick={passkey.dismissReuseReminder} className="app-primary-button w-full">
+          Done
+        </button>
+      </TwoFactorModalShell>
 
       <StepUpModal
         open={passkey.isRemovalOpen}
