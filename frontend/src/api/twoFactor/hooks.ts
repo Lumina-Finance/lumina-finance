@@ -10,6 +10,7 @@ import {
   setupTotp,
 } from '@/api/twoFactor/requests';
 import { useAuth } from '@/hooks/useAuth';
+import { withMinDelay } from '@/utils/timing';
 
 /**
  * Reads whether the current user has two-factor authentication enabled
@@ -91,5 +92,5 @@ export function useRegenerateRecoveryCodes() {
  * Activates the staged recovery code batch once the user acknowledges it
  */
 export function useConfirmRecoveryCodes() {
-  return useMutation({ mutationFn: confirmRecoveryCodes });
+  return useMutation({ mutationFn: () => withMinDelay(confirmRecoveryCodes) });
 }

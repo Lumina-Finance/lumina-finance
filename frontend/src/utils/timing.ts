@@ -22,3 +22,16 @@ export async function delayToMinimum(startMs: number, minimumMs: number = AUTH_L
     await waitForMilliseconds(minimumMs - elapsed)
   }
 }
+
+/**
+ * Runs an action but holds its settlement for at least the minimum loading time, covering both success
+ * and failure so a quick management mutation does not flash its spinner
+ */
+export async function withMinDelay<T>(action: () => Promise<T>, minimumMs: number = MFA_LOADING_MIN_MS): Promise<T> {
+  const start = Date.now()
+  try {
+    return await action()
+  } finally {
+    await delayToMinimum(start, minimumMs)
+  }
+}

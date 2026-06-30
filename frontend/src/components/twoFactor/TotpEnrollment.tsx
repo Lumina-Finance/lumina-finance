@@ -6,7 +6,7 @@ import { useCompleteTotp, useConfirmTotp, useSetupTotp } from '@/api/twoFactor';
 import { OtpInput, OTP_LENGTH } from '@/components/OtpInput';
 import { RecoveryCodesPanel } from '@/components/twoFactor/RecoveryCodesPanel';
 import { copyText } from '@/utils/clipboard';
-import { delayToMinimum } from '@/utils/timing';
+import { delayToMinimum, MFA_LOADING_MIN_MS } from '@/utils/timing';
 
 // How long the copied confirmation stays before reverting to the copy affordance
 const COPIED_FEEDBACK_MS = 1500;
@@ -86,7 +86,7 @@ export function TotpEnrollment({ onComplete, onSkip }: TotpEnrollmentProps) {
     const start = Date.now();
     try {
       const result = await confirm.mutateAsync({ code });
-      await delayToMinimum(start);
+      await delayToMinimum(start, MFA_LOADING_MIN_MS);
 
       // An empty batch means the account already had recovery codes, so two-factor turned on now and
       // there is nothing to acknowledge
@@ -96,7 +96,7 @@ export function TotpEnrollment({ onComplete, onSkip }: TotpEnrollmentProps) {
         setEnabledViaReuse(true);
       }
     } catch {
-      await delayToMinimum(start);
+      await delayToMinimum(start, MFA_LOADING_MIN_MS);
       setError('That code was incorrect. Try again.');
       setCode('');
     } finally {
@@ -115,10 +115,10 @@ export function TotpEnrollment({ onComplete, onSkip }: TotpEnrollmentProps) {
     const start = Date.now();
     try {
       await complete.mutateAsync();
-      await delayToMinimum(start);
+      await delayToMinimum(start, MFA_LOADING_MIN_MS);
       onComplete();
     } catch {
-      await delayToMinimum(start);
+      await delayToMinimum(start, MFA_LOADING_MIN_MS);
       setError('Could not finish setup. Try again.');
       setCompleting(false);
     }

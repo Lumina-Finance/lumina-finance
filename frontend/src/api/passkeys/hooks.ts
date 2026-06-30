@@ -16,6 +16,7 @@ import {
 } from '@/api/passkeys/requests';
 import type { StepUpPayload } from '@/api/twoFactor/types';
 import { useAuth } from '@/hooks/useAuth';
+import { withMinDelay } from '@/utils/timing';
 
 /**
  * Reads the relying party id used to check the current origin can register passkeys
@@ -88,7 +89,8 @@ export function useRegisterPasskey() {
     mutationFn: async (name: string) => {
       const optionsJSON = await fetchPasskeyRegistrationOptions();
       const credential = await startRegistration({ optionsJSON });
-      return registerPasskey({ name, credential });
+      // The minimum delay holds only the server store, so a cancelled prompt still surfaces at once
+      return withMinDelay(() => registerPasskey({ name, credential }));
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: passkeyKeys.list() }),
   });
@@ -100,7 +102,7 @@ export function useRegisterPasskey() {
 export function useConfirmPasskeyRegistration() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: confirmPasskeyRegistration,
+    mutationFn: () => withMinDelay(confirmPasskeyRegistration),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: passkeyKeys.list() }),
   });
 }
@@ -111,7 +113,8 @@ export function useConfirmPasskeyRegistration() {
 export function useRenamePasskey() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ passkeyId, name }: { passkeyId: string; name: string }) => renamePasskey(passkeyId, name),
+    mutationFn: ({ passkeyId, name }: { passkeyId: string; name: string }) =>
+      withMinDelay(() => renamePasskey(passkeyId, name)),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: passkeyKeys.list() }),
   });
 }
