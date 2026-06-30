@@ -7,7 +7,7 @@ export interface User {
   base_currency: string;
   created_at: string;
   // True after a recovery-code login, holding the account to the forced re-enrolment screen
-  totp_reenrollment_required: boolean;
+  second_factor_reenrollment_required: boolean;
 }
 
 export interface AuthResponse {

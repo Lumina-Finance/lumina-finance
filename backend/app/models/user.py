@@ -25,8 +25,8 @@ class User(Base):
     runway_healthy_at_months: Mapped[float] = mapped_column(Float, nullable=False, default=3.0, server_default="3")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
-    # Set when a recovery-code login revokes TOTP, forcing re-enrolment before the account unlocks
-    totp_reenrollment_required: Mapped[bool] = mapped_column(
+    # Set when a recovery-code login wipes every factor, forcing re-enrolment before the account unlocks
+    second_factor_reenrollment_required: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"
     )
 

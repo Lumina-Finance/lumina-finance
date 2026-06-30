@@ -119,10 +119,10 @@ async def get_authenticated_user(
 
 
 async def get_current_user(user: Annotated[User, Depends(get_authenticated_user)]) -> User:
-    """Resolve the authenticated user and refuse a session pending TOTP re-enrolment
+    """Resolve the authenticated user and refuse a session pending second-factor re-enrolment
 
     The default for protected routes, so a recovery-code login can reach only the re-enrolment
-    endpoints until a fresh authenticator is confirmed
+    endpoints until a fresh second factor is confirmed
 
     Args:
         user: Authenticated user from get_authenticated_user
@@ -131,9 +131,9 @@ async def get_current_user(user: Annotated[User, Depends(get_authenticated_user)
         The authenticated user
 
     Raises:
-        HTTPException 403: The session must re-enrol TOTP first
+        HTTPException 403: The session must re-enrol a second factor first
     """
-    if user.totp_reenrollment_required:
+    if user.second_factor_reenrollment_required:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Two-factor re-enrolment required"
         )

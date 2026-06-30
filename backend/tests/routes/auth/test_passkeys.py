@@ -552,7 +552,7 @@ async def _set_reenrollment_required(user_id: str) -> None:
     """Restrict the user as a recovery-code login would, pending second-factor re-establishment"""
     async with TestSession() as db:
         user = await db.get(User, uuid.UUID(user_id))
-        user.totp_reenrollment_required = True
+        user.second_factor_reenrollment_required = True
         await db.commit()
 
 
@@ -567,7 +567,7 @@ async def _is_reenrollment_required(user_id: str) -> bool:
     """Return whether the user is still restricted to second-factor re-establishment"""
     async with TestSession() as db:
         user = await db.get(User, uuid.UUID(user_id))
-        return user.totp_reenrollment_required
+        return user.second_factor_reenrollment_required
 
 
 async def test_restricted_session_reestablishes_with_passkey(client, monkeypatch):
@@ -624,7 +624,7 @@ async def test_recovery_code_login_wipes_all_passkeys(client, monkeypatch):
     login = await client.post("/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": SIGNUP_PAYLOAD["password"]})
     verify = await client.post("/auth/2fa/verify", json={"mfa_token": login.json()["mfa_token"], "code": codes[0]})
     assert verify.status_code == 200
-    assert verify.json()["user"]["totp_reenrollment_required"] is True
+    assert verify.json()["user"]["second_factor_reenrollment_required"] is True
 
     # The passkey rows and the WebAuthn identity are gone, leaving only the forced re-enrol path
     async with TestSession() as db:

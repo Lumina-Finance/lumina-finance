@@ -369,7 +369,7 @@ async def test_recovery_code_login_forces_reenrollment(client):
     assert verify.status_code == 200
     body = verify.json()
     assert body["access_token"]
-    assert body["user"]["totp_reenrollment_required"] is True
+    assert body["user"]["second_factor_reenrollment_required"] is True
 
 
 async def test_recovery_code_login_signs_out_existing_sessions(client):
@@ -421,7 +421,7 @@ async def test_restricted_session_re_enrols_with_fresh_codes(client):
         "/auth/2fa/verify", json={"mfa_token": relogin.json()["mfa_token"], "code": pyotp.TOTP(secret).now()}
     )
     assert verify.status_code == 200
-    assert verify.json()["user"]["totp_reenrollment_required"] is False
+    assert verify.json()["user"]["second_factor_reenrollment_required"] is False
 
     # The old batch is replaced, so a leftover old code no longer signs in
     assert (await _login_with_code(client, old_codes[1])).status_code == 401
@@ -441,7 +441,7 @@ async def test_old_recovery_codes_survive_an_abandoned_reenrol(client):
     # A remaining old code still signs in, proving the staged batch did not replace it
     again = await _login_with_code(client, old_codes[1])
     assert again.status_code == 200
-    assert again.json()["user"]["totp_reenrollment_required"] is True
+    assert again.json()["user"]["second_factor_reenrollment_required"] is True
 
 
 async def test_recovery_codes_are_single_use_and_deplete(client):
@@ -456,7 +456,7 @@ async def test_recovery_codes_are_single_use_and_deplete(client):
 
     another = await _login_with_code(client, codes[1])
     assert another.status_code == 200
-    assert another.json()["user"]["totp_reenrollment_required"] is True
+    assert another.json()["user"]["second_factor_reenrollment_required"] is True
 
 
 async def test_login_after_recovery_reports_recovery_only(client):

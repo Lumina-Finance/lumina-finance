@@ -157,7 +157,7 @@ async def register_passkey(
 
     # Reuse the account's batch only for a routine added factor, never during a forced re-enrol, which
     # must stage a fresh batch like a first factor
-    reuse_existing_codes = await has_active_recovery_codes(db, user_id) and not user.totp_reenrollment_required
+    reuse_existing_codes = await has_active_recovery_codes(db, user_id) and not user.second_factor_reenrollment_required
 
     transports = credential.get("response", {}).get("transports") or []
     passkey = WebauthnCredential(
@@ -203,7 +203,7 @@ async def confirm_passkey_registration(db: AsyncSession, user_id: uuid.UUID) -> 
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No passkey awaiting confirmation")
 
     user = await db.get(User, user_id)
-    was_forced_reenrollment = user.totp_reenrollment_required
+    was_forced_reenrollment = user.second_factor_reenrollment_required
 
     confirmed_at = datetime.now(UTC)
     for passkey in staged:
@@ -666,7 +666,7 @@ async def _clear_reenrollment_restriction(db: AsyncSession, user_id: uuid.UUID) 
     """
     user = await db.get(User, user_id)
     if user is not None:
-        user.totp_reenrollment_required = False
+        user.second_factor_reenrollment_required = False
 
 
 async def _ensure_webauthn_identity(db: AsyncSession, user_id: uuid.UUID) -> None:

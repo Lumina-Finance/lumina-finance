@@ -128,7 +128,7 @@ function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase }
   if (!loading && !user) return <Navigate to="/login" replace />;
 
   // A recovery-code login holds the account to re-enrolment before any route renders
-  if (user?.totp_reenrollment_required) return <ForcedReenrollScreen />;
+  if (user?.second_factor_reenrollment_required) return <ForcedReenrollScreen />;
 
   // The Routes subtree remounts on each path change, so this wrapper is recreated
   // per navigation and must start hidden through both loading and entering, otherwise
@@ -282,7 +282,7 @@ function AnimatedRoutes() {
       {/* The navigation chrome renders outside the keyed Routes so it persists across
           page changes. A persistent nav lets the active-link highlight crossfade through
           its CSS transition instead of snapping when the route subtree remounts */}
-      {user && !user.totp_reenrollment_required && isProtectedPath(displayLocation.pathname) && <Navigation />}
+      {user && !user.second_factor_reenrollment_required && isProtectedPath(displayLocation.pathname) && <Navigation />}
       <Routes
         location={displayLocation}
         key={

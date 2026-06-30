@@ -30,7 +30,7 @@ export default function ForcedReenrollScreen() {
    * Clears the restriction locally once a factor is re-established so the protected routes render
    */
   const handleComplete = () => {
-    if (user) setUser({ ...user, totp_reenrollment_required: false });
+    if (user) setUser({ ...user, second_factor_reenrollment_required: false });
   };
 
   return (

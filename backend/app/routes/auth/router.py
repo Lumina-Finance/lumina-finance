@@ -118,7 +118,7 @@ async def login_route(
     # present, with a recovery code the only path once no factor remains
     totp_enabled = await is_totp_enabled(db, user.id)
     passkey_available = await is_passkey_registered(db, user.id)
-    if totp_enabled or passkey_available or user.totp_reenrollment_required:
+    if totp_enabled or passkey_available or user.second_factor_reenrollment_required:
         challenge_token = await issue_mfa_challenge(db, user.id)
         return MfaRequiredResponse(
             mfa_token=challenge_token,

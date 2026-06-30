@@ -125,7 +125,7 @@ class UserInfo(BaseModel):
     tz: str  # IANA timezone needed client-side so settings pages can pre-select
     base_currency: str
     created_at: datetime
-    totp_reenrollment_required: bool  # true holds the client to the forced re-enrolment screen
+    second_factor_reenrollment_required: bool  # true holds the client to the forced re-enrolment screen
 
     model_config = {"from_attributes": True}
 

@@ -54,7 +54,7 @@ async def verify_login_second_factor(db: AsyncSession, user_id: uuid.UUID, code:
         await revoke_all_passkeys(db, user_id)
         await delete_all_user_auth_sessions(db, user_id)
         user = await db.get(User, user_id)
-        user.totp_reenrollment_required = True
+        user.second_factor_reenrollment_required = True
         return
 
     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid code")
@@ -72,7 +72,7 @@ async def _enable_totp(db: AsyncSession, user_id: uuid.UUID) -> None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No pending two-factor setup to finish")
 
     user = await db.get(User, user_id)
-    user.totp_reenrollment_required = False
+    user.second_factor_reenrollment_required = False
 
 
 async def confirm_totp_enrollment(db: AsyncSession, user_id: uuid.UUID, code: str) -> list[str]:
@@ -102,7 +102,7 @@ async def confirm_totp_enrollment(db: AsyncSession, user_id: uuid.UUID, code: st
 
     # Reuse the account's batch only for a routine second factor, never during a forced re-enrol, which
     # must mint a fresh batch
-    if await has_active_recovery_codes(db, user_id) and not user.totp_reenrollment_required:
+    if await has_active_recovery_codes(db, user_id) and not user.second_factor_reenrollment_required:
         await _enable_totp(db, user_id)
         await db.commit()
         return []
@@ -133,7 +133,7 @@ async def complete_totp_enrollment(db: AsyncSession, user_id: uuid.UUID) -> None
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Confirm an authenticator code first")
 
     user = await db.get(User, user_id)
-    was_forced_reenrollment = user.totp_reenrollment_required
+    was_forced_reenrollment = user.second_factor_reenrollment_required
 
     await _enable_totp(db, user_id)
     await activate_pending_recovery_codes(db, user_id)
