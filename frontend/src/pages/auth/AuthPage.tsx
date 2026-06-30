@@ -176,7 +176,7 @@ const AuthPage = () => {
                 <>
                   <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
                     {mfaRecoveryOnly
-                      ? 'Your authenticator was removed. Enter a recovery code to continue.'
+                      ? 'Your second factors were removed. Enter a recovery code to continue.'
                       : mfaUseRecoveryCode
                         ? 'Enter one of your recovery codes.'
                         : 'Enter the 6-digit code from your authenticator app.'}
@@ -185,8 +185,8 @@ const AuthPage = () => {
                   {mfaUseRecoveryCode && (
                     <WarningCallout>
                       {mfaRecoveryOnly
-                        ? "Each recovery-code sign-in spends one of your remaining codes. If you run out before you set up a new authenticator, you'll be permanently locked out of your account."
-                        : "Using a recovery code removes your current authenticator. You'll be required to set up a new one before you can access your account again."}
+                        ? "Each recovery-code sign-in spends one of your remaining codes and signs you out everywhere. If you run out before you set up a new factor, you'll be permanently locked out of your account."
+                        : "Using a recovery code removes all your authenticators and passkeys and signs you out everywhere. You'll set up a new factor before you can use your account again."}
                     </WarningCallout>
                   )}
 
