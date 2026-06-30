@@ -23,7 +23,7 @@ from app.services.auth.totp import (
     is_user_totp_code_valid,
     mark_totp_confirmed,
 )
-from app.services.auth.webauthn import is_passkey_registered, revoke_all_passkeys
+from app.services.auth.webauthn import is_passkey_registered, remove_passkey, revoke_all_passkeys
 
 # Shared message so disabling and regenerating reject identically when 2FA is off
 _NOT_ENABLED_DETAIL = "Two-factor authentication is not enabled"
@@ -171,6 +171,37 @@ async def disable_two_factor(
     if not await is_passkey_registered(db, user.id):
         await delete_recovery_codes(db, user.id)
     await db.commit()
+
+
+async def remove_passkey_with_step_up(
+    db: AsyncSession,
+    user: User,
+    passkey_id: uuid.UUID,
+    password: str,
+    *,
+    code: str | None = None,
+    passkey: dict | None = None,
+) -> None:
+    """Remove a passkey after step-up, clearing the recovery codes only when no factor survives
+
+    Args:
+        db: Active database session
+        user: Authenticated user removing the passkey
+        passkey_id: Passkey to remove
+        password: Account password
+        code: A current TOTP code, when stepping up by authenticator
+        passkey: A passkey assertion, when stepping up by passkey
+
+    Raises:
+        HTTPException: The passkey is missing, or the step-up check fails
+    """
+    await verify_step_up(db, user, password, code=code, passkey=passkey)
+    await remove_passkey(db, user.id, passkey_id)
+
+    # The recovery batch is shared, so drop it only once removal leaves no second factor at all
+    if not await is_totp_enabled(db, user.id) and not await is_passkey_registered(db, user.id):
+        await delete_recovery_codes(db, user.id)
+        await db.commit()
 
 
 async def regenerate_recovery_codes(

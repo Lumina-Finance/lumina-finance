@@ -14,6 +14,7 @@ from app.services.auth.two_factor import (
     confirm_totp_enrollment,
     disable_two_factor,
     regenerate_recovery_codes,
+    remove_passkey_with_step_up,
 )
 from app.services.auth.webauthn import (
     build_passkey_authentication_options,
@@ -54,6 +55,7 @@ __all__ = [
     "regenerate_recovery_codes",
     "register_passkey",
     "remove_passkey",
+    "remove_passkey_with_step_up",
     "rename_passkey",
     "request_password_reset",
     "reset_password",

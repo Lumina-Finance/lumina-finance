@@ -274,30 +274,33 @@ async def test_rename_rejects_another_users_passkey(client):
     assert response.status_code == 404
 
 
-async def test_remove_last_passkey_drops_identity(client):
-    """Removing the only passkey deletes the WebAuthn identity"""
+async def _step_up_with_passkey(client, auth, monkeypatch, user_id: str, credential_id: bytes) -> dict:
+    """Run a passkey step-up ceremony and return the step-up request body for a sensitive action"""
+    options = (await client.post("/auth/passkeys/step-up/options", headers=auth)).json()
+    assertion = _build_assertion(options["challenge"], credential_id, user_id)
+    monkeypatch.setattr(
+        webauthn_service, "verify_authentication_response", lambda **_: SimpleNamespace(new_sign_count=1)
+    )
+    return {"password": SIGNUP_PAYLOAD["password"], "passkey": assertion}
+
+
+async def test_remove_last_passkey_drops_identity(client, monkeypatch):
+    """Removing the only passkey deletes the WebAuthn identity after a passkey step-up"""
     signup = await _create_user(client)
     auth = _get_auth_header(signup)
     user_id = signup.json()["user"]["id"]
-    passkey_id = await _seed_passkey(user_id, b"last-credential")
+    credential_id = b"last-credential"
+    passkey_id = await _seed_passkey(user_id, credential_id)
 
-    response = await client.delete(f"/auth/passkeys/{passkey_id}", headers=auth)
+    body = await _step_up_with_passkey(client, auth, monkeypatch, user_id, credential_id)
+    response = await client.post(f"/auth/passkeys/{passkey_id}/remove", headers=auth, json=body)
     assert response.status_code == 204
 
-    listing = await client.get("/auth/passkeys", headers=auth)
-    assert listing.json() == []
-
-    async with TestSession() as db:
-        identity = await db.scalar(
-            select(AuthIdentity).where(
-                AuthIdentity.user_id == uuid.UUID(user_id),
-                AuthIdentity.auth_provider == AuthProvider.WEBAUTHN,
-            )
-        )
-        assert identity is None
+    assert (await client.get("/auth/passkeys", headers=auth)).json() == []
+    assert await _has_webauthn_identity(user_id) is False
 
 
-async def test_remove_keeps_identity_while_passkeys_remain(client):
+async def test_remove_keeps_identity_while_passkeys_remain(client, monkeypatch):
     """Removing one of several passkeys keeps the WebAuthn identity"""
     signup = await _create_user(client)
     auth = _get_auth_header(signup)
@@ -305,16 +308,76 @@ async def test_remove_keeps_identity_while_passkeys_remain(client):
     first = await _seed_passkey(user_id, b"first-credential")
     await _seed_passkey(user_id, b"second-credential")
 
-    await client.delete(f"/auth/passkeys/{first}", headers=auth)
+    # Step up with the passkey that survives the removal
+    body = await _step_up_with_passkey(client, auth, monkeypatch, user_id, b"second-credential")
+    removed = await client.post(f"/auth/passkeys/{first}/remove", headers=auth, json=body)
+    assert removed.status_code == 204
+
+    assert await _has_webauthn_identity(user_id) is True
+
+
+async def test_remove_passkey_rejects_a_wrong_password(client):
+    """Passkey removal refuses a wrong password and leaves the passkey in place"""
+    signup = await _create_user(client)
+    auth = _get_auth_header(signup)
+    passkey_id = await _seed_passkey(signup.json()["user"]["id"], b"protected-credential")
+
+    rejected = await client.post(
+        f"/auth/passkeys/{passkey_id}/remove", headers=auth, json={"password": "WrongPass123!", "code": "000000"}
+    )
+    assert rejected.status_code == 401
+    assert len((await client.get("/auth/passkeys", headers=auth)).json()) == 1
+
+
+async def test_removing_passkey_keeps_recovery_codes_when_totp_survives(client, monkeypatch):
+    """Removing a passkey while TOTP remains keeps the shared recovery batch"""
+    signup = await _create_user(client)
+    auth = _get_auth_header(signup)
+    user_id = signup.json()["user"]["id"]
+    credential_id = b"removable-with-totp"
+    passkey_id = await _seed_passkey(user_id, credential_id)
+
+    # Enrol TOTP so it survives the passkey removal
+    secret = (await client.post("/auth/2fa/setup", headers=auth)).json()["secret"]
+    await client.post("/auth/2fa/confirm", headers=auth, json={"code": pyotp.TOTP(secret).now()})
+    await client.post("/auth/2fa/complete", headers=auth)
+
+    body = await _step_up_with_passkey(client, auth, monkeypatch, user_id, credential_id)
+    removed = await client.post(f"/auth/passkeys/{passkey_id}/remove", headers=auth, json=body)
+    assert removed.status_code == 204
 
     async with TestSession() as db:
-        identity = await db.scalar(
-            select(AuthIdentity).where(
-                AuthIdentity.user_id == uuid.UUID(user_id),
-                AuthIdentity.auth_provider == AuthProvider.WEBAUTHN,
+        active = (
+            await db.execute(
+                select(RecoveryCode).where(
+                    RecoveryCode.user_id == uuid.UUID(user_id), RecoveryCode.pending.is_(False)
+                )
             )
-        )
-        assert identity is not None
+        ).scalars().all()
+    assert len(active) == 10
+
+
+async def test_removing_the_last_factor_clears_recovery_codes(client, monkeypatch):
+    """Removing the last second factor clears the shared recovery batch"""
+    signup = await _create_user(client)
+    auth = _get_auth_header(signup)
+    user_id = signup.json()["user"]["id"]
+    credential_id = b"sole-factor-key"
+
+    # Register a real passkey so a recovery batch is issued, then acknowledge it
+    registered = await _register_passkey(client, auth, monkeypatch, credential_id, "Only key")
+    passkey_id = registered.json()["passkey"]["id"]
+    await client.post("/auth/passkeys/register/confirm", headers=auth)
+
+    body = await _step_up_with_passkey(client, auth, monkeypatch, user_id, credential_id)
+    removed = await client.post(f"/auth/passkeys/{passkey_id}/remove", headers=auth, json=body)
+    assert removed.status_code == 204
+
+    async with TestSession() as db:
+        remaining = (
+            await db.execute(select(RecoveryCode).where(RecoveryCode.user_id == uuid.UUID(user_id)))
+        ).scalars().all()
+    assert remaining == []
 
 
 async def test_management_requires_authentication(client):

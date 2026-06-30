@@ -25,6 +25,7 @@ from app.schemas.auth import (
     PasskeyRegisterResponse,
     PasskeyRenameRequest,
     PasskeySummary,
+    StepUpRequest,
 )
 from app.services.auth import (
     build_passkey_authentication_options,
@@ -33,7 +34,7 @@ from app.services.auth import (
     confirm_passkey_registration,
     list_passkeys,
     register_passkey,
-    remove_passkey,
+    remove_passkey_with_step_up,
     rename_passkey,
     verify_passkey_authentication,
 )
@@ -280,20 +281,22 @@ async def rename_passkey_route(
     return await rename_passkey(db, user.id, passkey_id, data.name)
 
 
-@router.delete("/{passkey_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.post("/{passkey_id}/remove", status_code=status.HTTP_204_NO_CONTENT)
 async def remove_passkey_route(
     passkey_id: uuid.UUID,
+    data: StepUpRequest,
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Delete one of the authenticated user's passkeys
+    """Delete one of the authenticated user's passkeys after step-up reauthentication
 
     Args:
         passkey_id: Passkey to delete
+        data: Password and a current second factor, a passkey assertion or a TOTP code
         user: Authenticated user resolved from the access token
         db: Active database session
 
     Raises:
-        HTTPException: The passkey does not exist or belongs to another user
+        HTTPException: The passkey does not exist, or the step-up check fails
     """
-    await remove_passkey(db, user.id, passkey_id)
+    await remove_passkey_with_step_up(db, user, passkey_id, data.password, code=data.code, passkey=data.passkey)
