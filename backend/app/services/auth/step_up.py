@@ -54,8 +54,12 @@ async def verify_step_up(
     if passkey is not None:
         try:
             await verify_passkey_second_factor(db, user.id, passkey)
-        except HTTPException:
-            await record_failed_attempt(db, credential)
+        except HTTPException as error:
+            # A wrong passkey is a failed factor and counts toward the lockout, but a protocol error
+            # such as an expired or malformed challenge (400) does not, so a slow or fumbled ceremony
+            # cannot lock the account
+            if error.status_code == status.HTTP_401_UNAUTHORIZED:
+                await record_failed_attempt(db, credential)
             raise
     elif code is not None:
         if not await is_user_totp_code_valid(db, user.id, code):

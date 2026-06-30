@@ -210,8 +210,11 @@ async def _complete_mfa_challenge(
 
     try:
         await verify_second_factor(user_id)
-    except HTTPException:
-        if credential is not None:
+    except HTTPException as error:
+        # A wrong factor counts toward the lockout, but a passkey protocol error such as an expired or
+        # malformed challenge (400) does not, so a slow or fumbled ceremony cannot lock the account. A
+        # typed code only ever fails with a 401, so it still counts
+        if credential is not None and error.status_code == status.HTTP_401_UNAUTHORIZED:
             await record_failed_attempt(db, credential)
         raise
 
