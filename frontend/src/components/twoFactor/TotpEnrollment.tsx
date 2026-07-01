@@ -171,14 +171,16 @@ export function TotpEnrollment({ onComplete, onSkip }: TotpEnrollmentProps) {
             </p>
           )}
 
-          <button
-            type="button"
-            onClick={handleComplete}
-            disabled={!savedAcknowledged || !lockoutAcknowledged || completing}
-            className="app-primary-button w-full"
-          >
-            {completing ? <div className="app-spinner" /> : 'Done'}
-          </button>
+          <div className="flex justify-center">
+            <button
+              type="button"
+              onClick={handleComplete}
+              disabled={!savedAcknowledged || !lockoutAcknowledged || completing}
+              className={`app-primary-button transition-all duration-300 ${completing ? 'app-primary-button-loading' : 'w-full'}`}
+            >
+              {completing ? <div className="app-spinner" /> : 'Done'}
+            </button>
+          </div>
         </div>
       ) : (
         <div className="space-y-5">
@@ -210,7 +212,7 @@ export function TotpEnrollment({ onComplete, onSkip }: TotpEnrollmentProps) {
 
           {!isSetupLoading && setup.data && (
             <div className="space-y-1 text-center">
-              <p className="text-xs" style={{ color: 'var(--app-text-muted)' }}>
+              <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
                 Or enter this key manually
               </p>
               <button

@@ -112,14 +112,16 @@ export function RecoveryCodesModal({
         </p>
       )}
 
-      <button
-        type="button"
-        onClick={handleConfirm}
-        disabled={!ready || confirming}
-        className="app-primary-button w-full"
-      >
-        {confirming ? <div className="app-spinner" /> : 'Done'}
-      </button>
+      <div className="flex justify-center">
+        <button
+          type="button"
+          onClick={handleConfirm}
+          disabled={!ready || confirming}
+          className={`app-primary-button transition-all duration-300 ${confirming ? 'app-primary-button-loading' : 'w-full'}`}
+        >
+          {confirming ? <div className="app-spinner" /> : 'Done'}
+        </button>
+      </div>
     </TwoFactorModalShell>
   );
 }
