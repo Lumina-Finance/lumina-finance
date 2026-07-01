@@ -108,7 +108,7 @@ export function PasskeyRow({ passkey, onRename, onRemove, disabled }: PasskeyRow
 
       <AnimatePresence mode="wait" initial={false}>
         {mode === 'confirm-remove' ? (
-          <motion.div key="confirm" className="flex shrink-0 items-center gap-2" {...ACTION_MOTION}>
+          <motion.div key="confirm" className="flex h-10 shrink-0 items-center gap-2" {...ACTION_MOTION}>
             <button type="button" onClick={confirmRemove} disabled={disabled} className="app-danger-button">
               Remove
             </button>
@@ -117,7 +117,7 @@ export function PasskeyRow({ passkey, onRename, onRemove, disabled }: PasskeyRow
             </button>
           </motion.div>
         ) : (
-          <motion.div key="actions" className="flex shrink-0 items-center gap-1" {...ACTION_MOTION}>
+          <motion.div key="actions" className="flex h-10 shrink-0 items-center gap-1" {...ACTION_MOTION}>
             <button
               type="button"
               onClick={() => {
