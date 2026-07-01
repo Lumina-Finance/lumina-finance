@@ -1,10 +1,11 @@
 import { KeyRound } from 'lucide-react';
-import { useState, type FormEvent } from 'react';
-import { AnimatePresence, motion } from 'motion/react';
+import { useState, type FormEvent, type MouseEvent } from 'react';
 import type { AuthenticationResponseJSON } from '@simplewebauthn/browser';
 import { usePasskeyConfig, usePasskeys } from '@/api/passkeys';
 import { requestPasskeyStepUpAssertion } from '@/api/passkeys/requests';
+import { useTotpStatus } from '@/api/twoFactor';
 import { OtpInput, OTP_LENGTH } from '@/components/OtpInput';
+import { StepTransition } from '@/components/twoFactor/StepTransition';
 import { TwoFactorModalShell } from '@/components/twoFactor/TwoFactorModalShell';
 import { WarningCallout } from '@/components/twoFactor/WarningCallout';
 import { useAuth } from '@/hooks/useAuth';
@@ -42,12 +43,13 @@ interface StepUpModalProps {
 
 const GENERIC_STEP_UP_ERROR = 'That did not work. Check your details and try again.';
 
-// Cross-fade with a small slide so the password and factor steps give way smoothly
-const VIEW_TRANSITION = {
-  initial: { opacity: 0, y: 8 },
-  animate: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: -8 },
-  transition: { duration: 0.2, ease: [0.25, 0.1, 0.25, 1] as const },
+/**
+ * Wraps a click action so a password manager cannot drive the prompt. 1Password and similar
+ * auto-submit by calling element.click(), which dispatches an untrusted event, so only a real user
+ * press should advance, confirm, leave, or reset a step-up
+ */
+const onUserPress = (action: () => void) => (event: MouseEvent<HTMLButtonElement>) => {
+  if (event.isTrusted) action();
 };
 
 /**
@@ -73,6 +75,7 @@ export function StepUpModal({
   const { logout } = useAuth();
   const passkeys = usePasskeys();
   const passkeyConfig = usePasskeyConfig();
+  const totpStatus = useTotpStatus();
   const [password, setPassword] = useState('');
   const [otp, setOtp] = useState('');
   const [error, setError] = useState('');
@@ -88,6 +91,11 @@ export function StepUpModal({
   // Only offer a passkey when the origin can run a ceremony and the user actually has one to present
   const passkeySupported = passkeyConfig.data ? assessPasskeySupport(passkeyConfig.data.rp_id).supported : false;
   const canUsePasskey = allowPasskey && passkeySupported && (passkeys.data?.length ?? 0) > 0;
+
+  // Show the authenticator code path unless a passkey is the only usable factor, so a passkey-only or
+  // a TOTP-only account is offered just its own option
+  const totpEnabled = totpStatus.data?.totp_enabled ?? false;
+  const showCodeEntry = totpEnabled || !canUsePasskey;
   const canSubmitCode = otp.length === OTP_LENGTH;
   const actionButtonClass = `${danger ? 'app-danger-button' : 'app-primary-button'} w-full`;
 
@@ -131,23 +139,29 @@ export function StepUpModal({
    */
   const handleContinue = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+
+    // Password managers auto-submit by calling click(), which fires an untrusted event, so the prompt
+    // only advances on a real user press
+    if (!event.isTrusted) return;
     if (!password) return;
     setError('');
     setStep('factor');
   };
 
   /**
-   * Submitting the factor form runs the code path. The confirm button is the form's only submit
-   * control, so a password manager that autofills and auto-submits lands on the action, not the escape
+   * Submitting the factor form confirms the action. A password manager that autofills and auto-submits
+   * fires an untrusted event, which is ignored so the confirm only runs on a real user press
    */
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!event.isTrusted) return;
     if (!canSubmitCode || verifying) return;
     void runStepUp('code', () => onVerify({ password, code: otp }));
   };
 
-  const handlePasskeyVerify = () => {
-    if (verifying) return;
+  const handlePasskeyVerify = (event: MouseEvent<HTMLButtonElement>) => {
+    // A password manager auto-clicking this fires an untrusted event, which must not launch a ceremony
+    if (!event.isTrusted || verifying) return;
     void runStepUp('passkey', async () => {
       const assertion = await requestPasskeyStepUpAssertion();
       await onVerify({ password, passkey: assertion });
@@ -178,37 +192,40 @@ export function StepUpModal({
 
   return (
     <TwoFactorModalShell open={open} onClose={handleClose} closeDisabled={verifying || resetting}>
-      <div className="space-y-1">
-        <h3 className="text-base font-semibold">{title}</h3>
-        <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-          {confirmingReset
-            ? "You'll be signed out everywhere and can set up a new factor after signing in with a recovery code."
-            : description}
-        </p>
-      </div>
-
-      <AnimatePresence mode="wait" initial={false}>
+      <StepTransition
+        stepKey={confirmingReset ? 'reset' : step}
+        header={
+          <div className="space-y-1">
+            <h3 className="text-base font-semibold">{title}</h3>
+            <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+              {confirmingReset
+                ? "You'll be signed out everywhere and can set up a new factor after signing in with a recovery code."
+                : description}
+            </p>
+          </div>
+        }
+      >
         {confirmingReset ? (
-          <motion.div key="reset" className="space-y-5" {...VIEW_TRANSITION}>
+          <div className="space-y-5">
             <WarningCallout>
               This removes all your authenticators and passkeys and signs you out everywhere. You'll sign in
               with a recovery code and set up a new factor.
             </WarningCallout>
-            <button type="button" onClick={handleRecoveryReset} disabled={resetting} className="app-danger-button w-full">
+            <button type="button" onClick={onUserPress(handleRecoveryReset)} disabled={resetting} className="app-danger-button w-full">
               {resetting ? <div className="app-spinner" /> : 'Sign out and reset'}
             </button>
             <button
               type="button"
-              onClick={() => setConfirmingReset(false)}
+              onClick={onUserPress(() => setConfirmingReset(false))}
               disabled={resetting}
               className="block w-full text-center text-sm font-medium underline underline-offset-2"
               style={{ color: 'var(--app-text-muted)' }}
             >
               Back
             </button>
-          </motion.div>
+          </div>
         ) : step === 'password' ? (
-          <motion.form key="password" onSubmit={handleContinue} className="space-y-5" {...VIEW_TRANSITION}>
+          <form onSubmit={handleContinue} className="space-y-5">
             <input
               className="app-input w-full"
               type="password"
@@ -221,28 +238,31 @@ export function StepUpModal({
             <button type="submit" disabled={!password} className="app-primary-button w-full">
               Continue
             </button>
-          </motion.form>
+          </form>
         ) : (
-          <motion.div key="factor" className="space-y-5" {...VIEW_TRANSITION}>
+          <div className="space-y-5">
             <form onSubmit={handleSubmit} className="space-y-5">
               {canUsePasskey && (
-                <>
-                  <button
-                    type="button"
-                    onClick={handlePasskeyVerify}
-                    disabled={verifying}
-                    className="app-primary-button flex w-full items-center justify-center gap-2"
-                  >
-                    {verifyingPath === 'passkey' ? <div className="app-spinner" /> : <KeyRound size={16} aria-hidden />}
-                    Verify with a passkey
-                  </button>
-                  <p className="text-center text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                    or enter a code from your authenticator app
-                  </p>
-                </>
+                <button
+                  type="button"
+                  onClick={handlePasskeyVerify}
+                  disabled={verifying}
+                  className="app-primary-button flex w-full items-center justify-center gap-2"
+                >
+                  {verifyingPath === 'passkey' ? <div className="app-spinner" /> : <KeyRound size={16} aria-hidden />}
+                  Verify with a passkey
+                </button>
               )}
 
-              <OtpInput value={otp} onChange={setOtp} disabled={verifying} autoFocus={!canUsePasskey} />
+              {canUsePasskey && showCodeEntry && (
+                <p className="text-center text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                  or enter a code from your authenticator app
+                </p>
+              )}
+
+              {showCodeEntry && (
+                <OtpInput value={otp} onChange={setOtp} disabled={verifying} autoFocus={!canUsePasskey} />
+              )}
 
               {error && (
                 <p className="text-center text-sm" style={{ color: 'var(--app-negative)' }}>
@@ -250,20 +270,24 @@ export function StepUpModal({
                 </p>
               )}
 
-              <button type="submit" disabled={!canSubmitCode || verifying} className={actionButtonClass}>
-                {verifyingPath === 'code' ? <div className="app-spinner" /> : confirmLabel}
-              </button>
+              {showCodeEntry && (
+                <button type="submit" disabled={!canSubmitCode || verifying} className={actionButtonClass}>
+                  {verifyingPath === 'code' ? <div className="app-spinner" /> : confirmLabel}
+                </button>
+              )}
             </form>
 
             {/* Links sit outside the form so a password manager's autofill-and-submit cannot land on them */}
             {requirePassword && (
               <button
                 type="button"
-                onClick={() => {
+                onClick={onUserPress(() => {
+                  // Drop the entered password when stepping back so it is not held while the user is away
                   setStep('password');
+                  setPassword('');
                   setOtp('');
                   setError('');
-                }}
+                })}
                 disabled={verifying}
                 className="block w-full text-center text-sm underline underline-offset-2"
                 style={{ color: 'var(--app-text-muted)' }}
@@ -274,7 +298,7 @@ export function StepUpModal({
             {allowRecoveryReset && (
               <button
                 type="button"
-                onClick={() => setConfirmingReset(true)}
+                onClick={onUserPress(() => setConfirmingReset(true))}
                 disabled={verifying}
                 className="block w-full text-center text-sm font-medium underline underline-offset-2"
                 style={{ color: 'var(--app-text-muted)' }}
@@ -282,9 +306,9 @@ export function StepUpModal({
                 Lost your authenticator?
               </button>
             )}
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
+      </StepTransition>
     </TwoFactorModalShell>
   );
 }
