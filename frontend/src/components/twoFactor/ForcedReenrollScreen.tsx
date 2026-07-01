@@ -1,5 +1,6 @@
 import { KeyRound } from 'lucide-react';
 import { useState } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import { usePasskeyConfig } from '@/api/passkeys';
 import { PasskeyReenrollment } from '@/components/twoFactor/PasskeyReenrollment';
 import { TotpEnrollment } from '@/components/twoFactor/TotpEnrollment';
@@ -11,6 +12,14 @@ type ReenrollMethod = 'choose' | 'totp' | 'passkey';
 
 const BACK_LINK_CLASS =
   'block w-full text-center text-sm font-medium underline underline-offset-2 transition-colors duration-200';
+
+// Cross-fade with a small slide so the method choices give way smoothly, matching the login flow
+const VIEW_TRANSITION = {
+  initial: { opacity: 0, y: 8 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: -8 },
+  transition: { duration: 0.2, ease: [0.25, 0.1, 0.25, 1] as const },
+};
 
 /**
  * Blocks the app after a recovery-code login until the user re-establishes a second factor
@@ -25,6 +34,9 @@ export default function ForcedReenrollScreen() {
   const [method, setMethod] = useState<ReenrollMethod>('choose');
 
   const passkeysSupported = config.data ? assessPasskeySupport(config.data.rp_id).supported : false;
+
+  // With no passkey support the authenticator flow is the only option, otherwise the chosen method drives the view
+  const effectiveMethod: ReenrollMethod = passkeysSupported ? method : 'totp';
 
   /**
    * Completing a forced re-enrol revokes the session on the server, so sign out locally and return to
@@ -53,50 +65,52 @@ export default function ForcedReenrollScreen() {
             remaining recovery codes, and running out locks you out permanently.
           </WarningCallout>
 
-          {!config.isLoading && (!passkeysSupported || method === 'totp') && (
-            <div className="space-y-4">
-              <TotpEnrollment onComplete={handleComplete} />
-              {passkeysSupported && (
-                <button
-                  type="button"
-                  onClick={() => setMethod('choose')}
-                  className={BACK_LINK_CLASS}
-                  style={{ color: 'var(--app-text-muted)' }}
-                >
-                  Choose a different method
-                </button>
-              )}
-            </div>
-          )}
-
-          {!config.isLoading && passkeysSupported && method === 'choose' && (
-            <div className="space-y-3">
-              <button
-                type="button"
-                onClick={() => setMethod('passkey')}
-                className="app-primary-button flex w-full items-center justify-center gap-2"
-              >
-                <KeyRound size={16} aria-hidden />
-                Set up a passkey
-              </button>
-              <button type="button" onClick={() => setMethod('totp')} className="app-secondary-button w-full">
-                Set up an authenticator app
-              </button>
-            </div>
-          )}
-
-          {!config.isLoading && passkeysSupported && method === 'passkey' && (
-            <div className="space-y-4">
-              <PasskeyReenrollment onComplete={handleComplete} />
-              <button
-                type="button"
-                onClick={() => setMethod('choose')}
-                className={BACK_LINK_CLASS}
-                style={{ color: 'var(--app-text-muted)' }}
-              >
-                Choose a different method
-              </button>
-            </div>
+          {!config.isLoading && (
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div key={effectiveMethod} {...VIEW_TRANSITION}>
+                {effectiveMethod === 'totp' ? (
+                  <div className="space-y-4">
+                    <TotpEnrollment onComplete={handleComplete} />
+                    {passkeysSupported && (
+                      <button
+                        type="button"
+                        onClick={() => setMethod('choose')}
+                        className={BACK_LINK_CLASS}
+                        style={{ color: 'var(--app-text-muted)' }}
+                      >
+                        Choose a different method
+                      </button>
+                    )}
+                  </div>
+                ) : effectiveMethod === 'passkey' ? (
+                  <div className="space-y-4">
+                    <PasskeyReenrollment onComplete={handleComplete} />
+                    <button
+                      type="button"
+                      onClick={() => setMethod('choose')}
+                      className={BACK_LINK_CLASS}
+                      style={{ color: 'var(--app-text-muted)' }}
+                    >
+                      Choose a different method
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <button
+                      type="button"
+                      onClick={() => setMethod('passkey')}
+                      className="app-primary-button flex w-full items-center justify-center gap-2"
+                    >
+                      <KeyRound size={16} aria-hidden />
+                      Set up a passkey
+                    </button>
+                    <button type="button" onClick={() => setMethod('totp')} className="app-secondary-button w-full">
+                      Set up an authenticator app
+                    </button>
+                  </div>
+                )}
+              </motion.div>
+            </AnimatePresence>
           )}
         </div>
       </div>
