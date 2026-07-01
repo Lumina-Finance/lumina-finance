@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { AnimatePresence, motion } from 'motion/react';
 import { Check, Copy } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useCompleteTotp, useConfirmTotp, useSetupTotp } from '@/api/twoFactor';
 import { OtpInput, OTP_LENGTH } from '@/components/OtpInput';
 import { RecoveryCodesPanel } from '@/components/twoFactor/RecoveryCodesPanel';
+import { StepTransition } from '@/components/twoFactor/StepTransition';
 import { copyText } from '@/utils/clipboard';
 import { delayToMinimum, MFA_LOADING_MIN_MS } from '@/utils/timing';
 
@@ -13,14 +13,6 @@ const COPIED_FEEDBACK_MS = 1500;
 
 // Hold the QR and key behind the spinner this long so a fast secret does not flash in
 const SETUP_LOADING_MIN_MS = 800;
-
-// Cross-fade with a small slide, matching the auth page so the confirm step gives way smoothly
-const VIEW_TRANSITION = {
-  initial: { opacity: 0, y: 8 },
-  animate: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: -8 },
-  transition: { duration: 0.2, ease: [0.25, 0.1, 0.25, 1] as const },
-};
 
 interface TotpEnrollmentProps {
   /** Called once 2FA is confirmed and the recovery codes are acknowledged */
@@ -124,10 +116,12 @@ export function TotpEnrollment({ onComplete, onSkip }: TotpEnrollmentProps) {
     }
   };
 
+  const stepKey = enabledViaReuse ? 'reuse-done' : recoveryCodes ? 'recovery-codes' : 'totp-confirm';
+
   return (
-    <AnimatePresence mode="wait" initial={false}>
+    <StepTransition stepKey={stepKey}>
       {enabledViaReuse ? (
-        <motion.div key="reuse-done" className="space-y-5" {...VIEW_TRANSITION}>
+        <div className="space-y-5">
           <div className="space-y-1">
             <h3 className="text-base font-semibold">Two-factor is on</h3>
             <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
@@ -138,9 +132,9 @@ export function TotpEnrollment({ onComplete, onSkip }: TotpEnrollmentProps) {
           <button type="button" onClick={onComplete} className="app-primary-button w-full">
             Done
           </button>
-        </motion.div>
+        </div>
       ) : recoveryCodes ? (
-        <motion.div key="recovery-codes" className="space-y-5" {...VIEW_TRANSITION}>
+        <div className="space-y-5">
           <div className="space-y-1">
             <h3 className="text-base font-semibold">Save your recovery codes</h3>
             <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
@@ -185,9 +179,9 @@ export function TotpEnrollment({ onComplete, onSkip }: TotpEnrollmentProps) {
           >
             {completing ? <div className="app-spinner" /> : 'Done'}
           </button>
-        </motion.div>
+        </div>
       ) : (
-        <motion.div key="totp-confirm" className="space-y-5" {...VIEW_TRANSITION}>
+        <div className="space-y-5">
           <div className="space-y-1">
             <h3 className="text-base font-semibold">Set up two-factor authentication</h3>
             <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
@@ -263,8 +257,8 @@ export function TotpEnrollment({ onComplete, onSkip }: TotpEnrollmentProps) {
               Skip for now
             </button>
           )}
-        </motion.div>
+        </div>
       )}
-    </AnimatePresence>
+    </StepTransition>
   );
 }
