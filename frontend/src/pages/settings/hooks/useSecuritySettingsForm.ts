@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { ApiError } from '@/api/auth'
+import { usePasskeys } from '@/api/passkeys'
 import { useTotpStatus } from '@/api/twoFactor'
 import { useChangePassword } from '@/api/user'
+import type { StepUpCredentials } from '@/components/twoFactor/StepUpModal'
 import { useActionFeedback } from '@/hooks/useActionFeedback'
 import { isNewPasswordValid } from '@/utils/passwordPolicy'
 
@@ -40,7 +42,11 @@ export function useSecuritySettingsForm() {
   const changePassword = useChangePassword()
   const passwordFeedback = useActionFeedback()
   const totpStatus = useTotpStatus()
-  const mfaEnabled = totpStatus.data?.totp_enabled ?? false
+  const passkeys = usePasskeys()
+
+  // Any active second factor gates a password change behind a step-up, so a passkey-only account is
+  // protected the same as a TOTP one
+  const hasSecondFactor = (totpStatus.data?.totp_enabled ?? false) || (passkeys.data?.length ?? 0) > 0
   const [passwordForm, setPasswordForm] = useState<PasswordFormState>(emptyPasswordForm)
   const [isStepUpOpen, setIsStepUpOpen] = useState(false)
 
@@ -68,14 +74,15 @@ export function useSecuritySettingsForm() {
   /**
    * Changes the password and clears the draft only after the change succeeds
    *
-   * The optional code carries the second factor required when two-factor is enabled
+   * The optional credentials carry the second factor required when one is active, a passkey or a code
    */
-  async function submitPasswordChange(code?: string) {
+  async function submitPasswordChange(credentials?: StepUpCredentials) {
     await passwordFeedback.run(async () => {
       await changePassword.mutateAsync({
         current_password: passwordForm.currentPassword,
         new_password: passwordForm.newPassword,
-        code,
+        code: credentials?.code,
+        passkey: credentials?.passkey,
       })
       setPasswordForm(emptyPasswordForm)
       setIsStepUpOpen(false)
@@ -83,12 +90,12 @@ export function useSecuritySettingsForm() {
   }
 
   /**
-   * Saves directly, or opens the step-up modal first when two-factor is enabled
+   * Saves directly, or opens the step-up modal first when a second factor is active
    */
   async function handleSavePassword() {
     if (!canSavePassword) return
 
-    if (mfaEnabled) {
+    if (hasSecondFactor) {
       setIsStepUpOpen(true)
       return
     }
@@ -104,9 +111,9 @@ export function useSecuritySettingsForm() {
    * Completes the password change from the step-up modal, keeping the failure on the modal so the
    * pane does not show a misleading current-password error
    */
-  async function verifyPasswordStepUp(code: string) {
+  async function verifyPasswordStepUp(credentials: StepUpCredentials) {
     try {
-      await submitPasswordChange(code)
+      await submitPasswordChange(credentials)
     } catch (error) {
       changePassword.reset()
       throw error

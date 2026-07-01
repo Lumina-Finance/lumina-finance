@@ -146,9 +146,10 @@ export default function SettingsPage() {
           <StepUpModal
             open={isStepUpOpen}
             title="Confirm it's you"
-            description="Enter your authenticator code to change your password."
+            description="Confirm it's you to change your password."
+            allowPasskey
             onClose={closeStepUp}
-            onVerify={({ code }) => verifyPasswordStepUp(code ?? '')}
+            onVerify={verifyPasswordStepUp}
           />
           <RunwaySection
             loading={runwayLoading}
