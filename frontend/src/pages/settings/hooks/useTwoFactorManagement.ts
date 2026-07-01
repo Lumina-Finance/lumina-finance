@@ -6,6 +6,7 @@ import {
   useTotpStatus,
 } from '@/api/twoFactor'
 import type { StepUpCredentials } from '@/components/twoFactor/StepUpModal'
+import { withMinDelay } from '@/utils/timing'
 
 type TwoFactorModal = 'none' | 'enable' | 'disable' | 'regenerate'
 
@@ -27,7 +28,8 @@ export function useTwoFactorManagement() {
    * Turns two-factor off after the step-up reauthentication succeeds, by passkey or authenticator code
    */
   async function confirmDisable(credentials: StepUpCredentials) {
-    await disable.mutateAsync(credentials)
+    // Hold the spinner for the shared minimum before the modal closes, so a quick disable does not flash
+    await withMinDelay(() => disable.mutateAsync(credentials))
     setOpenModal('none')
   }
 
@@ -35,7 +37,8 @@ export function useTwoFactorManagement() {
    * Stages a fresh batch and reveals it once the step-up succeeds, leaving the active codes live
    */
   async function confirmRegenerate(credentials: StepUpCredentials) {
-    const result = await regenerate.mutateAsync(credentials)
+    // Hold the spinner for the shared minimum before the step-up closes and the codes appear
+    const result = await withMinDelay(() => regenerate.mutateAsync(credentials))
     setRegeneratedCodes(result.recovery_codes)
     setOpenModal('none')
   }

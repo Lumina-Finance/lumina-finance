@@ -9,6 +9,7 @@ import {
 } from '@/api/passkeys';
 import type { StepUpCredentials } from '@/components/twoFactor/StepUpModal';
 import { assessPasskeySupport, type PasskeySupport } from '@/utils/passkeySupport';
+import { withMinDelay } from '@/utils/timing';
 
 /**
  * Owns the passkey management state: whether the manage dialog is open, the support assessment for
@@ -57,7 +58,8 @@ export function usePasskeyManagement() {
    */
   async function confirmRemoval(credentials: StepUpCredentials) {
     if (!removalTarget) return;
-    await remove.mutateAsync({ passkeyId: removalTarget, payload: credentials });
+    // Hold the spinner for the shared minimum before the step-up closes, so a quick removal does not flash
+    await withMinDelay(() => remove.mutateAsync({ passkeyId: removalTarget, payload: credentials }));
     setRemovalTarget(null);
   }
 
