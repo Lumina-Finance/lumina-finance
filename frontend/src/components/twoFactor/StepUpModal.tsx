@@ -99,7 +99,9 @@ export function StepUpModal({
   const totpEnabled = totpStatus.data?.totp_enabled ?? false;
   const showCodeEntry = totpEnabled || !canUsePasskey;
   const canSubmitCode = otp.length === OTP_LENGTH;
-  const actionButtonClass = `${danger ? 'app-danger-button' : 'app-primary-button'} w-full`;
+  // Shrink the confirm control to a spinner circle while its own path verifies, matching the app's
+  // other loading buttons
+  const actionButtonClass = `${danger ? 'app-danger-button' : 'app-primary-button'} transition-all duration-300 ${verifyingPath === 'code' ? 'app-primary-button-loading' : 'w-full'}`;
 
   /**
    * Clears the transient inputs so the modal opens clean next time
@@ -230,14 +232,16 @@ export function StepUpModal({
               />
               <span>I have a recovery code and understand I'll need one to sign back in</span>
             </label>
-            <button
-              type="button"
-              onClick={handleRecoveryReset}
-              disabled={resetting || !recoveryAcknowledged}
-              className="app-danger-button w-full"
-            >
-              {resetting ? <div className="app-spinner" /> : 'Sign out to recover'}
-            </button>
+            <div className="flex justify-center">
+              <button
+                type="button"
+                onClick={handleRecoveryReset}
+                disabled={resetting || !recoveryAcknowledged}
+                className={`app-danger-button transition-all duration-300 ${resetting ? 'app-primary-button-loading' : 'w-full'}`}
+              >
+                {resetting ? <div className="app-spinner" /> : 'Sign out to recover'}
+              </button>
+            </div>
             <button
               type="button"
               onClick={onUserPress(() => setConfirmingReset(false))}
@@ -267,15 +271,23 @@ export function StepUpModal({
           <div className="space-y-5">
             <form onSubmit={handleSubmit} className="space-y-5">
               {canUsePasskey && (
-                <button
-                  type="button"
-                  onClick={handlePasskeyVerify}
-                  disabled={verifying}
-                  className="app-primary-button flex w-full items-center justify-center gap-2"
-                >
-                  {verifyingPath === 'passkey' ? <div className="app-spinner" /> : <KeyRound size={16} aria-hidden />}
-                  Verify with a passkey
-                </button>
+                <div className="flex justify-center">
+                  <button
+                    type="button"
+                    onClick={handlePasskeyVerify}
+                    disabled={verifying}
+                    className={`app-primary-button transition-all duration-300 ${verifyingPath === 'passkey' ? 'app-primary-button-loading' : 'flex w-full items-center justify-center gap-2'}`}
+                  >
+                    {verifyingPath === 'passkey' ? (
+                      <div className="app-spinner" />
+                    ) : (
+                      <>
+                        <KeyRound size={16} aria-hidden />
+                        Verify with a passkey
+                      </>
+                    )}
+                  </button>
+                </div>
               )}
 
               {canUsePasskey && showCodeEntry && (
@@ -295,9 +307,11 @@ export function StepUpModal({
               )}
 
               {showCodeEntry && (
-                <button type="submit" disabled={!canSubmitCode || verifying} className={actionButtonClass}>
-                  {verifyingPath === 'code' ? <div className="app-spinner" /> : confirmLabel}
-                </button>
+                <div className="flex justify-center">
+                  <button type="submit" disabled={!canSubmitCode || verifying} className={actionButtonClass}>
+                    {verifyingPath === 'code' ? <div className="app-spinner" /> : confirmLabel}
+                  </button>
+                </div>
               )}
             </form>
 

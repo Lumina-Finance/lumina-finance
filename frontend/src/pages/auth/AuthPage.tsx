@@ -141,21 +141,23 @@ const AuthPage = () => {
                     Verify with your passkey to finish signing in.
                   </p>
 
-                  <button
-                    type="button"
-                    onClick={handlePasskeyMfa}
-                    disabled={passkeyMfaSubmitting}
-                    className="app-primary-button flex w-full items-center justify-center gap-2"
-                  >
-                    {passkeyMfaSubmitting ? (
-                      <div className="app-spinner" />
-                    ) : (
-                      <>
-                        <KeyRound size={16} aria-hidden />
-                        Verify with a passkey
-                      </>
-                    )}
-                  </button>
+                  <div className="flex justify-center">
+                    <button
+                      type="button"
+                      onClick={handlePasskeyMfa}
+                      disabled={passkeyMfaSubmitting}
+                      className={`app-primary-button transition-all duration-300 ${passkeyMfaSubmitting ? 'app-primary-button-loading' : 'flex w-full items-center justify-center gap-2'}`}
+                    >
+                      {passkeyMfaSubmitting ? (
+                        <div className="app-spinner" />
+                      ) : (
+                        <>
+                          <KeyRound size={16} aria-hidden />
+                          Verify with a passkey
+                        </>
+                      )}
+                    </button>
+                  </div>
 
                   {mfaTotpEnabled && (
                     <button
@@ -406,21 +408,23 @@ const AuthPage = () => {
                     <span className="h-px flex-1" style={{ backgroundColor: 'var(--app-border)' }} />
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={handlePasskeySignIn}
-                    disabled={passkeySigningIn}
-                    className="app-secondary-button flex w-full items-center justify-center gap-2"
-                  >
-                    {passkeySigningIn ? (
-                      <div className="app-spinner" />
-                    ) : (
-                      <>
-                        <KeyRound size={16} aria-hidden />
-                        Sign in with a passkey
-                      </>
-                    )}
-                  </button>
+                  <div className="flex justify-center">
+                    <button
+                      type="button"
+                      onClick={handlePasskeySignIn}
+                      disabled={passkeySigningIn}
+                      className={`app-secondary-button transition-all duration-300 ${passkeySigningIn ? 'app-primary-button-loading' : 'flex w-full items-center justify-center gap-2'}`}
+                    >
+                      {passkeySigningIn ? (
+                        <div className="app-spinner" />
+                      ) : (
+                        <>
+                          <KeyRound size={16} aria-hidden />
+                          Sign in with a passkey
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
               )}
 

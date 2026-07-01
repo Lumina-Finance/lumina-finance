@@ -74,21 +74,23 @@ export function PasskeyReenrollment({ onComplete }: PasskeyReenrollmentProps) {
         aria-label="New passkey name"
       />
 
-      <button
-        type="button"
-        onClick={handleRegister}
-        disabled={register.isPending || !name.trim()}
-        className="app-primary-button flex w-full items-center justify-center gap-2"
-      >
-        {register.isPending ? (
-          <div className="app-spinner" />
-        ) : (
-          <>
-            <KeyRound size={16} aria-hidden />
-            Set up a passkey
-          </>
-        )}
-      </button>
+      <div className="flex justify-center">
+        <button
+          type="button"
+          onClick={handleRegister}
+          disabled={register.isPending || !name.trim()}
+          className={`app-primary-button transition-all duration-300 ${register.isPending ? 'app-primary-button-loading' : 'flex w-full items-center justify-center gap-2'}`}
+        >
+          {register.isPending ? (
+            <div className="app-spinner" />
+          ) : (
+            <>
+              <KeyRound size={16} aria-hidden />
+              Set up a passkey
+            </>
+          )}
+        </button>
+      </div>
 
       {error && (
         <p className="text-sm" style={{ color: 'var(--app-negative)' }}>
