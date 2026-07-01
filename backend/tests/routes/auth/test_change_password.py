@@ -204,3 +204,32 @@ async def test_change_password_requires_second_factor_when_passkey_registered(cl
     async with TestSession() as session:
         credential = await session.get(PasswordCredential, user_id)
         assert is_password_valid(SIGNUP_PAYLOAD["password"], credential.password_hash)
+
+
+async def test_wrong_second_factor_401_has_no_bearer_challenge(client):
+    """A wrong step-up code is a credential 401 without the bearer challenge, so the client cannot mistake
+    it for an expired token and resend it, which would double-count the failed attempt"""
+    signup = await _create_user(client)
+    headers = _get_auth_header(signup)
+    await _enable_totp(client, headers)
+
+    resp = await client.patch(
+        "/auth/password",
+        json={"current_password": SIGNUP_PAYLOAD["password"], "new_password": _NEW_PASSWORD, "code": "000000"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 401
+    assert "www-authenticate" not in {name.lower() for name in resp.headers}
+
+
+async def test_invalid_access_token_401_carries_bearer_challenge(client):
+    """An access-token failure carries the bearer challenge, the signal the client refreshes and retries on"""
+    resp = await client.patch(
+        "/auth/password",
+        json={"current_password": SIGNUP_PAYLOAD["password"], "new_password": _NEW_PASSWORD},
+        headers={"Authorization": "Bearer not-a-real-token"},
+    )
+
+    assert resp.status_code == 401
+    assert resp.headers.get("www-authenticate") == "Bearer"

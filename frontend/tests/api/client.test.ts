@@ -47,6 +47,7 @@ describe('authenticatedFetch', () => {
       .mockResolvedValueOnce({
         ok: false,
         status: 401,
+        headers: new Headers({ 'WWW-Authenticate': 'Bearer' }),
         json: async () => ({ detail: 'Token is not active' }),
       })
 
@@ -79,6 +80,7 @@ describe('authenticatedFetch', () => {
       .mockResolvedValueOnce({
         ok: false,
         status: 401,
+        headers: new Headers({ 'WWW-Authenticate': 'Bearer' }),
         json: async () => ({ detail: 'Token is not active' }),
       })
       .mockResolvedValueOnce({
@@ -102,5 +104,26 @@ describe('authenticatedFetch', () => {
         Authorization: 'Bearer new-access-token',
       },
     });
+  });
+
+  it('does not refresh or resend a wrong-credential 401 that lacks the bearer challenge', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 401,
+      headers: new Headers(),
+      json: async () => ({ detail: 'Invalid two-factor code' }),
+    });
+
+    const error = await authenticatedFetch('/auth/2fa/disable', { method: 'POST' }).catch(
+      (thrown: unknown) => thrown,
+    );
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({ message: 'Invalid two-factor code', status: 401 });
+
+    // The request is sent once and never resent, so the failed attempt counts a single time
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(onSessionRefreshed).not.toHaveBeenCalled();
+    expect(onSessionLost).not.toHaveBeenCalled();
   });
 });

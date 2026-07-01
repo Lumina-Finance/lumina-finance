@@ -57,7 +57,12 @@ export async function authenticatedFetch<T>(path: string, options: RequestInit =
 
   let res = await makeRequest(token);
 
-  if (res.status === 401) {
+  // Only an access-token failure carries the bearer challenge. A wrong-credential 401 from a route,
+  // such as a bad step-up code, has no challenge and must not be resent, or its failed attempt would
+  // be counted twice against the shared lockout
+  const isExpiredTokenResponse = res.status === 401 && res.headers.get('WWW-Authenticate') !== null;
+
+  if (isExpiredTokenResponse) {
     try {
       const refreshed = await refreshOnce();
       bindings.onSessionRefreshed(refreshed);
