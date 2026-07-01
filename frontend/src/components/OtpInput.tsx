@@ -1,4 +1,4 @@
-import { useRef, type ClipboardEvent, type KeyboardEvent } from 'react';
+import { useRef, useState } from 'react';
 
 /** Digit count of a TOTP code, the single source of truth for every one-time-code input */
 export const OTP_LENGTH = 6;
@@ -11,94 +11,63 @@ interface OtpInputProps {
   autoFocus?: boolean;
 }
 
-const DIGIT_PATTERN = /\d/;
-
 /**
- * Renders a fixed-length one-time code as individual digit boxes with focus advance, backspace, and paste
+ * Renders a fixed-length one-time code as digit boxes backed by a single hidden input. The lone field
+ * is what the browser, the OS, and password managers fill, so the whole code lands in one assignment
+ * instead of racing a row of controlled boxes that drop the last autofilled digit. The boxes are a
+ * purely visual rendering of its value, with native typing, backspace, paste, and autofill for free
  */
 export function OtpInput({ value, onChange, length = OTP_LENGTH, disabled = false, autoFocus = false }: OtpInputProps) {
-  const inputsRef = useRef<Array<HTMLInputElement | null>>([]);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [isFocused, setIsFocused] = useState(false);
 
-  /**
-   * Focuses one digit box, clamped to the available range
-   */
-  const focusBox = (index: number) => {
-    const clamped = Math.max(0, Math.min(length - 1, index));
-    inputsRef.current[clamped]?.focus();
-  };
-
-  /**
-   * Writes the typed digit at its position and advances focus, ignoring non-digits
-   *
-   * A password manager autofills the whole code into the first box at once, so any multi-digit input
-   * is spread across the boxes rather than collapsed to a single character
-   */
-  const handleBoxChange = (index: number, raw: string) => {
-    const digits = raw.replace(/\D/g, '');
-
-    if (digits.length > 1) {
-      const filled = (value.slice(0, index) + digits).slice(0, length);
-      onChange(filled);
-      focusBox(filled.length);
-      return;
-    }
-
-    const digit = raw.slice(-1);
-    if (digit && !DIGIT_PATTERN.test(digit)) return;
-
-    const next = value.split('');
-    next[index] = digit;
-    onChange(next.join('').slice(0, length));
-    if (digit) focusBox(index + 1);
-  };
-
-  /**
-   * Moves focus to the previous box when backspacing an already empty box
-   */
-  const handleKeyDown = (index: number, event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === 'Backspace' && !value[index]) {
-      focusBox(index - 1);
-    }
-  };
-
-  /**
-   * Fills the boxes from a pasted value, keeping only its digits
-   */
-  const handlePaste = (event: ClipboardEvent<HTMLInputElement>) => {
-    event.preventDefault();
-    const digits = event.clipboardData.getData('text').replace(/\D/g, '').slice(0, length);
-    if (!digits) return;
-
-    onChange(digits);
-    focusBox(digits.length);
-  };
+  // The active box is where the next digit lands, so it carries the focus ring while the field is focused
+  const activeIndex = Math.min(value.length, length - 1);
 
   return (
-    <div className="flex justify-center gap-2">
-      {Array.from({ length }, (_, index) => (
-        <input
-          // The boxes are positional and fixed, so the index is a stable key
-          key={index}
-          ref={(node) => {
-            inputsRef.current[index] = node;
-          }}
-          type="text"
-          inputMode="numeric"
-          autoComplete={index === 0 ? 'one-time-code' : 'off'}
-          // The first box accepts the full autofilled code, which handleBoxChange spreads across boxes
-          maxLength={index === 0 ? length : 1}
-          autoFocus={autoFocus && index === 0}
-          disabled={disabled}
-          value={value[index] ?? ''}
-          onChange={(event) => handleBoxChange(index, event.target.value)}
-          onKeyDown={(event) => handleKeyDown(index, event)}
-          onPaste={handlePaste}
-          aria-label={`Digit ${index + 1}`}
-          // Override the app-input horizontal padding so the centred digit is not clipped in a narrow box
-          style={{ paddingLeft: 0, paddingRight: 0 }}
-          className="app-input h-12 w-12 text-center text-lg"
-        />
-      ))}
+    <div
+      className="relative flex justify-center gap-2"
+      style={{ opacity: disabled ? 0.6 : 1 }}
+      onClick={() => {
+        if (!disabled) inputRef.current?.focus();
+      }}
+    >
+      <input
+        ref={inputRef}
+        type="text"
+        inputMode="numeric"
+        autoComplete="one-time-code"
+        maxLength={length}
+        autoFocus={autoFocus}
+        disabled={disabled}
+        value={value}
+        onChange={(event) => onChange(event.target.value.replace(/\D/g, '').slice(0, length))}
+        onFocus={() => setIsFocused(true)}
+        onBlur={() => setIsFocused(false)}
+        aria-label="One-time code"
+        // The real field sits invisibly over the boxes so it captures typing, paste, and autofill while
+        // the boxes below show its digits
+        className="absolute inset-0 z-10 h-full w-full cursor-default opacity-0"
+      />
+      {Array.from({ length }, (_, index) => {
+        const isActive = isFocused && !disabled && index === activeIndex;
+        return (
+          <div
+            key={index}
+            aria-hidden
+            className="app-input flex h-12 w-12 items-center justify-center text-lg"
+            style={{
+              paddingLeft: 0,
+              paddingRight: 0,
+              ...(isActive
+                ? { borderColor: 'var(--app-accent-border)', boxShadow: '0 0 0 2px var(--app-accent-soft)' }
+                : {}),
+            }}
+          >
+            {value[index] ?? ''}
+          </div>
+        );
+      })}
     </div>
   );
 }
