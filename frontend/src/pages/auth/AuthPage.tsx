@@ -75,6 +75,7 @@ const AuthPage = () => {
     switchToPasskeyMfa,
     enrolling,
     finishEnrollment,
+    recoveryMode,
   } = useAuthFormWorkflow({
     containerRef,
     currencies,
@@ -113,6 +114,15 @@ const AuthPage = () => {
         <AuthAnimatedTitle mode={mode} />
 
         <AuthErrorBanner error={displayError} />
+
+        {recoveryMode && isLogin && !enrolling && (
+          <div
+            className="mt-4 rounded-lg border px-3 py-2 text-sm"
+            style={{ borderColor: 'var(--app-border)', color: 'var(--app-text-muted)' }}
+          >
+            Recovering access. Sign in, then enter a recovery code to reset your two-factor setup.
+          </div>
+        )}
 
         <AnimatePresence mode="wait" initial={false}>
           {enrolling ? (

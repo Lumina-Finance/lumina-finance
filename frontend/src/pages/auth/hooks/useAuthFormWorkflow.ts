@@ -8,6 +8,7 @@ import { OTP_LENGTH } from '@/components/OtpInput'
 import { useAuth } from '@/hooks/useAuth'
 import { getPasskeySignInMessage, isPasskeyCeremonyCancelled } from '@/utils/passkeyErrors'
 import { assessPasskeySupport } from '@/utils/passkeySupport'
+import { consumeRecoveryIntent } from '@/utils/recoveryIntent'
 import { delayToMinimum } from '@/utils/timing'
 import {
   FADE_OUT_MS,
@@ -70,6 +71,10 @@ export function useAuthFormWorkflow({
   const [mfaUsePasskey, setMfaUsePasskey] = useState(false)
   const [mfaSubmitting, setMfaSubmitting] = useState(false)
   const [enrolling, setEnrolling] = useState(false)
+
+  // Read once on mount, so a sign-out from the lost-factor flow greets the user in recovery mode and
+  // steers the second-factor step to the recovery-code input
+  const [recoveryMode] = useState(() => consumeRecoveryIntent())
 
   const isLogin = mode === 'login'
   const mfaActive = mfaToken !== null
@@ -223,6 +228,13 @@ export function useAuthFormWorkflow({
       setMfaUsePasskey(res.passkey_available)
       setMfaRecoveryOnly(res.recovery_only)
       setMfaUseRecoveryCode(res.recovery_only)
+
+      // A user who signed out to recover a lost factor lands on the recovery-code input directly,
+      // though the other factor prompts stay available in case they still have one
+      if (recoveryMode) {
+        setMfaUsePasskey(false)
+        setMfaUseRecoveryCode(true)
+      }
       return
     }
 
@@ -440,5 +452,6 @@ export function useAuthFormWorkflow({
     switchToPasskeyMfa,
     enrolling,
     finishEnrollment,
+    recoveryMode,
   }
 }

@@ -11,6 +11,7 @@ import { WarningCallout } from '@/components/twoFactor/WarningCallout';
 import { useAuth } from '@/hooks/useAuth';
 import { isPasskeyCeremonyCancelled } from '@/utils/passkeyErrors';
 import { assessPasskeySupport } from '@/utils/passkeySupport';
+import { markRecoveryIntent } from '@/utils/recoveryIntent';
 import { delayToMinimum, MFA_LOADING_MIN_MS } from '@/utils/timing';
 
 export interface StepUpCredentials {
@@ -81,6 +82,7 @@ export function StepUpModal({
   const [error, setError] = useState('');
   const [verifyingPath, setVerifyingPath] = useState<'code' | 'passkey' | null>(null);
   const [confirmingReset, setConfirmingReset] = useState(false);
+  const [recoveryAcknowledged, setRecoveryAcknowledged] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [step, setStep] = useState<'password' | 'factor'>(requirePassword ? 'password' : 'factor');
 
@@ -107,6 +109,7 @@ export function StepUpModal({
     setOtp('');
     setError('');
     setConfirmingReset(false);
+    setRecoveryAcknowledged(false);
     setResetting(false);
     setStep(requirePassword ? 'password' : 'factor');
   };
@@ -172,10 +175,16 @@ export function StepUpModal({
    * Signs out so the user can reset a lost factor through a recovery sign-in, guarding against a
    * double-click while the request is in flight
    */
-  const handleRecoveryReset = async () => {
-    if (resetting) return;
+  const handleRecoveryReset = async (event: MouseEvent<HTMLButtonElement>) => {
+    // A password manager auto-clicking this fires an untrusted event, which must not sign the user out
+    if (!event.isTrusted || resetting) return;
     setResetting(true);
+    const start = Date.now();
     try {
+      // Flag the recovery intent so the login page opens in recovery mode once the session ends
+      markRecoveryIntent();
+      // Hold the spinner for the shared minimum so the action does not flash before the sign-out
+      await delayToMinimum(start, MFA_LOADING_MIN_MS);
       await logout();
     } catch {
       setResetting(false);
@@ -208,11 +217,26 @@ export function StepUpModal({
         {confirmingReset ? (
           <div className="space-y-5">
             <WarningCallout>
-              This removes all your authenticators and passkeys and signs you out everywhere. You'll sign in
-              with a recovery code and set up a new factor.
+              This removes all your authenticators and passkeys and signs you out everywhere. You'll sign back
+              in with a recovery code, then set up a new factor.
             </WarningCallout>
-            <button type="button" onClick={onUserPress(handleRecoveryReset)} disabled={resetting} className="app-danger-button w-full">
-              {resetting ? <div className="app-spinner" /> : 'Sign out and reset'}
+            <label className="flex items-start gap-2 text-sm" style={{ color: 'var(--app-text-muted)' }}>
+              <input
+                type="checkbox"
+                className="mt-0.5 shrink-0"
+                checked={recoveryAcknowledged}
+                onChange={(event) => setRecoveryAcknowledged(event.target.checked)}
+                disabled={resetting}
+              />
+              <span>I have a recovery code and understand I'll need one to sign back in</span>
+            </label>
+            <button
+              type="button"
+              onClick={handleRecoveryReset}
+              disabled={resetting || !recoveryAcknowledged}
+              className="app-danger-button w-full"
+            >
+              {resetting ? <div className="app-spinner" /> : 'Sign out to recover'}
             </button>
             <button
               type="button"
@@ -255,7 +279,7 @@ export function StepUpModal({
               )}
 
               {canUsePasskey && showCodeEntry && (
-                <p className="text-center text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                <p className="text-center text-sm" style={{ color: 'var(--app-text-muted)' }}>
                   or enter a code from your authenticator app
                 </p>
               )}
