@@ -89,7 +89,7 @@ export function MultiFactorModal({ open, onClose }: MultiFactorModalProps) {
           Add a second factor so a stolen password isn't enough to sign in.
         </p>
 
-        <div className="flex items-start justify-between gap-4 py-4" style={{ borderBottom: '1px solid var(--app-border)' }}>
+        <div className="flex flex-col gap-3 py-4 sm:flex-row sm:items-start sm:justify-between sm:gap-4" style={{ borderBottom: '1px solid var(--app-border)' }}>
           <div className="min-w-0 space-y-1">
             <div className="flex items-center gap-2">
               <Smartphone size={18} aria-hidden style={{ color: 'var(--app-text-muted)' }} />
@@ -119,7 +119,7 @@ export function MultiFactorModal({ open, onClose }: MultiFactorModalProps) {
         </div>
 
         <div className="space-y-3 py-4" style={{ borderBottom: '1px solid var(--app-border)' }}>
-          <div className="flex items-start justify-between gap-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
             <div className="min-w-0 space-y-1">
               <div className="flex items-center gap-2">
                 <Fingerprint size={18} aria-hidden style={{ color: 'var(--app-text-muted)' }} />
@@ -201,7 +201,7 @@ export function MultiFactorModal({ open, onClose }: MultiFactorModalProps) {
           )}
         </div>
 
-        <div className="flex items-start justify-between gap-4 py-4">
+        <div className="flex flex-col gap-3 py-4 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
           <div className="min-w-0 space-y-1">
             <div className="flex items-center gap-2">
               <KeyRound size={18} aria-hidden style={{ color: 'var(--app-text-muted)' }} />

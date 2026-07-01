@@ -87,7 +87,7 @@ export function MultiFactorModalShell({ open, closeDisabled = false, onClose, ch
                       <p className="mb-2 text-xs font-semibold uppercase" style={{ color: 'var(--app-accent)' }}>
                         Account protection
                       </p>
-                      <h3 id="multi-factor-title" className="font-serif text-3xl font-light">
+                      <h3 id="multi-factor-title" className="font-serif text-2xl font-light sm:text-3xl">
                         Multi-factor authentication
                       </h3>
                     </div>
