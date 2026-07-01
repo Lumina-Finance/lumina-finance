@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Fingerprint, KeyRound, Plus, RefreshCw, Smartphone } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
 import { PasskeyRow } from '@/components/passkeys/PasskeyRow';
 import { MultiFactorModalShell } from '@/components/twoFactor/MultiFactorModalShell';
 import { RecoveryCodesModal } from '@/components/twoFactor/RecoveryCodesModal';
@@ -10,6 +11,17 @@ import { WarningCallout } from '@/components/twoFactor/WarningCallout';
 import { usePasskeyManagement } from '@/pages/settings/hooks/usePasskeyManagement';
 import { useTwoFactorManagement } from '@/pages/settings/hooks/useTwoFactorManagement';
 import { getPasskeyRegistrationMessage } from '@/utils/passkeyErrors';
+
+// Grow and fade a passkey row so it eases into the list instead of snapping, with the modal height
+// following the real height change
+const LIST_ITEM_TRANSITION = { duration: 0.25, ease: [0.25, 0.1, 0.25, 1] as const };
+
+const LIST_ITEM_MOTION = {
+  initial: { opacity: 0, height: 0 },
+  animate: { opacity: 1, height: 'auto' as const },
+  exit: { opacity: 0, height: 0 },
+  transition: LIST_ITEM_TRANSITION,
+};
 
 const BADGE_BASE_CLASS = 'rounded-full px-2 py-0.5 text-xs font-medium';
 
@@ -186,19 +198,29 @@ export function MultiFactorModal({ open, onClose }: MultiFactorModalProps) {
             </p>
           )}
 
-          {hasPasskeys && (
-            <div className="divide-y overflow-hidden rounded-lg border" style={{ borderColor: 'var(--app-border)' }}>
-              {passkey.passkeys.map((registeredPasskey) => (
-                <PasskeyRow
-                  key={registeredPasskey.id}
-                  passkey={registeredPasskey}
-                  onRename={(name) => passkey.renamePasskey(registeredPasskey.id, name)}
-                  onRemove={() => passkey.beginRemovePasskey(registeredPasskey.id)}
-                  disabled={passkey.isMutating || passkey.isRegistering}
-                />
-              ))}
-            </div>
-          )}
+          <AnimatePresence initial={false}>
+            {hasPasskeys && (
+              <motion.div
+                key="passkey-list"
+                className="divide-y overflow-hidden rounded-lg border"
+                style={{ borderColor: 'var(--app-border)' }}
+                {...LIST_ITEM_MOTION}
+              >
+                <AnimatePresence initial={false}>
+                  {passkey.passkeys.map((registeredPasskey) => (
+                    <motion.div key={registeredPasskey.id} style={{ overflow: 'hidden' }} {...LIST_ITEM_MOTION}>
+                      <PasskeyRow
+                        passkey={registeredPasskey}
+                        onRename={(name) => passkey.renamePasskey(registeredPasskey.id, name)}
+                        onRemove={() => passkey.beginRemovePasskey(registeredPasskey.id)}
+                        disabled={passkey.isMutating || passkey.isRegistering}
+                      />
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         <div className="flex flex-col gap-3 py-4 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
