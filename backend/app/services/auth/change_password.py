@@ -7,7 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
 from app.schemas.auth import ChangePasswordRequest
-from app.services.auth.account_lockout import get_password_credential
+from app.services.auth.account_lockout import (
+    get_password_credential,
+    is_account_locked,
+    record_failed_attempt,
+)
 from app.services.auth.password_helpers import hash_password, is_password_valid
 from app.services.auth.sessions import delete_other_user_auth_sessions
 from app.services.auth.step_up import verify_step_up
@@ -43,8 +47,15 @@ async def change_password(
 
     if await is_totp_enabled(db, user.id) or await is_passkey_registered(db, user.id):
         await verify_step_up(db, user, data.current_password, code=data.code, passkey=data.passkey)
-    elif not is_password_valid(data.current_password, credential.password_hash):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+    else:
+        # With no second factor the current password alone gates the change, so it shares the login
+        # lockout the same way step-up does, otherwise a session holder could grind the password here
+        # without the counter that protects the login and step-up paths
+        if is_account_locked(credential):
+            raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="Account temporarily locked")
+        if not is_password_valid(data.current_password, credential.password_hash):
+            await record_failed_attempt(db, credential)
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
     # A verified change clears any login lockout since the caller has proven the current password
     credential.password_hash = hash_password(data.new_password)

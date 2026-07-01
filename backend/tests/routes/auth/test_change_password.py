@@ -95,6 +95,26 @@ async def test_change_password_rejects_wrong_current_password(client):
         assert is_password_valid(SIGNUP_PAYLOAD["password"], credential.password_hash)
 
 
+async def test_change_password_locks_after_repeated_wrong_password(client):
+    """Wrong current passwords engage the shared lockout, so the endpoint is no unthrottled oracle"""
+    signup = await _create_user(client)
+    headers = _get_auth_header(signup)
+
+    for _ in range(5):
+        resp = await client.patch(
+            "/auth/password",
+            json={"current_password": "WrongPassword123!", "new_password": _NEW_PASSWORD},
+            headers=headers,
+        )
+        assert resp.status_code == 401
+
+    user_id = uuid.UUID(signup.json()["user"]["id"])
+    async with TestSession() as session:
+        credential = await session.get(PasswordCredential, user_id)
+        assert credential.locked_until is not None
+        assert credential.failed_attempt_count >= 5
+
+
 async def test_change_password_rejects_weak_new_password(client):
     """A new password that fails the policy is rejected before any update"""
     signup = await _create_user(client)
