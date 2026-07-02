@@ -4,6 +4,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
+from app.schemas.auth import StepUpRequest
 from app.services.auth.account_lockout import (
     get_password_credential,
     is_account_locked,
@@ -11,8 +12,8 @@ from app.services.auth.account_lockout import (
     reset_failed_attempts,
 )
 from app.services.auth.password_helpers import is_password_valid
-from app.services.auth.totp import is_user_totp_code_valid
-from app.services.auth.webauthn import verify_passkey_second_factor
+from app.services.auth.totp import is_totp_enabled, is_user_totp_code_valid
+from app.services.auth.webauthn import is_passkey_registered, verify_passkey_second_factor
 
 
 async def verify_step_up(
@@ -69,3 +70,72 @@ async def verify_step_up(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="A second factor is required")
 
     await reset_failed_attempts(db, credential)
+
+
+async def verify_sensitive_action_step_up(
+    db: AsyncSession,
+    user: User,
+    password: str,
+    *,
+    code: str | None = None,
+    passkey: dict | None = None,
+) -> None:
+    """Authorize a sensitive account change, stepping up with a current factor when one exists
+
+    An account that already holds a second factor takes the full step-up, the password plus a current
+    passkey or TOTP code. An account with no factor yet has nothing to present, so the password alone
+    gates the change while still sharing the login lockout, otherwise a session holder could grind it
+    without the counter that protects the login and step-up paths. The caller commits any change on top
+
+    Args:
+        db: Active database session
+        user: Authenticated user performing the change
+        password: Account password
+        code: A current TOTP code, when stepping up by authenticator
+        passkey: A passkey assertion, when stepping up by passkey, taking priority over a code
+
+    Raises:
+        HTTPException: The account is locked, the password is wrong, or a required factor is missing or
+            does not verify
+    """
+    if await is_totp_enabled(db, user.id) or await is_passkey_registered(db, user.id):
+        await verify_step_up(db, user, password, code=code, passkey=passkey)
+        return
+
+    credential = await get_password_credential(db, user.id)
+    if credential is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+    if is_account_locked(credential):
+        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="Account temporarily locked")
+    if not is_password_valid(password, credential.password_hash):
+        await record_failed_attempt(db, credential)
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+    await reset_failed_attempts(db, credential)
+
+
+async def authorize_factor_addition(db: AsyncSession, user: User, step_up: StepUpRequest | None) -> None:
+    """Reauthorize adding a second factor, unless a forced re-enrol session is re-establishing one
+
+    Adding a factor is a sensitive change, so it steps up the same way removing one does, which stops a
+    stolen access token from silently planting an attacker factor. A forced re-enrol session already
+    proved identity with a recovery code at login and has no factor left to present, so it bootstraps a
+    fresh factor without stepping up again
+
+    Args:
+        db: Active database session
+        user: Authenticated user adding the factor
+        step_up: Reauthorization payload, required unless the user is under a forced re-enrol
+
+    Raises:
+        HTTPException: Reauthorization is required but missing, the account is locked, or the step-up
+            does not verify
+    """
+    if user.second_factor_reenrollment_required:
+        return
+
+    if step_up is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Reauthentication is required to add a second factor",
+        )
+    await verify_sensitive_action_step_up(db, user, step_up.password, code=step_up.code, passkey=step_up.passkey)

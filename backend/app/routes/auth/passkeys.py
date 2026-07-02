@@ -23,11 +23,13 @@ from app.schemas.auth import (
     PasskeyMfaVerifyRequest,
     PasskeyRegisterRequest,
     PasskeyRegisterResponse,
+    PasskeyRegistrationOptionsRequest,
     PasskeyRenameRequest,
     PasskeySummary,
     StepUpRequest,
 )
 from app.services.auth import (
+    authorize_factor_addition,
     build_passkey_authentication_options,
     build_passkey_registration_options,
     build_passkey_second_factor_options,
@@ -192,20 +194,29 @@ async def passkey_step_up_options_route(
 
 @router.post("/register/options")
 async def passkey_registration_options_route(
+    data: PasskeyRegistrationOptionsRequest,
     user: Annotated[User, Depends(get_authenticated_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Begin registration by returning ceremony options for the browser
+    """Reauthorize, then begin registration by returning ceremony options for the browser
 
-    Uses the permissive resolver so a recovery-code login can re-establish a second factor with a passkey
+    The step-up runs here rather than at the store step so the browser never runs a registration
+    ceremony until the current factor verifies, and a wrong factor is refused before any passkey is
+    created. The permissive resolver lets a recovery-code login re-establish a second factor with a
+    passkey without stepping up
 
     Args:
+        data: Reauthorization gating the ceremony, omitted only by a forced re-enrol
         user: Authenticated user resolved from the access token
         db: Active database session
 
     Returns:
         WebAuthn registration options as raw JSON
+
+    Raises:
+        HTTPException: Reauthentication is required and missing or fails
     """
+    await authorize_factor_addition(db, user, data.step_up)
     options_json = await build_passkey_registration_options(db, user.id, user.email)
     return Response(content=options_json, media_type=_OPTIONS_MEDIA_TYPE)
 
@@ -219,8 +230,10 @@ async def register_passkey_route(
     """Verify a finished registration ceremony and store the passkey
 
     A first passkey comes back with recovery codes and stays staged until they are confirmed, while a
-    later passkey is active immediately with no codes. The permissive resolver lets a recovery-code
-    login re-establish a second factor here, which also lifts the restriction
+    later passkey is active immediately with no codes. Reauthorization already happened at the options
+    step that issued this ceremony's challenge, so a stored passkey has always cleared step-up. The
+    permissive resolver lets a recovery-code login re-establish a second factor here, which also lifts
+    the restriction
 
     Args:
         data: The browser's attestation response and the label to store it under

@@ -108,7 +108,9 @@ async def test_registration_options_persist_single_challenge(client):
     auth = _get_auth_header(signup)
     user_id = signup.json()["user"]["id"]
 
-    response = await client.post("/auth/passkeys/register/options", headers=auth)
+    response = await client.post(
+        "/auth/passkeys/register/options", headers=auth, json={"step_up": {"password": SIGNUP_PAYLOAD["password"]}}
+    )
     assert response.status_code == 200
 
     options = response.json()
@@ -120,7 +122,7 @@ async def test_registration_options_persist_single_challenge(client):
     assert await _count_registration_challenges(user_id) == 1
 
 
-async def test_registration_options_exclude_existing_passkeys(client):
+async def test_registration_options_exclude_existing_passkeys(client, monkeypatch):
     """A registered passkey appears in excludeCredentials so it cannot be enrolled twice"""
     signup = await _create_user(client)
     auth = _get_auth_header(signup)
@@ -128,15 +130,24 @@ async def test_registration_options_exclude_existing_passkeys(client):
     credential_id = b"existing-credential-id"
     await _seed_passkey(user_id, credential_id)
 
-    options = (await client.post("/auth/passkeys/register/options", headers=auth)).json()
+    # The existing passkey is a factor now, so starting another registration steps up with it
+    step_up = await _step_up_with_passkey(client, auth, monkeypatch, user_id, credential_id)
+    options = (
+        await client.post("/auth/passkeys/register/options", headers=auth, json={"step_up": step_up})
+    ).json()
 
     excluded = {entry["id"] for entry in options["excludeCredentials"]}
     assert bytes_to_base64url(credential_id) in excluded
 
 
-async def _register_passkey(client, auth, monkeypatch, credential_id: bytes, name: str):
-    """Run a stubbed registration ceremony and return the register response"""
-    options = (await client.post("/auth/passkeys/register/options", headers=auth)).json()
+async def _register_passkey(client, auth, monkeypatch, credential_id: bytes, name: str, *, step_up=None):
+    """Run a stubbed registration ceremony and return the register response
+
+    The step-up now gates the options call so it runs before the ceremony, so the first passkey defaults
+    to a password-only reauthorization and a later one passes an explicit step_up carrying a current factor
+    """
+    options_body = {"step_up": step_up or {"password": SIGNUP_PAYLOAD["password"]}}
+    options = (await client.post("/auth/passkeys/register/options", headers=auth, json=options_body)).json()
     credential = _build_credential(options["challenge"], credential_id)
 
     # The attestation crypto is the library's responsibility, so only its verdict is stubbed
@@ -150,9 +161,7 @@ async def _register_passkey(client, auth, monkeypatch, credential_id: bytes, nam
         ),
     )
 
-    return await client.post(
-        "/auth/passkeys/register", headers=auth, json={"name": name, "credential": credential}
-    )
+    return await client.post("/auth/passkeys/register", headers=auth, json={"name": name, "credential": credential})
 
 
 async def _has_webauthn_identity(user_id: str) -> bool:
@@ -190,14 +199,40 @@ async def test_first_passkey_is_staged_until_recovery_codes_confirmed(client, mo
     assert await _has_webauthn_identity(user_id) is True
 
 
+async def test_abandoned_staged_passkey_is_superseded_by_a_new_one(client, monkeypatch):
+    """Staging a fresh passkey supersedes one left staged by an abandoned attempt
+
+    Confirming the new recovery codes then activates only the new passkey rather than also reviving the
+    abandoned one
+    """
+    auth = _get_auth_header(await _create_user(client))
+
+    # First attempt is staged then abandoned without acknowledging its recovery codes
+    await _register_passkey(client, auth, monkeypatch, b"abandoned-key", "Abandoned")
+
+    # A second successful attempt supersedes the abandoned staging
+    second = await _register_passkey(client, auth, monkeypatch, b"kept-key", "Kept")
+    assert second.status_code == 201
+    assert len(second.json()["recovery_codes"]) == 10
+
+    await client.post("/auth/passkeys/register/confirm", headers=auth)
+
+    # Only the passkey whose codes were acknowledged is active, the abandoned one is gone
+    assert [p["name"] for p in (await client.get("/auth/passkeys", headers=auth)).json()] == ["Kept"]
+
+
 async def test_second_passkey_activates_without_new_codes(client, monkeypatch):
     """Once recovery codes exist, a further passkey is active immediately and issues no new codes"""
-    auth = _get_auth_header(await _create_user(client))
+    signup = await _create_user(client)
+    auth = _get_auth_header(signup)
+    user_id = signup.json()["user"]["id"]
 
     await _register_passkey(client, auth, monkeypatch, b"first-key", "First")
     await client.post("/auth/passkeys/register/confirm", headers=auth)
 
-    second = await _register_passkey(client, auth, monkeypatch, b"second-key", "Second")
+    # The first passkey is now a live factor, so adding a second steps up with it
+    step_up = await _step_up_with_passkey(client, auth, monkeypatch, user_id, b"first-key")
+    second = await _register_passkey(client, auth, monkeypatch, b"second-key", "Second", step_up=step_up)
     assert second.status_code == 201
     assert second.json()["recovery_codes"] is None
 
@@ -233,6 +268,8 @@ async def test_register_rejects_unknown_challenge(client):
     auth = _get_auth_header(await _create_user(client))
     credential = _build_credential(bytes_to_base64url(b"never-issued"), b"some-credential")
 
+    # Registration is ungated because the options step already stepped up, so the unknown challenge is
+    # what fails here
     response = await client.post(
         "/auth/passkeys/register", headers=auth, json={"name": "Key", "credential": credential}
     )
@@ -243,8 +280,43 @@ async def test_register_rejects_malformed_response(client):
     """A response missing the client data is rejected as malformed"""
     auth = _get_auth_header(await _create_user(client))
 
+    # Registration is ungated because the options step already stepped up, so the malformed attestation
+    # is what fails here
     response = await client.post(
         "/auth/passkeys/register", headers=auth, json={"name": "Key", "credential": {"id": "x"}}
+    )
+    assert response.status_code == 400
+
+
+async def test_registration_options_without_reauthentication_is_rejected(client):
+    """Starting registration with no step-up is refused, so a stolen access token cannot plant a factor"""
+    auth = _get_auth_header(await _create_user(client))
+
+    # The gate is on options, so no challenge is issued and no ceremony can run
+    response = await client.post("/auth/passkeys/register/options", headers=auth, json={})
+    assert response.status_code == 401
+    assert (await client.get("/auth/passkeys", headers=auth)).json() == []
+
+
+async def test_registration_options_reject_a_wrong_password(client):
+    """A wrong step-up password is refused before any registration challenge is issued"""
+    auth = _get_auth_header(await _create_user(client))
+
+    response = await client.post(
+        "/auth/passkeys/register/options", headers=auth, json={"step_up": {"password": "WrongPassword123!"}}
+    )
+    assert response.status_code == 401
+
+
+async def test_adding_a_second_passkey_requires_the_existing_factor(client):
+    """Once a factor is active, a password-only step-up cannot start adding another passkey"""
+    signup = await _create_user(client)
+    auth = _get_auth_header(signup)
+    await _seed_passkey(signup.json()["user"]["id"], b"existing-factor-key")
+
+    # Password alone no longer suffices once a factor exists, the current factor must be presented
+    response = await client.post(
+        "/auth/passkeys/register/options", headers=auth, json={"step_up": {"password": SIGNUP_PAYLOAD["password"]}}
     )
     assert response.status_code == 400
 
@@ -338,7 +410,9 @@ async def test_removing_passkey_keeps_recovery_codes_when_totp_survives(client, 
     passkey_id = await _seed_passkey(user_id, credential_id)
 
     # Enrol TOTP so it survives the passkey removal
-    secret = (await client.post("/auth/2fa/setup", headers=auth)).json()["secret"]
+    # Adding TOTP as a second factor steps up with the existing passkey before the secret is minted
+    totp_step_up = await _step_up_with_passkey(client, auth, monkeypatch, user_id, credential_id)
+    secret = (await client.post("/auth/2fa/setup", headers=auth, json={"step_up": totp_step_up})).json()["secret"]
     await client.post("/auth/2fa/confirm", headers=auth, json={"code": pyotp.TOTP(secret).now()})
     await client.post("/auth/2fa/complete", headers=auth)
 
@@ -596,7 +670,9 @@ async def test_disable_totp_via_passkey_step_up(client, monkeypatch):
     await _seed_passkey(user_id, credential_id)
 
     # Enrol TOTP on top of the passkey so both factors exist
-    secret = (await client.post("/auth/2fa/setup", headers=auth)).json()["secret"]
+    # Adding TOTP as a second factor steps up with the existing passkey before the secret is minted
+    totp_step_up = await _step_up_with_passkey(client, auth, monkeypatch, user_id, credential_id)
+    secret = (await client.post("/auth/2fa/setup", headers=auth, json={"step_up": totp_step_up})).json()["secret"]
     await client.post("/auth/2fa/confirm", headers=auth, json={"code": pyotp.TOTP(secret).now()})
     await client.post("/auth/2fa/complete", headers=auth)
 
@@ -622,7 +698,9 @@ async def test_disabling_totp_keeps_recovery_codes_when_a_passkey_survives(clien
     await _seed_passkey(user_id, credential_id)
 
     # Enrol TOTP alongside the passkey so they share one recovery batch
-    secret = (await client.post("/auth/2fa/setup", headers=auth)).json()["secret"]
+    # Adding TOTP as a second factor steps up with the existing passkey before the secret is minted
+    totp_step_up = await _step_up_with_passkey(client, auth, monkeypatch, user_id, credential_id)
+    secret = (await client.post("/auth/2fa/setup", headers=auth, json={"step_up": totp_step_up})).json()["secret"]
     await client.post("/auth/2fa/confirm", headers=auth, json={"code": pyotp.TOTP(secret).now()})
     await client.post("/auth/2fa/complete", headers=auth)
 
@@ -669,7 +747,7 @@ async def test_regenerate_recovery_codes_via_passkey_step_up(client, monkeypatch
     assert len(regenerated.json()["recovery_codes"]) == 10
 
 
-async def test_passkey_step_up_protocol_error_does_not_lock(client):
+async def test_passkey_step_up_protocol_error_does_not_lock(client, monkeypatch):
     """A passkey step-up with a never-issued challenge fails as a protocol error without counting toward the lockout"""
     signup = await _create_user(client)
     auth = _get_auth_header(signup)
@@ -678,7 +756,9 @@ async def test_passkey_step_up_protocol_error_does_not_lock(client):
     await _seed_passkey(user_id, credential_id)
 
     # Enrol TOTP too so both factors exist and disabling is permitted
-    secret = (await client.post("/auth/2fa/setup", headers=auth)).json()["secret"]
+    # Adding TOTP as a second factor steps up with the existing passkey before the secret is minted
+    totp_step_up = await _step_up_with_passkey(client, auth, monkeypatch, user_id, credential_id)
+    secret = (await client.post("/auth/2fa/setup", headers=auth, json={"step_up": totp_step_up})).json()["secret"]
     await client.post("/auth/2fa/confirm", headers=auth, json={"code": pyotp.TOTP(secret).now()})
     await client.post("/auth/2fa/complete", headers=auth)
 
@@ -707,7 +787,8 @@ async def test_removing_passkey_keeps_recovery_codes_when_another_passkey_surviv
     registered = await _register_passkey(client, auth, monkeypatch, b"first-pk", "First")
     first_id = registered.json()["passkey"]["id"]
     await client.post("/auth/passkeys/register/confirm", headers=auth)
-    await _register_passkey(client, auth, monkeypatch, b"second-pk", "Second")
+    second_step_up = await _step_up_with_passkey(client, auth, monkeypatch, user_id, b"first-pk")
+    await _register_passkey(client, auth, monkeypatch, b"second-pk", "Second", step_up=second_step_up)
 
     body = await _step_up_with_passkey(client, auth, monkeypatch, user_id, b"second-pk")
     removed = await client.post(f"/auth/passkeys/{first_id}/remove", headers=auth, json=body)

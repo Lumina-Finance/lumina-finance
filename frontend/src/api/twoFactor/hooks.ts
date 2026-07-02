@@ -9,6 +9,7 @@ import {
   regenerateRecoveryCodes,
   setupTotp,
 } from '@/api/twoFactor/requests';
+import type { StepUpPayload } from '@/api/twoFactor/types';
 import { useAuth } from '@/hooks/useAuth';
 import { withMinDelay } from '@/utils/timing';
 
@@ -29,14 +30,16 @@ export function useTotpStatus() {
  *
  * Modelled as a query rather than a mutation so React Query dedupes the request the StrictMode
  * double-mount would otherwise duplicate, and so the data reliably reaches the rendered component.
- * gcTime and staleTime of zero mint a fresh secret each time the enrolment view opens
+ * gcTime and staleTime of zero mint a fresh secret each time the enrolment view opens. The settings
+ * flow steps up and mints the secret before opening enrolment, so it disables this and supplies the
+ * result instead, while signup passes its password-only step-up here
  */
-export function useSetupTotp() {
+export function useSetupTotp(options?: { enabled?: boolean; stepUp?: StepUpPayload }) {
   const { accessToken } = useAuth();
   return useQuery({
     queryKey: twoFactorKeys.setup(),
-    queryFn: setupTotp,
-    enabled: !!accessToken,
+    queryFn: () => setupTotp(options?.stepUp),
+    enabled: !!accessToken && (options?.enabled ?? true),
     gcTime: 0,
     staleTime: 0,
     refetchOnMount: 'always',

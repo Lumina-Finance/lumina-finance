@@ -28,10 +28,12 @@ from app.schemas.auth import (
     SignupRequest,
     StepUpRequest,
     TotpConfirmRequest,
+    TotpSetupRequest,
     TotpSetupResponse,
     TotpStatusResponse,
 )
 from app.services.auth import (
+    authorize_factor_addition,
     begin_totp_setup,
     change_password,
     complete_totp_enrollment,
@@ -208,14 +210,18 @@ async def totp_status_route(
 
 @router.post("/2fa/setup", response_model=TotpSetupResponse)
 async def setup_totp_route(
+    data: TotpSetupRequest,
     user: Annotated[User, Depends(get_authenticated_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Begin TOTP enrolment for the authenticated user
+    """Reauthorize, then begin TOTP enrolment for the authenticated user
 
-    Uses the permissive resolver so a recovery-code login can fetch a fresh secret to re-enrol
+    The step-up runs here rather than at confirm so a wrong current factor is refused before the QR is
+    shown, and its prompt can stay open to retry without a half-built enrolment behind it. The permissive
+    resolver lets a recovery-code login fetch a fresh secret to re-enrol without stepping up
 
     Args:
+        data: Reauthorization gating enrolment, omitted only by a forced re-enrol
         user: Authenticated user resolved from the access token
         db: Active database session
 
@@ -223,8 +229,9 @@ async def setup_totp_route(
         The secret and provisioning URI for the authenticator app
 
     Raises:
-        HTTPException: Two-factor authentication is already enabled
+        HTTPException: Reauthentication is required and missing or fails, or two-factor is already enabled
     """
+    await authorize_factor_addition(db, user, data.step_up)
     secret, provisioning_uri = await begin_totp_setup(db, user.id, user.email)
     return TotpSetupResponse(secret=secret, provisioning_uri=provisioning_uri)
 

@@ -6,6 +6,7 @@ from app.services.auth.mfa_challenge import issue_mfa_challenge
 from app.services.auth.password_reset import request_password_reset, reset_password
 from app.services.auth.sessions import delete_expired_auth_sessions, delete_expired_auth_tokens
 from app.services.auth.signup import signup
+from app.services.auth.step_up import authorize_factor_addition
 from app.services.auth.tokens import create_access_token, create_refresh_token
 from app.services.auth.totp import begin_totp_setup, is_totp_enabled
 from app.services.auth.two_factor import (
@@ -32,6 +33,7 @@ from app.services.auth.webauthn import (
 )
 
 __all__ = [
+    "authorize_factor_addition",
     "begin_totp_setup",
     "build_passkey_authentication_options",
     "build_passkey_registration_options",

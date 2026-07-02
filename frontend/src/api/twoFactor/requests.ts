@@ -17,8 +17,13 @@ export function fetchTotpStatus() {
 /**
  * Begins TOTP enrolment, returning the secret and provisioning URI for the authenticator app
  */
-export function setupTotp() {
-  return authenticatedFetch<TotpSetupResponse>('/auth/2fa/setup', { method: 'POST' });
+export function setupTotp(stepUp?: StepUpPayload) {
+  // The step-up is checked here, before the secret is minted, so a wrong factor is refused before the QR
+  // is shown. A forced re-enrol sends none, which the backend allows
+  return authenticatedFetch<TotpSetupResponse>('/auth/2fa/setup', {
+    method: 'POST',
+    body: JSON.stringify({ step_up: stepUp }),
+  });
 }
 
 /**

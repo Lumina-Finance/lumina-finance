@@ -12,6 +12,9 @@ from tests.routes.support import SIGNUP_PAYLOAD, _create_user, _get_auth_header
 
 _PASSWORD = SIGNUP_PAYLOAD["password"]
 
+# Adding the first factor steps up with the password alone, since there is no factor to present yet
+_STEP_UP = {"password": _PASSWORD}
+
 
 async def _issue_challenge(user_id):
     """Issue an MFA challenge token directly, standing in for the login step that emits it"""
@@ -23,7 +26,7 @@ async def _enroll_with_id(client):
     """Enrol a user in TOTP and return the auth header, secret, and user id"""
     signup = await _create_user(client)
     auth = _get_auth_header(signup)
-    secret = (await client.post("/auth/2fa/setup", headers=auth)).json()["secret"]
+    secret = (await client.post("/auth/2fa/setup", headers=auth, json={"step_up": _STEP_UP})).json()["secret"]
     await client.post("/auth/2fa/confirm", headers=auth, json={"code": pyotp.TOTP(secret).now()})
     await client.post("/auth/2fa/complete", headers=auth)
     return auth, secret, signup.json()["user"]["id"]
@@ -32,7 +35,7 @@ async def _enroll_with_id(client):
 async def _enroll(client):
     """Sign up a user and complete TOTP enrolment, returning the auth header, secret, and codes"""
     auth = _get_auth_header(await _create_user(client))
-    secret = (await client.post("/auth/2fa/setup", headers=auth)).json()["secret"]
+    secret = (await client.post("/auth/2fa/setup", headers=auth, json={"step_up": _STEP_UP})).json()["secret"]
     confirm = await client.post("/auth/2fa/confirm", headers=auth, json={"code": pyotp.TOTP(secret).now()})
     await client.post("/auth/2fa/complete", headers=auth)
     return auth, secret, confirm.json()["recovery_codes"]
@@ -51,7 +54,7 @@ async def test_totp_enrolment_reuses_existing_recovery_codes(client):
     auth = _get_auth_header(signup)
     await _seed_active_recovery_code(signup.json()["user"]["id"])
 
-    secret = (await client.post("/auth/2fa/setup", headers=auth)).json()["secret"]
+    secret = (await client.post("/auth/2fa/setup", headers=auth, json={"step_up": _STEP_UP})).json()["secret"]
     confirm = await client.post("/auth/2fa/confirm", headers=auth, json={"code": pyotp.TOTP(secret).now()})
 
     # No new codes, and two-factor is on with no completion step
@@ -68,7 +71,7 @@ async def test_status_reflects_enrolment(client):
     assert before.status_code == 200
     assert before.json()["totp_enabled"] is False
 
-    secret = (await client.post("/auth/2fa/setup", headers=auth)).json()["secret"]
+    secret = (await client.post("/auth/2fa/setup", headers=auth, json={"step_up": _STEP_UP})).json()["secret"]
     await client.post("/auth/2fa/confirm", headers=auth, json={"code": pyotp.TOTP(secret).now()})
     await client.post("/auth/2fa/complete", headers=auth)
 
@@ -80,7 +83,7 @@ async def test_confirm_returns_recovery_codes_but_leaves_two_factor_pending(clie
     """Confirm returns the one-time recovery codes yet two-factor stays off until completion"""
     auth = _get_auth_header(await _create_user(client))
 
-    setup = await client.post("/auth/2fa/setup", headers=auth)
+    setup = await client.post("/auth/2fa/setup", headers=auth, json={"step_up": _STEP_UP})
     assert setup.status_code == 200
     body = setup.json()
     assert body["provisioning_uri"].startswith("otpauth://totp/")
@@ -101,7 +104,7 @@ async def test_confirm_returns_recovery_codes_but_leaves_two_factor_pending(clie
 async def test_complete_turns_on_two_factor_after_confirm(client):
     """Completing enrolment after confirm turns two-factor on"""
     auth = _get_auth_header(await _create_user(client))
-    secret = (await client.post("/auth/2fa/setup", headers=auth)).json()["secret"]
+    secret = (await client.post("/auth/2fa/setup", headers=auth, json={"step_up": _STEP_UP})).json()["secret"]
     await client.post("/auth/2fa/confirm", headers=auth, json={"code": pyotp.TOTP(secret).now()})
 
     complete = await client.post("/auth/2fa/complete", headers=auth)
@@ -114,7 +117,7 @@ async def test_complete_turns_on_two_factor_after_confirm(client):
 async def test_complete_without_confirm_is_rejected(client):
     """Completing before a code is confirmed is refused so 2FA never enables around an unverified secret"""
     auth = _get_auth_header(await _create_user(client))
-    await client.post("/auth/2fa/setup", headers=auth)
+    await client.post("/auth/2fa/setup", headers=auth, json={"step_up": _STEP_UP})
 
     complete = await client.post("/auth/2fa/complete", headers=auth)
     assert complete.status_code == 400
@@ -126,11 +129,11 @@ async def test_complete_without_confirm_is_rejected(client):
 async def test_restarting_setup_discards_staged_codes(client):
     """Restarting setup clears a stale staged batch, so completion still needs a fresh confirm"""
     auth = _get_auth_header(await _create_user(client))
-    secret = (await client.post("/auth/2fa/setup", headers=auth)).json()["secret"]
+    secret = (await client.post("/auth/2fa/setup", headers=auth, json={"step_up": _STEP_UP})).json()["secret"]
     await client.post("/auth/2fa/confirm", headers=auth, json={"code": pyotp.TOTP(secret).now()})
 
     # Restart setup without confirming the new secret, then try to finish off the stale staged batch
-    await client.post("/auth/2fa/setup", headers=auth)
+    await client.post("/auth/2fa/setup", headers=auth, json={"step_up": _STEP_UP})
     complete = await client.post("/auth/2fa/complete", headers=auth)
     assert complete.status_code == 400
 
@@ -141,20 +144,34 @@ async def test_restarting_setup_discards_staged_codes(client):
 async def test_confirm_rejects_a_wrong_code(client):
     """Confirming with an invalid code returns 400 and does not enable 2FA"""
     auth = _get_auth_header(await _create_user(client))
-    await client.post("/auth/2fa/setup", headers=auth)
+    await client.post("/auth/2fa/setup", headers=auth, json={"step_up": _STEP_UP})
 
     confirm = await client.post("/auth/2fa/confirm", headers=auth, json={"code": "000000"})
     assert confirm.status_code == 400
 
 
+async def test_setup_without_reauthentication_is_rejected(client):
+    """Beginning enrolment with no step-up is refused, so a stolen access token cannot enable a factor"""
+    auth = _get_auth_header(await _create_user(client))
+
+    setup = await client.post("/auth/2fa/setup", headers=auth, json={})
+    assert setup.status_code == 401
+    assert (await client.get("/auth/2fa/status", headers=auth)).json()["totp_enabled"] is False
+
+
 async def test_setup_conflicts_once_confirmed(client):
     """Re-running setup over confirmed 2FA is refused so a live factor is never replaced silently"""
     auth = _get_auth_header(await _create_user(client))
-    secret = (await client.post("/auth/2fa/setup", headers=auth)).json()["secret"]
+    secret = (await client.post("/auth/2fa/setup", headers=auth, json={"step_up": _STEP_UP})).json()["secret"]
     await client.post("/auth/2fa/confirm", headers=auth, json={"code": pyotp.TOTP(secret).now()})
     await client.post("/auth/2fa/complete", headers=auth)
 
-    again = await client.post("/auth/2fa/setup", headers=auth)
+    # Two-factor is on now, so re-running setup steps up with the live authenticator before it conflicts
+    again = await client.post(
+        "/auth/2fa/setup",
+        headers=auth,
+        json={"step_up": {"password": _PASSWORD, "code": pyotp.TOTP(secret).now()}},
+    )
     assert again.status_code == 409
 
 
@@ -166,7 +183,7 @@ async def test_disable_turns_off_two_factor(client):
         "/auth/2fa/disable", headers=auth, json={"password": _PASSWORD, "code": pyotp.TOTP(secret).now()}
     )
     assert disable.status_code == 204
-    assert (await client.post("/auth/2fa/setup", headers=auth)).status_code == 200
+    assert (await client.post("/auth/2fa/setup", headers=auth, json={"step_up": _STEP_UP})).status_code == 200
 
 
 async def test_disable_rejects_a_wrong_password(client):
@@ -435,7 +452,7 @@ async def test_restricted_session_re_enrols_with_fresh_codes(client):
     token = (await _login_with_code(client, old_codes[0])).json()["access_token"]
     restricted = {"Authorization": f"Bearer {token}"}
 
-    secret = (await client.post("/auth/2fa/setup", headers=restricted)).json()["secret"]
+    secret = (await client.post("/auth/2fa/setup", headers=restricted, json={})).json()["secret"]
     confirm = await client.post("/auth/2fa/confirm", headers=restricted, json={"code": pyotp.TOTP(secret).now()})
     assert confirm.status_code == 200
     new_codes = confirm.json()["recovery_codes"]
@@ -466,7 +483,7 @@ async def test_old_recovery_codes_survive_an_abandoned_reenrol(client):
     restricted = {"Authorization": f"Bearer {token}"}
 
     # Confirm a fresh authenticator but abandon before completing
-    secret = (await client.post("/auth/2fa/setup", headers=restricted)).json()["secret"]
+    secret = (await client.post("/auth/2fa/setup", headers=restricted, json={})).json()["secret"]
     confirm = await client.post("/auth/2fa/confirm", headers=restricted, json={"code": pyotp.TOTP(secret).now()})
     assert confirm.status_code == 200
 

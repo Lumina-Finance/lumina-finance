@@ -86,8 +86,10 @@ export function usePasskeys() {
 export function useRegisterPasskey() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (name: string) => {
-      const optionsJSON = await fetchPasskeyRegistrationOptions();
+    mutationFn: async ({ name, step_up }: { name: string; step_up?: StepUpPayload }) => {
+      // Step up before fetching options, so a wrong factor is refused before the browser ceremony runs
+      // and the passkey is only ever created after the current factor verifies
+      const optionsJSON = await fetchPasskeyRegistrationOptions(step_up);
       const credential = await startRegistration({ optionsJSON });
       // The minimum delay holds only the server store, so a cancelled prompt still surfaces at once
       return withMinDelay(() => registerPasskey({ name, credential }));

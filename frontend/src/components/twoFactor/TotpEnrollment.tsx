@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Check, Copy } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useCompleteTotp, useConfirmTotp, useSetupTotp } from '@/api/twoFactor';
+import type { RecoveryCodesResponse, StepUpPayload, TotpSetupResponse } from '@/api/twoFactor/types';
 import { OtpInput, OTP_LENGTH } from '@/components/OtpInput';
 import { RecoveryCodesPanel } from '@/components/twoFactor/RecoveryCodesPanel';
 import { StepTransition } from '@/components/twoFactor/StepTransition';
@@ -19,13 +20,25 @@ interface TotpEnrollmentProps {
   onComplete: () => void;
   /** Optional skip affordance, shown during signup but not in settings */
   onSkip?: () => void;
+  /**
+   * A secret already minted after stepping up, used in settings where the step-up prompt ran and
+   * fetched it before opening enrolment. When set, enrolment does not mint its own
+   */
+  initialSetup?: TotpSetupResponse;
+  /**
+   * Password-only reauthorization for minting the secret, used at signup where the just-set password
+   * gates the account's first factor. Omitted for a forced re-enrolment
+   */
+  setupStepUp?: StepUpPayload;
 }
 
 /**
  * Drives the shared TOTP enrolment flow: the QR and code confirmation, then the one-time recovery codes
  */
-export function TotpEnrollment({ onComplete, onSkip }: TotpEnrollmentProps) {
-  const setup = useSetupTotp();
+export function TotpEnrollment({ onComplete, onSkip, initialSetup, setupStepUp }: TotpEnrollmentProps) {
+  // Settings supplies a secret it already stepped up for, so this only mints one for signup and re-enrol
+  const setup = useSetupTotp({ enabled: !initialSetup, stepUp: setupStepUp });
+  const setupData = initialSetup ?? setup.data;
   const confirm = useConfirmTotp();
   const complete = useCompleteTotp();
   const [minLoadingElapsed, setMinLoadingElapsed] = useState(false);
@@ -54,13 +67,13 @@ export function TotpEnrollment({ onComplete, onSkip }: TotpEnrollmentProps) {
   }, []);
 
   // The spinner stays until both the minimum has elapsed and the secret has resolved
-  const isSetupLoading = !minLoadingElapsed || (!setup.data && !setup.isError);
+  const isSetupLoading = !minLoadingElapsed || (!setupData && !setup.isError);
 
   /**
    * Copies the secret to the clipboard and briefly confirms it so the user need not select the text
    */
   const copyKey = async () => {
-    if (!setup.data || !(await copyText(setup.data.secret))) return;
+    if (!setupData || !(await copyText(setupData.secret))) return;
 
     setKeyCopied(true);
     if (copyResetTimer.current) window.clearTimeout(copyResetTimer.current);
@@ -68,7 +81,20 @@ export function TotpEnrollment({ onComplete, onSkip }: TotpEnrollmentProps) {
   };
 
   /**
-   * Confirms the entered code, revealing the recovery codes on success and allowing a retry on failure
+   * Reveals the recovery codes to save, or notes two-factor turned on directly when a batch already
+   * existed so there is nothing to acknowledge
+   */
+  const applyConfirmResult = (result: RecoveryCodesResponse) => {
+    if (result.recovery_codes.length > 0) {
+      setRecoveryCodes(result.recovery_codes);
+    } else {
+      setEnabledViaReuse(true);
+    }
+  };
+
+  /**
+   * Confirms the entered code, revealing the recovery codes on success and allowing a retry on failure.
+   * The step-up already ran when the secret was minted, so confirm carries only the code
    */
   const handleConfirm = async () => {
     if (code.length < OTP_LENGTH || confirming) return;
@@ -79,14 +105,7 @@ export function TotpEnrollment({ onComplete, onSkip }: TotpEnrollmentProps) {
     try {
       const result = await confirm.mutateAsync({ code });
       await delayToMinimum(start, MFA_LOADING_MIN_MS);
-
-      // An empty batch means the account already had recovery codes, so two-factor turned on now and
-      // there is nothing to acknowledge
-      if (result.recovery_codes.length > 0) {
-        setRecoveryCodes(result.recovery_codes);
-      } else {
-        setEnabledViaReuse(true);
-      }
+      applyConfirmResult(result);
     } catch {
       await delayToMinimum(start, MFA_LOADING_MIN_MS);
       setError('That code was incorrect. Try again.');
@@ -194,9 +213,9 @@ export function TotpEnrollment({ onComplete, onSkip }: TotpEnrollmentProps) {
           <div className="flex justify-center">
             {isSetupLoading ? (
               <div className="app-spinner" />
-            ) : setup.data ? (
+            ) : setupData ? (
               <div className="rounded-lg bg-white p-3">
-                <QRCodeSVG value={setup.data.provisioning_uri} size={160} />
+                <QRCodeSVG value={setupData.provisioning_uri} size={160} />
               </div>
             ) : (
               <button
@@ -210,7 +229,7 @@ export function TotpEnrollment({ onComplete, onSkip }: TotpEnrollmentProps) {
             )}
           </div>
 
-          {!isSetupLoading && setup.data && (
+          {!isSetupLoading && setupData && (
             <div className="space-y-1 text-center">
               <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
                 Or enter this key manually
@@ -222,7 +241,7 @@ export function TotpEnrollment({ onComplete, onSkip }: TotpEnrollmentProps) {
                 className="mx-auto flex items-center gap-2 rounded-md px-2 py-1 font-mono text-xs transition-colors duration-200 hover:bg-[color:var(--app-surface-soft)]"
                 style={{ color: 'var(--app-text-muted)' }}
               >
-                <span>{setup.data.secret}</span>
+                <span>{setupData.secret}</span>
                 {keyCopied ? (
                   <Check size={14} strokeWidth={2.5} style={{ color: 'var(--app-positive)' }} aria-hidden />
                 ) : (

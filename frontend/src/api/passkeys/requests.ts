@@ -69,9 +69,12 @@ export function fetchPasskeys() {
 /**
  * Begins registration, returning the ceremony options the browser passes to the authenticator
  */
-export function fetchPasskeyRegistrationOptions() {
+export function fetchPasskeyRegistrationOptions(stepUp?: StepUpPayload) {
+  // The step-up is checked here, before the ceremony, so a wrong factor is refused before any passkey
+  // is created. A forced re-enrol sends none, which the backend allows
   return authenticatedFetch<PublicKeyCredentialCreationOptionsJSON>('/auth/passkeys/register/options', {
     method: 'POST',
+    body: JSON.stringify({ step_up: stepUp }),
   });
 }
 

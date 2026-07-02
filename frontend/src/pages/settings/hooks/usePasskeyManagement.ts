@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import {
+  type Passkey,
   useConfirmPasskeyRegistration,
   usePasskeyConfig,
   usePasskeys,
@@ -8,6 +9,7 @@ import {
   useRenamePasskey,
 } from '@/api/passkeys';
 import type { StepUpCredentials } from '@/components/twoFactor/StepUpModal';
+// StepUpCredentials is structurally the StepUpPayload the register call carries, so it passes straight through
 import { assessPasskeySupport, type PasskeySupport } from '@/utils/passkeySupport';
 import { withMinDelay } from '@/utils/timing';
 
@@ -24,6 +26,7 @@ export function usePasskeyManagement() {
   const rename = useRenamePasskey();
   const remove = useRemovePasskey();
   const [pendingRecoveryCodes, setPendingRecoveryCodes] = useState<string[] | null>(null);
+  const [stagedPasskey, setStagedPasskey] = useState<Passkey | null>(null);
   const [reuseReminderVisible, setReuseReminderVisible] = useState(false);
   const [removalTarget, setRemovalTarget] = useState<string | null>(null);
 
@@ -31,14 +34,25 @@ export function usePasskeyManagement() {
   const isLoading = passkeys.isLoading || config.isLoading;
   const support: PasskeySupport | null = config.data ? assessPasskeySupport(config.data.rp_id) : null;
 
+  const listedPasskeys = passkeys.data ?? [];
+
+  // Show the staged passkey while its recovery codes await acknowledgement, since the list query only
+  // returns confirmed passkeys and it would otherwise vanish until the codes are saved. The confirmed
+  // row carries the same id, so it de-duplicates once the acknowledgement refetches the list
+  const managedPasskeys =
+    stagedPasskey && !listedPasskeys.some((registered) => registered.id === stagedPasskey.id)
+      ? [stagedPasskey, ...listedPasskeys]
+      : listedPasskeys;
+
   /**
    * Registers a passkey, revealing the recovery codes to acknowledge when a fresh batch is issued, or
    * a reminder that the existing batch already covers the new passkey when codes were reused
    */
-  async function registerPasskey(name: string) {
+  async function registerPasskey(name: string, stepUp: StepUpCredentials) {
     setReuseReminderVisible(false);
-    const result = await register.mutateAsync(name);
+    const result = await register.mutateAsync({ name, step_up: stepUp });
     if (result.recovery_codes) {
+      setStagedPasskey(result.passkey);
       setPendingRecoveryCodes(result.recovery_codes);
     } else {
       setReuseReminderVisible(true);
@@ -51,6 +65,7 @@ export function usePasskeyManagement() {
   async function acknowledgeRecoveryCodes() {
     await confirmRegistration.mutateAsync();
     setPendingRecoveryCodes(null);
+    setStagedPasskey(null);
   }
 
   /**
@@ -71,7 +86,7 @@ export function usePasskeyManagement() {
     },
     isLoading,
     support,
-    passkeys: passkeys.data ?? [],
+    passkeys: managedPasskeys,
     registerPasskey,
     isRegistering: register.isPending,
     renamePasskey: async (passkeyId: string, name: string) => {
@@ -94,7 +109,11 @@ export function usePasskeyManagement() {
     reuseReminder: reuseReminderVisible,
     dismissReuseReminder: () => setReuseReminderVisible(false),
 
-    // Dismissing without acknowledging leaves the passkey staged, a later login prunes it
-    dismissRecoveryCodes: () => setPendingRecoveryCodes(null),
+    // Dismissing without acknowledging leaves the passkey staged, a later login prunes it, so it also
+    // drops out of the visible list here
+    dismissRecoveryCodes: () => {
+      setPendingRecoveryCodes(null);
+      setStagedPasskey(null);
+    },
   };
 }

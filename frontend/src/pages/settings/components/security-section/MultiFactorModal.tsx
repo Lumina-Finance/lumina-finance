@@ -4,12 +4,15 @@ import { AnimatePresence, motion } from 'motion/react';
 import { PasskeyRow } from '@/components/passkeys/PasskeyRow';
 import { MultiFactorModalShell } from '@/components/twoFactor/MultiFactorModalShell';
 import { RecoveryCodesModal } from '@/components/twoFactor/RecoveryCodesModal';
-import { StepUpModal } from '@/components/twoFactor/StepUpModal';
+import { StepUpModal, type StepUpCredentials } from '@/components/twoFactor/StepUpModal';
 import { TotpEnrollmentModal } from '@/components/twoFactor/TotpEnrollmentModal';
 import { TwoFactorModalShell } from '@/components/twoFactor/TwoFactorModalShell';
 import { WarningCallout } from '@/components/twoFactor/WarningCallout';
 import { usePasskeyManagement } from '@/pages/settings/hooks/usePasskeyManagement';
 import { useTwoFactorManagement } from '@/pages/settings/hooks/useTwoFactorManagement';
+import { ApiError } from '@/api/auth/errors';
+import { setupTotp } from '@/api/twoFactor/requests';
+import type { TotpSetupResponse } from '@/api/twoFactor/types';
 import { getPasskeyRegistrationMessage } from '@/utils/passkeyErrors';
 
 // Grow and fade a passkey row so it eases into the list instead of snapping, with the modal height
@@ -54,6 +57,9 @@ export function MultiFactorModal({ open, onClose }: MultiFactorModalProps) {
   const [isAddingPasskey, setIsAddingPasskey] = useState(false);
   const [passkeyName, setPasskeyName] = useState('');
   const [addError, setAddError] = useState<string | null>(null);
+  const [pendingPasskeyName, setPendingPasskeyName] = useState<string | null>(null);
+  const [isTotpEnableStepUpOpen, setIsTotpEnableStepUpOpen] = useState(false);
+  const [totpSetup, setTotpSetup] = useState<TotpSetupResponse | null>(null);
 
   const hasPasskeys = passkey.passkeys.length > 0;
   const hasAnyFactor = totp.isEnabled || hasPasskeys;
@@ -64,7 +70,9 @@ export function MultiFactorModal({ open, onClose }: MultiFactorModalProps) {
     totp.regeneratedCodes !== null ||
     passkey.pendingRecoveryCodes !== null ||
     passkey.reuseReminder ||
-    passkey.isRemovalOpen;
+    passkey.isRemovalOpen ||
+    pendingPasskeyName !== null ||
+    isTotpEnableStepUpOpen;
 
   const resetAddForm = () => {
     setIsAddingPasskey(false);
@@ -79,19 +87,45 @@ export function MultiFactorModal({ open, onClose }: MultiFactorModalProps) {
   };
 
   /**
-   * Runs the registration ceremony for the typed label, collapsing the add form on success
+   * Opens the step-up prompt for the typed label, since adding a passkey now reauthorizes first
    */
-  async function handleAddPasskey() {
+  function handleAddPasskey() {
     const trimmed = passkeyName.trim();
     if (!trimmed) return;
 
     setAddError(null);
+    setPendingPasskeyName(trimmed);
+  }
+
+  /**
+   * Runs the registration ceremony once the step-up succeeds, forwarding the reauthorization so the
+   * backend accepts the new passkey. A failure surfaces on the add form after the prompt closes
+   */
+  async function confirmAddPasskey(credentials: StepUpCredentials) {
+    if (!pendingPasskeyName) return;
+
     try {
-      await passkey.registerPasskey(trimmed);
+      await passkey.registerPasskey(pendingPasskeyName, credentials);
+      setPendingPasskeyName(null);
       resetAddForm();
     } catch (registrationError) {
+      // A failed step-up rejects so the prompt shows it and stays open to retry, while a ceremony or
+      // attestation failure, which happens only after step-up cleared, closes it onto the add form
+      if (registrationError instanceof ApiError && registrationError.status === 401) throw registrationError;
+      setPendingPasskeyName(null);
       setAddError(getPasskeyRegistrationMessage(registrationError));
     }
+  }
+
+  /**
+   * Mints the enrolment secret once the enable step-up succeeds, then opens enrolment showing it. A
+   * failed step-up rejects so its prompt shows the error and stays open, with no QR behind it yet
+   */
+  async function confirmTotpEnable(credentials: StepUpCredentials) {
+    const setup = await setupTotp(credentials);
+    setTotpSetup(setup);
+    setIsTotpEnableStepUpOpen(false);
+    totp.showEnable();
   }
 
   return (
@@ -124,7 +158,7 @@ export function MultiFactorModal({ open, onClose }: MultiFactorModalProps) {
               Disable
             </button>
           ) : (
-            <button type="button" onClick={totp.showEnable} disabled={totp.isStatusLoading} className="app-secondary-button shrink-0">
+            <button type="button" onClick={() => setIsTotpEnableStepUpOpen(true)} disabled={totp.isStatusLoading} className="app-secondary-button shrink-0">
               Enable
             </button>
           )}
@@ -167,30 +201,34 @@ export function MultiFactorModal({ open, onClose }: MultiFactorModalProps) {
 
           {passkey.support && !passkey.support.supported && <WarningCallout>{passkey.support.message}</WarningCallout>}
 
-          {isAddingPasskey && canRegisterPasskey && (
-            <div className="flex items-center gap-2">
-              <input
-                className="app-input flex-1"
-                placeholder="Name this passkey"
-                value={passkeyName}
-                onChange={(event) => setPasskeyName(event.target.value)}
-                disabled={passkey.isRegistering}
-                autoFocus
-                aria-label="New passkey name"
-              />
-              <button
-                type="button"
-                onClick={handleAddPasskey}
-                disabled={passkey.isRegistering || !passkeyName.trim()}
-                className="app-primary-button shrink-0"
-              >
-                {passkey.isRegistering ? 'Waiting…' : 'Add'}
-              </button>
-              <button type="button" onClick={resetAddForm} disabled={passkey.isRegistering} className="app-secondary-button shrink-0">
-                Cancel
-              </button>
-            </div>
-          )}
+          <AnimatePresence initial={false}>
+            {isAddingPasskey && canRegisterPasskey && (
+              <motion.div key="add-passkey-form" style={{ overflow: 'hidden' }} {...LIST_ITEM_MOTION}>
+                <div className="flex items-center gap-2">
+                  <input
+                    className="app-input flex-1"
+                    placeholder="Name this passkey"
+                    value={passkeyName}
+                    onChange={(event) => setPasskeyName(event.target.value)}
+                    disabled={passkey.isRegistering}
+                    autoFocus
+                    aria-label="New passkey name"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddPasskey}
+                    disabled={passkey.isRegistering || !passkeyName.trim()}
+                    className="app-primary-button shrink-0"
+                  >
+                    {passkey.isRegistering ? 'Waiting…' : 'Add'}
+                  </button>
+                  <button type="button" onClick={resetAddForm} disabled={passkey.isRegistering} className="app-secondary-button shrink-0">
+                    Cancel
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {addError && (
             <p className="text-xs" style={{ color: 'var(--app-negative)' }}>
@@ -200,12 +238,7 @@ export function MultiFactorModal({ open, onClose }: MultiFactorModalProps) {
 
           <AnimatePresence initial={false}>
             {hasPasskeys && (
-              <motion.div
-                key="passkey-list"
-                className="divide-y overflow-hidden rounded-lg border"
-                style={{ borderColor: 'var(--app-border)' }}
-                {...LIST_ITEM_MOTION}
-              >
+              <motion.div key="passkey-list" className="space-y-2 overflow-hidden" {...LIST_ITEM_MOTION}>
                 <AnimatePresence initial={false}>
                   {passkey.passkeys.map((registeredPasskey) => (
                     <motion.div key={registeredPasskey.id} style={{ overflow: 'hidden' }} {...LIST_ITEM_MOTION}>
@@ -245,7 +278,14 @@ export function MultiFactorModal({ open, onClose }: MultiFactorModalProps) {
         </div>
       </MultiFactorModalShell>
 
-      <TotpEnrollmentModal open={totp.openModal === 'enable'} onClose={totp.closeModal} />
+      <TotpEnrollmentModal
+        open={totp.openModal === 'enable'}
+        initialSetup={totpSetup ?? undefined}
+        onClose={() => {
+          totp.closeModal();
+          setTotpSetup(null);
+        }}
+      />
 
       <StepUpModal
         open={totp.openModal === 'disable'}
@@ -310,6 +350,28 @@ export function MultiFactorModal({ open, onClose }: MultiFactorModalProps) {
         allowRecoveryReset
         onClose={passkey.cancelRemoval}
         onVerify={passkey.confirmRemoval}
+      />
+
+      <StepUpModal
+        open={isTotpEnableStepUpOpen}
+        title="Turn on two-factor authentication"
+        description="Confirm it's you to turn two-factor on."
+        requirePassword
+        confirmLabel="Continue"
+        allowPasskey
+        onClose={() => setIsTotpEnableStepUpOpen(false)}
+        onVerify={confirmTotpEnable}
+      />
+
+      <StepUpModal
+        open={pendingPasskeyName !== null}
+        title="Add a passkey"
+        description="Confirm it's you before adding a passkey."
+        requirePassword
+        confirmLabel="Add passkey"
+        allowPasskey
+        onClose={() => setPendingPasskeyName(null)}
+        onVerify={confirmAddPasskey}
       />
     </>
   );

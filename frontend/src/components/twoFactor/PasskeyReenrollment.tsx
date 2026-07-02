@@ -39,7 +39,9 @@ export function PasskeyReenrollment({ onComplete }: PasskeyReenrollmentProps) {
 
     setError('');
     try {
-      const result = await register.mutateAsync(trimmed);
+      // A forced re-enrol has no factor to present, so it registers without a step-up, which the backend
+      // allows only for a re-enrolment session
+      const result = await register.mutateAsync({ name: trimmed });
       if (result.recovery_codes) {
         setPendingRecoveryCodes(result.recovery_codes);
       } else {

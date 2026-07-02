@@ -98,6 +98,12 @@ export function StepUpModal({
   // a TOTP-only account is offered just its own option
   const totpEnabled = totpStatus.data?.totp_enabled ?? false;
   const showCodeEntry = totpEnabled || !canUsePasskey;
+
+  // Adding a first factor has nothing to present, so once the factor queries resolve with none the
+  // password alone authorizes it and the modal skips the factor step entirely
+  const factorsResolved = !passkeys.isLoading && !totpStatus.isLoading;
+  const hasFactor = (passkeys.data?.length ?? 0) > 0 || totpEnabled;
+  const passwordOnly = requirePassword && factorsResolved && !hasFactor;
   const canSubmitCode = otp.length === OTP_LENGTH;
   // Shrink the confirm control to a spinner circle while its own path verifies, matching the app's
   // other loading buttons
@@ -150,6 +156,13 @@ export function StepUpModal({
     if (!event.isTrusted) return;
     if (!password) return;
     setError('');
+
+    // With no factor to present the password alone completes the action, so a wrong password surfaces
+    // here rather than on a factor step that would never appear
+    if (passwordOnly) {
+      void runStepUp('code', () => onVerify({ password }));
+      return;
+    }
     setStep('factor');
   };
 
@@ -263,9 +276,21 @@ export function StepUpModal({
               onChange={(event) => setPassword(event.target.value)}
               autoFocus
             />
-            <button type="submit" disabled={!password} className="app-primary-button w-full">
-              Continue
-            </button>
+            {passwordOnly ? (
+              <div className="flex justify-center">
+                <button
+                  type="submit"
+                  disabled={!password || verifying}
+                  className={`${danger ? 'app-danger-button' : 'app-primary-button'} transition-all duration-300 ${verifyingPath === 'code' ? 'app-primary-button-loading' : 'w-full'}`}
+                >
+                  {verifyingPath === 'code' ? <div className="app-spinner" /> : confirmLabel}
+                </button>
+              </div>
+            ) : (
+              <button type="submit" disabled={!password} className="app-primary-button w-full">
+                Continue
+              </button>
+            )}
           </form>
         ) : (
           <div className="space-y-5">

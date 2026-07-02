@@ -141,7 +141,9 @@ async def test_change_password_requires_authentication(client):
 
 async def _enable_totp(client, headers):
     """Enrol the authenticated user in TOTP and return the secret"""
-    secret = (await client.post("/auth/2fa/setup", headers=headers)).json()["secret"]
+    # The first factor steps up with the password alone at setup, before the secret is minted
+    step_up = {"password": SIGNUP_PAYLOAD["password"]}
+    secret = (await client.post("/auth/2fa/setup", headers=headers, json={"step_up": step_up})).json()["secret"]
     await client.post("/auth/2fa/confirm", headers=headers, json={"code": pyotp.TOTP(secret).now()})
     await client.post("/auth/2fa/complete", headers=headers)
     return secret
@@ -207,8 +209,11 @@ async def test_change_password_requires_second_factor_when_passkey_registered(cl
 
 
 async def test_wrong_second_factor_401_has_no_bearer_challenge(client):
-    """A wrong step-up code is a credential 401 without the bearer challenge, so the client cannot mistake
-    it for an expired token and resend it, which would double-count the failed attempt"""
+    """A wrong step-up code is a credential 401 without the bearer challenge
+
+    The client cannot then mistake it for an expired token and resend it, which would double-count the
+    failed attempt
+    """
     signup = await _create_user(client)
     headers = _get_auth_header(signup)
     await _enable_totp(client, headers)

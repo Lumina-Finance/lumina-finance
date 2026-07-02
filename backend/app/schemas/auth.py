@@ -148,12 +148,6 @@ class TotpSetupResponse(BaseModel):
     provisioning_uri: str  # otpauth URI the client renders as a QR code
 
 
-class TotpConfirmRequest(BaseModel):
-    """Authenticator code that confirms a pending TOTP enrolment"""
-
-    code: str
-
-
 class StepUpRequest(BaseModel):
     """Password and a current second factor reauthorizing a sensitive two-factor change
 
@@ -164,6 +158,23 @@ class StepUpRequest(BaseModel):
     password: str
     code: str | None = None  # a current TOTP code
     passkey: dict[str, Any] | None = None  # a passkey assertion, taking priority over a code
+
+
+class TotpSetupRequest(BaseModel):
+    """Reauthorization gating the start of a TOTP enrolment
+
+    The step-up is checked before the secret is minted, so a wrong current factor is refused before the
+    QR is shown and enrolment is confirmed later without stepping up again. Omitted only by a forced
+    re-enrol session that has no factor to present yet
+    """
+
+    step_up: StepUpRequest | None = None
+
+
+class TotpConfirmRequest(BaseModel):
+    """Authenticator code that confirms a pending TOTP enrolment"""
+
+    code: str
 
 
 class RecoveryCodesResponse(BaseModel):
@@ -211,6 +222,17 @@ class PasskeyConfigResponse(BaseModel):
     """Public passkey settings the client needs before starting a ceremony"""
 
     rp_id: str  # relying party id the browser binds a passkey to, blank when passkeys are unconfigured
+
+
+class PasskeyRegistrationOptionsRequest(BaseModel):
+    """Reauthorization gating the start of a passkey registration ceremony
+
+    The step-up is checked before the challenge is issued, so the browser never runs a registration
+    ceremony until the current factor verifies, and the passkey is added only afterwards. Omitted only
+    by a forced re-enrol session that has no factor to present yet
+    """
+
+    step_up: StepUpRequest | None = None
 
 
 class PasskeyRegisterRequest(BaseModel):

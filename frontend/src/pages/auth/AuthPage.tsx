@@ -127,7 +127,8 @@ const AuthPage = () => {
         <AnimatePresence mode="wait" initial={false}>
           {enrolling ? (
             <motion.div key="totp-enrollment" className="mt-5" {...AUTH_VIEW_TRANSITION}>
-              <TotpEnrollment onComplete={finishEnrollment} onSkip={finishEnrollment} />
+              {/* Opt-in 2FA at signup is the account's first factor, so it steps up with the password just set */}
+              <TotpEnrollment onComplete={finishEnrollment} onSkip={finishEnrollment} setupStepUp={{ password: form.password }} />
             </motion.div>
           ) : mfaActive ? (
             <motion.div
