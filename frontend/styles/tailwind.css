@@ -208,28 +208,33 @@
     text-align: left;
   }
 
-  /* The stretched indicator below is absolutely positioned, so the field itself must be the
-     containing block. Without this, Chrome resolves the indicator against the nearest positioned
-     ancestor (the modal panel) and blankets it with a transparent click target that traps every
-     click and never lets the picker dismiss */
+  /* WebKit top-aligns the date text once the native appearance is stripped, while Firefox already
+     centres it. The datetime-edit selector guard keeps this WebKit only so the Firefox rendering
+     stays untouched. The host flexes so the edit region stretches to the full field height, then the
+     edit region centres its own fields, since aligning on the host alone still leaves Chrome biased
+     toward the top */
+  @supports selector(::-webkit-datetime-edit) {
+    .app-input[type="date"] {
+      display: inline-flex;
+    }
+
+    .app-input[type="date"]::-webkit-datetime-edit {
+      display: flex;
+      align-items: center;
+      padding: 0;
+    }
+  }
+
   .app-date-input-balanced {
-    position: relative;
     padding-left: 0.75rem;
     padding-right: 0.75rem;
   }
 
-  /* WebKit's native date appearance forces an intrinsic width that overflows the flex track, so the
-     base rule strips it and the visible calendar glyph is an overlaid element instead. The native
-     indicator is kept transparent and stretched across the field so a tap anywhere opens the picker */
+  /* The overlaid calendar button opens the picker through showPicker, which is the one trigger that
+     fires reliably in Chrome, so the native WebKit indicator is hidden to avoid a second glyph while
+     the date segments stay directly editable */
   .app-date-input-balanced[type="date"]::-webkit-calendar-picker-indicator {
-    position: absolute;
-    inset: 0;
-    width: auto;
-    height: auto;
-    margin: 0;
-    padding: 0;
-    opacity: 0;
-    cursor: pointer;
+    display: none;
   }
 
   /* Firefox keeps its own native calendar button and ignores the WebKit indicator rules above, so

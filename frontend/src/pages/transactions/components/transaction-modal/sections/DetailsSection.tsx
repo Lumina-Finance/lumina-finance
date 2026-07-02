@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import { Calendar } from 'lucide-react'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
 import IconTooltip from '@/components/tooltips/IconTooltip'
@@ -43,6 +44,8 @@ export default function TransactionDetailsSection({
   onAmountBlur,
   onNotesChange,
 }: TransactionDetailsSectionProps) {
+  const dateInputRef = useRef<HTMLInputElement>(null)
+
   return (
     <TransactionModalSectionFrame number="03" title="Details">
       <div className="grid gap-3 sm:grid-cols-[11rem_8.5rem_minmax(0,1fr)]">
@@ -72,6 +75,7 @@ export default function TransactionDetailsSection({
           </div>
           <div className="relative hidden min-[1050px]:block">
             <input
+              ref={dateInputRef}
               id="txn-date"
               type="date"
               className={`app-input app-date-input-balanced pr-9 disabled:cursor-not-allowed disabled:opacity-60 ${dateError ? 'app-input-error' : ''}`}
@@ -80,12 +84,17 @@ export default function TransactionDetailsSection({
               onChange={(event) => onDateChange(event.target.value)}
               onBlur={onDateBlur}
             />
-            <Calendar
-              size={15}
-              aria-hidden
-              className="app-date-overlay-icon pointer-events-none absolute right-3 top-1/2 -translate-y-1/2"
+            <button
+              type="button"
+              aria-label="Open calendar"
+              disabled={readOnly}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => dateInputRef.current?.showPicker?.()}
+              className="app-date-overlay-icon absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer border-0 bg-transparent p-0 disabled:cursor-not-allowed"
               style={{ color: 'var(--app-text-subtle)' }}
-            />
+            >
+              <Calendar size={15} aria-hidden className="block" />
+            </button>
           </div>
         </div>
         <div>
