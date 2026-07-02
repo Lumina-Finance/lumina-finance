@@ -38,7 +38,7 @@ from app.config import (
     WEBAUTHN_RP_NAME,
 )
 from app.database import current_user_id_ctx
-from app.models.auth import AuthIdentity, RecoveryCode, WebauthnChallenge, WebauthnCredential
+from app.models.auth import AuthIdentity, RecoveryCode, TotpCredential, WebauthnChallenge, WebauthnCredential
 from app.models.base import AuthProvider
 from app.models.user import User
 from app.services.auth.recovery_codes import (
@@ -159,10 +159,17 @@ async def register_passkey(
     # must stage a fresh batch like a first factor
     reuse_existing_codes = await has_active_recovery_codes(db, user_id) and not user.second_factor_reenrollment_required
 
-    # Staging a fresh factor supersedes any passkey left staged by an abandoned earlier attempt, so
-    # acknowledging the new recovery codes cannot also silently activate that stale passkey
+    # Staging a fresh factor supersedes any other factor left staged by an abandoned earlier attempt,
+    # so this passkey is the only one pending and acknowledging its codes cannot instead complete a
+    # stranded authenticator against this batch. The mirror of the sweep in begin_totp_setup, the
+    # unconfirmed TOTP is deleted here rather than through the totp module to avoid an import cycle
     if not reuse_existing_codes:
-        await _delete_staged_passkeys(db, user_id)
+        await delete_staged_passkeys(db, user_id)
+        await db.execute(
+            delete(TotpCredential).where(
+                TotpCredential.user_id == user_id, TotpCredential.confirmed_at.is_(None)
+            )
+        )
 
     transports = credential.get("response", {}).get("transports") or []
     passkey = WebauthnCredential(
@@ -303,7 +310,7 @@ async def _staged_passkeys(db: AsyncSession, user_id: uuid.UUID) -> list[Webauth
     return list(result.scalars().all())
 
 
-async def _delete_staged_passkeys(db: AsyncSession, user_id: uuid.UUID) -> None:
+async def delete_staged_passkeys(db: AsyncSession, user_id: uuid.UUID) -> None:
     """Delete the user's passkeys still awaiting recovery-code acknowledgement"""
     # Clear any passkey left staged by an abandoned enrolment so a new staging starts from a clean slate
     await db.execute(

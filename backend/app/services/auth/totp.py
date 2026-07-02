@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.encryption import decrypt, encrypt
 from app.models.auth import TotpCredential
 from app.services.auth.recovery_codes import delete_pending_recovery_codes
+from app.services.auth.webauthn import delete_staged_passkeys
 
 # Authenticator apps assume these defaults and many ignore other values, so they are fixed
 _TOTP_DIGITS = 6
@@ -84,9 +85,10 @@ async def begin_totp_setup(db: AsyncSession, user_id: uuid.UUID, account_name: s
     """Start TOTP enrolment by persisting a pending encrypted secret
 
     A pending credential is overwritten so an abandoned setup can be retried, while a confirmed
-    credential is refused because replacing a live second factor requires step-up. Any staged
-    recovery codes from an abandoned attempt are cleared so completion still needs a fresh confirm
-    and two-factor can never be enabled around an unverified secret
+    credential is refused because replacing a live second factor requires step-up. Staging TOTP
+    supersedes any passkey left staged by an abandoned attempt, together with the staged recovery
+    codes, so only one factor is ever staged and confirming that passkey later cannot promote this
+    enrolment's batch. Two-factor can never be enabled around an unverified secret
 
     Args:
         db: Active database session
@@ -103,7 +105,9 @@ async def begin_totp_setup(db: AsyncSession, user_id: uuid.UUID, account_name: s
     if credential is not None and credential.confirmed_at is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Two-factor authentication is already enabled")
 
-    # Discard staged codes from an abandoned attempt, but leave an active batch intact for re-enrol
+    # Supersede an abandoned staged passkey and its staged codes so this enrolment is the only one
+    # pending, but leave an active batch intact for re-enrol
+    await delete_staged_passkeys(db, user_id)
     await delete_pending_recovery_codes(db, user_id)
 
     secret = generate_totp_secret()

@@ -221,6 +221,69 @@ async def test_abandoned_staged_passkey_is_superseded_by_a_new_one(client, monke
     assert [p["name"] for p in (await client.get("/auth/passkeys", headers=auth)).json()] == ["Kept"]
 
 
+async def test_totp_setup_supersedes_an_abandoned_staged_passkey(client, monkeypatch):
+    """Beginning TOTP enrolment drops a passkey left staged
+
+    Confirming it later cannot activate it nor promote the authenticator's recovery batch as though the
+    passkey's own codes were saved
+    """
+    auth = _get_auth_header(await _create_user(client))
+
+    # Stage a first passkey with its own pending recovery batch, then abandon it
+    registered = await _register_passkey(client, auth, monkeypatch, b"abandoned-key", "Abandoned")
+    assert registered.json()["recovery_codes"] is not None
+
+    # Enrol TOTP: setup supersedes the staged passkey and its batch, confirm stages a fresh one that
+    # belongs to the authenticator, not the abandoned passkey
+    secret = (
+        await client.post("/auth/2fa/setup", headers=auth, json={"step_up": {"password": SIGNUP_PAYLOAD["password"]}})
+    ).json()["secret"]
+    totp_batch = (
+        await client.post("/auth/2fa/confirm", headers=auth, json={"code": pyotp.TOTP(secret).now()})
+    ).json()["recovery_codes"]
+    assert len(totp_batch) == 10
+
+    # The staged passkey is gone, so confirming it is refused and it never becomes a live factor
+    confirm = await client.post("/auth/passkeys/register/confirm", headers=auth)
+    assert confirm.status_code == 400
+    assert (await client.get("/auth/passkeys", headers=auth)).json() == []
+
+    # The authenticator is not stranded either: its own enrolment completes and turns two-factor on
+    assert (await client.post("/auth/2fa/complete", headers=auth)).status_code == 204
+    assert (await client.get("/auth/2fa/status", headers=auth)).json()["totp_enabled"] is True
+
+
+async def test_registering_a_passkey_supersedes_an_abandoned_staged_totp(client, monkeypatch):
+    """Registering a passkey drops an unconfirmed authenticator, the mirror of the setup-time sweep
+
+    Completing that stranded TOTP later cannot turn it on against the passkey's recovery batch, and the
+    passkey still confirms cleanly against its own
+    """
+    auth = _get_auth_header(await _create_user(client))
+    password = SIGNUP_PAYLOAD["password"]
+
+    # Stage a first authenticator with its own pending batch, but do not complete enrolment
+    secret = (await client.post("/auth/2fa/setup", headers=auth, json={"step_up": {"password": password}})).json()[
+        "secret"
+    ]
+    totp_batch = (
+        await client.post("/auth/2fa/confirm", headers=auth, json={"code": pyotp.TOTP(secret).now()})
+    ).json()["recovery_codes"]
+    assert len(totp_batch) == 10
+
+    # Registering a passkey supersedes the staged authenticator and stages the passkey's own batch
+    registered = await _register_passkey(client, auth, monkeypatch, b"kept-key", "Kept")
+    assert registered.json()["recovery_codes"] is not None
+
+    # The authenticator is gone, so completing it is refused and two-factor never turns on
+    assert (await client.post("/auth/2fa/complete", headers=auth)).status_code == 400
+    assert (await client.get("/auth/2fa/status", headers=auth)).json()["totp_enabled"] is False
+
+    # The passkey still confirms cleanly against its own recovery batch
+    assert (await client.post("/auth/passkeys/register/confirm", headers=auth)).status_code == 204
+    assert [p["name"] for p in (await client.get("/auth/passkeys", headers=auth)).json()] == ["Kept"]
+
+
 async def test_second_passkey_activates_without_new_codes(client, monkeypatch):
     """Once recovery codes exist, a further passkey is active immediately and issues no new codes"""
     signup = await _create_user(client)
