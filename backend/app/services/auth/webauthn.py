@@ -159,6 +159,11 @@ async def register_passkey(
     # must stage a fresh batch like a first factor
     reuse_existing_codes = await has_active_recovery_codes(db, user_id) and not user.second_factor_reenrollment_required
 
+    # Staging a fresh factor supersedes any passkey left staged by an abandoned earlier attempt, so
+    # acknowledging the new recovery codes cannot also silently activate that stale passkey
+    if not reuse_existing_codes:
+        await _delete_staged_passkeys(db, user_id)
+
     transports = credential.get("response", {}).get("transports") or []
     passkey = WebauthnCredential(
         user_id=user_id,
@@ -296,6 +301,16 @@ async def _staged_passkeys(db: AsyncSession, user_id: uuid.UUID) -> list[Webauth
         )
     )
     return list(result.scalars().all())
+
+
+async def _delete_staged_passkeys(db: AsyncSession, user_id: uuid.UUID) -> None:
+    """Delete the user's passkeys still awaiting recovery-code acknowledgement"""
+    # Clear any passkey left staged by an abandoned enrolment so a new staging starts from a clean slate
+    await db.execute(
+        delete(WebauthnCredential).where(
+            WebauthnCredential.user_id == user_id, WebauthnCredential.confirmed_at.is_(None)
+        )
+    )
 
 
 async def build_passkey_authentication_options(db: AsyncSession) -> str:
