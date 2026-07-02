@@ -208,25 +208,33 @@
     text-align: left;
   }
 
+  /* WebKit top-aligns the date text once the native appearance is stripped, while Firefox already
+     centres it. The datetime-edit selector guard keeps this WebKit only so the Firefox rendering
+     stays untouched. The host flexes so the edit region stretches to the full field height, then the
+     edit region centres its own fields, since aligning on the host alone still leaves Chrome biased
+     toward the top */
+  @supports selector(::-webkit-datetime-edit) {
+    .app-input[type="date"] {
+      display: inline-flex;
+    }
+
+    .app-input[type="date"]::-webkit-datetime-edit {
+      display: flex;
+      align-items: center;
+      padding: 0;
+    }
+  }
+
   .app-date-input-balanced {
     padding-left: 0.75rem;
     padding-right: 0.75rem;
   }
 
-  /* The native date appearance gives WebKit an intrinsic width that ignores the flex track and
-     overflows the panel, so the appearance stays stripped from the base rule to let the field
-     shrink. Stripping it also removes the native calendar glyph, so the visible icon is an overlaid
-     element and the native indicator is stretched transparently across the field to keep a tap
-     anywhere opening the picker */
+  /* The overlaid calendar button opens the picker through showPicker, which is the one trigger that
+     fires reliably in Chrome, so the native WebKit indicator is hidden to avoid a second glyph while
+     the date segments stay directly editable */
   .app-date-input-balanced[type="date"]::-webkit-calendar-picker-indicator {
-    position: absolute;
-    inset: 0;
-    width: auto;
-    height: auto;
-    margin: 0;
-    padding: 0;
-    opacity: 0;
-    cursor: pointer;
+    display: none;
   }
 
   /* Firefox keeps its own native calendar button and ignores the WebKit indicator rules above, so

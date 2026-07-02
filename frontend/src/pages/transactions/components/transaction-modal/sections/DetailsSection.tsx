@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import { Calendar } from 'lucide-react'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
 import IconTooltip from '@/components/tooltips/IconTooltip'
@@ -43,6 +44,8 @@ export default function TransactionDetailsSection({
   onAmountBlur,
   onNotesChange,
 }: TransactionDetailsSectionProps) {
+  const dateInputRef = useRef<HTMLInputElement>(null)
+
   return (
     <TransactionModalSectionFrame number="03" title="Details">
       <div className="grid gap-3 sm:grid-cols-[11rem_8.5rem_minmax(0,1fr)]">
@@ -70,15 +73,29 @@ export default function TransactionDetailsSection({
               onBlur={onDateBlur}
             />
           </div>
-          <input
-            id="txn-date"
-            type="date"
-            className={`app-input app-date-input-balanced hidden min-[1050px]:block disabled:cursor-not-allowed disabled:opacity-60 ${dateError ? 'app-input-error' : ''}`}
-            value={date}
-            disabled={readOnly}
-            onChange={(event) => onDateChange(event.target.value)}
-            onBlur={onDateBlur}
-          />
+          <div className="relative hidden min-[1050px]:block">
+            <input
+              ref={dateInputRef}
+              id="txn-date"
+              type="date"
+              className={`app-input app-date-input-balanced pr-9 disabled:cursor-not-allowed disabled:opacity-60 ${dateError ? 'app-input-error' : ''}`}
+              value={date}
+              disabled={readOnly}
+              onChange={(event) => onDateChange(event.target.value)}
+              onBlur={onDateBlur}
+            />
+            <button
+              type="button"
+              aria-label="Open calendar"
+              disabled={readOnly}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => dateInputRef.current?.showPicker?.()}
+              className="app-date-overlay-icon absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer border-0 bg-transparent p-0 disabled:cursor-not-allowed"
+              style={{ color: 'var(--app-text-subtle)' }}
+            >
+              <Calendar size={15} aria-hidden className="block" />
+            </button>
+          </div>
         </div>
         <div>
           <div className="mb-1.5 flex items-center gap-2">

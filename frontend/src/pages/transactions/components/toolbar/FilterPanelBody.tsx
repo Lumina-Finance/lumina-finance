@@ -355,12 +355,16 @@ function DateFacetInput({
           value={value}
           onChange={(event) => onValueChange(event.target.value)}
         />
-        <Calendar
-          size={15}
-          aria-hidden
-          className="app-date-overlay-icon pointer-events-none absolute right-3 top-1/2 -translate-y-1/2"
+        <button
+          type="button"
+          aria-label="Open calendar"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => inputRef.current?.showPicker?.()}
+          className="app-date-overlay-icon absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer border-0 bg-transparent p-0"
           style={{ color: 'var(--app-text-subtle)' }}
-        />
+        >
+          <Calendar size={15} aria-hidden className="block" />
+        </button>
       </div>
     </label>
   )
