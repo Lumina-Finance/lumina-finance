@@ -208,16 +208,19 @@
     text-align: left;
   }
 
+  /* The stretched indicator below is absolutely positioned, so the field itself must be the
+     containing block. Without this, Chrome resolves the indicator against the nearest positioned
+     ancestor (the modal panel) and blankets it with a transparent click target that traps every
+     click and never lets the picker dismiss */
   .app-date-input-balanced {
+    position: relative;
     padding-left: 0.75rem;
     padding-right: 0.75rem;
   }
 
-  /* The native date appearance gives WebKit an intrinsic width that ignores the flex track and
-     overflows the panel, so the appearance stays stripped from the base rule to let the field
-     shrink. Stripping it also removes the native calendar glyph, so the visible icon is an overlaid
-     element and the native indicator is stretched transparently across the field to keep a tap
-     anywhere opening the picker */
+  /* WebKit's native date appearance forces an intrinsic width that overflows the flex track, so the
+     base rule strips it and the visible calendar glyph is an overlaid element instead. The native
+     indicator is kept transparent and stretched across the field so a tap anywhere opens the picker */
   .app-date-input-balanced[type="date"]::-webkit-calendar-picker-indicator {
     position: absolute;
     inset: 0;

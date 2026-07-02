@@ -70,15 +70,23 @@ export default function TransactionDetailsSection({
               onBlur={onDateBlur}
             />
           </div>
-          <input
-            id="txn-date"
-            type="date"
-            className={`app-input app-date-input-balanced hidden min-[1050px]:block disabled:cursor-not-allowed disabled:opacity-60 ${dateError ? 'app-input-error' : ''}`}
-            value={date}
-            disabled={readOnly}
-            onChange={(event) => onDateChange(event.target.value)}
-            onBlur={onDateBlur}
-          />
+          <div className="relative hidden min-[1050px]:block">
+            <input
+              id="txn-date"
+              type="date"
+              className={`app-input app-date-input-balanced pr-9 disabled:cursor-not-allowed disabled:opacity-60 ${dateError ? 'app-input-error' : ''}`}
+              value={date}
+              disabled={readOnly}
+              onChange={(event) => onDateChange(event.target.value)}
+              onBlur={onDateBlur}
+            />
+            <Calendar
+              size={15}
+              aria-hidden
+              className="app-date-overlay-icon pointer-events-none absolute right-3 top-1/2 -translate-y-1/2"
+              style={{ color: 'var(--app-text-subtle)' }}
+            />
+          </div>
         </div>
         <div>
           <div className="mb-1.5 flex items-center gap-2">
