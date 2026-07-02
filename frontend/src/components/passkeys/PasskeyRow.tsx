@@ -1,20 +1,14 @@
-import { Check, Pencil, Trash2, X } from 'lucide-react';
-import { AnimatePresence, motion } from 'motion/react';
+import { Check, KeyRound, Pencil, Trash2, X } from 'lucide-react';
 import { useState } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import type { Passkey } from '@/api/passkeys';
+import { OverflowMenu } from '@/components/passkeys/OverflowMenu';
+import { formatRelativeTime } from '@/utils/relativeTime';
 
 const CREATED_DATE_OPTIONS: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'short', day: 'numeric' };
 
-// Cross-fade with a small slide so toggling the remove confirmation eases between states
-const ACTION_TRANSITION = { duration: 0.15, ease: [0.25, 0.1, 0.25, 1] as const };
-const ACTION_MOTION = {
-  initial: { opacity: 0, x: 6 },
-  animate: { opacity: 1, x: 0 },
-  exit: { opacity: 0, x: 6 },
-  transition: ACTION_TRANSITION,
-};
-
-type RowMode = 'view' | 'rename' | 'confirm-remove';
+// Crossfade the card between its resting details and the rename fields so neither state snaps in
+const FIELD_TRANSITION = { duration: 0.18, ease: [0.25, 0.1, 0.25, 1] as const };
 
 interface PasskeyRowProps {
   passkey: Passkey;
@@ -25,18 +19,17 @@ interface PasskeyRowProps {
 }
 
 /**
- * One registered passkey with inline rename and a remove action that opens a step-up prompt
- *
- * Rename stays inline, while removal confirms inline and then steps up, since the backend re-checks a
- * current second factor before deleting a passkey
+ * One registered passkey as a card: a key badge, its name, when it was added and last used, and an
+ * overflow menu for rename and remove. Rename edits inline, while remove opens a step-up prompt, since
+ * the backend re-checks a current second factor before deleting a passkey
  */
 export function PasskeyRow({ passkey, onRename, onRemove, disabled }: PasskeyRowProps) {
-  const [mode, setMode] = useState<RowMode>('view');
+  const [isRenaming, setIsRenaming] = useState(false);
   const [draftName, setDraftName] = useState(passkey.name);
   const [error, setError] = useState<string | null>(null);
 
   /**
-   * Saves a trimmed, non-empty new label and returns the row to its resting state
+   * Saves a trimmed, non-empty new label and returns the card to its resting state
    */
   async function saveRename() {
     const trimmed = draftName.trim();
@@ -45,109 +38,116 @@ export function PasskeyRow({ passkey, onRename, onRemove, disabled }: PasskeyRow
     setError(null);
     try {
       await onRename(trimmed);
-      setMode('view');
+      setIsRenaming(false);
     } catch {
       setError('Could not rename this passkey.');
     }
   }
 
   /**
-   * Starts removal, which opens a step-up prompt, and collapses this inline confirmation behind it
+   * Starts removal, which opens a step-up prompt before the backend deletes the passkey
    */
-  async function confirmRemove() {
+  async function handleRemove() {
     setError(null);
     try {
       await onRemove();
-      setMode('view');
     } catch {
       setError('Could not remove this passkey.');
     }
   }
 
-  if (mode === 'rename') {
-    return (
-      <div className="flex items-center gap-2 px-3 py-2.5">
-        <input
-          className="app-input flex-1"
-          value={draftName}
-          onChange={(event) => setDraftName(event.target.value)}
-          autoFocus
-          aria-label="Passkey name"
-        />
-        <button type="button" onClick={saveRename} disabled={disabled} className="app-secondary-button" aria-label="Save name">
-          <Check size={16} aria-hidden />
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setDraftName(passkey.name);
-            setMode('view');
-          }}
-          className="app-secondary-button"
-          aria-label="Cancel rename"
-        >
-          <X size={16} aria-hidden />
-        </button>
-      </div>
-    );
-  }
+  const addedLabel = `Added ${new Date(passkey.created_at).toLocaleDateString(undefined, CREATED_DATE_OPTIONS)}`;
+  const usageLabel = passkey.last_used_at ? `last used ${formatRelativeTime(passkey.last_used_at)}` : 'not used yet';
 
   return (
-    <div className="flex items-center justify-between gap-3 px-3 py-2.5">
-      <div className="min-w-0">
-        <p className="truncate text-sm font-medium">{passkey.name}</p>
-        <p className="text-xs" style={{ color: 'var(--app-text-muted)' }}>
-          Added {new Date(passkey.created_at).toLocaleDateString(undefined, CREATED_DATE_OPTIONS)}
-        </p>
-        {error && (
-          <p className="text-xs" style={{ color: 'var(--app-negative)' }}>
-            {error}
-          </p>
-        )}
+    <div className="rounded-xl border p-3" style={{ borderColor: 'var(--app-border)' }}>
+      <div className="flex items-center gap-3">
+        <div
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
+          style={{ backgroundColor: 'var(--app-accent-soft)', color: 'var(--app-accent)' }}
+          aria-hidden
+        >
+          <KeyRound size={18} />
+        </div>
+
+        <div className="grid min-h-10 min-w-0 flex-1 grid-cols-1">
+          <AnimatePresence initial={false}>
+            {isRenaming ? (
+              <motion.div
+                key="rename"
+                className="flex items-center gap-2"
+                style={{ gridArea: '1 / 1' }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={FIELD_TRANSITION}
+              >
+                <input
+                  className="app-input min-w-0 flex-1"
+                  value={draftName}
+                  onChange={(event) => setDraftName(event.target.value)}
+                  autoFocus
+                  aria-label="Passkey name"
+                />
+                <button type="button" onClick={saveRename} disabled={disabled} className="app-secondary-button shrink-0" aria-label="Save name">
+                  <Check size={16} aria-hidden />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDraftName(passkey.name);
+                    setError(null);
+                    setIsRenaming(false);
+                  }}
+                  className="app-secondary-button shrink-0"
+                  aria-label="Cancel rename"
+                >
+                  <X size={16} aria-hidden />
+                </button>
+              </motion.div>
+            ) : (
+              <motion.div
+                key="view"
+                className="flex min-w-0 items-center gap-3"
+                style={{ gridArea: '1 / 1' }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={FIELD_TRANSITION}
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{passkey.name}</p>
+                  <p className="truncate text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                    {addedLabel} · {usageLabel}
+                  </p>
+                </div>
+                <OverflowMenu
+                  label={`Options for ${passkey.name}`}
+                  disabled={disabled}
+                  items={[
+                    {
+                      label: 'Rename',
+                      icon: <Pencil size={15} aria-hidden />,
+                      onSelect: () => {
+                        setDraftName(passkey.name);
+                        setError(null);
+                        setIsRenaming(true);
+                      },
+                    },
+                    { label: 'Remove', icon: <Trash2 size={15} aria-hidden />, onSelect: handleRemove, danger: true },
+                  ]}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
 
-      <AnimatePresence mode="wait" initial={false}>
-        {mode === 'confirm-remove' ? (
-          <motion.div key="confirm" className="flex h-10 shrink-0 items-center gap-2" {...ACTION_MOTION}>
-            <button type="button" onClick={confirmRemove} disabled={disabled} className="app-danger-button">
-              Remove
-            </button>
-            <button type="button" onClick={() => setMode('view')} className="app-secondary-button">
-              Cancel
-            </button>
-          </motion.div>
-        ) : (
-          <motion.div key="actions" className="flex h-10 shrink-0 items-center gap-1" {...ACTION_MOTION}>
-            <button
-              type="button"
-              onClick={() => {
-                setDraftName(passkey.name);
-                setError(null);
-                setMode('rename');
-              }}
-              disabled={disabled}
-              className="rounded-md p-2"
-              style={{ color: 'var(--app-text-muted)' }}
-              aria-label={`Rename ${passkey.name}`}
-            >
-              <Pencil size={16} aria-hidden />
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setError(null);
-                setMode('confirm-remove');
-              }}
-              disabled={disabled}
-              className="rounded-md p-2"
-              style={{ color: 'var(--app-negative)' }}
-              aria-label={`Remove ${passkey.name}`}
-            >
-              <Trash2 size={16} aria-hidden />
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {error && (
+        <p className="mt-2 text-xs" style={{ color: 'var(--app-negative)' }}>
+          {error}
+        </p>
+      )}
     </div>
   );
 }
