@@ -40,7 +40,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   'Email already registered': 'An account with this email already exists.',
   'Account temporarily locked': 'Too many failed attempts.',
   'Invalid currency code': 'The selected currency is not supported.',
-  'Invalid code': 'That code was incorrect. Please log in and try again.',
+  'Invalid code': 'That code was incorrect. Please try again.',
   'Invalid or expired challenge': 'Your verification expired. Please log in again.',
 }
 

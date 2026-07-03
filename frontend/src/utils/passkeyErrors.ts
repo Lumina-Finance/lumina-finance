@@ -13,14 +13,15 @@ export function isPasskeyCeremonyCancelled(error: unknown): boolean {
 /**
  * Turns a failed passwordless sign-in into a message the user can act on
  *
- * A WebAuthnError comes from the browser prompt itself, while any other error is the server rejecting
- * the assertion and already carries a usable message
+ * A WebAuthnError comes from the browser prompt itself, so it keeps the email-and-password fallback for
+ * a device that cannot run the ceremony. A server rejection is a verified-but-refused assertion, which
+ * gets the neutral retry message rather than the raw backend detail
  */
 export function getPasskeySignInMessage(error: unknown): string {
   if (error instanceof WebAuthnError) {
     return 'Could not sign in with a passkey. Try again, or use your email and password.';
   }
-  return error instanceof Error && error.message ? error.message : 'Passkey sign-in failed.';
+  return "Couldn't verify your passkey. Please try again.";
 }
 
 /**
