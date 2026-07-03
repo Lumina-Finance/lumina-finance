@@ -9,6 +9,7 @@ import { StepTransition } from '@/components/twoFactor/StepTransition';
 import { TwoFactorModalShell } from '@/components/twoFactor/TwoFactorModalShell';
 import { WarningCallout } from '@/components/twoFactor/WarningCallout';
 import { useAuth } from '@/hooks/useAuth';
+import { buildLockoutWarning, getAttemptsRemaining } from '@/utils/lockoutWarning';
 import { isPasskeyCeremonyCancelled } from '@/utils/passkeyErrors';
 import { assessPasskeySupport } from '@/utils/passkeySupport';
 import { markRecoveryIntent } from '@/utils/recoveryIntent';
@@ -80,6 +81,9 @@ export function StepUpModal({
   const [password, setPassword] = useState('');
   const [otp, setOtp] = useState('');
   const [error, setError] = useState('');
+  // Holds the attempts left before the lockout after a failed try, shown as a callout so the user is
+  // warned before the entry that signs them out everywhere
+  const [lockoutRemaining, setLockoutRemaining] = useState<number | null>(null);
   const [verifyingPath, setVerifyingPath] = useState<'code' | 'passkey' | null>(null);
   const [confirmingReset, setConfirmingReset] = useState(false);
   const [recoveryAcknowledged, setRecoveryAcknowledged] = useState(false);
@@ -116,6 +120,7 @@ export function StepUpModal({
     setPassword('');
     setOtp('');
     setError('');
+    setLockoutRemaining(null);
     setConfirmingReset(false);
     setRecoveryAcknowledged(false);
     setResetting(false);
@@ -129,6 +134,7 @@ export function StepUpModal({
    */
   const runStepUp = async (path: 'code' | 'passkey', action: () => Promise<void>) => {
     setError('');
+    setLockoutRemaining(null);
     setVerifyingPath(path);
     const start = Date.now();
     try {
@@ -137,7 +143,14 @@ export function StepUpModal({
       reset();
     } catch (stepUpError) {
       await delayToMinimum(start, MFA_LOADING_MIN_MS);
-      if (!isPasskeyCeremonyCancelled(stepUpError)) setError(GENERIC_STEP_UP_ERROR);
+      // A step-up 401 reports the remaining allowance, which supersedes the generic error so the user
+      // sees the lockout countdown rather than a bare failure
+      const remaining = getAttemptsRemaining(stepUpError);
+      if (remaining !== null) {
+        setLockoutRemaining(remaining);
+      } else if (!isPasskeyCeremonyCancelled(stepUpError)) {
+        setError(GENERIC_STEP_UP_ERROR);
+      }
       setOtp('');
     } finally {
       setVerifyingPath(null);
@@ -214,6 +227,16 @@ export function StepUpModal({
     onClose();
   };
 
+  // A lockout countdown outranks the generic error, so a near-lockout warning is never hidden behind it
+  const feedback =
+    lockoutRemaining !== null ? (
+      <WarningCallout>{buildLockoutWarning(lockoutRemaining)}</WarningCallout>
+    ) : error ? (
+      <p className="text-center text-sm" style={{ color: 'var(--app-negative)' }}>
+        {error}
+      </p>
+    ) : null;
+
   return (
     <TwoFactorModalShell open={open} onClose={handleClose} closeDisabled={verifying || resetting}>
       <StepTransition
@@ -276,6 +299,7 @@ export function StepUpModal({
               onChange={(event) => setPassword(event.target.value)}
               autoFocus
             />
+            {passwordOnly && feedback}
             {passwordOnly ? (
               <div className="flex justify-center">
                 <button
@@ -325,11 +349,7 @@ export function StepUpModal({
                 <OtpInput value={otp} onChange={setOtp} disabled={verifying} autoFocus={!canUsePasskey} />
               )}
 
-              {error && (
-                <p className="text-center text-sm" style={{ color: 'var(--app-negative)' }}>
-                  {error}
-                </p>
-              )}
+              {feedback}
 
               {showCodeEntry && (
                 <div className="flex justify-center">

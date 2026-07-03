@@ -5,6 +5,7 @@ import { useTotpStatus } from '@/api/twoFactor'
 import { useChangePassword } from '@/api/user'
 import type { StepUpCredentials } from '@/components/twoFactor/StepUpModal'
 import { useActionFeedback } from '@/hooks/useActionFeedback'
+import { buildLockoutWarning, getAttemptsRemaining } from '@/utils/lockoutWarning'
 import { isNewPasswordValid } from '@/utils/passwordPolicy'
 
 export interface PasswordFormState {
@@ -27,7 +28,10 @@ const emptyPasswordForm: PasswordFormState = {
  */
 function getChangePasswordErrorMessage(error: unknown): string {
   if (error instanceof ApiError && error.status === 401) {
-    return 'Your current password is incorrect'
+    // A wrong current password shares the login lockout, so warn how close it is to signing the user out
+    const remaining = getAttemptsRemaining(error)
+    const incorrect = 'Your current password is incorrect'
+    return remaining !== null ? `${incorrect}. ${buildLockoutWarning(remaining)}` : incorrect
   }
   if (error instanceof ApiError && error.status === 422) {
     return 'Your new password does not meet the requirements'

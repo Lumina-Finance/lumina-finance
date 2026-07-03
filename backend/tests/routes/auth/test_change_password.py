@@ -115,6 +115,49 @@ async def test_change_password_locks_after_repeated_wrong_password(client):
         assert credential.failed_attempt_count >= 5
 
 
+async def test_change_password_wrong_password_reports_attempts_remaining(client):
+    """A no-factor password change reports the remaining step-up tries so a fumble does not surprise-lock"""
+    signup = await _create_user(client)
+    headers = _get_auth_header(signup)
+
+    countdown = []
+    for _ in range(4):
+        resp = await client.patch(
+            "/auth/password",
+            json={"current_password": "WrongPassword123!", "new_password": _NEW_PASSWORD},
+            headers=headers,
+        )
+        assert resp.status_code == 401
+        countdown.append(resp.headers["x-auth-attempts-remaining"])
+
+    assert countdown == ["4", "3", "2", "1"]
+
+    # The fifth wrong entry locks the account, and the header reports the exhausted allowance
+    locking = await client.patch(
+        "/auth/password",
+        json={"current_password": "WrongPassword123!", "new_password": _NEW_PASSWORD},
+        headers=headers,
+    )
+    assert locking.status_code == 401
+    assert locking.headers["x-auth-attempts-remaining"] == "0"
+
+
+async def test_change_password_wrong_second_factor_reports_attempts_remaining(client):
+    """A wrong step-up code reports the remaining allowance so the user is warned before the lockout"""
+    signup = await _create_user(client)
+    headers = _get_auth_header(signup)
+    await _enable_totp(client, headers)
+
+    resp = await client.patch(
+        "/auth/password",
+        json={"current_password": SIGNUP_PAYLOAD["password"], "new_password": _NEW_PASSWORD, "code": "000000"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 401
+    assert resp.headers["x-auth-attempts-remaining"] == "4"
+
+
 async def test_change_password_rejects_weak_new_password(client):
     """A new password that fails the policy is rejected before any update"""
     signup = await _create_user(client)

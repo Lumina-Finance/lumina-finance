@@ -1,8 +1,11 @@
 """Step-up reauthentication for sensitive two-factor changes"""
 
+from typing import NoReturn
+
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.auth import PasswordCredential
 from app.models.user import User
 from app.schemas.auth import StepUpRequest
 from app.services.auth.account_lockout import (
@@ -14,6 +17,32 @@ from app.services.auth.account_lockout import (
 from app.services.auth.password_helpers import is_password_valid
 from app.services.auth.totp import is_totp_enabled, is_user_totp_code_valid
 from app.services.auth.webauthn import is_passkey_registered, verify_passkey_second_factor
+
+# Carries how many step-up attempts remain before the shared lockout trips, so the client can warn the
+# user that another wrong entry locks the account and signs every session out
+_ATTEMPTS_REMAINING_HEADER = "X-Auth-Attempts-Remaining"
+
+
+async def _reject_failed_step_up(db: AsyncSession, credential: PasswordCredential, detail: str) -> NoReturn:
+    """Record a failed step-up attempt and reject it, reporting the remaining allowance to the client
+
+    The header lets the caller show how close the account is to the lockout that signs every session
+    out, so a fumbling owner is warned before the last try rather than logged out with no notice
+
+    Args:
+        db: Active database session
+        credential: Password credential receiving the failed attempt
+        detail: Message naming which part of the step-up failed
+
+    Raises:
+        HTTPException: Always, a 401 carrying the attempts-remaining header
+    """
+    remaining = await record_failed_attempt(db, credential)
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail=detail,
+        headers={_ATTEMPTS_REMAINING_HEADER: str(remaining)},
+    )
 
 
 async def verify_step_up(
@@ -47,10 +76,10 @@ async def verify_step_up(
     if credential is not None and is_account_locked(credential):
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="Account temporarily locked")
 
-    if credential is None or not is_password_valid(password, credential.password_hash):
-        if credential is not None:
-            await record_failed_attempt(db, credential)
+    if credential is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+    if not is_password_valid(password, credential.password_hash):
+        await _reject_failed_step_up(db, credential, "Invalid credentials")
 
     if passkey is not None:
         try:
@@ -60,12 +89,12 @@ async def verify_step_up(
             # such as an expired or malformed challenge (400) does not, so a slow or fumbled ceremony
             # cannot lock the account
             if error.status_code == status.HTTP_401_UNAUTHORIZED:
-                await record_failed_attempt(db, credential)
+                remaining = await record_failed_attempt(db, credential)
+                error.headers = {**(error.headers or {}), _ATTEMPTS_REMAINING_HEADER: str(remaining)}
             raise
     elif code is not None:
         if not await is_user_totp_code_valid(db, user.id, code):
-            await record_failed_attempt(db, credential)
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid two-factor code")
+            await _reject_failed_step_up(db, credential, "Invalid two-factor code")
     else:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="A second factor is required")
 
@@ -108,8 +137,7 @@ async def verify_sensitive_action_step_up(
     if is_account_locked(credential):
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="Account temporarily locked")
     if not is_password_valid(password, credential.password_hash):
-        await record_failed_attempt(db, credential)
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+        await _reject_failed_step_up(db, credential, "Invalid credentials")
     await reset_failed_attempts(db, credential)
 
 

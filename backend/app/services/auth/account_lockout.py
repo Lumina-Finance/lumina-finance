@@ -38,7 +38,7 @@ def is_account_locked(credential: PasswordCredential) -> bool:
     return bool(credential.locked_until and credential.locked_until > datetime.now(UTC))
 
 
-async def record_failed_attempt(db: AsyncSession, credential: PasswordCredential) -> None:
+async def record_failed_attempt(db: AsyncSession, credential: PasswordCredential) -> int:
     """Count a failed authentication attempt and lock the account once the limit is reached
 
     Password and second-factor failures share this counter, so a known password cannot grind the
@@ -49,6 +49,9 @@ async def record_failed_attempt(db: AsyncSession, credential: PasswordCredential
     Args:
         db: Active database session
         credential: Password credential receiving the failed attempt
+
+    Returns:
+        The number of attempts left before the account locks, zero once this failure has locked it
     """
     # A lock that has already expired starts a fresh count, so waiting out the window restores the full
     # allowance instead of leaving the account one failure away from re-locking
@@ -61,6 +64,8 @@ async def record_failed_attempt(db: AsyncSession, credential: PasswordCredential
         credential.locked_until = datetime.now(UTC) + timedelta(minutes=_LOCKOUT_MINUTES)
         await delete_all_user_auth_sessions(db, credential.user_id)
     await db.commit()
+
+    return max(0, _MAX_FAILED_ATTEMPTS - credential.failed_attempt_count)
 
 
 async def reset_failed_attempts(db: AsyncSession, credential: PasswordCredential) -> None:

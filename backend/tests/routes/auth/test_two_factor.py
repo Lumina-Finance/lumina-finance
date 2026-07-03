@@ -251,6 +251,29 @@ async def test_repeated_wrong_step_up_codes_lock_the_account(client):
     assert locked.status_code == 423
 
 
+async def test_wrong_step_up_code_reports_attempts_remaining(client):
+    """A wrong step-up code returns the remaining allowance so the modal can warn before the lockout"""
+    auth, _, _ = await _enroll(client)
+
+    rejected = await client.post(
+        "/auth/2fa/disable", headers=auth, json={"password": _PASSWORD, "code": "000000"}
+    )
+
+    assert rejected.status_code == 401
+    assert rejected.headers["x-auth-attempts-remaining"] == "4"
+
+
+async def test_login_second_factor_failure_hides_attempts_remaining(client):
+    """The login factor step withholds the remaining count, so a grinder learns nothing about the lockout"""
+    await _enroll(client)
+
+    login = await client.post("/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": _PASSWORD})
+    verify = await client.post("/auth/2fa/verify", json={"mfa_token": login.json()["mfa_token"], "code": "000000"})
+
+    assert verify.status_code == 401
+    assert "x-auth-attempts-remaining" not in {name.lower() for name in verify.headers}
+
+
 async def test_regenerate_then_confirm_swaps_the_codes(client):
     """Confirming a regeneration activates the new batch and retires the old one"""
     auth, secret, old_codes = await _enroll(client)

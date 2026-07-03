@@ -2,6 +2,9 @@ import * as authApi from './auth';
 import { ApiError, type AuthResponse } from './auth';
 import { API_BASE } from './config';
 
+// Step-up 401s report how many tries remain before the shared lockout signs the user out everywhere
+const ATTEMPTS_REMAINING_HEADER = 'X-Auth-Attempts-Remaining';
+
 interface AuthBindings {
   getAccessToken: () => string | null;
   onSessionRefreshed: (response: AuthResponse) => void;
@@ -80,7 +83,9 @@ export async function authenticatedFetch<T>(path: string, options: RequestInit =
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as { detail?: string } | null;
     const message = body?.detail ?? `Request failed (${res.status})`;
-    throw new ApiError(message, res.status);
+    const attemptsHeader = res.headers.get(ATTEMPTS_REMAINING_HEADER);
+    const attemptsRemaining = attemptsHeader !== null ? Number(attemptsHeader) : undefined;
+    throw new ApiError(message, res.status, Number.isNaN(attemptsRemaining) ? undefined : attemptsRemaining);
   }
 
   // 204 No Content responses have an empty body, so res.json would fail
