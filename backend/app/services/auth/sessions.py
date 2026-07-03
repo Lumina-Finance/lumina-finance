@@ -63,6 +63,46 @@ async def delete_auth_session(db: AsyncSession, session_id: uuid.UUID) -> None:
     await db.execute(session_delete_query)
 
 
+async def delete_other_user_auth_sessions(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    keep_session_id: uuid.UUID,
+) -> None:
+    """Delete a user's auth sessions except the one to keep
+
+    Args:
+        db: Active database session
+        user_id: User whose other sessions are revoked
+        keep_session_id: Session that stays active, normally the caller's own
+
+    Returns:
+        None
+    """
+    other_sessions_delete_query = delete(AuthSession).where(
+        AuthSession.user_id == user_id,
+        AuthSession.id != keep_session_id,
+    )
+
+    # Removing the sessions cascades to their token allowlist rows
+    await db.execute(other_sessions_delete_query)
+
+
+async def delete_all_user_auth_sessions(db: AsyncSession, user_id: uuid.UUID) -> None:
+    """Delete every auth session for a user
+
+    Args:
+        db: Active database session
+        user_id: User whose sessions are all revoked
+
+    Returns:
+        None
+    """
+    sessions_delete_query = delete(AuthSession).where(AuthSession.user_id == user_id)
+
+    # Removing the sessions cascades to their token allowlist rows
+    await db.execute(sessions_delete_query)
+
+
 async def rotate_auth_session_tokens(
     db: AsyncSession,
     session_id: uuid.UUID,

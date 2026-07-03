@@ -71,7 +71,18 @@ GLOBAL_READ_TABLES = ("currencies", "institutions")
 
 # Auth tables stay out of RLS because the login and token flows query them before a
 # request identity exists, always by exact id, so the queries already scope them
-AUTH_TABLES = ("auth_identities", "password_credentials", "auth_sessions", "auth_tokens")
+AUTH_TABLES = (
+    "auth_identities",
+    "password_credentials",
+    "auth_sessions",
+    "auth_tokens",
+    "password_reset_tokens",
+    "mfa_challenges",
+    "totp_credentials",
+    "recovery_codes",
+    "webauthn_credentials",
+    "webauthn_challenges",
+)
 
 
 def apply_policies(connection: Connection) -> None:
@@ -92,6 +103,11 @@ def apply_policies(connection: Connection) -> None:
         connection.execute(text(f'GRANT SELECT ON public.{table} TO "{APP_DB_USER}"'))
     connection.execute(text(f'GRANT INSERT ON public.institutions TO "{APP_DB_USER}"'))
     for table in AUTH_TABLES:
+
+        # A later migration can add an auth table after this bootstrap runs, so skip any
+        # not yet created and let that migration grant the app role through grant_auth_table
+        if not _table_exists(connection, table):
+            continue
         connection.execute(text(f'GRANT {APP_TABLE_PRIVILEGES} ON public.{table} TO "{APP_DB_USER}"'))
 
     # The app role evaluates the policies and the auth flows, so it must execute the
@@ -117,6 +133,17 @@ def secure_registered_table(connection: Connection, table: str) -> None:
             _secure_table(connection, name, using_expr, check_expr)
             return
     raise KeyError(f"No registered row-level security policy for table {table!r}")
+
+
+def grant_auth_table(connection: Connection, table: str) -> None:
+    """Grant the app role on one auth table added after the bootstrap migration
+
+    Auth tables carry no row-level policy, so an incremental migration that adds one calls
+    this to give the app role the same access the bootstrap grants the original auth tables
+    """
+    if table not in AUTH_TABLES:
+        raise KeyError(f"{table!r} is not a registered auth table")
+    connection.execute(text(f'GRANT {APP_TABLE_PRIVILEGES} ON public.{table} TO "{APP_DB_USER}"'))
 
 
 def drop_policies(connection: Connection) -> None:

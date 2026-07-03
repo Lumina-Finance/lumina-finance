@@ -4,6 +4,8 @@ import MerchantSettingsSection from '@/pages/settings/components/merchant-settin
 import TagSettingsSection from '@/pages/settings/components/tag-settings-section'
 import ProfileSection from '@/pages/settings/components/ProfileSection'
 import RunwaySection from '@/pages/settings/components/runway-section'
+import { StepUpModal } from '@/components/twoFactor/StepUpModal'
+import SecuritySection from '@/pages/settings/components/security-section'
 import {
   SettingsDesktopSectionSidebar,
   SettingsMobileSectionMenu,
@@ -12,6 +14,7 @@ import { SettingsPaneActions } from '@/pages/settings/components/PaneActions'
 import TaxAdvantagedCategoriesSection from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section'
 import { useProfileSettingsForm } from '@/pages/settings/hooks/useProfileSettingsForm'
 import { useRunwaySettingsForm } from '@/pages/settings/hooks/useRunwaySettingsForm'
+import { useSecuritySettingsForm } from '@/pages/settings/hooks/useSecuritySettingsForm'
 import { useSettingsSectionNavigation } from '@/pages/settings/hooks/useSettingsSectionNavigation'
 
 export default function SettingsPage() {
@@ -45,6 +48,22 @@ export default function SettingsPage() {
     handleSaveRunway,
     handleDiscardRunway,
   } = useRunwaySettingsForm({ accounts, accountsLoading })
+  const {
+    passwordForm,
+    setPasswordField,
+    newPasswordValid,
+    confirmMatches,
+    isPasswordDirty,
+    isPasswordPending,
+    canSavePassword,
+    passwordSaveError,
+    passwordSaveStatus,
+    handleSavePassword,
+    handleDiscardPassword,
+    isStepUpOpen,
+    verifyPasswordStepUp,
+    closeStepUp,
+  } = useSecuritySettingsForm()
   const sectionNavigation = useSettingsSectionNavigation()
 
   const profileActions = (
@@ -58,14 +77,15 @@ export default function SettingsPage() {
       status={profileSaveStatus}
     />
   )
-  const emailPasswordActions = (
+  const securityActions = (
     <SettingsPaneActions
-      canSave={false}
-      dirty={false}
-      onDiscard={() => undefined}
-      onSave={() => undefined}
-      pending={false}
-      status="idle"
+      canSave={canSavePassword}
+      dirty={isPasswordDirty}
+      error={passwordSaveError}
+      onDiscard={handleDiscardPassword}
+      onSave={handleSavePassword}
+      pending={isPasswordPending}
+      status={passwordSaveStatus}
     />
   )
   const runwayActions = (
@@ -84,7 +104,7 @@ export default function SettingsPage() {
       <header className="app-page-header mb-3 min-[1050px]:mb-4 min-[1200px]:mb-6">
         <h1 className="app-page-title">Settings</h1>
         <p className="app-page-description">
-          Manage your profile, runway preferences, categories, merchants, tags, and tax-advantaged categories.
+          Manage your profile, security, runway preferences, categories, merchants, tags, and tax-advantaged categories.
         </p>
       </header>
 
@@ -114,7 +134,22 @@ export default function SettingsPage() {
             onFieldChange={setProfileField}
             firstNameValid={firstNameValid}
             userInformationActions={profileActions}
-            emailPasswordActions={emailPasswordActions}
+          />
+          <SecuritySection
+            email={user?.email ?? ''}
+            form={passwordForm}
+            onFieldChange={setPasswordField}
+            newPasswordValid={newPasswordValid}
+            confirmMatches={confirmMatches}
+            actions={securityActions}
+          />
+          <StepUpModal
+            open={isStepUpOpen}
+            title="Confirm it's you"
+            description="Confirm it's you to change your password."
+            allowPasskey
+            onClose={closeStepUp}
+            onVerify={verifyPasswordStepUp}
           />
           <RunwaySection
             loading={runwayLoading}

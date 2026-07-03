@@ -47,6 +47,10 @@ trap cleanup INT TERM EXIT
 ensure_private_key "Access" "$JWT_ACCESS_PRIVATE_KEY_PATH"
 ensure_private_key "Refresh" "$JWT_REFRESH_PRIVATE_KEY_PATH"
 
+# The encryption key protects TOTP secrets and OIDC client secrets at rest, generated
+# and persisted next to the role secrets when absent
+python -m app.encryption
+
 # Create the migrator and app roles and hand them schema ownership while still
 # connected as the admin role, before migrations run as the migrator
 python -m app.db.provision ensure-roles
@@ -54,6 +58,12 @@ python -m app.db.provision transfer-ownership
 
 # Run migrations and seed the database before starting the backend and Caddy
 alembic upgrade head
+
+# A restored backup arrives at migration head with its ACLs stripped so the bootstrap RLS
+# migration never re-runs, this re-applies the policies and app role grants from the app
+# source and is a no-op on a freshly migrated database
+python -m app.db.provision apply-rls
+
 python -m scripts.seed_currencies
 python -m scripts.seed_categories
 

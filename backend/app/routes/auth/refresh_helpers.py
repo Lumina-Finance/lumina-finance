@@ -62,7 +62,7 @@ async def refresh_auth_tokens(
 
     await _verify_refresh_token_allowlist(db, response, claims)
 
-    user = await get_user_by_id(db, str(claims.user_id))
+    user = await get_user_by_id(db, claims.user_id)
     if not user:
         _raise_refresh_token_error(response, "User not found")
 

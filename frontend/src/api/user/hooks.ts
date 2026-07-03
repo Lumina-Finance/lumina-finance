@@ -5,6 +5,7 @@ import {
   updateRunwaySettingsCaches,
 } from '@/api/cache/updates/user';
 import {
+  changePassword,
   fetchRunway,
   fetchRunwayAccounts,
   fetchRunwaySettings,
@@ -28,6 +29,15 @@ export function useUpdateProfile() {
     onSuccess: (_, payload) => {
       invalidateProfileUpdateCaches(queryClient, payload);
     },
+  });
+}
+
+/**
+ * Changes the current user's password
+ */
+export function useChangePassword() {
+  return useMutation({
+    mutationFn: changePassword,
   });
 }
 

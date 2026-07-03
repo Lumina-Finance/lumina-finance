@@ -2,6 +2,9 @@ import * as authApi from './auth';
 import { ApiError, type AuthResponse } from './auth';
 import { API_BASE } from './config';
 
+// Step-up 401s report how many tries remain before the shared lockout signs the user out everywhere
+const ATTEMPTS_REMAINING_HEADER = 'X-Auth-Attempts-Remaining';
+
 interface AuthBindings {
   getAccessToken: () => string | null;
   onSessionRefreshed: (response: AuthResponse) => void;
@@ -57,7 +60,12 @@ export async function authenticatedFetch<T>(path: string, options: RequestInit =
 
   let res = await makeRequest(token);
 
-  if (res.status === 401) {
+  // Only an access-token failure carries the bearer challenge. A wrong-credential 401 from a route,
+  // such as a bad step-up code, has no challenge and must not be resent, or its failed attempt would
+  // be counted twice against the shared lockout
+  const isExpiredTokenResponse = res.status === 401 && res.headers.get('WWW-Authenticate') !== null;
+
+  if (isExpiredTokenResponse) {
     try {
       const refreshed = await refreshOnce();
       bindings.onSessionRefreshed(refreshed);
@@ -75,7 +83,9 @@ export async function authenticatedFetch<T>(path: string, options: RequestInit =
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as { detail?: string } | null;
     const message = body?.detail ?? `Request failed (${res.status})`;
-    throw new ApiError(message, res.status);
+    const attemptsHeader = res.headers.get(ATTEMPTS_REMAINING_HEADER);
+    const attemptsRemaining = attemptsHeader !== null ? Number(attemptsHeader) : undefined;
+    throw new ApiError(message, res.status, Number.isNaN(attemptsRemaining) ? undefined : attemptsRemaining);
   }
 
   // 204 No Content responses have an empty body, so res.json would fail

@@ -152,3 +152,14 @@ export const institutionKeys = {
 export const currencyKeys = {
   list: () => ['currencies'] as const,
 };
+
+export const twoFactorKeys = {
+  status: () => ['two-factor', 'status'] as const,
+  setup: () => ['two-factor', 'setup'] as const,
+};
+
+export const passkeyKeys = {
+  all: ['passkeys'] as const,
+  list: () => ['passkeys', 'list'] as const,
+  config: () => ['passkeys', 'config'] as const,
+};

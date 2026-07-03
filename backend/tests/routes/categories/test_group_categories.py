@@ -37,7 +37,7 @@ async def test_create_group_category_non_member_returns_404(client):
     _, _, _, group_id = await _setup_group_with_member(client)
 
     outsider_resp = await client.post("/auth/signup", json={
-        "email": "outsider@example.com", "password": "securepassword123",
+        "email": "outsider@example.com", "password": "SecurePassword123!",
         "first_name": "Outsider", "tz": "America/Toronto", "base_currency": "CAD",
     })
     outsider_headers = _get_auth_header(outsider_resp)
@@ -143,7 +143,7 @@ async def test_list_categories_group_filter_non_member_returns_404(client):
     _, _, _, group_id = await _setup_group_with_member(client)
 
     outsider_resp = await client.post("/auth/signup", json={
-        "email": "outsider@example.com", "password": "securepassword123",
+        "email": "outsider@example.com", "password": "SecurePassword123!",
         "first_name": "Outsider", "tz": "America/Toronto", "base_currency": "CAD",
     })
     outsider_headers = _get_auth_header(outsider_resp)
@@ -175,7 +175,7 @@ async def test_get_group_category_non_member_returns_404(client):
     category_id = create_resp.json()["id"]
 
     outsider_resp = await client.post("/auth/signup", json={
-        "email": "outsider@example.com", "password": "securepassword123",
+        "email": "outsider@example.com", "password": "SecurePassword123!",
         "first_name": "Outsider", "tz": "America/Toronto", "base_currency": "CAD",
     })
     outsider_headers = _get_auth_header(outsider_resp)
@@ -244,7 +244,7 @@ async def test_patch_group_category_non_member_returns_404(client):
     category_id = create_resp.json()["id"]
 
     outsider_resp = await client.post("/auth/signup", json={
-        "email": "outsider@example.com", "password": "securepassword123",
+        "email": "outsider@example.com", "password": "SecurePassword123!",
         "first_name": "Outsider", "tz": "America/Toronto", "base_currency": "CAD",
     })
     outsider_headers = _get_auth_header(outsider_resp)
@@ -312,7 +312,7 @@ async def test_delete_group_category_non_member_returns_404(client):
     category_id = create_resp.json()["id"]
 
     outsider_resp = await client.post("/auth/signup", json={
-        "email": "outsider@example.com", "password": "securepassword123",
+        "email": "outsider@example.com", "password": "SecurePassword123!",
         "first_name": "Outsider", "tz": "America/Toronto", "base_currency": "CAD",
     })
     outsider_headers = _get_auth_header(outsider_resp)

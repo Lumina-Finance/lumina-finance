@@ -1,6 +1,7 @@
 export type {
   CacheScopeStatus,
   CacheStatus,
+  ChangePasswordPayload,
   RunwayAccountBalance,
   RunwayResult,
   RunwaySettings,
@@ -9,6 +10,7 @@ export type {
 } from '@/api/user/types';
 
 export {
+  changePassword,
   fetchCacheStatus,
   fetchRunway,
   fetchRunwayAccounts,
@@ -19,6 +21,7 @@ export {
 } from '@/api/user/requests';
 
 export {
+  useChangePassword,
   useRunway,
   useRunwayAccounts,
   useRunwaySettings,

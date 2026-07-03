@@ -5,3 +5,12 @@ export const SIGNUP_FIELD_ANIMATION = {
   transition: { duration: 0.25, ease: [0.25, 0.1, 0.25, 1] as const },
 }
 
+// Cross-fade with a small slide for when one auth view swaps for another, such as the forgot
+// form giving way to its confirmation or the reset form to its success message
+export const AUTH_VIEW_TRANSITION = {
+  initial: { opacity: 0, y: 8 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: -8 },
+  transition: { duration: 0.2, ease: [0.25, 0.1, 0.25, 1] as const },
+}
+

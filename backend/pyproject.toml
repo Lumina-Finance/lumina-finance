@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
+    "aiosmtplib>=5.1.2",
     "alembic>=1.18.4",
     "argon2-cffi>=25.1.0",
     "asyncpg>=0.31.0",
@@ -14,9 +15,11 @@ dependencies = [
     "mangum>=0.21.0",
     "pydantic[email]>=2.12.5",
     "pyjwt[crypto]>=2.13.0",
+    "pyotp>=2.10.0",
     "python-dotenv>=1.2.2",
     "sqlalchemy>=2.0.48",
     "uvicorn>=0.44.0",
+    "webauthn>=2.8.0",
 ]
 
 [dependency-groups]

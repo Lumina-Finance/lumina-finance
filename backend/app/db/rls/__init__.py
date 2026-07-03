@@ -12,10 +12,18 @@ from app.db.rls.policies import (
     GLOBAL_READ_TABLES,
     apply_policies,
     drop_policies,
+    grant_auth_table,
     secure_registered_table,
 )
 
-__all__ = ["AUTH_TABLES", "GLOBAL_READ_TABLES", "apply_rls", "revoke_rls", "secure_registered_table"]
+__all__ = [
+    "AUTH_TABLES",
+    "GLOBAL_READ_TABLES",
+    "apply_rls",
+    "grant_auth_table",
+    "revoke_rls",
+    "secure_registered_table",
+]
 
 
 def apply_rls(connection: Connection) -> None:

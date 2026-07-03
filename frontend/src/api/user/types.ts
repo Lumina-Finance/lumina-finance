@@ -1,3 +1,4 @@
+import type { AuthenticationResponseJSON } from '@simplewebauthn/browser';
 import type { FxStatus } from '@/api/shared/fx';
 import type { RunwayThresholds } from '@/utils/runway';
 
@@ -8,6 +9,19 @@ export interface UpdateProfilePayload {
   first_name?: string;
   last_name?: string | null;
   tz?: string;
+}
+
+/**
+ * Current and replacement passwords for a password change, with the second factor required when one
+ * is active
+ */
+export interface ChangePasswordPayload {
+  current_password: string;
+  new_password: string;
+  /** Current TOTP code, used when stepping up by authenticator, recovery codes are not accepted */
+  code?: string;
+  /** Passkey assertion, used when stepping up by passkey, taking priority over a code */
+  passkey?: AuthenticationResponseJSON;
 }
 
 export interface CacheScopeStatus {

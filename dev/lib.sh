@@ -54,12 +54,10 @@ ensure_dev_db_container() {
     done
 }
 
-# Run docker compose for the local test stack, reusing the production compose
-# file with the docker test-stack environment from dev/.env
-compose_test_stack() {
-    docker compose \
-        --env-file "$dev_dir/.env" \
-        -p lumina-test \
-        -f "$repo_root/docker/compose.yml" \
-        "$@"
+# Run docker compose against the dev server's own static compose file over SSH
+# so the host configuration, env, and reverse proxy front the stack
+dev_vm_compose() {
+    local ssh_host="$1" deploy_dir="$2"
+    shift 2
+    ssh "$ssh_host" "cd '$deploy_dir' && docker compose $*"
 }

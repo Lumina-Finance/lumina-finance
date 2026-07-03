@@ -20,19 +20,20 @@ test_db_password="$(read_env_var "$repo_root/backend/tests/.env.test" DB_PASSWOR
 : "${test_db_user:?DB_USER is required in backend/tests/.env.test}"
 : "${test_db_password:?DB_PASSWORD is required in backend/tests/.env.test}"
 
-# Dev runs the backend on the host where /data/secrets is not writable, so the
-# migrator and app passwords live in backend/.env and the app reads them from the
-# environment, generated with the same helper the app uses everywhere else
-ensure_env_password() {
-    local env_file="$1" key="$2" value
+# Dev runs the backend on the host where /data/secrets is not writable, so secrets
+# live in backend/.env and the app reads them from the environment, each generated
+# with the same helper the app uses everywhere else
+ensure_env_secret() {
+    local env_file="$1" key="$2" generator="$3" value
     if [ -z "$(read_env_var "$env_file" "$key")" ]; then
-        value="$(cd "$repo_root/backend" && .venv/bin/python -c 'from app.db.credentials import generate_password; print(generate_password())')"
+        value="$(cd "$repo_root/backend" && .venv/bin/python -c "$generator")"
         set_env_var "$env_file" "$key" "$value"
     fi
 }
 
-ensure_env_password "$backend_env" MIGRATOR_DB_PASSWORD
-ensure_env_password "$backend_env" APP_DB_PASSWORD
+ensure_env_secret "$backend_env" MIGRATOR_DB_PASSWORD 'from app.db.credentials import generate_password; print(generate_password())'
+ensure_env_secret "$backend_env" APP_DB_PASSWORD 'from app.db.credentials import generate_password; print(generate_password())'
+ensure_env_secret "$backend_env" APP_ENCRYPTION_KEY 'from app.encryption import generate_encryption_key; print(generate_encryption_key())'
 
 # The container initializes DB_USER as the superuser and owner of DB_NAME
 ensure_dev_db_container "$dev_pg_container" "$DB_HOST" "$DB_PORT" "$DB_USER" "$DB_PASSWORD" "$DB_NAME"

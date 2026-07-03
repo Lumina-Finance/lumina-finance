@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 from uuid import UUID
 
+from sqlalchemy import Enum as SqlaEnum
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 from sqlalchemy.pool import NullPool
@@ -22,6 +23,7 @@ from tests.conftest import (
 
 _BACKEND_DIR = Path(__file__).resolve().parents[2]
 _ALEMBIC_TEST_DB_NAME = f"{WORKER_DB_NAME}_alembic_schema"
+_ALEMBIC_ENUM_DB_NAME = f"{WORKER_DB_NAME}_alembic_enums"
 _ALEMBIC_AUTH_RESET_DB_NAME = f"{WORKER_DB_NAME}_alembic_auth_reset"
 _AUTH_SESSIONS_REVISION = "a4f8d1c2e7b3"
 
@@ -36,6 +38,23 @@ async def test_alembic_schema_columns_match_model_metadata() -> None:
         assert actual_columns == expected_columns
     finally:
         await _drop_database(_ALEMBIC_TEST_DB_NAME)
+
+
+async def test_alembic_enum_labels_match_model_metadata() -> None:
+    """Verify Alembic builds the same enum labels the models declare
+
+    The route tests build the schema from model metadata, so a model enum that gains a value with no
+    migration to add it still passes there yet breaks a migration-built database. Comparing the two
+    directly catches that drift, such as a new auth provider added to the type without a migration
+    """
+    await _recreate_database(_ALEMBIC_ENUM_DB_NAME)
+    try:
+        _run_alembic_upgrade(_ALEMBIC_ENUM_DB_NAME)
+        actual_enums = await _get_database_enums(_ALEMBIC_ENUM_DB_NAME)
+        expected_enums = _get_model_enums()
+        assert actual_enums == expected_enums
+    finally:
+        await _drop_database(_ALEMBIC_ENUM_DB_NAME)
 
 
 async def test_auth_session_overhaul_clears_legacy_auth_state() -> None:
@@ -238,6 +257,42 @@ def _get_model_columns() -> dict[str, set[str]]:
         for table in Base.metadata.sorted_tables
     }
     return columns_by_table
+
+
+async def _get_database_enums(database_name: str) -> dict[str, set[str]]:
+    """Return enum type labels from a generated parity database, keyed by type name"""
+    engine = _create_engine_for_database(database_name)
+    try:
+        async with engine.connect() as conn:
+
+            # Fetch every public enum type and its labels created by Alembic
+            result = await conn.execute(
+                text(
+                    """
+                    SELECT t.typname AS type_name, e.enumlabel AS label
+                    FROM pg_type t
+                    JOIN pg_enum e ON e.enumtypid = t.oid
+                    JOIN pg_namespace n ON n.oid = t.typnamespace
+                    WHERE n.nspname = 'public'
+                    """,
+                ),
+            )
+            labels_by_type: dict[str, set[str]] = {}
+            for row in result:
+                labels_by_type.setdefault(row.type_name, set()).add(row.label)
+            return labels_by_type
+    finally:
+        await engine.dispose()
+
+
+def _get_model_enums() -> dict[str, set[str]]:
+    """Return SQLAlchemy model enum labels keyed by type name, deduped across columns"""
+    labels_by_type: dict[str, set[str]] = {}
+    for table in Base.metadata.sorted_tables:
+        for column in table.columns:
+            if isinstance(column.type, SqlaEnum):
+                labels_by_type[column.type.name] = set(column.type.enums)
+    return labels_by_type
 
 
 def _create_engine_for_database(database_name: str, *, isolation_level: str | None = None):

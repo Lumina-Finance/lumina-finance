@@ -45,6 +45,8 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
     allow_headers=["Authorization", "Content-Type"],
+    # The client reads the bearer challenge to tell an expired-token 401 from a wrong-credential 401
+    expose_headers=["WWW-Authenticate"],
 )
 
 app.include_router(auth_router)

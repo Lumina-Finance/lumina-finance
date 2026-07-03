@@ -2,7 +2,14 @@ import { createContext, useState, useEffect, useCallback, useMemo, useRef } from
 import type { ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import * as authApi from '@/api/auth';
-import type { User, LoginPayload, SignupPayload, AuthResponse } from '@/api/auth';
+import type {
+  AuthResponse,
+  LoginPayload,
+  LoginResult,
+  MfaVerifyPayload,
+  SignupPayload,
+  User,
+} from '@/api/auth';
 import { registerAuthBindings } from '@/api/client';
 
 interface AuthState {
@@ -13,10 +20,14 @@ interface AuthState {
 }
 
 export interface AuthContextValue extends AuthState {
-  login: (payload: LoginPayload) => Promise<AuthResponse>;
+  login: (payload: LoginPayload) => Promise<LoginResult>;
+  /** Exchange a second-factor challenge and code for a session */
+  verifyMfa: (payload: MfaVerifyPayload) => Promise<AuthResponse>;
   signup: (payload: SignupPayload) => Promise<AuthResponse>;
   /** Commit an auth response to state — call after any transition animations */
   setSession: (res: AuthResponse) => void;
+  /** Make an access token usable by requests without committing a session, for the signup 2FA step */
+  primeAccessToken: (token: string) => void;
   /** Replace just the user profile — used after /me updates to keep the context fresh */
   setUser: (user: User) => void;
   logout: () => Promise<void>;
@@ -133,8 +144,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Call the API and set the session flag, but don't update React state yet.
   // The caller controls when to commit via setSession().
-  const login = useCallback(async (payload: LoginPayload) => {
+  const login = useCallback(async (payload: LoginPayload): Promise<LoginResult> => {
     const res = await authApi.login(payload);
+
+    // A second-factor challenge is not a session yet, so hold off marking one until verify
+    if (authApi.isMfaRequired(res)) {
+      return res;
+    }
+
+    queryClient.clear();
+    localStorage.setItem(SESSION_KEY, '1');
+    return res;
+  }, [queryClient]);
+
+  const verifyMfa = useCallback(async (payload: MfaVerifyPayload) => {
+    const res = await authApi.verifyMfa(payload);
     queryClient.clear();
     localStorage.setItem(SESSION_KEY, '1');
     return res;
@@ -148,7 +172,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [queryClient]);
 
   const setSession = useCallback((res: AuthResponse) => {
+    // Persist the session flag and drop any prior user's cache at the single commit point, so a passkey
+    // sign-in and the passkey second factor behave like the password and code paths. Those paths reach
+    // this commit without going through login/verifyMfa, so without this a reload finds no flag, skips
+    // the silent refresh, and signs the user out despite a valid refresh cookie
+    localStorage.setItem(SESSION_KEY, '1');
+    queryClient.clear();
     setState({ user: res.user, accessToken: res.access_token, loading: false });
+  }, [queryClient]);
+
+  const primeAccessToken = useCallback((token: string) => {
+    // Make the token usable by authenticated requests without setting `user`, so the signup
+    // 2FA step can call the API while the auth page stays mounted instead of redirecting home.
+    // The ref is updated synchronously so getAccessToken sees the token before the effect runs
+    stateRef.current = { ...stateRef.current, accessToken: token };
+    setState((prev) => ({ ...prev, accessToken: token }));
   }, []);
 
   const setUser = useCallback((user: User) => {
@@ -168,8 +206,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [state.accessToken, queryClient]);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ ...state, login, signup, setSession, setUser, logout }),
-    [state, login, signup, setSession, setUser, logout],
+    () => ({ ...state, login, verifyMfa, signup, setSession, primeAccessToken, setUser, logout }),
+    [state, login, verifyMfa, signup, setSession, primeAccessToken, setUser, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

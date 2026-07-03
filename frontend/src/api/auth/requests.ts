@@ -1,6 +1,15 @@
 import { API_BASE } from '@/api/config';
 import { ApiError, isRefreshAlreadyRotatedError } from '@/api/auth/errors';
-import type { AuthResponse, LoginPayload, SignupPayload } from '@/api/auth/types';
+import type {
+  AuthResponse,
+  ForgotPasswordPayload,
+  LoginPayload,
+  LoginResult,
+  MfaRequiredResponse,
+  MfaVerifyPayload,
+  ResetPasswordPayload,
+  SignupPayload,
+} from '@/api/auth/types';
 
 const REFRESH_ROTATION_RETRY_DELAY_MS = 100;
 const REFRESH_ROTATION_RETRY_TIMEOUT_MS = 5_000;
@@ -113,14 +122,34 @@ async function requestAuth<T>(path: string, options: RequestInit): Promise<T> {
     throw new ApiError(message, res.status);
   }
 
+  // The forgot and reset endpoints return 204 with no body, so res.json would throw
+  if (res.status === 204) return undefined as T;
+
   return res.json();
 }
 
 /**
- * Authenticates a user with email and password credentials
+ * Authenticates a user, resolving to tokens or a second-factor challenge
  */
-export function login(payload: LoginPayload): Promise<AuthResponse> {
+export function login(payload: LoginPayload): Promise<LoginResult> {
   return requestAuth('/auth/login', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+/**
+ * Narrows a login result to the second-factor challenge case
+ */
+export function isMfaRequired(result: LoginResult): result is MfaRequiredResponse {
+  return 'mfa_required' in result;
+}
+
+/**
+ * Completes a second-factor login by exchanging the challenge token and code for tokens
+ */
+export function verifyMfa(payload: MfaVerifyPayload): Promise<AuthResponse> {
+  return requestAuth('/auth/2fa/verify', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
@@ -131,6 +160,26 @@ export function login(payload: LoginPayload): Promise<AuthResponse> {
  */
 export function signup(payload: SignupPayload): Promise<AuthResponse> {
   return requestAuth('/auth/signup', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+/**
+ * Requests a password reset link, always resolving so callers cannot enumerate accounts
+ */
+export function forgotPassword(payload: ForgotPasswordPayload): Promise<void> {
+  return requestAuth('/auth/password/forgot', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+/**
+ * Sets a new password using the token from the emailed reset link
+ */
+export function resetPassword(payload: ResetPasswordPayload): Promise<void> {
+  return requestAuth('/auth/password/reset', {
     method: 'POST',
     body: JSON.stringify(payload),
   });

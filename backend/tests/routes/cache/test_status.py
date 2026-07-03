@@ -7,7 +7,7 @@ async def _create_second_user(client):
     """Sign up a second user and return auth headers plus user ID."""
     resp = await client.post("/auth/signup", json={
         "email": "other@example.com",
-        "password": "securepassword123",
+        "password": "SecurePassword123!",
         "first_name": "Other",
         "tz": "America/Toronto",
         "base_currency": "CAD",
@@ -24,7 +24,7 @@ async def _login_default_user(client):
     """Log in as the default test user and return auth headers."""
     resp = await client.post("/auth/login", json={
         "email": "test@example.com",
-        "password": "securepassword123",
+        "password": "SecurePassword123!",
     })
     return _get_auth_header(resp)
 

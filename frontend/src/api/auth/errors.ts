@@ -4,9 +4,13 @@ export const REFRESH_ALREADY_ROTATED_DETAIL = 'Refresh token was already rotated
 export class ApiError extends Error {
   status: number;
 
-  constructor(message: string, status: number) {
+  /** Step-up attempts left before the shared lockout signs the user out, when the response reports it */
+  attemptsRemaining?: number;
+
+  constructor(message: string, status: number, attemptsRemaining?: number) {
     super(message);
     this.status = status;
+    this.attemptsRemaining = attemptsRemaining;
   }
 }
 

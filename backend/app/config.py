@@ -2,6 +2,7 @@
 
 import os
 from pathlib import Path
+from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 
@@ -143,6 +144,23 @@ APP_URL = os.getenv("APP_URL", "").strip()
 _configured_origins = [APP_URL, *_optional_csv_env("ALLOWED_ORIGINS")]
 ALLOWED_ORIGINS = _unique_values([origin for origin in _configured_origins if origin]) or ["*"]
 
+# --- WebAuthn ---
+
+# The RP ID is the registrable domain a passkey is bound to and must match the page origin, so a
+# bare IP is invalid and development must run over localhost. It defaults to the APP_URL host
+WEBAUTHN_RP_NAME = os.getenv("WEBAUTHN_RP_NAME", "Lumina Finance").strip()
+WEBAUTHN_RP_ID = os.getenv("WEBAUTHN_RP_ID", "").strip() or (urlparse(APP_URL).hostname or "")
+
+# Origins a passkey ceremony is accepted from, defaulting to the app origin
+WEBAUTHN_ORIGINS = _unique_values([o for o in (_optional_csv_env("WEBAUTHN_ORIGINS") or [APP_URL]) if o])
+
+# A ceremony challenge is short-lived since it only has to survive one round trip to the authenticator
+WEBAUTHN_CHALLENGE_EXPIRE_SECONDS = int(os.getenv("WEBAUTHN_CHALLENGE_EXPIRE_SECONDS", "300"))
+
+# How long a staged first passkey and its unsaved recovery codes survive before an ordinary action
+# such as login prunes them, since there is no reliable signal that a user abandoned the flow
+TWO_FACTOR_STAGING_EXPIRE_SECONDS = int(os.getenv("TWO_FACTOR_STAGING_EXPIRE_SECONDS", "1800"))
+
 # --- FX ---
 
 FRANKFURTER_URL = os.getenv("FRANKFURTER_URL", "https://api.frankfurter.dev/v2").strip().rstrip("/")
@@ -191,6 +209,30 @@ JWT_REFRESH_PRIVATE_KEY = _load_key("JWT_REFRESH_PRIVATE_KEY_PATH", _keys_dir / 
 # Key IDs for JWT headers and JWKS matching. These do not need to match key filenames.
 JWT_ACCESS_KID = os.getenv("JWT_ACCESS_KID", "access-kid").strip() or "access-kid"
 JWT_REFRESH_KID = os.getenv("JWT_REFRESH_KID", "refresh-kid").strip() or "refresh-kid"
+
+# --- Email ---
+
+# A blank SMTP host routes mail to the logger so development and tests need no server
+SMTP_HOST = os.getenv("SMTP_HOST", "").strip()
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USERNAME = os.getenv("SMTP_USERNAME", "").strip()
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
+SMTP_USE_TLS = _optional_bool_env("SMTP_USE_TLS", True)
+
+# Sender identity applied to every outgoing message, overridden by the operator in production
+MAIL_FROM = os.getenv("MAIL_FROM", "no-reply@lumina.finance").strip()
+MAIL_FROM_NAME = os.getenv("MAIL_FROM_NAME", "Lumina Finance").strip()
+
+# --- Password reset ---
+
+# Reset links are short-lived since the raw token grants account access until it expires
+PASSWORD_RESET_TOKEN_EXPIRE_SECONDS = int(os.getenv("PASSWORD_RESET_TOKEN_EXPIRE_SECONDS", "900"))
+
+# --- Two-factor authentication ---
+
+# The challenge token bridges a verified password and the second factor, kept short so a
+# captured token has a small window before the user must restart login
+MFA_CHALLENGE_TOKEN_EXPIRE_SECONDS = int(os.getenv("MFA_CHALLENGE_TOKEN_EXPIRE_SECONDS", "120"))
 
 # --- Dashboard ---
 

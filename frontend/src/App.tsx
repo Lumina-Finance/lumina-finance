@@ -7,6 +7,7 @@ import { useCacheValidation } from '@/hooks/useCacheValidation'
 import { useTheme } from '@/hooks/useTheme'
 import Navigation from '@/components/navigation/Navigation'
 import LoadingScreen from '@/components/loading/Screen'
+import ForcedReenrollScreen from '@/components/twoFactor/ForcedReenrollScreen'
 
 // Pages are lazy-loaded so each route ships as its own chunk instead of the
 // initial bundle, keeping first load small and pulling heavy page-only deps
@@ -20,6 +21,7 @@ const InsightsPage = lazy(() => import('@/pages/insights/InsightsPage'))
 const SettingsPage = lazy(() => import('@/pages/settings/SettingsPage'))
 const ImportsPage = lazy(() => import('@/pages/imports/ImportsPage'))
 const AuthPage = lazy(() => import('@/pages/auth/AuthPage'))
+const ResetPasswordPage = lazy(() => import('@/pages/auth/ResetPasswordPage'))
 
 const LOADING_SCREEN_MIN_MS = 1000;
 const PAGE_TRANSITION_MS = 350;
@@ -124,6 +126,9 @@ function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase }
 
   // No session and not loading — go straight to login
   if (!loading && !user) return <Navigate to="/login" replace />;
+
+  // A recovery-code login holds the account to re-enrolment before any route renders
+  if (user?.second_factor_reenrollment_required) return <ForcedReenrollScreen />;
 
   // The Routes subtree remounts on each path change, so this wrapper is recreated
   // per navigation and must start hidden through both loading and entering, otherwise
@@ -277,15 +282,21 @@ function AnimatedRoutes() {
       {/* The navigation chrome renders outside the keyed Routes so it persists across
           page changes. A persistent nav lets the active-link highlight crossfade through
           its CSS transition instead of snapping when the route subtree remounts */}
-      {user && isProtectedPath(displayLocation.pathname) && <Navigation />}
+      {user && !user.second_factor_reenrollment_required && isProtectedPath(displayLocation.pathname) && <Navigation />}
       <Routes
         location={displayLocation}
-        key={displayLocation.pathname === '/signup' ? '/login' : displayLocation.pathname}
+        key={
+          displayLocation.pathname === '/signup' || displayLocation.pathname === '/forgot-password'
+            ? '/login'
+            : displayLocation.pathname
+        }
       >
-        {/* Public routes — login, signup */}
+        {/* Public routes — login, signup, password reset */}
         <Route element={<PublicRoute />}>
           <Route path="/login" element={<AuthPage />} />
           <Route path="/signup" element={<AuthPage />} />
+          <Route path="/forgot-password" element={<AuthPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
         </Route>
 
         {/* Protected app routes */}

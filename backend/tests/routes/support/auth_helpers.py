@@ -1,11 +1,25 @@
 """Shared auth route test helpers"""
 
+import time
+
+import pyotp
+
 from app.models.currency import Currency
 from tests.conftest import TestSession
 
+
+def _fresh_totp_code(secret: str) -> str:
+    """Return a TOTP code one step past the enrolment code, inside the window verification accepts
+
+    Enrolment records the confirming code as used, so exercising TOTP as a live second factor needs a
+    later step's code rather than the one that confirmed setup
+    """
+    totp = pyotp.TOTP(secret)
+    return totp.at(int(time.time()) + totp.interval)
+
 SIGNUP_PAYLOAD = {
     "email": "test@example.com",
-    "password": "securepassword123",
+    "password": "SecurePassword123!",
     "first_name": "Test",
     "tz": "America/Toronto",
     "base_currency": "CAD",
