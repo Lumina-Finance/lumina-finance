@@ -3,7 +3,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { ApiError } from '@/api/auth'
-import { buildLockoutWarning, getAttemptsRemaining } from '@/utils/lockoutWarning'
+import { buildLockoutWarning, describeStepUpFailure, getAttemptsRemaining } from '@/utils/lockoutWarning'
 
 describe('getAttemptsRemaining', () => {
   it('returns the count from a step-up error that carries it', () => {
@@ -20,6 +20,20 @@ describe('getAttemptsRemaining', () => {
 
   it('returns null for a non-api error', () => {
     expect(getAttemptsRemaining(new Error('boom'))).toBeNull()
+  })
+})
+
+describe('describeStepUpFailure', () => {
+  it('names only the password when no factor is present', () => {
+    expect(describeStepUpFailure('code', true)).toBe('Your password was incorrect.')
+  })
+
+  it('names the password or the code without revealing which failed', () => {
+    expect(describeStepUpFailure('code', false)).toBe('Your password or code was incorrect.')
+  })
+
+  it('names the password or the passkey without revealing which failed', () => {
+    expect(describeStepUpFailure('passkey', false)).toBe('Your password or passkey was incorrect.')
   })
 })
 

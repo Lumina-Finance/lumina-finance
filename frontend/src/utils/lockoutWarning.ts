@@ -14,6 +14,20 @@ export function getAttemptsRemaining(error: unknown): number | null {
 }
 
 /**
+ * Builds the neutral step-up failure message shown when a credential check comes back rejected
+ *
+ * The backend never says whether the password or the factor was wrong, to deny a brute-force oracle, so
+ * the copy names both possibilities without pointing at either. With no factor present only the password
+ * could have failed, so it is named alone
+ */
+export function describeStepUpFailure(factor: 'code' | 'passkey', passwordOnly: boolean): string {
+  if (passwordOnly) {
+    return 'Your password was incorrect.';
+  }
+  return `Your password or ${factor} was incorrect.`;
+}
+
+/**
  * Builds the warning shown after a failed step-up, counting down to the lockout that signs the user out
  *
  * Zero means the failure just tripped the lock, so the wording shifts from a countdown to the outcome

@@ -9,7 +9,7 @@ import { StepTransition } from '@/components/twoFactor/StepTransition';
 import { TwoFactorModalShell } from '@/components/twoFactor/TwoFactorModalShell';
 import { WarningCallout } from '@/components/twoFactor/WarningCallout';
 import { useAuth } from '@/hooks/useAuth';
-import { buildLockoutWarning, getAttemptsRemaining } from '@/utils/lockoutWarning';
+import { buildLockoutWarning, describeStepUpFailure, getAttemptsRemaining } from '@/utils/lockoutWarning';
 import { isPasskeyCeremonyCancelled } from '@/utils/passkeyErrors';
 import { assessPasskeySupport } from '@/utils/passkeySupport';
 import { markRecoveryIntent } from '@/utils/recoveryIntent';
@@ -143,11 +143,14 @@ export function StepUpModal({
       reset();
     } catch (stepUpError) {
       await delayToMinimum(start, MFA_LOADING_MIN_MS);
-      // A step-up 401 reports the remaining allowance, which supersedes the generic error so the user
-      // sees the lockout countdown rather than a bare failure
+      // A credential 401 never says whether the password or the factor was wrong, to deny a brute-force
+      // oracle, so return to the password step and show one neutral message with the countdown rather
+      // than blaming the factor on the step where it was typed
       const remaining = getAttemptsRemaining(stepUpError);
       if (remaining !== null) {
+        setError(describeStepUpFailure(path, passwordOnly));
         setLockoutRemaining(remaining);
+        if (requirePassword) setStep('password');
       } else if (!isPasskeyCeremonyCancelled(stepUpError)) {
         setError(GENERIC_STEP_UP_ERROR);
       }
@@ -169,6 +172,7 @@ export function StepUpModal({
     if (!event.isTrusted) return;
     if (!password) return;
     setError('');
+    setLockoutRemaining(null);
 
     // With no factor to present the password alone completes the action, so a wrong password surfaces
     // here rather than on a factor step that would never appear
@@ -227,10 +231,13 @@ export function StepUpModal({
     onClose();
   };
 
-  // A lockout countdown outranks the generic error, so a near-lockout warning is never hidden behind it
+  // A lockout countdown pairs with the failure message in one callout, so the neutral "password or
+  // factor" reminder and the attempts left are shown together rather than one hiding the other
   const feedback =
     lockoutRemaining !== null ? (
-      <WarningCallout>{buildLockoutWarning(lockoutRemaining)}</WarningCallout>
+      <WarningCallout>
+        {error ? `${error} ${buildLockoutWarning(lockoutRemaining)}` : buildLockoutWarning(lockoutRemaining)}
+      </WarningCallout>
     ) : error ? (
       <p className="text-center text-sm" style={{ color: 'var(--app-negative)' }}>
         {error}
@@ -299,7 +306,7 @@ export function StepUpModal({
               onChange={(event) => setPassword(event.target.value)}
               autoFocus
             />
-            {passwordOnly && feedback}
+            {feedback}
             {passwordOnly ? (
               <div className="flex justify-center">
                 <button
@@ -370,6 +377,7 @@ export function StepUpModal({
                   setPassword('');
                   setOtp('');
                   setError('');
+                  setLockoutRemaining(null);
                 })}
                 disabled={verifying}
                 className="block w-full text-center text-sm underline underline-offset-2"
