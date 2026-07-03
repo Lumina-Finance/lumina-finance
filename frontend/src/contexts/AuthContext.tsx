@@ -172,8 +172,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [queryClient]);
 
   const setSession = useCallback((res: AuthResponse) => {
+    // Persist the session flag and drop any prior user's cache at the single commit point, so a passkey
+    // sign-in and the passkey second factor behave like the password and code paths. Those paths reach
+    // this commit without going through login/verifyMfa, so without this a reload finds no flag, skips
+    // the silent refresh, and signs the user out despite a valid refresh cookie
+    localStorage.setItem(SESSION_KEY, '1');
+    queryClient.clear();
     setState({ user: res.user, accessToken: res.access_token, loading: false });
-  }, []);
+  }, [queryClient]);
 
   const primeAccessToken = useCallback((token: string) => {
     // Make the token usable by authenticated requests without setting `user`, so the signup
