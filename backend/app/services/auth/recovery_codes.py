@@ -158,7 +158,10 @@ async def consume_recovery_code(db: AsyncSession, user_id: uuid.UUID, code: str)
     result = await db.execute(active_codes_query)
     for recovery_code in result.scalars():
         if is_secret_valid(code, recovery_code.code_hash):
-            await db.delete(recovery_code)
-            return True
+            # Claim the row with a conditional delete so two concurrent redemptions of the same code
+            # cannot both succeed, the loser matches no row and is rejected cleanly rather than raising
+            # on a stale ORM delete
+            claimed = await db.execute(delete(RecoveryCode).where(RecoveryCode.id == recovery_code.id))
+            return claimed.rowcount == 1
 
     return False
