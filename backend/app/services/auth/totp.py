@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 
 import pyotp
 from fastapi import HTTPException, status
-from sqlalchemy import delete
+from sqlalchemy import delete, or_, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -68,19 +68,6 @@ def match_totp_step(secret: str, code: str) -> int | None:
     return None
 
 
-def is_totp_code_valid(secret: str, code: str) -> bool:
-    """Return whether a submitted code matches the secret within the accepted time window
-
-    Args:
-        secret: Base32 TOTP secret
-        code: Submitted code from the authenticator app
-
-    Returns:
-        Whether the code is valid for the current or an adjacent time step
-    """
-    return match_totp_step(secret, code) is not None
-
-
 async def begin_totp_setup(db: AsyncSession, user_id: uuid.UUID, account_name: str) -> tuple[str, str]:
     """Start TOTP enrolment by persisting a pending encrypted secret
 
@@ -133,6 +120,9 @@ async def begin_totp_setup(db: AsyncSession, user_id: uuid.UUID, account_name: s
 async def is_pending_totp_code_valid(db: AsyncSession, user_id: uuid.UUID, code: str) -> bool:
     """Return whether a code matches the user's pending, not yet confirmed TOTP secret
 
+    The matching step is recorded, so the code that confirms enrolment cannot then be replayed as a live
+    second factor within its validity window once two-factor turns on. The caller commits
+
     Args:
         db: Active database session
         user_id: User confirming enrolment
@@ -145,7 +135,12 @@ async def is_pending_totp_code_valid(db: AsyncSession, user_id: uuid.UUID, code:
     if credential is None or credential.confirmed_at is not None:
         return False
 
-    return is_totp_code_valid(decrypt(credential.secret_encrypted), code)
+    step = match_totp_step(decrypt(credential.secret_encrypted), code)
+    if step is None:
+        return False
+
+    credential.last_used_step = step
+    return True
 
 
 async def mark_totp_confirmed(db: AsyncSession, user_id: uuid.UUID) -> bool:
@@ -186,8 +181,9 @@ async def is_totp_enabled(db: AsyncSession, user_id: uuid.UUID) -> bool:
 async def is_user_totp_code_valid(db: AsyncSession, user_id: uuid.UUID, code: str) -> bool:
     """Return whether a code matches the user's confirmed TOTP secret, rejecting a replayed code
 
-    A matching step at or before the last accepted one is refused, so a code cannot be reused within
-    its validity window. The caller commits the recorded step
+    A matching step at or before the last accepted one is refused, so a code cannot be reused within its
+    validity window. The reject check and the record are a single conditional update, so two concurrent
+    verifications of the same code cannot both pass the read before either writes. The caller commits
 
     Args:
         db: Active database session
@@ -205,11 +201,18 @@ async def is_user_totp_code_valid(db: AsyncSession, user_id: uuid.UUID, code: st
     if step is None:
         return False
 
-    if credential.last_used_step is not None and step <= credential.last_used_step:
-        return False
-
-    credential.last_used_step = step
-    return True
+    # Advance the last-used step only when this code is newer, in one statement whose row lock serializes
+    # concurrent verifications, so exactly one caller records the step and the loser matches no row
+    result = await db.execute(
+        update(TotpCredential)
+        .where(
+            TotpCredential.user_id == user_id,
+            TotpCredential.confirmed_at.is_not(None),
+            or_(TotpCredential.last_used_step.is_(None), TotpCredential.last_used_step < step),
+        )
+        .values(last_used_step=step)
+    )
+    return result.rowcount == 1
 
 
 async def disable_totp(db: AsyncSession, user_id: uuid.UUID) -> None:

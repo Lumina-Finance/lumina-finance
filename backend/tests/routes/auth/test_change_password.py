@@ -10,7 +10,7 @@ from app.models.auth_session import AuthSession
 from app.services.auth.password_helpers import is_password_valid
 from tests.conftest import TestSession
 from tests.routes.auth.test_passkeys import _seed_passkey
-from tests.routes.support import SIGNUP_PAYLOAD, _create_user, _get_auth_header
+from tests.routes.support import SIGNUP_PAYLOAD, _create_user, _fresh_totp_code, _get_auth_header
 
 _NEW_PASSWORD = "NewSecurePass123!"
 
@@ -167,7 +167,7 @@ async def test_change_password_requires_second_factor_when_totp_enabled(client):
         json={
             "current_password": SIGNUP_PAYLOAD["password"],
             "new_password": _NEW_PASSWORD,
-            "code": pyotp.TOTP(secret).now(),
+            "code": _fresh_totp_code(secret),
         },
         headers=headers,
     )

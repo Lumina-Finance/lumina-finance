@@ -8,7 +8,7 @@ from sqlalchemy import select
 from app.models.auth import RecoveryCode
 from app.services.auth.mfa_challenge import issue_mfa_challenge
 from tests.conftest import TestSession
-from tests.routes.support import SIGNUP_PAYLOAD, _create_user, _get_auth_header
+from tests.routes.support import SIGNUP_PAYLOAD, _create_user, _fresh_totp_code, _get_auth_header
 
 _PASSWORD = SIGNUP_PAYLOAD["password"]
 
@@ -170,7 +170,7 @@ async def test_setup_conflicts_once_confirmed(client):
     again = await client.post(
         "/auth/2fa/setup",
         headers=auth,
-        json={"step_up": {"password": _PASSWORD, "code": pyotp.TOTP(secret).now()}},
+        json={"step_up": {"password": _PASSWORD, "code": _fresh_totp_code(secret)}},
     )
     assert again.status_code == 409
 
@@ -180,7 +180,7 @@ async def test_disable_turns_off_two_factor(client):
     auth, secret, _ = await _enroll(client)
 
     disable = await client.post(
-        "/auth/2fa/disable", headers=auth, json={"password": _PASSWORD, "code": pyotp.TOTP(secret).now()}
+        "/auth/2fa/disable", headers=auth, json={"password": _PASSWORD, "code": _fresh_totp_code(secret)}
     )
     assert disable.status_code == 204
     assert (await client.post("/auth/2fa/setup", headers=auth, json={"step_up": _STEP_UP})).status_code == 200
@@ -224,7 +224,7 @@ async def test_disabling_only_totp_clears_recovery_codes(client):
     auth, secret, user_id = await _enroll_with_id(client)
 
     disable = await client.post(
-        "/auth/2fa/disable", headers=auth, json={"password": _PASSWORD, "code": pyotp.TOTP(secret).now()}
+        "/auth/2fa/disable", headers=auth, json={"password": _PASSWORD, "code": _fresh_totp_code(secret)}
     )
     assert disable.status_code == 204
 
@@ -256,7 +256,7 @@ async def test_regenerate_then_confirm_swaps_the_codes(client):
     auth, secret, old_codes = await _enroll(client)
 
     regenerate = await client.post(
-        "/auth/2fa/recovery-codes", headers=auth, json={"password": _PASSWORD, "code": pyotp.TOTP(secret).now()}
+        "/auth/2fa/recovery-codes", headers=auth, json={"password": _PASSWORD, "code": _fresh_totp_code(secret)}
     )
     assert regenerate.status_code == 200
     new_codes = regenerate.json()["recovery_codes"]
@@ -275,7 +275,7 @@ async def test_abandoned_regenerate_keeps_old_codes(client):
     auth, secret, old_codes = await _enroll(client)
 
     regenerate = await client.post(
-        "/auth/2fa/recovery-codes", headers=auth, json={"password": _PASSWORD, "code": pyotp.TOTP(secret).now()}
+        "/auth/2fa/recovery-codes", headers=auth, json={"password": _PASSWORD, "code": _fresh_totp_code(secret)}
     )
     assert regenerate.status_code == 200
 
@@ -307,7 +307,7 @@ async def test_regenerate_rejects_a_recovery_code_as_second_factor(client):
 async def test_totp_code_cannot_be_replayed(client):
     """A TOTP code accepted once is refused on reuse within its validity window"""
     auth, secret, _ = await _enroll(client)
-    code = pyotp.TOTP(secret).now()
+    code = _fresh_totp_code(secret)
 
     first = await client.post(
         "/auth/2fa/recovery-codes", headers=auth, json={"password": _PASSWORD, "code": code}
@@ -316,6 +316,21 @@ async def test_totp_code_cannot_be_replayed(client):
 
     replay = await client.post(
         "/auth/2fa/recovery-codes", headers=auth, json={"password": _PASSWORD, "code": code}
+    )
+    assert replay.status_code == 401
+
+
+async def test_enrolment_code_cannot_be_replayed_as_a_factor(client):
+    """The code that confirms enrolment is recorded as used, so it cannot then serve as a live factor"""
+    auth = _get_auth_header(await _create_user(client))
+    secret = (await client.post("/auth/2fa/setup", headers=auth, json={"step_up": _STEP_UP})).json()["secret"]
+    enrolment_code = pyotp.TOTP(secret).now()
+    await client.post("/auth/2fa/confirm", headers=auth, json={"code": enrolment_code})
+    await client.post("/auth/2fa/complete", headers=auth)
+
+    # Replaying the exact enrolment code at a step-up action is refused within its window
+    replay = await client.post(
+        "/auth/2fa/recovery-codes", headers=auth, json={"password": _PASSWORD, "code": enrolment_code}
     )
     assert replay.status_code == 401
 
@@ -344,7 +359,7 @@ async def test_correct_2fa_clears_the_lockout_counter(client):
 
     second = await client.post("/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": _PASSWORD})
     verify = await client.post(
-        "/auth/2fa/verify", json={"mfa_token": second.json()["mfa_token"], "code": pyotp.TOTP(secret).now()}
+        "/auth/2fa/verify", json={"mfa_token": second.json()["mfa_token"], "code": _fresh_totp_code(secret)}
     )
     assert verify.status_code == 200
 
@@ -354,7 +369,7 @@ async def test_verify_completes_login_with_a_valid_code(client):
     _, secret, user_id = await _enroll_with_id(client)
     mfa_token = await _issue_challenge(user_id)
 
-    verify = await client.post("/auth/2fa/verify", json={"mfa_token": mfa_token, "code": pyotp.TOTP(secret).now()})
+    verify = await client.post("/auth/2fa/verify", json={"mfa_token": mfa_token, "code": _fresh_totp_code(secret)})
     assert verify.status_code == 200
     assert verify.json()["access_token"]
 
@@ -388,7 +403,7 @@ async def test_login_returns_a_challenge_when_two_factor_is_enabled(client):
     assert body["recovery_only"] is False
     assert "access_token" not in body
 
-    verify = await client.post("/auth/2fa/verify", json={"mfa_token": body["mfa_token"], "code": pyotp.TOTP(secret).now()})
+    verify = await client.post("/auth/2fa/verify", json={"mfa_token": body["mfa_token"], "code": _fresh_totp_code(secret)})
     assert verify.status_code == 200
     assert verify.json()["access_token"]
 
@@ -467,7 +482,7 @@ async def test_restricted_session_re_enrols_with_fresh_codes(client):
     # A fresh login with the new authenticator now succeeds with no restriction
     relogin = await client.post("/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": _PASSWORD})
     verify = await client.post(
-        "/auth/2fa/verify", json={"mfa_token": relogin.json()["mfa_token"], "code": pyotp.TOTP(secret).now()}
+        "/auth/2fa/verify", json={"mfa_token": relogin.json()["mfa_token"], "code": _fresh_totp_code(secret)}
     )
     assert verify.status_code == 200
     assert verify.json()["user"]["second_factor_reenrollment_required"] is False
