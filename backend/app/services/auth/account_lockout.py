@@ -2,7 +2,7 @@
 import uuid
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import and_, case, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.auth import PasswordCredential
@@ -53,19 +53,39 @@ async def record_failed_attempt(db: AsyncSession, credential: PasswordCredential
     Returns:
         The number of attempts left before the account locks, zero once this failure has locked it
     """
+    now = datetime.now(UTC)
+    lock_deadline = now + timedelta(minutes=_LOCKOUT_MINUTES)
+
     # A lock that has already expired starts a fresh count, so waiting out the window restores the full
     # allowance instead of leaving the account one failure away from re-locking
-    if credential.locked_until is not None and credential.locked_until <= datetime.now(UTC):
-        credential.failed_attempt_count = 0
-        credential.locked_until = None
+    lock_expired = and_(PasswordCredential.locked_until.is_not(None), PasswordCredential.locked_until <= now)
+    next_count = case((lock_expired, 1), else_=PasswordCredential.failed_attempt_count + 1)
 
-    credential.failed_attempt_count += 1
-    if credential.failed_attempt_count >= _MAX_FAILED_ATTEMPTS:
-        credential.locked_until = datetime.now(UTC) + timedelta(minutes=_LOCKOUT_MINUTES)
+    # Increment and lock in one row-locked UPDATE keyed off the stored value, not a Python read-modify-write,
+    # so concurrent failures each advance the counter by exactly one instead of reading the same count and
+    # clobbering each other, which would let a burst of guesses slip past the shared lock
+    result = await db.execute(
+        update(PasswordCredential)
+        .where(PasswordCredential.user_id == credential.user_id)
+        .values(
+            failed_attempt_count=next_count,
+            locked_until=case(
+                (next_count >= _MAX_FAILED_ATTEMPTS, lock_deadline),
+                (lock_expired, None),
+                else_=PasswordCredential.locked_until,
+            ),
+        )
+        .returning(PasswordCredential.failed_attempt_count)
+    )
+    new_count = result.scalar_one()
+
+    # Revoking every session is a separate write, so it runs only when this failure reached the limit,
+    # keyed off the authoritative count the atomic increment returned
+    if new_count >= _MAX_FAILED_ATTEMPTS:
         await delete_all_user_auth_sessions(db, credential.user_id)
     await db.commit()
 
-    return max(0, _MAX_FAILED_ATTEMPTS - credential.failed_attempt_count)
+    return max(0, _MAX_FAILED_ATTEMPTS - new_count)
 
 
 async def reset_failed_attempts(db: AsyncSession, credential: PasswordCredential) -> None:
