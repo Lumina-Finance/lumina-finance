@@ -4,12 +4,14 @@ The attestation and assertion crypto belong to the WebAuthn library and are veri
 happy paths stub only that one call and exercise the real challenge, storage, and identity logic
 """
 
+import asyncio
 import json
 import uuid
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 import pyotp
+from fastapi import HTTPException
 from sqlalchemy import select
 from webauthn.helpers import bytes_to_base64url
 
@@ -18,6 +20,7 @@ from app.config import TWO_FACTOR_STAGING_EXPIRE_SECONDS, WEBAUTHN_ORIGINS, WEBA
 from app.models.auth import AuthIdentity, RecoveryCode, WebauthnChallenge, WebauthnCredential
 from app.models.base import AuthProvider
 from app.models.user import User
+from app.services.auth.recovery_codes import generate_recovery_codes
 from tests.conftest import TestSession
 from tests.routes.support import SIGNUP_PAYLOAD, _create_user, _get_auth_header
 
@@ -649,6 +652,63 @@ async def _seed_stale_staged_passkey(user_id: str, credential_id: bytes) -> None
         ))
         db.add(RecoveryCode(user_id=uuid.UUID(user_id), code_hash="stale-hash", pending=True, created_at=stale))
         await db.commit()
+
+
+async def _stage_passkey_with_pending_codes(user_id: str, credential_id: bytes) -> None:
+    """Stage an unconfirmed passkey with a pending recovery batch, as a first-factor registration leaves it"""
+    async with TestSession() as db:
+        db.add(WebauthnCredential(
+            user_id=uuid.UUID(user_id),
+            credential_id=credential_id,
+            public_key=b"public-key-bytes",
+            sign_count=0,
+            name="Staged",
+            confirmed_at=None,
+        ))
+        await generate_recovery_codes(db, uuid.UUID(user_id), pending=True)
+        await db.commit()
+
+
+async def test_concurrent_passkey_confirmation_keeps_the_recovery_codes(client):
+    """Two confirms racing on one staged passkey activate it once and never strand it without codes"""
+    signup = await _create_user(client)
+    user_id = signup.json()["user"]["id"]
+    await _stage_passkey_with_pending_codes(user_id, b"race-staged-key")
+    user_uuid = uuid.UUID(user_id)
+
+    async with TestSession() as first, TestSession() as second:
+        results = await asyncio.gather(
+            webauthn_service.confirm_passkey_registration(first, user_uuid),
+            webauthn_service.confirm_passkey_registration(second, user_uuid),
+            return_exceptions=True,
+        )
+
+    successes = [result for result in results if not isinstance(result, Exception)]
+    failures = [result for result in results if isinstance(result, Exception)]
+
+    # One confirm promotes the passkey while the other, serialized behind the row lock, finds nothing staged
+    assert len(successes) == 1
+    assert len(failures) == 1
+    assert isinstance(failures[0], HTTPException)
+    assert failures[0].status_code == 400
+
+    async with TestSession() as check:
+        active_passkeys = await check.execute(
+            select(WebauthnCredential).where(
+                WebauthnCredential.user_id == user_uuid, WebauthnCredential.confirmed_at.is_not(None)
+            )
+        )
+        active_codes = await check.execute(
+            select(RecoveryCode).where(RecoveryCode.user_id == user_uuid, RecoveryCode.pending.is_(False))
+        )
+        pending_codes = await check.execute(
+            select(RecoveryCode).where(RecoveryCode.user_id == user_uuid, RecoveryCode.pending.is_(True))
+        )
+
+    # The passkey is active and still backed by its promoted batch, never left enforced with no codes
+    assert len(active_passkeys.scalars().all()) == 1
+    assert len(active_codes.scalars().all()) == 10
+    assert pending_codes.scalars().all() == []
 
 
 async def test_login_prunes_stale_passkey_staging(client):

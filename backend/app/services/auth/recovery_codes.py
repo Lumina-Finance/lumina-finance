@@ -83,7 +83,7 @@ async def generate_recovery_codes(db: AsyncSession, user_id: uuid.UUID, *, pendi
     return codes
 
 
-async def activate_pending_recovery_codes(db: AsyncSession, user_id: uuid.UUID) -> None:
+async def activate_pending_recovery_codes(db: AsyncSession, user_id: uuid.UUID) -> int:
     """Promote the staged batch to active, discarding the superseded active codes
 
     The caller commits so promotion is atomic with enabling the new authenticator
@@ -91,13 +91,17 @@ async def activate_pending_recovery_codes(db: AsyncSession, user_id: uuid.UUID) 
     Args:
         db: Active database session
         user_id: User whose pending batch becomes active
+
+    Returns:
+        The number of pending codes promoted, so the caller can reject a confirm whose batch has vanished
     """
     await db.execute(
         delete(RecoveryCode).where(RecoveryCode.user_id == user_id, RecoveryCode.pending.is_(False))
     )
-    await db.execute(
+    result = await db.execute(
         update(RecoveryCode).where(RecoveryCode.user_id == user_id, RecoveryCode.pending.is_(True)).values(pending=False)
     )
+    return result.rowcount
 
 
 async def has_active_recovery_codes(db: AsyncSession, user_id: uuid.UUID) -> bool:

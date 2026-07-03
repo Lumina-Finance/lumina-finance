@@ -210,7 +210,9 @@ async def confirm_passkey_registration(db: AsyncSession, user_id: uuid.UUID) -> 
     Raises:
         HTTPException: No staged passkey with pending recovery codes is awaiting confirmation
     """
-    staged = await _staged_passkeys(db, user_id)
+    # Lock the staged rows so a concurrent confirm or a fresh registration that restages serializes
+    # behind this read, closing the window where the check and the promotion below could interleave
+    staged = await _staged_passkeys(db, user_id, lock_for_update=True)
     if not staged or not await has_pending_recovery_codes(db, user_id):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No passkey awaiting confirmation")
 
@@ -221,7 +223,12 @@ async def confirm_passkey_registration(db: AsyncSession, user_id: uuid.UUID) -> 
     for passkey in staged:
         passkey.confirmed_at = confirmed_at
 
-    await activate_pending_recovery_codes(db, user_id)
+    # A promotion that finds no pending batch means a race consumed it, so this passkey must not become
+    # an enforced factor with no fresh recovery codes behind it
+    promoted = await activate_pending_recovery_codes(db, user_id)
+    if promoted == 0:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No passkey awaiting confirmation")
+
     await _ensure_webauthn_identity(db, user_id)
     await _clear_reenrollment_restriction(db, user_id)
 
@@ -300,13 +307,26 @@ async def revoke_all_passkeys(db: AsyncSession, user_id: uuid.UUID) -> None:
     )
 
 
-async def _staged_passkeys(db: AsyncSession, user_id: uuid.UUID) -> list[WebauthnCredential]:
-    """Return the user's passkeys still awaiting recovery-code acknowledgement"""
-    result = await db.execute(
-        select(WebauthnCredential).where(
-            WebauthnCredential.user_id == user_id, WebauthnCredential.confirmed_at.is_(None)
-        )
+async def _staged_passkeys(
+    db: AsyncSession, user_id: uuid.UUID, *, lock_for_update: bool = False
+) -> list[WebauthnCredential]:
+    """Return the user's passkeys still awaiting recovery-code acknowledgement
+
+    Args:
+        db: Active database session
+        user_id: User whose staged passkeys are loaded
+        lock_for_update: Whether to lock the rows so a concurrent confirm or restage serializes behind
+            this read instead of racing it
+
+    Returns:
+        Staged passkey rows for the user
+    """
+    staged_query = select(WebauthnCredential).where(
+        WebauthnCredential.user_id == user_id, WebauthnCredential.confirmed_at.is_(None)
     )
+    if lock_for_update:
+        staged_query = staged_query.with_for_update()
+    result = await db.execute(staged_query)
     return list(result.scalars().all())
 
 
