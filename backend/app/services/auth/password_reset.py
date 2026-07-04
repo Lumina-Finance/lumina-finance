@@ -14,22 +14,11 @@ from app.services.auth.password_helpers import hash_password
 from app.services.auth.sessions import delete_all_user_auth_sessions
 from app.services.auth.token_hashing import hash_token
 from app.services.auth.user_lookup import find_user_id_by_email
-from app.services.email import RenderedEmail, get_email_sender
+from app.services.email import get_email_sender, render_reset_email
 
 # 32 random bytes give a 256-bit token, infeasible to guess so a fast hash resists leaks
 _TOKEN_BYTES = 32
 _RESET_PATH = "/reset-password"
-_RESET_EMAIL_SUBJECT = "Reset your password"
-
-
-def _build_reset_email_body(reset_link: str, expiry_minutes: int) -> str:
-    """Return the plain-text reset email carrying the one-time link"""
-    return (
-        "We received a request to reset your password.\n\n"
-        f"Use this link within {expiry_minutes} minutes to choose a new password:\n"
-        f"{reset_link}\n\n"
-        "If you did not request this, you can ignore this email"
-    )
 
 
 async def delete_expired_password_reset_tokens(db: AsyncSession) -> None:
@@ -71,7 +60,7 @@ async def request_password_reset(db: AsyncSession, email: str) -> None:
     # The raw token only ever leaves the server inside the emailed link
     reset_link = f"{APP_URL}{_RESET_PATH}?token={raw_token}"
     expiry_minutes = PASSWORD_RESET_TOKEN_EXPIRE_SECONDS // 60
-    message = RenderedEmail(subject=_RESET_EMAIL_SUBJECT, text_body=_build_reset_email_body(reset_link, expiry_minutes))
+    message = render_reset_email(reset_link, expiry_minutes)
     await get_email_sender().send(email, message)
 
 

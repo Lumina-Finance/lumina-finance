@@ -217,6 +217,9 @@ EMAIL_BACKEND_SMTP = "smtp"
 EMAIL_BACKEND_LOGGING = "logging"
 EMAIL_BACKEND = os.getenv("EMAIL_BACKEND", EMAIL_BACKEND_LOGGING).strip()
 
+# An optional directory whose templates override the built-in email markup
+EMAIL_TEMPLATE_DIR = os.getenv("EMAIL_TEMPLATE_DIR", "").strip()
+
 SMTP_HOST = os.getenv("SMTP_HOST", "").strip()
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USERNAME = os.getenv("SMTP_USERNAME", "").strip()

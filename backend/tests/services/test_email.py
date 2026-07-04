@@ -6,7 +6,7 @@ import pytest
 
 import app.services.email.contract as contract_module
 import app.services.email.senders as senders_module
-from app.services.email import RenderedEmail, build_email_sender, get_email_sender, set_email_sender
+from app.services.email import RenderedEmail, build_email_sender, get_email_sender, render_reset_email, set_email_sender
 from app.services.email.senders import LoggingEmailSender, SmtpEmailSender
 
 
@@ -65,3 +65,14 @@ def test_get_email_sender_requires_installation(monkeypatch):
     sender = LoggingEmailSender()
     set_email_sender(sender)
     assert get_email_sender() is sender
+
+
+def test_render_reset_email_carries_link_in_both_parts():
+    """The rendered reset email includes the link and expiry in the HTML and text parts"""
+    message = render_reset_email("https://app.example.com/reset-password?token=abc123", 15)
+
+    assert message.subject
+    assert "abc123" in message.text_body
+    assert "abc123" in message.html_body
+    assert "15" in message.text_body
+    assert "15" in message.html_body
