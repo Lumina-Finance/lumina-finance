@@ -212,7 +212,11 @@ JWT_REFRESH_KID = os.getenv("JWT_REFRESH_KID", "refresh-kid").strip() or "refres
 
 # --- Email ---
 
-# A blank SMTP host routes mail to the logger so development and tests need no server
+# EMAIL_BACKEND selects the email sender: smtp to deliver or logging for development
+EMAIL_BACKEND_SMTP = "smtp"
+EMAIL_BACKEND_LOGGING = "logging"
+EMAIL_BACKEND = os.getenv("EMAIL_BACKEND", EMAIL_BACKEND_LOGGING).strip()
+
 SMTP_HOST = os.getenv("SMTP_HOST", "").strip()
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USERNAME = os.getenv("SMTP_USERNAME", "").strip()

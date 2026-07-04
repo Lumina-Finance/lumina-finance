@@ -14,7 +14,7 @@ from app.services.auth.password_helpers import hash_password
 from app.services.auth.sessions import delete_all_user_auth_sessions
 from app.services.auth.token_hashing import hash_token
 from app.services.auth.user_lookup import find_user_id_by_email
-from app.services.email import send_email
+from app.services.email import RenderedEmail, get_email_sender
 
 # 32 random bytes give a 256-bit token, infeasible to guess so a fast hash resists leaks
 _TOKEN_BYTES = 32
@@ -71,7 +71,8 @@ async def request_password_reset(db: AsyncSession, email: str) -> None:
     # The raw token only ever leaves the server inside the emailed link
     reset_link = f"{APP_URL}{_RESET_PATH}?token={raw_token}"
     expiry_minutes = PASSWORD_RESET_TOKEN_EXPIRE_SECONDS // 60
-    await send_email(email, _RESET_EMAIL_SUBJECT, _build_reset_email_body(reset_link, expiry_minutes))
+    message = RenderedEmail(subject=_RESET_EMAIL_SUBJECT, text_body=_build_reset_email_body(reset_link, expiry_minutes))
+    await get_email_sender().send(email, message)
 
 
 async def reset_password(db: AsyncSession, token: str, new_password: str) -> None:
