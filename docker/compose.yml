@@ -16,6 +16,13 @@ services:
       APP_URL: "${APP_URL:-}"
       UPDATE_CHECKS_ENABLED: "${UPDATE_CHECKS_ENABLED:-true}"
       FRANKFURTER_URL: "${FRANKFURTER_URL:-https://api.frankfurter.dev/v2}"
+      EMAIL_BACKEND: "${EMAIL_BACKEND:-logging}"
+      SMTP_HOST: "${SMTP_HOST:-}"
+      SMTP_PORT: "${SMTP_PORT:-587}"
+      SMTP_USERNAME: "${SMTP_USERNAME:-}"
+      SMTP_PASSWORD: "${SMTP_PASSWORD:-}"
+      SMTP_USE_TLS: "${SMTP_USE_TLS:-true}"
+      MAIL_FROM: "${MAIL_FROM:-}"
     volumes:
       - lumina_data:/data
 

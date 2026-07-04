@@ -226,9 +226,12 @@ SMTP_USERNAME = os.getenv("SMTP_USERNAME", "").strip()
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
 SMTP_USE_TLS = _optional_bool_env("SMTP_USE_TLS", True)
 
-# Sender identity applied to every outgoing message, overridden by the operator in production
-MAIL_FROM = os.getenv("MAIL_FROM", "no-reply@lumina.finance").strip()
-MAIL_FROM_NAME = os.getenv("MAIL_FROM_NAME", "Lumina Finance").strip()
+# The sender display name is deliberately a constant, not a setting, so mail from a
+# self-hosted instance is always identifiable as self-hosted
+EMAIL_SENDER_NAME = "Lumina Finance (Self-Hosted)"
+
+# The from address defaults to the SMTP username, which most providers expect anyway
+MAIL_FROM = os.getenv("MAIL_FROM", "").strip() or SMTP_USERNAME
 
 # --- Password reset ---
 

@@ -19,6 +19,7 @@ async def test_smtp_sender_delivers_multipart_message(monkeypatch):
         sent["kwargs"] = kwargs
 
     monkeypatch.setattr(senders_module, "SMTP_HOST", "smtp.example.com")
+    monkeypatch.setattr(senders_module, "MAIL_FROM", "no-reply@example.com")
     monkeypatch.setattr(senders_module.aiosmtplib, "send", fake_send)
 
     message = RenderedEmail(subject="Subject line", text_body="Body text", html_body="<p>Body text</p>")
@@ -28,6 +29,9 @@ async def test_smtp_sender_delivers_multipart_message(monkeypatch):
     assert delivered["To"] == "user@example.com"
     assert delivered["Subject"] == "Subject line"
     assert sent["kwargs"]["hostname"] == "smtp.example.com"
+
+    # The fixed sender name marks mail from a self-hosted instance
+    assert "Lumina Finance (Self-Hosted)" in delivered["From"]
 
     # The HTML alternative rides alongside the plain-text part
     assert delivered.get_content_type() == "multipart/alternative"

@@ -1,6 +1,7 @@
 """Concrete email senders and the configured selection"""
 
 import logging
+from email.headerregistry import Address
 from email.message import EmailMessage
 
 import aiosmtplib
@@ -9,8 +10,8 @@ from app.config import (
     EMAIL_BACKEND,
     EMAIL_BACKEND_LOGGING,
     EMAIL_BACKEND_SMTP,
+    EMAIL_SENDER_NAME,
     MAIL_FROM,
-    MAIL_FROM_NAME,
     SMTP_HOST,
     SMTP_PASSWORD,
     SMTP_PORT,
@@ -33,7 +34,8 @@ class SmtpEmailSender:
             message: Rendered subject and bodies to deliver
         """
         email_message = EmailMessage()
-        email_message["From"] = f"{MAIL_FROM_NAME} <{MAIL_FROM}>"
+        # Address quotes the display name so the parenthesised suffix is not parsed as a comment
+        email_message["From"] = Address(display_name=EMAIL_SENDER_NAME, addr_spec=MAIL_FROM)
         email_message["To"] = recipient
         email_message["Subject"] = message.subject
         email_message.set_content(message.text_body)
