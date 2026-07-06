@@ -10,7 +10,7 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import func as sa_func
 
-from app.config import APP_URL, PASSWORD_RESET_TOKEN_EXPIRE_SECONDS
+from app.config import APP_URL, PASSWORD_RESET_DAILY_EMAIL_LIMIT, PASSWORD_RESET_TOKEN_EXPIRE_SECONDS
 from app.database import current_user_id_ctx
 from app.models.auth import PasswordCredential, PasswordResetToken
 from app.models.user import User
@@ -27,6 +27,10 @@ from app.services.email import get_email_sender, render_reset_email
 _TOKEN_BYTES = 32
 _RESET_PATH = "/reset-password"
 
+# Dead token rows double as the send log for the daily email limit, so they are kept for the
+# full rolling day the limit counts over
+_SEND_LOG_RETENTION = timedelta(hours=24)
+
 # One message for every token failure so responses do not reveal which check rejected it
 _INVALID_TOKEN_DETAIL = "Invalid or expired reset token"  # noqa: S105
 
@@ -40,39 +44,53 @@ class ResetSecondFactorRequired:
     passkey_available: bool
 
 
-async def delete_expired_password_reset_tokens(db: AsyncSession) -> None:
-    """Delete reset tokens whose expiry has passed
+async def delete_stale_password_reset_tokens(db: AsyncSession) -> None:
+    """Delete reset tokens older than the rolling day the email limit counts over
+
+    Expired and redeemed rows stay until then because they are the record of recent sends,
+    validity never depends on a row's presence alone
 
     Args:
         db: Active database session
     """
-    expired_delete_query = delete(PasswordResetToken).where(PasswordResetToken.expires_at < sa_func.now())
+    stale_delete_query = delete(PasswordResetToken).where(
+        PasswordResetToken.created_at < datetime.now(UTC) - _SEND_LOG_RETENTION
+    )
 
-    # Unredeemed tokens are never cleaned up otherwise, so prune them opportunistically
-    await db.execute(expired_delete_query)
+    # Tokens are never cleaned up otherwise, so prune them opportunistically
+    await db.execute(stale_delete_query)
 
 
 async def request_password_reset(db: AsyncSession, email: str) -> None:
     """Issue a single-use reset token for the email and send the reset link
 
     The caller always reports success so the endpoint never reveals whether an email is
-    registered, an unknown address simply returns after pruning expired tokens
+    registered or was throttled. No email is sent while the last link still works, and at
+    most the configured number of emails go out per account per rolling day, so an
+    unauthenticated requester cannot drain the operator's mail quota
 
     Args:
         db: Active database session
         email: Email address requesting the reset
     """
     user_id = await find_user_id_by_email(db, email)
-    await delete_expired_password_reset_tokens(db)
+    await delete_stale_password_reset_tokens(db)
     if user_id is None:
         await db.commit()
         return
 
-    # A new request supersedes any earlier link, so only the latest token stays valid
-    await db.execute(delete(PasswordResetToken).where(PasswordResetToken.user_id == user_id))
+    # After pruning, every remaining row for the user was created within the rolling day
+    recent_tokens_query = select(PasswordResetToken).where(PasswordResetToken.user_id == user_id)
+    recent_tokens = (await db.execute(recent_tokens_query)).scalars().all()
+
+    now = datetime.now(UTC)
+    has_live_link = any(row.used_at is None and row.expires_at > now for row in recent_tokens)
+    if has_live_link or len(recent_tokens) >= PASSWORD_RESET_DAILY_EMAIL_LIMIT:
+        await db.commit()
+        return
 
     raw_token = secrets.token_urlsafe(_TOKEN_BYTES)
-    expires_at = datetime.now(UTC) + timedelta(seconds=PASSWORD_RESET_TOKEN_EXPIRE_SECONDS)
+    expires_at = now + timedelta(seconds=PASSWORD_RESET_TOKEN_EXPIRE_SECONDS)
     db.add(PasswordResetToken(user_id=user_id, token_hash=hash_token(raw_token), expires_at=expires_at))
     await db.commit()
 

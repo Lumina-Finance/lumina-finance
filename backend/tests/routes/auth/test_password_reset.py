@@ -1,6 +1,7 @@
 """Password reset request and consume route tests"""
 
 import uuid
+from datetime import UTC, datetime
 
 import pyotp
 from sqlalchemy import func, select
@@ -61,19 +62,61 @@ async def test_forgot_password_unknown_email_creates_no_token(client):
         assert token_count == 0
 
 
-async def test_forgot_password_supersedes_prior_token(client):
-    """Requesting again replaces the earlier token so only the latest link stays valid"""
+async def test_forgot_password_keeps_the_live_link_and_sends_nothing_new(client):
+    """Requesting again while the earlier link still works issues no new token"""
     signup = await _create_user(client)
     user_id = uuid.UUID(signup.json()["user"]["id"])
 
     await client.post("/auth/password/forgot", json={"email": SIGNUP_PAYLOAD["email"]})
     first_hash = (await _reset_tokens_for(user_id))[0].token_hash
 
-    await client.post("/auth/password/forgot", json={"email": SIGNUP_PAYLOAD["email"]})
+    resp = await client.post("/auth/password/forgot", json={"email": SIGNUP_PAYLOAD["email"]})
     rows = await _reset_tokens_for(user_id)
 
+    assert resp.status_code == 204
     assert len(rows) == 1
-    assert rows[0].token_hash != first_hash
+    assert rows[0].token_hash == first_hash
+
+
+async def test_forgot_password_sends_again_after_the_link_expires(client):
+    """A dead link no longer blocks a fresh one, and the old row stays as the send record"""
+    signup = await _create_user(client)
+    user_id = uuid.UUID(signup.json()["user"]["id"])
+    await _seed_reset_token(user_id, raw_token="expired-link", expires_in_seconds=-60)
+
+    resp = await client.post("/auth/password/forgot", json={"email": SIGNUP_PAYLOAD["email"]})
+    rows = await _reset_tokens_for(user_id)
+
+    assert resp.status_code == 204
+    assert len(rows) == 2
+    assert sum(1 for row in rows if row.used_at is None and row.expires_at > datetime.now(UTC)) == 1
+
+
+async def test_forgot_password_stops_after_the_daily_email_limit(client):
+    """Requests beyond the rolling-day limit still return 204 but issue no token"""
+    signup = await _create_user(client)
+    user_id = uuid.UUID(signup.json()["user"]["id"])
+    for index in range(3):
+        await _seed_reset_token(user_id, raw_token=f"spent-link-{index}", expires_in_seconds=-60)
+
+    resp = await client.post("/auth/password/forgot", json={"email": SIGNUP_PAYLOAD["email"]})
+
+    assert resp.status_code == 204
+    assert len(await _reset_tokens_for(user_id)) == 3
+
+
+async def test_forgot_password_prunes_rows_older_than_the_rolling_day(client):
+    """A send older than the rolling day stops counting toward the limit and gets pruned"""
+    signup = await _create_user(client)
+    user_id = uuid.UUID(signup.json()["user"]["id"])
+    await _seed_reset_token(user_id, raw_token="yesterday-link", expires_in_seconds=-90000, age_seconds=90000)
+
+    resp = await client.post("/auth/password/forgot", json={"email": SIGNUP_PAYLOAD["email"]})
+    rows = await _reset_tokens_for(user_id)
+
+    assert resp.status_code == 204
+    assert len(rows) == 1
+    assert rows[0].used_at is None and rows[0].expires_at > datetime.now(UTC)
 
 
 async def test_reset_password_sets_new_password_and_consumes_token(client):

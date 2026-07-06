@@ -23,6 +23,7 @@ services:
       SMTP_PASSWORD: "${SMTP_PASSWORD:-}"
       SMTP_USE_TLS: "${SMTP_USE_TLS:-true}"
       MAIL_FROM: "${MAIL_FROM:-}"
+      PASSWORD_RESET_DAILY_EMAIL_LIMIT: "${PASSWORD_RESET_DAILY_EMAIL_LIMIT:-3}"
     volumes:
       - lumina_data:/data
 
