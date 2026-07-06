@@ -40,7 +40,7 @@ from app.services.auth.sessions import (
     rotate_auth_session_tokens,
 )
 from app.services.auth.tokens import MFA_CHALLENGE_TOKEN_USE, create_access_token, create_refresh_token
-from app.services.auth.two_factor import verify_login_second_factor
+from app.services.auth.two_factor import SECOND_FACTOR_PASSKEY, verify_login_second_factor
 from app.services.auth.webauthn import verify_passkey_second_factor
 
 _refresh_public_key = load_pem_private_key(JWT_REFRESH_PRIVATE_KEY.encode(), password=None).public_key()
@@ -130,7 +130,9 @@ def _raise_for_token_use(payload: dict[str, Any], expected_token_use: str) -> No
         raise jwt.InvalidTokenError("Invalid token use")
 
 
-async def complete_mfa_challenge(db: AsyncSession, mfa_token: str, code: str, purpose: str = MFA_PURPOSE_LOGIN) -> User:
+async def complete_mfa_challenge(
+    db: AsyncSession, mfa_token: str, code: str, purpose: str = MFA_PURPOSE_LOGIN
+) -> tuple[User, str]:
     """Complete a second-factor step with an authenticator or recovery code
 
     Args:
@@ -140,7 +142,7 @@ async def complete_mfa_challenge(db: AsyncSession, mfa_token: str, code: str, pu
         purpose: Flow the challenge must be scoped to
 
     Returns:
-        The user who passed the second factor
+        The user who passed the second factor and the factor kind that matched
 
     Raises:
         HTTPException: The challenge or the code does not verify
@@ -150,7 +152,7 @@ async def complete_mfa_challenge(db: AsyncSession, mfa_token: str, code: str, pu
 
 async def complete_mfa_challenge_with_passkey(
     db: AsyncSession, mfa_token: str, credential: dict[str, Any], purpose: str = MFA_PURPOSE_LOGIN
-) -> User:
+) -> tuple[User, str]:
     """Complete a second-factor step with a passkey assertion
 
     Args:
@@ -160,17 +162,23 @@ async def complete_mfa_challenge_with_passkey(
         purpose: Flow the challenge must be scoped to
 
     Returns:
-        The user who passed the second factor
+        The user who passed the second factor and the factor kind that matched
 
     Raises:
         HTTPException: The challenge or the assertion does not verify
     """
-    return await _complete_mfa_challenge(db, mfa_token, purpose, lambda user_id: verify_passkey_second_factor(db, user_id, credential))
+
+    async def verify_with_passkey(user_id: uuid.UUID) -> str:
+        """Verify the assertion and report the passkey factor kind"""
+        await verify_passkey_second_factor(db, user_id, credential)
+        return SECOND_FACTOR_PASSKEY
+
+    return await _complete_mfa_challenge(db, mfa_token, purpose, verify_with_passkey)
 
 
 async def _complete_mfa_challenge(
-    db: AsyncSession, mfa_token: str, purpose: str, verify_second_factor: Callable[[uuid.UUID], Awaitable[None]]
-) -> User:
+    db: AsyncSession, mfa_token: str, purpose: str, verify_second_factor: Callable[[uuid.UUID], Awaitable[str]]
+) -> tuple[User, str]:
     """Spend the challenge, run the given second-factor check, and return the authenticated user
 
     The challenge is consumed and committed before the factor is checked, so a wrong factor still
@@ -185,7 +193,7 @@ async def _complete_mfa_challenge(
         verify_second_factor: Coroutine factory that raises HTTPException unless the factor verifies
 
     Returns:
-        The user who passed the second factor
+        The user who passed the second factor and the factor kind that matched
 
     Raises:
         HTTPException: The challenge or the second factor does not verify
@@ -214,7 +222,7 @@ async def _complete_mfa_challenge(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired challenge")
 
     try:
-        await verify_second_factor(user_id)
+        factor_kind = await verify_second_factor(user_id)
     except HTTPException as error:
         # A wrong factor counts toward the lockout, but a passkey protocol error such as an expired or
         # malformed challenge (400) does not, so a slow or fumbled ceremony cannot lock the account. A
@@ -232,7 +240,7 @@ async def _complete_mfa_challenge(
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired challenge")
 
-    return user
+    return user, factor_kind
 
 
 async def get_mfa_challenge_user_id(db: AsyncSession, mfa_token: str, purpose: str = MFA_PURPOSE_LOGIN) -> uuid.UUID:

@@ -3,13 +3,19 @@
 from app.services.auth.change_password import change_password
 from app.services.auth.login import login
 from app.services.auth.mfa_challenge import MFA_PURPOSE_LOGIN, MFA_PURPOSE_PASSWORD_RESET, issue_mfa_challenge
-from app.services.auth.password_reset import request_password_reset, reset_password
+from app.services.auth.password_reset import (
+    begin_password_reset,
+    complete_password_reset,
+    ensure_reset_token_active,
+    request_password_reset,
+)
 from app.services.auth.sessions import delete_expired_auth_sessions, delete_expired_auth_tokens
 from app.services.auth.signup import signup
 from app.services.auth.step_up import authorize_factor_addition
 from app.services.auth.tokens import create_access_token, create_refresh_token
 from app.services.auth.totp import begin_totp_setup, is_totp_enabled
 from app.services.auth.two_factor import (
+    SECOND_FACTOR_RECOVERY_CODE,
     complete_totp_enrollment,
     confirm_recovery_codes,
     confirm_totp_enrollment,
@@ -35,12 +41,15 @@ from app.services.auth.webauthn import (
 __all__ = [
     "MFA_PURPOSE_LOGIN",
     "MFA_PURPOSE_PASSWORD_RESET",
+    "SECOND_FACTOR_RECOVERY_CODE",
     "authorize_factor_addition",
+    "begin_password_reset",
     "begin_totp_setup",
     "build_passkey_authentication_options",
     "build_passkey_registration_options",
     "build_passkey_second_factor_options",
     "change_password",
+    "complete_password_reset",
     "complete_totp_enrollment",
     "confirm_passkey_registration",
     "confirm_recovery_codes",
@@ -50,6 +59,7 @@ __all__ = [
     "delete_expired_auth_sessions",
     "delete_expired_auth_tokens",
     "disable_two_factor",
+    "ensure_reset_token_active",
     "is_passkey_registered",
     "is_totp_enabled",
     "issue_mfa_challenge",
@@ -62,7 +72,6 @@ __all__ = [
     "remove_passkey_with_step_up",
     "rename_passkey",
     "request_password_reset",
-    "reset_password",
     "signup",
     "verify_passkey_authentication",
     "verify_passkey_second_factor",

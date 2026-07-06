@@ -25,6 +25,7 @@ from app.schemas.auth import (
     MfaVerifyRequest,
     RecoveryCodesResponse,
     ResetPasswordRequest,
+    ResetPasswordVerifyRequest,
     SignupRequest,
     StepUpRequest,
     TotpConfirmRequest,
@@ -34,13 +35,18 @@ from app.schemas.auth import (
 )
 from app.services.auth import (
     MFA_PURPOSE_LOGIN,
+    MFA_PURPOSE_PASSWORD_RESET,
+    SECOND_FACTOR_RECOVERY_CODE,
     authorize_factor_addition,
+    begin_password_reset,
     begin_totp_setup,
     change_password,
+    complete_password_reset,
     complete_totp_enrollment,
     confirm_recovery_codes,
     confirm_totp_enrollment,
     disable_two_factor,
+    ensure_reset_token_active,
     is_passkey_registered,
     is_totp_enabled,
     issue_mfa_challenge,
@@ -48,7 +54,6 @@ from app.services.auth import (
     prune_stale_passkey_staging,
     regenerate_recovery_codes,
     request_password_reset,
-    reset_password,
     signup,
 )
 from app.services.auth.account_lockout import get_password_credential, reset_failed_attempts
@@ -175,21 +180,73 @@ async def forgot_password_route(
     await request_password_reset(db, data.email)
 
 
-@router.post("/password/reset", status_code=status.HTTP_204_NO_CONTENT)
+@router.post("/password/reset", response_model=MfaRequiredResponse | None)
 async def reset_password_route(
     data: ResetPasswordRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Set a new password from a valid reset token
+    """Set a new password from a valid reset token, or challenge for the second factor
+
+    An account with an active second factor must verify it before the password changes, so the
+    reset link alone is never enough to take over a protected account
 
     Args:
         data: Reset payload with the emailed token and the new password
         db: Active database session
 
+    Returns:
+        A challenge when a second factor is required, otherwise an empty 204
+
     Raises:
         HTTPException: The token is invalid, used, or expired
     """
-    await reset_password(db, data.token, data.new_password)
+    challenge = await begin_password_reset(db, data.token, data.new_password)
+    if challenge is None:
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    return MfaRequiredResponse(
+        mfa_token=challenge.mfa_token,
+        totp_enabled=challenge.totp_enabled,
+        passkey_available=challenge.passkey_available,
+        recovery_only=not challenge.totp_enabled and not challenge.passkey_available,
+    )
+
+
+@router.post("/password/reset/verify", response_model=AuthResponse | None)
+async def reset_password_verify_route(
+    data: ResetPasswordVerifyRequest,
+    request: Request,
+    response: Response,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Complete a factor-gated password reset with an authenticator or recovery code
+
+    A recovery code is treated as lost authenticators, exactly like at login: every factor is
+    wiped, re-enrolment is required, and the response carries the restricted session that can only
+    re-establish a factor. A routine code just finishes the reset
+
+    Args:
+        data: Reset payload with the emailed token, challenge token, code, and new password
+        request: FastAPI request object
+        response: FastAPI response object for setting the refresh cookie
+        db: Active database session
+
+    Returns:
+        The restricted session after a recovery code, otherwise an empty 204
+
+    Raises:
+        HTTPException: The token, challenge, or code does not verify, or the account is locked
+    """
+    # The challenge below is single use, so reject a dead reset token before it burns
+    await ensure_reset_token_active(db, data.token)
+
+    user, factor_kind = await complete_mfa_challenge(db, data.mfa_token, data.code, MFA_PURPOSE_PASSWORD_RESET)
+    await complete_password_reset(db, user.id, data.token, data.new_password)
+
+    if factor_kind == SECOND_FACTOR_RECOVERY_CODE:
+        return await issue_and_store_tokens(db, request, response, user)
+
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/2fa/status", response_model=TotpStatusResponse)
@@ -365,7 +422,7 @@ async def verify_totp_route(
     Raises:
         HTTPException: The challenge or the code does not verify
     """
-    user = await complete_mfa_challenge(db, data.mfa_token, data.code)
+    user, _ = await complete_mfa_challenge(db, data.mfa_token, data.code)
     auth_response = await issue_and_store_tokens(db, request, response, user)
     return auth_response
 

@@ -150,7 +150,7 @@ async def verify_passkey_second_factor_route(
     Raises:
         HTTPException: The challenge or the assertion does not verify
     """
-    user = await complete_mfa_challenge_with_passkey(db, data.mfa_token, data.credential)
+    user, _ = await complete_mfa_challenge_with_passkey(db, data.mfa_token, data.credential)
     return await issue_and_store_tokens(db, request, response, user)
 
 

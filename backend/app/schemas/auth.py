@@ -118,6 +118,21 @@ class ResetPasswordRequest(BaseModel):
         return validate_password_strength(v)
 
 
+class ResetPasswordVerifyRequest(BaseModel):
+    """Reset completion payload adding the challenge and factor code to the reset request"""
+
+    token: str
+    new_password: str
+    mfa_token: str
+    code: str
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_new_password(cls, v: str) -> str:
+        """Enforce the password policy on the replacement password"""
+        return validate_password_strength(v)
+
+
 class UserInfo(BaseModel):
     """Minimal user info returned alongside auth responses"""
 
