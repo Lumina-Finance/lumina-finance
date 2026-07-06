@@ -33,6 +33,7 @@ from app.schemas.auth import (
     TotpStatusResponse,
 )
 from app.services.auth import (
+    MFA_PURPOSE_LOGIN,
     authorize_factor_addition,
     begin_totp_setup,
     change_password,
@@ -120,7 +121,7 @@ async def login_route(
     totp_enabled = await is_totp_enabled(db, user.id)
     passkey_available = await is_passkey_registered(db, user.id)
     if totp_enabled or passkey_available or user.second_factor_reenrollment_required:
-        challenge_token = await issue_mfa_challenge(db, user.id)
+        challenge_token = await issue_mfa_challenge(db, user.id, MFA_PURPOSE_LOGIN)
         return MfaRequiredResponse(
             mfa_token=challenge_token,
             totp_enabled=totp_enabled,

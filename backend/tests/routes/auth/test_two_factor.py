@@ -6,7 +6,7 @@ import pyotp
 from sqlalchemy import select
 
 from app.models.auth import RecoveryCode
-from app.services.auth.mfa_challenge import issue_mfa_challenge
+from app.services.auth.mfa_challenge import MFA_PURPOSE_LOGIN, MFA_PURPOSE_PASSWORD_RESET, issue_mfa_challenge
 from tests.conftest import TestSession
 from tests.routes.support import SIGNUP_PAYLOAD, _create_user, _fresh_totp_code, _get_auth_header
 
@@ -19,7 +19,7 @@ _STEP_UP = {"password": _PASSWORD}
 async def _issue_challenge(user_id):
     """Issue an MFA challenge token directly, standing in for the login step that emits it"""
     async with TestSession() as db:
-        return await issue_mfa_challenge(db, uuid.UUID(user_id))
+        return await issue_mfa_challenge(db, uuid.UUID(user_id), MFA_PURPOSE_LOGIN)
 
 
 async def _enroll_with_id(client):
@@ -395,6 +395,16 @@ async def test_verify_completes_login_with_a_valid_code(client):
     verify = await client.post("/auth/2fa/verify", json={"mfa_token": mfa_token, "code": _fresh_totp_code(secret)})
     assert verify.status_code == 200
     assert verify.json()["access_token"]
+
+
+async def test_verify_rejects_a_challenge_issued_for_another_flow(client):
+    """A challenge scoped to a different flow cannot complete a login, even with a valid code"""
+    _, secret, user_id = await _enroll_with_id(client)
+    async with TestSession() as db:
+        mfa_token = await issue_mfa_challenge(db, uuid.UUID(user_id), MFA_PURPOSE_PASSWORD_RESET)
+
+    verify = await client.post("/auth/2fa/verify", json={"mfa_token": mfa_token, "code": _fresh_totp_code(secret)})
+    assert verify.status_code == 401
 
 
 async def test_verify_burns_the_challenge_on_a_wrong_code(client):

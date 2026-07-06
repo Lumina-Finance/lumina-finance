@@ -2,7 +2,7 @@
 
 from app.services.auth.change_password import change_password
 from app.services.auth.login import login
-from app.services.auth.mfa_challenge import issue_mfa_challenge
+from app.services.auth.mfa_challenge import MFA_PURPOSE_LOGIN, MFA_PURPOSE_PASSWORD_RESET, issue_mfa_challenge
 from app.services.auth.password_reset import request_password_reset, reset_password
 from app.services.auth.sessions import delete_expired_auth_sessions, delete_expired_auth_tokens
 from app.services.auth.signup import signup
@@ -33,6 +33,8 @@ from app.services.auth.webauthn import (
 )
 
 __all__ = [
+    "MFA_PURPOSE_LOGIN",
+    "MFA_PURPOSE_PASSWORD_RESET",
     "authorize_factor_addition",
     "begin_totp_setup",
     "build_passkey_authentication_options",
