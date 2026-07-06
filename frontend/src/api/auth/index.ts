@@ -11,6 +11,8 @@ export type {
   MfaRequiredResponse,
   MfaVerifyPayload,
   ResetPasswordPayload,
+  ResetPasswordResult,
+  ResetPasswordVerifyPayload,
   SignupPayload,
   User,
 } from '@/api/auth/types';
@@ -24,4 +26,5 @@ export {
   resetPassword,
   signup,
   verifyMfa,
+  verifyResetMfa,
 } from '@/api/auth/requests';

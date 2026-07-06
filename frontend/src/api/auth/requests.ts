@@ -8,6 +8,8 @@ import type {
   MfaRequiredResponse,
   MfaVerifyPayload,
   ResetPasswordPayload,
+  ResetPasswordResult,
+  ResetPasswordVerifyPayload,
   SignupPayload,
 } from '@/api/auth/types';
 
@@ -177,12 +179,30 @@ export function forgotPassword(payload: ForgotPasswordPayload): Promise<void> {
 
 /**
  * Sets a new password using the token from the emailed reset link
+ *
+ * Resolves to null when the reset is complete, or to a challenge when the account has an
+ * active second factor that must verify before the password changes
  */
-export function resetPassword(payload: ResetPasswordPayload): Promise<void> {
-  return requestAuth('/auth/password/reset', {
+export async function resetPassword(payload: ResetPasswordPayload): Promise<ResetPasswordResult> {
+  const result = await requestAuth<MfaRequiredResponse | undefined>('/auth/password/reset', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
+  return result ?? null;
+}
+
+/**
+ * Completes a factor-gated reset with an authenticator or recovery code
+ *
+ * Resolves to null after an authenticator code, or to the restricted re-enrolment session
+ * after a recovery code, which wipes every factor and signs out everywhere
+ */
+export async function verifyResetMfa(payload: ResetPasswordVerifyPayload): Promise<AuthResponse | null> {
+  const result = await requestAuth<AuthResponse | undefined>('/auth/password/reset/verify', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  return result ?? null;
 }
 
 /**

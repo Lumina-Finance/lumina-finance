@@ -7,11 +7,13 @@ export {
   fetchPasskeyConfig,
   fetchPasskeyMfaOptions,
   fetchPasskeyRegistrationOptions,
+  fetchPasskeyResetOptions,
   fetchPasskeys,
   registerPasskey,
   removePasskey,
   renamePasskey,
   verifyPasskeyMfa,
+  verifyPasskeyReset,
 } from '@/api/passkeys/requests';
 
 export {
@@ -23,4 +25,5 @@ export {
   useRemovePasskey,
   useRenamePasskey,
   useVerifyPasskeyMfa,
+  useVerifyPasskeyReset,
 } from '@/api/passkeys/hooks';

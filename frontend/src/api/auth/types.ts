@@ -53,7 +53,17 @@ export interface MfaRequiredResponse {
 /** Login returns tokens, or a challenge when the account has a second factor */
 export type LoginResult = AuthResponse | MfaRequiredResponse;
 
+/** Reset completes immediately (null), or challenges when the account has a second factor */
+export type ResetPasswordResult = MfaRequiredResponse | null;
+
 export interface MfaVerifyPayload {
+  mfa_token: string;
+  code: string;
+}
+
+export interface ResetPasswordVerifyPayload {
+  token: string;
+  new_password: string;
   mfa_token: string;
   code: string;
 }

@@ -8,11 +8,13 @@ import {
   fetchPasskeyConfig,
   fetchPasskeyMfaOptions,
   fetchPasskeyRegistrationOptions,
+  fetchPasskeyResetOptions,
   fetchPasskeys,
   registerPasskey,
   removePasskey,
   renamePasskey,
   verifyPasskeyMfa,
+  verifyPasskeyReset,
 } from '@/api/passkeys/requests';
 import type { StepUpPayload } from '@/api/twoFactor/types';
 import { useAuth } from '@/hooks/useAuth';
@@ -60,6 +62,22 @@ export function useVerifyPasskeyMfa() {
       const optionsJSON = await fetchPasskeyMfaOptions(mfaToken);
       const credential = await startAuthentication({ optionsJSON });
       return verifyPasskeyMfa(mfaToken, credential);
+    },
+  });
+}
+
+/**
+ * Runs the passkey second-factor ceremony for a password reset
+ *
+ * The options request does not spend the reset challenge, so a cancelled prompt leaves the user free
+ * to retry or fall back to a code, while a verified assertion completes the reset
+ */
+export function useVerifyPasskeyReset() {
+  return useMutation({
+    mutationFn: async (payload: { token: string; new_password: string; mfa_token: string }) => {
+      const optionsJSON = await fetchPasskeyResetOptions(payload.mfa_token);
+      const credential = await startAuthentication({ optionsJSON });
+      return verifyPasskeyReset(payload, credential);
     },
   });
 }
