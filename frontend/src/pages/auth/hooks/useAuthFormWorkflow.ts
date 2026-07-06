@@ -9,6 +9,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { getPasskeySignInMessage, isPasskeyCeremonyCancelled } from '@/utils/passkeyErrors'
 import { assessPasskeySupport } from '@/utils/passkeySupport'
 import { consumeRecoveryIntent } from '@/utils/recoveryIntent'
+import { recordResetRequest } from '@/utils/resetRequestLog'
 import { delayToMinimum } from '@/utils/timing'
 import {
   FADE_OUT_MS,
@@ -61,6 +62,7 @@ export function useAuthFormWorkflow({
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  const [forgotRepeated, setForgotRepeated] = useState(false)
   const [passwordFocused, setPasswordFocused] = useState(false)
   const [mfaToken, setMfaToken] = useState<string | null>(null)
   const [mfaCode, setMfaCode] = useState('')
@@ -179,6 +181,10 @@ export function useAuthFormWorkflow({
       await delayToMinimum(forgotStart)
       setSubmitting(false)
       setSubmitted(true)
+
+      // A repeat request from this browser gets extra guidance, since the backend only sends
+      // a new link once the current one expires
+      setForgotRepeated(recordResetRequest() >= 2)
       return
     }
 
@@ -425,6 +431,7 @@ export function useAuthFormWorkflow({
     isLogin,
     passwordFocused,
     setPasswordFocused,
+    forgotRepeated,
     submitDisabled,
     submitted,
     submitting,

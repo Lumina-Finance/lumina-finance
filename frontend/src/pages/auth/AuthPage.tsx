@@ -48,6 +48,7 @@ const AuthPage = () => {
     goToForgot,
     passwordFocused,
     setPasswordFocused,
+    forgotRepeated,
     submitDisabled,
     submitted,
     submitting,
@@ -277,6 +278,12 @@ const AuthPage = () => {
               <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
                 If an account exists for {form.email}, a link to set a new password is on its way. Check your inbox.
               </p>
+              {forgotRepeated && (
+                <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                  Requested a link before? Check your spam folder too. Your most recent link keeps
+                  working until it expires, and a new one can only be sent after that.
+                </p>
+              )}
               <button
                 type="button"
                 onClick={switchMode}
