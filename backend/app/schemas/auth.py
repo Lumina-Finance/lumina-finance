@@ -285,6 +285,21 @@ class PasskeyMfaVerifyRequest(BaseModel):
     credential: dict[str, Any]
 
 
+class PasskeyResetVerifyRequest(BaseModel):
+    """A passkey assertion answering the second-factor step of a password reset"""
+
+    token: str
+    new_password: str
+    mfa_token: str
+    credential: dict[str, Any]
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_new_password(cls, v: str) -> str:
+        """Enforce the password policy on the replacement password"""
+        return validate_password_strength(v)
+
+
 class PasskeyRenameRequest(BaseModel):
     """A new label for an existing passkey"""
 

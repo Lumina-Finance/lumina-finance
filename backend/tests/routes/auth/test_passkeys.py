@@ -22,7 +22,9 @@ from app.models.base import AuthProvider
 from app.models.user import User
 from app.services.auth.recovery_codes import generate_recovery_codes
 from tests.conftest import TestSession
-from tests.routes.support import SIGNUP_PAYLOAD, _create_user, _get_auth_header
+from tests.routes.support import SIGNUP_PAYLOAD, _create_user, _get_auth_header, _seed_reset_token
+
+_NEW_PASSWORD = "NewSecurePass123!"
 
 
 async def _create_second_user(client):
@@ -1062,3 +1064,49 @@ async def test_restricted_session_cannot_manage_passkeys(client):
 
     response = await client.get("/auth/passkeys", headers=auth)
     assert response.status_code == 403
+
+
+async def test_passkey_completes_password_reset(client, monkeypatch):
+    """The reset-scoped passkey ceremony completes a factor-gated password reset"""
+    signup = await _create_user(client)
+    user_id = signup.json()["user"]["id"]
+    credential_id = b"reset-factor-key"
+    await _seed_passkey(user_id, credential_id)
+
+    raw_token = await _seed_reset_token(uuid.UUID(user_id))
+    begin = await client.post("/auth/password/reset", json={"token": raw_token, "new_password": _NEW_PASSWORD})
+    assert begin.status_code == 200
+    assert begin.json()["passkey_available"] is True
+    mfa_token = begin.json()["mfa_token"]
+
+    options = (await client.post("/auth/passkeys/reset/options", json={"mfa_token": mfa_token})).json()
+    assert bytes_to_base64url(credential_id) in {entry["id"] for entry in options["allowCredentials"]}
+
+    assertion = _build_assertion(options["challenge"], credential_id, user_id)
+    monkeypatch.setattr(
+        webauthn_service,
+        "verify_authentication_response",
+        lambda **_: SimpleNamespace(new_sign_count=3),
+    )
+
+    verified = await client.post(
+        "/auth/passkeys/reset/verify",
+        json={"token": raw_token, "new_password": _NEW_PASSWORD, "mfa_token": mfa_token, "credential": assertion},
+    )
+    assert verified.status_code == 204
+
+    # The new password authenticates and the passkey factor survives the reset
+    login = await client.post("/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": _NEW_PASSWORD})
+    assert login.status_code == 200
+    assert login.json()["passkey_available"] is True
+
+
+async def test_passkey_reset_options_reject_a_login_challenge(client):
+    """The reset options endpoint refuses a challenge issued by login"""
+    signup = await _create_user(client)
+    await _seed_passkey(signup.json()["user"]["id"], b"login-scope-key")
+
+    login_mfa_token = (await _login(client)).json()["mfa_token"]
+
+    response = await client.post("/auth/passkeys/reset/options", json={"mfa_token": login_mfa_token})
+    assert response.status_code == 401

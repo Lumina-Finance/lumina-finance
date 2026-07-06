@@ -25,15 +25,19 @@ from app.schemas.auth import (
     PasskeyRegisterResponse,
     PasskeyRegistrationOptionsRequest,
     PasskeyRenameRequest,
+    PasskeyResetVerifyRequest,
     PasskeySummary,
     StepUpRequest,
 )
 from app.services.auth import (
+    MFA_PURPOSE_PASSWORD_RESET,
     authorize_factor_addition,
     build_passkey_authentication_options,
     build_passkey_registration_options,
     build_passkey_second_factor_options,
+    complete_password_reset,
     confirm_passkey_registration,
+    ensure_reset_token_active,
     list_passkeys,
     register_passkey,
     remove_passkey_with_step_up,
@@ -152,6 +156,51 @@ async def verify_passkey_second_factor_route(
     """
     user, _ = await complete_mfa_challenge_with_passkey(db, data.mfa_token, data.credential)
     return await issue_and_store_tokens(db, request, response, user)
+
+
+@router.post("/reset/options")
+async def passkey_reset_factor_options_route(
+    data: PasskeyMfaOptionsRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Begin the passkey second-factor step for a reset that holds a valid emailed token
+
+    The challenge token names the user, so their own passkeys are offered without a session
+
+    Args:
+        data: The reset challenge token
+        db: Active database session
+
+    Returns:
+        WebAuthn authentication options as raw JSON
+
+    Raises:
+        HTTPException: The challenge token is invalid or its challenge is spent or expired
+    """
+    user_id = await get_mfa_challenge_user_id(db, data.mfa_token, MFA_PURPOSE_PASSWORD_RESET)
+    options_json = await build_passkey_second_factor_options(db, user_id)
+    return Response(content=options_json, media_type=_OPTIONS_MEDIA_TYPE)
+
+
+@router.post("/reset/verify", status_code=status.HTTP_204_NO_CONTENT)
+async def verify_passkey_reset_factor_route(
+    data: PasskeyResetVerifyRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Complete a factor-gated password reset by verifying a passkey assertion
+
+    Args:
+        data: The reset payload with the emailed token, challenge token, assertion, and new password
+        db: Active database session
+
+    Raises:
+        HTTPException: The token, challenge, or assertion does not verify, or the account is locked
+    """
+    # The challenge below is single use, so reject a dead reset token before it burns
+    await ensure_reset_token_active(db, data.token)
+
+    user, _ = await complete_mfa_challenge_with_passkey(db, data.mfa_token, data.credential, MFA_PURPOSE_PASSWORD_RESET)
+    await complete_password_reset(db, user.id, data.token, data.new_password)
 
 
 @router.get("", response_model=list[PasskeySummary])

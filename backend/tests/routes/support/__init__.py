@@ -7,6 +7,7 @@ from tests.routes.support.auth_helpers import (
     _fresh_totp_code,
     _get_auth_header,
     _seed_currency,
+    _seed_reset_token,
 )
 
 __all__ = [
@@ -17,4 +18,5 @@ __all__ = [
     "_fresh_totp_code",
     "_get_auth_header",
     "_seed_currency",
+    "_seed_reset_token",
 ]

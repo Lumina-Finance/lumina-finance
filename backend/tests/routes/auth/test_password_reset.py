@@ -1,15 +1,13 @@
 """Password reset request and consume route tests"""
 
-import hashlib
 import uuid
-from datetime import UTC, datetime, timedelta
 
 import pyotp
 from sqlalchemy import func, select
 
 from app.models.auth import PasswordResetToken
 from tests.conftest import TestSession
-from tests.routes.support import SIGNUP_PAYLOAD, _create_user, _fresh_totp_code, _get_auth_header
+from tests.routes.support import SIGNUP_PAYLOAD, _create_user, _fresh_totp_code, _get_auth_header, _seed_reset_token
 
 _NEW_PASSWORD = "NewSecurePass123!"
 
@@ -38,20 +36,6 @@ async def _reset_tokens_for(user_id):
     async with TestSession() as session:
         result = await session.execute(select(PasswordResetToken).where(PasswordResetToken.user_id == user_id))
         return result.scalars().all()
-
-
-async def _seed_reset_token(user_id, raw_token="reset-token-abc", *, expires_in_seconds=600, used=False):  # noqa: S107
-    """Insert a reset token row with a known raw value so the consume route can be exercised"""
-    token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
-    async with TestSession() as session:
-        session.add(PasswordResetToken(
-            user_id=user_id,
-            token_hash=token_hash,
-            expires_at=datetime.now(UTC) + timedelta(seconds=expires_in_seconds),
-            used_at=datetime.now(UTC) if used else None,
-        ))
-        await session.commit()
-    return raw_token
 
 
 async def test_forgot_password_issues_token_for_existing_user(client):
