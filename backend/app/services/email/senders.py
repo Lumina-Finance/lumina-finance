@@ -34,6 +34,7 @@ class SmtpEmailSender:
             message: Rendered subject and bodies to deliver
         """
         email_message = EmailMessage()
+
         # Address quotes the display name so the parenthesised suffix is not parsed as a comment
         email_message["From"] = Address(display_name=EMAIL_SENDER_NAME, addr_spec=MAIL_FROM)
         email_message["To"] = recipient
