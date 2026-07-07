@@ -52,6 +52,18 @@ def validate_password_strength(value: str) -> str:
     return value
 
 
+class NewPasswordRequest(BaseModel):
+    """Base for every payload that sets a replacement password under the shared policy"""
+
+    new_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_new_password(cls, v: str) -> str:
+        """Enforce the password policy on the replacement password"""
+        return validate_password_strength(v)
+
+
 class SignupRequest(BaseModel):
     """Signup request payload"""
 
@@ -82,21 +94,14 @@ class LoginRequest(BaseModel):
     password: str
 
 
-class ChangePasswordRequest(BaseModel):
+class ChangePasswordRequest(NewPasswordRequest):
     """Change-password payload for an authenticated user"""
 
     current_password: str
-    new_password: str
     # A current second factor, required when one is active, a passkey assertion or a TOTP code, never a
     # recovery code
     code: str | None = None
     passkey: dict[str, Any] | None = None
-
-    @field_validator("new_password")
-    @classmethod
-    def validate_new_password(cls, v: str) -> str:
-        """Enforce the password policy on the replacement password"""
-        return validate_password_strength(v)
 
 
 class ForgotPasswordRequest(BaseModel):
@@ -105,32 +110,18 @@ class ForgotPasswordRequest(BaseModel):
     email: EmailStr
 
 
-class ResetPasswordRequest(BaseModel):
+class ResetPasswordRequest(NewPasswordRequest):
     """Password reset payload pairing the emailed token with the new password"""
 
     token: str
-    new_password: str
-
-    @field_validator("new_password")
-    @classmethod
-    def validate_new_password(cls, v: str) -> str:
-        """Enforce the password policy on the replacement password"""
-        return validate_password_strength(v)
 
 
-class ResetPasswordVerifyRequest(BaseModel):
+class ResetPasswordVerifyRequest(NewPasswordRequest):
     """Reset completion payload adding the challenge and factor code to the reset request"""
 
     token: str
-    new_password: str
     mfa_token: str
     code: str
-
-    @field_validator("new_password")
-    @classmethod
-    def validate_new_password(cls, v: str) -> str:
-        """Enforce the password policy on the replacement password"""
-        return validate_password_strength(v)
 
 
 class UserInfo(BaseModel):
@@ -285,19 +276,12 @@ class PasskeyMfaVerifyRequest(BaseModel):
     credential: dict[str, Any]
 
 
-class PasskeyResetVerifyRequest(BaseModel):
+class PasskeyResetVerifyRequest(NewPasswordRequest):
     """A passkey assertion answering the second-factor step of a password reset"""
 
     token: str
-    new_password: str
     mfa_token: str
     credential: dict[str, Any]
-
-    @field_validator("new_password")
-    @classmethod
-    def validate_new_password(cls, v: str) -> str:
-        """Enforce the password policy on the replacement password"""
-        return validate_password_strength(v)
 
 
 class PasskeyRenameRequest(BaseModel):
