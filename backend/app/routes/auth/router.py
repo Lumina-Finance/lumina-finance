@@ -422,7 +422,7 @@ async def verify_totp_route(
     Raises:
         HTTPException: The challenge or the code does not verify
     """
-    user, _ = await complete_mfa_challenge(db, data.mfa_token, data.code)
+    user, _ = await complete_mfa_challenge(db, data.mfa_token, data.code, MFA_PURPOSE_LOGIN)
     auth_response = await issue_and_store_tokens(db, request, response, user)
     return auth_response
 

@@ -31,7 +31,7 @@ from app.services.auth.account_lockout import (
     record_failed_attempt,
     reset_failed_attempts,
 )
-from app.services.auth.mfa_challenge import MFA_PURPOSE_LOGIN, consume_mfa_challenge, is_mfa_challenge_active
+from app.services.auth.mfa_challenge import consume_mfa_challenge, is_mfa_challenge_active
 from app.services.auth.sessions import (
     create_auth_session,
     create_auth_token,
@@ -130,9 +130,7 @@ def _raise_for_token_use(payload: dict[str, Any], expected_token_use: str) -> No
         raise jwt.InvalidTokenError("Invalid token use")
 
 
-async def complete_mfa_challenge(
-    db: AsyncSession, mfa_token: str, code: str, purpose: str = MFA_PURPOSE_LOGIN
-) -> tuple[User, str]:
+async def complete_mfa_challenge(db: AsyncSession, mfa_token: str, code: str, purpose: str) -> tuple[User, str]:
     """Complete a second-factor step with an authenticator or recovery code
 
     Args:
@@ -151,7 +149,7 @@ async def complete_mfa_challenge(
 
 
 async def complete_mfa_challenge_with_passkey(
-    db: AsyncSession, mfa_token: str, credential: dict[str, Any], purpose: str = MFA_PURPOSE_LOGIN
+    db: AsyncSession, mfa_token: str, credential: dict[str, Any], purpose: str
 ) -> tuple[User, str]:
     """Complete a second-factor step with a passkey assertion
 
@@ -243,7 +241,7 @@ async def _complete_mfa_challenge(
     return user, factor_kind
 
 
-async def get_mfa_challenge_user_id(db: AsyncSession, mfa_token: str, purpose: str = MFA_PURPOSE_LOGIN) -> uuid.UUID:
+async def get_mfa_challenge_user_id(db: AsyncSession, mfa_token: str, purpose: str) -> uuid.UUID:
     """Return the user a live challenge token belongs to without spending the challenge
 
     The passkey second-factor ceremony issues its options before the challenge is consumed, so this

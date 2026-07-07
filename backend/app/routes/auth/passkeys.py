@@ -30,6 +30,7 @@ from app.schemas.auth import (
     StepUpRequest,
 )
 from app.services.auth import (
+    MFA_PURPOSE_LOGIN,
     MFA_PURPOSE_PASSWORD_RESET,
     authorize_factor_addition,
     build_passkey_authentication_options,
@@ -128,7 +129,7 @@ async def passkey_second_factor_options_route(
     Raises:
         HTTPException: The challenge token is invalid or its challenge is spent or expired
     """
-    user_id = await get_mfa_challenge_user_id(db, data.mfa_token)
+    user_id = await get_mfa_challenge_user_id(db, data.mfa_token, MFA_PURPOSE_LOGIN)
     options_json = await build_passkey_second_factor_options(db, user_id)
     return Response(content=options_json, media_type=_OPTIONS_MEDIA_TYPE)
 
@@ -154,7 +155,7 @@ async def verify_passkey_second_factor_route(
     Raises:
         HTTPException: The challenge or the assertion does not verify
     """
-    user, _ = await complete_mfa_challenge_with_passkey(db, data.mfa_token, data.credential)
+    user, _ = await complete_mfa_challenge_with_passkey(db, data.mfa_token, data.credential, MFA_PURPOSE_LOGIN)
     return await issue_and_store_tokens(db, request, response, user)
 
 
