@@ -1,6 +1,5 @@
 """Shared auth route test helpers"""
 
-import hashlib
 import time
 from datetime import UTC, datetime, timedelta
 
@@ -8,6 +7,7 @@ import pyotp
 
 from app.models.auth import PasswordResetToken
 from app.models.currency import Currency
+from app.services.auth.token_hashing import hash_token
 from tests.conftest import TestSession
 
 
@@ -60,7 +60,7 @@ async def _seed_reset_token(user_id, raw_token="reset-token-abc", *, expires_in_
 
     The optional age backdates created_at so throttle and pruning windows can be exercised
     """
-    token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+    token_hash = hash_token(raw_token)
     async with TestSession() as session:
         token = PasswordResetToken(
             user_id=user_id,
