@@ -15,6 +15,7 @@ import { AUTH_VIEW_TRANSITION } from '@/pages/auth/constants/authAnimations'
 import { getAuthErrorMessage } from '@/pages/auth/utils/authForm'
 import { getPasskeySignInMessage, isPasskeyCeremonyCancelled } from '@/utils/passkeyErrors'
 import { assessPasskeySupport } from '@/utils/passkeySupport'
+import { AUTH_LOADING_MIN_MS, withMinDelay } from '@/utils/timing'
 import { NEW_PASSWORD_RULES, isNewPasswordValid } from '@/utils/passwordPolicy'
 
 /**
@@ -78,7 +79,8 @@ const ResetPasswordPage = () => {
     setError('')
     setSubmitting(true)
     try {
-      const result = await resetPassword({ token, new_password: newPassword })
+      // Hold the spinner for the shared minimum so a fast response does not flash it
+      const result = await withMinDelay(() => resetPassword({ token, new_password: newPassword }), AUTH_LOADING_MIN_MS)
       if (result === null) {
         setDone(true)
       } else {
@@ -116,12 +118,17 @@ const ResetPasswordPage = () => {
     setError('')
     setMfaSubmitting(true)
     try {
-      const session = await verifyResetMfa({
-        token,
-        new_password: newPassword,
-        mfa_token: challenge.mfa_token,
-        code,
-      })
+      // Hold the spinner for the shared minimum so a fast response does not flash it
+      const session = await withMinDelay(
+        () =>
+          verifyResetMfa({
+            token,
+            new_password: newPassword,
+            mfa_token: challenge.mfa_token,
+            code,
+          }),
+        AUTH_LOADING_MIN_MS,
+      )
       if (session === null) {
         setDone(true)
         return
