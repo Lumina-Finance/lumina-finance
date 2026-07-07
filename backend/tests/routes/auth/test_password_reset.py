@@ -2,6 +2,7 @@
 
 import uuid
 from datetime import UTC, datetime
+from types import SimpleNamespace
 
 import pyotp
 from sqlalchemy import func, select
@@ -50,6 +51,23 @@ async def test_forgot_password_issues_token_for_existing_user(client):
     rows = await _reset_tokens_for(user_id)
     assert len(rows) == 1
     assert rows[0].used_at is None
+
+
+async def test_forgot_password_drops_the_token_when_the_email_fails(client, monkeypatch):
+    """A send failure leaves no live token behind and stays invisible to the caller"""
+    signup = await _create_user(client)
+    user_id = uuid.UUID(signup.json()["user"]["id"])
+
+    async def failing_send(*_args, **_kwargs):
+        raise RuntimeError("smtp is down")
+
+    monkeypatch.setattr("app.services.auth.password_reset.get_email_sender", lambda: SimpleNamespace(send=failing_send))
+
+    resp = await client.post("/auth/password/forgot", json={"email": SIGNUP_PAYLOAD["email"]})
+
+    # The response is the same 204 as a success, and no token survives to block the next request
+    assert resp.status_code == 204
+    assert await _reset_tokens_for(user_id) == []
 
 
 async def test_forgot_password_unknown_email_creates_no_token(client):

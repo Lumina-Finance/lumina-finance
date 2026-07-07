@@ -1,5 +1,6 @@
 """Password reset request and token service"""
 
+import logging
 import secrets
 import uuid
 from dataclasses import dataclass
@@ -22,6 +23,8 @@ from app.services.auth.totp import is_totp_enabled
 from app.services.auth.user_lookup import find_user_id_by_email
 from app.services.auth.webauthn import is_passkey_registered
 from app.services.email import get_email_sender, render_reset_email
+
+logger = logging.getLogger(__name__)
 
 # 32 random bytes give a 256-bit token, infeasible to guess so a fast hash resists leaks
 _TOKEN_BYTES = 32
@@ -91,14 +94,23 @@ async def request_password_reset(db: AsyncSession, email: str) -> None:
 
     raw_token = secrets.token_urlsafe(_TOKEN_BYTES)
     expires_at = now + timedelta(seconds=PASSWORD_RESET_TOKEN_EXPIRE_SECONDS)
-    db.add(PasswordResetToken(user_id=user_id, token_hash=hash_token(raw_token), expires_at=expires_at))
+    reset_token = PasswordResetToken(user_id=user_id, token_hash=hash_token(raw_token), expires_at=expires_at)
+    db.add(reset_token)
     await db.commit()
 
     # The raw token only ever leaves the server inside the emailed link
     reset_link = f"{APP_URL}{_RESET_PATH}?token={raw_token}"
     expiry_minutes = PASSWORD_RESET_TOKEN_EXPIRE_SECONDS // 60
     message = render_reset_email(reset_link, expiry_minutes)
-    await get_email_sender().send(email, message)
+    try:
+        await get_email_sender().send(email, message)
+    except Exception:
+        # A failed send must drop the token it just stored, otherwise the one-live-link throttle would
+        # suppress every retry until the token expires, and the failure must stay invisible to the caller
+        # so a broken mail server cannot become an account-existence oracle
+        await db.delete(reset_token)
+        await db.commit()
+        logger.warning("Password reset email failed to send", exc_info=True)
 
 
 async def _find_active_reset_token(db: AsyncSession, token: str) -> PasswordResetToken | None:
