@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
-import { motion } from 'motion/react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { AnimatePresence, motion } from 'motion/react'
 import { useCurrencies } from '@/api/currency'
 import {
   completeOidcCallback,
@@ -9,8 +9,11 @@ import {
   type OidcOnboardingResponse,
 } from '@/api/oidc'
 import Dropdown from '@/components/dropdown/Dropdown'
+import LoadingScreen from '@/components/loading/Screen'
 import { useAuth } from '@/hooks/useAuth'
+import { AuthStaggeredHeading } from '@/pages/auth/components/AnimatedTitle'
 import { AuthTextField } from '@/pages/auth/components/fields/TextField'
+import { AUTH_VIEW_TRANSITION } from '@/pages/auth/constants/authAnimations'
 import { buildCurrencyOptions, getCurrencyPlaceholder } from '@/pages/auth/utils/authForm'
 
 const DETECTED_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone
@@ -23,15 +26,18 @@ const TIMEZONES = Intl.supportedValuesOf('timeZone').map((tz) => ({
 /**
  * Finishes a provider sign-in from the callback query parameters
  *
- * An existing account signs in directly, while a first-time sign-in stays on this page to
- * collect the profile fields the provider cannot supply before the account is created
+ * The completing state shows the app's boot loading screen, and its exit fade reveals
+ * either the onboarding form for a first-time sign-in or the failure view, both entering
+ * with the auth page's view swap. Leaving for the login page animates out first
  */
 const OidcCallbackPage = () => {
   const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
   const { setSession } = useAuth()
 
   const [onboarding, setOnboarding] = useState<OidcOnboardingResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [leaving, setLeaving] = useState(false)
 
   // The stored roundtrip is single use on the server, so the strict-mode double effect
   // must not post the callback twice
@@ -70,53 +76,61 @@ const OidcCallbackPage = () => {
       })
   }, [searchParams, setSession])
 
+  const completing = !error && !onboarding
+
+  const handleBackToLogin = () => {
+    setLeaving(true)
+  }
+
   return (
-    <motion.div
+    <div
       className="flex min-h-[100dvh] items-start justify-center px-4 pt-[10dvh] lg:pt-[20dvh]"
       style={{ backgroundColor: 'var(--app-bg)' }}
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.3 }}
     >
+      <AnimatePresence>
+        {completing && <LoadingScreen message="Completing sign-in" />}
+      </AnimatePresence>
+
       <div className="w-full max-w-sm">
-        {error ? (
-          <OidcCallbackError message={error} />
-        ) : onboarding ? (
-          <OidcOnboardingForm onboarding={onboarding} />
-        ) : (
-          <div className="flex flex-col items-center gap-4 pt-8">
-            <div className="app-spinner" />
-            <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-              Completing sign-in…
-            </p>
-          </div>
-        )}
+        <AnimatePresence
+          mode="wait"
+          onExitComplete={() => {
+            if (leaving) navigate('/login')
+          }}
+        >
+          {error && !leaving && (
+            <motion.div key="sign-in-failed" {...AUTH_VIEW_TRANSITION}>
+              <AuthStaggeredHeading title="Sign-in failed" titleKey="sign-in-failed" />
+              <p className="mt-5 text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                {error}
+              </p>
+              <p className="mt-5 text-center text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                <button
+                  type="button"
+                  onClick={handleBackToLogin}
+                  className="font-medium underline underline-offset-2 transition-colors duration-200"
+                  style={{ color: 'var(--app-accent)' }}
+                >
+                  Back to login
+                </button>
+              </p>
+            </motion.div>
+          )}
+
+          {onboarding && !leaving && (
+            <motion.div key="onboarding" {...AUTH_VIEW_TRANSITION}>
+              <OidcOnboardingForm onboarding={onboarding} onBackToLogin={handleBackToLogin} />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
-    </motion.div>
+    </div>
   )
 }
 
-/**
- * Renders the terminal failure state with the way back to a fresh sign-in
- */
-function OidcCallbackError({ message }: { message: string }) {
-  return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-semibold" style={{ color: 'var(--app-text)' }}>
-        Sign-in failed
-      </h1>
-      <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-        {message}
-      </p>
-      <Link
-        to="/login"
-        className="block text-sm font-medium underline underline-offset-2"
-        style={{ color: 'var(--app-accent)' }}
-      >
-        Back to login
-      </Link>
-    </div>
-  )
+interface OidcOnboardingFormProps {
+  onboarding: OidcOnboardingResponse
+  onBackToLogin: () => void
 }
 
 /**
@@ -125,7 +139,7 @@ function OidcCallbackError({ message }: { message: string }) {
  * The provider verified who the user is, so only their name is editable alongside the
  * base currency and timezone the app cannot learn from the provider
  */
-function OidcOnboardingForm({ onboarding }: { onboarding: OidcOnboardingResponse }) {
+function OidcOnboardingForm({ onboarding, onBackToLogin }: OidcOnboardingFormProps) {
   const { setSession } = useAuth()
   const { data: currencies = [], isError: currenciesError } = useCurrencies()
 
@@ -237,13 +251,14 @@ function OidcOnboardingForm({ onboarding }: { onboarding: OidcOnboardingResponse
 
       <p className="mt-5 text-center text-sm" style={{ color: 'var(--app-text-muted)' }}>
         Wrong account?{' '}
-        <Link
-          to="/login"
-          className="font-medium underline underline-offset-2"
+        <button
+          type="button"
+          onClick={onBackToLogin}
+          className="font-medium underline underline-offset-2 transition-colors duration-200"
           style={{ color: 'var(--app-accent)' }}
         >
           Back to login
-        </Link>
+        </button>
       </p>
     </form>
   )
