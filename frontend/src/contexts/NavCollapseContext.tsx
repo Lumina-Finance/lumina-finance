@@ -1,8 +1,8 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 
 const NAV_EXPANDED_KEY = 'lumina:settings:navExpanded'
 
-interface NavCollapseValue {
+export interface NavCollapseValue {
   // Pinned expanded state, persisted and mirrored by the page content offset. Hover expansion is
   // local to the navigation and deliberately excluded here so it never reflows the page
   navExpanded: boolean
@@ -38,11 +38,4 @@ export function NavCollapseProvider({ children }: { children: ReactNode }) {
   return <NavCollapseContext.Provider value={value}>{children}</NavCollapseContext.Provider>
 }
 
-/**
- * Exposes the pinned navigation expand state and its toggle
- */
-export function useNavCollapse(): NavCollapseValue {
-  const context = useContext(NavCollapseContext)
-  if (!context) throw new Error('useNavCollapse must be used within a NavCollapseProvider')
-  return context
-}
+export { NavCollapseContext }

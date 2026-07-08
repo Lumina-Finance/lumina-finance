@@ -160,6 +160,11 @@
     background: var(--app-nav-bg);
     border: 1px solid var(--app-border);
     box-shadow: var(--app-shadow-soft);
+    /* A resting zero blur so the frosted collapsed state can ease its blur in and out rather than
+       snapping the filter on, alongside the background and border easing between the two states */
+    -webkit-backdrop-filter: blur(0) saturate(100%);
+    backdrop-filter: blur(0) saturate(100%);
+    transition: background-color 0.3s ease, border-color 0.3s ease, backdrop-filter 0.3s ease, -webkit-backdrop-filter 0.3s ease;
   }
 
   @supports (height: 100dvh) {
@@ -248,26 +253,32 @@
     pointer-events: none;
   }
 
-  /* The brand text and the pin toggle have no icon-only form, so they cross-fade and collapse their
-     width as the rail closes rather than blinking out. The 40px collapsed logo then fills the rail's
-     content box and centres on its own */
-  .app-nav-brand-text,
-  .app-desktop-nav-toggle {
+  /* The brand text has no icon-only form, so it cross-fades and collapses its width as the rail closes
+     rather than blinking out */
+  .app-nav-brand-text {
     overflow: hidden;
+    max-width: 9rem;
     transition: max-width 0.28s ease, opacity 0.2s ease;
   }
 
-  .app-nav-brand-text {
-    max-width: 9rem;
-  }
-
-  .app-desktop-nav-toggle {
-    max-width: 2.5rem;
-  }
-
-  .app-desktop-nav-collapsed .app-nav-brand-text,
-  .app-desktop-nav-collapsed .app-desktop-nav-toggle {
+  .app-desktop-nav-collapsed .app-nav-brand-text {
     max-width: 0;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  /* The pin toggle sits in the sidebar's top-right corner, out of the header flow. It only fades in
+     and out, so its reveal rides the width spring, and the nav's overflow keeps it clipped away while
+     the rail is closed */
+  .app-desktop-nav-toggle {
+    position: absolute;
+    top: 1.25rem;
+    right: 1rem;
+    z-index: 2;
+    transition: opacity 0.3s ease;
+  }
+
+  .app-desktop-nav-collapsed .app-desktop-nav-toggle {
     opacity: 0;
     pointer-events: none;
   }

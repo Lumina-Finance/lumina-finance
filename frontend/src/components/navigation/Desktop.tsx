@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { motion, useReducedMotion } from 'motion/react'
 import { PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import type { Theme } from '@/types'
-import { useNavCollapse } from '@/contexts/NavCollapseContext'
+import { useNavCollapse } from '@/hooks/useNavCollapse'
 import { joinClassNames } from '@/utils/classNames'
 import { NavigationBrand } from '@/components/navigation/parts/Brand'
 import { NavigationLinks } from '@/components/navigation/parts/Links'
@@ -65,17 +65,18 @@ export function DesktopNavigation({
         if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setPreviewing(false)
       }}
     >
-      <div className="app-desktop-nav-header mb-8 flex items-center gap-2">
+      <button
+        type="button"
+        className="app-desktop-nav-toggle app-icon-button"
+        aria-label={navExpanded ? 'Collapse sidebar' : 'Keep sidebar expanded'}
+        aria-pressed={navExpanded}
+        onClick={toggleNavExpanded}
+      >
+        {navExpanded ? <PanelLeftClose size={16} aria-hidden /> : <PanelLeftOpen size={16} aria-hidden />}
+      </button>
+
+      <div className="app-desktop-nav-header mb-8 flex items-center">
         <NavigationBrand />
-        <button
-          type="button"
-          className="app-desktop-nav-toggle app-icon-button ml-auto shrink-0"
-          aria-label={navExpanded ? 'Collapse sidebar' : 'Keep sidebar expanded'}
-          aria-pressed={navExpanded}
-          onClick={toggleNavExpanded}
-        >
-          {navExpanded ? <PanelLeftClose size={16} aria-hidden /> : <PanelLeftOpen size={16} aria-hidden />}
-        </button>
       </div>
 
       <NavigationLinks />
