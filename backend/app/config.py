@@ -1,7 +1,6 @@
 """Application configuration loading and validation"""
 
 import os
-import re
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlparse
@@ -251,11 +250,14 @@ MFA_CHALLENGE_TOKEN_EXPIRE_SECONDS = int(os.getenv("MFA_CHALLENGE_TOKEN_EXPIRE_S
 
 # --- OIDC ---
 
-# The google slug is a preset whose issuer and display name are filled in automatically,
-# so operators only supply the client credentials from their Google Cloud console
-OIDC_GOOGLE_SLUG = "google"
-OIDC_GOOGLE_ISSUER = "https://accounts.google.com"
-OIDC_GOOGLE_DISPLAY_NAME = "Google"
+# The generic slug accepts any standards-compliant provider such as Authentik or Authelia,
+# while vendor slugs are presets whose issuer and display name are filled in automatically
+# so operators only supply the client credentials
+OIDC_GENERIC_SLUG = "generic"
+OIDC_GENERIC_DEFAULT_DISPLAY_NAME = "SSO"
+OIDC_VENDOR_PRESETS = {
+    "google": ("https://accounts.google.com", "Google"),
+}
 
 # The default scope set covers exactly the claims sign-in needs: subject, email, and name
 OIDC_DEFAULT_SCOPES = "openid email profile"
@@ -266,10 +268,6 @@ OIDC_AUTHORIZATION_REQUEST_EXPIRE_SECONDS = int(os.getenv("OIDC_AUTHORIZATION_RE
 # The onboarding token bridges a verified provider sign-in and the profile completion step, kept
 # short since redoing the provider sign-in is cheap
 OIDC_ONBOARDING_TOKEN_EXPIRE_SECONDS = int(os.getenv("OIDC_ONBOARDING_TOKEN_EXPIRE_SECONDS", "600"))
-
-# Slugs become environment variable names, URL path segments, and container-safe identifiers
-_OIDC_SLUG_PATTERN = re.compile(r"^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$")
-
 
 @dataclass(frozen=True)
 class OidcProviderConfig:
@@ -316,25 +314,25 @@ def _validate_oidc_issuer(slug: str, issuer: str) -> str:
 def load_oidc_provider_configs() -> list[OidcProviderConfig]:
     """Return the OIDC providers declared in the environment
 
-    Each slug listed in OIDC_PROVIDERS is read from its own OIDC_<SLUG>_* block, with the
-    google slug presetting its issuer and display name
+    Each slug listed in OIDC_PROVIDERS is read from its own OIDC_<SLUG>_* block. The slug
+    is either generic, which requires an issuer, or a vendor preset that supplies its own
 
     Returns:
         Provider declarations in the order they are listed
 
     Raises:
-        RuntimeError: A slug is malformed, a required field is missing, or a value is invalid
+        RuntimeError: A slug is unsupported, a required field is missing, or a value is invalid
     """
     configs = []
     for slug in _unique_values(_optional_csv_env("OIDC_PROVIDERS")):
-        if not _OIDC_SLUG_PATTERN.match(slug):
-            raise RuntimeError(f"Invalid OIDC provider slug {slug!r}. Use lowercase letters, digits, and hyphens")
-
-        is_google_preset = slug == OIDC_GOOGLE_SLUG
+        preset = OIDC_VENDOR_PRESETS.get(slug)
+        if slug != OIDC_GENERIC_SLUG and preset is None:
+            supported_slugs = ", ".join([OIDC_GENERIC_SLUG, *OIDC_VENDOR_PRESETS])
+            raise RuntimeError(f"Unknown OIDC provider {slug!r}. Supported: {supported_slugs}")
 
         issuer = os.getenv(_oidc_env_key(slug, "ISSUER"), "").strip()
-        if not issuer and is_google_preset:
-            issuer = OIDC_GOOGLE_ISSUER
+        if not issuer and preset is not None:
+            issuer = preset[0]
         if not issuer:
             raise RuntimeError(f"Missing required environment variable: {_oidc_env_key(slug, 'ISSUER')}")
 
@@ -347,7 +345,7 @@ def load_oidc_provider_configs() -> list[OidcProviderConfig]:
 
         display_name = os.getenv(_oidc_env_key(slug, "DISPLAY_NAME"), "").strip()
         if not display_name:
-            display_name = OIDC_GOOGLE_DISPLAY_NAME if is_google_preset else slug.replace("-", " ").title()
+            display_name = preset[1] if preset is not None else OIDC_GENERIC_DEFAULT_DISPLAY_NAME
 
         scopes = os.getenv(_oidc_env_key(slug, "SCOPES"), "").strip() or OIDC_DEFAULT_SCOPES
         if "openid" not in scopes.split():
