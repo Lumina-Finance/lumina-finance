@@ -38,12 +38,6 @@ export default function TaxAdvantagedLimitsSection({
           )
         })}
       </div>
-      <div
-        className="h-px"
-        style={{
-          background: 'var(--app-accent)',
-        }}
-      />
     </section>
   )
 }
