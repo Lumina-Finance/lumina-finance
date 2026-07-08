@@ -33,6 +33,9 @@ from app.services.auth.user_lookup import find_user_id_by_email
 # The one callback path every provider registers, appended to the public app origin
 OIDC_REDIRECT_PATH = "/auth/oidc/callback"
 
+# Machine-readable conflict code the client matches to offer a password sign-in instead
+OIDC_EMAIL_CONFLICT_CODE = "email_already_registered"
+
 
 @dataclass(frozen=True)
 class OidcOnboardingClaims:
@@ -170,9 +173,13 @@ async def complete_oidc_sign_in(db: AsyncSession, code: str, state: str) -> User
     existing_user_id = await find_user_id_by_email(db, email)
     if existing_user_id is not None:
         # Revealing that the email is taken is unavoidable for a usable flow and needs a
-        # provider sign-in as that email's owner, unlike an anonymous probe
+        # provider sign-in as that email's owner, unlike an anonymous probe. The detail is
+        # structured because the client offers a password sign-in prefilled with the address
         if not email_verified:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={"code": OIDC_EMAIL_CONFLICT_CODE, "email": email},
+            )
         return await _link_identity_and_sign_in(db, existing_user_id, provider, subject, email)
 
     return OidcOnboardingClaims(

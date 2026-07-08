@@ -198,6 +198,11 @@ async def test_callback_rejects_unverified_email_collision(client, provider_prot
 
     assert resp.status_code == 409
 
+    # The structured detail hands the client the address so it can prefill a password sign-in
+    detail = resp.json()["detail"]
+    assert detail["code"] == "email_already_registered"
+    assert detail["email"] == SIGNUP_PAYLOAD["email"]
+
     async with TestSession() as session:
         identities = (await session.execute(select(OidcIdentity))).scalars().all()
     assert identities == []
