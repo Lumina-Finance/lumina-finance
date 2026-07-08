@@ -228,9 +228,11 @@ async def complete_oidc_signup(
 
     user_id = uuid.uuid4()
 
-    # Stamp the new user as the current identity before any query so their own row
-    # passes the self-only users policy when it is inserted and read back
+    # The provider and identity checks above ran before any identity existed, so close that
+    # transaction and adopt the new user id, so the inserts below run on a connection
+    # stamped for the self-only users policy
     current_user_id_ctx.set(user_id)
+    await db.commit()
 
     await reject_registered_email(db, onboarding.email)
     await reject_missing_base_currency(db, base_currency)
