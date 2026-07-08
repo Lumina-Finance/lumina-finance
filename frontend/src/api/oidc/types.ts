@@ -37,3 +37,19 @@ export interface OidcSignupPayload {
   tz: string;
   base_currency: string;
 }
+
+// A linked provider as shown in the security settings list
+export interface OidcLinkedIdentity {
+  id: string;
+  provider_slug: string;
+  provider_display_name: string;
+  email: string | null;
+  created_at: string;
+  last_login_at: string | null;
+}
+
+export interface OidcIdentitiesResponse {
+  identities: OidcLinkedIdentity[];
+  // False for provider-created accounts until they set a password, which gates link and unlink
+  has_password: boolean;
+}

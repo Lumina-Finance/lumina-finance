@@ -166,4 +166,5 @@ export const passkeyKeys = {
 
 export const oidcKeys = {
   providers: () => ['oidc', 'providers'] as const,
+  identities: () => ['oidc', 'identities'] as const,
 };

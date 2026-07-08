@@ -2,8 +2,12 @@ import { ApiError } from '@/api/auth/errors';
 import type { AuthResponse } from '@/api/auth/types';
 import { API_BASE } from '@/api/config';
 import { OIDC_EMAIL_CONFLICT_CODE, OidcEmailConflictError } from '@/api/oidc/errors';
+import { authenticatedFetch } from '@/api/client';
+import type { StepUpPayload } from '@/api/twoFactor/types';
 import type {
   OidcAuthorizeResponse,
+  OidcIdentitiesResponse,
+  OidcLinkedIdentity,
   OidcCallbackPayload,
   OidcCallbackResult,
   OidcOnboardingResponse,
@@ -81,5 +85,42 @@ export function completeOidcSignup(payload: OidcSignupPayload): Promise<AuthResp
   return requestOidc('/auth/oidc/signup', {
     method: 'POST',
     body: JSON.stringify(payload),
+  });
+}
+
+/**
+ * Reads the account's linked providers and whether it has a password for step-up actions
+ */
+export function fetchOidcIdentities(): Promise<OidcIdentitiesResponse> {
+  return authenticatedFetch('/auth/oidc/identities');
+}
+
+/**
+ * Starts linking a provider after step-up, resolving to the provider URL to visit
+ */
+export function beginOidcLink(slug: string, stepUp: StepUpPayload): Promise<OidcAuthorizeResponse> {
+  return authenticatedFetch(`/auth/oidc/${slug}/link`, {
+    method: 'POST',
+    body: JSON.stringify(stepUp),
+  });
+}
+
+/**
+ * Finishes linking a provider to the signed-in account
+ */
+export function completeOidcLinkCallback(payload: OidcCallbackPayload): Promise<OidcLinkedIdentity> {
+  return authenticatedFetch('/auth/oidc/link/callback', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+/**
+ * Removes a linked provider after step-up
+ */
+export function removeOidcIdentity(identityId: string, stepUp: StepUpPayload): Promise<void> {
+  return authenticatedFetch(`/auth/oidc/identities/${identityId}/remove`, {
+    method: 'POST',
+    body: JSON.stringify(stepUp),
   });
 }
