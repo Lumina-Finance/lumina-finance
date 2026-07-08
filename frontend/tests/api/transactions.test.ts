@@ -35,7 +35,7 @@ describe('transaction fetch functions', () => {
 
   it('requests filtered transaction lists', async () => {
     await fetchTransactions({
-      account_id: 'acc_123',
+      account_id: ['acc_123'],
       q: 'coffee shop',
       from_date: '2026-01-01',
       to_date: '2026-01-31',
@@ -50,7 +50,7 @@ describe('transaction fetch functions', () => {
 
   it('omits empty transaction filters', async () => {
     await fetchTransactions({
-      account_id: '',
+      account_id: [],
       category_id: undefined,
     });
 
@@ -58,7 +58,7 @@ describe('transaction fetch functions', () => {
   });
 
   it('requests paginated transaction lists with offset options', async () => {
-    await fetchTransactionPage({ category_id: 'cat_123' }, 50, 100);
+    await fetchTransactionPage({ category_id: ['cat_123'] }, 50, 100);
 
     expect(authenticatedFetchMock).toHaveBeenCalledWith(
       '/transactions?category_id=cat_123&limit=50&offset=100',
