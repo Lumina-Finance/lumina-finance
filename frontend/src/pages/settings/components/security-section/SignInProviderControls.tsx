@@ -9,7 +9,28 @@ import {
   type OidcLinkedIdentity,
   type OidcProvider,
 } from '@/api/oidc';
+import { ProviderMark } from '@/components/ProviderMark';
 import { StepUpModal, type StepUpCredentials } from '@/components/twoFactor/StepUpModal';
+
+const MARK_TILE_STYLE = {
+  backgroundColor: 'var(--app-surface-soft)',
+  border: '1px solid var(--app-border)',
+};
+
+/**
+ * Renders a provider mark inside the soft tile the settings rows and buttons lead with
+ */
+function ProviderMarkTile({ slug }: { slug: string }) {
+  return (
+    <span
+      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
+      style={MARK_TILE_STYLE}
+      aria-hidden
+    >
+      <ProviderMark slug={slug} size={18} />
+    </span>
+  );
+}
 
 /**
  * The security-card entry for single sign-on: linked providers with their unlink actions and
@@ -33,8 +54,10 @@ export default function SignInProviderControls() {
     (provider) => !linkedIdentities.some((identity) => identity.provider_slug === provider.slug),
   );
 
+  const isLoading = providers.isLoading || identities.isLoading;
+
   // Nothing to manage when the server has no providers and the account has no links
-  if (!providers.isLoading && !identities.isLoading && (providers.data ?? []).length === 0 && linkedIdentities.length === 0) {
+  if (!isLoading && (providers.data ?? []).length === 0 && linkedIdentities.length === 0) {
     return null;
   }
 
@@ -75,26 +98,31 @@ export default function SignInProviderControls() {
             {linkedIdentities.map((identity) => (
               <li
                 key={identity.id}
-                className="flex flex-col gap-2 rounded-lg border px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+                className="flex items-center gap-3 rounded-xl border px-4 py-3"
                 style={{ borderColor: 'var(--app-border)' }}
               >
-                <div className="space-y-0.5">
+                <ProviderMarkTile slug={identity.provider_slug} />
+                <div className="min-w-0 flex-1 space-y-0.5">
                   <p className="text-sm font-medium">{identity.provider_display_name}</p>
-                  <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                    {identity.email ?? 'No email on record'} · linked{' '}
-                    {new Date(identity.created_at).toLocaleDateString()}
+                  <p className="truncate text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                    {identity.email ?? 'No email on record'}
                   </p>
                 </div>
-                {hasPassword && (
-                  <button
-                    type="button"
-                    className="text-sm font-medium underline underline-offset-2"
-                    style={{ color: 'var(--app-negative)' }}
-                    onClick={() => setRemoveTarget(identity)}
-                  >
-                    Remove
-                  </button>
-                )}
+                <div className="flex shrink-0 flex-col items-end gap-1">
+                  {hasPassword && (
+                    <button
+                      type="button"
+                      className="text-sm font-medium underline underline-offset-2 transition-colors duration-200"
+                      style={{ color: 'var(--app-negative)' }}
+                      onClick={() => setRemoveTarget(identity)}
+                    >
+                      Remove
+                    </button>
+                  )}
+                  <span className="text-xs" style={{ color: 'var(--app-text-subtle)' }}>
+                    Linked {new Date(identity.created_at).toLocaleDateString()}
+                  </span>
+                </div>
               </li>
             ))}
           </ul>
@@ -106,9 +134,10 @@ export default function SignInProviderControls() {
               <button
                 key={provider.slug}
                 type="button"
-                className="app-secondary-button"
+                className="app-secondary-button flex items-center gap-2"
                 onClick={() => setLinkTarget(provider)}
               >
+                <ProviderMark slug={provider.slug} />
                 Link {provider.display_name}
               </button>
             ))}

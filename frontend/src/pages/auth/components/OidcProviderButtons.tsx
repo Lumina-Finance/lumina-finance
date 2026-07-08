@@ -1,10 +1,6 @@
 import { useState } from 'react'
-import { Globe } from 'lucide-react'
 import { beginOidcSignIn, type OidcProvider } from '@/api/oidc'
-import { GoogleGMark } from '@/pages/auth/components/GoogleGMark'
-
-// Google's slug is fixed by the backend preset and selects its brand-mandated G mark
-const GOOGLE_PROVIDER_SLUG = 'google'
+import { ProviderMark } from '@/components/ProviderMark'
 
 interface OidcProviderButtonsProps {
   providers: OidcProvider[]
@@ -51,7 +47,7 @@ export function OidcProviderButtons({ providers }: OidcProviderButtonsProps) {
               <div className="app-spinner" />
             ) : (
               <>
-                {provider.slug === GOOGLE_PROVIDER_SLUG ? <GoogleGMark /> : <Globe size={16} aria-hidden />}
+                <ProviderMark slug={provider.slug} />
                 Continue with {provider.display_name}
               </>
             )}

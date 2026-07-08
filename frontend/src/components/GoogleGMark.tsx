@@ -5,13 +5,13 @@
  * as the other provider icons, matching Google's own current buttons, whose light and dark
  * variants both place the bare G straight on the background
  */
-export function GoogleGMark() {
+export function GoogleGMark({ size = 16 }: { size?: number }) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
       viewBox="0 0 48 48"
-      width="16"
-      height="16"
+      width={size}
+      height={size}
       className="shrink-0"
       aria-hidden
     >
