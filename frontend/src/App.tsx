@@ -2,6 +2,7 @@ import { useState, useEffect, useLayoutEffect, useCallback, startTransition, laz
 import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation, type Location } from 'react-router-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import { AuthProvider } from '@/contexts/AuthContext'
+import { NavCollapseProvider, useNavCollapse } from '@/contexts/NavCollapseContext'
 import { useAuth } from '@/hooks/useAuth'
 import { useCacheValidation } from '@/hooks/useCacheValidation'
 import { useTheme } from '@/hooks/useTheme'
@@ -68,6 +69,7 @@ let hasShownLoadingScreen = false;
 /** Redirect to /login if unauthenticated. Show loading screen on first visit. */
 function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase }: { displayLocation: Location; onContentReady: () => void; pageTransitionPhase: PageTransitionPhase }) {
   const { user, loading } = useAuth();
+  const { navExpanded } = useNavCollapse();
   const pageTransitioning = pageTransitionPhase !== 'idle';
   const pageContentVisible = pageTransitionPhase === 'idle' || pageTransitionPhase === 'entering';
   // Derive layout from the displayed location, not the URL, so the focused-page
@@ -75,6 +77,9 @@ function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase }
   // ahead at navigation time and snapping the page between layouts
   const isFocusedPage = displayLocation.pathname === '/settings/imports';
   const desktopBottomPadding = displayLocation.pathname === '/transactions' ? 'min-[1050px]:pb-12' : 'min-[1050px]:pb-5';
+  // The content clears the full sidebar when expanded and the icon rail when collapsed, matching the
+  // sidebar's own left offset so it stays flush in either state
+  const navOffsetClass = navExpanded ? 'min-[1050px]:ml-[260px]' : 'min-[1050px]:ml-[94px]';
   const pageTransitionOffset = isBudgetDetailRoute(displayLocation.pathname, displayLocation.search) ? 0 : PAGE_TRANSITION_OFFSET_PX;
   // Only show loading screen if there's a session being restored or user just authenticated
   const shouldShowLoading = loading || (!hasShownLoadingScreen && user);
@@ -154,7 +159,7 @@ function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase }
           </AnimatePresence>
           <main
             id="app-page-content"
-            className={`min-w-0 flex-1 ${isFocusedPage ? 'fixed inset-0 z-[60] p-0' : `relative px-4 pb-8 pt-6 min-[1050px]:ml-[260px] min-[1050px]:px-6 ${desktopBottomPadding} min-[1050px]:pt-10`}`}
+            className={`min-w-0 flex-1 ${isFocusedPage ? 'fixed inset-0 z-[60] p-0' : `relative px-4 pb-8 pt-6 ${navOffsetClass} min-[1050px]:px-6 ${desktopBottomPadding} min-[1050px]:pt-10 transition-[margin] duration-[450ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none`}`}
             aria-busy={pageTransitioning}
           >
             <motion.div
@@ -319,7 +324,11 @@ function AnimatedRoutes() {
 
 function AppShell() {
   useTheme();
-  return <AnimatedRoutes />;
+  return (
+    <NavCollapseProvider>
+      <AnimatedRoutes />
+    </NavCollapseProvider>
+  );
 }
 
 function App() {

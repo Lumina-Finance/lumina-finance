@@ -3,14 +3,16 @@
  */
 export function NavigationBrand() {
   return (
-    <div className="flex items-center gap-1">
-      <img
-        src="/logo.png"
-        alt=""
-        aria-hidden="true"
-        className="-ml-1.5 h-[3.75rem] w-[3.75rem] shrink-0 object-contain"
-      />
-      <div className="min-w-0">
+    <div className="flex min-w-0 items-center gap-1">
+      <span className="app-nav-lead">
+        <img
+          src="/logo.png"
+          alt=""
+          aria-hidden="true"
+          className="app-nav-brand-logo shrink-0 object-contain"
+        />
+      </span>
+      <div className="app-nav-brand-text min-w-0">
         <h1 className="font-serif text-[1.85rem] font-medium leading-none tracking-normal">
           Lumina
         </h1>

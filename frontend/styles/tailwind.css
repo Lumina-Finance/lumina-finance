@@ -156,6 +156,10 @@
   .app-desktop-nav {
     top: 1.25rem;
     height: calc(100vh - 2.5rem);
+    overflow: hidden;
+    background: var(--app-nav-bg);
+    border: 1px solid var(--app-border);
+    box-shadow: var(--app-shadow-soft);
   }
 
   @supports (height: 100dvh) {
@@ -163,6 +167,222 @@
       top: calc(env(safe-area-inset-top) + 1.25rem);
       height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 2.5rem);
     }
+  }
+
+  /* The unpinned sidebar floats over the page while collapsed or hover-previewed, so it wears the
+     same frosted-glass treatment as the range and filter pills to stay legible over the content */
+  .app-desktop-nav-glass {
+    background: color-mix(in srgb, var(--app-nav-bg) 72%, transparent);
+    border-color: var(--app-border-strong);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    backdrop-filter: blur(20px) saturate(160%);
+  }
+
+  /* The brand mark rides the same leading column as the row icons, so it seats at the rail's centre
+     by the identical mechanism and stays put whether the sidebar is open or collapsed */
+  .app-nav-brand-logo {
+    width: 2.5rem;
+    height: 2.5rem;
+  }
+
+  /* Fixed leading column that holds each row's icon or avatar. Sized to seat the glyph at the rail's
+     centre, so icons stay put while the labels beside them fade and the sidebar widens */
+  .app-nav-lead {
+    display: flex;
+    align-items: center;
+  }
+
+  .app-desktop-nav .app-nav-lead {
+    width: 2.5rem;
+    flex-shrink: 0;
+    justify-content: center;
+  }
+
+  /* The leading column owns the icon-to-edge spacing on desktop, so the row carries no inline padding
+     or gap of its own and the active pill fills the width */
+  .app-desktop-nav .app-nav-link {
+    gap: 0;
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  /* The leading column is sized to the collapsed inner width, so the icon it centres already lands at
+     the rail's centre. Nothing switches alignment on collapse, which is what avoids the items snapping
+     to the middle before the labels have finished folding away */
+
+  /* Row labels and profile meta collapse their width and cross-fade as the sidebar closes, so they
+     stop taking up room in the row rather than sitting invisibly beside the icon. Hidden text also
+     drops its pointer target so it never intercepts clicks over the page */
+  .app-nav-link-label,
+  .app-nav-user-meta,
+  .app-nav-user-logout {
+    overflow: hidden;
+    transition: opacity 0.2s ease, max-width 0.28s ease;
+  }
+
+  .app-nav-link-label,
+  .app-nav-user-meta {
+    max-width: 12rem;
+  }
+
+  .app-nav-user-logout {
+    max-width: 3rem;
+  }
+
+  /* The name block fills the row between the avatar and the logout when open. Its grow is dropped in
+     the rail so it no longer claims the row's free space, which is what let it pull the avatar off
+     centre while the other rows, having no growing sibling, stayed centred */
+  .app-nav-user-meta {
+    flex: 1 1 0%;
+  }
+
+  .app-desktop-nav-collapsed .app-nav-user-meta {
+    flex: 0 0 auto;
+  }
+
+  .app-desktop-nav-collapsed .app-nav-link-label,
+  .app-desktop-nav-collapsed .app-nav-user-meta,
+  .app-desktop-nav-collapsed .app-nav-user-logout {
+    max-width: 0;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  /* The brand text and the pin toggle have no icon-only form, so they cross-fade and collapse their
+     width as the rail closes rather than blinking out. The 40px collapsed logo then fills the rail's
+     content box and centres on its own */
+  .app-nav-brand-text,
+  .app-desktop-nav-toggle {
+    overflow: hidden;
+    transition: max-width 0.28s ease, opacity 0.2s ease;
+  }
+
+  .app-nav-brand-text {
+    max-width: 9rem;
+  }
+
+  .app-desktop-nav-toggle {
+    max-width: 2.5rem;
+  }
+
+  .app-desktop-nav-collapsed .app-nav-brand-text,
+  .app-desktop-nav-collapsed .app-desktop-nav-toggle {
+    max-width: 0;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  /* The version line keeps only its number in the rail, so the product name collapses its width and
+     the update notice collapses its height, both fading as they go */
+  .app-nav-version {
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+  }
+
+  .app-nav-version-name {
+    display: inline-block;
+    max-width: 12rem;
+    overflow: hidden;
+    vertical-align: bottom;
+    transition: max-width 0.28s ease, opacity 0.2s ease;
+  }
+
+  /* In the rail the update notice keeps only its pulsing dot, with the wording and the arrow
+     collapsing their width away so the dot centres on its own */
+  .app-nav-version-update {
+    gap: 0.375rem;
+  }
+
+  .app-desktop-nav-collapsed .app-nav-version-update {
+    gap: 0;
+  }
+
+  .app-nav-version-update-text,
+  .app-nav-version-update-icon {
+    overflow: hidden;
+    transition: max-width 0.28s ease, opacity 0.2s ease;
+  }
+
+  .app-nav-version-update-text {
+    max-width: 12rem;
+  }
+
+  .app-nav-version-update-icon {
+    max-width: 1.5rem;
+  }
+
+  .app-desktop-nav-collapsed .app-nav-version {
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .app-desktop-nav-collapsed .app-nav-version-name {
+    max-width: 0;
+    opacity: 0;
+  }
+
+  .app-desktop-nav-collapsed .app-nav-version-number {
+    font-size: 0.625rem;
+  }
+
+  .app-desktop-nav-collapsed .app-nav-version-update-text,
+  .app-desktop-nav-collapsed .app-nav-version-update-icon {
+    max-width: 0;
+    opacity: 0;
+  }
+
+  /* The rail keeps only the selected theme. The two inactive segments release their flex space and
+     fade, so the active segment grows to fill the track and its icon glides to the centre, while the
+     track sheds its own frame so it stops reading as a box inside a box. Every step is transitioned,
+     so it eases shut instead of snapping */
+  .app-desktop-nav-collapsed .app-navigation-theme-toggle {
+    background: transparent;
+    border-color: transparent;
+  }
+
+  .app-desktop-nav-collapsed .app-navigation-theme-toggle .app-segmented-option:not(.app-segmented-option-active) {
+    flex-grow: 0;
+    padding: 0;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .app-desktop-nav-collapsed .app-navigation-theme-toggle-indicator {
+    opacity: 0;
+  }
+
+  /* The profile is its own soft card rather than a nav link, so it never takes the menu-item hover or
+     the icon-rail spacing. In the rail the card fades away to leave just the avatar, which its own
+     auto margins recentre as the name folds, so it glides in without a snap */
+  .app-nav-user {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 0.75rem;
+    border-radius: 0.75rem;
+    padding: 0.625rem 0.75rem;
+    background: var(--app-surface-soft);
+    border: 1px solid var(--app-border);
+    transition: gap 0.28s ease, padding 0.28s ease, background 0.2s ease, border-color 0.2s ease;
+  }
+
+  .app-desktop-nav-collapsed .app-nav-user {
+    gap: 0;
+    padding-left: 0;
+    padding-right: 0;
+    background: transparent;
+    border-color: transparent;
+  }
+
+  .app-nav-user-avatar {
+    transition: margin-left 0.28s ease;
+  }
+
+  /* Centre the avatar with a fixed left offset rather than auto margins, so it stays anchored to the
+     rail's left edge and cannot bounce sideways as the spring-driven width overshoots. The offset is
+     half the gap between the avatar and the collapsed content box */
+  .app-desktop-nav-collapsed .app-nav-user-avatar {
+    margin-left: 0.375rem;
   }
 
   .app-nav-link {
@@ -930,12 +1150,20 @@
     z-index: 0;
     background: var(--app-accent-soft);
     border: 1px solid var(--app-accent-border);
+    transition: opacity 0.2s ease;
+  }
+
+  .app-navigation-theme-toggle {
+    transition: background-color 0.2s ease, border-color 0.2s ease;
   }
 
   .app-navigation-theme-toggle .app-segmented-option {
+    flex: 1 1 0%;
+    min-width: 0;
+    overflow: hidden;
     background: transparent;
     box-shadow: none;
-    transition: color 180ms ease, background-color 180ms ease, transform 180ms ease;
+    transition: color 180ms ease, background-color 180ms ease, transform 180ms ease, opacity 200ms ease, flex-grow 280ms ease;
   }
 
   .app-navigation-theme-toggle .app-segmented-option:hover {
