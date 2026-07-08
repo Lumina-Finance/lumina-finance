@@ -62,13 +62,13 @@ describe('filter option helpers', () => {
 
   it('does not count the account filter on fixed-account transaction lists', () => {
     expect(getActiveFilterCount({
-      account_id: 'checking',
-      category_id: 'food',
+      account_id: ['checking'],
+      category_id: ['food'],
       from_date: '2026-06-01',
     }, false)).toBe(2)
     expect(getActiveFilterCount({
-      account_id: 'checking',
-      category_id: 'food',
+      account_id: ['checking'],
+      category_id: ['food'],
       from_date: '2026-06-01',
     }, true)).toBe(3)
   })

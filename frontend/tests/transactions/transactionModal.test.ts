@@ -169,6 +169,8 @@ describe('transaction modal helpers', () => {
       notes: '',
       date: '',
       tag_ids: [],
+      symmetric_transfer: false,
+      to_account_id: '',
     })).toEqual({
       account_id: 'Select an account',
       category_id: 'Select a category',
@@ -189,6 +191,8 @@ describe('transaction modal helpers', () => {
       notes: ' Weekly groceries ',
       date: '2026-06-11',
       tag_ids: ['tax'],
+      symmetric_transfer: false,
+      to_account_id: '',
     }, 2)).toEqual({
       account_id: 'checking',
       dt: '2026-06-11',
