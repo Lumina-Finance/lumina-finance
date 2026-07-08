@@ -45,6 +45,10 @@ const OidcCallbackPage = () => {
   const [conflictEmail, setConflictEmail] = useState<string | null>(null)
   const [leaving, setLeaving] = useState(false)
 
+  // A completed sign-in sets the user while this page is still mounted for the route
+  // transition, so the flag keeps the caption from reinterpreting the arrival as a link
+  const [signInCompleted, setSignInCompleted] = useState(false)
+
   // The stored roundtrip is single use on the server, so the strict-mode double effect
   // must not post the callback twice
   const callbackStartedRef = useRef(false)
@@ -98,6 +102,7 @@ const OidcCallbackPage = () => {
 
         // This route lives outside the public-only wrapper, so committing the session no
         // longer triggers a redirect and the page must leave for the app itself
+        setSignInCompleted(true)
         setSession(result)
         navigate('/', { replace: true })
       })
@@ -126,7 +131,11 @@ const OidcCallbackPage = () => {
       style={{ backgroundColor: 'var(--app-bg)' }}
     >
       <AnimatePresence>
-        {completing && <LoadingScreen message={user ? 'Linking sign-in provider' : 'Completing sign-in'} />}
+        {completing && (
+          <LoadingScreen
+            message={user && !signInCompleted ? 'Linking sign-in provider' : 'Completing sign-in'}
+          />
+        )}
       </AnimatePresence>
 
       <div className="w-full max-w-sm">
