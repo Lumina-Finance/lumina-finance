@@ -78,5 +78,12 @@ class OidcAuthorizationRequest(Base):
     provider_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("oidc_providers.id", ondelete="CASCADE"), nullable=False
     )
+
+    # The purpose scopes a roundtrip to the flow that started it, so a link roundtrip can
+    # never complete a login and vice versa
+    purpose: Mapped[str] = mapped_column(VARCHAR(10), nullable=False, server_default="login")
+
+    # Set only for a link roundtrip, naming the signed-in account that passed step-up for it
+    user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())

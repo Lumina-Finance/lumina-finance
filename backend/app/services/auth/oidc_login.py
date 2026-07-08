@@ -36,6 +36,11 @@ OIDC_REDIRECT_PATH = "/auth/oidc/callback"
 # Machine-readable conflict code the client matches to offer a password sign-in instead
 OIDC_EMAIL_CONFLICT_CODE = "email_already_registered"
 
+# A roundtrip only completes within the flow that started it, so a link roundtrip can
+# never complete a login and vice versa
+OIDC_PURPOSE_LOGIN = "login"
+OIDC_PURPOSE_LINK = "link"
+
 
 @dataclass(frozen=True)
 class OidcOnboardingClaims:
@@ -81,6 +86,26 @@ async def begin_oidc_sign_in(db: AsyncSession, provider: OidcProvider) -> str:
     Raises:
         HTTPException: The provider's discovery document cannot be fetched
     """
+    return await _begin_authorization(db, provider, OIDC_PURPOSE_LOGIN)
+
+
+async def _begin_authorization(
+    db: AsyncSession, provider: OidcProvider, purpose: str, user_id: uuid.UUID | None = None
+) -> str:
+    """Store a single-use roundtrip for a purpose and return the provider redirect URL
+
+    Args:
+        db: Active database session
+        provider: Enabled provider the roundtrip goes to
+        purpose: Flow the roundtrip is scoped to
+        user_id: Signed-in account a link roundtrip was authorized for
+
+    Returns:
+        The provider's authorization URL bound to the stored roundtrip
+
+    Raises:
+        HTTPException: The provider's discovery document cannot be fetched
+    """
     metadata = await get_provider_metadata(provider.issuer)
 
     state = secrets.token_urlsafe(32)
@@ -94,6 +119,8 @@ async def begin_oidc_sign_in(db: AsyncSession, provider: OidcProvider) -> str:
             nonce=nonce,
             code_verifier=code_verifier,
             provider_id=provider.id,
+            purpose=purpose,
+            user_id=user_id,
             expires_at=datetime.now(UTC) + timedelta(seconds=OIDC_AUTHORIZATION_REQUEST_EXPIRE_SECONDS),
         )
     )
@@ -130,7 +157,7 @@ async def complete_oidc_sign_in(db: AsyncSession, code: str, state: str) -> User
         HTTPException: The roundtrip is unknown or expired, the provider rejects the
             exchange, the token does not verify, or the email collides unverified
     """
-    request_row = await _consume_authorization_request(db, state)
+    request_row = await _consume_authorization_request(db, state, OIDC_PURPOSE_LOGIN)
 
     provider = await get_enabled_oidc_provider_by_id(db, request_row.provider_id)
     if provider is None:
@@ -271,23 +298,27 @@ async def complete_oidc_signup(
     return user
 
 
-async def _consume_authorization_request(db: AsyncSession, state: str) -> OidcAuthorizationRequest:
+async def _consume_authorization_request(
+    db: AsyncSession, state: str, purpose: str
+) -> OidcAuthorizationRequest:
     """Spend the stored roundtrip a callback names and return it
 
     Args:
         db: Active database session
         state: State value the provider echoed back
+        purpose: Flow the roundtrip must be scoped to
 
     Returns:
         The consumed roundtrip row
 
     Raises:
-        HTTPException: No live roundtrip matches the state
+        HTTPException: No live roundtrip matches the state and purpose
     """
     claim_query = (
         delete(OidcAuthorizationRequest)
         .where(
             OidcAuthorizationRequest.state_hash == hash_token(state),
+            OidcAuthorizationRequest.purpose == purpose,
             OidcAuthorizationRequest.expires_at > sa_func.now(),
         )
         .returning(OidcAuthorizationRequest)
