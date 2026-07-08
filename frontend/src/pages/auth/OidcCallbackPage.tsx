@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import { useQueryClient } from '@tanstack/react-query'
+import { ApiError } from '@/api/auth/errors'
 import { oidcKeys } from '@/api/cache/queryKeys'
 import { useCurrencies } from '@/api/currency'
 import {
@@ -49,13 +50,18 @@ const OidcCallbackPage = () => {
   const callbackStartedRef = useRef(false)
 
   // Provider-reported failures and malformed URLs are terminal states known at render
-  // time, derived here so the effect never sets state synchronously
+  // time, derived here so the effect never sets state synchronously. The wording follows
+  // the audience, since a signed-in arrival is linking rather than signing in
   const code = searchParams.get('code')
   const state = searchParams.get('state')
   const paramError = searchParams.get('error')
-    ? 'Sign-in was cancelled or refused by the provider.'
+    ? user
+      ? 'Linking was cancelled or refused by the provider.'
+      : 'Sign-in was cancelled or refused by the provider.'
     : !code || !state
-      ? 'The sign-in link is incomplete. Start again from the login page.'
+      ? user
+        ? 'The link is incomplete. Start again from your security settings.'
+        : 'The sign-in link is incomplete. Start again from the login page.'
       : null
   const displayError = error ?? paramError
 
@@ -73,7 +79,12 @@ const OidcCallbackPage = () => {
           navigate('/settings', { replace: true })
         })
         .catch((linkError: Error) => {
-          setError(linkError.message || 'Linking failed.')
+          const isGenericAuthFailure = linkError instanceof ApiError && linkError.status === 401
+          setError(
+            isGenericAuthFailure
+              ? 'The link could not be completed. It may have expired, so start again from your security settings.'
+              : linkError.message || 'Linking failed.',
+          )
         })
       return
     }
@@ -99,7 +110,9 @@ const OidcCallbackPage = () => {
       })
   }, [loading, user, code, state, paramError, setSession, navigate, queryClient])
 
-  const completing = !displayError && !onboarding && !conflictEmail
+  // The loading screen also covers session restore, so the failure view never renders
+  // with one audience's wording and then flips to the other's
+  const completing = loading || (!displayError && !onboarding && !conflictEmail)
 
   const handleBackToLogin = () => {
     setLeaving(true)
@@ -130,7 +143,9 @@ const OidcCallbackPage = () => {
         >
           {displayError && !leaving && (
             <motion.div key="sign-in-failed" {...AUTH_VIEW_TRANSITION}>
-              <h1 className="font-serif text-4xl font-normal tracking-tight">Sign-in failed</h1>
+              <h1 className="font-serif text-4xl font-normal tracking-tight">
+                {user ? 'Linking failed' : 'Sign-in failed'}
+              </h1>
               <p className="mt-5 text-sm" style={{ color: 'var(--app-text-muted)' }}>
                 {displayError}
               </p>
