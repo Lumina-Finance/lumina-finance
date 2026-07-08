@@ -141,6 +141,19 @@ async def test_discovery_returns_and_caches_document(fake_provider):
     assert fake_provider.request_counts["/.well-known/openid-configuration"] == 1
 
 
+async def test_discovery_accepts_trailing_slash_issuer(fake_provider):
+    """An issuer published with a trailing slash, as Authentik does, discovers and matches"""
+    slash_issuer = f"{ISSUER}/"
+    fake_provider.responses["/.well-known/openid-configuration"] = lambda: httpx.Response(
+        200, json={**_metadata(), "issuer": slash_issuer}
+    )
+
+    metadata = await get_provider_metadata(slash_issuer)
+
+    assert metadata["issuer"] == slash_issuer
+    assert fake_provider.request_counts["/.well-known/openid-configuration"] == 1
+
+
 async def test_discovery_rejects_issuer_mismatch(fake_provider):
     """A discovery document naming a different issuer is refused"""
     fake_provider.responses["/.well-known/openid-configuration"] = lambda: httpx.Response(

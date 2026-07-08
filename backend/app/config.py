@@ -289,27 +289,28 @@ def _oidc_env_key(slug: str, field: str) -> str:
 
 
 def _validate_oidc_issuer(slug: str, issuer: str) -> str:
-    """Return a normalized issuer URL after enforcing the transport policy
+    """Return the issuer URL after enforcing the transport policy
 
     Every discovery, token, and key fetch trusts this origin, so HTTPS is required, with
-    plain HTTP allowed only for loopback development providers
+    plain HTTP allowed only for loopback development providers. The value is kept exactly
+    as configured because the provider must echo it verbatim in discovery and every ID
+    token, and some providers such as Authentik publish issuers with a trailing slash
 
     Args:
         slug: Provider the issuer belongs to, named in the failure message
         issuer: Issuer URL as configured
 
     Returns:
-        The issuer without a trailing slash, matching how providers publish it
+        The issuer exactly as configured
 
     Raises:
         RuntimeError: The issuer is not HTTPS or loopback HTTP
     """
-    normalized_issuer = issuer.rstrip("/")
-    parsed_issuer = urlparse(normalized_issuer)
+    parsed_issuer = urlparse(issuer)
     is_loopback_http = parsed_issuer.scheme == "http" and parsed_issuer.hostname in ("localhost", "127.0.0.1")
     if parsed_issuer.scheme != "https" and not is_loopback_http:
         raise RuntimeError(f"OIDC provider {slug!r} issuer must use https: {issuer!r}")
-    return normalized_issuer
+    return issuer
 
 
 def load_oidc_provider_configs() -> list[OidcProviderConfig]:

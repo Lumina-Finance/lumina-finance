@@ -72,7 +72,9 @@ async def get_provider_metadata(issuer: str) -> dict[str, Any]:
     if cached is not None and cached[0] > time.monotonic():
         return cached[1]
 
-    metadata = await _fetch_json(f"{issuer}{_DISCOVERY_PATH}")
+    # The discovery URL strips any trailing slash, but the document must echo the issuer
+    # exactly as configured, including one
+    metadata = await _fetch_json(f"{issuer.rstrip('/')}{_DISCOVERY_PATH}")
 
     # A document that names a different issuer than the URL it came from is misconfigured or
     # hostile, and every later issuer check would silently bind to the wrong identity
