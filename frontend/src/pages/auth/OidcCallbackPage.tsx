@@ -1,0 +1,252 @@
+import { useEffect, useRef, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
+import { motion } from 'motion/react'
+import { useCurrencies } from '@/api/currency'
+import {
+  completeOidcCallback,
+  completeOidcSignup,
+  isOidcOnboardingRequired,
+  type OidcOnboardingResponse,
+} from '@/api/oidc'
+import Dropdown from '@/components/dropdown/Dropdown'
+import { useAuth } from '@/hooks/useAuth'
+import { AuthTextField } from '@/pages/auth/components/fields/TextField'
+import { buildCurrencyOptions, getCurrencyPlaceholder } from '@/pages/auth/utils/authForm'
+
+const DETECTED_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone
+
+const TIMEZONES = Intl.supportedValuesOf('timeZone').map((tz) => ({
+  value: tz,
+  label: tz.replace(/_/g, ' '),
+}))
+
+/**
+ * Finishes a provider sign-in from the callback query parameters
+ *
+ * An existing account signs in directly, while a first-time sign-in stays on this page to
+ * collect the profile fields the provider cannot supply before the account is created
+ */
+const OidcCallbackPage = () => {
+  const [searchParams] = useSearchParams()
+  const { setSession } = useAuth()
+
+  const [onboarding, setOnboarding] = useState<OidcOnboardingResponse | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  // The stored roundtrip is single use on the server, so the strict-mode double effect
+  // must not post the callback twice
+  const callbackStartedRef = useRef(false)
+
+  useEffect(() => {
+    if (callbackStartedRef.current) return
+    callbackStartedRef.current = true
+
+    // Providers report a denied or failed sign-in through the error parameter instead of a code
+    if (searchParams.get('error')) {
+      setError('Sign-in was cancelled or refused by the provider.')
+      return
+    }
+
+    const code = searchParams.get('code')
+    const state = searchParams.get('state')
+    if (!code || !state) {
+      setError('The sign-in link is incomplete. Start again from the login page.')
+      return
+    }
+
+    completeOidcCallback({ code, state })
+      .then((result) => {
+        if (isOidcOnboardingRequired(result)) {
+          setOnboarding(result)
+          return
+        }
+
+        // Committing the session flips the auth state, and the public route wrapper
+        // then redirects home on its own
+        setSession(result)
+      })
+      .catch((callbackError: Error) => {
+        setError(callbackError.message || 'Single sign-on failed.')
+      })
+  }, [searchParams, setSession])
+
+  return (
+    <motion.div
+      className="flex min-h-[100dvh] items-start justify-center px-4 pt-[10dvh] lg:pt-[20dvh]"
+      style={{ backgroundColor: 'var(--app-bg)' }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.3 }}
+    >
+      <div className="w-full max-w-sm">
+        {error ? (
+          <OidcCallbackError message={error} />
+        ) : onboarding ? (
+          <OidcOnboardingForm onboarding={onboarding} />
+        ) : (
+          <div className="flex flex-col items-center gap-4 pt-8">
+            <div className="app-spinner" />
+            <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+              Completing sign-in…
+            </p>
+          </div>
+        )}
+      </div>
+    </motion.div>
+  )
+}
+
+/**
+ * Renders the terminal failure state with the way back to a fresh sign-in
+ */
+function OidcCallbackError({ message }: { message: string }) {
+  return (
+    <div className="space-y-6">
+      <h1 className="text-2xl font-semibold" style={{ color: 'var(--app-text)' }}>
+        Sign-in failed
+      </h1>
+      <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+        {message}
+      </p>
+      <Link
+        to="/login"
+        className="block text-sm font-medium underline underline-offset-2"
+        style={{ color: 'var(--app-accent)' }}
+      >
+        Back to login
+      </Link>
+    </div>
+  )
+}
+
+/**
+ * Collects the profile fields a brand-new account needs and completes the signup
+ *
+ * The provider verified who the user is, so only their name is editable alongside the
+ * base currency and timezone the app cannot learn from the provider
+ */
+function OidcOnboardingForm({ onboarding }: { onboarding: OidcOnboardingResponse }) {
+  const { setSession } = useAuth()
+  const { data: currencies = [], isError: currenciesError } = useCurrencies()
+
+  const [firstName, setFirstName] = useState(onboarding.first_name)
+  const [lastName, setLastName] = useState(onboarding.last_name ?? '')
+  const [baseCurrency, setBaseCurrency] = useState('')
+  const [tz, setTz] = useState(DETECTED_TZ)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const submitDisabled = submitting || !firstName.trim() || !baseCurrency
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault()
+    if (submitDisabled) return
+
+    setSubmitting(true)
+    setError(null)
+    try {
+      const response = await completeOidcSignup({
+        onboarding_token: onboarding.onboarding_token,
+        first_name: firstName.trim(),
+        last_name: lastName.trim() || undefined,
+        tz,
+        base_currency: baseCurrency,
+      })
+      setSession(response)
+    } catch (signupError) {
+      setError(signupError instanceof Error ? signupError.message : 'Could not finish signing up.')
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} noValidate>
+      <h1 className="text-2xl font-semibold" style={{ color: 'var(--app-text)' }}>
+        Finish setting up
+      </h1>
+      <p className="mt-2 text-sm" style={{ color: 'var(--app-text-muted)' }}>
+        You're signing in as {onboarding.email}. A few details finish your account.
+      </p>
+
+      {error && (
+        <p className="mt-4 text-sm" style={{ color: 'var(--app-negative)' }}>
+          {error}
+        </p>
+      )}
+
+      <div className="mt-5">
+        <AuthTextField
+          id="first_name"
+          label="First name"
+          autoComplete="given-name"
+          value={firstName}
+          onChange={setFirstName}
+        />
+      </div>
+
+      <div className="mt-5">
+        <AuthTextField
+          id="last_name"
+          label="Last name (optional)"
+          autoComplete="family-name"
+          value={lastName}
+          onChange={setLastName}
+        />
+      </div>
+
+      <div className="mt-5 space-y-1.5">
+        <label htmlFor="base_currency" className="app-label block">
+          Base currency
+        </label>
+        <Dropdown
+          id="base_currency"
+          options={buildCurrencyOptions(currencies)}
+          value={baseCurrency}
+          onChange={setBaseCurrency}
+          placeholder={getCurrencyPlaceholder(currenciesError, currencies.length)}
+          searchable
+          searchPlaceholder="Search currencies..."
+        />
+      </div>
+
+      <div className="mt-5 space-y-1.5">
+        <label htmlFor="tz" className="app-label block">
+          Timezone
+        </label>
+        <Dropdown
+          id="tz"
+          options={TIMEZONES}
+          value={tz}
+          onChange={setTz}
+          searchable
+          searchPlaceholder="Search timezones..."
+        />
+      </div>
+
+      <div className="mt-6 flex justify-center">
+        <button
+          type="submit"
+          disabled={submitDisabled}
+          className={`app-primary-button transition-all duration-300 ${
+            submitting ? 'app-primary-button-loading' : 'w-full'
+          }`}
+        >
+          {submitting ? <div className="app-spinner" /> : 'Create account'}
+        </button>
+      </div>
+
+      <p className="mt-5 text-center text-sm" style={{ color: 'var(--app-text-muted)' }}>
+        Wrong account?{' '}
+        <Link
+          to="/login"
+          className="font-medium underline underline-offset-2"
+          style={{ color: 'var(--app-accent)' }}
+        >
+          Back to login
+        </Link>
+      </p>
+    </form>
+  )
+}
+
+export default OidcCallbackPage

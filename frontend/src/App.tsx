@@ -24,6 +24,7 @@ const SettingsPage = lazy(() => import('@/pages/settings/SettingsPage'))
 const ImportsPage = lazy(() => import('@/pages/imports/ImportsPage'))
 const AuthPage = lazy(() => import('@/pages/auth/AuthPage'))
 const ResetPasswordPage = lazy(() => import('@/pages/auth/ResetPasswordPage'))
+const OidcCallbackPage = lazy(() => import('@/pages/auth/OidcCallbackPage'))
 
 const LOADING_SCREEN_MIN_MS = 1000;
 const PAGE_TRANSITION_MS = 350;
@@ -315,6 +316,7 @@ function AnimatedRoutes() {
           <Route path="/signup" element={<AuthPage />} />
           <Route path="/forgot-password" element={<AuthPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
+          <Route path="/auth/oidc/callback" element={<OidcCallbackPage />} />
         </Route>
 
         {/* Protected app routes */}
