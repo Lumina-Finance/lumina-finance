@@ -10,6 +10,7 @@ from app.dependencies import get_authenticated_user, get_current_session_id, get
 from app.models.user import User
 from app.routes.auth.jwks_helpers import build_jwks_response
 from app.routes.auth.logout_helpers import logout_auth_session
+from app.routes.auth.oidc import router as oidc_router
 from app.routes.auth.passkeys import router as passkeys_router
 from app.routes.auth.refresh_helpers import refresh_auth_tokens
 from app.routes.auth.token_helpers import (
@@ -64,6 +65,9 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 # Passkey registration and management share the /auth prefix through their own router
 router.include_router(passkeys_router)
+
+# OIDC sign-in shares the /auth prefix through its own router
+router.include_router(oidc_router)
 
 
 @router.post("/signup", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)

@@ -39,7 +39,12 @@ from app.services.auth.sessions import (
     delete_expired_auth_tokens,
     rotate_auth_session_tokens,
 )
-from app.services.auth.tokens import MFA_CHALLENGE_TOKEN_USE, create_access_token, create_refresh_token
+from app.services.auth.tokens import (
+    MFA_CHALLENGE_TOKEN_USE,
+    OIDC_ONBOARDING_TOKEN_USE,
+    create_access_token,
+    create_refresh_token,
+)
 from app.services.auth.two_factor import SECOND_FACTOR_PASSKEY, verify_login_second_factor
 from app.services.auth.webauthn import verify_passkey_second_factor
 
@@ -113,6 +118,23 @@ def decode_mfa_challenge_token(challenge_token: str) -> dict[str, Any]:
     """
     payload = jwt.decode(challenge_token, _access_public_key, algorithms=[JWT_ALGORITHM], issuer=JWT_ISSUER)
     _raise_for_token_use(payload, MFA_CHALLENGE_TOKEN_USE)
+    return payload
+
+
+def decode_oidc_onboarding_token(onboarding_token: str) -> dict[str, Any]:
+    """Return decoded OIDC onboarding token claims
+
+    Args:
+        onboarding_token: Encoded onboarding JWT string
+
+    Returns:
+        Decoded onboarding token claims
+
+    Raises:
+        PyJWTError: Onboarding token cannot be decoded or verified
+    """
+    payload = jwt.decode(onboarding_token, _access_public_key, algorithms=[JWT_ALGORITHM], issuer=JWT_ISSUER)
+    _raise_for_token_use(payload, OIDC_ONBOARDING_TOKEN_USE)
     return payload
 
 

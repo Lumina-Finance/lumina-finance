@@ -307,6 +307,74 @@ class PasskeySummary(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class OidcProviderInfo(BaseModel):
+    """One sign-in provider as offered on the login page"""
+
+    slug: str
+    display_name: str
+
+    model_config = {"from_attributes": True}
+
+
+class OidcProvidersResponse(BaseModel):
+    """The enabled single sign-on providers the login page can offer"""
+
+    providers: list[OidcProviderInfo]
+
+
+class OidcAuthorizeResponse(BaseModel):
+    """The provider URL the browser is redirected to for sign-in"""
+
+    authorization_url: str
+
+
+class OidcCallbackRequest(BaseModel):
+    """The code and state the provider sent back to the callback page"""
+
+    code: str
+    state: str
+
+
+class OidcOnboardingResponse(BaseModel):
+    """Callback result for a first-time sign-in that still needs profile fields
+
+    The token carries the verified provider claims, while the profile fields are echoed
+    separately so the completion form can prefill without decoding the token
+    """
+
+    onboarding_required: bool = True
+    onboarding_token: str
+    email: str
+    first_name: str
+    last_name: str | None
+
+
+class OidcSignupRequest(BaseModel):
+    """Signup completion payload pairing the onboarding token with the collected profile fields"""
+
+    onboarding_token: str
+    first_name: str
+    last_name: str | None = None
+    tz: str  # IANA timezone (e.g., "America/Toronto")
+    base_currency: str  # ISO 4217 code (e.g., "CAD")
+
+    @field_validator("tz")
+    @classmethod
+    def validate_tz(cls, v: str) -> str:
+        """Validate timezone names at the API boundary"""
+        return validate_iana_timezone(v)
+
+    @field_validator("first_name")
+    @classmethod
+    def validate_first_name(cls, v: str) -> str:
+        """Reject a blank first name at the API boundary"""
+        trimmed = v.strip()
+        if not trimmed:
+            msg = "First name cannot be empty"
+            raise ValueError(msg)
+        return trimmed
+
+
 class PasskeyRegisterResponse(BaseModel):
     """The stored passkey and, for a first passkey, the recovery codes to acknowledge"""
 
