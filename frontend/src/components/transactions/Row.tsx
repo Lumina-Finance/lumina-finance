@@ -132,95 +132,94 @@ export default function TransactionRow({
     <button
       type="button"
       onClick={() => onOpen(transaction)}
-      className="block w-full cursor-pointer px-3 py-2.5 text-left transition-colors duration-100 hover:bg-[var(--app-surface-soft)] focus-visible:bg-[var(--app-surface-soft)] focus-visible:outline-none"
+      className="block w-full cursor-pointer px-3 py-2.5 text-left transition-colors duration-100 hover:bg-[var(--app-surface-soft)] focus-visible:bg-[var(--app-surface-soft)] focus-visible:outline-none min-[1300px]:col-span-full min-[1300px]:grid min-[1300px]:grid-cols-subgrid min-[1300px]:items-center min-[1300px]:gap-x-3"
       style={{
         borderBottom: '1px solid var(--app-border)',
         opacity: readOnly ? 0.68 : 1,
       }}
     >
-      {/* Desktop row: category and account size to their content while notes is the flexible filler
-          that compresses first, then the tags compress (their high flex-shrink lets them give way
-          before the names), keeping the tags pinned to the right next to the always-visible amount */}
-      <span className="hidden min-[1300px]:flex min-[1300px]:items-center min-[1300px]:gap-3">
-        <span className="w-10 shrink-0 text-2xl leading-none" aria-hidden>
-          {categoryIcon}
-        </span>
+      {/* Desktop row: each cell is a direct child of the row's subgrid, so every row shares the same
+          column tracks and stays aligned. The category and account tracks grow to their widest content
+          across all rows, showing long names while there is room and truncating only when there is not,
+          with notes as the flexible filler that compresses first */}
+      <span className="hidden text-2xl leading-none min-[1300px]:block" aria-hidden>
+        {categoryIcon}
+      </span>
 
-        <span className="min-w-[11rem]">
-          <span className="block truncate font-medium">{categoryName}</span>
-          <span
-            className="mt-0.5 block truncate text-sm"
-            style={{ color: 'var(--app-text-muted)' }}
-          >
-            {title}
-          </span>
+      <span className="hidden min-w-0 min-[1300px]:block">
+        <span className="block truncate font-medium">{categoryName}</span>
+        <span
+          className="mt-0.5 block truncate text-sm"
+          style={{ color: 'var(--app-text-muted)' }}
+        >
+          {title}
         </span>
+      </span>
 
+      <span
+        className="hidden min-w-0 flex-col gap-1 text-sm font-medium leading-none min-[1300px]:flex"
+        style={{ color: 'var(--app-text-muted)' }}
+      >
         {hasAccountMeta && (
-          <span
-            className="flex min-w-[13rem] flex-col gap-1 text-sm font-medium leading-none"
-            style={{ color: 'var(--app-text-muted)' }}
-          >
+          <>
             <span className="inline-flex min-w-0 max-w-full items-center gap-2">
               <AccountLogo accountName={accountName} institution={accountInstitution} />
               {accountName && <span className="min-w-0 truncate">{accountName}</span>}
             </span>
             {readOnlyReason && <ReadOnlyReasonPill reason={readOnlyReason} />}
+          </>
+        )}
+      </span>
+
+      <span
+        className="hidden min-w-0 truncate px-5 text-sm leading-none min-[1300px]:block"
+        style={{ color: 'var(--app-text-muted)' }}
+      >
+        {transaction.notes}
+      </span>
+
+      <span className="hidden min-w-0 justify-end gap-1.5 min-[1300px]:flex">
+        {visibleTags.map((tag) => (
+          <span
+            key={tag.id}
+            className="group relative inline-flex max-w-[8rem] shrink-0"
+          >
+            <span
+              className="inline-flex min-w-0 items-center gap-1 rounded-full px-2 py-0.5 text-sm font-medium"
+              style={{
+                background: 'var(--app-surface-soft)',
+                color: 'var(--app-text-muted)',
+                border: '1px solid var(--app-border)',
+              }}
+            >
+              <TagIcon size={11} aria-hidden className="shrink-0" />
+              <span className="truncate">{tag.name}</span>
+            </span>
+            <TagTooltip tags={tags} />
+          </span>
+        ))}
+        {extraTagCount > 0 && (
+          <span className="group relative inline-flex shrink-0">
+            <span
+              className="inline-flex rounded-full px-2 py-0.5 text-sm font-medium"
+              style={{
+                background: 'var(--app-surface-soft)',
+                color: 'var(--app-text-muted)',
+                border: '1px solid var(--app-border)',
+              }}
+            >
+              +{extraTagCount}
+            </span>
+            <TagTooltip tags={tags} />
           </span>
         )}
+      </span>
 
-        <span
-          className="min-w-0 flex-1 truncate px-5 text-sm leading-none"
-          style={{ color: 'var(--app-text-muted)' }}
-        >
-          {transaction.notes}
-        </span>
-
-        {hasVisibleTags && (
-          <span className="flex shrink-0 justify-end gap-1.5">
-            {visibleTags.map((tag) => (
-              <span
-                key={tag.id}
-                className="group relative inline-flex max-w-[8rem] shrink-0"
-              >
-                <span
-                  className="inline-flex min-w-0 items-center gap-1 rounded-full px-2 py-0.5 text-sm font-medium"
-                  style={{
-                    background: 'var(--app-surface-soft)',
-                    color: 'var(--app-text-muted)',
-                    border: '1px solid var(--app-border)',
-                  }}
-                >
-                  <TagIcon size={11} aria-hidden className="shrink-0" />
-                  <span className="truncate">{tag.name}</span>
-                </span>
-                <TagTooltip tags={tags} />
-              </span>
-            ))}
-            {extraTagCount > 0 && (
-              <span className="group relative inline-flex shrink-0">
-                <span
-                  className="inline-flex rounded-full px-2 py-0.5 text-sm font-medium"
-                  style={{
-                    background: 'var(--app-surface-soft)',
-                    color: 'var(--app-text-muted)',
-                    border: '1px solid var(--app-border)',
-                  }}
-                >
-                  +{extraTagCount}
-                </span>
-                <TagTooltip tags={tags} />
-              </span>
-            )}
-          </span>
-        )}
-
-        <span
-          className="min-w-[8rem] shrink-0 text-right font-financial text-base font-semibold tabular-nums"
-          style={{ color: transactionAmountColor }}
-        >
-          {formattedAmount}
-        </span>
+      <span
+        className="hidden min-w-0 text-right font-financial text-base font-semibold tabular-nums min-[1300px]:block"
+        style={{ color: transactionAmountColor }}
+      >
+        {formattedAmount}
       </span>
 
       <span className="grid grid-cols-[2rem_minmax(0,1fr)_max-content] items-start gap-x-2.5 gap-y-1 min-[750px]:hidden">
