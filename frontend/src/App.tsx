@@ -68,7 +68,7 @@ function scrollDocumentToTop() {
 let hasShownLoadingScreen = false;
 
 /** Redirect to /login if unauthenticated. Show loading screen on first visit. */
-function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase }: { displayLocation: Location; onContentReady: () => void; pageTransitionPhase: PageTransitionPhase }) {
+function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase, isInitialLoad }: { displayLocation: Location; onContentReady: () => void; pageTransitionPhase: PageTransitionPhase; isInitialLoad: boolean }) {
   const { user, loading } = useAuth();
   const { navExpanded } = useNavCollapse();
   const pageTransitioning = pageTransitionPhase !== 'idle';
@@ -143,10 +143,15 @@ function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase }
   // chunk to mount rather than animating the empty Suspense wrapper before it resolves
   const pageContentEntering = pageTransitionPhase === 'entering' || pageTransitionPhase === 'loading';
 
+  // On the very first visit the initial loading screen stays up until the first route's chunk has
+  // mounted, not just until the session resolves, so it covers the persistent navigation the whole
+  // time instead of exiting into a gap where the menu flashes before the route loader takes over
+  const showInitialLoadingScreen = !ready || (isInitialLoad && routeLoading);
+
   return (
     <>
       <AnimatePresence>
-        {!ready && <LoadingScreen />}
+        {showInitialLoadingScreen && <LoadingScreen />}
       </AnimatePresence>
       {ready && (
         <div
@@ -156,7 +161,7 @@ function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase }
           {/* The main variant keeps the navigation visible while AnimatePresence
               lets the loader fade back out once the route chunk has mounted */}
           <AnimatePresence>
-            {routeLoading && routeLoaderDelayElapsed && <LoadingScreen key="route-loader" variant="main" />}
+            {routeLoading && routeLoaderDelayElapsed && !isInitialLoad && <LoadingScreen key="route-loader" variant="main" />}
           </AnimatePresence>
           <main
             id="app-page-content"
@@ -222,11 +227,16 @@ function AnimatedRoutes() {
   // before its lazy chunk resolves and letting the real content snap in
   const [pageTransitionPhase, setPageTransitionPhase] = useState<PageTransitionPhase>('loading');
 
+  // Tracks whether the app has shown real content at least once, so the initial loading screen can
+  // hold until the first route mounts while later navigations use the lighter route loader
+  const [hasRevealedApp, setHasRevealedApp] = useState(false);
+
   // Reveal the freshly switched route only once its chunk has mounted, so the enter
   // fade animates real content rather than an empty wrapper. The functional updater
   // reads the current phase so a late notifier from an abandoned navigation is ignored
   const handleContentReady = useCallback(() => {
     setPageTransitionPhase((current) => (current === 'loading' ? 'entering' : current));
+    setHasRevealedApp(true);
   }, []);
 
   useLayoutEffect(() => {
@@ -287,8 +297,10 @@ function AnimatedRoutes() {
     <>
       {/* The navigation chrome renders outside the keyed Routes so it persists across
           page changes. A persistent nav lets the active-link highlight crossfade through
-          its CSS transition instead of snapping when the route subtree remounts */}
-      {user && !user.second_factor_reenrollment_required && isProtectedPath(displayLocation.pathname) && <Navigation />}
+          its CSS transition instead of snapping when the route subtree remounts. It is held
+          back until the app first reveals content so it never flashes through the fading-in
+          loading screen, which sits above the nav's stacking level */}
+      {user && !user.second_factor_reenrollment_required && isProtectedPath(displayLocation.pathname) && hasRevealedApp && <Navigation />}
       <Routes
         location={displayLocation}
         key={
@@ -306,7 +318,7 @@ function AnimatedRoutes() {
         </Route>
 
         {/* Protected app routes */}
-        <Route element={<ProtectedRoute displayLocation={displayLocation} onContentReady={handleContentReady} pageTransitionPhase={pageTransitionPhase} />}>
+        <Route element={<ProtectedRoute displayLocation={displayLocation} onContentReady={handleContentReady} pageTransitionPhase={pageTransitionPhase} isInitialLoad={!hasRevealedApp} />}>
           <Route path="/" element={<DashboardPage />} />
           <Route path="/accounts" element={<AccountsPage />} />
           <Route path="/accounts/:accountId" element={<AccountDetailPage />} />
