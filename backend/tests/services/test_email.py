@@ -1,42 +1,82 @@
-"""Email service tests"""
+"""Email sender tests"""
 
 import logging
 
-import app.services.email as email_service
-from app.services.email import _build_message, send_email
+import pytest
+
+import app.services.email.contract as contract_module
+import app.services.email.senders as senders_module
+from app.services.email import RenderedEmail, build_email_sender, get_email_sender, render_reset_email, set_email_sender
+from app.services.email.senders import LoggingEmailSender, SmtpEmailSender
 
 
-def test_build_message_sets_sender_recipient_and_body():
-    """The message carries the configured sender plus the recipient, subject, and body"""
-    message = _build_message("user@example.com", "Subject line", "Body text")
-
-    assert message["To"] == "user@example.com"
-    assert message["Subject"] == "Subject line"
-    assert "Lumina Finance" in message["From"]
-    assert message.get_content().strip() == "Body text"
-
-
-async def test_send_email_logs_message_when_no_smtp_host(caplog):
-    """A blank SMTP host logs the full message, including the body, instead of delivering it"""
-    with caplog.at_level(logging.INFO):
-        await send_email("user@example.com", "Hello", "Body text")
-
-    logged = [record.getMessage() for record in caplog.records]
-    assert any("no SMTP host configured" in message and "Body text" in message for message in logged)
-
-
-async def test_send_email_delivers_when_smtp_host_configured(monkeypatch):
-    """A configured SMTP host delivers the built message through aiosmtplib"""
+async def test_smtp_sender_delivers_multipart_message(monkeypatch):
+    """The SMTP sender delivers the subject, recipient, and both body parts"""
     sent = {}
 
-    async def fake_send(message, **kwargs):
-        sent["message"] = message
+    async def fake_send(email_message, **kwargs):
+        sent["message"] = email_message
         sent["kwargs"] = kwargs
 
-    monkeypatch.setattr(email_service, "SMTP_HOST", "smtp.example.com")
-    monkeypatch.setattr(email_service.aiosmtplib, "send", fake_send)
+    monkeypatch.setattr(senders_module, "SMTP_HOST", "smtp.example.com")
+    monkeypatch.setattr(senders_module, "MAIL_FROM", "no-reply@example.com")
+    monkeypatch.setattr(senders_module.aiosmtplib, "send", fake_send)
 
-    await send_email("user@example.com", "Subject line", "Body text")
+    message = RenderedEmail(subject="Subject line", text_body="Body text", html_body="<p>Body text</p>")
+    await SmtpEmailSender().send("user@example.com", message)
 
-    assert sent["message"]["To"] == "user@example.com"
+    delivered = sent["message"]
+    assert delivered["To"] == "user@example.com"
+    assert delivered["Subject"] == "Subject line"
     assert sent["kwargs"]["hostname"] == "smtp.example.com"
+
+    # The fixed sender name marks mail from a self-hosted instance
+    assert "Lumina Finance (Self-Hosted)" in delivered["From"]
+
+    # The HTML alternative rides alongside the plain-text part
+    assert delivered.get_content_type() == "multipart/alternative"
+
+
+async def test_logging_sender_logs_body(caplog):
+    """The logging sender records the text body instead of delivering it"""
+    message = RenderedEmail(subject="Hello", text_body="Body text")
+    with caplog.at_level(logging.WARNING):
+        await LoggingEmailSender().send("user@example.com", message)
+
+    logged = [record.getMessage() for record in caplog.records]
+    assert any("Body text" in entry for entry in logged)
+
+
+def test_build_email_sender_selects_backend(monkeypatch):
+    """EMAIL_BACKEND chooses the sender and an unknown value fails loudly"""
+    monkeypatch.setattr(senders_module, "EMAIL_BACKEND", "smtp")
+    assert isinstance(build_email_sender(), SmtpEmailSender)
+
+    monkeypatch.setattr(senders_module, "EMAIL_BACKEND", "logging")
+    assert isinstance(build_email_sender(), LoggingEmailSender)
+
+    monkeypatch.setattr(senders_module, "EMAIL_BACKEND", "nope")
+    with pytest.raises(RuntimeError):
+        build_email_sender()
+
+
+def test_get_email_sender_requires_installation(monkeypatch):
+    """get_email_sender fails when nothing is installed and returns the installed sender"""
+    monkeypatch.setattr(contract_module, "_active_sender", None)
+    with pytest.raises(RuntimeError):
+        get_email_sender()
+
+    sender = LoggingEmailSender()
+    set_email_sender(sender)
+    assert get_email_sender() is sender
+
+
+def test_render_reset_email_carries_link_in_both_parts():
+    """The rendered reset email includes the link and expiry in the HTML and text parts"""
+    message = render_reset_email("https://app.example.com/reset-password?token=abc123", 15)
+
+    assert message.subject
+    assert "abc123" in message.text_body
+    assert "abc123" in message.html_body
+    assert "15" in message.text_body
+    assert "15" in message.html_body

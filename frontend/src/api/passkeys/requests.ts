@@ -116,6 +116,42 @@ export async function verifyPasskeyMfa(
 }
 
 /**
+ * Begins the passkey second-factor step for a password reset holding a valid emailed token
+ */
+export async function fetchPasskeyResetOptions(mfaToken: string): Promise<PublicKeyCredentialRequestOptionsJSON> {
+  const response = await fetch(`${API_BASE}/auth/passkeys/reset/options`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mfa_token: mfaToken }),
+  });
+  if (!response.ok) {
+    const body = (await response.json().catch(() => null)) as { detail?: string } | null;
+    throw new ApiError(body?.detail ?? `Failed to start passkey verification (${response.status})`, response.status);
+  }
+  return response.json();
+}
+
+/**
+ * Verifies a passkey assertion as the second factor of a password reset
+ */
+export async function verifyPasskeyReset(
+  payload: { token: string; new_password: string; mfa_token: string },
+  credential: AuthenticationResponseJSON,
+): Promise<void> {
+  const response = await fetch(`${API_BASE}/auth/passkeys/reset/verify`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...payload, credential }),
+  });
+  if (!response.ok) {
+    const body = (await response.json().catch(() => null)) as { detail?: string } | null;
+    throw new ApiError(body?.detail ?? `Passkey verification failed (${response.status})`, response.status);
+  }
+}
+
+/**
  * Begins a passkey step-up for a sensitive two-factor change, returning the ceremony options
  *
  * Authenticated because the caller already holds a session, unlike the login ceremonies

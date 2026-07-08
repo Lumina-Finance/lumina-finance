@@ -1,10 +1,13 @@
 """Shared auth route test helpers"""
 
 import time
+from datetime import UTC, datetime, timedelta
 
 import pyotp
 
+from app.models.auth import PasswordResetToken
 from app.models.currency import Currency
+from app.services.auth.token_hashing import hash_token
 from tests.conftest import TestSession
 
 
@@ -50,6 +53,26 @@ async def _create_user(client):
     """
     await _seed_currency()
     return await client.post("/auth/signup", json=SIGNUP_PAYLOAD)
+
+
+async def _seed_reset_token(user_id, raw_token="reset-token-abc", *, expires_in_seconds=600, used=False, age_seconds=None):  # noqa: S107
+    """Insert a reset token row with a known raw value so the consume route can be exercised
+
+    The optional age backdates created_at so throttle and pruning windows can be exercised
+    """
+    token_hash = hash_token(raw_token)
+    async with TestSession() as session:
+        token = PasswordResetToken(
+            user_id=user_id,
+            token_hash=token_hash,
+            expires_at=datetime.now(UTC) + timedelta(seconds=expires_in_seconds),
+            used_at=datetime.now(UTC) if used else None,
+        )
+        if age_seconds is not None:
+            token.created_at = datetime.now(UTC) - timedelta(seconds=age_seconds)
+        session.add(token)
+        await session.commit()
+    return raw_token
 
 
 def _get_auth_header(resp):

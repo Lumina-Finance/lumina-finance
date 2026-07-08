@@ -28,9 +28,15 @@ from app.services.auth.webauthn import is_passkey_registered, remove_passkey, re
 # Shared message so disabling and regenerating reject identically when 2FA is off
 _NOT_ENABLED_DETAIL = "Two-factor authentication is not enabled"
 
+# Which factor kind verified, since flows respond differently to a recovery code than to a
+# routine factor
+SECOND_FACTOR_TOTP = "totp"
+SECOND_FACTOR_RECOVERY_CODE = "recovery_code"
+SECOND_FACTOR_PASSKEY = "passkey"
 
-async def verify_login_second_factor(db: AsyncSession, user_id: uuid.UUID, code: str) -> None:
-    """Verify the second factor presented at login
+
+async def verify_login_second_factor(db: AsyncSession, user_id: uuid.UUID, code: str) -> str:
+    """Verify the second factor presented at login and report which kind matched
 
     A valid TOTP code passes login unchanged. A recovery code instead is treated as lost
     authenticators: it is consumed, every factor is wiped, all existing sessions are revoked, and
@@ -43,11 +49,14 @@ async def verify_login_second_factor(db: AsyncSession, user_id: uuid.UUID, code:
         user_id: User completing the second factor
         code: Submitted TOTP code or recovery code
 
+    Returns:
+        The second-factor kind that verified
+
     Raises:
         HTTPException: Neither a TOTP code nor a recovery code verifies
     """
     if await is_user_totp_code_valid(db, user_id, code):
-        return
+        return SECOND_FACTOR_TOTP
 
     if await consume_recovery_code(db, user_id, code):
         await disable_totp(db, user_id)
@@ -55,7 +64,7 @@ async def verify_login_second_factor(db: AsyncSession, user_id: uuid.UUID, code:
         await delete_all_user_auth_sessions(db, user_id)
         user = await db.get(User, user_id)
         user.second_factor_reenrollment_required = True
-        return
+        return SECOND_FACTOR_RECOVERY_CODE
 
     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid code")
 

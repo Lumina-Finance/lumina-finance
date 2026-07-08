@@ -95,12 +95,15 @@ class PasswordResetToken(Base):
 
 
 class MfaChallenge(Base):
-    """Stores single-use second-factor challenges issued after a verified password, keyed by jti and expiring"""
+    """Stores single-use second-factor challenges issued after a verified first step, keyed by jti and expiring"""
 
     __tablename__ = "mfa_challenges"
 
     jti: Mapped[uuid.UUID] = mapped_column(primary_key=True)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    # The purpose scopes a challenge to the flow that issued it, so one flow cannot spend another's
+    purpose: Mapped[str] = mapped_column(nullable=False, server_default="login")
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 

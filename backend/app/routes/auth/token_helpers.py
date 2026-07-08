@@ -40,7 +40,7 @@ from app.services.auth.sessions import (
     rotate_auth_session_tokens,
 )
 from app.services.auth.tokens import MFA_CHALLENGE_TOKEN_USE, create_access_token, create_refresh_token
-from app.services.auth.two_factor import verify_login_second_factor
+from app.services.auth.two_factor import SECOND_FACTOR_PASSKEY, verify_login_second_factor
 from app.services.auth.webauthn import verify_passkey_second_factor
 
 _refresh_public_key = load_pem_private_key(JWT_REFRESH_PRIVATE_KEY.encode(), password=None).public_key()
@@ -130,43 +130,53 @@ def _raise_for_token_use(payload: dict[str, Any], expected_token_use: str) -> No
         raise jwt.InvalidTokenError("Invalid token use")
 
 
-async def complete_mfa_challenge(db: AsyncSession, mfa_token: str, code: str) -> User:
-    """Complete a second-factor login with an authenticator or recovery code
+async def complete_mfa_challenge(db: AsyncSession, mfa_token: str, code: str, purpose: str) -> tuple[User, str]:
+    """Complete a second-factor step with an authenticator or recovery code
 
     Args:
         db: Active database session
-        mfa_token: Challenge token issued when login required a second factor
+        mfa_token: Challenge token issued when the flow required a second factor
         code: Submitted authenticator or recovery code
+        purpose: Flow the challenge must be scoped to
 
     Returns:
-        The user who passed the second factor
+        The user who passed the second factor and the factor kind that matched
 
     Raises:
         HTTPException: The challenge or the code does not verify
     """
-    return await _complete_mfa_challenge(db, mfa_token, lambda user_id: verify_login_second_factor(db, user_id, code))
+    return await _complete_mfa_challenge(db, mfa_token, purpose, lambda user_id: verify_login_second_factor(db, user_id, code))
 
 
-async def complete_mfa_challenge_with_passkey(db: AsyncSession, mfa_token: str, credential: dict[str, Any]) -> User:
-    """Complete a second-factor login with a passkey assertion
+async def complete_mfa_challenge_with_passkey(
+    db: AsyncSession, mfa_token: str, credential: dict[str, Any], purpose: str
+) -> tuple[User, str]:
+    """Complete a second-factor step with a passkey assertion
 
     Args:
         db: Active database session
-        mfa_token: Challenge token issued when login required a second factor
+        mfa_token: Challenge token issued when the flow required a second factor
         credential: Passkey assertion returned by the browser
+        purpose: Flow the challenge must be scoped to
 
     Returns:
-        The user who passed the second factor
+        The user who passed the second factor and the factor kind that matched
 
     Raises:
         HTTPException: The challenge or the assertion does not verify
     """
-    return await _complete_mfa_challenge(db, mfa_token, lambda user_id: verify_passkey_second_factor(db, user_id, credential))
+
+    async def verify_with_passkey(user_id: uuid.UUID) -> str:
+        """Verify the assertion and report the passkey factor kind"""
+        await verify_passkey_second_factor(db, user_id, credential)
+        return SECOND_FACTOR_PASSKEY
+
+    return await _complete_mfa_challenge(db, mfa_token, purpose, verify_with_passkey)
 
 
 async def _complete_mfa_challenge(
-    db: AsyncSession, mfa_token: str, verify_second_factor: Callable[[uuid.UUID], Awaitable[None]]
-) -> User:
+    db: AsyncSession, mfa_token: str, purpose: str, verify_second_factor: Callable[[uuid.UUID], Awaitable[str]]
+) -> tuple[User, str]:
     """Spend the challenge, run the given second-factor check, and return the authenticated user
 
     The challenge is consumed and committed before the factor is checked, so a wrong factor still
@@ -176,11 +186,12 @@ async def _complete_mfa_challenge(
 
     Args:
         db: Active database session
-        mfa_token: Challenge token issued when login required a second factor
+        mfa_token: Challenge token issued when the flow required a second factor
+        purpose: Flow the challenge must be scoped to
         verify_second_factor: Coroutine factory that raises HTTPException unless the factor verifies
 
     Returns:
-        The user who passed the second factor
+        The user who passed the second factor and the factor kind that matched
 
     Raises:
         HTTPException: The challenge or the second factor does not verify
@@ -203,13 +214,13 @@ async def _complete_mfa_challenge(
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="Account temporarily locked")
 
     # Consume and commit before checking the factor so a wrong factor still burns the single-use challenge
-    challenge_valid = await consume_mfa_challenge(db, challenge_jti, user_id)
+    challenge_valid = await consume_mfa_challenge(db, challenge_jti, user_id, purpose)
     await db.commit()
     if not challenge_valid:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired challenge")
 
     try:
-        await verify_second_factor(user_id)
+        factor_kind = await verify_second_factor(user_id)
     except HTTPException as error:
         # A wrong factor counts toward the lockout, but a passkey protocol error such as an expired or
         # malformed challenge (400) does not, so a slow or fumbled ceremony cannot lock the account. A
@@ -227,10 +238,10 @@ async def _complete_mfa_challenge(
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired challenge")
 
-    return user
+    return user, factor_kind
 
 
-async def get_mfa_challenge_user_id(db: AsyncSession, mfa_token: str) -> uuid.UUID:
+async def get_mfa_challenge_user_id(db: AsyncSession, mfa_token: str, purpose: str) -> uuid.UUID:
     """Return the user a live challenge token belongs to without spending the challenge
 
     The passkey second-factor ceremony issues its options before the challenge is consumed, so this
@@ -238,7 +249,8 @@ async def get_mfa_challenge_user_id(db: AsyncSession, mfa_token: str) -> uuid.UU
 
     Args:
         db: Active database session
-        mfa_token: Challenge token issued when login required a second factor
+        mfa_token: Challenge token issued when the flow required a second factor
+        purpose: Flow the challenge must be scoped to
 
     Returns:
         The user the challenge was issued to
@@ -255,7 +267,7 @@ async def get_mfa_challenge_user_id(db: AsyncSession, mfa_token: str) -> uuid.UU
     challenge_jti = uuid.UUID(payload["jti"])
     current_user_id_ctx.set(user_id)
 
-    if not await is_mfa_challenge_active(db, challenge_jti, user_id):
+    if not await is_mfa_challenge_active(db, challenge_jti, user_id, purpose):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired challenge")
 
     return user_id

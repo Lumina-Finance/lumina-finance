@@ -24,6 +24,7 @@ from app.routes.tags import router as tag_router
 from app.routes.tax_advantaged_categories import router as tax_advantaged_category_router
 from app.routes.transactions import router as transaction_router
 from app.routes.users import router as user_router
+from app.services.email import build_email_sender, set_email_sender
 
 
 @asynccontextmanager
@@ -34,6 +35,9 @@ async def _lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="Lumina Finance API", lifespan=_lifespan)
+
+# Install the configured email sender before any request can send mail
+set_email_sender(build_email_sender())
 
 
 # CORS — origins from env
