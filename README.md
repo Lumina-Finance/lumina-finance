@@ -47,7 +47,7 @@ This roadmap may change as Lumina Finance evolves based on user feedback, techni
 - [X] Multi-currency support
 - [X] Row-level security for per-user data isolation
 - [ ] Application security improvements and fixes
-- [ ] OIDC and WebAuthN support
+- [X] OIDC and WebAuthN support
 - [ ] SaaS development and testing
 
 #### Long Term
@@ -131,6 +131,26 @@ Frankfurter can also be self-hosted. To use a self-hosted instance, see Frankfur
 | `APP_DB_PASSWORD` | No | Database password | Auto-generated | Password for the `lumina_app` role that serves requests under row-level security. If unset, a password is generated on first start and persisted to `/data/secrets/app_db_password` on the data volume, then reused on later starts |
 | `FRANKFURTER_URL` | No | URL including API version path | `https://api.frankfurter.dev/v2` | Frankfurter-compatible FX rate API URL; set this to a self-hosted Frankfurter instance to keep FX lookups private |
 | `UPDATE_CHECKS_ENABLED` | No | `true` or `false` | `true` in official Docker images | Enables update checks against GitHub releases and matching Docker image tags |
+
+
+### Single Sign-On (OIDC)
+
+Lumina Finance can offer sign-in through OpenID Connect providers alongside passwords and passkeys. Two provider slots are available: `google`, a preset that only needs client credentials from the [Google Cloud console](https://console.cloud.google.com/apis/credentials), and `generic` for any standards-compliant provider such as Authentik or Authelia. Sign-in buttons appear on the login and signup pages automatically once a provider is configured, new users can create their account through a provider, and existing users can link providers from Settings under Security
+
+Register the redirect URI `<APP_URL>/auth/oidc/callback` with your provider. `APP_URL` must be set for sign-on to work
+
+| Variable | Required | Expected Values | Default Value | Purpose |
+|-|-|-|-|-|
+| `OIDC_PROVIDERS` | No | Comma-separated slugs: `generic`, `google` | None | Enables single sign-on. Each listed slug is configured through its own variable block below |
+| `OIDC_GENERIC_ISSUER` | With `generic` | HTTPS issuer URL | None | The provider's issuer exactly as it publishes it, including any trailing slash. For Authentik this is `https://<host>/application/o/<application-slug>/` |
+| `OIDC_GENERIC_CLIENT_ID` | With `generic` | String | None | OAuth client ID registered with the provider |
+| `OIDC_GENERIC_CLIENT_SECRET` | With `generic` | String | None | OAuth client secret, stored encrypted at rest |
+| `OIDC_GENERIC_DISPLAY_NAME` | No | String | `OIDC` | Sign-in button label, for example `Authentik` |
+| `OIDC_GENERIC_SCOPES` | No | Space-separated scopes | `openid email profile` | Scopes requested from the provider, must include `openid` |
+| `OIDC_GOOGLE_CLIENT_ID` | With `google` | String | None | OAuth client ID from the Google Cloud console |
+| `OIDC_GOOGLE_CLIENT_SECRET` | With `google` | String | None | OAuth client secret from the Google Cloud console |
+
+Providers are read into the database every time the app starts, so configuration changes apply on restart. Removing a slug from `OIDC_PROVIDERS` hides its button but keeps existing account links, so re-adding it later needs no relinking. The bundled Docker compose file passes the whole `.env` file through to the app container, so the provider blocks apply without listing each variable individually
 
 ### [JWKS (JSON Web Key Set)](https://auth0.com/docs/secure/tokens/json-web-tokens/json-web-key-sets) and JWT Configs
 
