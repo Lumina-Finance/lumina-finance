@@ -14,11 +14,15 @@ from app.config import (
     JWT_REFRESH_PRIVATE_KEY,
     JWT_REFRESH_TOKEN_EXPIRE_SECONDS,
     MFA_CHALLENGE_TOKEN_EXPIRE_SECONDS,
+    OIDC_ONBOARDING_TOKEN_EXPIRE_SECONDS,
 )
 from app.models.base import AuthTokenKind
 
 # Token use claim for the step-up challenge
 MFA_CHALLENGE_TOKEN_USE = "mfa_challenge"  # noqa: S105 — token use claim, not a secret
+
+# Token use claim for the OIDC signup completion bridge
+OIDC_ONBOARDING_TOKEN_USE = "oidc_onboarding"  # noqa: S105 — token use claim, not a secret
 
 
 def create_access_token(user_id: uuid.UUID, session_id: uuid.UUID) -> tuple[str, uuid.UUID, datetime]:
@@ -80,6 +84,46 @@ def create_mfa_challenge_token(user_id: uuid.UUID) -> tuple[str, uuid.UUID, date
         token_use=MFA_CHALLENGE_TOKEN_USE,
     )
     return token
+
+
+def create_oidc_onboarding_token(
+    provider_slug: str,
+    subject: str,
+    email: str,
+    email_verified: bool,
+    first_name: str,
+    last_name: str | None,
+) -> str:
+    """Create a short-lived token carrying verified provider claims to signup completion
+
+    No user exists yet, so the token is the only thing bridging the verified sign-in and
+    the completion step, and its claims are never trusted from the client unsigned
+
+    Args:
+        provider_slug: Provider the claims were verified against
+        subject: Provider's permanent identifier for the user
+        email: Email the provider asserted
+        email_verified: Whether the provider asserted the email as verified
+        first_name: Best first name the provider's claims offered
+        last_name: Optional family name the provider's claims offered
+
+    Returns:
+        Encoded JWT for the signup completion step
+    """
+    issued_at = datetime.now(UTC)
+    payload = {
+        "sub": subject,
+        "provider_slug": provider_slug,
+        "email": email,
+        "email_verified": email_verified,
+        "first_name": first_name,
+        "last_name": last_name,
+        "token_use": OIDC_ONBOARDING_TOKEN_USE,
+        "iat": issued_at,
+        "exp": issued_at + timedelta(seconds=OIDC_ONBOARDING_TOKEN_EXPIRE_SECONDS),
+        "iss": JWT_ISSUER,
+    }
+    return jwt.encode(payload, JWT_ACCESS_PRIVATE_KEY, algorithm=JWT_ALGORITHM, headers={"kid": JWT_ACCESS_KID})
 
 
 def _create_signed_token(
