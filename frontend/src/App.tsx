@@ -316,8 +316,18 @@ function AnimatedRoutes() {
           <Route path="/signup" element={<AuthPage />} />
           <Route path="/forgot-password" element={<AuthPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
-          <Route path="/auth/oidc/callback" element={<OidcCallbackPage />} />
         </Route>
+
+        {/* The provider callback serves both audiences, an anonymous login completion and a
+            signed-in link completion, so it lives outside the public-only wrapper */}
+        <Route
+          path="/auth/oidc/callback"
+          element={
+            <Suspense fallback={null}>
+              <OidcCallbackPage />
+            </Suspense>
+          }
+        />
 
         {/* Protected app routes */}
         <Route element={<ProtectedRoute displayLocation={displayLocation} onContentReady={handleContentReady} pageTransitionPhase={pageTransitionPhase} isInitialLoad={!hasRevealedApp} />}>

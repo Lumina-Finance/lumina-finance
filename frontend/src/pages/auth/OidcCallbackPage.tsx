@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { AnimatePresence, motion } from 'motion/react'
+import { useQueryClient } from '@tanstack/react-query'
+import { oidcKeys } from '@/api/cache/queryKeys'
 import { useCurrencies } from '@/api/currency'
 import {
   completeOidcCallback,
+  completeOidcLinkCallback,
   completeOidcSignup,
   isOidcOnboardingRequired,
   OidcEmailConflictError,
@@ -33,7 +36,8 @@ const TIMEZONES = Intl.supportedValuesOf('timeZone').map((tz) => ({
 const OidcCallbackPage = () => {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
-  const { setSession } = useAuth()
+  const queryClient = useQueryClient()
+  const { user, loading, setSession } = useAuth()
 
   const [onboarding, setOnboarding] = useState<OidcOnboardingResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -45,7 +49,9 @@ const OidcCallbackPage = () => {
   const callbackStartedRef = useRef(false)
 
   useEffect(() => {
-    if (callbackStartedRef.current) return
+    // The session must finish restoring first, because it decides whether this callback
+    // completes a link for the signed-in account or an anonymous sign-in
+    if (loading || callbackStartedRef.current) return
     callbackStartedRef.current = true
 
     // Providers report a denied or failed sign-in through the error parameter instead of a code
@@ -61,6 +67,18 @@ const OidcCallbackPage = () => {
       return
     }
 
+    if (user) {
+      completeOidcLinkCallback({ code, state })
+        .then(async () => {
+          await queryClient.invalidateQueries({ queryKey: oidcKeys.identities() })
+          navigate('/settings', { replace: true })
+        })
+        .catch((linkError: Error) => {
+          setError(linkError.message || 'Linking failed.')
+        })
+      return
+    }
+
     completeOidcCallback({ code, state })
       .then((result) => {
         if (isOidcOnboardingRequired(result)) {
@@ -68,8 +86,7 @@ const OidcCallbackPage = () => {
           return
         }
 
-        // Committing the session flips the auth state, and the public route wrapper
-        // then redirects home on its own
+        // Committing the session flips the auth state, and the app then routes home on its own
         setSession(result)
       })
       .catch((callbackError: Error) => {
@@ -81,7 +98,7 @@ const OidcCallbackPage = () => {
         }
         setError(callbackError.message || 'Single sign-on failed.')
       })
-  }, [searchParams, setSession])
+  }, [loading, user, searchParams, setSession, navigate, queryClient])
 
   const completing = !error && !onboarding && !conflictEmail
 
@@ -95,15 +112,21 @@ const OidcCallbackPage = () => {
       style={{ backgroundColor: 'var(--app-bg)' }}
     >
       <AnimatePresence>
-        {completing && <LoadingScreen message="Completing sign-in" />}
+        {completing && <LoadingScreen message={user ? 'Linking sign-in provider' : 'Completing sign-in'} />}
       </AnimatePresence>
 
       <div className="w-full max-w-sm">
         <AnimatePresence
           mode="wait"
           onExitComplete={() => {
-            // The conflicting address rides along so the login form starts prefilled
-            if (leaving) navigate('/login', conflictEmail ? { state: { prefillEmail: conflictEmail } } : undefined)
+            // The conflicting address rides along so the login form starts prefilled, and a
+            // signed-in link failure returns to settings instead
+            if (!leaving) return
+            if (user) {
+              navigate('/settings')
+            } else {
+              navigate('/login', conflictEmail ? { state: { prefillEmail: conflictEmail } } : undefined)
+            }
           }}
         >
           {error && !leaving && (
@@ -119,7 +142,7 @@ const OidcCallbackPage = () => {
                   className="font-medium underline underline-offset-2 transition-colors duration-200"
                   style={{ color: 'var(--app-accent)' }}
                 >
-                  Back to login
+                  {user ? 'Back to settings' : 'Back to login'}
                 </button>
               </p>
             </motion.div>
