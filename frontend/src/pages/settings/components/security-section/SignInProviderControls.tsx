@@ -173,8 +173,7 @@ export default function SignInProviderControls() {
               {hasPassword && row.identity && (
                 <button
                   type="button"
-                  className="shrink-0 text-sm font-medium underline underline-offset-2 transition-colors duration-200"
-                  style={{ color: 'var(--app-text-muted)' }}
+                  className="app-secondary-button shrink-0"
                   onClick={() => setRemoveTarget(row.identity)}
                 >
                   Unlink
