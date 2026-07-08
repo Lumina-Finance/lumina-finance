@@ -1,6 +1,8 @@
 """Application configuration loading and validation"""
 
 import os
+import re
+from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -246,6 +248,129 @@ PASSWORD_RESET_DAILY_EMAIL_LIMIT = int(os.getenv("PASSWORD_RESET_DAILY_EMAIL_LIM
 # The challenge token bridges a verified password and the second factor, kept short so a
 # captured token has a small window before the user must restart login
 MFA_CHALLENGE_TOKEN_EXPIRE_SECONDS = int(os.getenv("MFA_CHALLENGE_TOKEN_EXPIRE_SECONDS", "120"))
+
+# --- OIDC ---
+
+# The google slug is a preset whose issuer and display name are filled in automatically,
+# so operators only supply the client credentials from their Google Cloud console
+OIDC_GOOGLE_SLUG = "google"
+OIDC_GOOGLE_ISSUER = "https://accounts.google.com"
+OIDC_GOOGLE_DISPLAY_NAME = "Google"
+
+# The default scope set covers exactly the claims sign-in needs: subject, email, and name
+OIDC_DEFAULT_SCOPES = "openid email profile"
+
+# A sign-in roundtrip must finish within this window, covering the user authenticating at the provider
+OIDC_AUTHORIZATION_REQUEST_EXPIRE_SECONDS = int(os.getenv("OIDC_AUTHORIZATION_REQUEST_EXPIRE_SECONDS", "600"))
+
+# The onboarding token bridges a verified provider sign-in and the profile completion step, kept
+# short since redoing the provider sign-in is cheap
+OIDC_ONBOARDING_TOKEN_EXPIRE_SECONDS = int(os.getenv("OIDC_ONBOARDING_TOKEN_EXPIRE_SECONDS", "600"))
+
+# Slugs become environment variable names, URL path segments, and container-safe identifiers
+_OIDC_SLUG_PATTERN = re.compile(r"^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$")
+
+
+@dataclass(frozen=True)
+class OidcProviderConfig:
+    """One OIDC provider declaration read from the environment"""
+
+    slug: str
+    display_name: str
+    issuer: str
+    client_id: str
+    client_secret: str
+    scopes: str
+
+
+def _oidc_env_key(slug: str, field: str) -> str:
+    """Return the environment variable name for one field of a provider block"""
+    return f"OIDC_{slug.upper().replace('-', '_')}_{field}"
+
+
+def _validate_oidc_issuer(slug: str, issuer: str) -> str:
+    """Return a normalized issuer URL after enforcing the transport policy
+
+    Every discovery, token, and key fetch trusts this origin, so HTTPS is required, with
+    plain HTTP allowed only for loopback development providers
+
+    Args:
+        slug: Provider the issuer belongs to, named in the failure message
+        issuer: Issuer URL as configured
+
+    Returns:
+        The issuer without a trailing slash, matching how providers publish it
+
+    Raises:
+        RuntimeError: The issuer is not HTTPS or loopback HTTP
+    """
+    normalized_issuer = issuer.rstrip("/")
+    parsed_issuer = urlparse(normalized_issuer)
+    is_loopback_http = parsed_issuer.scheme == "http" and parsed_issuer.hostname in ("localhost", "127.0.0.1")
+    if parsed_issuer.scheme != "https" and not is_loopback_http:
+        raise RuntimeError(f"OIDC provider {slug!r} issuer must use https: {issuer!r}")
+    return normalized_issuer
+
+
+def load_oidc_provider_configs() -> list[OidcProviderConfig]:
+    """Return the OIDC providers declared in the environment
+
+    Each slug listed in OIDC_PROVIDERS is read from its own OIDC_<SLUG>_* block, with the
+    google slug presetting its issuer and display name
+
+    Returns:
+        Provider declarations in the order they are listed
+
+    Raises:
+        RuntimeError: A slug is malformed, a required field is missing, or a value is invalid
+    """
+    configs = []
+    for slug in _unique_values(_optional_csv_env("OIDC_PROVIDERS")):
+        if not _OIDC_SLUG_PATTERN.match(slug):
+            raise RuntimeError(f"Invalid OIDC provider slug {slug!r}. Use lowercase letters, digits, and hyphens")
+
+        is_google_preset = slug == OIDC_GOOGLE_SLUG
+
+        issuer = os.getenv(_oidc_env_key(slug, "ISSUER"), "").strip()
+        if not issuer and is_google_preset:
+            issuer = OIDC_GOOGLE_ISSUER
+        if not issuer:
+            raise RuntimeError(f"Missing required environment variable: {_oidc_env_key(slug, 'ISSUER')}")
+
+        client_id = os.getenv(_oidc_env_key(slug, "CLIENT_ID"), "").strip()
+        client_secret = os.getenv(_oidc_env_key(slug, "CLIENT_SECRET"), "")
+        if not client_id:
+            raise RuntimeError(f"Missing required environment variable: {_oidc_env_key(slug, 'CLIENT_ID')}")
+        if not client_secret:
+            raise RuntimeError(f"Missing required environment variable: {_oidc_env_key(slug, 'CLIENT_SECRET')}")
+
+        display_name = os.getenv(_oidc_env_key(slug, "DISPLAY_NAME"), "").strip()
+        if not display_name:
+            display_name = OIDC_GOOGLE_DISPLAY_NAME if is_google_preset else slug.replace("-", " ").title()
+
+        scopes = os.getenv(_oidc_env_key(slug, "SCOPES"), "").strip() or OIDC_DEFAULT_SCOPES
+        if "openid" not in scopes.split():
+            raise RuntimeError(f"OIDC provider {slug!r} scopes must include openid: {scopes!r}")
+
+        configs.append(
+            OidcProviderConfig(
+                slug=slug,
+                display_name=display_name,
+                issuer=_validate_oidc_issuer(slug, issuer),
+                client_id=client_id,
+                client_secret=client_secret,
+                scopes=scopes,
+            )
+        )
+
+    # The callback URL every provider redirects to is derived from the public app origin,
+    # so sign-in cannot work without one
+    if configs and not APP_URL:
+        raise RuntimeError("OIDC providers are configured but APP_URL is not set")
+    return configs
+
+
+OIDC_PROVIDER_CONFIGS = load_oidc_provider_configs()
 
 # --- Dashboard ---
 
