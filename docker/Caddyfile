@@ -7,6 +7,12 @@
 	}
 
 	handle {
+		@hashed_assets path /assets/*
+		header @hashed_assets Cache-Control "public, max-age=31536000, immutable"
+
+		@revalidate not path /assets/*
+		header @revalidate Cache-Control "no-cache"
+
 		try_files {path} /index.html
 		file_server
 	}
