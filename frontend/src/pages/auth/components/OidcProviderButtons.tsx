@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { Globe } from 'lucide-react'
 import { beginOidcSignIn, type OidcProvider } from '@/api/oidc'
-import { GoogleSignInButton } from '@/pages/auth/components/GoogleSignInButton'
+import { GoogleGMark } from '@/pages/auth/components/GoogleGMark'
 
-// Google's slug is fixed by the backend preset and selects its brand-mandated button
+// Google's slug is fixed by the backend preset and selects its brand-mandated G mark
 const GOOGLE_PROVIDER_SLUG = 'google'
 
 interface OidcProviderButtonsProps {
@@ -37,32 +37,25 @@ export function OidcProviderButtons({ providers }: OidcProviderButtonsProps) {
     <div className="space-y-3">
       {providers.map((provider) => (
         <div key={provider.slug} className="flex justify-center">
-          {provider.slug === GOOGLE_PROVIDER_SLUG ? (
-            <GoogleSignInButton
-              disabled={pendingSlug !== null}
-              onClick={() => handleProviderClick(provider.slug)}
-            />
-          ) : (
-            <button
-              type="button"
-              onClick={() => handleProviderClick(provider.slug)}
-              disabled={pendingSlug !== null}
-              className={`app-secondary-button transition-all duration-300 ${
-                pendingSlug === provider.slug
-                  ? 'app-primary-button-loading'
-                  : 'flex w-full items-center justify-center gap-2'
-              }`}
-            >
-              {pendingSlug === provider.slug ? (
-                <div className="app-spinner" />
-              ) : (
-                <>
-                  <Globe size={16} aria-hidden />
-                  Continue with {provider.display_name}
-                </>
-              )}
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => handleProviderClick(provider.slug)}
+            disabled={pendingSlug !== null}
+            className={`app-secondary-button transition-all duration-300 ${
+              pendingSlug === provider.slug
+                ? 'app-primary-button-loading'
+                : 'flex w-full items-center justify-center gap-2'
+            }`}
+          >
+            {pendingSlug === provider.slug ? (
+              <div className="app-spinner" />
+            ) : (
+              <>
+                {provider.slug === GOOGLE_PROVIDER_SLUG ? <GoogleGMark /> : <Globe size={16} aria-hidden />}
+                Continue with {provider.display_name}
+              </>
+            )}
+          </button>
         </div>
       ))}
 
