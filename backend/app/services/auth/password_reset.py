@@ -13,7 +13,8 @@ from sqlalchemy.sql import func as sa_func
 
 from app.config import APP_URL, PASSWORD_RESET_DAILY_EMAIL_LIMIT, PASSWORD_RESET_TOKEN_EXPIRE_SECONDS
 from app.database import current_user_id_ctx
-from app.models.auth import PasswordCredential, PasswordResetToken
+from app.models.auth import AuthIdentity, PasswordCredential, PasswordResetToken
+from app.models.base import AuthProvider
 from app.models.user import User
 from app.services.auth.mfa_challenge import MFA_PURPOSE_PASSWORD_RESET, issue_mfa_challenge
 from app.services.auth.password_helpers import hash_password
@@ -211,7 +212,7 @@ async def _apply_password_reset(db: AsyncSession, reset_token: PasswordResetToke
         new_password: Replacement password already validated against the policy
 
     Raises:
-        HTTPException: The token was already redeemed or the account has no password credential
+        HTTPException: The token was already redeemed
     """
     # Claim the token in one conditional update so concurrent redemptions cannot both succeed
     claim_query = (
@@ -225,8 +226,18 @@ async def _apply_password_reset(db: AsyncSession, reset_token: PasswordResetToke
 
     credential_query = select(PasswordCredential).where(PasswordCredential.user_id == reset_token.user_id)
     credential = (await db.execute(credential_query)).scalar_one_or_none()
+
+    # An account created through a provider sign-in has no password yet, and possession of
+    # the account email is the same proof a reset trusts, so redeeming a link sets its first
+    # password and records password as an auth provider
     if credential is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=_INVALID_TOKEN_DETAIL)
+        credential = PasswordCredential(
+            user_id=reset_token.user_id,
+            password_hash=hash_password(new_password),
+            password_algo="argon2id",  # noqa: S106
+        )
+        db.add(credential)
+        db.add(AuthIdentity(user_id=reset_token.user_id, auth_provider=AuthProvider.PASSWORD))
 
     # A verified reset clears any login lockout the user was trying to recover from
     credential.password_hash = hash_password(new_password)
