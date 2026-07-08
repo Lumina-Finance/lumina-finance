@@ -11,6 +11,7 @@ import {
 } from '@/api/oidc';
 import { ProviderMark } from '@/components/ProviderMark';
 import { StepUpModal, type StepUpCredentials } from '@/components/twoFactor/StepUpModal';
+import { withMinDelay } from '@/utils/timing';
 
 // Operator documentation for configuring providers, shown when none are available
 const OIDC_SETUP_DOCS_URL = 'https://github.com/Lumina-Finance/lumina-finance#single-sign-on-oidc';
@@ -97,7 +98,9 @@ export default function SignInProviderControls() {
 
   const confirmRemove = async (credentials: StepUpCredentials) => {
     if (!removeTarget) return;
-    await removeOidcIdentity(removeTarget.id, credentials);
+
+    // Hold the modal's pending state to the shared minimum so a fast unlink does not flash
+    await withMinDelay(() => removeOidcIdentity(removeTarget.id, credentials));
     setRemoveTarget(null);
     await queryClient.invalidateQueries({ queryKey: oidcKeys.identities() });
   };
