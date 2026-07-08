@@ -1,6 +1,7 @@
 import { ApiError } from '@/api/auth/errors';
 import type { AuthResponse } from '@/api/auth/types';
 import { API_BASE } from '@/api/config';
+import { OIDC_EMAIL_CONFLICT_CODE, OidcEmailConflictError } from '@/api/oidc/errors';
 import type {
   OidcAuthorizeResponse,
   OidcCallbackPayload,
@@ -24,8 +25,18 @@ async function requestOidc<T>(path: string, options: RequestInit = {}): Promise<
   });
 
   if (!response.ok) {
-    const body = (await response.json().catch(() => null)) as { detail?: string } | null;
-    throw new ApiError(body?.detail ?? `Request failed (${response.status})`, response.status);
+    const body = (await response.json().catch(() => null)) as
+      | { detail?: string | { code?: string; email?: string } }
+      | null;
+    const detail = body?.detail;
+
+    // The email conflict is the one structured error, carrying the address for a prefilled
+    // password sign-in, while every other failure stays a plain message
+    if (typeof detail === 'object' && detail?.code === OIDC_EMAIL_CONFLICT_CODE && detail.email) {
+      throw new OidcEmailConflictError(detail.email);
+    }
+    const message = typeof detail === 'string' ? detail : `Request failed (${response.status})`;
+    throw new ApiError(message, response.status);
   }
 
   return response.json() as Promise<T>;

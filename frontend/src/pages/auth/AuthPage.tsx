@@ -34,6 +34,9 @@ const AuthPage = () => {
   const location = useLocation();
   const containerRef = useRef<HTMLDivElement>(null);
   const mode = getAuthMode(location.pathname);
+
+  // A provider sign-in that collided with an existing account hands its email over here
+  const prefillEmail = (location.state as { prefillEmail?: string } | null)?.prefillEmail;
   const isLogin = mode === 'login';
   const isSignup = mode === 'signup';
   const isForgot = mode === 'forgot';
@@ -85,6 +88,7 @@ const AuthPage = () => {
     currenciesError,
     detectedTimezone: DETECTED_TZ,
     mode,
+    initialEmail: prefillEmail,
   });
 
   const { data: oidcProviders = [] } = useOidcProviders();

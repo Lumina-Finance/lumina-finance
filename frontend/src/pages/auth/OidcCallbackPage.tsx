@@ -6,6 +6,7 @@ import {
   completeOidcCallback,
   completeOidcSignup,
   isOidcOnboardingRequired,
+  OidcEmailConflictError,
   type OidcOnboardingResponse,
 } from '@/api/oidc'
 import Dropdown from '@/components/dropdown/Dropdown'
@@ -36,6 +37,7 @@ const OidcCallbackPage = () => {
 
   const [onboarding, setOnboarding] = useState<OidcOnboardingResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [conflictEmail, setConflictEmail] = useState<string | null>(null)
   const [leaving, setLeaving] = useState(false)
 
   // The stored roundtrip is single use on the server, so the strict-mode double effect
@@ -71,11 +73,17 @@ const OidcCallbackPage = () => {
         setSession(result)
       })
       .catch((callbackError: Error) => {
+        // A conflicting account is a recoverable outcome offering a password sign-in,
+        // unlike the terminal failure view every other error lands on
+        if (callbackError instanceof OidcEmailConflictError) {
+          setConflictEmail(callbackError.email)
+          return
+        }
         setError(callbackError.message || 'Single sign-on failed.')
       })
   }, [searchParams, setSession])
 
-  const completing = !error && !onboarding
+  const completing = !error && !onboarding && !conflictEmail
 
   const handleBackToLogin = () => {
     setLeaving(true)
@@ -94,7 +102,8 @@ const OidcCallbackPage = () => {
         <AnimatePresence
           mode="wait"
           onExitComplete={() => {
-            if (leaving) navigate('/login')
+            // The conflicting address rides along so the login form starts prefilled
+            if (leaving) navigate('/login', conflictEmail ? { state: { prefillEmail: conflictEmail } } : undefined)
           }}
         >
           {error && !leaving && (
@@ -113,6 +122,22 @@ const OidcCallbackPage = () => {
                   Back to login
                 </button>
               </p>
+            </motion.div>
+          )}
+
+          {conflictEmail && !leaving && (
+            <motion.div key="account-exists" {...AUTH_VIEW_TRANSITION}>
+              <h1 className="font-serif text-4xl font-normal tracking-tight">Account already exists</h1>
+              <p className="mt-5 text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                An account with {conflictEmail} already exists, and the sign-in provider has not
+                verified this email, so the two cannot be linked automatically. Sign in with your
+                password to use your account.
+              </p>
+              <div className="mt-5 flex justify-center">
+                <button type="button" onClick={handleBackToLogin} className="app-primary-button w-full">
+                  Sign in with password
+                </button>
+              </div>
             </motion.div>
           )}
 

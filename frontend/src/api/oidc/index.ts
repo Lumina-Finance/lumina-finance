@@ -17,3 +17,5 @@ export {
 } from '@/api/oidc/requests';
 
 export { useOidcProviders } from '@/api/oidc/hooks';
+
+export { OidcEmailConflictError } from '@/api/oidc/errors';
