@@ -17,6 +17,7 @@ from app.models.auth import AuthIdentity
 from app.models.base import AuthProvider
 from app.models.oidc import OidcAuthorizationRequest, OidcIdentity, OidcProvider
 from app.models.user import User
+from app.services.auth.account_lockout import get_password_credential
 from app.services.auth.oidc_client import (
     build_authorization_url,
     exchange_authorization_code,
@@ -27,8 +28,10 @@ from app.services.auth.oidc_client import (
 )
 from app.services.auth.oidc_providers import get_enabled_oidc_provider_by_id
 from app.services.auth.signup import reject_missing_base_currency, reject_registered_email
+from app.services.auth.step_up import verify_sensitive_action_step_up
 from app.services.auth.token_hashing import hash_token
 from app.services.auth.user_lookup import find_user_id_by_email
+from app.services.auth.webauthn import is_passkey_registered
 
 # The one callback path every provider registers, appended to the public app origin
 OIDC_REDIRECT_PATH = "/auth/oidc/callback"
@@ -296,6 +299,180 @@ async def complete_oidc_signup(
     await db.commit()
     await db.refresh(user)
     return user
+
+
+async def begin_oidc_link(db: AsyncSession, user: User, provider: OidcProvider) -> str:
+    """Start a roundtrip that links a provider to a signed-in account
+
+    The caller has already verified step-up, so the stored roundtrip carries the account
+    it was authorized for and only that account can complete it
+
+    Args:
+        db: Active database session
+        user: Authenticated user linking the provider
+        provider: Enabled provider being linked
+
+    Returns:
+        The provider's authorization URL bound to a stored single-use link roundtrip
+
+    Raises:
+        HTTPException: The provider's discovery document cannot be fetched
+    """
+    return await _begin_authorization(db, provider, OIDC_PURPOSE_LINK, user_id=user.id)
+
+
+async def complete_oidc_link(
+    db: AsyncSession, user: User, code: str, state: str
+) -> tuple[OidcIdentity, OidcProvider]:
+    """Finish a link roundtrip and attach the verified provider subject to the account
+
+    Args:
+        db: Active database session
+        user: Authenticated user completing the link they authorized
+        code: Authorization code the provider sent to the callback
+        state: State value the provider echoed back
+
+    Returns:
+        The new identity and its provider
+
+    Raises:
+        HTTPException: The roundtrip is unknown, expired, or belongs to another account,
+            the exchange or token does not verify, or the subject is already linked
+    """
+    request_row = await _consume_authorization_request(db, state, OIDC_PURPOSE_LINK)
+
+    # The roundtrip was authorized by a step-up for one account, so no other session may
+    # complete it even with a valid state and code
+    if request_row.user_id != user.id:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Single sign-on failed")
+
+    provider = await get_enabled_oidc_provider_by_id(db, request_row.provider_id)
+    if provider is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Single sign-on failed")
+
+    metadata = await get_provider_metadata(provider.issuer)
+    token_response = await exchange_authorization_code(
+        metadata,
+        client_id=provider.client_id,
+        client_secret=decrypt(provider.client_secret_encrypted),
+        code=code,
+        code_verifier=request_row.code_verifier,
+        redirect_uri=get_oidc_redirect_uri(),
+    )
+    claims = await verify_provider_id_token(
+        token_response["id_token"], metadata, provider.client_id, request_row.nonce
+    )
+    subject: str = claims["sub"]
+
+    existing_identity = await _find_identity(db, provider.id, subject)
+    if existing_identity is not None:
+        detail = (
+            "Provider already linked to this account"
+            if existing_identity.user_id == user.id
+            else "Sign-in already linked to another account"
+        )
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=detail)
+
+    identity = OidcIdentity(
+        user_id=user.id,
+        provider_id=provider.id,
+        subject=subject,
+        email=claims.get("email"),
+    )
+    db.add(identity)
+
+    # A first link also records OIDC as an auth provider for the account, once across all providers
+    auth_identity_query = select(AuthIdentity).where(
+        AuthIdentity.user_id == user.id, AuthIdentity.auth_provider == AuthProvider.OIDC
+    )
+    if (await db.execute(auth_identity_query)).scalar_one_or_none() is None:
+        db.add(_build_oidc_auth_identity(user.id, email_verified=claims.get("email_verified") is True))
+
+    await db.commit()
+    await db.refresh(identity)
+    return identity, provider
+
+
+async def list_oidc_identities(db: AsyncSession, user: User) -> list[tuple[OidcIdentity, OidcProvider]]:
+    """Return the account's linked identities with their providers, oldest link first
+
+    Args:
+        db: Active database session
+        user: Authenticated user whose links are listed
+
+    Returns:
+        Identity and provider pairs for the settings list
+    """
+    identities_query = (
+        select(OidcIdentity, OidcProvider)
+        .join(OidcProvider, OidcIdentity.provider_id == OidcProvider.id)
+        .where(OidcIdentity.user_id == user.id)
+        .order_by(OidcIdentity.created_at)
+    )
+
+    # List the linked providers the settings page manages
+    result = await db.execute(identities_query)
+    return [(identity, provider) for identity, provider in result.all()]
+
+
+async def unlink_oidc_identity(
+    db: AsyncSession,
+    user: User,
+    identity_id: uuid.UUID,
+    password: str,
+    *,
+    code: str | None = None,
+    passkey: dict | None = None,
+) -> None:
+    """Remove a linked provider after step-up, refusing to strand the account
+
+    Step-up runs first, the full password plus factor when one is enrolled and the
+    password alone otherwise. The unlink is refused when no way to sign in would remain:
+    no password, no passkey, and no other linked provider
+
+    Args:
+        db: Active database session
+        user: Authenticated user removing the link
+        identity_id: Identity row being removed
+        password: Account password
+        code: A current TOTP code, when stepping up by authenticator
+        passkey: A passkey assertion, when stepping up by passkey
+
+    Raises:
+        HTTPException: The step-up fails, the identity is not the user's, or removing it
+            would leave the account with no way to sign in
+    """
+    await verify_sensitive_action_step_up(db, user, password, code=code, passkey=passkey)
+
+    identity = await db.get(OidcIdentity, identity_id)
+    if identity is None or identity.user_id != user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Linked sign-in not found")
+
+    other_identities_query = select(sa_func.count()).where(
+        OidcIdentity.user_id == user.id, OidcIdentity.id != identity_id
+    )
+    other_identity_count = (await db.execute(other_identities_query)).scalar_one()
+
+    # The account must keep at least one way to sign in, otherwise this unlink is a lockout
+    has_password = await get_password_credential(db, user.id) is not None
+    if not has_password and not await is_passkey_registered(db, user.id) and other_identity_count == 0:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Set a password before removing the only way to sign in",
+        )
+
+    await db.delete(identity)
+
+    # The auth identity records OIDC as a sign-in method, so it goes when the last link does
+    if other_identity_count == 0:
+        auth_identity_query = select(AuthIdentity).where(
+            AuthIdentity.user_id == user.id, AuthIdentity.auth_provider == AuthProvider.OIDC
+        )
+        auth_identity = (await db.execute(auth_identity_query)).scalar_one_or_none()
+        if auth_identity is not None:
+            await db.delete(auth_identity)
+
+    await db.commit()
 
 
 async def _consume_authorization_request(

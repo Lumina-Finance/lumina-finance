@@ -375,6 +375,28 @@ class OidcSignupRequest(BaseModel):
         return trimmed
 
 
+class OidcIdentitySummary(BaseModel):
+    """A linked sign-in provider as shown in the security settings list"""
+
+    id: uuid.UUID
+    provider_slug: str
+    provider_display_name: str
+    email: str | None  # email the provider asserted when the identity was linked
+    created_at: datetime
+    last_login_at: datetime | None
+
+
+class OidcIdentitiesResponse(BaseModel):
+    """The account's linked providers and whether step-up gated actions are available
+
+    Link and unlink step up with the password, so an account created through a provider
+    must set one first, and the flag lets the client show that prompt instead
+    """
+
+    identities: list[OidcIdentitySummary]
+    has_password: bool
+
+
 class PasskeyRegisterResponse(BaseModel):
     """The stored passkey and, for a first passkey, the recovery codes to acknowledge"""
 

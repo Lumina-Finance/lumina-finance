@@ -1,5 +1,6 @@
-"""OIDC sign-in routes"""
+"""OIDC sign-in and provider linking routes"""
 
+import uuid
 from typing import Annotated
 
 import jwt
@@ -7,27 +8,51 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.dependencies import get_current_user
+from app.models.oidc import OidcIdentity, OidcProvider
+from app.models.user import User
 from app.routes.auth.token_helpers import decode_oidc_onboarding_token, issue_and_store_tokens
 from app.schemas.auth import (
     AuthResponse,
     OidcAuthorizeResponse,
     OidcCallbackRequest,
+    OidcIdentitiesResponse,
+    OidcIdentitySummary,
     OidcOnboardingResponse,
     OidcProviderInfo,
     OidcProvidersResponse,
     OidcSignupRequest,
+    StepUpRequest,
 )
 from app.services.auth import (
     OidcOnboardingClaims,
+    begin_oidc_link,
     begin_oidc_sign_in,
+    complete_oidc_link,
     complete_oidc_sign_in,
     complete_oidc_signup,
     create_oidc_onboarding_token,
     get_enabled_oidc_provider_by_slug,
     list_enabled_oidc_providers,
+    list_oidc_identities,
+    unlink_oidc_identity,
 )
+from app.services.auth.account_lockout import get_password_credential
+from app.services.auth.step_up import verify_sensitive_action_step_up
 
 router = APIRouter(prefix="/oidc", tags=["auth"])
+
+
+def _build_identity_summary(identity: OidcIdentity, provider: OidcProvider) -> OidcIdentitySummary:
+    """Return the settings-list summary for a linked identity and its provider"""
+    return OidcIdentitySummary(
+        id=identity.id,
+        provider_slug=provider.slug,
+        provider_display_name=provider.display_name,
+        email=identity.email,
+        created_at=identity.created_at,
+        last_login_at=identity.last_login_at,
+    )
 
 
 @router.get("/providers", response_model=OidcProvidersResponse)
@@ -150,6 +175,107 @@ async def oidc_signup_route(
         base_currency=data.base_currency,
     )
     return await issue_and_store_tokens(db, request, response, user)
+
+
+@router.get("/identities", response_model=OidcIdentitiesResponse)
+async def list_oidc_identities_route(
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """List the account's linked providers for the security settings
+
+    Args:
+        user: Authenticated user resolved from the access token
+        db: Active database session
+
+    Returns:
+        The linked identities and whether the account has a password for step-up actions
+    """
+    identity_pairs = await list_oidc_identities(db, user)
+    has_password = await get_password_credential(db, user.id) is not None
+    return OidcIdentitiesResponse(
+        identities=[_build_identity_summary(identity, provider) for identity, provider in identity_pairs],
+        has_password=has_password,
+    )
+
+
+@router.post("/{slug}/link", response_model=OidcAuthorizeResponse)
+async def link_oidc_route(
+    slug: str,
+    data: StepUpRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Reauthorize, then start linking a provider to the signed-in account
+
+    The step-up runs before the roundtrip is stored, so the browser is never sent to the
+    provider until the current password, and factor when one is enrolled, have verified
+
+    Args:
+        slug: Provider being linked
+        data: Password and a current second factor when one is enrolled
+        user: Authenticated user resolved from the access token
+        db: Active database session
+
+    Returns:
+        The provider's authorization URL bound to a stored single-use link roundtrip
+
+    Raises:
+        HTTPException: The provider is unknown, the step-up fails, or discovery fails
+    """
+    provider = await get_enabled_oidc_provider_by_slug(db, slug)
+    if provider is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown sign-in provider")
+
+    await verify_sensitive_action_step_up(db, user, data.password, code=data.code, passkey=data.passkey)
+    authorization_url = await begin_oidc_link(db, user, provider)
+    return OidcAuthorizeResponse(authorization_url=authorization_url)
+
+
+@router.post("/link/callback", response_model=OidcIdentitySummary)
+async def oidc_link_callback_route(
+    data: OidcCallbackRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Finish linking a provider to the signed-in account
+
+    Args:
+        data: Code and state the provider sent to the callback page
+        user: Authenticated user resolved from the access token
+        db: Active database session
+
+    Returns:
+        The newly linked identity for the settings list
+
+    Raises:
+        HTTPException: The roundtrip, exchange, or token does not verify, the roundtrip
+            belongs to another account, or the subject is already linked
+    """
+    identity, provider = await complete_oidc_link(db, user, data.code, data.state)
+    return _build_identity_summary(identity, provider)
+
+
+@router.post("/identities/{identity_id}/remove", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_oidc_identity_route(
+    identity_id: uuid.UUID,
+    data: StepUpRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Remove a linked provider after step-up reauthentication
+
+    Args:
+        identity_id: Identity row being removed
+        data: Password and a current second factor when one is enrolled
+        user: Authenticated user resolved from the access token
+        db: Active database session
+
+    Raises:
+        HTTPException: The step-up fails, the identity is not the user's, or removing it
+            would leave the account with no way to sign in
+    """
+    await unlink_oidc_identity(db, user, identity_id, data.password, code=data.code, passkey=data.passkey)
 
 
 def _decode_onboarding_claims(onboarding_token: str) -> OidcOnboardingClaims:

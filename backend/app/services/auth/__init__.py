@@ -5,9 +5,13 @@ from app.services.auth.login import login
 from app.services.auth.mfa_challenge import MFA_PURPOSE_LOGIN, MFA_PURPOSE_PASSWORD_RESET, issue_mfa_challenge
 from app.services.auth.oidc_login import (
     OidcOnboardingClaims,
+    begin_oidc_link,
     begin_oidc_sign_in,
+    complete_oidc_link,
     complete_oidc_sign_in,
     complete_oidc_signup,
+    list_oidc_identities,
+    unlink_oidc_identity,
 )
 from app.services.auth.oidc_providers import (
     get_enabled_oidc_provider_by_slug,
@@ -55,6 +59,7 @@ __all__ = [
     "SECOND_FACTOR_RECOVERY_CODE",
     "OidcOnboardingClaims",
     "authorize_factor_addition",
+    "begin_oidc_link",
     "begin_oidc_sign_in",
     "begin_password_reset",
     "begin_totp_setup",
@@ -62,6 +67,7 @@ __all__ = [
     "build_passkey_registration_options",
     "build_passkey_second_factor_options",
     "change_password",
+    "complete_oidc_link",
     "complete_oidc_sign_in",
     "complete_oidc_signup",
     "complete_password_reset",
@@ -81,6 +87,7 @@ __all__ = [
     "is_totp_enabled",
     "issue_mfa_challenge",
     "list_enabled_oidc_providers",
+    "list_oidc_identities",
     "list_passkeys",
     "login",
     "prune_stale_passkey_staging",
@@ -92,6 +99,7 @@ __all__ = [
     "request_password_reset",
     "signup",
     "sync_oidc_providers",
+    "unlink_oidc_identity",
     "verify_passkey_authentication",
     "verify_passkey_second_factor",
 ]
