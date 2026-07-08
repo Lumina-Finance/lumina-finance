@@ -85,12 +85,12 @@ describe('saved insights range functions', () => {
     expect(authenticatedFetchMock).toHaveBeenCalledWith('/insights/saved-ranges');
   });
 
-  it('creates a saved range with the name, amount, and unit', async () => {
-    await createSavedInsightsRange({ name: 'Half-year', amount: 6, unit: 'month' });
+  it('creates a saved range with the name, amount, unit, and qualifier', async () => {
+    await createSavedInsightsRange({ name: 'Half-year', amount: 6, unit: 'month', qualifier: 'past' });
 
     expect(authenticatedFetchMock).toHaveBeenCalledWith('/insights/saved-ranges', {
       method: 'POST',
-      body: JSON.stringify({ name: 'Half-year', amount: 6, unit: 'month' }),
+      body: JSON.stringify({ name: 'Half-year', amount: 6, unit: 'month', qualifier: 'past' }),
     });
   });
 
