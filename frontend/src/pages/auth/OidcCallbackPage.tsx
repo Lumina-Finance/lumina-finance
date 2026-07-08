@@ -48,24 +48,23 @@ const OidcCallbackPage = () => {
   // must not post the callback twice
   const callbackStartedRef = useRef(false)
 
+  // Provider-reported failures and malformed URLs are terminal states known at render
+  // time, derived here so the effect never sets state synchronously
+  const code = searchParams.get('code')
+  const state = searchParams.get('state')
+  const paramError = searchParams.get('error')
+    ? 'Sign-in was cancelled or refused by the provider.'
+    : !code || !state
+      ? 'The sign-in link is incomplete. Start again from the login page.'
+      : null
+  const displayError = error ?? paramError
+
   useEffect(() => {
     // The session must finish restoring first, because it decides whether this callback
     // completes a link for the signed-in account or an anonymous sign-in
-    if (loading || callbackStartedRef.current) return
+    if (loading || callbackStartedRef.current || paramError) return
+    if (!code || !state) return
     callbackStartedRef.current = true
-
-    // Providers report a denied or failed sign-in through the error parameter instead of a code
-    if (searchParams.get('error')) {
-      setError('Sign-in was cancelled or refused by the provider.')
-      return
-    }
-
-    const code = searchParams.get('code')
-    const state = searchParams.get('state')
-    if (!code || !state) {
-      setError('The sign-in link is incomplete. Start again from the login page.')
-      return
-    }
 
     if (user) {
       completeOidcLinkCallback({ code, state })
@@ -98,9 +97,9 @@ const OidcCallbackPage = () => {
         }
         setError(callbackError.message || 'Single sign-on failed.')
       })
-  }, [loading, user, searchParams, setSession, navigate, queryClient])
+  }, [loading, user, code, state, paramError, setSession, navigate, queryClient])
 
-  const completing = !error && !onboarding && !conflictEmail
+  const completing = !displayError && !onboarding && !conflictEmail
 
   const handleBackToLogin = () => {
     setLeaving(true)
@@ -129,11 +128,11 @@ const OidcCallbackPage = () => {
             }
           }}
         >
-          {error && !leaving && (
+          {displayError && !leaving && (
             <motion.div key="sign-in-failed" {...AUTH_VIEW_TRANSITION}>
               <h1 className="font-serif text-4xl font-normal tracking-tight">Sign-in failed</h1>
               <p className="mt-5 text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                {error}
+                {displayError}
               </p>
               <p className="mt-5 text-center text-sm" style={{ color: 'var(--app-text-muted)' }}>
                 <button
