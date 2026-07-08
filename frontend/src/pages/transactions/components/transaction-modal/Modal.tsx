@@ -7,6 +7,7 @@ import { useInfiniteMerchants, useMerchant, useUpdateMerchant, type Merchant } f
 import { useInfiniteTags, type Tag } from '@/api/tags'
 import { useCurrencies } from '@/api/currency'
 import { invalidateTransactionAccountData } from '@/api/cache/updates/transactions'
+import { invalidateTransactions, invalidateTransactionOverview } from '@/api/cache/invalidation/transactions'
 import {
   useCreateTransaction,
   useDeleteTransaction,
@@ -76,7 +77,7 @@ export default function CreateTransactionModal({
 }: CreateTransactionModalProps) {
   const editing = !!transaction
   const queryClient = useQueryClient()
-  const createMutation = useCreateTransaction({ deferAccountInvalidation: true })
+  const createMutation = useCreateTransaction({ deferAccountInvalidation: true, deferTransactionInvalidation: true })
   const updateMutation = useUpdateTransaction()
   const updateMerchantMutation = useUpdateMerchant()
   const deleteMutation = useDeleteTransaction({ minimumPendingMs: MIN_DELETE_TRANSACTION_LOADING_MS })
@@ -127,24 +128,28 @@ export default function CreateTransactionModal({
   const createdAccountIdsRef = useRef<Set<string>>(new Set())
   const openRef = useRef(open)
 
-  const flushDeferredAccountInvalidation = useCallback(() => {
+  // Runs on close so a session of one or more creates refreshes the transactions page once, on
+  // dismiss, rather than refetching the list and overview behind the open modal after every save
+  const flushDeferredInvalidation = useCallback(() => {
     const accountIds = [...createdAccountIdsRef.current]
     if (accountIds.length === 0) return
 
     createdAccountIdsRef.current.clear()
+    invalidateTransactions(queryClient)
+    invalidateTransactionOverview(queryClient)
     invalidateTransactionAccountData(queryClient, accountIds, { refetchAccountList: true })
   }, [queryClient])
 
   const handleClose = useCallback(() => {
     onClose()
-    window.setTimeout(flushDeferredAccountInvalidation, 0)
-  }, [flushDeferredAccountInvalidation, onClose])
+    window.setTimeout(flushDeferredInvalidation, 0)
+  }, [flushDeferredInvalidation, onClose])
 
   useEffect(() => {
     openRef.current = open
     if (open) return
-    flushDeferredAccountInvalidation()
-  }, [flushDeferredAccountInvalidation, open])
+    flushDeferredInvalidation()
+  }, [flushDeferredInvalidation, open])
 
   const selectedAccount = useMemo(
     () => accounts.find((account) => account.id === form.account_id),
@@ -572,7 +577,7 @@ export default function CreateTransactionModal({
       setCreateDelayPending(false)
 
       if (!openRef.current) {
-        flushDeferredAccountInvalidation()
+        flushDeferredInvalidation()
         return
       }
 
@@ -630,7 +635,7 @@ export default function CreateTransactionModal({
         [createdTransaction.account_id]: (deltas[createdTransaction.account_id] ?? 0) + createdTransaction.amount,
       }))
       if (!openRef.current) {
-        flushDeferredAccountInvalidation()
+        flushDeferredInvalidation()
         return
       }
       await minimumLoading

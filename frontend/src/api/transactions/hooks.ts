@@ -80,6 +80,9 @@ export function useTransactionsOverview(filters: OverviewFilters = {}) {
 
 interface UseCreateTransactionOptions {
   deferAccountInvalidation?: boolean;
+  // Holds the transactions-page list and overview refreshes so the caller can flush them once, when a
+  // create modal is dismissed, instead of refetching the page behind it on every save
+  deferTransactionInvalidation?: boolean;
 }
 
 /**
@@ -87,14 +90,18 @@ interface UseCreateTransactionOptions {
  */
 export function useCreateTransaction({
   deferAccountInvalidation = false,
+  deferTransactionInvalidation = false,
 }: UseCreateTransactionOptions = {}) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: createTransaction,
     onSuccess: (transaction) => {
       const accountIds = [transaction.account_id];
-      invalidateTransactions(queryClient);
-      invalidateFinancialTransactionData(queryClient, accountIds, { deferAccountInvalidation });
+      if (!deferTransactionInvalidation) invalidateTransactions(queryClient);
+      invalidateFinancialTransactionData(queryClient, accountIds, {
+        deferAccountInvalidation,
+        deferTransactionOverview: deferTransactionInvalidation,
+      });
       invalidateInsightsMerchants(queryClient);
     },
   });

@@ -219,6 +219,9 @@ export function invalidateTransactionAccountData(
 
 export interface FinancialTransactionInvalidationOptions {
   deferAccountInvalidation?: boolean;
+  // Holds the transaction overview refresh for the caller to flush, so an open create modal does not
+  // refetch the transactions page behind it on every save
+  deferTransactionOverview?: boolean;
 }
 
 /**
@@ -229,7 +232,7 @@ export function invalidateFinancialTransactionData(
   accountIds: string[],
   options: FinancialTransactionInvalidationOptions = {},
 ) {
-  invalidateTransactionOverviewQueries(queryClient);
+  if (!options.deferTransactionOverview) invalidateTransactionOverviewQueries(queryClient);
   invalidateDashboardBalance(queryClient);
   invalidateDashboardIncomeExpense(queryClient);
   invalidateDashboardRecent(queryClient);
