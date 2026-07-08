@@ -12,6 +12,9 @@ import {
 import { ProviderMark } from '@/components/ProviderMark';
 import { StepUpModal, type StepUpCredentials } from '@/components/twoFactor/StepUpModal';
 
+// Operator documentation for configuring providers, shown when none are available
+const OIDC_SETUP_DOCS_URL = 'https://github.com/Lumina-Finance/lumina-finance#single-sign-on-oidc';
+
 const MARK_TILE_STYLE = {
   backgroundColor: 'var(--app-surface-soft)',
   border: '1px solid var(--app-border)',
@@ -79,10 +82,10 @@ export default function SignInProviderControls() {
 
   const isLoading = providers.isLoading || identities.isLoading;
 
-  // Nothing to manage when the server has no providers and the account has no links
-  if (!isLoading && rows.length === 0) {
-    return null;
-  }
+  // The section stays visible without providers so operators discover the feature, with
+  // the guidance split between a server that offers none and one that failed to answer
+  const configurationBroken = providers.isError || identities.isError;
+  const nothingConfigured = !isLoading && !configurationBroken && rows.length === 0;
 
   const confirmLink = async (credentials: StepUpCredentials) => {
     if (!linkTarget) return;
@@ -109,6 +112,24 @@ export default function SignInProviderControls() {
           </p>
         </div>
 
+        {(nothingConfigured || configurationBroken) && (
+          <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+            {configurationBroken
+              ? 'Sign-in providers could not be loaded, so the server configuration may be incomplete. '
+              : 'No sign-in providers are configured on this server. '}
+            <a
+              href={OIDC_SETUP_DOCS_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="font-medium underline underline-offset-2"
+              style={{ color: 'var(--app-accent)' }}
+            >
+              See the setup guide
+            </a>
+            .
+          </p>
+        )}
+
         {!hasPassword && (
           <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
             Managing providers needs a password on the account. Set one first with the reset
@@ -116,6 +137,7 @@ export default function SignInProviderControls() {
           </p>
         )}
 
+        {rows.length > 0 && (
         <ul className="space-y-3">
           {rows.map((row) => (
             <li
@@ -171,6 +193,7 @@ export default function SignInProviderControls() {
             </li>
           ))}
         </ul>
+        )}
       </div>
 
       <StepUpModal
