@@ -4,13 +4,18 @@ import uuid
 from typing import Annotated
 
 import jwt
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.oidc import OidcIdentity, OidcProvider
 from app.models.user import User
+from app.routes.auth.cookie_helpers import (
+    OIDC_BINDING_COOKIE_KEY,
+    clear_oidc_login_binding_cookie,
+    set_oidc_login_binding_cookie,
+)
 from app.routes.auth.token_helpers import decode_oidc_onboarding_token, issue_and_store_tokens
 from app.schemas.auth import (
     AuthResponse,
@@ -74,12 +79,19 @@ async def list_oidc_providers_route(
 @router.post("/{slug}/authorize", response_model=OidcAuthorizeResponse)
 async def authorize_oidc_route(
     slug: str,
+    request: Request,
+    response: Response,
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     """Start a sign-in with the named provider and return the URL to redirect the browser to
 
+    A binding cookie is set alongside, so only the browser that started the flow can
+    complete the callback, which is what the OAuth state parameter guards against
+
     Args:
         slug: Provider picked on the login page
+        request: FastAPI request object
+        response: FastAPI response object for setting the binding cookie
         db: Active database session
 
     Returns:
@@ -92,7 +104,8 @@ async def authorize_oidc_route(
     if provider is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown sign-in provider")
 
-    authorization_url = await begin_oidc_sign_in(db, provider)
+    authorization_url, binding_token = await begin_oidc_sign_in(db, provider)
+    set_oidc_login_binding_cookie(request, response, binding_token)
     return OidcAuthorizeResponse(authorization_url=authorization_url)
 
 
@@ -102,28 +115,34 @@ async def oidc_callback_route(
     request: Request,
     response: Response,
     db: Annotated[AsyncSession, Depends(get_db)],
+    oidc_login_binding: Annotated[str | None, Cookie(alias=OIDC_BINDING_COOKIE_KEY)] = None,
 ):
     """Finish a provider sign-in, issuing tokens or the onboarding step for a new user
 
     A provider sign-in stands in for both factors like a passkey does, since any second
     factor is the provider's to enforce, so a resolved account signs in with no local
     challenge. The provider is identified by the stored roundtrip the state names, which
-    is why the route carries no provider slug
+    is why the route carries no provider slug. The binding cookie proves the callback runs
+    in the browser that started the flow, and is cleared once spent
 
     Args:
         data: Code and state the provider sent to the callback page
         request: FastAPI request object
         response: FastAPI response object for setting the refresh cookie
         db: Active database session
+        oidc_login_binding: Binding secret read from the login cookie
 
     Returns:
         Auth response with tokens, or the onboarding token when profile fields are needed
 
     Raises:
-        HTTPException: The roundtrip, exchange, or token does not verify, or the email
-            collides with an account it cannot be linked to
+        HTTPException: The roundtrip, binding, exchange, or token does not verify, or the
+            email collides with an account it cannot be linked to
     """
-    result = await complete_oidc_sign_in(db, data.code, data.state)
+    # The binding cookie is single-use, so clear it whatever the outcome of this callback
+    clear_oidc_login_binding_cookie(response)
+
+    result = await complete_oidc_sign_in(db, data.code, data.state, oidc_login_binding)
 
     if isinstance(result, OidcOnboardingClaims):
         onboarding_token = create_oidc_onboarding_token(

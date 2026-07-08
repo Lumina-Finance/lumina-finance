@@ -73,6 +73,11 @@ class OidcAuthorizationRequest(Base):
     # The nonce the ID token must echo, proving the token was minted for this roundtrip
     nonce: Mapped[str] = mapped_column(Text, nullable=False)
 
+    # Hash of the secret handed to the initiating browser as a cookie, so a login callback
+    # proves it runs in the same browser that started the flow. Null for a link roundtrip,
+    # which is bound to the signed-in user instead
+    browser_binding_hash: Mapped[str | None] = mapped_column(Text)
+
     # The PKCE verifier is revealed to the provider at the token exchange, so it must be stored raw
     code_verifier: Mapped[str] = mapped_column(Text, nullable=False)
     provider_id: Mapped[uuid.UUID] = mapped_column(

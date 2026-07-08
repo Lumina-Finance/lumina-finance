@@ -76,24 +76,34 @@ async def delete_expired_oidc_authorization_requests(db: AsyncSession) -> None:
     await db.execute(expired_delete_query)
 
 
-async def begin_oidc_sign_in(db: AsyncSession, provider: OidcProvider) -> str:
-    """Start a sign-in roundtrip and return the provider URL to redirect the browser to
+async def begin_oidc_sign_in(db: AsyncSession, provider: OidcProvider) -> tuple[str, str]:
+    """Start a sign-in roundtrip and return the provider URL and the browser binding secret
 
     Args:
         db: Active database session
         provider: Enabled provider the user picked
 
     Returns:
-        The provider's authorization URL bound to a stored single-use roundtrip
+        The provider's authorization URL and the binding secret the callback must present
 
     Raises:
         HTTPException: The provider's discovery document cannot be fetched
     """
-    return await _begin_authorization(db, provider, OIDC_PURPOSE_LOGIN)
+    # The binding secret is handed to the browser as a cookie and its hash is stored, so the
+    # callback proves it runs in the same browser that started the flow
+    binding_token = secrets.token_urlsafe(32)
+    authorization_url = await _begin_authorization(
+        db, provider, OIDC_PURPOSE_LOGIN, browser_binding_hash=hash_token(binding_token)
+    )
+    return authorization_url, binding_token
 
 
 async def _begin_authorization(
-    db: AsyncSession, provider: OidcProvider, purpose: str, user_id: uuid.UUID | None = None
+    db: AsyncSession,
+    provider: OidcProvider,
+    purpose: str,
+    user_id: uuid.UUID | None = None,
+    browser_binding_hash: str | None = None,
 ) -> str:
     """Store a single-use roundtrip for a purpose and return the provider redirect URL
 
@@ -102,6 +112,7 @@ async def _begin_authorization(
         provider: Enabled provider the roundtrip goes to
         purpose: Flow the roundtrip is scoped to
         user_id: Signed-in account a link roundtrip was authorized for
+        browser_binding_hash: Hash of the login binding secret, set only for a login roundtrip
 
     Returns:
         The provider's authorization URL bound to the stored roundtrip
@@ -120,6 +131,7 @@ async def _begin_authorization(
         OidcAuthorizationRequest(
             state_hash=hash_token(state),
             nonce=nonce,
+            browser_binding_hash=browser_binding_hash,
             code_verifier=code_verifier,
             provider_id=provider.id,
             purpose=purpose,
@@ -140,27 +152,41 @@ async def _begin_authorization(
     )
 
 
-async def complete_oidc_sign_in(db: AsyncSession, code: str, state: str) -> User | OidcOnboardingClaims:
+async def complete_oidc_sign_in(
+    db: AsyncSession, code: str, state: str, browser_binding_token: str | None
+) -> User | OidcOnboardingClaims:
     """Finish a sign-in roundtrip and resolve which account it belongs to
 
     The stored roundtrip is consumed and committed before the provider is contacted, so a
-    replayed callback finds it already spent. Resolution then runs in order: a known
-    provider subject signs in, a verified email matching a local account links and signs
-    in, an unverified matching email is refused, and anything else onboards a new user
+    replayed callback finds it already spent. The binding secret is verified first, so a
+    stolen state and code cannot complete a login in a browser that never started it.
+    Resolution then runs in order: a known provider subject signs in, a verified email
+    matching a local account links and signs in, an unverified matching email is refused,
+    and anything else onboards a new user
 
     Args:
         db: Active database session
         code: Authorization code the provider sent to the callback
         state: State value the provider echoed back
+        browser_binding_token: Secret read from the login binding cookie
 
     Returns:
         The signed-in user, or the verified claims the signup completion step needs
 
     Raises:
-        HTTPException: The roundtrip is unknown or expired, the provider rejects the
-            exchange, the token does not verify, or the email collides unverified
+        HTTPException: The roundtrip is unknown or expired, the binding secret is missing
+            or wrong, the provider rejects the exchange, the token does not verify, or the
+            email collides unverified
     """
     request_row = await _consume_authorization_request(db, state, OIDC_PURPOSE_LOGIN)
+
+    # The roundtrip is spent above, so a wrong or missing binding secret fails the login and
+    # forces a fresh sign-in rather than letting a stolen state and code through
+    expected_binding_hash = request_row.browser_binding_hash
+    if expected_binding_hash is None or browser_binding_token is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Single sign-on failed")
+    if not secrets.compare_digest(expected_binding_hash, hash_token(browser_binding_token)):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Single sign-on failed")
 
     provider = await get_enabled_oidc_provider_by_id(db, request_row.provider_id)
     if provider is None:

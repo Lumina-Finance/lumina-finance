@@ -242,6 +242,33 @@ async def test_callback_burns_state_once(client, provider_protocol):
     assert replay.status_code == 401
 
 
+async def test_callback_requires_binding_cookie(client, provider_protocol):
+    """A callback without the binding cookie cannot complete a login even with a live state"""
+    await _seed_provider()
+    provider_protocol["claims"] = _claims()
+
+    state = await _start_sign_in(client)
+
+    # A stolen state and code delivered to a browser that never started the flow has no cookie
+    client.cookies.delete("oidc_login_binding")
+    resp = await client.post("/auth/oidc/callback", json={"code": "any", "state": state})
+
+    assert resp.status_code == 401
+
+
+async def test_callback_rejects_wrong_binding_cookie(client, provider_protocol):
+    """A callback whose binding cookie does not match the stored roundtrip is refused"""
+    await _seed_provider()
+    provider_protocol["claims"] = _claims()
+
+    state = await _start_sign_in(client)
+
+    client.cookies.set("oidc_login_binding", "not-the-real-secret")
+    resp = await client.post("/auth/oidc/callback", json={"code": "any", "state": state})
+
+    assert resp.status_code == 401
+
+
 async def test_callback_rejects_expired_state(client, provider_protocol):
     """A roundtrip past its expiry no longer completes"""
     provider = await _seed_provider()
