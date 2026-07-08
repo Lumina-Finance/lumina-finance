@@ -46,7 +46,7 @@ export default function TaxAdvantagedCategoryDetailsModal({
         <>
           <motion.div
             className="fixed inset-0 z-[60]"
-            style={{ background: 'rgba(0, 0, 0, 0.28)' }}
+            style={{ background: 'rgba(0, 0, 0, 0.4)', backdropFilter: 'blur(10px)' }}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
