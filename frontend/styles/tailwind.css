@@ -839,6 +839,22 @@
     }
   }
 
+  /* The surfaced-tag panel eases its blur and tint in rather than fading its opacity, because an
+     opacity transition on the panel or any ancestor suppresses the backdrop filter until it settles,
+     which makes the blur snap in all at once instead of growing smoothly */
+  .app-tag-tooltip-glass {
+    background-color: transparent;
+    -webkit-backdrop-filter: blur(0px);
+    backdrop-filter: blur(0px);
+    transition: background-color 0.2s ease-out, -webkit-backdrop-filter 0.2s ease-out, backdrop-filter 0.2s ease-out;
+  }
+
+  .group:hover .app-tag-tooltip-glass {
+    background-color: color-mix(in srgb, var(--app-bg) 42%, transparent);
+    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(16px);
+  }
+
   .import-auto-fill-row {
     animation: import-auto-fill-row 900ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
   }

@@ -74,22 +74,19 @@ function ReadOnlyReasonPill({ reason }: { reason: string }) {
 
 function TagTooltip({ tags }: { tags: Transaction['tags'] }) {
   return (
-    <span className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 flex w-52 -translate-x-1/2 flex-col items-start gap-1 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
+    <span className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 flex w-52 -translate-x-1/2 flex-col items-start gap-1">
       <span
-        className="absolute -inset-3 rounded-xl"
+        className="app-tag-tooltip-glass absolute -inset-6 rounded-3xl"
         style={{
-          background: 'color-mix(in srgb, var(--app-bg) 42%, transparent)',
-          backdropFilter: 'blur(14px)',
-          WebkitBackdropFilter: 'blur(14px)',
-          maskImage: 'radial-gradient(circle at center, black 0%, black 28%, transparent 82%)',
-          WebkitMaskImage: 'radial-gradient(circle at center, black 0%, black 28%, transparent 82%)',
+          maskImage: 'radial-gradient(ellipse farthest-side at center, black 0%, black 55%, transparent 100%)',
+          WebkitMaskImage: 'radial-gradient(ellipse farthest-side at center, black 0%, black 55%, transparent 100%)',
         }}
         aria-hidden
       />
       {tags.map((tag) => (
         <span
           key={tag.id}
-          className="relative inline-flex max-w-full items-center gap-1 rounded-full px-2 py-0.5 text-sm font-medium"
+          className="relative inline-flex max-w-full items-center gap-1 rounded-full px-2 py-0.5 text-sm font-medium opacity-0 transition-opacity duration-200 group-hover:opacity-100"
           style={{
             background: 'var(--app-surface-soft)',
             color: 'var(--app-text-muted)',
