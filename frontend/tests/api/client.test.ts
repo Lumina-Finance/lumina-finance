@@ -15,6 +15,7 @@ const refreshedAuthResponse: AuthResponse = {
     tz: 'America/Toronto',
     base_currency: 'CAD',
     created_at: '2026-06-12T00:00:00Z',
+    second_factor_reenrollment_required: false,
   },
   access_token: 'new-access-token',
   token_type: 'bearer',

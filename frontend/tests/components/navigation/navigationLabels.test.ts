@@ -18,6 +18,7 @@ const user: User = {
   tz: 'America/Toronto',
   base_currency: 'CAD',
   created_at: '2026-01-01T00:00:00Z',
+  second_factor_reenrollment_required: false,
 }
 
 describe('navigation labels', () => {
