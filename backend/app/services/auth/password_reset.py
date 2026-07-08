@@ -231,11 +231,7 @@ async def _apply_password_reset(db: AsyncSession, reset_token: PasswordResetToke
     # the account email is the same proof a reset trusts, so redeeming a link sets its first
     # password and records password as an auth provider
     if credential is None:
-        credential = PasswordCredential(
-            user_id=reset_token.user_id,
-            password_hash=hash_password(new_password),
-            password_algo="argon2id",  # noqa: S106
-        )
+        credential = PasswordCredential(user_id=reset_token.user_id)
         db.add(credential)
         db.add(AuthIdentity(user_id=reset_token.user_id, auth_provider=AuthProvider.PASSWORD))
 
