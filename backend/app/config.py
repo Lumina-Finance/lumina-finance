@@ -254,7 +254,7 @@ MFA_CHALLENGE_TOKEN_EXPIRE_SECONDS = int(os.getenv("MFA_CHALLENGE_TOKEN_EXPIRE_S
 # while vendor slugs are presets whose issuer and display name are filled in automatically
 # so operators only supply the client credentials
 OIDC_GENERIC_SLUG = "generic"
-OIDC_GENERIC_DEFAULT_DISPLAY_NAME = "SSO"
+OIDC_GENERIC_DEFAULT_DISPLAY_NAME = "OIDC"
 OIDC_VENDOR_PRESETS = {
     "google": ("https://accounts.google.com", "Google"),
 }

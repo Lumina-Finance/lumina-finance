@@ -50,7 +50,7 @@ def test_generic_provider_loads_with_default_display_name(monkeypatch):
     assert len(configs) == 1
     assert configs[0].slug == "generic"
     assert configs[0].issuer == "https://idp.test"
-    assert configs[0].display_name == "SSO"
+    assert configs[0].display_name == "OIDC"
 
 
 def test_generic_display_name_override(monkeypatch):
