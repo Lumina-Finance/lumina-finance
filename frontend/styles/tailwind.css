@@ -1547,6 +1547,13 @@
     box-shadow: var(--app-shadow-soft);
   }
 
+  /* Every modal portals its dialog panel into the body, so this locks page scroll for any open modal
+     at once. The viewport scrolls the root element, not the body, so the lock has to sit on html, and
+     the stable scrollbar gutter keeps the content from shifting when the scrollbar disappears */
+  html:has(.app-modal-panel[role="dialog"][aria-modal="true"]) {
+    overflow: hidden;
+  }
+
   @media (max-width: 1049.98px) {
     body :has(> .app-modal-panel[role="dialog"][aria-modal="true"]) {
       align-items: stretch !important;
