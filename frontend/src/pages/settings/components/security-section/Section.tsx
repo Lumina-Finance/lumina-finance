@@ -4,6 +4,7 @@ import SettingsCard from '@/pages/settings/components/Card'
 import SettingsField from '@/pages/settings/components/Field'
 import SettingsSectionHeader from '@/pages/settings/components/SectionHeader'
 import MultiFactorControls from '@/pages/settings/components/security-section/MultiFactorControls'
+import SignInProviderControls from '@/pages/settings/components/security-section/SignInProviderControls'
 import { NEW_PASSWORD_RULES } from '@/utils/passwordPolicy'
 import type { PasswordFormState } from '@/pages/settings/hooks/useSecuritySettingsForm'
 
@@ -121,6 +122,10 @@ export default function SecuritySection({
 
             <div className="border-t pt-6" style={{ borderColor: 'var(--app-border)' }}>
               <MultiFactorControls />
+            </div>
+
+            <div className="border-t pt-6" style={{ borderColor: 'var(--app-border)' }}>
+              <SignInProviderControls />
             </div>
           </div>
         </SettingsCard>
