@@ -82,7 +82,7 @@ export default function SignInProviderControls() {
         <div className="space-y-1">
           <h3 className="text-base font-semibold">Sign-in providers</h3>
           <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-            Sign in with a linked provider instead of your password.
+            Linked providers add another way to sign in alongside your password.
           </p>
         </div>
 
