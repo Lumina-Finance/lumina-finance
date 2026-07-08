@@ -96,8 +96,10 @@ const OidcCallbackPage = () => {
           return
         }
 
-        // Committing the session flips the auth state, and the app then routes home on its own
+        // This route lives outside the public-only wrapper, so committing the session no
+        // longer triggers a redirect and the page must leave for the app itself
         setSession(result)
+        navigate('/', { replace: true })
       })
       .catch((callbackError: Error) => {
         // A conflicting account is a recoverable outcome offering a password sign-in,
@@ -201,6 +203,7 @@ interface OidcOnboardingFormProps {
  * base currency and timezone the app cannot learn from the provider
  */
 function OidcOnboardingForm({ onboarding, onBackToLogin }: OidcOnboardingFormProps) {
+  const navigate = useNavigate()
   const { setSession } = useAuth()
   const { data: currencies = [], isError: currenciesError } = useCurrencies()
 
@@ -227,7 +230,11 @@ function OidcOnboardingForm({ onboarding, onBackToLogin }: OidcOnboardingFormPro
         tz,
         base_currency: baseCurrency,
       })
+
+      // The route sits outside the public-only wrapper, so the new session must be
+      // followed by an explicit move into the app
       setSession(response)
+      navigate('/', { replace: true })
     } catch (signupError) {
       setError(signupError instanceof Error ? signupError.message : 'Could not finish signing up.')
       setSubmitting(false)
