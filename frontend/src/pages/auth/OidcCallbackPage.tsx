@@ -78,9 +78,11 @@ const OidcCallbackPage = () => {
 
     if (user) {
       completeOidcLinkCallback({ code, state })
-        .then(async () => {
+        .then(async (identity) => {
           await queryClient.invalidateQueries({ queryKey: oidcKeys.identities() })
-          navigate('/settings', { replace: true })
+
+          // The linked slug rides along so the settings page can scroll to and highlight it
+          navigate('/settings', { replace: true, state: { linkedProvider: identity.provider_slug } })
         })
         .catch((linkError: Error) => {
           const isGenericAuthFailure = linkError instanceof ApiError && linkError.status === 401

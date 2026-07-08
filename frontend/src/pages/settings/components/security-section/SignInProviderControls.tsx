@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { oidcKeys } from '@/api/cache/queryKeys';
 import {
@@ -71,17 +72,35 @@ function buildProviderRows(
  */
 export default function SignInProviderControls() {
   const queryClient = useQueryClient();
+  const location = useLocation();
+  const navigate = useNavigate();
   const providers = useOidcProviders();
   const identities = useOidcIdentities();
 
   const [linkTarget, setLinkTarget] = useState<ProviderRow | null>(null);
   const [removeTarget, setRemoveTarget] = useState<OidcLinkedIdentity | null>(null);
 
+  const sectionRef = useRef<HTMLDivElement>(null);
+
+  // Captured once on mount so the arrival cue survives clearing the navigation state
+  const [justLinkedSlug] = useState<string | null>(
+    () => (location.state as { linkedProvider?: string } | null)?.linkedProvider ?? null,
+  );
+
   const linkedIdentities = identities.data?.identities ?? [];
   const hasPassword = identities.data?.has_password ?? true;
   const rows = buildProviderRows(providers.data ?? [], linkedIdentities);
 
   const isLoading = providers.isLoading || identities.isLoading;
+
+  // A fresh link centres its section and consumes the state, so a reload or back
+  // navigation does not replay the scroll and blink
+  const identitiesReady = identities.data !== undefined;
+  useEffect(() => {
+    if (!justLinkedSlug || !identitiesReady) return;
+    sectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    navigate(location.pathname, { replace: true, state: null });
+  }, [justLinkedSlug, identitiesReady, navigate, location.pathname]);
 
   // The section stays visible without providers so operators discover the feature, with
   // the guidance split between a server that offers none and one that failed to answer
@@ -107,7 +126,7 @@ export default function SignInProviderControls() {
 
   return (
     <>
-      <div className="space-y-4">
+      <div ref={sectionRef} className="space-y-4">
         <div className="space-y-1">
           <h3 className="text-base font-semibold">Sign-in providers</h3>
           <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
@@ -160,7 +179,12 @@ export default function SignInProviderControls() {
                 <div className="flex items-center gap-2">
                   <p className="text-sm font-medium">{row.displayName}</p>
                   {row.identity && (
-                    <span className="rounded-full px-2 py-0.5 text-xs font-medium" style={LINKED_BADGE_STYLE}>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                        row.slug === justLinkedSlug ? 'app-blink-thrice' : ''
+                      }`}
+                      style={LINKED_BADGE_STYLE}
+                    >
                       Linked
                     </span>
                   )}
