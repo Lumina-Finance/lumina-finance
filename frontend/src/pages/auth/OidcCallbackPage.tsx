@@ -11,7 +11,6 @@ import {
 import Dropdown from '@/components/dropdown/Dropdown'
 import LoadingScreen from '@/components/loading/Screen'
 import { useAuth } from '@/hooks/useAuth'
-import { AuthStaggeredHeading } from '@/pages/auth/components/AnimatedTitle'
 import { AuthTextField } from '@/pages/auth/components/fields/TextField'
 import { AUTH_VIEW_TRANSITION } from '@/pages/auth/constants/authAnimations'
 import { buildCurrencyOptions, getCurrencyPlaceholder } from '@/pages/auth/utils/authForm'
@@ -100,7 +99,7 @@ const OidcCallbackPage = () => {
         >
           {error && !leaving && (
             <motion.div key="sign-in-failed" {...AUTH_VIEW_TRANSITION}>
-              <AuthStaggeredHeading title="Sign-in failed" titleKey="sign-in-failed" />
+              <h1 className="font-serif text-4xl font-normal tracking-tight">Sign-in failed</h1>
               <p className="mt-5 text-sm" style={{ color: 'var(--app-text-muted)' }}>
                 {error}
               </p>
