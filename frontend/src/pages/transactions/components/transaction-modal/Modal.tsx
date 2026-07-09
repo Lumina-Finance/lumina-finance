@@ -9,6 +9,7 @@ import { useCurrencies } from '@/api/currency'
 import { invalidateTransactionAccountData } from '@/api/cache/updates/transactions'
 import { invalidateTransactions, invalidateTransactionOverview } from '@/api/cache/invalidation/transactions'
 import {
+  applyTransactionDeletion,
   useCreateTransaction,
   useDeleteTransaction,
   useUpdateTransaction,
@@ -80,7 +81,7 @@ export default function CreateTransactionModal({
   const createMutation = useCreateTransaction({ deferAccountInvalidation: true, deferTransactionInvalidation: true })
   const updateMutation = useUpdateTransaction()
   const updateMerchantMutation = useUpdateMerchant()
-  const deleteMutation = useDeleteTransaction({ minimumPendingMs: MIN_DELETE_TRANSACTION_LOADING_MS })
+  const deleteMutation = useDeleteTransaction({ minimumPendingMs: MIN_DELETE_TRANSACTION_LOADING_MS, deferRemoval: true })
   const { data: accounts = [] } = useAccounts()
   const { data: categories = [] } = useCategories()
   const { data: currencies = [] } = useCurrencies()
@@ -128,6 +129,10 @@ export default function CreateTransactionModal({
   const createdAccountIdsRef = useRef<Set<string>>(new Set())
   const openRef = useRef(open)
 
+  // Holds a completed deletion until the modal has left so its row collapses in view rather than behind
+  // the closing modal
+  const pendingDeletionRef = useRef<{ id: string; accountId: string } | null>(null)
+
   // Runs on close so a session of one or more creates refreshes the transactions page once, on
   // dismiss, rather than refetching the list and overview behind the open modal after every save
   const flushDeferredInvalidation = useCallback(() => {
@@ -144,6 +149,15 @@ export default function CreateTransactionModal({
     onClose()
     window.setTimeout(flushDeferredInvalidation, 0)
   }, [flushDeferredInvalidation, onClose])
+
+  // Runs after the modal exit animation, so a deferred deletion clears its row once the modal is gone
+  const handleModalDismissed = useCallback(() => {
+    const pending = pendingDeletionRef.current
+    if (!pending) return
+
+    pendingDeletionRef.current = null
+    applyTransactionDeletion(queryClient, pending.id, pending.accountId)
+  }, [queryClient])
 
   useEffect(() => {
     openRef.current = open
@@ -681,6 +695,7 @@ export default function CreateTransactionModal({
 
     try {
       await deleteMutation.mutateAsync(transaction.id)
+      pendingDeletionRef.current = { id: transaction.id, accountId: transaction.account_id }
       handleClose()
       return true
     } catch (err) {
@@ -713,6 +728,7 @@ export default function CreateTransactionModal({
         transactionKindLabel={KIND_LABELS[form.kind]}
         headerStatus={readOnly ? 'Archived account' : undefined}
         onClose={handleClose}
+        onDismissed={handleModalDismissed}
         onSubmit={handleSubmit}
         footer={(
           <TransactionModalFooter

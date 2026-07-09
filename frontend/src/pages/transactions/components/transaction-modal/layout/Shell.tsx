@@ -13,6 +13,8 @@ interface TransactionModalShellProps {
   children: ReactNode
   footer: ReactNode
   onClose: () => void
+  // Fires once the modal has finished its exit animation, so deferred work runs after it leaves the screen
+  onDismissed?: () => void
   onSubmit: (event: FormEvent) => void
 }
 
@@ -27,12 +29,13 @@ export default function TransactionModalShell({
   children,
   footer,
   onClose,
+  onDismissed,
   onSubmit,
 }: TransactionModalShellProps) {
   const { panelRef, handleModalFieldKeyDown } = useModalFieldFocus(open)
 
   return createPortal(
-    <AnimatePresence>
+    <AnimatePresence onExitComplete={onDismissed}>
       {open && (
         <>
           <motion.div

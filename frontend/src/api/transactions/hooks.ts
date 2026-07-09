@@ -3,6 +3,7 @@ import {
   useMutation,
   useQuery,
   useQueryClient,
+  type QueryClient,
 } from '@tanstack/react-query';
 import { invalidateInsightsMerchants, invalidateTransactions } from '@/api/cache/invalidation';
 import { runWithMinimumPendingTime } from '@/api/utils/mutationFeedback';
@@ -129,9 +130,29 @@ export function useUpdateTransaction() {
 }
 
 /**
- * Deletes transactions and refreshes all aggregate views affected by removed activity
+ * Removes a deleted transaction from the cached lists and refreshes the aggregate views it fed, split
+ * out so the caller can defer it until the modal has dismissed and the row can animate out in view
  */
-export function useDeleteTransaction({ minimumPendingMs = 0 }: { minimumPendingMs?: number } = {}) {
+export function applyTransactionDeletion(
+  queryClient: QueryClient,
+  transactionId: string,
+  accountId: string | undefined,
+) {
+  const accountIds = uniqueIds([accountId]);
+  removeTransactionFromLists(queryClient, transactionId);
+  invalidateTransactions(queryClient);
+  invalidateFinancialTransactionData(queryClient, accountIds);
+  invalidateInsightsMerchants(queryClient);
+}
+
+/**
+ * Deletes transactions and refreshes all aggregate views affected by removed activity, holding the
+ * cache removal for the caller when deferRemoval is set so the row stays until the modal dismisses
+ */
+export function useDeleteTransaction({
+  minimumPendingMs = 0,
+  deferRemoval = false,
+}: { minimumPendingMs?: number; deferRemoval?: boolean } = {}) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) =>
@@ -140,14 +161,8 @@ export function useDeleteTransaction({ minimumPendingMs = 0 }: { minimumPendingM
       deletedTransaction: findCachedTransaction(queryClient, id),
     }),
     onSuccess: (_data, id, context) => {
-      const accountIds = uniqueIds([context?.deletedTransaction?.account_id]);
-
-      // Clear the row from the cached lists first so it disappears with the modal, then invalidate to
-      // reconcile pagination and the aggregate views
-      removeTransactionFromLists(queryClient, id);
-      invalidateTransactions(queryClient);
-      invalidateFinancialTransactionData(queryClient, accountIds);
-      invalidateInsightsMerchants(queryClient);
+      if (deferRemoval) return;
+      applyTransactionDeletion(queryClient, id, context?.deletedTransaction?.account_id);
     },
   });
 }

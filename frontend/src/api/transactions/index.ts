@@ -22,6 +22,7 @@ export {
 } from '@/api/transactions/requests';
 
 export {
+  applyTransactionDeletion,
   useCreateTransaction,
   useDeleteTransaction,
   useInfiniteTransactions,
