@@ -106,12 +106,16 @@ export default function CalendarPopover({ open, anchorRef, value, onSelect, onCl
   // Sign of the last month change so the grid slides toward the month being revealed
   const [direction, setDirection] = useState(0)
 
-  useEffect(() => {
-    if (!open) return
-
-    setViewMonth(initialViewMonth(value))
-    setFocusedIso(value || todayIso)
-  }, [open, value, todayIso])
+  // Reset the visible month and focused day to the selection each time the popover opens. This adjusts
+  // state during render rather than in an effect so it lands before the grid first paints
+  const [wasOpen, setWasOpen] = useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (open) {
+      setViewMonth(initialViewMonth(value))
+      setFocusedIso(value || todayIso)
+    }
+  }
 
   useEffect(() => {
     if (!open) return

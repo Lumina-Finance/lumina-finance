@@ -146,13 +146,21 @@ export default function TransactionListSection({
   })
 
   // A finished page load appends a whole batch of older rows at once, which looks chaotic if each grows
-  // in. The ref reads its previous committed value, so this is true only in the render the fetch flips
-  // off, which is the render those appended rows first mount in, letting them appear without animating
-  const wasFetchingNextPageRef = useRef(isFetchingNextPage)
-  const justFinishedNextPage = wasFetchingNextPageRef.current && !isFetchingNextPage
+  // in. Arming this the moment a page fetch starts means it is still set when that page's rows mount, so
+  // they appear without animating. Arming happens during render so it is in place before the rows commit
+  const [skipAppendedEnter, setSkipAppendedEnter] = useState(false)
+  const [wasFetchingNextPage, setWasFetchingNextPage] = useState(isFetchingNextPage)
+  if (wasFetchingNextPage !== isFetchingNextPage) {
+    setWasFetchingNextPage(isFetchingNextPage)
+    if (isFetchingNextPage) setSkipAppendedEnter(true)
+  }
+
+  // Disarm once the fetch has resolved and its rows have mounted, so a later single create still animates
   useEffect(() => {
-    wasFetchingNextPageRef.current = isFetchingNextPage
-  }, [isFetchingNextPage])
+    if (isFetchingNextPage || !skipAppendedEnter) return
+    const timer = window.setTimeout(() => setSkipAppendedEnter(false), 0)
+    return () => window.clearTimeout(timer)
+  }, [isFetchingNextPage, skipAppendedEnter])
 
   return (
     <section>
@@ -217,7 +225,7 @@ export default function TransactionListSection({
                 listRevealKey={listRevealKey}
                 stickyTop={dateHeaderStickyTop}
                 prefersReducedMotion={prefersReducedMotion}
-                skipEnterAnimation={justFinishedNextPage}
+                skipEnterAnimation={skipAppendedEnter}
                 onEditTransaction={onEditTransaction}
               />
 

@@ -5,39 +5,24 @@ import { useEffect, useRef, useState } from 'react'
  * loading state long enough to read rather than flashing on and off
  */
 export function useMinimumLoadingDuration(active: boolean, minDurationMs: number): boolean {
-  const [held, setHeld] = useState(active)
-  const startRef = useRef<number | null>(active ? performance.now() : null)
-  const wasActiveRef = useRef(active)
+  const [heldPastActive, setHeldPastActive] = useState(false)
+  const activeSinceRef = useRef(0)
 
   useEffect(() => {
-    const wasActive = wasActiveRef.current
-    wasActiveRef.current = active
-
     if (active) {
-      // A fresh pull resets the floor so each one is held for the full minimum
-      if (!wasActive || startRef.current === null) startRef.current = performance.now()
-      setHeld(true)
+      activeSinceRef.current = Date.now()
+      // Turn the hold on through a timer so the effect never sets state synchronously
+      if (!heldPastActive) {
+        const raise = window.setTimeout(() => setHeldPastActive(true), 0)
+        return () => window.clearTimeout(raise)
+      }
       return
     }
 
-    if (startRef.current === null) {
-      setHeld(false)
-      return
-    }
+    const remaining = Math.max(minDurationMs - (Date.now() - activeSinceRef.current), 0)
+    const release = window.setTimeout(() => setHeldPastActive(false), remaining)
+    return () => window.clearTimeout(release)
+  }, [active, minDurationMs, heldPastActive])
 
-    const remaining = minDurationMs - (performance.now() - startRef.current)
-    if (remaining <= 0) {
-      startRef.current = null
-      setHeld(false)
-      return
-    }
-
-    const timer = window.setTimeout(() => {
-      startRef.current = null
-      setHeld(false)
-    }, remaining)
-    return () => window.clearTimeout(timer)
-  }, [active, minDurationMs])
-
-  return held
+  return active || heldPastActive
 }
