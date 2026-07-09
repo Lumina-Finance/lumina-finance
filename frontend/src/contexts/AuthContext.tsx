@@ -148,7 +148,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       cancelled = true;
       if (restoreTimer) clearTimeout(restoreTimer);
     };
-  }, [hadSession, queryClient]);
+  }, [hadSession, queryClient, applyState]);
 
   // Call the API and set the session flag, but don't update React state yet.
   // The caller controls when to commit via setSession().
