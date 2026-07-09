@@ -203,8 +203,15 @@ export default function CreateTransactionModal({
   }, [categories])
 
   const accountOptions = useMemo(
-    () => selectableAccounts.map((account) => ({ value: account.id, label: account.name })),
-    [selectableAccounts],
+    () => {
+      // An existing transaction keeps its currency, so only accounts holding that same currency can
+      // carry it, while creating a transaction still offers every account and adopts its currency
+      const eligibleAccounts = editing && form.currency
+        ? selectableAccounts.filter((account) => account.currency === form.currency)
+        : selectableAccounts
+      return eligibleAccounts.map((account) => ({ value: account.id, label: account.name }))
+    },
+    [selectableAccounts, editing, form.currency],
   )
   const selectedArchivedAccountOption = editing && selectedAccount?.is_archived
     ? { value: selectedAccount.id, label: selectedAccount.name }
