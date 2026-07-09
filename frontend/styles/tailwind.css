@@ -190,6 +190,18 @@
     height: 2.5rem;
   }
 
+  /* At full width the logo reads as the sidebar header, so it grows back to its original size and its
+     lead is freed from the rail width the collapsed icons share so the larger mark clears the wordmark */
+  .app-desktop-nav:not(.app-desktop-nav-collapsed) .app-nav-lead:has(.app-nav-brand-logo) {
+    width: auto;
+  }
+
+  .app-desktop-nav:not(.app-desktop-nav-collapsed) .app-nav-brand-logo {
+    width: 3.75rem;
+    height: 3.75rem;
+    margin-left: -0.375rem;
+  }
+
   /* Fixed leading column that holds each row's icon or avatar. Sized to seat the glyph at the rail's
      centre, so icons stay put while the labels beside them fade and the sidebar widens */
   .app-nav-lead {
