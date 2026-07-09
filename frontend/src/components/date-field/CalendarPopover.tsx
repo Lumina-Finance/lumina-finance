@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
-import { AnimatePresence, motion } from 'motion/react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { parseIsoDate } from '@/components/date-field/dateSegments'
 
@@ -95,12 +95,16 @@ function useCalendarPosition(open: boolean, anchorRef: RefObject<HTMLElement | n
 export default function CalendarPopover({ open, anchorRef, value, onSelect, onClose }: CalendarPopoverProps) {
   const position = useCalendarPosition(open, anchorRef)
   const gridRef = useRef<HTMLDivElement>(null)
+  const prefersReducedMotion = useReducedMotion()
 
   const todayIso = formatDateIso(new Date())
 
   // The visible month follows the selected value while open, falling back to the current month
   const [viewMonth, setViewMonth] = useState(() => initialViewMonth(value))
   const [focusedIso, setFocusedIso] = useState(() => value || todayIso)
+
+  // Sign of the last month change so the grid slides toward the month being revealed
+  const [direction, setDirection] = useState(0)
 
   useEffect(() => {
     if (!open) return
@@ -122,15 +126,21 @@ export default function CalendarPopover({ open, anchorRef, value, onSelect, onCl
     return () => document.removeEventListener('pointerdown', handlePointerDown)
   }, [open, anchorRef, onClose])
 
-  // Focus follows the keyboard through the grid so the active day is always visible
+  const monthKey = `${viewMonth.year}-${viewMonth.month}`
+
+  // Focus follows the keyboard through the grid so the active day is always visible. The lookup is
+  // scoped to the current month so the outgoing grid's edge days do not capture focus mid transition
   useEffect(() => {
     if (!open) return
 
-    const active = gridRef.current?.querySelector<HTMLButtonElement>(`[data-iso="${focusedIso}"]`)
-    active?.focus()
-  }, [open, focusedIso, viewMonth])
+    const active = gridRef.current?.querySelector<HTMLButtonElement>(
+      `[data-monthkey="${monthKey}"] [data-iso="${focusedIso}"]`,
+    )
+    active?.focus({ preventScroll: true })
+  }, [open, focusedIso, monthKey])
 
   const changeMonth = (delta: number) => {
+    setDirection(delta)
     setViewMonth((current) => {
       const next = new Date(current.year, current.month - 1 + delta, 1)
       return { year: next.getFullYear(), month: next.getMonth() + 1 }
@@ -144,8 +154,16 @@ export default function CalendarPopover({ open, anchorRef, value, onSelect, onCl
     const current = parseIsoDate(focusedIso)
     const base = new Date(Number(current.year), Number(current.month) - 1, Number(current.day))
     const next = new Date(base.getFullYear(), base.getMonth(), base.getDate() + dayDelta)
+    setDirection(Math.sign(dayDelta))
     setFocusedIso(formatDateIso(next))
     setViewMonth({ year: next.getFullYear(), month: next.getMonth() + 1 })
+  }
+
+  const slideOffset = prefersReducedMotion ? 0 : 26
+  const monthGridVariants = {
+    enter: (towards: number) => ({ x: towards >= 0 ? slideOffset : -slideOffset, opacity: 0 }),
+    center: { x: 0, opacity: 1 },
+    exit: (towards: number) => ({ x: towards >= 0 ? -slideOffset : slideOffset, opacity: 0 }),
   }
 
   const handleGridKeyDown = (event: React.KeyboardEvent) => {
@@ -241,33 +259,47 @@ export default function CalendarPopover({ open, anchorRef, value, onSelect, onCl
             ))}
           </div>
 
-          <div className="grid grid-cols-7 gap-0.5">
-            {cells.map((date) => {
-              const iso = formatDateIso(date)
-              const inMonth = date.getMonth() + 1 === viewMonth.month
-              const isSelected = iso === value
-              const isToday = iso === todayIso
+          <div className="relative overflow-hidden">
+            <AnimatePresence initial={false} mode="popLayout" custom={direction}>
+              <motion.div
+                key={monthKey}
+                data-monthkey={monthKey}
+                custom={direction}
+                variants={monthGridVariants}
+                initial="enter"
+                animate="center"
+                exit="exit"
+                transition={{ duration: prefersReducedMotion ? 0.12 : 0.2, ease: [0.25, 0.1, 0.25, 1] }}
+                className="grid w-full grid-cols-7 gap-0.5"
+              >
+                {cells.map((date) => {
+                  const iso = formatDateIso(date)
+                  const inMonth = date.getMonth() + 1 === viewMonth.month
+                  const isSelected = iso === value
+                  const isToday = iso === todayIso
 
-              return (
-                <button
-                  key={iso}
-                  type="button"
-                  data-iso={iso}
-                  tabIndex={iso === focusedIso ? 0 : -1}
-                  aria-pressed={isSelected}
-                  onClick={() => {
-                    onSelect(iso)
-                    onClose()
-                  }}
-                  className="app-calendar-day"
-                  data-selected={isSelected || undefined}
-                  data-today={isToday || undefined}
-                  data-outside={!inMonth || undefined}
-                >
-                  {date.getDate()}
-                </button>
-              )
-            })}
+                  return (
+                    <button
+                      key={iso}
+                      type="button"
+                      data-iso={iso}
+                      tabIndex={iso === focusedIso ? 0 : -1}
+                      aria-pressed={isSelected}
+                      onClick={() => {
+                        onSelect(iso)
+                        onClose()
+                      }}
+                      className="app-calendar-day"
+                      data-selected={isSelected || undefined}
+                      data-today={isToday || undefined}
+                      data-outside={!inMonth || undefined}
+                    >
+                      {date.getDate()}
+                    </button>
+                  )
+                })}
+              </motion.div>
+            </AnimatePresence>
           </div>
         </motion.div>
       )}
