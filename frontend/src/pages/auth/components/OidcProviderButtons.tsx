@@ -47,7 +47,7 @@ export function OidcProviderButtons({ providers }: OidcProviderButtonsProps) {
               <div className="app-spinner" />
             ) : (
               <>
-                <ProviderMark slug={provider.slug} />
+                <ProviderMark slug={provider.slug} name={provider.display_name} />
                 Continue with {provider.display_name}
               </>
             )}
