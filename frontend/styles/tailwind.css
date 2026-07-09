@@ -209,8 +209,11 @@
     align-items: center;
   }
 
+  /* The lead is a hair narrower than the collapsed inner width so its centred icon lands on the rail's
+     centre rather than a pixel to the right, and the same fixed width in both states keeps the icon
+     from shifting as the sidebar opens */
   .app-desktop-nav .app-nav-lead {
-    width: 2.5rem;
+    width: 2.375rem;
     flex-shrink: 0;
     justify-content: center;
   }
