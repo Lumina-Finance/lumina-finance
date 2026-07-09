@@ -160,30 +160,32 @@ async def test_callback_signs_in_linked_identity(client, provider_protocol):
     assert identity.last_login_at is not None
 
 
-async def test_callback_auto_links_verified_email(client, provider_protocol):
-    """A verified provider email matching a local account links it and signs in"""
+async def test_callback_never_auto_links_verified_email(client, provider_protocol):
+    """A verified provider email matching a local account is refused, never linked automatically"""
     await _seed_currency()
-    signup = await client.post("/auth/signup", json=SIGNUP_PAYLOAD)
-    user_id = signup.json()["user"]["id"]
+    await client.post("/auth/signup", json=SIGNUP_PAYLOAD)
     await _seed_provider()
-    provider_protocol["claims"] = _claims(email=SIGNUP_PAYLOAD["email"])
+    provider_protocol["claims"] = _claims(email=SIGNUP_PAYLOAD["email"], email_verified=True)
 
     state = await _start_sign_in(client)
     resp = await client.post("/auth/oidc/callback", json={"code": "any", "state": state})
 
-    assert resp.status_code == 200
-    assert resp.json()["user"]["id"] == user_id
+    assert resp.status_code == 409
+
+    # Even a verified email takes the password-then-link path, so no identity is created
+    detail = resp.json()["detail"]
+    assert detail["code"] == "email_already_registered"
+    assert detail["email"] == SIGNUP_PAYLOAD["email"]
 
     async with TestSession() as session:
-        identity = (await session.execute(select(OidcIdentity))).scalar_one()
-        auth_identity = (
+        identities = (await session.execute(select(OidcIdentity))).scalars().all()
+        oidc_auth_identities = (
             await session.execute(
                 select(AuthIdentity).where(AuthIdentity.auth_provider == AuthProvider.OIDC)
             )
-        ).scalar_one()
-    assert identity.subject == "subject-1"
-    assert str(identity.user_id) == user_id
-    assert auth_identity.email_verified is True
+        ).scalars().all()
+    assert identities == []
+    assert oidc_auth_identities == []
 
 
 async def test_callback_rejects_unverified_email_collision(client, provider_protocol):

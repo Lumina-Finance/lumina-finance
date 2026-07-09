@@ -160,8 +160,8 @@ async def complete_oidc_sign_in(
     The stored roundtrip is consumed and committed before the provider is contacted, so a
     replayed callback finds it already spent. The binding secret is verified first, so a
     stolen state and code cannot complete a login in a browser that never started it.
-    Resolution then runs in order: a known provider subject signs in, a verified email
-    matching a local account links and signs in, an unverified matching email is refused,
+    Resolution then runs in order: a known provider subject signs in, an email matching an
+    existing account is refused so it can be linked from settings under step-up instead,
     and anything else onboards a new user
 
     Args:
@@ -225,24 +225,23 @@ async def complete_oidc_sign_in(
             detail="Identity provider did not supply an email address",
         )
 
-    email_verified = claims.get("email_verified") is True
+    # An email that already belongs to an account is never linked automatically, even when the
+    # provider verified it, so a provider sign-in can never join an existing account without the
+    # owner explicitly linking it from settings under step-up. The user signs in with their
+    # password and links there instead. The detail is structured so the client can offer that
+    # password sign-in prefilled with the address
     existing_user_id = await find_user_id_by_email(db, email)
     if existing_user_id is not None:
-        # Revealing that the email is taken is unavoidable for a usable flow and needs a
-        # provider sign-in as that email's owner, unlike an anonymous probe. The detail is
-        # structured because the client offers a password sign-in prefilled with the address
-        if not email_verified:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail={"code": OIDC_EMAIL_CONFLICT_CODE, "email": email},
-            )
-        return await _link_identity_and_sign_in(db, existing_user_id, provider, subject, email)
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": OIDC_EMAIL_CONFLICT_CODE, "email": email},
+        )
 
     return OidcOnboardingClaims(
         provider_slug=provider.slug,
         subject=subject,
         email=email,
-        email_verified=email_verified,
+        email_verified=claims.get("email_verified") is True,
         first_name=_derive_first_name(claims, email),
         last_name=claims.get("family_name") or None,
     )
@@ -579,50 +578,6 @@ async def _sign_in_identity(db: AsyncSession, identity: OidcIdentity) -> User:
     await db.commit()
 
     user = await db.get(User, identity.user_id)
-    if user is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Single sign-on failed")
-    return user
-
-
-async def _link_identity_and_sign_in(
-    db: AsyncSession, user_id: uuid.UUID, provider: OidcProvider, subject: str, email: str
-) -> User:
-    """Link a verified provider sign-in to the local account sharing its email, then sign in
-
-    Args:
-        db: Active database session
-        user_id: Local account whose email the provider verified
-        provider: Provider the sign-in came from
-        subject: Subject claim from the verified ID token
-        email: Email the provider asserted and verified
-
-    Returns:
-        The authenticated user
-
-    Raises:
-        HTTPException: The linked user no longer exists
-    """
-    db.add(
-        OidcIdentity(
-            user_id=user_id,
-            provider_id=provider.id,
-            subject=subject,
-            email=email,
-            last_login_at=datetime.now(UTC),
-        )
-    )
-
-    # A first link also records OIDC as an auth provider for the account, once across all providers
-    auth_identity_query = select(AuthIdentity).where(
-        AuthIdentity.user_id == user_id, AuthIdentity.auth_provider == AuthProvider.OIDC
-    )
-    if (await db.execute(auth_identity_query)).scalar_one_or_none() is None:
-        db.add(_build_oidc_auth_identity(user_id, email_verified=True))
-
-    current_user_id_ctx.set(user_id)
-    await db.commit()
-
-    user = await db.get(User, user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Single sign-on failed")
     return user
