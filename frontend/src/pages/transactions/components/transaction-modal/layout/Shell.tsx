@@ -109,7 +109,7 @@ export default function TransactionModalShell({
                       </p>
                       <h2
                         id="create-txn-title"
-                        className="font-serif text-3xl font-light"
+                        className="font-serif text-3xl font-normal"
                       >
                         {editing ? 'Edit Transaction' : 'Add Transaction'}
                       </h2>

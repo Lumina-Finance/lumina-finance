@@ -159,7 +159,7 @@ export default function CreateReferenceModalShell({
                       <p className="mb-2 text-xs font-semibold uppercase" style={{ color: 'var(--app-accent)' }}>
                         {eyebrow}
                       </p>
-                      <h3 id={modalTitleId} className="font-serif text-3xl font-light">
+                      <h3 id={modalTitleId} className="font-serif text-3xl font-normal">
                         {title}
                       </h3>
                     </div>

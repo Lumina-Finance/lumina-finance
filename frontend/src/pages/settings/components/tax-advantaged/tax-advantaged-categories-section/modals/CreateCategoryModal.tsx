@@ -112,7 +112,7 @@ export default function CreateTaxAdvantagedCategoryModal({
                   <p className="mb-2 text-xs font-semibold uppercase" style={{ color: 'var(--app-accent)' }}>
                     Tax-advantaged category
                   </p>
-                  <h3 id="create-tax-advantaged-category-title" className="font-serif text-3xl font-light">
+                  <h3 id="create-tax-advantaged-category-title" className="font-serif text-3xl font-normal">
                     Create Category
                   </h3>
                 </div>

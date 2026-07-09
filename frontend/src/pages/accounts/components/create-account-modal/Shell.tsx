@@ -106,7 +106,7 @@ export default function CreateAccountModalShell({
                       </p>
                       <h2
                         id="create-account-title"
-                        className="font-serif text-3xl font-light"
+                        className="font-serif text-3xl font-normal"
                       >
                         Add Account
                       </h2>

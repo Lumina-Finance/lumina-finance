@@ -130,7 +130,7 @@ export default function BudgetEditorModalShell({
                       <p className="mb-2 text-xs font-semibold uppercase" style={{ color: 'var(--app-accent)' }}>
                         {eyebrow}
                       </p>
-                      <h2 id={titleId} className="font-serif text-3xl font-light">
+                      <h2 id={titleId} className="font-serif text-3xl font-normal">
                         {title}
                       </h2>
                     </div>

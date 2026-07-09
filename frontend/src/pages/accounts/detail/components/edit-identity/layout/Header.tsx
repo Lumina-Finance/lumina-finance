@@ -26,7 +26,7 @@ export function EditModalHeader({
           <p className="mb-2 text-xs font-semibold uppercase" style={{ color: 'var(--app-accent)' }}>
             {humanizeAccountType(accountType)}
           </p>
-          <h2 id="edit-account-identity-title" className="font-serif text-3xl font-light">
+          <h2 id="edit-account-identity-title" className="font-serif text-3xl font-normal">
             Edit Account
           </h2>
         </div>

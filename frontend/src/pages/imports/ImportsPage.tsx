@@ -63,7 +63,7 @@ export default function ImportsPage() {
                 <p className="mb-2 text-xs font-semibold uppercase" style={{ color: 'var(--app-accent)' }}>
                   CSV import
                 </p>
-                <h1 className="font-serif text-3xl font-light">
+                <h1 className="font-serif text-3xl font-normal">
                   Import Transactions
                 </h1>
                 <p className="mt-2 max-w-2xl text-sm leading-6" style={{ color: 'var(--app-text-muted)' }}>
