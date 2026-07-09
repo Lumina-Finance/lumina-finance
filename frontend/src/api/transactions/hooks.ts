@@ -11,6 +11,7 @@ import {
   findCachedTransaction,
   invalidateFinancialTransactionData,
   invalidatePatchedTransactionData,
+  removeTransactionFromLists,
   uniqueIds,
 } from '@/api/cache/updates/transactions';
 import {
@@ -138,8 +139,12 @@ export function useDeleteTransaction({ minimumPendingMs = 0 }: { minimumPendingM
     onMutate: (id) => ({
       deletedTransaction: findCachedTransaction(queryClient, id),
     }),
-    onSuccess: (_data, _id, context) => {
+    onSuccess: (_data, id, context) => {
       const accountIds = uniqueIds([context?.deletedTransaction?.account_id]);
+
+      // Clear the row from the cached lists first so it disappears with the modal, then invalidate to
+      // reconcile pagination and the aggregate views
+      removeTransactionFromLists(queryClient, id);
       invalidateTransactions(queryClient);
       invalidateFinancialTransactionData(queryClient, accountIds);
       invalidateInsightsMerchants(queryClient);

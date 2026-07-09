@@ -126,6 +126,32 @@ export function findCachedTransaction(
 }
 
 /**
+ * Drops a transaction from every cached list right away so a deletion clears from the screen at once
+ * instead of lingering until the refetch that invalidation schedules
+ */
+export function removeTransactionFromLists(
+  queryClient: QueryClient,
+  transactionId: string,
+): void {
+  const transactionQueries = queryClient.getQueriesData<Transaction[] | InfiniteData<Transaction[]>>({
+    queryKey: transactionKeys.all,
+    exact: false,
+  });
+
+  for (const [queryKey, data] of transactionQueries) {
+    if (!data) continue;
+    if (isInfiniteTransactionsData(data)) {
+      queryClient.setQueryData<InfiniteData<Transaction[]>>(queryKey, {
+        ...data,
+        pages: data.pages.map((page) => page.filter((item) => item.id !== transactionId)),
+      });
+    } else if (Array.isArray(data)) {
+      queryClient.setQueryData<Transaction[]>(queryKey, data.filter((item) => item.id !== transactionId));
+    }
+  }
+}
+
+/**
  * Reads cached account plan links without triggering a network request during invalidation
  */
 function getCachedAccountTaxAdvantagedCategoryId(
