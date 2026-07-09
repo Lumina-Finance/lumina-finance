@@ -1,3 +1,5 @@
+import { useState } from 'react'
+import { motion } from 'motion/react'
 import { StickyNote, Tag as TagIcon } from 'lucide-react'
 import type { Institution } from '@/api/institutions'
 import type { Category } from '@/api/categories'
@@ -7,6 +9,7 @@ import { resolveInstitutionLogoUrl } from '@/utils/institutionLogo'
 
 const MAX_VISIBLE_TAGS = 1
 const DEFAULT_CATEGORY_ICON = '🏷️'
+const ROW_EXIT_EASE = [0.25, 0.1, 0.25, 1] as const
 
 interface TransactionRowProps {
   accountName?: string
@@ -15,6 +18,10 @@ interface TransactionRowProps {
   currency: string
   readOnlyReason?: string
   transaction: Transaction
+  // Skips the height collapse on removal so a deletion just fades when the viewer prefers reduced motion
+  prefersReducedMotion?: boolean | null
+  // Makes the row appear without the grow in, used for a lazy loaded batch that would otherwise all grow at once
+  skipEnterAnimation?: boolean
   onOpen: (transaction: Transaction) => void
 }
 
@@ -108,8 +115,13 @@ export default function TransactionRow({
   currency,
   readOnlyReason,
   transaction,
+  prefersReducedMotion,
+  skipEnterAnimation = false,
   onOpen,
 }: TransactionRowProps) {
+  // The row clips its content only while the height animates, so the grow and collapse read cleanly
+  // while the resting row still lets a tag tooltip overflow past its edges
+  const [isAnimatingHeight, setIsAnimatingHeight] = useState(false)
   const categoryName = category?.name ?? 'Uncategorized'
   const categoryIcon = category?.icon ?? DEFAULT_CATEGORY_ICON
   const fallbackTitle = category?.kind === 'transfer' ? 'Transfer' : 'Transaction'
@@ -126,14 +138,29 @@ export default function TransactionRow({
   const transactionAmountColor = amountColor(category, transaction.amount)
 
   return (
-    <button
+    <motion.button
       type="button"
       onClick={() => onOpen(transaction)}
+      initial={skipEnterAnimation ? false : prefersReducedMotion ? { opacity: 0 } : { opacity: 0, height: 0, paddingTop: 0, paddingBottom: 0 }}
+      // The padding targets mirror the py-2.5 class so the row grows from a fully collapsed height
+      animate={{ opacity: readOnly ? 0.68 : 1, height: 'auto', paddingTop: '0.625rem', paddingBottom: '0.625rem' }}
+      exit={
+        prefersReducedMotion
+          ? { opacity: 0, transition: { duration: 0 } }
+          : {
+              opacity: 0,
+              height: 0,
+              paddingTop: 0,
+              paddingBottom: 0,
+              overflow: 'hidden',
+              transition: { duration: 0.24, ease: ROW_EXIT_EASE },
+            }
+      }
+      transition={{ duration: prefersReducedMotion ? 0 : 0.24, ease: ROW_EXIT_EASE }}
+      onAnimationStart={() => setIsAnimatingHeight(true)}
+      onAnimationComplete={() => setIsAnimatingHeight(false)}
       className="block w-full cursor-pointer px-3 py-2.5 text-left transition-colors duration-100 hover:bg-[var(--app-surface-soft)] focus-visible:bg-[var(--app-surface-soft)] focus-visible:outline-none min-[1300px]:col-span-full min-[1300px]:grid min-[1300px]:grid-cols-subgrid min-[1300px]:items-center min-[1300px]:gap-x-3"
-      style={{
-        borderBottom: '1px solid var(--app-border)',
-        opacity: readOnly ? 0.68 : 1,
-      }}
+      style={{ borderBottom: '1px solid var(--app-border)', overflow: isAnimatingHeight ? 'hidden' : 'visible' }}
     >
       {/* Desktop row: each cell is a direct child of the row's subgrid, so every row shares the same
           column tracks and stays aligned. The category and account tracks grow to their widest content
@@ -344,6 +371,6 @@ export default function TransactionRow({
           </span>
         )}
       </span>
-    </button>
+    </motion.button>
   )
 }

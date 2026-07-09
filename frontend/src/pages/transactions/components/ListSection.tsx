@@ -145,6 +145,15 @@ export default function TransactionListSection({
     fetchNextPage: () => { void fetchNextPage() },
   })
 
+  // A finished page load appends a whole batch of older rows at once, which looks chaotic if each grows
+  // in. The ref reads its previous committed value, so this is true only in the render the fetch flips
+  // off, which is the render those appended rows first mount in, letting them appear without animating
+  const wasFetchingNextPageRef = useRef(isFetchingNextPage)
+  const justFinishedNextPage = wasFetchingNextPageRef.current && !isFetchingNextPage
+  useEffect(() => {
+    wasFetchingNextPageRef.current = isFetchingNextPage
+  }, [isFetchingNextPage])
+
   return (
     <section>
       <TransactionListToolbar
@@ -194,6 +203,8 @@ export default function TransactionListSection({
           ) : displayedTransactionsLoaded ? (
             <motion.section
               key={`list-${listRevealKey}`}
+              initial={prefersReducedMotion ? false : { opacity: 0 }}
+              animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: prefersReducedMotion ? 0 : 0.22, ease: TRANSACTION_LIST_EASE }}
             >
@@ -206,6 +217,7 @@ export default function TransactionListSection({
                 listRevealKey={listRevealKey}
                 stickyTop={dateHeaderStickyTop}
                 prefersReducedMotion={prefersReducedMotion}
+                skipEnterAnimation={justFinishedNextPage}
                 onEditTransaction={onEditTransaction}
               />
 
@@ -215,10 +227,7 @@ export default function TransactionListSection({
                   Loading more transactions...
                 </p>
               ) : hasNextPage === false ? (
-                <p
-                  className="py-4 text-center text-sm italic"
-                  style={{ color: 'var(--app-text-subtle)' }}
-                >
+                <p className="py-4 text-center text-sm italic" style={{ color: 'var(--app-text-subtle)' }}>
                   You've reached the end.
                 </p>
               ) : null}
