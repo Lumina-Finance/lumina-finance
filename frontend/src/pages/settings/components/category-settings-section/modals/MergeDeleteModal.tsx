@@ -122,7 +122,7 @@ export default function MergeDeleteCategoryModal({
                   <p className="mb-2 text-xs font-semibold uppercase" style={{ color: 'var(--app-accent)' }}>
                     Category in use
                   </p>
-                  <h3 id="merge-delete-category-title" className="font-serif text-3xl font-light">
+                  <h3 id="merge-delete-category-title" className="font-serif text-3xl font-normal">
                     Move Transactions First
                   </h3>
                 </div>

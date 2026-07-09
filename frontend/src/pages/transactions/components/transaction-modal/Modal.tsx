@@ -7,7 +7,9 @@ import { useInfiniteMerchants, useMerchant, useUpdateMerchant, type Merchant } f
 import { useInfiniteTags, type Tag } from '@/api/tags'
 import { useCurrencies } from '@/api/currency'
 import { invalidateTransactionAccountData } from '@/api/cache/updates/transactions'
+import { invalidateTransactions, invalidateTransactionOverview } from '@/api/cache/invalidation/transactions'
 import {
+  applyTransactionDeletion,
   useCreateTransaction,
   useDeleteTransaction,
   useUpdateTransaction,
@@ -76,10 +78,10 @@ export default function CreateTransactionModal({
 }: CreateTransactionModalProps) {
   const editing = !!transaction
   const queryClient = useQueryClient()
-  const createMutation = useCreateTransaction({ deferAccountInvalidation: true })
+  const createMutation = useCreateTransaction({ deferAccountInvalidation: true, deferTransactionInvalidation: true })
   const updateMutation = useUpdateTransaction()
   const updateMerchantMutation = useUpdateMerchant()
-  const deleteMutation = useDeleteTransaction({ minimumPendingMs: MIN_DELETE_TRANSACTION_LOADING_MS })
+  const deleteMutation = useDeleteTransaction({ minimumPendingMs: MIN_DELETE_TRANSACTION_LOADING_MS, deferRemoval: true })
   const { data: accounts = [] } = useAccounts()
   const { data: categories = [] } = useCategories()
   const { data: currencies = [] } = useCurrencies()
@@ -127,24 +129,41 @@ export default function CreateTransactionModal({
   const createdAccountIdsRef = useRef<Set<string>>(new Set())
   const openRef = useRef(open)
 
-  const flushDeferredAccountInvalidation = useCallback(() => {
+  // Holds a completed deletion until the modal has left so its row collapses in view rather than behind
+  // the closing modal
+  const pendingDeletionRef = useRef<{ id: string; accountId: string } | null>(null)
+
+  // Runs on close so a session of one or more creates refreshes the transactions page once, on
+  // dismiss, rather than refetching the list and overview behind the open modal after every save
+  const flushDeferredInvalidation = useCallback(() => {
     const accountIds = [...createdAccountIdsRef.current]
     if (accountIds.length === 0) return
 
     createdAccountIdsRef.current.clear()
+    invalidateTransactions(queryClient)
+    invalidateTransactionOverview(queryClient)
     invalidateTransactionAccountData(queryClient, accountIds, { refetchAccountList: true })
   }, [queryClient])
 
   const handleClose = useCallback(() => {
     onClose()
-    window.setTimeout(flushDeferredAccountInvalidation, 0)
-  }, [flushDeferredAccountInvalidation, onClose])
+    window.setTimeout(flushDeferredInvalidation, 0)
+  }, [flushDeferredInvalidation, onClose])
+
+  // Runs after the modal exit animation, so a deferred deletion clears its row once the modal is gone
+  const handleModalDismissed = useCallback(() => {
+    const pending = pendingDeletionRef.current
+    if (!pending) return
+
+    pendingDeletionRef.current = null
+    applyTransactionDeletion(queryClient, pending.id, pending.accountId)
+  }, [queryClient])
 
   useEffect(() => {
     openRef.current = open
     if (open) return
-    flushDeferredAccountInvalidation()
-  }, [flushDeferredAccountInvalidation, open])
+    flushDeferredInvalidation()
+  }, [flushDeferredInvalidation, open])
 
   const selectedAccount = useMemo(
     () => accounts.find((account) => account.id === form.account_id),
@@ -198,8 +217,15 @@ export default function CreateTransactionModal({
   }, [categories])
 
   const accountOptions = useMemo(
-    () => selectableAccounts.map((account) => ({ value: account.id, label: account.name })),
-    [selectableAccounts],
+    () => {
+      // An existing transaction keeps its currency, so only accounts holding that same currency can
+      // carry it, while creating a transaction still offers every account and adopts its currency
+      const eligibleAccounts = editing && form.currency
+        ? selectableAccounts.filter((account) => account.currency === form.currency)
+        : selectableAccounts
+      return eligibleAccounts.map((account) => ({ value: account.id, label: account.name }))
+    },
+    [selectableAccounts, editing, form.currency],
   )
   const selectedArchivedAccountOption = editing && selectedAccount?.is_archived
     ? { value: selectedAccount.id, label: selectedAccount.name }
@@ -572,7 +598,7 @@ export default function CreateTransactionModal({
       setCreateDelayPending(false)
 
       if (!openRef.current) {
-        flushDeferredAccountInvalidation()
+        flushDeferredInvalidation()
         return
       }
 
@@ -630,7 +656,7 @@ export default function CreateTransactionModal({
         [createdTransaction.account_id]: (deltas[createdTransaction.account_id] ?? 0) + createdTransaction.amount,
       }))
       if (!openRef.current) {
-        flushDeferredAccountInvalidation()
+        flushDeferredInvalidation()
         return
       }
       await minimumLoading
@@ -669,6 +695,7 @@ export default function CreateTransactionModal({
 
     try {
       await deleteMutation.mutateAsync(transaction.id)
+      pendingDeletionRef.current = { id: transaction.id, accountId: transaction.account_id }
       handleClose()
       return true
     } catch (err) {
@@ -701,6 +728,7 @@ export default function CreateTransactionModal({
         transactionKindLabel={KIND_LABELS[form.kind]}
         headerStatus={readOnly ? 'Archived account' : undefined}
         onClose={handleClose}
+        onDismissed={handleModalDismissed}
         onSubmit={handleSubmit}
         footer={(
           <TransactionModalFooter

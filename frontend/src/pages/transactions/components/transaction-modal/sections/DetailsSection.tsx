@@ -1,5 +1,4 @@
-import { useRef } from 'react'
-import { Calendar } from 'lucide-react'
+import DateField from '@/components/date-field/DateField'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
 import IconTooltip from '@/components/tooltips/IconTooltip'
 import TransactionModalFieldLabelRow from '@/pages/transactions/components/transaction-modal/controls/FieldLabelRow'
@@ -44,58 +43,20 @@ export default function TransactionDetailsSection({
   onAmountBlur,
   onNotesChange,
 }: TransactionDetailsSectionProps) {
-  const dateInputRef = useRef<HTMLInputElement>(null)
-
   return (
     <TransactionModalSectionFrame number="03" title="Details">
       <div className="grid gap-3 sm:grid-cols-[11rem_8.5rem_minmax(0,1fr)]">
         <div>
           <TransactionModalFieldLabelRow htmlFor="txn-date" label="Date" error={dateError} />
-          <div
-            className={`app-input relative flex items-center justify-between gap-2 overflow-hidden pr-3 text-sm min-[1050px]:hidden ${
-              dateError
-                ? 'app-input-error'
-                : 'focus-within:border-[var(--app-accent-border)] focus-within:shadow-[0_0_0_2px_var(--app-accent-soft)]'
-            } ${readOnly ? 'cursor-not-allowed opacity-60' : ''}`}
-          >
-            <span className="min-w-0 truncate font-medium tabular-nums" aria-hidden>
-              {date}
-            </span>
-            <Calendar size={15} className="shrink-0" aria-hidden style={{ color: 'var(--app-text-muted)' }} />
-            <input
-              id="txn-date-mobile"
-              type="date"
-              aria-label="Date"
-              className="absolute inset-0 h-full w-full cursor-pointer opacity-0 text-base disabled:cursor-not-allowed"
-              value={date}
-              disabled={readOnly}
-              onChange={(event) => onDateChange(event.target.value)}
-              onBlur={onDateBlur}
-            />
-          </div>
-          <div className="relative hidden min-[1050px]:block">
-            <input
-              ref={dateInputRef}
-              id="txn-date"
-              type="date"
-              className={`app-input app-date-input-balanced pr-9 disabled:cursor-not-allowed disabled:opacity-60 ${dateError ? 'app-input-error' : ''}`}
-              value={date}
-              disabled={readOnly}
-              onChange={(event) => onDateChange(event.target.value)}
-              onBlur={onDateBlur}
-            />
-            <button
-              type="button"
-              aria-label="Open calendar"
-              disabled={readOnly}
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => dateInputRef.current?.showPicker?.()}
-              className="app-date-overlay-icon absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer border-0 bg-transparent p-0 disabled:cursor-not-allowed"
-              style={{ color: 'var(--app-text-subtle)' }}
-            >
-              <Calendar size={15} aria-hidden className="block" />
-            </button>
-          </div>
+          <DateField
+            id="txn-date"
+            ariaLabel="Date"
+            value={date}
+            error={!!dateError}
+            disabled={readOnly}
+            onChange={onDateChange}
+            onBlur={onDateBlur}
+          />
         </div>
         <div>
           <div className="mb-1.5 flex items-center gap-2">

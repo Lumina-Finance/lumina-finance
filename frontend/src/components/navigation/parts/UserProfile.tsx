@@ -15,20 +15,17 @@ export function NavigationUserProfile({
   logout,
 }: NavigationUserProfileProps) {
   return (
-    <div
-      className="app-nav-link"
-      style={{ background: 'var(--app-surface-soft)', border: '1px solid var(--app-border)' }}
-    >
-      <div
-        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold"
+    <div className="app-nav-user">
+      <span
+        className="app-nav-user-avatar flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold"
         style={{
           background: 'linear-gradient(135deg, #C9A96A 0%, #9B6C2C 100%)',
           color: '#1C1510',
         }}
       >
         {initials}
-      </div>
-      <div className="min-w-0 flex-1 overflow-hidden">
+      </span>
+      <div className="app-nav-user-meta min-w-0 overflow-hidden">
         <p className="truncate text-sm font-medium" style={{ color: 'var(--app-text)' }}>
           {displayName}
         </p>
@@ -40,7 +37,7 @@ export function NavigationUserProfile({
         type="button"
         onClick={() => { void logout() }}
         aria-label="Log out"
-        className="app-icon-button shrink-0"
+        className="app-nav-user-logout app-icon-button shrink-0"
       >
         <LogOut size={14} aria-hidden />
       </button>

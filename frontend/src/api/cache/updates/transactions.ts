@@ -126,6 +126,32 @@ export function findCachedTransaction(
 }
 
 /**
+ * Drops a transaction from every cached list right away so a deletion clears from the screen at once
+ * instead of lingering until the refetch that invalidation schedules
+ */
+export function removeTransactionFromLists(
+  queryClient: QueryClient,
+  transactionId: string,
+): void {
+  const transactionQueries = queryClient.getQueriesData<Transaction[] | InfiniteData<Transaction[]>>({
+    queryKey: transactionKeys.all,
+    exact: false,
+  });
+
+  for (const [queryKey, data] of transactionQueries) {
+    if (!data) continue;
+    if (isInfiniteTransactionsData(data)) {
+      queryClient.setQueryData<InfiniteData<Transaction[]>>(queryKey, {
+        ...data,
+        pages: data.pages.map((page) => page.filter((item) => item.id !== transactionId)),
+      });
+    } else if (Array.isArray(data)) {
+      queryClient.setQueryData<Transaction[]>(queryKey, data.filter((item) => item.id !== transactionId));
+    }
+  }
+}
+
+/**
  * Reads cached account plan links without triggering a network request during invalidation
  */
 function getCachedAccountTaxAdvantagedCategoryId(
@@ -219,6 +245,9 @@ export function invalidateTransactionAccountData(
 
 export interface FinancialTransactionInvalidationOptions {
   deferAccountInvalidation?: boolean;
+  // Holds the transaction overview refresh for the caller to flush, so an open create modal does not
+  // refetch the transactions page behind it on every save
+  deferTransactionOverview?: boolean;
 }
 
 /**
@@ -229,7 +258,7 @@ export function invalidateFinancialTransactionData(
   accountIds: string[],
   options: FinancialTransactionInvalidationOptions = {},
 ) {
-  invalidateTransactionOverviewQueries(queryClient);
+  if (!options.deferTransactionOverview) invalidateTransactionOverviewQueries(queryClient);
   invalidateDashboardBalance(queryClient);
   invalidateDashboardIncomeExpense(queryClient);
   invalidateDashboardRecent(queryClient);

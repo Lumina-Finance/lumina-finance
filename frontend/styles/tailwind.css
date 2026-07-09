@@ -156,6 +156,15 @@
   .app-desktop-nav {
     top: 1.25rem;
     height: calc(100vh - 2.5rem);
+    overflow: hidden;
+    background: var(--app-nav-bg);
+    border: 1px solid var(--app-border);
+    box-shadow: var(--app-shadow-soft);
+    /* A resting zero blur so the frosted collapsed state can ease its blur in and out rather than
+       snapping the filter on, alongside the background and border easing between the two states */
+    -webkit-backdrop-filter: blur(0) saturate(100%);
+    backdrop-filter: blur(0) saturate(100%);
+    transition: background-color 0.3s ease, border-color 0.3s ease, backdrop-filter 0.3s ease, -webkit-backdrop-filter 0.3s ease;
   }
 
   @supports (height: 100dvh) {
@@ -163,6 +172,251 @@
       top: calc(env(safe-area-inset-top) + 1.25rem);
       height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 2.5rem);
     }
+  }
+
+  /* The unpinned sidebar floats over the page while collapsed or hover-previewed, so it wears the
+     same frosted-glass treatment as the range and filter pills to stay legible over the content */
+  .app-desktop-nav-glass {
+    background: color-mix(in srgb, var(--app-nav-bg) 72%, transparent);
+    border-color: var(--app-border-strong);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    backdrop-filter: blur(20px) saturate(160%);
+  }
+
+  /* The brand mark rides the same leading column as the row icons, so it seats at the rail's centre
+     by the identical mechanism and stays put whether the sidebar is open or collapsed */
+  .app-nav-brand-logo {
+    width: 2.5rem;
+    height: 2.5rem;
+    transition: width 0.28s ease, height 0.28s ease, margin-left 0.28s ease;
+  }
+
+  /* At full width the logo reads as the sidebar header, so it grows back to its original size and its
+     lead widens past the rail width the collapsed icons share so the larger mark clears the wordmark.
+     The lead width and logo size ease on the same timing as the collapsing labels so the resize
+     animates with the sidebar rather than snapping, which also rules out width auto since it cannot be
+     transitioned */
+  .app-desktop-nav .app-nav-lead:has(.app-nav-brand-logo) {
+    transition: width 0.28s ease;
+  }
+
+  .app-desktop-nav:not(.app-desktop-nav-collapsed) .app-nav-lead:has(.app-nav-brand-logo) {
+    width: 3.75rem;
+  }
+
+  .app-desktop-nav:not(.app-desktop-nav-collapsed) .app-nav-brand-logo {
+    width: 3.75rem;
+    height: 3.75rem;
+    margin-left: -0.375rem;
+  }
+
+  /* Fixed leading column that holds each row's icon or avatar. Sized to seat the glyph at the rail's
+     centre, so icons stay put while the labels beside them fade and the sidebar widens */
+  .app-nav-lead {
+    display: flex;
+    align-items: center;
+  }
+
+  /* The lead is a hair narrower than the collapsed inner width so its centred icon lands on the rail's
+     centre rather than a pixel to the right, and the same fixed width in both states keeps the icon
+     from shifting as the sidebar opens */
+  .app-desktop-nav .app-nav-lead {
+    width: 2.375rem;
+    flex-shrink: 0;
+    justify-content: center;
+  }
+
+  /* The leading column owns the icon-to-edge spacing on desktop, so the row carries no inline padding
+     or gap of its own and the active pill fills the width */
+  .app-desktop-nav .app-nav-link {
+    gap: 0;
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  /* The leading column is sized to the collapsed inner width, so the icon it centres already lands at
+     the rail's centre. Nothing switches alignment on collapse, which is what avoids the items snapping
+     to the middle before the labels have finished folding away */
+
+  /* Row labels and profile meta collapse their width and cross-fade as the sidebar closes, so they
+     stop taking up room in the row rather than sitting invisibly beside the icon. Hidden text also
+     drops its pointer target so it never intercepts clicks over the page */
+  .app-nav-link-label,
+  .app-nav-user-meta,
+  .app-nav-user-logout {
+    overflow: hidden;
+    transition: opacity 0.2s ease, max-width 0.28s ease;
+  }
+
+  .app-nav-link-label,
+  .app-nav-user-meta {
+    max-width: 12rem;
+  }
+
+  .app-nav-user-logout {
+    max-width: 3rem;
+  }
+
+  /* The name block fills the row between the avatar and the logout when open. Its grow is dropped in
+     the rail so it no longer claims the row's free space, which is what let it pull the avatar off
+     centre while the other rows, having no growing sibling, stayed centred */
+  .app-nav-user-meta {
+    flex: 1 1 0%;
+  }
+
+  .app-desktop-nav-collapsed .app-nav-user-meta {
+    flex: 0 0 auto;
+  }
+
+  .app-desktop-nav-collapsed .app-nav-link-label,
+  .app-desktop-nav-collapsed .app-nav-user-meta,
+  .app-desktop-nav-collapsed .app-nav-user-logout {
+    max-width: 0;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  /* The brand text has no icon-only form, so it cross-fades and collapses its width as the rail closes
+     rather than blinking out */
+  .app-nav-brand-text {
+    overflow: hidden;
+    max-width: 9rem;
+    transition: max-width 0.28s ease, opacity 0.2s ease;
+  }
+
+  .app-desktop-nav-collapsed .app-nav-brand-text {
+    max-width: 0;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  /* The pin toggle sits in the sidebar's top-right corner, out of the header flow. It only fades in
+     and out, so its reveal rides the width spring, and the nav's overflow keeps it clipped away while
+     the rail is closed */
+  .app-desktop-nav-toggle {
+    position: absolute;
+    top: 1.25rem;
+    right: 1rem;
+    z-index: 2;
+    transition: opacity 0.3s ease;
+  }
+
+  .app-desktop-nav-collapsed .app-desktop-nav-toggle {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  /* The version line keeps only its number in the rail, so the product name collapses its width and
+     the update notice collapses its height, both fading as they go */
+  .app-nav-version {
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+  }
+
+  .app-nav-version-name {
+    display: inline-block;
+    max-width: 12rem;
+    overflow: hidden;
+    vertical-align: bottom;
+    transition: max-width 0.28s ease, opacity 0.2s ease;
+  }
+
+  /* In the rail the update notice keeps only its pulsing dot, with the wording and the arrow
+     collapsing their width away so the dot centres on its own */
+  .app-nav-version-update {
+    gap: 0.375rem;
+  }
+
+  .app-desktop-nav-collapsed .app-nav-version-update {
+    gap: 0;
+  }
+
+  .app-nav-version-update-text,
+  .app-nav-version-update-icon {
+    overflow: hidden;
+    transition: max-width 0.28s ease, opacity 0.2s ease;
+  }
+
+  .app-nav-version-update-text {
+    max-width: 12rem;
+  }
+
+  .app-nav-version-update-icon {
+    max-width: 1.5rem;
+  }
+
+  .app-desktop-nav-collapsed .app-nav-version {
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .app-desktop-nav-collapsed .app-nav-version-name {
+    max-width: 0;
+    opacity: 0;
+  }
+
+  .app-desktop-nav-collapsed .app-nav-version-number {
+    font-size: 0.625rem;
+  }
+
+  .app-desktop-nav-collapsed .app-nav-version-update-text,
+  .app-desktop-nav-collapsed .app-nav-version-update-icon {
+    max-width: 0;
+    opacity: 0;
+  }
+
+  /* The rail keeps only the selected theme. The two inactive segments release their flex space and
+     fade, so the active segment grows to fill the track and its icon glides to the centre, while the
+     track sheds its own frame so it stops reading as a box inside a box. Every step is transitioned,
+     so it eases shut instead of snapping */
+  .app-desktop-nav-collapsed .app-navigation-theme-toggle {
+    background: transparent;
+    border-color: transparent;
+  }
+
+  .app-desktop-nav-collapsed .app-navigation-theme-toggle .app-segmented-option:not(.app-segmented-option-active) {
+    flex-grow: 0;
+    padding: 0;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .app-desktop-nav-collapsed .app-navigation-theme-toggle-indicator {
+    opacity: 0;
+  }
+
+  /* The profile is its own soft card rather than a nav link, so it never takes the menu-item hover or
+     the icon-rail spacing. In the rail the card fades away to leave just the avatar, which its own
+     auto margins recentre as the name folds, so it glides in without a snap */
+  .app-nav-user {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 0.75rem;
+    border-radius: 0.75rem;
+    padding: 0.625rem 0.75rem;
+    background: var(--app-surface-soft);
+    border: 1px solid var(--app-border);
+    transition: gap 0.28s ease, padding 0.28s ease, background 0.2s ease, border-color 0.2s ease;
+  }
+
+  .app-desktop-nav-collapsed .app-nav-user {
+    gap: 0;
+    padding-left: 0;
+    padding-right: 0;
+    background: transparent;
+    border-color: transparent;
+  }
+
+  .app-nav-user-avatar {
+    transition: margin-left 0.28s ease;
+  }
+
+  /* Centre the avatar with a fixed left offset rather than auto margins, so it stays anchored to the
+     rail's left edge and cannot bounce sideways as the spring-driven width overshoots. The offset is
+     half the gap between the avatar and the collapsed content box */
+  .app-desktop-nav-collapsed .app-nav-user-avatar {
+    margin-left: 0.375rem;
   }
 
   .app-nav-link {
@@ -197,60 +451,6 @@
     color: var(--app-text-subtle);
   }
 
-  .app-input[type="date"] {
-    -webkit-appearance: none;
-    appearance: none;
-    max-width: 100%;
-  }
-
-  .app-input[type="date"]::-webkit-date-and-time-value {
-    min-width: 0;
-    text-align: left;
-  }
-
-  /* WebKit top-aligns the date text once the native appearance is stripped, while Firefox already
-     centres it. The datetime-edit selector guard keeps this WebKit only so the Firefox rendering
-     stays untouched. The host flexes so the edit region stretches to the full field height, then the
-     edit region centres its own fields, since aligning on the host alone still leaves Chrome biased
-     toward the top */
-  @supports selector(::-webkit-datetime-edit) {
-    .app-input[type="date"] {
-      display: inline-flex;
-    }
-
-    .app-input[type="date"]::-webkit-datetime-edit {
-      display: flex;
-      align-items: center;
-      padding: 0;
-    }
-  }
-
-  .app-date-input-balanced {
-    padding-left: 0.75rem;
-    padding-right: 0.75rem;
-  }
-
-  /* The overlaid calendar button opens the picker through showPicker, which is the one trigger that
-     fires reliably in Chrome, so the native WebKit indicator is hidden to avoid a second glyph while
-     the date segments stay directly editable */
-  .app-date-input-balanced[type="date"]::-webkit-calendar-picker-indicator {
-    display: none;
-  }
-
-  /* Firefox keeps its own native calendar button and ignores the WebKit indicator rules above, so
-     the overlaid glyph would double it. Hide the overlay in Firefox and let the native button stand.
-     The right padding only exists to clear the WebKit overlay, so it is dropped here to keep the
-     native button against the right edge instead of leaving a wide gap beside it */
-  @supports (-moz-appearance: none) {
-    .app-date-overlay-icon {
-      display: none;
-    }
-
-    .app-date-input-balanced[type="date"] {
-      padding-right: 0.75rem !important;
-    }
-  }
-
   .app-input:hover {
     border-color: var(--app-border-strong);
     background: var(--app-input-bg);
@@ -272,6 +472,66 @@
     border-color: var(--app-negative-border);
     background: var(--app-negative-soft);
     box-shadow: 0 0 0 2px var(--app-negative-soft);
+  }
+
+  /* The segmented date control mirrors app-input as a flex row so the year, month, and day inputs sit
+     inside one field frame, with focus-within standing in for the input focus ring */
+  .app-date-field {
+    @apply flex h-10 min-w-0 w-full items-center rounded-lg border px-4 py-0 transition-colors duration-200;
+    font-size: 0.9375rem;
+    background: var(--app-input-bg);
+    border-color: var(--app-input-border);
+    color: var(--app-text);
+  }
+
+  .app-date-field:hover {
+    border-color: var(--app-border-strong);
+  }
+
+  .app-date-field:focus-within {
+    border-color: var(--app-accent-border);
+    box-shadow: 0 0 0 2px var(--app-accent-soft);
+  }
+
+  .app-date-field.app-input-error {
+    border-color: var(--app-negative-border);
+    background: var(--app-negative-soft);
+  }
+
+  .app-date-field.app-input-error:focus-within {
+    box-shadow: 0 0 0 2px var(--app-negative-soft);
+  }
+
+  .app-date-field-segment {
+    @apply border-0 bg-transparent p-0 text-center outline-none tabular-nums;
+    color: var(--app-text);
+  }
+
+  .app-date-field-segment::placeholder {
+    color: var(--app-text-subtle);
+  }
+
+  .app-calendar-day {
+    @apply flex h-8 w-full items-center justify-center rounded-md text-sm tabular-nums transition-colors duration-100;
+    color: var(--app-text);
+  }
+
+  .app-calendar-day:hover {
+    background: var(--app-surface-soft);
+  }
+
+  .app-calendar-day[data-outside] {
+    color: var(--app-text-subtle);
+  }
+
+  .app-calendar-day[data-today] {
+    font-weight: 600;
+    box-shadow: inset 0 0 0 1px var(--app-border-strong);
+  }
+
+  .app-calendar-day[data-selected] {
+    background: var(--app-button-primary-bg);
+    color: var(--app-button-primary-text);
   }
 
   .app-runway-threshold-input {
@@ -608,6 +868,22 @@
     }
   }
 
+  /* The surfaced-tag panel eases its blur and tint in rather than fading its opacity, because an
+     opacity transition on the panel or any ancestor suppresses the backdrop filter until it settles,
+     which makes the blur snap in all at once instead of growing smoothly */
+  .app-tag-tooltip-glass {
+    background-color: transparent;
+    -webkit-backdrop-filter: blur(0px);
+    backdrop-filter: blur(0px);
+    transition: background-color 0.2s ease-out, -webkit-backdrop-filter 0.2s ease-out, backdrop-filter 0.2s ease-out;
+  }
+
+  .group:hover .app-tag-tooltip-glass {
+    background-color: color-mix(in srgb, var(--app-bg) 42%, transparent);
+    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(16px);
+  }
+
   .import-auto-fill-row {
     animation: import-auto-fill-row 900ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
   }
@@ -930,12 +1206,20 @@
     z-index: 0;
     background: var(--app-accent-soft);
     border: 1px solid var(--app-accent-border);
+    transition: opacity 0.2s ease;
+  }
+
+  .app-navigation-theme-toggle {
+    transition: background-color 0.2s ease, border-color 0.2s ease;
   }
 
   .app-navigation-theme-toggle .app-segmented-option {
+    flex: 1 1 0%;
+    min-width: 0;
+    overflow: hidden;
     background: transparent;
     box-shadow: none;
-    transition: color 180ms ease, background-color 180ms ease, transform 180ms ease;
+    transition: color 180ms ease, background-color 180ms ease, transform 180ms ease, opacity 200ms ease, flex-grow 280ms ease;
   }
 
   .app-navigation-theme-toggle .app-segmented-option:hover {
@@ -1290,6 +1574,13 @@
     background: var(--app-bg);
     border: 1px solid var(--app-border-strong);
     box-shadow: var(--app-shadow-soft);
+  }
+
+  /* Every modal portals its dialog panel into the body, so this locks page scroll for any open modal
+     at once. The viewport scrolls the root element, not the body, so the lock has to sit on html, and
+     the stable scrollbar gutter keeps the content from shifting when the scrollbar disappears */
+  html:has(.app-modal-panel[role="dialog"][aria-modal="true"]) {
+    overflow: hidden;
   }
 
   @media (max-width: 1049.98px) {

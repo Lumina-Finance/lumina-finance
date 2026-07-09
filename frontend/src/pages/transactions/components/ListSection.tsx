@@ -145,6 +145,23 @@ export default function TransactionListSection({
     fetchNextPage: () => { void fetchNextPage() },
   })
 
+  // A finished page load appends a whole batch of older rows at once, which looks chaotic if each grows
+  // in. Arming this the moment a page fetch starts means it is still set when that page's rows mount, so
+  // they appear without animating. Arming happens during render so it is in place before the rows commit
+  const [skipAppendedEnter, setSkipAppendedEnter] = useState(false)
+  const [wasFetchingNextPage, setWasFetchingNextPage] = useState(isFetchingNextPage)
+  if (wasFetchingNextPage !== isFetchingNextPage) {
+    setWasFetchingNextPage(isFetchingNextPage)
+    if (isFetchingNextPage) setSkipAppendedEnter(true)
+  }
+
+  // Disarm once the fetch has resolved and its rows have mounted, so a later single create still animates
+  useEffect(() => {
+    if (isFetchingNextPage || !skipAppendedEnter) return
+    const timer = window.setTimeout(() => setSkipAppendedEnter(false), 0)
+    return () => window.clearTimeout(timer)
+  }, [isFetchingNextPage, skipAppendedEnter])
+
   return (
     <section>
       <TransactionListToolbar
@@ -194,6 +211,8 @@ export default function TransactionListSection({
           ) : displayedTransactionsLoaded ? (
             <motion.section
               key={`list-${listRevealKey}`}
+              initial={prefersReducedMotion ? false : { opacity: 0 }}
+              animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: prefersReducedMotion ? 0 : 0.22, ease: TRANSACTION_LIST_EASE }}
             >
@@ -206,6 +225,7 @@ export default function TransactionListSection({
                 listRevealKey={listRevealKey}
                 stickyTop={dateHeaderStickyTop}
                 prefersReducedMotion={prefersReducedMotion}
+                skipEnterAnimation={skipAppendedEnter}
                 onEditTransaction={onEditTransaction}
               />
 
@@ -215,10 +235,7 @@ export default function TransactionListSection({
                   Loading more transactions...
                 </p>
               ) : hasNextPage === false ? (
-                <p
-                  className="py-4 text-center text-sm italic"
-                  style={{ color: 'var(--app-text-subtle)' }}
-                >
+                <p className="py-4 text-center text-sm italic" style={{ color: 'var(--app-text-subtle)' }}>
                   You've reached the end.
                 </p>
               ) : null}

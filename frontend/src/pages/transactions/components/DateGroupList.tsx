@@ -1,4 +1,4 @@
-import { motion } from 'motion/react'
+import { AnimatePresence, motion } from 'motion/react'
 import type { Category } from '@/api/categories'
 import type { Transaction } from '@/api/transactions'
 import { formatCurrency } from '@/utils/formatCurrency'
@@ -19,6 +19,7 @@ export default function TransactionDateGroupList({
   listRevealKey,
   stickyTop,
   prefersReducedMotion,
+  skipEnterAnimation = false,
   onEditTransaction,
 }: {
   dateGroups: TransactionDateGroup[]
@@ -29,30 +30,39 @@ export default function TransactionDateGroupList({
   listRevealKey: number
   stickyTop: number
   prefersReducedMotion: boolean | null
+  // Makes a newly added row or group appear without the grow in, used for a lazy loaded page of rows
+  skipEnterAnimation?: boolean
   onEditTransaction: (transaction: Transaction) => void
 }) {
   return (
-    <>
-      {dateGroups.map(({ dateLabel, transactions }, groupIndex) => {
-        const dailyTotal = getTransactionDateGroupTotal(transactions, fixedAccount)
-        const dailyColor = dailyTotal >= 0 ? 'var(--app-positive)' : 'var(--app-negative)'
-        return (
-          <motion.div
-            key={`${dateLabel}-${listRevealKey}`}
-            initial={
-              listRevealKey === 0 || prefersReducedMotion
-                ? false
-                : { opacity: 0 }
-            }
-            animate={{ opacity: 1 }}
-            transition={{
-              duration: prefersReducedMotion ? 0 : 0.28,
-              delay: prefersReducedMotion ? 0 : Math.min(groupIndex * 0.035, 0.18),
-              ease: TRANSACTION_LIST_EASE,
-            }}
-          >
+    <div className="min-[1300px]:grid min-[1300px]:grid-cols-[2.5rem_fit-content(24rem)_fit-content(18rem)_minmax(0,1fr)_max-content_max-content] min-[1300px]:gap-x-3">
+      {/* initial={false} suppresses the first render and the whole-list swap on filter changes, so a
+          group only animates here when it is genuinely added (a new day's first transaction) or removed
+          (its last transaction deleted) while the list stays mounted */}
+      <AnimatePresence initial={false}>
+        {dateGroups.map(({ dateLabel, transactions }) => {
+          const dailyTotal = getTransactionDateGroupTotal(transactions, fixedAccount)
+          const dailyColor = dailyTotal >= 0 ? 'var(--app-positive)' : 'var(--app-negative)'
+          return (
+            <motion.div
+              key={`${dateLabel}-${listRevealKey}`}
+              className="min-[1300px]:col-span-full min-[1300px]:grid min-[1300px]:grid-cols-subgrid"
+              initial={skipEnterAnimation ? false : prefersReducedMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={
+                prefersReducedMotion
+                  ? { opacity: 0, transition: { duration: 0 } }
+                  : {
+                      opacity: 0,
+                      height: 0,
+                      overflow: 'hidden',
+                      transition: { duration: 0.26, ease: TRANSACTION_LIST_EASE },
+                    }
+              }
+              transition={{ duration: prefersReducedMotion ? 0 : 0.28, ease: TRANSACTION_LIST_EASE }}
+            >
             <div
-              className="sticky z-20 flex items-center justify-between rounded-lg px-3 py-2"
+              className="sticky z-20 flex items-center justify-between rounded-lg px-3 py-2 min-[1300px]:col-span-full"
               style={{
                 top: stickyTop,
                 background: 'var(--app-input-bg)',
@@ -73,7 +83,7 @@ export default function TransactionDateGroupList({
               </p>
             </div>
 
-            <div>
+            <AnimatePresence initial={false}>
               {transactions.map((transaction) => {
                 const category = categoryMap.get(transaction.category_id)
                 const rowAccount = fixedAccount ?? accountMap.get(transaction.account_id)
@@ -87,14 +97,17 @@ export default function TransactionDateGroupList({
                     currency={transaction.currency}
                     readOnlyReason={readOnlyReason}
                     transaction={transaction}
+                    prefersReducedMotion={prefersReducedMotion}
+                    skipEnterAnimation={skipEnterAnimation}
                     onOpen={onEditTransaction}
                   />
                 )
               })}
-            </div>
-          </motion.div>
-        )
-      })}
-    </>
+            </AnimatePresence>
+            </motion.div>
+          )
+        })}
+      </AnimatePresence>
+    </div>
   )
 }

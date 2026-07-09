@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import type { TransactionsOverview } from '@/api/transactions'
 import TransactionFilterLoadingOverlay from '@/pages/transactions/components/FilterLoadingOverlay'
+import { useMinimumLoadingDuration } from '@/pages/transactions/hooks/useMinimumLoadingDuration'
 import DailyCashFlowChart, {
   type DailyCashFlowChartMode,
 } from '@/pages/transactions/components/top-band/DailyCashFlowChart'
@@ -13,6 +14,10 @@ import {
   PLACEHOLDER_FLOW,
   PLACEHOLDER_OUTLIERS,
 } from '@/pages/transactions/components/top-band/constants'
+
+// Whenever the summary pulls new data, its loading animation holds at least this long so a quick
+// refetch does not flash the overlay in and out
+const MIN_SUMMARY_LOADING_MS = 800
 
 const topBandDividerStyle = {
   height: 1,
@@ -52,6 +57,7 @@ export default function TransactionsTopBand({
   outlierLoadError: string | null
   onOpenOutlierTransaction: (transactionId: string) => void
 }) {
+  const showLoading = useMinimumLoadingDuration(loading, MIN_SUMMARY_LOADING_MS)
   const overviewOutliers = overview?.outliers ?? []
   const overviewCategories = overview?.top_categories ?? []
   const overviewDailyCashFlow = overview?.daily_cash_flow ?? []
@@ -111,7 +117,7 @@ export default function TransactionsTopBand({
   return (
     <section className="relative" data-tooltip-bounds>
       <AnimatePresence>
-        {loading && (
+        {showLoading && (
           <TransactionFilterLoadingOverlay
             placement="center"
             reducedMotion={prefersReducedMotion}
@@ -119,7 +125,7 @@ export default function TransactionsTopBand({
           />
         )}
       </AnimatePresence>
-      {!loading && !hasOverviewData && (
+      {!showLoading && !hasOverviewData && (
         <div
           className="absolute inset-0 z-10 flex items-center justify-center backdrop-blur-md"
           style={{

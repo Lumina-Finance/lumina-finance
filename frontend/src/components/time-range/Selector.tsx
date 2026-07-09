@@ -1,5 +1,5 @@
-import { useEffect, useId, useRef, useState } from 'react'
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { motion, useReducedMotion } from 'motion/react'
 import { CalendarRange, Check, ChevronDown } from 'lucide-react'
 import { joinClassNames } from '@/utils/classNames'
 
@@ -17,12 +17,18 @@ type TimeRangeSelectorProps<T extends string> = {
   variant?: 'desktop' | 'mobile'
   className?: string
   sheetTitle?: string
-  dropdownPlacement?: 'bottom' | 'top'
   shortcutMode?: 'always' | 'when-description-differs'
 }
 
 const selectorSpring = { type: 'spring', stiffness: 420, damping: 36, mass: 0.8 } as const
-const mobileDropdownTransition = { duration: 0.16, ease: [0.22, 1, 0.36, 1] } as const
+
+// Matches the liquid-glass filter pill on the transaction toolbar so the mobile range dropdown reads
+// as the same control family, a gently damped spring that settles with little overshoot
+const glassSpring = { type: 'spring', stiffness: 420, damping: 34, mass: 0.9 } as const
+
+// Added to the collapsed head height so the pinned layout slot also covers the glass border, keeping
+// the blooming panel free to overlay the content below without nudging it
+const GLASS_BORDER_ALLOWANCE = 2
 
 /**
  * Resolves whether the compact shortcut label adds information beyond the main label
@@ -47,7 +53,6 @@ export function TimeRangeSelector<T extends string>({
   variant = 'desktop',
   className,
   sheetTitle,
-  dropdownPlacement = 'bottom',
   shortcutMode = 'always',
 }: TimeRangeSelectorProps<T>) {
   if (variant === 'mobile') {
@@ -59,7 +64,6 @@ export function TimeRangeSelector<T extends string>({
         ariaLabel={ariaLabel}
         className={className}
         sheetTitle={sheetTitle}
-        dropdownPlacement={dropdownPlacement}
         shortcutMode={shortcutMode}
       />
     )
@@ -125,7 +129,9 @@ function DesktopTimeRangeSelector<T extends string>({
 }
 
 /**
- * Renders the mobile range dropdown with optional top placement for floating controls
+ * Renders the mobile range control as a liquid-glass pill that blooms its option list open, sharing
+ * the style and animation of the transaction toolbar filter. The panel overlays the content below
+ * rather than pushing it, so the pinned layout slot holds the collapsed height while it is open
  */
 function MobileTimeRangeSelector<T extends string>({
   value,
@@ -134,22 +140,27 @@ function MobileTimeRangeSelector<T extends string>({
   ariaLabel,
   className,
   sheetTitle,
-  dropdownPlacement = 'bottom',
   shortcutMode = 'always',
 }: TimeRangeSelectorProps<T>) {
   const [open, setOpen] = useState(false)
+  const [collapsedHeight, setCollapsedHeight] = useState<number>()
   const listboxId = useId()
   const selectorRef = useRef<HTMLDivElement>(null)
+  const headRef = useRef<HTMLButtonElement>(null)
   const shouldReduceMotion = useReducedMotion()
   const selected = options.find((option) => option.value === value) ?? options[0]
   const selectedDisplay = selected.description ?? selected.label
   const selectedShortcut = getRangeShortcut(selected, shortcutMode)
-  const dropdownPositionClass = dropdownPlacement === 'top'
-    ? 'bottom-full mb-2'
-    : 'top-full mt-2'
-  const dropdownOrigin = dropdownPlacement === 'top' ? 'bottom center' : 'top center'
-  const closedOffset = dropdownPlacement === 'top' ? 4 : -4
-  const exitOffset = dropdownPlacement === 'top' ? 3 : -3
+  const transition = shouldReduceMotion ? { duration: 0 } : glassSpring
+
+  // Pin the layout slot to the collapsed pill height while closed, so opening lets the absolute glass
+  // grow over the content below instead of shifting it. Remeasured when the label changes since that
+  // can reflow the head height
+  useLayoutEffect(() => {
+    const head = headRef.current
+    if (open || !head) return
+    setCollapsedHeight(head.offsetHeight + GLASS_BORDER_ALLOWANCE)
+  }, [open, selectedDisplay, selectedShortcut])
 
   useEffect(() => {
     if (!open) return
@@ -178,44 +189,52 @@ function MobileTimeRangeSelector<T extends string>({
   }
 
   return (
-    <div ref={selectorRef} className={joinClassNames('relative', open && 'z-30', className)}>
-      <button
-        type="button"
-        className="app-secondary-button h-9 w-full justify-between gap-3 px-3 text-sm"
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        aria-controls={open ? listboxId : undefined}
-        aria-label={`${ariaLabel}: ${selectedDisplay}`}
-        onClick={() => setOpen((current) => !current)}
+    <div
+      ref={selectorRef}
+      className={joinClassNames('relative', open && 'z-30', className)}
+      style={{ height: collapsedHeight }}
+    >
+      <motion.div
+        className={joinClassNames('app-range-glass app-range-glass-full', open && 'app-range-glass-open')}
+        style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 50 }}
+        whileTap={open || shouldReduceMotion ? undefined : { scale: 0.94 }}
       >
-        <span className="flex min-w-0 items-center gap-2">
-          <CalendarRange size={14} aria-hidden />
-          <span className="truncate">{selectedDisplay}</span>
-        </span>
-        <span className="flex shrink-0 items-center gap-1 text-xs font-semibold uppercase" style={{ color: 'var(--app-accent)' }}>
-          {selectedShortcut && <span>{selectedShortcut}</span>}
-          <ChevronDown
-            size={13}
-            aria-hidden
-            className={joinClassNames('transition-transform duration-150 motion-reduce:transition-none', open && 'rotate-180')}
-          />
-        </span>
-      </button>
+        <button
+          ref={headRef}
+          type="button"
+          className="app-range-glass-head"
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          aria-controls={open ? listboxId : undefined}
+          aria-label={`${ariaLabel}: ${selectedDisplay}`}
+          onClick={() => setOpen((current) => !current)}
+        >
+          <span className="app-range-glass-cur">
+            <CalendarRange size={18} aria-hidden className="shrink-0" />
+            <span className="truncate">{selectedDisplay}</span>
+          </span>
+          <span className="flex shrink-0 items-center gap-1.5 text-xs font-semibold uppercase" style={{ color: 'var(--app-accent)' }}>
+            {selectedShortcut && <span>{selectedShortcut}</span>}
+            <motion.span
+              className="app-range-glass-chev"
+              style={{ display: 'inline-flex' }}
+              animate={{ rotate: open ? 180 : 0 }}
+              transition={transition}
+            >
+              <ChevronDown size={16} aria-hidden />
+            </motion.span>
+          </span>
+        </button>
 
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            id={listboxId}
-            role="listbox"
-            aria-label={sheetTitle ?? ariaLabel}
-            className={`app-modal-panel absolute left-0 right-0 overflow-hidden rounded-xl ${dropdownPositionClass}`}
-            initial={shouldReduceMotion ? false : { opacity: 0, y: closedOffset, scale: 0.985 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: exitOffset, scale: 0.99 }}
-            transition={shouldReduceMotion ? { duration: 0 } : mobileDropdownTransition}
-            style={{ transformOrigin: dropdownOrigin, willChange: 'transform, opacity' }}
-          >
-            <div>
+        <div className="app-range-glass-bodywrap">
+          <div className="app-range-glass-body">
+            <div
+              id={listboxId}
+              role="listbox"
+              aria-label={sheetTitle ?? ariaLabel}
+              className="app-range-glass-inner"
+              style={{ padding: '2px 6px 6px' }}
+            >
               {options.map((option) => {
                 const active = option.value === value
                 const optionDisplay = option.description ?? option.label
@@ -227,7 +246,7 @@ function MobileTimeRangeSelector<T extends string>({
                     type="button"
                     role="option"
                     aria-selected={active}
-                    className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left transition-colors duration-150 hover:bg-[var(--app-surface-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent-soft)] motion-reduce:transition-none"
+                    className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left transition-colors duration-150 hover:bg-[var(--app-surface-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent-soft)] motion-reduce:transition-none"
                     style={{
                       background: active ? 'var(--app-accent-soft)' : 'transparent',
                       color: active ? 'var(--app-accent)' : 'var(--app-text)',
@@ -247,9 +266,9 @@ function MobileTimeRangeSelector<T extends string>({
                 )
               })}
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </div>
+        </div>
+      </motion.div>
     </div>
   )
 }

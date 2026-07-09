@@ -154,8 +154,7 @@ export default function TransactionsPage() {
           <div
             style={{
               height: 2,
-              background: 'var(--app-accent)',
-              opacity: 0.35,
+              background: 'var(--app-border-strong)',
               borderRadius: 1,
             }}
           />

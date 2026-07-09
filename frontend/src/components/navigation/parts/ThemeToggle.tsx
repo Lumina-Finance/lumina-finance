@@ -46,7 +46,7 @@ export function NavigationThemeToggle({
             }}
             aria-pressed={isActive}
             aria-label={label}
-            className={`app-segmented-option relative z-10 flex-1 px-0 ${isActive ? 'app-segmented-option-active' : ''}`}
+            className={`app-segmented-option relative z-10 px-0 ${isActive ? 'app-segmented-option-active' : ''}`}
           >
             <Icon size={16} strokeWidth={isActive ? 2.25 : 2} aria-hidden />
           </button>

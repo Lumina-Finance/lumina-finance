@@ -122,7 +122,7 @@ export default function TagCreateModal({
                       <p className="mb-2 text-xs font-semibold uppercase" style={{ color: 'var(--app-accent)' }}>
                         New transaction tag
                       </p>
-                      <h3 id="create-tag-title" className="font-serif text-3xl font-light">
+                      <h3 id="create-tag-title" className="font-serif text-3xl font-normal">
                         Create Tag
                       </h3>
                     </div>

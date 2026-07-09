@@ -49,7 +49,7 @@ const layoutByVariant = {
   },
   secondary: {
     backdropClassName: 'fixed inset-0 z-[100]',
-    backdropStyle: { background: 'rgba(0, 0, 0, 0.22)', backdropFilter: 'blur(6px)' },
+    backdropStyle: { background: 'rgba(0, 0, 0, 0.4)', backdropFilter: 'blur(10px)' },
     backdropTransition: 0.15,
     bodyClassName: 'min-h-0 flex-1 overflow-y-auto pb-3 pl-4 pr-5 pt-4 min-[1050px]:px-7',
     footerClassName: 'grid shrink-0 grid-cols-2 gap-3 px-6 py-4 sm:flex sm:justify-end sm:px-7 min-[1050px]:py-5',
@@ -159,7 +159,7 @@ export default function CreateReferenceModalShell({
                       <p className="mb-2 text-xs font-semibold uppercase" style={{ color: 'var(--app-accent)' }}>
                         {eyebrow}
                       </p>
-                      <h3 id={modalTitleId} className="font-serif text-3xl font-light">
+                      <h3 id={modalTitleId} className="font-serif text-3xl font-normal">
                         {title}
                       </h3>
                     </div>

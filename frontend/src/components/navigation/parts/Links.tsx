@@ -25,8 +25,10 @@ export function NavigationLinks({ onNavigate }: { onNavigate?: () => void }) {
             >
               {({ isActive }) => (
                 <>
-                  <Icon size={17} strokeWidth={isActive ? 2 : 1.75} className="shrink-0" aria-hidden />
-                  {item.label}
+                  <span className="app-nav-lead">
+                    <Icon size={17} strokeWidth={isActive ? 2 : 1.75} className="shrink-0" aria-hidden />
+                  </span>
+                  <span className="app-nav-link-label truncate">{item.label}</span>
                 </>
               )}
             </NavLink>

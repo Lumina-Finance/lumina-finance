@@ -3,6 +3,7 @@ import {
   useMutation,
   useQuery,
   useQueryClient,
+  type QueryClient,
 } from '@tanstack/react-query';
 import { invalidateInsightsMerchants, invalidateTransactions } from '@/api/cache/invalidation';
 import { runWithMinimumPendingTime } from '@/api/utils/mutationFeedback';
@@ -11,6 +12,7 @@ import {
   findCachedTransaction,
   invalidateFinancialTransactionData,
   invalidatePatchedTransactionData,
+  removeTransactionFromLists,
   uniqueIds,
 } from '@/api/cache/updates/transactions';
 import {
@@ -80,6 +82,9 @@ export function useTransactionsOverview(filters: OverviewFilters = {}) {
 
 interface UseCreateTransactionOptions {
   deferAccountInvalidation?: boolean;
+  // Holds the transactions-page list and overview refreshes so the caller can flush them once, when a
+  // create modal is dismissed, instead of refetching the page behind it on every save
+  deferTransactionInvalidation?: boolean;
 }
 
 /**
@@ -87,14 +92,18 @@ interface UseCreateTransactionOptions {
  */
 export function useCreateTransaction({
   deferAccountInvalidation = false,
+  deferTransactionInvalidation = false,
 }: UseCreateTransactionOptions = {}) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: createTransaction,
     onSuccess: (transaction) => {
       const accountIds = [transaction.account_id];
-      invalidateTransactions(queryClient);
-      invalidateFinancialTransactionData(queryClient, accountIds, { deferAccountInvalidation });
+      if (!deferTransactionInvalidation) invalidateTransactions(queryClient);
+      invalidateFinancialTransactionData(queryClient, accountIds, {
+        deferAccountInvalidation,
+        deferTransactionOverview: deferTransactionInvalidation,
+      });
       invalidateInsightsMerchants(queryClient);
     },
   });
@@ -121,9 +130,29 @@ export function useUpdateTransaction() {
 }
 
 /**
- * Deletes transactions and refreshes all aggregate views affected by removed activity
+ * Removes a deleted transaction from the cached lists and refreshes the aggregate views it fed, split
+ * out so the caller can defer it until the modal has dismissed and the row can animate out in view
  */
-export function useDeleteTransaction({ minimumPendingMs = 0 }: { minimumPendingMs?: number } = {}) {
+export function applyTransactionDeletion(
+  queryClient: QueryClient,
+  transactionId: string,
+  accountId: string | undefined,
+) {
+  const accountIds = uniqueIds([accountId]);
+  removeTransactionFromLists(queryClient, transactionId);
+  invalidateTransactions(queryClient);
+  invalidateFinancialTransactionData(queryClient, accountIds);
+  invalidateInsightsMerchants(queryClient);
+}
+
+/**
+ * Deletes transactions and refreshes all aggregate views affected by removed activity, holding the
+ * cache removal for the caller when deferRemoval is set so the row stays until the modal dismisses
+ */
+export function useDeleteTransaction({
+  minimumPendingMs = 0,
+  deferRemoval = false,
+}: { minimumPendingMs?: number; deferRemoval?: boolean } = {}) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) =>
@@ -131,11 +160,9 @@ export function useDeleteTransaction({ minimumPendingMs = 0 }: { minimumPendingM
     onMutate: (id) => ({
       deletedTransaction: findCachedTransaction(queryClient, id),
     }),
-    onSuccess: (_data, _id, context) => {
-      const accountIds = uniqueIds([context?.deletedTransaction?.account_id]);
-      invalidateTransactions(queryClient);
-      invalidateFinancialTransactionData(queryClient, accountIds);
-      invalidateInsightsMerchants(queryClient);
+    onSuccess: (_data, id, context) => {
+      if (deferRemoval) return;
+      applyTransactionDeletion(queryClient, id, context?.deletedTransaction?.account_id);
     },
   });
 }
