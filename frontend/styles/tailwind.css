@@ -188,12 +188,20 @@
   .app-nav-brand-logo {
     width: 2.5rem;
     height: 2.5rem;
+    transition: width 0.28s ease, height 0.28s ease, margin-left 0.28s ease;
   }
 
   /* At full width the logo reads as the sidebar header, so it grows back to its original size and its
-     lead is freed from the rail width the collapsed icons share so the larger mark clears the wordmark */
+     lead widens past the rail width the collapsed icons share so the larger mark clears the wordmark.
+     The lead width and logo size ease on the same timing as the collapsing labels so the resize
+     animates with the sidebar rather than snapping, which also rules out width auto since it cannot be
+     transitioned */
+  .app-desktop-nav .app-nav-lead:has(.app-nav-brand-logo) {
+    transition: width 0.28s ease;
+  }
+
   .app-desktop-nav:not(.app-desktop-nav-collapsed) .app-nav-lead:has(.app-nav-brand-logo) {
-    width: auto;
+    width: 3.75rem;
   }
 
   .app-desktop-nav:not(.app-desktop-nav-collapsed) .app-nav-brand-logo {
