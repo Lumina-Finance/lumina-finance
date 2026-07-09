@@ -1,4 +1,5 @@
 import type { BudgetEditorModalErrorGetter, BudgetEditorModalFieldIds, BudgetEditorModalHandlers, BudgetEditorModalViewState } from '@/pages/budgets/components/budget-editor-modal/types'
+import DateField from '@/components/date-field/DateField'
 import BudgetEditorFieldLabelRow from '@/pages/budgets/components/shared/EditorFieldLabelRow'
 import { RECURRENCE_OPTIONS } from '@/pages/budgets/constants'
 import { cadenceSummary } from '@/pages/budgets/utils/budgetPeriods'
@@ -107,15 +108,14 @@ export default function BudgetEditorModalCadenceSection({
 
           <div className={`min-w-0 ${recurrenceControlsLocked ? 'opacity-60' : ''}`}>
             <BudgetEditorFieldLabelRow htmlFor={ids.periodStart} label={periodStartLabel} error={showError('periodStart')} />
-            <input
+            <DateField
               id={ids.periodStart}
-              className={`app-input disabled:cursor-not-allowed ${showError('periodStart') ? 'app-input-error' : ''}`}
-              type="date"
+              ariaLabel={periodStartLabel}
               value={form.periodStart}
-              onChange={(event) => setField('periodStart', event.target.value)}
-              onBlur={() => onBlur('periodStart')}
+              error={!!showError('periodStart')}
               disabled={recurrenceControlsLocked}
-              readOnly={recurrenceControlsLocked}
+              onChange={(nextValue) => setField('periodStart', nextValue)}
+              onBlur={() => onBlur('periodStart')}
             />
           </div>
         </div>

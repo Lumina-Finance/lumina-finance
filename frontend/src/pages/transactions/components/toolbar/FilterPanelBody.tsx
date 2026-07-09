@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import { Calendar, Check, ChevronDown, X } from 'lucide-react'
+import { Check, ChevronDown, X } from 'lucide-react'
+import DateField from '@/components/date-field/DateField'
 import type { OptionItem } from '@/components/filters/OptionList'
 import { MultiSelectChecklist } from '@/components/filters/MultiSelectChecklist'
 import { getFilterOptionStyle } from '@/components/filters/optionAppearance'
@@ -310,9 +311,7 @@ function FacetCountBadge({ count }: { count: number }) {
 }
 
 /**
- * Renders one labelled date field with an overlaid calendar glyph. The iOS picker's Clear button
- * empties the value without firing any input or change event, so the value is also synced on blur
- * when the picker dismisses, which is the one signal that fires after a clear
+ * Renders one labelled date filter field backed by the shared segmented date control
  */
 function DateFacetInput({
   label,
@@ -323,50 +322,11 @@ function DateFacetInput({
   value: string
   onValueChange: (value: string) => void
 }) {
-  const inputRef = useRef<HTMLInputElement>(null)
-  // Holds the latest callback so the native listeners stay bound once while still seeing fresh state
-  const onValueChangeRef = useRef(onValueChange)
-
-  useEffect(() => {
-    onValueChangeRef.current = onValueChange
-  })
-
-  useEffect(() => {
-    const input = inputRef.current
-    if (!input) return undefined
-
-    const syncValue = () => onValueChangeRef.current(input.value)
-    input.addEventListener('change', syncValue)
-    input.addEventListener('blur', syncValue)
-    return () => {
-      input.removeEventListener('change', syncValue)
-      input.removeEventListener('blur', syncValue)
-    }
-  }, [])
-
   return (
-    <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs" style={{ color: 'var(--app-text-muted)' }}>
+    <div className="flex min-w-0 flex-1 flex-col gap-1 text-xs" style={{ color: 'var(--app-text-muted)' }}>
       {label}
-      <div className="relative">
-        <input
-          ref={inputRef}
-          type="date"
-          className="app-input app-date-input-balanced pr-9"
-          value={value}
-          onChange={(event) => onValueChange(event.target.value)}
-        />
-        <button
-          type="button"
-          aria-label="Open calendar"
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={() => inputRef.current?.showPicker?.()}
-          className="app-date-overlay-icon absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer border-0 bg-transparent p-0"
-          style={{ color: 'var(--app-text-subtle)' }}
-        >
-          <Calendar size={15} aria-hidden className="block" />
-        </button>
-      </div>
-    </label>
+      <DateField ariaLabel={label} value={value} onChange={onValueChange} />
+    </div>
   )
 }
 

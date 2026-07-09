@@ -428,60 +428,6 @@
     color: var(--app-text-subtle);
   }
 
-  .app-input[type="date"] {
-    -webkit-appearance: none;
-    appearance: none;
-    max-width: 100%;
-  }
-
-  .app-input[type="date"]::-webkit-date-and-time-value {
-    min-width: 0;
-    text-align: left;
-  }
-
-  /* WebKit top-aligns the date text once the native appearance is stripped, while Firefox already
-     centres it. The datetime-edit selector guard keeps this WebKit only so the Firefox rendering
-     stays untouched. The host flexes so the edit region stretches to the full field height, then the
-     edit region centres its own fields, since aligning on the host alone still leaves Chrome biased
-     toward the top */
-  @supports selector(::-webkit-datetime-edit) {
-    .app-input[type="date"] {
-      display: inline-flex;
-    }
-
-    .app-input[type="date"]::-webkit-datetime-edit {
-      display: flex;
-      align-items: center;
-      padding: 0;
-    }
-  }
-
-  .app-date-input-balanced {
-    padding-left: 0.75rem;
-    padding-right: 0.75rem;
-  }
-
-  /* The overlaid calendar button opens the picker through showPicker, which is the one trigger that
-     fires reliably in Chrome, so the native WebKit indicator is hidden to avoid a second glyph while
-     the date segments stay directly editable */
-  .app-date-input-balanced[type="date"]::-webkit-calendar-picker-indicator {
-    display: none;
-  }
-
-  /* Firefox keeps its own native calendar button and ignores the WebKit indicator rules above, so
-     the overlaid glyph would double it. Hide the overlay in Firefox and let the native button stand.
-     The right padding only exists to clear the WebKit overlay, so it is dropped here to keep the
-     native button against the right edge instead of leaving a wide gap beside it */
-  @supports (-moz-appearance: none) {
-    .app-date-overlay-icon {
-      display: none;
-    }
-
-    .app-date-input-balanced[type="date"] {
-      padding-right: 0.75rem !important;
-    }
-  }
-
   .app-input:hover {
     border-color: var(--app-border-strong);
     background: var(--app-input-bg);
@@ -503,6 +449,66 @@
     border-color: var(--app-negative-border);
     background: var(--app-negative-soft);
     box-shadow: 0 0 0 2px var(--app-negative-soft);
+  }
+
+  /* The segmented date control mirrors app-input as a flex row so the year, month, and day inputs sit
+     inside one field frame, with focus-within standing in for the input focus ring */
+  .app-date-field {
+    @apply flex h-10 min-w-0 w-full items-center rounded-lg border px-4 py-0 transition-colors duration-200;
+    font-size: 0.9375rem;
+    background: var(--app-input-bg);
+    border-color: var(--app-input-border);
+    color: var(--app-text);
+  }
+
+  .app-date-field:hover {
+    border-color: var(--app-border-strong);
+  }
+
+  .app-date-field:focus-within {
+    border-color: var(--app-accent-border);
+    box-shadow: 0 0 0 2px var(--app-accent-soft);
+  }
+
+  .app-date-field.app-input-error {
+    border-color: var(--app-negative-border);
+    background: var(--app-negative-soft);
+  }
+
+  .app-date-field.app-input-error:focus-within {
+    box-shadow: 0 0 0 2px var(--app-negative-soft);
+  }
+
+  .app-date-field-segment {
+    @apply border-0 bg-transparent p-0 text-center outline-none tabular-nums;
+    color: var(--app-text);
+  }
+
+  .app-date-field-segment::placeholder {
+    color: var(--app-text-subtle);
+  }
+
+  .app-calendar-day {
+    @apply flex h-8 w-full items-center justify-center rounded-md text-sm tabular-nums transition-colors duration-100;
+    color: var(--app-text);
+  }
+
+  .app-calendar-day:hover {
+    background: var(--app-surface-soft);
+  }
+
+  .app-calendar-day[data-outside] {
+    color: var(--app-text-subtle);
+  }
+
+  .app-calendar-day[data-today] {
+    font-weight: 600;
+    box-shadow: inset 0 0 0 1px var(--app-border-strong);
+  }
+
+  .app-calendar-day[data-selected] {
+    background: var(--app-button-primary-bg);
+    color: var(--app-button-primary-text);
   }
 
   .app-runway-threshold-input {
