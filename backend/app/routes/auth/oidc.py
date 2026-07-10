@@ -13,11 +13,17 @@ from app.models.oidc import OidcIdentity, OidcProvider
 from app.models.user import User
 from app.routes.auth.cookie_helpers import (
     OIDC_BINDING_COOKIE_KEY,
+    OIDC_REAUTH_STEPUP_COOKIE_KEY,
     clear_oidc_login_binding_cookie,
+    clear_oidc_reauth_stepup_cookie,
     set_oidc_login_binding_cookie,
-    set_set_password_authz_cookie,
+    set_oidc_reauth_stepup_cookie,
 )
-from app.routes.auth.token_helpers import decode_oidc_onboarding_token, issue_and_store_tokens
+from app.routes.auth.token_helpers import (
+    decode_oidc_onboarding_token,
+    issue_and_store_tokens,
+    verify_reauth_stepup_proof,
+)
 from app.schemas.auth import (
     AuthResponse,
     OidcAuthorizeResponse,
@@ -41,7 +47,7 @@ from app.services.auth import (
     complete_oidc_sign_in,
     complete_oidc_signup,
     create_oidc_onboarding_token,
-    create_set_password_authz_token,
+    create_oidc_reauth_stepup_token,
     get_enabled_oidc_provider_by_slug,
     is_oidc_provider_linked,
     list_enabled_oidc_providers,
@@ -64,6 +70,40 @@ def _build_identity_summary(identity: OidcIdentity, provider: OidcProvider) -> O
         created_at=identity.created_at,
         last_login_at=identity.last_login_at,
     )
+
+
+async def _authorize_provider_management(
+    db: AsyncSession,
+    user: User,
+    response: Response,
+    step_up: StepUpRequest | None,
+    reauth_stepup_proof: str | None,
+) -> None:
+    """Authorize linking or unlinking a provider via password step-up or a fresh reauth proof
+
+    An account with a password steps up with it. A passwordless account has none, so it presents the
+    proof a fresh provider reauth minted instead. The proof is single use, so it is cleared here
+    whatever the outcome
+
+    Args:
+        db: Active database session
+        user: Authenticated user performing the action
+        response: FastAPI response object for clearing a spent proof cookie
+        step_up: Password and current factor, sent by an account that has a password
+        reauth_stepup_proof: Proof cookie, sent by a passwordless account after a reauth
+
+    Raises:
+        HTTPException: Neither authorization is present or valid
+    """
+    if reauth_stepup_proof is not None:
+        clear_oidc_reauth_stepup_cookie(response)
+        verify_reauth_stepup_proof(user.id, reauth_stepup_proof)
+        return
+
+    if step_up is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Reauthentication required")
+
+    await verify_sensitive_action_step_up(db, user, step_up.password, code=step_up.code, passkey=step_up.passkey)
 
 
 @router.get("/providers", response_model=OidcProvidersResponse)
@@ -227,20 +267,25 @@ async def list_oidc_identities_route(
 @router.post("/{slug}/link", response_model=OidcAuthorizeResponse)
 async def link_oidc_route(
     slug: str,
-    data: StepUpRequest,
+    response: Response,
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
+    data: StepUpRequest | None = None,
+    oidc_reauth_stepup: Annotated[str | None, Cookie(alias=OIDC_REAUTH_STEPUP_COOKIE_KEY)] = None,
 ):
     """Reauthorize, then start linking a provider to the signed-in account
 
-    The step-up runs before the roundtrip is stored, so the browser is never sent to the
-    provider until the current password, and factor when one is enrolled, have verified
+    The step-up runs before the roundtrip is stored, so the browser is never sent to the provider
+    until it is authorized. An account with a password steps up with it. A passwordless account
+    instead presents the proof from a fresh provider reauth, since it has none
 
     Args:
         slug: Provider being linked
-        data: Password and a current second factor when one is enrolled
+        response: FastAPI response object for clearing a spent proof cookie
         user: Authenticated user resolved from the access token
         db: Active database session
+        data: Password and a current factor, for an account that has a password
+        oidc_reauth_stepup: Reauth proof cookie, for a passwordless account
 
     Returns:
         The provider's authorization URL bound to a stored single-use link roundtrip
@@ -252,7 +297,7 @@ async def link_oidc_route(
     if provider is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown sign-in provider")
 
-    await verify_sensitive_action_step_up(db, user, data.password, code=data.code, passkey=data.passkey)
+    await _authorize_provider_management(db, user, response, data, oidc_reauth_stepup)
     authorization_url = await begin_oidc_link(db, user, provider)
     return OidcAuthorizeResponse(authorization_url=authorization_url)
 
@@ -287,11 +332,11 @@ async def reauth_oidc_route(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Start a provider reauth so a passwordless account can authorize setting its first password
+    """Start a provider reauth so a passwordless account can authorize a sensitive provider action
 
-    Only an account with no password uses this, since an account with a password steps up with it
-    instead. The chosen provider must already be linked, so the reauth re-proves an identity the
-    account owns
+    This arms the step-up a passwordless account uses to set a first password or manage its linked
+    providers, since it has no password to step up with. The chosen provider must already be linked,
+    so the reauth re-proves an identity the account owns
 
     Args:
         data: The linked provider slug to re-authenticate through
@@ -323,10 +368,10 @@ async def oidc_reauth_callback_route(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Finish a provider reauth and hand back a short-lived set-password authorization
+    """Finish a provider reauth and hand back a short-lived step-up authorization
 
-    The authorization rides in an httpOnly cookie so the set-password request that follows proves a
-    fresh re-authentication rather than just a live session
+    The authorization rides in an httpOnly cookie so the sensitive request that follows, setting a
+    password or managing providers, proves a fresh re-authentication rather than just a live session
 
     Args:
         data: Code and state the provider sent to the callback page
@@ -340,29 +385,37 @@ async def oidc_reauth_callback_route(
             linked to this account
     """
     await complete_oidc_reauth(db, user, data.code, data.state)
-    set_set_password_authz_cookie(request, response, create_set_password_authz_token(user.id))
+    set_oidc_reauth_stepup_cookie(request, response, create_oidc_reauth_stepup_token(user.id))
 
 
 @router.post("/identities/{identity_id}/remove", status_code=status.HTTP_204_NO_CONTENT)
 async def remove_oidc_identity_route(
     identity_id: uuid.UUID,
-    data: StepUpRequest,
+    response: Response,
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
+    data: StepUpRequest | None = None,
+    oidc_reauth_stepup: Annotated[str | None, Cookie(alias=OIDC_REAUTH_STEPUP_COOKIE_KEY)] = None,
 ):
-    """Remove a linked provider after step-up reauthentication
+    """Remove a linked provider after step-up
+
+    An account with a password steps up with it. A passwordless account instead presents the proof
+    from a fresh provider reauth. Removal is refused when it would leave no way to sign in
 
     Args:
         identity_id: Identity row being removed
-        data: Password and a current second factor when one is enrolled
+        response: FastAPI response object for clearing a spent proof cookie
         user: Authenticated user resolved from the access token
         db: Active database session
+        data: Password and a current factor, for an account that has a password
+        oidc_reauth_stepup: Reauth proof cookie, for a passwordless account
 
     Raises:
         HTTPException: The step-up fails, the identity is not the user's, or removing it
             would leave the account with no way to sign in
     """
-    await unlink_oidc_identity(db, user, identity_id, data.password, code=data.code, passkey=data.passkey)
+    await _authorize_provider_management(db, user, response, data, oidc_reauth_stepup)
+    await unlink_oidc_identity(db, user, identity_id)
 
 
 def _decode_onboarding_claims(onboarding_token: str) -> OidcOnboardingClaims:

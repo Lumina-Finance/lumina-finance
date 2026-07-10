@@ -288,7 +288,7 @@ OIDC_ONBOARDING_TOKEN_EXPIRE_SECONDS = int(os.getenv("OIDC_ONBOARDING_TOKEN_EXPI
 
 # The set-password authorization bridges a provider reauth and the password submit that follows,
 # kept short since it is spent on the request right after re-authentication
-SET_PASSWORD_AUTHZ_TOKEN_EXPIRE_SECONDS = int(os.getenv("SET_PASSWORD_AUTHZ_TOKEN_EXPIRE_SECONDS", "300"))
+OIDC_REAUTH_STEPUP_TOKEN_EXPIRE_SECONDS = int(os.getenv("OIDC_REAUTH_STEPUP_TOKEN_EXPIRE_SECONDS", "300"))
 
 # A reauth step-up must prove the provider authenticated the user this recently, so a silently reused
 # provider session cannot stand in for a fresh re-authentication when a passwordless account sets its

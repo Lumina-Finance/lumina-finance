@@ -34,7 +34,6 @@ from app.services.auth.oidc_client import (
 )
 from app.services.auth.oidc_providers import get_enabled_oidc_provider_by_id
 from app.services.auth.signup import reject_missing_base_currency, reject_registered_email
-from app.services.auth.step_up import verify_sensitive_action_step_up
 from app.services.auth.token_hashing import hash_token
 from app.services.auth.user_lookup import find_user_id_by_email
 from app.services.auth.webauthn import is_passkey_registered
@@ -417,9 +416,10 @@ async def is_oidc_provider_linked(db: AsyncSession, user: User, provider_id: uui
 async def begin_oidc_reauth(db: AsyncSession, user: User, provider: OidcProvider) -> str:
     """Start a roundtrip that re-verifies a signed-in account through one of its linked providers
 
-    This is the step-up an account with no password uses to authorize setting its first one. The
-    provider is asked to reauthenticate through prompt=login, and the returning token's auth_time is
-    checked against a freshness window so a silently reused provider session cannot stand in
+    This is the step-up an account with no password uses to authorize a sensitive provider action,
+    such as setting a first password or managing linked providers. The provider is asked to
+    reauthenticate through prompt=login, and the returning token's auth_time is checked against a
+    freshness window so a silently reused provider session cannot stand in
 
     Args:
         db: Active database session
@@ -562,35 +562,21 @@ async def list_oidc_identities(db: AsyncSession, user: User) -> list[tuple[OidcI
     return list(result.tuples().all())
 
 
-async def unlink_oidc_identity(
-    db: AsyncSession,
-    user: User,
-    identity_id: uuid.UUID,
-    password: str,
-    *,
-    code: str | None = None,
-    passkey: dict | None = None,
-) -> None:
-    """Remove a linked provider after step-up, refusing to strand the account
+async def unlink_oidc_identity(db: AsyncSession, user: User, identity_id: uuid.UUID) -> None:
+    """Remove a linked provider, refusing to strand the account
 
-    Step-up runs first, the full password plus factor when one is enrolled and the
-    password alone otherwise. The unlink is refused when no way to sign in would remain:
+    The caller authorizes the removal first. It is refused when no way to sign in would remain:
     no password, no passkey, and no other linked provider
 
     Args:
         db: Active database session
         user: Authenticated user removing the link
         identity_id: Identity row being removed
-        password: Account password
-        code: A current TOTP code, when stepping up by authenticator
-        passkey: A passkey assertion, when stepping up by passkey
 
     Raises:
-        HTTPException: The step-up fails, the identity is not the user's, or removing it
-            would leave the account with no way to sign in
+        HTTPException: The identity is not the user's, or removing it would leave the account with no
+            way to sign in
     """
-    await verify_sensitive_action_step_up(db, user, password, code=code, passkey=passkey)
-
     identity = await db.get(OidcIdentity, identity_id)
     if identity is None or identity.user_id != user.id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Linked sign-in not found")

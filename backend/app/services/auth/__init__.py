@@ -34,8 +34,8 @@ from app.services.auth.step_up import authorize_factor_addition
 from app.services.auth.tokens import (
     create_access_token,
     create_oidc_onboarding_token,
+    create_oidc_reauth_stepup_token,
     create_refresh_token,
-    create_set_password_authz_token,
 )
 from app.services.auth.totp import begin_totp_setup, is_totp_enabled
 from app.services.auth.two_factor import (
@@ -88,8 +88,8 @@ __all__ = [
     "confirm_totp_enrollment",
     "create_access_token",
     "create_oidc_onboarding_token",
+    "create_oidc_reauth_stepup_token",
     "create_refresh_token",
-    "create_set_password_authz_token",
     "delete_expired_auth_sessions",
     "delete_expired_auth_tokens",
     "disable_two_factor",

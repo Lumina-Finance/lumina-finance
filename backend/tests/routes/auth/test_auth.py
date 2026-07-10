@@ -888,10 +888,10 @@ async def test_set_password_grant_rejected_as_access_token(client):
     The grant is a genuine, correctly signed token, so only its distinct audience stops it standing in
     for an access token at the bearer check
     """
-    from app.services.auth.tokens import create_set_password_authz_token
+    from app.services.auth.tokens import create_oidc_reauth_stepup_token
 
     await _create_user(client)
-    grant = create_set_password_authz_token(uuid4())
+    grant = create_oidc_reauth_stepup_token(uuid4())
 
     resp = await client.get("/test/me", headers={"Authorization": f"Bearer {grant}"})
 

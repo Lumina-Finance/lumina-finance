@@ -796,6 +796,14 @@ async def _start_reauth(client, auth, slug: str = "test-idp") -> str:
     return params["state"][0]
 
 
+async def _arm_reauth_proof(client, auth, provider_protocol):
+    """Reauth through the linked provider so the client holds a fresh step-up proof cookie"""
+    state = await _start_reauth(client, auth)
+    provider_protocol["claims"] = _claims()
+    resp = await client.post("/auth/oidc/reauth/callback", headers=auth, json={"code": "any", "state": state})
+    assert resp.status_code == 204
+
+
 async def test_reauth_forces_reprompt_for_passwordless_account(client, provider_protocol):
     """A passwordless account can start a reauth against its linked provider with prompt=login"""
     await _seed_currency()
@@ -851,6 +859,104 @@ async def test_login_state_cannot_complete_reauth(client, provider_protocol):
     resp = await client.post(
         "/auth/oidc/reauth/callback", headers=auth, json={"code": "any", "state": login_state}
     )
+
+    assert resp.status_code == 401
+
+
+async def test_passwordless_account_links_provider_after_reauth(client, provider_protocol):
+    """A passwordless account links a new provider by stepping up with a linked one"""
+    await _seed_currency()
+    await _seed_provider()
+    await _seed_provider(slug="other-idp")
+    auth, _ = await _create_passwordless_user(client, provider_protocol)
+
+    await _arm_reauth_proof(client, auth, provider_protocol)
+    begun = await client.post("/auth/oidc/other-idp/link", headers=auth)
+    assert begun.status_code == 200
+
+    # The reauth proof authorized the link, so the roundtrip to the new provider completes it
+    state = parse_qs(urlparse(begun.json()["authorization_url"]).query)["state"][0]
+    provider_protocol["claims"] = _claims(sub="subject-2")
+    linked = await client.post("/auth/oidc/link/callback", headers=auth, json={"code": "any", "state": state})
+    assert linked.status_code == 200
+    assert linked.json()["provider_slug"] == "other-idp"
+
+
+async def test_passwordless_link_without_reauth_is_rejected(client, provider_protocol):
+    """A passwordless account cannot link a provider without a fresh reauth proof"""
+    await _seed_currency()
+    await _seed_provider()
+    await _seed_provider(slug="other-idp")
+    auth, _ = await _create_passwordless_user(client, provider_protocol)
+
+    resp = await client.post("/auth/oidc/other-idp/link", headers=auth)
+
+    assert resp.status_code == 401
+
+
+async def test_passwordless_account_unlinks_provider_after_reauth(client, provider_protocol):
+    """A passwordless account removes a linked provider by stepping up with another"""
+    await _seed_currency()
+    await _seed_provider()
+    other = await _seed_provider(slug="other-idp")
+    auth, user_id = await _create_passwordless_user(client, provider_protocol)
+
+    # A second linked provider means removing one does not strand the account
+    other_identity_id = uuid.uuid4()
+    async with TestSession() as session:
+        session.add(
+            OidcIdentity(
+                id=other_identity_id,
+                user_id=uuid.UUID(user_id),
+                provider_id=other.id,
+                subject="subject-2",
+                email="sso-user@example.com",
+            )
+        )
+        await session.commit()
+
+    await _arm_reauth_proof(client, auth, provider_protocol)
+    resp = await client.post(f"/auth/oidc/identities/{other_identity_id}/remove", headers=auth)
+
+    assert resp.status_code == 204
+    async with TestSession() as session:
+        remaining = (
+            await session.execute(select(OidcIdentity).where(OidcIdentity.user_id == uuid.UUID(user_id)))
+        ).scalars().all()
+    assert len(remaining) == 1
+
+
+async def test_passwordless_unlink_last_provider_is_refused(client, provider_protocol):
+    """Removing the only provider from a passwordless account is refused to avoid a lockout"""
+    await _seed_currency()
+    await _seed_provider()
+    auth, user_id = await _create_passwordless_user(client, provider_protocol)
+
+    async with TestSession() as session:
+        identity = (
+            await session.execute(select(OidcIdentity).where(OidcIdentity.user_id == uuid.UUID(user_id)))
+        ).scalar_one()
+        identity_id = identity.id
+
+    await _arm_reauth_proof(client, auth, provider_protocol)
+    resp = await client.post(f"/auth/oidc/identities/{identity_id}/remove", headers=auth)
+
+    assert resp.status_code == 409
+
+
+async def test_passwordless_unlink_without_reauth_is_rejected(client, provider_protocol):
+    """A passwordless account cannot remove a provider without a fresh reauth proof"""
+    await _seed_currency()
+    await _seed_provider()
+    auth, user_id = await _create_passwordless_user(client, provider_protocol)
+
+    async with TestSession() as session:
+        identity = (
+            await session.execute(select(OidcIdentity).where(OidcIdentity.user_id == uuid.UUID(user_id)))
+        ).scalar_one()
+        identity_id = identity.id
+
+    resp = await client.post(f"/auth/oidc/identities/{identity_id}/remove", headers=auth)
 
     assert resp.status_code == 401
 

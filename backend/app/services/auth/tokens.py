@@ -15,7 +15,7 @@ from app.config import (
     JWT_REFRESH_TOKEN_EXPIRE_SECONDS,
     MFA_CHALLENGE_TOKEN_EXPIRE_SECONDS,
     OIDC_ONBOARDING_TOKEN_EXPIRE_SECONDS,
-    SET_PASSWORD_AUTHZ_TOKEN_EXPIRE_SECONDS,
+    OIDC_REAUTH_STEPUP_TOKEN_EXPIRE_SECONDS,
 )
 from app.models.base import AuthTokenKind
 
@@ -26,7 +26,7 @@ MFA_CHALLENGE_TOKEN_USE = "mfa_challenge"  # noqa: S105 — token use claim, not
 OIDC_ONBOARDING_TOKEN_USE = "oidc_onboarding"  # noqa: S105 - token use claim, not a secret
 
 # Token use claim authorizing a first password after an OIDC reauth
-SET_PASSWORD_AUTHZ_TOKEN_USE = "set_password_authz"  # noqa: S105 - token use claim, not a secret
+OIDC_REAUTH_STEPUP_TOKEN_USE = "oidc_reauth_stepup"  # noqa: S105 - token use claim, not a secret
 
 
 def create_access_token(user_id: uuid.UUID, session_id: uuid.UUID) -> tuple[str, uuid.UUID, datetime]:
@@ -134,17 +134,18 @@ def create_oidc_onboarding_token(
     return jwt.encode(payload, JWT_ACCESS_PRIVATE_KEY, algorithm=JWT_ALGORITHM, headers={"kid": JWT_ACCESS_KID})
 
 
-def create_set_password_authz_token(user_id: uuid.UUID) -> str:
-    """Create a short-lived token authorizing an account to set its first password
+def create_oidc_reauth_stepup_token(user_id: uuid.UUID) -> str:
+    """Create a short-lived token authorizing a sensitive action for a passwordless account
 
-    Issued only after a provider reauth, it bridges that step-up and the password submit that
-    follows, so the submit proves a fresh re-authentication rather than just a live session
+    Issued only after a provider reauth, it bridges that step-up and the request that follows,
+    setting a first password or managing providers, so the request proves a fresh re-authentication
+    rather than just a live session
 
     Args:
         user_id: Account the reauth verified
 
     Returns:
-        Encoded JWT for the set-password step
+        Encoded JWT for the reauth step-up
     """
     issued_at = datetime.now(UTC)
 
@@ -152,10 +153,10 @@ def create_set_password_authz_token(user_id: uuid.UUID) -> str:
     # access token presented in its place
     payload = {
         "sub": str(user_id),
-        "token_use": SET_PASSWORD_AUTHZ_TOKEN_USE,
-        "aud": SET_PASSWORD_AUTHZ_TOKEN_USE,
+        "token_use": OIDC_REAUTH_STEPUP_TOKEN_USE,
+        "aud": OIDC_REAUTH_STEPUP_TOKEN_USE,
         "iat": issued_at,
-        "exp": issued_at + timedelta(seconds=SET_PASSWORD_AUTHZ_TOKEN_EXPIRE_SECONDS),
+        "exp": issued_at + timedelta(seconds=OIDC_REAUTH_STEPUP_TOKEN_EXPIRE_SECONDS),
         "iss": JWT_ISSUER,
     }
     return jwt.encode(payload, JWT_ACCESS_PRIVATE_KEY, algorithm=JWT_ALGORITHM, headers={"kid": JWT_ACCESS_KID})

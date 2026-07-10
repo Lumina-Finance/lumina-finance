@@ -5,7 +5,7 @@ from fastapi import Request, Response
 from app.config import (
     JWT_REFRESH_TOKEN_EXPIRE_SECONDS,
     OIDC_AUTHORIZATION_REQUEST_EXPIRE_SECONDS,
-    SET_PASSWORD_AUTHZ_TOKEN_EXPIRE_SECONDS,
+    OIDC_REAUTH_STEPUP_TOKEN_EXPIRE_SECONDS,
 )
 from app.request_security import request_is_https
 
@@ -19,11 +19,11 @@ OIDC_BINDING_COOKIE_KEY = "oidc_login_binding"
 _OIDC_BINDING_COOKIE_PATH = "/"
 _OIDC_BINDING_COOKIE_MAX_AGE = OIDC_AUTHORIZATION_REQUEST_EXPIRE_SECONDS
 
-# The set-password authorization is held in an httpOnly cookie so script cannot read it, and it
-# lives exactly as long as the token it carries
-SET_PASSWORD_AUTHZ_COOKIE_KEY = "set_password_authz"  # noqa: S105 - cookie name, not a secret
-_SET_PASSWORD_AUTHZ_COOKIE_PATH = "/"  # noqa: S105 - cookie path, not a secret
-_SET_PASSWORD_AUTHZ_COOKIE_MAX_AGE = SET_PASSWORD_AUTHZ_TOKEN_EXPIRE_SECONDS
+# The reauth step-up proof is held in an httpOnly cookie so script cannot read it, and it lives
+# exactly as long as the token it carries
+OIDC_REAUTH_STEPUP_COOKIE_KEY = "oidc_reauth_stepup"
+_OIDC_REAUTH_STEPUP_COOKIE_PATH = "/"
+_OIDC_REAUTH_STEPUP_COOKIE_MAX_AGE = OIDC_REAUTH_STEPUP_TOKEN_EXPIRE_SECONDS
 
 
 def set_refresh_cookie(request: Request, response: Response, token: str) -> None:
@@ -85,32 +85,33 @@ def clear_oidc_login_binding_cookie(response: Response) -> None:
     response.delete_cookie(key=OIDC_BINDING_COOKIE_KEY, path=_OIDC_BINDING_COOKIE_PATH)
 
 
-def set_set_password_authz_cookie(request: Request, response: Response, authz_token: str) -> None:
-    """Set the set-password authorization as an httpOnly cookie on the response
+def set_oidc_reauth_stepup_cookie(request: Request, response: Response, stepup_token: str) -> None:
+    """Set the reauth step-up proof as an httpOnly cookie on the response
 
-    The set-password request must present this token back, so a first password can only be set
-    right after a fresh provider reauth rather than from a live session alone
+    A sensitive request must present this proof back, so a passwordless account can only set a
+    password or manage providers right after a fresh provider reauth rather than from a live session
+    alone
 
     Args:
         request: FastAPI request object
         response: FastAPI response object
-        authz_token: Signed authorization token minted after the reauth
+        stepup_token: Signed step-up token minted after the reauth
     """
     response.set_cookie(
-        key=SET_PASSWORD_AUTHZ_COOKIE_KEY,
-        value=authz_token,
+        key=OIDC_REAUTH_STEPUP_COOKIE_KEY,
+        value=stepup_token,
         httponly=True,
         secure=request_is_https(request),
         samesite="lax",
-        max_age=_SET_PASSWORD_AUTHZ_COOKIE_MAX_AGE,
-        path=_SET_PASSWORD_AUTHZ_COOKIE_PATH,
+        max_age=_OIDC_REAUTH_STEPUP_COOKIE_MAX_AGE,
+        path=_OIDC_REAUTH_STEPUP_COOKIE_PATH,
     )
 
 
-def clear_set_password_authz_cookie(response: Response) -> None:
+def clear_oidc_reauth_stepup_cookie(response: Response) -> None:
     """Remove the set-password authorization cookie from the response
 
     Args:
         response: FastAPI response object
     """
-    response.delete_cookie(key=SET_PASSWORD_AUTHZ_COOKIE_KEY, path=_SET_PASSWORD_AUTHZ_COOKIE_PATH)
+    response.delete_cookie(key=OIDC_REAUTH_STEPUP_COOKIE_KEY, path=_OIDC_REAUTH_STEPUP_COOKIE_PATH)

@@ -1,7 +1,6 @@
 """Auth routes"""
 from typing import Annotated
 
-import jwt
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.dependencies import get_authenticated_user, get_current_session_id, get_current_user
 from app.models.user import User
-from app.routes.auth.cookie_helpers import SET_PASSWORD_AUTHZ_COOKIE_KEY, clear_set_password_authz_cookie
+from app.routes.auth.cookie_helpers import OIDC_REAUTH_STEPUP_COOKIE_KEY, clear_oidc_reauth_stepup_cookie
 from app.routes.auth.jwks_helpers import build_jwks_response
 from app.routes.auth.logout_helpers import logout_auth_session
 from app.routes.auth.oidc import router as oidc_router
@@ -17,8 +16,8 @@ from app.routes.auth.passkeys import router as passkeys_router
 from app.routes.auth.refresh_helpers import refresh_auth_tokens
 from app.routes.auth.token_helpers import (
     complete_mfa_challenge,
-    decode_set_password_authz_token,
     issue_and_store_tokens,
+    verify_reauth_stepup_proof,
 )
 from app.schemas.auth import (
     AuthResponse,
@@ -179,7 +178,7 @@ async def set_password_route(
     response: Response,
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
-    set_password_authz: Annotated[str | None, Cookie(alias=SET_PASSWORD_AUTHZ_COOKIE_KEY)] = None,
+    oidc_reauth_stepup: Annotated[str | None, Cookie(alias=OIDC_REAUTH_STEPUP_COOKIE_KEY)] = None,
 ):
     """Set the first password for an account authorized by a provider reauth
 
@@ -191,28 +190,21 @@ async def set_password_route(
         response: FastAPI response object for clearing the authorization cookie
         user: Authenticated user resolved from the access token
         db: Active database session
-        set_password_authz: Authorization token read from the reauth cookie
+        oidc_reauth_stepup: Authorization token read from the reauth cookie
 
     Raises:
         HTTPException: The authorization is missing, invalid, or for another account, or the
             account already has a password
     """
     # The cookie is single use, so clear it whatever the outcome
-    clear_set_password_authz_cookie(response)
+    clear_oidc_reauth_stepup_cookie(response)
 
-    if set_password_authz is None:
+    if oidc_reauth_stepup is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Reauthentication required")
-    try:
-        payload = decode_set_password_authz_token(set_password_authz)
-    except jwt.PyJWTError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Reauthentication required"
-        ) from None
 
-    # The authorization is bound to the account that reauthenticated, so it cannot set a password on
-    # any other account even if the cookie is somehow presented on a different session
-    if payload["sub"] != str(user.id):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Reauthentication required")
+    # The proof is bound to the account that reauthenticated, so it cannot set a password on any other
+    # account even if the cookie is somehow presented on a different session
+    verify_reauth_stepup_proof(user.id, oidc_reauth_stepup)
 
     current_session_id = get_current_session_id()
     await set_first_password(db, user, current_session_id, data.new_password)
