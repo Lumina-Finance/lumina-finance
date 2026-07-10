@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { oidcKeys } from '@/api/cache/queryKeys';
@@ -28,11 +28,19 @@ export function SetPasswordControls() {
     navigate(location.pathname, { replace: true, state: null });
   }, [modalOpen, navigate, location.pathname]);
 
-  const finish = async () => {
-    setModalOpen(false);
+  // Refreshing the identities flips the section to the change-password form, which unmounts the modal,
+  // so a successful set holds that refresh until the modal has finished animating out
+  const refreshAfterExitRef = useRef(false);
 
-    // The account now has a password, so the section flips to the change-password form
-    await queryClient.invalidateQueries({ queryKey: oidcKeys.identities() });
+  const finish = () => {
+    refreshAfterExitRef.current = true;
+    setModalOpen(false);
+  };
+
+  const handleModalExit = () => {
+    if (!refreshAfterExitRef.current) return;
+    refreshAfterExitRef.current = false;
+    void queryClient.invalidateQueries({ queryKey: oidcKeys.identities() });
   };
 
   return (
@@ -58,7 +66,12 @@ export function SetPasswordControls() {
         onClose={reauth.closeChooser}
       />
 
-      <SetPasswordModal open={modalOpen} onClose={() => setModalOpen(false)} onDone={finish} />
+      <SetPasswordModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        onDone={finish}
+        onExitComplete={handleModalExit}
+      />
     </div>
   );
 }
