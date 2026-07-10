@@ -42,6 +42,7 @@ from app.services.auth.sessions import (
 from app.services.auth.tokens import (
     MFA_CHALLENGE_TOKEN_USE,
     OIDC_ONBOARDING_TOKEN_USE,
+    SET_PASSWORD_AUTHZ_TOKEN_USE,
     create_access_token,
     create_refresh_token,
 )
@@ -82,7 +83,13 @@ def decode_refresh_token(refresh_token: str) -> dict[str, Any]:
     Raises:
         PyJWTError: Refresh token cannot be decoded or verified
     """
-    payload = jwt.decode(refresh_token, _refresh_public_key, algorithms=[JWT_ALGORITHM], issuer=JWT_ISSUER)
+    payload = jwt.decode(
+        refresh_token,
+        _refresh_public_key,
+        algorithms=[JWT_ALGORITHM],
+        issuer=JWT_ISSUER,
+        audience=AuthTokenKind.REFRESH.value,
+    )
     _raise_for_token_use(payload, "refresh")
     return payload
 
@@ -99,7 +106,13 @@ def decode_access_token(access_token: str) -> dict[str, Any]:
     Raises:
         PyJWTError: Access token cannot be decoded or verified
     """
-    payload = jwt.decode(access_token, _access_public_key, algorithms=[JWT_ALGORITHM], issuer=JWT_ISSUER)
+    payload = jwt.decode(
+        access_token,
+        _access_public_key,
+        algorithms=[JWT_ALGORITHM],
+        issuer=JWT_ISSUER,
+        audience=AuthTokenKind.ACCESS.value,
+    )
     _raise_for_token_use(payload, "access")
     return payload
 
@@ -116,7 +129,13 @@ def decode_mfa_challenge_token(challenge_token: str) -> dict[str, Any]:
     Raises:
         PyJWTError: Challenge token cannot be decoded or verified
     """
-    payload = jwt.decode(challenge_token, _access_public_key, algorithms=[JWT_ALGORITHM], issuer=JWT_ISSUER)
+    payload = jwt.decode(
+        challenge_token,
+        _access_public_key,
+        algorithms=[JWT_ALGORITHM],
+        issuer=JWT_ISSUER,
+        audience=MFA_CHALLENGE_TOKEN_USE,
+    )
     _raise_for_token_use(payload, MFA_CHALLENGE_TOKEN_USE)
     return payload
 
@@ -133,8 +152,37 @@ def decode_oidc_onboarding_token(onboarding_token: str) -> dict[str, Any]:
     Raises:
         PyJWTError: Onboarding token cannot be decoded or verified
     """
-    payload = jwt.decode(onboarding_token, _access_public_key, algorithms=[JWT_ALGORITHM], issuer=JWT_ISSUER)
+    payload = jwt.decode(
+        onboarding_token,
+        _access_public_key,
+        algorithms=[JWT_ALGORITHM],
+        issuer=JWT_ISSUER,
+        audience=OIDC_ONBOARDING_TOKEN_USE,
+    )
     _raise_for_token_use(payload, OIDC_ONBOARDING_TOKEN_USE)
+    return payload
+
+
+def decode_set_password_authz_token(authz_token: str) -> dict[str, Any]:
+    """Return decoded set-password authorization token claims
+
+    Args:
+        authz_token: Encoded set-password authorization JWT string
+
+    Returns:
+        Decoded authorization token claims
+
+    Raises:
+        PyJWTError: Authorization token cannot be decoded or verified
+    """
+    payload = jwt.decode(
+        authz_token,
+        _access_public_key,
+        algorithms=[JWT_ALGORITHM],
+        issuer=JWT_ISSUER,
+        audience=SET_PASSWORD_AUTHZ_TOKEN_USE,
+    )
+    _raise_for_token_use(payload, SET_PASSWORD_AUTHZ_TOKEN_USE)
     return payload
 
 

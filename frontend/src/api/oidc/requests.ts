@@ -124,3 +124,23 @@ export function removeOidcIdentity(identityId: string, stepUp: StepUpPayload): P
     body: JSON.stringify(stepUp),
   });
 }
+
+/**
+ * Starts a provider reauth so a passwordless account can authorize setting its first password
+ */
+export function beginOidcReauth(slug: string): Promise<OidcAuthorizeResponse> {
+  return authenticatedFetch('/auth/oidc/reauth', {
+    method: 'POST',
+    body: JSON.stringify({ slug }),
+  });
+}
+
+/**
+ * Finishes a provider reauth, arming the httpOnly set-password authorization cookie
+ */
+export function completeOidcReauthCallback(payload: OidcCallbackPayload): Promise<void> {
+  return authenticatedFetch('/auth/oidc/reauth/callback', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}

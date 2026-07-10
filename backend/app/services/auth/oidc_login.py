@@ -7,10 +7,16 @@ from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException, status
 from sqlalchemy import delete, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import func as sa_func
 
-from app.config import APP_URL, OIDC_AUTHORIZATION_REQUEST_EXPIRE_SECONDS
+from app.config import (
+    APP_URL,
+    OIDC_AUTHORIZATION_REQUEST_EXPIRE_SECONDS,
+    OIDC_REAUTH_MAX_AGE_SECONDS,
+    OIDC_REQUIRE_VERIFIED_EMAIL,
+)
 from app.database import current_user_id_ctx
 from app.encryption import decrypt
 from app.models.auth import AuthIdentity
@@ -43,6 +49,7 @@ OIDC_EMAIL_CONFLICT_CODE = "email_already_registered"
 # never complete a login and vice versa
 OIDC_PURPOSE_LOGIN = "login"
 OIDC_PURPOSE_LINK = "link"
+OIDC_PURPOSE_REAUTH = "reauth"
 
 
 @dataclass(frozen=True)
@@ -104,6 +111,8 @@ async def _begin_authorization(
     purpose: str,
     user_id: uuid.UUID | None = None,
     browser_binding_hash: str | None = None,
+    prompt: str | None = None,
+    max_age: int | None = None,
 ) -> str:
     """Store a single-use roundtrip for a purpose and return the provider redirect URL
 
@@ -113,6 +122,9 @@ async def _begin_authorization(
         purpose: Flow the roundtrip is scoped to
         user_id: Signed-in account a link roundtrip was authorized for
         browser_binding_hash: Hash of the login binding secret, set only for a login roundtrip
+        prompt: Optional OpenID prompt forwarded to the provider, "login" asks it to reauthenticate
+        max_age: Optional freshness window forwarded to the provider, set for a reauth so the
+            returning token must prove authentication within it
 
     Returns:
         The provider's authorization URL bound to the stored roundtrip
@@ -149,6 +161,8 @@ async def _begin_authorization(
         state=state,
         nonce=nonce,
         code_challenge=code_challenge,
+        prompt=prompt,
+        max_age=max_age,
     )
 
 
@@ -162,7 +176,7 @@ async def complete_oidc_sign_in(
     stolen state and code cannot complete a login in a browser that never started it.
     Resolution then runs in order: a known provider subject signs in, an email matching an
     existing account is refused so it can be linked from settings under step-up instead,
-    and anything else onboards a new user
+    and an unmatched email onboards a new user
 
     Args:
         db: Active database session
@@ -176,7 +190,7 @@ async def complete_oidc_sign_in(
     Raises:
         HTTPException: The roundtrip is unknown or expired, the binding secret is missing
             or wrong, the provider rejects the exchange, the token does not verify, or the
-            email collides unverified
+            email is missing, unverified when verification is required, or already registered
     """
     request_row = await _consume_authorization_request(db, state, OIDC_PURPOSE_LOGIN)
 
@@ -188,42 +202,14 @@ async def complete_oidc_sign_in(
     if not secrets.compare_digest(expected_binding_hash, hash_token(browser_binding_token)):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Single sign-on failed")
 
-    provider = await get_enabled_oidc_provider_by_id(db, request_row.provider_id)
-    if provider is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Single sign-on failed")
-
-    metadata = await get_provider_metadata(provider.issuer)
-    token_response = await exchange_authorization_code(
-        metadata,
-        client_id=provider.client_id,
-        client_secret=decrypt(provider.client_secret_encrypted),
-        code=code,
-        code_verifier=request_row.code_verifier,
-        redirect_uri=get_oidc_redirect_uri(),
-    )
-    claims = await verify_provider_id_token(
-        token_response["id_token"], metadata, provider.client_id, request_row.nonce
-    )
-
+    provider, claims = await _exchange_and_verify_roundtrip(db, request_row, code)
     subject: str = claims["sub"]
-
-    # A provider that keeps profile claims out of the ID token supplies them at the
-    # userinfo endpoint instead, so only ask when the email is actually missing
-    access_token = token_response.get("access_token")
-    if not claims.get("email") and access_token:
-        userinfo_claims = await fetch_userinfo(metadata, access_token, subject)
-        claims = {**userinfo_claims, **claims}
 
     identity = await _find_identity(db, provider.id, subject)
     if identity is not None:
         return await _sign_in_identity(db, identity)
 
-    email = claims.get("email")
-    if not email:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="Identity provider did not supply an email address",
-        )
+    email = _require_provider_email(claims)
 
     # An email that already belongs to an account is never linked automatically, even when the
     # provider verified it, so a provider sign-in can never join an existing account without the
@@ -235,6 +221,17 @@ async def complete_oidc_sign_in(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail={"code": OIDC_EMAIL_CONFLICT_CODE, "email": email},
+        )
+
+    # Whether an unverified provider email can create an account is an operator policy. Self-hosted
+    # providers hardcode email_verified with no real verification and disagree on the default, so
+    # OIDC_REQUIRE_VERIFIED_EMAIL lets the operator relax it for those. Existing-account takeover is
+    # prevented regardless, since a provider sign-in is never auto-linked by email. The flag is recorded
+    # as the provider stated it either way
+    if OIDC_REQUIRE_VERIFIED_EMAIL and claims.get("email_verified") is not True:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Identity provider did not verify the email address",
         )
 
     return OidcOnboardingClaims(
@@ -255,7 +252,7 @@ async def complete_oidc_signup(
     tz: str,
     base_currency: str,
 ) -> User:
-    """Create the user a verified provider sign-in onboarded, with their chosen profile fields
+    """Create the user a first-time provider sign-in onboarded, with their chosen profile fields
 
     Nothing was persisted when onboarding began, so this recreates every check a signup
     needs before inserting the user, the provider link, and the OIDC auth identity together
@@ -308,20 +305,29 @@ async def complete_oidc_signup(
         base_currency=base_currency,
     )
     db.add(user)
-    await db.flush()
 
-    db.add(_build_oidc_auth_identity(user.id, onboarding.email_verified))
-    db.add(
-        OidcIdentity(
-            user_id=user.id,
-            provider_id=provider.id,
-            subject=onboarding.subject,
-            email=onboarding.email,
-            last_login_at=datetime.now(UTC),
+    # A parallel completion of the same onboarding token can claim the email or provider subject
+    # first, so the unique constraints turn that race into a conflict rather than an unhandled error.
+    # The user is flushed first so its row exists before the identity rows that reference it
+    try:
+        await db.flush()
+        db.add(_build_oidc_auth_identity(user.id, onboarding.email_verified))
+        db.add(
+            OidcIdentity(
+                user_id=user.id,
+                provider_id=provider.id,
+                subject=onboarding.subject,
+                email=onboarding.email,
+                last_login_at=datetime.now(UTC),
+            )
         )
-    )
+        await db.commit()
+    except IntegrityError as error:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Sign-in already linked to an account"
+        ) from error
 
-    await db.commit()
     await db.refresh(user)
     return user
 
@@ -344,6 +350,123 @@ async def begin_oidc_link(db: AsyncSession, user: User, provider: OidcProvider) 
         HTTPException: The provider's discovery document cannot be fetched
     """
     return await _begin_authorization(db, provider, OIDC_PURPOSE_LINK, user_id=user.id)
+
+
+async def _exchange_and_verify_roundtrip(
+    db: AsyncSession, request_row: OidcAuthorizationRequest, code: str, max_age: int | None = None
+) -> tuple[OidcProvider, dict]:
+    """Exchange the code for a token and return the roundtrip's provider with the verified claims
+
+    A provider that keeps the email out of the ID token supplies it at the userinfo endpoint, so
+    userinfo is fetched to fill a missing email since it identifies the account across every flow
+
+    Args:
+        db: Active database session
+        request_row: Consumed roundtrip naming the provider and carrying the nonce and verifier
+        code: Authorization code the provider sent to the callback
+        max_age: Freshness window enforced on the token, set only for a reauth roundtrip
+
+    Returns:
+        The enabled provider and the verified ID token claims, with the email backfilled from
+        userinfo when the token omitted it
+
+    Raises:
+        HTTPException: The provider is gone or disabled, or the exchange or token does not verify
+    """
+    provider = await get_enabled_oidc_provider_by_id(db, request_row.provider_id)
+    if provider is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Single sign-on failed")
+
+    metadata = await get_provider_metadata(provider.issuer)
+    token_response = await exchange_authorization_code(
+        metadata,
+        client_id=provider.client_id,
+        client_secret=decrypt(provider.client_secret_encrypted),
+        code=code,
+        code_verifier=request_row.code_verifier,
+        redirect_uri=get_oidc_redirect_uri(),
+    )
+    claims = await verify_provider_id_token(
+        token_response["id_token"], metadata, provider.client_id, request_row.nonce, max_age=max_age
+    )
+
+    access_token = token_response.get("access_token")
+    if not claims.get("email") and access_token:
+        userinfo_claims = await fetch_userinfo(metadata, access_token, claims["sub"])
+        claims = {**userinfo_claims, **claims}
+    return provider, claims
+
+
+async def is_oidc_provider_linked(db: AsyncSession, user: User, provider_id: uuid.UUID) -> bool:
+    """Return whether the user has a linked identity at the given provider
+
+    Args:
+        db: Active database session
+        user: Authenticated user
+        provider_id: Provider being checked
+
+    Returns:
+        Whether the account can re-authenticate through this provider
+    """
+    linked_query = select(OidcIdentity.id).where(
+        OidcIdentity.user_id == user.id, OidcIdentity.provider_id == provider_id
+    )
+    return (await db.execute(linked_query)).first() is not None
+
+
+async def begin_oidc_reauth(db: AsyncSession, user: User, provider: OidcProvider) -> str:
+    """Start a roundtrip that re-verifies a signed-in account through one of its linked providers
+
+    This is the step-up an account with no password uses to authorize setting its first one. The
+    provider is asked to reauthenticate through prompt=login, and the returning token's auth_time is
+    checked against a freshness window so a silently reused provider session cannot stand in
+
+    Args:
+        db: Active database session
+        user: Authenticated user re-verifying their identity
+        provider: A provider the user has already linked
+
+    Returns:
+        The provider's authorization URL bound to a stored single-use reauth roundtrip
+
+    Raises:
+        HTTPException: The provider's discovery document cannot be fetched
+    """
+    return await _begin_authorization(
+        db, provider, OIDC_PURPOSE_REAUTH, user_id=user.id, prompt="login", max_age=OIDC_REAUTH_MAX_AGE_SECONDS
+    )
+
+
+async def complete_oidc_reauth(db: AsyncSession, user: User, code: str, state: str) -> None:
+    """Finish a reauth roundtrip, confirming the account re-authenticated as itself
+
+    The returning subject must already be linked to this account, so re-authenticating as a
+    different identity at the provider cannot pass the step-up
+
+    Args:
+        db: Active database session
+        user: Authenticated user completing the reauth they started
+        code: Authorization code the provider sent to the callback
+        state: State value the provider echoed back
+
+    Raises:
+        HTTPException: The roundtrip is unknown, expired, or belongs to another account, the
+            exchange or token does not verify, or the identity is not linked to this account
+    """
+    request_row = await _consume_authorization_request(db, state, OIDC_PURPOSE_REAUTH)
+
+    if request_row.user_id != user.id:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Single sign-on failed")
+
+    provider, claims = await _exchange_and_verify_roundtrip(
+        db, request_row, code, max_age=OIDC_REAUTH_MAX_AGE_SECONDS
+    )
+
+    # The step-up only holds if the account re-authenticated as an identity it already owns, so a
+    # different subject at the same provider cannot stand in for the account
+    identity = await _find_identity(db, provider.id, claims["sub"])
+    if identity is None or identity.user_id != user.id:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Single sign-on failed")
 
 
 async def complete_oidc_link(
@@ -371,23 +494,10 @@ async def complete_oidc_link(
     if request_row.user_id != user.id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Single sign-on failed")
 
-    provider = await get_enabled_oidc_provider_by_id(db, request_row.provider_id)
-    if provider is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Single sign-on failed")
-
-    metadata = await get_provider_metadata(provider.issuer)
-    token_response = await exchange_authorization_code(
-        metadata,
-        client_id=provider.client_id,
-        client_secret=decrypt(provider.client_secret_encrypted),
-        code=code,
-        code_verifier=request_row.code_verifier,
-        redirect_uri=get_oidc_redirect_uri(),
-    )
-    claims = await verify_provider_id_token(
-        token_response["id_token"], metadata, provider.client_id, request_row.nonce
-    )
+    provider, claims = await _exchange_and_verify_roundtrip(db, request_row, code)
     subject: str = claims["sub"]
+
+    email = _require_provider_email(claims)
 
     existing_identity = await _find_identity(db, provider.id, subject)
     if existing_identity is not None:
@@ -398,22 +508,34 @@ async def complete_oidc_link(
         )
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=detail)
 
+    # A first link also records OIDC as an auth provider for the account, once across all providers.
+    # The lookup runs before the identity is added so the identity insert is deferred to the commit,
+    # where a parallel link of the same subject is caught as a conflict rather than autoflushing early
+    auth_identity_query = select(AuthIdentity).where(
+        AuthIdentity.user_id == user.id, AuthIdentity.auth_provider == AuthProvider.OIDC
+    )
+    is_first_oidc_link = (await db.execute(auth_identity_query)).scalar_one_or_none() is None
+
     identity = OidcIdentity(
         user_id=user.id,
         provider_id=provider.id,
         subject=subject,
-        email=claims.get("email"),
+        email=email,
     )
     db.add(identity)
-
-    # A first link also records OIDC as an auth provider for the account, once across all providers
-    auth_identity_query = select(AuthIdentity).where(
-        AuthIdentity.user_id == user.id, AuthIdentity.auth_provider == AuthProvider.OIDC
-    )
-    if (await db.execute(auth_identity_query)).scalar_one_or_none() is None:
+    if is_first_oidc_link:
         db.add(_build_oidc_auth_identity(user.id, email_verified=claims.get("email_verified") is True))
 
-    await db.commit()
+    # A parallel link of the same provider subject can insert first, so the unique constraint turns
+    # that race into a conflict rather than an unhandled error
+    try:
+        await db.commit()
+    except IntegrityError as error:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Sign-in already linked to another account"
+        ) from error
+
     await db.refresh(identity)
     return identity, provider
 
@@ -437,7 +559,7 @@ async def list_oidc_identities(db: AsyncSession, user: User) -> list[tuple[OidcI
 
     # List the linked providers the settings page manages
     result = await db.execute(identities_query)
-    return [(identity, provider) for identity, provider in result.all()]
+    return list(result.tuples().all())
 
 
 async def unlink_oidc_identity(
@@ -599,6 +721,30 @@ def _build_oidc_auth_identity(user_id: uuid.UUID, email_verified: bool) -> AuthI
         email_verified=email_verified,
         email_verified_at=datetime.now(UTC) if email_verified else None,
     )
+
+
+def _require_provider_email(claims: dict) -> str:
+    """Return the email a provider asserted, refusing a sign-in that carries none
+
+    The email identifies the account for support and the settings list, and every flow that resolves
+    or creates one needs it, so a provider that supplies none cannot sign in, onboard, or link
+
+    Args:
+        claims: Verified and userinfo claims merged together
+
+    Returns:
+        The asserted email address
+
+    Raises:
+        HTTPException: The provider supplied no email address
+    """
+    email = claims.get("email")
+    if not email:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Identity provider did not supply an email address",
+        )
+    return email
 
 
 def _derive_first_name(claims: dict, email: str) -> str:

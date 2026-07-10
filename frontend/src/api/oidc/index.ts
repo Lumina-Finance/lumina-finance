@@ -12,8 +12,10 @@ export type {
 
 export {
   beginOidcLink,
+  beginOidcReauth,
   beginOidcSignIn,
   completeOidcLinkCallback,
+  completeOidcReauthCallback,
   completeOidcCallback,
   completeOidcSignup,
   fetchOidcIdentities,

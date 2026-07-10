@@ -349,6 +349,16 @@ class OidcOnboardingResponse(BaseModel):
     last_name: str | None
 
 
+class OidcReauthRequest(BaseModel):
+    """The provider slug a passwordless account re-authenticates through to set a password"""
+
+    slug: str
+
+
+class SetPasswordRequest(NewPasswordRequest):
+    """First-password payload for an account authorized by a provider reauth"""
+
+
 class OidcSignupRequest(BaseModel):
     """Signup completion payload pairing the onboarding token with the collected profile fields"""
 
@@ -381,7 +391,7 @@ class OidcIdentitySummary(BaseModel):
     id: uuid.UUID
     provider_slug: str
     provider_display_name: str
-    email: str | None  # email the provider asserted when the identity was linked
+    email: str  # email the provider asserted, required for every linked identity
     created_at: datetime
     last_login_at: datetime | None
 

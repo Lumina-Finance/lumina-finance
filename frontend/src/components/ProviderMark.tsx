@@ -52,6 +52,8 @@ function GenericProviderMark({ name, size }: { name: string | undefined; size: n
       className="shrink-0 object-contain"
       onError={() => setFailed(true)}
       aria-hidden
+      // The CDN is third party, so no-referrer keeps the self-hosted instance origin out of its logs
+      referrerPolicy="no-referrer"
     />
   )
 }

@@ -8,6 +8,7 @@ import { useCurrencies } from '@/api/currency'
 import {
   completeOidcCallback,
   completeOidcLinkCallback,
+  completeOidcReauthCallback,
   completeOidcSignup,
   isOidcOnboardingRequired,
   OidcEmailConflictError,
@@ -18,6 +19,7 @@ import LoadingScreen from '@/components/loading/Screen'
 import { useAuth } from '@/hooks/useAuth'
 import { AuthTextField } from '@/pages/auth/components/fields/TextField'
 import { AUTH_VIEW_TRANSITION } from '@/pages/auth/constants/authAnimations'
+import { consumeOidcIntent, type OidcSignedInIntent } from '@/utils/oidcIntent'
 import { buildCurrencyOptions, getCurrencyPlaceholder } from '@/pages/auth/utils/authForm'
 
 const DETECTED_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone
@@ -49,6 +51,10 @@ const OidcCallbackPage = () => {
   // transition, so the flag keeps the caption from reinterpreting the arrival as a link
   const [signInCompleted, setSignInCompleted] = useState(false)
 
+  // What a signed-in return is for, captured once since the flag is read and cleared on mount
+  const [signedInIntent] = useState<OidcSignedInIntent>(() => consumeOidcIntent())
+  const isReauth = user !== null && signedInIntent === 'reauth'
+
   // The stored roundtrip is single use on the server, so the strict-mode double effect
   // must not post the callback twice
   const callbackStartedRef = useRef(false)
@@ -58,13 +64,14 @@ const OidcCallbackPage = () => {
   // the audience, since a signed-in arrival is linking rather than signing in
   const code = searchParams.get('code')
   const state = searchParams.get('state')
+  const signedInAction = isReauth ? 'Re-confirmation' : 'Linking'
   const paramError = searchParams.get('error')
     ? user
-      ? 'Linking was cancelled or refused by the provider.'
+      ? `${signedInAction} was cancelled or refused by the provider.`
       : 'Sign-in was cancelled or refused by the provider.'
     : !code || !state
       ? user
-        ? 'The link is incomplete. Start again from your security settings.'
+        ? 'The request is incomplete. Start again from your security settings.'
         : 'The sign-in link is incomplete. Start again from the login page.'
       : null
   const displayError = error ?? paramError
@@ -75,6 +82,23 @@ const OidcCallbackPage = () => {
     if (loading || callbackStartedRef.current || paramError) return
     if (!code || !state) return
     callbackStartedRef.current = true
+
+    if (user && signedInIntent === 'reauth') {
+      completeOidcReauthCallback({ code, state })
+        .then(() => {
+          // The reauth armed the set-password authorization, so settings opens the form
+          navigate('/settings', { replace: true, state: { setPassword: true } })
+        })
+        .catch((reauthError: Error) => {
+          const isGenericAuthFailure = reauthError instanceof ApiError && reauthError.status === 401
+          setError(
+            isGenericAuthFailure
+              ? 'Re-confirmation could not be completed. It may have expired, so start again from your security settings.'
+              : reauthError.message || 'Re-confirmation failed.',
+          )
+        })
+      return
+    }
 
     if (user) {
       completeOidcLinkCallback({ code, state })
@@ -117,7 +141,7 @@ const OidcCallbackPage = () => {
         }
         setError(callbackError.message || 'Single sign-on failed.')
       })
-  }, [loading, user, code, state, paramError, setSession, navigate, queryClient])
+  }, [loading, user, signedInIntent, code, state, paramError, setSession, navigate, queryClient])
 
   // The loading screen also covers session restore, so the failure view never renders
   // with one audience's wording and then flips to the other's
@@ -135,7 +159,13 @@ const OidcCallbackPage = () => {
       <AnimatePresence>
         {completing && (
           <LoadingScreen
-            message={user && !signInCompleted ? 'Linking sign-in provider' : 'Completing sign-in'}
+            message={
+              user && !signInCompleted
+                ? isReauth
+                  ? 'Re-confirming your identity'
+                  : 'Linking sign-in provider'
+                : 'Completing sign-in'
+            }
           />
         )}
       </AnimatePresence>
@@ -157,7 +187,7 @@ const OidcCallbackPage = () => {
           {displayError && !leaving && (
             <motion.div key="sign-in-failed" {...AUTH_VIEW_TRANSITION}>
               <h1 className="font-serif text-4xl font-normal tracking-tight">
-                {user ? 'Linking failed' : 'Sign-in failed'}
+                {user ? (isReauth ? 'Re-confirmation failed' : 'Linking failed') : 'Sign-in failed'}
               </h1>
               <p className="mt-5 text-sm" style={{ color: 'var(--app-text-muted)' }}>
                 {displayError}

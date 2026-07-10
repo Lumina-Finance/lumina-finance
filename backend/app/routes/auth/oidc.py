@@ -15,6 +15,7 @@ from app.routes.auth.cookie_helpers import (
     OIDC_BINDING_COOKIE_KEY,
     clear_oidc_login_binding_cookie,
     set_oidc_login_binding_cookie,
+    set_set_password_authz_cookie,
 )
 from app.routes.auth.token_helpers import decode_oidc_onboarding_token, issue_and_store_tokens
 from app.schemas.auth import (
@@ -26,18 +27,23 @@ from app.schemas.auth import (
     OidcOnboardingResponse,
     OidcProviderInfo,
     OidcProvidersResponse,
+    OidcReauthRequest,
     OidcSignupRequest,
     StepUpRequest,
 )
 from app.services.auth import (
     OidcOnboardingClaims,
     begin_oidc_link,
+    begin_oidc_reauth,
     begin_oidc_sign_in,
     complete_oidc_link,
+    complete_oidc_reauth,
     complete_oidc_sign_in,
     complete_oidc_signup,
     create_oidc_onboarding_token,
+    create_set_password_authz_token,
     get_enabled_oidc_provider_by_slug,
+    is_oidc_provider_linked,
     list_enabled_oidc_providers,
     list_oidc_identities,
     unlink_oidc_identity,
@@ -73,7 +79,7 @@ async def list_oidc_providers_route(
         The providers whose sign-in buttons the login page offers
     """
     providers = await list_enabled_oidc_providers(db)
-    return OidcProvidersResponse(providers=[OidcProviderInfo.model_validate(p) for p in providers])
+    return OidcProvidersResponse(providers=[OidcProviderInfo.model_validate(provider) for provider in providers])
 
 
 @router.post("/{slug}/authorize", response_model=OidcAuthorizeResponse)
@@ -273,6 +279,68 @@ async def oidc_link_callback_route(
     """
     identity, provider = await complete_oidc_link(db, user, data.code, data.state)
     return _build_identity_summary(identity, provider)
+
+
+@router.post("/reauth", response_model=OidcAuthorizeResponse)
+async def reauth_oidc_route(
+    data: OidcReauthRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Start a provider reauth so a passwordless account can authorize setting its first password
+
+    Only an account with no password uses this, since an account with a password steps up with it
+    instead. The chosen provider must already be linked, so the reauth re-proves an identity the
+    account owns
+
+    Args:
+        data: The linked provider slug to re-authenticate through
+        user: Authenticated user resolved from the access token
+        db: Active database session
+
+    Returns:
+        The provider's authorization URL bound to a stored single-use reauth roundtrip
+
+    Raises:
+        HTTPException: The account already has a password, or the provider is unknown or not linked
+    """
+    if await get_password_credential(db, user.id) is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Account already has a password")
+
+    provider = await get_enabled_oidc_provider_by_slug(db, data.slug)
+    if provider is None or not await is_oidc_provider_linked(db, user, provider.id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Linked sign-in not found")
+
+    authorization_url = await begin_oidc_reauth(db, user, provider)
+    return OidcAuthorizeResponse(authorization_url=authorization_url)
+
+
+@router.post("/reauth/callback", status_code=status.HTTP_204_NO_CONTENT)
+async def oidc_reauth_callback_route(
+    data: OidcCallbackRequest,
+    request: Request,
+    response: Response,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Finish a provider reauth and hand back a short-lived set-password authorization
+
+    The authorization rides in an httpOnly cookie so the set-password request that follows proves a
+    fresh re-authentication rather than just a live session
+
+    Args:
+        data: Code and state the provider sent to the callback page
+        request: FastAPI request object
+        response: FastAPI response object for setting the authorization cookie
+        user: Authenticated user resolved from the access token
+        db: Active database session
+
+    Raises:
+        HTTPException: The roundtrip, exchange, or token does not verify, or the identity is not
+            linked to this account
+    """
+    await complete_oidc_reauth(db, user, data.code, data.state)
+    set_set_password_authz_cookie(request, response, create_set_password_authz_token(user.id))
 
 
 @router.post("/identities/{identity_id}/remove", status_code=status.HTTP_204_NO_CONTENT)

@@ -3,6 +3,7 @@
 import os
 from dataclasses import dataclass
 from pathlib import Path
+from typing import NamedTuple
 from urllib.parse import urlparse
 
 from dotenv import load_dotenv
@@ -255,12 +256,28 @@ MFA_CHALLENGE_TOKEN_EXPIRE_SECONDS = int(os.getenv("MFA_CHALLENGE_TOKEN_EXPIRE_S
 # so operators only supply the client credentials
 OIDC_GENERIC_SLUG = "generic"
 OIDC_GENERIC_DEFAULT_DISPLAY_NAME = "OIDC"
+
+
+class OidcVendorPreset(NamedTuple):
+    """Issuer and display name a vendor slug fills in so operators supply only the credentials"""
+
+    issuer: str
+    display_name: str
+
+
 OIDC_VENDOR_PRESETS = {
-    "google": ("https://accounts.google.com", "Google"),
+    "google": OidcVendorPreset("https://accounts.google.com", "Google"),
 }
 
 # The default scope set covers exactly the claims sign-in needs: subject, email, and name
 OIDC_DEFAULT_SCOPES = "openid email profile"
+
+# Whether onboarding a new account requires the provider to assert email_verified as true. Strict by
+# default so an unverified address cannot create an account. Self-hosted providers such as Authentik
+# and Authelia hardcode this claim with no real verification and disagree on its default, so an operator
+# using one sets this false to onboard on any provider-supplied email. Existing-account takeover is
+# prevented regardless, since a provider sign-in is never auto-linked by email
+OIDC_REQUIRE_VERIFIED_EMAIL = _optional_bool_env("OIDC_REQUIRE_VERIFIED_EMAIL", default=True)
 
 # A sign-in roundtrip must finish within this window, covering the user authenticating at the provider
 OIDC_AUTHORIZATION_REQUEST_EXPIRE_SECONDS = int(os.getenv("OIDC_AUTHORIZATION_REQUEST_EXPIRE_SECONDS", "600"))
@@ -268,6 +285,16 @@ OIDC_AUTHORIZATION_REQUEST_EXPIRE_SECONDS = int(os.getenv("OIDC_AUTHORIZATION_RE
 # The onboarding token bridges a verified provider sign-in and the profile completion step, kept
 # short since redoing the provider sign-in is cheap
 OIDC_ONBOARDING_TOKEN_EXPIRE_SECONDS = int(os.getenv("OIDC_ONBOARDING_TOKEN_EXPIRE_SECONDS", "600"))
+
+# The set-password authorization bridges a provider reauth and the password submit that follows,
+# kept short since it is spent on the request right after re-authentication
+SET_PASSWORD_AUTHZ_TOKEN_EXPIRE_SECONDS = int(os.getenv("SET_PASSWORD_AUTHZ_TOKEN_EXPIRE_SECONDS", "300"))
+
+# A reauth step-up must prove the provider authenticated the user this recently, so a silently reused
+# provider session cannot stand in for a fresh re-authentication when a passwordless account sets its
+# first password. The window is verified against the ID token auth_time rather than trusting prompt=login
+OIDC_REAUTH_MAX_AGE_SECONDS = 300
+
 
 @dataclass(frozen=True)
 class OidcProviderConfig:
@@ -332,7 +359,7 @@ def load_oidc_provider_configs() -> list[OidcProviderConfig]:
 
         issuer = os.getenv(_oidc_env_key(slug, "ISSUER"), "").strip()
         if not issuer and preset is not None:
-            issuer = preset[0]
+            issuer = preset.issuer
         if not issuer:
             raise RuntimeError(f"Missing required environment variable: {_oidc_env_key(slug, 'ISSUER')}")
 
@@ -345,7 +372,7 @@ def load_oidc_provider_configs() -> list[OidcProviderConfig]:
 
         display_name = os.getenv(_oidc_env_key(slug, "DISPLAY_NAME"), "").strip()
         if not display_name:
-            display_name = preset[1] if preset is not None else OIDC_GENERIC_DEFAULT_DISPLAY_NAME
+            display_name = preset.display_name if preset is not None else OIDC_GENERIC_DEFAULT_DISPLAY_NAME
 
         scopes = os.getenv(_oidc_env_key(slug, "SCOPES"), "").strip() or OIDC_DEFAULT_SCOPES
         if "openid" not in scopes.split():

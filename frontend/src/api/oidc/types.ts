@@ -43,7 +43,8 @@ export interface OidcLinkedIdentity {
   id: string;
   provider_slug: string;
   provider_display_name: string;
-  email: string | null;
+  // Every linked identity carries the email the provider asserted, required by the backend
+  email: string;
   created_at: string;
   last_login_at: string | null;
 }

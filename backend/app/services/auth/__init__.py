@@ -6,10 +6,13 @@ from app.services.auth.mfa_challenge import MFA_PURPOSE_LOGIN, MFA_PURPOSE_PASSW
 from app.services.auth.oidc_login import (
     OidcOnboardingClaims,
     begin_oidc_link,
+    begin_oidc_reauth,
     begin_oidc_sign_in,
     complete_oidc_link,
+    complete_oidc_reauth,
     complete_oidc_sign_in,
     complete_oidc_signup,
+    is_oidc_provider_linked,
     list_oidc_identities,
     unlink_oidc_identity,
 )
@@ -25,9 +28,15 @@ from app.services.auth.password_reset import (
     request_password_reset,
 )
 from app.services.auth.sessions import delete_expired_auth_sessions, delete_expired_auth_tokens
+from app.services.auth.set_password import set_first_password
 from app.services.auth.signup import signup
 from app.services.auth.step_up import authorize_factor_addition
-from app.services.auth.tokens import create_access_token, create_oidc_onboarding_token, create_refresh_token
+from app.services.auth.tokens import (
+    create_access_token,
+    create_oidc_onboarding_token,
+    create_refresh_token,
+    create_set_password_authz_token,
+)
 from app.services.auth.totp import begin_totp_setup, is_totp_enabled
 from app.services.auth.two_factor import (
     SECOND_FACTOR_RECOVERY_CODE,
@@ -60,6 +69,7 @@ __all__ = [
     "OidcOnboardingClaims",
     "authorize_factor_addition",
     "begin_oidc_link",
+    "begin_oidc_reauth",
     "begin_oidc_sign_in",
     "begin_password_reset",
     "begin_totp_setup",
@@ -68,6 +78,7 @@ __all__ = [
     "build_passkey_second_factor_options",
     "change_password",
     "complete_oidc_link",
+    "complete_oidc_reauth",
     "complete_oidc_sign_in",
     "complete_oidc_signup",
     "complete_password_reset",
@@ -78,11 +89,13 @@ __all__ = [
     "create_access_token",
     "create_oidc_onboarding_token",
     "create_refresh_token",
+    "create_set_password_authz_token",
     "delete_expired_auth_sessions",
     "delete_expired_auth_tokens",
     "disable_two_factor",
     "ensure_reset_token_active",
     "get_enabled_oidc_provider_by_slug",
+    "is_oidc_provider_linked",
     "is_passkey_registered",
     "is_totp_enabled",
     "issue_mfa_challenge",
@@ -97,6 +110,7 @@ __all__ = [
     "remove_passkey_with_step_up",
     "rename_passkey",
     "request_password_reset",
+    "set_first_password",
     "signup",
     "sync_oidc_providers",
     "unlink_oidc_identity",

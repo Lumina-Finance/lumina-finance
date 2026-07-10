@@ -62,6 +62,7 @@ async def get_authenticated_user(
             ACCESS_PUBLIC_KEY,
             algorithms=[JWT_ALGORITHM],
             issuer=JWT_ISSUER,
+            audience="access",
         )
     except jwt.PyJWTError:
         # from None suppresses exception chaining to keep logs clean and avoid leaking JWT internals

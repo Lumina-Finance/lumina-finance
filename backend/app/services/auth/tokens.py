@@ -15,6 +15,7 @@ from app.config import (
     JWT_REFRESH_TOKEN_EXPIRE_SECONDS,
     MFA_CHALLENGE_TOKEN_EXPIRE_SECONDS,
     OIDC_ONBOARDING_TOKEN_EXPIRE_SECONDS,
+    SET_PASSWORD_AUTHZ_TOKEN_EXPIRE_SECONDS,
 )
 from app.models.base import AuthTokenKind
 
@@ -22,7 +23,10 @@ from app.models.base import AuthTokenKind
 MFA_CHALLENGE_TOKEN_USE = "mfa_challenge"  # noqa: S105 — token use claim, not a secret
 
 # Token use claim for the OIDC signup completion bridge
-OIDC_ONBOARDING_TOKEN_USE = "oidc_onboarding"  # noqa: S105 — token use claim, not a secret
+OIDC_ONBOARDING_TOKEN_USE = "oidc_onboarding"  # noqa: S105 - token use claim, not a secret
+
+# Token use claim authorizing a first password after an OIDC reauth
+SET_PASSWORD_AUTHZ_TOKEN_USE = "set_password_authz"  # noqa: S105 - token use claim, not a secret
 
 
 def create_access_token(user_id: uuid.UUID, session_id: uuid.UUID) -> tuple[str, uuid.UUID, datetime]:
@@ -111,6 +115,9 @@ def create_oidc_onboarding_token(
         Encoded JWT for the signup completion step
     """
     issued_at = datetime.now(UTC)
+
+    # The audience segregates this grant from the other token types so jwt.decode rejects, say, an
+    # access token presented in its place
     payload = {
         "sub": subject,
         "provider_slug": provider_slug,
@@ -119,8 +126,36 @@ def create_oidc_onboarding_token(
         "first_name": first_name,
         "last_name": last_name,
         "token_use": OIDC_ONBOARDING_TOKEN_USE,
+        "aud": OIDC_ONBOARDING_TOKEN_USE,
         "iat": issued_at,
         "exp": issued_at + timedelta(seconds=OIDC_ONBOARDING_TOKEN_EXPIRE_SECONDS),
+        "iss": JWT_ISSUER,
+    }
+    return jwt.encode(payload, JWT_ACCESS_PRIVATE_KEY, algorithm=JWT_ALGORITHM, headers={"kid": JWT_ACCESS_KID})
+
+
+def create_set_password_authz_token(user_id: uuid.UUID) -> str:
+    """Create a short-lived token authorizing an account to set its first password
+
+    Issued only after a provider reauth, it bridges that step-up and the password submit that
+    follows, so the submit proves a fresh re-authentication rather than just a live session
+
+    Args:
+        user_id: Account the reauth verified
+
+    Returns:
+        Encoded JWT for the set-password step
+    """
+    issued_at = datetime.now(UTC)
+
+    # The audience segregates this grant from the other token types so jwt.decode rejects, say, an
+    # access token presented in its place
+    payload = {
+        "sub": str(user_id),
+        "token_use": SET_PASSWORD_AUTHZ_TOKEN_USE,
+        "aud": SET_PASSWORD_AUTHZ_TOKEN_USE,
+        "iat": issued_at,
+        "exp": issued_at + timedelta(seconds=SET_PASSWORD_AUTHZ_TOKEN_EXPIRE_SECONDS),
         "iss": JWT_ISSUER,
     }
     return jwt.encode(payload, JWT_ACCESS_PRIVATE_KEY, algorithm=JWT_ALGORITHM, headers={"kid": JWT_ACCESS_KID})
@@ -151,10 +186,14 @@ def _create_signed_token(
     issued_at = datetime.now(UTC)
     token_id = uuid.uuid4()
     expires_at = issued_at + timedelta(seconds=expires_in_seconds)
+
+    # The audience mirrors the token use so jwt.decode enforces purpose segregation during signature
+    # verification, a second barrier beyond the token_use check should a decoder ever omit it
     payload = {
         "sub": str(user_id),
         "jti": str(token_id),
         "token_use": token_use,
+        "aud": token_use,
         "iat": issued_at,
         "exp": expires_at,
         "iss": JWT_ISSUER,

@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { oidcKeys } from '@/api/cache/queryKeys';
 import {
   beginOidcLink,
+  beginOidcReauth,
   removeOidcIdentity,
   useOidcIdentities,
   useOidcProviders,
@@ -12,15 +13,12 @@ import {
 } from '@/api/oidc';
 import { ProviderMark } from '@/components/ProviderMark';
 import { StepUpModal, type StepUpCredentials } from '@/components/twoFactor/StepUpModal';
+import { SetPasswordModal } from '@/pages/settings/components/security-section/SetPasswordModal';
+import { markOidcIntent } from '@/utils/oidcIntent';
 import { withMinDelay } from '@/utils/timing';
 
 // Operator documentation for configuring providers, shown when none are available
 const OIDC_SETUP_DOCS_URL = 'https://github.com/Lumina-Finance/lumina-finance#single-sign-on-oidc';
-
-const MARK_TILE_STYLE = {
-  backgroundColor: 'var(--app-surface-soft)',
-  border: '1px solid var(--app-border)',
-};
 
 const LINKED_BADGE_STYLE = {
   backgroundColor: 'var(--app-positive-soft)',
@@ -79,12 +77,18 @@ export default function SignInProviderControls() {
 
   const [linkTarget, setLinkTarget] = useState<ProviderRow | null>(null);
   const [removeTarget, setRemoveTarget] = useState<OidcLinkedIdentity | null>(null);
+  const [reauthingSlug, setReauthingSlug] = useState<string | null>(null);
 
   const sectionRef = useRef<HTMLDivElement>(null);
 
-  // Captured once on mount so the arrival cue survives clearing the navigation state
+  // Captured once on mount so the arrival cues survive clearing the navigation state
   const [justLinkedSlug] = useState<string | null>(
     () => (location.state as { linkedProvider?: string } | null)?.linkedProvider ?? null,
+  );
+
+  // A completed reauth returns here to open the set-password form
+  const [setPasswordOpen, setSetPasswordOpen] = useState<boolean>(
+    () => (location.state as { setPassword?: boolean } | null)?.setPassword === true,
   );
 
   const linkedIdentities = identities.data?.identities ?? [];
@@ -97,10 +101,10 @@ export default function SignInProviderControls() {
   // navigation does not replay the scroll and blink
   const identitiesReady = identities.data !== undefined;
   useEffect(() => {
-    if (!justLinkedSlug || !identitiesReady) return;
+    if ((!justLinkedSlug && !setPasswordOpen) || !identitiesReady) return;
     sectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     navigate(location.pathname, { replace: true, state: null });
-  }, [justLinkedSlug, identitiesReady, navigate, location.pathname]);
+  }, [justLinkedSlug, setPasswordOpen, identitiesReady, navigate, location.pathname]);
 
   // The section stays visible without providers so operators discover the feature, with
   // the guidance split between a server that offers none and one that failed to answer
@@ -111,8 +115,29 @@ export default function SignInProviderControls() {
     if (!linkTarget) return;
     const { authorization_url } = await beginOidcLink(linkTarget.slug, credentials);
 
-    // The browser leaves for the provider, so the modal stays open until navigation lands
+    // The browser leaves for the provider, so the callback needs to know this return links
+    markOidcIntent('link');
     window.location.assign(authorization_url);
+  };
+
+  const startSetPassword = async (slug: string) => {
+    setReauthingSlug(slug);
+    try {
+      const { authorization_url } = await beginOidcReauth(slug);
+
+      // The reauth return finishes the set-password flow, not a link
+      markOidcIntent('reauth');
+      window.location.assign(authorization_url);
+    } catch {
+      setReauthingSlug(null);
+    }
+  };
+
+  const finishSetPassword = async () => {
+    setSetPasswordOpen(false);
+
+    // The account now has a password, so the section flips to showing link and unlink
+    await queryClient.invalidateQueries({ queryKey: oidcKeys.identities() });
   };
 
   const confirmRemove = async (credentials: StepUpCredentials) => {
@@ -152,11 +177,35 @@ export default function SignInProviderControls() {
           </p>
         )}
 
-        {!hasPassword && (
-          <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-            Managing providers needs a password on the account. Set one first with the reset
-            link from the login page's Forgot password option.
-          </p>
+        {!hasPassword && linkedIdentities.length > 0 && (
+          <div className="space-y-3 rounded-xl border px-4 py-3" style={{ borderColor: 'var(--app-border)' }}>
+            <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+              This account signs in only through a provider. Set a password to sign in without one and
+              to manage your providers. You'll re-confirm it's you with a provider first.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {linkedIdentities.map((identity) => (
+                <button
+                  key={identity.id}
+                  type="button"
+                  className={`app-secondary-button flex items-center gap-2 ${
+                    reauthingSlug === identity.provider_slug ? 'app-primary-button-loading' : ''
+                  }`}
+                  disabled={reauthingSlug !== null}
+                  onClick={() => startSetPassword(identity.provider_slug)}
+                >
+                  {reauthingSlug === identity.provider_slug ? (
+                    <div className="app-spinner" />
+                  ) : (
+                    <>
+                      <ProviderMark slug={identity.provider_slug} name={identity.provider_display_name} />
+                      Set a password with {identity.provider_display_name}
+                    </>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
         )}
 
         {rows.length > 0 && (
@@ -167,11 +216,7 @@ export default function SignInProviderControls() {
               className="flex items-center gap-3 rounded-xl border px-4 py-3"
               style={{ borderColor: 'var(--app-border)' }}
             >
-              <span
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
-                style={MARK_TILE_STYLE}
-                aria-hidden
-              >
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center" aria-hidden>
                 <ProviderMark slug={row.slug} name={row.displayName} size={18} />
               </span>
 
@@ -190,9 +235,7 @@ export default function SignInProviderControls() {
                   )}
                 </div>
                 <p className="truncate text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                  {row.identity
-                    ? (row.identity.email ?? 'No email on record')
-                    : 'Not linked'}
+                  {row.identity ? row.identity.email : 'Not linked'}
                   {row.identity && !row.offered && ' · no longer offered by this server'}
                 </p>
               </div>
@@ -243,6 +286,12 @@ export default function SignInProviderControls() {
         allowPasskey
         onClose={() => setRemoveTarget(null)}
         onVerify={confirmRemove}
+      />
+
+      <SetPasswordModal
+        open={setPasswordOpen}
+        onClose={() => setSetPasswordOpen(false)}
+        onDone={finishSetPassword}
       />
     </>
   );

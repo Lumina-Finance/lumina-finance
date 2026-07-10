@@ -126,6 +126,23 @@ def test_build_authorization_url_carries_code_flow_params():
     assert params["nonce"] == ["nonce-1"]
     assert params["code_challenge"] == ["challenge-1"]
     assert params["code_challenge_method"] == ["S256"]
+    assert "max_age" not in params
+
+
+def test_build_authorization_url_includes_max_age_when_requested():
+    """A reauth's freshness window rides along as the max_age parameter"""
+    url = build_authorization_url(
+        _metadata(),
+        client_id=CLIENT_ID,
+        scopes="openid email profile",
+        redirect_uri="https://app.test/auth/oidc/callback",
+        state="state-1",
+        nonce="nonce-1",
+        code_challenge="challenge-1",
+        max_age=300,
+    )
+
+    assert parse_qs(urlparse(url).query)["max_age"] == ["300"]
 
 
 # --- Discovery ---
@@ -251,6 +268,35 @@ async def test_verify_id_token_refetches_keys_on_unknown_kid(fake_provider):
 
     assert claims["sub"] == "subject-1"
     assert fake_provider.request_counts["/jwks"] == 2
+
+
+async def test_verify_id_token_accepts_fresh_auth_time(fake_provider):
+    """A reauth passes when the provider authenticated the user inside the freshness window"""
+    auth_time = int(datetime.now(UTC).timestamp())
+    id_token = _make_id_token(auth_time=auth_time)
+
+    claims = await verify_provider_id_token(id_token, _metadata(), CLIENT_ID, "nonce-1", max_age=300)
+
+    assert claims["auth_time"] == auth_time
+
+
+async def test_verify_id_token_rejects_stale_auth_time(fake_provider):
+    """A reauth fails when the provider reused a session older than the freshness window"""
+    stale_auth_time = int((datetime.now(UTC) - timedelta(seconds=1000)).timestamp())
+    id_token = _make_id_token(auth_time=stale_auth_time)
+
+    with pytest.raises(HTTPException) as excinfo:
+        await verify_provider_id_token(id_token, _metadata(), CLIENT_ID, "nonce-1", max_age=300)
+    assert excinfo.value.status_code == 401
+
+
+async def test_verify_id_token_requires_auth_time_when_max_age_set(fake_provider):
+    """A reauth fails when the provider omits the auth_time a freshness window requires"""
+    id_token = _make_id_token()
+
+    with pytest.raises(HTTPException) as excinfo:
+        await verify_provider_id_token(id_token, _metadata(), CLIENT_ID, "nonce-1", max_age=300)
+    assert excinfo.value.status_code == 401
 
 
 # --- Userinfo ---

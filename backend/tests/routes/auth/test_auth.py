@@ -30,14 +30,20 @@ def _encode_auth_test_token(
     token_id,
     session_id,
     token_use: str,
+    aud: str | None = None,
 ) -> str:
-    """Return a signed JWT with explicit auth claims for edge-case tests"""
+    """Return a signed JWT with explicit auth claims for edge-case tests
+
+    The audience defaults to the token use, mirroring how the app mints tokens, so a crafted token
+    clears the audience check and reaches the claim under test unless aud is overridden
+    """
     issued_at = datetime.now(UTC)
     payload = {
         "sub": str(user_id),
         "jti": str(token_id),
         "sid": str(session_id),
         "token_use": token_use,
+        "aud": aud if aud is not None else token_use,
         "iat": issued_at,
         "exp": issued_at + timedelta(minutes=15),
         "iss": JWT_ISSUER,
@@ -851,7 +857,11 @@ async def test_invalid_access_token_returns_401(client):
 
 
 async def test_access_token_with_refresh_use_claim_returns_401(client):
-    """An access-signed token with the wrong use claim is rejected"""
+    """An access-signed token with the wrong use claim is rejected by the token_use guard
+
+    The audience is aligned to access so the token clears the audience check, isolating the token_use
+    guard as the barrier that rejects it, the redundant backup behind the audience segregation
+    """
     await _create_user(client)
 
     async with TestSession() as session:
@@ -863,12 +873,30 @@ async def test_access_token_with_refresh_use_claim_returns_401(client):
             token_id=access_token_row.jti,
             session_id=access_token_row.session_id,
             token_use=AuthTokenKind.REFRESH.value,
+            aud=AuthTokenKind.ACCESS.value,
         )
 
     resp = await client.get("/test/me", headers={"Authorization": f"Bearer {token}"})
 
     assert resp.status_code == 401
     assert resp.json()["detail"] == "Invalid token"
+
+
+async def test_set_password_grant_rejected_as_access_token(client):
+    """A set-password authorization grant cannot authenticate as an access token
+
+    The grant is a genuine, correctly signed token, so only its distinct audience stops it standing in
+    for an access token at the bearer check
+    """
+    from app.services.auth.tokens import create_set_password_authz_token
+
+    await _create_user(client)
+    grant = create_set_password_authz_token(uuid4())
+
+    resp = await client.get("/test/me", headers={"Authorization": f"Bearer {grant}"})
+
+    assert resp.status_code == 401
+    assert resp.json()["detail"] == "Invalid or expired token"
 
 
 async def test_access_token_with_mismatched_session_claim_returns_401(client):

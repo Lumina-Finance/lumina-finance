@@ -54,8 +54,9 @@ class OidcIdentity(Base):
     # The subject claim is the provider's permanent identifier for the user, matched before any email fallback
     subject: Mapped[str] = mapped_column(Text, nullable=False)
 
-    # Email as the provider asserted it when the identity was linked, kept for support and audit
-    email: Mapped[str | None] = mapped_column(VARCHAR(254))
+    # Email as the provider asserted it, required across every flow that creates an identity so a
+    # provider that supplies none is refused, and kept for support and the settings list
+    email: Mapped[str] = mapped_column(VARCHAR(254), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 

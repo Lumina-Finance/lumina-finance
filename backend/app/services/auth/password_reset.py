@@ -13,10 +13,10 @@ from sqlalchemy.sql import func as sa_func
 
 from app.config import APP_URL, PASSWORD_RESET_DAILY_EMAIL_LIMIT, PASSWORD_RESET_TOKEN_EXPIRE_SECONDS
 from app.database import current_user_id_ctx
-from app.models.auth import AuthIdentity, PasswordCredential, PasswordResetToken
-from app.models.base import AuthProvider
+from app.models.auth import PasswordCredential, PasswordResetToken
 from app.models.user import User
 from app.services.auth.mfa_challenge import MFA_PURPOSE_PASSWORD_RESET, issue_mfa_challenge
+from app.services.auth.password_credential import create_first_password_credential
 from app.services.auth.password_helpers import hash_password
 from app.services.auth.sessions import delete_all_user_auth_sessions
 from app.services.auth.token_hashing import hash_token
@@ -231,13 +231,12 @@ async def _apply_password_reset(db: AsyncSession, reset_token: PasswordResetToke
     # the account email is the same proof a reset trusts, so redeeming a link sets its first
     # password and records password as an auth provider
     if credential is None:
-        credential = PasswordCredential(user_id=reset_token.user_id)
-        db.add(credential)
-        db.add(AuthIdentity(user_id=reset_token.user_id, auth_provider=AuthProvider.PASSWORD))
+        credential = create_first_password_credential(db, reset_token.user_id, new_password)
+    else:
+        credential.password_hash = hash_password(new_password)
+        credential.password_algo = "argon2id"  # noqa: S105
 
     # A verified reset clears any login lockout the user was trying to recover from
-    credential.password_hash = hash_password(new_password)
-    credential.password_algo = "argon2id"  # noqa: S105
     credential.failed_attempt_count = 0
     credential.locked_until = None
 

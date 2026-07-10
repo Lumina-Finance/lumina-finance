@@ -110,6 +110,8 @@ def build_authorization_url(
     state: str,
     nonce: str,
     code_challenge: str,
+    prompt: str | None = None,
+    max_age: int | None = None,
 ) -> str:
     """Return the provider URL the browser is sent to for sign-in
 
@@ -121,23 +123,30 @@ def build_authorization_url(
         state: Random value binding the callback to this roundtrip
         nonce: Random value the ID token must echo
         code_challenge: PKCE challenge derived from the stored verifier
+        prompt: Optional OpenID prompt, "login" asks the provider to reauthenticate rather than
+            silently reusing an existing session
+        max_age: Optional freshness window in seconds, requiring the provider to have authenticated
+            the user within it and to return auth_time, which the reauth step-up then verifies
 
     Returns:
         The authorization endpoint URL with the code flow parameters applied
     """
     authorization_endpoint = metadata["authorization_endpoint"]
-    query = urlencode(
-        {
-            "response_type": "code",
-            "client_id": client_id,
-            "redirect_uri": redirect_uri,
-            "scope": scopes,
-            "state": state,
-            "nonce": nonce,
-            "code_challenge": code_challenge,
-            "code_challenge_method": "S256",
-        }
-    )
+    parameters = {
+        "response_type": "code",
+        "client_id": client_id,
+        "redirect_uri": redirect_uri,
+        "scope": scopes,
+        "state": state,
+        "nonce": nonce,
+        "code_challenge": code_challenge,
+        "code_challenge_method": "S256",
+    }
+    if prompt is not None:
+        parameters["prompt"] = prompt
+    if max_age is not None:
+        parameters["max_age"] = str(max_age)
+    query = urlencode(parameters)
 
     # Some providers publish an authorization endpoint that already carries a query string
     separator = "&" if "?" in authorization_endpoint else "?"
@@ -242,11 +251,27 @@ def _select_signing_key(jwk_set: jwt.PyJWKSet, key_id: str | None) -> jwt.PyJWK 
     return signing_keys[0] if len(signing_keys) == 1 else None
 
 
+def _is_authentication_fresh(auth_time: Any, max_age: int) -> bool:
+    """Return whether the provider authenticated the user within the freshness window
+
+    Args:
+        auth_time: The auth_time claim from the verified token
+        max_age: Freshness window in seconds the roundtrip requested
+
+    Returns:
+        Whether auth_time is a timestamp no older than the window plus the clock-skew leeway
+    """
+    if not isinstance(auth_time, (int, float)):
+        return False
+    return time.time() - auth_time <= max_age + _ID_TOKEN_LEEWAY_SECONDS
+
+
 async def verify_provider_id_token(
     id_token: str,
     metadata: dict[str, Any],
     client_id: str,
     expected_nonce: str,
+    max_age: int | None = None,
 ) -> dict[str, Any]:
     """Verify an ID token's signature and claims and return its payload
 
@@ -255,12 +280,15 @@ async def verify_provider_id_token(
         metadata: Provider discovery document
         client_id: OAuth client identifier the token must be addressed to
         expected_nonce: Nonce stored when the roundtrip began
+        max_age: Optional freshness window in seconds, requiring the provider to have authenticated
+            the user within it, proving a reauth is fresh rather than a reused session
 
     Returns:
         The verified claims
 
     Raises:
-        HTTPException: The signature, issuer, audience, expiry, or nonce does not verify
+        HTTPException: The signature, issuer, audience, expiry, or nonce does not verify, or a
+            requested freshness window is not met
     """
     try:
         key_id = jwt.get_unverified_header(id_token).get("kid")
@@ -278,6 +306,12 @@ async def verify_provider_id_token(
     if signing_key is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Single sign-on failed")
 
+    # A freshness window obliges a conformant provider to return auth_time, so require the claim
+    # only when the caller asked for one
+    required_claims = ["exp", "iat", "iss", "aud", "sub"]
+    if max_age is not None:
+        required_claims.append("auth_time")
+
     try:
         claims = jwt.decode(
             id_token,
@@ -286,7 +320,7 @@ async def verify_provider_id_token(
             audience=client_id,
             issuer=metadata["issuer"],
             leeway=_ID_TOKEN_LEEWAY_SECONDS,
-            options={"require": ["exp", "iat", "iss", "aud", "sub"]},
+            options={"require": required_claims},
         )
     except jwt.PyJWTError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Single sign-on failed") from None
@@ -301,6 +335,11 @@ async def verify_provider_id_token(
     # so a token addressed to several clients cannot be replayed here by another of them
     audience = claims.get("aud")
     if isinstance(audience, list) and len(audience) > 1 and claims.get("azp") != client_id:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Single sign-on failed")
+
+    # A reauth passes a freshness window, so the provider must have authenticated the user within it
+    # rather than replaying an older session, which prompt=login alone cannot guarantee
+    if max_age is not None and not _is_authentication_fresh(claims.get("auth_time"), max_age):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Single sign-on failed")
 
     return claims
