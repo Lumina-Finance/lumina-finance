@@ -22,6 +22,7 @@ from app.models import (  # noqa: F401
     group,
     institution,
     merchant,
+    oidc,
     saved_insights_range,
     tag,
     transaction,

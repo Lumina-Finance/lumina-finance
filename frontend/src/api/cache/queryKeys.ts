@@ -163,3 +163,8 @@ export const passkeyKeys = {
   list: () => ['passkeys', 'list'] as const,
   config: () => ['passkeys', 'config'] as const,
 };
+
+export const oidcKeys = {
+  providers: () => ['oidc', 'providers'] as const,
+  identities: () => ['oidc', 'identities'] as const,
+};

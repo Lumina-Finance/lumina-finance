@@ -7,6 +7,11 @@ services:
         condition: service_healthy
     ports:
       - "8080:80"
+
+    # OIDC provider blocks are named after operator-chosen slugs, so they cannot be
+    # enumerated here and the whole operator env file is passed through instead
+    env_file:
+      - .env
     environment:
       DB_HOST: "${DB_HOST}"
       DB_PORT: "${DB_PORT}"

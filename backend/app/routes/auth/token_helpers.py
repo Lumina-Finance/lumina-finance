@@ -39,7 +39,13 @@ from app.services.auth.sessions import (
     delete_expired_auth_tokens,
     rotate_auth_session_tokens,
 )
-from app.services.auth.tokens import MFA_CHALLENGE_TOKEN_USE, create_access_token, create_refresh_token
+from app.services.auth.tokens import (
+    MFA_CHALLENGE_TOKEN_USE,
+    OIDC_ONBOARDING_TOKEN_USE,
+    OIDC_REAUTH_STEPUP_TOKEN_USE,
+    create_access_token,
+    create_refresh_token,
+)
 from app.services.auth.two_factor import SECOND_FACTOR_PASSKEY, verify_login_second_factor
 from app.services.auth.webauthn import verify_passkey_second_factor
 
@@ -77,7 +83,13 @@ def decode_refresh_token(refresh_token: str) -> dict[str, Any]:
     Raises:
         PyJWTError: Refresh token cannot be decoded or verified
     """
-    payload = jwt.decode(refresh_token, _refresh_public_key, algorithms=[JWT_ALGORITHM], issuer=JWT_ISSUER)
+    payload = jwt.decode(
+        refresh_token,
+        _refresh_public_key,
+        algorithms=[JWT_ALGORITHM],
+        issuer=JWT_ISSUER,
+        audience=AuthTokenKind.REFRESH.value,
+    )
     _raise_for_token_use(payload, "refresh")
     return payload
 
@@ -94,7 +106,13 @@ def decode_access_token(access_token: str) -> dict[str, Any]:
     Raises:
         PyJWTError: Access token cannot be decoded or verified
     """
-    payload = jwt.decode(access_token, _access_public_key, algorithms=[JWT_ALGORITHM], issuer=JWT_ISSUER)
+    payload = jwt.decode(
+        access_token,
+        _access_public_key,
+        algorithms=[JWT_ALGORITHM],
+        issuer=JWT_ISSUER,
+        audience=AuthTokenKind.ACCESS.value,
+    )
     _raise_for_token_use(payload, "access")
     return payload
 
@@ -111,9 +129,84 @@ def decode_mfa_challenge_token(challenge_token: str) -> dict[str, Any]:
     Raises:
         PyJWTError: Challenge token cannot be decoded or verified
     """
-    payload = jwt.decode(challenge_token, _access_public_key, algorithms=[JWT_ALGORITHM], issuer=JWT_ISSUER)
+    payload = jwt.decode(
+        challenge_token,
+        _access_public_key,
+        algorithms=[JWT_ALGORITHM],
+        issuer=JWT_ISSUER,
+        audience=MFA_CHALLENGE_TOKEN_USE,
+    )
     _raise_for_token_use(payload, MFA_CHALLENGE_TOKEN_USE)
     return payload
+
+
+def decode_oidc_onboarding_token(onboarding_token: str) -> dict[str, Any]:
+    """Return decoded OIDC onboarding token claims
+
+    Args:
+        onboarding_token: Encoded onboarding JWT string
+
+    Returns:
+        Decoded onboarding token claims
+
+    Raises:
+        PyJWTError: Onboarding token cannot be decoded or verified
+    """
+    payload = jwt.decode(
+        onboarding_token,
+        _access_public_key,
+        algorithms=[JWT_ALGORITHM],
+        issuer=JWT_ISSUER,
+        audience=OIDC_ONBOARDING_TOKEN_USE,
+    )
+    _raise_for_token_use(payload, OIDC_ONBOARDING_TOKEN_USE)
+    return payload
+
+
+def decode_oidc_reauth_stepup_token(stepup_token: str) -> dict[str, Any]:
+    """Return decoded reauth step-up token claims
+
+    Args:
+        stepup_token: Encoded reauth step-up JWT string
+
+    Returns:
+        Decoded step-up token claims
+
+    Raises:
+        PyJWTError: Step-up token cannot be decoded or verified
+    """
+    payload = jwt.decode(
+        stepup_token,
+        _access_public_key,
+        algorithms=[JWT_ALGORITHM],
+        issuer=JWT_ISSUER,
+        audience=OIDC_REAUTH_STEPUP_TOKEN_USE,
+    )
+    _raise_for_token_use(payload, OIDC_REAUTH_STEPUP_TOKEN_USE)
+    return payload
+
+
+def verify_reauth_stepup_proof(user_id: uuid.UUID, proof: str) -> None:
+    """Raise unless a reauth step-up proof authorizes an action for the given account
+
+    The proof is minted after a fresh provider reauth and bound to the account, so it cannot authorize
+    an action on another account even if presented on a different session
+
+    Args:
+        user_id: Account the action is for
+        proof: Encoded reauth step-up token read from the cookie
+
+    Raises:
+        HTTPException: The proof is invalid, expired, or for another account
+    """
+    try:
+        payload = decode_oidc_reauth_stepup_token(proof)
+    except jwt.PyJWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Reauthentication required"
+        ) from None
+    if payload["sub"] != str(user_id):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Reauthentication required")
 
 
 def _raise_for_token_use(payload: dict[str, Any], expected_token_use: str) -> None:

@@ -3,12 +3,14 @@ import { useLocation } from 'react-router-dom';
 import { KeyRound } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useCurrencies } from '@/api/currency';
+import { useOidcProviders } from '@/api/oidc';
 import { OtpInput, OTP_LENGTH } from '@/components/OtpInput';
 import { TotpEnrollment } from '@/components/twoFactor/TotpEnrollment';
 import { WarningCallout } from '@/components/twoFactor/WarningCallout';
 import { AuthAnimatedTitle } from '@/pages/auth/components/AnimatedTitle';
 import { AuthConfirmPasswordField } from '@/pages/auth/components/fields/ConfirmPasswordField';
 import { AuthErrorBanner } from '@/pages/auth/components/feedback/ErrorBanner';
+import { OidcProviderButtons } from '@/pages/auth/components/OidcProviderButtons';
 import { AuthSignupNameFields } from '@/pages/auth/components/fields/SignupNameFields';
 import { AuthSignupReferenceFields } from '@/pages/auth/components/fields/SignupReferenceFields';
 import { AuthTextField } from '@/pages/auth/components/fields/TextField';
@@ -32,6 +34,9 @@ const AuthPage = () => {
   const location = useLocation();
   const containerRef = useRef<HTMLDivElement>(null);
   const mode = getAuthMode(location.pathname);
+
+  // A provider sign-in that collided with an existing account hands its email over here
+  const prefillEmail = (location.state as { prefillEmail?: string } | null)?.prefillEmail;
   const isLogin = mode === 'login';
   const isSignup = mode === 'signup';
   const isForgot = mode === 'forgot';
@@ -83,7 +88,14 @@ const AuthPage = () => {
     currenciesError,
     detectedTimezone: DETECTED_TZ,
     mode,
+    initialEmail: prefillEmail,
   });
+
+  const { data: oidcProviders = [] } = useOidcProviders();
+
+  // Provider sign-in also onboards new users, so the buttons show on signup as well
+  const showPasskeyButton = isLogin && canUsePasskeys;
+  const showOidcButtons = (isLogin || isSignup) && oidcProviders.length > 0;
 
   const submitLabel = isLogin ? 'Log in' : isSignup ? 'Sign up' : 'Send reset link';
   const switchPrompt = isLogin
@@ -406,7 +418,7 @@ const AuthPage = () => {
                 </button>
               </div>
 
-              {isLogin && canUsePasskeys && (
+              {(showPasskeyButton || showOidcButtons) && (
                 <div className="mt-4 space-y-4">
                   <div className="flex items-center gap-3">
                     <span className="h-px flex-1" style={{ backgroundColor: 'var(--app-border)' }} />
@@ -416,23 +428,27 @@ const AuthPage = () => {
                     <span className="h-px flex-1" style={{ backgroundColor: 'var(--app-border)' }} />
                   </div>
 
-                  <div className="flex justify-center">
-                    <button
-                      type="button"
-                      onClick={handlePasskeySignIn}
-                      disabled={passkeySigningIn}
-                      className={`app-secondary-button transition-all duration-300 ${passkeySigningIn ? 'app-primary-button-loading' : 'flex w-full items-center justify-center gap-2'}`}
-                    >
-                      {passkeySigningIn ? (
-                        <div className="app-spinner" />
-                      ) : (
-                        <>
-                          <KeyRound size={16} aria-hidden />
-                          Sign in with a passkey
-                        </>
-                      )}
-                    </button>
-                  </div>
+                  {showPasskeyButton && (
+                    <div className="flex justify-center">
+                      <button
+                        type="button"
+                        onClick={handlePasskeySignIn}
+                        disabled={passkeySigningIn}
+                        className={`app-secondary-button transition-all duration-300 ${passkeySigningIn ? 'app-primary-button-loading' : 'flex w-full items-center justify-center gap-2'}`}
+                      >
+                        {passkeySigningIn ? (
+                          <div className="app-spinner" />
+                        ) : (
+                          <>
+                            <KeyRound size={16} aria-hidden />
+                            Sign in with a passkey
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
+
+                  {showOidcButtons && <OidcProviderButtons providers={oidcProviders} />}
                 </div>
               )}
 

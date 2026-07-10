@@ -1,12 +1,13 @@
 """Application entrypoint"""
 
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.config import ALLOWED_ORIGINS, RUNTIME
-from app.database import verify_app_role_is_unprivileged
+from app.config import ALLOWED_ORIGINS, OIDC_PROVIDER_CONFIGS, RUNTIME
+from app.database import async_session, verify_app_role_is_unprivileged
 from app.routes.accounts import router as account_router
 from app.routes.app_version import router as app_version_router
 from app.routes.auth import router as auth_router
@@ -24,13 +25,27 @@ from app.routes.tags import router as tag_router
 from app.routes.tax_advantaged_categories import router as tax_advantaged_category_router
 from app.routes.transactions import router as transaction_router
 from app.routes.users import router as user_router
+from app.services.auth.oidc_providers import sync_oidc_providers
 from app.services.email import build_email_sender, set_email_sender
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def _lifespan(_app: FastAPI):
-    """Verify the runtime cannot bypass row-level security before serving requests"""
+    """Verify the runtime cannot bypass row-level security, then seed OIDC providers before serving"""
     await verify_app_role_is_unprivileged()
+
+    # Reconcile the provider table with the environment on every boot so credential
+    # rotations and removals apply without a migration
+    async with async_session() as session:
+        await sync_oidc_providers(session, OIDC_PROVIDER_CONFIGS)
+
+    if OIDC_PROVIDER_CONFIGS:
+        enabled_slugs = ", ".join(provider.slug for provider in OIDC_PROVIDER_CONFIGS)
+        logger.info("OIDC sign-in enabled for: %s", enabled_slugs)
+    else:
+        logger.info("OIDC sign-in is not configured")
     yield
 
 

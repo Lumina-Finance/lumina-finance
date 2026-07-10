@@ -11,6 +11,7 @@ export type {
 
 export {
   changePassword,
+  setPassword,
   fetchCacheStatus,
   fetchRunway,
   fetchRunwayAccounts,

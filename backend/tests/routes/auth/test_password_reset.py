@@ -365,3 +365,53 @@ async def test_reset_verify_locked_account_is_rejected(client):
         },
     )
     assert verify.status_code == 423
+
+
+async def test_reset_sets_first_password_for_provider_account(client):
+    """Redeeming a reset link gives a provider-created account its first password"""
+    from app.models.auth import AuthIdentity, PasswordCredential
+    from app.models.base import AuthProvider
+    from app.models.user import User
+    from tests.routes.support import _seed_currency
+
+    await _seed_currency()
+
+    # A provider-created account has a user row and an OIDC auth identity but no credential
+    user_id = uuid.uuid4()
+    async with TestSession() as session:
+        session.add(
+            User(
+                id=user_id,
+                email="sso-user@example.com",
+                first_name="Sso",
+                tz="America/Toronto",
+                base_currency="CAD",
+            )
+        )
+
+        # The identity references the user, and without a mapped relationship the unit of
+        # work cannot order the two inserts, so the user must land first
+        await session.flush()
+        session.add(AuthIdentity(user_id=user_id, auth_provider=AuthProvider.OIDC, email_verified=True))
+        await session.commit()
+
+    raw_token = await _seed_reset_token(user_id)
+    resp = await client.post("/auth/password/reset", json={"token": raw_token, "new_password": _NEW_PASSWORD})
+    assert resp.status_code == 204
+
+    async with TestSession() as session:
+        credential = (
+            await session.execute(select(PasswordCredential).where(PasswordCredential.user_id == user_id))
+        ).scalar_one()
+        password_identity = (
+            await session.execute(
+                select(AuthIdentity).where(
+                    AuthIdentity.user_id == user_id, AuthIdentity.auth_provider == AuthProvider.PASSWORD
+                )
+            )
+        ).scalar_one()
+    assert credential.password_hash != _NEW_PASSWORD
+    assert password_identity is not None
+
+    login = await client.post("/auth/login", json={"email": "sso-user@example.com", "password": _NEW_PASSWORD})
+    assert login.status_code == 200

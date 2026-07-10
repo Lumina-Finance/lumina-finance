@@ -84,20 +84,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const stateRef = useRef(state);
   useEffect(() => { stateRef.current = state; }, [state]);
 
+  // Child effects run before this provider's ref-sync effect, so any consumer that
+  // fetches on the same render a new token arrives would still read the stale ref.
+  // Full state replacements therefore update the ref synchronously, like primeAccessToken
+  const applyState = useCallback((next: AuthState) => {
+    stateRef.current = next;
+    setState(next);
+  }, []);
+
   // Wire authenticatedFetch to our session lifecycle once on mount.
   useEffect(() => {
     registerAuthBindings({
       getAccessToken: () => stateRef.current.accessToken,
       onSessionRefreshed: (res) => {
-        setState({ user: res.user, accessToken: res.access_token, loading: false });
+        applyState({ user: res.user, accessToken: res.access_token, loading: false });
       },
       onSessionLost: () => {
         localStorage.removeItem(SESSION_KEY);
-        setState({ user: null, accessToken: null, loading: false });
+        applyState({ user: null, accessToken: null, loading: false });
         queryClient.clear();
       },
     });
-  }, [queryClient]);
+  }, [queryClient, applyState]);
 
   // Attempt refresh only on initial mount if a prior session existed
   useEffect(() => {
@@ -110,7 +118,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       restoreSession()
         .then((res) => {
           if (!cancelled) {
-            setState({ user: res.user, accessToken: res.access_token, loading: false });
+            applyState({ user: res.user, accessToken: res.access_token, loading: false });
           }
         })
         .catch((error) => {
@@ -124,7 +132,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           localStorage.removeItem(SESSION_KEY);
           queryClient.clear();
           if (!cancelled) {
-            setState({ user: null, accessToken: null, loading: false });
+            applyState({ user: null, accessToken: null, loading: false });
           }
         });
     };
@@ -140,7 +148,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       cancelled = true;
       if (restoreTimer) clearTimeout(restoreTimer);
     };
-  }, [hadSession, queryClient]);
+  }, [hadSession, queryClient, applyState]);
 
   // Call the API and set the session flag, but don't update React state yet.
   // The caller controls when to commit via setSession().
@@ -178,8 +186,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // the silent refresh, and signs the user out despite a valid refresh cookie
     localStorage.setItem(SESSION_KEY, '1');
     queryClient.clear();
-    setState({ user: res.user, accessToken: res.access_token, loading: false });
-  }, [queryClient]);
+    applyState({ user: res.user, accessToken: res.access_token, loading: false });
+  }, [queryClient, applyState]);
 
   const primeAccessToken = useCallback((token: string) => {
     // Make the token usable by authenticated requests without setting `user`, so the signup
@@ -198,12 +206,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await authApi.logout(state.accessToken).catch(() => {});
     }
     localStorage.removeItem(SESSION_KEY);
-    setState({ user: null, accessToken: null, loading: false });
+    applyState({ user: null, accessToken: null, loading: false });
     // Wipe every cached query so the next user can't see the previous user's
     // data (accounts, transactions, etc.). The persister is subscribed to the
     // client, so clearing in-memory also flushes the localStorage copy.
     queryClient.clear();
-  }, [state.accessToken, queryClient]);
+  }, [state.accessToken, queryClient, applyState]);
 
   const value = useMemo<AuthContextValue>(
     () => ({ ...state, login, verifyMfa, signup, setSession, primeAccessToken, setUser, logout }),

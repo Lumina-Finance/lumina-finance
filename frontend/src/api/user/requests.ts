@@ -41,6 +41,17 @@ export function changePassword(payload: ChangePasswordPayload) {
   });
 }
 
+
+/**
+ * Sets the first password for an account authorized by a provider reauth, then signs out other sessions
+ */
+export function setPassword(payload: { new_password: string }) {
+  return authenticatedFetch<void>('/auth/password/set', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
 /**
  * Fetches account IDs selected for runway calculations
  */

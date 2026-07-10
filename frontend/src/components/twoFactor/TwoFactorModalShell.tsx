@@ -15,6 +15,8 @@ interface TwoFactorModalShellProps {
   onClose: () => void;
   /** Blocks backdrop-click and Escape dismissal while an action is in flight */
   closeDisabled?: boolean;
+  /** Runs once the exit animation has finished, for work that must wait until the modal is fully gone */
+  onExitComplete?: () => void;
   children: ReactNode;
 }
 
@@ -22,7 +24,7 @@ interface TwoFactorModalShellProps {
  * Shared portal, backdrop, panel, scroll lock, and close behaviour for the two-factor modals, so each
  * modal only supplies its own contents
  */
-export function TwoFactorModalShell({ open, onClose, closeDisabled = false, children }: TwoFactorModalShellProps) {
+export function TwoFactorModalShell({ open, onClose, closeDisabled = false, onExitComplete, children }: TwoFactorModalShellProps) {
   useBodyScrollLock(open);
 
   useEffect(() => {
@@ -52,7 +54,7 @@ export function TwoFactorModalShell({ open, onClose, closeDisabled = false, chil
   };
 
   return createPortal(
-    <AnimatePresence>
+    <AnimatePresence onExitComplete={onExitComplete}>
       {open && (
         <motion.div
           className="app-modal-backdrop z-[70]"

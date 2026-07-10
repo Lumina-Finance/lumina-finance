@@ -37,8 +37,8 @@ async def signup(db: AsyncSession, data: SignupRequest) -> User:
     # passes the self-only users policy when it is inserted and read back
     current_user_id_ctx.set(user_id)
 
-    await _reject_registered_email(db, data.email)
-    await _reject_missing_base_currency(db, data.base_currency)
+    await reject_registered_email(db, data.email)
+    await reject_missing_base_currency(db, data.base_currency)
 
     user = User(
         id=user_id,
@@ -65,7 +65,7 @@ async def signup(db: AsyncSession, data: SignupRequest) -> User:
     return user
 
 
-async def _reject_registered_email(db: AsyncSession, email: str) -> None:
+async def reject_registered_email(db: AsyncSession, email: str) -> None:
     """Raise a conflict response when an email is already registered
 
     Args:
@@ -81,7 +81,7 @@ async def _reject_registered_email(db: AsyncSession, email: str) -> None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
 
 
-async def _reject_missing_base_currency(db: AsyncSession, base_currency: str) -> None:
+async def reject_missing_base_currency(db: AsyncSession, base_currency: str) -> None:
     """Raise an invalid-currency response when the base currency is missing
 
     Args:

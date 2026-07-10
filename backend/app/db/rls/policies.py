@@ -82,6 +82,9 @@ AUTH_TABLES = (
     "recovery_codes",
     "webauthn_credentials",
     "webauthn_challenges",
+    "oidc_providers",
+    "oidc_identities",
+    "oidc_authorization_requests",
 )
 
 

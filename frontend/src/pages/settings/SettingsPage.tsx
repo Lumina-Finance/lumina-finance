@@ -1,4 +1,5 @@
 import { useAccounts } from '@/api/accounts'
+import { useOidcIdentities } from '@/api/oidc'
 import CategorySettingsSection from '@/pages/settings/components/category-settings-section'
 import MerchantSettingsSection from '@/pages/settings/components/merchant-settings-section'
 import TagSettingsSection from '@/pages/settings/components/tag-settings-section'
@@ -64,6 +65,9 @@ export default function SettingsPage() {
     verifyPasswordStepUp,
     closeStepUp,
   } = useSecuritySettingsForm()
+  const oidcIdentities = useOidcIdentities()
+  // Assume a password until the identities load, so the change-password form is the default view
+  const hasPassword = oidcIdentities.data?.has_password ?? true
   const sectionNavigation = useSettingsSectionNavigation()
 
   const profileActions = (
@@ -141,6 +145,7 @@ export default function SettingsPage() {
             onFieldChange={setPasswordField}
             newPasswordValid={newPasswordValid}
             confirmMatches={confirmMatches}
+            hasPassword={hasPassword}
             actions={securityActions}
           />
           <StepUpModal

@@ -38,6 +38,10 @@ interface UseAuthFormWorkflowParams {
   currenciesError: boolean
   detectedTimezone: string
   mode: AuthMode
+
+  // Email handed over by a flow that already knows the address, such as a provider
+  // sign-in that matched an existing password account
+  initialEmail?: string
 }
 
 /**
@@ -49,6 +53,7 @@ export function useAuthFormWorkflow({
   currenciesError,
   detectedTimezone,
   mode,
+  initialEmail,
 }: UseAuthFormWorkflowParams) {
   const { login, verifyMfa, signup, setSession, primeAccessToken } = useAuth()
   const passkeyConfig = usePasskeyConfig()
@@ -56,7 +61,10 @@ export function useAuthFormWorkflow({
   const passkeyMfa = useVerifyPasskeyMfa()
   const navigate = useNavigate()
   const pendingAuthRef = useRef<AuthResponse | null>(null)
-  const [form, setForm] = useState<AuthFormValues>(() => buildInitialAuthForm(detectedTimezone))
+  const [form, setForm] = useState<AuthFormValues>(() => {
+    const initialForm = buildInitialAuthForm(detectedTimezone)
+    return initialEmail ? { ...initialForm, email: initialEmail } : initialForm
+  })
   const [fieldErrors, setFieldErrors] = useState<AuthFieldErrors>({})
   const [touched, setTouched] = useState<Record<string, boolean>>({})
   const [error, setError] = useState('')
