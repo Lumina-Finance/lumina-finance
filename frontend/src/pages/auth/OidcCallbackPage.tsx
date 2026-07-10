@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import { useQueryClient } from '@tanstack/react-query'
@@ -28,6 +28,9 @@ const TIMEZONES = Intl.supportedValuesOf('timeZone').map((tz) => ({
   value: tz,
   label: tz.replace(/_/g, ' '),
 }))
+
+// The provider supplies the email, so it is shown dimmed to read as fixed rather than editable
+const IMMUTABLE_FIELD_STYLE: CSSProperties = { opacity: 0.55, cursor: 'not-allowed' }
 
 /**
  * Finishes a provider sign-in from the callback query parameters
@@ -294,7 +297,7 @@ function OidcOnboardingForm({ onboarding, onBackToLogin }: OidcOnboardingFormPro
         Finish setting up
       </h1>
       <p className="mt-2 text-sm" style={{ color: 'var(--app-text-muted)' }}>
-        You're signing in as {onboarding.email}. A few details finish your account.
+        A few details to finish your account.
       </p>
 
       {error && (
@@ -302,6 +305,20 @@ function OidcOnboardingForm({ onboarding, onBackToLogin }: OidcOnboardingFormPro
           {error}
         </p>
       )}
+
+      <div className="mt-5 space-y-1.5">
+        <label htmlFor="email" className="app-label block">
+          Email
+        </label>
+        <input
+          id="email"
+          type="email"
+          className="app-input"
+          value={onboarding.email}
+          disabled
+          style={IMMUTABLE_FIELD_STYLE}
+        />
+      </div>
 
       <div className="mt-5">
         <AuthTextField
