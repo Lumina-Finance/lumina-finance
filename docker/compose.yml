@@ -7,28 +7,8 @@ services:
         condition: service_healthy
     ports:
       - "8080:80"
-
-    # OIDC provider blocks are named after operator-chosen slugs, so they cannot be
-    # enumerated here and the whole operator env file is passed through instead
     env_file:
       - .env
-    environment:
-      DB_HOST: "${DB_HOST}"
-      DB_PORT: "${DB_PORT}"
-      DB_NAME: "${DB_NAME}"
-      DB_USER: "${DB_USER}"
-      DB_PASSWORD: "${DB_PASSWORD}"
-      APP_URL: "${APP_URL:-}"
-      UPDATE_CHECKS_ENABLED: "${UPDATE_CHECKS_ENABLED:-true}"
-      FRANKFURTER_URL: "${FRANKFURTER_URL:-https://api.frankfurter.dev/v2}"
-      EMAIL_BACKEND: "${EMAIL_BACKEND:-logging}"
-      SMTP_HOST: "${SMTP_HOST:-}"
-      SMTP_PORT: "${SMTP_PORT:-587}"
-      SMTP_USERNAME: "${SMTP_USERNAME:-}"
-      SMTP_PASSWORD: "${SMTP_PASSWORD:-}"
-      SMTP_USE_TLS: "${SMTP_USE_TLS:-true}"
-      MAIL_FROM: "${MAIL_FROM:-}"
-      PASSWORD_RESET_DAILY_EMAIL_LIMIT: "${PASSWORD_RESET_DAILY_EMAIL_LIMIT:-3}"
     volumes:
       - lumina_data:/data
 
