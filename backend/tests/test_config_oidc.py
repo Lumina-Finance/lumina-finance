@@ -70,23 +70,11 @@ def test_generic_requires_issuer(monkeypatch):
         load_oidc_provider_configs()
 
 
-def test_google_preset_fills_issuer_and_display_name(monkeypatch):
-    """The google slug needs only credentials because its preset supplies the rest"""
-    monkeypatch.setenv("OIDC_PROVIDERS", "google")
-    monkeypatch.setenv("OIDC_GOOGLE_CLIENT_ID", "client-123")
-    monkeypatch.setenv("OIDC_GOOGLE_CLIENT_SECRET", "secret-abc")
-
-    configs = load_oidc_provider_configs()
-
-    assert configs[0].issuer == "https://accounts.google.com"
-    assert configs[0].display_name == "Google"
-
-
 def test_unknown_slug_is_rejected(monkeypatch):
-    """A slug outside the supported vocabulary names its alternatives and fails"""
+    """A slug outside the supported vocabulary fails and names the generic slug"""
     monkeypatch.setenv("OIDC_PROVIDERS", "authentik")
 
-    with pytest.raises(RuntimeError, match="generic, google"):
+    with pytest.raises(RuntimeError, match="generic"):
         load_oidc_provider_configs()
 
 

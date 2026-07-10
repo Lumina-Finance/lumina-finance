@@ -40,7 +40,7 @@ export function ProviderReauthModal({ open, providers, busySlug, onChoose, onClo
                 <div className="app-spinner" />
               ) : (
                 <>
-                  <ProviderMark slug={identity.provider_slug} name={identity.provider_display_name} />
+                  <ProviderMark name={identity.provider_display_name} />
                   {identity.provider_display_name}
                 </>
               )}

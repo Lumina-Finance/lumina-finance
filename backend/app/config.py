@@ -3,7 +3,6 @@
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import NamedTuple
 from urllib.parse import urlparse
 
 from dotenv import load_dotenv
@@ -252,22 +251,9 @@ MFA_CHALLENGE_TOKEN_EXPIRE_SECONDS = int(os.getenv("MFA_CHALLENGE_TOKEN_EXPIRE_S
 # --- OIDC ---
 
 # The generic slug accepts any standards-compliant provider such as Authentik or Authelia,
-# while vendor slugs are presets whose issuer and display name are filled in automatically
-# so operators only supply the client credentials
+# so an operator supplies its issuer, client credentials, and an optional display name
 OIDC_GENERIC_SLUG = "generic"
 OIDC_GENERIC_DEFAULT_DISPLAY_NAME = "OIDC"
-
-
-class OidcVendorPreset(NamedTuple):
-    """Issuer and display name a vendor slug fills in so operators supply only the credentials"""
-
-    issuer: str
-    display_name: str
-
-
-OIDC_VENDOR_PRESETS = {
-    "google": OidcVendorPreset("https://accounts.google.com", "Google"),
-}
 
 # The default scope set covers exactly the claims sign-in needs: subject, email, and name
 OIDC_DEFAULT_SCOPES = "openid email profile"
@@ -341,8 +327,8 @@ def _validate_oidc_issuer(slug: str, issuer: str) -> str:
 def load_oidc_provider_configs() -> list[OidcProviderConfig]:
     """Return the OIDC providers declared in the environment
 
-    Each slug listed in OIDC_PROVIDERS is read from its own OIDC_<SLUG>_* block. The slug
-    is either generic, which requires an issuer, or a vendor preset that supplies its own
+    Each slug listed in OIDC_PROVIDERS is read from its own OIDC_<SLUG>_* block. Only the
+    generic slug is supported, and it requires an issuer
 
     Returns:
         Provider declarations in the order they are listed
@@ -352,14 +338,10 @@ def load_oidc_provider_configs() -> list[OidcProviderConfig]:
     """
     configs = []
     for slug in _unique_values(_optional_csv_env("OIDC_PROVIDERS")):
-        preset = OIDC_VENDOR_PRESETS.get(slug)
-        if slug != OIDC_GENERIC_SLUG and preset is None:
-            supported_slugs = ", ".join([OIDC_GENERIC_SLUG, *OIDC_VENDOR_PRESETS])
-            raise RuntimeError(f"Unknown OIDC provider {slug!r}. Supported: {supported_slugs}")
+        if slug != OIDC_GENERIC_SLUG:
+            raise RuntimeError(f"Unknown OIDC provider {slug!r}. Only {OIDC_GENERIC_SLUG!r} is supported")
 
         issuer = os.getenv(_oidc_env_key(slug, "ISSUER"), "").strip()
-        if not issuer and preset is not None:
-            issuer = preset.issuer
         if not issuer:
             raise RuntimeError(f"Missing required environment variable: {_oidc_env_key(slug, 'ISSUER')}")
 
@@ -372,7 +354,7 @@ def load_oidc_provider_configs() -> list[OidcProviderConfig]:
 
         display_name = os.getenv(_oidc_env_key(slug, "DISPLAY_NAME"), "").strip()
         if not display_name:
-            display_name = preset.display_name if preset is not None else OIDC_GENERIC_DEFAULT_DISPLAY_NAME
+            display_name = OIDC_GENERIC_DEFAULT_DISPLAY_NAME
 
         scopes = os.getenv(_oidc_env_key(slug, "SCOPES"), "").strip() or OIDC_DEFAULT_SCOPES
         if "openid" not in scopes.split():

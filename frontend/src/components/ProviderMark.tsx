@@ -1,9 +1,5 @@
 import { useState } from 'react'
 import { Globe } from 'lucide-react'
-import { GoogleGMark } from '@/components/GoogleGMark'
-
-// Google's slug is fixed by the backend preset and selects its brand-mandated mark
-export const GOOGLE_PROVIDER_SLUG = 'google'
 
 // selfh.st hosts a large catalogue of self-hosted app icons keyed by a lowercase-hyphen slug, so a
 // generic provider named after its app (Authentik, Authelia, ...) can borrow its real logo
@@ -22,25 +18,19 @@ function toIconSlug(name: string | undefined): string {
 }
 
 /**
- * Renders a neutral globe as the generic-provider fallback
- */
-function GlobeMark({ size }: { size: number }) {
-  return <Globe size={size} aria-hidden style={{ color: 'var(--app-text-muted)' }} />
-}
-
-/**
- * Renders a generic provider's self-hosted app logo, falling back to the globe
+ * Renders the mark for a sign-in provider: its self-hosted app logo matched from the display name,
+ * with a neutral globe fallback. Shared by the login buttons and the settings list
  *
- * The icon is fetched from the selfh.st CDN by the provider's display name, so an operator who
- * names their provider after its app gets its logo for free. A missing match or a failed load
- * (offline, blocked, unknown app) resolves to the globe, so the button is never broken
+ * The icon is fetched from the selfh.st CDN by the provider's display name, so an operator who names
+ * their provider after its app gets its logo for free. A missing match or a failed load (offline,
+ * blocked, unknown app) resolves to the globe, so the button is never broken
  */
-function GenericProviderMark({ name, size }: { name: string | undefined; size: number }) {
+export function ProviderMark({ name, size = 16 }: { name?: string; size?: number }) {
   const [failed, setFailed] = useState(false)
   const iconSlug = toIconSlug(name)
 
   if (!iconSlug || failed) {
-    return <GlobeMark size={size} />
+    return <Globe size={size} aria-hidden style={{ color: 'var(--app-text-muted)' }} />
   }
 
   return (
@@ -56,16 +46,4 @@ function GenericProviderMark({ name, size }: { name: string | undefined; size: n
       referrerPolicy="no-referrer"
     />
   )
-}
-
-/**
- * Renders the mark for a sign-in provider: the official G for Google, and for a generic provider
- * its self-hosted app logo matched by display name with a globe fallback. Shared by the login
- * buttons and the settings list
- */
-export function ProviderMark({ slug, name, size = 16 }: { slug: string; name?: string; size?: number }) {
-  if (slug === GOOGLE_PROVIDER_SLUG) {
-    return <GoogleGMark size={size} />
-  }
-  return <GenericProviderMark name={name} size={size} />
 }

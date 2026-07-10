@@ -213,7 +213,7 @@ export default function SignInProviderControls() {
               style={{ borderColor: 'var(--app-border)' }}
             >
               <span className="flex h-9 w-9 shrink-0 items-center justify-center" aria-hidden>
-                <ProviderMark slug={row.slug} name={row.displayName} size={18} />
+                <ProviderMark name={row.displayName} size={18} />
               </span>
 
               <div className="min-w-0 flex-1 space-y-0.5">
