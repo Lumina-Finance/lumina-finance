@@ -132,7 +132,7 @@ export default function SecuritySection({
             )}
 
             <div className="border-t pt-6" style={{ borderColor: 'var(--app-border)' }}>
-              <MultiFactorControls />
+              <MultiFactorControls hasPassword={hasPassword} />
             </div>
 
             <div className="border-t pt-6" style={{ borderColor: 'var(--app-border)' }}>
