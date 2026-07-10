@@ -97,11 +97,14 @@ export function fetchOidcIdentities(): Promise<OidcIdentitiesResponse> {
 
 /**
  * Starts linking a provider after step-up, resolving to the provider URL to visit
+ *
+ * An account with a password passes its step-up. A passwordless account omits it and relies on the
+ * reauth proof cookie a fresh provider reauth armed, so the null body carries no step-up
  */
-export function beginOidcLink(slug: string, stepUp: StepUpPayload): Promise<OidcAuthorizeResponse> {
+export function beginOidcLink(slug: string, stepUp?: StepUpPayload): Promise<OidcAuthorizeResponse> {
   return authenticatedFetch(`/auth/oidc/${slug}/link`, {
     method: 'POST',
-    body: JSON.stringify(stepUp),
+    body: JSON.stringify(stepUp ?? null),
   });
 }
 
@@ -117,11 +120,14 @@ export function completeOidcLinkCallback(payload: OidcCallbackPayload): Promise<
 
 /**
  * Removes a linked provider after step-up
+ *
+ * An account with a password passes its step-up. A passwordless account omits it and relies on the
+ * reauth proof cookie a fresh provider reauth armed, so the null body carries no step-up
  */
-export function removeOidcIdentity(identityId: string, stepUp: StepUpPayload): Promise<void> {
+export function removeOidcIdentity(identityId: string, stepUp?: StepUpPayload): Promise<void> {
   return authenticatedFetch(`/auth/oidc/identities/${identityId}/remove`, {
     method: 'POST',
-    body: JSON.stringify(stepUp),
+    body: JSON.stringify(stepUp ?? null),
   });
 }
 

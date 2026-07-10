@@ -4,6 +4,7 @@ import SettingsCard from '@/pages/settings/components/Card'
 import SettingsField from '@/pages/settings/components/Field'
 import SettingsSectionHeader from '@/pages/settings/components/SectionHeader'
 import MultiFactorControls from '@/pages/settings/components/security-section/MultiFactorControls'
+import { SetPasswordControls } from '@/pages/settings/components/security-section/SetPasswordControls'
 import SignInProviderControls from '@/pages/settings/components/security-section/SignInProviderControls'
 import { NEW_PASSWORD_RULES } from '@/utils/passwordPolicy'
 import type { PasswordFormState } from '@/pages/settings/hooks/useSecuritySettingsForm'
@@ -19,11 +20,14 @@ interface SecuritySectionProps {
   onFieldChange: <K extends keyof PasswordFormState>(key: K, value: string) => void
   newPasswordValid: boolean
   confirmMatches: boolean
+  // False for an account created through a provider, which sets a first password instead of changing one
+  hasPassword: boolean
   actions: React.ReactNode
 }
 
 /**
- * Renders the account email, the change-password form, and its live policy checklist
+ * Renders the account email and either the change-password form, with its live policy checklist, or
+ * the set-a-first-password prompt for an account that signs in only through a provider
  */
 export default function SecuritySection({
   email,
@@ -31,6 +35,7 @@ export default function SecuritySection({
   onFieldChange,
   newPasswordValid,
   confirmMatches,
+  hasPassword,
   actions,
 }: SecuritySectionProps) {
   const showRules = form.newPassword.length > 0
@@ -57,68 +62,74 @@ export default function SecuritySection({
               <input className="app-input" type="email" value={email} disabled style={DISABLED_INPUT_STYLE} />
             </SettingsField>
 
-            <div className="space-y-4">
-              <SettingsField label="Current password">
-                <input
-                  className="app-input"
-                  type="password"
-                  autoComplete="current-password"
-                  value={form.currentPassword}
-                  onChange={(e) => onFieldChange('currentPassword', e.target.value)}
-                />
-              </SettingsField>
+            {hasPassword ? (
+              <>
+                <div className="space-y-4">
+                  <SettingsField label="Current password">
+                    <input
+                      className="app-input"
+                      type="password"
+                      autoComplete="current-password"
+                      value={form.currentPassword}
+                      onChange={(e) => onFieldChange('currentPassword', e.target.value)}
+                    />
+                  </SettingsField>
 
-              <SettingsField label="New password">
-                <input
-                  className="app-input"
-                  type="password"
-                  autoComplete="new-password"
-                  aria-invalid={form.newPassword.length > 0 && !newPasswordValid}
-                  value={form.newPassword}
-                  onChange={(e) => onFieldChange('newPassword', e.target.value)}
-                />
-                {showRules && (
-                  <ul className="space-y-1">
-                    {NEW_PASSWORD_RULES.map((rule) => {
-                      const passed = rule.test(form.newPassword)
-                      return (
-                        <li key={rule.label} className="flex items-center gap-2 text-sm">
-                          {passed ? (
-                            <Check size={14} strokeWidth={2.5} style={{ color: 'var(--app-accent)' }} aria-hidden />
-                          ) : (
-                            <X size={14} strokeWidth={2.5} style={{ color: 'var(--app-text-muted)' }} aria-hidden />
-                          )}
-                          <span
-                            className={passed ? 'line-through' : ''}
-                            style={{ color: passed ? 'var(--app-text-subtle)' : 'var(--app-text-muted)' }}
-                          >
-                            {rule.label}
-                          </span>
-                        </li>
-                      )
-                    })}
-                  </ul>
-                )}
-              </SettingsField>
+                  <SettingsField label="New password">
+                    <input
+                      className="app-input"
+                      type="password"
+                      autoComplete="new-password"
+                      aria-invalid={form.newPassword.length > 0 && !newPasswordValid}
+                      value={form.newPassword}
+                      onChange={(e) => onFieldChange('newPassword', e.target.value)}
+                    />
+                    {showRules && (
+                      <ul className="space-y-1">
+                        {NEW_PASSWORD_RULES.map((rule) => {
+                          const passed = rule.test(form.newPassword)
+                          return (
+                            <li key={rule.label} className="flex items-center gap-2 text-sm">
+                              {passed ? (
+                                <Check size={14} strokeWidth={2.5} style={{ color: 'var(--app-accent)' }} aria-hidden />
+                              ) : (
+                                <X size={14} strokeWidth={2.5} style={{ color: 'var(--app-text-muted)' }} aria-hidden />
+                              )}
+                              <span
+                                className={passed ? 'line-through' : ''}
+                                style={{ color: passed ? 'var(--app-text-subtle)' : 'var(--app-text-muted)' }}
+                              >
+                                {rule.label}
+                              </span>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    )}
+                  </SettingsField>
 
-              <SettingsField label="Confirm new password">
-                <input
-                  className="app-input"
-                  type="password"
-                  autoComplete="new-password"
-                  aria-invalid={showMismatch}
-                  value={form.confirmPassword}
-                  onChange={(e) => onFieldChange('confirmPassword', e.target.value)}
-                />
-                {showMismatch && (
-                  <span className="block text-xs" style={{ color: 'var(--app-negative)' }}>
-                    Passwords do not match
-                  </span>
-                )}
-              </SettingsField>
-            </div>
+                  <SettingsField label="Confirm new password">
+                    <input
+                      className="app-input"
+                      type="password"
+                      autoComplete="new-password"
+                      aria-invalid={showMismatch}
+                      value={form.confirmPassword}
+                      onChange={(e) => onFieldChange('confirmPassword', e.target.value)}
+                    />
+                    {showMismatch && (
+                      <span className="block text-xs" style={{ color: 'var(--app-negative)' }}>
+                        Passwords do not match
+                      </span>
+                    )}
+                  </SettingsField>
+                </div>
 
-            {actions}
+                {actions}
+              </>
+            ) : (
+              <SetPasswordControls />
+            )}
 
             <div className="border-t pt-6" style={{ borderColor: 'var(--app-border)' }}>
               <MultiFactorControls />

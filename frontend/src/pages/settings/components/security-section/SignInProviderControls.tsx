@@ -4,7 +4,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import { oidcKeys } from '@/api/cache/queryKeys';
 import {
   beginOidcLink,
-  beginOidcReauth,
   removeOidcIdentity,
   useOidcIdentities,
   useOidcProviders,
@@ -13,7 +12,8 @@ import {
 } from '@/api/oidc';
 import { ProviderMark } from '@/components/ProviderMark';
 import { StepUpModal, type StepUpCredentials } from '@/components/twoFactor/StepUpModal';
-import { SetPasswordModal } from '@/pages/settings/components/security-section/SetPasswordModal';
+import { ProviderReauthModal } from '@/pages/settings/components/security-section/ProviderReauthModal';
+import { useProviderReauth } from '@/pages/settings/hooks/useProviderReauth';
 import { markOidcIntent } from '@/utils/oidcIntent';
 import { withMinDelay } from '@/utils/timing';
 
@@ -62,11 +62,11 @@ function buildProviderRows(
 }
 
 /**
- * The security-card entry for single sign-on: one row per provider showing its linked
- * state, with link and unlink actions behind step-up
+ * The security-card entry for single sign-on: one row per provider showing its linked state, with
+ * link and unlink actions
  *
- * An account created through a provider has no password, so the actions are replaced by a
- * prompt to set one first through the password reset email
+ * An account with a password steps up with it. A passwordless account has none, so it re-confirms
+ * with a linked provider instead, which returns here to resume the action it started
  */
 export default function SignInProviderControls() {
   const queryClient = useQueryClient();
@@ -74,10 +74,11 @@ export default function SignInProviderControls() {
   const navigate = useNavigate();
   const providers = useOidcProviders();
   const identities = useOidcIdentities();
+  const reauth = useProviderReauth();
 
   const [linkTarget, setLinkTarget] = useState<ProviderRow | null>(null);
   const [removeTarget, setRemoveTarget] = useState<OidcLinkedIdentity | null>(null);
-  const [reauthingSlug, setReauthingSlug] = useState<string | null>(null);
+  const [resumeError, setResumeError] = useState<string | null>(null);
 
   const sectionRef = useRef<HTMLDivElement>(null);
 
@@ -86,58 +87,78 @@ export default function SignInProviderControls() {
     () => (location.state as { linkedProvider?: string } | null)?.linkedProvider ?? null,
   );
 
-  // A completed reauth returns here to open the set-password form
-  const [setPasswordOpen, setSetPasswordOpen] = useState<boolean>(
-    () => (location.state as { setPassword?: boolean } | null)?.setPassword === true,
-  );
-
   const linkedIdentities = identities.data?.identities ?? [];
   const hasPassword = identities.data?.has_password ?? true;
   const rows = buildProviderRows(providers.data ?? [], linkedIdentities);
 
   const isLoading = providers.isLoading || identities.isLoading;
 
-  // A fresh link centres its section and consumes the state, so a reload or back
-  // navigation does not replay the scroll and blink
+  // A fresh link centres its section and consumes the state, so a reload or back navigation does not
+  // replay the scroll and blink
   const identitiesReady = identities.data !== undefined;
   useEffect(() => {
-    if ((!justLinkedSlug && !setPasswordOpen) || !identitiesReady) return;
+    if (!justLinkedSlug || !identitiesReady) return;
     sectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     navigate(location.pathname, { replace: true, state: null });
-  }, [justLinkedSlug, setPasswordOpen, identitiesReady, navigate, location.pathname]);
+  }, [justLinkedSlug, identitiesReady, navigate, location.pathname]);
 
-  // The section stays visible without providers so operators discover the feature, with
-  // the guidance split between a server that offers none and one that failed to answer
+  // A passwordless reauth returns here to resume the action it stepped up for, then clears the state
+  // so a reload does not replay it. Linking a new provider begins its own roundtrip, unlinking commits
+  const resumeRef = useRef(false);
+  useEffect(() => {
+    if (resumeRef.current) return;
+    const navState = location.state as { resumeLink?: string; resumeUnlink?: string } | null;
+    if (!navState?.resumeLink && !navState?.resumeUnlink) return;
+    resumeRef.current = true;
+    navigate(location.pathname, { replace: true, state: null });
+
+    if (navState.resumeLink) {
+      const slug = navState.resumeLink;
+      beginOidcLink(slug)
+        .then(({ authorization_url }) => {
+          markOidcIntent({ flow: 'link' });
+          window.location.assign(authorization_url);
+        })
+        .catch((error: Error) => setResumeError(error.message || 'Could not continue linking the provider.'));
+    } else if (navState.resumeUnlink) {
+      const identityId = navState.resumeUnlink;
+      withMinDelay(() => removeOidcIdentity(identityId))
+        .then(() => queryClient.invalidateQueries({ queryKey: oidcKeys.identities() }))
+        .catch((error: Error) => setResumeError(error.message || 'Could not remove the provider.'));
+    }
+  }, [location.state, location.pathname, navigate, queryClient]);
+
+  // The section stays visible without providers so operators discover the feature, with the guidance
+  // split between a server that offers none and one that failed to answer
   const configurationBroken = providers.isError || identities.isError;
   const nothingConfigured = !isLoading && !configurationBroken && rows.length === 0;
+
+  // A password steps up through the modal, otherwise a linked provider re-confirms it is you
+  const startLink = (row: ProviderRow) => {
+    setResumeError(null);
+    if (hasPassword) {
+      setLinkTarget(row);
+    } else {
+      reauth.start({ kind: 'link', slug: row.slug });
+    }
+  };
+
+  const startUnlink = (identity: OidcLinkedIdentity) => {
+    setResumeError(null);
+    if (hasPassword) {
+      setRemoveTarget(identity);
+    } else {
+      reauth.start({ kind: 'unlink', identityId: identity.id });
+    }
+  };
 
   const confirmLink = async (credentials: StepUpCredentials) => {
     if (!linkTarget) return;
     const { authorization_url } = await beginOidcLink(linkTarget.slug, credentials);
 
     // The browser leaves for the provider, so the callback needs to know this return links
-    markOidcIntent('link');
+    markOidcIntent({ flow: 'link' });
     window.location.assign(authorization_url);
-  };
-
-  const startSetPassword = async (slug: string) => {
-    setReauthingSlug(slug);
-    try {
-      const { authorization_url } = await beginOidcReauth(slug);
-
-      // The reauth return finishes the set-password flow, not a link
-      markOidcIntent('reauth');
-      window.location.assign(authorization_url);
-    } catch {
-      setReauthingSlug(null);
-    }
-  };
-
-  const finishSetPassword = async () => {
-    setSetPasswordOpen(false);
-
-    // The account now has a password, so the section flips to showing link and unlink
-    await queryClient.invalidateQueries({ queryKey: oidcKeys.identities() });
   };
 
   const confirmRemove = async (credentials: StepUpCredentials) => {
@@ -155,7 +176,7 @@ export default function SignInProviderControls() {
         <div className="space-y-1">
           <h3 className="text-base font-semibold">Sign-in providers</h3>
           <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-            Linked providers add another way to sign in alongside your password.
+            Linked providers are ways to sign in to your account.
           </p>
         </div>
 
@@ -177,35 +198,10 @@ export default function SignInProviderControls() {
           </p>
         )}
 
-        {!hasPassword && linkedIdentities.length > 0 && (
-          <div className="space-y-3 rounded-xl border px-4 py-3" style={{ borderColor: 'var(--app-border)' }}>
-            <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-              This account signs in only through a provider. Set a password to sign in without one and
-              to manage your providers. You'll re-confirm it's you with a provider first.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {linkedIdentities.map((identity) => (
-                <button
-                  key={identity.id}
-                  type="button"
-                  className={`app-secondary-button flex items-center gap-2 ${
-                    reauthingSlug === identity.provider_slug ? 'app-primary-button-loading' : ''
-                  }`}
-                  disabled={reauthingSlug !== null}
-                  onClick={() => startSetPassword(identity.provider_slug)}
-                >
-                  {reauthingSlug === identity.provider_slug ? (
-                    <div className="app-spinner" />
-                  ) : (
-                    <>
-                      <ProviderMark slug={identity.provider_slug} name={identity.provider_display_name} />
-                      Set a password with {identity.provider_display_name}
-                    </>
-                  )}
-                </button>
-              ))}
-            </div>
-          </div>
+        {resumeError && (
+          <p className="text-sm" style={{ color: 'var(--app-negative)' }}>
+            {resumeError}
+          </p>
         )}
 
         {rows.length > 0 && (
@@ -240,21 +236,23 @@ export default function SignInProviderControls() {
                 </p>
               </div>
 
-              {hasPassword && row.identity && (
+              {row.identity && (
                 <button
                   type="button"
                   className="app-secondary-button shrink-0"
-                  onClick={() => setRemoveTarget(row.identity)}
+                  disabled={reauth.busySlug !== null}
+                  onClick={() => startUnlink(row.identity as OidcLinkedIdentity)}
                 >
                   Unlink
                 </button>
               )}
 
-              {hasPassword && !row.identity && row.offered && (
+              {!row.identity && row.offered && (
                 <button
                   type="button"
                   className="app-secondary-button shrink-0"
-                  onClick={() => setLinkTarget(row)}
+                  disabled={reauth.busySlug !== null}
+                  onClick={() => startLink(row)}
                 >
                   Link
                 </button>
@@ -288,10 +286,12 @@ export default function SignInProviderControls() {
         onVerify={confirmRemove}
       />
 
-      <SetPasswordModal
-        open={setPasswordOpen}
-        onClose={() => setSetPasswordOpen(false)}
-        onDone={finishSetPassword}
+      <ProviderReauthModal
+        open={reauth.chooserOpen}
+        providers={reauth.linkedProviders}
+        busySlug={reauth.busySlug}
+        onChoose={reauth.chooseProvider}
+        onClose={reauth.closeChooser}
       />
     </>
   );

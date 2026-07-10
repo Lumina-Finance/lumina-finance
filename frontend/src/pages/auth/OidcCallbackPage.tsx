@@ -52,8 +52,8 @@ const OidcCallbackPage = () => {
   const [signInCompleted, setSignInCompleted] = useState(false)
 
   // What a signed-in return is for, captured once since the flag is read and cleared on mount
-  const [signedInIntent] = useState<OidcSignedInIntent>(() => consumeOidcIntent())
-  const isReauth = user !== null && signedInIntent === 'reauth'
+  const [signedInIntent] = useState<OidcSignedInIntent | null>(() => consumeOidcIntent())
+  const isReauth = user !== null && signedInIntent?.flow === 'reauth'
 
   // The stored roundtrip is single use on the server, so the strict-mode double effect
   // must not post the callback twice
@@ -83,11 +83,18 @@ const OidcCallbackPage = () => {
     if (!code || !state) return
     callbackStartedRef.current = true
 
-    if (user && signedInIntent === 'reauth') {
+    if (user && signedInIntent?.flow === 'reauth') {
+      const { action } = signedInIntent
       completeOidcReauthCallback({ code, state })
         .then(() => {
-          // The reauth armed the set-password authorization, so settings opens the form
-          navigate('/settings', { replace: true, state: { setPassword: true } })
+          // The reauth armed the step-up proof, so settings resumes the action it was started for
+          if (action.kind === 'set-password') {
+            navigate('/settings', { replace: true, state: { setPassword: true } })
+          } else if (action.kind === 'link') {
+            navigate('/settings', { replace: true, state: { resumeLink: action.slug } })
+          } else {
+            navigate('/settings', { replace: true, state: { resumeUnlink: action.identityId } })
+          }
         })
         .catch((reauthError: Error) => {
           const isGenericAuthFailure = reauthError instanceof ApiError && reauthError.status === 401
