@@ -325,57 +325,55 @@ def _validate_oidc_issuer(slug: str, issuer: str) -> str:
 
 
 def load_oidc_provider_configs() -> list[OidcProviderConfig]:
-    """Return the OIDC providers declared in the environment
+    """Return the OIDC providers configured through their environment blocks
 
-    Each slug listed in OIDC_PROVIDERS is read from its own OIDC_<SLUG>_* block. Only the
-    generic slug is supported, and it requires an issuer
+    A provider is enabled the moment its OIDC_<SLUG>_CLIENT_ID is set, and its remaining required
+    variables are then validated so a half-configured provider fails at startup rather than being
+    silently skipped. The public build ships only the generic slug, which any standards-compliant
+    provider is configured through
 
     Returns:
-        Provider declarations in the order they are listed
+        The enabled provider declarations
 
     Raises:
-        RuntimeError: A slug is unsupported, a required field is missing, or a value is invalid
+        RuntimeError: An enabled provider is missing a required field or carries an invalid value
     """
-    configs = []
-    for slug in _unique_values(_optional_csv_env("OIDC_PROVIDERS")):
-        if slug != OIDC_GENERIC_SLUG:
-            raise RuntimeError(f"Unknown OIDC provider {slug!r}. Only {OIDC_GENERIC_SLUG!r} is supported")
+    slug = OIDC_GENERIC_SLUG
 
-        issuer = os.getenv(_oidc_env_key(slug, "ISSUER"), "").strip()
-        if not issuer:
-            raise RuntimeError(f"Missing required environment variable: {_oidc_env_key(slug, 'ISSUER')}")
+    # The client id doubles as the enable switch, so an unset one leaves sign-in off without an error
+    client_id = os.getenv(_oidc_env_key(slug, "CLIENT_ID"), "").strip()
+    if not client_id:
+        return []
 
-        client_id = os.getenv(_oidc_env_key(slug, "CLIENT_ID"), "").strip()
-        client_secret = os.getenv(_oidc_env_key(slug, "CLIENT_SECRET"), "")
-        if not client_id:
-            raise RuntimeError(f"Missing required environment variable: {_oidc_env_key(slug, 'CLIENT_ID')}")
-        if not client_secret:
-            raise RuntimeError(f"Missing required environment variable: {_oidc_env_key(slug, 'CLIENT_SECRET')}")
+    issuer = os.getenv(_oidc_env_key(slug, "ISSUER"), "").strip()
+    if not issuer:
+        raise RuntimeError(f"Missing required environment variable: {_oidc_env_key(slug, 'ISSUER')}")
 
-        display_name = os.getenv(_oidc_env_key(slug, "DISPLAY_NAME"), "").strip()
-        if not display_name:
-            display_name = OIDC_GENERIC_DEFAULT_DISPLAY_NAME
+    client_secret = os.getenv(_oidc_env_key(slug, "CLIENT_SECRET"), "")
+    if not client_secret:
+        raise RuntimeError(f"Missing required environment variable: {_oidc_env_key(slug, 'CLIENT_SECRET')}")
 
-        scopes = os.getenv(_oidc_env_key(slug, "SCOPES"), "").strip() or OIDC_DEFAULT_SCOPES
-        if "openid" not in scopes.split():
-            raise RuntimeError(f"OIDC provider {slug!r} scopes must include openid: {scopes!r}")
-
-        configs.append(
-            OidcProviderConfig(
-                slug=slug,
-                display_name=display_name,
-                issuer=_validate_oidc_issuer(slug, issuer),
-                client_id=client_id,
-                client_secret=client_secret,
-                scopes=scopes,
-            )
-        )
-
-    # The callback URL every provider redirects to is derived from the public app origin,
+    # The callback URL the provider redirects to is derived from the public app origin,
     # so sign-in cannot work without one
-    if configs and not APP_URL:
-        raise RuntimeError("OIDC providers are configured but APP_URL is not set")
-    return configs
+    if not APP_URL:
+        raise RuntimeError("An OIDC provider is configured but APP_URL is not set")
+
+    display_name = os.getenv(_oidc_env_key(slug, "DISPLAY_NAME"), "").strip() or OIDC_GENERIC_DEFAULT_DISPLAY_NAME
+
+    scopes = os.getenv(_oidc_env_key(slug, "SCOPES"), "").strip() or OIDC_DEFAULT_SCOPES
+    if "openid" not in scopes.split():
+        raise RuntimeError(f"OIDC provider {slug!r} scopes must include openid: {scopes!r}")
+
+    return [
+        OidcProviderConfig(
+            slug=slug,
+            display_name=display_name,
+            issuer=_validate_oidc_issuer(slug, issuer),
+            client_id=client_id,
+            client_secret=client_secret,
+            scopes=scopes,
+        )
+    ]
 
 
 OIDC_PROVIDER_CONFIGS = load_oidc_provider_configs()

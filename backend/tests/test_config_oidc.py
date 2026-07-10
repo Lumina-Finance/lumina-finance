@@ -21,9 +21,8 @@ def clean_oidc_env(monkeypatch):
 
 
 def _declare_generic(monkeypatch, **overrides):
-    """Declare a complete generic provider block, with fields removable through overrides"""
+    """Configure a complete generic provider block, with fields removable through overrides"""
     values = {
-        "OIDC_PROVIDERS": "generic",
         "OIDC_GENERIC_ISSUER": "https://idp.test",
         "OIDC_GENERIC_CLIENT_ID": "client-123",
         "OIDC_GENERIC_CLIENT_SECRET": "secret-abc",
@@ -37,7 +36,7 @@ def _declare_generic(monkeypatch, **overrides):
 
 
 def test_no_declaration_yields_no_providers():
-    """An environment without OIDC_PROVIDERS declares nothing"""
+    """An environment without a generic client id enables nothing"""
     assert load_oidc_provider_configs() == []
 
 
@@ -70,12 +69,26 @@ def test_generic_requires_issuer(monkeypatch):
         load_oidc_provider_configs()
 
 
-def test_unknown_slug_is_rejected(monkeypatch):
-    """A slug outside the supported vocabulary fails and names the generic slug"""
-    monkeypatch.setenv("OIDC_PROVIDERS", "authentik")
+def test_generic_disabled_without_client_id(monkeypatch):
+    """The client id is the enable switch, so a block missing it stays off"""
+    _declare_generic(monkeypatch, OIDC_GENERIC_CLIENT_ID=None)
 
-    with pytest.raises(RuntimeError, match="generic"):
+    assert load_oidc_provider_configs() == []
+
+
+def test_generic_requires_client_secret(monkeypatch):
+    """An enabled provider missing its client secret fails loudly at startup"""
+    _declare_generic(monkeypatch, OIDC_GENERIC_CLIENT_SECRET=None)
+
+    with pytest.raises(RuntimeError, match="OIDC_GENERIC_CLIENT_SECRET"):
         load_oidc_provider_configs()
+
+
+def test_unknown_provider_block_is_ignored(monkeypatch):
+    """Only the generic slug is known, so an unrelated provider block enables nothing"""
+    monkeypatch.setenv("OIDC_GITHUB_CLIENT_ID", "client-123")
+
+    assert load_oidc_provider_configs() == []
 
 
 def test_issuer_keeps_trailing_slash(monkeypatch):

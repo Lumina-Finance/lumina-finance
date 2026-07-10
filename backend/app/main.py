@@ -1,5 +1,6 @@
 """Application entrypoint"""
 
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -27,6 +28,8 @@ from app.routes.users import router as user_router
 from app.services.auth.oidc_providers import sync_oidc_providers
 from app.services.email import build_email_sender, set_email_sender
 
+logger = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def _lifespan(_app: FastAPI):
@@ -37,6 +40,12 @@ async def _lifespan(_app: FastAPI):
     # rotations and removals apply without a migration
     async with async_session() as session:
         await sync_oidc_providers(session, OIDC_PROVIDER_CONFIGS)
+
+    if OIDC_PROVIDER_CONFIGS:
+        enabled_slugs = ", ".join(provider.slug for provider in OIDC_PROVIDER_CONFIGS)
+        logger.info("OIDC sign-in enabled for: %s", enabled_slugs)
+    else:
+        logger.info("OIDC sign-in is not configured")
     yield
 
 
