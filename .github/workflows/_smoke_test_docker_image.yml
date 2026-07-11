@@ -33,10 +33,15 @@ jobs:
       - name: Load image into the daemon
         run: docker load -i image.tar
 
-      # compose.yml pulls the operator's OIDC block in through env_file, so the file must exist. This
-      # smoke test supplies its config through the job env above, so an empty file satisfies that
-      - name: Create the env file compose requires
-        run: touch docker/.env
+      - name: Write the operator env file
+        run: |
+          cat > docker/.env <<EOF
+          DB_HOST=${DB_HOST}
+          DB_PORT=${DB_PORT}
+          DB_NAME=${DB_NAME}
+          DB_USER=${DB_USER}
+          DB_PASSWORD=${DB_PASSWORD}
+          EOF
 
       - name: Start the stack
         run: docker compose -f docker/compose.yml up -d
