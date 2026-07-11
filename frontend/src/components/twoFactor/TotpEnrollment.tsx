@@ -20,6 +20,8 @@ interface TotpEnrollmentProps {
   onComplete: () => void;
   /** Optional skip affordance, shown during signup but not in settings */
   onSkip?: () => void;
+  /** Optional switch back to passkey enrolment, shown at signup when the origin supports passkeys */
+  onSwitchToPasskey?: () => void;
   /**
    * A secret already minted after stepping up, used in settings where the step-up prompt ran and
    * fetched it before opening enrolment. When set, enrolment does not mint its own
@@ -35,7 +37,7 @@ interface TotpEnrollmentProps {
 /**
  * Drives the shared TOTP enrolment flow: the QR and code confirmation, then the one-time recovery codes
  */
-export function TotpEnrollment({ onComplete, onSkip, initialSetup, setupStepUp }: TotpEnrollmentProps) {
+export function TotpEnrollment({ onComplete, onSkip, onSwitchToPasskey, initialSetup, setupStepUp }: TotpEnrollmentProps) {
   // Settings supplies a secret it already stepped up for, so this only mints one for signup and re-enrol
   const setup = useSetupTotp({ enabled: !initialSetup, stepUp: setupStepUp });
   const setupData = initialSetup ?? setup.data;
@@ -269,6 +271,17 @@ export function TotpEnrollment({ onComplete, onSkip, initialSetup, setupStepUp }
               {confirming ? <div className="app-spinner" /> : 'Confirm'}
             </button>
           </div>
+
+          {onSwitchToPasskey && (
+            <button
+              type="button"
+              onClick={onSwitchToPasskey}
+              className="block w-full text-center text-sm font-medium underline underline-offset-2 transition-colors duration-200"
+              style={{ color: 'var(--app-accent)' }}
+            >
+              Use a passkey instead
+            </button>
+          )}
 
           {onSkip && (
             <button

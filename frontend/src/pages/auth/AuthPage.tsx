@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { useCurrencies } from '@/api/currency';
 import { useOidcProviders } from '@/api/oidc';
 import { OtpInput, OTP_LENGTH } from '@/components/OtpInput';
-import { TotpEnrollment } from '@/components/twoFactor/TotpEnrollment';
+import { SignupFactorSetup } from '@/pages/auth/components/SignupFactorSetup';
 import { WarningCallout } from '@/components/twoFactor/WarningCallout';
 import { AuthAnimatedTitle } from '@/pages/auth/components/AnimatedTitle';
 import { AuthConfirmPasswordField } from '@/pages/auth/components/fields/ConfirmPasswordField';
@@ -139,9 +139,13 @@ const AuthPage = () => {
 
         <AnimatePresence mode="wait" initial={false}>
           {enrolling ? (
-            <motion.div key="totp-enrollment" className="mt-5" {...AUTH_VIEW_TRANSITION}>
+            <motion.div key="factor-enrollment" className="mt-5" {...AUTH_VIEW_TRANSITION}>
               {/* Opt-in 2FA at signup is the account's first factor, so it steps up with the password just set */}
-              <TotpEnrollment onComplete={finishEnrollment} onSkip={finishEnrollment} setupStepUp={{ password: form.password }} />
+              <SignupFactorSetup
+                passkeysSupported={canUsePasskeys}
+                setupStepUp={{ password: form.password }}
+                onFinish={finishEnrollment}
+              />
             </motion.div>
           ) : mfaActive ? (
             <motion.div
