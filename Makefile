@@ -6,7 +6,7 @@ DEV_DIR ?= dev
 .PHONY: new-worktree cleanup-worktree \
 	reset-dev-db dev-db-recreate dev-db-create dev-db-restore dev-db-reassign dev-db-migrate dev-db-apply-rls \
 	reset-dev-server dev-server-down dev-server-build dev-server-restore dev-server-app-up \
-	seed-dev-data
+	seed-dev-data take-screenshots
 
 # Create a fully isolated worktree with its own database, dependencies, and port
 new-worktree:
@@ -22,6 +22,11 @@ reset-dev-db: dev-db-recreate dev-db-create dev-db-restore dev-db-reassign dev-d
 # Replace the demo users' data with freshly generated realistic demo data
 seed-dev-data:
 	@"$(DEV_DIR)/dev-db/seed-demo-data.sh"
+
+# Reseed the demo data, then capture app screenshots against an already
+# running frontend at the given screen size and theme
+take-screenshots: seed-dev-data
+	@"$(DEV_DIR)/screenshots/take-screenshots.sh"
 
 # Recreate the local development Postgres container
 dev-db-recreate:

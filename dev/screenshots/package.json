@@ -1,0 +1,9 @@
+{
+  "name": "lumina-screenshots",
+  "private": true,
+  "type": "module",
+  "description": "Capture app screenshots against a running frontend",
+  "dependencies": {
+    "playwright": "^1.49.0"
+  }
+}
