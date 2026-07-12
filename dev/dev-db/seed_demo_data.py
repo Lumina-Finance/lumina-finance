@@ -90,9 +90,18 @@ QUARTERLY_DIVIDEND_YIELD_RANGE = (0.005, 0.007)
 CAPITAL_GAIN_RANGE = (0.01, 0.04)
 CAPITAL_GAINS_PER_YEAR = 3
 
-# The reference day is pinned to the 15th so repeated runs within the same
-# month generate identical data no matter which day they run on
-TODAY = date.today().replace(day=15)
+# The reference day is pinned to a 15th so repeated runs generate identical
+# data no matter which day they run on. Before the real 15th the previous
+# month's 15th is used, so the pinned day never sits in the future
+PINNED_DAY_OF_MONTH = 15
+
+_real_today = date.today()
+if _real_today.day >= PINNED_DAY_OF_MONTH:
+    TODAY = _real_today.replace(day=PINNED_DAY_OF_MONTH)
+elif _real_today.month == 1:
+    TODAY = date(_real_today.year - 1, 12, PINNED_DAY_OF_MONTH)
+else:
+    TODAY = date(_real_today.year, _real_today.month - 1, PINNED_DAY_OF_MONTH)
 
 _window_anchor_months = TODAY.year * 12 + TODAY.month - 1 - (WINDOW_MONTHS - 1)
 WINDOW_START = date(_window_anchor_months // 12, _window_anchor_months % 12 + 1, 1)

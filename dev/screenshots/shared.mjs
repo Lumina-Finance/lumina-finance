@@ -7,7 +7,7 @@ export const DEMO_PASSWORD = 'password'
 export const THEME_STORAGE_KEY = 'lumina:settings:theme'
 
 // Captures run at a fixed clock so light mode reads as morning and dark mode
-// as evening, on the same day of month the seed script pins its data window
+// as evening, on the same pinned day the seed script anchors its data window
 // to, so captured pages never show future-dated entries
 export const CLOCK_DAY_OF_MONTH = 15
 export const CLOCK_HOUR_BY_THEME = { light: 9, dark: 19 }
@@ -44,8 +44,11 @@ export async function applyThemeAndClock(context, theme) {
 
   // Shift only Date by a constant offset so the app reads the pinned day and
   // the theme's time of day while real timers keep running, because
-  // Playwright's clock API fakes timers and stalls the app's loading screen
+  // Playwright's clock API fakes timers and stalls the app's loading screen.
+  // Before the real 15th the pin steps back to the previous month's 15th,
+  // matching the seed so the shown day never outruns the seeded data
   const clockTime = new Date()
+  if (clockTime.getDate() < CLOCK_DAY_OF_MONTH) clockTime.setMonth(clockTime.getMonth() - 1)
   clockTime.setDate(CLOCK_DAY_OF_MONTH)
   clockTime.setHours(CLOCK_HOUR_BY_THEME[theme], 0, 0, 0)
   const clockOffsetMs = clockTime.getTime() - Date.now()
