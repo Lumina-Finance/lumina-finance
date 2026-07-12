@@ -6,7 +6,7 @@ DEV_DIR ?= dev
 .PHONY: new-worktree cleanup-worktree \
 	reset-dev-db dev-db-recreate dev-db-create dev-db-restore dev-db-reassign dev-db-migrate dev-db-apply-rls \
 	reset-dev-server dev-server-down dev-server-build dev-server-restore dev-server-app-up \
-	seed-dev-data take-screenshots take-demo-video
+	seed-dev-data take-screenshots take-demo-video take-hero-image
 
 # Create a fully isolated worktree with its own database, dependencies, and port
 new-worktree:
@@ -33,6 +33,11 @@ take-screenshots: seed-dev-data
 # else records a fast rough draft
 take-demo-video: seed-dev-data
 	@"$(DEV_DIR)/screenshots/record-demo.sh"
+
+# Reseed the demo data, then compose the README hero image from dashboard
+# captures at desktop, tablet, and mobile sizes
+take-hero-image: seed-dev-data
+	@"$(DEV_DIR)/screenshots/take-hero.sh"
 
 # Recreate the local development Postgres container
 dev-db-recreate:
