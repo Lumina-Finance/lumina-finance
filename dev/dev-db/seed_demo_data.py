@@ -90,7 +90,9 @@ QUARTERLY_DIVIDEND_YIELD_RANGE = (0.005, 0.007)
 CAPITAL_GAIN_RANGE = (0.01, 0.04)
 CAPITAL_GAINS_PER_YEAR = 3
 
-TODAY = date.today()
+# The reference day is pinned to the 15th so repeated runs within the same
+# month generate identical data no matter which day they run on
+TODAY = date.today().replace(day=15)
 
 _window_anchor_months = TODAY.year * 12 + TODAY.month - 1 - (WINDOW_MONTHS - 1)
 WINDOW_START = date(_window_anchor_months // 12, _window_anchor_months % 12 + 1, 1)
@@ -602,16 +604,17 @@ def _alice_transactions(users, accounts, categories, merchants, tags, contributi
             tags["alice"],
         )
 
-    # Seasonal hydro bill
-    for day in _monthly_dates(16):
+    # Seasonal hydro bill on the first of the month
+    for day in _monthly_dates(1):
         add(
             _txn(alice.id, chequing, day, am["City Hydro"], system["Electricity"],
                  -_seasonal_utility_amount(12_000, day)),
             tags["alice"],
         )
 
-    # Water bill, a flat rate so utility costs move only with the seasons
-    for day in _monthly_dates(19):
+    # Water bill on the first of the month, a flat rate so utility costs move
+    # only with the seasons
+    for day in _monthly_dates(1):
         add(
             _txn(alice.id, chequing, day, am["City Water"], system["Water"], -3_500),
             tags["alice"],
@@ -769,8 +772,8 @@ def _marco_transactions(users, accounts, categories, merchants, tags):
             tags["marco"],
         )
 
-    # Seasonal hydro bill
-    for day in _monthly_dates(20):
+    # Seasonal hydro bill on the first of the month
+    for day in _monthly_dates(1):
         add(
             _txn(marco.id, chequing, day, bm["West Coast Hydro"], system["Electricity"],
                  -_seasonal_utility_amount(8_000, day)),
