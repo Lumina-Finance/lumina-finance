@@ -29,7 +29,8 @@ take-screenshots: seed-dev-data
 	@"$(DEV_DIR)/screenshots/take-screenshots.sh"
 
 # Reseed the demo data, then record the product demo video against an already
-# running frontend
+# running frontend. PROD=1 records the polished slow-capture cut, anything
+# else records a fast rough draft
 take-demo-video: seed-dev-data
 	@"$(DEV_DIR)/screenshots/record-demo.sh"
 
