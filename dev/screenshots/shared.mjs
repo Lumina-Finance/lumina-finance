@@ -1,7 +1,7 @@
 // Helpers shared by the screenshot and demo recording scripts
 
 // Demo login the captures are taken as
-export const DEMO_EMAIL = 'alice@example.com'
+export const DEMO_EMAIL = 'alex@example.com'
 export const DEMO_PASSWORD = 'password'
 
 export const THEME_STORAGE_KEY = 'lumina:settings:theme'

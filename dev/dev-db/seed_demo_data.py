@@ -56,7 +56,7 @@ from app.services.auth.password_helpers import hash_password
 from app.services.budgets.periods import compute_period_end
 
 PASSWORD = "password"  # noqa: S105
-DEMO_USER_EMAILS = ("alice@example.com", "marco@example.com")
+DEMO_USER_EMAILS = ("alex@example.com", "marco@example.com")
 RNG_SEED = 42
 WINDOW_MONTHS = 24
 
@@ -305,19 +305,19 @@ async def _seed_institutions(db):
 async def _seed_users(db):
     """Create the demo users with password credentials and cache state rows"""
     created_at = datetime.combine(WINDOW_START, datetime.min.time(), tzinfo=UTC)
-    alice = User(
-        email="alice@example.com", first_name="Alice", last_name="Chen",
+    alex = User(
+        email="alex@example.com", first_name="Alex", last_name="Ray",
         tz="America/Toronto", base_currency="CAD", created_at=created_at,
     )
     marco = User(
         email="marco@example.com", first_name="Marco", last_name="Moretti",
         tz="America/Vancouver", base_currency="CAD", created_at=created_at,
     )
-    db.add_all([alice, marco])
+    db.add_all([alex, marco])
     await db.flush()
 
     password_hash = hash_password(PASSWORD)
-    for user in (alice, marco):
+    for user in (alex, marco):
         db.add(AuthIdentity(
             user_id=user.id, auth_provider=AuthProvider.PASSWORD,
             email_verified=True, email_verified_at=created_at,
@@ -328,7 +328,7 @@ async def _seed_users(db):
         ))
         db.add(UserCacheState(user_id=user.id))
     await db.flush()
-    return {"alice": alice, "marco": marco}
+    return {"alex": alex, "marco": marco}
 
 
 async def _seed_categories(db, users, system_categories):
@@ -342,9 +342,9 @@ async def _seed_categories(db, users, system_categories):
     """
     categories = {
         "system": system_categories,
-        "alice": {
+        "alex": {
             "Pottery Studio": Category(
-                owner_id=users["alice"].id, name="Pottery Studio",
+                owner_id=users["alex"].id, name="Pottery Studio",
                 kind=CategoryKind.EXPENSE, icon="🏺",
             ),
         },
@@ -355,7 +355,7 @@ async def _seed_categories(db, users, system_categories):
             ),
         },
     }
-    db.add_all([*categories["alice"].values(), *categories["marco"].values()])
+    db.add_all([*categories["alex"].values(), *categories["marco"].values()])
     await db.flush()
     return categories
 
@@ -363,7 +363,7 @@ async def _seed_categories(db, users, system_categories):
 async def _seed_merchants(db, users, categories):
     """Create fictional personal merchants with default categories"""
     system = categories["system"]
-    alice, marco = users["alice"], users["marco"]
+    alex, marco = users["alex"], users["marco"]
 
     def merchant(owner, name, default_category):
         return Merchant(
@@ -373,8 +373,8 @@ async def _seed_merchants(db, users, categories):
         )
 
     merchants = {
-        "alice": {
-            name: merchant(alice, name, default)
+        "alex": {
+            name: merchant(alex, name, default)
             for name, default in [
                 ("Brightline Studios", system["Salary"]),
                 ("Fern Street Market", system["Groceries"]),
@@ -392,7 +392,7 @@ async def _seed_merchants(db, users, categories):
                 ("City Water", system["Water"]),
                 ("Nova Mobile", system["Phone Plan"]),
                 ("Skyline Internet", system["Internet"]),
-                ("Clay & Kiln Studio", categories["alice"]["Pottery Studio"]),
+                ("Clay & Kiln Studio", categories["alex"]["Pottery Studio"]),
                 ("Harbour Inn", system["Travel"]),
             ]
         },
@@ -419,8 +419,8 @@ async def _seed_merchants(db, users, categories):
 async def _seed_tags(db, users):
     """Create personal tags used to label recurring and trip spending"""
     tags = {
-        "alice": Tag(owner_id=users["alice"].id, name="recurring"),
-        "alice_vacation": Tag(owner_id=users["alice"].id, name="vacation"),
+        "alex": Tag(owner_id=users["alex"].id, name="recurring"),
+        "alex_vacation": Tag(owner_id=users["alex"].id, name="vacation"),
         "marco": Tag(owner_id=users["marco"].id, name="recurring"),
     }
     db.add_all(tags.values())
@@ -437,19 +437,19 @@ async def _seed_tax_advantaged_categories(db, users):
     # Lifetime TFSA room matches the cumulative federal limit for someone
     # eligible since 2009, and the base accruals represent pre-window savings
     tfsa = TaxAdvantagedCategory(
-        category_owner_user_id=users["alice"].id, name="TFSA",
+        category_owner_user_id=users["alex"].id, name="TFSA",
         tax_treatment=TaxTreatment.TAX_FREE, currency="CAD",
         lifetime_contribution_limit=10_200_000, accrued_contributions=2_000_000,
     )
     rrsp = TaxAdvantagedCategory(
-        category_owner_user_id=users["alice"].id, name="RRSP",
+        category_owner_user_id=users["alex"].id, name="RRSP",
         tax_treatment=TaxTreatment.TAX_DEFERRED, currency="CAD",
         lifetime_contribution_limit=None, accrued_contributions=900_000,
     )
 
     # The FHSA carries the federal forty thousand dollar lifetime cap
     fhsa = TaxAdvantagedCategory(
-        category_owner_user_id=users["alice"].id, name="FHSA",
+        category_owner_user_id=users["alex"].id, name="FHSA",
         tax_treatment=TaxTreatment.TAX_FREE, currency="CAD",
         lifetime_contribution_limit=4_000_000, accrued_contributions=550_000,
     )
@@ -482,7 +482,7 @@ async def _seed_tax_advantaged_categories(db, users):
 
 async def _seed_accounts(db, users, institutions, tax_advantaged):
     """Create the demo users' personal accounts"""
-    alice, marco = users["alice"], users["marco"]
+    alex, marco = users["alex"], users["marco"]
     created_at = datetime.combine(WINDOW_START, datetime.min.time().replace(hour=12), tzinfo=UTC)
 
     def account(name, account_type, *, owner, institution=None,
@@ -502,40 +502,40 @@ async def _seed_accounts(db, users, institutions, tax_advantaged):
         )
 
     accounts = {
-        "alice_chequing": account(
+        "alex_chequing": account(
             "Everyday Chequing", AccountType.CHECKING,
-            owner=alice, institution=institutions["Toronto Dominion Bank"],
+            owner=alex, institution=institutions["Toronto Dominion Bank"],
         ),
-        "alice_savings": account(
+        "alex_savings": account(
             "High-Interest Savings", AccountType.SAVINGS,
-            owner=alice, institution=institutions["Toronto Dominion Bank"],
+            owner=alex, institution=institutions["Toronto Dominion Bank"],
         ),
-        "alice_old_savings": account(
+        "alex_old_savings": account(
             "Vacation Fund", AccountType.SAVINGS,
-            owner=alice, institution=institutions["Toronto Dominion Bank"],
+            owner=alex, institution=institutions["Toronto Dominion Bank"],
         ),
-        "alice_tfsa": account(
+        "alex_tfsa": account(
             "TFSA Investments", AccountType.INVESTMENT,
-            owner=alice, institution=institutions["Royal Bank of Canada"],
+            owner=alex, institution=institutions["Royal Bank of Canada"],
             tax_advantaged_category=tax_advantaged["tfsa"],
         ),
-        "alice_rrsp": account(
+        "alex_rrsp": account(
             "RRSP Investments", AccountType.INVESTMENT,
-            owner=alice, institution=institutions["Royal Bank of Canada"],
+            owner=alex, institution=institutions["Royal Bank of Canada"],
             tax_advantaged_category=tax_advantaged["rrsp"],
         ),
-        "alice_fhsa": account(
+        "alex_fhsa": account(
             "FHSA Savings", AccountType.SAVINGS,
-            owner=alice, institution=institutions["Royal Bank of Canada"],
+            owner=alex, institution=institutions["Royal Bank of Canada"],
             tax_advantaged_category=tax_advantaged["fhsa"],
         ),
-        "alice_usd": account(
+        "alex_usd": account(
             "US Dollar Chequing", AccountType.CHECKING,
-            owner=alice, institution=institutions["Toronto Dominion Bank"], currency="USD",
+            owner=alex, institution=institutions["Toronto Dominion Bank"], currency="USD",
         ),
-        "alice_card": account(
+        "alex_card": account(
             "Platinum Rewards Card", AccountType.CREDIT_CARD,
-            owner=alice, institution=institutions["Toronto Dominion Bank"], credit_limit=800_000,
+            owner=alex, institution=institutions["Toronto Dominion Bank"], credit_limit=800_000,
         ),
         "marco_chequing": account(
             "Student Chequing", AccountType.CHECKING,
@@ -554,19 +554,19 @@ async def _seed_accounts(db, users, institutions, tax_advantaged):
 
 def _starting_balance_transactions(users, accounts, system):
     """Build the starting-balance adjustments that open each account's history"""
-    alice, marco = users["alice"], users["marco"]
+    alex, marco = users["alex"], users["marco"]
     adjustment = system["Balance Adjustment"]
 
     # Investment openings stay a modest share of each person's assets so the
     # volatile portion of net worth remains realistic for these income levels
     openings = [
-        (alice, accounts["alice_chequing"], 300_000),
-        (alice, accounts["alice_savings"], 2_500_000),
-        (alice, accounts["alice_old_savings"], 400_000),
-        (alice, accounts["alice_tfsa"], 800_000),
-        (alice, accounts["alice_rrsp"], 400_000),
-        (alice, accounts["alice_fhsa"], 600_000),
-        (alice, accounts["alice_usd"], 40_000),
+        (alex, accounts["alex_chequing"], 300_000),
+        (alex, accounts["alex_savings"], 2_500_000),
+        (alex, accounts["alex_old_savings"], 400_000),
+        (alex, accounts["alex_tfsa"], 800_000),
+        (alex, accounts["alex_rrsp"], 400_000),
+        (alex, accounts["alex_fhsa"], 600_000),
+        (alex, accounts["alex_usd"], 40_000),
         (marco, accounts["marco_chequing"], 200_000),
         (marco, accounts["marco_savings"], 500_000),
         (marco, accounts["marco_cash"], 20_000),
@@ -577,15 +577,15 @@ def _starting_balance_transactions(users, accounts, system):
     ]
 
 
-def _alice_transactions(users, accounts, categories, merchants, tags, contributions):
-    """Build Alice's year of personal activity"""
-    alice = users["alice"]
-    system, am = categories["system"], merchants["alice"]
-    chequing, card = accounts["alice_chequing"], accounts["alice_card"]
-    usd_chequing = accounts["alice_usd"]
-    savings = accounts["alice_savings"]
-    tfsa, rrsp, fhsa = accounts["alice_tfsa"], accounts["alice_rrsp"], accounts["alice_fhsa"]
-    old_savings = accounts["alice_old_savings"]
+def _alex_transactions(users, accounts, categories, merchants, tags, contributions):
+    """Build Alex's year of personal activity"""
+    alex = users["alex"]
+    system, am = categories["system"], merchants["alex"]
+    chequing, card = accounts["alex_chequing"], accounts["alex_card"]
+    usd_chequing = accounts["alex_usd"]
+    savings = accounts["alex_savings"]
+    tfsa, rrsp, fhsa = accounts["alex_tfsa"], accounts["alex_rrsp"], accounts["alex_fhsa"]
+    old_savings = accounts["alex_old_savings"]
     txns, tag_pairs = [], []
 
     def add(txn, tag=None):
@@ -600,33 +600,33 @@ def _alice_transactions(users, accounts, categories, merchants, tags, contributi
             continue
         base = 500_000 if _month_index(payday) < WINDOW_MONTHS // 2 else 522_000
         add(
-            _txn(alice.id, chequing, payday, am["Brightline Studios"], system["Salary"], base,
+            _txn(alex.id, chequing, payday, am["Brightline Studios"], system["Salary"], base,
                  notes="Monthly salary"),
-            tags["alice"],
+            tags["alex"],
         )
 
     # Rent on the first of each month
     for day in _monthly_dates(1):
         add(
-            _txn(alice.id, chequing, day, am["Parkside Property Management"], system["Rent"],
+            _txn(alex.id, chequing, day, am["Parkside Property Management"], system["Rent"],
                  -165_000, notes="Monthly rent"),
-            tags["alice"],
+            tags["alex"],
         )
 
     # Seasonal hydro bill on the first of the month
     for day in _monthly_dates(1):
         add(
-            _txn(alice.id, chequing, day, am["City Hydro"], system["Electricity"],
+            _txn(alex.id, chequing, day, am["City Hydro"], system["Electricity"],
                  -_seasonal_utility_amount(12_000, day)),
-            tags["alice"],
+            tags["alex"],
         )
 
     # Water bill on the first of the month, a flat rate so utility costs move
     # only with the seasons
     for day in _monthly_dates(1):
         add(
-            _txn(alice.id, chequing, day, am["City Water"], system["Water"], -3_500),
-            tags["alice"],
+            _txn(alex.id, chequing, day, am["City Water"], system["Water"], -3_500),
+            tags["alex"],
         )
 
     # Fixed recurring bills and subscriptions
@@ -637,23 +637,23 @@ def _alice_transactions(users, accounts, categories, merchants, tags, contributi
         (8, am["Skyline Internet"], system["Internet"], -6_500),
         (10, am["Streamora"], system["Entertainment"], -1_649),
         (12, am["Melodine"], system["Entertainment"], -1_099),
-        (15, am["Clay & Kiln Studio"], categories["alice"]["Pottery Studio"], -8_000),
+        (15, am["Clay & Kiln Studio"], categories["alex"]["Pottery Studio"], -8_000),
     ]:
         for day in _monthly_dates(dom):
-            add(_txn(alice.id, card, day, merchant, category, base), tags["alice"])
+            add(_txn(alex.id, card, day, merchant, category, base), tags["alex"])
 
     # Weekly Saturday grocery runs on the card
     for day in _weekly_dates(5):
         merchant = rng.choice([am["Fern Street Market"], am["Golden Pantry"]])
-        add(_txn(alice.id, card, day, merchant, system["Groceries"], -_vary(11_500, day)))
+        add(_txn(alex.id, card, day, merchant, system["Groceries"], -_vary(11_500, day)))
 
     # Dining and takeout a few times a month
     for month_start in _month_starts():
         for day in _random_days(month_start, 5):
             if rng.random() < 0.4:
-                add(_txn(alice.id, card, day, am["Delivery Dash"], system["Takeout"], -_vary(4_200, day)))
+                add(_txn(alex.id, card, day, am["Delivery Dash"], system["Takeout"], -_vary(4_200, day)))
             else:
-                add(_txn(alice.id, card, day, am["Noodle Junction"], system["Dining"], -_vary(6_000, day)))
+                add(_txn(alex.id, card, day, am["Noodle Junction"], system["Dining"], -_vary(6_000, day)))
 
     # Shopping with a December holiday spike
     for month_start in _month_starts():
@@ -662,52 +662,52 @@ def _alice_transactions(users, accounts, categories, merchants, tags, contributi
         for day in _random_days(month_start, count):
             merchant = rng.choice([am["Shopporium"], am["Wellness Corner Pharmacy"]])
             category = system["Shopping"] if merchant.name == "Shopporium" else system["Personal Care"]
-            add(_txn(alice.id, card, day, merchant, category, -round(_vary(7_500, day) * factor)))
+            add(_txn(alex.id, card, day, merchant, category, -round(_vary(7_500, day) * factor)))
 
     # Occasional ride hailing without a saved merchant
     for month_start in _month_starts():
         for day in _random_days(month_start, 2):
-            add(_txn(alice.id, card, day, None, system["Ride Hailing"], -_vary(2_200, day), notes="Ride home"))
+            add(_txn(alex.id, card, day, None, system["Ride Hailing"], -_vary(2_200, day), notes="Ride home"))
 
     # Monthly deposit into the high-interest savings cushion, both legs
     for day in _monthly_dates(12):
-        add(_txn(alice.id, chequing, day, None, system["Transfer"], -30_000, notes="Savings deposit"))
-        add(_txn(alice.id, savings, day, None, system["Transfer"], 30_000, notes="From chequing"))
+        add(_txn(alex.id, chequing, day, None, system["Transfer"], -30_000, notes="Savings deposit"))
+        add(_txn(alex.id, savings, day, None, system["Transfer"], 30_000, notes="From chequing"))
 
     # Quarterly savings interest
     for month_start in _month_starts()[2::3]:
         day = month_start.replace(day=28)
         if day <= TODAY:
-            add(_txn(alice.id, savings, day, None, system["Interest"], _vary(1_400, day), notes="Quarterly interest"))
+            add(_txn(alex.id, savings, day, None, system["Interest"], _vary(1_400, day), notes="Quarterly interest"))
 
     # Monthly TFSA contribution, both transfer legs
     for day in _monthly_dates(20):
-        add(_txn(alice.id, chequing, day, None, system["Transfer"], -40_000, notes="TFSA contribution"))
-        add(_txn(alice.id, tfsa, day, None, system["Transfer"], 40_000, notes="Contribution from chequing"))
+        add(_txn(alex.id, chequing, day, None, system["Transfer"], -40_000, notes="TFSA contribution"))
+        add(_txn(alex.id, tfsa, day, None, system["Transfer"], 40_000, notes="Contribution from chequing"))
         contributions["tfsa"][day.year] += 40_000
 
     # Monthly RRSP contribution, both transfer legs
     for day in _monthly_dates(25):
-        add(_txn(alice.id, chequing, day, None, system["Transfer"], -25_000, notes="RRSP contribution"))
-        add(_txn(alice.id, rrsp, day, None, system["Transfer"], 25_000, notes="Contribution from chequing"))
+        add(_txn(alex.id, chequing, day, None, system["Transfer"], -25_000, notes="RRSP contribution"))
+        add(_txn(alex.id, rrsp, day, None, system["Transfer"], 25_000, notes="Contribution from chequing"))
         contributions["rrsp"][day.year] += 25_000
 
     # Monthly FHSA contribution, both transfer legs
     for day in _monthly_dates(22):
-        add(_txn(alice.id, chequing, day, None, system["Transfer"], -30_000, notes="FHSA contribution"))
-        add(_txn(alice.id, fhsa, day, None, system["Transfer"], 30_000, notes="Contribution from chequing"))
+        add(_txn(alex.id, chequing, day, None, system["Transfer"], -30_000, notes="FHSA contribution"))
+        add(_txn(alex.id, fhsa, day, None, system["Transfer"], 30_000, notes="Contribution from chequing"))
         contributions["fhsa"][day.year] += 30_000
 
     # Quarterly FHSA savings interest
     for month_start in _month_starts()[2::3]:
         day = month_start.replace(day=28)
         if day <= TODAY:
-            add(_txn(alice.id, fhsa, day, None, system["Interest"], _vary(600, day), notes="Quarterly interest"))
+            add(_txn(alex.id, fhsa, day, None, system["Interest"], _vary(600, day), notes="Quarterly interest"))
 
     # The vacation fund drains into chequing for six months, then archives
     for day in _monthly_dates(5)[:6]:
-        add(_txn(alice.id, old_savings, day, None, system["Transfer"], -60_000, notes="Move savings to chequing"))
-        add(_txn(alice.id, chequing, day, None, system["Transfer"], 60_000, notes="From vacation fund"))
+        add(_txn(alex.id, old_savings, day, None, system["Transfer"], -60_000, notes="Move savings to chequing"))
+        add(_txn(alex.id, chequing, day, None, system["Transfer"], 60_000, notes="From vacation fund"))
 
     # One week-long trip four months ago paid in US dollars on the card
     trip_month = _add_months(TODAY.replace(day=1), -4)
@@ -719,24 +719,24 @@ def _alice_transactions(users, accounts, categories, merchants, tags, contributi
     ]:
         day = trip_start + timedelta(days=offset)
         add(
-            _txn(alice.id, card, day, merchant, category, amount,
+            _txn(alex.id, card, day, merchant, category, amount,
                  currency="USD", fx_rate=1.36, notes="Trip to Seattle"),
-            tags["alice_vacation"],
+            tags["alex_vacation"],
         )
 
     # The US dollar account is topped up before the trip and spent from
     # directly in its own currency, so the two transfer legs carry the
     # exchange rate implicitly through their differing amounts
     funding_day = trip_month.replace(day=3)
-    add(_txn(alice.id, chequing, funding_day, None, system["Transfer"], -136_000,
+    add(_txn(alex.id, chequing, funding_day, None, system["Transfer"], -136_000,
              notes="USD purchase for trip"))
-    add(_txn(alice.id, usd_chequing, funding_day, None, system["Transfer"], 100_000,
+    add(_txn(alex.id, usd_chequing, funding_day, None, system["Transfer"], 100_000,
              notes="Funded from chequing"))
     for offset, category, amount in [(1, system["Dining"], -9_500), (3, system["Shopping"], -7_200)]:
         add(
-            _txn(alice.id, usd_chequing, trip_start + timedelta(days=offset), None, category, amount,
+            _txn(alex.id, usd_chequing, trip_start + timedelta(days=offset), None, category, amount,
                  notes="Trip to Seattle"),
-            tags["alice_vacation"],
+            tags["alex_vacation"],
         )
 
     # A weekend getaway this month backs the one-off budget, with the first
@@ -746,7 +746,7 @@ def _alice_transactions(users, accounts, categories, merchants, tags, contributi
     if TODAY.day > 1:
         getaway_days.append(TODAY.replace(day=rng.randint(2, TODAY.day)))
     for day in getaway_days:
-        add(_txn(alice.id, card, day, None, system["Travel"], -_vary(14_000, day), notes="Weekend getaway"))
+        add(_txn(alex.id, card, day, None, system["Travel"], -_vary(14_000, day), notes="Weekend getaway"))
 
     return txns, tag_pairs
 
@@ -838,17 +838,17 @@ def _marco_transactions(users, accounts, categories, merchants, tags):
 
 
 def _archive_old_savings(users, accounts, categories, txns):
-    """Archive Alice's drained vacation fund by zeroing its residual balance
+    """Archive Alex's drained vacation fund by zeroing its residual balance
 
     Mirrors the app's archive flow, which books a balance adjustment for the
     remaining balance and stamps the account archived
     """
-    alice = users["alice"]
-    account = accounts["alice_old_savings"]
+    alex = users["alex"]
+    account = accounts["alex_old_savings"]
     archive_day = _add_months(WINDOW_START, 6).replace(day=15)
     residual = sum(t.amount for t in txns if t.account_id == account.id)
     archive_txn = _txn(
-        alice.id, account, archive_day, None, categories["system"]["Balance Adjustment"],
+        alex.id, account, archive_day, None, categories["system"]["Balance Adjustment"],
         -residual, notes="Account archived",
     )
     account.is_archived = True
@@ -881,8 +881,8 @@ def _investment_activity(users, accounts, categories, txns):
     """
     system = categories["system"]
     holdings = [
-        (users["alice"], accounts["alice_tfsa"]),
-        (users["alice"], accounts["alice_rrsp"]),
+        (users["alex"], accounts["alex_tfsa"]),
+        (users["alex"], accounts["alex_rrsp"]),
     ]
 
     # Dividends pay mid-month at the end of each quarter of the window
@@ -940,7 +940,7 @@ def _credit_card_payments(users, accounts, categories, txns):
     """
     system = categories["system"]
     cards = [
-        (users["alice"], accounts["alice_chequing"], accounts["alice_card"]),
+        (users["alex"], accounts["alex_chequing"], accounts["alex_card"]),
     ]
     payments = []
     for user, chequing, card in cards:
@@ -1001,22 +1001,22 @@ async def _seed_budgets(db, users, categories):
     the whole generated series, and each period instance carries the creation
     time its period began
     """
-    alice, marco = users["alice"], users["marco"]
+    alex, marco = users["alex"], users["marco"]
     system = categories["system"]
     window_created_at = datetime.combine(WINDOW_START, datetime.min.time(), tzinfo=UTC)
 
     groceries = BaseBudget(
-        owner_id=alice.id, name="Monthly Groceries", currency="CAD",
+        owner_id=alex.id, name="Monthly Groceries", currency="CAD",
         recurrence_freq=RecurrenceFreq.MONTHLY, instance_length=1, recurrence_dom=1, recurs=True,
         created_at=window_created_at,
     )
     getaway = BaseBudget(
-        owner_id=alice.id, name="Weekend Getaway", currency="CAD",
+        owner_id=alex.id, name="Weekend Getaway", currency="CAD",
         recurrence_freq=RecurrenceFreq.MONTHLY, instance_length=1, recurrence_dom=1, recurs=False,
         created_at=datetime.combine(TODAY.replace(day=1), datetime.min.time(), tzinfo=UTC),
     )
     utilities = BaseBudget(
-        owner_id=alice.id, name="Utilities", currency="CAD",
+        owner_id=alex.id, name="Utilities", currency="CAD",
         recurrence_freq=RecurrenceFreq.MONTHLY, instance_length=1, recurrence_dom=1, recurs=True,
         created_at=window_created_at,
     )
@@ -1080,12 +1080,12 @@ async def _seed_budgets(db, users, categories):
 async def _seed_preferences(db, users, accounts):
     """Create runway account picks and saved insights ranges"""
     db.add_all([
-        UserRunwayAccount(user_id=users["alice"].id, account_id=accounts["alice_chequing"].id),
-        UserRunwayAccount(user_id=users["alice"].id, account_id=accounts["alice_savings"].id),
+        UserRunwayAccount(user_id=users["alex"].id, account_id=accounts["alex_chequing"].id),
+        UserRunwayAccount(user_id=users["alex"].id, account_id=accounts["alex_savings"].id),
         UserRunwayAccount(user_id=users["marco"].id, account_id=accounts["marco_chequing"].id),
         UserRunwayAccount(user_id=users["marco"].id, account_id=accounts["marco_savings"].id),
-        SavedInsightsRange(user_id=users["alice"].id, name="Past 3 months", amount=3, unit="month", qualifier="past"),
-        SavedInsightsRange(user_id=users["alice"].id, name="This year", amount=1, unit="year", qualifier="this"),
+        SavedInsightsRange(user_id=users["alex"].id, name="Past 3 months", amount=3, unit="month", qualifier="past"),
+        SavedInsightsRange(user_id=users["alex"].id, name="This year", amount=1, unit="year", qualifier="this"),
         SavedInsightsRange(user_id=users["marco"].id, name="Past 30 days", amount=30, unit="day", qualifier="past"),
     ])
     await db.flush()
@@ -1118,7 +1118,7 @@ async def seed_dev_data() -> None:
         contributions = {"tfsa": defaultdict(int), "rrsp": defaultdict(int), "fhsa": defaultdict(int)}
         txns = _starting_balance_transactions(users, accounts, system_categories)
         tag_pairs = []
-        built, pairs = _alice_transactions(users, accounts, categories, merchants, tags, contributions)
+        built, pairs = _alex_transactions(users, accounts, categories, merchants, tags, contributions)
         txns.extend(built)
         tag_pairs.extend(pairs)
         built, pairs = _marco_transactions(users, accounts, categories, merchants, tags)
