@@ -12,8 +12,11 @@ export const THEME_STORAGE_KEY = 'lumina:settings:theme'
 export const CLOCK_DAY_OF_MONTH = 15
 export const CLOCK_HOUR_BY_THEME = { light: 9, dark: 19 }
 
+// The desktop height lines the dashboard's bottom cards up exactly with the
+// nav pane's bottom edge: the cards end at 1302 at this width and the nav
+// pane keeps a fixed twenty pixel inset from the viewport bottom
 export const VIEWPORTS = {
-  desktop: { width: 2200, height: 1400 },
+  desktop: { width: 2200, height: 1322 },
   tablet: { width: 1180, height: 820 },
   mobile: { width: 390, height: 844 },
 }
