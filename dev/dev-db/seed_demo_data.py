@@ -60,11 +60,16 @@ DEMO_USER_EMAILS = ("alice@example.com", "marco@example.com")
 RNG_SEED = 42
 WINDOW_MONTHS = 24
 
-# Yearly heating and cooling multiplier applied to utility bills so hydro and
-# gas charges follow a northern-hemisphere seasonal curve instead of being flat
-HEATING_FACTOR_BY_MONTH = {
-    1: 1.45, 2: 1.40, 3: 1.25, 4: 1.05, 5: 0.90, 6: 0.80,
-    7: 0.85, 8: 0.85, 9: 0.90, 10: 1.05, 11: 1.20, 12: 1.40,
+# Utility bills hover inside a band per season instead of sliding month to
+# month, with winter heating the most expensive and summer the cheapest
+UTILITY_SEASON_BANDS = (
+    ((12, 1, 2), (1.35, 1.50)),
+    ((3, 4, 5), (1.00, 1.15)),
+    ((6, 7, 8), (0.80, 0.90)),
+    ((9, 10, 11), (1.00, 1.15)),
+)
+UTILITY_FACTOR_RANGE_BY_MONTH = {
+    month: band for months, band in UTILITY_SEASON_BANDS for month in months
 }
 
 # December discretionary spending runs hotter than the rest of the year
@@ -142,6 +147,12 @@ def _random_days(month_start: date, count: int) -> list[date]:
         for day in days
         if month_start.replace(day=day) <= TODAY
     )
+
+
+def _seasonal_utility_amount(base: int, day: date) -> int:
+    """Return a utility charge landing inside the date's seasonal band"""
+    low, high = UTILITY_FACTOR_RANGE_BY_MONTH[day.month]
+    return round(base * rng.uniform(low, high))
 
 
 def _drift(day: date) -> float:
@@ -593,17 +604,16 @@ def _alice_transactions(users, accounts, categories, merchants, tags, contributi
 
     # Seasonal hydro bill
     for day in _monthly_dates(16):
-        seasonal = HEATING_FACTOR_BY_MONTH[day.month]
         add(
             _txn(alice.id, chequing, day, am["City Hydro"], system["Electricity"],
-                 round(-12_000 * seasonal)),
+                 -_seasonal_utility_amount(12_000, day)),
             tags["alice"],
         )
 
-    # Water bill, steady through the year
+    # Water bill, a flat rate so utility costs move only with the seasons
     for day in _monthly_dates(19):
         add(
-            _txn(alice.id, chequing, day, am["City Water"], system["Water"], -_vary(3_500, day, 0.05)),
+            _txn(alice.id, chequing, day, am["City Water"], system["Water"], -3_500),
             tags["alice"],
         )
 
@@ -761,10 +771,9 @@ def _marco_transactions(users, accounts, categories, merchants, tags):
 
     # Seasonal hydro bill
     for day in _monthly_dates(20):
-        seasonal = HEATING_FACTOR_BY_MONTH[day.month]
         add(
             _txn(marco.id, chequing, day, bm["West Coast Hydro"], system["Electricity"],
-                 round(-8_000 * seasonal)),
+                 -_seasonal_utility_amount(8_000, day)),
             tags["marco"],
         )
 
@@ -974,25 +983,35 @@ def _balance_snapshots(accounts, txns):
 
 
 async def _seed_budgets(db, users, categories):
-    """Create recurring and one-off budgets with instances covering the window"""
+    """Create recurring and one-off budgets with instances covering the window
+
+    Recurring budgets are backdated to the window start so their history spans
+    the whole generated series, and each period instance carries the creation
+    time its period began
+    """
     alice, marco = users["alice"], users["marco"]
     system = categories["system"]
+    window_created_at = datetime.combine(WINDOW_START, datetime.min.time(), tzinfo=UTC)
 
     groceries = BaseBudget(
         owner_id=alice.id, name="Monthly Groceries", currency="CAD",
         recurrence_freq=RecurrenceFreq.MONTHLY, instance_length=1, recurrence_dom=1, recurs=True,
+        created_at=window_created_at,
     )
     getaway = BaseBudget(
         owner_id=alice.id, name="Weekend Getaway", currency="CAD",
         recurrence_freq=RecurrenceFreq.MONTHLY, instance_length=1, recurrence_dom=1, recurs=False,
+        created_at=datetime.combine(TODAY.replace(day=1), datetime.min.time(), tzinfo=UTC),
     )
     utilities = BaseBudget(
         owner_id=alice.id, name="Utilities", currency="CAD",
         recurrence_freq=RecurrenceFreq.MONTHLY, instance_length=1, recurrence_dom=1, recurs=True,
+        created_at=window_created_at,
     )
     weekly_food = BaseBudget(
         owner_id=marco.id, name="Weekly Food", currency="CAD",
         recurrence_freq=RecurrenceFreq.WEEKLY, instance_length=1, recurrence_weekday=0, recurs=True,
+        created_at=window_created_at,
     )
     db.add_all([groceries, getaway, utilities, weekly_food])
     await db.flush()
@@ -1016,32 +1035,29 @@ async def _seed_budgets(db, users, categories):
                               added_at=WINDOW_START),
     ])
 
+    def instance(base_budget, period_start, period_end, overall_limit):
+        return Budget(
+            base_budget_id=base_budget.id, period_start=period_start,
+            period_end=period_end, overall_limit=overall_limit,
+            created_at=datetime.combine(period_start, datetime.min.time(), tzinfo=UTC),
+        )
+
     instances = []
     for month_start in _month_starts():
         period_end = compute_period_end(month_start, RecurrenceFreq.MONTHLY, 1, dom=1)
-        instances.append(Budget(
-            base_budget_id=groceries.id, period_start=month_start,
-            period_end=period_end, overall_limit=60_000,
-        ))
-        instances.append(Budget(
-            base_budget_id=utilities.id, period_start=month_start,
-            period_end=period_end, overall_limit=25_000,
-        ))
+        instances.append(instance(groceries, month_start, period_end, 60_000))
+        instances.append(instance(utilities, month_start, period_end, 25_000))
 
     current_month = TODAY.replace(day=1)
-    instances.append(Budget(
-        base_budget_id=getaway.id, period_start=current_month,
-        period_end=compute_period_end(current_month, RecurrenceFreq.MONTHLY, 1, dom=1),
-        overall_limit=40_000,
+    instances.append(instance(
+        getaway, current_month,
+        compute_period_end(current_month, RecurrenceFreq.MONTHLY, 1, dom=1), 40_000,
     ))
 
     week_start = _weekly_dates(0)[0]
     while week_start <= TODAY:
         week_end = compute_period_end(week_start, RecurrenceFreq.WEEKLY, 1)
-        instances.append(Budget(
-            base_budget_id=weekly_food.id, period_start=week_start,
-            period_end=week_end, overall_limit=15_000,
-        ))
+        instances.append(instance(weekly_food, week_start, week_end, 15_000))
         week_start = week_end + timedelta(days=1)
 
     db.add_all(instances)
