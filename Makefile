@@ -5,7 +5,8 @@ DEV_DIR ?= dev
 
 .PHONY: new-worktree cleanup-worktree \
 	reset-dev-db dev-db-recreate dev-db-create dev-db-restore dev-db-reassign dev-db-migrate dev-db-apply-rls \
-	reset-dev-server dev-server-down dev-server-build dev-server-restore dev-server-app-up
+	reset-dev-server dev-server-down dev-server-build dev-server-restore dev-server-app-up \
+	seed-dev-data
 
 # Create a fully isolated worktree with its own database, dependencies, and port
 new-worktree:
@@ -17,6 +18,10 @@ cleanup-worktree:
 
 # Reset the databases used for local development and pytest
 reset-dev-db: dev-db-recreate dev-db-create dev-db-restore dev-db-reassign dev-db-migrate dev-db-apply-rls
+
+# Replace the demo users' data with freshly generated realistic demo data
+seed-dev-data:
+	@"$(DEV_DIR)/dev-db/seed-demo-data.sh"
 
 # Recreate the local development Postgres container
 dev-db-recreate:
