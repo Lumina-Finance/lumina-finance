@@ -63,6 +63,8 @@ const iconVariants: Variants = {
 }
 
 interface ImportProgressOverlayProps {
+  /** Label for the secondary success action, kept overridable for flows that return to the page */
+  continueLabel?: string
   error: string | null
   onContinueImporting: () => void
   onDone: () => void
@@ -72,6 +74,7 @@ interface ImportProgressOverlayProps {
 }
 
 export function ImportProgressOverlay({
+  continueLabel = 'Continue importing',
   error,
   onContinueImporting,
   onDone,
@@ -182,7 +185,7 @@ export function ImportProgressOverlay({
                       className={`app-secondary-button ${overlayButtonClass} sm:min-w-[11rem]`}
                       onClick={onContinueImporting}
                     >
-                      Continue importing
+                      {continueLabel}
                     </button>
                     <button
                       type="button"
