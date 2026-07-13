@@ -59,11 +59,12 @@ const CAPTURE_JPEG_QUALITY = 95
 // proportionally longer recording session, and the draft skips it entirely
 const CAPTURE_SLOWDOWN = IS_PROD ? 4 : 1
 
-// The polished cut plays at a smooth rate with a near-lossless quality
-// factor, kept high because the app's flat beige surfaces band and pulse
-// between keyframes at ordinary rates. The draft trades both for speed
+// The polished cut plays at a smooth rate with a quality factor sized to
+// keep the file within GitHub's attachment limit. The app's flat beige
+// surfaces can band and pulse between keyframes if this is raised much
+// further. The draft trades smoothness and quality for speed
 const VIDEO_FPS = IS_PROD ? 60 : 30
-const VIDEO_CRF = IS_PROD ? '15' : '28'
+const VIDEO_CRF = IS_PROD ? '26' : '28'
 
 // The finished video plays this many times slower than the interactions ran,
 // which reads as calmer pacing for a demo without affecting smoothness
