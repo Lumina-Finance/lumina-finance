@@ -56,6 +56,19 @@ Lumina Finance gives you one place to track accounts, transactions, budgets, and
 
 This roadmap may change as Lumina Finance evolves based on user feedback, technical constraints, and project priorities.
 
+<!-- markdownlint-disable MD033 -->
+<details>
+<summary><b>Shipped</b></summary>
+
+- Insights tab for deeper reports and trends
+- Multi-currency support
+- Row-level security for per-user data isolation
+- Application security improvements and fixes
+- OIDC and WebAuthN support
+
+</details>
+<!-- markdownlint-enable MD033 -->
+
 #### Near Term
 
 In no particular order:
@@ -73,21 +86,6 @@ In no particular order:
 - [ ] Basic investment tracker (bring your own data)
 - [ ] Native iOS and macOS app
 - [ ] A few quite ambitious features we're not quite ready to spoil yet :)
-
-#### Shipped
-
-<!-- markdownlint-disable MD033 -->
-<details>
-<summary>Delivered in past releases</summary>
-
-- Insights tab for deeper reports and trends
-- Multi-currency support
-- Row-level security for per-user data isolation
-- Application security improvements and fixes
-- OIDC and WebAuthN support
-
-</details>
-<!-- markdownlint-enable MD033 -->
 
 ## Screenshots
 
