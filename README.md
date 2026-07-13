@@ -31,7 +31,7 @@ THIS APPLICATION IS PROVIDED “AS IS” AND “AS AVAILABLE,” WITHOUT WARRANT
 ## Demo
 
 <!-- markdownlint-disable MD033 -->
-<video src="https://raw.githubusercontent.com/Lumina-Finance/lumina-finance/refs/heads/chore/update-readme/docs/demo.mp4" controls muted width="100%"></video>
+<video src="docs/demo.mp4" controls width="100%"></video>
 <!-- markdownlint-enable MD033 -->
 
 ## Features
