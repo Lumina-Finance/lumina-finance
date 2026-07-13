@@ -31,7 +31,9 @@ THIS APPLICATION IS PROVIDED “AS IS” AND “AS AVAILABLE,” WITHOUT WARRANT
 ## Demo
 
 <!-- markdownlint-disable MD033 -->
-<video src="docs/demo.mp4" controls width="100%"></video>
+
+https://github.com/user-attachments/assets/73837ecf-21f7-4070-883d-458992b78a53
+
 <!-- markdownlint-enable MD033 -->
 
 ## Features
