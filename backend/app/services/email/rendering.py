@@ -2,27 +2,18 @@
 
 from pathlib import Path
 
-from jinja2 import ChoiceLoader, Environment, FileSystemLoader, select_autoescape
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from app.config import EMAIL_SENDER_NAME, EMAIL_TEMPLATE_DIR
+from app.config import EMAIL_SENDER_NAME
 from app.services.email.contract import RenderedEmail
 
-_BUILTIN_TEMPLATES_DIR = Path(__file__).parent / "templates"
+_TEMPLATES_DIR = Path(__file__).parent / "templates"
 _RESET_SUBJECT = "Reset your password"
 
-
-def _build_environment() -> Environment:
-    """Build the jinja environment, searching the override directory before the built-ins"""
-    loaders = []
-    if EMAIL_TEMPLATE_DIR:
-        loaders.append(FileSystemLoader(EMAIL_TEMPLATE_DIR))
-    loaders.append(FileSystemLoader(str(_BUILTIN_TEMPLATES_DIR)))
-
-    # Autoescaping guards the HTML parts while leaving plain-text templates untouched
-    return Environment(loader=ChoiceLoader(loaders), autoescape=select_autoescape(["html"]))
-
-
-_environment = _build_environment()
+# Autoescaping guards the HTML parts while leaving plain-text templates untouched
+_environment = Environment(
+    loader=FileSystemLoader(str(_TEMPLATES_DIR)), autoescape=select_autoescape(["html"])
+)
 
 
 def render_reset_email(reset_link: str, expiry_minutes: int) -> RenderedEmail:
