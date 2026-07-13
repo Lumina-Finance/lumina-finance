@@ -32,14 +32,26 @@ def resolve_encryption_key(*, generate: bool) -> str:
         The url-safe base64 Fernet key
 
     Raises:
-        RuntimeError: No key is configured or persisted and generation is not allowed
+        RuntimeError: The configured and persisted keys conflict, or no key is configured
+            or persisted and generation is not allowed
     """
     configured_key = os.getenv(_KEY_ENV_VAR)
+    persisted_key = _KEY_FILE.read_text().strip() if _KEY_FILE.exists() else None
+
+    # A configured key that differs from the persisted one would silently win and every
+    # secret encrypted under the persisted key would fail to decrypt at runtime, so refuse
+    # to start instead of picking a winner
+    if configured_key and persisted_key and configured_key != persisted_key:
+        raise RuntimeError(
+            f"{_KEY_ENV_VAR} does not match the key persisted at {_KEY_FILE}. "
+            f"Remove the environment variable, remove the stale key file, or make them match"
+        )
+
     if configured_key:
         return configured_key
 
-    if _KEY_FILE.exists():
-        return _KEY_FILE.read_text().strip()
+    if persisted_key:
+        return persisted_key
 
     if not generate:
         raise RuntimeError(f"No application encryption key. Set {_KEY_ENV_VAR} or provision it first")
