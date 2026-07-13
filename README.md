@@ -191,7 +191,6 @@ Lumina Finance sends email for password resets. The default `logging` backend pr
 | `SMTP_PASSWORD` | Only if `EMAIL_BACKEND=smtp` | String | None | SMTP auth password |
 | `SMTP_USE_TLS` | No | `true` or `false` | `true` | Use STARTTLS when connecting to the SMTP server |
 | `MAIL_FROM` | No | Email address | Value of `SMTP_USERNAME` | From address on outgoing mail |
-| `EMAIL_TEMPLATE_DIR` | No | Directory path inside the container | None | A folder of templates that override the built-in email designs |
 
 ### Password Reset
 
