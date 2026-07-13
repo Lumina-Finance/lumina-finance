@@ -79,7 +79,7 @@ In no particular order:
 - [ ] Goals ([#75](https://github.com/Lumina-Finance/lumina-finance/discussions/75))
 - [ ] Plaid support
 - [ ] SaaS development and testing
-- [ ] Extend bank sync to other regions (**all TBD**, e.g. Akahu for New Zealand, Basiq for Australia, Open Banking for EU). We aim to support as many countries as possible in addition to North America, so if you have any suggestions, please feel free to submit a feature request!
+- [ ] Extend bank sync to other regions (**all TBD**, e.g. Akahu for New Zealand, Basiq for Australia, Open Banking for Europe). We aim to support as many regions as possible in addition to North America, so if you have any suggestions, please feel free to submit a feature request!
 
 #### Long Term
 
