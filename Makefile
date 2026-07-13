@@ -5,7 +5,8 @@ DEV_DIR ?= dev
 
 .PHONY: new-worktree cleanup-worktree \
 	reset-dev-db dev-db-recreate dev-db-create dev-db-restore dev-db-reassign dev-db-migrate dev-db-apply-rls \
-	reset-dev-server dev-server-down dev-server-build dev-server-restore dev-server-app-up
+	reset-dev-server dev-server-down dev-server-build dev-server-restore dev-server-app-up \
+	seed-dev-data take-screenshots take-demo-video take-hero-image
 
 # Create a fully isolated worktree with its own database, dependencies, and port
 new-worktree:
@@ -17,6 +18,26 @@ cleanup-worktree:
 
 # Reset the databases used for local development and pytest
 reset-dev-db: dev-db-recreate dev-db-create dev-db-restore dev-db-reassign dev-db-migrate dev-db-apply-rls
+
+# Replace the demo users' data with freshly generated realistic demo data
+seed-dev-data:
+	@"$(DEV_DIR)/dev-db/seed-demo-data.sh"
+
+# Reseed the demo data, then capture app screenshots against an already
+# running frontend at the given screen size and theme
+take-screenshots: seed-dev-data
+	@"$(DEV_DIR)/screenshots/take-screenshots.sh"
+
+# Reseed the demo data, then record the product demo video against an already
+# running frontend. PROD=1 records the polished slow-capture cut, anything
+# else records a fast rough draft
+take-demo-video: seed-dev-data
+	@"$(DEV_DIR)/screenshots/record-demo.sh"
+
+# Reseed the demo data, then compose the README hero image from dashboard
+# captures at desktop, tablet, and mobile sizes
+take-hero-image: seed-dev-data
+	@"$(DEV_DIR)/screenshots/take-hero.sh"
 
 # Recreate the local development Postgres container
 dev-db-recreate:

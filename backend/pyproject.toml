@@ -25,6 +25,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "freezegun>=1.5.5",
     "hypothesis>=6.155.2",
     "pytest>=9.0.3",
     "pytest-asyncio>=1.3.0",
