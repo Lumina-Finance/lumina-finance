@@ -6,7 +6,8 @@ DEV_DIR ?= dev
 .PHONY: new-worktree cleanup-worktree \
 	reset-dev-db dev-db-recreate dev-db-create dev-db-restore dev-db-reassign dev-db-migrate dev-db-apply-rls \
 	reset-dev-server dev-server-down dev-server-build dev-server-restore dev-server-app-up \
-	seed-dev-data take-screenshots take-demo-video take-hero-image
+	seed-dev-data take-screenshots take-demo-video take-hero-image \
+	seed-firefly-data export-firefly-data
 
 # Create a fully isolated worktree with its own database, dependencies, and port
 new-worktree:
@@ -22,6 +23,16 @@ reset-dev-db: dev-db-recreate dev-db-create dev-db-restore dev-db-reassign dev-d
 # Replace the demo users' data with freshly generated realistic demo data
 seed-dev-data:
 	@"$(DEV_DIR)/dev-db/seed-demo-data.sh"
+
+# Reset a local Firefly III instance and seed it with deterministic demo
+# data for importer development, FIREFLY_COMPOSE_DIR must point at the
+# directory holding its docker-compose.yml
+seed-firefly-data:
+	@"$(DEV_DIR)/firefly-iii/seed-firefly-iii.sh"
+
+# Export the seeded Firefly III data to CSV files for import testing
+export-firefly-data:
+	@"$(DEV_DIR)/firefly-iii/export-firefly-iii.sh"
 
 # Reseed the demo data, then capture app screenshots against an already
 # running frontend at the given screen size and theme
