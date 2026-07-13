@@ -1,16 +1,20 @@
-import { useRef, type ChangeEvent } from 'react'
-import { FileText, LoaderCircle, Upload, X } from 'lucide-react'
-import { IMPORT_INSET_STYLE } from '../../constants'
-import { ImportStat, ImportStep } from '../../components'
+import { useRef, type ChangeEvent, type ReactNode } from 'react'
+import { AnimatePresence, motion } from 'motion/react'
+import {
+  EmptyState,
+  ImportInfoCard,
+  ImportStagedFileList,
+  ImportStat,
+  ImportStep,
+  ImportUploadCard,
+} from '../../components'
 import type { ImportFileDraft } from '../../types'
-import { formatBytes } from '../../utils'
 import type { FireflyImportWorkflow } from '../hooks'
 import type { FireflyFileKind } from '../types'
 
 type FireflyFilesStepProps = Pick<
   FireflyImportWorkflow,
   | 'transactionsFile'
-  | 'accountsFile'
   | 'budgetsFile'
   | 'processingFileKind'
   | 'fireflyRows'
@@ -20,15 +24,17 @@ type FireflyFilesStepProps = Pick<
   | 'removeFireflyFile'
 >
 
+// Matches the ease the transaction list uses for row growth and collapse
+const SLOT_SWAP_EASE = [0.25, 0.1, 0.25, 1] as const
+const SLOT_SWAP_DURATION = 0.24
+
 const FILE_SLOTS: Array<{ kind: FireflyFileKind; label: string; hint: string; required: boolean }> = [
   { kind: 'transactions', label: 'Transactions CSV', hint: 'The journal rows to import.', required: true },
-  { kind: 'accounts', label: 'Accounts CSV', hint: 'Prefills new account types and currencies.', required: false },
   { kind: 'budgets', label: 'Budgets CSV', hint: 'Enables budget import after the transactions commit.', required: false },
 ]
 
 export function FireflyFilesStep({
   transactionsFile,
-  accountsFile,
   budgetsFile,
   processingFileKind,
   fireflyRows,
@@ -39,7 +45,6 @@ export function FireflyFilesStep({
 }: FireflyFilesStepProps) {
   const filesByKind: Record<FireflyFileKind, ImportFileDraft | null> = {
     transactions: transactionsFile,
-    accounts: accountsFile,
     budgets: budgetsFile,
   }
 
@@ -63,6 +68,11 @@ export function FireflyFilesStep({
           disabled={processingFileKind !== null}
           onFileChange={handleFireflyFileChange}
           onRemove={removeFireflyFile}
+          note={slot.kind === 'budgets' ? (
+            <ImportInfoCard title="No Budgets Export?">
+              Budgets can be backdated and their historical spending is rebuilt automatically from the imported transactions. If you skip this export, it is easy to create budgets by hand after the import with a past start date.
+            </ImportInfoCard>
+          ) : undefined}
         />
       ))}
 
@@ -76,7 +86,8 @@ export function FireflyFilesStep({
 }
 
 /**
- * One upload slot that swaps between its upload button and the staged file row
+ * One upload slot pairing the shared upload card with its staged file or the
+ * blank placeholder when nothing is staged
  */
 function FireflyFileSlot({
   kind,
@@ -88,6 +99,7 @@ function FireflyFileSlot({
   disabled,
   onFileChange,
   onRemove,
+  note,
 }: {
   kind: FireflyFileKind
   label: string
@@ -98,6 +110,7 @@ function FireflyFileSlot({
   disabled: boolean
   onFileChange: (kind: FireflyFileKind, event: ChangeEvent<HTMLInputElement>) => void
   onRemove: (kind: FireflyFileKind) => void
+  note?: ReactNode
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -117,62 +130,44 @@ function FireflyFileSlot({
         onChange={(event) => onFileChange(kind, event)}
         disabled={disabled}
       />
-      {file ? (
-        <div
-          className="grid grid-cols-[minmax(0,1fr)_2.25rem] items-center gap-3 rounded-lg px-3 py-3"
-          style={IMPORT_INSET_STYLE}
-        >
-          <div className="flex min-w-0 items-center gap-3">
-            <FileText size={17} className="shrink-0" style={{ color: 'var(--app-text-muted)' }} aria-hidden />
-            <div className="min-w-0">
-              <p className="truncate text-[0.9375rem] font-medium">{file.name}</p>
-              <p className="truncate text-xs" style={{ color: file.error ? 'var(--app-negative)' : 'var(--app-text-subtle)' }}>
-                {file.error ?? `${formatBytes(file.size)} · ${file.rows.length} rows`}
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            className="app-icon-button"
-            onClick={() => onRemove(kind)}
-            aria-label={`Remove ${file.name}`}
+
+      {/* Each slot takes exactly one file, so the upload card and its note
+          animate away once a file lands and grow back when it is removed */}
+      <AnimatePresence initial={false} mode="wait">
+        {file ? (
+          <motion.div
+            key="staged"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0, overflow: 'hidden' }}
+            transition={{ duration: SLOT_SWAP_DURATION, ease: SLOT_SWAP_EASE }}
           >
-            <X size={16} aria-hidden />
-          </button>
-        </div>
-      ) : (
-        <button
-          type="button"
-          className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left transition-colors duration-150 hover:bg-[var(--app-surface-soft)] disabled:cursor-wait"
-          style={{
-            ...IMPORT_INSET_STYLE,
-            color: 'var(--app-text-muted)',
-          }}
-          onClick={() => inputRef.current?.click()}
-          disabled={disabled}
-          aria-busy={processing}
-        >
-          <span
-            className="flex h-9 w-9 shrink-0 items-center justify-center"
-            style={{ background: 'var(--app-surface-soft)', color: processing ? 'var(--app-accent)' : undefined }}
-            aria-hidden
+            <ImportStagedFileList files={[file]} onRemove={() => onRemove(kind)} />
+          </motion.div>
+        ) : (
+          <motion.div
+            key="upload"
+            className="space-y-2"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0, overflow: 'hidden' }}
+            transition={{ duration: SLOT_SWAP_DURATION, ease: SLOT_SWAP_EASE }}
           >
-            {processing ? (
-              <LoaderCircle size={17} strokeWidth={2.4} className="animate-spin motion-reduce:animate-none" />
-            ) : (
-              <Upload size={16} />
-            )}
-          </span>
-          <span className="min-w-0">
-            <span className="block text-sm font-semibold" style={{ color: 'var(--app-text)' }}>
-              {processing ? 'Processing CSV' : `Upload ${label.toLowerCase()}`}
-            </span>
-            <span className="mt-0.5 block truncate text-xs" style={{ color: 'var(--app-text-subtle)' }}>
-              {hint}
-            </span>
-          </span>
-        </button>
-      )}
+            {note}
+            <ImportUploadCard
+              title={`Upload ${label.toLowerCase()}`}
+              hint={hint}
+              processing={processing}
+              disabled={disabled}
+              onClick={() => inputRef.current?.click()}
+            />
+            <EmptyState
+              title="No file staged"
+              description="The uploaded file will appear here."
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

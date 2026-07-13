@@ -1,7 +1,6 @@
 import type { ImportFileDraft } from '../../types'
 import { readCsvFile } from '../../utils'
 import {
-  FIREFLY_ACCOUNTS_REQUIRED_HEADERS,
   FIREFLY_BUDGETS_REQUIRED_HEADERS,
   FIREFLY_TRANSACTIONS_REQUIRED_HEADERS,
 } from '../constants'
@@ -9,7 +8,6 @@ import type { FireflyFileKind } from '../types'
 
 const REQUIRED_HEADERS_BY_KIND: Record<FireflyFileKind, string[]> = {
   transactions: FIREFLY_TRANSACTIONS_REQUIRED_HEADERS,
-  accounts: FIREFLY_ACCOUNTS_REQUIRED_HEADERS,
   budgets: FIREFLY_BUDGETS_REQUIRED_HEADERS,
 }
 

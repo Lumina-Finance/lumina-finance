@@ -16,24 +16,9 @@ export const FIREFLY_TRANSACTIONS_REQUIRED_HEADERS = [
 ]
 
 /**
- * Columns the optional accounts export must contain to drive account prefills
- */
-export const FIREFLY_ACCOUNTS_REQUIRED_HEADERS = ['name', 'type']
-
-/**
  * Columns the optional budgets export must contain to derive budget drafts
  */
 export const FIREFLY_BUDGETS_REQUIRED_HEADERS = ['name', 'start_date', 'currency_code', 'amount']
-
-/**
- * Lumina account types keyed by Firefly III asset account role
- */
-export const FIREFLY_ASSET_ROLE_ACCOUNT_TYPES: Record<string, AccountType> = {
-  defaultAsset: 'checking',
-  savingAsset: 'savings',
-  ccAsset: 'credit_card',
-  cashWalletAsset: 'cash',
-}
 
 /**
  * Lumina account types keyed by lower-cased Firefly III liability account type

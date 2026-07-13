@@ -1,7 +1,7 @@
 import type { AccountType } from '@/api/accounts'
 import type { FireflyTransactionImportPayload } from '@/api/dataImports'
 
-export type FireflyFileKind = 'transactions' | 'accounts' | 'budgets'
+export type FireflyFileKind = 'transactions' | 'budgets'
 
 /**
  * Create-new defaults for one tracked Firefly III account name

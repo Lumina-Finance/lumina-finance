@@ -1,9 +1,9 @@
+import type { AccountType } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import { FIREFLY_NO_CATEGORY_SOURCE, isFireflyTrackedAccountType } from '@/api/dataImports'
 import { CREATE_CATEGORY_VALUE } from '../../constants'
-import type { CsvRow, ImportCategoryKind, ImportFileDraft } from '../../types'
+import type { CsvRow, ImportCategoryKind } from '../../types'
 import {
-  FIREFLY_ASSET_ROLE_ACCOUNT_TYPES,
   FIREFLY_FALLBACK_ACCOUNT_TYPE,
   FIREFLY_LIABILITY_ACCOUNT_TYPES,
 } from '../constants'
@@ -14,15 +14,6 @@ const FIREFLY_TYPE_DEPOSIT = 'deposit'
 const FIREFLY_TYPE_TRANSFER = 'transfer'
 const FIREFLY_TYPE_OPENING_BALANCE = 'opening balance'
 const FIREFLY_TYPE_RECONCILIATION = 'reconciliation'
-
-/**
- * Metadata for one account row from the optional Firefly III accounts export
- */
-interface FireflyAccountsCsvRecord {
-  accountType: string
-  role: string
-  currencyCode: string
-}
 
 /**
  * Extracts the date part of a Firefly III timestamp, empty when unparseable
@@ -73,41 +64,29 @@ export function getFireflyTrackedAccountNames(rows: CsvRow[]): string[] {
 }
 
 /**
- * Indexes the optional accounts export by account name for create-new prefills
- */
-export function buildFireflyAccountsCsvIndex(accountsFile: ImportFileDraft | null) {
-  const index = new Map<string, FireflyAccountsCsvRecord>()
-  if (!accountsFile || accountsFile.error) return index
-
-  for (const row of accountsFile.rows) {
-    const name = row.name?.trim()
-    if (!name || index.has(name)) continue
-    index.set(name, {
-      accountType: row.type?.trim() ?? '',
-      role: row.role?.trim() ?? '',
-      currencyCode: row.currency_code?.trim().toUpperCase() ?? '',
-    })
-  }
-
-  return index
-}
-
-/**
  * Builds create-new type and currency defaults for every tracked account name
  */
 export function buildFireflyAccountPrefills(
   rows: CsvRow[],
   trackedAccountNames: string[],
-  accountsCsvIndex: Map<string, FireflyAccountsCsvRecord>,
 ): Record<string, FireflyAccountPrefill> {
   const currencyTallies = new Map<string, Map<string, number>>()
   const overallTally = new Map<string, number>()
+  const liabilityTypes = new Map<string, AccountType>()
 
   const tallyCurrency = (accountName: string | undefined, currency: string) => {
     if (!accountName || !currency) return
     const tally = currencyTallies.get(accountName) ?? new Map<string, number>()
     tally.set(currency, (tally.get(currency) ?? 0) + 1)
     currencyTallies.set(accountName, tally)
+  }
+
+  // Liability endpoint types name the Lumina account type directly, while
+  // asset accounts fall back to checking because rows carry no role details
+  const recordLiabilityType = (accountName: string | undefined, endpointType: string | undefined) => {
+    if (!accountName || liabilityTypes.has(accountName)) return
+    const mappedType = FIREFLY_LIABILITY_ACCOUNT_TYPES[endpointType?.trim().toLowerCase() ?? '']
+    if (mappedType) liabilityTypes.set(accountName, mappedType)
   }
 
   // The account-side currency follows money direction, so withdrawals and
@@ -120,6 +99,8 @@ export function buildFireflyAccountPrefills(
 
     const sourceName = isFireflyTrackedAccountType(row.source_type) ? row.source_name?.trim() : ''
     const destinationName = isFireflyTrackedAccountType(row.destination_type) ? row.destination_name?.trim() : ''
+    recordLiabilityType(sourceName, row.source_type)
+    recordLiabilityType(destinationName, row.destination_type)
 
     if (journalType === FIREFLY_TYPE_WITHDRAWAL || journalType === FIREFLY_TYPE_TRANSFER) {
       tallyCurrency(sourceName, rowCurrency)
@@ -136,25 +117,13 @@ export function buildFireflyAccountPrefills(
   const prefills: Record<string, FireflyAccountPrefill> = {}
 
   for (const name of trackedAccountNames) {
-    const record = accountsCsvIndex.get(name)
     prefills[name] = {
-      accountType: record ? getFireflyAccountTypePrefill(record) : FIREFLY_FALLBACK_ACCOUNT_TYPE,
-      currency: record?.currencyCode || getTopTallyValue(currencyTallies.get(name)) || fallbackCurrency,
+      accountType: liabilityTypes.get(name) ?? FIREFLY_FALLBACK_ACCOUNT_TYPE,
+      currency: getTopTallyValue(currencyTallies.get(name)) || fallbackCurrency,
     }
   }
 
   return prefills
-}
-
-/**
- * Maps a Firefly III account type and role onto the closest Lumina account type
- */
-function getFireflyAccountTypePrefill(record: FireflyAccountsCsvRecord) {
-  const accountType = record.accountType.toLowerCase()
-  if (accountType === 'asset account') {
-    return FIREFLY_ASSET_ROLE_ACCOUNT_TYPES[record.role] ?? FIREFLY_FALLBACK_ACCOUNT_TYPE
-  }
-  return FIREFLY_LIABILITY_ACCOUNT_TYPES[accountType] ?? FIREFLY_FALLBACK_ACCOUNT_TYPE
 }
 
 /**

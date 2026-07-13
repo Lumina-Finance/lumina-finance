@@ -27,7 +27,6 @@ import {
 import type { FireflyBudgetImportStatus, FireflyFileKind } from '../types'
 import {
   buildFireflyAccountPrefills,
-  buildFireflyAccountsCsvIndex,
   buildFireflyBudgetDrafts,
   buildFireflyCategoryKinds,
   buildFireflyImportPayload,
@@ -44,7 +43,6 @@ import {
 
 export function useFireflyImportWorkflow() {
   const [transactionsFile, setTransactionsFile] = useState<ImportFileDraft | null>(null)
-  const [accountsFile, setAccountsFile] = useState<ImportFileDraft | null>(null)
   const [budgetsFile, setBudgetsFile] = useState<ImportFileDraft | null>(null)
   const [processingFileKind, setProcessingFileKind] = useState<FireflyFileKind | null>(null)
   const [accountMappings, setAccountMappings] = useState<Record<string, string>>({})
@@ -116,14 +114,9 @@ export function useFireflyImportWorkflow() {
     [fireflyRows],
   )
 
-  const accountsCsvIndex = useMemo(
-    () => buildFireflyAccountsCsvIndex(accountsFile),
-    [accountsFile],
-  )
-
   const accountPrefills = useMemo(
-    () => buildFireflyAccountPrefills(fireflyRows, trackedAccountNames, accountsCsvIndex),
-    [accountsCsvIndex, fireflyRows, trackedAccountNames],
+    () => buildFireflyAccountPrefills(fireflyRows, trackedAccountNames),
+    [fireflyRows, trackedAccountNames],
   )
 
   const accountMappingSources = useMemo(
@@ -317,11 +310,6 @@ export function useFireflyImportWorkflow() {
       return
     }
 
-    if (kind === 'accounts') {
-      setAccountsFile(draft)
-      return
-    }
-
     setBudgetsFile(draft)
     resetBudgetPanelState()
   }
@@ -445,7 +433,6 @@ export function useFireflyImportWorkflow() {
 
   const resetFireflyWorkflow = () => {
     setTransactionsFile(null)
-    setAccountsFile(null)
     setBudgetsFile(null)
     setProcessingFileKind(null)
     resetMappingState()
@@ -456,7 +443,6 @@ export function useFireflyImportWorkflow() {
 
   return {
     transactionsFile,
-    accountsFile,
     budgetsFile,
     processingFileKind,
     fireflyRows,
