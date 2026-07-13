@@ -60,11 +60,11 @@ This roadmap may change as Lumina Finance evolves based on user feedback, techni
 <details>
 <summary><b>Shipped</b></summary>
 
-- Insights tab for deeper reports and trends
-- Multi-currency support
-- Row-level security for per-user data isolation
-- Application security improvements and fixes
-- OIDC and WebAuthN support
+- [X] Insights tab for deeper reports and trends
+- [X] Multi-currency support
+- [X] Row-level security for per-user data isolation
+- [X] Application security improvements and fixes
+- [X] OIDC and WebAuthN support
 
 </details>
 <!-- markdownlint-enable MD033 -->
