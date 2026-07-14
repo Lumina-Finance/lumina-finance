@@ -12,20 +12,6 @@ export interface FireflyAccountPrefill {
 }
 
 /**
- * One compiled row shown in the capped import preview
- */
-export interface FireflySampleRow {
-  journalId: string
-  dt: string
-  type: string
-  description: string
-  amount: string
-  currencyCode: string
-  endpoints: string
-  category: string
-}
-
-/**
  * Row and transaction counts derived in one pass over the transactions export
  */
 export interface FireflyImportEstimate {

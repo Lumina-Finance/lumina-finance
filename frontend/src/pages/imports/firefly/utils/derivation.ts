@@ -6,14 +6,13 @@ import type { CsvRow, ImportCategoryKind } from '../../types'
 import {
   FIREFLY_FALLBACK_ACCOUNT_TYPE,
   FIREFLY_LIABILITY_ACCOUNT_TYPES,
+  FIREFLY_TYPE_DEPOSIT,
+  FIREFLY_TYPE_OPENING_BALANCE,
+  FIREFLY_TYPE_RECONCILIATION,
+  FIREFLY_TYPE_TRANSFER,
+  FIREFLY_TYPE_WITHDRAWAL,
 } from '../constants'
-import type { FireflyAccountPrefill, FireflyImportEstimate, FireflySampleRow } from '../types'
-
-const FIREFLY_TYPE_WITHDRAWAL = 'withdrawal'
-const FIREFLY_TYPE_DEPOSIT = 'deposit'
-const FIREFLY_TYPE_TRANSFER = 'transfer'
-const FIREFLY_TYPE_OPENING_BALANCE = 'opening balance'
-const FIREFLY_TYPE_RECONCILIATION = 'reconciliation'
+import type { FireflyAccountPrefill, FireflyImportEstimate } from '../types'
 
 /**
  * Extracts the date part of a Firefly III timestamp, empty when unparseable
@@ -267,29 +266,4 @@ function estimateFireflyRowLegs(row: CsvRow) {
   if (journalType === FIREFLY_TYPE_WITHDRAWAL) return sourceTracked ? 1 : 0
   if (journalType === FIREFLY_TYPE_DEPOSIT) return destinationTracked ? 1 : 0
   return 0
-}
-
-/**
- * Compiles the first importable rows into the capped preview shape
- */
-export function buildFireflySampleRows(rows: CsvRow[], limit: number): FireflySampleRow[] {
-  const samples: FireflySampleRow[] = []
-
-  for (const row of rows) {
-    if (samples.length >= limit) break
-    if (!isFireflyRowImportable(row)) continue
-
-    samples.push({
-      journalId: row.journal_id.trim(),
-      dt: getFireflyRowDate(row.date ?? ''),
-      type: row.type?.trim() ?? '',
-      description: row.description?.trim() ?? '',
-      amount: row.amount.trim(),
-      currencyCode: row.currency_code.trim().toUpperCase(),
-      endpoints: `${row.source_name?.trim() || '(none)'} to ${row.destination_name?.trim() || '(none)'}`,
-      category: row.category?.trim() || FIREFLY_NO_CATEGORY_SOURCE,
-    })
-  }
-
-  return samples
 }

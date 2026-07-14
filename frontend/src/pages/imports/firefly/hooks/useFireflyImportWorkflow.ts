@@ -15,6 +15,7 @@ import {
   buildImportCurrencyOptions,
   buildImportInstitutionOptions,
   getErrorMessage,
+  groupPreviewRowsByDate,
   inferAccountMappings,
   removeRecordKey,
   removeSetValue,
@@ -22,7 +23,9 @@ import {
 import {
   FIREFLY_CSV_PROCESSING_MIN_MS,
   FIREFLY_IMPORT_OVERLAY_MIN_MS,
+  FIREFLY_BALANCE_ADJUSTMENT_CATEGORY_NAME,
   FIREFLY_SAMPLE_PREVIEW_LIMIT,
+  FIREFLY_TRANSFER_CATEGORY_NAME,
 } from '../constants'
 import type { FireflyBudgetImportStatus, FireflyFileKind } from '../types'
 import {
@@ -30,7 +33,7 @@ import {
   buildFireflyBudgetDrafts,
   buildFireflyCategoryKinds,
   buildFireflyImportPayload,
-  buildFireflySampleRows,
+  buildFireflyPreviewRows,
   estimateFireflyImport,
   formatFireflyImportSummary,
   getFireflyFileRows,
@@ -97,6 +100,11 @@ export function useFireflyImportWorkflow() {
   const accountById = useMemo(
     () => new Map(selectableAccounts.map((account) => [account.id, account])),
     [selectableAccounts],
+  )
+
+  const institutionById = useMemo(
+    () => new Map(institutions.map((institution) => [institution.id, institution])),
+    [institutions],
   )
 
   const categoryById = useMemo(
@@ -203,9 +211,49 @@ export function useFireflyImportWorkflow() {
     [fireflyRows],
   )
 
-  const sampleRows = useMemo(
-    () => buildFireflySampleRows(fireflyRows, FIREFLY_SAMPLE_PREVIEW_LIMIT),
-    [fireflyRows],
+  // The commit assigns these seeded system categories to transfer legs and
+  // balance rows, so the preview reads them from the user's category list
+  const transferCategory = useMemo(
+    () => (categories ?? []).find((category) => category.is_system && category.name === FIREFLY_TRANSFER_CATEGORY_NAME),
+    [categories],
+  )
+
+  const balanceAdjustmentCategory = useMemo(
+    () => (categories ?? []).find((category) => category.is_system && category.name === FIREFLY_BALANCE_ADJUSTMENT_CATEGORY_NAME),
+    [categories],
+  )
+
+  const previewRows = useMemo(
+    () => buildFireflyPreviewRows({
+      rows: fireflyRows,
+      limit: FIREFLY_SAMPLE_PREVIEW_LIMIT,
+      accountById,
+      accountMappings: resolvedAccountMappings,
+      accountCreateDetails: resolvedAccountCreateDetails,
+      institutionById,
+      categoryById,
+      categoryMappings: resolvedCategoryMappings,
+      categoryCreateKinds: resolvedCategoryKinds,
+      transferCategory,
+      balanceAdjustmentCategory,
+    }),
+    [
+      accountById,
+      balanceAdjustmentCategory,
+      categoryById,
+      fireflyRows,
+      institutionById,
+      resolvedAccountCreateDetails,
+      resolvedAccountMappings,
+      resolvedCategoryKinds,
+      resolvedCategoryMappings,
+      transferCategory,
+    ],
+  )
+
+  const previewGroups = useMemo(
+    () => groupPreviewRowsByDate(previewRows),
+    [previewRows],
   )
 
   const newAccountCount = useMemo(
@@ -460,7 +508,8 @@ export function useFireflyImportWorkflow() {
     autoFilledCategories,
     resolvedCategoryKinds,
     importEstimate,
-    sampleRows,
+    previewRows,
+    previewGroups,
     newAccountCount,
     newCategoryCount,
     importBuild,
