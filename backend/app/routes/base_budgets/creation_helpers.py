@@ -11,11 +11,11 @@ from app.models.budget import BaseBudget, BudgetTrackedCategory
 from app.models.currency import Currency
 from app.models.group import GroupMember
 from app.models.user import User
-from app.routes.base_budgets.category_helpers import get_valid_tracked_category_ids
 from app.routes.base_budgets.instance_helpers import add_initial_budget_instances
 from app.routes.base_budgets.response_helpers import get_base_budget_response
 from app.schemas.budget import BaseBudgetResponse, CreateBaseBudgetRequest
 from app.services.budgets.periods import validate_period_start
+from app.services.budgets.tracked_categories import get_valid_tracked_category_ids
 from app.services.cache_state import mark_cache_changed_for_scope
 
 
