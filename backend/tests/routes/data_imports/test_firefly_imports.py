@@ -315,6 +315,30 @@ async def test_firefly_import_skips_unconvertible_rows(client):
     assert reasons_by_journal["4"] == 'Invalid amount "12.345"'
 
 
+async def test_firefly_import_reports_unexpected_row_failures_generically(client, monkeypatch):
+    """A row failing outside the known skip rules is skipped with a generic reason."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    def _boom(row, context):
+        raise RuntimeError("unexpected resolution failure")
+
+    monkeypatch.setattr("app.services.data_imports.firefly.service.resolve_firefly_row", _boom)
+
+    resp = await client.post("/data-imports/firefly/transactions", json={
+        "accounts": [_chequing_mapping()],
+        "categories": [{"source": "Groceries", "create": {"name": "Groceries", "kind": "expense"}}],
+        "rows": [_firefly_row()],
+    }, headers=headers)
+
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["rows_imported"] == 0
+    assert data["rows_skipped"] == 1
+    assert data["transactions_created"] == 0
+    assert data["skipped"] == [{"journal_id": "1", "reason": "Row could not be converted"}]
+
+
 async def test_firefly_import_requires_mapping_for_tracked_accounts(client):
     """Rows referencing an unmapped asset account fail the whole batch."""
     signup_resp = await _create_user(client)

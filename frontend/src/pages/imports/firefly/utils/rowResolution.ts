@@ -6,6 +6,7 @@ import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, DEFAULT_CATEGORY_ICON } fr
 import type { CsvRow, ImportCategoryKind } from '../../types'
 import { parseImportNumber, toMinorUnits } from '../../utils'
 import {
+  FIREFLY_GENERIC_SKIP_REASON,
   FIREFLY_TYPE_DEPOSIT,
   FIREFLY_TYPE_OPENING_BALANCE,
   FIREFLY_TYPE_RECONCILIATION,
@@ -81,7 +82,11 @@ export function resolveFireflyRowLegs(row: CsvRow, options: FireflyRowResolution
     return { legs: buildFireflyRowLegs(row, options), skipReason: null }
   } catch (error) {
     if (error instanceof FireflyRowSkipError) return { legs: null, skipReason: error.reason }
-    throw error
+
+    // A row failing in a way no skip rule anticipated must not break the
+    // preview, so it is predicted as skipped with the same generic reason
+    // the backend reports when its own fallback catches the row
+    return { legs: null, skipReason: FIREFLY_GENERIC_SKIP_REASON }
   }
 }
 

@@ -1,8 +1,10 @@
 """Firefly III transaction import orchestration service"""
 
+import logging
 import uuid
 from datetime import date
 
+from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
@@ -17,6 +19,7 @@ from app.schemas.data_imports import (
 )
 from app.services.accounts.snapshots import recompute_snapshots_from
 from app.services.cache_state import mark_cache_changed_for_scope, mark_user_cache_changed
+from app.services.data_imports.firefly.constants import FIREFLY_GENERIC_SKIP_REASON
 from app.services.data_imports.firefly.row_resolution import (
     FireflyLeg,
     FireflyResolutionContext,
@@ -43,6 +46,8 @@ INSERT_CHUNK_SIZE = 1000
 
 # Skipped-row details returned to the client, the full count is always exact
 SKIPPED_DETAIL_LIMIT = 50
+
+logger = logging.getLogger(__name__)
 
 
 async def import_firefly_transactions(
@@ -136,6 +141,18 @@ def _resolve_rows(
             legs_by_row.append(resolve_firefly_row(row, context))
         except FireflyRowSkipError as skip:
             skipped.append(FireflySkippedRow(journal_id=row.journal_id, reason=skip.reason))
+        except HTTPException:
+
+            # Mapping-contract violations still fail the whole batch because
+            # the frontend must supply a mapping for every tracked account
+            raise
+        except Exception:
+
+            # A row failing in a way no skip rule anticipated must not sink
+            # the rest of the batch, so it is skipped with a generic reason
+            # and the specifics are kept in the server log
+            logger.exception("Firefly III journal %s could not be converted", row.journal_id)
+            skipped.append(FireflySkippedRow(journal_id=row.journal_id, reason=FIREFLY_GENERIC_SKIP_REASON))
     return legs_by_row, skipped
 
 

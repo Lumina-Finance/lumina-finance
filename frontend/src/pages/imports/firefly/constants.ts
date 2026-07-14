@@ -52,6 +52,12 @@ export const FIREFLY_UNCATEGORIZED_CATEGORY_NAME = 'Uncategorized'
 export const FIREFLY_TRANSFER_CATEGORY_NAME = 'Transfer'
 export const FIREFLY_BALANCE_ADJUSTMENT_CATEGORY_NAME = 'Balance Adjustment'
 
+/**
+ * Reason shown for rows that fail conversion in a way no specific skip rule
+ * anticipated, mirroring the backend's generic fallback word for word
+ */
+export const FIREFLY_GENERIC_SKIP_REASON = 'Row could not be converted'
+
 export const FIREFLY_SAMPLE_PREVIEW_LIMIT = 5
 export const FIREFLY_SKIPPED_VISIBLE_LIMIT = 8
 export const FIREFLY_CSV_PROCESSING_MIN_MS = 1500
