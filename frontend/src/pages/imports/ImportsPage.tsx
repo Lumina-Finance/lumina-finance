@@ -5,6 +5,7 @@ import { ImportProgressOverlay } from './components'
 import { useFireflyImportWorkflow } from './firefly/hooks'
 import {
   FireflyAccountMappingStep,
+  FireflyExpectationsCard,
   FireflyBudgetImportStep,
   FireflyCategoryMatchingStep,
   FireflyFilesStep,
@@ -118,6 +119,7 @@ export default function ImportsPage() {
                 <div className="space-y-8">
                   {isFirefly ? (
                     <>
+                      <FireflyExpectationsCard />
                       <FireflyAccountMappingStep {...fireflyWorkflow} />
                       <FireflyCategoryMatchingStep {...fireflyWorkflow} />
                       <FireflyPreviewStep {...fireflyWorkflow} />
