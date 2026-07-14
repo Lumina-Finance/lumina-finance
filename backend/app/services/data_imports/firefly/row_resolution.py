@@ -145,7 +145,10 @@ def resolve_firefly_row(row: FireflyTransactionRow, context: FireflyResolutionCo
     if journal_type == FIREFLY_TYPE_TRANSFER:
         raise FireflyRowSkipError("Transfer endpoint is not an imported account")
 
-    raise FireflyRowSkipError(f"Unsupported journal type: {row.type}")
+    raise FireflyRowSkipError(
+        f'Journal type "{row.type.strip()}" is not supported, the importer handles'
+        " withdrawals, deposits, transfers, opening balances, and reconciliations",
+    )
 
 
 def _resolve_transfer_pair(
@@ -217,7 +220,7 @@ def _resolve_balance_row(
     """
     account = destination_account or source_account
     if account is None:
-        raise FireflyRowSkipError("Balance row has no imported account side")
+        raise FireflyRowSkipError("Opening balance or reconciliation row is not attached to an imported account")
 
     amount = _get_amount_in_account_currency(row, account, context)
     return [FireflyLeg(
@@ -307,7 +310,9 @@ def _get_amount_in_account_currency(
     elif row.foreign_currency_code and row.foreign_amount and row.foreign_currency_code.upper() == account.currency:
         raw_amount = row.foreign_amount
     else:
-        raise FireflyRowSkipError(f"No amount in account currency {account.currency}")
+        raise FireflyRowSkipError(
+            f"Neither the amount nor the foreign amount is in the account's currency ({account.currency})",
+        )
 
     currency = context.currencies_by_code[account.currency]
     try:
@@ -317,7 +322,7 @@ def _get_amount_in_account_currency(
             minor_unit_exponent=currency.minor_unit_exponent,
         )
     except (DecimalAmountParseError, DecimalAmountPrecisionError) as exc:
-        raise FireflyRowSkipError(f"Invalid amount: {raw_amount}") from exc
+        raise FireflyRowSkipError(f'Invalid amount "{raw_amount}"') from exc
     return abs(amount)
 
 

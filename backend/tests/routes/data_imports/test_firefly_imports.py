@@ -307,9 +307,12 @@ async def test_firefly_import_skips_unconvertible_rows(client):
     assert data["transactions_created"] == 1
     assert {entry["journal_id"] for entry in data["skipped"]} == {"2", "3", "4"}
     reasons_by_journal = {entry["journal_id"]: entry["reason"] for entry in data["skipped"]}
-    assert reasons_by_journal["2"] == "Unsupported journal type: Liability credit"
-    assert reasons_by_journal["3"] == "No amount in account currency CAD"
-    assert reasons_by_journal["4"] == "Invalid amount: 12.345"
+    assert reasons_by_journal["2"] == (
+        'Journal type "Liability credit" is not supported, the importer handles'
+        " withdrawals, deposits, transfers, opening balances, and reconciliations"
+    )
+    assert reasons_by_journal["3"] == "Neither the amount nor the foreign amount is in the account's currency (CAD)"
+    assert reasons_by_journal["4"] == 'Invalid amount "12.345"'
 
 
 async def test_firefly_import_requires_mapping_for_tracked_accounts(client):
