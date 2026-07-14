@@ -1,11 +1,13 @@
 import { useMemo, useState, type ChangeEvent } from 'react'
 import { useAccounts } from '@/api/accounts'
-import { useCreateBaseBudget } from '@/api/budgets'
 import { useCategories } from '@/api/categories'
 import { useCurrencies } from '@/api/currency'
-import { useImportFireflyTransactions, type FireflyTransactionImportResponse } from '@/api/dataImports'
+import {
+  useImportFireflyBudgets,
+  useImportFireflyTransactions,
+  type FireflyTransactionImportResponse,
+} from '@/api/dataImports'
 import { useInstitutions } from '@/api/institutions'
-import { toMinorUnits } from '@/pages/budgets/utils/money'
 import { waitForMilliseconds } from '@/utils/timing'
 import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE } from '../../constants'
 import type { ImportCategoryKind, ImportFileDraft, ImportOverlayPhase } from '../../types'
@@ -72,7 +74,7 @@ export function useFireflyImportWorkflow() {
   const { data: institutions = [], isLoading: institutionsLoading } = useInstitutions()
   const { data: categories, isLoading: categoriesLoading } = useCategories()
   const importFireflyTransactions = useImportFireflyTransactions()
-  const createBaseBudget = useCreateBaseBudget()
+  const importFireflyBudgets = useImportFireflyBudgets()
 
   const selectableAccounts = useMemo(
     () => accounts.filter((account) => !account.is_archived),
@@ -502,36 +504,49 @@ export function useFireflyImportWorkflow() {
     setIsImportingBudgets(true)
 
     try {
-      // Budgets are created one at a time so a failure marks only its own row
-      for (const draft of pendingDrafts) {
-        const overallLimit = toMinorUnits(draft.amount, currencies, draft.currencyCode)
-        if (overallLimit === null || !draft.periodStart) {
-          setBudgetImportStatuses((current) => ({ ...current, [draft.name]: 'error' }))
-          setBudgetImportErrors((current) => ({ ...current, [draft.name]: 'The exported limit amount is not a valid number' }))
-          continue
-        }
+      // One request creates every selected budget with its full limit
+      // schedule, and importable drafts always carry a backdate start because
+      // drafts without one are disabled and filtered out above
+      await importFireflyBudgets.mutateAsync({
+        budgets: pendingDrafts.map((draft) => ({
+          name: draft.name,
+          currency: draft.currencyCode,
+          category_ids: draft.categoryIds,
+          period_start: draft.periodStart!,
+          limits: draft.limits,
+        })),
+      })
 
-        try {
-          await createBaseBudget.mutateAsync({
-            name: draft.name,
-            currency: draft.currencyCode,
-            recurrence_freq: 'monthly',
-            instance_length: 1,
-            recurrence_weekday: null,
-            recurrence_dom: 1,
-            recurrence_month: null,
-            recurs: true,
-            category_ids: draft.categoryIds,
-            period_start: draft.periodStart,
-            overall_limit: overallLimit,
-          })
-          setBudgetImportStatuses((current) => ({ ...current, [draft.name]: 'imported' }))
-          setBudgetImportErrors((current) => removeRecordKey(current, draft.name))
-        } catch (error) {
-          setBudgetImportStatuses((current) => ({ ...current, [draft.name]: 'error' }))
-          setBudgetImportErrors((current) => ({ ...current, [draft.name]: getErrorMessage(error) }))
+      setBudgetImportStatuses((current) => {
+        const next = { ...current }
+        for (const draft of pendingDrafts) next[draft.name] = 'imported'
+        return next
+      })
+      setBudgetImportErrors((current) => {
+        const next = { ...current }
+        for (const draft of pendingDrafts) delete next[draft.name]
+        return next
+      })
+    } catch (error) {
+      // The batch is atomic, so nothing was imported and every row stays
+      // retryable, with the backend detail landing on the budget it names
+      const detail = getErrorMessage(error)
+      const failedDraft = pendingDrafts.find((draft) => detail.startsWith(draft.name))
+
+      setBudgetImportStatuses((current) => {
+        const next = { ...current }
+        for (const draft of pendingDrafts) next[draft.name] = 'error'
+        return next
+      })
+      setBudgetImportErrors((current) => {
+        const next = { ...current }
+        for (const draft of pendingDrafts) {
+          next[draft.name] = failedDraft && draft.name !== failedDraft.name
+            ? 'Not imported because another budget in the batch failed.'
+            : detail
         }
-      }
+        return next
+      })
     } finally {
       setIsImportingBudgets(false)
     }

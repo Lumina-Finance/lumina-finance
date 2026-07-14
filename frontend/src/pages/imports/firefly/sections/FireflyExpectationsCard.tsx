@@ -36,7 +36,7 @@ const CONCEPT_MAPPINGS: ConceptMapping[] = [
   },
   {
     firefly: 'Budget limits that changed over time',
-    lumina: 'One monthly budget at the latest amount, backdated to its first transaction',
+    lumina: 'A monthly budget backdated to its first transaction, each period keeping the amount in force at the time',
   },
   {
     firefly: 'Bills, recurring transactions, piggy banks, reconciliation flags, account interest and card details',

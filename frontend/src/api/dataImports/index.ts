@@ -1,4 +1,9 @@
 export type {
+  FireflyBudgetImportBudget,
+  FireflyBudgetImportLimit,
+  FireflyBudgetImportPayload,
+  FireflyBudgetImportResponse,
+  FireflyBudgetImportResult,
   FireflySkippedRow,
   FireflyTransactionImportPayload,
   FireflyTransactionImportResponse,
@@ -6,8 +11,8 @@ export type {
 } from '@/api/dataImports/types';
 
 export { importFireflyTransactionsInBatches } from '@/api/dataImports/batching';
-export { postFireflyTransactionImportBatch } from '@/api/dataImports/requests';
-export { useImportFireflyTransactions } from '@/api/dataImports/hooks';
+export { postFireflyBudgetImport, postFireflyTransactionImportBatch } from '@/api/dataImports/requests';
+export { useImportFireflyBudgets, useImportFireflyTransactions } from '@/api/dataImports/hooks';
 export {
   FIREFLY_NO_CATEGORY_SOURCE,
   getFireflyRowAccountSources,

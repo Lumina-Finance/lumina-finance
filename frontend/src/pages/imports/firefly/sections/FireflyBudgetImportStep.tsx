@@ -63,7 +63,7 @@ export function FireflyBudgetImportStep({
               <tr>
                 <th className="w-12 px-4 py-2.5 font-medium" aria-label="Import selection" />
                 <th className="px-4 py-2.5 font-medium">Budget</th>
-                <th className="px-4 py-2.5 text-right font-medium">Monthly Amount</th>
+                <th className="px-4 py-2.5 text-right font-medium">Latest Amount</th>
                 <th className="px-4 py-2.5 font-medium">Categories</th>
                 <th className="px-4 py-2.5 font-medium">Backdate Start</th>
                 <th className="px-4 py-2.5 font-medium">Status</th>
@@ -73,6 +73,11 @@ export function FireflyBudgetImportStep({
               {budgetDrafts.map((draft) => {
                 const status = budgetImportStatuses[draft.name]
                 const selectable = !draft.disabledReason && status !== 'imported' && !isImportingBudgets
+
+                // A schedule with more than one distinct amount means the
+                // limit changed over time, so the row flags that history
+                // beneath the latest amount
+                const distinctAmountCount = new Set(draft.limits.map((limit) => limit.amount)).size
 
                 return (
                   <tr key={draft.name} style={draft.disabledReason ? { color: 'var(--app-text-subtle)' } : undefined}>
@@ -87,6 +92,11 @@ export function FireflyBudgetImportStep({
                     <td className="truncate px-4 py-2.5 align-middle font-medium">{draft.name}</td>
                     <td className="px-4 py-2.5 text-right align-middle font-financial tabular-nums">
                       {draft.amount ? `${draft.amount} ${draft.currencyCode}` : ''}
+                      {distinctAmountCount > 1 && (
+                        <div className="text-xs" style={{ color: 'var(--app-text-subtle)' }}>
+                          {distinctAmountCount} changes over time
+                        </div>
+                      )}
                     </td>
                     <td className="truncate px-4 py-2.5 align-middle" style={{ color: 'var(--app-text-muted)' }}>
                       {draft.categoryNames.join(', ')}

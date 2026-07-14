@@ -44,6 +44,54 @@ export interface FireflySkippedRow {
 }
 
 /**
+ * One budget limit taking effect on a start date
+ *
+ * The amount stays a raw CSV string so the backend can validate precision
+ * against the budget currency
+ */
+export interface FireflyBudgetImportLimit {
+  /**
+   * ISO date in YYYY-MM-DD form
+   */
+  start: string;
+  amount: string;
+}
+
+/**
+ * One budget with its full limit schedule, sorted by start date
+ */
+export interface FireflyBudgetImportBudget {
+  name: string;
+  currency: string;
+  category_ids: string[];
+
+  /**
+   * First day of the month of the budget's earliest transaction
+   */
+  period_start: string;
+  limits: FireflyBudgetImportLimit[];
+}
+
+export interface FireflyBudgetImportPayload {
+  budgets: FireflyBudgetImportBudget[];
+}
+
+export interface FireflyBudgetImportResult {
+  name: string;
+  base_budget_id: string;
+  instance_count: number;
+}
+
+/**
+ * The backend creates all budgets atomically, so a failure means none were
+ * imported and the error detail names the budget it rejected
+ */
+export interface FireflyBudgetImportResponse {
+  budgets_created: number;
+  results: FireflyBudgetImportResult[];
+}
+
+/**
  * Transfers between two mapped accounts produce two Lumina transactions from
  * one journal row, so transactions_created can exceed rows_imported
  */

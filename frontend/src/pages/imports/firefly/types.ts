@@ -1,5 +1,5 @@
 import type { AccountType } from '@/api/accounts'
-import type { FireflyTransactionImportPayload } from '@/api/dataImports'
+import type { FireflyBudgetImportLimit, FireflyTransactionImportPayload } from '@/api/dataImports'
 
 export type FireflyFileKind = 'transactions' | 'budgets'
 
@@ -30,8 +30,17 @@ export interface FireflyImportBuildResult {
 export interface FireflyBudgetDraft {
   name: string
 
+  /**
+   * Latest limit amount, shown in the drafts table
+   */
   amount: string
   currencyCode: string
+
+  /**
+   * Full limit schedule sorted by start date, sent to the backend so every
+   * backfilled period keeps the amount in force at the time
+   */
+  limits: FireflyBudgetImportLimit[]
 
   /**
    * First day of the month of the earliest transaction carrying the budget
