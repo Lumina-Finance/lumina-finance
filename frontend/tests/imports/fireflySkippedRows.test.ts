@@ -134,6 +134,7 @@ describe('forecastFireflyImport', () => {
       rowNumber: 2,
       cells: row,
       reason: 'Journal type "Liability credit" is not supported, the importer handles withdrawals, deposits, transfers, opening balances, and reconciliations',
+      droppedBeforeUpload: false,
     }])
   })
 
@@ -237,6 +238,36 @@ describe('forecastFireflyImport', () => {
     expect(skipped.map((row) => row.journalId)).toEqual(['2'])
   })
 
+  it('counts every parsed row so the row count minus the skips is what converts', () => {
+    const forecast = forecastFireflyImport(
+      [
+        createFireflyRow({ journal_id: '1' }),
+        createFireflyRow({ journal_id: '2', amount: '' }),
+        createFireflyRow({ journal_id: '3', type: 'Liability credit' }),
+      ],
+      createOptions(),
+    )
+
+    expect(forecast.rowCount).toBe(3)
+    expect(forecast.skippedRows).toHaveLength(2)
+    expect(forecast.rowCount - forecast.skippedRows.length).toBe(1)
+  })
+
+  it('marks only the rows dropped before upload so results can add them back', () => {
+    const { skippedRows: skipped } = forecastFireflyImport(
+      [
+        createFireflyRow({ journal_id: '1', amount: '' }),
+        createFireflyRow({ journal_id: '2', type: 'Liability credit' }),
+      ],
+      createOptions(),
+    )
+
+    expect(skipped.map((row) => [row.journalId, row.droppedBeforeUpload])).toEqual([
+      ['1', true],
+      ['2', false],
+    ])
+  })
+
   it('numbers skipped rows by their line in the uploaded file counting the header', () => {
     const { skippedRows: skipped } = forecastFireflyImport(
       [
@@ -264,6 +295,7 @@ describe('enrichFireflySkippedRows', () => {
       rowNumber: 3,
       cells: skippedRow,
       reason: "Neither the amount nor the foreign amount is in the account's currency (CAD)",
+      droppedBeforeUpload: false,
     }])
   })
 
@@ -278,6 +310,7 @@ describe('enrichFireflySkippedRows', () => {
       rowNumber: null,
       cells: null,
       reason: 'Invalid amount: abc',
+      droppedBeforeUpload: false,
     }])
   })
 })

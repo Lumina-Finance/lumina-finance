@@ -18,10 +18,15 @@ export interface FireflySkippedRowDetail {
   rowNumber: number | null
   cells: CsvRow | null
   reason: string
+  // True when the payload builder drops the row before upload, so the commit
+  // response never reports it and the results have to add it back
+  droppedBeforeUpload: boolean
 }
 
 /**
- * Everything the preview predicts about a commit in one pass over the rows
+ * Everything the preview predicts about a commit in one pass over the rows,
+ * where rowCount covers every parsed row so the row count minus the skipped
+ * rows is the number that converts
  */
 export interface FireflyImportForecast {
   rowCount: number
@@ -43,6 +48,8 @@ export function forecastFireflyImport(
   let transactionEstimate = 0
 
   for (const [index, row] of rows.entries()) {
+    rowCount += 1
+
     // Rows missing identity fields never reach the backend because the
     // payload builder drops them before upload, so the reason names the
     // fields the user has to fix in the file
@@ -52,10 +59,10 @@ export function forecastFireflyImport(
         row,
         index,
         `${FIREFLY_MISSING_REQUIRED_VALUES_REASON}: ${missingFields.join(', ')}`,
+        { droppedBeforeUpload: true },
       ))
       continue
     }
-    rowCount += 1
 
     const resolution = resolveFireflyRowLegs(row, options)
     if (resolution.skipReason !== null) {
@@ -88,7 +95,13 @@ export function enrichFireflySkippedRows(
   return skipped.map((entry) => {
     const index = rowIndexByJournalId.get(entry.journal_id)
     if (index === undefined) {
-      return { journalId: entry.journal_id, rowNumber: null, cells: null, reason: entry.reason }
+      return {
+        journalId: entry.journal_id,
+        rowNumber: null,
+        cells: null,
+        reason: entry.reason,
+        droppedBeforeUpload: false,
+      }
     }
     return buildFireflySkippedRowDetail(rows[index], index, entry.reason)
   })
@@ -97,11 +110,17 @@ export function enrichFireflySkippedRows(
 /**
  * Shapes one parsed export row into the skipped-row detail the table renders
  */
-function buildFireflySkippedRowDetail(row: CsvRow, index: number, reason: string): FireflySkippedRowDetail {
+function buildFireflySkippedRowDetail(
+  row: CsvRow,
+  index: number,
+  reason: string,
+  { droppedBeforeUpload = false }: { droppedBeforeUpload?: boolean } = {},
+): FireflySkippedRowDetail {
   return {
     journalId: row.journal_id?.trim() ?? '',
     rowNumber: index + FIRST_DATA_ROW_LINE_NUMBER,
     cells: row,
     reason,
+    droppedBeforeUpload,
   }
 }

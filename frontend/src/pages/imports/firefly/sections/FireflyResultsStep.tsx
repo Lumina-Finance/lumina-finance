@@ -2,9 +2,17 @@ import { ImportStat, ImportStep } from '../../components'
 import { FireflySkippedRowsTable } from '../components'
 import type { FireflyImportWorkflow } from '../hooks'
 
-type FireflyResultsStepProps = Pick<FireflyImportWorkflow, 'importResult' | 'resultSkippedRows' | 'fireflyHeaders'>
+type FireflyResultsStepProps = Pick<
+  FireflyImportWorkflow,
+  'importResult' | 'resultSkippedRows' | 'resultSkippedCount' | 'fireflyHeaders'
+>
 
-export function FireflyResultsStep({ importResult, resultSkippedRows, fireflyHeaders }: FireflyResultsStepProps) {
+export function FireflyResultsStep({
+  importResult,
+  resultSkippedRows,
+  resultSkippedCount,
+  fireflyHeaders,
+}: FireflyResultsStepProps) {
   if (!importResult) return null
 
   return (
@@ -15,7 +23,7 @@ export function FireflyResultsStep({ importResult, resultSkippedRows, fireflyHea
     >
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <ImportStat label="Rows Imported" value={importResult.rows_imported.toString()} />
-        <ImportStat label="Rows Skipped" value={importResult.rows_skipped.toString()} />
+        <ImportStat label="Rows Skipped" value={resultSkippedCount.toString()} />
         <ImportStat label="Transactions" value={importResult.transactions_created.toString()} />
         <ImportStat label="Accounts Created" value={importResult.accounts_created.toString()} />
         <ImportStat label="Categories Created" value={importResult.categories_created.toString()} />
@@ -25,9 +33,9 @@ export function FireflyResultsStep({ importResult, resultSkippedRows, fireflyHea
 
       {resultSkippedRows.length > 0 && (
         <FireflySkippedRowsTable
-          title={`${importResult.rows_skipped} row${importResult.rows_skipped === 1 ? '' : 's'} skipped`}
+          title={`${resultSkippedCount} row${resultSkippedCount === 1 ? '' : 's'} skipped`}
           rows={resultSkippedRows}
-          totalCount={importResult.rows_skipped}
+          totalCount={resultSkippedCount}
           headers={fireflyHeaders}
         />
       )}
