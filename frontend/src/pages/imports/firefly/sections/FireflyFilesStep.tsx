@@ -114,6 +114,11 @@ function FireflyFileSlot({
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
 
+  // A rejected file never becomes a staged file, so the slot keeps its upload
+  // card and any guidance beside it and reports the refusal in place
+  const stagedFile = file && !file.error ? file : null
+  const rejection = file?.error ?? null
+
   return (
     <div className="space-y-2">
       <div className="flex items-baseline justify-between gap-3">
@@ -134,7 +139,7 @@ function FireflyFileSlot({
       {/* Each slot takes exactly one file, so the upload card and its note
           animate away once a file lands and grow back when it is removed */}
       <AnimatePresence initial={false} mode="wait">
-        {file ? (
+        {stagedFile ? (
           <motion.div
             key="staged"
             initial={{ opacity: 0, height: 0 }}
@@ -142,7 +147,7 @@ function FireflyFileSlot({
             exit={{ opacity: 0, height: 0, overflow: 'hidden' }}
             transition={{ duration: SLOT_SWAP_DURATION, ease: SLOT_SWAP_EASE }}
           >
-            <ImportStagedFileList files={[file]} onRemove={() => onRemove(kind)} />
+            <ImportStagedFileList files={[stagedFile]} onRemove={() => onRemove(kind)} />
           </motion.div>
         ) : (
           <motion.div
@@ -159,6 +164,7 @@ function FireflyFileSlot({
               hint={hint}
               processing={processing}
               disabled={disabled}
+              rejection={rejection}
               onClick={() => inputRef.current?.click()}
             />
             <EmptyState

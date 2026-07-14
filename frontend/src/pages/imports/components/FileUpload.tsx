@@ -1,4 +1,4 @@
-import { FileText, LoaderCircle, Upload, X } from 'lucide-react'
+import { FileText, LoaderCircle, TriangleAlert, Upload, X } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { IMPORT_INSET_STYLE } from '../constants'
 import type { ImportFileDraft } from '../types'
@@ -7,18 +7,24 @@ import { formatBytes } from '../utils'
 /**
  * Upload affordance shared by the import flows that animates between its idle
  * prompt and the processing state
+ *
+ * A rejection keeps the card in place and reports why the file was refused,
+ * so the user can pick another one without losing the prompt or any guidance
+ * sitting beside it
  */
 export function ImportUploadCard({
   title,
   hint,
   processing,
   disabled,
+  rejection,
   onClick,
 }: {
   title: string
   hint: string
   processing: boolean
   disabled: boolean
+  rejection?: string | null
   onClick: () => void
 }) {
   const shouldReduceMotion = useReducedMotion()
@@ -43,6 +49,7 @@ export function ImportUploadCard({
       style={{
         ...IMPORT_INSET_STYLE,
         color: 'var(--app-text-muted)',
+        border: rejection ? '1px solid var(--app-negative-border)' : undefined,
       }}
       onClick={onClick}
       disabled={disabled}
@@ -69,6 +76,26 @@ export function ImportUploadCard({
                 <span className="h-1.5 w-6 animate-pulse" style={{ background: 'var(--app-accent)' }} />
                 <span className="h-1.5 w-6 animate-pulse [animation-delay:120ms]" style={{ background: 'var(--app-accent)' }} />
                 <span className="h-1.5 w-6 animate-pulse [animation-delay:240ms]" style={{ background: 'var(--app-accent)' }} />
+              </span>
+            </motion.span>
+          ) : rejection ? (
+            <motion.span
+              key="rejected"
+              className="flex flex-col items-center"
+              role="alert"
+              {...uploadStateMotion}
+            >
+              <span
+                className="mb-3 flex h-11 w-11 items-center justify-center"
+                style={{ background: 'var(--app-negative-soft)', color: 'var(--app-negative)' }}
+              >
+                <TriangleAlert size={20} strokeWidth={2.25} aria-hidden />
+              </span>
+              <span className="block text-sm font-semibold" style={{ color: 'var(--app-negative)' }}>
+                {rejection}
+              </span>
+              <span className="mt-1 block text-xs" style={{ color: 'var(--app-text-subtle)' }}>
+                Choose another file to try again.
               </span>
             </motion.span>
           ) : (
