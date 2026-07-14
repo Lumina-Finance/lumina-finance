@@ -7,12 +7,10 @@ import {
   FIREFLY_FALLBACK_ACCOUNT_TYPE,
   FIREFLY_LIABILITY_ACCOUNT_TYPES,
   FIREFLY_TYPE_DEPOSIT,
-  FIREFLY_TYPE_OPENING_BALANCE,
-  FIREFLY_TYPE_RECONCILIATION,
   FIREFLY_TYPE_TRANSFER,
   FIREFLY_TYPE_WITHDRAWAL,
 } from '../constants'
-import type { FireflyAccountPrefill, FireflyImportEstimate } from '../types'
+import type { FireflyAccountPrefill } from '../types'
 
 /**
  * Extracts the date part of a Firefly III timestamp, empty when unparseable
@@ -26,12 +24,20 @@ export function getFireflyRowDate(value: string) {
  * Checks that a journal row carries the fields the import endpoint requires
  */
 export function isFireflyRowImportable(row: CsvRow) {
-  return Boolean(
-    row.journal_id?.trim()
-    && getFireflyRowDate(row.date ?? '')
-    && row.amount?.trim()
-    && (row.currency_code?.trim().length ?? 0) === 3,
-  )
+  return getFireflyMissingRequiredFields(row).length === 0
+}
+
+/**
+ * Names the required identity fields a row is missing, in the plain words
+ * the skipped-row reason shows to the user
+ */
+export function getFireflyMissingRequiredFields(row: CsvRow) {
+  const missingFields: string[] = []
+  if (!row.journal_id?.trim()) missingFields.push('journal id')
+  if (!getFireflyRowDate(row.date ?? '')) missingFields.push('date')
+  if (!row.amount?.trim()) missingFields.push('amount')
+  if ((row.currency_code?.trim().length ?? 0) !== 3) missingFields.push('currency')
+  return missingFields
 }
 
 /**
@@ -226,44 +232,3 @@ export function inferFireflyCategoryMappings(
   return next
 }
 
-/**
- * Counts importable rows and estimates the transactions the backend will
- * create, where rows between two mapped accounts produce two legs
- */
-export function estimateFireflyImport(rows: CsvRow[]): FireflyImportEstimate {
-  let rowCount = 0
-  let invalidRowCount = 0
-  let transactionEstimate = 0
-  let skipRiskCount = 0
-
-  for (const row of rows) {
-    if (!isFireflyRowImportable(row)) {
-      invalidRowCount += 1
-      continue
-    }
-    rowCount += 1
-
-    const legs = estimateFireflyRowLegs(row)
-    transactionEstimate += legs
-    if (legs === 0) skipRiskCount += 1
-  }
-
-  return { rowCount, invalidRowCount, transactionEstimate, skipRiskCount }
-}
-
-/**
- * Mirrors the backend leg resolution order to estimate transactions per row
- */
-function estimateFireflyRowLegs(row: CsvRow) {
-  const journalType = row.type?.trim().toLowerCase() ?? ''
-  const sourceTracked = Boolean(row.source_name?.trim()) && isFireflyTrackedAccountType(row.source_type)
-  const destinationTracked = Boolean(row.destination_name?.trim()) && isFireflyTrackedAccountType(row.destination_type)
-
-  if (journalType === FIREFLY_TYPE_OPENING_BALANCE || journalType === FIREFLY_TYPE_RECONCILIATION) {
-    return sourceTracked || destinationTracked ? 1 : 0
-  }
-  if (sourceTracked && destinationTracked) return 2
-  if (journalType === FIREFLY_TYPE_WITHDRAWAL) return sourceTracked ? 1 : 0
-  if (journalType === FIREFLY_TYPE_DEPOSIT) return destinationTracked ? 1 : 0
-  return 0
-}

@@ -21,9 +21,9 @@ import {
   removeSetValue,
 } from '../../utils'
 import {
+  FIREFLY_BALANCE_ADJUSTMENT_CATEGORY_NAME,
   FIREFLY_CSV_PROCESSING_MIN_MS,
   FIREFLY_IMPORT_OVERLAY_MIN_MS,
-  FIREFLY_BALANCE_ADJUSTMENT_CATEGORY_NAME,
   FIREFLY_SAMPLE_PREVIEW_LIMIT,
   FIREFLY_TRANSFER_CATEGORY_NAME,
 } from '../constants'
@@ -34,8 +34,10 @@ import {
   buildFireflyCategoryKinds,
   buildFireflyImportPayload,
   buildFireflyPreviewRows,
-  estimateFireflyImport,
+  enrichFireflySkippedRows,
+  forecastFireflyImport,
   formatFireflyImportSummary,
+  getFireflyFileHeaders,
   getFireflyFileRows,
   getFireflyImportedCategories,
   getFireflyTrackedAccountNames,
@@ -102,18 +104,37 @@ export function useFireflyImportWorkflow() {
     [selectableAccounts],
   )
 
-  const institutionById = useMemo(
-    () => new Map(institutions.map((institution) => [institution.id, institution])),
-    [institutions],
-  )
-
   const categoryById = useMemo(
     () => new Map((categories ?? []).map((category) => [category.id, category])),
     [categories],
   )
 
+  const institutionById = useMemo(
+    () => new Map(institutions.map((institution) => [institution.id, institution])),
+    [institutions],
+  )
+
+  // The commit assigns these seeded system categories to transfer legs and
+  // balance rows, so the preview reads them from the user's category list
+  const transferCategory = useMemo(
+    () => (categories ?? []).find((category) => category.is_system && category.name === FIREFLY_TRANSFER_CATEGORY_NAME),
+    [categories],
+  )
+
+  const balanceAdjustmentCategory = useMemo(
+    () => (categories ?? []).find((category) => category.is_system && category.name === FIREFLY_BALANCE_ADJUSTMENT_CATEGORY_NAME),
+    [categories],
+  )
+
   const fireflyRows = useMemo(
     () => getFireflyFileRows(transactionsFile),
+    [transactionsFile],
+  )
+
+  // The skipped-row tables show every export column, so both the preview and
+  // results steps read the same uploaded header order
+  const fireflyHeaders = useMemo(
+    () => getFireflyFileHeaders(transactionsFile),
     [transactionsFile],
   )
 
@@ -206,23 +227,6 @@ export function useFireflyImportWorkflow() {
     [categoryCreateKinds, importedCategories, inferredCategoryKinds],
   )
 
-  const importEstimate = useMemo(
-    () => estimateFireflyImport(fireflyRows),
-    [fireflyRows],
-  )
-
-  // The commit assigns these seeded system categories to transfer legs and
-  // balance rows, so the preview reads them from the user's category list
-  const transferCategory = useMemo(
-    () => (categories ?? []).find((category) => category.is_system && category.name === FIREFLY_TRANSFER_CATEGORY_NAME),
-    [categories],
-  )
-
-  const balanceAdjustmentCategory = useMemo(
-    () => (categories ?? []).find((category) => category.is_system && category.name === FIREFLY_BALANCE_ADJUSTMENT_CATEGORY_NAME),
-    [categories],
-  )
-
   const previewRows = useMemo(
     () => buildFireflyPreviewRows({
       rows: fireflyRows,
@@ -254,6 +258,42 @@ export function useFireflyImportWorkflow() {
   const previewGroups = useMemo(
     () => groupPreviewRowsByDate(previewRows),
     [previewRows],
+  )
+
+  // A full pass over the export predicts the commit outcome, so the stats
+  // and the skipped-row list always come from the same resolution and the
+  // transaction estimate never counts rows the commit would skip
+  const importForecast = useMemo(
+    () => forecastFireflyImport(fireflyRows, {
+      accountById,
+      accountMappings: resolvedAccountMappings,
+      accountCreateDetails: resolvedAccountCreateDetails,
+      institutionById,
+      categoryById,
+      categoryMappings: resolvedCategoryMappings,
+      categoryCreateKinds: resolvedCategoryKinds,
+      transferCategory,
+      balanceAdjustmentCategory,
+    }),
+    [
+      accountById,
+      balanceAdjustmentCategory,
+      categoryById,
+      fireflyRows,
+      institutionById,
+      resolvedAccountCreateDetails,
+      resolvedAccountMappings,
+      resolvedCategoryKinds,
+      resolvedCategoryMappings,
+      transferCategory,
+    ],
+  )
+  const importEstimate = importForecast
+  const predictedSkippedRows = importForecast.skippedRows
+
+  const resultSkippedRows = useMemo(
+    () => (importResult ? enrichFireflySkippedRows(importResult.skipped, fireflyRows) : []),
+    [fireflyRows, importResult],
   )
 
   const newAccountCount = useMemo(
@@ -494,6 +534,7 @@ export function useFireflyImportWorkflow() {
     budgetsFile,
     processingFileKind,
     fireflyRows,
+    fireflyHeaders,
     trackedAccountNames,
     accountPrefills,
     accountMappings: resolvedAccountMappings,
@@ -510,6 +551,8 @@ export function useFireflyImportWorkflow() {
     importEstimate,
     previewRows,
     previewGroups,
+    predictedSkippedRows,
+    resultSkippedRows,
     newAccountCount,
     newCategoryCount,
     importBuild,

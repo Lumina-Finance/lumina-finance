@@ -53,12 +53,18 @@ export const FIREFLY_TRANSFER_CATEGORY_NAME = 'Transfer'
 export const FIREFLY_BALANCE_ADJUSTMENT_CATEGORY_NAME = 'Balance Adjustment'
 
 /**
+ * Reason prefix for rows the payload builder drops before upload, followed
+ * by the names of the identity fields the row is missing
+ */
+export const FIREFLY_MISSING_REQUIRED_VALUES_REASON = 'Missing required values'
+
+/**
  * Reason shown for rows that fail conversion in a way no specific skip rule
  * anticipated, mirroring the backend's generic fallback word for word
  */
 export const FIREFLY_GENERIC_SKIP_REASON = 'Row could not be converted'
 
 export const FIREFLY_SAMPLE_PREVIEW_LIMIT = 5
-export const FIREFLY_SKIPPED_VISIBLE_LIMIT = 8
+export const FIREFLY_SKIPPED_TABLE_VISIBLE_LIMIT = 20
 export const FIREFLY_CSV_PROCESSING_MIN_MS = 1500
 export const FIREFLY_IMPORT_OVERLAY_MIN_MS = 2000

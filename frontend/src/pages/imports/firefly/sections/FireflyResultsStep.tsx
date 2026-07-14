@@ -1,15 +1,11 @@
 import { ImportStat, ImportStep } from '../../components'
-import { IMPORT_INSET_STYLE } from '../../constants'
-import { FIREFLY_SKIPPED_VISIBLE_LIMIT } from '../constants'
+import { FireflySkippedRowsTable } from '../components'
 import type { FireflyImportWorkflow } from '../hooks'
 
-type FireflyResultsStepProps = Pick<FireflyImportWorkflow, 'importResult'>
+type FireflyResultsStepProps = Pick<FireflyImportWorkflow, 'importResult' | 'resultSkippedRows' | 'fireflyHeaders'>
 
-export function FireflyResultsStep({ importResult }: FireflyResultsStepProps) {
+export function FireflyResultsStep({ importResult, resultSkippedRows, fireflyHeaders }: FireflyResultsStepProps) {
   if (!importResult) return null
-
-  const visibleSkipped = importResult.skipped.slice(0, FIREFLY_SKIPPED_VISIBLE_LIMIT)
-  const hiddenSkippedCount = importResult.skipped.length - visibleSkipped.length
 
   return (
     <ImportStep
@@ -27,23 +23,13 @@ export function FireflyResultsStep({ importResult }: FireflyResultsStepProps) {
         <ImportStat label="Tags Created" value={importResult.tags_created.toString()} />
       </div>
 
-      {importResult.skipped.length > 0 && (
-        <div className="rounded-lg px-4 py-3" style={IMPORT_INSET_STYLE}>
-          <p className="text-sm font-semibold">Skipped rows</p>
-          <ul className="mt-2 space-y-1">
-            {visibleSkipped.map((row) => (
-              <li key={row.journal_id} className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                <span className="font-financial tabular-nums">#{row.journal_id}</span>
-                {` · ${row.reason}`}
-              </li>
-            ))}
-          </ul>
-          {hiddenSkippedCount > 0 && (
-            <p className="mt-2 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
-              {`and ${hiddenSkippedCount} more`}
-            </p>
-          )}
-        </div>
+      {resultSkippedRows.length > 0 && (
+        <FireflySkippedRowsTable
+          title={`${importResult.rows_skipped} row${importResult.rows_skipped === 1 ? '' : 's'} skipped`}
+          rows={resultSkippedRows}
+          totalCount={importResult.rows_skipped}
+          headers={fireflyHeaders}
+        />
       )}
     </ImportStep>
   )

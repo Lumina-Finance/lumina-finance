@@ -16,9 +16,7 @@ export interface FireflyAccountPrefill {
  */
 export interface FireflyImportEstimate {
   rowCount: number
-  invalidRowCount: number
   transactionEstimate: number
-  skipRiskCount: number
 }
 
 export interface FireflyImportBuildResult {
@@ -31,6 +29,7 @@ export interface FireflyImportBuildResult {
  */
 export interface FireflyBudgetDraft {
   name: string
+
   amount: string
   currencyCode: string
 

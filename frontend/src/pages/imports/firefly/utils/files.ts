@@ -33,3 +33,16 @@ export async function readFireflyCsvFile(file: File, kind: FireflyFileKind): Pro
 export function getFireflyFileRows(file: ImportFileDraft | null) {
   return file && !file.error ? file.rows : []
 }
+
+/**
+ * Gets the column headers of a validated Firefly III export file in their
+ * original order, falling back to the first row's keys when the draft
+ * carries no header list
+ */
+export function getFireflyFileHeaders(file: ImportFileDraft | null): string[] {
+  if (!file || file.error) return []
+  if (file.headers.length > 0) return file.headers
+
+  const [firstRow] = file.rows
+  return firstRow ? Object.keys(firstRow) : []
+}

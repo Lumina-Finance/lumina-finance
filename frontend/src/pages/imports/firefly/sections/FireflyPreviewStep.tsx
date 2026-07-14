@@ -1,4 +1,5 @@
-import { EmptyState, ImportInfoCard, ImportPreviewList, ImportStat, ImportStep } from '../../components'
+import { EmptyState, ImportPreviewList, ImportStat, ImportStep } from '../../components'
+import { FireflySkippedRowsTable } from '../components'
 import { FIREFLY_SAMPLE_PREVIEW_LIMIT } from '../constants'
 import type { FireflyImportWorkflow } from '../hooks'
 
@@ -7,6 +8,8 @@ type FireflyPreviewStepProps = Pick<
   | 'importEstimate'
   | 'previewRows'
   | 'previewGroups'
+  | 'predictedSkippedRows'
+  | 'fireflyHeaders'
   | 'newAccountCount'
   | 'newCategoryCount'
   | 'importBuild'
@@ -20,6 +23,8 @@ export function FireflyPreviewStep({
   importEstimate,
   previewRows,
   previewGroups,
+  predictedSkippedRows,
+  fireflyHeaders,
   newAccountCount,
   newCategoryCount,
   importBuild,
@@ -28,6 +33,8 @@ export function FireflyPreviewStep({
   canCommitImport,
   handleCommitImport,
 }: FireflyPreviewStepProps) {
+  const skippedCount = predictedSkippedRows.length
+
   return (
     <ImportStep
       index="04"
@@ -41,6 +48,15 @@ export function FireflyPreviewStep({
         <ImportStat label="New Categories" value={newCategoryCount.toString()} />
       </div>
 
+      {skippedCount > 0 && (
+        <FireflySkippedRowsTable
+          title={`${skippedCount} row${skippedCount === 1 ? '' : 's'} will not be imported`}
+          rows={predictedSkippedRows}
+          totalCount={skippedCount}
+          headers={fireflyHeaders}
+        />
+      )}
+
       {previewRows.length === 0 ? (
         <EmptyState
           title="No preview rows"
@@ -49,16 +65,6 @@ export function FireflyPreviewStep({
       ) : (
         <ImportPreviewList groups={previewGroups} />
       )}
-
-      <ImportInfoCard title="Skipped Rows">
-        Rows the importer cannot convert are skipped and reported after the commit instead of failing the import.
-        {importEstimate.skipRiskCount > 0 && (
-          ` Based on the mapped accounts, ${importEstimate.skipRiskCount} row${importEstimate.skipRiskCount === 1 ? '' : 's'} may be skipped.`
-        )}
-        {importEstimate.invalidRowCount > 0 && (
-          ` ${importEstimate.invalidRowCount} row${importEstimate.invalidRowCount === 1 ? ' is' : 's are'} missing required values and will not be uploaded.`
-        )}
-      </ImportInfoCard>
 
       <div className="flex flex-col items-end gap-3 pt-2">
         {importBuild.errors.length > 0 && (
