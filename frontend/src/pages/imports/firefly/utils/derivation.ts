@@ -6,6 +6,7 @@ import type { CsvRow, ImportCategoryKind } from '../../types'
 import {
   FIREFLY_FALLBACK_ACCOUNT_TYPE,
   FIREFLY_LIABILITY_ACCOUNT_TYPES,
+  FIREFLY_MISCELLANEOUS_CATEGORY_NAME,
   FIREFLY_TYPE_DEPOSIT,
   FIREFLY_TYPE_TRANSFER,
   FIREFLY_TYPE_WITHDRAWAL,
@@ -217,10 +218,21 @@ export function inferFireflyCategoryMappings(
     categoriesByName.set(key, bucket)
   }
 
+  // Rows without a category have no name to match on, so they fall to the
+  // seeded catch-all rather than inventing a category of their own
+  const miscellaneous = categories.find((category) => (
+    category.is_system && category.name === FIREFLY_MISCELLANEOUS_CATEGORY_NAME
+  ))
+
   const next: Record<string, string> = {}
   for (const source of importedCategories) {
     if (explicitMappings[source]) {
       next[source] = explicitMappings[source]
+      continue
+    }
+
+    if (source === FIREFLY_NO_CATEGORY_SOURCE) {
+      next[source] = miscellaneous ? miscellaneous.id : CREATE_CATEGORY_VALUE
       continue
     }
 

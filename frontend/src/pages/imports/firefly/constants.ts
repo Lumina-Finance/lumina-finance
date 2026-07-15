@@ -41,9 +41,10 @@ export const FIREFLY_TYPE_OPENING_BALANCE = 'opening balance'
 export const FIREFLY_TYPE_RECONCILIATION = 'reconciliation'
 
 /**
- * Name given to the category created for rows without a Firefly III category
+ * Seeded system category the no-category placeholder matches to, since
+ * Firefly III lets a transaction carry no category and Lumina requires one
  */
-export const FIREFLY_UNCATEGORIZED_CATEGORY_NAME = 'Uncategorized'
+export const FIREFLY_MISCELLANEOUS_CATEGORY_NAME = 'Miscellaneous'
 
 /**
  * Seeded system category names the import assigns to transfer legs and

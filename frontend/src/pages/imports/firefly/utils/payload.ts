@@ -1,5 +1,4 @@
 import type { AccountType } from '@/api/accounts'
-import { FIREFLY_NO_CATEGORY_SOURCE } from '@/api/dataImports'
 import type {
   FireflyTransactionImportPayload,
   FireflyTransactionImportResponse,
@@ -11,7 +10,6 @@ import {
   DEFAULT_CATEGORY_ICON,
 } from '../../constants'
 import type { CsvRow, ImportCategoryKind, ImportFileDraft } from '../../types'
-import { FIREFLY_UNCATEGORIZED_CATEGORY_NAME } from '../constants'
 import type { FireflyImportBuildResult } from '../types'
 import { getFireflyRowDate, isFireflyRowImportable, splitFireflyTags } from './derivation'
 
@@ -115,7 +113,7 @@ export function buildFireflyImportPayload({
     categories.push({
       source,
       create: {
-        name: source === FIREFLY_NO_CATEGORY_SOURCE ? FIREFLY_UNCATEGORIZED_CATEGORY_NAME : source,
+        name: source,
         kind,
         icon: DEFAULT_CATEGORY_ICON,
       },

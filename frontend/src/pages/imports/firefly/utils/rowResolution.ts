@@ -12,7 +12,6 @@ import {
   FIREFLY_TYPE_RECONCILIATION,
   FIREFLY_TYPE_TRANSFER,
   FIREFLY_TYPE_WITHDRAWAL,
-  FIREFLY_UNCATEGORIZED_CATEGORY_NAME,
 } from '../constants'
 import type { FireflyAccountCreateDetails } from './payload'
 
@@ -237,7 +236,7 @@ function getFireflyMappedCategory(
       id: `firefly-preview-category-${source}`,
       group_id: null,
       owner_id: null,
-      name: source === FIREFLY_NO_CATEGORY_SOURCE ? FIREFLY_UNCATEGORIZED_CATEGORY_NAME : source,
+      name: source,
       kind: options.categoryCreateKinds[source] ?? 'expense',
       icon: DEFAULT_CATEGORY_ICON,
       is_system: false,
