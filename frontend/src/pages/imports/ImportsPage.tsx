@@ -122,9 +122,9 @@ export default function ImportsPage() {
                       <FireflyExpectationsCard />
                       <FireflyAccountMappingStep {...fireflyWorkflow} />
                       <FireflyCategoryMatchingStep {...fireflyWorkflow} />
+                      <FireflyBudgetImportStep {...fireflyWorkflow} />
                       <FireflyPreviewStep {...fireflyWorkflow} />
                       <FireflyResultsStep {...fireflyWorkflow} />
-                      <FireflyBudgetImportStep {...fireflyWorkflow} />
                     </>
                   ) : (
                     <>

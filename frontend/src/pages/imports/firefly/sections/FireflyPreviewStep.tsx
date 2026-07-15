@@ -12,6 +12,7 @@ type FireflyPreviewStepProps = Pick<
   | 'fireflyHeaders'
   | 'newAccountCount'
   | 'newCategoryCount'
+  | 'budgetsFile'
   | 'importBuild'
   | 'importError'
   | 'importResult'
@@ -27,6 +28,7 @@ export function FireflyPreviewStep({
   fireflyHeaders,
   newAccountCount,
   newCategoryCount,
+  budgetsFile,
   importBuild,
   importError,
   importResult,
@@ -37,7 +39,9 @@ export function FireflyPreviewStep({
 
   return (
     <ImportStep
-      index="04"
+      // The budget step only exists when a budgets export is staged, so the
+      // steps after it close the gap when there is none
+      index={budgetsFile ? '05' : '04'}
       title="Preview and Commit"
       description={`Showing the first ${FIREFLY_SAMPLE_PREVIEW_LIMIT} transactions as they will appear in your ledger.`}
     >

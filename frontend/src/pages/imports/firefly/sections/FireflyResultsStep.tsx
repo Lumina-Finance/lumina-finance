@@ -4,7 +4,7 @@ import type { FireflyImportWorkflow } from '../hooks'
 
 type FireflyResultsStepProps = Pick<
   FireflyImportWorkflow,
-  'importResult' | 'resultSkippedRows' | 'resultSkippedCount' | 'fireflyHeaders'
+  'importResult' | 'resultSkippedRows' | 'resultSkippedCount' | 'fireflyHeaders' | 'budgetsFile'
 >
 
 export function FireflyResultsStep({
@@ -12,12 +12,15 @@ export function FireflyResultsStep({
   resultSkippedRows,
   resultSkippedCount,
   fireflyHeaders,
+  budgetsFile,
 }: FireflyResultsStepProps) {
   if (!importResult) return null
 
   return (
     <ImportStep
-      index="05"
+      // The budget step only exists when a budgets export is staged, so the
+      // steps after it close the gap when there is none
+      index={budgetsFile ? '06' : '05'}
       title="Import Results"
       description="Summary of the committed transaction import."
     >
