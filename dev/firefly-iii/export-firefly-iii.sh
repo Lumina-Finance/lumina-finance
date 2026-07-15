@@ -7,10 +7,13 @@ source "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 
 FIREFLY_CONTAINER="${FIREFLY_CONTAINER:-firefly-iii}"
 
-# The range must cover the whole seeded window including the opening balance
-# journals dated just before the first seeded month
-EXPORT_START="${EXPORT_START:-2023-01-01}"
-EXPORT_END="${EXPORT_END:-2026-07-12}"
+# The CLI requires a range and quietly exports only what falls inside it, so
+# these deliberately bracket any window the seed could produce rather than
+# tracking its dates. Naming the seeded range here instead would leave two
+# copies of it to keep in step, and the export would silently lose the years
+# they disagreed on
+EXPORT_START="${EXPORT_START:-2000-01-01}"
+EXPORT_END="${EXPORT_END:-2099-12-31}"
 
 container_export_dir="/tmp/firefly-export"
 output_dir="$dev_dir/firefly-iii/exports"
@@ -38,6 +41,9 @@ docker exec "$FIREFLY_CONTAINER" php artisan firefly-iii:export-data \
     --end="$EXPORT_END" \
     --export_directory="$container_export_dir/"
 
+# The files are named after the export date, so a stale run would otherwise
+# leave a second dated set behind for the next reader to pick from
+rm -rf "$output_dir"
 mkdir -p "$output_dir"
 docker cp "$FIREFLY_CONTAINER:$container_export_dir/." "$output_dir"
 ls -la "$output_dir"
