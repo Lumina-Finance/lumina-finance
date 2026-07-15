@@ -1,26 +1,23 @@
-import { Info } from 'lucide-react'
+import { ArrowRight, Info } from 'lucide-react'
 import { IMPORT_INSET_STYLE } from '../../constants'
 
 /**
- * One concept whose shape differs between the two apps, phrased as the user
- * knows it in Firefly III and what it becomes in Lumina
+ * One concept that arrives intact but in a new shape, phrased as the user knows
+ * it in Firefly III and what it becomes in Lumina
  */
 interface ConceptMapping {
   firefly: string
   lumina: string
-  // Marks the rows that describe data staying behind, which read quieter
-  // than the rows describing data that converts
-  excluded?: boolean
 }
 
-const CONCEPT_MAPPINGS: ConceptMapping[] = [
+const CONVERTED_MAPPINGS: ConceptMapping[] = [
   {
-    firefly: 'One transfer between two accounts',
+    firefly: 'One transfer',
     lumina: 'Two entries, one per account, so your transaction count ends up higher than your row count',
   },
   {
     firefly: 'Expense and revenue accounts, like shops and employers',
-    lumina: 'Merchants, not accounts',
+    lumina: 'Merchants',
   },
   {
     firefly: 'A loan payment recorded as a withdrawal',
@@ -38,22 +35,32 @@ const CONCEPT_MAPPINGS: ConceptMapping[] = [
     firefly: 'Budget limits that changed over time',
     lumina: 'A monthly budget backdated to its first transaction, each period keeping the amount in force at the time',
   },
-  {
-    firefly: 'Bills, recurring transactions, piggy banks, reconciliation flags, account interest and card details',
-    lumina: 'Not supported yet',
-    excluded: true,
-  },
-  {
-    firefly: 'Rules and attachments',
-    lumina: 'Never imported',
-    excluded: true,
-  },
 ]
+
+/**
+ * The one difference whose figures will not tie back to Firefly III, which is
+ * worth finding before the numbers are compared rather than after
+ */
+const DEVIATION_TEXT = 'Firefly III sets a budget on each transaction. Lumina budgets track whole categories, '
+  + 'so anything you left out of a budget there still counts against it here, and the amount left can read '
+  + 'lower than Firefly III shows.'
+
+/**
+ * Everything the import leaves behind, listed without saying which might arrive
+ * later, since nothing here is committed to and a hint otherwise would be read
+ * as a promise
+ */
+const LEFT_BEHIND = 'archived budgets, bills, recurring transactions, piggy banks, reconciliation flags, '
+  + 'account interest and card details, rules and attachments'
 
 /**
  * Static concept mapping shown at the top of the Firefly III flow so users
  * know which of their data changes shape on the way in, since the two apps
  * model transactions differently
+ *
+ * The three groups are ordered by what it costs to not know: the one thing
+ * whose totals will not match leads, then data that arrives in a new shape,
+ * then what stays behind
  */
 export function FireflyExpectationsCard() {
   return (
@@ -75,44 +82,86 @@ export function FireflyExpectationsCard() {
             your data changes shape on the way in.
           </p>
 
-          {/* The table shares the text column beside the icon so it lines up
-              with the wording it explains */}
-          <table className="mt-3 w-full table-fixed border-collapse text-left text-sm">
-            <thead>
-              <tr style={{ color: 'var(--app-accent)' }}>
-                <th className="w-2/5 pb-1.5 pr-4 text-xs font-medium uppercase tracking-wide">In Firefly III</th>
-                <th className="w-3/5 pb-1.5 text-xs font-medium uppercase tracking-wide">In Lumina</th>
-              </tr>
-            </thead>
-            <tbody>
-              {CONCEPT_MAPPINGS.map((mapping) => (
-                <tr key={mapping.firefly}>
-                  {/* Both sides of a converting row read at full strength,
-                      leaving the muted rows to mark what stays behind */}
-                  <td
-                    className="py-1.5 pr-4 align-top leading-5"
-                    style={{
-                      borderTop: '1px solid var(--app-border)',
-                      color: mapping.excluded ? 'var(--app-text-subtle)' : 'var(--app-text)',
-                    }}
-                  >
-                    {mapping.firefly}
-                  </td>
-                  <td
-                    className="py-1.5 align-top leading-5"
-                    style={{
-                      borderTop: '1px solid var(--app-border)',
-                      color: mapping.excluded ? 'var(--app-text-subtle)' : 'var(--app-text)',
-                    }}
-                  >
-                    {mapping.lumina}
-                  </td>
-                </tr>
+          {/* The rails share the text column beside the icon so they line up
+              with the wording they explain */}
+          <ConceptGroup
+            title="Figures will differ"
+            railColour="var(--app-negative)"
+            titleColour="var(--app-negative)"
+            tinted
+          >
+            <p className="text-sm leading-5" style={{ color: 'var(--app-text)' }}>
+              {DEVIATION_TEXT}
+            </p>
+          </ConceptGroup>
+
+          <ConceptGroup title="Changes shape" railColour="var(--app-accent)">
+            <ul className="flex flex-col gap-1.5 text-sm leading-5" style={{ color: 'var(--app-text)' }}>
+              {CONVERTED_MAPPINGS.map((mapping) => (
+                <li key={mapping.firefly}>
+                  {mapping.firefly}
+                  <span className="sr-only"> becomes </span>
+                  <ArrowRight
+                    size={13}
+                    className="mx-1.5 inline align-[-0.1em]"
+                    style={{ color: 'var(--app-text-subtle)' }}
+                    aria-hidden
+                  />
+                  {mapping.lumina}
+                </li>
               ))}
-            </tbody>
-          </table>
+            </ul>
+          </ConceptGroup>
+
+          <ConceptGroup title="Left behind" railColour="var(--app-text-subtle)">
+            <p className="text-sm leading-5" style={{ color: 'var(--app-text-subtle)' }}>
+              {LEFT_BEHIND}
+            </p>
+          </ConceptGroup>
         </div>
       </div>
+    </div>
+  )
+}
+
+/**
+ * Renders one group of differences behind a coloured rail
+ *
+ * The rail is a single-sided border, so the block stays square rather than
+ * rounding away from it
+ */
+function ConceptGroup({
+  title,
+  railColour,
+  titleColour = 'var(--app-accent)',
+  tinted = false,
+  children,
+}: {
+  title: string
+  railColour: string
+
+  /** Defaults to the accent, since only the deviation group speaks in its own colour */
+  titleColour?: string
+
+  /** Tints the block so the group reads as the one to stop at */
+  tinted?: boolean
+  children: React.ReactNode
+}) {
+  return (
+    <div
+      className={`mt-3 border-l-2 pl-3 ${tinted ? 'py-2 pr-2.5' : ''}`}
+      style={{
+        borderColor: railColour,
+        background: tinted ? 'color-mix(in srgb, var(--app-negative) 7%, transparent)' : undefined,
+      }}
+    >
+      <p
+        className="mb-1.5 text-xs font-semibold uppercase tracking-wide"
+        style={{ color: titleColour }}
+      >
+        {title}
+      </p>
+      {children}
     </div>
   )
 }
