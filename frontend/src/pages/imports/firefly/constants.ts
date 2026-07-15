@@ -18,8 +18,29 @@ export const FIREFLY_TRANSACTIONS_REQUIRED_HEADERS = [
 
 /**
  * Columns the optional budgets export must contain to derive budget drafts
+ *
+ * The archived flag is required rather than assumed, because an export without
+ * it cannot say which budgets were retired, and importing a retired budget as a
+ * live one is worse than refusing the file
  */
-export const FIREFLY_BUDGETS_REQUIRED_HEADERS = ['name', 'start_date', 'currency_code', 'amount']
+export const FIREFLY_BUDGETS_REQUIRED_HEADERS = ['name', 'active', 'start_date', 'currency_code', 'amount']
+
+/**
+ * Value the budgets export carries for a budget that is not archived, with
+ * anything else read as archived so a value we do not recognise leaves the
+ * budget visibly skipped rather than quietly imported
+ */
+export const FIREFLY_BUDGET_ACTIVE_VALUE = '1'
+
+/**
+ * Why an archived budget is listed but never imported
+ *
+ * Lumina Finance has no archived budgets, so importing one would raise a budget
+ * the user retired and materialise instances for it through today. The reason
+ * stops at what is true today rather than hinting at support that is not
+ * committed to
+ */
+export const FIREFLY_BUDGET_ARCHIVED_REASON = 'Archived in Firefly III, which Lumina Finance does not support'
 
 /**
  * Lumina account types keyed by lower-cased Firefly III liability endpoint type

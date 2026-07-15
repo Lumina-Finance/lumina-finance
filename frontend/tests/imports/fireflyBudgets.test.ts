@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest'
 import type { CsvRow, ImportFileDraft } from '@/pages/imports/types'
 import type { FireflyBudgetDraft } from '@/pages/imports/firefly/types'
+import { FIREFLY_BUDGET_ARCHIVED_REASON } from '@/pages/imports/firefly/constants'
 import { buildFireflyBudgetDrafts, buildFireflyBudgetImportBudgets } from '@/pages/imports/firefly/utils'
 
 /**
@@ -14,7 +15,7 @@ function createBudgetsFile(rows: CsvRow[]): ImportFileDraft {
     id: 'budgets',
     name: 'budgets.csv',
     size: 1024,
-    headers: ['name', 'start_date', 'end_date', 'currency_code', 'amount'],
+    headers: ['name', 'active', 'start_date', 'end_date', 'currency_code', 'amount'],
     hasHeaderRow: true,
     rows,
     error: null,
@@ -22,11 +23,12 @@ function createBudgetsFile(rows: CsvRow[]): ImportFileDraft {
 }
 
 /**
- * Creates one budgets export limit row
+ * Creates one budgets export limit row, active unless a row overrides it
  */
 function createLimitRow(overrides: Partial<CsvRow> = {}): CsvRow {
   return {
     name: 'Groceries',
+    active: '1',
     start_date: '2024-01-01',
     end_date: '2024-01-31',
     currency_code: 'CAD',
@@ -48,6 +50,47 @@ function createTransactionRow(overrides: Partial<CsvRow> = {}): CsvRow {
 }
 
 describe('buildFireflyBudgetDrafts', () => {
+  it('disables an archived budget even when it is otherwise importable', () => {
+    const budgetsFile = createBudgetsFile([createLimitRow({ active: '0' })])
+
+    const [draft] = buildFireflyBudgetDrafts({
+      budgetsFile,
+      transactionRows: [createTransactionRow()],
+    })
+
+    expect(draft.disabledReason).toBe(FIREFLY_BUDGET_ARCHIVED_REASON)
+  })
+
+  it('reads the archived flag off any of a budget\'s limit rows', () => {
+    const budgetsFile = createBudgetsFile([
+      createLimitRow({ name: 'Home Office', active: '0', start_date: '2024-01-01' }),
+      createLimitRow({ name: 'Home Office', active: '0', start_date: '2024-02-01' }),
+      createLimitRow({ name: 'Groceries', active: '1' }),
+    ])
+
+    const drafts = buildFireflyBudgetDrafts({
+      budgetsFile,
+      transactionRows: [createTransactionRow(), createTransactionRow({ budget: 'Home Office' })],
+    })
+
+    const byName = Object.fromEntries(drafts.map((draft) => [draft.name, draft]))
+    expect(byName['Home Office'].disabledReason).toBe(FIREFLY_BUDGET_ARCHIVED_REASON)
+    expect(byName.Groceries.disabledReason).toBeNull()
+  })
+
+  // An unrecognised flag leaves the budget visibly skipped rather than
+  // silently importing a budget the user may have retired
+  it('treats an unrecognised active value as archived', () => {
+    const budgetsFile = createBudgetsFile([createLimitRow({ active: '' })])
+
+    const [draft] = buildFireflyBudgetDrafts({
+      budgetsFile,
+      transactionRows: [createTransactionRow()],
+    })
+
+    expect(draft.disabledReason).toBe(FIREFLY_BUDGET_ARCHIVED_REASON)
+  })
+
   it('derives a sorted limit schedule and displays the latest amount', () => {
     const budgetsFile = createBudgetsFile([
       createLimitRow({ start_date: '2025-01-01', end_date: '2025-01-31', amount: '650.00' }),
