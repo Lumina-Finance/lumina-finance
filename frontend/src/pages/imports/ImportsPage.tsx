@@ -171,12 +171,14 @@ export default function ImportsPage() {
       {isFirefly ? (
         <ImportProgressOverlay
           phase={fireflyWorkflow.importOverlayPhase}
+          steps={fireflyWorkflow.importOverlaySteps}
           summary={fireflyWorkflow.importSummary}
-          error={fireflyWorkflow.importError}
+          error={fireflyWorkflow.importOverlayError}
           onDone={handleDone}
           onContinueImporting={fireflyWorkflow.closeImportOverlay}
           onReturnToImport={fireflyWorkflow.closeImportOverlay}
           continueLabel="Review results"
+          primaryAction="continue"
         />
       ) : (
         <ImportProgressOverlay

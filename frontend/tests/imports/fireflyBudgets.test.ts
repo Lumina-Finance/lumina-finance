@@ -1,9 +1,10 @@
 /**
- * Tests Firefly III budget draft derivation so the import step sends the full limit schedule and shows the latest amount
+ * Tests Firefly III budget draft derivation and the category IDs the two-phase commit resolves from the transactions response
  */
 import { describe, expect, it } from 'vitest'
 import type { CsvRow, ImportFileDraft } from '@/pages/imports/types'
-import { buildFireflyBudgetDrafts } from '@/pages/imports/firefly/utils'
+import type { FireflyBudgetDraft } from '@/pages/imports/firefly/types'
+import { buildFireflyBudgetDrafts, buildFireflyBudgetImportBudgets } from '@/pages/imports/firefly/utils'
 
 /**
  * Creates a budgets export fixture from limit rows
@@ -46,8 +47,6 @@ function createTransactionRow(overrides: Partial<CsvRow> = {}): CsvRow {
   }
 }
 
-const categorySourceIds = { Food: 'category-food' }
-
 describe('buildFireflyBudgetDrafts', () => {
   it('derives a sorted limit schedule and displays the latest amount', () => {
     const budgetsFile = createBudgetsFile([
@@ -59,7 +58,6 @@ describe('buildFireflyBudgetDrafts', () => {
     const [draft] = buildFireflyBudgetDrafts({
       budgetsFile,
       transactionRows: [createTransactionRow()],
-      categorySourceIds,
     })
 
     expect(draft.limits).toEqual([
@@ -70,7 +68,7 @@ describe('buildFireflyBudgetDrafts', () => {
     expect(draft.amount).toBe('650.00')
     expect(draft.currencyCode).toBe('CAD')
     expect(draft.periodStart).toBe('2024-02-01')
-    expect(draft.categoryIds).toEqual(['category-food'])
+    expect(draft.categoryNames).toEqual(['Food'])
     expect(draft.disabledReason).toBeNull()
   })
 
@@ -84,7 +82,6 @@ describe('buildFireflyBudgetDrafts', () => {
     const [draft] = buildFireflyBudgetDrafts({
       budgetsFile,
       transactionRows: [createTransactionRow()],
-      categorySourceIds,
     })
 
     expect(draft.limits).toEqual([
@@ -102,7 +99,6 @@ describe('buildFireflyBudgetDrafts', () => {
     const [draft] = buildFireflyBudgetDrafts({
       budgetsFile,
       transactionRows: [createTransactionRow()],
-      categorySourceIds,
     })
 
     expect(draft.limits).toEqual([
@@ -121,7 +117,6 @@ describe('buildFireflyBudgetDrafts', () => {
     const [draft] = buildFireflyBudgetDrafts({
       budgetsFile,
       transactionRows: [createTransactionRow()],
-      categorySourceIds,
     })
 
     expect(draft.limits).toEqual([{ start: '2024-06-01', amount: '625.00' }])
@@ -136,7 +131,6 @@ describe('buildFireflyBudgetDrafts', () => {
     const [draft] = buildFireflyBudgetDrafts({
       budgetsFile,
       transactionRows: [createTransactionRow()],
-      categorySourceIds,
     })
 
     expect(draft.limits).toEqual([])
@@ -149,9 +143,86 @@ describe('buildFireflyBudgetDrafts', () => {
     const [draft] = buildFireflyBudgetDrafts({
       budgetsFile,
       transactionRows: [],
-      categorySourceIds,
     })
 
     expect(draft.disabledReason).toBe('No imported transactions reference this budget')
+  })
+
+  it('disables a budget whose transactions carry no category', () => {
+    const budgetsFile = createBudgetsFile([createLimitRow()])
+
+    const [draft] = buildFireflyBudgetDrafts({
+      budgetsFile,
+      transactionRows: [createTransactionRow({ category: '' })],
+    })
+
+    expect(draft.categoryNames).toEqual([])
+    expect(draft.disabledReason).toBe('No mapped categories reference this budget')
+  })
+
+  it('collects the distinct sorted categories referencing a budget', () => {
+    const budgetsFile = createBudgetsFile([createLimitRow()])
+
+    const [draft] = buildFireflyBudgetDrafts({
+      budgetsFile,
+      transactionRows: [
+        createTransactionRow({ category: 'Restaurants' }),
+        createTransactionRow({ category: 'Food' }),
+        createTransactionRow({ category: 'Food' }),
+      ],
+    })
+
+    expect(draft.categoryNames).toEqual(['Food', 'Restaurants'])
+  })
+})
+
+describe('buildFireflyBudgetImportBudgets', () => {
+  /**
+   * Creates one importable draft, since only importable drafts reach the commit
+   */
+  function createDraft(overrides: Partial<FireflyBudgetDraft> = {}): FireflyBudgetDraft {
+    return {
+      name: 'Groceries',
+      amount: '600.00',
+      currencyCode: 'CAD',
+      limits: [{ start: '2024-01-01', amount: '600.00' }],
+      periodStart: '2024-02-01',
+      categoryNames: ['Food'],
+      disabledReason: null,
+      ...overrides,
+    }
+  }
+
+  it('resolves category names through the ids the transactions commit reported', () => {
+    const [budget] = buildFireflyBudgetImportBudgets(
+      [createDraft({ categoryNames: ['Food', 'Restaurants'] })],
+      { Food: 'category-food', Restaurants: 'category-restaurants', Rent: 'category-rent' },
+    )
+
+    expect(budget).toEqual({
+      name: 'Groceries',
+      currency: 'CAD',
+      category_ids: ['category-food', 'category-restaurants'],
+      period_start: '2024-02-01',
+      limits: [{ start: '2024-01-01', amount: '600.00' }],
+    })
+  })
+
+  it('drops a category name the commit response does not report', () => {
+    const [budget] = buildFireflyBudgetImportBudgets(
+      [createDraft({ categoryNames: ['Food', 'Unreported'] })],
+      { Food: 'category-food' },
+    )
+
+    expect(budget.category_ids).toEqual(['category-food'])
+  })
+
+  it('collapses category names the commit resolved to one category', () => {
+    const [budget] = buildFireflyBudgetImportBudgets(
+      [createDraft({ categoryNames: ['Food', 'food'] })],
+      { Food: 'category-food', food: 'category-food' },
+    )
+
+    expect(budget.category_ids).toEqual(['category-food'])
   })
 })

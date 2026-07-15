@@ -1,4 +1,4 @@
-import type { FireflyBudgetImportLimit } from '@/api/dataImports'
+import type { FireflyBudgetImportBudget, FireflyBudgetImportLimit } from '@/api/dataImports'
 import type { CsvRow, ImportFileDraft } from '../../types'
 import type { FireflyBudgetDraft } from '../types'
 import { getFireflyRowDate } from './derivation'
@@ -21,17 +21,19 @@ interface FireflyLimitRow {
 }
 
 /**
- * Derives importable monthly budget drafts from the budgets export, transaction
- * usage, and the category IDs resolved by the committed transaction import
+ * Derives importable monthly budget drafts from the budgets export and the
+ * staged transaction rows
+ *
+ * Drafts derive before the commit so the budget preview can drive what the
+ * commit imports, which leaves category IDs to be resolved from the commit
+ * response afterwards
  */
 export function buildFireflyBudgetDrafts({
   budgetsFile,
   transactionRows,
-  categorySourceIds,
 }: {
   budgetsFile: ImportFileDraft | null
   transactionRows: CsvRow[]
-  categorySourceIds: Record<string, string>
 }): FireflyBudgetDraft[] {
   if (!budgetsFile || budgetsFile.error) return []
 
@@ -67,10 +69,45 @@ export function buildFireflyBudgetDrafts({
 
   const drafts: FireflyBudgetDraft[] = []
   for (const [name, limitRows] of limitRowsByName) {
-    drafts.push(buildBudgetDraft(name, limitRows, usageByName.get(name), categorySourceIds))
+    drafts.push(buildBudgetDraft(name, limitRows, usageByName.get(name)))
   }
 
   return drafts.sort((a, b) => a.name.localeCompare(b.name))
+}
+
+/**
+ * Turns budget drafts into the commit payload by resolving each draft's export
+ * category names through the category IDs the transactions commit reported
+ *
+ * Every distinct row category is an import source, so the response carries all
+ * of them, and a name that is somehow absent is dropped rather than failing the
+ * budget it belongs to
+ */
+export function buildFireflyBudgetImportBudgets(
+  drafts: FireflyBudgetDraft[],
+  categorySourceIds: Record<string, string>,
+): FireflyBudgetImportBudget[] {
+  return drafts.map((draft) => {
+    const categoryIds: string[] = []
+    const seenIds = new Set<string>()
+
+    for (const categoryName of draft.categoryNames) {
+      const categoryId = categorySourceIds[categoryName]
+      if (!categoryId || seenIds.has(categoryId)) continue
+      seenIds.add(categoryId)
+      categoryIds.push(categoryId)
+    }
+
+    // Importable drafts always carry a backdate start because drafts without
+    // one are disabled and never reach the commit
+    return {
+      name: draft.name,
+      currency: draft.currencyCode,
+      category_ids: categoryIds,
+      period_start: draft.periodStart!,
+      limits: draft.limits,
+    }
+  })
 }
 
 /**
@@ -104,21 +141,8 @@ function buildBudgetDraft(
   name: string,
   limitRows: FireflyLimitRow[],
   usage: FireflyBudgetUsage | undefined,
-  categorySourceIds: Record<string, string>,
 ): FireflyBudgetDraft {
-  const categoryNames: string[] = []
-  const categoryIds: string[] = []
-  const seenIds = new Set<string>()
-
-  for (const categoryName of usage?.categoryNames ?? []) {
-    const categoryId = categorySourceIds[categoryName]
-    if (!categoryId || seenIds.has(categoryId)) continue
-    seenIds.add(categoryId)
-    categoryNames.push(categoryName)
-    categoryIds.push(categoryId)
-  }
-  categoryNames.sort((a, b) => a.localeCompare(b))
-
+  const categoryNames = [...usage?.categoryNames ?? []].sort((a, b) => a.localeCompare(b))
   const limits = buildLimitSchedule(limitRows)
 
   // The most recent start date decides the amount and currency the drafts
@@ -132,7 +156,7 @@ function buildBudgetDraft(
   const periodStart = usage?.earliestDate ? `${usage.earliestDate.slice(0, 7)}-01` : null
   const disabledReason = !usage || !periodStart
     ? 'No imported transactions reference this budget'
-    : categoryIds.length === 0
+    : categoryNames.length === 0
       ? 'No mapped categories reference this budget'
       : !latest || !latest.currencyCode
         ? 'The export has no limit amount for this budget'
@@ -145,7 +169,6 @@ function buildBudgetDraft(
     limits,
     periodStart,
     categoryNames,
-    categoryIds,
     disabledReason,
   }
 }

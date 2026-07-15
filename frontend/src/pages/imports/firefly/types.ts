@@ -46,9 +46,29 @@ export interface FireflyBudgetDraft {
    * First day of the month of the earliest transaction carrying the budget
    */
   periodStart: string | null
+
+  /**
+   * Export category names the budget's transactions carry, resolved to
+   * category IDs only once the transactions commit reports them
+   */
   categoryNames: string[]
-  categoryIds: string[]
   disabledReason: string | null
 }
 
 export type FireflyBudgetImportStatus = 'imported' | 'error'
+
+/**
+ * Stage of the two-phase commit currently holding the overlay
+ */
+export type FireflyImportStage = 'transactions' | 'budgets'
+
+/**
+ * Stage holding the overlay and whether its work has landed
+ *
+ * The finished stage keeps the overlay for a beat so it can be struck off
+ * before the next stage starts, which the two fields have to express together
+ */
+export interface FireflyImportStageState {
+  stage: FireflyImportStage
+  isFinished: boolean
+}

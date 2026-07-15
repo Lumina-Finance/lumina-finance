@@ -10,7 +10,12 @@ import {
 import { useInstitutions } from '@/api/institutions'
 import { waitForMilliseconds } from '@/utils/timing'
 import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE } from '../../constants'
-import type { ImportCategoryKind, ImportFileDraft, ImportOverlayPhase } from '../../types'
+import type {
+  ImportCategoryKind,
+  ImportFileDraft,
+  ImportOverlayPhase,
+  ImportProgressStep,
+} from '../../types'
 import {
   buildImportAccountOptions,
   buildImportCategoryMatchOptions,
@@ -26,13 +31,22 @@ import {
   FIREFLY_BALANCE_ADJUSTMENT_CATEGORY_NAME,
   FIREFLY_CSV_PROCESSING_MIN_MS,
   FIREFLY_IMPORT_OVERLAY_MIN_MS,
+  FIREFLY_IMPORT_STAGES,
+  FIREFLY_IMPORT_STAGE_CROSS_OFF_MS,
+  FIREFLY_IMPORT_STAGE_MIN_MS,
   FIREFLY_SAMPLE_PREVIEW_LIMIT,
   FIREFLY_TRANSFER_CATEGORY_NAME,
 } from '../constants'
-import type { FireflyBudgetImportStatus, FireflyFileKind } from '../types'
+import type {
+  FireflyBudgetDraft,
+  FireflyBudgetImportStatus,
+  FireflyFileKind,
+  FireflyImportStageState,
+} from '../types'
 import {
   buildFireflyAccountPrefills,
   buildFireflyBudgetDrafts,
+  buildFireflyBudgetImportBudgets,
   buildFireflyCategoryKinds,
   buildFireflyImportPayload,
   buildFireflyPreviewRows,
@@ -65,9 +79,12 @@ export function useFireflyImportWorkflow() {
   const [importError, setImportError] = useState<string | null>(null)
   const [importResult, setImportResult] = useState<FireflyTransactionImportResponse | null>(null)
   const [importOverlayPhase, setImportOverlayPhase] = useState<ImportOverlayPhase>('idle')
+  const [importStageState, setImportStageState] = useState<FireflyImportStageState | null>(null)
   const [selectedBudgetNames, setSelectedBudgetNames] = useState<Set<string> | null>(null)
   const [budgetImportStatuses, setBudgetImportStatuses] = useState<Record<string, FireflyBudgetImportStatus>>({})
   const [budgetImportErrors, setBudgetImportErrors] = useState<Record<string, string>>({})
+  const [budgetStageError, setBudgetStageError] = useState<string | null>(null)
+  const [budgetsImportedCount, setBudgetsImportedCount] = useState(0)
   const [isImportingBudgets, setIsImportingBudgets] = useState(false)
   const { data: accounts = [], isLoading: accountsLoading } = useAccounts()
   const { data: currencies = [], isLoading: currenciesLoading } = useCurrencies()
@@ -349,17 +366,11 @@ export function useFireflyImportWorkflow() {
     ],
   )
 
+  // Drafts derive from the staged files alone so the budget preview can be
+  // reviewed before the commit, which then resolves their category IDs
   const budgetDrafts = useMemo(
-    () => (
-      importResult
-        ? buildFireflyBudgetDrafts({
-          budgetsFile,
-          transactionRows: fireflyRows,
-          categorySourceIds: importResult.category_source_ids,
-        })
-        : []
-    ),
-    [budgetsFile, fireflyRows, importResult],
+    () => buildFireflyBudgetDrafts({ budgetsFile, transactionRows: fireflyRows }),
+    [budgetsFile, fireflyRows],
   )
 
   const importableBudgetNames = useMemo(
@@ -373,7 +384,41 @@ export function useFireflyImportWorkflow() {
     [importableBudgetNames, selectedBudgetNames],
   )
 
-  const importSummary = importResult ? formatFireflyImportSummary(importResult) : ''
+  const pendingBudgetDrafts = useMemo(
+    () => budgetDrafts.filter((draft) => (
+      !draft.disabledReason
+      && resolvedSelectedBudgets.has(draft.name)
+      && budgetImportStatuses[draft.name] !== 'imported'
+    )),
+    [budgetDrafts, budgetImportStatuses, resolvedSelectedBudgets],
+  )
+
+  // The stage list only appears when the commit has a budget stage to run, so a
+  // transactions-only commit keeps the plain overlay
+  const importOverlaySteps = useMemo<ImportProgressStep[] | undefined>(
+    () => {
+      if (!importStageState) return undefined
+
+      // A stage that has handed over leaves the list, so the overlay carries the
+      // stage holding it on top and the ones still waiting underneath. The stage
+      // on top turns done the moment its work lands and stays there struck off
+      // until the next one takes over
+      const { isFinished, stage } = importStageState
+      const currentIndex = FIREFLY_IMPORT_STAGES.findIndex((entry) => entry.id === stage)
+      return FIREFLY_IMPORT_STAGES.slice(currentIndex).map((entry, index) => ({
+        id: entry.id,
+        label: entry.label,
+        status: index > 0 ? 'queued' : isFinished ? 'done' : 'active',
+      }))
+    },
+    [importStageState],
+  )
+
+  const importSummary = importResult ? formatFireflyImportSummary(importResult, budgetsImportedCount) : ''
+
+  // A budget failure leaves the committed transactions in place, so only the
+  // budget stage reports it and the overlay shows whichever stage failed
+  const importOverlayError = importError ?? budgetStageError
   const importOverlayOpen = importOverlayPhase !== 'idle'
   const canCommitImport = Boolean(importBuild.payload)
     && !importOverlayOpen
@@ -397,6 +442,7 @@ export function useFireflyImportWorkflow() {
     setImportError(null)
     setImportResult(null)
     setImportOverlayPhase('idle')
+    setImportStageState(null)
     importFireflyTransactions.reset()
   }
 
@@ -404,6 +450,8 @@ export function useFireflyImportWorkflow() {
     setSelectedBudgetNames(null)
     setBudgetImportStatuses({})
     setBudgetImportErrors({})
+    setBudgetStageError(null)
+    setBudgetsImportedCount(0)
   }
 
   const assignFireflyFile = (kind: FireflyFileKind, draft: ImportFileDraft | null) => {
@@ -455,25 +503,121 @@ export function useFireflyImportWorkflow() {
     }
   }
 
+  /**
+   * Imports the given budget drafts in one atomic call and records the outcome
+   * on every row the call covered
+   *
+   * Returns the backend detail when the batch failed, so the caller can fail
+   * the stage it is running, and null when every budget was created
+   */
+  const importBudgetDrafts = async (
+    drafts: FireflyBudgetDraft[],
+    categorySourceIds: Record<string, string>,
+  ): Promise<string | null> => {
+    setIsImportingBudgets(true)
+
+    try {
+      // One request creates every selected budget with its full limit schedule,
+      // and the stage minimum overlaps the request rather than following it
+      const [response] = await Promise.all([
+        importFireflyBudgets.mutateAsync({ budgets: buildFireflyBudgetImportBudgets(drafts, categorySourceIds) }),
+        waitForMilliseconds(FIREFLY_IMPORT_STAGE_MIN_MS),
+      ])
+
+      setBudgetsImportedCount((current) => current + response.budgets_created)
+      setBudgetStageError(null)
+      setBudgetImportStatuses((current) => {
+        const next = { ...current }
+        for (const draft of drafts) next[draft.name] = 'imported'
+        return next
+      })
+      setBudgetImportErrors((current) => {
+        const next = { ...current }
+        for (const draft of drafts) delete next[draft.name]
+        return next
+      })
+      return null
+    } catch (error) {
+      // The batch is atomic, so nothing was imported and every row stays
+      // retryable, with the backend detail landing on the budget it names
+      const detail = getErrorMessage(error)
+      const failedDraft = drafts.find((draft) => detail.startsWith(draft.name))
+
+      setBudgetStageError(detail)
+      setBudgetImportStatuses((current) => {
+        const next = { ...current }
+        for (const draft of drafts) next[draft.name] = 'error'
+        return next
+      })
+      setBudgetImportErrors((current) => {
+        const next = { ...current }
+        for (const draft of drafts) {
+          next[draft.name] = failedDraft && draft.name !== failedDraft.name
+            ? 'Not imported because another budget in the batch failed.'
+            : detail
+        }
+        return next
+      })
+      return detail
+    } finally {
+      setIsImportingBudgets(false)
+    }
+  }
+
   const handleCommitImport = async () => {
     const payload = importBuild.payload
     if (!payload || importOverlayOpen || importFireflyTransactions.isPending) return
 
+    // The run imports the budgets selected when it started, so the drafts are
+    // captured here rather than read again between the two stages
+    const budgetDraftsToImport = pendingBudgetDrafts
+
     setImportError(null)
     setImportResult(null)
+    setBudgetStageError(null)
+    setImportStageState(budgetDraftsToImport.length > 0 ? { stage: 'transactions', isFinished: false } : null)
     setImportOverlayPhase('importing')
     const minimumOverlay = waitForMilliseconds(FIREFLY_IMPORT_OVERLAY_MIN_MS)
 
+    let result: FireflyTransactionImportResponse
     try {
-      const result = await importFireflyTransactions.mutateAsync(payload)
-      await minimumOverlay
+      const [imported] = await Promise.all([
+        importFireflyTransactions.mutateAsync(payload),
+        waitForMilliseconds(FIREFLY_IMPORT_STAGE_MIN_MS),
+      ])
+      result = imported
       setImportResult(result)
-      setImportOverlayPhase('success')
     } catch (error) {
       await minimumOverlay
       setImportError(getErrorMessage(error))
       setImportOverlayPhase('error')
+      return
     }
+
+    // The transactions are committed from here on, so a budget failure fails
+    // only the budget stage and the retry never re-imports them
+    if (budgetDraftsToImport.length > 0) {
+      // The transactions stage is struck off and held before the budget stage
+      // takes over, so the handover is read rather than flashed past
+      setImportStageState({ stage: 'transactions', isFinished: true })
+      await waitForMilliseconds(FIREFLY_IMPORT_STAGE_CROSS_OFF_MS)
+      setImportStageState({ stage: 'budgets', isFinished: false })
+
+      const budgetError = await importBudgetDrafts(budgetDraftsToImport, result.category_source_ids)
+      if (budgetError) {
+        await minimumOverlay
+        setImportOverlayPhase('error')
+        return
+      }
+
+      // The last stage is struck off while the overlay is still importing, so
+      // it lands as visibly as the ones that handed over to a stage below
+      setImportStageState({ stage: 'budgets', isFinished: true })
+      await waitForMilliseconds(FIREFLY_IMPORT_STAGE_CROSS_OFF_MS)
+    }
+
+    await minimumOverlay
+    setImportOverlayPhase('success')
   }
 
   const closeImportOverlay = () => {
@@ -491,65 +635,16 @@ export function useFireflyImportWorkflow() {
     setSelectedBudgetNames(next)
   }
 
-  const handleImportBudgets = async () => {
-    if (isImportingBudgets) return
+  /**
+   * Replays the budget stage after it failed on an otherwise successful commit
+   *
+   * The transactions stay committed, so this reuses the category IDs that
+   * commit reported instead of importing anything again
+   */
+  const handleRetryBudgetImport = async () => {
+    if (isImportingBudgets || !importResult || pendingBudgetDrafts.length === 0) return
 
-    const pendingDrafts = budgetDrafts.filter((draft) => (
-      !draft.disabledReason
-      && resolvedSelectedBudgets.has(draft.name)
-      && budgetImportStatuses[draft.name] !== 'imported'
-    ))
-    if (pendingDrafts.length === 0) return
-
-    setIsImportingBudgets(true)
-
-    try {
-      // One request creates every selected budget with its full limit
-      // schedule, and importable drafts always carry a backdate start because
-      // drafts without one are disabled and filtered out above
-      await importFireflyBudgets.mutateAsync({
-        budgets: pendingDrafts.map((draft) => ({
-          name: draft.name,
-          currency: draft.currencyCode,
-          category_ids: draft.categoryIds,
-          period_start: draft.periodStart!,
-          limits: draft.limits,
-        })),
-      })
-
-      setBudgetImportStatuses((current) => {
-        const next = { ...current }
-        for (const draft of pendingDrafts) next[draft.name] = 'imported'
-        return next
-      })
-      setBudgetImportErrors((current) => {
-        const next = { ...current }
-        for (const draft of pendingDrafts) delete next[draft.name]
-        return next
-      })
-    } catch (error) {
-      // The batch is atomic, so nothing was imported and every row stays
-      // retryable, with the backend detail landing on the budget it names
-      const detail = getErrorMessage(error)
-      const failedDraft = pendingDrafts.find((draft) => detail.startsWith(draft.name))
-
-      setBudgetImportStatuses((current) => {
-        const next = { ...current }
-        for (const draft of pendingDrafts) next[draft.name] = 'error'
-        return next
-      })
-      setBudgetImportErrors((current) => {
-        const next = { ...current }
-        for (const draft of pendingDrafts) {
-          next[draft.name] = failedDraft && draft.name !== failedDraft.name
-            ? 'Not imported because another budget in the batch failed.'
-            : detail
-        }
-        return next
-      })
-    } finally {
-      setIsImportingBudgets(false)
-    }
+    await importBudgetDrafts(pendingBudgetDrafts, importResult.category_source_ids)
   }
 
   const resetFireflyWorkflow = () => {
@@ -591,15 +686,18 @@ export function useFireflyImportWorkflow() {
     newCategoryCount,
     importBuild,
     importError,
+    importOverlayError,
     importResult,
     importOverlayPhase,
     importOverlayOpen,
+    importOverlaySteps,
     importSummary,
     canCommitImport,
     budgetDrafts,
     selectedBudgetNames: resolvedSelectedBudgets,
     budgetImportStatuses,
     budgetImportErrors,
+    budgetStageError,
     isImportingBudgets,
     accountsLoading,
     currenciesLoading,
@@ -626,7 +724,7 @@ export function useFireflyImportWorkflow() {
     handleCommitImport,
     closeImportOverlay,
     toggleBudgetSelection,
-    handleImportBudgets,
+    handleRetryBudgetImport,
     resetFireflyWorkflow,
   }
 }

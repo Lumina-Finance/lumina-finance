@@ -1,7 +1,7 @@
 import { AlertCircle, CheckCircle2, LoaderCircle } from 'lucide-react'
-import { AnimatePresence, motion } from 'motion/react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import type { Variants } from 'motion/react'
-import type { ImportOverlayPhase } from '../types'
+import type { ImportOverlayPhase, ImportProgressStep, ImportProgressStepStatus } from '../types'
 
 const OVERLAY_BACKGROUND = '#0F0E0C'
 const OVERLAY_TEXT = '#F2EDE4'
@@ -13,6 +13,35 @@ const OVERLAY_ERROR = '#D76C61'
 const OVERLAY_EASE: [number, number, number, number] = [0.25, 0.1, 0.25, 1]
 const OVERLAY_SPRING_EASE: [number, number, number, number] = [0.16, 1, 0.3, 1]
 const overlayButtonClass = 'h-10 w-full box-border whitespace-nowrap leading-none sm:w-auto'
+
+/**
+ * How the stage list reads each status, with the accent marking a stage that
+ * landed so the three statuses stay apart without relying on motion
+ */
+const STEP_STATUS_COLOUR: Record<ImportProgressStepStatus, string> = {
+  active: OVERLAY_TEXT,
+  done: OVERLAY_ACCENT,
+  queued: OVERLAY_MUTED_TEXT,
+}
+
+const STEP_QUEUED_SCALE = 0.85
+const STEP_TRAVEL_DURATION = 0.28
+
+/**
+ * How long the strike takes to draw across a finished stage
+ *
+ * FIREFLY_IMPORT_STAGE_CROSS_OFF_MS is how long the stage is held struck off,
+ * so it has to stay clear of this or the line would leave part drawn
+ */
+const STEP_STRIKE_DURATION = 0.42
+
+const STEP_DOT_STAGGER_SECONDS = 0.12
+const STEP_DOT_PULSE_SECONDS = 0.9
+
+/** Where the pulse rests the dots, dim enough to read as trailing off but never as a gap in the text */
+const STEP_DOT_DIM_OPACITY = 0.35
+
+const STEP_DOT_SEATS = [0, 1, 2]
 
 const contentVariants: Variants = {
   hidden: { opacity: 0, y: 16, filter: 'blur(5px)' },
@@ -63,13 +92,19 @@ const iconVariants: Variants = {
 }
 
 interface ImportProgressOverlayProps {
-  /** Label for the secondary success action, kept overridable for flows that return to the page */
+  /** Label for the continue success action, kept overridable for flows that return to the page */
   continueLabel?: string
   error: string | null
   onContinueImporting: () => void
   onDone: () => void
   onReturnToImport: () => void
   phase: ImportOverlayPhase
+
+  /** Which success action carries the primary emphasis, so flows with results to review can lead with them */
+  primaryAction?: 'done' | 'continue'
+
+  /** Stages of a multi-stage import, listed while it runs; single-stage flows leave this unset */
+  steps?: ImportProgressStep[]
   summary: string
 }
 
@@ -80,12 +115,23 @@ export function ImportProgressOverlay({
   onDone,
   onReturnToImport,
   phase,
+  primaryAction = 'done',
+  steps,
   summary,
 }: ImportProgressOverlayProps) {
   const open = phase !== 'idle'
   const complete = phase === 'success'
   const failed = phase === 'error'
-  const title = failed ? 'Import failed' : complete ? 'Import complete' : 'Importing transactions'
+
+  // The stage list already names the work in flight, so the title stops
+  // repeating the first stage when a flow supplies one
+  const title = failed
+    ? 'Import failed'
+    : complete
+      ? 'Import complete'
+      : steps
+        ? 'Importing'
+        : 'Importing transactions'
   const message = failed
     ? error ?? 'Import failed.'
     : complete
@@ -175,6 +221,12 @@ export function ImportProgressOverlay({
                   {message}
                 </motion.p>
 
+                {!complete && !failed && steps && steps.length > 0 && (
+                  <motion.div className="mt-6 w-full" variants={itemVariants}>
+                    <ImportProgressSteps steps={steps} />
+                  </motion.div>
+                )}
+
                 {complete && (
                   <motion.div
                     className="mt-8 flex w-full flex-col gap-3 sm:flex-row sm:justify-center"
@@ -182,14 +234,14 @@ export function ImportProgressOverlay({
                   >
                     <button
                       type="button"
-                      className={`app-secondary-button ${overlayButtonClass} sm:min-w-[11rem]`}
+                      className={`${primaryAction === 'continue' ? 'app-primary-button' : 'app-secondary-button'} ${overlayButtonClass} sm:min-w-[11rem]`}
                       onClick={onContinueImporting}
                     >
                       {continueLabel}
                     </button>
                     <button
                       type="button"
-                      className={`app-primary-button ${overlayButtonClass} sm:min-w-[7rem]`}
+                      className={`${primaryAction === 'done' ? 'app-primary-button' : 'app-secondary-button'} ${overlayButtonClass} sm:min-w-[7rem]`}
                       onClick={onDone}
                     >
                       Done
@@ -213,5 +265,113 @@ export function ImportProgressOverlay({
         </motion.div>
       )}
     </AnimatePresence>
+  )
+}
+
+/**
+ * Lists the stages of a multi-stage import as an observation wheel, with the
+ * one in progress at full strength in the top seat
+ *
+ * A stage that has just landed is struck off where it stands, then rides up and
+ * out as the queued stage below grows into the seat it left, so a handover
+ * reads as the wheel turning a single position
+ *
+ * The caller decides how long a struck-off stage stays by holding it in the
+ * list, and drops it to send it on its way
+ *
+ * The overlay sits on its own dark background in both themes, so the stages use
+ * the overlay palette rather than the app text variables
+ */
+function ImportProgressSteps({ steps }: { steps: ImportProgressStep[] }) {
+  const shouldReduceMotion = useReducedMotion()
+  const queuedScale = shouldReduceMotion ? 1 : STEP_QUEUED_SCALE
+  const stepMotion = shouldReduceMotion
+    ? {
+      initial: { opacity: 0 },
+      animate: { opacity: 1 },
+      exit: { opacity: 0 },
+      transition: { duration: 0.12 },
+    }
+    : {
+      initial: { opacity: 0, y: 8, filter: 'blur(3px)' },
+      animate: { opacity: 1, y: 0, filter: 'blur(0px)' },
+      exit: { opacity: 0, y: -8, filter: 'blur(3px)' },
+      transition: { duration: STEP_TRAVEL_DURATION, ease: OVERLAY_EASE },
+    }
+
+  return (
+    <ul className="flex flex-col items-center gap-1.5 text-sm leading-6">
+      {/* popLayout takes the leaving stage out of the flow at once, so the stage below travels up as it fades rather than after */}
+      <AnimatePresence initial={false} mode="popLayout">
+        {steps.map((step) => (
+          <motion.li
+            key={step.id}
+            className="flex items-center justify-center"
+            layout={shouldReduceMotion ? false : 'position'}
+            aria-current={step.status === 'active' ? 'step' : undefined}
+            initial={stepMotion.initial}
+            animate={{ ...stepMotion.animate, color: STEP_STATUS_COLOUR[step.status] }}
+            exit={stepMotion.exit}
+            transition={stepMotion.transition}
+          >
+            {/* Scale rides on an inner element so the seat keeps its measured height and the layout travel stays undistorted */}
+            <motion.span
+              className="flex items-center"
+              initial={false}
+              animate={{ scale: step.status === 'queued' ? queuedScale : 1 }}
+              transition={stepMotion.transition}
+            >
+              <span className="relative">
+                {step.label}
+                {step.status === 'done' && (
+                  <motion.span
+                    className="pointer-events-none absolute inset-x-0 top-1/2 h-px origin-left"
+                    style={{ background: 'currentColor' }}
+                    initial={{ scaleX: shouldReduceMotion ? 1 : 0 }}
+                    animate={{ scaleX: 1 }}
+                    transition={{ duration: shouldReduceMotion ? 0 : STEP_STRIKE_DURATION, ease: OVERLAY_EASE }}
+                    aria-hidden
+                  />
+                )}
+              </span>
+              {step.status === 'active' && <ImportProgressStepEllipsis />}
+            </motion.span>
+          </motion.li>
+        ))}
+      </AnimatePresence>
+    </ul>
+  )
+}
+
+/**
+ * Trails the stage in progress with three dots that pulse in sequence
+ *
+ * The dots only say that the stage is still running, so they stay out of the
+ * accessibility tree and the label alone is announced
+ */
+function ImportProgressStepEllipsis() {
+  const shouldReduceMotion = useReducedMotion()
+
+  return (
+    <span className="flex" aria-hidden>
+      {STEP_DOT_SEATS.map((seat) => (
+        // The mount animation carries the repeating pulse, so initial cannot be
+        // waived here or the dots would hold at the opening keyframe forever
+        <motion.span
+          key={seat}
+          animate={shouldReduceMotion ? { opacity: 1 } : { opacity: [STEP_DOT_DIM_OPACITY, 1, STEP_DOT_DIM_OPACITY] }}
+          transition={shouldReduceMotion
+            ? { duration: 0 }
+            : {
+              delay: seat * STEP_DOT_STAGGER_SECONDS,
+              duration: STEP_DOT_PULSE_SECONDS,
+              ease: 'easeInOut',
+              repeat: Infinity,
+            }}
+        >
+          .
+        </motion.span>
+      ))}
+    </span>
   )
 }

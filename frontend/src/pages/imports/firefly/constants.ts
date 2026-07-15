@@ -1,4 +1,5 @@
 import type { AccountType } from '@/api/accounts'
+import type { FireflyImportStage } from './types'
 
 /**
  * Columns the transactions export must contain before the flow can compile rows
@@ -69,3 +70,28 @@ export const FIREFLY_SAMPLE_PREVIEW_LIMIT = 5
 export const FIREFLY_SKIPPED_TABLE_VISIBLE_LIMIT = 20
 export const FIREFLY_CSV_PROCESSING_MIN_MS = 1500
 export const FIREFLY_IMPORT_OVERLAY_MIN_MS = 2000
+
+/**
+ * Stages of the commit in the order they run, as the overlay lists them
+ */
+export const FIREFLY_IMPORT_STAGES: { id: FireflyImportStage; label: string }[] = [
+  { id: 'transactions', label: 'Importing transactions' },
+  { id: 'budgets', label: 'Importing budgets' },
+]
+
+/**
+ * How long one commit stage holds the overlay before the next one takes over
+ *
+ * Both stages can finish faster than the transition between them reads, so
+ * without a floor the budget stage would flash past unseen
+ */
+export const FIREFLY_IMPORT_STAGE_MIN_MS = 800
+
+/**
+ * How long a finished commit stage stays on the overlay struck off before the
+ * next stage takes its place
+ *
+ * The strike is what tells the user the stage landed, so this has to outlast
+ * the line being drawn and leave a beat to read it afterwards
+ */
+export const FIREFLY_IMPORT_STAGE_CROSS_OFF_MS = 750
