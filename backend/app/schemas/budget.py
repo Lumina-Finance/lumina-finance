@@ -61,6 +61,7 @@ class UpdateBaseBudgetRequest(BaseModel):
 
     name: str | None = Field(None, min_length=1, max_length=256)
     recurs: bool | None = None
+    is_archived: bool | None = None
     category_ids: list[uuid.UUID] | None = Field(None, min_length=1)
 
 
@@ -78,6 +79,7 @@ class BaseBudgetResponse(BaseModel):
     recurrence_dom: int | None
     recurrence_month: int | None
     recurs: bool
+    is_archived: bool
     created_at: datetime
     category_ids: list[uuid.UUID] = []  # Currently active tracked categories
 

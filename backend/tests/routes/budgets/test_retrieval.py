@@ -38,7 +38,7 @@ async def test_get_budget_returns_200(client):
     assert set(data["base_budget"].keys()) == {
         "id", "owner_id", "group_id", "name", "currency",
         "recurrence_freq", "instance_length", "recurrence_weekday",
-        "recurrence_dom", "recurrence_month", "recurs",
+        "recurrence_dom", "recurrence_month", "recurs", "is_archived",
         "created_at", "category_ids",
     }
     # Instance fields

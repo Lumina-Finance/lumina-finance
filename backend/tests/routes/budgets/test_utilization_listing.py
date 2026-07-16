@@ -56,6 +56,32 @@ async def test_list_latest_budget_utilizations_returns_latest_period_only(client
     assert data[0]["fx_status"] == {"state": "none", "missing_pairs": []}
 
 
+async def test_list_latest_budget_utilizations_includes_archived_base(client):
+    """Archiving a base budget keeps its latest instance in the utilization roll-up."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    account_id = (await _create_account(client, headers)).json()["id"]
+    groceries = await _create_category(client, headers)
+
+    base_id, budget_id = await _create_base_with_instance(
+        client, headers, category_ids=[groceries],
+    )
+    await _create_transaction(client, headers, account_id, groceries, amount=-5000)
+
+    await client.patch(
+        f"/base-budgets/{base_id}", json={"is_archived": True}, headers=headers,
+    )
+
+    resp = await client.get("/budgets/latest-utilizations", headers=headers)
+    assert resp.status_code == 200
+
+    data = resp.json()
+    assert [item["budget_id"] for item in data] == [budget_id]
+    assert data[0]["base_budget_id"] == base_id
+    assert data[0]["total_spent"] == 5000
+
+
 async def test_list_latest_budget_utilizations_excludes_inaccessible_budgets(client):
     """Only budgets readable by the caller are included."""
     signup_resp = await _create_user(client)

@@ -64,6 +64,34 @@ async def test_update_base_budget_recurs_returns_200(client):
     assert resp.json()["recurs"] is True
 
 
+async def test_update_base_budget_archive_toggle_returns_200(client):
+    """Archiving then clearing is_archived round-trips through the column in both directions."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    create_resp = await _create_base_budget(client, headers)
+    base_budget_id = create_resp.json()["id"]
+    assert create_resp.json()["is_archived"] is False
+
+    archive_resp = await client.patch(
+        f"/base-budgets/{base_budget_id}",
+        json={"is_archived": True},
+        headers=headers,
+    )
+
+    assert archive_resp.status_code == 200
+    assert archive_resp.json()["is_archived"] is True
+
+    unarchive_resp = await client.patch(
+        f"/base-budgets/{base_budget_id}",
+        json={"is_archived": False},
+        headers=headers,
+    )
+
+    assert unarchive_resp.status_code == 200
+    assert unarchive_resp.json()["is_archived"] is False
+
+
 async def test_update_base_budget_add_categories(client):
     """Adding a tracked category via PATCH returns the updated category_ids."""
     signup_resp = await _create_user(client)

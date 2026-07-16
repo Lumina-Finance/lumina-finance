@@ -28,6 +28,27 @@ async def test_list_base_budgets_returns_200(client):
     assert [b["name"] for b in data] == ["April Budget", "March Budget"]
 
 
+async def test_list_base_budgets_includes_archived(client):
+    """Archiving a base budget does not hide it from the listing."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    create_resp = await _create_base_budget(client, headers)
+    base_budget_id = create_resp.json()["id"]
+
+    await client.patch(
+        f"/base-budgets/{base_budget_id}", json={"is_archived": True}, headers=headers,
+    )
+
+    resp = await client.get("/base-budgets", headers=headers)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data) == 1
+    assert data[0]["id"] == base_budget_id
+    assert data[0]["is_archived"] is True
+
+
 async def test_list_base_budgets_empty(client):
     """User with no base budgets gets an empty list."""
     signup_resp = await _create_user(client)
