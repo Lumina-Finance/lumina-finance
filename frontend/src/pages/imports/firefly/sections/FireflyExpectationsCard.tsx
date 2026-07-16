@@ -47,21 +47,38 @@ const DEVIATION_TEXT = "Firefly III sets a budget on each transaction. This app'
   + 'left can read lower than Firefly III shows.'
 
 /**
- * Everything the import leaves behind, listed without saying which might arrive
- * later, since nothing here is committed to and a hint otherwise would be read
- * as a promise. The first entries are whole features and the rest are rare
- * data shapes, which are skipped and reported when an export carries them
+ * Everything the import leaves behind, grouped by what it applies to and
+ * listed without saying which might arrive later, since nothing here is
+ * committed to and a hint otherwise would be read as a promise
+ *
+ * The budget and transaction entries only catch the rare shapes they name,
+ * which are skipped and reported, while the feature entries never arrive
  */
-const LEFT_BEHIND = [
-  'Archived budgets',
-  'Budgets repeating on period lengths Lumina Finance has no cadence for',
-  'Budgets whose limits mix more than one currency',
-  'Transactions with more decimal places than their currency allows',
-  'Transactions carrying a tag too long for this app',
-  'Bills and recurring transactions',
-  'Piggy banks and reconciliation flags',
-  'Account interest and card details',
-  'Rules and attachments',
+const LEFT_BEHIND: { group: string; items: string[] }[] = [
+  {
+    group: 'Budgets',
+    items: [
+      'Archived in Firefly III',
+      'Repeating on period lengths Lumina Finance has no cadence for',
+      'Mixing more than one currency across their limit periods',
+    ],
+  },
+  {
+    group: 'Transactions',
+    items: [
+      'With more decimal places than their currency allows',
+      'With a tag too long for this app',
+    ],
+  },
+  {
+    group: 'Features',
+    items: [
+      'Bills and recurring transactions',
+      'Piggy banks and reconciliation flags',
+      'Account interest and card details',
+      'Rules and attachments',
+    ],
+  },
 ]
 
 /**
@@ -126,11 +143,18 @@ export function FireflyExpectationsCard() {
 
           <ConceptGroup title="Left behind" railColour="var(--app-text-subtle)">
             <ul
-              className="flex list-disc flex-col gap-1 pl-4 text-sm leading-5"
+              className="flex list-disc flex-col gap-1.5 pl-4 text-sm leading-5"
               style={{ color: 'var(--app-text-subtle)' }}
             >
-              {LEFT_BEHIND.map((item) => (
-                <li key={item}>{item}</li>
+              {LEFT_BEHIND.map(({ group, items }) => (
+                <li key={group}>
+                  {group}
+                  <ul className="mt-1 flex list-[circle] flex-col gap-1 pl-4">
+                    {items.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                </li>
               ))}
             </ul>
           </ConceptGroup>
