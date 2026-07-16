@@ -49,7 +49,7 @@ export function assessPasskeySupport(relyingPartyId: string): PasskeySupport {
       supported: false,
       reason: 'insecure-context',
       message:
-        'Passkeys need a secure connection. Open Lumina over HTTPS, or http://localhost during development, instead of an IP address.',
+        'Passkeys need a secure connection. Open Lumina Finance over HTTPS, or http://localhost during development, instead of an IP address.',
     };
   }
 
@@ -67,7 +67,7 @@ export function assessPasskeySupport(relyingPartyId: string): PasskeySupport {
       supported: false,
       reason: 'ip-host',
       message:
-        'Passkeys cannot be used on a bare IP address. Open Lumina using its domain name, or http://localhost during development.',
+        'Passkeys cannot be used on a bare IP address. Open Lumina Finance using its domain name, or http://localhost during development.',
     };
   }
 
@@ -77,7 +77,7 @@ export function assessPasskeySupport(relyingPartyId: string): PasskeySupport {
     return {
       supported: false,
       reason: 'rp-mismatch',
-      message: `This address is not the configured passkey domain (${relyingPartyId}). Open Lumina at that domain to manage passkeys.`,
+      message: `This address is not the configured passkey domain (${relyingPartyId}). Open Lumina Finance at that domain to manage passkeys.`,
     };
   }
 

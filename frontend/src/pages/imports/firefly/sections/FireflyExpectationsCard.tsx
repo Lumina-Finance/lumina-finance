@@ -45,12 +45,12 @@ const CONVERTED_MAPPINGS: ConceptMapping[] = [
  * The differences whose figures will not tie back to Firefly III, which are
  * worth finding before the numbers are compared rather than after
  */
-const DEVIATION_TEXT = 'Firefly III sets a budget on each transaction. Lumina budgets track whole categories, '
-  + 'so anything you left out of a budget there still counts against it here, and the amount left can read '
-  + 'lower than Firefly III shows.'
+const DEVIATION_TEXT = "Firefly III sets a budget on each transaction. This app's budgets track whole "
+  + 'categories, so anything you left out of a budget there still counts against it here, and the amount '
+  + 'left can read lower than Firefly III shows.'
 
-const SUB_CENT_TEXT = 'Firefly III also stores amounts with up to twelve decimal places. Lumina keeps each '
-  + "currency's own precision, two decimals for dollars and none for yen, and never rounds money on the "
+const SUB_CENT_TEXT = 'Firefly III also stores amounts with up to twelve decimal places. We keep each '
+  + "currency's own precision, two decimals for dollars and none for yen, and never round money on the "
   + 'way in, so a row with more decimals than its currency has is skipped and reported, leaving your '
   + 'totals short by those rows.'
 
@@ -61,9 +61,9 @@ const SUB_CENT_TEXT = 'Firefly III also stores amounts with up to twelve decimal
  */
 const LEFT_BEHIND = [
   'Archived budgets',
-  'Budgets repeating on period lengths Lumina has no cadence for',
+  'Budgets repeating on period lengths Lumina Finance has no cadence for',
   'Budgets whose limits mix more than one currency',
-  'Transactions carrying a tag too long for Lumina',
+  'Transactions carrying a tag too long for this app',
   'Bills and recurring transactions',
   'Piggy banks',
   'Reconciliation flags',
@@ -96,8 +96,8 @@ export function FireflyExpectationsCard() {
             What To Expect
           </p>
           <p className="mt-1 text-sm leading-5" style={{ color: 'var(--app-text-muted)' }}>
-            Firefly III records every journal against two accounts. Lumina records one entry per account, so some of
-            your data changes shape on the way in.
+            Firefly III records every journal against two accounts. Lumina Finance records one entry per account, so
+            some of your data changes shape on the way in.
           </p>
 
           {/* The rails share the text column beside the icon so they line up
