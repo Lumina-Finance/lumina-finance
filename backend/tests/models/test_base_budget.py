@@ -140,6 +140,11 @@ async def test_recurs_defaults_to_false(db, base_budget):
     assert base_budget.recurs is False
 
 
+async def test_is_archived_defaults_to_false(db, base_budget):
+    """is_archived defaults to False when not explicitly set."""
+    assert base_budget.is_archived is False
+
+
 # --- BaseBudget: Recurring ---
 
 
