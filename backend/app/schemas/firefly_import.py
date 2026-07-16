@@ -11,7 +11,7 @@ from app.schemas.transaction import (
 )
 
 # Bounds the limit history one budget can carry, which covers a century of
-# monthly limits
+# monthly limits or two decades of weekly ones
 MAX_BUDGET_LIMIT_PERIODS = 1200
 
 
@@ -56,26 +56,27 @@ class FireflyTransactionImportRequest(BaseModel):
 class FireflyBudgetLimit(BaseModel):
     """One limit period from the Firefly III budgets export
 
-    The amount is a raw CSV string so the backend can validate precision
-    against the budget currency
+    Both dates are inclusive, matching how the export expresses a period. The
+    amount is a raw CSV string so the backend can validate precision against
+    the budget currency
     """
 
     start: date
+    end: date
     amount: str = Field(min_length=1, max_length=64)
 
 
 class FireflyBudgetImport(BaseModel):
     """One budget to create from a Firefly III export
 
-    The period start is the backdated first period, and the limits carry the
-    amount history so every materialized period keeps the amount that was in
-    force at the time instead of one figure across the whole history
+    Every limit period becomes one budget period with its exported dates and
+    amount, so the history arrives as it was lived rather than reshaped onto
+    a single cadence
     """
 
     name: str = Field(min_length=1, max_length=256)
     currency: str = Field(min_length=3, max_length=3)
     category_ids: list[uuid.UUID] = Field(min_length=1)
-    period_start: date
     limits: list[FireflyBudgetLimit] = Field(min_length=1, max_length=MAX_BUDGET_LIMIT_PERIODS)
 
 

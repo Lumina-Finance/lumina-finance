@@ -1,8 +1,7 @@
 """Transaction API routes"""
 import uuid
-from datetime import date, datetime
+from datetime import date
 from typing import Annotated
-from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -226,9 +225,9 @@ async def import_firefly_budget_rows(
 ):
     """Import budgets from a Firefly III data export
 
-    Each budget becomes a monthly base budget backdated to its period start,
-    with one period instance per month through today carrying the limit
-    amount that was in force for that month
+    Each exported limit period becomes one budget period with its original
+    dates and amount, and the budget continues on the cadence of its latest
+    limit period
 
     Args:
         data: Budgets derived from the export by the frontend
@@ -236,10 +235,9 @@ async def import_firefly_budget_rows(
         db: Active database session
 
     Returns:
-        Summary of the created budgets and their materialized periods
+        Summary of the created budgets and their periods
     """
-    today = datetime.now(ZoneInfo(user.tz)).date()
-    return await import_firefly_budgets(db, user, data, today)
+    return await import_firefly_budgets(db, user, data)
 
 
 @router.post("", response_model=TransactionResponse, status_code=status.HTTP_201_CREATED)
