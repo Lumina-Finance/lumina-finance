@@ -9,6 +9,7 @@ from app.models.base import PermissionLevel
 from app.models.user import User
 from app.permissions import check_base_budget_access
 from app.routes.base_budgets.category_helpers import update_tracked_category_links
+from app.routes.base_budgets.instance_helpers import resume_budget_generation_at_current_period
 from app.routes.base_budgets.response_helpers import get_base_budget_response
 from app.schemas.budget import BaseBudgetResponse, UpdateBaseBudgetRequest
 from app.services.cache_state import mark_cache_changed_for_scope
@@ -44,6 +45,10 @@ async def update_base_budget_and_get_response(
 
     # Handle tracked categories separately from simple field updates
     new_category_ids = changed_fields.pop("category_ids", None)
+
+    # Capture the unarchive transition before applying fields so resumption can key off the prior state
+    is_unarchiving = changed_fields.get("is_archived") is False and base_budget.is_archived
+
     for field, value in changed_fields.items():
         setattr(base_budget, field, value)
 
@@ -56,6 +61,10 @@ async def update_base_budget_and_get_response(
             base_budget.group_id,
             today,
         )
+
+    # Resume generation only after the archived flag is cleared so the guard permits the current period
+    if is_unarchiving:
+        await resume_budget_generation_at_current_period(db, base_budget, today)
 
     await mark_cache_changed_for_scope(db, user_id=base_budget.owner_id, group_id=base_budget.group_id)
     await db.commit()

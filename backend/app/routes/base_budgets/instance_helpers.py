@@ -201,3 +201,67 @@ def _raise_if_base_budget_archived(base_budget: BaseBudget) -> None:
             status_code=status.HTTP_409_CONFLICT,
             detail="Cannot generate budget instances for an archived base budget",
         )
+
+
+async def resume_budget_generation_at_current_period(
+    db: AsyncSession,
+    base_budget: BaseBudget,
+    today: date,
+) -> None:
+    """Create the current-period budget instance when a base budget is unarchived
+
+    Args:
+        db: Active database session
+        base_budget: Base budget being unarchived
+        today: Current date in the user's timezone
+    """
+    _raise_if_base_budget_archived(base_budget)
+
+    latest_budget_query = (
+        select(Budget)
+        .where(Budget.base_budget_id == base_budget.id)
+        .order_by(Budget.period_start.desc(), Budget.created_at.desc())
+        .limit(1)
+    )
+
+    # The newest instance supplies both the series phase origin and the carry-forward cap
+    latest_result = await db.execute(latest_budget_query)
+    latest_budget = latest_result.scalar_one_or_none()
+
+    # A base budget with no prior instance has no phase and no series to resume
+    if latest_budget is None:
+        return
+
+    # Walk contiguous full-length periods forward from the series phase until one contains today
+    # so the resumed period stays aligned with the real series rather than a single-unit anchor
+    current_period_start = latest_budget.period_start
+    current_period_end = latest_budget.period_end
+    while current_period_end < today:
+        current_period_start = current_period_end + timedelta(days=1)
+        current_period_end = compute_period_end(
+            current_period_start,
+            base_budget.recurrence_freq,
+            base_budget.instance_length,
+            dom=base_budget.recurrence_dom,
+            month=base_budget.recurrence_month,
+        )
+
+    overlapping_budget_query = select(Budget).where(
+        Budget.base_budget_id == base_budget.id,
+        Budget.period_start <= current_period_end,
+        Budget.period_end >= current_period_start,
+    )
+
+    # Skip creation when an existing instance already covers the current period so resume stays idempotent
+    overlap_result = await db.execute(overlapping_budget_query)
+    if overlap_result.scalar_one_or_none():
+        return
+
+    db.add(
+        Budget(
+            base_budget_id=base_budget.id,
+            period_start=current_period_start,
+            period_end=current_period_end,
+            overall_limit=latest_budget.overall_limit,
+        ),
+    )

@@ -1,13 +1,15 @@
 import importlib
-from datetime import UTC, datetime
+import uuid
+from datetime import UTC, date, datetime
 
 import sqlalchemy as sa
 
-from app.models.budget import BudgetTrackedCategory
+from app.models.budget import Budget, BudgetTrackedCategory
 from tests.conftest import TestSession
 from tests.routes.base_budgets._helpers import (
     NONEXISTENT_ID,
     _create_base_budget,
+    _create_budget_instance,
     _create_category,
     _create_group,
     _create_second_user,
@@ -602,3 +604,199 @@ async def test_update_base_budget_unauthenticated_returns_401(client):
     )
 
     assert resp.status_code == 401
+
+
+# --- PATCH /base-budgets/{base_budget_id} — unarchive resume ---
+
+
+async def test_unarchive_base_budget_resumes_current_period_only(client, monkeypatch):
+    """Unarchiving materializes only the current period and carries the newest cap forward.
+
+    The archived gap between the last prior instance and the current period is never backfilled
+    """
+    base_budget_routes = importlib.import_module("app.routes.base_budgets.router")
+
+    class FixedDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            instant = datetime(2026, 5, 4, 16, 0, tzinfo=UTC)
+            return instant.astimezone(tz) if tz else instant
+
+    monkeypatch.setattr(base_budget_routes, "datetime", FixedDateTime)
+
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    create_resp = await _create_base_budget(client, headers)
+    base_budget_id = create_resp.json()["id"]
+
+    # Two prior instances with distinct caps so the carried limit proves resume took the newest
+    await _create_budget_instance(
+        client, headers, base_budget_id, period_start="2026-02-01", overall_limit=80000,
+    )
+    await _create_budget_instance(
+        client, headers, base_budget_id, period_start="2026-03-01", overall_limit=100000,
+    )
+
+    await client.patch(
+        f"/base-budgets/{base_budget_id}", json={"is_archived": True}, headers=headers,
+    )
+    resume_resp = await client.patch(
+        f"/base-budgets/{base_budget_id}", json={"is_archived": False}, headers=headers,
+    )
+
+    assert resume_resp.status_code == 200
+    assert resume_resp.json()["is_archived"] is False
+
+    async with TestSession() as session:
+        instances = (await session.execute(
+            sa.select(Budget)
+            .where(Budget.base_budget_id == uuid.UUID(base_budget_id))
+            .order_by(Budget.period_start),
+        )).scalars().all()
+
+    # The May current period is added at the newest cap while the archived April gap stays unfilled
+    assert [
+        (budget.period_start.isoformat(), budget.period_end.isoformat(), budget.overall_limit)
+        for budget in instances
+    ] == [
+        ("2026-02-01", "2026-02-28", 80000),
+        ("2026-03-01", "2026-03-31", 100000),
+        ("2026-05-01", "2026-05-31", 100000),
+    ]
+
+
+async def test_unarchive_base_budget_with_existing_current_period_is_idempotent(client, monkeypatch):
+    """Unarchiving creates no duplicate when an instance already covers the current period."""
+    base_budget_routes = importlib.import_module("app.routes.base_budgets.router")
+
+    class FixedDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            instant = datetime(2026, 5, 4, 16, 0, tzinfo=UTC)
+            return instant.astimezone(tz) if tz else instant
+
+    monkeypatch.setattr(base_budget_routes, "datetime", FixedDateTime)
+
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    create_resp = await _create_base_budget(client, headers)
+    base_budget_id = create_resp.json()["id"]
+
+    # The sole instance already covers the current (May) period that resume would target
+    instance_resp = await _create_budget_instance(
+        client, headers, base_budget_id, period_start="2026-05-01", overall_limit=100000,
+    )
+    current_period_instance_id = instance_resp.json()["id"]
+
+    await client.patch(
+        f"/base-budgets/{base_budget_id}", json={"is_archived": True}, headers=headers,
+    )
+    resume_resp = await client.patch(
+        f"/base-budgets/{base_budget_id}", json={"is_archived": False}, headers=headers,
+    )
+
+    assert resume_resp.status_code == 200
+
+    async with TestSession() as session:
+        instances = (await session.execute(
+            sa.select(Budget).where(Budget.base_budget_id == uuid.UUID(base_budget_id)),
+        )).scalars().all()
+
+    assert len(instances) == 1
+    assert str(instances[0].id) == current_period_instance_id
+    assert instances[0].overall_limit == 100000
+
+
+async def test_unarchive_base_budget_without_prior_instances_creates_nothing(client):
+    """Unarchiving a base budget that never had instances resumes nothing and does not error."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    create_resp = await _create_base_budget(client, headers)
+    base_budget_id = create_resp.json()["id"]
+
+    await client.patch(
+        f"/base-budgets/{base_budget_id}", json={"is_archived": True}, headers=headers,
+    )
+    resume_resp = await client.patch(
+        f"/base-budgets/{base_budget_id}", json={"is_archived": False}, headers=headers,
+    )
+
+    assert resume_resp.status_code == 200
+    assert resume_resp.json()["is_archived"] is False
+
+    async with TestSession() as session:
+        instances = (await session.execute(
+            sa.select(Budget).where(Budget.base_budget_id == uuid.UUID(base_budget_id)),
+        )).scalars().all()
+
+    assert instances == []
+
+
+async def test_unarchive_multi_unit_base_budget_resumes_phase_aligned_period(client, monkeypatch):
+    """A quarterly budget resumes on a period phase-aligned to its series, skipping the gap.
+
+    Resumption steps forward in whole three-month periods from the newest instance so the
+    resumed period stays on the same cadence phase rather than anchoring to a single month
+    """
+    base_budget_routes = importlib.import_module("app.routes.base_budgets.router")
+
+    class FixedDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            instant = datetime(2026, 12, 15, 16, 0, tzinfo=UTC)
+            return instant.astimezone(tz) if tz else instant
+
+    monkeypatch.setattr(base_budget_routes, "datetime", FixedDateTime)
+
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    # Quarterly cadence: monthly recurrence spanning three months per instance, dom kept <= 28
+    create_resp = await _create_base_budget(client, headers, instance_length=3)
+    base_budget_id = create_resp.json()["id"]
+
+    # Two contiguous quarters with distinct caps so the carried cap proves it took the newest
+    await _create_budget_instance(
+        client, headers, base_budget_id, period_start="2026-01-01", overall_limit=80000,
+    )
+    await _create_budget_instance(
+        client, headers, base_budget_id, period_start="2026-04-01", overall_limit=120000,
+    )
+
+    await client.patch(
+        f"/base-budgets/{base_budget_id}", json={"is_archived": True}, headers=headers,
+    )
+    resume_resp = await client.patch(
+        f"/base-budgets/{base_budget_id}", json={"is_archived": False}, headers=headers,
+    )
+
+    assert resume_resp.status_code == 200
+
+    async with TestSession() as session:
+        instances = (await session.execute(
+            sa.select(Budget)
+            .where(Budget.base_budget_id == uuid.UUID(base_budget_id))
+            .order_by(Budget.period_start),
+        )).scalars().all()
+
+    # Exactly one Q4 instance is added at the newest cap while the intermediate Q3 gap stays unfilled
+    assert [
+        (budget.period_start.isoformat(), budget.period_end.isoformat(), budget.overall_limit)
+        for budget in instances
+    ] == [
+        ("2026-01-01", "2026-03-31", 80000),
+        ("2026-04-01", "2026-06-30", 120000),
+        ("2026-10-01", "2026-12-31", 120000),
+    ]
+
+    # The resumed start advances the newest phase origin by a whole multiple of the three-month cadence
+    newest_period_start = date(2026, 4, 1)
+    resumed = instances[-1]
+    months_advanced = (
+        (resumed.period_start.year - newest_period_start.year) * 12
+        + resumed.period_start.month - newest_period_start.month
+    )
+    assert months_advanced % 3 == 0
+    assert resumed.period_start.day == newest_period_start.day
+    assert resumed.period_start <= date(2026, 12, 15) <= resumed.period_end
+

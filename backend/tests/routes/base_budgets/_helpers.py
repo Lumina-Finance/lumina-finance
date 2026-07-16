@@ -49,3 +49,18 @@ async def _create_base_budget(client, headers, *, category_ids=None, **overrides
         **overrides,
     }
     return await client.post("/base-budgets", json=payload, headers=headers)
+
+async def _create_budget_instance(client, headers, base_budget_id, **overrides):
+    """Create a budget instance via POST /base-budgets/{id}/budgets.
+
+    Defaults: period_start=2026-03-01, overall_limit=100000. period_end is
+    computed by the backend from the base's cadence
+    """
+    payload = {
+        "period_start": "2026-03-01",
+        "overall_limit": 100000,
+        **overrides,
+    }
+    return await client.post(
+        f"/base-budgets/{base_budget_id}/budgets", json=payload, headers=headers,
+    )
