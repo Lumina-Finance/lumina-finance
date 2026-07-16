@@ -9,12 +9,12 @@ from app.models.user import User
 from app.schemas.transaction import TransactionImportRequest, TransactionImportResponse
 from app.services.accounts.snapshots import recompute_snapshots_from
 from app.services.cache_state import mark_cache_changed_for_scope, mark_user_cache_changed
-from app.services.transactions.imports.imported_transaction_helpers import create_imported_transactions
-from app.services.transactions.imports.lookup_helpers import (
+from app.services.importers.generic.imported_transaction_helpers import create_imported_transactions
+from app.services.importers.generic.lookup_helpers import (
     load_transaction_import_lookups,
 )
-from app.services.transactions.imports.response_helpers import build_transaction_import_response
-from app.services.transactions.imports.stats import ImportStats
+from app.services.importers.generic.response_helpers import build_transaction_import_response
+from app.services.importers.shared.stats import ImportStats
 
 
 async def import_transactions(

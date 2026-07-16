@@ -1,6 +1,17 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Upload, X } from 'lucide-react'
 import { ImportProgressOverlay } from './components'
+import { useFireflyImportWorkflow } from './firefly/hooks'
+import {
+  FireflyAccountMappingStep,
+  FireflyExpectationsCard,
+  FireflyBudgetImportStep,
+  FireflyCategoryMatchingStep,
+  FireflyFilesStep,
+  FireflyPreviewStep,
+  FireflyResultsStep,
+} from './firefly/sections'
 import { useTransactionImportWorkflow } from './hooks'
 import {
   ImportAccountMappingStep,
@@ -10,11 +21,31 @@ import {
   ImportCommitPanel,
   ImportFilesStep,
   ImportPreviewStep,
+  ImportSourceStep,
 } from './sections'
+import type { ImportDataSource } from './types'
 
 export default function ImportsPage() {
   const navigate = useNavigate()
+  const [dataSource, setDataSource] = useState<ImportDataSource>('generic')
   const workflow = useTransactionImportWorkflow()
+  const fireflyWorkflow = useFireflyImportWorkflow()
+  const isFirefly = dataSource === 'firefly'
+  const importOverlayOpen = isFirefly ? fireflyWorkflow.importOverlayOpen : workflow.importOverlayOpen
+
+  const handleDataSourceChange = (next: ImportDataSource) => {
+    if (next === dataSource) return
+
+    // The flow being switched away from resets so its staged state cannot
+    // leak into a later import run
+    if (dataSource === 'generic') {
+      workflow.resetImportWorkflow()
+    } else {
+      fireflyWorkflow.resetFireflyWorkflow()
+    }
+    setDataSource(next)
+  }
+
   const handleDone = () => {
     navigate('/')
   }
@@ -27,11 +58,11 @@ export default function ImportsPage() {
     <div
       className="relative h-screen min-h-screen overflow-hidden"
       style={{ background: 'var(--app-bg)', color: 'var(--app-text)' }}
-      aria-busy={workflow.importOverlayOpen}
+      aria-busy={importOverlayOpen}
     >
       <div
-        className={`flex h-full min-h-full transition duration-200 ${workflow.importOverlayOpen ? 'pointer-events-none select-none opacity-40 grayscale' : 'opacity-100'}`}
-        aria-hidden={workflow.importOverlayOpen}
+        className={`flex h-full min-h-full transition duration-200 ${importOverlayOpen ? 'pointer-events-none select-none opacity-40 grayscale' : 'opacity-100'}`}
+        aria-hidden={importOverlayOpen}
       >
         <button
           type="button"
@@ -67,7 +98,9 @@ export default function ImportsPage() {
                   Import Transactions
                 </h1>
                 <p className="mt-2 max-w-2xl text-sm leading-6" style={{ color: 'var(--app-text-muted)' }}>
-                  Stage one CSV transaction file before it is added to your ledger.
+                  {isFirefly
+                    ? 'Stage a Firefly III export before it is added to your ledger.'
+                    : 'Stage one CSV transaction file before it is added to your ledger.'}
                 </p>
               </div>
             </div>
@@ -75,43 +108,59 @@ export default function ImportsPage() {
 
           <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-5 pt-3 sm:px-8 xl:overflow-hidden">
             <div className="flex min-h-full flex-col gap-8 xl:h-full xl:min-h-0 xl:flex-row">
-              <aside className="xl:h-full xl:w-[340px] xl:shrink-0">
-                <ImportFilesStep {...workflow} />
+              <aside className="flex flex-col gap-8 xl:h-full xl:w-[340px] xl:shrink-0">
+                <ImportSourceStep value={dataSource} onChange={handleDataSourceChange} />
+                <div className="min-h-0 xl:flex-1">
+                  {isFirefly ? <FireflyFilesStep {...fireflyWorkflow} /> : <ImportFilesStep {...workflow} />}
+                </div>
               </aside>
 
               <div className="min-w-0 xl:h-full xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:pr-1">
                 <div className="space-y-8">
-                  <ImportColumnMappingStep {...workflow} />
-                  <ImportAccountMappingStep {...workflow} />
-                  <ImportCategoryMatchingStep {...workflow} />
-                  <ImportAutoCreateStep
-                    index="05"
-                    title="Merchant Handling"
-                    description="Merchants are created when transactions are imported. If an imported merchant matches an existing merchant name, the transaction will use the existing merchant."
-                    expanded={workflow.merchantHandlingOpen}
-                    collapseLabel="Collapse merchant handling"
-                    expandLabel="Expand merchant handling"
-                    emptyTitle="No imported merchants detected"
-                    emptyDescription="Map a merchant column first."
-                    sourceLabel="Merchant From File"
-                    rows={workflow.importedMerchants}
-                    onToggle={() => workflow.setMerchantHandlingOpen((current) => !current)}
-                  />
-                  <ImportAutoCreateStep
-                    index="06"
-                    title="Tag Handling"
-                    description="Tags are created when transactions are imported. If an imported tag matches an existing tag name, the transaction will use the existing tag."
-                    expanded={workflow.tagHandlingOpen}
-                    collapseLabel="Collapse tag handling"
-                    expandLabel="Expand tag handling"
-                    emptyTitle="No imported tags detected"
-                    emptyDescription="Map a tags column first."
-                    sourceLabel="Tag From File"
-                    rows={workflow.importedTags}
-                    onToggle={() => workflow.setTagHandlingOpen((current) => !current)}
-                  />
-                  <ImportPreviewStep {...workflow} />
-                  <ImportCommitPanel {...workflow} />
+                  {isFirefly ? (
+                    <>
+                      <FireflyExpectationsCard />
+                      <FireflyAccountMappingStep {...fireflyWorkflow} />
+                      <FireflyCategoryMatchingStep {...fireflyWorkflow} />
+                      <FireflyBudgetImportStep {...fireflyWorkflow} />
+                      <FireflyPreviewStep {...fireflyWorkflow} />
+                      <FireflyResultsStep {...fireflyWorkflow} />
+                    </>
+                  ) : (
+                    <>
+                      <ImportColumnMappingStep {...workflow} />
+                      <ImportAccountMappingStep {...workflow} />
+                      <ImportCategoryMatchingStep {...workflow} />
+                      <ImportAutoCreateStep
+                        index="05"
+                        title="Merchant Handling"
+                        description="Merchants are created when transactions are imported. If an imported merchant matches an existing merchant name, the transaction will use the existing merchant."
+                        expanded={workflow.merchantHandlingOpen}
+                        collapseLabel="Collapse merchant handling"
+                        expandLabel="Expand merchant handling"
+                        emptyTitle="No imported merchants detected"
+                        emptyDescription="Map a merchant column first."
+                        sourceLabel="Merchant From File"
+                        rows={workflow.importedMerchants}
+                        onToggle={() => workflow.setMerchantHandlingOpen((current) => !current)}
+                      />
+                      <ImportAutoCreateStep
+                        index="06"
+                        title="Tag Handling"
+                        description="Tags are created when transactions are imported. If an imported tag matches an existing tag name, the transaction will use the existing tag."
+                        expanded={workflow.tagHandlingOpen}
+                        collapseLabel="Collapse tag handling"
+                        expandLabel="Expand tag handling"
+                        emptyTitle="No imported tags detected"
+                        emptyDescription="Map a tags column first."
+                        sourceLabel="Tag From File"
+                        rows={workflow.importedTags}
+                        onToggle={() => workflow.setTagHandlingOpen((current) => !current)}
+                      />
+                      <ImportPreviewStep {...workflow} />
+                      <ImportCommitPanel {...workflow} />
+                    </>
+                  )}
                 </div>
               </div>
             </div>
@@ -119,14 +168,28 @@ export default function ImportsPage() {
         </div>
       </div>
 
-      <ImportProgressOverlay
-        phase={workflow.importOverlayPhase}
-        summary={workflow.importSummary}
-        error={workflow.importError}
-        onDone={handleDone}
-        onContinueImporting={handleContinueImporting}
-        onReturnToImport={workflow.dismissImportOverlay}
-      />
+      {isFirefly ? (
+        <ImportProgressOverlay
+          phase={fireflyWorkflow.importOverlayPhase}
+          steps={fireflyWorkflow.importOverlaySteps}
+          summary={fireflyWorkflow.importSummary}
+          error={fireflyWorkflow.importOverlayError}
+          onDone={handleDone}
+          onContinueImporting={fireflyWorkflow.closeImportOverlay}
+          onReturnToImport={fireflyWorkflow.closeImportOverlay}
+          continueLabel="Review results"
+          primaryAction="continue"
+        />
+      ) : (
+        <ImportProgressOverlay
+          phase={workflow.importOverlayPhase}
+          summary={workflow.importSummary}
+          error={workflow.importError}
+          onDone={handleDone}
+          onContinueImporting={handleContinueImporting}
+          onReturnToImport={workflow.dismissImportOverlay}
+        />
+      )}
     </div>
   )
 }

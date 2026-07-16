@@ -1,10 +1,5 @@
-import { FileText, LoaderCircle, Upload, X } from 'lucide-react'
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import { IMPORT_INSET_STYLE } from '../constants'
-import { EmptyState, ImportStat, ImportStep } from '../components'
+import { EmptyState, ImportStagedFileList, ImportStat, ImportStep, ImportUploadCard } from '../components'
 import type { TransactionImportWorkflow } from '../hooks'
-import type { ImportFileDraft } from '../types'
-import { formatBytes } from '../utils'
 
 type ImportFilesStepProps = Pick<
   TransactionImportWorkflow,
@@ -26,21 +21,6 @@ export function ImportFilesStep({
   handleFileChange,
   removeFile,
 }: ImportFilesStepProps) {
-  const shouldReduceMotion = useReducedMotion()
-  const uploadStateMotion = shouldReduceMotion
-    ? {
-      initial: { opacity: 0 },
-      animate: { opacity: 1 },
-      exit: { opacity: 0 },
-      transition: { duration: 0.12 },
-    }
-    : {
-      initial: { opacity: 0, y: 8, scale: 0.985, filter: 'blur(3px)' },
-      animate: { opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' },
-      exit: { opacity: 0, y: -8, scale: 0.985, filter: 'blur(3px)' },
-      transition: { duration: 0.24, ease: [0.25, 0.1, 0.25, 1] as const },
-    }
-
   return (
     <ImportStep
       index="01"
@@ -57,63 +37,13 @@ export function ImportFilesStep({
         onChange={handleFileChange}
         disabled={isProcessingFiles}
       />
-      <button
-        type="button"
-        className="group grid min-h-32 w-full place-items-center px-5 py-6 text-center transition-colors duration-150 hover:bg-[var(--app-surface-soft)] disabled:cursor-wait disabled:opacity-100"
-        style={{
-          ...IMPORT_INSET_STYLE,
-          color: 'var(--app-text-muted)',
-        }}
-        onClick={() => inputRef.current?.click()}
+      <ImportUploadCard
+        title="Upload CSV file"
+        hint="One file accepted."
+        processing={isProcessingFiles}
         disabled={isProcessingFiles}
-        aria-busy={isProcessingFiles}
-      >
-        <span className="relative flex min-h-[5.75rem] w-full items-center justify-center overflow-hidden">
-          <AnimatePresence initial={false} mode="wait">
-            {isProcessingFiles ? (
-              <motion.span
-                key="processing"
-                className="flex flex-col items-center"
-                {...uploadStateMotion}
-              >
-                <span
-                  className="mb-3 flex h-11 w-11 items-center justify-center"
-                  style={{ background: 'var(--app-surface-soft)', color: 'var(--app-accent)' }}
-                >
-                  <LoaderCircle size={21} strokeWidth={2.4} className="animate-spin motion-reduce:animate-none" aria-hidden />
-                </span>
-                <span className="block text-sm font-semibold" style={{ color: 'var(--app-text)' }}>
-                  Processing CSV
-                </span>
-                <span className="mt-2 flex items-center gap-1" aria-hidden>
-                  <span className="h-1.5 w-6 animate-pulse" style={{ background: 'var(--app-accent)' }} />
-                  <span className="h-1.5 w-6 animate-pulse [animation-delay:120ms]" style={{ background: 'var(--app-accent)' }} />
-                  <span className="h-1.5 w-6 animate-pulse [animation-delay:240ms]" style={{ background: 'var(--app-accent)' }} />
-                </span>
-              </motion.span>
-            ) : (
-              <motion.span
-                key="upload"
-                className="flex flex-col items-center"
-                {...uploadStateMotion}
-              >
-                <span
-                  className="mb-3 flex h-11 w-11 items-center justify-center transition-colors duration-150"
-                  style={{ background: 'var(--app-surface-soft)' }}
-                >
-                  <Upload size={20} aria-hidden />
-                </span>
-                <span className="block text-sm font-semibold" style={{ color: 'var(--app-text)' }}>
-                  Upload CSV file
-                </span>
-                <span className="mt-1 block text-xs" style={{ color: 'var(--app-text-subtle)' }}>
-                  One file accepted.
-                </span>
-              </motion.span>
-            )}
-          </AnimatePresence>
-        </span>
-      </button>
+        onClick={() => inputRef.current?.click()}
+      />
 
       {files.length === 0 ? (
         <EmptyState
@@ -121,43 +51,7 @@ export function ImportFilesStep({
           description="The uploaded file will appear here."
         />
       ) : (
-        <div className="overflow-hidden">
-          <div
-            className="grid grid-cols-[minmax(0,1fr)_4rem_2.25rem] items-center gap-3 px-3 py-2 text-xs font-semibold uppercase"
-            style={{ color: 'var(--app-text-subtle)', background: 'var(--app-input-bg)' }}
-          >
-            <span>File</span>
-            <span className="text-right">Rows</span>
-            <span aria-label="Actions" />
-          </div>
-          <div className="max-h-64 overflow-y-auto">
-            {files.map((file) => (
-              <div
-                key={file.id}
-                className="grid grid-cols-[minmax(0,1fr)_4rem_2.25rem] items-center gap-3 px-3 py-3"
-              >
-                <div className="flex min-w-0 items-center gap-3">
-                  <FileText size={17} className="shrink-0" style={{ color: 'var(--app-text-muted)' }} aria-hidden />
-                  <div className="min-w-0">
-                    <p className="truncate text-[0.9375rem] font-medium">{file.name}</p>
-                    <p className="truncate text-xs" style={{ color: file.error ? 'var(--app-negative)' : 'var(--app-text-subtle)' }}>
-                      {getFileMeta(file)}
-                    </p>
-                  </div>
-                </div>
-                <span className="text-right text-[0.9375rem] font-medium tabular-nums">{file.rows.length}</span>
-                <button
-                  type="button"
-                  className="app-icon-button"
-                  onClick={() => removeFile(file.id)}
-                  aria-label={`Remove ${file.name}`}
-                >
-                  <X size={16} aria-hidden />
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
+        <ImportStagedFileList files={files} onRemove={(file) => removeFile(file.id)} />
       )}
 
       <div className="mt-auto grid grid-cols-3 gap-3 pt-3">
@@ -167,9 +61,4 @@ export function ImportFilesStep({
       </div>
     </ImportStep>
   )
-}
-
-function getFileMeta(file: ImportFileDraft) {
-  if (file.error) return file.error
-  return `${formatBytes(file.size)} · ${file.headers.length} columns${file.hasHeaderRow ? '' : ' · no header row'}`
 }

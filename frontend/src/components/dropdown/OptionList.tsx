@@ -1,4 +1,5 @@
 import { Fragment, type RefObject, type UIEvent } from 'react'
+import { DropdownBadge } from './Badge'
 import type { DropdownOption, DropdownOptionGroup } from './types'
 
 interface DropdownOptionListProps {
@@ -54,7 +55,8 @@ function DropdownOptionRow({
           {option.icon}
         </span>
       )}
-      <span className="min-w-0 flex-1 truncate">{option.label}</span>
+      <span className="min-w-0 truncate">{option.label}</span>
+      {option.badge && <DropdownBadge label={option.badge} />}
     </li>
   )
 }

@@ -4,7 +4,7 @@ from hypothesis import given
 from hypothesis import strategies as st
 
 from app.models.currency import Currency
-from app.services.transactions.imports.amounts import parse_import_amount_to_minor_units
+from app.services.importers.generic.amounts import parse_import_amount_to_minor_units
 
 CAD = Currency(id="CAD", name="Canadian Dollar", symbol="$", minor_unit_exponent=2)
 JPY = Currency(id="JPY", name="Japanese Yen", symbol="¥", minor_unit_exponent=0)

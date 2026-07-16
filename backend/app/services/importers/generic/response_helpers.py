@@ -4,8 +4,8 @@ import uuid
 from datetime import date
 
 from app.schemas.transaction import TransactionImportRequest, TransactionImportResponse
-from app.services.transactions.imports.lookup_helpers import TransactionImportLookups
-from app.services.transactions.imports.stats import ImportStats
+from app.services.importers.generic.lookup_helpers import TransactionImportLookups
+from app.services.importers.shared.stats import ImportStats
 
 
 def build_transaction_import_response(

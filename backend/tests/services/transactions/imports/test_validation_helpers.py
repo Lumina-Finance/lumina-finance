@@ -1,7 +1,7 @@
 import pytest
 from fastapi import HTTPException
 
-from app.services.transactions.imports.validation_helpers import strip_import_text_or_raise
+from app.services.importers.shared.validation_helpers import strip_import_text_or_raise
 
 
 def test_strip_import_text_or_raise_returns_cleaned_text():

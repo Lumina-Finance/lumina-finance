@@ -1,5 +1,6 @@
 import type { KeyboardEvent, RefObject } from 'react'
 import { ChevronDown } from 'lucide-react'
+import { DropdownBadge } from './Badge'
 import type { DropdownOption } from './types'
 
 interface DropdownTriggerProps {
@@ -54,9 +55,10 @@ export function DropdownTrigger({
             {selected.icon}
           </span>
         )}
-        <span className="min-w-0 flex-1 truncate">
+        <span className="min-w-0 truncate">
           {emptySelectionIsBlank ? '' : selected?.label ?? placeholder}
         </span>
+        {hasVisibleSelection && selected?.badge && <DropdownBadge label={selected.badge} />}
       </span>
       <ChevronDown
         size={16}

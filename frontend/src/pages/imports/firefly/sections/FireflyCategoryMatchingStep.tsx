@@ -1,0 +1,70 @@
+import { CREATE_CATEGORY_VALUE } from '../../constants'
+import { EmptyState, ImportStep, ImportValueMatchTable } from '../../components'
+import type { FireflyImportWorkflow } from '../hooks'
+
+type FireflyCategoryMatchingStepProps = Pick<
+  FireflyImportWorkflow,
+  | 'importedCategories'
+  | 'resolvedCategoryMappings'
+  | 'autoFilledCategories'
+  | 'resolvedCategoryKinds'
+  | 'categoryById'
+  | 'setCategoryCreateKinds'
+  | 'setCategoryMappings'
+  | 'categoryMatchOptions'
+  | 'categoriesLoading'
+>
+
+export function FireflyCategoryMatchingStep({
+  importedCategories,
+  resolvedCategoryMappings,
+  autoFilledCategories,
+  resolvedCategoryKinds,
+  categoryById,
+  setCategoryCreateKinds,
+  setCategoryMappings,
+  categoryMatchOptions,
+  categoriesLoading,
+}: FireflyCategoryMatchingStepProps) {
+  return (
+    <ImportStep
+      index="03"
+      title="Category Matching"
+      description="Exported category names matched an existing category where possible. The rest are queued as new categories."
+    >
+      {importedCategories.length === 0 ? (
+        <EmptyState
+          title="No imported categories detected"
+          description="Upload the transactions CSV first."
+        />
+      ) : (
+        <ImportValueMatchTable
+          sourceLabel="Category From Export"
+          detailLabel="Type"
+          targetLabel="Existing Category"
+          createValue={CREATE_CATEGORY_VALUE}
+          rows={importedCategories.map((source) => {
+            const value = resolvedCategoryMappings[source] ?? ''
+            const existingMatch = Boolean(value) && value !== CREATE_CATEGORY_VALUE
+            const detailKind = existingMatch
+              ? categoryById.get(value)?.kind ?? ''
+              : resolvedCategoryKinds[source] ?? ''
+
+            return {
+              id: source,
+              source,
+              autoFilled: autoFilledCategories.has(source),
+              detailKind,
+              detailDisabled: existingMatch,
+              onDetailKindChange: (kind) => setCategoryCreateKinds((current) => ({ ...current, [source]: kind })),
+              value,
+              onChange: (nextValue) => setCategoryMappings((current) => ({ ...current, [source]: nextValue })),
+            }
+          })}
+          options={categoryMatchOptions}
+          disabled={categoriesLoading}
+        />
+      )}
+    </ImportStep>
+  )
+}

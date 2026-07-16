@@ -9,6 +9,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
+from app.schemas.firefly_import import (
+    FireflyBudgetImportRequest,
+    FireflyBudgetImportResponse,
+    FireflyTransactionImportRequest,
+    FireflyTransactionImportResponse,
+)
 from app.schemas.transaction import (
     CreateTransactionRequest,
     TransactionImportRequest,
@@ -17,10 +23,14 @@ from app.schemas.transaction import (
     TransactionsOverview,
     UpdateTransactionRequest,
 )
+from app.services.importers import (
+    import_firefly_budgets,
+    import_firefly_transactions,
+    import_transactions,
+)
 from app.services.transactions.creation import create_transaction_and_get_response
 from app.services.transactions.deletion import delete_transaction_for_user
 from app.services.transactions.detail import get_transaction_response_for_user
-from app.services.transactions.imports import import_transactions
 from app.services.transactions.listing import list_transaction_responses
 from app.services.transactions.overview import get_transactions_overview as get_transactions_overview_response
 from app.services.transactions.update import update_transaction_and_get_response
@@ -174,6 +184,60 @@ async def import_transaction_batch(
         Import summary containing created and skipped transaction counts
     """
     return await import_transactions(db, user, data)
+
+
+@router.post(
+    "/import/firefly",
+    response_model=FireflyTransactionImportResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def import_firefly_transaction_rows(
+    data: FireflyTransactionImportRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Import journal rows from a Firefly III data export
+
+    Rows between an imported account and an expense or revenue counterparty
+    become single transactions, while rows between two imported accounts
+    become transfer pairs. Rows that cannot convert are skipped and reported
+
+    Args:
+        data: Prepared Firefly III import payload from the frontend compiler
+        user: Authenticated user running the import
+        db: Active database session
+
+    Returns:
+        Import summary with converted, skipped, and created record counts
+    """
+    return await import_firefly_transactions(db, user, data)
+
+
+@router.post(
+    "/import/firefly/budgets",
+    response_model=FireflyBudgetImportResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def import_firefly_budget_rows(
+    data: FireflyBudgetImportRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Import budgets from a Firefly III data export
+
+    Each exported limit period becomes one budget period with its original
+    dates and amount, and the budget continues on the cadence of its latest
+    limit period
+
+    Args:
+        data: Budgets derived from the export by the frontend
+        user: Authenticated user running the import
+        db: Active database session
+
+    Returns:
+        Summary of the created budgets and their periods
+    """
+    return await import_firefly_budgets(db, user, data)
 
 
 @router.post("", response_model=TransactionResponse, status_code=status.HTTP_201_CREATED)
