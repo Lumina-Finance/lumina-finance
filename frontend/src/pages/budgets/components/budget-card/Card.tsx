@@ -15,12 +15,14 @@ export default function BudgetCard({
   latestPeriod,
   categoryNames,
   utilization,
+  isArchived = false,
   onOpen,
 }: {
   baseBudget: BaseBudget
   latestPeriod: Budget | undefined
   categoryNames: string[]
   utilization: BudgetUtilization | undefined
+  isArchived?: boolean
   onOpen: () => void
 }) {
   const shownCategories = categoryNames.length > 3 ? categoryNames.slice(0, 2) : categoryNames.slice(0, 3)
@@ -35,9 +37,11 @@ export default function BudgetCard({
 
   return (
     <article
-      className="app-card app-budget-card flex min-h-[21.5rem] w-full min-w-0 cursor-pointer flex-col transition-transform duration-150 hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-[var(--app-accent-soft)]"
+      className={`app-card app-budget-card flex min-h-[21.5rem] w-full min-w-0 cursor-pointer flex-col transition-transform duration-150 hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-[var(--app-accent-soft)] ${
+        isArchived ? 'opacity-80 transition-opacity hover:opacity-100' : ''
+      }`}
       style={{
-        borderTop: `5px solid ${attention.indicatorColor}`,
+        borderTop: `5px solid ${isArchived ? 'var(--app-text-muted)' : attention.indicatorColor}`,
       }}
       role="button"
       tabIndex={0}

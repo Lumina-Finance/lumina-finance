@@ -13,6 +13,7 @@ import { useCategories } from '@/api/categories'
 import { useCurrencies } from '@/api/currency'
 import { useAuth } from '@/hooks/useAuth'
 import BudgetCardsSection from '@/pages/budgets/components/budget-cards/Section'
+import BudgetArchivedSection from '@/pages/budgets/components/budget-cards/ArchivedSection'
 import BudgetCreateModal from '@/pages/budgets/components/budget-editor-modal/CreateModal'
 import BudgetDetailsModal from '@/pages/budgets/components/budget-details-modal/Modal'
 import { useBudgetCards } from '@/pages/budgets/hooks/useBudgetCards'
@@ -48,6 +49,14 @@ export default function BudgetsPage() {
     periods: budgetsQuery.data,
     categoryById,
   })
+  const activeBudgetCards = useMemo(
+    () => budgetCards.filter((card) => !card.baseBudget.is_archived),
+    [budgetCards],
+  )
+  const archivedBudgetCards = useMemo(
+    () => budgetCards.filter((card) => card.baseBudget.is_archived),
+    [budgetCards],
+  )
   const latestUtilizationByBudgetId = useMemo(
     () => new Map(
       (latestUtilizationsQuery.data ?? [])
@@ -116,13 +125,23 @@ export default function BudgetsPage() {
       </div>
 
       <BudgetCardsSection
-        budgetCards={budgetCards}
+        budgetCards={activeBudgetCards}
         latestUtilizationByBudgetId={latestUtilizationByBudgetId}
         loading={budgetsLoading}
         error={budgetsError}
         formOptionsLoading={categoriesLoading || currenciesLoading}
         onOpenBudget={openBudget}
       />
+
+      <AnimatePresence initial={false}>
+        {archivedBudgetCards.length > 0 && (
+          <BudgetArchivedSection
+            budgetCards={archivedBudgetCards}
+            latestUtilizationByBudgetId={latestUtilizationByBudgetId}
+            onOpenBudget={openBudget}
+          />
+        )}
+      </AnimatePresence>
 
       <BudgetCreateModal
         key={`${defaultCurrency}-${userTimeZone}`}
