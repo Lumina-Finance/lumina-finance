@@ -1,5 +1,5 @@
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
-import { invalidateBudgetActivity } from '@/api/cache/updates/budgets';
+import { invalidateBudgetActivity, updateCachedBaseBudget } from '@/api/cache/updates/budgets';
 import {
   createBaseBudget,
   createBudgetInstance,
@@ -119,7 +119,9 @@ export function useUpdateBaseBudget() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: updateBaseBudget,
-    onSuccess: () => {
+    onSuccess: (baseBudget) => {
+      // Reflect the saved budget right away so an archive toggle moves its card before the refetch resolves
+      updateCachedBaseBudget(queryClient, baseBudget);
       invalidateBudgetActivity(queryClient);
     },
   });

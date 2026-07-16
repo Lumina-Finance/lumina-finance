@@ -15,6 +15,9 @@ export interface BaseBudget {
   recurrence_month: number | null;
   recurs: boolean;
   created_at: string;
+
+  // True while the budget is hidden and the backend has paused generating new periods
+  is_archived: boolean;
   category_ids: string[];
 }
 
@@ -75,6 +78,7 @@ export interface UpdateBaseBudgetPayload {
     name?: string;
     recurs?: boolean;
     category_ids?: string[];
+    is_archived?: boolean;
   };
 }
 
