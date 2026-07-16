@@ -61,6 +61,10 @@ export function FireflyBudgetImportStep({
         Each budget keeps its limit periods exactly as exported, with their original dates and amounts, and continues on the cadence of its most recent period.
       </ImportInfoCard>
 
+      <ImportInfoCard title="Merged Categories">
+        If you merged categories in the category matching step, a budget tracking them counts spending across the whole merged category, so its remaining amount will read differently than it does in Firefly III. This is expected behaviour.
+      </ImportInfoCard>
+
       {skippedDrafts.length > 0 && <FireflySkippedBudgetsTable drafts={skippedDrafts} />}
 
       {budgetDrafts.length === 0 ? (
