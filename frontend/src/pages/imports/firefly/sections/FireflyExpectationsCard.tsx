@@ -35,6 +35,10 @@ const CONVERTED_MAPPINGS: ConceptMapping[] = [
     firefly: 'Budget limit periods, whatever their length',
     lumina: 'One budget period each, with the original dates and amounts, continuing on the cadence of the latest period',
   },
+  {
+    firefly: 'A budget whose latest period fits no weekly, monthly, or yearly length and does not repeat back to back',
+    lumina: 'A one-off budget holding its exact periods, with no next period suggested',
+  },
 ]
 
 /**
@@ -45,9 +49,10 @@ const DEVIATION_TEXT = 'Firefly III sets a budget on each transaction. Lumina bu
   + 'so anything you left out of a budget there still counts against it here, and the amount left can read '
   + 'lower than Firefly III shows.'
 
-const SUB_CENT_TEXT = 'Firefly III also stores amounts with up to twelve decimal places. Lumina keeps a '
-  + "currency's real precision and never rounds money on the way in, so a row with sub-cent decimals is "
-  + 'skipped and reported instead, leaving your totals short by those rows.'
+const SUB_CENT_TEXT = 'Firefly III also stores amounts with up to twelve decimal places. Lumina keeps each '
+  + "currency's own precision, two decimals for dollars and none for yen, and never rounds money on the "
+  + 'way in, so a row with more decimals than its currency has is skipped and reported, leaving your '
+  + 'totals short by those rows.'
 
 /**
  * Everything the import leaves behind, listed without saying which might arrive
