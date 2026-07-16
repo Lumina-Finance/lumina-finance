@@ -3,6 +3,7 @@
 import uuid
 from datetime import date
 
+from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.base import PermissionLevel
@@ -42,6 +43,16 @@ async def update_base_budget_and_get_response(
     if not changed_fields:
         response = await get_base_budget_response(db, base_budget)
         return response
+
+    # Evaluate the stored archived state before applying the patch so an unarchive request is not self-permitting
+    fields_other_than_archived_flag = set(changed_fields) - {"is_archived"}
+
+    # While archived a base budget only accepts clearing its archived flag so historical periods stay frozen
+    if base_budget.is_archived and fields_other_than_archived_flag:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cannot edit an archived base budget",
+        )
 
     # Handle tracked categories separately from simple field updates
     new_category_ids = changed_fields.pop("category_ids", None)

@@ -800,3 +800,108 @@ async def test_unarchive_multi_unit_base_budget_resumes_phase_aligned_period(cli
     assert resumed.period_start.day == newest_period_start.day
     assert resumed.period_start <= date(2026, 12, 15) <= resumed.period_end
 
+
+# --- PATCH /base-budgets/{base_budget_id} — archived edit guard ---
+
+
+async def test_update_archived_base_budget_name_returns_409(client):
+    """Renaming an archived base budget is rejected so historical periods stay frozen."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    create_resp = await _create_base_budget(client, headers)
+    base_budget_id = create_resp.json()["id"]
+
+    await client.patch(
+        f"/base-budgets/{base_budget_id}", json={"is_archived": True}, headers=headers,
+    )
+    resp = await client.patch(
+        f"/base-budgets/{base_budget_id}",
+        json={"name": "Renamed"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "Cannot edit an archived base budget"
+
+
+async def test_update_archived_base_budget_category_ids_returns_409(client):
+    """Changing tracked categories on an archived base budget is rejected the same as any other field."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    cat_id = await _create_category(client, headers)
+    create_resp = await _create_base_budget(client, headers, category_ids=[cat_id])
+    base_budget_id = create_resp.json()["id"]
+    other_cat_id = await _create_category(client, headers, name="Test Takeout")
+
+    await client.patch(
+        f"/base-budgets/{base_budget_id}", json={"is_archived": True}, headers=headers,
+    )
+    resp = await client.patch(
+        f"/base-budgets/{base_budget_id}",
+        json={"category_ids": [other_cat_id]},
+        headers=headers,
+    )
+
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "Cannot edit an archived base budget"
+
+
+async def test_update_archived_base_budget_combined_unarchive_and_edit_returns_409(client):
+    """Combining is_archived False with another field in the same patch is rejected.
+
+    The guard reads the stored archived state before the patch applies, so bundling an edit
+    with the unarchive flag cannot use the unarchive to bypass the block
+    """
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    create_resp = await _create_base_budget(client, headers)
+    base_budget_id = create_resp.json()["id"]
+
+    await client.patch(
+        f"/base-budgets/{base_budget_id}", json={"is_archived": True}, headers=headers,
+    )
+    resp = await client.patch(
+        f"/base-budgets/{base_budget_id}",
+        json={"is_archived": False, "name": "Renamed"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "Cannot edit an archived base budget"
+
+
+async def test_update_archived_base_budget_unarchive_only_returns_200(client):
+    """An unarchive-only patch is not blocked by the archived-edit guard."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    create_resp = await _create_base_budget(client, headers)
+    base_budget_id = create_resp.json()["id"]
+
+    await client.patch(
+        f"/base-budgets/{base_budget_id}", json={"is_archived": True}, headers=headers,
+    )
+    resp = await client.patch(
+        f"/base-budgets/{base_budget_id}",
+        json={"is_archived": False},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["is_archived"] is False
+
+
+async def test_update_non_archived_base_budget_name_returns_200(client):
+    """The archived-edit guard does not fire when the base budget is not archived."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    create_resp = await _create_base_budget(client, headers)
+    base_budget_id = create_resp.json()["id"]
+
+    resp = await client.patch(
+        f"/base-budgets/{base_budget_id}",
+        json={"name": "Renamed"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["name"] == "Renamed"
