@@ -38,12 +38,16 @@ const CONVERTED_MAPPINGS: ConceptMapping[] = [
 ]
 
 /**
- * The one difference whose figures will not tie back to Firefly III, which is
+ * The differences whose figures will not tie back to Firefly III, which are
  * worth finding before the numbers are compared rather than after
  */
 const DEVIATION_TEXT = 'Firefly III sets a budget on each transaction. Lumina budgets track whole categories, '
   + 'so anything you left out of a budget there still counts against it here, and the amount left can read '
   + 'lower than Firefly III shows.'
+
+const SUB_CENT_TEXT = 'Firefly III also stores amounts with up to twelve decimal places. Lumina keeps a '
+  + "currency's real precision and never rounds money on the way in, so a row with sub-cent decimals is "
+  + 'skipped and reported instead, leaving your totals short by those rows.'
 
 /**
  * Everything the import leaves behind, listed without saying which might arrive
@@ -101,6 +105,9 @@ export function FireflyExpectationsCard() {
           >
             <p className="text-sm leading-5" style={{ color: 'var(--app-text)' }}>
               {DEVIATION_TEXT}
+            </p>
+            <p className="mt-1.5 text-sm leading-5" style={{ color: 'var(--app-text)' }}>
+              {SUB_CENT_TEXT}
             </p>
           </ConceptGroup>
 
