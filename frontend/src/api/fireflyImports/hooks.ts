@@ -11,7 +11,11 @@ export function useImportFireflyTransactions() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: importFireflyTransactionsInBatches,
-    onSuccess: () => {
+
+    // Settled rather than success because a failure part way through the
+    // batches leaves the earlier batches committed, and those rows must not
+    // keep being served from stale caches
+    onSettled: () => {
       invalidateAppData(queryClient);
     },
   });
