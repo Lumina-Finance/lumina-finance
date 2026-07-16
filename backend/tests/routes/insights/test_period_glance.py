@@ -1,6 +1,6 @@
 """Route tests for insights period-glance endpoint."""
 
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from uuid import UUID, uuid4
 
@@ -749,16 +749,23 @@ async def test_period_glance_returns_net_worth_change_without_period_transaction
     headers = _get_auth_header(signup_resp)
     account_id = UUID((await _create_account(client, headers, name="Investment")).json()["id"])
 
+    # Account creation writes a zero-balance snapshot dated today, so the quiet month is
+    # anchored two calendar months back to keep the seeded baseline snapshot as the latest
+    # balance before the period on any run date
+    previous_month_end = date.today().replace(day=1) - timedelta(days=1)
+    quiet_month_end = previous_month_end.replace(day=1) - timedelta(days=1)
+    quiet_month_start = quiet_month_end.replace(day=1)
+
     async with TestSession() as session:
         session.add_all([
-            _snapshot(account_id, date(2026, 7, 15), 1_000_000),
-            _snapshot(account_id, date(2026, 8, 20), 1_125_000),
+            _snapshot(account_id, quiet_month_start - timedelta(days=16), 1_000_000),
+            _snapshot(account_id, quiet_month_start + timedelta(days=19), 1_125_000),
         ])
         await session.commit()
 
     resp = await client.get(
         "/insights/period-glance",
-        params={"from_date": "2026-08-01", "to_date": "2026-08-31"},
+        params={"from_date": quiet_month_start.isoformat(), "to_date": quiet_month_end.isoformat()},
         headers=headers,
     )
 
