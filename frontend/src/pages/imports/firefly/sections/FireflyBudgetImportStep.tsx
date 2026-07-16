@@ -61,6 +61,8 @@ export function FireflyBudgetImportStep({
         Each budget keeps its limit periods exactly as exported, with their original dates and amounts, and continues on the cadence of its most recent period.
       </ImportInfoCard>
 
+      {skippedDrafts.length > 0 && <FireflySkippedBudgetsTable drafts={skippedDrafts} />}
+
       {budgetDrafts.length === 0 ? (
         <EmptyState
           title="No budgets detected"
@@ -145,8 +147,6 @@ export function FireflyBudgetImportStep({
           </table>
         </div>
       )}
-
-      {skippedDrafts.length > 0 && <FireflySkippedBudgetsTable drafts={skippedDrafts} />}
 
       {retryable && (
         <div className="flex flex-col items-end gap-3 pt-2">
