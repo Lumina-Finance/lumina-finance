@@ -5,6 +5,7 @@ import type { FireflyImportWorkflow } from '../hooks'
 type FireflyBudgetImportStepProps = Pick<
   FireflyImportWorkflow,
   | 'importResult'
+  | 'transactionsFile'
   | 'budgetsFile'
   | 'budgetDrafts'
   | 'selectedBudgetNames'
@@ -26,6 +27,7 @@ type FireflyBudgetImportStepProps = Pick<
  */
 export function FireflyBudgetImportStep({
   importResult,
+  transactionsFile,
   budgetsFile,
   budgetDrafts,
   selectedBudgetNames,
@@ -61,9 +63,17 @@ export function FireflyBudgetImportStep({
         Each budget keeps its limit periods exactly as exported, with their original dates and amounts, and continues on the cadence of its most recent period.
       </ImportInfoCard>
 
-      {skippedDrafts.length > 0 && <FireflySkippedBudgetsTable drafts={skippedDrafts} />}
+      {/* Without the transactions file every budget would read as skipped
+          for missing transactions, when the real fix is uploading the file
+          the categories are inferred from */}
+      {transactionsFile && skippedDrafts.length > 0 && <FireflySkippedBudgetsTable drafts={skippedDrafts} />}
 
-      {budgetDrafts.length === 0 ? (
+      {!transactionsFile ? (
+        <EmptyState
+          title="Transactions file needed"
+          description="If you are a new user, we also need your transactions file in order to parse your budget import properly."
+        />
+      ) : budgetDrafts.length === 0 ? (
         <EmptyState
           title="No budgets detected"
           description="The budgets CSV has no budget limit rows."
