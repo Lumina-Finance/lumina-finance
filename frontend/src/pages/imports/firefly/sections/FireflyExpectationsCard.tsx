@@ -112,8 +112,8 @@ export function FireflyExpectationsCard() {
             </p>
           </ConceptGroup>
 
-          <ConceptGroup title="Changes shape" railColour="var(--app-accent)">
-            <ul className="flex flex-col gap-1.5 text-sm leading-5" style={{ color: 'var(--app-text)' }}>
+          <CollapsedConceptGroup title="Changes shape" toggleLabel="changes shape" railColour="var(--app-accent)">
+            <ul className="mt-1.5 flex flex-col gap-1.5 text-sm leading-5" style={{ color: 'var(--app-text)' }}>
               {CONVERTED_MAPPINGS.map((mapping) => (
                 <li key={mapping.firefly}>
                   {mapping.firefly}
@@ -128,7 +128,7 @@ export function FireflyExpectationsCard() {
                 </li>
               ))}
             </ul>
-          </ConceptGroup>
+          </CollapsedConceptGroup>
 
           <ConceptGroup title="Left behind" railColour="var(--app-text-subtle)">
             <ul
@@ -141,7 +141,16 @@ export function FireflyExpectationsCard() {
             </ul>
           </ConceptGroup>
 
-          <EdgeCasesGroup items={EDGE_CASES} />
+          <CollapsedConceptGroup title="Edge cases" toggleLabel="edge cases" railColour="var(--app-text-subtle)">
+            <ul
+              className="mt-1.5 flex list-disc flex-col gap-1 pl-4 text-sm leading-5"
+              style={{ color: 'var(--app-text-subtle)' }}
+            >
+              {EDGE_CASES.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </CollapsedConceptGroup>
         </div>
       </div>
     </div>
@@ -149,28 +158,41 @@ export function FireflyExpectationsCard() {
 }
 
 /**
- * Collapsed fine print for the rare shapes an export can carry
+ * Renders one group of differences behind a coloured rail, collapsed to its
+ * title until asked for
  *
- * The rail matches the concept groups so the toggle reads as one of them,
- * but the content stays hidden until asked for
+ * The rail and title match the always-open groups so the toggle reads as one
+ * of them, which keeps the card scannable while everything stays reachable
  */
-function EdgeCasesGroup({ items }: { items: string[] }) {
+function CollapsedConceptGroup({
+  title,
+  toggleLabel,
+  railColour,
+  children,
+}: {
+  title: string
+
+  /** Names what expands and collapses for the toggle's accessible label */
+  toggleLabel: string
+  railColour: string
+  children: React.ReactNode
+}) {
   const [expanded, setExpanded] = useState(false)
 
   return (
-    <div className="mt-3 border-l-2 pl-3" style={{ borderColor: 'var(--app-text-subtle)' }}>
+    <div className="mt-3 border-l-2 pl-3" style={{ borderColor: railColour }}>
       <button
         type="button"
         className="flex w-full cursor-pointer items-center justify-between gap-2 text-left"
         onClick={() => setExpanded((current) => !current)}
         aria-expanded={expanded}
-        aria-label={expanded ? 'Collapse edge cases' : 'Expand edge cases'}
+        aria-label={expanded ? `Collapse ${toggleLabel}` : `Expand ${toggleLabel}`}
       >
         <span
           className="text-xs font-semibold uppercase tracking-wide"
           style={{ color: 'var(--app-accent)' }}
         >
-          Edge cases
+          {title}
         </span>
         <ChevronDown
           size={15}
@@ -179,16 +201,7 @@ function EdgeCasesGroup({ items }: { items: string[] }) {
           aria-hidden
         />
       </button>
-      {expanded && (
-        <ul
-          className="mt-1.5 flex list-disc flex-col gap-1 pl-4 text-sm leading-5"
-          style={{ color: 'var(--app-text-subtle)' }}
-        >
-          {items.map((item) => (
-            <li key={item}>{item}</li>
-          ))}
-        </ul>
-      )}
+      {expanded && children}
     </div>
   )
 }
