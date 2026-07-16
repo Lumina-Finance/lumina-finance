@@ -1,8 +1,12 @@
 import type { FireflySkippedRow } from '@/api/fireflyImports'
 import type { CsvRow } from '../../types'
-import { FIREFLY_MISSING_REQUIRED_VALUES_REASON } from '../constants'
-import { getFireflyMissingRequiredFields } from './derivation'
+import { FIREFLY_MISSING_REQUIRED_VALUES_REASON, FIREFLY_TAG_TOO_LONG_REASON } from '../constants'
+import { getFireflyMissingRequiredFields, getFireflyOverlongTag } from './derivation'
 import { resolveFireflyRowLegs, type FireflyRowResolutionOptions } from './rowResolution'
+
+// How much of an overlong tag the skip reason shows, mirroring the backend's
+// own truncation of tag names in error details
+const OVERLONG_TAG_PREVIEW_LENGTH = 28
 
 // Line numbers count the header line of the uploaded file, so the first
 // parsed data row sits on line 2
@@ -59,6 +63,19 @@ export function forecastFireflyImport(
         row,
         index,
         `${FIREFLY_MISSING_REQUIRED_VALUES_REASON}: ${missingFields.join(', ')}`,
+        { droppedBeforeUpload: true },
+      ))
+      continue
+    }
+
+    // A tag past Lumina's length cap would fail the whole upload batch on
+    // the backend, so the row is dropped before upload with the tag named
+    const overlongTag = getFireflyOverlongTag(row)
+    if (overlongTag !== null) {
+      skippedRows.push(buildFireflySkippedRowDetail(
+        row,
+        index,
+        `${FIREFLY_TAG_TOO_LONG_REASON}: ${overlongTag.slice(0, OVERLONG_TAG_PREVIEW_LENGTH)}`,
         { droppedBeforeUpload: true },
       ))
       continue

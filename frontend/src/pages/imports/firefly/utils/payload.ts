@@ -11,7 +11,7 @@ import {
 } from '../../constants'
 import type { CsvRow, ImportCategoryKind, ImportFileDraft } from '../../types'
 import type { FireflyImportBuildResult } from '../types'
-import { getFireflyRowDate, isFireflyRowImportable, splitFireflyTags } from './derivation'
+import { getFireflyRowDate, isFireflyRowUploadable, splitFireflyTags } from './derivation'
 
 /**
  * Create-new selections for one tracked account name after prefills are applied
@@ -135,7 +135,7 @@ function buildFireflyImportRows(rows: CsvRow[]): FireflyTransactionImportPayload
   const payloadRows: FireflyTransactionImportPayload['rows'] = []
 
   for (const row of rows) {
-    if (!isFireflyRowImportable(row)) continue
+    if (!isFireflyRowUploadable(row)) continue
 
     payloadRows.push({
       journal_id: row.journal_id.trim(),

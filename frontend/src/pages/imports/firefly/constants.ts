@@ -41,6 +41,17 @@ export const FIREFLY_BUDGETS_REQUIRED_HEADERS = [
 export const FIREFLY_BUDGET_ACTIVE_VALUE = '1'
 
 /**
+ * Longest tag name a Lumina tag can hold, mirroring the backend cap
+ *
+ * Firefly III allows longer tags, and a row carrying one would fail the
+ * whole upload batch on the backend, so such rows are dropped before upload
+ * with the tag named instead
+ */
+export const FIREFLY_TAG_NAME_MAX_LENGTH = 64
+
+export const FIREFLY_TAG_TOO_LONG_REASON = 'Tag name is too long'
+
+/**
  * Why an archived budget is listed but never imported
  *
  * Lumina Finance has no archived budgets, so importing one would raise a budget

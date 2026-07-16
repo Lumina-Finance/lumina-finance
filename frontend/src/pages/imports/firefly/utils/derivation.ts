@@ -7,6 +7,7 @@ import {
   FIREFLY_FALLBACK_ACCOUNT_TYPE,
   FIREFLY_LIABILITY_ACCOUNT_TYPES,
   FIREFLY_MISCELLANEOUS_CATEGORY_NAME,
+  FIREFLY_TAG_NAME_MAX_LENGTH,
   FIREFLY_TYPE_DEPOSIT,
   FIREFLY_TYPE_TRANSFER,
   FIREFLY_TYPE_WITHDRAWAL,
@@ -39,6 +40,24 @@ export function getFireflyMissingRequiredFields(row: CsvRow) {
   if (!row.amount?.trim()) missingFields.push('amount')
   if ((row.currency_code?.trim().length ?? 0) !== 3) missingFields.push('currency')
   return missingFields
+}
+
+/**
+ * Returns the first tag on a row that is too long for a Lumina tag, or null
+ */
+export function getFireflyOverlongTag(row: CsvRow): string | null {
+  return splitFireflyTags(row.tags ?? '').find((tag) => tag.length > FIREFLY_TAG_NAME_MAX_LENGTH) ?? null
+}
+
+/**
+ * Whether a row survives the payload build and reaches the backend
+ *
+ * Anything deriving import sources, such as the budget category inference,
+ * must gate on this, because a row dropped before upload can never register
+ * an account or category source in the commit response
+ */
+export function isFireflyRowUploadable(row: CsvRow): boolean {
+  return isFireflyRowImportable(row) && getFireflyOverlongTag(row) === null
 }
 
 /**

@@ -125,6 +125,17 @@ describe('forecastFireflyImport', () => {
     expect(skipped.map((row) => row.reason)).toEqual([FIREFLY_GENERIC_SKIP_REASON])
   })
 
+  // Firefly III allows longer tags than a Lumina tag can hold, and one such
+  // tag would fail the whole upload batch on the backend
+  it('drops a row carrying a tag past the length cap before upload', () => {
+    const row = createFireflyRow({ tags: `travel,${'x'.repeat(65)}` })
+    const { skippedRows: skipped } = forecastFireflyImport([row], createOptions())
+
+    expect(skipped).toHaveLength(1)
+    expect(skipped[0].reason).toBe(`Tag name is too long: ${'x'.repeat(28)}`)
+    expect(skipped[0].droppedBeforeUpload).toBe(true)
+  })
+
   it('reports an unsupported journal type with the raw type text', () => {
     const row = createFireflyRow({ type: ' Liability credit ' })
     const { skippedRows: skipped } = forecastFireflyImport([row], createOptions())
