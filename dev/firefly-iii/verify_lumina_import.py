@@ -3,9 +3,11 @@
 Compares three views of the same data after the export files are imported
 into Lumina Finance through the app:
 
-- Firefly III account balances from its API against the manifest
+- Firefly III account balances, budget limit periods, archived flags,
+  categories, and tags from its API against the manifest
 - Lumina account balances and transaction rows against the manifest
-- Lumina imported budgets against the manifest budget parameters
+- Lumina imported budgets against the manifest cadence and limit periods,
+  including that every budget the manifest marks as skipped stayed out
 
 Lumina reads use the app API for balances and budgets plus direct SQL for
 row-count aggregates. Run with the backend virtual environment so asyncpg is
@@ -23,7 +25,6 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import date, timedelta
 from decimal import Decimal
 from pathlib import Path
 
@@ -46,8 +47,9 @@ LUMINA_URL = os.environ.get("LUMINA_URL", "http://localhost:56507")
 LUMINA_EMAIL = os.environ.get("LUMINA_EMAIL", "firefly-e2e@example.com")
 LUMINA_PASSWORD = os.environ.get("LUMINA_PASSWORD", "FireflyImport2026!")
 
-# The manifest stores balances in major units while Lumina stores minor units
-CAD_EXPONENT = 2
+# The manifest stores amounts in major units while Lumina stores minor units,
+# and both seeded currencies carry two minor unit digits
+MINOR_UNIT_EXPONENT = 2
 
 failures: list[str] = []
 
@@ -69,10 +71,10 @@ def check(label: str, expected, actual, summary: str | None = None) -> None:
         print(f"  FAIL {label}: expected {expected}, got {actual}")
 
 
-def describe_limits(limits: dict[str, object]) -> str:
-    """Summarise a limit schedule as its period count and the distinct amounts"""
-    amounts = sorted({str(amount) for amount in limits.values()}, key=Decimal)
-    return f"{len(limits)} periods, amounts {', '.join(amounts)}"
+def describe_limits(limits: dict) -> str:
+    """Summarise a limit schedule as its period count and distinct amounts"""
+    amounts = sorted({str(amount) for amount in limits.values()})
+    return f"{len(limits)} periods, {len(amounts)} distinct amounts"
 
 
 def http_json(url: str, method: str = "GET", payload: dict | None = None,
@@ -209,45 +211,8 @@ async def fetch_lumina_row_aggregates(account_ids: dict[str, str]) -> dict[str, 
     return {name: by_account_id.get(account_id, (0, 0)) for name, account_id in account_ids.items()}
 
 
-def month_start(day: date) -> date:
-    return day.replace(day=1)
-
-
-def months_between_inclusive(start: date, end: date) -> int:
-    """Return the number of month periods from start through end's month"""
-    return (end.year - start.year) * 12 + (end.month - start.month) + 1
-
-
 def to_minor_units(amount: str) -> int:
-    return int((Decimal(amount) * (10 ** CAD_EXPONENT)).to_integral_value())
-
-
-def expected_instance_limits(limits: list[dict], start: date, today: date) -> dict[str, int]:
-    """Expand Firefly III's limit rows into the amount Lumina holds for each month
-
-    Firefly III only stores a limit for the periods a budget was given one,
-    while Lumina materialises an instance for every month from the backdated
-    start through today. A month past the last limit therefore keeps the amount
-    last in force, which is what a budget the user stopped setting limits for
-    looks like once imported, and a month before the first limit takes the
-    earliest amount
-
-    Args:
-        limits: Limit rows from the manifest, ascending by start
-        start: Month the budget is backdated to
-        today: Day the import ran, which is the last month materialised
-
-    Returns:
-        Period start in ISO form mapped to the limit in minor units
-    """
-    schedule = [(date.fromisoformat(limit["start"]), limit["amount"]) for limit in limits]
-    expanded = {}
-    month = start
-    while month <= today:
-        in_force = [amount for effective_from, amount in schedule if effective_from <= month]
-        expanded[month.isoformat()] = to_minor_units(in_force[-1] if in_force else schedule[0][1])
-        month = month_start(month + timedelta(days=32))
-    return expanded
+    return int((Decimal(amount) * (10 ** MINOR_UNIT_EXPONENT)).to_integral_value())
 
 
 def verify_firefly_balances(manifest: dict, token: str) -> None:
@@ -262,27 +227,33 @@ def verify_firefly_budgets(manifest: dict, token: str) -> None:
     """Compare the budgets Firefly III holds and every limit period with the manifest
 
     Balances alone cannot show a budget limit posted with the wrong amount or a
-    period the seed never wrote, because a limit moves no money
+    period the seed never wrote, because a limit moves no money. The archived
+    flag is checked too, since the import flow decides what to skip off it
     """
     print("Firefly III budgets vs manifest")
-    budget_ids = {
-        budget["attributes"]["name"]: budget["id"]
+    budgets = {
+        budget["attributes"]["name"]: budget
         for budget in fetch_firefly_collection("budgets", token)
     }
-    check("firefly budget names", sorted(manifest["budgets"]), sorted(budget_ids))
+    check("firefly budget names", sorted(manifest["budgets"]), sorted(budgets))
 
     for name, expected in manifest["budgets"].items():
-        budget_id = budget_ids.get(name)
-        if budget_id is None:
+        budget = budgets.get(name)
+        if budget is None:
             continue
+        check(f"firefly budget active {name}", expected["active"], budget["attributes"]["active"])
 
         limits = fetch_firefly_collection(
-            f"budgets/{budget_id}/limits?start={FIREFLY_QUERY_START}&end={FIREFLY_QUERY_END}",
+            f"budgets/{budget['id']}/limits?start={FIREFLY_QUERY_START}&end={FIREFLY_QUERY_END}",
             token,
         )
-        expected_limits = {limit["start"]: Decimal(limit["amount"]) for limit in expected["limits"]}
+        expected_limits = {
+            (limit["start"], limit["end"]): (Decimal(limit["amount"]), limit["currency"])
+            for limit in expected["limits"]
+        }
         actual_limits = {
-            limit["attributes"]["start"][:10]: Decimal(limit["attributes"]["amount"])
+            (limit["attributes"]["start"][:10], limit["attributes"]["end"][:10]):
+                (Decimal(limit["attributes"]["amount"]), limit["attributes"]["currency_code"])
             for limit in limits
         }
         check(f"firefly budget limits {name}", expected_limits, actual_limits,
@@ -342,8 +313,13 @@ async def verify_lumina_rows(manifest: dict, account_ids: dict[str, str]) -> Non
         check(f"lumina amount sum {name}", to_minor_units(expected["expected_balance"]), amount_sum)
 
 
-def verify_lumina_budgets(manifest: dict, token: str, today: date) -> None:
-    """Compare imported budgets and their instances with the manifest"""
+def verify_lumina_budgets(manifest: dict, token: str) -> None:
+    """Compare imported budgets and their periods with the manifest
+
+    Budgets the manifest marks as skipped must be absent, and every imported
+    budget must carry the expected cadence and one period per exported limit
+    with the same dates and amount
+    """
     print("Lumina budgets vs manifest")
     base_budgets = {budget["name"]: budget for budget in fetch_lumina("/base-budgets", token)}
     instances = fetch_lumina("/budgets", token)
@@ -351,42 +327,48 @@ def verify_lumina_budgets(manifest: dict, token: str, today: date) -> None:
 
     for name, expected in manifest["budgets"].items():
         base = base_budgets.get(name)
+
+        if expected["import"]["outcome"] == "skipped":
+            check(f"budget skipped {name}", "absent", "absent" if base is None else "imported")
+            continue
+
         if base is None:
             failures.append(f"budget {name}")
             print(f"  FAIL budget {name}: not found")
             continue
 
-        check(f"budget currency {name}", expected["currency"], base["currency"])
-        check(f"budget cadence {name}", "monthly", base["recurrence_freq"])
+        check(f"budget currency {name}", expected["currencies"][0], base["currency"])
+
+        # The cadence is read off the latest limit period on import, so every
+        # recurrence field has to match what the seed declared for the shape
+        expected_cadence = expected["import"]["cadence"]
+        actual_cadence = {field: base[field] for field in expected_cadence}
+        check(f"budget cadence {name}", expected_cadence, actual_cadence,
+              summary=f"{actual_cadence['recurrence_freq']} x{actual_cadence['instance_length']}, "
+                      f"recurs {actual_cadence['recurs']}")
+
         tracked_names = sorted(categories.get(category_id, "?") for category_id in base["category_ids"])
         check(f"budget categories {name}", expected["categories"], tracked_names)
 
-        expected_start = month_start(date.fromisoformat(expected["first_transaction_date"]))
+        # Each exported limit period must arrive as exactly one instance with
+        # the same dates and amount, with no gap filling and no extension
+        expected_periods = {
+            (limit["start"], limit["end"]): to_minor_units(limit["amount"])
+            for limit in expected["limits"]
+        }
         own_instances = [
             instance for instance in instances if instance["base_budget_id"] == base["id"]
         ]
-        first_start = min(date.fromisoformat(instance["period_start"]) for instance in own_instances)
-        check(f"budget backdate {name}", expected_start, first_start)
-        check(
-            f"budget instance count {name}",
-            months_between_inclusive(expected_start, today),
-            len(own_instances),
-        )
-
-        # Firefly III stores an amount per limit period, so every imported
-        # period is checked against the amount that was in force at the time
-        # rather than against one figure for the whole history
-        expected_limits = expected_instance_limits(expected["limits"], expected_start, today)
-        actual_limits = {
-            instance["period_start"]: instance["overall_limit"] for instance in own_instances
+        actual_periods = {
+            (instance["period_start"], instance["period_end"]): instance["overall_limit"]
+            for instance in own_instances
         }
-        check(f"budget limits {name}", expected_limits, actual_limits,
-              summary=describe_limits(expected_limits))
+        check(f"budget periods {name}", expected_periods, actual_periods,
+              summary=describe_limits(expected_periods))
 
 
 def main() -> None:
     manifest = json.loads(MANIFEST_PATH.read_text())
-    today = date.today()
 
     firefly_token = mint_firefly_token()
     verify_firefly_balances(manifest, firefly_token)
@@ -396,7 +378,7 @@ def main() -> None:
     lumina_token = login_lumina()
     account_ids = verify_lumina_accounts(manifest, lumina_token)
     asyncio.run(verify_lumina_rows(manifest, account_ids))
-    verify_lumina_budgets(manifest, lumina_token, today)
+    verify_lumina_budgets(manifest, lumina_token)
 
     if failures:
         sys.exit(f"\n{len(failures)} checks failed: {failures}")
