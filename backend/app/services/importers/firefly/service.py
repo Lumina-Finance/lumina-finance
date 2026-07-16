@@ -19,23 +19,23 @@ from app.schemas.firefly_import import (
 )
 from app.services.accounts.snapshots import recompute_snapshots_from
 from app.services.cache_state import mark_cache_changed_for_scope, mark_user_cache_changed
-from app.services.transactions.imports.firefly.constants import FIREFLY_GENERIC_SKIP_REASON
-from app.services.transactions.imports.firefly.row_resolution import (
+from app.services.importers.firefly.constants import FIREFLY_GENERIC_SKIP_REASON
+from app.services.importers.firefly.row_resolution import (
     FireflyLeg,
     FireflyResolutionContext,
     FireflyRowSkipError,
     resolve_firefly_row,
 )
-from app.services.transactions.imports.firefly.system_categories import get_firefly_system_categories
-from app.services.transactions.imports.shared.accounts import get_or_create_import_accounts_by_source
-from app.services.transactions.imports.shared.categories import get_or_create_import_categories_by_source
-from app.services.transactions.imports.shared.currencies import get_import_currencies_by_code
-from app.services.transactions.imports.shared.merchants import (
+from app.services.importers.firefly.system_categories import get_firefly_system_categories
+from app.services.importers.shared.accounts import get_or_create_import_accounts_by_source
+from app.services.importers.shared.categories import get_or_create_import_categories_by_source
+from app.services.importers.shared.currencies import get_import_currencies_by_code
+from app.services.importers.shared.merchants import (
     get_or_create_import_merchant,
     get_personal_import_merchants_by_name,
 )
-from app.services.transactions.imports.shared.stats import ImportStats
-from app.services.transactions.imports.shared.tags import (
+from app.services.importers.shared.stats import ImportStats
+from app.services.importers.shared.tags import (
     get_or_create_import_tags,
     get_personal_import_tags_by_name,
 )

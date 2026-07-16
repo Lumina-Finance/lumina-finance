@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.tag import Tag
-from app.services.transactions.imports.shared.stats import ImportStats
+from app.services.importers.shared.stats import ImportStats
 
 
 async def get_personal_import_tags_by_name(db: AsyncSession, user_id: uuid.UUID) -> dict[str, Tag]:

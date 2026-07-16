@@ -11,12 +11,12 @@ from app.models.merchant import Merchant
 from app.models.tag import Tag
 from app.models.user import User
 from app.schemas.transaction import TransactionImportRequest
-from app.services.transactions.imports.shared.accounts import get_or_create_import_accounts_by_source
-from app.services.transactions.imports.shared.categories import get_or_create_import_categories_by_source
-from app.services.transactions.imports.shared.currencies import get_import_currencies_by_code
-from app.services.transactions.imports.shared.merchants import get_personal_import_merchants_by_name
-from app.services.transactions.imports.shared.stats import ImportStats
-from app.services.transactions.imports.shared.tags import get_personal_import_tags_by_name
+from app.services.importers.shared.accounts import get_or_create_import_accounts_by_source
+from app.services.importers.shared.categories import get_or_create_import_categories_by_source
+from app.services.importers.shared.currencies import get_import_currencies_by_code
+from app.services.importers.shared.merchants import get_personal_import_merchants_by_name
+from app.services.importers.shared.stats import ImportStats
+from app.services.importers.shared.tags import get_personal_import_tags_by_name
 
 
 @dataclass

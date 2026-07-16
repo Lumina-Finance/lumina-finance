@@ -9,9 +9,9 @@ from app.models.base import PermissionLevel
 from app.models.user import User
 from app.permissions import check_account_access
 from app.schemas.transaction import TransactionImportAccountMapping
-from app.services.transactions.imports.shared.account_creation_helpers import create_import_account
-from app.services.transactions.imports.shared.stats import ImportStats
-from app.services.transactions.imports.shared.validation_helpers import strip_import_text_or_raise
+from app.services.importers.shared.account_creation_helpers import create_import_account
+from app.services.importers.shared.stats import ImportStats
+from app.services.importers.shared.validation_helpers import strip_import_text_or_raise
 
 
 async def get_or_create_import_accounts_by_source(

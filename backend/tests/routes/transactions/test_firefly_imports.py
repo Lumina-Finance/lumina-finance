@@ -323,7 +323,7 @@ async def test_firefly_import_reports_unexpected_row_failures_generically(client
     def _boom(row, context):
         raise RuntimeError("unexpected resolution failure")
 
-    monkeypatch.setattr("app.services.transactions.imports.firefly.service.resolve_firefly_row", _boom)
+    monkeypatch.setattr("app.services.importers.firefly.service.resolve_firefly_row", _boom)
 
     resp = await client.post("/transactions/import/firefly", json={
         "accounts": [_chequing_mapping()],

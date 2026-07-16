@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.category import Category
-from app.services.transactions.imports.firefly.constants import (
+from app.services.importers.firefly.constants import (
     SYSTEM_BALANCE_ADJUSTMENT_CATEGORY_NAME,
     SYSTEM_TRANSFER_CATEGORY_NAME,
 )

@@ -5,7 +5,7 @@ from fastapi import HTTPException, status
 
 from app.models.account import Account
 from app.models.category import Category
-from app.services.transactions.imports.shared.validation_helpers import strip_import_text_or_raise
+from app.services.importers.shared.validation_helpers import strip_import_text_or_raise
 
 
 def get_import_row_account(accounts_by_source: dict[str, Account], raw_account_source: str) -> Account:

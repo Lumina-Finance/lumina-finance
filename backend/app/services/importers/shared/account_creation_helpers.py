@@ -13,7 +13,7 @@ from app.models.currency import Currency
 from app.models.institution import Institution
 from app.models.user import User
 from app.schemas.transaction import TransactionImportCreateAccount
-from app.services.transactions.imports.shared.validation_helpers import strip_import_text_or_raise
+from app.services.importers.shared.validation_helpers import strip_import_text_or_raise
 
 
 async def create_import_account(
