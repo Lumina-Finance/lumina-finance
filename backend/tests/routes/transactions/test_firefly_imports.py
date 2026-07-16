@@ -3,7 +3,7 @@
 from tests.routes.support import _create_user, _get_auth_header
 from tests.routes.transactions._helpers import _seed_usd_currency
 
-# --- POST /data-imports/firefly/transactions ---
+# --- POST /transactions/import/firefly ---
 
 
 def _firefly_row(**overrides):
@@ -65,7 +65,7 @@ async def test_firefly_import_creates_expense_and_income_rows(client):
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    resp = await client.post("/data-imports/firefly/transactions", json={
+    resp = await client.post("/transactions/import/firefly", json={
         "accounts": [_chequing_mapping()],
         "categories": [
             {"source": "Groceries", "create": {"name": "Groceries", "kind": "expense"}},
@@ -112,7 +112,7 @@ async def test_firefly_import_converts_transfers_into_two_legs(client):
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    resp = await client.post("/data-imports/firefly/transactions", json={
+    resp = await client.post("/transactions/import/firefly", json={
         "accounts": [
             _chequing_mapping(),
             {
@@ -155,7 +155,7 @@ async def test_firefly_import_uses_foreign_amount_for_cross_currency_transfers(c
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    resp = await client.post("/data-imports/firefly/transactions", json={
+    resp = await client.post("/transactions/import/firefly", json={
         "accounts": [
             _chequing_mapping(),
             {
@@ -195,7 +195,7 @@ async def test_firefly_import_converts_liability_withdrawals_to_transfers(client
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    resp = await client.post("/data-imports/firefly/transactions", json={
+    resp = await client.post("/transactions/import/firefly", json={
         "accounts": [
             _chequing_mapping(),
             {"source": "Car Loan", "create": {"name": "Car Loan", "account_type": "loan", "currency": "CAD"}},
@@ -233,7 +233,7 @@ async def test_firefly_import_applies_opening_balance_direction(client):
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    resp = await client.post("/data-imports/firefly/transactions", json={
+    resp = await client.post("/transactions/import/firefly", json={
         "accounts": [
             _chequing_mapping(),
             {"source": "Car Loan", "create": {"name": "Car Loan", "account_type": "loan", "currency": "CAD"}},
@@ -289,7 +289,7 @@ async def test_firefly_import_skips_unconvertible_rows(client):
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    resp = await client.post("/data-imports/firefly/transactions", json={
+    resp = await client.post("/transactions/import/firefly", json={
         "accounts": [_chequing_mapping()],
         "categories": [{"source": "Groceries", "create": {"name": "Groceries", "kind": "expense"}}],
         "rows": [
@@ -325,7 +325,7 @@ async def test_firefly_import_reports_unexpected_row_failures_generically(client
 
     monkeypatch.setattr("app.services.transactions.imports.firefly.service.resolve_firefly_row", _boom)
 
-    resp = await client.post("/data-imports/firefly/transactions", json={
+    resp = await client.post("/transactions/import/firefly", json={
         "accounts": [_chequing_mapping()],
         "categories": [{"source": "Groceries", "create": {"name": "Groceries", "kind": "expense"}}],
         "rows": [_firefly_row()],
@@ -344,7 +344,7 @@ async def test_firefly_import_requires_mapping_for_tracked_accounts(client):
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    resp = await client.post("/data-imports/firefly/transactions", json={
+    resp = await client.post("/transactions/import/firefly", json={
         "accounts": [_chequing_mapping()],
         "categories": [{"source": "Groceries", "create": {"name": "Groceries", "kind": "expense"}}],
         "rows": [_firefly_row(source_name="Missing Account")],
@@ -364,14 +364,14 @@ async def test_firefly_import_maps_uncategorized_rows_via_placeholder(client):
         "categories": [],
         "rows": [_firefly_row(category=None)],
     }
-    resp = await client.post("/data-imports/firefly/transactions", json=payload, headers=headers)
+    resp = await client.post("/transactions/import/firefly", json=payload, headers=headers)
     assert resp.status_code == 422
     assert resp.json()["detail"] == "Category source is not mapped: (no category)"
 
     payload["categories"] = [
         {"source": "(no category)", "create": {"name": "Imported Uncategorized", "kind": "expense"}},
     ]
-    resp = await client.post("/data-imports/firefly/transactions", json=payload, headers=headers)
+    resp = await client.post("/transactions/import/firefly", json=payload, headers=headers)
     assert resp.status_code == 201
     data = resp.json()
     assert data["transactions_created"] == 1

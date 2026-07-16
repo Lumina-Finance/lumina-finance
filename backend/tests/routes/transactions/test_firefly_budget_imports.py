@@ -4,7 +4,7 @@ from datetime import date
 
 from tests.routes.support import _create_user, _get_auth_header
 
-# --- POST /data-imports/firefly/budgets ---
+# --- POST /transactions/import/firefly/budgets ---
 
 
 async def _get_category_id(client, headers, name):
@@ -28,7 +28,7 @@ async def test_firefly_budget_import_preserves_limit_history(client):
     headers = _get_auth_header(signup_resp)
     groceries_id = await _get_category_id(client, headers, "Groceries")
 
-    resp = await client.post("/data-imports/firefly/budgets", json={
+    resp = await client.post("/transactions/import/firefly/budgets", json={
         "budgets": [{
             "name": "Groceries",
             "currency": "CAD",
@@ -79,7 +79,7 @@ async def test_firefly_budget_import_is_atomic_across_budgets(client):
     headers = _get_auth_header(signup_resp)
     groceries_id = await _get_category_id(client, headers, "Groceries")
 
-    resp = await client.post("/data-imports/firefly/budgets", json={
+    resp = await client.post("/transactions/import/firefly/budgets", json={
         "budgets": [
             {
                 "name": "Groceries",
@@ -111,7 +111,7 @@ async def test_firefly_budget_import_rejects_misaligned_period_start(client):
     headers = _get_auth_header(signup_resp)
     groceries_id = await _get_category_id(client, headers, "Groceries")
 
-    resp = await client.post("/data-imports/firefly/budgets", json={
+    resp = await client.post("/transactions/import/firefly/budgets", json={
         "budgets": [{
             "name": "Groceries",
             "currency": "CAD",
@@ -131,7 +131,7 @@ async def test_firefly_budget_import_rejects_duplicate_limit_starts(client):
     headers = _get_auth_header(signup_resp)
     groceries_id = await _get_category_id(client, headers, "Groceries")
 
-    resp = await client.post("/data-imports/firefly/budgets", json={
+    resp = await client.post("/transactions/import/firefly/budgets", json={
         "budgets": [{
             "name": "Groceries",
             "currency": "CAD",
@@ -153,7 +153,7 @@ async def test_firefly_budget_import_rejects_unknown_category(client):
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    resp = await client.post("/data-imports/firefly/budgets", json={
+    resp = await client.post("/transactions/import/firefly/budgets", json={
         "budgets": [{
             "name": "Groceries",
             "currency": "CAD",

@@ -1,4 +1,4 @@
-"""Data import schemas for external finance app sources"""
+"""Firefly III import request and response schemas"""
 
 import uuid
 from datetime import date

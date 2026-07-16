@@ -1,5 +1,5 @@
 import type { AccountType } from '@/api/accounts'
-import type { FireflyBudgetImportLimit, FireflyTransactionImportPayload } from '@/api/dataImports'
+import type { FireflyBudgetImportLimit, FireflyTransactionImportPayload } from '@/api/fireflyImports'
 
 export type FireflyFileKind = 'transactions' | 'budgets'
 

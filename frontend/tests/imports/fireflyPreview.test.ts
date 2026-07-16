@@ -7,7 +7,7 @@ import type { Category } from '@/api/categories'
 import type { Institution } from '@/api/institutions'
 import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
 import type { CsvRow } from '@/pages/imports/types'
-import { FIREFLY_NO_CATEGORY_SOURCE } from '@/api/dataImports'
+import { FIREFLY_NO_CATEGORY_SOURCE } from '@/api/fireflyImports'
 import {
   buildFireflyPreviewRows,
   getFireflyImportedCategories,

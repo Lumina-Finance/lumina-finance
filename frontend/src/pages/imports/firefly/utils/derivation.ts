@@ -1,6 +1,6 @@
 import type { AccountType } from '@/api/accounts'
 import type { Category } from '@/api/categories'
-import { FIREFLY_NO_CATEGORY_SOURCE, isFireflyTrackedAccountType } from '@/api/dataImports'
+import { FIREFLY_NO_CATEGORY_SOURCE, isFireflyTrackedAccountType } from '@/api/fireflyImports'
 import { CREATE_CATEGORY_VALUE } from '../../constants'
 import type { CsvRow, ImportCategoryKind } from '../../types'
 import {

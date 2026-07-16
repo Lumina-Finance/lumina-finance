@@ -7,7 +7,7 @@ from datetime import date
 from app.models.account import Account
 from app.models.category import Category
 from app.models.currency import Currency
-from app.schemas.data_imports import FireflyTransactionRow
+from app.schemas.firefly_import import FireflyTransactionRow
 from app.services.transactions.imports.firefly.constants import (
     FIREFLY_NO_CATEGORY_SOURCE,
     FIREFLY_TRACKED_ACCOUNT_TYPES,

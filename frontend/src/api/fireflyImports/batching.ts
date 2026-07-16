@@ -1,13 +1,13 @@
-import { postFireflyTransactionImportBatch } from '@/api/dataImports/requests';
+import { postFireflyTransactionImportBatch } from '@/api/fireflyImports/requests';
 import {
   getFireflyRowAccountSources,
   getFireflyRowCategorySource,
-} from '@/api/dataImports/rowSources';
+} from '@/api/fireflyImports/rowSources';
 import type {
   FireflyTransactionImportPayload,
   FireflyTransactionImportResponse,
   FireflyTransactionImportRow,
-} from '@/api/dataImports/types';
+} from '@/api/fireflyImports/types';
 import type {
   TransactionImportAccountMapping,
   TransactionImportCategoryMapping,

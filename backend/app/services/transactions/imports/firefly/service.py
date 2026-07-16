@@ -11,7 +11,7 @@ from app.models.account import Account
 from app.models.tag import TransactionTag
 from app.models.transaction import Transaction
 from app.models.user import User
-from app.schemas.data_imports import (
+from app.schemas.firefly_import import (
     FireflySkippedRow,
     FireflyTransactionImportRequest,
     FireflyTransactionImportResponse,

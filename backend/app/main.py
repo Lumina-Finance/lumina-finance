@@ -16,7 +16,6 @@ from app.routes.budgets import router as budget_router
 from app.routes.categories import router as category_router
 from app.routes.currency import router as currency_router
 from app.routes.dashboard import router as dashboard_router
-from app.routes.data_imports import router as data_import_router
 from app.routes.groups import router as group_router
 from app.routes.insights import router as insights_router
 from app.routes.institution import router as institution_router
@@ -81,7 +80,6 @@ app.include_router(category_router)
 app.include_router(merchant_router)
 app.include_router(tag_router)
 app.include_router(transaction_router)
-app.include_router(data_import_router)
 app.include_router(group_router)
 app.include_router(base_budget_router)
 app.include_router(budget_router)

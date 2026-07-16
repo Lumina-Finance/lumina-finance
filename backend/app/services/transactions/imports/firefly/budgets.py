@@ -9,7 +9,7 @@ from app.models.base import RecurrenceFreq
 from app.models.budget import BaseBudget, Budget, BudgetTrackedCategory
 from app.models.currency import Currency
 from app.models.user import User
-from app.schemas.data_imports import (
+from app.schemas.firefly_import import (
     FireflyBudgetImport,
     FireflyBudgetImportRequest,
     FireflyBudgetImportResponse,

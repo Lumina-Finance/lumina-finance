@@ -1,4 +1,4 @@
-import type { FireflyBudgetImportBudget, FireflyBudgetImportLimit } from '@/api/dataImports'
+import type { FireflyBudgetImportBudget, FireflyBudgetImportLimit } from '@/api/fireflyImports'
 import type { CsvRow, ImportFileDraft } from '../../types'
 import { FIREFLY_BUDGET_ACTIVE_VALUE, FIREFLY_BUDGET_ARCHIVED_REASON } from '../constants'
 import type { FireflyBudgetDraft } from '../types'

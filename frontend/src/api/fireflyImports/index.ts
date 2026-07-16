@@ -8,14 +8,14 @@ export type {
   FireflyTransactionImportPayload,
   FireflyTransactionImportResponse,
   FireflyTransactionImportRow,
-} from '@/api/dataImports/types';
+} from '@/api/fireflyImports/types';
 
-export { importFireflyTransactionsInBatches } from '@/api/dataImports/batching';
-export { postFireflyBudgetImport, postFireflyTransactionImportBatch } from '@/api/dataImports/requests';
-export { useImportFireflyBudgets, useImportFireflyTransactions } from '@/api/dataImports/hooks';
+export { importFireflyTransactionsInBatches } from '@/api/fireflyImports/batching';
+export { postFireflyBudgetImport, postFireflyTransactionImportBatch } from '@/api/fireflyImports/requests';
+export { useImportFireflyBudgets, useImportFireflyTransactions } from '@/api/fireflyImports/hooks';
 export {
   FIREFLY_NO_CATEGORY_SOURCE,
   getFireflyRowAccountSources,
   getFireflyRowCategorySource,
   isFireflyTrackedAccountType,
-} from '@/api/dataImports/rowSources';
+} from '@/api/fireflyImports/rowSources';

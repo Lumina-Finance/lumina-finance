@@ -1,4 +1,4 @@
-import type { FireflySkippedRow } from '@/api/dataImports'
+import type { FireflySkippedRow } from '@/api/fireflyImports'
 import type { CsvRow } from '../../types'
 import { FIREFLY_MISSING_REQUIRED_VALUES_REASON } from '../constants'
 import { getFireflyMissingRequiredFields } from './derivation'

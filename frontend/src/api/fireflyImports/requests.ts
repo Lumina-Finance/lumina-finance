@@ -4,13 +4,13 @@ import type {
   FireflyBudgetImportResponse,
   FireflyTransactionImportPayload,
   FireflyTransactionImportResponse,
-} from '@/api/dataImports/types';
+} from '@/api/fireflyImports/types';
 
 /**
  * Uploads one prepared Firefly III transaction import batch to the backend
  */
 export function postFireflyTransactionImportBatch(payload: FireflyTransactionImportPayload) {
-  return authenticatedFetch<FireflyTransactionImportResponse>('/data-imports/firefly/transactions', {
+  return authenticatedFetch<FireflyTransactionImportResponse>('/transactions/import/firefly', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
@@ -21,7 +21,7 @@ export function postFireflyTransactionImportBatch(payload: FireflyTransactionImp
  * atomic backend request
  */
 export function postFireflyBudgetImport(payload: FireflyBudgetImportPayload) {
-  return authenticatedFetch<FireflyBudgetImportResponse>('/data-imports/firefly/budgets', {
+  return authenticatedFetch<FireflyBudgetImportResponse>('/transactions/import/firefly/budgets', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
