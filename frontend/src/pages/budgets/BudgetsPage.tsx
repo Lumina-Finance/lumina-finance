@@ -102,7 +102,12 @@ export default function BudgetsPage() {
   const refetchBudgets = useCallback(() => budgetsQuery.refetch(), [budgetsQuery])
 
   useRecurringBudgetBackfill({
-    enabled: Boolean(user) && !baseBudgetsQuery.isLoading && !budgetsQuery.isLoading,
+    // Wait for both budget queries to settle so backfill never acts on the stale pre-archive periods that
+    // linger between an unarchive and its refetch, which would otherwise recreate the suppressed gap periods
+    enabled:
+      Boolean(user)
+      && !baseBudgetsQuery.isFetching
+      && !budgetsQuery.isFetching,
     budgetCards,
     today,
     createBudgetInstance,

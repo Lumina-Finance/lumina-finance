@@ -28,6 +28,9 @@ export function useRecurringBudgetBackfill({
     // Remember attempted base/start pairs so rerenders do not duplicate mutation attempts
     const missingPeriods = budgetCards.flatMap(({ baseBudget, latestPeriod }) => {
       if (!latestPeriod) return []
+
+      // Archiving pauses period generation on the backend, so the client must not recreate the skipped periods
+      if (baseBudget.is_archived) return []
       return missingRecurringPeriodStarts(baseBudget, latestPeriod, today).map((periodStart) => ({
         key: `${baseBudget.id}:${periodStart}`,
         baseBudgetId: baseBudget.id,
