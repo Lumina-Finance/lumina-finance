@@ -18,7 +18,7 @@ from app.schemas.data_imports import (
 from app.services.budgets.periods import compute_period_end, validate_period_start
 from app.services.budgets.tracked_categories import get_valid_tracked_category_ids
 from app.services.cache_state import mark_cache_changed_for_scope
-from app.services.transactions.imports.currencies import get_import_currencies_by_code
+from app.services.transactions.imports.shared.currencies import get_import_currencies_by_code
 from app.utils.money import (
     DecimalAmountParseError,
     DecimalAmountPrecisionError,

@@ -8,7 +8,7 @@ from app.models.account import Account
 from app.models.category import Category
 from app.models.currency import Currency
 from app.schemas.data_imports import FireflyTransactionRow
-from app.services.data_imports.firefly.constants import (
+from app.services.transactions.imports.firefly.constants import (
     FIREFLY_NO_CATEGORY_SOURCE,
     FIREFLY_TRACKED_ACCOUNT_TYPES,
     FIREFLY_TYPE_DEPOSIT,
@@ -17,7 +17,7 @@ from app.services.data_imports.firefly.constants import (
     FIREFLY_TYPE_TRANSFER,
     FIREFLY_TYPE_WITHDRAWAL,
 )
-from app.services.transactions.imports.row_mappings import (
+from app.services.transactions.imports.shared.row_mappings import (
     get_import_row_account,
     get_import_row_category,
     validate_import_category_can_be_used_for_account,

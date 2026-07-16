@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.merchant import Merchant
-from app.services.transactions.imports.stats import ImportStats
+from app.services.transactions.imports.shared.stats import ImportStats
 
 
 async def get_personal_import_merchants_by_name(db: AsyncSession, user_id: uuid.UUID) -> dict[str, Merchant]:

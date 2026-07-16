@@ -16,8 +16,8 @@ from app.schemas.data_imports import (
     FireflyTransactionImportRequest,
     FireflyTransactionImportResponse,
 )
-from app.services.data_imports.firefly.budgets import import_firefly_budgets
-from app.services.data_imports.firefly.service import import_firefly_transactions
+from app.services.transactions.imports.firefly.budgets import import_firefly_budgets
+from app.services.transactions.imports.firefly.service import import_firefly_transactions
 
 router = APIRouter(prefix="/data-imports", tags=["data-imports"])
 

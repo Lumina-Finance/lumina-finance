@@ -11,16 +11,16 @@ from app.models.merchant import Merchant
 from app.models.tag import Tag, TransactionTag
 from app.models.transaction import Transaction
 from app.schemas.transaction import TransactionImportRow
-from app.services.transactions.imports.amounts import parse_import_amount_to_minor_units
-from app.services.transactions.imports.lookup_helpers import TransactionImportLookups
-from app.services.transactions.imports.merchants import get_or_create_import_merchant
-from app.services.transactions.imports.row_mappings import (
+from app.services.transactions.imports.generic.amounts import parse_import_amount_to_minor_units
+from app.services.transactions.imports.generic.lookup_helpers import TransactionImportLookups
+from app.services.transactions.imports.shared.merchants import get_or_create_import_merchant
+from app.services.transactions.imports.shared.row_mappings import (
     get_import_row_account,
     get_import_row_category,
     validate_import_category_can_be_used_for_account,
 )
-from app.services.transactions.imports.stats import ImportStats
-from app.services.transactions.imports.tags import get_or_create_import_tags
+from app.services.transactions.imports.shared.stats import ImportStats
+from app.services.transactions.imports.shared.tags import get_or_create_import_tags
 
 
 async def create_imported_transactions(
