@@ -50,8 +50,9 @@ const DEVIATION_TEXT = 'Firefly III sets a budget on each transaction. Lumina bu
  * later, since nothing here is committed to and a hint otherwise would be read
  * as a promise
  */
-const LEFT_BEHIND = 'archived budgets, budgets repeating on period lengths Lumina has no cadence for, bills, '
-  + 'recurring transactions, piggy banks, reconciliation flags, account interest and card details, '
+const LEFT_BEHIND = 'archived budgets, budgets repeating on period lengths Lumina has no cadence for, '
+  + 'budgets whose limits mix more than one currency, transactions carrying a tag too long for Lumina, '
+  + 'bills, recurring transactions, piggy banks, reconciliation flags, account interest and card details, '
   + 'rules and attachments'
 
 /**
