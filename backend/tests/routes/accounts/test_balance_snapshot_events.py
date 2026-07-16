@@ -1,6 +1,6 @@
 """Route tests for the account balance snapshot endpoints and lifecycle hooks."""
 import uuid
-from datetime import date
+from datetime import date, timedelta
 
 from sqlalchemy import select
 
@@ -106,10 +106,11 @@ async def test_create_transaction_after_creation_day_keeps_zero_anchor(client):
     cat_resp = await _create_category(client, headers)
     category_id = cat_resp.json()["id"]
 
-    # Far-future date so the recompute window starts well after the creation day
+    # Date well after the creation day so the recompute window starts past the zero anchor on any run date
+    future_dt = creation_day + timedelta(days=30)
     await _create_transaction(
         client, headers, str(account_id), category_id,
-        dt="2026-12-15", amount=5000,
+        dt=future_dt.isoformat(), amount=5000,
     )
 
     snapshots = await _get_snapshots_for(account_id)
@@ -117,7 +118,7 @@ async def test_create_transaction_after_creation_day_keeps_zero_anchor(client):
     # Zero anchor is preserved as the earliest snapshot
     assert snapshot_map[creation_day] == 0
     # New txn day carries the running balance from the anchor (0 + 5000)
-    assert snapshot_map[date(2026, 12, 15)] == 5000
+    assert snapshot_map[future_dt] == 5000
     assert len(snapshots) == 2
 
 

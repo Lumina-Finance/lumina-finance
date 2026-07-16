@@ -1,5 +1,5 @@
 import importlib
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
 
@@ -108,17 +108,20 @@ async def test_list_accounts_current_balance_uses_latest_snapshot(client):
     create_resp = await _create_account(client, headers)
     account_id = UUID(create_resp.json()["id"])
 
-    # Insert two snapshots after the zero anchor: the older of the two (12345)
-    # and the newer (98765). Helper should return the most recent.
+    # Insert two snapshots after the creation-day zero anchor: the older of the two (12345)
+    # and the newer (98765). Both are dated relative to today with margin so they stay after
+    # the anchor on any run date, letting the helper return the most recent.
+    older_dt = date.today() + timedelta(days=30)
+    newer_dt = date.today() + timedelta(days=60)
     async with TestSession() as session:
         session.add(AccountBalanceSnapshot(
             account_id=account_id,
-            dt=date(2027, 1, 1),
+            dt=older_dt,
             balance=12345,
         ))
         session.add(AccountBalanceSnapshot(
             account_id=account_id,
-            dt=date(2027, 6, 1),
+            dt=newer_dt,
             balance=98765,
         ))
         await session.commit()
