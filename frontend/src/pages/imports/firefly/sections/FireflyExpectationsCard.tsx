@@ -49,25 +49,19 @@ const DEVIATION_TEXT = "Firefly III sets a budget on each transaction. This app'
 /**
  * Everything the import leaves behind, listed without saying which might arrive
  * later, since nothing here is committed to and a hint otherwise would be read
- * as a promise
+ * as a promise. The first entries are whole features and the rest are rare
+ * data shapes, which are skipped and reported when an export carries them
  */
 const LEFT_BEHIND = [
   'Archived budgets',
+  'Budgets repeating on period lengths Lumina Finance has no cadence for',
+  'Budgets whose limits mix more than one currency',
+  'Transactions with more decimal places than their currency allows',
+  'Transactions carrying a tag too long for this app',
   'Bills and recurring transactions',
   'Piggy banks and reconciliation flags',
   'Account interest and card details',
   'Rules and attachments',
-]
-
-/**
- * Rare shapes an export can carry and what happens to each, kept behind a
- * toggle so the card stays scannable, since most exports contain none of them
- */
-const EDGE_CASES = [
-  'A row with more decimal places than its currency has is skipped and reported rather than rounded, so totals can read short by those rows',
-  'A budget repeating back to back on a period length no cadence here can express is skipped',
-  'A budget whose limit periods mix more than one currency is skipped',
-  'A row carrying a tag too long for this app is skipped and reported',
 ]
 
 /**
@@ -140,17 +134,6 @@ export function FireflyExpectationsCard() {
               ))}
             </ul>
           </ConceptGroup>
-
-          <CollapsedConceptGroup title="Edge cases" toggleLabel="edge cases" railColour="var(--app-text-subtle)">
-            <ul
-              className="mt-1.5 flex list-disc flex-col gap-1 pl-4 text-sm leading-5"
-              style={{ color: 'var(--app-text-subtle)' }}
-            >
-              {EDGE_CASES.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ul>
-          </CollapsedConceptGroup>
         </div>
       </div>
     </div>
