@@ -3,10 +3,10 @@
 Source fixture generator for developing and verifying the Firefly III
 importer. Registers the seed user on a freshly reset instance, mints an API
 token through a Passport personal access client created inside the container,
-sets CAD as the primary currency, then seeds accounts, budgets with monthly
-limits, and a fixed set of transactions. Every run produces identical data
-because all dates are constants and all randomness flows from one seeded
-generator
+sets CAD as the primary currency, then seeds accounts, budgets whose limit
+periods cover every shape the importer has to face, and a fixed set of
+transactions. Every run produces identical data because all dates are
+constants and all randomness flows from one seeded generator
 
 The data follows one persona across five and a half years: a salaried renter
 in Toronto who works from home through the pandemic, returns to an office,
@@ -55,6 +55,17 @@ RETURN_TO_OFFICE_DATE = date(2022, 4, 1)
 CAR_PURCHASE_DATE = date(2022, 7, 15)
 APARTMENT_MOVE_DATE = date(2023, 8, 1)
 PET_ADOPTION_DATE = date(2024, 3, 1)
+
+# Days the persona starts running an envelope for spending that already
+# existed, which gate when transactions begin carrying these budgets. The
+# fitness budget starts on the first Monday of 2023 because its limit periods
+# run Monday to Sunday, and the US shopping envelope was created mid-month so
+# its first limit period is a partial month
+ELECTRONICS_BUDGET_START = date(2023, 1, 1)
+FITNESS_BUDGET_START = date(2023, 1, 2)
+CHARITABLE_BUDGET_START = date(2022, 1, 1)
+US_SHOPPING_BUDGET_START = date(2024, 5, 21)
+ALLOWANCE_BUDGET_START = date(2025, 3, 1)
 
 # Monthly net pay in CAD after Ontario tax, CPP, and EI, stepping on merit
 # raises and once on the September 2023 job change. Real net pay climbs late in
@@ -202,71 +213,6 @@ SAVINGS_INTEREST_RATE = {2021: 0.005, 2022: 0.019, 2023: 0.040, 2024: 0.043, 202
 SAVINGS_INTEREST_BASE_CAD = 16000
 SAVINGS_INTEREST_BASE_USD = 2400
 
-# Budget limits in CAD, one limit row per month. Every budget steps at least
-# once because Firefly III stores an amount per limit period, so a flat
-# schedule would hide an importer that keeps only the latest amount. Home
-# Office is retired at the end of 2021, which leaves a budget whose limits stop
-# partway through the window
-#
-# The amounts track what the persona's spending actually costs, so a budget
-# lands within reach of its limit rather than being ignored every month.
-# Transportation covers the car insurance premium as well as fuel and parking,
-# and Household covers the utility bills, which is why both sit high
-BUDGET_DEFINITIONS = {
-    "Groceries": {
-        "limits": [
-            (date(2021, 1, 1), "520.00"), (date(2022, 1, 1), "560.00"),
-            (date(2023, 1, 1), "585.00"), (date(2024, 1, 1), "620.00"),
-            (date(2025, 1, 1), "640.00"), (date(2026, 1, 1), "665.00"),
-        ],
-        "retired_after": None,
-    },
-    "Dining Out": {
-        "limits": [
-            (date(2021, 1, 1), "260.00"), (RETURN_TO_OFFICE_DATE, "420.00"),
-            (date(2024, 1, 1), "470.00"), (date(2025, 1, 1), "490.00"),
-        ],
-        "retired_after": None,
-    },
-    "Transportation": {
-        "limits": [
-            (date(2021, 1, 1), "110.00"), (date(2022, 7, 1), "560.00"),
-            (date(2024, 1, 1), "600.00"), (date(2025, 1, 1), "640.00"),
-        ],
-        "retired_after": None,
-    },
-    "Entertainment": {
-        "limits": [
-            (date(2021, 1, 1), "60.00"), (RETURN_TO_OFFICE_DATE, "100.00"),
-            (date(2023, 1, 1), "140.00"), (date(2025, 1, 1), "160.00"),
-        ],
-        "retired_after": None,
-    },
-    "Household": {
-        "limits": [
-            (date(2021, 1, 1), "310.00"), (date(2022, 1, 1), "330.00"),
-            (date(2023, 1, 1), "350.00"), (PET_ADOPTION_DATE, "480.00"),
-            (date(2025, 1, 1), "510.00"), (date(2026, 1, 1), "540.00"),
-        ],
-        "retired_after": None,
-    },
-
-    # Travel is lumpy by nature, so the monthly limit is what the persona set
-    # aside rather than what a month with a trip in it actually costs
-    "Travel": {
-        "limits": [
-            (date(2022, 4, 1), "250.00"), (date(2023, 1, 1), "300.00"),
-            (date(2024, 1, 1), "350.00"),
-        ],
-        "retired_after": None,
-    },
-    "Home Office": {
-        "limits": [(date(2021, 1, 1), "280.00")],
-        "retired_after": date(2021, 12, 1),
-    },
-}
-
-
 class SpendingPattern(NamedTuple):
     """One kind of everyday purchase and the window it is part of the persona's life
 
@@ -340,8 +286,26 @@ EVERYDAY_SPENDING = [
                     40, 130, 0.4, active_from=date(2022, 6, 1)),
     SpendingPattern("Home Office Supplier", "Home office equipment", "Home Office", "Home Office",
                     40, 320, 1.2, active_until=date(2021, 12, 31)),
-    SpendingPattern("Clothing Boutique", "Clothing", "Shopping", None, 25, 120, 1.2),
-    SpendingPattern("Electronics Store", "Electronics", "Shopping", None, 40, 400, 0.25),
+    SpendingPattern("Clothing Boutique", "Clothing", "Clothing", "Clothing", 25, 120, 1.2),
+
+    # Electronics purchases only start carrying their budget once the persona
+    # creates it at the start of 2023, so the same habit spans both windows
+    SpendingPattern("Electronics Store", "Electronics", "Shopping", None,
+                    40, 400, 0.25, active_until=ELECTRONICS_BUDGET_START - timedelta(days=1)),
+    SpendingPattern("Electronics Store", "Electronics", "Shopping", "Electronics",
+                    40, 400, 0.25, active_from=ELECTRONICS_BUDGET_START),
+    SpendingPattern("Climbing Gym", "Climbing drop-in", "Fitness", "Fitness",
+                    22, 34, 2.6, active_from=FITNESS_BUDGET_START),
+    SpendingPattern("Community Food Bank", "Charitable donation", "Donations", "Charitable Giving",
+                    35, 140, 0.4, active_from=CHARITABLE_BUDGET_START),
+
+    # Furnishing the new apartment is a short burst of purchases the persona
+    # ran a dedicated envelope for, then archived once the place was set up
+    SpendingPattern("Downtown Furniture Store", "Furniture for the new apartment", "Household",
+                    "Apartment Furnishing", 80, 480, 2.5,
+                    active_from=APARTMENT_MOVE_DATE, active_until=date(2023, 9, 30)),
+    SpendingPattern("Hobby Shop", "Hobby supplies", "Hobbies", "Personal Allowance",
+                    12, 45, 2.0, active_from=ALLOWANCE_BUDGET_START),
     SpendingPattern("Hardware Store", "Home repair supplies", "Household", "Household", 10, 85, 0.9),
     SpendingPattern("Pet Supply Shop", "Pet food and supplies", "Pet", "Household",
                     18, 65, 2.2, active_from=PET_ADOPTION_DATE),
@@ -559,50 +523,292 @@ def cad_per_unit(currency: str, day: date) -> float:
     return CAD_PER_FOREIGN_UNIT[currency][day.year] * rng.uniform(0.985, 1.015)
 
 
-def budget_limit_months(budget_name: str) -> list[date]:
-    """Return the months a budget carries a limit for
+def add_months(month_start: date, months: int) -> date:
+    """Return the first of the month a number of months later"""
+    total = month_start.year * 12 + month_start.month - 1 + months
+    return date(total // 12, total % 12 + 1, 1)
+
+
+def month_limit_rows(first: date, months_per_period: int, schedule: list[tuple[date, str]],
+                     currency: str = "CAD", last: date | None = None) -> list[dict]:
+    """Build consecutive calendar-month limit rows carrying the scheduled amount
 
     Args:
-        budget_name: Budget to read
+        first: First day of the first period, always the first of a month
+        months_per_period: Calendar months each limit period spans
+        schedule: Effective-from dates paired with amounts
+        currency: Currency code the limits are set in
+        last: First day of the final period, or None to run to the range end
 
     Returns:
-        First day of every month from the budget's first limit until it is
-        retired, or until the end of the range when it is never retired
+        Limit rows as start, end, amount, and currency
     """
-    definition = BUDGET_DEFINITIONS[budget_name]
-    starts_at = definition["limits"][0][0]
-    retired_after = definition["retired_after"]
-    return [
-        month for month in MONTH_STARTS
-        if month >= starts_at and (retired_after is None or month <= retired_after)
-    ]
+    rows = []
+    start = first
+    while start <= (last or END_DATE):
+        following = add_months(start, months_per_period)
+        rows.append({"start": start, "end": following - timedelta(days=1),
+                     "amount": scheduled_value(schedule, start), "currency": currency})
+        start = following
+    return rows
 
 
-def budget_limit_amount(budget_name: str, month_start: date) -> str:
-    """Return the limit amount a budget carries for one month"""
-    return scheduled_value(BUDGET_DEFINITIONS[budget_name]["limits"], month_start)
+def fixed_length_limit_rows(first: date, length_days: int,
+                            schedule: list[tuple[date, str]]) -> list[dict]:
+    """Build back-to-back limit rows of a fixed day length until the range end"""
+    rows = []
+    start = first
+    while start <= END_DATE:
+        rows.append({"start": start, "end": start + timedelta(days=length_days - 1),
+                     "amount": scheduled_value(schedule, start), "currency": "CAD"})
+        start += timedelta(days=length_days)
+    return rows
+
+
+def imported_as(freq: str, *, length: int = 1, weekday: int | None = None,
+                dom: int | None = None, month: int | None = None, recurs: bool = True) -> dict:
+    """Describe the Lumina cadence an imported budget is expected to carry"""
+    return {"outcome": "imported", "cadence": {
+        "recurrence_freq": freq, "instance_length": length, "recurrence_weekday": weekday,
+        "recurrence_dom": dom, "recurrence_month": month, "recurs": recurs,
+    }}
+
+
+def skipped_as(reason: str) -> dict:
+    """Describe a budget the import flow is expected to skip and the reason code"""
+    return {"outcome": "skipped", "reason": reason}
+
+
+# The Europe holiday gets a dedicated one-off envelope opening just before the
+# flight is booked and closing a few days after the return, so its window fits
+# no calendar cadence on purpose
+EUROPE_TRIP = next(trip for trip in TRIPS if trip.currency == "EUR")
+EUROPE_TRIP_WINDOW = (
+    EUROPE_TRIP.depart - timedelta(days=27),
+    EUROPE_TRIP.depart + timedelta(days=EUROPE_TRIP.nights + 3),
+)
+
+# Travel only carries a limit in the months a trip departs, because the
+# persona sets trip money aside per trip rather than every month. The Europe
+# holiday runs its own envelope, so its month carries no Travel limit
+TRAVEL_LIMIT_MONTHS = [trip.depart.replace(day=1) for trip in TRIPS if trip.currency != "EUR"]
+TRAVEL_LIMIT_SCHEDULE = [
+    (date(2022, 1, 1), "1800.00"), (date(2023, 1, 1), "2000.00"), (date(2025, 1, 1), "2200.00"),
+]
+
+# One budget per limit period shape the importer has to face. Every amount
+# schedule steps at least once because Firefly III stores an amount per limit
+# period, so a flat schedule would hide an importer keeping only the latest
+# amount, and the amounts track what the persona's spending actually costs so
+# each budget lands within reach of its limit
+#
+# The expected import outcome rides along for the verify tooling: budgets
+# whose latest period fits a Lumina cadence import with that cadence, a lone
+# irregular window imports as a one-off, and archived, transaction-less,
+# mixed-currency, and oddly recurring budgets are skipped with a reason code
+BUDGET_DEFINITIONS = {
+
+    # Groceries carried transactions for a month before its first limit, so
+    # January 2021 spending predates the limit history
+    "Groceries": {
+        "active": True,
+        "limits": month_limit_rows(date(2021, 2, 1), 1, [
+            (date(2021, 1, 1), "520.00"), (date(2022, 1, 1), "560.00"),
+            (date(2023, 1, 1), "585.00"), (date(2024, 1, 1), "620.00"),
+            (date(2025, 1, 1), "640.00"), (date(2026, 1, 1), "665.00"),
+        ]),
+        "import": imported_as("monthly", dom=1),
+    },
+    "Dining Out": {
+        "active": True,
+        "limits": month_limit_rows(date(2021, 1, 1), 1, [
+            (date(2021, 1, 1), "260.00"), (RETURN_TO_OFFICE_DATE, "420.00"),
+            (date(2024, 1, 1), "470.00"), (date(2025, 1, 1), "490.00"),
+        ]),
+        "import": imported_as("monthly", dom=1),
+    },
+
+    # Transportation covers the car insurance premium as well as fuel and
+    # parking, which is why it steps so hard at the car purchase
+    "Transportation": {
+        "active": True,
+        "limits": month_limit_rows(date(2021, 1, 1), 1, [
+            (date(2021, 1, 1), "110.00"), (date(2022, 7, 1), "560.00"),
+            (date(2024, 1, 1), "600.00"), (date(2025, 1, 1), "640.00"),
+        ]),
+        "import": imported_as("monthly", dom=1),
+    },
+
+    # Entertainment switches from monthly to quarterly limits in 2024, so the
+    # cadence read off the latest period differs from the earlier history
+    "Entertainment": {
+        "active": True,
+        "limits": month_limit_rows(date(2021, 1, 1), 1, [
+            (date(2021, 1, 1), "60.00"), (RETURN_TO_OFFICE_DATE, "100.00"),
+            (date(2023, 1, 1), "140.00"),
+        ], last=date(2023, 12, 1)) + month_limit_rows(date(2024, 1, 1), 3, [
+            (date(2024, 1, 1), "420.00"), (date(2025, 1, 1), "480.00"),
+        ]),
+        "import": imported_as("monthly", length=3, dom=1),
+    },
+
+    # Household covers the utility bills as well as repairs and the pet, which
+    # is why it sits high and steps at the adoption
+    "Household": {
+        "active": True,
+        "limits": month_limit_rows(date(2021, 1, 1), 1, [
+            (date(2021, 1, 1), "310.00"), (date(2022, 1, 1), "330.00"),
+            (date(2023, 1, 1), "350.00"), (PET_ADOPTION_DATE, "480.00"),
+            (date(2025, 1, 1), "510.00"), (date(2026, 1, 1), "540.00"),
+        ]),
+        "import": imported_as("monthly", dom=1),
+    },
+    "Travel": {
+        "active": True,
+        "limits": [
+            {"start": month, "end": month_end(month),
+             "amount": scheduled_value(TRAVEL_LIMIT_SCHEDULE, month), "currency": "CAD"}
+            for month in TRAVEL_LIMIT_MONTHS
+        ],
+        "import": imported_as("monthly", dom=1),
+    },
+    "Clothing": {
+        "active": True,
+        "limits": month_limit_rows(date(2022, 1, 1), 6, [
+            (date(2022, 1, 1), "560.00"), (date(2023, 1, 1), "590.00"),
+            (date(2024, 1, 1), "610.00"), (date(2025, 1, 1), "630.00"),
+            (date(2026, 1, 1), "650.00"),
+        ]),
+        "import": imported_as("monthly", length=6, dom=1),
+    },
+
+    # A New Year's resolution budget running Monday to Sunday, which is the
+    # only weekly limit history in the fixture
+    "Fitness": {
+        "active": True,
+        "limits": fixed_length_limit_rows(FITNESS_BUDGET_START, 7, [
+            (date(2023, 1, 1), "40.00"), (date(2024, 1, 1), "44.00"),
+            (date(2025, 1, 1), "48.00"), (date(2026, 1, 1), "50.00"),
+        ]),
+        "import": imported_as("weekly", weekday=0),
+    },
+    "Charitable Giving": {
+        "active": True,
+        "limits": month_limit_rows(CHARITABLE_BUDGET_START, 12, [
+            (date(2022, 1, 1), "500.00"), (date(2023, 1, 1), "520.00"),
+            (date(2024, 1, 1), "540.00"), (date(2025, 1, 1), "560.00"),
+            (date(2026, 1, 1), "580.00"),
+        ]),
+        "import": imported_as("yearly", month=1, dom=1),
+    },
+
+    # Created mid-month, so the first limit period is a partial month before
+    # the history settles into whole months, and the only budget whose limits
+    # are set in US dollars throughout
+    "US Shopping": {
+        "active": True,
+        "limits": [{"start": US_SHOPPING_BUDGET_START,
+                    "end": month_end(US_SHOPPING_BUDGET_START),
+                    "amount": "60.00", "currency": "USD"}]
+        + month_limit_rows(date(2024, 6, 1), 1, [
+            (date(2024, 6, 1), "160.00"), (date(2025, 1, 1), "170.00"),
+            (date(2026, 1, 1), "175.00"),
+        ], currency="USD"),
+        "import": imported_as("monthly", dom=1),
+    },
+
+    # A lone irregular window is a one-off envelope, which imports without a
+    # matching cadence and without recurring
+    "Europe Trip": {
+        "active": True,
+        "limits": [{"start": EUROPE_TRIP_WINDOW[0], "end": EUROPE_TRIP_WINDOW[1],
+                    "amount": "3500.00", "currency": "CAD"}],
+        "import": imported_as("monthly", dom=1, recurs=False),
+    },
+    "Home Office": {
+        "active": False,
+        "limits": month_limit_rows(date(2021, 1, 1), 1, [(date(2021, 1, 1), "280.00")],
+                                   last=date(2021, 12, 1)),
+        "import": skipped_as("archived"),
+    },
+    "Apartment Furnishing": {
+        "active": False,
+        "limits": [{"start": APARTMENT_MOVE_DATE, "end": date(2023, 9, 30),
+                    "amount": "1800.00", "currency": "CAD"}],
+        "import": skipped_as("archived"),
+    },
+
+    # Created with limits but never assigned a transaction, so there is
+    # nothing to infer tracked categories from
+    "Gifts": {
+        "active": True,
+        "limits": month_limit_rows(date(2024, 1, 1), 1, [(date(2024, 1, 1), "50.00")],
+                                   last=date(2024, 6, 1)),
+        "import": skipped_as("no-transactions"),
+    },
+
+    # The limit history switches from CAD to USD in 2025, and a Lumina budget
+    # holds one currency
+    "Electronics": {
+        "active": True,
+        "limits": month_limit_rows(ELECTRONICS_BUDGET_START, 1, [
+            (date(2023, 1, 1), "90.00"), (date(2024, 1, 1), "100.00"),
+        ], last=date(2024, 12, 1)) + month_limit_rows(date(2025, 1, 1), 1, [
+            (date(2025, 1, 1), "70.00"),
+        ], currency="USD"),
+        "import": skipped_as("mixed-currencies"),
+    },
+
+    # A self-imposed rolling allowance reset every 13 days, which deliberately
+    # trades realism for a recurring period no Lumina cadence can express
+    "Personal Allowance": {
+        "active": True,
+        "limits": fixed_length_limit_rows(ALLOWANCE_BUDGET_START, 13, [
+            (date(2025, 3, 1), "45.00"), (date(2026, 1, 1), "50.00"),
+        ]),
+        "import": skipped_as("unsupported-cadence"),
+    },
+}
 
 
 def create_budgets() -> dict[str, int]:
-    """Create the budgets with one monthly limit per month and return their ids"""
+    """Create the budgets with their limit period rows and return their ids"""
+    limit_rows = 0
     budget_ids = {}
-    for name in BUDGET_DEFINITIONS:
+    for name, definition in BUDGET_DEFINITIONS.items():
         status, body = api("POST", "/budgets", {"name": name})
         if status != 200:
             sys.exit(f"Budget {name} failed: {status} {body}")
         budget_ids[name] = int(body["data"]["id"])
 
-        for first in budget_limit_months(name):
+        for row in definition["limits"]:
             status, body = api("POST", f"/budgets/{budget_ids[name]}/limits", {
-                "start": first.isoformat(),
-                "end": month_end(first).isoformat(),
-                "amount": budget_limit_amount(name, first),
-                "currency_code": "CAD",
+                "start": row["start"].isoformat(),
+                "end": row["end"].isoformat(),
+                "amount": row["amount"],
+                "currency_code": row["currency"],
             })
             if status != 200:
-                sys.exit(f"Budget limit {name} {first}: {status} {body}")
-    print(f"created {len(budget_ids)} budgets with monthly limits")
+                sys.exit(f"Budget limit {name} {row['start']}: {status} {body}")
+            limit_rows += 1
+    print(f"created {len(budget_ids)} budgets with {limit_rows} limit periods")
     return budget_ids
+
+
+def archive_inactive_budgets(budget_ids: dict[str, int]) -> None:
+    """Archive the budgets the persona retired
+
+    Archiving runs after the transactions are posted because Firefly III should
+    see the retired budgets in the state they were used in, and attaching rows
+    to an already archived budget is not a path worth depending on
+    """
+    for name, definition in BUDGET_DEFINITIONS.items():
+        if definition["active"]:
+            continue
+        status, body = api("PUT", f"/budgets/{budget_ids[name]}", {"name": name, "active": False})
+        if status != 200:
+            sys.exit(f"Archiving budget {name} failed: {status} {body}")
+        print(f"archived budget {name}")
 
 
 def create_accounts() -> dict[str, dict]:
@@ -779,12 +985,15 @@ def subscription_groups(accounts: dict[str, dict], month: date) -> list[dict]:
             tags=["subscription"],
         )))
 
+    # The membership joins the fitness budget once that envelope exists, so
+    # the same bill spans budgeted and unbudgeted months
     gym_day = day_in_month(month, 20)
     if gym_day is not None:
         groups.append(build_group(build_split(
             "withdrawal", gym_day, scheduled_value(GYM_SCHEDULE, month), "Gym membership",
             source_id=accounts["Everyday Chequing"]["id"], destination_name="City Fitness Club",
-            category_name="Health", tags=["subscription"],
+            category_name="Fitness", tags=["subscription"],
+            budget_name="Fitness" if month >= FITNESS_BUDGET_START.replace(day=1) else None,
         )))
     return groups
 
@@ -838,16 +1047,19 @@ def transfer_groups(accounts: dict[str, dict], month: date) -> list[dict]:
     """Build the savings contribution for one month
 
     The pandemic year saves the most because there is so little to spend on,
-    the contribution drops once life reopens and the car arrives, then recovers
-    as the pay does. It pauses for the two months the car purchase and the
-    apartment move drain the buffer
+    the contribution drops once life reopens and the car arrives, recovers as
+    the pay does, then eases again as the giving, fitness, and hobby spending
+    take hold. It pauses for the two months the car purchase and the apartment
+    move drain the buffer
     """
     chequing = accounts["Everyday Chequing"]["id"]
     groups = []
 
     contribution = "450.00" if month < RETURN_TO_OFFICE_DATE else "350.00"
     if month >= date(2024, 1, 1):
-        contribution = "450.00"
+        contribution = "400.00"
+    if month >= ALLOWANCE_BUDGET_START:
+        contribution = "250.00"
     paused = month in (APARTMENT_MOVE_DATE, CAR_PURCHASE_DATE.replace(day=1))
     contribution_day = day_in_month(month, 2)
     if contribution_day is not None and not paused:
@@ -902,6 +1114,7 @@ def cross_border_groups(accounts: dict[str, dict], month: date) -> list[dict]:
             destination_name="US Online Retailer", category_name="Shopping",
             tags=["cross-border"], foreign_currency_code="USD",
             foreign_amount=f"{usd_amount:.2f}",
+            budget_name="US Shopping" if day >= US_SHOPPING_BUDGET_START else None,
         )))
 
     # Topping up US dollar savings costs Canadian dollars, so the transfer is
@@ -938,18 +1151,23 @@ def repatriation_groups(accounts: dict[str, dict], month: date) -> list[dict]:
 
 
 def trip_groups(accounts: dict[str, dict], month: date) -> list[dict]:
-    """Build the flight and on-the-ground spending for any trip departing this month"""
+    """Build the flight and on-the-ground spending for any trip departing this month
+
+    The Europe holiday spends against its own one-off envelope while every
+    other trip draws on the Travel budget
+    """
     groups = []
     for trip in TRIPS:
         if trip.depart.replace(day=1) != month:
             continue
+        trip_budget = "Europe Trip" if trip.currency == "EUR" else "Travel"
 
         # The flight is booked a few weeks out and always on the Canadian card
         groups.append(build_group(build_split(
             "withdrawal", trip.depart - timedelta(days=24),
             money(trip.flight_low, trip.flight_high), f"Flight booking, {trip.label}",
             source_id=accounts["Rewards Credit Card"]["id"], destination_name="Airline Booking",
-            category_name="Travel", budget_name="Travel", tags=["travel"],
+            category_name="Travel", budget_name=trip_budget, tags=["travel"],
         )))
 
         for night in range(trip.nights):
@@ -960,7 +1178,7 @@ def trip_groups(accounts: dict[str, dict], month: date) -> list[dict]:
                 f"Travel spending, {trip.label}",
                 source_id=accounts["Rewards Credit Card"]["id"],
                 destination_name="Travel Merchant", category_name="Travel",
-                budget_name="Travel", tags=["travel"],
+                budget_name=trip_budget, tags=["travel"],
                 foreign_currency_code=trip.currency, foreign_amount=f"{foreign_amount:.2f}",
             )))
 
@@ -1258,22 +1476,27 @@ def compute_manifest(accounts: dict[str, dict], payloads: list[dict]) -> dict:
         },
         "budgets": {
             name: {
-                "currency": "CAD",
-                "limit_months": len(budget_limit_months(name)),
+                "active": BUDGET_DEFINITIONS[name]["active"],
+                "currencies": sorted({row["currency"] for row in BUDGET_DEFINITIONS[name]["limits"]}),
 
                 # One entry per limit period, which is what the export carries
                 # and what an importer preserving history has to reproduce
                 "limits": [
-                    {"start": first.isoformat(), "amount": budget_limit_amount(name, first)}
-                    for first in budget_limit_months(name)
+                    {"start": row["start"].isoformat(), "end": row["end"].isoformat(),
+                     "amount": row["amount"], "currency": row["currency"]}
+                    for row in BUDGET_DEFINITIONS[name]["limits"]
                 ],
-                "latest_amount": budget_limit_amount(name, budget_limit_months(name)[-1]),
+                "import": BUDGET_DEFINITIONS[name]["import"],
                 "categories": sorted(facts["categories"]),
                 "category_first_dates": {
                     category: joined_at.isoformat()
                     for category, joined_at in sorted(facts["categories"].items())
                 },
-                "first_transaction_date": facts["first_date"].isoformat(),
+
+                # A budget no transaction ever references has no first date,
+                # which is itself an expected import outcome
+                "first_transaction_date":
+                    facts["first_date"].isoformat() if facts["first_date"] else None,
                 "transaction_count": facts["transaction_count"],
                 "total_spent": str(facts["total_spent"]),
             }
@@ -1312,10 +1535,11 @@ def main() -> None:
     api_token = mint_api_token()
     configure_currencies()
     accounts = create_accounts()
-    create_budgets()
+    budget_ids = create_budgets()
     payloads = generate_transaction_groups(accounts)
     manifest = compute_manifest(accounts, payloads)
     post_transactions(payloads)
+    archive_inactive_budgets(budget_ids)
 
     MANIFEST_PATH.write_text(json.dumps(manifest, indent=2) + "\n")
     print(f"manifest written to {MANIFEST_PATH}")
