@@ -148,7 +148,7 @@ describe('buildFireflyBudgetDrafts', () => {
 
     const byName = Object.fromEntries(drafts.map((draft) => [draft.name, draft]))
     expect(byName.Entertainment.periodLabel).toBe('Quarterly')
-    expect(byName.Clothing.periodLabel).toBe('Every 6 months')
+    expect(byName.Clothing.periodLabel).toBe('Every 6 mths')
     expect(byName.Giving.periodLabel).toBe('Yearly')
     expect(byName.Fitness.periodLabel).toBe('Weekly')
     expect(byName.Trip.periodLabel).toBe('One-off')

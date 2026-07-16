@@ -99,7 +99,7 @@ export function FireflyBudgetImportStep({
               <tr>
                 <th className="w-12 px-4 py-2.5 font-medium" aria-label="Import selection" />
                 <th className="px-4 py-2.5 font-medium">Budget</th>
-                <th className="px-4 py-2.5 font-medium">Repeats</th>
+                <th className="px-4 py-2.5 font-medium">Cadence</th>
                 <th className="px-4 py-2.5 text-right font-medium">Latest Amount</th>
                 <th className="px-4 py-2.5 font-medium">Categories</th>
                 <th className="px-4 py-2.5 font-medium">First Period</th>

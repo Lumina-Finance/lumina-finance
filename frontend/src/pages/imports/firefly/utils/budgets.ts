@@ -271,6 +271,8 @@ function isSupportedPeriodShape(limit: FireflyBudgetImportLimit): boolean {
 
 /**
  * Describes how one limit period repeats, in words the drafts table can show
+ *
+ * Multi-unit cadences abbreviate their units so the column stays narrow
  */
 function describePeriodShape(limit: FireflyBudgetImportLimit, isOnly: boolean): string {
   const months = monthSpanOf(limit)
@@ -278,12 +280,12 @@ function describePeriodShape(limit: FireflyBudgetImportLimit, isOnly: boolean): 
   if (months === 3) return 'Quarterly'
   if (months === MONTHS_PER_YEAR) return 'Yearly'
   if (months !== null) {
-    return months % MONTHS_PER_YEAR === 0 ? `Every ${months / MONTHS_PER_YEAR} years` : `Every ${months} months`
+    return months % MONTHS_PER_YEAR === 0 ? `Every ${months / MONTHS_PER_YEAR} yrs` : `Every ${months} mths`
   }
 
   const days = inclusiveDayLength(limit)
   if (days % DAYS_PER_WEEK === 0) {
-    return days === DAYS_PER_WEEK ? 'Weekly' : `Every ${days / DAYS_PER_WEEK} weeks`
+    return days === DAYS_PER_WEEK ? 'Weekly' : `Every ${days / DAYS_PER_WEEK} wks`
   }
   return isOnly ? 'One-off' : `Every ${days} days`
 }
