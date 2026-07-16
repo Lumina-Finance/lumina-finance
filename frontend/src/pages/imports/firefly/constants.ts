@@ -21,9 +21,17 @@ export const FIREFLY_TRANSACTIONS_REQUIRED_HEADERS = [
  *
  * The archived flag is required rather than assumed, because an export without
  * it cannot say which budgets were retired, and importing a retired budget as a
- * live one is worse than refusing the file
+ * live one is worse than refusing the file. Both period dates are required
+ * because each limit period becomes a budget period with those exact dates
  */
-export const FIREFLY_BUDGETS_REQUIRED_HEADERS = ['name', 'active', 'start_date', 'currency_code', 'amount']
+export const FIREFLY_BUDGETS_REQUIRED_HEADERS = [
+  'name',
+  'active',
+  'start_date',
+  'end_date',
+  'currency_code',
+  'amount',
+]
 
 /**
  * Value the budgets export carries for a budget that is not archived, with
@@ -36,11 +44,42 @@ export const FIREFLY_BUDGET_ACTIVE_VALUE = '1'
  * Why an archived budget is listed but never imported
  *
  * Lumina Finance has no archived budgets, so importing one would raise a budget
- * the user retired and materialise instances for it through today. The reason
- * stops at what is true today rather than hinting at support that is not
- * committed to
+ * the user retired. The reason stops at what is true today rather than hinting
+ * at support that is not committed to
  */
 export const FIREFLY_BUDGET_ARCHIVED_REASON = 'Archived in Firefly III, which Lumina Finance does not support'
+
+/**
+ * Why a budget no transaction references is never imported, since its tracked
+ * categories can only be inferred from the transactions that carry it
+ */
+export const FIREFLY_BUDGET_NO_TRANSACTIONS_REASON = 'No imported transactions reference this budget'
+
+/**
+ * Why a budget whose transactions all lost their categories is never imported
+ */
+export const FIREFLY_BUDGET_NO_CATEGORIES_REASON = 'No mapped categories reference this budget'
+
+/**
+ * Why a budget without a single usable limit period is never imported
+ */
+export const FIREFLY_BUDGET_NO_LIMITS_REASON = 'The export has no limit periods for this budget'
+
+/**
+ * Why a budget whose limit history spans currencies is never imported, since a
+ * Lumina Finance budget holds exactly one currency
+ */
+export const FIREFLY_BUDGET_MIXED_CURRENCIES_REASON = 'Its limit periods mix more than one currency'
+
+/**
+ * Why a budget repeating on a period length no Lumina Finance cadence can
+ * express is never imported
+ *
+ * Its history would arrive intact, but the budget could never continue on its
+ * own rhythm here, which is the same distortion an archived budget would
+ * suffer, so it is skipped rather than imported frozen
+ */
+export const FIREFLY_BUDGET_UNSUPPORTED_CADENCE_REASON = 'Repeats on a period length Lumina Finance budgets do not support'
 
 /**
  * Lumina account types keyed by lower-cased Firefly III liability endpoint type

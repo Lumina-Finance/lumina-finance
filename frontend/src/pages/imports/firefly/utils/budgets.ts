@@ -1,8 +1,23 @@
 import type { FireflyBudgetImportBudget, FireflyBudgetImportLimit } from '@/api/fireflyImports'
 import type { CsvRow, ImportFileDraft } from '../../types'
-import { FIREFLY_BUDGET_ACTIVE_VALUE, FIREFLY_BUDGET_ARCHIVED_REASON } from '../constants'
+import {
+  FIREFLY_BUDGET_ACTIVE_VALUE,
+  FIREFLY_BUDGET_ARCHIVED_REASON,
+  FIREFLY_BUDGET_MIXED_CURRENCIES_REASON,
+  FIREFLY_BUDGET_NO_CATEGORIES_REASON,
+  FIREFLY_BUDGET_NO_LIMITS_REASON,
+  FIREFLY_BUDGET_NO_TRANSACTIONS_REASON,
+  FIREFLY_BUDGET_UNSUPPORTED_CADENCE_REASON,
+} from '../constants'
 import type { FireflyBudgetDraft } from '../types'
 import { getFireflyRowDate } from './derivation'
+
+const DAYS_PER_WEEK = 7
+const MONTHS_PER_YEAR = 12
+
+// Highest configurable day-of-month anchor, which a period starting on the
+// last day of a short month could be the capped form of
+const MAX_MONTH_ANCHOR_DAY = 31
 
 /**
  * How transactions in the export reference one budget name
@@ -17,6 +32,7 @@ interface FireflyBudgetUsage {
  */
 interface FireflyLimitRow {
   start: string
+  end: string
   amount: string
   currencyCode: string
 }
@@ -33,8 +49,8 @@ interface FireflyBudgetRows {
 }
 
 /**
- * Derives importable monthly budget drafts from the budgets export and the
- * staged transaction rows
+ * Derives importable budget drafts from the budgets export and the staged
+ * transaction rows
  *
  * Drafts derive before the commit so the budget preview can drive what the
  * commit imports, which leaves category IDs to be resolved from the commit
@@ -60,6 +76,7 @@ export function buildFireflyBudgetDrafts({
       ?? { isArchived: row.active?.trim() !== FIREFLY_BUDGET_ACTIVE_VALUE, limitRows: [] }
     budget.limitRows.push({
       start: row.start_date?.trim() ?? '',
+      end: row.end_date?.trim() ?? '',
       amount: row.amount?.trim() ?? '',
       currencyCode: row.currency_code?.trim().toUpperCase() ?? '',
     })
@@ -111,39 +128,45 @@ export function buildFireflyBudgetImportBudgets(
       categoryIds.push(categoryId)
     }
 
-    // Importable drafts always carry a backdate start because drafts without
-    // one are disabled and never reach the commit
     return {
       name: draft.name,
       currency: draft.currencyCode,
       category_ids: categoryIds,
-      period_start: draft.periodStart!,
       limits: draft.limits,
     }
   })
 }
 
 /**
- * Builds the sorted limit schedule for one budget from its export rows
+ * Builds the sorted limit period schedule for one budget from its export rows
  *
- * Rows without a start date or amount cannot place a limit in the schedule and
- * are dropped, and exact duplicate rows collapse to one entry while conflicting
- * amounts on the same start pass through for the backend to reject
+ * Rows missing a date, amount, or currency cannot place a period in the
+ * schedule and are dropped, and exact duplicate rows collapse to one entry
+ * while conflicting rows over the same days pass through for the backend to
+ * reject
  */
-function buildLimitSchedule(limitRows: FireflyLimitRow[]): FireflyBudgetImportLimit[] {
+function buildLimitSchedule(limitRows: FireflyLimitRow[]): {
+  limits: FireflyBudgetImportLimit[]
+  currencyCodes: string[]
+} {
   const seen = new Set<string>()
   const limits: FireflyBudgetImportLimit[] = []
+  const currencyCodes = new Set<string>()
 
   for (const row of limitRows) {
-    if (!row.start || !row.amount) continue
+    if (!row.start || !row.end || !row.amount || !row.currencyCode) continue
 
-    const key = `${row.start} ${row.amount}`
+    const key = `${row.start} ${row.end} ${row.amount}`
     if (seen.has(key)) continue
     seen.add(key)
-    limits.push({ start: row.start, amount: row.amount })
+    limits.push({ start: row.start, end: row.end, amount: row.amount })
+    currencyCodes.add(row.currencyCode)
   }
 
-  return limits.sort((a, b) => a.start.localeCompare(b.start))
+  return {
+    limits: limits.sort((a, b) => a.start.localeCompare(b.start) || a.end.localeCompare(b.end)),
+    currencyCodes: [...currencyCodes].sort(),
+  }
 }
 
 /**
@@ -156,36 +179,159 @@ function buildBudgetDraft(
   usage: FireflyBudgetUsage | undefined,
 ): FireflyBudgetDraft {
   const categoryNames = [...usage?.categoryNames ?? []].sort((a, b) => a.localeCompare(b))
-  const limits = buildLimitSchedule(budget.limitRows)
+  const { limits, currencyCodes } = buildLimitSchedule(budget.limitRows)
+  const latest = limits.length > 0 ? limits[limits.length - 1] : null
 
-  // The most recent start date decides the amount and currency the drafts
-  // table displays, while the full schedule travels to the backend
-  let latest: FireflyLimitRow | null = null
-  for (const row of budget.limitRows) {
-    if (!row.start || !row.amount) continue
-    if (!latest || row.start > latest.start) latest = row
-  }
+  // The most recent period decides the amount and currency the drafts table
+  // displays, while the full schedule travels to the backend
+  const latestCurrency = [...budget.limitRows]
+    .filter((row) => row.start && row.end && row.amount && row.currencyCode)
+    .sort((a, b) => a.start.localeCompare(b.start))
+    .pop()?.currencyCode ?? ''
 
-  // Being archived is checked before the rest because it settles the budget on
-  // its own, whatever its transactions and limits look like
-  const periodStart = usage?.earliestDate ? `${usage.earliestDate.slice(0, 7)}-01` : null
+  // Being archived is checked before the rest because it settles the budget
+  // on its own, whatever its transactions and limit periods look like
   const disabledReason = budget.isArchived
     ? FIREFLY_BUDGET_ARCHIVED_REASON
-    : !usage || !periodStart
-      ? 'No imported transactions reference this budget'
+    : !usage || !usage.earliestDate
+      ? FIREFLY_BUDGET_NO_TRANSACTIONS_REASON
       : categoryNames.length === 0
-        ? 'No mapped categories reference this budget'
-        : !latest || !latest.currencyCode
-          ? 'The export has no limit amount for this budget'
-          : null
+        ? FIREFLY_BUDGET_NO_CATEGORIES_REASON
+        : !latest
+          ? FIREFLY_BUDGET_NO_LIMITS_REASON
+          : currencyCodes.length > 1
+            ? FIREFLY_BUDGET_MIXED_CURRENCIES_REASON
+            : repeatsOnUnsupportedCadence(limits)
+              ? FIREFLY_BUDGET_UNSUPPORTED_CADENCE_REASON
+              : null
 
   return {
     name,
     amount: latest?.amount ?? '',
-    currencyCode: latest?.currencyCode ?? '',
+    currencyCode: latestCurrency,
+    currencyCodes,
+    isArchived: budget.isArchived,
     limits,
-    periodStart,
+    firstPeriodStart: limits.length > 0 ? limits[0].start : null,
+    lastPeriodEnd: latest?.end ?? null,
+    periodLabel: latest ? describePeriodShape(latest, limits.length === 1) : null,
     categoryNames,
     disabledReason,
   }
+}
+
+/**
+ * Whether the two latest limit periods repeat back to back on a day length no
+ * Lumina cadence can express
+ *
+ * That one shape is skipped because its history would arrive intact while the
+ * budget could never continue on its own rhythm. A lone irregular window is a
+ * one-off with no rhythm to lose, and a regular history ending on one odd
+ * partial period still continues on a real cadence, so neither trips this
+ */
+function repeatsOnUnsupportedCadence(limits: FireflyBudgetImportLimit[]): boolean {
+  if (limits.length < 2) return false
+  const latest = limits[limits.length - 1]
+  if (isSupportedPeriodShape(latest)) return false
+
+  const previous = limits[limits.length - 2]
+  return inclusiveDayLength(previous) === inclusiveDayLength(latest)
+    && addDays(previous.end, 1) === latest.start
+}
+
+/**
+ * Whether a limit period spans whole calendar months or whole weeks, which
+ * are the shapes a Lumina budget cadence can continue
+ */
+function isSupportedPeriodShape(limit: FireflyBudgetImportLimit): boolean {
+  return monthSpanOf(limit) !== null || inclusiveDayLength(limit) % DAYS_PER_WEEK === 0
+}
+
+/**
+ * Describes how one limit period repeats, in words the drafts table can show
+ */
+function describePeriodShape(limit: FireflyBudgetImportLimit, isOnly: boolean): string {
+  const months = monthSpanOf(limit)
+  if (months === 1) return 'Monthly'
+  if (months === 3) return 'Quarterly'
+  if (months === MONTHS_PER_YEAR) return 'Yearly'
+  if (months !== null) {
+    return months % MONTHS_PER_YEAR === 0 ? `Every ${months / MONTHS_PER_YEAR} years` : `Every ${months} months`
+  }
+
+  const days = inclusiveDayLength(limit)
+  if (days % DAYS_PER_WEEK === 0) {
+    return days === DAYS_PER_WEEK ? 'Weekly' : `Every ${days / DAYS_PER_WEEK} weeks`
+  }
+  return isOnly ? 'One-off' : `Every ${days} days`
+}
+
+/**
+ * Returns the calendar months a limit period spans when it runs from a
+ * day-of-month anchor to the day before that anchor, or null otherwise
+ *
+ * A start on the last day of a short month could be the capped form of a
+ * larger anchor, so those anchors are tried too, mirroring how the backend
+ * reads the cadence off a period
+ */
+function monthSpanOf(limit: FireflyBudgetImportLimit): number | null {
+  const start = parseIsoDateUtc(limit.start)
+  const followingStart = parseIsoDateUtc(addDays(limit.end, 1))
+  if (start === null || followingStart === null) return null
+
+  const months = (followingStart.getUTCFullYear() - start.getUTCFullYear()) * MONTHS_PER_YEAR
+    + (followingStart.getUTCMonth() - start.getUTCMonth())
+  if (months <= 0) return null
+
+  const startDay = start.getUTCDate()
+  const isMonthEndStart = startDay === lastDayOfMonth(start.getUTCFullYear(), start.getUTCMonth())
+  const anchors = isMonthEndStart
+    ? Array.from({ length: MAX_MONTH_ANCHOR_DAY - startDay + 1 }, (_, offset) => startDay + offset)
+    : [startDay]
+
+  const followingMonthIndex = start.getUTCMonth() + months
+  for (const anchor of anchors) {
+    const anchoredDay = Math.min(anchor, lastDayOfMonth(start.getUTCFullYear(), followingMonthIndex))
+    if (Date.UTC(start.getUTCFullYear(), followingMonthIndex, anchoredDay) === followingStart.getTime()) {
+      return months
+    }
+  }
+  return null
+}
+
+/**
+ * Returns how many days a limit period covers, both ends included
+ */
+function inclusiveDayLength(limit: FireflyBudgetImportLimit): number {
+  const start = parseIsoDateUtc(limit.start)
+  const end = parseIsoDateUtc(limit.end)
+  if (start === null || end === null) return 0
+  return Math.round((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000)) + 1
+}
+
+/**
+ * Returns the ISO date a number of days after the given one
+ */
+function addDays(value: string, days: number): string {
+  const parsed = parseIsoDateUtc(value)
+  if (parsed === null) return value
+  parsed.setUTCDate(parsed.getUTCDate() + days)
+  return parsed.toISOString().slice(0, 10)
+}
+
+/**
+ * Parses an ISO date at UTC so day arithmetic never crosses DST boundaries
+ */
+function parseIsoDateUtc(value: string): Date | null {
+  const [year, month, day] = value.split('-').map(Number)
+  if (!year || !month || !day) return null
+  return new Date(Date.UTC(year, month - 1, day))
+}
+
+/**
+ * Returns the last calendar day of a month, tolerating overflowed month
+ * indexes the way Date.UTC normalises them
+ */
+function lastDayOfMonth(year: number, monthIndex: number): number {
+  return new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate()
 }

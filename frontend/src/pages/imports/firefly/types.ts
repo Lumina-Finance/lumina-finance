@@ -34,18 +34,32 @@ export interface FireflyBudgetDraft {
    * Latest limit amount, shown in the drafts table
    */
   amount: string
+
+  /**
+   * Currency of the latest limit period, which is the budget currency when
+   * the history holds exactly one
+   */
   currencyCode: string
 
   /**
-   * Full limit schedule sorted by start date, sent to the backend so every
-   * backfilled period keeps the amount in force at the time
+   * Distinct currencies across the limit history, more than one of which
+   * makes the budget unimportable
    */
-  limits: FireflyBudgetImportLimit[]
+  currencyCodes: string[]
+  isArchived: boolean
 
   /**
-   * First day of the month of the earliest transaction carrying the budget
+   * Full limit period schedule sorted by start date, sent to the backend so
+   * every period keeps its exported dates and amount
    */
-  periodStart: string | null
+  limits: FireflyBudgetImportLimit[]
+  firstPeriodStart: string | null
+  lastPeriodEnd: string | null
+
+  /**
+   * How the latest limit period repeats, in words the drafts table can show
+   */
+  periodLabel: string | null
 
   /**
    * Export category names the budget's transactions carry, resolved to

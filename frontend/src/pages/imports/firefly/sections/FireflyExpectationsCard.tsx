@@ -32,8 +32,8 @@ const CONVERTED_MAPPINGS: ConceptMapping[] = [
     lumina: 'Notes, which are optional here',
   },
   {
-    firefly: 'Budget limits that changed over time',
-    lumina: 'A monthly budget backdated to its first transaction, each period keeping the amount in force at the time',
+    firefly: 'Budget limit periods, whatever their length',
+    lumina: 'One budget period each, with the original dates and amounts, continuing on the cadence of the latest period',
   },
 ]
 
@@ -50,8 +50,9 @@ const DEVIATION_TEXT = 'Firefly III sets a budget on each transaction. Lumina bu
  * later, since nothing here is committed to and a hint otherwise would be read
  * as a promise
  */
-const LEFT_BEHIND = 'archived budgets, bills, recurring transactions, piggy banks, reconciliation flags, '
-  + 'account interest and card details, rules and attachments'
+const LEFT_BEHIND = 'archived budgets, budgets repeating on period lengths Lumina has no cadence for, bills, '
+  + 'recurring transactions, piggy banks, reconciliation flags, account interest and card details, '
+  + 'rules and attachments'
 
 /**
  * Static concept mapping shown at the top of the Firefly III flow so users

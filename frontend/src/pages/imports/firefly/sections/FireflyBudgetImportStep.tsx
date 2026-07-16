@@ -1,4 +1,5 @@
 import { EmptyState, ImportCheckbox, ImportInfoCard, ImportStep } from '../../components'
+import { FireflySkippedBudgetsTable } from '../components'
 import type { FireflyImportWorkflow } from '../hooks'
 
 type FireflyBudgetImportStepProps = Pick<
@@ -18,7 +19,9 @@ type FireflyBudgetImportStepProps = Pick<
 /**
  * Previews the budgets the commit will import and lets the user choose them
  *
- * The commit imports the selected budgets itself, so this step only offers a
+ * Budgets the export cannot back move into their own skipped panel beneath
+ * the selection table, in the same shape as the skipped transaction rows. The
+ * commit imports the selected budgets itself, so this step only offers a
  * button when the budget stage failed after the transactions were committed
  */
 export function FireflyBudgetImportStep({
@@ -35,10 +38,12 @@ export function FireflyBudgetImportStep({
 }: FireflyBudgetImportStepProps) {
   if (!budgetsFile) return null
 
+  const importableDrafts = budgetDrafts.filter((draft) => !draft.disabledReason)
+  const skippedDrafts = budgetDrafts.filter((draft) => draft.disabledReason)
+
   const retryable = Boolean(importResult) && Boolean(budgetStageError)
-  const pendingCount = budgetDrafts.filter((draft) => (
-    !draft.disabledReason
-    && selectedBudgetNames.has(draft.name)
+  const pendingCount = importableDrafts.filter((draft) => (
+    selectedBudgetNames.has(draft.name)
     && budgetImportStatuses[draft.name] !== 'imported'
   )).length
 
@@ -50,10 +55,10 @@ export function FireflyBudgetImportStep({
     <ImportStep
       index="04"
       title="Budget Import"
-      description="Monthly budgets derived from the budgets export and the staged transactions, imported together with them."
+      description="Budgets derived from the budgets export and the staged transactions, imported together with them."
     >
-      <ImportInfoCard title="Backdated Periods">
-        Each budget is created as a monthly budget and every period from its backdate start through today is filled in automatically.
+      <ImportInfoCard title="Periods As Exported">
+        Each budget keeps its limit periods exactly as exported, with their original dates and amounts, and continues on the cadence of its most recent period.
       </ImportInfoCard>
 
       {budgetDrafts.length === 0 ? (
@@ -61,31 +66,38 @@ export function FireflyBudgetImportStep({
           title="No budgets detected"
           description="The budgets CSV has no budget limit rows."
         />
+      ) : importableDrafts.length === 0 ? (
+        <EmptyState
+          title="No importable budgets"
+          description="Every budget in the export is skipped, for the reasons listed below."
+        />
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[58rem] table-fixed text-left text-[0.9375rem]">
             <colgroup>
               <col className="w-12" />
-              <col className="w-[18%]" />
-              <col className="w-[14%]" />
-              <col className="w-[28%]" />
-              <col className="w-[12%]" />
+              <col className="w-[17%]" />
+              <col className="w-[11%]" />
+              <col className="w-[13%]" />
               <col className="w-[24%]" />
+              <col className="w-[12%]" />
+              <col className="w-[19%]" />
             </colgroup>
             <thead style={{ color: 'var(--app-text-subtle)', background: 'var(--app-input-bg)' }}>
               <tr>
                 <th className="w-12 px-4 py-2.5 font-medium" aria-label="Import selection" />
                 <th className="px-4 py-2.5 font-medium">Budget</th>
+                <th className="px-4 py-2.5 font-medium">Repeats</th>
                 <th className="px-4 py-2.5 text-right font-medium">Latest Amount</th>
                 <th className="px-4 py-2.5 font-medium">Categories</th>
-                <th className="px-4 py-2.5 font-medium">Backdate Start</th>
+                <th className="px-4 py-2.5 font-medium">First Period</th>
                 <th className="px-4 py-2.5 font-medium">Status</th>
               </tr>
             </thead>
             <tbody>
-              {budgetDrafts.map((draft) => {
+              {importableDrafts.map((draft) => {
                 const status = budgetImportStatuses[draft.name]
-                const selectable = !draft.disabledReason && status !== 'imported' && !selectionLocked
+                const selectable = status !== 'imported' && !selectionLocked
 
                 // A schedule with more than one distinct amount means the
                 // limit changed over time, so the row flags that history
@@ -93,16 +105,19 @@ export function FireflyBudgetImportStep({
                 const distinctAmountCount = new Set(draft.limits.map((limit) => limit.amount)).size
 
                 return (
-                  <tr key={draft.name} style={draft.disabledReason ? { color: 'var(--app-text-subtle)' } : undefined}>
+                  <tr key={draft.name}>
                     <td className="px-4 py-2.5 align-middle">
                       <ImportCheckbox
-                        checked={!draft.disabledReason && status !== 'imported' && selectedBudgetNames.has(draft.name)}
+                        checked={status !== 'imported' && selectedBudgetNames.has(draft.name)}
                         disabled={!selectable}
                         label={`Import ${draft.name}`}
                         onChange={() => toggleBudgetSelection(draft.name)}
                       />
                     </td>
                     <td className="truncate px-4 py-2.5 align-middle font-medium">{draft.name}</td>
+                    <td className="px-4 py-2.5 align-middle" style={{ color: 'var(--app-text-muted)' }}>
+                      {draft.periodLabel ?? ''}
+                    </td>
                     <td className="px-4 py-2.5 text-right align-middle font-financial tabular-nums">
                       {draft.amount ? `${draft.amount} ${draft.currencyCode}` : ''}
                       {distinctAmountCount > 1 && (
@@ -115,11 +130,10 @@ export function FireflyBudgetImportStep({
                       {draft.categoryNames.join(', ')}
                     </td>
                     <td className="px-4 py-2.5 align-middle font-financial tabular-nums">
-                      {draft.periodStart ?? ''}
+                      {draft.firstPeriodStart ?? ''}
                     </td>
                     <td className="px-4 py-2.5 align-middle text-sm">
                       <BudgetRowStatus
-                        disabledReason={draft.disabledReason}
                         status={status}
                         error={budgetImportErrors[draft.name]}
                       />
@@ -131,6 +145,8 @@ export function FireflyBudgetImportStep({
           </table>
         </div>
       )}
+
+      {skippedDrafts.length > 0 && <FireflySkippedBudgetsTable drafts={skippedDrafts} />}
 
       {retryable && (
         <div className="flex flex-col items-end gap-3 pt-2">
@@ -155,17 +171,12 @@ export function FireflyBudgetImportStep({
  * Renders the hint, success, or error state for one budget row
  */
 function BudgetRowStatus({
-  disabledReason,
   status,
   error,
 }: {
-  disabledReason: string | null
   status: 'imported' | 'error' | undefined
   error: string | undefined
 }) {
-  if (disabledReason) {
-    return <span style={{ color: 'var(--app-text-subtle)' }}>{disabledReason}</span>
-  }
   if (status === 'imported') {
     return <span className="font-medium" style={{ color: 'var(--app-positive)' }}>Imported</span>
   }

@@ -44,31 +44,28 @@ export interface FireflySkippedRow {
 }
 
 /**
- * One budget limit taking effect on a start date
+ * One budget limit period with its inclusive dates
  *
- * The amount stays a raw CSV string so the backend can validate precision
- * against the budget currency
+ * Each period becomes a budget period with these exact dates. The amount
+ * stays a raw CSV string so the backend can validate precision against the
+ * budget currency
  */
 export interface FireflyBudgetImportLimit {
   /**
-   * ISO date in YYYY-MM-DD form
+   * ISO dates in YYYY-MM-DD form
    */
   start: string;
+  end: string;
   amount: string;
 }
 
 /**
- * One budget with its full limit schedule, sorted by start date
+ * One budget with its full limit period schedule, sorted by start date
  */
 export interface FireflyBudgetImportBudget {
   name: string;
   currency: string;
   category_ids: string[];
-
-  /**
-   * First day of the month of the budget's earliest transaction
-   */
-  period_start: string;
   limits: FireflyBudgetImportLimit[];
 }
 

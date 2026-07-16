@@ -4,7 +4,14 @@
 import { describe, expect, it } from 'vitest'
 import type { CsvRow, ImportFileDraft } from '@/pages/imports/types'
 import type { FireflyBudgetDraft } from '@/pages/imports/firefly/types'
-import { FIREFLY_BUDGET_ARCHIVED_REASON } from '@/pages/imports/firefly/constants'
+import {
+  FIREFLY_BUDGET_ARCHIVED_REASON,
+  FIREFLY_BUDGET_MIXED_CURRENCIES_REASON,
+  FIREFLY_BUDGET_NO_CATEGORIES_REASON,
+  FIREFLY_BUDGET_NO_LIMITS_REASON,
+  FIREFLY_BUDGET_NO_TRANSACTIONS_REASON,
+  FIREFLY_BUDGET_UNSUPPORTED_CADENCE_REASON,
+} from '@/pages/imports/firefly/constants'
 import { buildFireflyBudgetDrafts, buildFireflyBudgetImportBudgets } from '@/pages/imports/firefly/utils'
 
 /**
@@ -58,13 +65,14 @@ describe('buildFireflyBudgetDrafts', () => {
       transactionRows: [createTransactionRow()],
     })
 
+    expect(draft.isArchived).toBe(true)
     expect(draft.disabledReason).toBe(FIREFLY_BUDGET_ARCHIVED_REASON)
   })
 
   it('reads the archived flag off any of a budget\'s limit rows', () => {
     const budgetsFile = createBudgetsFile([
       createLimitRow({ name: 'Home Office', active: '0', start_date: '2024-01-01' }),
-      createLimitRow({ name: 'Home Office', active: '0', start_date: '2024-02-01' }),
+      createLimitRow({ name: 'Home Office', active: '0', start_date: '2024-02-01', end_date: '2024-02-29' }),
       createLimitRow({ name: 'Groceries', active: '1' }),
     ])
 
@@ -91,7 +99,7 @@ describe('buildFireflyBudgetDrafts', () => {
     expect(draft.disabledReason).toBe(FIREFLY_BUDGET_ARCHIVED_REASON)
   })
 
-  it('derives a sorted limit schedule and displays the latest amount', () => {
+  it('derives a sorted limit period schedule and displays the latest amount', () => {
     const budgetsFile = createBudgetsFile([
       createLimitRow({ start_date: '2025-01-01', end_date: '2025-01-31', amount: '650.00' }),
       createLimitRow({ start_date: '2024-01-01', end_date: '2024-01-31', amount: '600.00' }),
@@ -104,22 +112,92 @@ describe('buildFireflyBudgetDrafts', () => {
     })
 
     expect(draft.limits).toEqual([
-      { start: '2024-01-01', amount: '600.00' },
-      { start: '2024-06-01', amount: '625.00' },
-      { start: '2025-01-01', amount: '650.00' },
+      { start: '2024-01-01', end: '2024-01-31', amount: '600.00' },
+      { start: '2024-06-01', end: '2024-06-30', amount: '625.00' },
+      { start: '2025-01-01', end: '2025-01-31', amount: '650.00' },
     ])
     expect(draft.amount).toBe('650.00')
     expect(draft.currencyCode).toBe('CAD')
-    expect(draft.periodStart).toBe('2024-02-01')
+    expect(draft.firstPeriodStart).toBe('2024-01-01')
+    expect(draft.lastPeriodEnd).toBe('2025-01-31')
+    expect(draft.periodLabel).toBe('Monthly')
     expect(draft.categoryNames).toEqual(['Food'])
     expect(draft.disabledReason).toBeNull()
+  })
+
+  it('labels the cadence of the latest limit period', () => {
+    const budgetsFile = createBudgetsFile([
+      createLimitRow({ name: 'Entertainment', start_date: '2024-01-01', end_date: '2024-03-31' }),
+      createLimitRow({ name: 'Clothing', start_date: '2024-01-01', end_date: '2024-06-30' }),
+      createLimitRow({ name: 'Giving', start_date: '2024-01-01', end_date: '2024-12-31' }),
+      createLimitRow({ name: 'Fitness', start_date: '2024-01-01', end_date: '2024-01-07' }),
+      createLimitRow({ name: 'Trip', start_date: '2024-10-04', end_date: '2024-10-26' }),
+    ])
+    const transactionRows = ['Entertainment', 'Clothing', 'Giving', 'Fitness', 'Trip']
+      .map((budget) => createTransactionRow({ budget }))
+
+    const drafts = buildFireflyBudgetDrafts({ budgetsFile, transactionRows })
+
+    const byName = Object.fromEntries(drafts.map((draft) => [draft.name, draft]))
+    expect(byName.Entertainment.periodLabel).toBe('Quarterly')
+    expect(byName.Clothing.periodLabel).toBe('Every 6 months')
+    expect(byName.Giving.periodLabel).toBe('Yearly')
+    expect(byName.Fitness.periodLabel).toBe('Weekly')
+    expect(byName.Trip.periodLabel).toBe('One-off')
+    for (const draft of drafts) expect(draft.disabledReason).toBeNull()
+  })
+
+  it('disables a budget repeating on a period length no cadence expresses', () => {
+    const budgetsFile = createBudgetsFile([
+      createLimitRow({ start_date: '2025-03-01', end_date: '2025-03-13', amount: '45.00' }),
+      createLimitRow({ start_date: '2025-03-14', end_date: '2025-03-26', amount: '45.00' }),
+    ])
+
+    const [draft] = buildFireflyBudgetDrafts({
+      budgetsFile,
+      transactionRows: [createTransactionRow()],
+    })
+
+    expect(draft.periodLabel).toBe('Every 13 days')
+    expect(draft.disabledReason).toBe(FIREFLY_BUDGET_UNSUPPORTED_CADENCE_REASON)
+  })
+
+  // A regular history that ends on one odd partial period still continues on
+  // a real cadence, so only a repeating odd length is skipped
+  it('keeps a budget whose lone irregular period does not repeat', () => {
+    const budgetsFile = createBudgetsFile([
+      createLimitRow({ start_date: '2024-01-01', end_date: '2024-01-31' }),
+      createLimitRow({ start_date: '2024-02-01', end_date: '2024-02-18' }),
+    ])
+
+    const [draft] = buildFireflyBudgetDrafts({
+      budgetsFile,
+      transactionRows: [createTransactionRow()],
+    })
+
+    expect(draft.disabledReason).toBeNull()
+  })
+
+  it('disables a budget whose limit periods mix currencies', () => {
+    const budgetsFile = createBudgetsFile([
+      createLimitRow({ start_date: '2024-01-01', currency_code: 'CAD' }),
+      createLimitRow({ start_date: '2024-02-01', end_date: '2024-02-29', currency_code: 'USD' }),
+    ])
+
+    const [draft] = buildFireflyBudgetDrafts({
+      budgetsFile,
+      transactionRows: [createTransactionRow()],
+    })
+
+    expect(draft.currencyCodes).toEqual(['CAD', 'USD'])
+    expect(draft.disabledReason).toBe(FIREFLY_BUDGET_MIXED_CURRENCIES_REASON)
   })
 
   it('collapses exact duplicate limit rows to one schedule entry', () => {
     const budgetsFile = createBudgetsFile([
       createLimitRow({ start_date: '2024-01-01', amount: '600.00' }),
       createLimitRow({ start_date: '2024-01-01', amount: '600.00' }),
-      createLimitRow({ start_date: '2024-06-01', amount: '625.00' }),
+      createLimitRow({ start_date: '2024-06-01', end_date: '2024-06-30', amount: '625.00' }),
     ])
 
     const [draft] = buildFireflyBudgetDrafts({
@@ -128,12 +206,12 @@ describe('buildFireflyBudgetDrafts', () => {
     })
 
     expect(draft.limits).toEqual([
-      { start: '2024-01-01', amount: '600.00' },
-      { start: '2024-06-01', amount: '625.00' },
+      { start: '2024-01-01', end: '2024-01-31', amount: '600.00' },
+      { start: '2024-06-01', end: '2024-06-30', amount: '625.00' },
     ])
   })
 
-  it('keeps conflicting amounts on the same start for the backend to reject', () => {
+  it('keeps conflicting amounts over the same period for the backend to reject', () => {
     const budgetsFile = createBudgetsFile([
       createLimitRow({ start_date: '2024-01-01', amount: '600.00' }),
       createLimitRow({ start_date: '2024-01-01', amount: '700.00' }),
@@ -145,16 +223,18 @@ describe('buildFireflyBudgetDrafts', () => {
     })
 
     expect(draft.limits).toEqual([
-      { start: '2024-01-01', amount: '600.00' },
-      { start: '2024-01-01', amount: '700.00' },
+      { start: '2024-01-01', end: '2024-01-31', amount: '600.00' },
+      { start: '2024-01-01', end: '2024-01-31', amount: '700.00' },
     ])
   })
 
-  it('drops limit rows without a start date or amount from the schedule', () => {
+  it('drops limit rows missing a date, amount, or currency from the schedule', () => {
     const budgetsFile = createBudgetsFile([
       createLimitRow({ start_date: '', amount: '500.00' }),
       createLimitRow({ start_date: '2024-01-01', amount: '' }),
-      createLimitRow({ start_date: '2024-06-01', amount: '625.00' }),
+      createLimitRow({ start_date: '2024-03-01', end_date: '', amount: '610.00' }),
+      createLimitRow({ start_date: '2024-05-01', end_date: '2024-05-31', currency_code: '', amount: '615.00' }),
+      createLimitRow({ start_date: '2024-06-01', end_date: '2024-06-30', amount: '625.00' }),
     ])
 
     const [draft] = buildFireflyBudgetDrafts({
@@ -162,7 +242,7 @@ describe('buildFireflyBudgetDrafts', () => {
       transactionRows: [createTransactionRow()],
     })
 
-    expect(draft.limits).toEqual([{ start: '2024-06-01', amount: '625.00' }])
+    expect(draft.limits).toEqual([{ start: '2024-06-01', end: '2024-06-30', amount: '625.00' }])
     expect(draft.amount).toBe('625.00')
   })
 
@@ -177,7 +257,7 @@ describe('buildFireflyBudgetDrafts', () => {
     })
 
     expect(draft.limits).toEqual([])
-    expect(draft.disabledReason).toBe('The export has no limit amount for this budget')
+    expect(draft.disabledReason).toBe(FIREFLY_BUDGET_NO_LIMITS_REASON)
   })
 
   it('disables a budget no imported transaction references', () => {
@@ -188,7 +268,7 @@ describe('buildFireflyBudgetDrafts', () => {
       transactionRows: [],
     })
 
-    expect(draft.disabledReason).toBe('No imported transactions reference this budget')
+    expect(draft.disabledReason).toBe(FIREFLY_BUDGET_NO_TRANSACTIONS_REASON)
   })
 
   it('disables a budget whose transactions carry no category', () => {
@@ -200,7 +280,7 @@ describe('buildFireflyBudgetDrafts', () => {
     })
 
     expect(draft.categoryNames).toEqual([])
-    expect(draft.disabledReason).toBe('No mapped categories reference this budget')
+    expect(draft.disabledReason).toBe(FIREFLY_BUDGET_NO_CATEGORIES_REASON)
   })
 
   it('collects the distinct sorted categories referencing a budget', () => {
@@ -228,8 +308,12 @@ describe('buildFireflyBudgetImportBudgets', () => {
       name: 'Groceries',
       amount: '600.00',
       currencyCode: 'CAD',
-      limits: [{ start: '2024-01-01', amount: '600.00' }],
-      periodStart: '2024-02-01',
+      currencyCodes: ['CAD'],
+      isArchived: false,
+      limits: [{ start: '2024-01-01', end: '2024-01-31', amount: '600.00' }],
+      firstPeriodStart: '2024-01-01',
+      lastPeriodEnd: '2024-01-31',
+      periodLabel: 'Monthly',
       categoryNames: ['Food'],
       disabledReason: null,
       ...overrides,
@@ -246,8 +330,7 @@ describe('buildFireflyBudgetImportBudgets', () => {
       name: 'Groceries',
       currency: 'CAD',
       category_ids: ['category-food', 'category-restaurants'],
-      period_start: '2024-02-01',
-      limits: [{ start: '2024-01-01', amount: '600.00' }],
+      limits: [{ start: '2024-01-01', end: '2024-01-31', amount: '600.00' }],
     })
   })
 
