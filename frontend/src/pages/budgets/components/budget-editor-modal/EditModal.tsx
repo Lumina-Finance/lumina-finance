@@ -145,6 +145,10 @@ export default function BudgetEditModal({
     || !sameStringSet(form.categoryIds, baseBudget.category_ids)
   const periodChanged = Boolean(latestPeriod && limitMinorUnits !== null && limitMinorUnits !== latestPeriod.overall_limit)
   const archiveChanged = isArchived !== baseBudget.is_archived
+
+  // The backend rejects any non-unarchive change to an archived budget, so every other field is locked
+  // against the persisted archived state rather than the staged toggle until the unarchive is saved
+  const fieldsLocked = baseBudget.is_archived
   const canSave =
     !isPending
     && form.name.trim().length > 0
@@ -332,6 +336,12 @@ export default function BudgetEditModal({
         />
       )}
     >
+      {fieldsLocked && (
+        <p className="mb-5 text-sm" style={{ color: 'var(--app-text-muted)' }}>
+          Unarchive this budget to edit its details.
+        </p>
+      )}
+
       <div className="grid min-h-0 items-stretch gap-7 min-[1050px]:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <div className="flex min-h-0 flex-col gap-5">
           <BudgetEditorModalScopeSection
@@ -343,6 +353,7 @@ export default function BudgetEditModal({
             currencyReadOnly
             currencyTooltip={false}
             limitDisabled={!latestPeriod}
+            fieldsLocked={fieldsLocked}
             showError={showError}
             handlers={handlers}
           />
@@ -353,6 +364,7 @@ export default function BudgetEditModal({
             periodStartLabel="Period start"
             cadenceSummaryText={`${budgetCadenceLabel(baseBudget)}${latestPeriod ? ` · ${formatBudgetPeriod(latestPeriod)}` : ''}`}
             recurrenceControlsLocked
+            fieldsLocked={fieldsLocked}
             showError={showError}
             handlers={handlers}
           />
@@ -369,6 +381,7 @@ export default function BudgetEditModal({
           ids={EDIT_FIELD_IDS}
           emptyMessage="Create an expense category before editing this budget."
           animateOptions
+          fieldsLocked={fieldsLocked}
           showError={showError}
           handlers={handlers}
         />

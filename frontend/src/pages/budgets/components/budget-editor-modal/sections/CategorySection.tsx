@@ -12,6 +12,9 @@ interface BudgetEditorModalCategorySectionProps {
   ids: BudgetEditorModalFieldIds
   emptyMessage: string
   animateOptions: boolean
+
+  // Locks category search and selection while the budget is archived so tracked categories cannot change
+  fieldsLocked: boolean
   showError: BudgetEditorModalErrorGetter
   handlers: BudgetEditorModalHandlers
 }
@@ -25,6 +28,7 @@ export default function BudgetEditorModalCategorySection({
   ids,
   emptyMessage,
   animateOptions,
+  fieldsLocked,
   showError,
   handlers,
 }: BudgetEditorModalCategorySectionProps) {
@@ -38,6 +42,7 @@ export default function BudgetEditorModalCategorySection({
       category={category}
       selected={form.categoryIds.includes(category.id)}
       animateOptions={animateOptions}
+      disabled={fieldsLocked}
       onToggle={handlers.onCategoryToggle}
     />
   ))
@@ -94,6 +99,7 @@ export default function BudgetEditorModalCategorySection({
               onValueChange={handlers.onCategorySearchChange}
               placeholder="Search categories..."
               wrapperClassName="mt-3"
+              disabled={fieldsLocked}
             />
             <div className="relative mb-1 mt-3 min-h-0 min-[1050px]:flex-1">
               <motion.div
@@ -128,11 +134,13 @@ function BudgetCategoryOption({
   category,
   selected,
   animateOptions,
+  disabled,
   onToggle,
 }: {
   category: Category
   selected: boolean
   animateOptions: boolean
+  disabled: boolean
   onToggle: (categoryId: string) => void
 }) {
   const OptionComponent = animateOptions ? motion.button : 'button'
@@ -141,8 +149,9 @@ function BudgetCategoryOption({
     <OptionComponent
       {...(animateOptions ? { layout: true, transition: { layout: { duration: 0.22, ease: EASE } } } : {})}
       type="button"
-      className={`app-selection-option grid-cols-[1.25rem_1.25rem_minmax(0,1fr)] ${selected ? 'app-selection-option-active' : ''}`}
+      className={`app-selection-option grid-cols-[1.25rem_1.25rem_minmax(0,1fr)] ${disabled ? 'cursor-not-allowed opacity-60' : ''} ${selected ? 'app-selection-option-active' : ''}`}
       onClick={() => onToggle(category.id)}
+      disabled={disabled}
     >
       <span className={`app-selection-check ${selected ? 'app-selection-check-active' : ''}`}>
         <Check size={13} strokeWidth={3} aria-hidden />

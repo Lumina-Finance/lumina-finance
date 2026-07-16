@@ -297,6 +297,7 @@ export default function BudgetCreateModal({
             currencyReadOnly={false}
             currencyTooltip
             limitDisabled={false}
+            fieldsLocked={false}
             showError={showError}
             handlers={handlers}
           />
@@ -306,6 +307,7 @@ export default function BudgetCreateModal({
             ids={CREATE_FIELD_IDS}
             periodStartLabel="First period start"
             recurrenceControlsLocked={false}
+            fieldsLocked={false}
             showError={showError}
             handlers={handlers}
           />
@@ -317,6 +319,7 @@ export default function BudgetCreateModal({
           ids={CREATE_FIELD_IDS}
           emptyMessage="Create an expense category before adding a budget."
           animateOptions={false}
+          fieldsLocked={false}
           showError={showError}
           handlers={handlers}
         />
