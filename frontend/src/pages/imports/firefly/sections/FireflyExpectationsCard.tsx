@@ -1,4 +1,5 @@
-import { ArrowRight, Info } from 'lucide-react'
+import { useState } from 'react'
+import { ArrowRight, ChevronDown, Info } from 'lucide-react'
 import { IMPORT_INSET_STYLE } from '../../constants'
 
 /**
@@ -33,26 +34,17 @@ const CONVERTED_MAPPINGS: ConceptMapping[] = [
   },
   {
     firefly: 'Budget limit periods, whatever their length',
-    lumina: 'One budget period each, with the original dates and amounts, continuing on the cadence of the latest period',
-  },
-  {
-    firefly: 'A budget whose latest period fits no weekly, monthly, or yearly length and does not repeat back to back',
-    lumina: 'A one-off budget holding its exact periods, with no next period suggested',
+    lumina: 'One budget period each, with the original dates and amounts, continuing on the cadence of the latest period, or as a one-off when no cadence fits',
   },
 ]
 
 /**
- * The differences whose figures will not tie back to Firefly III, which are
+ * The one difference whose figures will not tie back to Firefly III, which is
  * worth finding before the numbers are compared rather than after
  */
 const DEVIATION_TEXT = "Firefly III sets a budget on each transaction. This app's budgets track whole "
   + 'categories, so anything you left out of a budget there still counts against it here, and the amount '
   + 'left can read lower than Firefly III shows.'
-
-const SUB_CENT_TEXT = 'Firefly III also stores amounts with up to twelve decimal places. We keep each '
-  + "currency's own precision, two decimals for dollars and none for yen, and never round money on the "
-  + 'way in, so a row with more decimals than its currency has is skipped and reported, leaving your '
-  + 'totals short by those rows.'
 
 /**
  * Everything the import leaves behind, listed without saying which might arrive
@@ -61,14 +53,21 @@ const SUB_CENT_TEXT = 'Firefly III also stores amounts with up to twelve decimal
  */
 const LEFT_BEHIND = [
   'Archived budgets',
-  'Budgets repeating on period lengths Lumina Finance has no cadence for',
-  'Budgets whose limits mix more than one currency',
-  'Transactions carrying a tag too long for this app',
   'Bills and recurring transactions',
-  'Piggy banks',
-  'Reconciliation flags',
+  'Piggy banks and reconciliation flags',
   'Account interest and card details',
   'Rules and attachments',
+]
+
+/**
+ * Rare shapes an export can carry and what happens to each, kept behind a
+ * toggle so the card stays scannable, since most exports contain none of them
+ */
+const EDGE_CASES = [
+  'A row with more decimal places than its currency has is skipped and reported rather than rounded, so totals can read short by those rows',
+  'A budget repeating back to back on a period length no cadence here can express is skipped',
+  'A budget whose limit periods mix more than one currency is skipped',
+  'A row carrying a tag too long for this app is skipped and reported',
 ]
 
 /**
@@ -111,9 +110,6 @@ export function FireflyExpectationsCard() {
             <p className="text-sm leading-5" style={{ color: 'var(--app-text)' }}>
               {DEVIATION_TEXT}
             </p>
-            <p className="mt-1.5 text-sm leading-5" style={{ color: 'var(--app-text)' }}>
-              {SUB_CENT_TEXT}
-            </p>
           </ConceptGroup>
 
           <ConceptGroup title="Changes shape" railColour="var(--app-accent)">
@@ -144,8 +140,55 @@ export function FireflyExpectationsCard() {
               ))}
             </ul>
           </ConceptGroup>
+
+          <EdgeCasesGroup items={EDGE_CASES} />
         </div>
       </div>
+    </div>
+  )
+}
+
+/**
+ * Collapsed fine print for the rare shapes an export can carry
+ *
+ * The rail matches the concept groups so the toggle reads as one of them,
+ * but the content stays hidden until asked for
+ */
+function EdgeCasesGroup({ items }: { items: string[] }) {
+  const [expanded, setExpanded] = useState(false)
+
+  return (
+    <div className="mt-3 border-l-2 pl-3" style={{ borderColor: 'var(--app-text-subtle)' }}>
+      <button
+        type="button"
+        className="flex w-full cursor-pointer items-center justify-between gap-2 text-left"
+        onClick={() => setExpanded((current) => !current)}
+        aria-expanded={expanded}
+        aria-label={expanded ? 'Collapse edge cases' : 'Expand edge cases'}
+      >
+        <span
+          className="text-xs font-semibold uppercase tracking-wide"
+          style={{ color: 'var(--app-accent)' }}
+        >
+          Edge cases
+        </span>
+        <ChevronDown
+          size={15}
+          className="shrink-0 transition-transform duration-150"
+          style={{ transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)', color: 'var(--app-text-muted)' }}
+          aria-hidden
+        />
+      </button>
+      {expanded && (
+        <ul
+          className="mt-1.5 flex list-disc flex-col gap-1 pl-4 text-sm leading-5"
+          style={{ color: 'var(--app-text-subtle)' }}
+        >
+          {items.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+      )}
     </div>
   )
 }
