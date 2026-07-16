@@ -50,10 +50,17 @@ const DEVIATION_TEXT = 'Firefly III sets a budget on each transaction. Lumina bu
  * later, since nothing here is committed to and a hint otherwise would be read
  * as a promise
  */
-const LEFT_BEHIND = 'archived budgets, budgets repeating on period lengths Lumina has no cadence for, '
-  + 'budgets whose limits mix more than one currency, transactions carrying a tag too long for Lumina, '
-  + 'bills, recurring transactions, piggy banks, reconciliation flags, account interest and card details, '
-  + 'rules and attachments'
+const LEFT_BEHIND = [
+  'Archived budgets',
+  'Budgets repeating on period lengths Lumina has no cadence for',
+  'Budgets whose limits mix more than one currency',
+  'Transactions carrying a tag too long for Lumina',
+  'Bills and recurring transactions',
+  'Piggy banks',
+  'Reconciliation flags',
+  'Account interest and card details',
+  'Rules and attachments',
+]
 
 /**
  * Static concept mapping shown at the top of the Firefly III flow so users
@@ -116,9 +123,14 @@ export function FireflyExpectationsCard() {
           </ConceptGroup>
 
           <ConceptGroup title="Left behind" railColour="var(--app-text-subtle)">
-            <p className="text-sm leading-5" style={{ color: 'var(--app-text-subtle)' }}>
-              {LEFT_BEHIND}
-            </p>
+            <ul
+              className="flex list-disc flex-col gap-1 pl-4 text-sm leading-5"
+              style={{ color: 'var(--app-text-subtle)' }}
+            >
+              {LEFT_BEHIND.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
           </ConceptGroup>
         </div>
       </div>
