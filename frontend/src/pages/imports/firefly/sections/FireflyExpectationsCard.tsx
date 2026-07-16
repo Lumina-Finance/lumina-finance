@@ -56,7 +56,7 @@ const DEVIATION_TEXT = "Firefly III sets a budget on each transaction. This app'
  */
 const LEFT_BEHIND: { group: string; items: string[] }[] = [
   {
-    group: 'Budgets',
+    group: 'Budgets that are',
     items: [
       'Archived in Firefly III',
       'Repeating on period lengths Lumina Finance has no cadence for',
