@@ -45,11 +45,18 @@ function createLimitRow(overrides: Partial<CsvRow> = {}): CsvRow {
 }
 
 /**
- * Creates one transaction row referencing a budget and category
+ * Creates one uploadable transaction row referencing a budget and category
+ *
+ * The identity fields matter because only rows that survive the payload
+ * build may vote on a budget's tracked categories
  */
 function createTransactionRow(overrides: Partial<CsvRow> = {}): CsvRow {
   return {
+    journal_id: '1',
+    type: 'Withdrawal',
     date: '2024-02-15T00:00:00-05:00',
+    amount: '-25.00',
+    currency_code: 'CAD',
     budget: 'Groceries',
     category: 'Food',
     ...overrides,
@@ -178,6 +185,24 @@ describe('buildFireflyBudgetDrafts', () => {
     expect(draft.disabledReason).toBeNull()
   })
 
+  // Firefly III can hold one limit per currency over the same window, so an
+  // identical amount in a second currency must still read as mixed rather
+  // than collapsing into the first currency's limit
+  it('disables a budget whose same-window limits differ only by currency', () => {
+    const budgetsFile = createBudgetsFile([
+      createLimitRow({ currency_code: 'CAD', amount: '100.00' }),
+      createLimitRow({ currency_code: 'USD', amount: '100.00' }),
+    ])
+
+    const [draft] = buildFireflyBudgetDrafts({
+      budgetsFile,
+      transactionRows: [createTransactionRow()],
+    })
+
+    expect(draft.currencyCodes).toEqual(['CAD', 'USD'])
+    expect(draft.disabledReason).toBe(FIREFLY_BUDGET_MIXED_CURRENCIES_REASON)
+  })
+
   it('disables a budget whose limit periods mix currencies', () => {
     const budgetsFile = createBudgetsFile([
       createLimitRow({ start_date: '2024-01-01', currency_code: 'CAD' }),
@@ -269,6 +294,22 @@ describe('buildFireflyBudgetDrafts', () => {
     })
 
     expect(draft.disabledReason).toBe(FIREFLY_BUDGET_NO_TRANSACTIONS_REASON)
+  })
+
+  // A row dropped before upload never registers its category as an import
+  // source, so it cannot back a budget the commit would then fail to resolve
+  it('ignores transaction rows the payload build drops', () => {
+    const budgetsFile = createBudgetsFile([createLimitRow()])
+
+    const drafts = buildFireflyBudgetDrafts({
+      budgetsFile,
+      transactionRows: [
+        createTransactionRow({ journal_id: '' }),
+        createTransactionRow({ tags: `travel,${'x'.repeat(65)}` }),
+      ],
+    })
+
+    expect(drafts[0].disabledReason).toBe(FIREFLY_BUDGET_NO_TRANSACTIONS_REASON)
   })
 
   it('disables a budget whose transactions carry no category', () => {

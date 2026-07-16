@@ -10,7 +10,7 @@ import {
   FIREFLY_BUDGET_UNSUPPORTED_CADENCE_REASON,
 } from '../constants'
 import type { FireflyBudgetDraft } from '../types'
-import { getFireflyRowDate } from './derivation'
+import { getFireflyRowDate, isFireflyRowUploadable } from './derivation'
 
 const DAYS_PER_WEEK = 7
 const MONTHS_PER_YEAR = 12
@@ -88,6 +88,10 @@ export function buildFireflyBudgetDrafts({
     const budgetName = row.budget?.trim()
     if (!budgetName) continue
 
+    // Rows dropped before upload never register category sources in the
+    // commit response, so they cannot vote on a budget's tracked categories
+    if (!isFireflyRowUploadable(row)) continue
+
     const rowDate = getFireflyRowDate(row.date ?? '')
     const usage = usageByName.get(budgetName) ?? { earliestDate: '', categoryNames: new Set<string>() }
     if (rowDate && (!usage.earliestDate || rowDate < usage.earliestDate)) usage.earliestDate = rowDate
@@ -153,14 +157,18 @@ function buildLimitSchedule(limitRows: FireflyLimitRow[]): {
   const limits: FireflyBudgetImportLimit[] = []
   const currencyCodes = new Set<string>()
 
+  // The currency is recorded before deduplication and is part of the
+  // duplicate key, because Firefly III can hold one limit per currency over
+  // the same window and collapsing those would silently drop a currency
+  // instead of skipping the budget as mixed
   for (const row of limitRows) {
     if (!row.start || !row.end || !row.amount || !row.currencyCode) continue
 
-    const key = `${row.start} ${row.end} ${row.amount}`
+    currencyCodes.add(row.currencyCode)
+    const key = `${row.start} ${row.end} ${row.amount} ${row.currencyCode}`
     if (seen.has(key)) continue
     seen.add(key)
     limits.push({ start: row.start, end: row.end, amount: row.amount })
-    currencyCodes.add(row.currencyCode)
   }
 
   return {
