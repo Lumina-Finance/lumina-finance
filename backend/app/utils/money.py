@@ -4,6 +4,11 @@ from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
 _RAW_DECIMAL_AMOUNT_RE = re.compile(r"^[+-]?(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d+)?$")
 
+# Amounts are stored as signed 64-bit integers, so a parsed value past this
+# magnitude would only fail later at database flush instead of being rejected
+# where the string is validated
+MAX_MINOR_UNITS_MAGNITUDE = 2**63 - 1
+
 
 class DecimalAmountParseError(ValueError):
     """Raised when a decimal amount string is malformed"""
@@ -46,6 +51,9 @@ def parse_decimal_amount_to_minor_units(
     minor_units = decimal_amount * multiplier
     if minor_units != minor_units.to_integral_value():
         raise DecimalAmountPrecisionError(f"Amount has too many decimal places for {currency_code}: {raw_amount}")
+
+    if abs(minor_units) > MAX_MINOR_UNITS_MAGNITUDE:
+        raise DecimalAmountParseError(f"Amount is too large: {raw_amount}")
 
     return int(minor_units)
 

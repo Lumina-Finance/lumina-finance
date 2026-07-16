@@ -254,9 +254,13 @@ def _get_tracked_account(
     """
     if not name or not account_type:
         return None
-    if account_type.strip().lower() not in FIREFLY_TRACKED_ACCOUNT_TYPES:
+
+    # A whitespace-only name is no endpoint at all, so the row falls through
+    # to the normal skip reasons instead of failing the batch as unmapped
+    stripped_name = name.strip()
+    if not stripped_name or account_type.strip().lower() not in FIREFLY_TRACKED_ACCOUNT_TYPES:
         return None
-    return get_import_row_account(context.accounts_by_source, name)
+    return get_import_row_account(context.accounts_by_source, stripped_name)
 
 
 def _resolve_row_category(

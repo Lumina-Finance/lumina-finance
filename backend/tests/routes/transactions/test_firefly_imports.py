@@ -379,3 +379,46 @@ async def test_firefly_import_maps_uncategorized_rows_via_placeholder(client):
 
     transactions_resp = await client.get("/transactions", headers=headers)
     assert transactions_resp.json()[0]["category_id"] == data["category_source_ids"]["(no category)"]
+
+
+async def test_firefly_import_skips_whitespace_only_account_names(client):
+    """A tracked-typed endpoint with a blank name skips the row instead of failing the batch."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await client.post("/transactions/import/firefly", json={
+        "accounts": [_chequing_mapping()],
+        "categories": [{"source": "Groceries", "create": {"name": "Groceries", "kind": "expense"}}],
+        "rows": [
+            _firefly_row(),
+            _firefly_row(journal_id="2", source_name="   "),
+        ],
+    }, headers=headers)
+
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["rows_imported"] == 1
+    assert data["rows_skipped"] == 1
+    assert data["skipped"][0]["journal_id"] == "2"
+    assert data["skipped"][0]["reason"] == "Withdrawal source is not an imported account"
+
+
+async def test_firefly_import_skips_amounts_past_the_storable_range(client):
+    """An amount past the signed 64-bit range skips the row instead of crashing at flush."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await client.post("/transactions/import/firefly", json={
+        "accounts": [_chequing_mapping()],
+        "categories": [{"source": "Groceries", "create": {"name": "Groceries", "kind": "expense"}}],
+        "rows": [
+            _firefly_row(),
+            _firefly_row(journal_id="2", amount="99999999999999999999.00"),
+        ],
+    }, headers=headers)
+
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["rows_imported"] == 1
+    assert data["rows_skipped"] == 1
+    assert data["skipped"][0]["reason"] == 'Invalid amount "99999999999999999999.00"'
