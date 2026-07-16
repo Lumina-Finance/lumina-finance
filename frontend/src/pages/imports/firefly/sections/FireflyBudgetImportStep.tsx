@@ -88,12 +88,12 @@ export function FireflyBudgetImportStep({
           <table className="w-full min-w-[58rem] table-fixed text-left text-[0.9375rem]">
             <colgroup>
               <col className="w-12" />
-              <col className="w-[17%]" />
+              <col className="w-[18%]" />
               <col className="w-[11%]" />
+              <col className="w-[14%]" />
+              <col className="w-[26%]" />
               <col className="w-[13%]" />
-              <col className="w-[24%]" />
-              <col className="w-[12%]" />
-              <col className="w-[19%]" />
+              <col className="w-[14%]" />
             </colgroup>
             <thead style={{ color: 'var(--app-text-subtle)', background: 'var(--app-input-bg)' }}>
               <tr>
@@ -103,7 +103,7 @@ export function FireflyBudgetImportStep({
                 <th className="px-4 py-2.5 text-right font-medium">Latest Amount</th>
                 <th className="px-4 py-2.5 font-medium">Categories</th>
                 <th className="px-4 py-2.5 font-medium">First Period</th>
-                <th className="px-4 py-2.5 font-medium">Status</th>
+                <th className="px-4 py-2.5 font-medium">Changes</th>
               </tr>
             </thead>
             <tbody>
@@ -112,8 +112,7 @@ export function FireflyBudgetImportStep({
                 const selectable = status !== 'imported' && !selectionLocked
 
                 // A schedule with more than one distinct amount means the
-                // limit changed over time, so the row flags that history
-                // beneath the latest amount
+                // limit changed over time, which the Changes column shows
                 const distinctAmountCount = new Set(draft.limits.map((limit) => limit.amount)).size
 
                 return (
@@ -126,17 +125,19 @@ export function FireflyBudgetImportStep({
                         onChange={() => toggleBudgetSelection(draft.name)}
                       />
                     </td>
-                    <td className="truncate px-4 py-2.5 align-middle font-medium">{draft.name}</td>
+                    <td className="truncate px-4 py-2.5 align-middle font-medium">
+                      {draft.name}
+                      {status === 'error' && (
+                        <div role="alert" className="text-xs font-normal" style={{ color: 'var(--app-negative)' }}>
+                          {budgetImportErrors[draft.name] ?? 'Budget import failed.'}
+                        </div>
+                      )}
+                    </td>
                     <td className="px-4 py-2.5 align-middle" style={{ color: 'var(--app-text-muted)' }}>
                       {draft.periodLabel ?? ''}
                     </td>
                     <td className="px-4 py-2.5 text-right align-middle font-financial tabular-nums">
                       {draft.amount ? `${draft.amount} ${draft.currencyCode}` : ''}
-                      {distinctAmountCount > 1 && (
-                        <div className="text-xs" style={{ color: 'var(--app-text-subtle)' }}>
-                          {distinctAmountCount} changes over time
-                        </div>
-                      )}
                     </td>
                     <td className="truncate px-4 py-2.5 align-middle" style={{ color: 'var(--app-text-muted)' }}>
                       {draft.categoryNames.join(', ')}
@@ -144,11 +145,8 @@ export function FireflyBudgetImportStep({
                     <td className="px-4 py-2.5 align-middle font-financial tabular-nums">
                       {draft.firstPeriodStart ?? ''}
                     </td>
-                    <td className="px-4 py-2.5 align-middle text-sm">
-                      <BudgetRowStatus
-                        status={status}
-                        error={budgetImportErrors[draft.name]}
-                      />
+                    <td className="px-4 py-2.5 align-middle" style={{ color: 'var(--app-text-muted)' }}>
+                      {distinctAmountCount > 1 ? `${distinctAmountCount} over time` : 'None'}
                     </td>
                   </tr>
                 )
@@ -175,23 +173,4 @@ export function FireflyBudgetImportStep({
       )}
     </ImportStep>
   )
-}
-
-/**
- * Renders the hint, success, or error state for one budget row
- */
-function BudgetRowStatus({
-  status,
-  error,
-}: {
-  status: 'imported' | 'error' | undefined
-  error: string | undefined
-}) {
-  if (status === 'imported') {
-    return <span className="font-medium" style={{ color: 'var(--app-positive)' }}>Imported</span>
-  }
-  if (status === 'error') {
-    return <span role="alert" style={{ color: 'var(--app-negative)' }}>{error ?? 'Budget import failed.'}</span>
-  }
-  return <span style={{ color: 'var(--app-text-subtle)' }}>Ready to import</span>
 }
