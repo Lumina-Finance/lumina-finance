@@ -40,6 +40,33 @@ async def test_create_budget_instance_returns_201(client):
     assert base["category_ids"] == [cat_id]
 
 
+async def test_create_budget_instance_archived_base_returns_409(client):
+    """An archived base rejects new period instances while a live base still accepts them."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    base_resp = await _create_base_budget(client, headers)
+    base_budget_id = base_resp.json()["id"]
+
+    # Control: a live base budget still materializes an instance
+    control = await _create_budget_instance(
+        client, headers, base_budget_id, period_start="2026-03-01",
+    )
+    assert control.status_code == 201
+
+    # Archiving the base blocks any further instance generation
+    archive_resp = await client.patch(
+        f"/base-budgets/{base_budget_id}", json={"is_archived": True}, headers=headers,
+    )
+    assert archive_resp.status_code == 200
+
+    blocked = await _create_budget_instance(
+        client, headers, base_budget_id, period_start="2026-04-01",
+    )
+
+    assert blocked.status_code == 409
+    assert blocked.json()["detail"] == "Cannot generate budget instances for an archived base budget"
+
+
 async def test_create_budget_instance_updates_cache_status(client):
     """Creating a budget instance marks app data changed for cache validation."""
     signup_resp = await _create_user(client)

@@ -61,6 +61,8 @@ def add_initial_budget_instances(
         overall_limit: Optional limit applied to each initial instance
         today: Current date in the user's timezone
     """
+    _raise_if_base_budget_archived(base_budget)
+
     if period_start is None or overall_limit is None:
         return
 
@@ -103,6 +105,7 @@ async def create_budget_instance_and_get_response(
         HTTPException: User lacks admin access, period start is invalid, or period overlaps
     """
     base_budget = await check_base_budget_access(db, base_budget_id, user_id, PermissionLevel.ADMIN)
+    _raise_if_base_budget_archived(base_budget)
     _validate_budget_instance_period_start(base_budget, data)
     period_end = compute_period_end(
         data.period_start,
@@ -181,4 +184,20 @@ async def _raise_for_overlapping_budget_instance(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="A budget instance already exists for this period",
+        )
+
+
+def _raise_if_base_budget_archived(base_budget: BaseBudget) -> None:
+    """Raise when a base budget is archived and cannot generate period instances
+
+    Args:
+        base_budget: Base budget whose archived state gates instance generation
+
+    Raises:
+        HTTPException: Base budget is archived
+    """
+    if base_budget.is_archived:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cannot generate budget instances for an archived base budget",
         )
