@@ -7,10 +7,11 @@ import {
   FIREFLY_BUDGET_NO_CATEGORIES_REASON,
   FIREFLY_BUDGET_NO_LIMITS_REASON,
   FIREFLY_BUDGET_NO_TRANSACTIONS_REASON,
+  FIREFLY_BUDGET_UNREADABLE_DATES_REASON,
   FIREFLY_BUDGET_UNSUPPORTED_CADENCE_REASON,
 } from '../constants'
 import type { FireflyBudgetDraft } from '../types'
-import { getFireflyRowDate, isFireflyRowUploadable } from './derivation'
+import { getFireflyRowDate, isFireflyRowUploadable, isRealCalendarDate } from './derivation'
 
 const DAYS_PER_WEEK = 7
 const MONTHS_PER_YEAR = 12
@@ -152,10 +153,12 @@ export function buildFireflyBudgetImportBudgets(
 function buildLimitSchedule(limitRows: FireflyLimitRow[]): {
   limits: FireflyBudgetImportLimit[]
   currencyCodes: string[]
+  hasUnreadableDates: boolean
 } {
   const seen = new Set<string>()
   const limits: FireflyBudgetImportLimit[] = []
   const currencyCodes = new Set<string>()
+  let hasUnreadableDates = false
 
   // The currency is recorded before deduplication and is part of the
   // duplicate key, because Firefly III can hold one limit per currency over
@@ -163,6 +166,14 @@ function buildLimitSchedule(limitRows: FireflyLimitRow[]): {
   // instead of skipping the budget as mixed
   for (const row of limitRows) {
     if (!row.start || !row.end || !row.amount || !row.currencyCode) continue
+
+    // A present date that names no real day marks the file as corrupted, so
+    // the budget is refused loudly rather than the row quietly vanishing or
+    // the backend failing the whole batch
+    if (!isRealCalendarDate(row.start) || !isRealCalendarDate(row.end)) {
+      hasUnreadableDates = true
+      continue
+    }
 
     currencyCodes.add(row.currencyCode)
     const key = `${row.start} ${row.end} ${row.amount} ${row.currencyCode}`
@@ -174,6 +185,7 @@ function buildLimitSchedule(limitRows: FireflyLimitRow[]): {
   return {
     limits: limits.sort((a, b) => a.start.localeCompare(b.start) || a.end.localeCompare(b.end)),
     currencyCodes: [...currencyCodes].sort(),
+    hasUnreadableDates,
   }
 }
 
@@ -187,7 +199,7 @@ function buildBudgetDraft(
   usage: FireflyBudgetUsage | undefined,
 ): FireflyBudgetDraft {
   const categoryNames = [...usage?.categoryNames ?? []].sort((a, b) => a.localeCompare(b))
-  const { limits, currencyCodes } = buildLimitSchedule(budget.limitRows)
+  const { limits, currencyCodes, hasUnreadableDates } = buildLimitSchedule(budget.limitRows)
   const latest = limits.length > 0 ? limits[limits.length - 1] : null
 
   // The most recent period decides the amount and currency the drafts table
@@ -205,13 +217,15 @@ function buildBudgetDraft(
       ? FIREFLY_BUDGET_NO_TRANSACTIONS_REASON
       : categoryNames.length === 0
         ? FIREFLY_BUDGET_NO_CATEGORIES_REASON
-        : !latest
-          ? FIREFLY_BUDGET_NO_LIMITS_REASON
-          : currencyCodes.length > 1
-            ? FIREFLY_BUDGET_MIXED_CURRENCIES_REASON
-            : repeatsOnUnsupportedCadence(limits)
-              ? FIREFLY_BUDGET_UNSUPPORTED_CADENCE_REASON
-              : null
+        : hasUnreadableDates
+          ? FIREFLY_BUDGET_UNREADABLE_DATES_REASON
+          : !latest
+            ? FIREFLY_BUDGET_NO_LIMITS_REASON
+            : currencyCodes.length > 1
+              ? FIREFLY_BUDGET_MIXED_CURRENCIES_REASON
+              : repeatsOnUnsupportedCadence(limits)
+                ? FIREFLY_BUDGET_UNSUPPORTED_CADENCE_REASON
+                : null
 
   return {
     name,

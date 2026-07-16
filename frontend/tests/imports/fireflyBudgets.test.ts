@@ -10,6 +10,7 @@ import {
   FIREFLY_BUDGET_NO_CATEGORIES_REASON,
   FIREFLY_BUDGET_NO_LIMITS_REASON,
   FIREFLY_BUDGET_NO_TRANSACTIONS_REASON,
+  FIREFLY_BUDGET_UNREADABLE_DATES_REASON,
   FIREFLY_BUDGET_UNSUPPORTED_CADENCE_REASON,
 } from '@/pages/imports/firefly/constants'
 import { buildFireflyBudgetDrafts, buildFireflyBudgetImportBudgets } from '@/pages/imports/firefly/utils'
@@ -269,6 +270,22 @@ describe('buildFireflyBudgetDrafts', () => {
 
     expect(draft.limits).toEqual([{ start: '2024-06-01', end: '2024-06-30', amount: '625.00' }])
     expect(draft.amount).toBe('625.00')
+  })
+
+  // A well-shaped date naming no real day marks the file as corrupted, so
+  // the budget is refused before upload instead of failing on the backend
+  it('disables a budget whose limit dates name no real calendar day', () => {
+    const budgetsFile = createBudgetsFile([
+      createLimitRow(),
+      createLimitRow({ start_date: '2024-02-31', end_date: '2024-03-30' }),
+    ])
+
+    const [draft] = buildFireflyBudgetDrafts({
+      budgetsFile,
+      transactionRows: [createTransactionRow()],
+    })
+
+    expect(draft.disabledReason).toBe(FIREFLY_BUDGET_UNREADABLE_DATES_REASON)
   })
 
   it('disables a budget whose export rows cannot form a limit schedule', () => {

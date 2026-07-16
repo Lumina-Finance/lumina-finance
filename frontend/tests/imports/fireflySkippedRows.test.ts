@@ -125,6 +125,17 @@ describe('forecastFireflyImport', () => {
     expect(skipped.map((row) => row.reason)).toEqual([FIREFLY_GENERIC_SKIP_REASON])
   })
 
+  // A well-shaped date naming no real day would pass the shape check but
+  // fail the whole upload batch on the backend
+  it('drops a row whose date names no real calendar day before upload', () => {
+    const row = createFireflyRow({ date: '2024-02-31T00:00:00-05:00' })
+    const { skippedRows: skipped } = forecastFireflyImport([row], createOptions())
+
+    expect(skipped).toHaveLength(1)
+    expect(skipped[0].reason).toContain('date')
+    expect(skipped[0].droppedBeforeUpload).toBe(true)
+  })
+
   // Firefly III allows longer tags than a Lumina tag can hold, and one such
   // tag would fail the whole upload batch on the backend
   it('drops a row carrying a tag past the length cap before upload', () => {

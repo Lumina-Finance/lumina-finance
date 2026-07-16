@@ -16,10 +16,27 @@ import type { FireflyAccountPrefill } from '../types'
 
 /**
  * Extracts the date part of a Firefly III timestamp, empty when unparseable
+ *
+ * A well-shaped date that names no real day, like the 31st of February, is
+ * unparseable too, so such rows fail here instead of failing the whole
+ * upload batch on the backend
  */
 export function getFireflyRowDate(value: string) {
   const match = value.trim().match(/^(\d{4}-\d{2}-\d{2})/)
-  return match ? match[1] : ''
+  if (!match || !isRealCalendarDate(match[1])) return ''
+  return match[1]
+}
+
+/**
+ * Whether a YYYY-MM-DD string names a real calendar day
+ *
+ * Date.UTC quietly normalises overflowed parts, so the parsed date is
+ * formatted back and must reproduce the input exactly
+ */
+export function isRealCalendarDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+  const [year, month, day] = value.split('-').map(Number)
+  return new Date(Date.UTC(year, month - 1, day)).toISOString().slice(0, 10) === value
 }
 
 /**

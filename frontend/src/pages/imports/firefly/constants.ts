@@ -77,6 +77,13 @@ export const FIREFLY_BUDGET_NO_CATEGORIES_REASON = 'No mapped categories referen
 export const FIREFLY_BUDGET_NO_LIMITS_REASON = 'The export has no limit periods for this budget'
 
 /**
+ * Why a budget whose export rows carry dates that name no real day is never
+ * imported, since a corrupted file should be refused before upload rather
+ * than failing the whole budget batch on the backend
+ */
+export const FIREFLY_BUDGET_UNREADABLE_DATES_REASON = 'A limit period date in the export is not a real calendar date'
+
+/**
  * Why a budget whose limit history spans currencies is never imported, since a
  * Lumina Finance budget holds exactly one currency
  */
