@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type React from 'react'
 import { useUpdateBaseBudget, useUpdateBudget, type BaseBudget, type Budget } from '@/api/budgets'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
+import BudgetEditorModalArchiveSection from '@/pages/budgets/components/budget-editor-modal/sections/ArchiveSection'
 import BudgetEditorModalCadenceSection from '@/pages/budgets/components/budget-editor-modal/sections/CadenceSection'
 import BudgetEditorModalCategorySection from '@/pages/budgets/components/budget-editor-modal/sections/CategorySection'
 import BudgetEditorModalFooter from '@/pages/budgets/components/budget-editor-modal/layout/Footer'
@@ -88,7 +89,9 @@ export default function BudgetEditModal({
   categories: Category[]
   currencies: Currency[]
   onClose: () => void
-  onSaved: () => void
+
+  // Reports whether the save flipped the archived flag so callers can reveal the archive animations
+  onSaved: (archiveChanged: boolean) => void
 }) {
   const updateBaseBudget = useUpdateBaseBudget()
   const updateBudget = useUpdateBudget()
@@ -102,6 +105,12 @@ export default function BudgetEditModal({
   const [saveInProgress, setSaveInProgress] = useState(false)
   const [categorySearch, setCategorySearch] = useState('')
   const [form, setForm] = useState<BudgetFormState>(initialForm)
+
+  // Archiving stays outside the shared budget form because only the edit workflow exposes it
+  const [isArchived, setIsArchived] = useState(baseBudget.is_archived)
+
+  // Tracks the previous open flag so the edit state only re-syncs on a closed-to-open transition
+  const prevOpen = useRef(open)
 
   // Preserve the budget's ownership scope so shared and personal budgets cannot cross category boundaries
   const categoryOptions = useMemo(
@@ -135,12 +144,13 @@ export default function BudgetEditModal({
     || form.recurs !== baseBudget.recurs
     || !sameStringSet(form.categoryIds, baseBudget.category_ids)
   const periodChanged = Boolean(latestPeriod && limitMinorUnits !== null && limitMinorUnits !== latestPeriod.overall_limit)
+  const archiveChanged = isArchived !== baseBudget.is_archived
   const canSave =
     !isPending
     && form.name.trim().length > 0
     && hasCategory
     && (!latestPeriod || limitMinorUnits !== null)
-    && (baseChanged || periodChanged)
+    && (baseChanged || periodChanged || archiveChanged)
   const state: BudgetEditorModalViewState = { form, formError, fieldErrors, touched, categorySearch }
   const options: BudgetEditorModalOptions = { categories: categoryOptions, filteredCategories, currencies }
   const showError: BudgetEditorModalErrorGetter = (field) => touched[field] ? fieldErrors[field] : undefined
@@ -150,12 +160,13 @@ export default function BudgetEditModal({
    */
   const resetEditState = useCallback(() => {
     setForm(initialForm)
+    setIsArchived(baseBudget.is_archived)
     setFieldErrors({})
     setTouched(EDIT_INITIAL_TOUCHED)
     setFormError(null)
     setCategorySearch('')
     setSaveInProgress(false)
-  }, [initialForm])
+  }, [baseBudget.is_archived, initialForm])
 
   /**
    * Closes the nested edit dialog and clears any transient form state immediately
@@ -164,6 +175,13 @@ export default function BudgetEditModal({
     onClose()
     resetEditState()
   }, [onClose, resetEditState])
+
+  useEffect(() => {
+    // The edit modal stays mounted, so reopening must reseed form and archive state from the current
+    // base budget, otherwise a stale archive toggle would silently unarchive on the next save
+    if (open && !prevOpen.current) resetEditState()
+    prevOpen.current = open
+  }, [open, resetEditState])
 
   useEffect(() => {
     if (!open) return
@@ -247,10 +265,12 @@ export default function BudgetEditModal({
       name?: string
       recurs?: boolean
       category_ids?: string[]
+      is_archived?: boolean
     } = {}
     if (form.name.trim() !== baseBudget.name) basePatch.name = form.name.trim()
     if (form.recurs !== baseBudget.recurs) basePatch.recurs = form.recurs
     if (!sameStringSet(form.categoryIds, baseBudget.category_ids)) basePatch.category_ids = form.categoryIds
+    if (isArchived !== baseBudget.is_archived) basePatch.is_archived = isArchived
 
     setSaveInProgress(true)
 
@@ -273,7 +293,7 @@ export default function BudgetEditModal({
         waitForMilliseconds(1000),
       ])
       closeAndReset()
-      onSaved()
+      onSaved(archiveChanged)
     } catch (error) {
       setFormError(error instanceof Error ? error.message : 'Could not save budget.')
       setSaveInProgress(false)
@@ -335,6 +355,11 @@ export default function BudgetEditModal({
             recurrenceControlsLocked
             showError={showError}
             handlers={handlers}
+          />
+
+          <BudgetEditorModalArchiveSection
+            isArchived={isArchived}
+            onToggle={setIsArchived}
           />
         </div>
 
