@@ -11,6 +11,7 @@ import {
   YAxis,
   usePlotArea,
   useXAxisScale,
+  type ScaleFunction,
   type XAxisTickContentProps,
   type YAxisTickContentProps,
 } from 'recharts'
@@ -156,25 +157,31 @@ function getMobileAxisLabelKeys(chartData: BudgetChartPoint[]): Set<string> | nu
  *
  * Recharts exposes plot geometry through hooks, so the band is derived from the categorical scale
  * directly instead of measured DOM coordinates, keeping it aligned inside responsive charts. The
- * band scale maps a category to its slot's left edge, so the shaded band spans from the first
- * slot's left edge to the last slot's right edge
+ * hook only exposes the scale's map function, not its bandwidth, so the last slot's right edge
+ * comes from calling the map with the 'end' position option rather than a bandwidth lookup. The
+ * band spans from the first slot's left edge to the last slot's right edge
  */
 function ArchivedBandsLayer({ stretches }: { stretches: ArchivedChartStretch[] }) {
   const plotArea = usePlotArea()
-  const xScale = useXAxisScale() as ((label: string) => number) & { bandwidth?: () => number }
+  const xScale: ScaleFunction | undefined = useXAxisScale()
   if (!plotArea || !xScale || stretches.length === 0) return null
-
-  const bandwidth = xScale.bandwidth ? xScale.bandwidth() : 0
 
   return (
     <g>
       {stretches.map((stretch) => {
         const firstSlotLeftEdge = xScale(stretch.firstKey)
-        const lastSlotLeftEdge = xScale(stretch.lastKey)
-        if (typeof firstSlotLeftEdge !== 'number' || typeof lastSlotLeftEdge !== 'number') return null
+        const lastSlotRightEdge = xScale(stretch.lastKey, { position: 'end' })
+        if (
+          typeof firstSlotLeftEdge !== 'number' ||
+          typeof lastSlotRightEdge !== 'number' ||
+          !Number.isFinite(firstSlotLeftEdge) ||
+          !Number.isFinite(lastSlotRightEdge)
+        ) {
+          return null
+        }
 
         const leftEdge = firstSlotLeftEdge + ARCHIVED_BAND_INSET_PX / 2
-        const rightEdge = lastSlotLeftEdge + bandwidth - ARCHIVED_BAND_INSET_PX / 2
+        const rightEdge = lastSlotRightEdge - ARCHIVED_BAND_INSET_PX / 2
         const shadeWidth = Math.max(rightEdge - leftEdge, ARCHIVED_BAND_MIN_WIDTH_PX)
         const shadeCenter = (leftEdge + rightEdge) / 2
 
@@ -219,7 +226,7 @@ function ArchivedBandsLayer({ stretches }: { stretches: ArchivedChartStretch[] }
  */
 function CurrentPeriodBoundary({ currentPeriodKey }: { currentPeriodKey: string | undefined }) {
   const plotArea = usePlotArea()
-  const xScale = useXAxisScale() as ((label: string) => number) & { bandwidth?: () => number }
+  const xScale: ScaleFunction | undefined = useXAxisScale()
   if (!currentPeriodKey || !plotArea || !xScale) return null
 
   const leftEdge = xScale(currentPeriodKey)
