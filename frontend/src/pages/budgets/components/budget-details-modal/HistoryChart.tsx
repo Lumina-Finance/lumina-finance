@@ -155,7 +155,9 @@ function getMobileAxisLabelKeys(chartData: BudgetChartPoint[]): Set<string> | nu
  * a single centred label
  *
  * Recharts exposes plot geometry through hooks, so the band is derived from the categorical scale
- * directly instead of measured DOM coordinates, keeping it aligned inside responsive charts
+ * directly instead of measured DOM coordinates, keeping it aligned inside responsive charts. The
+ * band scale maps a category to its slot's left edge, so the shaded band spans from the first
+ * slot's left edge to the last slot's right edge
  */
 function ArchivedBandsLayer({ stretches }: { stretches: ArchivedChartStretch[] }) {
   const plotArea = usePlotArea()
@@ -167,12 +169,12 @@ function ArchivedBandsLayer({ stretches }: { stretches: ArchivedChartStretch[] }
   return (
     <g>
       {stretches.map((stretch) => {
-        const firstCenter = xScale(stretch.firstKey)
-        const lastCenter = xScale(stretch.lastKey)
-        if (typeof firstCenter !== 'number' || typeof lastCenter !== 'number') return null
+        const firstSlotLeftEdge = xScale(stretch.firstKey)
+        const lastSlotLeftEdge = xScale(stretch.lastKey)
+        if (typeof firstSlotLeftEdge !== 'number' || typeof lastSlotLeftEdge !== 'number') return null
 
-        const leftEdge = firstCenter - bandwidth / 2 + ARCHIVED_BAND_INSET_PX / 2
-        const rightEdge = lastCenter + bandwidth / 2 - ARCHIVED_BAND_INSET_PX / 2
+        const leftEdge = firstSlotLeftEdge + ARCHIVED_BAND_INSET_PX / 2
+        const rightEdge = lastSlotLeftEdge + bandwidth - ARCHIVED_BAND_INSET_PX / 2
         const shadeWidth = Math.max(rightEdge - leftEdge, ARCHIVED_BAND_MIN_WIDTH_PX)
         const shadeCenter = (leftEdge + rightEdge) / 2
 
@@ -220,15 +222,11 @@ function CurrentPeriodBoundary({ currentPeriodKey }: { currentPeriodKey: string 
   const xScale = useXAxisScale() as ((label: string) => number) & { bandwidth?: () => number }
   if (!currentPeriodKey || !plotArea || !xScale) return null
 
-  const center = xScale(currentPeriodKey)
-  if (typeof center !== 'number' || !Number.isFinite(center)) return null
+  const leftEdge = xScale(currentPeriodKey)
+  if (typeof leftEdge !== 'number' || !Number.isFinite(leftEdge)) return null
 
-  const bandwidth = xScale.bandwidth ? xScale.bandwidth() : 0
-
-  // Category scales report the band center, so use the left edge so the divider marks where the
-  // current period begins, not the middle of its bar
-  const leftEdge = center - bandwidth / 2
-
+  // The band scale maps a category to its slot's left edge, which is exactly where the current
+  // period begins, so that value is used directly as the divider's x position
   return (
     <line
       x1={leftEdge}
