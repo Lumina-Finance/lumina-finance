@@ -1,4 +1,4 @@
-import { useRef, type MouseEvent as ReactMouseEvent } from 'react'
+import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import {
   Bar,
   BarChart,
@@ -6,10 +6,12 @@ import {
   Rectangle,
   ReferenceLine,
   ResponsiveContainer,
+  Text,
   XAxis,
   YAxis,
   usePlotArea,
   useXAxisScale,
+  type XAxisTickContentProps,
 } from 'recharts'
 import {
   DeferredChartTooltipOverlay,
@@ -32,13 +34,19 @@ import {
 
 const CHART_INITIAL_DIMENSION = { width: 1, height: 192 }
 
-// Pixel width shared by both the single-category bar and every stacked category segment
-const BUDGET_BAR_SIZE = 28
+// Pixel width shared by both the single-category bar and every stacked category segment, narrower
+// on mobile so bars don't crowd out the gaps between periods on small screens
+const BUDGET_BAR_SIZE_DESKTOP = 28
+const BUDGET_BAR_SIZE_MOBILE = 18
+
+// Matches the chart's own min-[750px] height breakpoint, so bar width and chart height switch at
+// the same viewport size
+const BUDGET_CHART_MOBILE_QUERY = '(max-width: 749.98px)'
 
 // Rounds only the top corners of a utilization bar
 const BUDGET_BAR_TOP_CORNER_RADIUS: [number, number, number, number] = [4, 4, 0, 0]
 
-// Default single-category bar fill, reused for both its solid and striped-current variants
+// Default single-category bar fill
 const BUDGET_CHART_ACCENT_COLOR = 'var(--app-accent)'
 
 const ARCHIVED_BAND_LABEL = 'ARCHIVED'
@@ -58,13 +66,12 @@ const OVER_BUDGET_CAP_COLOR = 'var(--app-negative)'
 const OVER_BUDGET_LIMIT_LINE_DASH = '5 4'
 const OVER_BUDGET_LIMIT_LINE_OPACITY = 0.55
 
-const CURRENT_PERIOD_STRIPE_PATTERN_ID_PREFIX = 'budget-current-stripes-'
 const CURRENT_PERIOD_BOUNDARY_DASH = '3 3'
 
-// Tighter than the savings-widget stripe this pattern was copied from, so a narrow stacked
-// category segment still shows a few repeats of the stripe instead of reading as a solid fill
-const CURRENT_PERIOD_STRIPE_TILE_PX = 4
-const CURRENT_PERIOD_STRIPE_BAND_PX = 2
+// Current-period month label on the X axis, and the small dot marking it
+const CURRENT_PERIOD_AXIS_TICK_FONT_SIZE = 13
+const CURRENT_PERIOD_AXIS_DOT_RADIUS_PX = 2
+const CURRENT_PERIOD_AXIS_DOT_OFFSET_PX = 16
 
 type ArchivedChartStretch = {
   firstKey: string
@@ -189,13 +196,51 @@ function CurrentPeriodBoundary({ currentPeriodKey }: { currentPeriodKey: string 
   )
 }
 
+type BudgetChartAxisTickProps = XAxisTickContentProps & {
+  labels: Map<string, string>
+  currentPeriodKey: string | undefined
+}
+
 /**
- * Builds a stable colour -> pattern id map over the distinct bar colours actually in use, so every
- * colour gets exactly one striped pattern definition no matter how many bars share it
+ * Renders one X-axis month label, matching Recharts' default tick styling unless the label belongs
+ * to the current, still-in-progress period
+ *
+ * Recharts' default tick is itself a `<Text>` positioned from the tick props it computes, so this
+ * renders through that same `Text` component rather than a hand-positioned `<text>` — reusing
+ * Recharts' own positioning is what keeps the label aligned under its bar. Only the presentational
+ * props are forwarded: `payload`, `index`, `visibleTicksCount`, and `tickFormatter` are Recharts-only
+ * bookkeeping that `Text` does not accept
+ *
+ * The current month is marked here rather than inside the bar itself: the label renders in the
+ * accent colour and bold, with a small accent dot underneath so the in-progress period reads at a
+ * glance without altering the bar's own solid fill
  */
-function getCurrentPeriodStripePatternIds(colors: string[]): Map<string, string> {
-  const distinctColors = Array.from(new Set(colors))
-  return new Map(distinctColors.map((color, index) => [color, `${CURRENT_PERIOD_STRIPE_PATTERN_ID_PREFIX}${index}`]))
+function BudgetChartAxisTick({ labels, currentPeriodKey, ...tickProps }: BudgetChartAxisTickProps) {
+  const { payload, index, visibleTicksCount, tickFormatter, ...textProps } = tickProps
+  const value = String((payload as { value?: string | number } | undefined)?.value ?? '')
+  const label = labels.get(value) ?? ''
+  const isCurrent = value === currentPeriodKey
+
+  return (
+    <g>
+      <Text
+        {...textProps}
+        fill={isCurrent ? 'var(--app-accent)' : 'var(--app-text-subtle)'}
+        fontSize={CURRENT_PERIOD_AXIS_TICK_FONT_SIZE}
+        fontWeight={isCurrent ? 700 : 400}
+      >
+        {label}
+      </Text>
+      {isCurrent && (
+        <circle
+          cx={Number(tickProps.x)}
+          cy={Number(tickProps.y) + CURRENT_PERIOD_AXIS_DOT_OFFSET_PX}
+          r={CURRENT_PERIOD_AXIS_DOT_RADIUS_PX}
+          fill="var(--app-accent)"
+        />
+      )}
+    </g>
+  )
 }
 
 // The Y axis always shows at least this much so the 100% budget threshold stays on the visible axis
@@ -248,7 +293,6 @@ function getOverBudgetCapTopY(plotArea: { y: number; height: number }, axisMax: 
 type StackedBarSegmentProps = {
   category: BudgetChartCategory
   chartCategories: BudgetChartCategory[]
-  currentPeriodStripePatternIds: Map<string, string>
   axisMax: number
   isOverBudget: boolean
   x?: number
@@ -264,8 +308,8 @@ type StackedBarSegmentProps = {
  * each column gets one rounded cap no matter which category happens to sit on top. Applying the
  * radius to a fixed segment instead leaves bars flat-topped whenever that category is empty
  *
- * Swaps in the category's striped pattern fill for the current, still-in-progress period so it
- * reads as incomplete without losing its category colour
+ * Every segment always renders its own solid category colour, including the current,
+ * still-in-progress period, which is marked only on the X axis rather than inside the bar
  *
  * The over-budget overflow cap is drawn only by the top segment, directly from this segment's own
  * x/y/width (the values recharts already computed for this column) down to the 100% line, so it
@@ -274,7 +318,6 @@ type StackedBarSegmentProps = {
 function StackedBarSegment({
   category,
   chartCategories,
-  currentPeriodStripePatternIds,
   axisMax,
   isOverBudget,
   x,
@@ -289,8 +332,6 @@ function StackedBarSegment({
     .reverse()
     .find((entry) => Number((payload as Record<string, unknown> | undefined)?.[entry.dataKey] ?? 0) > 0)
   const isTopSegment = topSegment?.id === category.id
-  const stripePatternId = currentPeriodStripePatternIds.get(category.color)
-  const resolvedFill = payload?.isCurrent && stripePatternId ? `url(#${stripePatternId})` : fill
 
   return (
     <g>
@@ -299,7 +340,7 @@ function StackedBarSegment({
         y={y}
         width={width}
         height={height}
-        fill={resolvedFill}
+        fill={fill}
         radius={isTopSegment ? BUDGET_BAR_TOP_CORNER_RADIUS : 0}
       />
       {isTopSegment && isOverBudget && plotArea && typeof x === 'number' && typeof y === 'number' && typeof width === 'number' && (
@@ -317,27 +358,23 @@ function StackedBarSegment({
 }
 
 type SingleCategoryBarProps = {
-  stripePatternId: string | undefined
   axisMax: number
   isOverBudget: boolean
   x?: number
   y?: number
   width?: number
   height?: number
-  payload?: BudgetChartPoint
 }
 
 /**
- * Renders the single-category utilization bar, swapping in the striped current-period fill the
- * same way the stacked segments do, plus the red overflow cap covering the portion of the bar above
- * the 100% budget limit
+ * Renders the single-category utilization bar with its solid accent colour and the red overflow
+ * cap covering the portion of the bar above the 100% budget limit
  *
- * Built as a shape component rather than Cell children so the cap can be derived from the bar's own
- * recharts-computed geometry instead of a separately positioned overlay
+ * Built as a shape component rather than Cell children so the cap can be derived from the bar's
+ * own recharts-computed geometry instead of a separately positioned overlay
  */
-function SingleCategoryBar({ stripePatternId, axisMax, isOverBudget, x, y, width, height, payload }: SingleCategoryBarProps) {
+function SingleCategoryBar({ axisMax, isOverBudget, x, y, width, height }: SingleCategoryBarProps) {
   const plotArea = usePlotArea()
-  const fill = payload?.isCurrent && stripePatternId ? `url(#${stripePatternId})` : BUDGET_CHART_ACCENT_COLOR
 
   return (
     <g>
@@ -346,7 +383,7 @@ function SingleCategoryBar({ stripePatternId, axisMax, isOverBudget, x, y, width
         y={y}
         width={width}
         height={height}
-        fill={fill}
+        fill={BUDGET_CHART_ACCENT_COLOR}
         radius={BUDGET_BAR_TOP_CORNER_RADIUS}
       />
       {isOverBudget && plotArea && typeof x === 'number' && typeof y === 'number' && typeof width === 'number' && (
@@ -391,9 +428,17 @@ export default function BudgetHistoryChart({
   const archivedStretches = getArchivedChartStretches(chartData)
   const tickLabels = new Map(chartData.map((point) => [point.periodKey, point.axisLabel]))
   const currentPeriodKey = chartData.find((point) => point.isCurrent)?.periodKey
-  const currentPeriodStripePatternIds = getCurrentPeriodStripePatternIds(
-    showStackedCategoryChart ? chartCategories.map((category) => category.color) : [BUDGET_CHART_ACCENT_COLOR],
-  )
+  const [isMobile, setIsMobile] = useState(() => window.matchMedia(BUDGET_CHART_MOBILE_QUERY).matches)
+
+  useEffect(() => {
+    const mobileQuery = window.matchMedia(BUDGET_CHART_MOBILE_QUERY)
+    const updateIsMobile = () => setIsMobile(mobileQuery.matches)
+
+    mobileQuery.addEventListener('change', updateIsMobile)
+    return () => mobileQuery.removeEventListener('change', updateIsMobile)
+  }, [])
+
+  const barSize = isMobile ? BUDGET_BAR_SIZE_MOBILE : BUDGET_BAR_SIZE_DESKTOP
 
   // Mirrors the YAxis domain calculation so the overflow cap's pixel math lines up with the axis
   // recharts actually renders
@@ -461,23 +506,6 @@ export default function BudgetHistoryChart({
         </div>
       ) : chartData.length > 0 ? (
         <>
-          {/* Recharts resolves pattern fills reliably when definitions share the chart SVG context */}
-          <svg width={0} height={0} style={{ position: 'absolute' }} aria-hidden>
-            <defs>
-              {Array.from(currentPeriodStripePatternIds.entries()).map(([color, patternId]) => (
-                <pattern
-                  key={patternId}
-                  id={patternId}
-                  patternUnits="userSpaceOnUse"
-                  width={CURRENT_PERIOD_STRIPE_TILE_PX}
-                  height={CURRENT_PERIOD_STRIPE_TILE_PX}
-                  patternTransform="rotate(45)"
-                >
-                  <rect width={CURRENT_PERIOD_STRIPE_BAND_PX} height={CURRENT_PERIOD_STRIPE_TILE_PX} style={{ fill: color }} />
-                </pattern>
-              ))}
-            </defs>
-          </svg>
           <ResponsiveContainer width="100%" height="100%" initialDimension={CHART_INITIAL_DIMENSION}>
             <BarChart
               data={chartData}
@@ -490,8 +518,13 @@ export default function BudgetHistoryChart({
                 dataKey="periodKey"
                 tickLine={false}
                 axisLine={false}
-                tick={{ fill: 'var(--app-text-subtle)', fontSize: 13 }}
-                tickFormatter={(value) => tickLabels.get(String(value)) ?? String(value)}
+                tick={(tickProps) => (
+                  <BudgetChartAxisTick
+                    {...tickProps}
+                    labels={tickLabels}
+                    currentPeriodKey={currentPeriodKey}
+                  />
+                )}
               />
               <YAxis
                 tickLine={false}
@@ -515,14 +548,13 @@ export default function BudgetHistoryChart({
                       {...props}
                       category={category}
                       chartCategories={chartCategories}
-                      currentPeriodStripePatternIds={currentPeriodStripePatternIds}
                       axisMax={axisMax}
                       isOverBudget={overBudgetPeriodKeys.has(
                         (props.payload as BudgetChartPoint | undefined)?.periodKey ?? '',
                       )}
                     />
                   )}
-                  barSize={BUDGET_BAR_SIZE}
+                  barSize={barSize}
                   animationBegin={MODAL_SURFACE_TRANSITION_MS}
                 />
               )) : (
@@ -531,14 +563,13 @@ export default function BudgetHistoryChart({
                   shape={(props) => (
                     <SingleCategoryBar
                       {...props}
-                      stripePatternId={currentPeriodStripePatternIds.get(BUDGET_CHART_ACCENT_COLOR)}
                       axisMax={axisMax}
                       isOverBudget={overBudgetPeriodKeys.has(
                         (props.payload as BudgetChartPoint | undefined)?.periodKey ?? '',
                       )}
                     />
                   )}
-                  barSize={BUDGET_BAR_SIZE}
+                  barSize={barSize}
                   animationBegin={MODAL_SURFACE_TRANSITION_MS}
                 />
               )}
