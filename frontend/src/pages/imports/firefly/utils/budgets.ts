@@ -2,7 +2,6 @@ import type { FireflyBudgetImportBudget, FireflyBudgetImportLimit } from '@/api/
 import type { CsvRow, ImportFileDraft } from '../../types'
 import {
   FIREFLY_BUDGET_ACTIVE_VALUE,
-  FIREFLY_BUDGET_ARCHIVED_REASON,
   FIREFLY_BUDGET_MIXED_CURRENCIES_REASON,
   FIREFLY_BUDGET_NO_CATEGORIES_REASON,
   FIREFLY_BUDGET_NO_LIMITS_REASON,
@@ -138,6 +137,7 @@ export function buildFireflyBudgetImportBudgets(
       currency: draft.currencyCode,
       category_ids: categoryIds,
       limits: draft.limits,
+      is_archived: draft.isArchived,
     }
   })
 }
@@ -209,23 +209,19 @@ function buildBudgetDraft(
     .sort((a, b) => a.start.localeCompare(b.start))
     .pop()?.currencyCode ?? ''
 
-  // Being archived is checked before the rest because it settles the budget
-  // on its own, whatever its transactions and limit periods look like
-  const disabledReason = budget.isArchived
-    ? FIREFLY_BUDGET_ARCHIVED_REASON
-    : !usage || !usage.earliestDate
-      ? FIREFLY_BUDGET_NO_TRANSACTIONS_REASON
-      : categoryNames.length === 0
-        ? FIREFLY_BUDGET_NO_CATEGORIES_REASON
-        : hasUnreadableDates
-          ? FIREFLY_BUDGET_UNREADABLE_DATES_REASON
-          : !latest
-            ? FIREFLY_BUDGET_NO_LIMITS_REASON
-            : currencyCodes.length > 1
-              ? FIREFLY_BUDGET_MIXED_CURRENCIES_REASON
-              : repeatsOnUnsupportedCadence(limits)
-                ? FIREFLY_BUDGET_UNSUPPORTED_CADENCE_REASON
-                : null
+  const disabledReason = !usage || !usage.earliestDate
+    ? FIREFLY_BUDGET_NO_TRANSACTIONS_REASON
+    : categoryNames.length === 0
+      ? FIREFLY_BUDGET_NO_CATEGORIES_REASON
+      : hasUnreadableDates
+        ? FIREFLY_BUDGET_UNREADABLE_DATES_REASON
+        : !latest
+          ? FIREFLY_BUDGET_NO_LIMITS_REASON
+          : currencyCodes.length > 1
+            ? FIREFLY_BUDGET_MIXED_CURRENCIES_REASON
+            : repeatsOnUnsupportedCadence(limits)
+              ? FIREFLY_BUDGET_UNSUPPORTED_CADENCE_REASON
+              : null
 
   return {
     name,

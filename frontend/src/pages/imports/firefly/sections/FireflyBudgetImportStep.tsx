@@ -1,3 +1,4 @@
+import { EyeOff } from 'lucide-react'
 import { EmptyState, ImportCheckbox, ImportInfoCard, ImportStep } from '../../components'
 import { FireflySkippedBudgetsTable } from '../components'
 import type { FireflyImportWorkflow } from '../hooks'
@@ -120,7 +121,22 @@ export function FireflyBudgetImportStep({
                       />
                     </td>
                     <td className="truncate px-4 py-2.5 align-middle font-medium">
-                      {draft.name}
+                      <span className="inline-flex max-w-full min-w-0 items-center gap-2">
+                        <span className="truncate">{draft.name}</span>
+                        {draft.isArchived && (
+                          <span
+                            className="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium"
+                            style={{
+                              background: 'var(--app-surface-soft)',
+                              color: 'var(--app-text-muted)',
+                              border: '1px solid var(--app-border)',
+                            }}
+                          >
+                            <EyeOff size={11} aria-hidden />
+                            Archived
+                          </span>
+                        )}
+                      </span>
                       {status === 'error' && (
                         <div role="alert" className="text-xs font-normal" style={{ color: 'var(--app-negative)' }}>
                           {budgetImportErrors[draft.name] ?? 'Budget import failed.'}
