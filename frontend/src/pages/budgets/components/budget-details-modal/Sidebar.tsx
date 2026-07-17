@@ -194,7 +194,7 @@ export default function BudgetDetailsSidebar({
         )}
       </section>
 
-      <section className="border-t pt-6 min-[1050px]:flex min-[1050px]:min-h-0 min-[1050px]:flex-1 min-[1050px]:flex-col" style={{ borderColor: 'var(--app-border)' }}>
+      <section className={`${!baseBudget.is_archived ? 'border-t ' : ''}pt-6 min-[1050px]:flex min-[1050px]:min-h-0 min-[1050px]:flex-1 min-[1050px]:flex-col`} style={{ borderColor: 'var(--app-border)' }}>
         <div className="flex items-center justify-between gap-3">
           <h3 className="text-xs font-semibold uppercase" style={{ color: 'var(--app-text-subtle)' }}>
             Tracked categories
