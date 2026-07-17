@@ -290,19 +290,9 @@ function getBudgetChartAxis(dataMax: number): BudgetChartAxis {
   return { max, ticks }
 }
 
-/**
- * Converts the 100% budget threshold into the plot's pixel y-coordinate, so the overflow cap can be
- * drawn from a bar's own top down to exactly where the limit line sits rather than by a fixed offset
- */
-function getOverBudgetCapTopY(plotArea: { y: number; height: number }, axisMax: number): number {
-  return plotArea.y + plotArea.height * (1 - OVER_BUDGET_UTILIZATION_THRESHOLD_PCT / axisMax)
-}
-
 type StackedBarSegmentProps = {
   category: BudgetChartCategory
   chartCategories: BudgetChartCategory[]
-  axisMax: number
-  isOverBudget: boolean
   x?: number
   y?: number
   width?: number
@@ -319,15 +309,13 @@ type StackedBarSegmentProps = {
  * Every segment always renders its own solid category colour, including the current,
  * still-in-progress period, which is marked only on the X axis rather than inside the bar
  *
- * The over-budget overflow cap is drawn only by the top segment, directly from this segment's own
- * x/y/width (the values recharts already computed for this column) down to the 100% line, so it
- * lines up with the bar exactly instead of drifting like a separately positioned overlay
+ * The over-budget overflow cap is drawn only by the top segment, sized as a fraction of this
+ * segment's own recharts-animated height rather than an absolute plot coordinate, so the cap
+ * grows in lockstep with the bar during the entry animation instead of popping in at its final size
  */
 function StackedBarSegment({
   category,
   chartCategories,
-  axisMax,
-  isOverBudget,
   x,
   y,
   width,
@@ -335,11 +323,23 @@ function StackedBarSegment({
   fill,
   payload,
 }: StackedBarSegmentProps) {
-  const plotArea = usePlotArea()
   const topSegment = [...chartCategories]
     .reverse()
     .find((entry) => Number((payload as Record<string, unknown> | undefined)?.[entry.dataKey] ?? 0) > 0)
   const isTopSegment = topSegment?.id === category.id
+
+  // The top segment's own value is the number of percentage points it contributes to the bar, so
+  // the portion of that value sitting above the 100% line is the fraction of the segment's own
+  // height the cap must cover
+  const wholeBarTopPct = payload ? getBudgetChartBarTopPct(payload, chartCategories, true) : 0
+  const topSegmentValue =
+    isTopSegment && topSegment && payload
+      ? Number((payload as unknown as Record<string, unknown>)[topSegment.dataKey] ?? 0)
+      : 0
+  const overBudgetFraction =
+    topSegmentValue > 0
+      ? Math.min(Math.max((wholeBarTopPct - OVER_BUDGET_UTILIZATION_THRESHOLD_PCT) / topSegmentValue, 0), 1)
+      : 0
 
   return (
     <g>
@@ -351,23 +351,26 @@ function StackedBarSegment({
         fill={fill}
         radius={isTopSegment ? BUDGET_BAR_TOP_CORNER_RADIUS : 0}
       />
-      {isTopSegment && isOverBudget && plotArea && typeof x === 'number' && typeof y === 'number' && typeof width === 'number' && (
-        <Rectangle
-          x={x}
-          y={y}
-          width={width}
-          height={getOverBudgetCapTopY(plotArea, axisMax) - y}
-          fill={OVER_BUDGET_CAP_COLOR}
-          radius={BUDGET_BAR_TOP_CORNER_RADIUS}
-        />
-      )}
+      {overBudgetFraction > 0 &&
+        typeof x === 'number' &&
+        typeof y === 'number' &&
+        typeof width === 'number' &&
+        typeof height === 'number' && (
+          <Rectangle
+            x={x}
+            y={y}
+            width={width}
+            height={height * overBudgetFraction}
+            fill={OVER_BUDGET_CAP_COLOR}
+            radius={BUDGET_BAR_TOP_CORNER_RADIUS}
+          />
+        )}
     </g>
   )
 }
 
 type SingleCategoryBarProps = {
-  axisMax: number
-  isOverBudget: boolean
+  overBudgetFraction: number
   x?: number
   y?: number
   width?: number
@@ -379,11 +382,11 @@ type SingleCategoryBarProps = {
  * cap covering the portion of the bar above the 100% budget limit
  *
  * Built as a shape component rather than Cell children so the cap can be derived from the bar's
- * own recharts-computed geometry instead of a separately positioned overlay
+ * own recharts-computed geometry instead of a separately positioned overlay. The cap's height is a
+ * fraction of the bar's own animated height rather than an absolute plot coordinate, so it grows in
+ * lockstep with the bar during the entry animation instead of popping in at its final size
  */
-function SingleCategoryBar({ axisMax, isOverBudget, x, y, width, height }: SingleCategoryBarProps) {
-  const plotArea = usePlotArea()
-
+function SingleCategoryBar({ overBudgetFraction, x, y, width, height }: SingleCategoryBarProps) {
   return (
     <g>
       <Rectangle
@@ -394,16 +397,20 @@ function SingleCategoryBar({ axisMax, isOverBudget, x, y, width, height }: Singl
         fill={BUDGET_CHART_ACCENT_COLOR}
         radius={BUDGET_BAR_TOP_CORNER_RADIUS}
       />
-      {isOverBudget && plotArea && typeof x === 'number' && typeof y === 'number' && typeof width === 'number' && (
-        <Rectangle
-          x={x}
-          y={y}
-          width={width}
-          height={getOverBudgetCapTopY(plotArea, axisMax) - y}
-          fill={OVER_BUDGET_CAP_COLOR}
-          radius={BUDGET_BAR_TOP_CORNER_RADIUS}
-        />
-      )}
+      {overBudgetFraction > 0 &&
+        typeof x === 'number' &&
+        typeof y === 'number' &&
+        typeof width === 'number' &&
+        typeof height === 'number' && (
+          <Rectangle
+            x={x}
+            y={y}
+            width={width}
+            height={height * overBudgetFraction}
+            fill={OVER_BUDGET_CAP_COLOR}
+            radius={BUDGET_BAR_TOP_CORNER_RADIUS}
+          />
+        )}
     </g>
   )
 }
@@ -453,24 +460,11 @@ export default function BudgetHistoryChart({
     right: isMobile ? BUDGET_CHART_MOBILE_RIGHT_MARGIN : BUDGET_CHART_LAYOUT.margin.right,
   }
 
-  // Mirrors the YAxis domain calculation so the overflow cap's pixel math lines up with the axis
-  // recharts actually renders
+  // Picks the Y axis domain and tick step from the tallest bar recharts will actually draw
   const dataMax = chartData
     .filter((point) => !point.archived)
     .reduce((max, point) => Math.max(max, getBudgetChartBarTopPct(point, chartCategories, showStackedCategoryChart)), 0)
   const { max: axisMax, ticks: axisTicks } = getBudgetChartAxis(dataMax)
-
-  // Periods whose plotted bar top clears the budget, used to attach the red overflow cap directly
-  // to each bar's own geometry rather than a separately positioned overlay
-  const overBudgetPeriodKeys = new Set(
-    chartData
-      .filter(
-        (point) =>
-          !point.archived &&
-          getBudgetChartBarTopPct(point, chartCategories, showStackedCategoryChart) > OVER_BUDGET_UTILIZATION_THRESHOLD_PCT,
-      )
-      .map((point) => point.periodKey),
-  )
 
   /**
    * Resolves the hovered Recharts bar and forwards it to the shared deferred tooltip overlay
@@ -561,10 +555,6 @@ export default function BudgetHistoryChart({
                       {...props}
                       category={category}
                       chartCategories={chartCategories}
-                      axisMax={axisMax}
-                      isOverBudget={overBudgetPeriodKeys.has(
-                        (props.payload as BudgetChartPoint | undefined)?.periodKey ?? '',
-                      )}
                     />
                   )}
                   barSize={barSize}
@@ -573,15 +563,16 @@ export default function BudgetHistoryChart({
               )) : (
                 <Bar
                   dataKey="utilizationPct"
-                  shape={(props) => (
-                    <SingleCategoryBar
-                      {...props}
-                      axisMax={axisMax}
-                      isOverBudget={overBudgetPeriodKeys.has(
-                        (props.payload as BudgetChartPoint | undefined)?.periodKey ?? '',
-                      )}
-                    />
-                  )}
+                  shape={(props) => {
+                    const point = props.payload as BudgetChartPoint | undefined
+                    const barTopPct = point ? getBudgetChartBarTopPct(point, chartCategories, false) : 0
+                    const overBudgetFraction =
+                      barTopPct > OVER_BUDGET_UTILIZATION_THRESHOLD_PCT
+                        ? (barTopPct - OVER_BUDGET_UTILIZATION_THRESHOLD_PCT) / barTopPct
+                        : 0
+
+                    return <SingleCategoryBar {...props} overBudgetFraction={overBudgetFraction} />
+                  }}
                   barSize={barSize}
                   animationBegin={MODAL_SURFACE_TRANSITION_MS}
                 />
