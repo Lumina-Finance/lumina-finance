@@ -297,6 +297,10 @@ function BudgetChartAxisTick({ currentPeriodKey, ...tickProps }: BudgetChartAxis
 // The Y axis always shows at least this much so the 100% budget threshold stays on the visible axis
 const BUDGET_CHART_MIN_AXIS_MAX_PCT = 100
 
+// Margin kept above the taller of the tallest bar or the 100% line, so a bar's rounded top and the
+// limit line both keep a little breathing room without padding the domain up to the next full step
+const BUDGET_CHART_AXIS_HEADROOM_PCT = 5
+
 // Tick step tiers keyed by how tall the tallest bar is, so labels stay round and few (0/25/50/.../100)
 // for typical utilization and coarsen as bars run further over budget. Every step evenly divides
 // BUDGET_CHART_MIN_AXIS_MAX_PCT, so the 100% threshold always lands on a tick
@@ -316,8 +320,11 @@ type BudgetChartAxis = {
  * auto-generate ticks against an arbitrary maximum, which produces uneven labels (such as
  * 45/90/135) rather than clean, evenly spaced ones
  *
- * The maximum is the next multiple of the chosen step strictly above the data, so the tallest bar's
- * rounded top corner keeps headroom against the plot edge
+ * The domain maximum sits a small fixed margin above the taller of the tallest bar or the 100%
+ * line, rather than rounding up to the next full step, so an over-budget bar keeps only a little
+ * headroom instead of a large empty gap. The tick labels still land on the chosen step, so the
+ * highest label is the greatest step multiple that fits under the domain maximum and the padded
+ * top itself stays unlabelled
  */
 function getBudgetChartAxis(dataMax: number): BudgetChartAxis {
   const effectiveMax = Math.max(dataMax, BUDGET_CHART_MIN_AXIS_MAX_PCT)
@@ -327,8 +334,9 @@ function getBudgetChartAxis(dataMax: number): BudgetChartAxis {
       : effectiveMax <= BUDGET_CHART_AXIS_TIER_2_MAX_PCT
         ? BUDGET_CHART_AXIS_TIER_2_STEP_PCT
         : BUDGET_CHART_AXIS_TIER_3_STEP_PCT
-  const max = (Math.floor(effectiveMax / step) + 1) * step
-  const ticks = Array.from({ length: max / step + 1 }, (_, index) => index * step)
+  const max = Math.max(Math.ceil(dataMax), BUDGET_CHART_MIN_AXIS_MAX_PCT) + BUDGET_CHART_AXIS_HEADROOM_PCT
+  const highestTick = Math.floor(max / step) * step
+  const ticks = Array.from({ length: highestTick / step + 1 }, (_, index) => index * step)
 
   return { max, ticks }
 }
@@ -563,7 +571,11 @@ export default function BudgetHistoryChart({
               onMouseMove={(state, event) => showTooltip(state, event)}
               onMouseLeave={hideTooltip}
             >
-              <CartesianGrid stroke="var(--app-border)" vertical={false} />
+              {/*
+                syncWithTicks keeps grid lines only on the Y-axis ticks, so recharts does not add a
+                stray line at the domain top which now sits a little above the highest labelled tick
+              */}
+              <CartesianGrid stroke="var(--app-border)" vertical={false} syncWithTicks />
 
               {/*
                 recharts measures the rendered tick value to size and position ticks, so without a
