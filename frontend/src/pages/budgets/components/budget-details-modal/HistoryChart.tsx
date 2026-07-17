@@ -332,6 +332,25 @@ function getBudgetChartAxis(dataMax: number): BudgetChartAxis {
   return { max, ticks }
 }
 
+/**
+ * Rounds a rectangle's edges to whole pixels rather than rounding its origin and size
+ * independently, so the resulting `x`/`y`/`width`/`height` describe the same whole-pixel left,
+ * top, right, and bottom edges
+ *
+ * Stacked bar segments each render as a separate SVG path, and two adjacent segments share their
+ * boundary coordinate as the same fractional value. Rounding that shared edge here gives both
+ * paths the identical integer pixel row, which removes the anti-aliasing seam and the hairline
+ * horizontal offset that fractional coordinates otherwise cause on non-retina displays
+ */
+function getPixelSnappedRect(x: number, y: number, width: number, height: number) {
+  const left = Math.round(x)
+  const top = Math.round(y)
+  const right = Math.round(x + width)
+  const bottom = Math.round(y + height)
+
+  return { x: left, y: top, width: right - left, height: bottom - top }
+}
+
 type StackedBarSegmentProps = {
   category: BudgetChartCategory
   chartCategories: BudgetChartCategory[]
@@ -383,30 +402,31 @@ function StackedBarSegment({
       ? Math.min(Math.max((wholeBarTopPct - OVER_BUDGET_UTILIZATION_THRESHOLD_PCT) / topSegmentValue, 0), 1)
       : 0
 
+  const hasNumericGeometry = typeof x === 'number' && typeof y === 'number' && typeof width === 'number' && typeof height === 'number'
+
+  // Snapped once so the segment and its cap share identical rounded edges with each other
+  const snappedRect = hasNumericGeometry ? getPixelSnappedRect(x, y, width, height) : null
+
   return (
     <g>
       <Rectangle
-        x={x}
-        y={y}
-        width={width}
-        height={height}
+        x={snappedRect?.x ?? x}
+        y={snappedRect?.y ?? y}
+        width={snappedRect?.width ?? width}
+        height={snappedRect?.height ?? height}
         fill={fill}
         radius={isTopSegment ? BUDGET_BAR_TOP_CORNER_RADIUS : 0}
       />
-      {overBudgetFraction > 0 &&
-        typeof x === 'number' &&
-        typeof y === 'number' &&
-        typeof width === 'number' &&
-        typeof height === 'number' && (
-          <Rectangle
-            x={x}
-            y={y}
-            width={width}
-            height={height * overBudgetFraction}
-            fill={OVER_BUDGET_CAP_COLOR}
-            radius={BUDGET_BAR_TOP_CORNER_RADIUS}
-          />
-        )}
+      {overBudgetFraction > 0 && snappedRect && (
+        <Rectangle
+          x={snappedRect.x}
+          y={snappedRect.y}
+          width={snappedRect.width}
+          height={Math.round(snappedRect.height * overBudgetFraction)}
+          fill={OVER_BUDGET_CAP_COLOR}
+          radius={BUDGET_BAR_TOP_CORNER_RADIUS}
+        />
+      )}
     </g>
   )
 }
@@ -429,30 +449,31 @@ type SingleCategoryBarProps = {
  * lockstep with the bar during the entry animation instead of popping in at its final size
  */
 function SingleCategoryBar({ overBudgetFraction, x, y, width, height }: SingleCategoryBarProps) {
+  const hasNumericGeometry = typeof x === 'number' && typeof y === 'number' && typeof width === 'number' && typeof height === 'number'
+
+  // Snapped once so the bar and its cap share identical rounded edges with each other
+  const snappedRect = hasNumericGeometry ? getPixelSnappedRect(x, y, width, height) : null
+
   return (
     <g>
       <Rectangle
-        x={x}
-        y={y}
-        width={width}
-        height={height}
+        x={snappedRect?.x ?? x}
+        y={snappedRect?.y ?? y}
+        width={snappedRect?.width ?? width}
+        height={snappedRect?.height ?? height}
         fill={BUDGET_CHART_ACCENT_COLOR}
         radius={BUDGET_BAR_TOP_CORNER_RADIUS}
       />
-      {overBudgetFraction > 0 &&
-        typeof x === 'number' &&
-        typeof y === 'number' &&
-        typeof width === 'number' &&
-        typeof height === 'number' && (
-          <Rectangle
-            x={x}
-            y={y}
-            width={width}
-            height={height * overBudgetFraction}
-            fill={OVER_BUDGET_CAP_COLOR}
-            radius={BUDGET_BAR_TOP_CORNER_RADIUS}
-          />
-        )}
+      {overBudgetFraction > 0 && snappedRect && (
+        <Rectangle
+          x={snappedRect.x}
+          y={snappedRect.y}
+          width={snappedRect.width}
+          height={Math.round(snappedRect.height * overBudgetFraction)}
+          fill={OVER_BUDGET_CAP_COLOR}
+          radius={BUDGET_BAR_TOP_CORNER_RADIUS}
+        />
+      )}
     </g>
   )
 }
