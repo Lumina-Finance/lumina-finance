@@ -145,7 +145,8 @@ export function nextRecurringPeriodStart(baseBudget: BaseBudget, periodStart: st
  * Returns the next two recurrence ranges shown on budget cards
  */
 export function nextBudgetPeriods(baseBudget: BaseBudget, latestPeriod: Budget | undefined) {
-  if (!baseBudget.recurs || !latestPeriod) return []
+  // Archived budgets stop generating periods, so there is nothing upcoming to preview
+  if (!baseBudget.recurs || !latestPeriod || baseBudget.is_archived) return []
 
   const nextStart = addBudgetPeriod(parseYmd(latestPeriod.period_start), baseBudget)
   const followingStart = addBudgetPeriod(nextStart, baseBudget)

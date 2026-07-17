@@ -110,6 +110,13 @@ describe('budget period helpers', () => {
     ])
   })
 
+  it('returns no upcoming periods for an archived recurring budget', () => {
+    const baseBudget = createBaseBudget({ is_archived: true })
+    const latestPeriod = createBudget(baseBudget)
+
+    expect(nextBudgetPeriods(baseBudget, latestPeriod)).toEqual([])
+  })
+
   it('lists every elapsed recurring period start that needs backfill', () => {
     const baseBudget = createBaseBudget()
     const latestPeriod = createBudget(baseBudget)
