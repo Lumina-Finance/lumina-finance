@@ -16,7 +16,7 @@ async def _get_category_id(client, headers, name):
     return next(category["id"] for category in resp.json() if category["name"] == name)
 
 
-async def _import_one_budget(client, headers, category_id, limits, name="Groceries"):
+async def _import_one_budget(client, headers, category_id, limits, name="Groceries", is_archived=None):
     """Import one budget and return the created base budget and its instances
 
     Args:
@@ -25,17 +25,23 @@ async def _import_one_budget(client, headers, category_id, limits, name="Groceri
         category_id: Tracked category for the budget.
         limits: Limit periods for the import payload.
         name: Budget name.
+        is_archived: Archived flag for the payload, omitted when None so the
+            default is exercised.
 
     Returns:
         Base budget response paired with its instance list
     """
+    payload = {
+        "name": name,
+        "currency": "CAD",
+        "category_ids": [category_id],
+        "limits": limits,
+    }
+    if is_archived is not None:
+        payload["is_archived"] = is_archived
+
     resp = await client.post("/transactions/import/firefly/budgets", json={
-        "budgets": [{
-            "name": name,
-            "currency": "CAD",
-            "category_ids": [category_id],
-            "limits": limits,
-        }],
+        "budgets": [payload],
     }, headers=headers)
     assert resp.status_code == 201
     result = resp.json()["results"][0]
@@ -65,12 +71,34 @@ async def test_firefly_budget_import_mirrors_limit_periods(client):
     assert base["recurs"] is True
     assert base["category_ids"] == [groceries_id]
 
+    # is_archived is omitted from the payload, so the budget imports active
+    assert base["is_archived"] is False
+
     # February carried no limit and today's month never did, so neither gets
     # an instance and the history ends where the export ends
     periods = {(b["period_start"], b["period_end"]): b["overall_limit"] for b in own}
     assert periods == {
         ("2025-01-01", "2025-01-31"): 60000,
         ("2025-03-01", "2025-03-31"): 65050,
+    }
+
+
+async def test_firefly_budget_import_carries_archived_flag(client):
+    """An archived Firefly budget imports archived with its full period history"""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    groceries_id = await _get_category_id(client, headers, "Groceries")
+
+    base, own = await _import_one_budget(client, headers, groceries_id, [
+        {"start": "2025-01-01", "end": "2025-01-31", "amount": "600.00"},
+        {"start": "2025-02-01", "end": "2025-02-28", "amount": "620.00"},
+    ], is_archived=True)
+
+    assert base["is_archived"] is True
+    periods = {(b["period_start"], b["period_end"]): b["overall_limit"] for b in own}
+    assert periods == {
+        ("2025-01-01", "2025-01-31"): 60000,
+        ("2025-02-01", "2025-02-28"): 62000,
     }
 
 

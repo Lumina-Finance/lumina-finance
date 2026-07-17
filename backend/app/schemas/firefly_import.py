@@ -71,13 +71,15 @@ class FireflyBudgetImport(BaseModel):
 
     Every limit period becomes one budget period with its exported dates and
     amount, so the history arrives as it was lived rather than reshaped onto
-    a single cadence
+    a single cadence. An archived budget arrives with its history frozen and
+    stays out of the active list
     """
 
     name: str = Field(min_length=1, max_length=256)
     currency: str = Field(min_length=3, max_length=3)
     category_ids: list[uuid.UUID] = Field(min_length=1)
     limits: list[FireflyBudgetLimit] = Field(min_length=1, max_length=MAX_BUDGET_LIMIT_PERIODS)
+    is_archived: bool = False
 
 
 class FireflyBudgetImportRequest(BaseModel):
