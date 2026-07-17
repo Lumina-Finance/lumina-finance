@@ -285,7 +285,11 @@ export function getBudgetChartBarTopPct(
 /**
  * Keeps the bar hover guide within the available chart plot width
  */
-export function getBudgetChartGuideMaxWidth(chartWidth: number, pointCount: number) {
+export function getBudgetChartGuideMaxWidth(
+  chartWidth: number,
+  pointCount: number,
+  yAxisWidth: number = BUDGET_CHART_LAYOUT.yAxisWidth,
+) {
   if (pointCount <= 0) return BUDGET_CHART_HOVER_HIGHLIGHT_WIDTH
   return Math.max(
     1,
@@ -293,7 +297,7 @@ export function getBudgetChartGuideMaxWidth(chartWidth: number, pointCount: numb
       chartWidth -
       BUDGET_CHART_LAYOUT.margin.left -
       BUDGET_CHART_LAYOUT.margin.right -
-      BUDGET_CHART_LAYOUT.yAxisWidth
+      yAxisWidth
     ) / pointCount,
   )
 }

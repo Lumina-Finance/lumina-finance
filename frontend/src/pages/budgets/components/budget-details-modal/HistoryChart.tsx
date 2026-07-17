@@ -32,7 +32,7 @@ import {
   type BudgetChartCategory,
 } from '@/pages/budgets/utils/budgetDetails'
 
-const CHART_INITIAL_DIMENSION = { width: 1, height: 192 }
+const CHART_INITIAL_DIMENSION = { width: 1, height: 211 }
 
 // Pixel width shared by both the single-category bar and every stacked category segment, narrower
 // on mobile so bars don't crowd out the gaps between periods on small screens
@@ -42,6 +42,14 @@ const BUDGET_BAR_SIZE_MOBILE = 18
 // Matches the chart's own min-[750px] height breakpoint, so bar width and chart height switch at
 // the same viewport size
 const BUDGET_CHART_MOBILE_QUERY = '(max-width: 749.98px)'
+
+// Narrower than the desktop y-axis width so the utilization labels sit closer to the plot on
+// mobile, nudging them left toward the "Historical utilization" heading above
+const BUDGET_CHART_Y_AXIS_WIDTH_MOBILE = 38
+
+// Drops the plot's right margin to 0 on mobile so its right edge lines up with the period
+// history rows below, which reach the section's full width
+const BUDGET_CHART_MOBILE_RIGHT_MARGIN = 0
 
 // Rounds only the top corners of a utilization bar
 const BUDGET_BAR_TOP_CORNER_RADIUS: [number, number, number, number] = [4, 4, 0, 0]
@@ -439,6 +447,11 @@ export default function BudgetHistoryChart({
   }, [])
 
   const barSize = isMobile ? BUDGET_BAR_SIZE_MOBILE : BUDGET_BAR_SIZE_DESKTOP
+  const yAxisWidth = isMobile ? BUDGET_CHART_Y_AXIS_WIDTH_MOBILE : BUDGET_CHART_LAYOUT.yAxisWidth
+  const chartMargin = {
+    ...BUDGET_CHART_LAYOUT.margin,
+    right: isMobile ? BUDGET_CHART_MOBILE_RIGHT_MARGIN : BUDGET_CHART_LAYOUT.margin.right,
+  }
 
   // Mirrors the YAxis domain calculation so the overflow cap's pixel math lines up with the axis
   // recharts actually renders
@@ -487,7 +500,7 @@ export default function BudgetHistoryChart({
   return (
     <div
       ref={chartRef}
-      className="relative h-48 min-[750px]:h-80"
+      className="relative h-[15.84rem] min-[750px]:h-[22rem]"
       onMouseLeave={hideTooltip}
     >
       {loading ? (
@@ -509,7 +522,7 @@ export default function BudgetHistoryChart({
           <ResponsiveContainer width="100%" height="100%" initialDimension={CHART_INITIAL_DIMENSION}>
             <BarChart
               data={chartData}
-              margin={BUDGET_CHART_LAYOUT.margin}
+              margin={chartMargin}
               onMouseMove={(state, event) => showTooltip(state, event)}
               onMouseLeave={hideTooltip}
             >
@@ -533,7 +546,7 @@ export default function BudgetHistoryChart({
                 ticks={axisTicks}
                 tick={{ fill: 'var(--app-text-subtle)', fontSize: 12 }}
                 tickFormatter={(value) => `${Number(value)}%`}
-                width={BUDGET_CHART_LAYOUT.yAxisWidth}
+                width={yAxisWidth}
               />
               <ArchivedBandsLayer stretches={archivedStretches} />
               <CurrentPeriodBoundary currentPeriodKey={currentPeriodKey} />
@@ -589,7 +602,7 @@ export default function BudgetHistoryChart({
             className="min-w-44"
             guideVariant="bar"
             guideWidth={BUDGET_CHART_HOVER_HIGHLIGHT_WIDTH}
-            guideMaxWidth={(chartWidth) => getBudgetChartGuideMaxWidth(chartWidth, chartData.length)}
+            guideMaxWidth={(chartWidth) => getBudgetChartGuideMaxWidth(chartWidth, chartData.length, yAxisWidth)}
             getKey={getBudgetChartTooltipKey}
             renderContent={(point) => (
               <BudgetChartTooltip
