@@ -12,6 +12,7 @@ import {
   usePlotArea,
   useXAxisScale,
   type XAxisTickContentProps,
+  type YAxisTickContentProps,
 } from 'recharts'
 import {
   DeferredChartTooltipOverlay,
@@ -68,10 +69,11 @@ const ARCHIVED_BAND_CORNER_RADIUS_PX = 6
 // The dashed limit line is drawn across the plot at this utilization percentage to mark the budget
 const OVER_BUDGET_LIMIT_LINE_PCT = 100
 
-// Colour, dash pattern, and opacity of the dashed budget-limit line
+// Colour, dash pattern, opacity, and stroke width of the dashed budget-limit line
 const OVER_BUDGET_LIMIT_LINE_COLOR = 'var(--app-negative)'
 const OVER_BUDGET_LIMIT_LINE_DASH = '5 4'
 const OVER_BUDGET_LIMIT_LINE_OPACITY = 0.55
+const OVER_BUDGET_LIMIT_LINE_WIDTH = 2
 
 const CURRENT_PERIOD_BOUNDARY_DASH = '3 3'
 
@@ -424,6 +426,35 @@ function StackedBarSegment({
   )
 }
 
+// Font size shared by every Y-axis utilization label
+const BUDGET_CHART_Y_AXIS_TICK_FONT_SIZE = 12
+
+/**
+ * Renders one Y-axis utilization label, matching the default tick styling unless it is the 100%
+ * budget limit, which is drawn in the limit-line colour and bold so the label reads together with
+ * the dashed line crossing the plot at the same height
+ *
+ * Recharts' default tick is a `<Text>` positioned from the tick props it computes, so this renders
+ * through that same component to keep the label aligned with its gridline. The Recharts-only
+ * bookkeeping props that `Text` does not accept are stripped before spreading the rest
+ */
+function BudgetChartYAxisTick(tickProps: YAxisTickContentProps) {
+  const { payload, index, visibleTicksCount, tickFormatter, ...textProps } = tickProps
+  const value = Number((payload as { value?: number } | undefined)?.value ?? 0)
+  const isLimit = value === OVER_BUDGET_LIMIT_LINE_PCT
+
+  return (
+    <Text
+      {...textProps}
+      fill={isLimit ? OVER_BUDGET_LIMIT_LINE_COLOR : 'var(--app-text-subtle)'}
+      fontSize={BUDGET_CHART_Y_AXIS_TICK_FONT_SIZE}
+      fontWeight={isLimit ? 700 : 400}
+    >
+      {`${value}%`}
+    </Text>
+  )
+}
+
 type BudgetHistoryChartProps = {
   chartData: BudgetChartPoint[]
   chartCategories: BudgetChartCategory[]
@@ -565,8 +596,7 @@ export default function BudgetHistoryChart({
                 axisLine={false}
                 domain={[0, axisMax]}
                 ticks={axisTicks}
-                tick={{ fill: 'var(--app-text-subtle)', fontSize: 12 }}
-                tickFormatter={(value) => `${Number(value)}%`}
+                tick={(tickProps) => <BudgetChartYAxisTick {...tickProps} />}
                 width={yAxisWidth}
               />
               <ArchivedBandsLayer stretches={archivedStretches} />
@@ -609,7 +639,7 @@ export default function BudgetHistoryChart({
                 stroke={OVER_BUDGET_LIMIT_LINE_COLOR}
                 strokeOpacity={OVER_BUDGET_LIMIT_LINE_OPACITY}
                 strokeDasharray={OVER_BUDGET_LIMIT_LINE_DASH}
-                strokeWidth={1}
+                strokeWidth={OVER_BUDGET_LIMIT_LINE_WIDTH}
                 ifOverflow="extendDomain"
               />
             </BarChart>
