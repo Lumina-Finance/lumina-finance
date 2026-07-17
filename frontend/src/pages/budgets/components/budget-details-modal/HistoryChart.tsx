@@ -251,10 +251,10 @@ type BudgetChartAxisTickProps = XAxisTickContentProps & {
  * to the current, still-in-progress period
  *
  * Recharts' default tick is itself a `<Text>` positioned from the tick props it computes, so this
- * renders through that same `Text` component rather than a hand-positioned `<text>` — reusing
- * Recharts' own positioning is what keeps the label aligned under its bar. Only the presentational
- * props are forwarded: `payload`, `index`, `visibleTicksCount`, and `tickFormatter` are Recharts-only
- * bookkeeping that `Text` does not accept
+ * renders through that same `Text` component rather than a hand-positioned `<text>`, reusing
+ * Recharts' own positioning to keep the label aligned under its bar. The full tick props are
+ * forwarded because `Text` filters out the Recharts-only bookkeeping (`payload`, `index`,
+ * `visibleTicksCount`, `tickFormatter`) before anything reaches the DOM
  *
  * The label text itself comes from calling that same `tickFormatter` rather than a separately
  * looked-up map. Recharts also calls the formatter to measure and lay out ticks, so deriving the
@@ -267,15 +267,14 @@ type BudgetChartAxisTickProps = XAxisTickContentProps & {
  * glance without altering the bar's own solid fill
  */
 function BudgetChartAxisTick({ currentPeriodKey, ...tickProps }: BudgetChartAxisTickProps) {
-  const { payload, index, visibleTicksCount, tickFormatter, ...textProps } = tickProps
-  const value = String((payload as { value?: string | number } | undefined)?.value ?? '')
-  const label = tickFormatter ? tickFormatter(value, index) : value
+  const value = String((tickProps.payload as { value?: string | number } | undefined)?.value ?? '')
+  const label = tickProps.tickFormatter ? tickProps.tickFormatter(value, tickProps.index) : value
   const isCurrent = value === currentPeriodKey
 
   return (
     <g>
       <Text
-        {...textProps}
+        {...tickProps}
         fill={isCurrent ? 'var(--app-accent)' : 'var(--app-text-subtle)'}
         fontSize={CURRENT_PERIOD_AXIS_TICK_FONT_SIZE}
         fontWeight={isCurrent ? 700 : 400}
@@ -443,17 +442,16 @@ const BUDGET_CHART_Y_AXIS_TICK_FONT_SIZE = 12
  * the dashed line crossing the plot at the same height
  *
  * Recharts' default tick is a `<Text>` positioned from the tick props it computes, so this renders
- * through that same component to keep the label aligned with its gridline. The Recharts-only
- * bookkeeping props that `Text` does not accept are stripped before spreading the rest
+ * through that same component to keep the label aligned with its gridline. The full tick props are
+ * forwarded because `Text` filters out the Recharts-only bookkeeping props before they reach the DOM
  */
 function BudgetChartYAxisTick(tickProps: YAxisTickContentProps) {
-  const { payload, index, visibleTicksCount, tickFormatter, ...textProps } = tickProps
-  const value = Number((payload as { value?: number } | undefined)?.value ?? 0)
+  const value = Number((tickProps.payload as { value?: number } | undefined)?.value ?? 0)
   const isLimit = value === OVER_BUDGET_LIMIT_LINE_PCT
 
   return (
     <Text
-      {...textProps}
+      {...tickProps}
       fill={isLimit ? OVER_BUDGET_LIMIT_LINE_COLOR : 'var(--app-text-subtle)'}
       fontSize={BUDGET_CHART_Y_AXIS_TICK_FONT_SIZE}
       fontWeight={isLimit ? 700 : 400}
