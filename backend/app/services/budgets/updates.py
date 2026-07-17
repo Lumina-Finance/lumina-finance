@@ -33,6 +33,13 @@ async def update_budget_instance(
     if not updates:
         return await get_budget_response(db, budget, base_budget)
 
+    # An archived base budget freezes its instances so the current-period limit cannot change while archived
+    if base_budget.is_archived:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cannot update a budget instance for an archived base budget",
+        )
+
     # Reject explicit null because overall_limit is non-nullable on the model
     if "overall_limit" in updates and updates["overall_limit"] is None:
         raise HTTPException(

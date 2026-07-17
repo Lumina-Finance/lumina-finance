@@ -89,8 +89,8 @@ export default function BudgetDetailsModal({
   const isOverBudget = remaining < 0
   const showStackedCategoryChart = chartCategories.length > 1
   const chartData = useMemo(
-    () => getBudgetDetailsChartData({ sortedPeriods, utilizationByBudgetId, chartCategories }),
-    [chartCategories, sortedPeriods, utilizationByBudgetId],
+    () => getBudgetDetailsChartData({ sortedPeriods, utilizationByBudgetId, chartCategories, baseBudget }),
+    [baseBudget, chartCategories, sortedPeriods, utilizationByBudgetId],
   )
   const periodHistory = useMemo(
     () => getBudgetPeriodHistory(sortedPeriods, utilizationByBudgetId),
@@ -255,9 +255,13 @@ export default function BudgetDetailsModal({
         categories={categories}
         currencies={currencies}
         onClose={() => setEditOpen(false)}
-        onSaved={() => {
+        onSaved={(archiveChanged) => {
           refetchUtilizationHistory()
           onSaved()
+
+          // Archiving is the only trigger for the card exit and archived-section animations, so close
+          // this full-screen modal on an archive change to let them play on the visible budgets page
+          if (archiveChanged) onClose()
         }}
       />
     </>,

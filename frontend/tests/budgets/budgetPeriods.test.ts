@@ -9,6 +9,7 @@ import {
   cadenceSummary,
   missingRecurringPeriodStarts,
   nextBudgetPeriods,
+  nextRecurringPeriodStart,
   oneOffPeriodEnd,
   recurrenceAnchorsFromStart,
 } from '@/pages/budgets/utils/budgetPeriods'
@@ -30,6 +31,7 @@ function createBaseBudget(overrides: Partial<BaseBudget> = {}): BaseBudget {
     recurrence_month: null,
     recurs: true,
     created_at: '2026-01-01T00:00:00Z',
+    is_archived: false,
     category_ids: ['groceries'],
     ...overrides,
   }
@@ -108,6 +110,13 @@ describe('budget period helpers', () => {
     ])
   })
 
+  it('returns no upcoming periods for an archived recurring budget', () => {
+    const baseBudget = createBaseBudget({ is_archived: true })
+    const latestPeriod = createBudget(baseBudget)
+
+    expect(nextBudgetPeriods(baseBudget, latestPeriod)).toEqual([])
+  })
+
   it('lists every elapsed recurring period start that needs backfill', () => {
     const baseBudget = createBaseBudget()
     const latestPeriod = createBudget(baseBudget)
@@ -116,5 +125,34 @@ describe('budget period helpers', () => {
       '2026-07-01',
       '2026-08-01',
     ])
+  })
+
+  it('advances a monthly period start by exactly one recurrence cycle', () => {
+    const baseBudget = createBaseBudget()
+
+    expect(nextRecurringPeriodStart(baseBudget, '2026-01-01')).toBe('2026-02-01')
+    expect(nextRecurringPeriodStart(createBaseBudget({ instance_length: 2 }), '2026-01-01')).toBe('2026-03-01')
+  })
+
+  it('re-anchors to recurrence_dom across short months for a dom-31 monthly budget', () => {
+    const baseBudget = createBaseBudget({ recurrence_dom: 31 })
+
+    expect(nextRecurringPeriodStart(baseBudget, '2026-01-31')).toBe('2026-02-28')
+    expect(nextRecurringPeriodStart(baseBudget, '2026-02-28')).toBe('2026-03-31')
+    expect(nextRecurringPeriodStart(baseBudget, '2026-04-30')).toBe('2026-05-31')
+  })
+
+  it('re-anchors to recurrence_dom for a dom-30 monthly budget', () => {
+    const baseBudget = createBaseBudget({ recurrence_dom: 30 })
+
+    expect(nextRecurringPeriodStart(baseBudget, '2026-01-30')).toBe('2026-02-28')
+    expect(nextRecurringPeriodStart(baseBudget, '2026-02-28')).toBe('2026-03-30')
+  })
+
+  it('re-anchors to recurrence_dom for a dom-29 monthly budget across a leap year', () => {
+    const baseBudget = createBaseBudget({ recurrence_dom: 29 })
+
+    expect(nextRecurringPeriodStart(baseBudget, '2024-01-29')).toBe('2024-02-29')
+    expect(nextRecurringPeriodStart(baseBudget, '2024-02-29')).toBe('2024-03-29')
   })
 })

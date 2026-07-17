@@ -5,7 +5,9 @@ import { describe, expect, it } from 'vitest'
 import type { BaseBudget, Budget, BudgetUtilization } from '@/api/budgets'
 import type { Category } from '@/api/categories'
 import {
+  ARCHIVED_SLOT_LABEL_PREFIX,
   BUDGET_CHART_HOVER_HIGHLIGHT_WIDTH,
+  getBudgetArchivedChartSlots,
   getBudgetChartCategories,
   getBudgetChartGuideMaxWidth,
   getBudgetDetailsChartData,
@@ -32,6 +34,7 @@ function createBaseBudget(overrides: Partial<BaseBudget> = {}): BaseBudget {
     recurrence_month: null,
     recurs: true,
     created_at: '2026-01-01T00:00:00Z',
+    is_archived: false,
     category_ids: ['groceries', 'travel'],
     ...overrides,
   }
@@ -143,7 +146,12 @@ describe('budget details helpers', () => {
       })],
     ])
 
-    const chartData = getBudgetDetailsChartData({ sortedPeriods, utilizationByBudgetId, chartCategories: categories })
+    const chartData = getBudgetDetailsChartData({
+      sortedPeriods,
+      utilizationByBudgetId,
+      chartCategories: categories,
+      baseBudget: createBaseBudget(),
+    })
 
     expect(sortedPeriods.map((period) => period.id)).toEqual([
       'budget-1',
@@ -187,5 +195,89 @@ describe('budget details helpers', () => {
   it('clamps chart guide width to the plot area', () => {
     expect(getBudgetChartGuideMaxWidth(40, 3)).toBe(1)
     expect(getBudgetChartGuideMaxWidth(500, 0)).toBe(BUDGET_CHART_HOVER_HIGHLIGHT_WIDTH)
+  })
+
+  it('finds no archived slot between contiguous monthly periods', () => {
+    const baseBudget = createBaseBudget()
+    const periods = [
+      createBudget({ id: 'jan', period_start: '2026-01-01' }),
+      createBudget({ id: 'feb', period_start: '2026-02-01' }),
+      createBudget({ id: 'mar', period_start: '2026-03-01' }),
+    ]
+
+    expect(getBudgetArchivedChartSlots(periods, baseBudget)).toEqual([])
+  })
+
+  it('finds no archived slot for a contiguous dom-31 monthly series crossing February', () => {
+    const baseBudget = createBaseBudget({ recurrence_dom: 31 })
+    const periods = [
+      createBudget({ id: 'jan', period_start: '2026-01-31' }),
+      createBudget({ id: 'feb', period_start: '2026-02-28' }),
+      createBudget({ id: 'mar', period_start: '2026-03-31' }),
+    ]
+
+    expect(getBudgetArchivedChartSlots(periods, baseBudget)).toEqual([])
+  })
+
+  it('inserts an archived slot between periods separated by more than one monthly cycle', () => {
+    const baseBudget = createBaseBudget()
+    const periods = [
+      createBudget({ id: 'jan', period_start: '2026-01-01' }),
+
+      // Skips February and March, so the gap is wider than one monthly cycle
+      createBudget({ id: 'apr', period_start: '2026-04-01' }),
+    ]
+
+    expect(getBudgetArchivedChartSlots(periods, baseBudget)).toEqual([
+      { label: `${ARCHIVED_SLOT_LABEL_PREFIX}jan`, afterPeriodId: 'jan' },
+    ])
+  })
+
+  it('appends a trailing archived slot after the last period while the base budget is still archived', () => {
+    const baseBudget = createBaseBudget({ is_archived: true })
+    const periods = [
+      createBudget({ id: 'jan', period_start: '2026-01-01' }),
+      createBudget({ id: 'feb', period_start: '2026-02-01' }),
+    ]
+
+    expect(getBudgetArchivedChartSlots(periods, baseBudget)).toEqual([
+      { label: `${ARCHIVED_SLOT_LABEL_PREFIX}feb-current`, afterPeriodId: 'feb' },
+    ])
+  })
+
+  it('never produces archived slots for one-off budgets, even when archived', () => {
+    const baseBudget = createBaseBudget({ recurs: false, is_archived: true })
+    const periods = [
+      createBudget({ id: 'jan', period_start: '2026-01-01' }),
+      createBudget({ id: 'apr', period_start: '2026-04-01' }),
+    ]
+
+    expect(getBudgetArchivedChartSlots(periods, baseBudget)).toEqual([])
+  })
+
+  it('interleaves a synthetic archived slot between bracketing bars while keeping real spend values', () => {
+    const baseBudget = createBaseBudget()
+    const sortedPeriods = [
+      createBudget({ id: 'jan', period_start: '2026-01-01', overall_limit: 100000 }),
+      createBudget({ id: 'apr', period_start: '2026-04-01', overall_limit: 100000 }),
+    ]
+    const utilizationByBudgetId = new Map([
+      ['jan', createUtilization({ budget_id: 'jan', total_spent: 40000 })],
+      ['apr', createUtilization({ budget_id: 'apr', total_spent: 25000 })],
+    ])
+
+    const chartData = getBudgetDetailsChartData({
+      sortedPeriods,
+      utilizationByBudgetId,
+      chartCategories: [],
+      baseBudget,
+    })
+
+    expect(chartData).toHaveLength(3)
+    expect(chartData[0]).toMatchObject({ label: 'Jan 1, 2026', spent: 40000 })
+    expect(chartData[0].archived).toBeFalsy()
+    expect(chartData[1]).toMatchObject({ label: `${ARCHIVED_SLOT_LABEL_PREFIX}jan`, archived: true, spent: 0, limit: 0 })
+    expect(chartData[2]).toMatchObject({ label: 'Apr 1, 2026', spent: 25000 })
+    expect(chartData[2].archived).toBeFalsy()
   })
 })

@@ -29,6 +29,7 @@ function createBudget(overrides: Partial<Budget> = {}): Budget {
       recurrence_month: null,
       recurs: true,
       created_at: '2026-01-01T00:00:00Z',
+      is_archived: false,
       category_ids: ['groceries'],
     },
     ...overrides,

@@ -1487,7 +1487,14 @@
     order: 2;
   }
 
-  @container budget-card (min-width: 32rem) {
+  /*
+   * The threshold sits below 32rem because container queries measure the
+   * content box, and app-card padding removes ~2rem from a card's border
+   * box. A minimum-size grid card is 32rem border-box, so its content is
+   * only ~30rem, which is still above 28rem, letting the roomy layout
+   * trigger across the whole desktop grid
+   */
+  @container budget-card (min-width: 28rem) {
     .app-budget-card-summary {
       @apply flex-row items-baseline justify-between gap-4;
     }

@@ -1,4 +1,4 @@
-import { useRef, type MouseEvent as ReactMouseEvent } from 'react'
+import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import {
   Bar,
   BarChart,
@@ -20,6 +20,7 @@ import {
 import BudgetChartTooltip, { type BudgetChartPoint } from '@/pages/budgets/components/budget-details-modal/ChartTooltip'
 import { MODAL_SURFACE_TRANSITION_MS } from '@/pages/budgets/constants'
 import {
+  ARCHIVED_SLOT_LABEL_PREFIX,
   BUDGET_CHART_HOVER_HIGHLIGHT_WIDTH,
   BUDGET_CHART_LAYOUT,
   getBudgetChartGuideMaxWidth,
@@ -27,6 +28,69 @@ import {
 } from '@/pages/budgets/utils/budgetDetails'
 
 const CHART_INITIAL_DIMENSION = { width: 1, height: 192 }
+
+// Rounds only the top corners of a utilization bar
+const BUDGET_BAR_TOP_CORNER_RADIUS: [number, number, number, number] = [4, 4, 0, 0]
+
+const ARCHIVED_BAND_LABEL = 'ARCHIVED'
+const ARCHIVED_BAND_INSET_PX = 10
+const ARCHIVED_BAND_MIN_WIDTH_PX = 18
+const ARCHIVED_BAND_LABEL_MIN_WIDTH_PX = 52
+const ARCHIVED_BAND_LABEL_FONT_SIZE = 10
+const ARCHIVED_BAND_FILL_OPACITY = 0.12
+const ARCHIVED_BAND_CORNER_RADIUS_PX = 6
+
+type ArchivedBandBackgroundProps = {
+  x?: number
+  y?: number
+  width?: number
+  height?: number
+  payload?: BudgetChartPoint
+  bandWidth: number
+}
+
+/**
+ * Shades an archived chart slot across the full plot height, centring the label when the band is wide enough
+ *
+ * Recharts supplies the bar geometry and the full-height background rectangle, so the band is centred on the
+ * slot and then widened to the categorical band size that the hover guide already relies on
+ */
+function ArchivedBandBackground({ x, y, width, height, payload, bandWidth }: ArchivedBandBackgroundProps) {
+  if (!payload?.archived || x == null || y == null || width == null || height == null) {
+    return null
+  }
+
+  const slotCenter = x + width / 2
+  const shadeWidth = Math.max(bandWidth - ARCHIVED_BAND_INSET_PX, ARCHIVED_BAND_MIN_WIDTH_PX)
+
+  return (
+    <g>
+      <rect
+        x={slotCenter - shadeWidth / 2}
+        y={y}
+        width={shadeWidth}
+        height={height}
+        rx={ARCHIVED_BAND_CORNER_RADIUS_PX}
+        fill="var(--app-text-muted)"
+        fillOpacity={ARCHIVED_BAND_FILL_OPACITY}
+      />
+      {shadeWidth >= ARCHIVED_BAND_LABEL_MIN_WIDTH_PX && (
+        <text
+          x={slotCenter}
+          y={y + height / 2}
+          textAnchor="middle"
+          dominantBaseline="middle"
+          fill="var(--app-text-subtle)"
+          fontSize={ARCHIVED_BAND_LABEL_FONT_SIZE}
+          fontWeight={600}
+          letterSpacing={1.5}
+        >
+          {ARCHIVED_BAND_LABEL}
+        </text>
+      )}
+    </g>
+  )
+}
 
 /**
  * Rounds the axis maximum up to the next multiple of 25 strictly above the data, so a bar that lands
@@ -59,7 +123,7 @@ function StackedBarSegment({ category, chartCategories, x, y, width, height, fil
     .find((entry) => Number((payload as Record<string, unknown> | undefined)?.[entry.dataKey] ?? 0) > 0)
   const isTopSegment = topSegment?.id === category.id
 
-  return <Rectangle x={x} y={y} width={width} height={height} fill={fill} radius={isTopSegment ? [4, 4, 0, 0] : 0} />
+  return <Rectangle x={x} y={y} width={width} height={height} fill={fill} radius={isTopSegment ? BUDGET_BAR_TOP_CORNER_RADIUS : 0} />
 }
 
 type BudgetHistoryChartProps = {
@@ -87,6 +151,27 @@ export default function BudgetHistoryChart({
   const chartRef = useRef<HTMLDivElement>(null)
   const tooltipRef = useRef<DeferredChartTooltipOverlayHandle<BudgetChartPoint>>(null)
   const showStackedCategoryChart = chartCategories.length > 1
+  const [measuredChartWidth, setMeasuredChartWidth] = useState(0)
+  const hasArchivedSlots = chartData.some((point) => point.archived)
+
+  // Track the plot width so archived bands match the categorical band size recharts renders
+  useEffect(() => {
+    const element = chartRef.current
+    if (!element) return
+
+    const observer = new ResizeObserver((entries) => {
+      setMeasuredChartWidth(entries[0].contentRect.width)
+    })
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [])
+
+  const archivedBandWidth = getBudgetChartGuideMaxWidth(measuredChartWidth, chartData.length)
+  const renderArchivedBand = hasArchivedSlots
+    ? (props: Omit<ArchivedBandBackgroundProps, 'bandWidth'>) => (
+        <ArchivedBandBackground {...props} bandWidth={archivedBandWidth} />
+      )
+    : undefined
 
   /**
    * Resolves the hovered Recharts bar and forwards it to the shared deferred tooltip overlay
@@ -102,7 +187,8 @@ export default function BudgetHistoryChart({
     })
     const pointer = getRechartsTooltipPointer(state, event)
 
-    if (!point) {
+    // Archived slots are shaded gaps rather than periods, so they never surface a utilization tooltip
+    if (!point || point.archived) {
       tooltipRef.current?.show(null, pointer)
       return
     }
@@ -147,6 +233,7 @@ export default function BudgetHistoryChart({
                 tickLine={false}
                 axisLine={false}
                 tick={{ fill: 'var(--app-text-subtle)', fontSize: 13 }}
+                tickFormatter={(label: string) => (label.startsWith(ARCHIVED_SLOT_LABEL_PREFIX) ? '' : label)}
               />
               <YAxis
                 tickLine={false}
@@ -156,21 +243,27 @@ export default function BudgetHistoryChart({
                 tickFormatter={(value) => `${Number(value)}%`}
                 width={BUDGET_CHART_LAYOUT.yAxisWidth}
               />
-              {showStackedCategoryChart ? chartCategories.map((category) => (
+              {showStackedCategoryChart ? chartCategories.map((category, index) => (
                 <Bar
                   key={category.id}
                   dataKey={category.dataKey}
                   stackId="category-spending"
                   fill={category.color}
                   shape={(props) => <StackedBarSegment {...props} category={category} chartCategories={chartCategories} />}
+                  background={index === 0 ? renderArchivedBand : undefined}
                   barSize={28}
                   animationBegin={MODAL_SURFACE_TRANSITION_MS}
                 />
               )) : (
+
+                // A custom shape keeps recharts from dropping the zero-height archived columns that carry the background band
                 <Bar
                   dataKey="utilizationPct"
                   fill="var(--app-accent)"
-                  radius={[4, 4, 0, 0]}
+                  shape={({ x, y, width, height, fill }) => (
+                    <Rectangle x={x} y={y} width={width} height={height} fill={fill} radius={BUDGET_BAR_TOP_CORNER_RADIUS} />
+                  )}
+                  background={renderArchivedBand}
                   barSize={28}
                   animationBegin={MODAL_SURFACE_TRANSITION_MS}
                 />

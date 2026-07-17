@@ -10,6 +10,9 @@ interface BudgetEditorModalCadenceSectionProps {
   periodStartLabel: string
   cadenceSummaryText?: string
   recurrenceControlsLocked: boolean
+
+  // Locks the recurrence type toggle while the budget is archived so no cadence edit can be staged
+  fieldsLocked: boolean
   showError: BudgetEditorModalErrorGetter
   handlers: BudgetEditorModalHandlers
 }
@@ -23,6 +26,7 @@ export default function BudgetEditorModalCadenceSection({
   periodStartLabel,
   cadenceSummaryText,
   recurrenceControlsLocked,
+  fieldsLocked,
   showError,
   handlers,
 }: BudgetEditorModalCadenceSectionProps) {
@@ -48,18 +52,20 @@ export default function BudgetEditorModalCadenceSection({
         <div className="grid gap-2.5 md:grid-cols-[10rem_minmax(0,1fr)] md:items-end">
           <div>
             <span className="app-label mb-1.5 block text-[0.9375rem] leading-5">Type</span>
-            <div className="app-segmented-control w-full">
+            <div className={`app-segmented-control w-full ${fieldsLocked ? 'opacity-60' : ''}`}>
               <button
                 type="button"
-                className={`app-segmented-option flex-1 text-sm ${form.recurs ? 'app-segmented-option-active' : ''}`}
+                className={`app-segmented-option flex-1 text-sm ${fieldsLocked ? 'cursor-not-allowed' : ''} ${form.recurs ? 'app-segmented-option-active' : ''}`}
                 onClick={() => onRecursChange(true)}
+                disabled={fieldsLocked}
               >
                 Recurring
               </button>
               <button
                 type="button"
-                className={`app-segmented-option flex-1 text-sm ${!form.recurs ? 'app-segmented-option-active' : ''}`}
+                className={`app-segmented-option flex-1 text-sm ${fieldsLocked ? 'cursor-not-allowed' : ''} ${!form.recurs ? 'app-segmented-option-active' : ''}`}
                 onClick={() => onRecursChange(false)}
+                disabled={fieldsLocked}
               >
                 Once
               </button>

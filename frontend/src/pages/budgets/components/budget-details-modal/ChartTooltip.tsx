@@ -9,6 +9,9 @@ export interface BudgetChartPoint {
   spent: number
   limit: number
   utilizationPct: number
+
+  // Marks a synthetic slot that renders a shaded archived band instead of a utilization bar
+  archived?: boolean
   categories?: Array<{
     id: string
     name: string

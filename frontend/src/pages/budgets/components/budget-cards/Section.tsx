@@ -1,12 +1,20 @@
-import { motion, useReducedMotion } from 'motion/react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import type { BudgetUtilization } from '@/api/budgets'
 import { LoadingOverlay } from '@/components/loading/Transition'
 import BudgetCard from '@/pages/budgets/components/budget-card/Card'
+import { EASE } from '@/pages/budgets/constants'
 import type { BudgetCardViewModel } from '@/pages/budgets/types'
 
 const BUDGET_CARDS_LOADING_AREA_HEIGHT = 'max(0px, calc(100dvh - 15rem))'
 const BUDGET_CARD_ENTER_OFFSET_PX = 12
 const BUDGET_CARD_STAGGER_SECONDS = 0.055
+const BUDGET_CARD_ENTER_SECONDS = 0.24
+const BUDGET_CARD_ENTER_EASE = [0.22, 1, 0.36, 1] as const
+
+// Archiving on save removes a card from the active list, so it fades and shrinks out while the grid reflows
+const BUDGET_CARD_EXIT_SCALE = 0.92
+const BUDGET_CARD_EXIT_SECONDS = 0.2
+const BUDGET_CARD_REFLOW_SECONDS = 0.28
 
 type BudgetCardsSectionProps = {
   budgetCards: BudgetCardViewModel[]
@@ -53,31 +61,44 @@ export default function BudgetCardsSection({
     return (
       <section className="relative" aria-busy={loading}>
         <section className="app-budget-grid">
-          {budgetCards.map((budgetCard, index) => {
-            const { baseBudget, latestPeriod, categoryNames } = budgetCard
+          {/* popLayout pulls the exiting card out of layout flow immediately so the remaining cards reflow during its exit instead of after it unmounts */}
+          <AnimatePresence mode="popLayout">
+            {budgetCards.map((budgetCard, index) => {
+              const { baseBudget, latestPeriod, categoryNames } = budgetCard
 
-            return (
-              <motion.div
-                key={baseBudget.id}
-                className="min-w-0"
-                initial={shouldReduceMotion ? false : { opacity: 0, y: BUDGET_CARD_ENTER_OFFSET_PX }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{
-                  duration: shouldReduceMotion ? 0 : 0.24,
-                  ease: [0.22, 1, 0.36, 1],
-                  delay: shouldReduceMotion ? 0 : index * BUDGET_CARD_STAGGER_SECONDS,
-                }}
-              >
-                <BudgetCard
-                  baseBudget={baseBudget}
-                  latestPeriod={latestPeriod}
-                  categoryNames={categoryNames}
-                  utilization={latestPeriod ? latestUtilizationByBudgetId.get(latestPeriod.id) : undefined}
-                  onOpen={() => onOpenBudget(budgetCard)}
-                />
-              </motion.div>
-            )
-          })}
+              return (
+                <motion.div
+                  key={baseBudget.id}
+                  layout
+                  className="min-w-0"
+                  initial={shouldReduceMotion ? false : { opacity: 0, y: BUDGET_CARD_ENTER_OFFSET_PX }}
+                  animate={{
+                    opacity: 1,
+                    y: 0,
+                    transition: {
+                      duration: shouldReduceMotion ? 0 : BUDGET_CARD_ENTER_SECONDS,
+                      ease: BUDGET_CARD_ENTER_EASE,
+                      delay: shouldReduceMotion ? 0 : index * BUDGET_CARD_STAGGER_SECONDS,
+                    },
+                  }}
+                  exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, scale: BUDGET_CARD_EXIT_SCALE }}
+                  transition={{
+                    duration: shouldReduceMotion ? 0 : BUDGET_CARD_EXIT_SECONDS,
+                    ease: EASE,
+                    layout: { duration: shouldReduceMotion ? 0 : BUDGET_CARD_REFLOW_SECONDS, ease: EASE },
+                  }}
+                >
+                  <BudgetCard
+                    baseBudget={baseBudget}
+                    latestPeriod={latestPeriod}
+                    categoryNames={categoryNames}
+                    utilization={latestPeriod ? latestUtilizationByBudgetId.get(latestPeriod.id) : undefined}
+                    onOpen={() => onOpenBudget(budgetCard)}
+                  />
+                </motion.div>
+              )
+            })}
+          </AnimatePresence>
         </section>
         <BudgetCardsLoadingLayer
           visible={loading}

@@ -101,7 +101,11 @@ function addBudgetPeriod(start: CalendarDate, baseBudget: BaseBudget) {
     return addDays(start, baseBudget.instance_length * 7)
   }
 
-  return addMonths(start, periodLengthInMonths(baseBudget))
+  // The backend re-anchors every period to recurrence_dom capped to the target month, so a dom-31 series
+  // re-expands after a short month (Feb28 -> Mar31) instead of sticking at the clamped day addMonths returned
+  const advanced = addMonths(start, periodLengthInMonths(baseBudget))
+  const anchorDom = baseBudget.recurrence_dom ?? start.day
+  return { ...advanced, day: anchorDay(advanced.year, advanced.month, anchorDom) }
 }
 
 /**
@@ -131,10 +135,18 @@ function formatPeriodRange(start: CalendarDate, baseBudget: BaseBudget) {
 }
 
 /**
+ * Returns the period start that immediately follows the supplied start after one recurrence cycle
+ */
+export function nextRecurringPeriodStart(baseBudget: BaseBudget, periodStart: string) {
+  return formatYmd(addBudgetPeriod(parseYmd(periodStart), baseBudget))
+}
+
+/**
  * Returns the next two recurrence ranges shown on budget cards
  */
 export function nextBudgetPeriods(baseBudget: BaseBudget, latestPeriod: Budget | undefined) {
-  if (!baseBudget.recurs || !latestPeriod) return []
+  // Archived budgets stop generating periods, so there is nothing upcoming to preview
+  if (!baseBudget.recurs || !latestPeriod || baseBudget.is_archived) return []
 
   const nextStart = addBudgetPeriod(parseYmd(latestPeriod.period_start), baseBudget)
   const followingStart = addBudgetPeriod(nextStart, baseBudget)

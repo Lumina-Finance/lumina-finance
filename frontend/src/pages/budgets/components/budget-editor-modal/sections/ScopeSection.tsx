@@ -14,6 +14,9 @@ interface BudgetEditorModalScopeSectionProps {
   currencyReadOnly: boolean
   currencyTooltip: boolean
   limitDisabled: boolean
+
+  // Locks every editable field while the budget is archived so only the archive toggle stays live
+  fieldsLocked: boolean
   showError: BudgetEditorModalErrorGetter
   handlers: BudgetEditorModalHandlers
 }
@@ -31,6 +34,7 @@ export default function BudgetEditorModalScopeSection({
   currencyReadOnly,
   currencyTooltip,
   limitDisabled,
+  fieldsLocked,
   showError,
   handlers,
 }: BudgetEditorModalScopeSectionProps) {
@@ -58,11 +62,12 @@ export default function BudgetEditorModalScopeSection({
           <BudgetEditorFieldLabelRow htmlFor={ids.name} label="Name" error={showError('name')} />
           <input
             id={ids.name}
-            className={`app-input ${showError('name') ? 'app-input-error' : ''}`}
+            className={`app-input disabled:cursor-not-allowed disabled:opacity-60 ${showError('name') ? 'app-input-error' : ''}`}
             placeholder={namePlaceholder}
             value={form.name}
             onChange={(event) => setField('name', event.target.value)}
             onBlur={() => onBlur('name')}
+            disabled={fieldsLocked}
           />
         </div>
 
@@ -125,7 +130,7 @@ export default function BudgetEditorModalScopeSection({
                 value={form.limit}
                 onChange={(event) => setField('limit', formatMoneyInputLive(sanitizeMoneyInput(event.target.value)))}
                 onBlur={() => onBlur('limit')}
-                disabled={limitDisabled}
+                disabled={limitDisabled || fieldsLocked}
               />
             </div>
           </div>

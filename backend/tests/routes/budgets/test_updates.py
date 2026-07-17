@@ -357,3 +357,51 @@ async def test_update_budget_ignores_unknown_fields(client):
     assert data["overall_limit"] == 55555
     # Unknown smuggled field had no effect
     assert data["base_budget_id"] == base_budget_id
+
+
+# --- PATCH /budgets/{budget_id} — archived base budget guard ---
+
+
+async def test_update_budget_overall_limit_returns_409_for_archived_base_budget(client):
+    """Updating overall_limit on an instance whose base budget is archived is rejected.
+
+    A non-archived base budget's instance is patched in the same test as a control, proving
+    the 409 comes from the archived flag and not some other blocker
+    """
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    # A single tracked category is reused across both base budgets to avoid the per-owner unique name collision
+    cat_id = await _create_category(client, headers)
+
+    archived_base_resp = await _create_base_budget(client, headers, category_ids=[cat_id])
+    archived_base_id = archived_base_resp.json()["id"]
+    archived_instance_id = (await _create_budget_instance(
+        client, headers, archived_base_id,
+    )).json()["id"]
+    await client.patch(
+        f"/base-budgets/{archived_base_id}", json={"is_archived": True}, headers=headers,
+    )
+
+    active_base_resp = await _create_base_budget(
+        client, headers, name="Active Budget", category_ids=[cat_id],
+    )
+    active_instance_id = (await _create_budget_instance(
+        client, headers, active_base_resp.json()["id"],
+    )).json()["id"]
+
+    archived_resp = await client.patch(
+        f"/budgets/{archived_instance_id}",
+        json={"overall_limit": 250000},
+        headers=headers,
+    )
+    active_resp = await client.patch(
+        f"/budgets/{active_instance_id}",
+        json={"overall_limit": 250000},
+        headers=headers,
+    )
+
+    assert archived_resp.status_code == 409
+    assert archived_resp.json()["detail"] == "Cannot update a budget instance for an archived base budget"
+    assert active_resp.status_code == 200
+    assert active_resp.json()["overall_limit"] == 250000

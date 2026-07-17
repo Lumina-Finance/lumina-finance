@@ -1020,12 +1020,27 @@ async def _seed_budgets(db, users, categories):
         recurrence_freq=RecurrenceFreq.MONTHLY, instance_length=1, recurrence_dom=1, recurs=True,
         created_at=window_created_at,
     )
+
+    # Ran continuously, was archived for two months, then reactivated this
+    # month, purely so the history chart has a real ARCHIVED gap to render
+    fitness = BaseBudget(
+        owner_id=alex.id, name="Fitness", currency="CAD",
+        recurrence_freq=RecurrenceFreq.MONTHLY, instance_length=1, recurrence_dom=1, recurs=True,
+        created_at=window_created_at,
+    )
     weekly_food = BaseBudget(
         owner_id=marco.id, name="Weekly Food", currency="CAD",
         recurrence_freq=RecurrenceFreq.WEEKLY, instance_length=1, recurrence_weekday=0, recurs=True,
         created_at=window_created_at,
     )
-    db.add_all([groceries, getaway, utilities, weekly_food])
+
+    # Marco's counterpart to Fitness above, same archived-then-reactivated shape
+    phone_plan = BaseBudget(
+        owner_id=marco.id, name="Phone Plan", currency="CAD",
+        recurrence_freq=RecurrenceFreq.MONTHLY, instance_length=1, recurrence_dom=1, recurs=True,
+        created_at=window_created_at,
+    )
+    db.add_all([groceries, getaway, utilities, fitness, weekly_food, phone_plan])
     await db.flush()
 
     # The internet category was tracked for a while and later removed, leaving
@@ -1041,9 +1056,13 @@ async def _seed_budgets(db, users, categories):
                               added_at=WINDOW_START),
         BudgetTrackedCategory(base_budget_id=utilities.id, category_id=system["Internet"].id,
                               added_at=WINDOW_START, removed_at=_add_months(WINDOW_START, 9)),
+        BudgetTrackedCategory(base_budget_id=fitness.id, category_id=system["Health"].id,
+                              added_at=WINDOW_START),
         BudgetTrackedCategory(base_budget_id=weekly_food.id, category_id=system["Groceries"].id,
                               added_at=WINDOW_START),
         BudgetTrackedCategory(base_budget_id=weekly_food.id, category_id=system["Dining"].id,
+                              added_at=WINDOW_START),
+        BudgetTrackedCategory(base_budget_id=phone_plan.id, category_id=system["Phone Plan"].id,
                               added_at=WINDOW_START),
     ])
 
@@ -1065,6 +1084,22 @@ async def _seed_budgets(db, users, categories):
         getaway, current_month,
         compute_period_end(current_month, RecurrenceFreq.MONTHLY, 1, dom=1), 40_000,
     ))
+
+    # Fitness and Phone Plan had contiguous monthly instances, then sat
+    # archived (no instance generated) for the two months right before this
+    # one, then were reactivated this month, leaving a two-month gap in
+    # their period history for the ARCHIVED band to render around
+    archived_months = (_add_months(current_month, -2), _add_months(current_month, -1))
+    for month_start in _month_starts():
+        if month_start in archived_months or month_start == current_month:
+            continue
+        gap_period_end = compute_period_end(month_start, RecurrenceFreq.MONTHLY, 1, dom=1)
+        instances.append(instance(fitness, month_start, gap_period_end, 6_000))
+        instances.append(instance(phone_plan, month_start, gap_period_end, 4_000))
+
+    current_month_end = compute_period_end(current_month, RecurrenceFreq.MONTHLY, 1, dom=1)
+    instances.append(instance(fitness, current_month, current_month_end, 6_000))
+    instances.append(instance(phone_plan, current_month, current_month_end, 4_000))
 
     week_start = _weekly_dates(0)[0]
     while week_start <= TODAY:
