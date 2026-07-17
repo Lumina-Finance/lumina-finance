@@ -11,10 +11,8 @@ from app.models.user import User
 from app.routes.budgets.budget_deletion_helpers import delete_budget_for_user
 from app.routes.budgets.budget_detail_helpers import get_budget_response_for_user
 from app.routes.budgets.budget_update_helpers import update_budget_for_user
-from app.routes.budgets.budget_utilization_helpers import get_budget_utilization_for_user
 from app.schemas.budget import (
     BudgetResponse,
-    BudgetUtilizationResponse,
     LatestBudgetUtilizationResponse,
     UpdateBudgetRequest,
 )
@@ -64,35 +62,6 @@ async def get_budget(
     """
     budget = await get_budget_response_for_user(db, budget_id, user.id)
     return budget
-
-
-@router.get("/{budget_id}/utilization", response_model=BudgetUtilizationResponse)
-async def get_budget_utilization(
-    budget_id: uuid.UUID,
-    user: Annotated[User, Depends(get_current_user)],
-    db: Annotated[AsyncSession, Depends(get_db)],
-):
-    """Return per-category spending totals for a budget period
-
-    Requires read access on the base budget. The tracked-category set is
-    reconstructed as of period end so past periods stay frozen when the base is
-    edited after they ended. Mid-period additions count for the full period
-    retroactively, while mid-period removals exclude the category from the whole
-    period
-
-    Args:
-        budget_id: Budget instance identifier from the route path
-        user: Authenticated user requesting utilization
-        db: Active database session
-
-    Returns:
-        Budget utilization response
-
-    Raises:
-        HTTPException: User does not have read access
-    """
-    utilization = await get_budget_utilization_for_user(db, budget_id, user.id)
-    return utilization
 
 
 @router.delete("/{budget_id}", status_code=status.HTTP_204_NO_CONTENT)

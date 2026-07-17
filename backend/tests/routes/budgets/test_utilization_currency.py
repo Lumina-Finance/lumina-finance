@@ -11,11 +11,12 @@ from tests.routes.budgets._utilization_helpers import (
     _create_category,
     _create_group,
     _create_transaction,
+    _get_budget_utilization_entry,
     _seed_usd_currency,
 )
 from tests.routes.support import _create_account, _create_user, _get_auth_header
 
-# --- GET /budgets/{id}/utilization — currency and scope filtering ---
+# --- GET /base-budgets/{id}/utilizations — currency and scope filtering ---
 
 
 async def test_get_budget_utilization_converts_foreign_account_transactions(client, monkeypatch):
@@ -37,7 +38,7 @@ async def test_get_budget_utilization_converts_foreign_account_transactions(clie
     ).json()["id"]
     groceries = await _create_category(client, headers, name="Test Groceries")
 
-    _, budget_id = await _create_base_with_instance(
+    base_id, budget_id = await _create_base_with_instance(
         client, headers, category_ids=[groceries],
     )
 
@@ -46,9 +47,7 @@ async def test_get_budget_utilization_converts_foreign_account_transactions(clie
     await _create_transaction(client, headers, cad_account_id, groceries, amount=-5000)
     await _create_transaction(client, headers, usd_account_id, groceries, amount=-3000, currency="USD")
 
-    resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
-    assert resp.status_code == 200
-    data = resp.json()
+    data = await _get_budget_utilization_entry(client, headers, base_id, budget_id)
     assert data["total_spent"] == 9500
     assert data["fx_status"] == {"state": "complete", "missing_pairs": []}
     by_id = {c["category_id"]: c["spent"] for c in data["categories"]}
@@ -83,16 +82,14 @@ async def test_get_budget_utilization_reports_incomplete_fx(client, monkeypatch)
     ).json()["id"]
     groceries = await _create_category(client, headers, name="Test Groceries")
 
-    _, budget_id = await _create_base_with_instance(
+    base_id, budget_id = await _create_base_with_instance(
         client, headers, category_ids=[groceries],
     )
 
     await _create_transaction(client, headers, usd_account_id, groceries, amount=-3000, currency="USD")
     await _create_transaction(client, headers, abc_account_id, groceries, amount=-9000, currency="ABC")
 
-    resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
-    assert resp.status_code == 200
-    data = resp.json()
+    data = await _get_budget_utilization_entry(client, headers, base_id, budget_id)
     assert data["total_spent"] == 4500
     assert data["categories"][0]["spent"] == 4500
     assert data["fx_status"] == {
@@ -122,15 +119,14 @@ async def test_get_budget_utilization_personal_budget_excludes_group_account_tra
     # Personal category, used on both the personal account and the group account
     groceries = await _create_category(client, headers, name="Test Groceries")
 
-    _, budget_id = await _create_base_with_instance(
+    base_id, budget_id = await _create_base_with_instance(
         client, headers, category_ids=[groceries],
     )
 
     await _create_transaction(client, headers, personal_account_id, groceries, amount=-5000)
     await _create_transaction(client, headers, group_account_id, groceries, amount=-3000)
 
-    resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
-    data = resp.json()
+    data = await _get_budget_utilization_entry(client, headers, base_id, budget_id)
     assert data["total_spent"] == 5000
     by_id = {c["category_id"]: c["spent"] for c in data["categories"]}
     assert by_id[groceries] == 5000
@@ -163,7 +159,7 @@ async def test_get_budget_utilization_group_budget_excludes_personal_account_tra
         await _create_category(client, headers, name="Test Groceries", group_id=group_id),
     )
 
-    _, budget_id = await _create_base_with_instance(
+    base_id, budget_id = await _create_base_with_instance(
         client, headers,
         category_ids=[str(group_groceries)],
         base_overrides={"group_id": group_id},
@@ -187,8 +183,7 @@ async def test_get_budget_utilization_group_budget_excludes_personal_account_tra
         ))
         await session.commit()
 
-    resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
-    data = resp.json()
+    data = await _get_budget_utilization_entry(client, headers, base_id, budget_id)
     # 3000 from the group account, NOT 12999 — the personal-account row is filtered out
     assert data["total_spent"] == 3000
     assert data["categories"][0]["spent"] == 3000
@@ -213,7 +208,7 @@ async def test_get_budget_utilization_non_base_currency_converts_other_currencie
     ).json()["id"]
     groceries = await _create_category(client, headers, name="Test Groceries")
 
-    _, usd_budget_id = await _create_base_with_instance(
+    base_id, usd_budget_id = await _create_base_with_instance(
         client, headers,
         category_ids=[groceries],
         base_overrides={"name": "USD Groceries", "currency": "USD"},
@@ -223,8 +218,7 @@ async def test_get_budget_utilization_non_base_currency_converts_other_currencie
     await _create_transaction(client, headers, cad_account_id, groceries, amount=-4000)
     await _create_transaction(client, headers, usd_account_id, groceries, amount=-7000, currency="USD")
 
-    resp = await client.get(f"/budgets/{usd_budget_id}/utilization", headers=headers)
-    data = resp.json()
+    data = await _get_budget_utilization_entry(client, headers, base_id, usd_budget_id)
     assert data["total_spent"] == 10000
     assert data["categories"][0]["spent"] == 10000
     assert data["fx_status"] == {"state": "complete", "missing_pairs": []}
@@ -247,7 +241,7 @@ async def test_get_budget_utilization_converts_when_no_account_matches_budget_cu
     cad_account_id = (await _create_account(client, headers)).json()["id"]
     groceries = await _create_category(client, headers, name="Test Groceries")
 
-    _, budget_id = await _create_base_with_instance(
+    base_id, budget_id = await _create_base_with_instance(
         client, headers,
         category_ids=[groceries],
         base_overrides={"name": "USD Vacation", "currency": "USD"},
@@ -256,8 +250,7 @@ async def test_get_budget_utilization_converts_when_no_account_matches_budget_cu
     # CAD spending exists and is converted into the USD budget currency.
     await _create_transaction(client, headers, cad_account_id, groceries, amount=-5000)
 
-    resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
-    data = resp.json()
+    data = await _get_budget_utilization_entry(client, headers, base_id, budget_id)
     assert data["total_spent"] == 3750
     assert data["categories"][0]["category_id"] == groceries
     assert data["categories"][0]["spent"] == 3750

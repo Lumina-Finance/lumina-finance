@@ -5,11 +5,12 @@ from tests.routes.budgets._utilization_helpers import (
     _create_base_with_instance,
     _create_category,
     _create_transaction,
+    _get_budget_utilization_entry,
     _set_tracked_category_timestamps,
 )
 from tests.routes.support import _create_account, _create_user, _get_auth_header
 
-# --- GET /budgets/{id}/utilization — day-boundary cutoffs ---
+# --- GET /base-budgets/{id}/utilizations — day-boundary cutoffs ---
 
 
 async def test_get_budget_utilization_added_at_equal_to_period_end_is_tracked(client):
@@ -38,9 +39,7 @@ async def test_get_budget_utilization_added_at_equal_to_period_end_is_tracked(cl
         dt="2026-03-20", amount=-4000,
     )
 
-    resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
-    assert resp.status_code == 200
-    data = resp.json()
+    data = await _get_budget_utilization_entry(client, headers, base_id, budget_id)
     assert data["total_spent"] == 4000
     assert len(data["categories"]) == 1
     assert data["categories"][0]["category_id"] == groceries
@@ -73,9 +72,7 @@ async def test_get_budget_utilization_added_at_day_after_period_end_is_not_track
         dt="2026-03-20", amount=-4000,
     )
 
-    resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
-    assert resp.status_code == 200
-    data = resp.json()
+    data = await _get_budget_utilization_entry(client, headers, base_id, budget_id)
     assert data["total_spent"] == 0
     assert data["categories"] == []
 
@@ -108,9 +105,7 @@ async def test_get_budget_utilization_removed_at_equal_to_period_end_is_not_trac
         dt="2026-03-15", amount=-4000,
     )
 
-    resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
-    assert resp.status_code == 200
-    data = resp.json()
+    data = await _get_budget_utilization_entry(client, headers, base_id, budget_id)
     assert data["total_spent"] == 0
     assert data["categories"] == []
 
@@ -142,9 +137,7 @@ async def test_get_budget_utilization_removed_at_day_after_period_end_is_tracked
         dt="2026-03-15", amount=-4000,
     )
 
-    resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
-    assert resp.status_code == 200
-    data = resp.json()
+    data = await _get_budget_utilization_entry(client, headers, base_id, budget_id)
     assert data["total_spent"] == 4000
     assert len(data["categories"]) == 1
     assert data["categories"][0]["spent"] == 4000

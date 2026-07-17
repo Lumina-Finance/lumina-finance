@@ -11,6 +11,22 @@ from tests.routes.support import _get_auth_header
 
 NONEXISTENT_ID = "00000000-0000-0000-0000-000000000000"
 
+async def _get_base_budget_utilizations(client, headers, base_budget_id):
+    """GET /base-budgets/{id}/utilizations and return the raw response for status-code assertions"""
+    return await client.get(f"/base-budgets/{base_budget_id}/utilizations", headers=headers)
+
+async def _get_budget_utilization_entry(client, headers, base_budget_id, budget_id):
+    """Return the batched utilization entry for one instance under a base budget.
+
+    GETs the base-budget-scoped utilizations, asserts a 200 response and that an
+    entry with a matching budget_id exists, then returns that parsed entry
+    """
+    resp = await _get_base_budget_utilizations(client, headers, base_budget_id)
+    assert resp.status_code == 200
+    entry = next((item for item in resp.json() if item["budget_id"] == budget_id), None)
+    assert entry is not None
+    return entry
+
 async def _create_second_user(client):
     """Sign up a second user and return (auth_headers, user_id)"""
     resp = await client.post("/auth/signup", json={

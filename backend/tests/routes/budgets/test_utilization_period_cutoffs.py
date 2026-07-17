@@ -12,11 +12,12 @@ from tests.routes.budgets._utilization_helpers import (
     _create_budget_instance,
     _create_category,
     _create_transaction,
+    _get_budget_utilization_entry,
     _set_tracked_category_timestamps,
 )
 from tests.routes.support import _create_account, _create_user, _get_auth_header
 
-# --- GET /budgets/{id}/utilization — period_end cutoff semantics ---
+# --- GET /base-budgets/{id}/utilizations — period_end cutoff semantics ---
 
 
 async def test_get_budget_utilization_category_added_after_period_end_is_not_tracked(client):
@@ -48,9 +49,7 @@ async def test_get_budget_utilization_category_added_after_period_end_is_not_tra
     )
     budget_id = inst_resp.json()["id"]
 
-    resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
-    assert resp.status_code == 200
-    data = resp.json()
+    data = await _get_budget_utilization_entry(client, headers, base_id, budget_id)
     assert data["total_spent"] == 0
     assert data["categories"] == []
 
@@ -82,8 +81,7 @@ async def test_get_budget_utilization_mid_period_category_addition_counts_whole_
     await _create_transaction(client, headers, account_id, groceries, dt="2026-03-05", amount=-1000)
     await _create_transaction(client, headers, account_id, groceries, dt="2026-03-20", amount=-2000)
 
-    resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
-    data = resp.json()
+    data = await _get_budget_utilization_entry(client, headers, base_id, budget_id)
     assert data["total_spent"] == 3000
     assert len(data["categories"]) == 1
     assert data["categories"][0]["spent"] == 3000
@@ -118,8 +116,7 @@ async def test_get_budget_utilization_mid_period_category_removal_excludes_whole
     await _create_transaction(client, headers, account_id, groceries, dt="2026-03-05", amount=-1000)
     await _create_transaction(client, headers, account_id, groceries, dt="2026-03-20", amount=-2000)
 
-    resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
-    data = resp.json()
+    data = await _get_budget_utilization_entry(client, headers, base_id, budget_id)
     assert data["total_spent"] == 0
     assert data["categories"] == []
 
@@ -168,8 +165,7 @@ async def test_get_budget_utilization_past_period_frozen_when_category_removed_t
     # The January period still reports the old groceries spend because removed_at
     # > period_end. The replacement category's added_at is today > Jan 31, so it
     # is NOT in the tracked set for January.
-    resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
-    data = resp.json()
+    data = await _get_budget_utilization_entry(client, headers, base_id, budget_id)
     assert data["total_spent"] == 5000
     assert len(data["categories"]) == 1
     assert data["categories"][0]["category_id"] == groceries
@@ -212,8 +208,7 @@ async def test_get_budget_utilization_past_period_frozen_when_category_added_tod
     )
     assert patch_resp.status_code == 200
 
-    resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
-    data = resp.json()
+    data = await _get_budget_utilization_entry(client, headers, base_id, budget_id)
     # Only `original` is in the tracked set for January; the `addon` 7777 must not appear
     assert data["total_spent"] == 3000
     assert len(data["categories"]) == 1
@@ -275,8 +270,7 @@ async def test_get_budget_utilization_re_add_after_remove_single_counts(client):
         dt="2099-01-15", amount=-5000,
     )
 
-    resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
-    data = resp.json()
+    data = await _get_budget_utilization_entry(client, headers, base_id, budget_id)
     assert data["total_spent"] == 5000
     # Single entry for groceries — not doubled
     groceries_entries = [c for c in data["categories"] if c["category_id"] == groceries]
@@ -298,7 +292,7 @@ async def test_get_budget_utilization_current_period_uses_currently_active_categ
     groceries = await _create_category(client, headers, name="Test Groceries")
     transit = await _create_category(client, headers, name="Transit")
 
-    _, budget_id = await _create_base_with_instance(
+    base_id, budget_id = await _create_base_with_instance(
         client, headers,
         category_ids=[groceries, transit],
         instance_overrides={"period_start": "2099-01-01"},
@@ -313,8 +307,7 @@ async def test_get_budget_utilization_current_period_uses_currently_active_categ
         dt="2099-01-20", amount=-1500,
     )
 
-    resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
-    data = resp.json()
+    data = await _get_budget_utilization_entry(client, headers, base_id, budget_id)
     assert data["total_spent"] == 5500
     by_id = {c["category_id"]: c["spent"] for c in data["categories"]}
     assert by_id[groceries] == 4000
