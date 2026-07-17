@@ -4,10 +4,11 @@
 import { describe, expect, it } from 'vitest'
 import type { BaseBudget, Budget, BudgetUtilization } from '@/api/budgets'
 import type { Category } from '@/api/categories'
+import type { BudgetChartPoint } from '@/pages/budgets/components/budget-details-modal/ChartTooltip'
 import {
   ARCHIVED_SLOT_LABEL_PREFIX,
   BUDGET_CHART_HOVER_HIGHLIGHT_WIDTH,
-  getBudgetArchivedChartSlots,
+  getBudgetChartBarTopPct,
   getBudgetChartCategories,
   getBudgetChartGuideMaxWidth,
   getBudgetDetailsChartData,
@@ -16,6 +17,13 @@ import {
   getLatestBudgetCategories,
   getSortedBudgetPeriods,
 } from '@/pages/budgets/utils/budgetDetails'
+
+/**
+ * Formats a calendar year, month, and day as the backend YYYY-MM-DD period key
+ */
+function ymd(year: number, month: number, day: number) {
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+}
 
 /**
  * Creates a base budget fixture with valid recurring monthly defaults
@@ -75,6 +83,27 @@ function createUtilization(overrides: Partial<BudgetUtilization> = {}): BudgetUt
 }
 
 /**
+ * Creates a chart point fixture, spreading per-category dataKey percentages in the same way
+ * buildBudgetPeriodPoint attaches its dynamic categoryPct fields
+ */
+function createChartPoint(
+  overrides: Partial<BudgetChartPoint> = {},
+  categoryValues: Record<string, number> = {},
+): BudgetChartPoint {
+  return {
+    periodKey: '2026-06-01',
+    label: 'Jun 1, 2026',
+    axisLabel: 'Jun',
+    hasYearAxisLabel: false,
+    spent: 0,
+    limit: 100000,
+    utilizationPct: 0,
+    ...overrides,
+    ...categoryValues,
+  }
+}
+
+/**
  * Creates an expense category fixture for chart metadata tests
  */
 function createCategory(overrides: Partial<Category>): Category {
@@ -123,13 +152,17 @@ describe('budget details helpers', () => {
     expect(getBudgetUtilizationByBudgetId(seeded, [loaded]).get('budget')?.total_spent).toBe(2000)
   })
 
-  it('sorts periods and builds chart rows from the latest six periods', () => {
-    const periods = Array.from({ length: 7 }, (_, index) => createBudget({
-      id: `budget-${index + 1}`,
-      period_start: `2026-0${index + 1}-01`,
-      period_end: `2026-0${index + 1}-28`,
-      overall_limit: 100000,
-    })).reverse()
+  it('sorts periods and builds chart rows from the latest twelve periods', () => {
+    const periods = Array.from({ length: 13 }, (_, index) => {
+      const month = (index % 12) + 1
+      const year = 2026 + Math.floor(index / 12)
+      return createBudget({
+        id: `budget-${index + 1}`,
+        period_start: ymd(year, month, 1),
+        period_end: ymd(year, month, 28),
+        overall_limit: 100000,
+      })
+    }).reverse()
     const sortedPeriods = getSortedBudgetPeriods(periods)
     const categories = [
       { id: 'groceries', name: 'Groceries', kind: 'expense' as const, dataKey: 'categoryPct0', color: '#5D8F6D' },
@@ -151,26 +184,66 @@ describe('budget details helpers', () => {
       utilizationByBudgetId,
       chartCategories: categories,
       baseBudget: createBaseBudget(),
+      today: ymd(2027, 1, 1),
     })
 
     expect(sortedPeriods.map((period) => period.id)).toEqual([
-      'budget-1',
-      'budget-2',
-      'budget-3',
-      'budget-4',
-      'budget-5',
-      'budget-6',
-      'budget-7',
+      'budget-1', 'budget-2', 'budget-3', 'budget-4', 'budget-5', 'budget-6', 'budget-7',
+      'budget-8', 'budget-9', 'budget-10', 'budget-11', 'budget-12', 'budget-13',
     ])
-    expect(chartData).toHaveLength(6)
+    expect(chartData).toHaveLength(12)
+    expect(chartData.every((point) => !point.archived)).toBe(true)
     expect(chartData[0]).toMatchObject({
+      periodKey: '2026-02-01',
       label: 'Feb 1, 2026',
+      axisLabel: 'Feb',
       spent: 62500,
       limit: 100000,
       utilizationPct: 63,
       categoryPct0: 25,
       categoryPct1: 12.5,
     })
+  })
+
+  it('marks only the period whose range contains today as the current period', () => {
+    const jan = createBudget({ id: 'jan', period_start: '2026-01-01', period_end: '2026-01-31' })
+    const feb = createBudget({ id: 'feb', period_start: '2026-02-01', period_end: '2026-02-28' })
+    const sortedPeriods = getSortedBudgetPeriods([jan, feb])
+
+    const chartData = getBudgetDetailsChartData({
+      sortedPeriods,
+      utilizationByBudgetId: new Map(),
+      chartCategories: [],
+      baseBudget: createBaseBudget({ is_archived: false }),
+
+      // Falls inside February's range, so only the February point should be current
+      today: '2026-02-15',
+    })
+
+    expect(chartData).toHaveLength(2)
+    expect(chartData[0]).toMatchObject({ periodKey: '2026-01-01', isCurrent: false })
+    expect(chartData[1]).toMatchObject({ periodKey: '2026-02-01', isCurrent: true })
+  })
+
+  it('never marks an archived gap column as the current period', () => {
+    const baseBudget = createBaseBudget({ is_archived: true })
+    const jan = createBudget({ id: 'jan', period_start: '2026-01-01', period_end: '2026-01-31' })
+    const sortedPeriods = getSortedBudgetPeriods([jan])
+
+    // "today" sits inside the archived gap that follows the single stored period, not inside any
+    // stored period's range
+    const chartData = getBudgetDetailsChartData({
+      sortedPeriods,
+      utilizationByBudgetId: new Map(),
+      chartCategories: [],
+      baseBudget,
+      today: ymd(2026, 4, 1),
+    })
+
+    expect(chartData[0]).toMatchObject({ periodKey: '2026-01-01', isCurrent: false })
+    const archivedPoints = chartData.filter((point) => point.archived)
+    expect(archivedPoints.length).toBeGreaterThan(0)
+    expect(archivedPoints.every((point) => !point.isCurrent)).toBe(true)
   })
 
   it('builds newest-first period history and sorted current categories', () => {
@@ -197,73 +270,16 @@ describe('budget details helpers', () => {
     expect(getBudgetChartGuideMaxWidth(500, 0)).toBe(BUDGET_CHART_HOVER_HIGHLIGHT_WIDTH)
   })
 
-  it('finds no archived slot between contiguous monthly periods', () => {
-    const baseBudget = createBaseBudget()
-    const periods = [
-      createBudget({ id: 'jan', period_start: '2026-01-01' }),
-      createBudget({ id: 'feb', period_start: '2026-02-01' }),
-      createBudget({ id: 'mar', period_start: '2026-03-01' }),
-    ]
+  it('shows a wide archived stretch across a ten-cycle gap between two stored periods', () => {
+    const baseBudget = createBaseBudget({ is_archived: false })
+    const jan = createBudget({ id: 'jan', period_start: '2026-01-01', overall_limit: 100000 })
 
-    expect(getBudgetArchivedChartSlots(periods, baseBudget)).toEqual([])
-  })
-
-  it('finds no archived slot for a contiguous dom-31 monthly series crossing February', () => {
-    const baseBudget = createBaseBudget({ recurrence_dom: 31 })
-    const periods = [
-      createBudget({ id: 'jan', period_start: '2026-01-31' }),
-      createBudget({ id: 'feb', period_start: '2026-02-28' }),
-      createBudget({ id: 'mar', period_start: '2026-03-31' }),
-    ]
-
-    expect(getBudgetArchivedChartSlots(periods, baseBudget)).toEqual([])
-  })
-
-  it('inserts an archived slot between periods separated by more than one monthly cycle', () => {
-    const baseBudget = createBaseBudget()
-    const periods = [
-      createBudget({ id: 'jan', period_start: '2026-01-01' }),
-
-      // Skips February and March, so the gap is wider than one monthly cycle
-      createBudget({ id: 'apr', period_start: '2026-04-01' }),
-    ]
-
-    expect(getBudgetArchivedChartSlots(periods, baseBudget)).toEqual([
-      { label: `${ARCHIVED_SLOT_LABEL_PREFIX}jan`, afterPeriodId: 'jan' },
-    ])
-  })
-
-  it('appends a trailing archived slot after the last period while the base budget is still archived', () => {
-    const baseBudget = createBaseBudget({ is_archived: true })
-    const periods = [
-      createBudget({ id: 'jan', period_start: '2026-01-01' }),
-      createBudget({ id: 'feb', period_start: '2026-02-01' }),
-    ]
-
-    expect(getBudgetArchivedChartSlots(periods, baseBudget)).toEqual([
-      { label: `${ARCHIVED_SLOT_LABEL_PREFIX}feb-current`, afterPeriodId: 'feb' },
-    ])
-  })
-
-  it('never produces archived slots for one-off budgets, even when archived', () => {
-    const baseBudget = createBaseBudget({ recurs: false, is_archived: true })
-    const periods = [
-      createBudget({ id: 'jan', period_start: '2026-01-01' }),
-      createBudget({ id: 'apr', period_start: '2026-04-01' }),
-    ]
-
-    expect(getBudgetArchivedChartSlots(periods, baseBudget)).toEqual([])
-  })
-
-  it('interleaves a synthetic archived slot between bracketing bars while keeping real spend values', () => {
-    const baseBudget = createBaseBudget()
-    const sortedPeriods = [
-      createBudget({ id: 'jan', period_start: '2026-01-01', overall_limit: 100000 }),
-      createBudget({ id: 'apr', period_start: '2026-04-01', overall_limit: 100000 }),
-    ]
+    // Reactivating after a ten-month gap skips February through November before the next stored period
+    const dec = createBudget({ id: 'dec', period_start: '2026-12-01', overall_limit: 100000 })
+    const sortedPeriods = getSortedBudgetPeriods([jan, dec])
     const utilizationByBudgetId = new Map([
       ['jan', createUtilization({ budget_id: 'jan', total_spent: 40000 })],
-      ['apr', createUtilization({ budget_id: 'apr', total_spent: 25000 })],
+      ['dec', createUtilization({ budget_id: 'dec', total_spent: 25000 })],
     ])
 
     const chartData = getBudgetDetailsChartData({
@@ -271,13 +287,169 @@ describe('budget details helpers', () => {
       utilizationByBudgetId,
       chartCategories: [],
       baseBudget,
+      today: ymd(2027, 6, 1),
     })
 
-    expect(chartData).toHaveLength(3)
-    expect(chartData[0]).toMatchObject({ label: 'Jan 1, 2026', spent: 40000 })
+    expect(chartData).toHaveLength(12)
+    expect(chartData[0]).toMatchObject({ periodKey: '2026-01-01', spent: 40000 })
     expect(chartData[0].archived).toBeFalsy()
-    expect(chartData[1]).toMatchObject({ label: `${ARCHIVED_SLOT_LABEL_PREFIX}jan`, archived: true, spent: 0, limit: 0 })
-    expect(chartData[2]).toMatchObject({ label: 'Apr 1, 2026', spent: 25000 })
-    expect(chartData[2].archived).toBeFalsy()
+    expect(chartData[11]).toMatchObject({ periodKey: '2026-12-01', spent: 25000 })
+    expect(chartData[11].archived).toBeFalsy()
+
+    const archivedStretch = chartData.slice(1, 11)
+    expect(archivedStretch).toHaveLength(10)
+    expect(archivedStretch.every((point) => point.archived)).toBe(true)
+    expect(archivedStretch.map((point) => point.periodKey)).toEqual([
+      2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
+    ].map((month) => `${ARCHIVED_SLOT_LABEL_PREFIX}${ymd(2026, month, 1)}`))
+  })
+
+  it('shades a trailing gap only while the base budget is archived', () => {
+    const baseBudget = createBaseBudget({ is_archived: true })
+    const jan = createBudget({ id: 'jan', period_start: '2026-01-01' })
+    const sortedPeriods = getSortedBudgetPeriods([jan])
+
+    const chartData = getBudgetDetailsChartData({
+      sortedPeriods,
+      utilizationByBudgetId: new Map(),
+      chartCategories: [],
+      baseBudget,
+      today: ymd(2026, 4, 1),
+    })
+
+    expect(chartData).toHaveLength(4)
+    expect(chartData[0].periodKey).toBe('2026-01-01')
+    expect(chartData[0].archived).toBeFalsy()
+    expect(chartData.slice(1)).toHaveLength(3)
+    expect(chartData.slice(1).every((point) => point.archived)).toBe(true)
+  })
+
+  it('shows no trailing band while a recurring budget merely awaits its next backfill', () => {
+    const baseBudget = createBaseBudget({ is_archived: false })
+    const jan = createBudget({ id: 'jan', period_start: '2026-01-01' })
+    const sortedPeriods = getSortedBudgetPeriods([jan])
+
+    // "today" sits far past the latest stored period, but an active budget stops at that period
+    const chartData = getBudgetDetailsChartData({
+      sortedPeriods,
+      utilizationByBudgetId: new Map(),
+      chartCategories: [],
+      baseBudget,
+      today: ymd(2026, 4, 1),
+    })
+
+    expect(chartData).toHaveLength(1)
+    expect(chartData[0].periodKey).toBe('2026-01-01')
+    expect(chartData[0].archived).toBeFalsy()
+  })
+
+  it('shows only stored periods with no archived columns for one-off budgets', () => {
+    const baseBudget = createBaseBudget({ recurs: false, is_archived: true })
+    const periods = [
+      createBudget({ id: 'jan', period_start: '2026-01-01' }),
+
+      // One-off budgets never step a cadence, so a wide gap never becomes an archived column
+      createBudget({ id: 'oct', period_start: '2026-10-01' }),
+    ]
+    const sortedPeriods = getSortedBudgetPeriods(periods)
+
+    const chartData = getBudgetDetailsChartData({
+      sortedPeriods,
+      utilizationByBudgetId: new Map(),
+      chartCategories: [],
+      baseBudget,
+      today: ymd(2027, 1, 1),
+    })
+
+    expect(chartData).toHaveLength(2)
+    expect(chartData.map((point) => point.periodKey)).toEqual(['2026-01-01', '2026-10-01'])
+    expect(chartData.every((point) => !point.archived)).toBe(true)
+  })
+
+  it('labels weekly budget periods with their ISO week number', () => {
+    const weeklyBudget = createBaseBudget({
+      recurrence_freq: 'weekly',
+      recurrence_dom: null,
+      recurrence_weekday: 0,
+    })
+    const first = createBudget({ id: 'w16', period_start: '2026-04-13', period_end: '2026-04-19' })
+    const second = createBudget({ id: 'w17', period_start: '2026-04-20', period_end: '2026-04-26' })
+    const sortedPeriods = getSortedBudgetPeriods([first, second])
+
+    const chartData = getBudgetDetailsChartData({
+      sortedPeriods,
+      utilizationByBudgetId: new Map(),
+      chartCategories: [],
+      baseBudget: weeklyBudget,
+      today: '2026-04-25',
+    })
+
+    expect(chartData.map((point) => point.axisLabel)).toEqual(['W16', 'W17'])
+    expect(chartData.every((point) => !point.hasYearAxisLabel)).toBe(true)
+  })
+
+  it('suffixes the first ISO week of the year with the two-digit year', () => {
+    const weeklyBudget = createBaseBudget({
+      recurrence_freq: 'weekly',
+      recurrence_dom: null,
+      recurrence_weekday: 0,
+    })
+
+    // The Monday of ISO week 1 of 2026 falls on 2025-12-29, so it labels as W1 '26 despite the calendar year
+    const weekOne = createBudget({ id: 'w1', period_start: '2025-12-29', period_end: '2026-01-04' })
+    const weekTwo = createBudget({ id: 'w2', period_start: '2026-01-05', period_end: '2026-01-11' })
+    const sortedPeriods = getSortedBudgetPeriods([weekOne, weekTwo])
+
+    const chartData = getBudgetDetailsChartData({
+      sortedPeriods,
+      utilizationByBudgetId: new Map(),
+      chartCategories: [],
+      baseBudget: weeklyBudget,
+      today: '2026-01-10',
+    })
+
+    expect(chartData.map((point) => point.axisLabel)).toEqual(["W1 '26", 'W2'])
+    expect(chartData.map((point) => point.hasYearAxisLabel)).toEqual([true, false])
+  })
+
+  it('labels yearly budget periods with the four-digit year', () => {
+    const yearlyBudget = createBaseBudget({
+      recurrence_freq: 'yearly',
+      recurrence_dom: 1,
+      recurrence_month: 1,
+    })
+    const first = createBudget({ id: 'y2025', period_start: '2025-01-01', period_end: '2025-12-31' })
+    const second = createBudget({ id: 'y2026', period_start: '2026-01-01', period_end: '2026-12-31' })
+    const sortedPeriods = getSortedBudgetPeriods([first, second])
+
+    const chartData = getBudgetDetailsChartData({
+      sortedPeriods,
+      utilizationByBudgetId: new Map(),
+      chartCategories: [],
+      baseBudget: yearlyBudget,
+      today: '2026-06-15',
+    })
+
+    expect(chartData.map((point) => point.axisLabel)).toEqual(['2025', '2026'])
+    expect(chartData.every((point) => !point.hasYearAxisLabel)).toBe(true)
+  })
+
+  it('sums the shown category percentages as the stacked bar top, ignoring the stored total', () => {
+    const categories = [
+      { id: 'groceries', name: 'Groceries', kind: 'expense' as const, dataKey: 'categoryPct0', color: '#5D8F6D' },
+      { id: 'travel', name: 'Travel', kind: 'expense' as const, dataKey: 'categoryPct1', color: '#7AAEC8' },
+    ]
+
+    // Total utilization includes spend in a category no longer tracked, so it sits above the sum
+    // of the two categories still rendered on the stacked bar
+    const point = createChartPoint({ utilizationPct: 90 }, { categoryPct0: 40, categoryPct1: 35 })
+
+    expect(getBudgetChartBarTopPct(point, categories, true)).toBe(75)
+  })
+
+  it('returns the total utilization percentage as the single-category bar top', () => {
+    const point = createChartPoint({ utilizationPct: 62 })
+
+    expect(getBudgetChartBarTopPct(point, [], false)).toBe(62)
   })
 })

@@ -53,3 +53,23 @@ async def get_visible_budget_responses(db: AsyncSession, user_id: uuid.UUID) -> 
         )
         for budget, base_budget in budget_rows
     ]
+
+
+async def get_budgets_for_base_budget(db: AsyncSession, base_budget_id: uuid.UUID) -> list[Budget]:
+    """Return budget instances for a base budget ordered by period start
+
+    Args:
+        db: Active database session
+        base_budget_id: Base budget identifier whose instances are loaded
+
+    Returns:
+        Budget instances ordered by period start ascending
+    """
+    # Fetch every budget instance under the base budget so utilization covers each period in chronological order
+    result = await db.execute(
+        select(Budget)
+        .where(Budget.base_budget_id == base_budget_id)
+        .order_by(Budget.period_start.asc()),
+    )
+    budgets = list(result.scalars().all())
+    return budgets

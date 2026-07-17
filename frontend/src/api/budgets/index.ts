@@ -15,8 +15,8 @@ export {
   createBaseBudget,
   createBudgetInstance,
   deleteBaseBudget,
+  fetchBaseBudgetUtilizations,
   fetchBaseBudgets,
-  fetchBudgetUtilization,
   fetchBudgets,
   fetchLatestBudgetUtilizations,
   updateBaseBudget,
@@ -24,8 +24,8 @@ export {
 } from '@/api/budgets/requests';
 
 export {
+  useBaseBudgetUtilizations,
   useBaseBudgets,
-  useBudgetUtilizations,
   useBudgets,
   useCreateBaseBudget,
   useCreateBudgetInstance,

@@ -5,10 +5,11 @@ from tests.routes.budgets._utilization_helpers import (
     _create_base_with_instance,
     _create_category,
     _create_transaction,
+    _get_budget_utilization_entry,
 )
 from tests.routes.support import _create_account, _create_user, _get_auth_header
 
-# --- GET /budgets/{id}/utilization — additional aggregation contracts ---
+# --- GET /base-budgets/{id}/utilizations — additional aggregation contracts ---
 
 
 async def test_get_budget_utilization_aggregates_across_multiple_accounts_in_same_currency(client):
@@ -25,15 +26,14 @@ async def test_get_budget_utilization_aggregates_across_multiple_accounts_in_sam
     savings_id = (await _create_account(client, headers, name="Savings", account_type="savings")).json()["id"]
     groceries = await _create_category(client, headers)
 
-    _, budget_id = await _create_base_with_instance(
+    base_id, budget_id = await _create_base_with_instance(
         client, headers, category_ids=[groceries],
     )
 
     await _create_transaction(client, headers, chequing_id, groceries, amount=-3000)
     await _create_transaction(client, headers, savings_id, groceries, dt="2026-03-20", amount=-2500)
 
-    resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
-    data = resp.json()
+    data = await _get_budget_utilization_entry(client, headers, base_id, budget_id)
     assert data["total_spent"] == 5500
     assert len(data["categories"]) == 1
     assert data["categories"][0]["category_id"] == groceries
@@ -48,7 +48,7 @@ async def test_get_budget_utilization_with_zero_amount_transaction(client):
     account_id = (await _create_account(client, headers)).json()["id"]
     groceries = await _create_category(client, headers)
 
-    _, budget_id = await _create_base_with_instance(
+    base_id, budget_id = await _create_base_with_instance(
         client, headers, category_ids=[groceries],
     )
 
@@ -58,8 +58,7 @@ async def test_get_budget_utilization_with_zero_amount_transaction(client):
     create_resp = await _create_transaction(client, headers, account_id, groceries, amount=0)
     assert create_resp.status_code == 201
 
-    resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
-    data = resp.json()
+    data = await _get_budget_utilization_entry(client, headers, base_id, budget_id)
     assert data["total_spent"] == 0
     assert len(data["categories"]) == 1
     assert data["categories"][0]["spent"] == 0

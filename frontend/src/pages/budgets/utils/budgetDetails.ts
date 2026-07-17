@@ -1,22 +1,16 @@
 import type { BaseBudget, Budget, BudgetUtilization } from '@/api/budgets'
 import type { Category } from '@/api/categories'
 import type { BudgetChartPoint } from '@/pages/budgets/components/budget-details-modal/ChartTooltip'
+import type { CalendarDate } from '@/pages/budgets/types'
 import { nextRecurringPeriodStart } from '@/pages/budgets/utils/budgetPeriods'
 import { formatCalendarDate, parseYmd } from '@/pages/budgets/utils/date'
 import { getBudgetUtilizationPercent } from '@/pages/budgets/utils/utilization'
 import { getCategoryColorMap } from '@/utils/chartColor'
 
-const BUDGET_CHART_MAX_PERIODS = 6
+const BUDGET_CHART_MAX_PERIODS = 12
 
-// Distinguishes synthetic archived slots from real period labels on the categorical axis
+// Distinguishes synthetic archived gap keys from real period keys on the categorical axis
 export const ARCHIVED_SLOT_LABEL_PREFIX = 'archived:'
-
-export type BudgetArchivedChartSlot = {
-  // Unique categorical axis label that positions the shaded band between two bars
-  label: string
-  // Id of the period the shaded band is inserted after
-  afterPeriodId: string
-}
 
 export type BudgetChartCategory = {
   id: string
@@ -101,106 +95,191 @@ export function getBudgetChartCategories({
 }
 
 /**
- * Detects archived stretches inside a chart period window and returns the shaded slots to insert between bars
+ * Returns the ISO 8601 week number and its week-numbering year for a calendar date, where week 1 is
+ * the week holding the year's first Thursday and weeks start on Monday
  *
- * Archiving pauses period generation, so a stored period that starts later than the recurrence cadence would
- * place it marks a skipped, archived stretch. When the base budget is still archived the final slot shades from
- * the last stored period onward since no later period brackets the gap
+ * The week-numbering year can differ from the calendar year across the January boundary (early
+ * January can fall in the previous year's last week and late December in the next year's week 1),
+ * so the year is returned alongside the week for labelling that boundary
  */
-export function getBudgetArchivedChartSlots(
-  shownPeriods: Budget[],
-  baseBudget: BaseBudget,
-): BudgetArchivedChartSlot[] {
-  // One-off budgets never generate follow-on periods, so a gap cannot signal archiving
-  if (!baseBudget.recurs) return []
+function getIsoWeek(date: CalendarDate): { week: number; year: number } {
+  const target = new Date(Date.UTC(date.year, date.month - 1, date.day))
 
-  const slots: BudgetArchivedChartSlot[] = []
-  for (let index = 0; index < shownPeriods.length - 1; index += 1) {
-    const current = shownPeriods[index]
-    const next = shownPeriods[index + 1]
+  // Move to the Thursday of this week so the week-numbering year is the calendar year of that Thursday
+  const mondayIndex = (target.getUTCDay() + 6) % 7
+  target.setUTCDate(target.getUTCDate() - mondayIndex + 3)
+  const isoYear = target.getUTCFullYear()
 
-    // A later-than-expected next start means at least one cycle was skipped while archived
-    if (next.period_start > nextRecurringPeriodStart(baseBudget, current.period_start)) {
-      slots.push({ label: `${ARCHIVED_SLOT_LABEL_PREFIX}${current.id}`, afterPeriodId: current.id })
+  // January 4th always lands in ISO week 1, so its Thursday anchors the week count
+  const week1Thursday = new Date(Date.UTC(isoYear, 0, 4))
+  const week1MondayIndex = (week1Thursday.getUTCDay() + 6) % 7
+  week1Thursday.setUTCDate(week1Thursday.getUTCDate() - week1MondayIndex + 3)
+
+  const week = 1 + Math.round((target.getTime() - week1Thursday.getTime()) / (7 * 24 * 60 * 60 * 1000))
+  return { week, year: isoYear }
+}
+
+/**
+ * Builds the chart X-axis label for a period start and whether it carries a year suffix, both derived
+ * from the budget's recurrence: weekly budgets read as ISO week numbers, yearly budgets as the year,
+ * and monthly budgets as the short month. The year suffix marks the first period of a new year (the
+ * first ISO week, or January) so a window that crosses a year boundary still reads unambiguously
+ */
+function getBudgetChartAxisLabel(
+  date: CalendarDate,
+  recurrenceFreq: BaseBudget['recurrence_freq'],
+): { axisLabel: string; hasYearLabel: boolean } {
+  if (recurrenceFreq === 'weekly') {
+    const { week, year } = getIsoWeek(date)
+    const hasYearLabel = week === 1
+    return {
+      axisLabel: hasYearLabel ? `W${week} '${String(year).slice(2)}` : `W${week}`,
+      hasYearLabel,
     }
   }
 
-  const lastPeriod = shownPeriods[shownPeriods.length - 1]
-  if (baseBudget.is_archived && lastPeriod) {
-    slots.push({ label: `${ARCHIVED_SLOT_LABEL_PREFIX}${lastPeriod.id}-current`, afterPeriodId: lastPeriod.id })
+  if (recurrenceFreq === 'yearly') {
+    return { axisLabel: String(date.year), hasYearLabel: false }
   }
 
-  return slots
+  const hasYearLabel = date.month === 1
+  const monthLabel = new Date(date.year, date.month - 1, date.day).toLocaleDateString('en-US', { month: 'short' })
+  return {
+    axisLabel: hasYearLabel ? `${monthLabel} '${String(date.year).slice(2)}` : monthLabel,
+    hasYearLabel,
+  }
+}
+
+/**
+ * Builds the chart point for a stored budget period, including its per-category utilization percentages
+ */
+function buildBudgetPeriodPoint(
+  period: Budget,
+  utilizationByBudgetId: Map<string, BudgetUtilization>,
+  chartCategories: BudgetChartCategory[],
+  today: string,
+  recurrenceFreq: BaseBudget['recurrence_freq'],
+): BudgetChartPoint {
+  const utilization = utilizationByBudgetId.get(period.id)
+  const periodSpent = utilization?.total_spent ?? 0
+  const categorySpentById = new Map(
+    (utilization?.categories ?? []).map((category) => [category.category_id, category.spent]),
+  )
+  const categoryValues = chartCategories.reduce<Record<string, number>>((values, category) => {
+    values[category.dataKey] = getBudgetUtilizationPercent(categorySpentById.get(category.id) ?? 0, period.overall_limit)
+    return values
+  }, {})
+  const periodStart = parseYmd(period.period_start)
+  const { axisLabel, hasYearLabel } = getBudgetChartAxisLabel(periodStart, recurrenceFreq)
+
+  return {
+    periodKey: period.period_start,
+    label: formatCalendarDate(periodStart),
+    axisLabel,
+    hasYearAxisLabel: hasYearLabel,
+    spent: periodSpent,
+    limit: period.overall_limit,
+    utilizationPct: Math.round(getBudgetUtilizationPercent(periodSpent, period.overall_limit)),
+    isCurrent: period.period_start <= today && today <= period.period_end,
+    categories: chartCategories.map((category) => {
+      const categorySpent = categorySpentById.get(category.id) ?? 0
+
+      return {
+        id: category.id,
+        name: category.name,
+        spent: categorySpent,
+        utilizationPct: getBudgetUtilizationPercent(categorySpent, period.overall_limit),
+        color: category.color,
+      }
+    }),
+    ...categoryValues,
+  }
+}
+
+/**
+ * Builds a zeroed archived point for a cadence step with no stored period, rendering as a shaded
+ * gap column instead of a utilization bar
+ */
+function buildBudgetArchivedPoint(stepYmd: string, chartCategories: BudgetChartCategory[]): BudgetChartPoint {
+  const zeroedCategoryValues = chartCategories.reduce<Record<string, number>>((values, category) => {
+    values[category.dataKey] = 0
+    return values
+  }, {})
+
+  return {
+    periodKey: `${ARCHIVED_SLOT_LABEL_PREFIX}${stepYmd}`,
+    label: '',
+    axisLabel: '',
+    hasYearAxisLabel: false,
+    archived: true,
+    spent: 0,
+    limit: 0,
+    utilizationPct: 0,
+    categories: [],
+    ...zeroedCategoryValues,
+  }
+}
+
+/**
+ * Builds the cadence-stepped timeline of expected period starts from the first stored period
+ * through the end bound, inclusive, so any cycle skipped while archiving surfaces as a gap
+ */
+function getBudgetChartTimeline(baseBudget: BaseBudget, firstPeriodStart: string, endBoundYmd: string): string[] {
+  const timeline = [firstPeriodStart]
+  let cursor = firstPeriodStart
+  let next = nextRecurringPeriodStart(baseBudget, cursor)
+
+  while (next <= endBoundYmd) {
+    timeline.push(next)
+    cursor = next
+    next = nextRecurringPeriodStart(baseBudget, cursor)
+  }
+
+  return timeline
 }
 
 /**
  * Converts budget periods and utilization results into the chart rows shown in the details modal
+ *
+ * One-off budgets never generate follow-on periods, so their chart is simply the latest stored
+ * periods. Recurring budgets step forward from the first stored period at the current cadence, up
+ * to today while the budget is archived (surfacing any trailing archived stretch), or up to the
+ * latest stored period otherwise, so a budget merely awaiting its next backfill shows no trailing
+ * band. Any cadence step without a matching stored period renders as a shaded archived gap column
  */
 export function getBudgetDetailsChartData({
   sortedPeriods,
   utilizationByBudgetId,
   chartCategories,
   baseBudget,
+  today,
 }: {
   sortedPeriods: Budget[]
   utilizationByBudgetId: Map<string, BudgetUtilization>
   chartCategories: BudgetChartCategory[]
   baseBudget: BaseBudget
+  today: string
 }): BudgetChartPoint[] {
-  const shownPeriods = sortedPeriods.slice(-BUDGET_CHART_MAX_PERIODS)
-  const archivedSlotByPeriodId = new Map(
-    getBudgetArchivedChartSlots(shownPeriods, baseBudget).map((slot) => [slot.afterPeriodId, slot]),
-  )
+  if (!baseBudget.recurs) {
+    return sortedPeriods
+      .slice(-BUDGET_CHART_MAX_PERIODS)
+      .map((period) => buildBudgetPeriodPoint(period, utilizationByBudgetId, chartCategories, today, baseBudget.recurrence_freq))
+  }
 
-  // Archived slots carry zeroed category values so their empty column renders no bar behind the shaded band
-  const zeroedCategoryValues = chartCategories.reduce<Record<string, number>>((values, category) => {
-    values[category.dataKey] = 0
-    return values
-  }, {})
+  const firstPeriod = sortedPeriods[0]
+  const latestPeriod = sortedPeriods[sortedPeriods.length - 1]
+  if (!firstPeriod || !latestPeriod) return []
 
-  return shownPeriods.flatMap((period) => {
-    const utilization = utilizationByBudgetId.get(period.id)
-    const periodSpent = utilization?.total_spent ?? 0
-    const categorySpentById = new Map(
-      (utilization?.categories ?? []).map((category) => [category.category_id, category.spent]),
-    )
-    const categoryValues = chartCategories.reduce<Record<string, number>>((values, category) => {
-      values[category.dataKey] = getBudgetUtilizationPercent(categorySpentById.get(category.id) ?? 0, period.overall_limit)
-      return values
-    }, {})
+  const endBoundYmd = baseBudget.is_archived ? today : latestPeriod.period_start
+  const timeline = getBudgetChartTimeline(baseBudget, firstPeriod.period_start, endBoundYmd)
+  const windowedTimeline = timeline.slice(-BUDGET_CHART_MAX_PERIODS)
+  const periodByStart = new Map(sortedPeriods.map((period) => [period.period_start, period]))
 
-    const periodPoint: BudgetChartPoint = {
-      label: formatCalendarDate(parseYmd(period.period_start)),
-      spent: periodSpent,
-      limit: period.overall_limit,
-      utilizationPct: Math.round(getBudgetUtilizationPercent(periodSpent, period.overall_limit)),
-      categories: chartCategories.map((category) => {
-        const categorySpent = categorySpentById.get(category.id) ?? 0
-
-        return {
-          id: category.id,
-          name: category.name,
-          spent: categorySpent,
-          utilizationPct: getBudgetUtilizationPercent(categorySpent, period.overall_limit),
-          color: category.color,
-        }
-      }),
-      ...categoryValues,
-    }
-
-    const archivedSlot = archivedSlotByPeriodId.get(period.id)
-    if (!archivedSlot) return [periodPoint]
-
-    const archivedPoint: BudgetChartPoint = {
-      label: archivedSlot.label,
-      archived: true,
-      spent: 0,
-      limit: 0,
-      utilizationPct: 0,
-      categories: [],
-      ...zeroedCategoryValues,
-    }
-    return [periodPoint, archivedPoint]
+  return windowedTimeline.map((stepYmd) => {
+    const period = periodByStart.get(stepYmd)
+    return period
+      ? buildBudgetPeriodPoint(period, utilizationByBudgetId, chartCategories, today, baseBudget.recurrence_freq)
+      : buildBudgetArchivedPoint(stepYmd, chartCategories)
   })
 }
 
@@ -233,9 +312,36 @@ export function getLatestBudgetCategories(latestUtilization: BudgetUtilization |
 }
 
 /**
+ * Returns the bar-top percentage recharts actually renders for a chart point: the stacked sum of
+ * the shown category percentages once more than one category is tracked, or the total utilization
+ * percentage for a single-category chart
+ *
+ * A period can have historical spend in a category the budget no longer tracks, so the stored total
+ * utilization percentage can sit above the sum of the categories still shown on the stacked bar.
+ * Mirroring the stacked total here keeps the derived y-axis maximum aligned with the tallest bar
+ * recharts actually draws rather than with the untracked-inclusive total
+ */
+export function getBudgetChartBarTopPct(
+  point: BudgetChartPoint,
+  chartCategories: BudgetChartCategory[],
+  isStacked: boolean,
+): number {
+  if (!isStacked) return point.utilizationPct
+
+  return chartCategories.reduce(
+    (total, category) => total + Number((point as unknown as Record<string, unknown>)[category.dataKey] ?? 0),
+    0,
+  )
+}
+
+/**
  * Keeps the bar hover guide within the available chart plot width
  */
-export function getBudgetChartGuideMaxWidth(chartWidth: number, pointCount: number) {
+export function getBudgetChartGuideMaxWidth(
+  chartWidth: number,
+  pointCount: number,
+  yAxisWidth: number = BUDGET_CHART_LAYOUT.yAxisWidth,
+) {
   if (pointCount <= 0) return BUDGET_CHART_HOVER_HIGHLIGHT_WIDTH
   return Math.max(
     1,
@@ -243,7 +349,7 @@ export function getBudgetChartGuideMaxWidth(chartWidth: number, pointCount: numb
       chartWidth -
       BUDGET_CHART_LAYOUT.margin.left -
       BUDGET_CHART_LAYOUT.margin.right -
-      BUDGET_CHART_LAYOUT.yAxisWidth
+      yAxisWidth
     ) / pointCount,
   )
 }

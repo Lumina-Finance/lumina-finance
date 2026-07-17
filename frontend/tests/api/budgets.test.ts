@@ -18,8 +18,8 @@ import {
   createBaseBudget,
   createBudgetInstance,
   deleteBaseBudget,
+  fetchBaseBudgetUtilizations,
   fetchBaseBudgets,
-  fetchBudgetUtilization,
   fetchBudgets,
   fetchLatestBudgetUtilizations,
   updateBaseBudget,
@@ -35,12 +35,12 @@ describe('budget API functions', () => {
   it('requests budget list and utilization endpoints', async () => {
     await fetchBaseBudgets();
     await fetchBudgets();
-    await fetchBudgetUtilization('budget_123');
+    await fetchBaseBudgetUtilizations('base_123');
     await fetchLatestBudgetUtilizations();
 
     expect(authenticatedFetchMock).toHaveBeenNthCalledWith(1, '/base-budgets');
     expect(authenticatedFetchMock).toHaveBeenNthCalledWith(2, '/budgets');
-    expect(authenticatedFetchMock).toHaveBeenNthCalledWith(3, '/budgets/budget_123/utilization');
+    expect(authenticatedFetchMock).toHaveBeenNthCalledWith(3, '/base-budgets/base_123/utilizations');
     expect(authenticatedFetchMock).toHaveBeenNthCalledWith(4, '/budgets/latest-utilizations');
   });
 

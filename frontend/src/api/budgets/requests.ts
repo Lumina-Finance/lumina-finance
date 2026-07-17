@@ -32,10 +32,10 @@ export function fetchLatestBudgetUtilizations() {
 }
 
 /**
- * Fetches utilization for one budget period
+ * Fetches utilization for every stored period under a base budget in one batched request
  */
-export function fetchBudgetUtilization(budgetId: string) {
-  return authenticatedFetch<BudgetUtilization>(`/budgets/${budgetId}/utilization`);
+export function fetchBaseBudgetUtilizations(baseBudgetId: string) {
+  return authenticatedFetch<BudgetUtilization[]>(`/base-budgets/${baseBudgetId}/utilizations`);
 }
 
 /**

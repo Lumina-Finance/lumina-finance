@@ -10,11 +10,12 @@ from tests.routes.budgets._utilization_helpers import (
     _create_budget_instance,
     _create_category,
     _create_transaction,
+    _get_budget_utilization_entry,
     _set_tracked_category_timestamps,
 )
 from tests.routes.support import _create_account, _create_user, _get_auth_header
 
-# --- GET /budgets/{id}/utilization — more period_end cutoff scenarios ---
+# --- GET /base-budgets/{id}/utilizations — more period_end cutoff scenarios ---
 
 
 async def test_get_budget_utilization_re_add_past_period_old_row_included_new_row_excluded(client):
@@ -61,9 +62,7 @@ async def test_get_budget_utilization_re_add_past_period_old_row_included_new_ro
         dt="2026-01-15", amount=-4000,
     )
 
-    resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
-    assert resp.status_code == 200
-    data = resp.json()
+    data = await _get_budget_utilization_entry(client, headers, base_id, budget_id)
     assert data["total_spent"] == 4000
     # Single entry — DISTINCT would collapse even if both rows satisfied
     assert len(data["categories"]) == 1
@@ -102,9 +101,7 @@ async def test_get_budget_utilization_mixed_active_and_removed_categories_in_sam
         dt="2026-03-05", amount=-2500,
     )
 
-    resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
-    assert resp.status_code == 200
-    data = resp.json()
+    data = await _get_budget_utilization_entry(client, headers, base_id, budget_id)
     assert data["total_spent"] == 5000
     assert len(data["categories"]) == 1
     assert data["categories"][0]["category_id"] == groceries

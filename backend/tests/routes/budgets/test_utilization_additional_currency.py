@@ -9,11 +9,12 @@ from tests.routes.budgets._utilization_helpers import (
     _create_category,
     _create_group,
     _create_transaction,
+    _get_budget_utilization_entry,
     _seed_usd_currency,
 )
 from tests.routes.support import _create_account, _create_user, _get_auth_header
 
-# --- GET /budgets/{id}/utilization — more scope and currency coverage ---
+# --- GET /base-budgets/{id}/utilizations — more scope and currency coverage ---
 
 
 async def test_get_budget_utilization_personal_budget_excludes_single_member_group_account(client):
@@ -35,16 +36,14 @@ async def test_get_budget_utilization_personal_budget_excludes_single_member_gro
 
     groceries = await _create_category(client, headers, name="Test Groceries")
 
-    _, budget_id = await _create_base_with_instance(
+    base_id, budget_id = await _create_base_with_instance(
         client, headers, category_ids=[groceries],
     )
 
     await _create_transaction(client, headers, personal_account_id, groceries, amount=-5000)
     await _create_transaction(client, headers, group_account_id, groceries, amount=-3000)
 
-    resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
-    assert resp.status_code == 200
-    data = resp.json()
+    data = await _get_budget_utilization_entry(client, headers, base_id, budget_id)
     # Only the 5000 from the personal account — the 3000 on the group account is excluded
     assert data["total_spent"] == 5000
     assert data["categories"][0]["spent"] == 5000
@@ -73,7 +72,7 @@ async def test_get_budget_utilization_personal_budget_aggregates_multiple_person
 
     groceries = await _create_category(client, headers, name="Test Groceries")
 
-    _, budget_id = await _create_base_with_instance(
+    base_id, budget_id = await _create_base_with_instance(
         client, headers, category_ids=[groceries],
     )
 
@@ -88,9 +87,7 @@ async def test_get_budget_utilization_personal_budget_aggregates_multiple_person
         dt="2026-03-22", amount=-9999,
     )
 
-    resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
-    assert resp.status_code == 200
-    data = resp.json()
+    data = await _get_budget_utilization_entry(client, headers, base_id, budget_id)
     assert data["total_spent"] == 5500
     assert len(data["categories"]) == 1
     assert data["categories"][0]["spent"] == 5500
@@ -123,7 +120,7 @@ async def test_get_budget_utilization_three_currency_user_converts_all_account_c
     ).json()["id"]
     groceries = await _create_category(client, headers, name="Test Groceries")
 
-    _, usd_budget_id = await _create_base_with_instance(
+    base_id, usd_budget_id = await _create_base_with_instance(
         client, headers,
         category_ids=[groceries],
         base_overrides={"name": "USD Budget", "currency": "USD"},
@@ -139,9 +136,7 @@ async def test_get_budget_utilization_three_currency_user_converts_all_account_c
         dt="2026-03-20", amount=-3500, currency="EUR",
     )
 
-    resp = await client.get(f"/budgets/{usd_budget_id}/utilization", headers=headers)
-    assert resp.status_code == 200
-    data = resp.json()
+    data = await _get_budget_utilization_entry(client, headers, base_id, usd_budget_id)
     # 4000 CAD -> 3000 USD, 3500 EUR -> 3850 USD, plus 7000 USD.
     assert data["total_spent"] == 13850
     assert data["categories"][0]["spent"] == 13850

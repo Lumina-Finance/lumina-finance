@@ -5,13 +5,29 @@ import {
 } from '@/components/charts/TooltipContent'
 
 export interface BudgetChartPoint {
+
+  // Unique categorical axis key: a stored period's period_start ymd for bars, `archived:<ymd>` for gaps
+  periodKey: string
+
+  // Full formatted date shown as the tooltip title, e.g. "Jan 1, 2026"; blank for archived gap columns
   label: string
+
+  // Short month tick label for the X axis, e.g. "Jan" or "Jan '26"; blank for archived gap columns
+  axisLabel: string
+
+  // True when axisLabel carries the year suffix, i.e. this period starts in January; the mobile
+  // axis label subset anchors its spacing on such a period so the year is never the one thinned out
+  hasYearAxisLabel: boolean
+
   spent: number
   limit: number
   utilizationPct: number
 
   // Marks a synthetic slot that renders a shaded archived band instead of a utilization bar
   archived?: boolean
+
+  // True for the single period whose range contains today; archived gap points are never current
+  isCurrent?: boolean
   categories?: Array<{
     id: string
     name: string

@@ -7,11 +7,12 @@ from tests.routes.budgets._utilization_helpers import (
     _create_group,
     _create_second_user,
     _create_transaction,
+    _get_budget_utilization_entry,
     _grant_account_permission,
 )
 from tests.routes.support import _create_account, _create_user, _get_auth_header
 
-# --- GET /budgets/{id}/utilization — metadata and edge cases ---
+# --- GET /base-budgets/{id}/utilizations — metadata and edge cases ---
 
 
 async def test_get_budget_utilization_with_one_week_period(client):
@@ -23,7 +24,7 @@ async def test_get_budget_utilization_with_one_week_period(client):
     groceries = await _create_category(client, headers)
 
     # Weekly budget: Mon Mar 2 → Sun Mar 8
-    _, budget_id = await _create_base_with_instance(
+    base_id, budget_id = await _create_base_with_instance(
         client, headers,
         category_ids=[groceries],
         base_overrides={"recurrence_freq": "weekly", "recurrence_weekday": 0, "recurrence_dom": None},
@@ -35,8 +36,7 @@ async def test_get_budget_utilization_with_one_week_period(client):
     await _create_transaction(client, headers, account_id, groceries, dt="2026-03-01", amount=-9999)
     await _create_transaction(client, headers, account_id, groceries, dt="2026-03-09", amount=-9999)
 
-    resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
-    data = resp.json()
+    data = await _get_budget_utilization_entry(client, headers, base_id, budget_id)
     assert data["total_spent"] == 5000
     assert data["categories"][0]["category_id"] == groceries
     assert data["categories"][0]["spent"] == 5000
@@ -47,12 +47,12 @@ async def test_get_budget_utilization_echoes_overall_limit_when_set(client):
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    _, budget_id = await _create_base_with_instance(
+    base_id, budget_id = await _create_base_with_instance(
         client, headers, instance_overrides={"overall_limit": 200000},
     )
 
-    resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
-    assert resp.json()["overall_limit"] == 200000
+    entry = await _get_budget_utilization_entry(client, headers, base_id, budget_id)
+    assert entry["overall_limit"] == 200000
 
 
 async def test_get_budget_utilization_includes_transactions_from_closed_accounts(client):
@@ -64,7 +64,7 @@ async def test_get_budget_utilization_includes_transactions_from_closed_accounts
     account_id = account_resp.json()["id"]
     groceries = await _create_category(client, headers)
 
-    _, budget_id = await _create_base_with_instance(
+    base_id, budget_id = await _create_base_with_instance(
         client, headers, category_ids=[groceries],
     )
 
@@ -82,8 +82,7 @@ async def test_get_budget_utilization_includes_transactions_from_closed_accounts
     account_resp = await client.get(f"/accounts/{account_id}", headers=headers)
     assert account_resp.json()["closed_at"] is not None
 
-    resp = await client.get(f"/budgets/{budget_id}/utilization", headers=headers)
-    data = resp.json()
+    data = await _get_budget_utilization_entry(client, headers, base_id, budget_id)
     assert data["total_spent"] == 5000
     assert data["categories"][0]["category_id"] == groceries
     assert data["categories"][0]["spent"] == 5000
@@ -100,7 +99,7 @@ async def test_get_budget_utilization_includes_transactions_created_by_other_gro
     # Group-scoped category so both admin and member can reference it
     groceries = await _create_category(client, admin_headers, group_id=group_id)
 
-    _, budget_id = await _create_base_with_instance(
+    base_id, budget_id = await _create_base_with_instance(
         client, admin_headers,
         category_ids=[groceries],
         base_overrides={"group_id": group_id},
@@ -119,8 +118,7 @@ async def test_get_budget_utilization_includes_transactions_created_by_other_gro
     await _create_transaction(client, admin_headers, account_id, groceries, amount=-3000)
     await _create_transaction(client, member_headers, account_id, groceries, amount=-2000)
 
-    resp = await client.get(f"/budgets/{budget_id}/utilization", headers=admin_headers)
-    data = resp.json()
+    data = await _get_budget_utilization_entry(client, admin_headers, base_id, budget_id)
     assert data["total_spent"] == 5000
     assert data["categories"][0]["category_id"] == groceries
     assert data["categories"][0]["spent"] == 5000

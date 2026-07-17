@@ -173,6 +173,7 @@ export default function BudgetsPage() {
                 ? latestUtilizationByBudgetId.get(visibleBudgetDetails.latestPeriod.id)
                 : undefined
             }
+            today={today}
             onClose={closeBudget}
             onDeleted={() => {
               void baseBudgetsQuery.refetch()

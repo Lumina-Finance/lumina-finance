@@ -7,11 +7,12 @@ from tests.routes.budgets._utilization_helpers import (
     _create_group,
     _create_second_user,
     _create_transaction,
+    _get_budget_utilization_entry,
     _grant_base_budget_permission,
 )
 from tests.routes.support import _create_account, _create_user, _get_auth_header
 
-# --- GET /budgets/{id}/utilization — privacy guarantee ---
+# --- GET /base-budgets/{id}/utilizations — privacy guarantee ---
 
 
 async def test_get_budget_utilization_returns_account_data_without_account_access(client):
@@ -60,8 +61,6 @@ async def test_get_budget_utilization_returns_account_data_without_account_acces
     assert direct_account_resp.status_code == 404
 
     # But CAN read the budget utilization, which surfaces the aggregate
-    utilization_resp = await client.get(f"/budgets/{budget_id}/utilization", headers=member_headers)
-    assert utilization_resp.status_code == 200
-    data = utilization_resp.json()
+    data = await _get_budget_utilization_entry(client, member_headers, base_id, budget_id)
     assert data["total_spent"] == 5000
     assert data["categories"][0]["spent"] == 5000

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'motion/react'
 import { X } from 'lucide-react'
-import { useBudgetUtilizations, useDeleteBaseBudget, type BaseBudget, type Budget, type BudgetUtilization } from '@/api/budgets'
+import { useBaseBudgetUtilizations, useDeleteBaseBudget, type BaseBudget, type Budget, type BudgetUtilization } from '@/api/budgets'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import BudgetDetailsSidebar from '@/pages/budgets/components/budget-details-modal/Sidebar'
@@ -33,6 +33,7 @@ export default function BudgetDetailsModal({
   currencies,
   categoryById,
   initialLatestUtilization,
+  today,
   onClose,
   onDeleted,
   onSaved,
@@ -43,6 +44,7 @@ export default function BudgetDetailsModal({
   currencies: Currency[]
   categoryById: Map<string, string>
   initialLatestUtilization: BudgetUtilization | undefined
+  today: string
   onClose: () => void
   onDeleted: () => void
   onSaved: () => void
@@ -68,17 +70,13 @@ export default function BudgetDetailsModal({
   )
   const sortedPeriods = useMemo(() => getSortedBudgetPeriods(periods), [periods])
   const latestPeriod = sortedPeriods[sortedPeriods.length - 1]
-  const periodIds = useMemo(() => periods.map((period) => period.id), [periods])
-  const utilizationQueries = useBudgetUtilizations(periodIds)
+  const utilizationQuery = useBaseBudgetUtilizations(baseBudget.id)
   const utilizationByBudgetId = useMemo(
-    () => getBudgetUtilizationByBudgetId(
-      initialLatestUtilization,
-      utilizationQueries.map((query) => query.data),
-    ),
-    [initialLatestUtilization, utilizationQueries],
+    () => getBudgetUtilizationByBudgetId(initialLatestUtilization, utilizationQuery.data ?? []),
+    [initialLatestUtilization, utilizationQuery.data],
   )
-  const utilizationHistoryLoading = utilizationQueries.some((query) => query.isLoading)
-  const utilizationHistoryError = utilizationQueries.some((query) => query.isError)
+  const utilizationHistoryLoading = utilizationQuery.isLoading
+  const utilizationHistoryError = utilizationQuery.isError
   const latestUtilization = latestPeriod ? utilizationByBudgetId.get(latestPeriod.id) : undefined
   const utilizationHistoryFxStatus = combineFxStatuses(
     sortedPeriods.map((period) => utilizationByBudgetId.get(period.id)?.fx_status),
@@ -89,8 +87,8 @@ export default function BudgetDetailsModal({
   const isOverBudget = remaining < 0
   const showStackedCategoryChart = chartCategories.length > 1
   const chartData = useMemo(
-    () => getBudgetDetailsChartData({ sortedPeriods, utilizationByBudgetId, chartCategories, baseBudget }),
-    [baseBudget, chartCategories, sortedPeriods, utilizationByBudgetId],
+    () => getBudgetDetailsChartData({ sortedPeriods, utilizationByBudgetId, chartCategories, baseBudget, today }),
+    [baseBudget, chartCategories, sortedPeriods, today, utilizationByBudgetId],
   )
   const periodHistory = useMemo(
     () => getBudgetPeriodHistory(sortedPeriods, utilizationByBudgetId),
@@ -101,12 +99,10 @@ export default function BudgetDetailsModal({
   const isDeleting = deleteBaseBudget.isPending || deleteInProgress
 
   /**
-   * Refreshes every loaded period utilization after budget edits can change historical limits
+   * Refreshes the batched utilization history after budget edits can change historical limits
    */
   const refetchUtilizationHistory = () => {
-    utilizationQueries.forEach((query) => {
-      void query.refetch()
-    })
+    void utilizationQuery.refetch()
   }
 
   /**
@@ -205,7 +201,7 @@ export default function BudgetDetailsModal({
 
             <section
               data-tooltip-bounds
-              className={`sticky top-[5.5rem] z-20 h-[calc(100dvh-5.5rem)] shrink-0 space-y-6 p-5 min-[750px]:top-24 min-[750px]:h-[calc(100dvh-6rem)] min-[750px]:space-y-8 min-[750px]:p-7 min-[1050px]:static min-[1050px]:z-auto min-[1050px]:flex min-[1050px]:h-full min-[1050px]:min-h-0 min-[1050px]:shrink min-[1050px]:flex-col min-[1050px]:gap-6 min-[1050px]:space-y-0 min-[1050px]:overflow-hidden ${historyCanScroll ? 'overflow-y-auto' : 'overflow-hidden'}`}
+              className={`sticky top-[6rem] z-20 h-[calc(100dvh-6rem)] shrink-0 space-y-6 pb-5 px-5 pt-2 min-[750px]:top-24 min-[750px]:h-[calc(100dvh-6rem)] min-[750px]:space-y-8 min-[750px]:p-7 min-[1050px]:static min-[1050px]:z-auto min-[1050px]:flex min-[1050px]:h-full min-[1050px]:min-h-0 min-[1050px]:shrink min-[1050px]:flex-col min-[1050px]:gap-6 min-[1050px]:space-y-0 min-[1050px]:overflow-hidden ${historyCanScroll ? 'overflow-y-auto' : 'overflow-hidden'}`}
               style={{ background: 'var(--app-surface-soft)' }}
             >
               <header className="flex shrink-0 items-start justify-between gap-4">

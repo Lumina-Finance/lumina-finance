@@ -19,9 +19,11 @@ from app.routes.base_budgets.listing_helpers import get_visible_base_budget_resp
 from app.routes.base_budgets.permissions import router as permissions_router
 from app.routes.base_budgets.response_helpers import get_base_budget_response
 from app.routes.base_budgets.update_helpers import update_base_budget_and_get_response
+from app.routes.base_budgets.utilization_helpers import get_base_budget_utilizations_for_user
 from app.schemas.budget import (
     BaseBudgetResponse,
     BudgetResponse,
+    BudgetUtilizationResponse,
     CreateBaseBudgetRequest,
     CreateBudgetRequest,
     UpdateBaseBudgetRequest,
@@ -96,6 +98,34 @@ async def get_base_budget(
     """
     base_budget = await check_base_budget_access(db, base_budget_id, user.id, PermissionLevel.READ)
     return await get_base_budget_response(db, base_budget)
+
+
+@router.get("/{base_budget_id}/utilizations", response_model=list[BudgetUtilizationResponse])
+async def get_base_budget_utilizations(
+    base_budget_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Return per-category spending totals for every period of a base budget
+
+    Requires read access on the base budget. Each period reconstructs its
+    tracked-category set as of period end so past periods stay frozen when the
+    base is edited after they ended. Mid-period additions count for the full
+    period retroactively, while mid-period removals exclude the category from the
+    whole period
+
+    Args:
+        base_budget_id: Base budget identifier from the route path
+        user: Authenticated user requesting utilization
+        db: Active database session
+
+    Returns:
+        Budget utilization responses ordered by period start ascending
+
+    Raises:
+        HTTPException: User does not have read access
+    """
+    return await get_base_budget_utilizations_for_user(db, base_budget_id, user.id)
 
 
 @router.get("", response_model=list[BaseBudgetResponse])
