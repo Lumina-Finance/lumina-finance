@@ -12,22 +12,18 @@ export function SavingsCurrentBoundary({ currentLabel }: { currentLabel: string 
   // Recharts v3 exposes plot geometry through hooks, so drawing the marker here
   // keeps the current-month boundary aligned after responsive chart resizing
   const plotArea = usePlotArea()
-  const xScale = useXAxisScale() as ((label: string) => number) & { bandwidth?: () => number }
+  const xScale = useXAxisScale() as ((label: string) => number)
   if (!plotArea || !xScale) return null
 
-  const center = xScale(currentLabel)
-  if (typeof center !== 'number' || !Number.isFinite(center)) return null
+  const slotLeft = xScale(currentLabel)
+  if (typeof slotLeft !== 'number' || !Number.isFinite(slotLeft)) return null
 
-  const bandwidth = xScale.bandwidth ? xScale.bandwidth() : 0
-
-  // Category scales can report the band center, so use the left edge so the
-  // divider marks where the current period begins, not the middle of the bar
-  const leftEdge = center - bandwidth / 2
-
+  // The band scale maps a category to its slot's left edge, which is exactly
+  // where the current month begins
   return (
     <line
-      x1={leftEdge}
-      x2={leftEdge}
+      x1={slotLeft}
+      x2={slotLeft}
       y1={plotArea.y}
       y2={plotArea.y + plotArea.height}
       stroke="var(--app-text-subtle)"
