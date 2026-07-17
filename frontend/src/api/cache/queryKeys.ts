@@ -106,7 +106,12 @@ export const budgetKeys = {
   baseBudgets: () => ['budgets', 'base-budgets'] as const,
   periods: () => ['budgets', 'periods'] as const,
   latestUtilizations: () => ['budgets', 'latest-utilizations'] as const,
-  utilization: (budgetId: string) => ['budgets', 'periods', budgetId, 'utilization'] as const,
+  baseBudgetUtilizations: (baseBudgetId: string) => [
+    'budgets',
+    'base-budgets',
+    baseBudgetId,
+    'utilizations',
+  ] as const,
 };
 
 export const userKeys = {

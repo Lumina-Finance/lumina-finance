@@ -1,11 +1,11 @@
-import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { invalidateBudgetActivity, updateCachedBaseBudget } from '@/api/cache/updates/budgets';
 import {
   createBaseBudget,
   createBudgetInstance,
   deleteBaseBudget,
+  fetchBaseBudgetUtilizations,
   fetchBaseBudgets,
-  fetchBudgetUtilization,
   fetchBudgets,
   fetchLatestBudgetUtilizations,
   updateBaseBudget,
@@ -58,17 +58,15 @@ export function useLatestBudgetUtilizations() {
 }
 
 /**
- * Reads utilization for every requested budget period
+ * Reads utilization for every stored period under a base budget in one batched request
  */
-export function useBudgetUtilizations(budgetIds: string[]) {
+export function useBaseBudgetUtilizations(baseBudgetId: string) {
   const { accessToken } = useAuth();
-  return useQueries({
-    queries: budgetIds.map((budgetId) => ({
-      queryKey: budgetKeys.utilization(budgetId),
-      queryFn: () => fetchBudgetUtilization(budgetId),
-      enabled: !!accessToken,
-      staleTime: getFxAwareStaleTime(BUDGET_FX_STALE_TIME_MS),
-    })),
+  return useQuery({
+    queryKey: budgetKeys.baseBudgetUtilizations(baseBudgetId),
+    queryFn: () => fetchBaseBudgetUtilizations(baseBudgetId),
+    enabled: !!accessToken,
+    staleTime: getFxAwareStaleTime(BUDGET_FX_STALE_TIME_MS),
   });
 }
 
