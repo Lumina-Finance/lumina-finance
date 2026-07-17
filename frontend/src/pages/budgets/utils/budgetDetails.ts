@@ -267,10 +267,10 @@ export function getLatestBudgetCategories(latestUtilization: BudgetUtilization |
  * the shown category percentages once more than one category is tracked, or the total utilization
  * percentage for a single-category chart
  *
- * A period can have historical spend in a category the budget no longer tracks, so the stored
- * total utilization percentage can sit above the sum of the categories still shown on the stacked
- * bar. Mirroring the stacked total here keeps any bar-top-derived overlay, such as the over-budget
- * outline, aligned with the bar recharts draws rather than with the untracked-inclusive total
+ * A period can have historical spend in a category the budget no longer tracks, so the stored total
+ * utilization percentage can sit above the sum of the categories still shown on the stacked bar.
+ * Mirroring the stacked total here keeps the derived y-axis maximum aligned with the tallest bar
+ * recharts actually draws rather than with the untracked-inclusive total
  */
 export function getBudgetChartBarTopPct(
   point: BudgetChartPoint,

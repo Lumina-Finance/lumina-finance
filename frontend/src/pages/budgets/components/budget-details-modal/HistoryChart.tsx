@@ -65,12 +65,11 @@ const ARCHIVED_BAND_LABEL_FONT_SIZE = 10
 const ARCHIVED_BAND_FILL_OPACITY = 0.12
 const ARCHIVED_BAND_CORNER_RADIUS_PX = 6
 
-// A period is over budget once utilization passes this percentage; archived gap points sit at 0
-// and never qualify
-const OVER_BUDGET_UTILIZATION_THRESHOLD_PCT = 100
+// The dashed limit line is drawn across the plot at this utilization percentage to mark the budget
+const OVER_BUDGET_LIMIT_LINE_PCT = 100
 
-// Fill for the portion of an over-budget bar above the limit line, and the line itself
-const OVER_BUDGET_CAP_COLOR = 'var(--app-negative)'
+// Colour, dash pattern, and opacity of the dashed budget-limit line
+const OVER_BUDGET_LIMIT_LINE_COLOR = 'var(--app-negative)'
 const OVER_BUDGET_LIMIT_LINE_DASH = '5 4'
 const OVER_BUDGET_LIMIT_LINE_OPACITY = 0.55
 
@@ -351,6 +350,41 @@ function getPixelSnappedRect(x: number, y: number, width: number, height: number
   return { x: left, y: top, width: right - left, height: bottom - top }
 }
 
+type BudgetUtilizationBarProps = {
+  fill?: string
+  roundTop: boolean
+  x?: number
+  y?: number
+  width?: number
+  height?: number
+}
+
+/**
+ * Draws one utilization bar or stacked segment as a single pixel-snapped rectangle, with a rounded
+ * top only when it is the topmost element in its column
+ *
+ * Each segment renders as its own SVG path, and two adjacent segments share their boundary
+ * coordinate as the same fractional value. Snapping the rectangle's edges to whole pixels gives
+ * neighbouring segments the identical integer pixel row, which removes the anti-aliasing seam and
+ * the hairline horizontal offset that fractional coordinates otherwise cause on non-retina displays
+ */
+function BudgetUtilizationBar({ fill, roundTop, x, y, width, height }: BudgetUtilizationBarProps) {
+  const hasNumericGeometry =
+    typeof x === 'number' && typeof y === 'number' && typeof width === 'number' && typeof height === 'number'
+  const rect = hasNumericGeometry ? getPixelSnappedRect(x, y, width, height) : { x, y, width, height }
+
+  return (
+    <Rectangle
+      x={rect.x}
+      y={rect.y}
+      width={rect.width}
+      height={rect.height}
+      fill={fill}
+      radius={roundTop ? BUDGET_BAR_TOP_CORNER_RADIUS : 0}
+    />
+  )
+}
+
 type StackedBarSegmentProps = {
   category: BudgetChartCategory
   chartCategories: BudgetChartCategory[]
@@ -369,10 +403,6 @@ type StackedBarSegmentProps = {
  *
  * Every segment always renders its own solid category colour, including the current,
  * still-in-progress period, which is marked only on the X axis rather than inside the bar
- *
- * The over-budget overflow cap is drawn only by the top segment, sized as a fraction of this
- * segment's own recharts-animated height rather than an absolute plot coordinate, so the cap
- * grows in lockstep with the bar during the entry animation instead of popping in at its final size
  */
 function StackedBarSegment({
   category,
@@ -389,92 +419,8 @@ function StackedBarSegment({
     .find((entry) => Number((payload as Record<string, unknown> | undefined)?.[entry.dataKey] ?? 0) > 0)
   const isTopSegment = topSegment?.id === category.id
 
-  // The top segment's own value is the number of percentage points it contributes to the bar, so
-  // the portion of that value sitting above the 100% line is the fraction of the segment's own
-  // height the cap must cover
-  const wholeBarTopPct = payload ? getBudgetChartBarTopPct(payload, chartCategories, true) : 0
-  const topSegmentValue =
-    isTopSegment && topSegment && payload
-      ? Number((payload as unknown as Record<string, unknown>)[topSegment.dataKey] ?? 0)
-      : 0
-  const overBudgetFraction =
-    topSegmentValue > 0
-      ? Math.min(Math.max((wholeBarTopPct - OVER_BUDGET_UTILIZATION_THRESHOLD_PCT) / topSegmentValue, 0), 1)
-      : 0
-
-  const hasNumericGeometry = typeof x === 'number' && typeof y === 'number' && typeof width === 'number' && typeof height === 'number'
-
-  // Snapped once so the segment and its cap share identical rounded edges with each other
-  const snappedRect = hasNumericGeometry ? getPixelSnappedRect(x, y, width, height) : null
-
   return (
-    <g>
-      <Rectangle
-        x={snappedRect?.x ?? x}
-        y={snappedRect?.y ?? y}
-        width={snappedRect?.width ?? width}
-        height={snappedRect?.height ?? height}
-        fill={fill}
-        radius={isTopSegment ? BUDGET_BAR_TOP_CORNER_RADIUS : 0}
-      />
-      {overBudgetFraction > 0 && snappedRect && (
-        <Rectangle
-          x={snappedRect.x}
-          y={snappedRect.y}
-          width={snappedRect.width}
-          height={Math.round(snappedRect.height * overBudgetFraction)}
-          fill={OVER_BUDGET_CAP_COLOR}
-          radius={BUDGET_BAR_TOP_CORNER_RADIUS}
-        />
-      )}
-    </g>
-  )
-}
-
-type SingleCategoryBarProps = {
-  overBudgetFraction: number
-  x?: number
-  y?: number
-  width?: number
-  height?: number
-}
-
-/**
- * Renders the single-category utilization bar with its solid accent colour and the red overflow
- * cap covering the portion of the bar above the 100% budget limit
- *
- * Built as a shape component rather than Cell children so the cap can be derived from the bar's
- * own recharts-computed geometry instead of a separately positioned overlay. The cap's height is a
- * fraction of the bar's own animated height rather than an absolute plot coordinate, so it grows in
- * lockstep with the bar during the entry animation instead of popping in at its final size
- */
-function SingleCategoryBar({ overBudgetFraction, x, y, width, height }: SingleCategoryBarProps) {
-  const hasNumericGeometry = typeof x === 'number' && typeof y === 'number' && typeof width === 'number' && typeof height === 'number'
-
-  // Snapped once so the bar and its cap share identical rounded edges with each other
-  const snappedRect = hasNumericGeometry ? getPixelSnappedRect(x, y, width, height) : null
-
-  return (
-    <g>
-      <Rectangle
-        x={snappedRect?.x ?? x}
-        y={snappedRect?.y ?? y}
-        width={snappedRect?.width ?? width}
-        height={snappedRect?.height ?? height}
-        fill={BUDGET_CHART_ACCENT_COLOR}
-        radius={BUDGET_BAR_TOP_CORNER_RADIUS}
-      />
-      {overBudgetFraction > 0 && snappedRect && (
-        <Rectangle
-          x={snappedRect.x}
-          y={snappedRect.y}
-          width={snappedRect.width}
-          height={Math.round(snappedRect.height * overBudgetFraction)}
-          fill={OVER_BUDGET_CAP_COLOR}
-          radius={BUDGET_BAR_TOP_CORNER_RADIUS}
-        />
-      )}
-    </g>
+    <BudgetUtilizationBar x={x} y={y} width={width} height={height} fill={fill} roundTop={isTopSegment} />
   )
 }
 
@@ -644,23 +590,23 @@ export default function BudgetHistoryChart({
               )) : (
                 <Bar
                   dataKey="utilizationPct"
-                  shape={(props) => {
-                    const point = props.payload as BudgetChartPoint | undefined
-                    const barTopPct = point ? getBudgetChartBarTopPct(point, chartCategories, false) : 0
-                    const overBudgetFraction =
-                      barTopPct > OVER_BUDGET_UTILIZATION_THRESHOLD_PCT
-                        ? (barTopPct - OVER_BUDGET_UTILIZATION_THRESHOLD_PCT) / barTopPct
-                        : 0
-
-                    return <SingleCategoryBar {...props} overBudgetFraction={overBudgetFraction} />
-                  }}
+                  shape={(props) => (
+                    <BudgetUtilizationBar
+                      x={props.x}
+                      y={props.y}
+                      width={props.width}
+                      height={props.height}
+                      fill={BUDGET_CHART_ACCENT_COLOR}
+                      roundTop
+                    />
+                  )}
                   barSize={barSize}
                   animationBegin={MODAL_SURFACE_TRANSITION_MS}
                 />
               )}
               <ReferenceLine
-                y={OVER_BUDGET_UTILIZATION_THRESHOLD_PCT}
-                stroke={OVER_BUDGET_CAP_COLOR}
+                y={OVER_BUDGET_LIMIT_LINE_PCT}
+                stroke={OVER_BUDGET_LIMIT_LINE_COLOR}
                 strokeOpacity={OVER_BUDGET_LIMIT_LINE_OPACITY}
                 strokeDasharray={OVER_BUDGET_LIMIT_LINE_DASH}
                 strokeWidth={1}
