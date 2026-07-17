@@ -37,6 +37,7 @@ interface BudgetEditorModalShellProps {
   title: string
   titleId: string
   eyebrow: string
+  headerStatus?: string
   sideLabel: string
   warning?: string
   formError: string | null
@@ -55,6 +56,7 @@ export default function BudgetEditorModalShell({
   title,
   titleId,
   eyebrow,
+  headerStatus,
   sideLabel,
   warning,
   formError,
@@ -127,8 +129,21 @@ export default function BudgetEditorModalShell({
                 <div className={appearance.headerClassName} style={{ borderBottom: '1px solid var(--app-border)' }}>
                   <div className="flex items-start justify-between gap-6">
                     <div className="min-w-0">
-                      <p className="mb-2 text-xs font-semibold uppercase" style={{ color: 'var(--app-accent)' }}>
-                        {eyebrow}
+                      <p
+                        className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold uppercase"
+                        style={{ color: 'var(--app-accent)' }}
+                      >
+                        <span>{eyebrow}</span>
+                        {headerStatus && (
+                          <>
+                            <span aria-hidden style={{ color: 'var(--app-text-subtle)' }}>
+                              &middot;
+                            </span>
+                            <span style={{ color: 'var(--app-warning-text)' }}>
+                              {headerStatus}
+                            </span>
+                          </>
+                        )}
                       </p>
                       <h2 id={titleId} className="font-serif text-3xl font-normal">
                         {title}

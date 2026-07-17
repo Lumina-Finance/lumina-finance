@@ -320,6 +320,7 @@ export default function BudgetEditModal({
       title="Edit Budget"
       titleId="budget-edit-title"
       eyebrow={form.recurs ? 'Recurring budget' : 'One-off budget'}
+      headerStatus={fieldsLocked ? 'Archived budget' : undefined}
       sideLabel="Edit"
       formError={formError}
       warning="Changes apply from now forward. Past periods stay unchanged. To back propagate changes, create a new budget instead."
