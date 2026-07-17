@@ -94,6 +94,7 @@ function createChartPoint(
     periodKey: '2026-06-01',
     label: 'Jun 1, 2026',
     axisLabel: 'Jun',
+    hasYearAxisLabel: false,
     spent: 0,
     limit: 100000,
     utilizationPct: 0,

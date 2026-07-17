@@ -121,11 +121,13 @@ function buildBudgetPeriodPoint(
     values[category.dataKey] = getBudgetUtilizationPercent(categorySpentById.get(category.id) ?? 0, period.overall_limit)
     return values
   }, {})
+  const periodStart = parseYmd(period.period_start)
 
   return {
     periodKey: period.period_start,
-    label: formatCalendarDate(parseYmd(period.period_start)),
-    axisLabel: getBudgetChartMonthLabel(parseYmd(period.period_start)),
+    label: formatCalendarDate(periodStart),
+    axisLabel: getBudgetChartMonthLabel(periodStart),
+    hasYearAxisLabel: periodStart.month === 1,
     spent: periodSpent,
     limit: period.overall_limit,
     utilizationPct: Math.round(getBudgetUtilizationPercent(periodSpent, period.overall_limit)),
@@ -159,6 +161,7 @@ function buildBudgetArchivedPoint(stepYmd: string, chartCategories: BudgetChartC
     periodKey: `${ARCHIVED_SLOT_LABEL_PREFIX}${stepYmd}`,
     label: '',
     axisLabel: '',
+    hasYearAxisLabel: false,
     archived: true,
     spent: 0,
     limit: 0,

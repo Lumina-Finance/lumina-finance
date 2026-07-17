@@ -15,6 +15,10 @@ export interface BudgetChartPoint {
   // Short month tick label for the X axis, e.g. "Jan" or "Jan '26"; blank for archived gap columns
   axisLabel: string
 
+  // True when axisLabel carries the year suffix, i.e. this period starts in January; the mobile
+  // axis label subset anchors its spacing on such a period so the year is never the one thinned out
+  hasYearAxisLabel: boolean
+
   spent: number
   limit: number
   utilizationPct: number

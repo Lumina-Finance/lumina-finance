@@ -81,6 +81,14 @@ const CURRENT_PERIOD_AXIS_TICK_FONT_SIZE = 13
 const CURRENT_PERIOD_AXIS_DOT_RADIUS_PX = 2
 const CURRENT_PERIOD_AXIS_DOT_OFFSET_PX = 16
 
+// Every other period label renders on mobile, so a wide label like "Jan '26" never sits close
+// enough to its neighbour to collide with it
+const BUDGET_CHART_MOBILE_AXIS_LABEL_STEP = 2
+
+// At or below this many points, bands are wide enough that even the year label fits without
+// colliding, so mobile shows every label just like desktop instead of thinning them out
+const BUDGET_CHART_MOBILE_FULL_LABEL_MAX_POINTS = 6
+
 type ArchivedChartStretch = {
   firstKey: string
   lastKey: string
@@ -110,6 +118,35 @@ function getArchivedChartStretches(chartData: BudgetChartPoint[]): ArchivedChart
   if (runStart !== null && runEnd !== null) stretches.push({ firstKey: runStart, lastKey: runEnd })
 
   return stretches
+}
+
+/**
+ * Picks which chart points keep an X-axis label on mobile, thinning a full window down to an evenly
+ * spaced subset so a wide label like "Jan '26" never sits close enough to a neighbour to collide
+ *
+ * Returns null when there are few enough points that every label already fits, meaning show all of
+ * them. Otherwise the subset is spaced every {@link BUDGET_CHART_MOBILE_AXIS_LABEL_STEP} points,
+ * anchored on the first period whose label carries the year suffix so that label is never the one
+ * skipped, falling back to the current period and then the last point when no period starts in
+ * January. The current period's key is always added on top of the spacing so the in-progress period
+ * never loses its accent label and dot
+ */
+function getMobileAxisLabelKeys(chartData: BudgetChartPoint[]): Set<string> | null {
+  if (chartData.length <= BUDGET_CHART_MOBILE_FULL_LABEL_MAX_POINTS) return null
+
+  const yearLabelIndex = chartData.findIndex((point) => point.hasYearAxisLabel)
+  const currentPeriodIndex = chartData.findIndex((point) => point.isCurrent)
+  const anchorIndex = yearLabelIndex >= 0 ? yearLabelIndex : currentPeriodIndex >= 0 ? currentPeriodIndex : chartData.length - 1
+
+  const labelKeys = new Set(
+    chartData
+      .filter((_, index) => (index - anchorIndex) % BUDGET_CHART_MOBILE_AXIS_LABEL_STEP === 0)
+      .map((point) => point.periodKey),
+  )
+
+  if (currentPeriodIndex >= 0) labelKeys.add(chartData[currentPeriodIndex].periodKey)
+
+  return labelKeys
 }
 
 /**
@@ -205,7 +242,6 @@ function CurrentPeriodBoundary({ currentPeriodKey }: { currentPeriodKey: string 
 }
 
 type BudgetChartAxisTickProps = XAxisTickContentProps & {
-  labels: Map<string, string>
   currentPeriodKey: string | undefined
 }
 
@@ -219,14 +255,20 @@ type BudgetChartAxisTickProps = XAxisTickContentProps & {
  * props are forwarded: `payload`, `index`, `visibleTicksCount`, and `tickFormatter` are Recharts-only
  * bookkeeping that `Text` does not accept
  *
+ * The label text itself comes from calling that same `tickFormatter` rather than a separately
+ * looked-up map. Recharts also calls the formatter to measure and lay out ticks, so deriving the
+ * rendered text from it keeps what's drawn in sync with what Recharts measured — including on
+ * mobile, where the formatter empties out the labels thinned out of the visible subset, so a
+ * skipped label measures zero width and can't crowd out a kept one
+ *
  * The current month is marked here rather than inside the bar itself: the label renders in the
  * accent colour and bold, with a small accent dot underneath so the in-progress period reads at a
  * glance without altering the bar's own solid fill
  */
-function BudgetChartAxisTick({ labels, currentPeriodKey, ...tickProps }: BudgetChartAxisTickProps) {
+function BudgetChartAxisTick({ currentPeriodKey, ...tickProps }: BudgetChartAxisTickProps) {
   const { payload, index, visibleTicksCount, tickFormatter, ...textProps } = tickProps
   const value = String((payload as { value?: string | number } | undefined)?.value ?? '')
-  const label = labels.get(value) ?? ''
+  const label = tickFormatter ? tickFormatter(value, index) : value
   const isCurrent = value === currentPeriodKey
 
   return (
@@ -460,6 +502,9 @@ export default function BudgetHistoryChart({
     right: isMobile ? BUDGET_CHART_MOBILE_RIGHT_MARGIN : BUDGET_CHART_LAYOUT.margin.right,
   }
 
+  // Desktop always shows every period's label; only mobile ever thins the axis down to a subset
+  const mobileAxisLabelKeys = isMobile ? getMobileAxisLabelKeys(chartData) : null
+
   // Picks the Y axis domain and tick step from the tallest bar recharts will actually draw
   const dataMax = chartData
     .filter((point) => !point.archived)
@@ -521,14 +566,29 @@ export default function BudgetHistoryChart({
               onMouseLeave={hideTooltip}
             >
               <CartesianGrid stroke="var(--app-border)" vertical={false} />
+
+              {/*
+                recharts measures the rendered tick value to size and position ticks, so without a
+                formatter it measures the raw periodKey date string instead of the short label the
+                custom tick actually draws, and shifts the last tick inward to avoid clipping a width
+                it never renders. The formatter doubles as the mobile thinning mechanism: outside the
+                mobile label subset it returns '' instead of the short label, so a skipped tick
+                measures zero width and can never collide with or crowd out a kept one. The XAxis
+                keeps its default interval throughout — thinning happens only through what the
+                formatter returns, never by skipping ticks outright
+              */}
               <XAxis
                 dataKey="periodKey"
                 tickLine={false}
                 axisLine={false}
+                tickFormatter={(value) => {
+                  const key = String(value)
+                  if (mobileAxisLabelKeys && !mobileAxisLabelKeys.has(key)) return ''
+                  return tickLabels.get(key) ?? ''
+                }}
                 tick={(tickProps) => (
                   <BudgetChartAxisTick
                     {...tickProps}
-                    labels={tickLabels}
                     currentPeriodKey={currentPeriodKey}
                   />
                 )}
