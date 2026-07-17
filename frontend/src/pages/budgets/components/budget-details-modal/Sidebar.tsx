@@ -4,6 +4,7 @@ import type { BaseBudget, Budget, BudgetUtilization } from '@/api/budgets'
 import { formatCurrency } from '@/utils/formatCurrency'
 import MarqueeText from '@/components/display/MarqueeText'
 import ScrollableListMoreButton from '@/components/list-controls/MoreButton'
+import ArchivedPill from '@/pages/budgets/components/shared/ArchivedPill'
 import BudgetAttentionIcon from '@/pages/budgets/components/shared/AttentionIcon'
 import BudgetFxStatusBadge from '@/pages/budgets/components/shared/FxStatusBadge'
 import { budgetCadenceLabel, formatBudgetPeriod } from '@/pages/budgets/utils/budgetPeriods'
@@ -120,13 +121,17 @@ export default function BudgetDetailsSidebar({
           <h2 className="pr-11 text-2xl font-semibold min-[1050px]:pr-0">
             <MarqueeText active>{baseBudget.name}</MarqueeText>
           </h2>
-          <span
-            className="mt-2 inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-sm font-medium"
-            style={{ background: attention.background, color: attention.textColor }}
-          >
-            <BudgetAttentionIcon label={attention.label} />
-            {attention.label}
-          </span>
+          {baseBudget.is_archived ? (
+            <ArchivedPill className="mt-2" />
+          ) : (
+            <span
+              className="mt-2 inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-sm font-medium"
+              style={{ background: attention.background, color: attention.textColor }}
+            >
+              <BudgetAttentionIcon label={attention.label} />
+              {attention.label}
+            </span>
+          )}
           <p className="mt-2 min-w-0 truncate text-sm" style={{ color: 'var(--app-text-subtle)' }}>
             {budgetCadenceLabel(baseBudget)} · {baseBudget.group_id ? 'Shared' : 'Personal'} · {baseBudget.currency}
           </p>
@@ -148,22 +153,25 @@ export default function BudgetDetailsSidebar({
             />
           </div>
         </div>
+        {/* An archived budget has no live period, so the current-budget figures do not apply */}
         <div className="mt-2 flex items-baseline gap-2 min-[750px]:mt-3">
           <p className="min-w-0 text-3xl font-semibold leading-none tracking-tight min-[750px]:text-4xl">
-            {latestPeriod ? formatCurrency(Math.abs(remaining), baseBudget.currency) : 'Not set'}
+            {baseBudget.is_archived ? 'N/A' : latestPeriod ? formatCurrency(Math.abs(remaining), baseBudget.currency) : 'Not set'}
           </p>
-          {latestPeriod && (
+          {!baseBudget.is_archived && latestPeriod && (
             <span className="shrink-0 text-base font-bold uppercase min-[750px]:text-lg" style={{ color: 'var(--app-text)' }}>
               {isOverBudget ? 'over' : 'left'}
             </span>
           )}
         </div>
         <p className="mt-3 text-sm" style={{ color: 'var(--app-text-muted)' }}>
-          {latestPeriod
-            ? `${formatCurrency(spent, baseBudget.currency)} used of ${formatCurrency(limit, baseBudget.currency)}`
-            : 'No periods have been created yet.'}
+          {!latestPeriod
+            ? 'No periods have been created yet.'
+            : baseBudget.is_archived
+              ? `N/A used of ${formatCurrency(limit, baseBudget.currency)}`
+              : `${formatCurrency(spent, baseBudget.currency)} used of ${formatCurrency(limit, baseBudget.currency)}`}
         </p>
-        {latestPeriod && (
+        {!baseBudget.is_archived && latestPeriod && (
           <div className="mt-4 flex items-center gap-3 min-[750px]:mt-5">
             <div className="h-2 flex-1 rounded-full" style={{ background: 'var(--app-border)' }}>
               <div
@@ -176,12 +184,14 @@ export default function BudgetDetailsSidebar({
             </span>
           </div>
         )}
-        <div className="mt-4 flex justify-between gap-4 border-t pt-3 text-sm min-[750px]:mt-5 min-[750px]:pt-4" style={{ borderColor: 'var(--app-border)' }}>
-          <span style={{ color: 'var(--app-text-subtle)' }}>Current period</span>
-          <span className="text-right" style={{ color: 'var(--app-text-muted)' }}>
-            {latestPeriod ? formatBudgetPeriod(latestPeriod) : 'None'}
-          </span>
-        </div>
+        {!baseBudget.is_archived && (
+          <div className="mt-4 flex justify-between gap-4 border-t pt-3 text-sm min-[750px]:mt-5 min-[750px]:pt-4" style={{ borderColor: 'var(--app-border)' }}>
+            <span style={{ color: 'var(--app-text-subtle)' }}>Current period</span>
+            <span className="text-right" style={{ color: 'var(--app-text-muted)' }}>
+              {latestPeriod ? formatBudgetPeriod(latestPeriod) : 'None'}
+            </span>
+          </div>
+        )}
       </section>
 
       <section className="border-t pt-6 min-[1050px]:flex min-[1050px]:min-h-0 min-[1050px]:flex-1 min-[1050px]:flex-col" style={{ borderColor: 'var(--app-border)' }}>
