@@ -366,6 +366,74 @@ describe('budget details helpers', () => {
     expect(chartData.every((point) => !point.archived)).toBe(true)
   })
 
+  it('labels weekly budget periods with their ISO week number', () => {
+    const weeklyBudget = createBaseBudget({
+      recurrence_freq: 'weekly',
+      recurrence_dom: null,
+      recurrence_weekday: 0,
+    })
+    const first = createBudget({ id: 'w16', period_start: '2026-04-13', period_end: '2026-04-19' })
+    const second = createBudget({ id: 'w17', period_start: '2026-04-20', period_end: '2026-04-26' })
+    const sortedPeriods = getSortedBudgetPeriods([first, second])
+
+    const chartData = getBudgetDetailsChartData({
+      sortedPeriods,
+      utilizationByBudgetId: new Map(),
+      chartCategories: [],
+      baseBudget: weeklyBudget,
+      today: '2026-04-25',
+    })
+
+    expect(chartData.map((point) => point.axisLabel)).toEqual(['W16', 'W17'])
+    expect(chartData.every((point) => !point.hasYearAxisLabel)).toBe(true)
+  })
+
+  it('suffixes the first ISO week of the year with the two-digit year', () => {
+    const weeklyBudget = createBaseBudget({
+      recurrence_freq: 'weekly',
+      recurrence_dom: null,
+      recurrence_weekday: 0,
+    })
+
+    // The Monday of ISO week 1 of 2026 falls on 2025-12-29, so it labels as W1 '26 despite the calendar year
+    const weekOne = createBudget({ id: 'w1', period_start: '2025-12-29', period_end: '2026-01-04' })
+    const weekTwo = createBudget({ id: 'w2', period_start: '2026-01-05', period_end: '2026-01-11' })
+    const sortedPeriods = getSortedBudgetPeriods([weekOne, weekTwo])
+
+    const chartData = getBudgetDetailsChartData({
+      sortedPeriods,
+      utilizationByBudgetId: new Map(),
+      chartCategories: [],
+      baseBudget: weeklyBudget,
+      today: '2026-01-10',
+    })
+
+    expect(chartData.map((point) => point.axisLabel)).toEqual(["W1 '26", 'W2'])
+    expect(chartData.map((point) => point.hasYearAxisLabel)).toEqual([true, false])
+  })
+
+  it('labels yearly budget periods with the four-digit year', () => {
+    const yearlyBudget = createBaseBudget({
+      recurrence_freq: 'yearly',
+      recurrence_dom: 1,
+      recurrence_month: 1,
+    })
+    const first = createBudget({ id: 'y2025', period_start: '2025-01-01', period_end: '2025-12-31' })
+    const second = createBudget({ id: 'y2026', period_start: '2026-01-01', period_end: '2026-12-31' })
+    const sortedPeriods = getSortedBudgetPeriods([first, second])
+
+    const chartData = getBudgetDetailsChartData({
+      sortedPeriods,
+      utilizationByBudgetId: new Map(),
+      chartCategories: [],
+      baseBudget: yearlyBudget,
+      today: '2026-06-15',
+    })
+
+    expect(chartData.map((point) => point.axisLabel)).toEqual(['2025', '2026'])
+    expect(chartData.every((point) => !point.hasYearAxisLabel)).toBe(true)
+  })
+
   it('sums the shown category percentages as the stacked bar top, ignoring the stored total', () => {
     const categories = [
       { id: 'groceries', name: 'Groceries', kind: 'expense' as const, dataKey: 'categoryPct0', color: '#5D8F6D' },
