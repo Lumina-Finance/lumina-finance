@@ -10,7 +10,6 @@ import {
   FireflyCategoryMatchingStep,
   FireflyFilesStep,
   FireflyPreviewStep,
-  FireflyResultsStep,
 } from './firefly/sections'
 import { useTransactionImportWorkflow } from './hooks'
 import {
@@ -48,10 +47,6 @@ export default function ImportsPage() {
 
   const handleDone = () => {
     navigate('/')
-  }
-  const handleContinueImporting = () => {
-    workflow.resetImportWorkflow()
-    navigate('/settings/imports', { replace: true })
   }
 
   return (
@@ -124,7 +119,6 @@ export default function ImportsPage() {
                       <FireflyCategoryMatchingStep {...fireflyWorkflow} />
                       <FireflyBudgetImportStep {...fireflyWorkflow} />
                       <FireflyPreviewStep {...fireflyWorkflow} />
-                      <FireflyResultsStep {...fireflyWorkflow} />
                     </>
                   ) : (
                     <>
@@ -175,10 +169,7 @@ export default function ImportsPage() {
           summary={fireflyWorkflow.importSummary}
           error={fireflyWorkflow.importOverlayError}
           onDone={handleDone}
-          onContinueImporting={fireflyWorkflow.closeImportOverlay}
           onReturnToImport={fireflyWorkflow.closeImportOverlay}
-          continueLabel="Review results"
-          primaryAction="continue"
         />
       ) : (
         <ImportProgressOverlay
@@ -186,7 +177,6 @@ export default function ImportsPage() {
           summary={workflow.importSummary}
           error={workflow.importError}
           onDone={handleDone}
-          onContinueImporting={handleContinueImporting}
           onReturnToImport={workflow.dismissImportOverlay}
         />
       )}
