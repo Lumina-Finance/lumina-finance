@@ -17,7 +17,8 @@ export function NavigationVersionIndicator() {
   return (
     <div className="app-nav-version mt-2 text-center" aria-label={currentVersionLabel}>
       <p className="m-0 truncate text-center text-xs font-normal" style={{ color: 'var(--app-text-subtle)' }}>
-        <span className="app-nav-version-name">Lumina Finance </span>
+        {/* Non-breaking space needed because the inline-block span trims a collapsible trailing space */}
+        <span className="app-nav-version-name">Lumina Finance&nbsp;</span>
         <span className="app-nav-version-number">{versionNumber}</span>
       </p>
       {updateNotice && (
