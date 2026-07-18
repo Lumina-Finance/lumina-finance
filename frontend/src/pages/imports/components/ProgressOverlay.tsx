@@ -23,7 +23,6 @@ const STEP_STATUS_COLOUR: Record<ImportProgressStepStatus, string> = {
   queued: OVERLAY_MUTED_TEXT,
 }
 
-const STEP_QUEUED_SCALE = 0.85
 const STEP_TRAVEL_DURATION = 0.28
 
 /**
@@ -267,9 +266,9 @@ export function ImportProgressOverlay({
  * Lists the stages of a multi-stage import as an observation wheel, with the
  * one in progress at full strength in the top seat
  *
- * A stage that has just landed is struck off where it stands, then rides up and
- * out as the queued stage below grows into the seat it left, so a handover
- * reads as the wheel turning a single position
+ * A stage that has just landed is struck off where it stands, then fades away
+ * in place as the queued stage below moves up into the seat it left, so a
+ * handover reads as the wheel turning a single position
  *
  * The caller decides how long a struck-off stage stays by holding it in the
  * list, and drops it to send it on its way
@@ -280,7 +279,6 @@ export function ImportProgressOverlay({
  */
 function ImportProgressSteps({ steps }: { steps: ImportProgressStep[] }) {
   const shouldReduceMotion = useReducedMotion()
-  const queuedScale = shouldReduceMotion ? 1 : STEP_QUEUED_SCALE
   const stepMotion = shouldReduceMotion
     ? {
       initial: { opacity: 0 },
@@ -291,7 +289,7 @@ function ImportProgressSteps({ steps }: { steps: ImportProgressStep[] }) {
     : {
       initial: { opacity: 0, y: 8, filter: 'blur(3px)' },
       animate: { opacity: 1, y: 0, filter: 'blur(0px)' },
-      exit: { opacity: 0, y: -8, filter: 'blur(3px)' },
+      exit: { opacity: 0 },
       transition: { duration: STEP_TRAVEL_DURATION, ease: OVERLAY_EASE },
     }
 
@@ -310,13 +308,7 @@ function ImportProgressSteps({ steps }: { steps: ImportProgressStep[] }) {
             exit={stepMotion.exit}
             transition={stepMotion.transition}
           >
-            {/* Scale rides on an inner element so the seat keeps its measured height and the layout travel stays undistorted */}
-            <motion.span
-              className="flex items-center"
-              initial={false}
-              animate={{ scale: step.status === 'queued' ? queuedScale : 1 }}
-              transition={stepMotion.transition}
-            >
+            <span className="flex items-center">
               <span className="relative">
                 {step.label}
                 {step.status === 'done' && (
@@ -331,7 +323,7 @@ function ImportProgressSteps({ steps }: { steps: ImportProgressStep[] }) {
                 )}
               </span>
               {step.status !== 'queued' && <ImportProgressStepEllipsis />}
-            </motion.span>
+            </span>
           </motion.li>
         ))}
       </AnimatePresence>
