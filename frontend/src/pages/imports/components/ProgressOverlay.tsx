@@ -35,10 +35,11 @@ const STEP_TRAVEL_DURATION = 0.28
 const STEP_STRIKE_DURATION = 0.42
 
 const STEP_DOT_STAGGER_SECONDS = 0.12
-const STEP_DOT_PULSE_SECONDS = 0.9
+const STEP_DOT_JUMP_SECONDS = 0.45
+const STEP_DOT_JUMP_HEIGHT_PX = -4
 
-/** Where the pulse rests the dots, dim enough to read as trailing off but never as a gap in the text */
-const STEP_DOT_DIM_OPACITY = 0.35
+/** Pause between hops so the wave reads as a cycle rather than a constant bounce */
+const STEP_DOT_REPEAT_DELAY_SECONDS = 0.4
 
 const STEP_DOT_SEATS = [0, 1, 2]
 
@@ -328,7 +329,7 @@ function ImportProgressSteps({ steps }: { steps: ImportProgressStep[] }) {
 }
 
 /**
- * Trails the stage in progress with three dots that pulse in sequence
+ * Trails the stage in progress with three dots that hop in sequence
  *
  * The dots only say that the stage is still running, so they stay out of the
  * accessibility tree and the label alone is announced
@@ -337,22 +338,23 @@ function ImportProgressStepEllipsis() {
   const shouldReduceMotion = useReducedMotion()
 
   return (
-    <span className="ml-1.5 flex items-center gap-1" aria-hidden>
+    <span className="ml-1.5 flex items-center gap-1 self-end pb-[5px]" aria-hidden>
       {STEP_DOT_SEATS.map((seat) => (
-        // The mount animation carries the repeating pulse, so initial cannot be
+        // The mount animation carries the repeating hop, so initial cannot be
         // waived here or the dots would hold at the opening keyframe forever
         <motion.span
           key={seat}
-          className="h-1 w-1 rounded-full"
+          className="h-[3px] w-[3px] rounded-full"
           style={{ background: 'currentColor' }}
-          animate={shouldReduceMotion ? { opacity: 1 } : { opacity: [STEP_DOT_DIM_OPACITY, 1, STEP_DOT_DIM_OPACITY] }}
+          animate={shouldReduceMotion ? { y: 0 } : { y: [0, STEP_DOT_JUMP_HEIGHT_PX, 0] }}
           transition={shouldReduceMotion
             ? { duration: 0 }
             : {
               delay: seat * STEP_DOT_STAGGER_SECONDS,
-              duration: STEP_DOT_PULSE_SECONDS,
+              duration: STEP_DOT_JUMP_SECONDS,
               ease: 'easeInOut',
               repeat: Infinity,
+              repeatDelay: STEP_DOT_REPEAT_DELAY_SECONDS,
             }}
         />
       ))}
