@@ -1,4 +1,5 @@
 import type { AccountType } from '@/api/accounts'
+import { STEP_DOT_WAVE_MS } from '../components'
 import type { FireflyImportStage } from './types'
 
 /**
@@ -152,9 +153,10 @@ export const FIREFLY_IMPORT_STAGES: { id: FireflyImportStage; label: string }[] 
  * How long one commit stage holds the overlay before the next one takes over
  *
  * Both stages can finish faster than the transition between them reads, so
- * without a floor the budget stage would flash past unseen
+ * without a floor the budget stage would flash past unseen. The floor is
+ * pinned to one full dot wave so a stage is never struck off mid-cycle
  */
-export const FIREFLY_IMPORT_STAGE_MIN_MS = 800
+export const FIREFLY_IMPORT_STAGE_MIN_MS = STEP_DOT_WAVE_MS
 
 /**
  * How long a finished commit stage stays on the overlay struck off before the

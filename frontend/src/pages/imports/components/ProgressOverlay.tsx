@@ -43,6 +43,17 @@ const STEP_DOT_REPEAT_DELAY_SECONDS = 0.4
 
 const STEP_DOT_SEATS = [0, 1, 2]
 
+/**
+ * Length of one full dot wave in milliseconds, from the last dot's stagger
+ * through its hop and the rest that follows
+ *
+ * Stage floors elsewhere key off this so a stage is never struck off before
+ * its dots finish a full cycle
+ */
+export const STEP_DOT_WAVE_MS =
+  ((STEP_DOT_SEATS.length - 1) * STEP_DOT_STAGGER_SECONDS + STEP_DOT_JUMP_SECONDS + STEP_DOT_REPEAT_DELAY_SECONDS) *
+  1000
+
 const contentVariants: Variants = {
   hidden: { opacity: 0, y: 16, filter: 'blur(5px)' },
   visible: {
