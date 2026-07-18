@@ -67,6 +67,11 @@ export interface FireflyBudgetImportBudget {
   currency: string;
   category_ids: string[];
   limits: FireflyBudgetImportLimit[];
+
+  /**
+   * An archived budget arrives with its history frozen and stays out of the active budget list
+   */
+  is_archived: boolean;
 }
 
 export interface FireflyBudgetImportPayload {

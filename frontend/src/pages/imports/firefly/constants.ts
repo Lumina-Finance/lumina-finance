@@ -35,8 +35,8 @@ export const FIREFLY_BUDGETS_REQUIRED_HEADERS = [
 
 /**
  * Value the budgets export carries for a budget that is not archived, with
- * anything else read as archived so a value we do not recognise leaves the
- * budget visibly skipped rather than quietly imported
+ * anything else read as archived so a value we do not recognise imports the
+ * budget archived rather than active, the safer of the two directions
  */
 export const FIREFLY_BUDGET_ACTIVE_VALUE = '1'
 
@@ -50,15 +50,6 @@ export const FIREFLY_BUDGET_ACTIVE_VALUE = '1'
 export const FIREFLY_TAG_NAME_MAX_LENGTH = 64
 
 export const FIREFLY_TAG_TOO_LONG_REASON = 'Tag name is too long'
-
-/**
- * Why an archived budget is listed but never imported
- *
- * Lumina Finance has no archived budgets, so importing one would raise a budget
- * the user retired. The reason stops at what is true today rather than hinting
- * at support that is not committed to
- */
-export const FIREFLY_BUDGET_ARCHIVED_REASON = 'Archived in Firefly III, which Lumina Finance does not support'
 
 /**
  * Why a budget no transaction references is never imported, since its tracked
@@ -93,9 +84,9 @@ export const FIREFLY_BUDGET_MIXED_CURRENCIES_REASON = 'Its limit periods mix mor
  * Why a budget repeating on a period length no Lumina Finance cadence can
  * express is never imported
  *
- * Its history would arrive intact, but the budget could never continue on its
- * own rhythm here, which is the same distortion an archived budget would
- * suffer, so it is skipped rather than imported frozen
+ * A live budget repeating on a shape no Lumina Finance cadence expresses
+ * could never continue on its own rhythm here, so it is skipped rather than
+ * imported on a wrong cadence
  */
 export const FIREFLY_BUDGET_UNSUPPORTED_CADENCE_REASON = 'Repeats on a period length Lumina Finance budgets do not support'
 

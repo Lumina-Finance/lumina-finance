@@ -1,6 +1,7 @@
 import type { BaseBudget, Budget, BudgetUtilization } from '@/api/budgets'
 import { formatCurrency } from '@/utils/formatCurrency'
 import BudgetCategoryRow from '@/pages/budgets/components/budget-card/CategoryRow'
+import ArchivedPill from '@/pages/budgets/components/shared/ArchivedPill'
 import BudgetAttentionIcon from '@/pages/budgets/components/shared/AttentionIcon'
 import BudgetFxStatusBadge from '@/pages/budgets/components/shared/FxStatusBadge'
 import { budgetCadenceLabel, formatBudgetPeriod, nextBudgetPeriods } from '@/pages/budgets/utils/budgetPeriods'
@@ -37,8 +38,8 @@ export default function BudgetCard({
 
   return (
     <article
-      className={`app-card app-budget-card flex min-h-[21.5rem] w-full min-w-0 cursor-pointer flex-col transition-transform duration-150 hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-[var(--app-accent-soft)] ${
-        isArchived ? 'opacity-80 transition-opacity hover:opacity-100' : ''
+      className={`app-card app-budget-card flex w-full min-w-0 cursor-pointer flex-col transition-transform duration-150 hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-[var(--app-accent-soft)] ${
+        isArchived ? 'opacity-80 transition-opacity hover:opacity-100' : 'min-h-[21.5rem]'
       }`}
       style={{
         borderTop: `5px solid ${isArchived ? 'var(--app-text-muted)' : attention.indicatorColor}`,
@@ -69,38 +70,45 @@ export default function BudgetCard({
             {budgetCadenceLabel(baseBudget)} · {baseBudget.group_id ? 'Shared' : 'Personal'} · {baseBudget.currency}
           </p>
         </div>
-        <span
-          className="inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-0.5 text-sm font-medium"
-          style={{ background: attention.background, color: attention.textColor }}
-        >
-          <BudgetAttentionIcon label={attention.label} />
-          {attention.label}
-        </span>
+        {isArchived ? (
+          <ArchivedPill />
+        ) : (
+          <span
+            className="inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-0.5 text-sm font-medium"
+            style={{ background: attention.background, color: attention.textColor }}
+          >
+            <BudgetAttentionIcon label={attention.label} />
+            {attention.label}
+          </span>
+        )}
       </div>
 
-      <div className="mt-5">
-        <div className="app-budget-card-summary">
-          <p className="flex min-w-0 items-baseline gap-2 text-3xl font-semibold tracking-tight" style={{ color: 'var(--app-text)' }}>
-            <span className="truncate">{latestPeriod ? formatCurrency(displayBalance, baseBudget.currency) : 'Not set'}</span>
-            {latestPeriod && (
-              <span className="shrink-0 text-lg font-bold uppercase">
-                {isOverBudget ? 'over' : 'left'}
-              </span>
-            )}
-          </p>
-          <p className="app-budget-card-used text-sm" style={{ color: 'var(--app-text-subtle)' }}>
-            {latestPeriod
-              ? `${formatCurrency(spent, baseBudget.currency)} used of ${formatCurrency(latestPeriod.overall_limit, baseBudget.currency)}`
-              : 'Create a period to start tracking spending.'}
-          </p>
+      {/* An archived budget no longer tracks a live period, so an over or left reading would be stale noise */}
+      {!isArchived && (
+        <div className="mt-5">
+          <div className="app-budget-card-summary">
+            <p className="flex min-w-0 items-baseline gap-2 text-3xl font-semibold tracking-tight" style={{ color: 'var(--app-text)' }}>
+              <span className="truncate">{latestPeriod ? formatCurrency(displayBalance, baseBudget.currency) : 'Not set'}</span>
+              {latestPeriod && (
+                <span className="shrink-0 text-lg font-bold uppercase">
+                  {isOverBudget ? 'over' : 'left'}
+                </span>
+              )}
+            </p>
+            <p className="app-budget-card-used text-sm" style={{ color: 'var(--app-text-subtle)' }}>
+              {latestPeriod
+                ? `${formatCurrency(spent, baseBudget.currency)} used of ${formatCurrency(latestPeriod.overall_limit, baseBudget.currency)}`
+                : 'Create a period to start tracking spending.'}
+            </p>
+          </div>
+          <div className="mt-3 h-2 rounded-full" style={{ background: 'var(--app-border)' }}>
+            <div
+              className="h-full rounded-full"
+              style={{ width: `${progress}%`, background: attention.indicatorColor }}
+            />
+          </div>
         </div>
-        <div className="mt-3 h-2 rounded-full" style={{ background: 'var(--app-border)' }}>
-          <div
-            className="h-full rounded-full"
-            style={{ width: `${progress}%`, background: attention.indicatorColor }}
-          />
-        </div>
-      </div>
+      )}
 
       <div className="app-budget-card-details mt-5">
         <div className="app-budget-card-periods min-w-0">

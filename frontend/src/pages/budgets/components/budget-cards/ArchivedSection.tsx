@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { ChevronDown, EyeOff } from 'lucide-react'
 import { motion, useReducedMotion } from 'motion/react'
 import type { BudgetUtilization } from '@/api/budgets'
@@ -34,7 +34,7 @@ type BudgetArchivedSectionProps = {
 }
 
 /**
- * Renders archived budgets behind a collapsible section and scrolls the expanded grid into view
+ * Renders archived budgets behind a collapsible section and scrolls the grid into view once it finishes expanding
  *
  * The caller mounts this inside AnimatePresence, so its own appearance easing plays when the first budget
  * is archived and its exit easing plays when the last budget is unarchived
@@ -48,19 +48,6 @@ export default function BudgetArchivedSection({
   const [cardsMounted, setCardsMounted] = useState(false)
   const sectionRef = useRef<HTMLElement>(null)
   const prefersReducedMotion = useReducedMotion()
-
-  useEffect(() => {
-    if (!expanded) return
-
-    const animationFrameId = window.requestAnimationFrame(() => {
-      const section = sectionRef.current
-      if (!section) return
-
-      scrollArchivedBudgetsIntoView(section, prefersReducedMotion)
-    })
-
-    return () => window.cancelAnimationFrame(animationFrameId)
-  }, [expanded, prefersReducedMotion])
 
   /**
    * Toggles archived cards while keeping closing cards mounted until their height animation finishes
@@ -76,10 +63,20 @@ export default function BudgetArchivedSection({
   }
 
   /**
-   * Removes collapsed cards after their closing height animation finishes
+   * Scrolls the archived grid into view once its expand animation finishes, since only then does the
+   * page height reflect the expanded layout and let the scroll clamp land on the real bottom
+   *
+   * Removes collapsed cards once the collapse animation finishes instead, so their closing height
+   * transition can play before they unmount
    */
-  function handleCollapseComplete() {
-    if (expanded) return
+  function handleExpansionAnimationComplete() {
+    if (expanded) {
+      const section = sectionRef.current
+      if (!section) return
+
+      scrollArchivedBudgetsIntoView(section, prefersReducedMotion)
+      return
+    }
 
     setCardsMounted(false)
   }
@@ -134,7 +131,7 @@ export default function BudgetArchivedSection({
         }}
         aria-hidden={!expanded}
         inert={!expanded}
-        onAnimationComplete={handleCollapseComplete}
+        onAnimationComplete={handleExpansionAnimationComplete}
       >
         {cardsMounted && (
           <div className="min-h-0 overflow-hidden pt-1">

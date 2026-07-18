@@ -107,6 +107,7 @@ async def _create_imported_budget(
         group_id=None,
         name=budget.name.strip(),
         currency=budget.currency.upper(),
+        is_archived=budget.is_archived,
         **_cadence_from_latest_period(limit_periods),
     )
     db.add(base_budget)

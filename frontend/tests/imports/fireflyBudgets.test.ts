@@ -5,7 +5,6 @@ import { describe, expect, it } from 'vitest'
 import type { CsvRow, ImportFileDraft } from '@/pages/imports/types'
 import type { FireflyBudgetDraft } from '@/pages/imports/firefly/types'
 import {
-  FIREFLY_BUDGET_ARCHIVED_REASON,
   FIREFLY_BUDGET_MIXED_CURRENCIES_REASON,
   FIREFLY_BUDGET_NO_CATEGORIES_REASON,
   FIREFLY_BUDGET_NO_LIMITS_REASON,
@@ -65,7 +64,7 @@ function createTransactionRow(overrides: Partial<CsvRow> = {}): CsvRow {
 }
 
 describe('buildFireflyBudgetDrafts', () => {
-  it('disables an archived budget even when it is otherwise importable', () => {
+  it('imports an archived budget as importable, with the flag carried on the draft', () => {
     const budgetsFile = createBudgetsFile([createLimitRow({ active: '0' })])
 
     const [draft] = buildFireflyBudgetDrafts({
@@ -74,7 +73,7 @@ describe('buildFireflyBudgetDrafts', () => {
     })
 
     expect(draft.isArchived).toBe(true)
-    expect(draft.disabledReason).toBe(FIREFLY_BUDGET_ARCHIVED_REASON)
+    expect(draft.disabledReason).toBeNull()
   })
 
   it('reads the archived flag off any of a budget\'s limit rows', () => {
@@ -90,12 +89,12 @@ describe('buildFireflyBudgetDrafts', () => {
     })
 
     const byName = Object.fromEntries(drafts.map((draft) => [draft.name, draft]))
-    expect(byName['Home Office'].disabledReason).toBe(FIREFLY_BUDGET_ARCHIVED_REASON)
-    expect(byName.Groceries.disabledReason).toBeNull()
+    expect(byName['Home Office'].isArchived).toBe(true)
+    expect(byName.Groceries.isArchived).toBe(false)
   })
 
-  // An unrecognised flag leaves the budget visibly skipped rather than
-  // silently importing a budget the user may have retired
+  // An unrecognised flag reads as archived rather than silently importing a
+  // budget the user may have retired as if it were still active
   it('treats an unrecognised active value as archived', () => {
     const budgetsFile = createBudgetsFile([createLimitRow({ active: '' })])
 
@@ -104,7 +103,21 @@ describe('buildFireflyBudgetDrafts', () => {
       transactionRows: [createTransactionRow()],
     })
 
-    expect(draft.disabledReason).toBe(FIREFLY_BUDGET_ARCHIVED_REASON)
+    expect(draft.isArchived).toBe(true)
+  })
+
+  // Being archived no longer settles a budget on its own, so it must still
+  // fall through to another skip reason when one applies
+  it('skips an archived budget for another reason when one applies', () => {
+    const budgetsFile = createBudgetsFile([createLimitRow({ active: '0' })])
+
+    const [draft] = buildFireflyBudgetDrafts({
+      budgetsFile,
+      transactionRows: [],
+    })
+
+    expect(draft.isArchived).toBe(true)
+    expect(draft.disabledReason).toBe(FIREFLY_BUDGET_NO_TRANSACTIONS_REASON)
   })
 
   it('derives a sorted limit period schedule and displays the latest amount', () => {
@@ -389,7 +402,14 @@ describe('buildFireflyBudgetImportBudgets', () => {
       currency: 'CAD',
       category_ids: ['category-food', 'category-restaurants'],
       limits: [{ start: '2024-01-01', end: '2024-01-31', amount: '600.00' }],
+      is_archived: false,
     })
+  })
+
+  it('carries the archived flag into the payload', () => {
+    const [budget] = buildFireflyBudgetImportBudgets([createDraft({ isArchived: true })], {})
+
+    expect(budget.is_archived).toBe(true)
   })
 
   it('drops a category name the commit response does not report', () => {

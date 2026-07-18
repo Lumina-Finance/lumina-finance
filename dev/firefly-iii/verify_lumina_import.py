@@ -6,8 +6,9 @@ into Lumina Finance through the app:
 - Firefly III account balances, budget limit periods, archived flags,
   categories, and tags from its API against the manifest
 - Lumina account balances and transaction rows against the manifest
-- Lumina imported budgets against the manifest cadence and limit periods,
-  including that every budget the manifest marks as skipped stayed out
+- Lumina imported budgets against the manifest cadence, archived flag, and
+  limit periods, including that every budget the manifest marks as skipped
+  stayed out
 
 Lumina reads use the app API for balances and budgets plus direct SQL for
 row-count aggregates. Run with the backend virtual environment so asyncpg is
@@ -317,8 +318,8 @@ def verify_lumina_budgets(manifest: dict, token: str) -> None:
     """Compare imported budgets and their periods with the manifest
 
     Budgets the manifest marks as skipped must be absent, and every imported
-    budget must carry the expected cadence and one period per exported limit
-    with the same dates and amount
+    budget must carry the expected archived flag, cadence, and one period per
+    exported limit with the same dates and amount
     """
     print("Lumina budgets vs manifest")
     base_budgets = {budget["name"]: budget for budget in fetch_lumina("/base-budgets", token)}
@@ -338,6 +339,8 @@ def verify_lumina_budgets(manifest: dict, token: str) -> None:
             continue
 
         check(f"budget currency {name}", expected["currencies"][0], base["currency"])
+
+        check(f"budget archived {name}", expected["import"]["is_archived"], base["is_archived"])
 
         # The cadence is read off the latest limit period on import, so every
         # recurrence field has to match what the seed declared for the shape

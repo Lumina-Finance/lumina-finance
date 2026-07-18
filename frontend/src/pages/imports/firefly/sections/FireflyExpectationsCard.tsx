@@ -36,6 +36,10 @@ const CONVERTED_MAPPINGS: ConceptMapping[] = [
     firefly: 'Budget limit periods, whatever their length',
     lumina: 'One budget period each, with the original dates and amounts, continuing on the cadence of the latest period, or as a one-off when no cadence fits',
   },
+  {
+    firefly: 'A budget you archived',
+    lumina: 'An archived budget here too, keeping every limit period it ever ran',
+  },
 ]
 
 /**
@@ -58,7 +62,6 @@ const LEFT_BEHIND: { group: string; items: string[] }[] = [
   {
     group: 'Budgets that are',
     items: [
-      'Archived in Firefly III',
       'Repeating on period lengths Lumina Finance has no cadence for',
       'Mixing more than one currency across their limit periods',
     ],

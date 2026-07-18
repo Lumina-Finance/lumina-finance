@@ -566,9 +566,10 @@ def fixed_length_limit_rows(first: date, length_days: int,
 
 
 def imported_as(freq: str, *, length: int = 1, weekday: int | None = None,
-                dom: int | None = None, month: int | None = None, recurs: bool = True) -> dict:
+                dom: int | None = None, month: int | None = None, recurs: bool = True,
+                archived: bool = False) -> dict:
     """Describe the Lumina cadence an imported budget is expected to carry"""
-    return {"outcome": "imported", "cadence": {
+    return {"outcome": "imported", "is_archived": archived, "cadence": {
         "recurrence_freq": freq, "instance_length": length, "recurrence_weekday": weekday,
         "recurrence_dom": dom, "recurrence_month": month, "recurs": recurs,
     }}
@@ -604,8 +605,9 @@ TRAVEL_LIMIT_SCHEDULE = [
 #
 # The expected import outcome rides along for the verify tooling: budgets
 # whose latest period fits a Lumina cadence import with that cadence, a lone
-# irregular window imports as a one-off, and archived, transaction-less,
-# mixed-currency, and oddly recurring budgets are skipped with a reason code
+# irregular window imports as a one-off, archived budgets import as archived
+# base budgets, and transaction-less, mixed-currency, and oddly recurring
+# budgets are skipped with a reason code
 BUDGET_DEFINITIONS = {
 
     # Groceries carried transactions for a month before its first limit, so
@@ -725,17 +727,24 @@ BUDGET_DEFINITIONS = {
                     "amount": "3500.00", "currency": "CAD"}],
         "import": imported_as("monthly", dom=1, recurs=False),
     },
+
+    # Its limits are whole calendar months anchored on day 1, so the cadence
+    # reads monthly dom 1 with recurs True
     "Home Office": {
         "active": False,
         "limits": month_limit_rows(date(2021, 1, 1), 1, [(date(2021, 1, 1), "280.00")],
                                    last=date(2021, 12, 1)),
-        "import": skipped_as("archived"),
+        "import": imported_as("monthly", dom=1, archived=True),
     },
+
+    # Its one limit window spans two whole calendar months anchored on day 1,
+    # so the cadence reads monthly with length 2 and recurs True even though
+    # the budget arrives archived
     "Apartment Furnishing": {
         "active": False,
         "limits": [{"start": APARTMENT_MOVE_DATE, "end": date(2023, 9, 30),
                     "amount": "1800.00", "currency": "CAD"}],
-        "import": skipped_as("archived"),
+        "import": imported_as("monthly", length=2, dom=1, archived=True),
     },
 
     # Created with limits but never assigned a transaction, so there is
