@@ -3,13 +3,12 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import type { Variants } from 'motion/react'
 import type { ImportOverlayPhase, ImportProgressStep, ImportProgressStepStatus } from '../types'
 
-const OVERLAY_BACKGROUND = '#0F0E0C'
-const OVERLAY_TEXT = '#F2EDE4'
-const OVERLAY_MUTED_TEXT = 'rgba(242, 237, 228, 0.72)'
-const OVERLAY_ACCENT = '#D2B478'
-const OVERLAY_SUCCESS = '#6CA07B'
-const OVERLAY_SUCCESS_TEXT = '#9CC6A8'
-const OVERLAY_ERROR = '#D76C61'
+const OVERLAY_BACKGROUND = 'var(--app-bg)'
+const OVERLAY_TEXT = 'var(--app-text)'
+const OVERLAY_MUTED_TEXT = 'var(--app-text-muted)'
+const OVERLAY_ACCENT = 'var(--app-accent)'
+const OVERLAY_SUCCESS = 'var(--app-positive)'
+const OVERLAY_ERROR = 'var(--app-negative)'
 const OVERLAY_EASE: [number, number, number, number] = [0.25, 0.1, 0.25, 1]
 const OVERLAY_SPRING_EASE: [number, number, number, number] = [0.16, 1, 0.3, 1]
 const overlayButtonClass = 'h-10 w-full box-border whitespace-nowrap leading-none sm:w-auto'
@@ -130,7 +129,7 @@ export function ImportProgressOverlay({
       : 'Your staged import is being written to the ledger.'
   const messageStyle = complete
     ? {
-        color: OVERLAY_SUCCESS_TEXT,
+        color: OVERLAY_SUCCESS,
         maxWidth: 'calc(100vw - 2.5rem)',
         overflow: 'hidden',
         textOverflow: 'ellipsis',
@@ -263,8 +262,9 @@ export function ImportProgressOverlay({
  * The caller decides how long a struck-off stage stays by holding it in the
  * list, and drops it to send it on its way
  *
- * The overlay sits on its own dark background in both themes, so the stages use
- * the overlay palette rather than the app text variables
+ * The stages read colour off the overlay palette constants rather than the
+ * app text variables directly, since those constants already resolve to the
+ * matching theme variables and carry the accent used for a landed stage
  */
 function ImportProgressSteps({ steps }: { steps: ImportProgressStep[] }) {
   const shouldReduceMotion = useReducedMotion()
