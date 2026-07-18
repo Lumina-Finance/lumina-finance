@@ -92,16 +92,10 @@ const iconVariants: Variants = {
 }
 
 interface ImportProgressOverlayProps {
-  /** Label for the continue success action, kept overridable for flows that return to the page */
-  continueLabel?: string
   error: string | null
-  onContinueImporting: () => void
   onDone: () => void
   onReturnToImport: () => void
   phase: ImportOverlayPhase
-
-  /** Which success action carries the primary emphasis, so flows with results to review can lead with them */
-  primaryAction?: 'done' | 'continue'
 
   /** Stages of a multi-stage import, listed while it runs; single-stage flows leave this unset */
   steps?: ImportProgressStep[]
@@ -109,13 +103,10 @@ interface ImportProgressOverlayProps {
 }
 
 export function ImportProgressOverlay({
-  continueLabel = 'Continue importing',
   error,
-  onContinueImporting,
   onDone,
   onReturnToImport,
   phase,
-  primaryAction = 'done',
   steps,
   summary,
 }: ImportProgressOverlayProps) {
@@ -234,14 +225,7 @@ export function ImportProgressOverlay({
                   >
                     <button
                       type="button"
-                      className={`${primaryAction === 'continue' ? 'app-primary-button' : 'app-secondary-button'} ${overlayButtonClass} sm:min-w-[11rem]`}
-                      onClick={onContinueImporting}
-                    >
-                      {continueLabel}
-                    </button>
-                    <button
-                      type="button"
-                      className={`${primaryAction === 'done' ? 'app-primary-button' : 'app-secondary-button'} ${overlayButtonClass} sm:min-w-[7rem]`}
+                      className={`app-primary-button ${overlayButtonClass} sm:min-w-[7rem]`}
                       onClick={onDone}
                     >
                       Done

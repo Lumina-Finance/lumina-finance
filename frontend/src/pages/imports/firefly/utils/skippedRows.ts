@@ -1,4 +1,3 @@
-import type { FireflySkippedRow } from '@/api/fireflyImports'
 import type { CsvRow } from '../../types'
 import { FIREFLY_MISSING_REQUIRED_VALUES_REASON, FIREFLY_TAG_TOO_LONG_REASON } from '../constants'
 import { getFireflyMissingRequiredFields, getFireflyOverlongTag } from './derivation'
@@ -90,38 +89,6 @@ export function forecastFireflyImport(
   }
 
   return { rowCount, transactionEstimate, skippedRows }
-}
-
-/**
- * Joins the backend skip entries back to the parsed export rows by journal
- * id so the results table can show the file line numbers and raw cells,
- * falling back to the id and reason when a journal id is not found
- */
-export function enrichFireflySkippedRows(
-  skipped: FireflySkippedRow[],
-  rows: CsvRow[],
-): FireflySkippedRowDetail[] {
-  // The row position is needed alongside the row itself to derive the line
-  // number in the uploaded file, so the join keeps the index per journal id
-  const rowIndexByJournalId = new Map<string, number>()
-  for (const [index, row] of rows.entries()) {
-    const journalId = row.journal_id?.trim()
-    if (journalId && !rowIndexByJournalId.has(journalId)) rowIndexByJournalId.set(journalId, index)
-  }
-
-  return skipped.map((entry) => {
-    const index = rowIndexByJournalId.get(entry.journal_id)
-    if (index === undefined) {
-      return {
-        journalId: entry.journal_id,
-        rowNumber: null,
-        cells: null,
-        reason: entry.reason,
-        droppedBeforeUpload: false,
-      }
-    }
-    return buildFireflySkippedRowDetail(rows[index], index, entry.reason)
-  })
 }
 
 /**

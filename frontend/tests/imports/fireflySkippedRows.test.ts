@@ -1,5 +1,5 @@
 /**
- * Tests Firefly III skipped-row prediction and result enrichment so both the preview and results steps list unconvertible rows with the reasons the backend reports
+ * Tests Firefly III skipped-row prediction so the preview step lists unconvertible rows with the reasons the backend reports
  */
 import { describe, expect, it } from 'vitest'
 import type { AccountsOverview } from '@/api/accounts'
@@ -7,7 +7,6 @@ import type { Category } from '@/api/categories'
 import type { CsvRow } from '@/pages/imports/types'
 import {
   forecastFireflyImport,
-  enrichFireflySkippedRows,
   type FireflyRowResolutionOptions,
 } from '@/pages/imports/firefly/utils'
 import {
@@ -301,38 +300,5 @@ describe('forecastFireflyImport', () => {
     )
 
     expect(skipped.map((row) => row.rowNumber)).toEqual([3, 4])
-  })
-})
-
-describe('enrichFireflySkippedRows', () => {
-  it('joins backend skip entries to parsed rows by journal id with the file line number', () => {
-    const skippedRow = createFireflyRow({ journal_id: '7', currency_code: 'USD', amount: '-99.00' })
-    const enriched = enrichFireflySkippedRows(
-      [{ journal_id: '7', reason: "Neither the amount nor the foreign amount is in the account's currency (CAD)" }],
-      [createFireflyRow({ journal_id: '1' }), skippedRow],
-    )
-
-    expect(enriched).toEqual([{
-      journalId: '7',
-      rowNumber: 3,
-      cells: skippedRow,
-      reason: "Neither the amount nor the foreign amount is in the account's currency (CAD)",
-      droppedBeforeUpload: false,
-    }])
-  })
-
-  it('falls back to the journal id and reason when no parsed row matches', () => {
-    const enriched = enrichFireflySkippedRows(
-      [{ journal_id: 'missing', reason: 'Invalid amount: abc' }],
-      [createFireflyRow()],
-    )
-
-    expect(enriched).toEqual([{
-      journalId: 'missing',
-      rowNumber: null,
-      cells: null,
-      reason: 'Invalid amount: abc',
-      droppedBeforeUpload: false,
-    }])
   })
 })

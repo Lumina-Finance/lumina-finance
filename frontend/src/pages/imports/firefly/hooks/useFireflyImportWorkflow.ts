@@ -50,7 +50,6 @@ import {
   buildFireflyCategoryKinds,
   buildFireflyImportPayload,
   buildFireflyPreviewRows,
-  enrichFireflySkippedRows,
   forecastFireflyImport,
   formatFireflyImportSummary,
   getFireflyFileHeaders,
@@ -309,29 +308,6 @@ export function useFireflyImportWorkflow() {
   )
   const importEstimate = importForecast
   const predictedSkippedRows = importForecast.skippedRows
-
-  // Rows the payload builder drops never reach the backend, so the commit
-  // response cannot report them and the results have to fold them back in
-  // for the skipped totals to match what the preview promised
-  const droppedBeforeUploadRows = useMemo(
-    () => predictedSkippedRows.filter((row) => row.droppedBeforeUpload),
-    [predictedSkippedRows],
-  )
-
-  const resultSkippedRows = useMemo(
-    () => {
-      if (!importResult) return []
-      const reported = enrichFireflySkippedRows(importResult.skipped, fireflyRows)
-      return [...droppedBeforeUploadRows, ...reported].sort(
-        (first, second) => (first.rowNumber ?? Number.MAX_SAFE_INTEGER) - (second.rowNumber ?? Number.MAX_SAFE_INTEGER),
-      )
-    },
-    [droppedBeforeUploadRows, fireflyRows, importResult],
-  )
-
-  const resultSkippedCount = importResult
-    ? importResult.rows_skipped + droppedBeforeUploadRows.length
-    : 0
 
   const newAccountCount = useMemo(
     () => trackedAccountNames.filter((name) => resolvedAccountMappings[name] === CREATE_ACCOUNT_VALUE).length,
@@ -680,8 +656,6 @@ export function useFireflyImportWorkflow() {
     previewRows,
     previewGroups,
     predictedSkippedRows,
-    resultSkippedRows,
-    resultSkippedCount,
     newAccountCount,
     newCategoryCount,
     importBuild,
