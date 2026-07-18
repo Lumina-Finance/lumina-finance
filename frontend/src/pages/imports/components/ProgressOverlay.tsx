@@ -353,12 +353,14 @@ function ImportProgressStepEllipsis() {
   const shouldReduceMotion = useReducedMotion()
 
   return (
-    <span className="flex" aria-hidden>
+    <span className="ml-1.5 flex items-center gap-1" aria-hidden>
       {STEP_DOT_SEATS.map((seat) => (
         // The mount animation carries the repeating pulse, so initial cannot be
         // waived here or the dots would hold at the opening keyframe forever
         <motion.span
           key={seat}
+          className="h-1 w-1 rounded-full"
+          style={{ background: 'currentColor' }}
           animate={shouldReduceMotion ? { opacity: 1 } : { opacity: [STEP_DOT_DIM_OPACITY, 1, STEP_DOT_DIM_OPACITY] }}
           transition={shouldReduceMotion
             ? { duration: 0 }
@@ -368,9 +370,7 @@ function ImportProgressStepEllipsis() {
               ease: 'easeInOut',
               repeat: Infinity,
             }}
-        >
-          .
-        </motion.span>
+        />
       ))}
     </span>
   )
