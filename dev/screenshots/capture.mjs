@@ -12,11 +12,13 @@ import { mkdir } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright'
+import { buildImportCsv } from './import-fixture.mjs'
 import {
   applyThemeAndClock,
   CLOCK_HOUR_BY_THEME,
   logIn,
   resolveBaseUrl,
+  resolvePinnedDay,
   SETTLE_MS,
   VIEWPORTS,
   waitForContent,
@@ -125,6 +127,22 @@ async function captureAll(browser) {
     await page.mouse.move(hoverX, chartBox.y + chartBox.height / 2)
   }
   await capture(page, 'budget_details', 'Electricity')
+
+  // Staging a file is entirely client-side, so setInputFiles on the hidden
+  // input parses the fixture in the browser and populates the workflow
+  // without touching the server. The anchor is a fixture merchant name
+  // because it only renders once staging has finished and the mapping,
+  // matching, and preview sections have all populated. Commit import must
+  // never be clicked so the capture stays read-only and safe to run
+  // alongside the demo recording against the same seeded data
+  await page.goto(`${baseUrl}/settings/imports`)
+  const importCsv = buildImportCsv(resolvePinnedDay())
+  await page.locator('input[type="file"]').setInputFiles({
+    name: 'transactions.csv',
+    mimeType: 'text/csv',
+    buffer: Buffer.from(importCsv),
+  })
+  await capture(page, 'transaction_import', 'Golden Pantry')
 
   await context.close()
 }

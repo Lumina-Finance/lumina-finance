@@ -43,8 +43,8 @@ Lumina Finance gives you one place to track accounts, transactions, budgets, and
 - **Accounts** - Track cash, credit, savings, and other account types with balance history, detail views, and hide archived accounts
 - **Multi-currency** - Track accounts and activity in different currencies with FX conversions across dashboards, budgets, runway, and insights
 - **Transactions** - Add transactions, then organise them with merchants, categories, tags, and notes
-- **Imports** - Upload CSV transaction files, map columns to accounts and categories, preview rows, and create missing accounts or categories during import
-- **Budgets** - Create recurring or one-off budgets, attach them to categories, and see current and historical utilization at a glance
+- **Imports** - Upload CSV transaction files exported from any app, map columns to accounts and categories, preview rows, and create missing accounts or categories during import, or use the dedicated Firefly III importer to migrate transactions, accounts, categories, and budgets, with more app importers coming
+- **Budgets** - Create recurring or one-off budgets, attach them to categories, see current and historical utilization at a glance, and archive budgets you no longer use while keeping their history
 - **Dashboard** - Check net worth, credit usage, spending, savings rate, recent activity, and top budgets from one place
 - **Runway** - Choose the accounts that make up your cash cushion and see how many months they could cover based on your recent average spending in the worst case scenario
 - **Insights** - Review cash flow, income and expense breakdowns, net worth trends, savings-rate trends, and merchant patterns
@@ -271,11 +271,11 @@ These are some advanced variables that you could also set. Lumina Finance provid
 
 <!-- markdownlint-disable MD033 -->
 <div align="center">
-<a href="https://www.star-history.com/?repos=Lumina-Finance%2Flumina-finance&type=date&legend=top-left">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=Lumina-Finance/lumina-finance&type=date&theme=dark&legend=top-left&sealed_token=n8i1GLmlh-rlhhhhBAguqlz1tFZQ6uDrM58ER2nryAa3ijVZ101BTvOHRaHPVRmd3Mgfsn80u6lNV2WRwefvBtV8laPCPbmTyP3pSO7vRUDfcVel_nr7-lsDjOk8eLdM_9fMbxfPlDQDhP3EEUkcgLuXuraf8Pg3_y0mT-jutyrNDw8gKkP8vT_fr2v2" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=Lumina-Finance/lumina-finance&type=date&legend=top-left&sealed_token=n8i1GLmlh-rlhhhhBAguqlz1tFZQ6uDrM58ER2nryAa3ijVZ101BTvOHRaHPVRmd3Mgfsn80u6lNV2WRwefvBtV8laPCPbmTyP3pSO7vRUDfcVel_nr7-lsDjOk8eLdM_9fMbxfPlDQDhP3EEUkcgLuXuraf8Pg3_y0mT-jutyrNDw8gKkP8vT_fr2v2" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=Lumina-Finance/lumina-finance&type=date&legend=top-left&sealed_token=n8i1GLmlh-rlhhhhBAguqlz1tFZQ6uDrM58ER2nryAa3ijVZ101BTvOHRaHPVRmd3Mgfsn80u6lNV2WRwefvBtV8laPCPbmTyP3pSO7vRUDfcVel_nr7-lsDjOk8eLdM_9fMbxfPlDQDhP3EEUkcgLuXuraf8Pg3_y0mT-jutyrNDw8gKkP8vT_fr2v2" />
- </picture>
-</a>
+  <a href="https://www.star-history.com/?repos=lumina-finance%2Flumina-finance&type=date&legend=top-left">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=lumina-finance/lumina-finance&type=date&theme=dark&legend=top-left&sealed_token=tewHeSkjbRzmKj5yVCRhv9HFsdYAoPaD2guj7cvXwSaSnlogD7bij0KS3Ur7upBsTO_LdBH_Rnq51wDU-6OtrYkkH81M_c-IXZjnBYrPCoHpCauQQOtf_a9qAVc06m3QyOC-4emgE5bn-_eiAQ57tStSnFKu7yPc77vcEz4GfdnjQwREIOgERtEcuDPv" />
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=lumina-finance/lumina-finance&type=date&legend=top-left&sealed_token=tewHeSkjbRzmKj5yVCRhv9HFsdYAoPaD2guj7cvXwSaSnlogD7bij0KS3Ur7upBsTO_LdBH_Rnq51wDU-6OtrYkkH81M_c-IXZjnBYrPCoHpCauQQOtf_a9qAVc06m3QyOC-4emgE5bn-_eiAQ57tStSnFKu7yPc77vcEz4GfdnjQwREIOgERtEcuDPv" />
+    <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=lumina-finance/lumina-finance&type=date&legend=top-left&sealed_token=tewHeSkjbRzmKj5yVCRhv9HFsdYAoPaD2guj7cvXwSaSnlogD7bij0KS3Ur7upBsTO_LdBH_Rnq51wDU-6OtrYkkH81M_c-IXZjnBYrPCoHpCauQQOtf_a9qAVc06m3QyOC-4emgE5bn-_eiAQ57tStSnFKu7yPc77vcEz4GfdnjQwREIOgERtEcuDPv" />
+  </picture>
+  </a>
 </div>

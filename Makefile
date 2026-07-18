@@ -34,20 +34,22 @@ seed-firefly-data:
 export-firefly-data:
 	@"$(DEV_DIR)/firefly-iii/export-firefly-iii.sh"
 
-# Reseed the demo data, then capture app screenshots against an already
-# running frontend at the given screen size and theme
-take-screenshots: seed-dev-data
+# Capture app screenshots against an already running frontend at the given
+# screen size and theme, assuming demo data has already been seeded with
+# make seed-dev-data
+take-screenshots:
 	@"$(DEV_DIR)/screenshots/take-screenshots.sh"
 
-# Reseed the demo data, then record the product demo video against an already
-# running frontend. PROD=1 records the polished slow-capture cut, anything
-# else records a fast rough draft
-take-demo-video: seed-dev-data
+# Record the product demo video against an already running frontend, assuming
+# demo data has already been seeded with make seed-dev-data. PROD=1 records
+# the polished slow-capture cut, anything else records a fast rough draft
+take-demo-video:
 	@"$(DEV_DIR)/screenshots/record-demo.sh"
 
-# Reseed the demo data, then compose the README hero image from dashboard
-# captures at desktop, tablet, and mobile sizes
-take-hero-image: seed-dev-data
+# Compose the README hero image from dashboard captures at desktop, tablet,
+# and mobile sizes, assuming demo data has already been seeded with
+# make seed-dev-data
+take-hero-image:
 	@"$(DEV_DIR)/screenshots/take-hero.sh"
 
 # Recreate the local development Postgres container

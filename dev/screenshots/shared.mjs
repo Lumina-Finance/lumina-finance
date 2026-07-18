@@ -36,6 +36,17 @@ export function resolveBaseUrl(rawUrl) {
   return trimmed.startsWith('http') ? trimmed : `http://${trimmed}`
 }
 
+/** Resolve the pinned calendar day the captures run against
+
+Before the real 15th the pin steps back to the previous month's 15th,
+matching the seed so the shown day never outruns the seeded data */
+export function resolvePinnedDay() {
+  const pinnedDay = new Date()
+  if (pinnedDay.getDate() < CLOCK_DAY_OF_MONTH) pinnedDay.setMonth(pinnedDay.getMonth() - 1)
+  pinnedDay.setDate(CLOCK_DAY_OF_MONTH)
+  return pinnedDay
+}
+
 /** Preload the theme and shift the app clock before any page in the context boots */
 export async function applyThemeAndClock(context, theme) {
   // The theme must be in localStorage before the app boots so the first paint
@@ -47,12 +58,8 @@ export async function applyThemeAndClock(context, theme) {
 
   // Shift only Date by a constant offset so the app reads the pinned day and
   // the theme's time of day while real timers keep running, because
-  // Playwright's clock API fakes timers and stalls the app's loading screen.
-  // Before the real 15th the pin steps back to the previous month's 15th,
-  // matching the seed so the shown day never outruns the seeded data
-  const clockTime = new Date()
-  if (clockTime.getDate() < CLOCK_DAY_OF_MONTH) clockTime.setMonth(clockTime.getMonth() - 1)
-  clockTime.setDate(CLOCK_DAY_OF_MONTH)
+  // Playwright's clock API fakes timers and stalls the app's loading screen
+  const clockTime = resolvePinnedDay()
   clockTime.setHours(CLOCK_HOUR_BY_THEME[theme], 0, 0, 0)
   const clockOffsetMs = clockTime.getTime() - Date.now()
   await context.addInitScript((offsetMs) => {
