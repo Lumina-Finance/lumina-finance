@@ -35,10 +35,12 @@ const STEP_STRIKE_DURATION = 0.42
 
 const STEP_DOT_STAGGER_SECONDS = 0.12
 const STEP_DOT_JUMP_SECONDS = 0.45
-const STEP_DOT_JUMP_HEIGHT_PX = -4
 
 /** Pause between hops so the wave reads as a cycle rather than a constant bounce */
 const STEP_DOT_REPEAT_DELAY_SECONDS = 0.4
+
+/** Length of one hop-and-rest cycle, matching the import-stage-dot-hop keyframes in tailwind.css */
+const STEP_DOT_CYCLE_SECONDS = STEP_DOT_JUMP_SECONDS + STEP_DOT_REPEAT_DELAY_SECONDS
 
 const STEP_DOT_SEATS = [0, 1, 2]
 
@@ -50,8 +52,7 @@ const STEP_DOT_SEATS = [0, 1, 2]
  * its dots finish a full cycle
  */
 export const STEP_DOT_WAVE_MS =
-  ((STEP_DOT_SEATS.length - 1) * STEP_DOT_STAGGER_SECONDS + STEP_DOT_JUMP_SECONDS + STEP_DOT_REPEAT_DELAY_SECONDS) *
-  1000
+  ((STEP_DOT_SEATS.length - 1) * STEP_DOT_STAGGER_SECONDS + STEP_DOT_CYCLE_SECONDS) * 1000
 
 const contentVariants: Variants = {
   hidden: { opacity: 0, y: 16, filter: 'blur(5px)' },
@@ -345,22 +346,22 @@ function ImportProgressStepEllipsis() {
   return (
     <span className="ml-1.5 flex items-center gap-1 self-end pb-[5px]" aria-hidden>
       {STEP_DOT_SEATS.map((seat) => (
-        // The mount animation carries the repeating hop, so initial cannot be
-        // waived here or the dots would hold at the opening keyframe forever
-        <motion.span
+        // The stage list mounts each stage with entrance animations suppressed
+        // (AnimatePresence initial={false}), which would swallow a Motion-driven
+        // repeating animation, so the hop runs in CSS instead, the same way the
+        // spinner does
+        <span
           key={seat}
           className="h-[2px] w-[2px] rounded-full"
-          style={{ background: 'currentColor' }}
-          animate={shouldReduceMotion ? { y: 0 } : { y: [0, STEP_DOT_JUMP_HEIGHT_PX, 0] }}
-          transition={shouldReduceMotion
-            ? { duration: 0 }
-            : {
-              delay: seat * STEP_DOT_STAGGER_SECONDS,
-              duration: STEP_DOT_JUMP_SECONDS,
-              ease: 'easeInOut',
-              repeat: Infinity,
-              repeatDelay: STEP_DOT_REPEAT_DELAY_SECONDS,
-            }}
+          style={{
+            background: 'currentColor',
+            ...(shouldReduceMotion
+              ? {}
+              : {
+                animation: `import-stage-dot-hop ${STEP_DOT_CYCLE_SECONDS}s ease-in-out infinite`,
+                animationDelay: `${seat * STEP_DOT_STAGGER_SECONDS}s`,
+              }),
+          }}
         />
       ))}
     </span>

@@ -924,6 +924,26 @@
     }
   }
 
+  /*
+    The hop takes up the first 0.45s of a 0.85s cycle, peaking at 0.225s, and
+    the rest of the cycle is the pause between hops, mirroring the STEP_DOT
+    timing constants in ProgressOverlay.tsx
+  */
+  @keyframes import-stage-dot-hop {
+    0% {
+      transform: translateY(0);
+    }
+    26.5% {
+      transform: translateY(-4px);
+    }
+    53% {
+      transform: translateY(0);
+    }
+    100% {
+      transform: translateY(0);
+    }
+  }
+
   .app-primary-button {
     @apply inline-flex h-10 items-center justify-center gap-2 px-4 font-medium transition-all duration-150 motion-reduce:transition-none;
     box-sizing: border-box;
