@@ -319,7 +319,7 @@ function ImportProgressSteps({ steps }: { steps: ImportProgressStep[] }) {
                   />
                 )}
               </span>
-              {step.status === 'active' && <ImportProgressStepEllipsis />}
+              {step.status !== 'queued' && <ImportProgressStepEllipsis />}
             </motion.span>
           </motion.li>
         ))}
@@ -329,10 +329,12 @@ function ImportProgressSteps({ steps }: { steps: ImportProgressStep[] }) {
 }
 
 /**
- * Trails the stage in progress with three dots that hop in sequence
+ * Trails the active or just-struck stage with three dots that hop in sequence
  *
- * The dots only say that the stage is still running, so they stay out of the
- * accessibility tree and the label alone is announced
+ * The dots stay through the strike so the handover keeps its rhythm instead of
+ * cutting out, and ride out with the stage when it leaves the list, while a
+ * queued stage never carries them. They carry no status of their own, so they
+ * stay out of the accessibility tree and the label alone is announced
  */
 function ImportProgressStepEllipsis() {
   const shouldReduceMotion = useReducedMotion()
@@ -344,7 +346,7 @@ function ImportProgressStepEllipsis() {
         // waived here or the dots would hold at the opening keyframe forever
         <motion.span
           key={seat}
-          className="h-[3px] w-[3px] rounded-full"
+          className="h-[2px] w-[2px] rounded-full"
           style={{ background: 'currentColor' }}
           animate={shouldReduceMotion ? { y: 0 } : { y: [0, STEP_DOT_JUMP_HEIGHT_PX, 0] }}
           transition={shouldReduceMotion
