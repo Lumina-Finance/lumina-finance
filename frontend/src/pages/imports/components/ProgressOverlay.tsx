@@ -323,7 +323,7 @@ function ImportProgressSteps({ steps }: { steps: ImportProgressStep[] }) {
                   />
                 )}
               </span>
-              {step.status !== 'queued' && <ImportProgressStepEllipsis />}
+              {step.status !== 'queued' && <ImportProgressStepEllipsis running={step.status === 'active'} />}
             </span>
           </motion.li>
         ))}
@@ -332,15 +332,21 @@ function ImportProgressSteps({ steps }: { steps: ImportProgressStep[] }) {
   )
 }
 
+interface ImportProgressStepEllipsisProps {
+  /** Whether the trailed stage is still in progress, versus already struck off */
+  running: boolean
+}
+
 /**
  * Trails the active or just-struck stage with three dots that hop in sequence
  *
  * The dots stay through the strike so the handover keeps its rhythm instead of
- * cutting out, and ride out with the stage when it leaves the list, while a
- * queued stage never carries them. They carry no status of their own, so they
- * stay out of the accessibility tree and the label alone is announced
+ * cutting out, then come to rest once the stage lands, and ride out with the
+ * stage when it leaves the list, while a queued stage never carries them. They
+ * carry no status of their own, so they stay out of the accessibility tree and
+ * the label alone is announced
  */
-function ImportProgressStepEllipsis() {
+function ImportProgressStepEllipsis({ running }: ImportProgressStepEllipsisProps) {
   const shouldReduceMotion = useReducedMotion()
 
   return (
@@ -355,7 +361,7 @@ function ImportProgressStepEllipsis() {
           className="h-[2px] w-[2px] rounded-full"
           style={{
             background: 'currentColor',
-            ...(shouldReduceMotion
+            ...(shouldReduceMotion || !running
               ? {}
               : {
                 animation: `import-stage-dot-hop ${STEP_DOT_CYCLE_SECONDS}s ease-in-out infinite`,
