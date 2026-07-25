@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom'
+import { NavLink } from 'react-router'
 import { PRIMARY_NAVIGATION_ITEMS } from '@/components/navigation/constants/data'
 
 /**

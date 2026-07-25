@@ -1,6 +1,6 @@
 import type { FormEvent } from 'react'
 import { useRef, useState } from 'react'
-import { Navigate, useNavigate, useSearchParams } from 'react-router-dom'
+import { Navigate, useNavigate, useSearchParams } from 'react-router'
 import { Check, KeyRound, X } from 'lucide-react'
 import { AnimatePresence, animate, motion } from 'motion/react'
 import { ApiError, resetPassword, verifyResetMfa } from '@/api/auth'

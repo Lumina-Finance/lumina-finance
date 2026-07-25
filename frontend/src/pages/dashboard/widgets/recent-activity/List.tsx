@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 import { formatDashboardShortDate } from '@/pages/dashboard/utils/formatDashboardShortDate'
 import type { RecentActivityRow } from '@/pages/dashboard/utils/getRecentActivityRows'
 import { formatCurrency } from '@/utils/formatCurrency'

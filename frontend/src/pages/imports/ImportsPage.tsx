@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router'
 import { Upload, X } from 'lucide-react'
 import { ImportProgressOverlay } from './components'
 import { useFireflyImportWorkflow } from './firefly/hooks'

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router'
 import { SETTINGS_SECTIONS, type SettingsSectionId } from '@/pages/settings/settingsNavigation'
 
 const PROGRAMMATIC_SCROLL_SETTLE_MS = 600

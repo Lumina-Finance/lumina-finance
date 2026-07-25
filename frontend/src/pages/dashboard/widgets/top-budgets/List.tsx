@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 import type { TopBudget } from '@/pages/dashboard/types/dashboard'
 import { formatDashboardShortDate } from '@/pages/dashboard/utils/formatDashboardShortDate'
 import { getTopBudgetAttentionState } from '@/pages/dashboard/utils/getTopBudgetAttentionState'
