@@ -1,5 +1,5 @@
 import { useRef, useState, type FormEvent, type RefObject } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router'
 import { animate } from 'motion/react'
 import { forgotPassword, isMfaRequired, type AuthResponse, type LoginResult } from '@/api/auth'
 import type { Currency } from '@/api/currency'

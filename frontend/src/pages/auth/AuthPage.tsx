@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router';
 import { KeyRound } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useCurrencies } from '@/api/currency';

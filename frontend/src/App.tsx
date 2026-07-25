@@ -1,5 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useCallback, startTransition, lazy, Suspense } from 'react'
-import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation, type Location } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation, type Location } from 'react-router'
 import { AnimatePresence, motion } from 'motion/react'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { NavCollapseProvider } from '@/contexts/NavCollapseContext'

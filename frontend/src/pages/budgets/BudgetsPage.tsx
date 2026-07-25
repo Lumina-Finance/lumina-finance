@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { AnimatePresence } from 'motion/react'
 import { Plus } from 'lucide-react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router'
 import {
   useBaseBudgets,
   useBudgets,

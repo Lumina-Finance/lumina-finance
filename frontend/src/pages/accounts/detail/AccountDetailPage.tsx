@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router'
 import { useAccount, type Account } from '@/api/accounts'
 import { useTaxAdvantagedCategory } from '@/api/taxAdvantagedCategories'
 import type { Transaction } from '@/api/transactions'
