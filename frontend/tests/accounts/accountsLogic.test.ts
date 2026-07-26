@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest'
 import type { AccountsOverview } from '@/api/accounts'
 import type { Institution } from '@/api/institutions'
-import type { TaxAdvantagedCategory } from '@/api/taxAdvantagedCategories'
+import type { TaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
 import type { RunwayResult } from '@/api/user'
 import type { AccountsMetricsViewModel } from '@/pages/accounts/types/accounts'
 import {

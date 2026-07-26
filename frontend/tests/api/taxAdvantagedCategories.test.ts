@@ -24,7 +24,7 @@ import {
   fetchTaxAdvantagedCategories,
   updateTaxAdvantagedCategory,
   updateTaxAdvantagedCategoryLimit,
-} from '@/api/taxAdvantagedCategories';
+} from '@/api/tax-advantaged-categories';
 
 beforeEach(() => {
   authenticatedFetchMock.mockReset();

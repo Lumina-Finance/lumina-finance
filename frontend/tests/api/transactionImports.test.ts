@@ -10,7 +10,7 @@ import type {
   TransactionImportPayload,
   TransactionImportResponse,
   TransactionImportRow,
-} from '@/api/transactionImports';
+} from '@/api/transaction-imports';
 
 const { authenticatedFetchMock } = vi.hoisted(() => ({
   authenticatedFetchMock: vi.fn(),
@@ -20,7 +20,7 @@ vi.mock('@/api/client', () => ({
   authenticatedFetch: authenticatedFetchMock,
 }));
 
-import { importTransactionsInBatches } from '@/api/transactionImports';
+import { importTransactionsInBatches } from '@/api/transaction-imports';
 
 /**
  * Builds a representative parsed import row used across batching scenarios
