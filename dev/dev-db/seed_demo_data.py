@@ -1,10 +1,10 @@
 """Seed the development database with realistic demo data
 
-Creates two demo users with a trailing year of
-transactions, budgets, and balance history. All dates are generated relative
-to the run date so dashboards, active budget periods, and trends always have
-current data no matter when the script runs. Demo people and merchants are
-fictional while institutions are real Canadian ones
+Creates two demo users with WINDOW_MONTHS of trailing transactions, budgets,
+and balance history. All dates are generated relative to the run date so
+dashboards, active budget periods, and trends always have current data no
+matter when the script runs. Demo people and merchants are fictional while
+institutions are real Canadian ones
 
 Existing rows for the demo users are deleted and regenerated on every run.
 Reference data (currencies, system categories) and any other users' data are
