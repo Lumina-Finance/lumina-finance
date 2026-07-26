@@ -25,15 +25,15 @@ async def list_institutions(
     db: Annotated[AsyncSession, Depends(get_db)],
     country_code: str | None = Query(None, min_length=2, max_length=2),
 ):
-    """Return all institutions, optionally filtered by country.
+    """Return all institutions, optionally filtered by country
 
     Args:
-        _user: Authenticated user (enforces auth gate).
-        db: Async database session.
-        country_code: Optional ISO 3166-1 alpha-2 filter.
+        _user: Authenticated user (enforces auth gate)
+        db: Async database session
+        country_code: Optional ISO 3166-1 alpha-2 filter
 
     Returns:
-        List of institutions sorted by name.
+        List of institutions sorted by name
     """
     query = select(Institution)
     if country_code:
@@ -48,18 +48,18 @@ async def get_institution(
     _user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Return a single institution by ID.
+    """Return a single institution by ID
 
     Args:
-        institution_id: UUID of the institution.
-        _user: Authenticated user (enforces auth gate).
-        db: Async database session.
+        institution_id: UUID of the institution
+        _user: Authenticated user (enforces auth gate)
+        db: Async database session
 
     Returns:
-        The matching institution.
+        The matching institution
 
     Raises:
-        HTTPException 404: Institution not found.
+        HTTPException 404: Institution not found
     """
     result = await db.execute(select(Institution).where(Institution.id == institution_id))
     institution = result.scalar_one_or_none()
@@ -74,18 +74,18 @@ async def create_institution(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Submit a new institution for review. Status defaults to PENDING.
+    """Submit a new institution for review. Status defaults to PENDING
 
     Args:
-        data: Institution details (name, country_code, website).
-        user: Authenticated user (enforces auth gate).
-        db: Async database session.
+        data: Institution details (name, country_code, website)
+        user: Authenticated user (enforces auth gate)
+        db: Async database session
 
     Returns:
-        The created institution with PENDING status.
+        The created institution with PENDING status
 
     Raises:
-        HTTPException 409: Institution with the same name and country already exists.
+        HTTPException 409: Institution with the same name and country already exists
     """
     # Reject duplicates by name + country_code
     result = await db.execute(

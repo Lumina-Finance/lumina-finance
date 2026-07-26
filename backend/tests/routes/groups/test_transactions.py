@@ -1,7 +1,7 @@
-"""Tests for transaction behaviour within group boundaries.
+"""Tests for transaction behaviour within group boundaries
 
 Verifies cross-user isolation holds even when users share a group,
-and documents current limitations around group account transactions.
+and documents current limitations around group account transactions
 """
 
 from tests.routes.support import _create_user, _get_auth_header
@@ -10,17 +10,17 @@ from tests.routes.support import _create_user, _get_auth_header
 
 
 async def _create_account(client, headers, **overrides):
-    """Create an account via POST /accounts.
+    """Create an account via POST /accounts
 
-    Defaults: account_type="checking", name="Main Chequing", currency="CAD".
+    Defaults: account_type="checking", name="Main Chequing", currency="CAD"
 
     Args:
-        client: The async test client.
-        headers: Auth headers for the requesting user.
-        **overrides: Fields to override in the default payload.
+        client: The async test client
+        headers: Auth headers for the requesting user
+        **overrides: Fields to override in the default payload
 
     Returns:
-        The HTTP response from the API.
+        The HTTP response from the API
     """
     payload = {
         "account_kind": "asset",
@@ -33,36 +33,36 @@ async def _create_account(client, headers, **overrides):
 
 
 async def _create_category(client, headers, **overrides):
-    """Create a category via POST /categories.
+    """Create a category via POST /categories
 
-    Defaults: name="Test Groceries", kind="expense".
+    Defaults: name="Test Groceries", kind="expense"
 
     Args:
-        client: The async test client.
-        headers: Auth headers for the requesting user.
-        **overrides: Fields to override in the default payload.
+        client: The async test client
+        headers: Auth headers for the requesting user
+        **overrides: Fields to override in the default payload
 
     Returns:
-        The HTTP response from the API.
+        The HTTP response from the API
     """
     payload = {"name": "Test Groceries", "kind": "expense", **overrides}
     return await client.post("/categories", json=payload, headers=headers)
 
 
 async def _create_transaction(client, headers, account_id, category_id, **overrides):
-    """Create a transaction via POST /transactions.
+    """Create a transaction via POST /transactions
 
-    Defaults: dt="2026-03-15", amount=-5000, currency="CAD".
+    Defaults: dt="2026-03-15", amount=-5000, currency="CAD"
 
     Args:
-        client: The async test client.
-        headers: Auth headers for the requesting user.
-        account_id: UUID of the account to attach the transaction to.
-        category_id: UUID of the category to assign.
-        **overrides: Fields to override in the default payload.
+        client: The async test client
+        headers: Auth headers for the requesting user
+        account_id: UUID of the account to attach the transaction to
+        category_id: UUID of the category to assign
+        **overrides: Fields to override in the default payload
 
     Returns:
-        The HTTP response from the API.
+        The HTTP response from the API
     """
     payload = {
         "account_id": account_id,
@@ -82,34 +82,34 @@ async def _get_system_category_id(client, headers, name="Groceries"):
 
 
 async def _create_group(client, headers, **overrides):
-    """Create a group via POST /groups.
+    """Create a group via POST /groups
 
-    Defaults: name="Smith Family".
+    Defaults: name="Smith Family"
 
     Args:
-        client: The async test client.
-        headers: Auth headers for the requesting user.
-        **overrides: Fields to override in the default payload.
+        client: The async test client
+        headers: Auth headers for the requesting user
+        **overrides: Fields to override in the default payload
 
     Returns:
-        The HTTP response from the API.
+        The HTTP response from the API
     """
     payload = {"name": "Smith Family", **overrides}
     return await client.post("/groups", json=payload, headers=headers)
 
 
 async def _setup_group_with_two_members(client):
-    """Create two users in the same group, each with their own account and category.
+    """Create two users in the same group, each with their own account and category
 
-    User 1 is the group owner (admin). User 2 is added as a regular member.
+    User 1 is the group owner (admin). User 2 is added as a regular member
 
     Args:
-        client: The async test client.
+        client: The async test client
 
     Returns:
         Tuple of (user1_headers, user1_account_id, user1_category_id,
                   user2_headers, user2_account_id, user2_category_id,
-                  group_id).
+                  group_id)
     """
     # User 1 — group owner
     signup1 = await _create_user(client)
@@ -213,17 +213,17 @@ async def test_group_member_cannot_create_transaction_on_other_members_account(c
 
 
 async def _create_merchant(client, headers, **overrides):
-    """Create a merchant via POST /merchants.
+    """Create a merchant via POST /merchants
 
-    Defaults: name="Costco".
+    Defaults: name="Costco"
 
     Args:
-        client: The async test client.
-        headers: Auth headers for the requesting user.
-        **overrides: Fields to override in the default payload.
+        client: The async test client
+        headers: Auth headers for the requesting user
+        **overrides: Fields to override in the default payload
 
     Returns:
-        The HTTP response from the API.
+        The HTTP response from the API
     """
     payload = {"name": "Costco", **overrides}
     return await client.post("/merchants", json=payload, headers=headers)
@@ -236,14 +236,14 @@ async def _create_tag(client, headers, **overrides):
 
 
 async def _setup_group_with_shared_account(client):
-    """Create a group with admin, member, group account, category, and merchant.
+    """Create a group with admin, member, group account, category, and merchant
 
     Args:
-        client: The async test client.
+        client: The async test client
 
     Returns:
         Tuple of (admin_headers, member_headers, member_user_id,
-                  group_id, account_id, category_id, merchant_id).
+                  group_id, account_id, category_id, merchant_id)
     """
     signup1 = await _create_user(client)
     admin_headers = _get_auth_header(signup1)
@@ -276,14 +276,14 @@ async def _setup_group_with_shared_account(client):
 
 
 async def _grant_account_permission(client, admin_headers, account_id, user_id, level):
-    """Grant an account permission to a user.
+    """Grant an account permission to a user
 
     Args:
-        client: The async test client.
-        admin_headers: Auth headers for a group admin.
-        account_id: UUID of the account.
-        user_id: UUID of the target user.
-        level: Permission level ("read", "write", "admin").
+        client: The async test client
+        admin_headers: Auth headers for a group admin
+        account_id: UUID of the account
+        user_id: UUID of the target user
+        level: Permission level ("read", "write", "admin")
     """
     await client.post(
         f"/accounts/{account_id}/permissions",

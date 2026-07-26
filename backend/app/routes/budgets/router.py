@@ -92,7 +92,7 @@ async def update_budget(
 ):
     """Update a budget instance
 
-    Period dates are derived from the base budget cadence and cannot be edited.
+    Period dates are derived from the base budget cadence and cannot be edited
     Users create a new instance when they need a different period
 
     Args:

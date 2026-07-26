@@ -33,9 +33,9 @@ export function buildCreateTransactionPayload(
 /**
  * Builds the originating and receiving payloads for a symmetric transfer
  *
- * The originating account is debited and the receiving account is credited the same magnitude.
+ * The originating account is debited and the receiving account is credited the same magnitude
  * Both legs share every other field so they read as the same movement in two accounts. The two
- * rows stay independent on the backend, matching how the app already records transfers.
+ * rows stay independent on the backend, matching how the app already records transfers
  */
 export function buildSymmetricTransferPayloads(
   form: TransactionFormValues,

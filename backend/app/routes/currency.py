@@ -17,13 +17,13 @@ router = APIRouter(prefix="/currencies", tags=["currencies"])
 async def list_currencies(
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Return all supported currencies.
+    """Return all supported currencies
 
     Args:
-        db: Async database session.
+        db: Async database session
 
     Returns:
-        List of all currencies sorted by ISO code.
+        List of all currencies sorted by ISO code
     """
     result = await db.execute(select(Currency).order_by(Currency.id))
     return result.scalars().all()
@@ -34,17 +34,17 @@ async def get_currency(
     currency_id: str,
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Return a single currency by its ISO 4217 code.
+    """Return a single currency by its ISO 4217 code
 
     Args:
-        currency_id: ISO 4217 currency code (e.g., "CAD").
-        db: Async database session.
+        currency_id: ISO 4217 currency code (e.g., "CAD")
+        db: Async database session
 
     Returns:
-        The matching currency.
+        The matching currency
 
     Raises:
-        HTTPException 404: Currency code not found.
+        HTTPException 404: Currency code not found
     """
     result = await db.execute(select(Currency).where(Currency.id == currency_id))
     currency = result.scalar_one_or_none()

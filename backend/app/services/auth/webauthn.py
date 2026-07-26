@@ -121,7 +121,7 @@ async def register_passkey(
     """Verify a finished registration ceremony and store the new passkey
 
     The challenge embedded in the response locates the stored challenge so concurrent ceremonies stay
-    independent, and the challenge is single-use because it is deleted once claimed.
+    independent, and the challenge is single-use because it is deleted once claimed
 
     A first passkey, on an account with no recovery codes yet, is the account's first second factor, so
     it is stored inactive and a shared recovery batch is staged for the user to save. It only becomes a
@@ -465,7 +465,7 @@ async def build_passkey_second_factor_options(db: AsyncSession, user_id: uuid.UU
 async def verify_passkey_second_factor(db: AsyncSession, user_id: uuid.UUID, credential: dict) -> None:
     """Verify a passkey assertion presented as the second factor of a password login
 
-    The assertion must answer the user's own scoped challenge and be signed by one of their passkeys.
+    The assertion must answer the user's own scoped challenge and be signed by one of their passkeys
     Unlike a passwordless sign-in this does not adopt an identity or issue tokens, since the caller
     already holds the login challenge and commits the surrounding transaction
 

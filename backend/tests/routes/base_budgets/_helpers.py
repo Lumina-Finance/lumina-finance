@@ -33,9 +33,9 @@ async def _create_group(client, headers, **overrides):
     return resp.json()["id"]
 
 async def _create_base_budget(client, headers, *, category_ids=None, **overrides):
-    """Create a base budget via POST /base-budgets.
+    """Create a base budget via POST /base-budgets
 
-    Defaults: name="March Budget", currency="CAD", one freshly-created tracked category.
+    Defaults: name="March Budget", currency="CAD", one freshly-created tracked category
     Pass category_ids explicitly to override (including an empty list, which the API rejects)
     """
     if category_ids is None:
@@ -51,7 +51,7 @@ async def _create_base_budget(client, headers, *, category_ids=None, **overrides
     return await client.post("/base-budgets", json=payload, headers=headers)
 
 async def _create_budget_instance(client, headers, base_budget_id, **overrides):
-    """Create a budget instance via POST /base-budgets/{id}/budgets.
+    """Create a budget instance via POST /base-budgets/{id}/budgets
 
     Defaults: period_start=2026-03-01, overall_limit=100000. period_end is
     computed by the backend from the base's cadence

@@ -289,10 +289,10 @@ async def test_create_transaction_other_users_category_returns_422(client):
 
 
 async def test_create_transaction_with_group_category_on_personal_account_returns_422(client):
-    """A group category cannot be used on a personal-account transaction.
+    """A group category cannot be used on a personal-account transaction
 
     Personal-account transactions must stay personal or system-scoped so group
-    spending cannot land on the user's personal ledger.
+    spending cannot land on the user's personal ledger
     """
     headers, personal_account_id, _ = await _setup_user_with_deps(client)
     group_resp = await client.post("/groups", json={"name": "Smith Family"}, headers=headers)

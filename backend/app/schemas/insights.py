@@ -49,11 +49,11 @@ class InsightsFundFlowResponse(BaseModel):
 
 
 class InsightsIncomeExpenseBreakdownResponse(BaseModel):
-    """Payload for the insights income/expense breakdown card.
+    """Payload for the insights income/expense breakdown card
 
-    Pie rows are ``(id, name, original_category_kind, amount)``.
+    Pie rows are ``(id, name, original_category_kind, amount)``
     ``expense_total`` and ``income_total`` are authoritative center totals
-    after flipped refund/loss categories are netted against their original side.
+    after flipped refund/loss categories are netted against their original side
     """
 
     expense: list[tuple[str, str, str, int]]

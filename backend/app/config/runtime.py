@@ -30,6 +30,6 @@ UPDATE_CHECKS_ENABLED = is_update_check_enabled(
 
 APP_URL = os.getenv("APP_URL", "").strip()
 
-# APP_URL is the public CORS origin. ALLOWED_ORIGINS appends extra internal origins.
+# APP_URL is the public CORS origin. ALLOWED_ORIGINS appends extra internal origins
 _configured_origins = [APP_URL, *optional_csv_env("ALLOWED_ORIGINS")]
 ALLOWED_ORIGINS = unique_values([origin for origin in _configured_origins if origin]) or ["*"]

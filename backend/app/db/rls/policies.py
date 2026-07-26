@@ -94,7 +94,7 @@ def apply_policies(connection: Connection) -> None:
 
         # A table added after the bootstrap RLS migration is created and secured by its own
         # later migration, so a from-scratch upgrade reaches this loop before that table
-        # exists, while the test harness builds the full schema first and secures it here.
+        # exists, while the test harness builds the full schema first and secures it here
         # The coverage guard test is what proves every registered table ends up secured
         if not _table_exists(connection, table):
             continue

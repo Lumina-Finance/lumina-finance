@@ -49,7 +49,7 @@ class AccountKind(enum.StrEnum):
     # purchases already expensed at time of swipe) vs amortizing (loans,
     # mortgages — payments represent real ongoing cash outflow). The
     # distinction is load-bearing for the runway calculation and makes the
-    # difference visible to users at account-creation time.
+    # difference visible to users at account-creation time
     ASSET = "asset"
     REVOLVING = "revolving"
     AMORTIZING = "amortizing"

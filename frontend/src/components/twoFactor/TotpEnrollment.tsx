@@ -95,7 +95,7 @@ export function TotpEnrollment({ onComplete, onSkip, onSwitchToPasskey, initialS
   };
 
   /**
-   * Confirms the entered code, revealing the recovery codes on success and allowing a retry on failure.
+   * Confirms the entered code, revealing the recovery codes on success and allowing a retry on failure
    * The step-up already ran when the secret was minted, so confirm carries only the code
    */
   const handleConfirm = async () => {

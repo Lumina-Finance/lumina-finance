@@ -154,7 +154,7 @@ _HELPERS: tuple[_Helper, ...] = (
     """,
         f"{BUMP_USER_CACHE}(uuid)",
     ),
-    # Aggregate spend per tracked category for budgets the current user can access.
+    # Aggregate spend per tracked category for budgets the current user can access
     # The visibility check makes the function self-authorizing rather than trusting its
     # callers, and returns category totals over accounts the reader cannot see row by
     # row, the privacy-respecting design of utilization, without ever exposing the

@@ -248,11 +248,11 @@ async def test_get_budget_utilization_includes_tracked_categories_with_zero_spen
 
 
 async def test_get_budget_utilization_returns_empty_categories_when_all_soft_deleted(client):
-    """A budget whose only tracked category has been soft-deleted returns an empty list.
+    """A budget whose only tracked category has been soft-deleted returns an empty list
 
     Exercises the `if tracked_category_ids:` guard in the utilization query — if the
     tracked CTE returns zero rows the spend query is skipped entirely and categories
-    comes back empty.
+    comes back empty
     """
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)

@@ -32,9 +32,9 @@ async def test_list_snapshots_returns_all_in_ascending_order(client):
 
 
 async def test_list_snapshots_filters_by_from_date(client):
-    """from_date excludes snapshots strictly before the bound (inclusive boundary).
+    """from_date excludes snapshots strictly before the bound (inclusive boundary)
 
-    Passing from_date equal to a snapshot's ts includes that snapshot.
+    Passing from_date equal to a snapshot's ts includes that snapshot
     """
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
@@ -57,9 +57,9 @@ async def test_list_snapshots_filters_by_from_date(client):
 
 
 async def test_list_snapshots_filters_by_to_date(client):
-    """to_date excludes snapshots strictly after the bound (inclusive boundary).
+    """to_date excludes snapshots strictly after the bound (inclusive boundary)
 
-    Passing to_date equal to a snapshot's ts includes that snapshot.
+    Passing to_date equal to a snapshot's ts includes that snapshot
     """
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
@@ -169,10 +169,10 @@ async def test_list_snapshots_returns_zero_anchor_for_new_account(client):
 
 
 async def test_list_snapshots_on_closed_account_still_returns_history(client):
-    """Read-only endpoint must return snapshots even after the account is closed.
+    """Read-only endpoint must return snapshots even after the account is closed
 
     Closed accounts are still meaningful for historical balance charts; the
-    handler intentionally does NOT pass require_open=True to check_account_access.
+    handler intentionally does NOT pass require_open=True to check_account_access
     """
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)

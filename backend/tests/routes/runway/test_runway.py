@@ -537,7 +537,7 @@ async def test_get_runway_handles_refunds_and_excludes_income_losses_and_transfe
     data = resp.json()
     assert data["months_covered"] == 1
     # Groceries net to $80.00. Capital Gains, transfers, over-refunded Shopping,
-    # and the current partial month are excluded.
+    # and the current partial month are excluded
     assert data["avg_monthly_expense"] == 8_000
     assert data["reason"] is None
 

@@ -26,7 +26,7 @@ class _FixedClock:
 
 
 async def _seed_institution(logo_url: str | None = None):
-    """Insert a canonical institution for FK tests.
+    """Insert a canonical institution for FK tests
 
     Inserts via raw session (not the API) because institutions are seeded data,
     not user-created resources
@@ -51,7 +51,7 @@ async def _seed_institution(logo_url: str | None = None):
 
 
 async def _create_second_user(client):
-    """Sign up a second user for ownership-isolation tests.
+    """Sign up a second user for ownership-isolation tests
 
     Args:
         client: The async test client

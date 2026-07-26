@@ -16,13 +16,13 @@ from tests.routes.support import _create_account, _create_user, _get_auth_header
 
 
 async def test_get_budget_utilization_returns_account_data_without_account_access(client):
-    """READ on a base budget grants utilization access without any account permission.
+    """READ on a base budget grants utilization access without any account permission
 
     A user with READ on the base budget but NO access to the underlying account
     can still see aggregated category totals. This is the headline feature of the
     endpoint: privacy-respecting monitoring. A parent can verify "the kids stayed
     under their grocery budget" without getting access to individual transactions
-    on the group account.
+    on the group account
     """
     signup_resp = await _create_user(client)
     admin_headers = _get_auth_header(signup_resp)
@@ -52,7 +52,7 @@ async def test_get_budget_utilization_returns_account_data_without_account_acces
     assert members_resp.status_code == 201
     # Lock in that the member is NOT a group admin — a regression that defaulted
     # new members to admin would let this test pass via implicit admin access
-    # rather than the base-budget READ grant under test.
+    # rather than the base-budget READ grant under test
     assert members_resp.json()["is_admin"] is False
     await _grant_base_budget_permission(client, admin_headers, base_id, member_user_id, "read")
 

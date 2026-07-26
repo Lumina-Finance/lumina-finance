@@ -41,7 +41,7 @@ DB_PASSWORD = require("DB_PASSWORD")
 
 # Under pytest-xdist each worker gets its own database (e.g. lumina_test_gw0) so workers
 # don't trample each other's schema/data. When running sequentially the var is unset and
-# we fall back to the plain DB_NAME.
+# we fall back to the plain DB_NAME
 _xdist_worker = os.environ.get("PYTEST_XDIST_WORKER")
 WORKER_DB_NAME = f"{DB_NAME}_{_xdist_worker}" if _xdist_worker else DB_NAME
 TEST_DATABASE_URL = f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{WORKER_DB_NAME}"
@@ -63,17 +63,17 @@ event.listen(scoped_engine.sync_engine, "begin", stamp_request_identity)
 
 @pytest.fixture(scope="session", autouse=True)
 async def _setup_schema():
-    """Ensure the worker's test DB exists, then drop and recreate all tables.
+    """Ensure the worker's test DB exists, then drop and recreate all tables
 
     Runs once per pytest session (i.e. once per xdist worker). Connects to the
     ``postgres`` maintenance DB with AUTOCOMMIT isolation to issue
     ``CREATE DATABASE`` if the worker DB doesn't already exist, then recreates
     the worker's ``public`` schema from metadata. Requires the test user to
-    have the ``CREATEDB`` role attribute (``ALTER ROLE <user> CREATEDB;``).
+    have the ``CREATEDB`` role attribute (``ALTER ROLE <user> CREATEDB;``)
     """
     # Sanity-check the worker DB name since it's interpolated into DDL — the
     # identifier can't be passed as a bind parameter. WORKER_DB_NAME is derived
-    # from env + xdist's own worker id so this is strictly defensive.
+    # from env + xdist's own worker id so this is strictly defensive
     if not all(c.isalnum() or c == "_" for c in WORKER_DB_NAME):
         raise RuntimeError(f"Unsafe worker DB name: {WORKER_DB_NAME!r}")
 

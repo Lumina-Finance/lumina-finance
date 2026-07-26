@@ -1,6 +1,6 @@
-"""Unit tests for the budget period alignment and computation service.
+"""Unit tests for the budget period alignment and computation service
 
-Pure functions — no DB, no fixtures, just stdlib date math.
+Pure functions — no DB, no fixtures, just stdlib date math
 """
 import calendar
 from datetime import date, timedelta

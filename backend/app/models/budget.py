@@ -24,11 +24,11 @@ from app.models.base import Base, PermissionLevel, RecurrenceFreq
 
 
 class BaseBudget(Base):
-    """Long-lived spending plan. Holds name, currency, recurrence, tracked categories, and permissions.
+    """Long-lived spending plan. Holds name, currency, recurrence, tracked categories, and permissions
 
     Per-period caps and date ranges live on the child Budget instances so historical
     periods stay frozen when the base is edited. A non-recurring (one-off) budget is a
-    BaseBudget with recurrence_freq = NULL and a single Budget instance.
+    BaseBudget with recurrence_freq = NULL and a single Budget instance
     """
 
     __tablename__ = "base_budgets"
@@ -61,7 +61,7 @@ class BaseBudget(Base):
     name: Mapped[str] = mapped_column(VARCHAR(256), nullable=False)
     currency: Mapped[str] = mapped_column(VARCHAR(3), ForeignKey("currencies.id"), nullable=False)
     recurrence_freq: Mapped[RecurrenceFreq] = mapped_column(nullable=False)
-    # Number of recurrence units each Budget instance spans.
+    # Number of recurrence units each Budget instance spans
     instance_length: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=1)
     recurrence_weekday: Mapped[int | None] = mapped_column(SmallInteger)  # 0=Mon..6=Sun, required iff freq=weekly
     recurrence_dom: Mapped[int | None] = mapped_column(SmallInteger)  # 1..31, required iff freq in (monthly, yearly)
@@ -72,10 +72,10 @@ class BaseBudget(Base):
 
 
 class Budget(Base):
-    """Per-period instance of a BaseBudget.
+    """Per-period instance of a BaseBudget
 
     Frozen after creation — editing fields on a past instance does not retroactively affect historical
-    utilization because utilization reads the BaseBudget's category set as of this instance's period_end.
+    utilization because utilization reads the BaseBudget's category set as of this instance's period_end
     """
 
     __tablename__ = "budgets"
@@ -102,16 +102,16 @@ class Budget(Base):
 
 
 class BudgetTrackedCategory(Base):
-    """Tracks which categories a base budget monitors and when.
+    """Tracks which categories a base budget monitors and when
 
     The added_at/removed_at pair lets the utilization query reconstruct the tracked set as of any
-    period_end, so mutating the base does not rewrite historical period totals.
+    period_end, so mutating the base does not rewrite historical period totals
     """
 
     __tablename__ = "budget_tracked_categories"
     __table_args__ = (
         # At most one active row per (base_budget, category); multiple historical rows allowed so
-        # re-adds after removal keep a clean audit trail.
+        # re-adds after removal keep a clean audit trail
         Index(
             "uq_budget_tracked_category_active", "base_budget_id", "category_id",
             unique=True, postgresql_where=text("removed_at IS NULL"),

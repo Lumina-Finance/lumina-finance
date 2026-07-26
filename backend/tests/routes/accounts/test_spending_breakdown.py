@@ -16,10 +16,10 @@ def _today_utc() -> date:
 
 
 def _range_start(range_: str, today: date) -> date:
-    """Replicate the service's _range_bounds start date for a given range.
+    """Replicate the service's _range_bounds start date for a given range
 
     Tests seed transactions on both sides of the returned boundary and verify
-    only in-range ones are counted.
+    only in-range ones are counted
     """
     if range_ == "WTD":
         return today - timedelta(days=today.weekday())
@@ -33,11 +33,11 @@ def _range_start(range_: str, today: date) -> date:
 
 
 async def _create_category(client, headers, **overrides):
-    """Create a category via POST /categories. Defaults to a unique expense category.
+    """Create a category via POST /categories. Defaults to a unique expense category
 
     New users get a default set of categories seeded on signup (Groceries,
     Salary, Transfer, ...). To avoid 409 conflicts with those, we use a
-    "Test " prefix that doesn't collide with any default name.
+    "Test " prefix that doesn't collide with any default name
     """
     payload = {"name": "Test Groceries", "kind": "expense", **overrides}
     return await client.post("/categories", json=payload, headers=headers)
@@ -90,10 +90,10 @@ async def _grant_account_permission(client, admin_headers, account_id, user_id, 
 
 
 async def _seed_usd_currency():
-    """Seed USD so transactions with currency='USD' can be posted.
+    """Seed USD so transactions with currency='USD' can be posted
 
     Used by the mixed-currency regression test. Mirrors conftest._seed_currency
-    but runs inline so the currency is scoped to tests that actually need it.
+    but runs inline so the currency is scoped to tests that actually need it
     """
     from app.models.currency import Currency
     from tests.conftest import TestSession
@@ -366,7 +366,7 @@ async def test_top_five_cap_with_seven_categories_and_eight_merchants(client):
 
     # 7 categories. Category 0 gets a large base spend so it remains the biggest
     # category even after we pile the 8 merchant transactions onto one other
-    # category below — this keeps the category ordering deterministic.
+    # category below — this keeps the category ordering deterministic
     categories = []
     for i in range(7):
         cat = (await _create_category(client, headers, name=f"Test Cat {i}")).json()
@@ -379,7 +379,7 @@ async def test_top_five_cap_with_seven_categories_and_eight_merchants(client):
         )
 
     # 8 distinct merchants attached to the LAST of the 7 categories — that way
-    # we exercise the 8-merchant bucket without introducing an 8th category.
+    # we exercise the 8-merchant bucket without introducing an 8th category
     merchant_bucket_cat = categories[-1]
     merchants = []
     for i in range(8):
@@ -402,15 +402,15 @@ async def test_top_five_cap_with_seven_categories_and_eight_merchants(client):
     # Top-5 cap applied on both
     assert len(data["top_categories"]) == 5
     assert len(data["top_merchants"]) == 5
-    # 7 categories → 2 beyond the top 5; 8 merchants → 3 beyond.
+    # 7 categories → 2 beyond the top 5; 8 merchants → 3 beyond
     assert data["other_categories_count"] == 2
     assert data["other_merchants_count"] == 3
 
-    # Category 0 remains the largest category (-100_000 base, no merchant pile).
+    # Category 0 remains the largest category (-100_000 base, no merchant pile)
     assert data["top_categories"][0]["category_id"] == categories[0]["id"]
     assert data["top_categories"][0]["total"] == 100_000
 
-    # Top merchants: the five with the largest spend (i=0..4) in descending order.
+    # Top merchants: the five with the largest spend (i=0..4) in descending order
     merchant_ids_returned = [m["merchant_id"] for m in data["top_merchants"]]
     assert merchant_ids_returned == [merchants[i]["id"] for i in range(5)]
     merchant_totals = [m["total"] for m in data["top_merchants"]]
@@ -449,12 +449,12 @@ async def test_exactly_five_entries_yields_zero_other_counts(client):
 
 
 async def test_positive_amount_on_expense_category_subtracts_from_total(client):
-    """A refund (positive amount on an expense category) reduces grand_total_spend.
+    """A refund (positive amount on an expense category) reduces grand_total_spend
 
     The service flips the raw SUM's sign, so a -1000 expense plus a +200 refund
     sums to -800 in the DB and returns 800 — the net expense. This locks in the
     refund semantics and documents that grand_total_spend can go negative if
-    refunds exceed charges.
+    refunds exceed charges
     """
     headers, account_id = await _setup_account(client)
     category = (await _create_category(client, headers)).json()
@@ -522,12 +522,12 @@ async def test_zero_sum_category_and_merchant_are_excluded(client):
 
 
 async def test_mixed_currency_transactions_are_summed_as_raw_minor_units(client):
-    """Endpoint sums all expense rows regardless of currency — no fx conversion.
+    """Endpoint sums all expense rows regardless of currency — no fx conversion
 
     Locks in current behaviour for a future fx-aware change to catch. The account
     is CAD and a USD transaction (with fx_rate to satisfy POST /transactions'
     cross-currency guard) is posted alongside a CAD one; both contribute their
-    raw minor-unit amounts to grand_total_spend.
+    raw minor-unit amounts to grand_total_spend
     """
     await _seed_usd_currency()
 
@@ -551,7 +551,7 @@ async def test_mixed_currency_transactions_are_summed_as_raw_minor_units(client)
     )
     assert resp.status_code == 200
     data = resp.json()
-    # Raw mix: 1000 + 500 = 1500 (no fx applied).
+    # Raw mix: 1000 + 500 = 1500 (no fx applied)
     assert data["grand_total_spend"] == 1500
     assert data["top_categories"][0]["total"] == 1500
 
@@ -569,7 +569,7 @@ async def test_future_dated_transaction_is_excluded_from_range(client):
         client, headers, account_id, category["id"],
         dt=today.isoformat(), amount=-1000,
     )
-    # Tomorrow — must be excluded regardless of how wide the range is.
+    # Tomorrow — must be excluded regardless of how wide the range is
     await _create_transaction(
         client, headers, account_id, category["id"],
         dt=(today + timedelta(days=1)).isoformat(), amount=-9999,
@@ -740,7 +740,7 @@ async def test_missing_range_param_defaults_to_mtd(client):
         dt=today.isoformat(), amount=-1000,
     )
     # Out of MTD but within YTD — a prior-month transaction. If the default
-    # were YTD this would be included; MTD default should exclude it.
+    # were YTD this would be included; MTD default should exclude it
     prior_month_day = month_start - timedelta(days=1)
     await _create_transaction(
         client, headers, account_id, category["id"],

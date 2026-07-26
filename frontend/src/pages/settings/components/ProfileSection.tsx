@@ -40,7 +40,7 @@ export default function ProfileSection({
     : ''
 
   // Fall back to the currency code until /currencies resolves, then render the
-  // same code/name/symbol label format used by account creation.
+  // same code/name/symbol label format used by account creation
   const baseCurrency = currencies?.find((c) => c.id === user?.base_currency)
   const baseCurrencyLabel = baseCurrency
     ? `${baseCurrency.id} — ${baseCurrency.name} (${baseCurrency.symbol})`

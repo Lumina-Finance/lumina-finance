@@ -36,10 +36,10 @@ event.listen(engine.sync_engine, "begin", stamp_request_identity)
 
 
 async def get_db():
-    """Yield an async database session for use as a FastAPI dependency.
+    """Yield an async database session for use as a FastAPI dependency
 
     Yields:
-        An AsyncSession that is automatically closed when the request completes.
+        An AsyncSession that is automatically closed when the request completes
     """
     # Clear any inherited identity so a request can only ever stamp its own user,
     # independent of how the server reuses execution contexts between requests

@@ -16,7 +16,7 @@ interface MultiFactorModalShellProps {
 
 /**
  * Framed modal for managing every second factor, matching the create-modal chrome (accent rail,
- * eyebrow, serif title) but with a management body and a single Done action rather than a create form.
+ * eyebrow, serif title) but with a management body and a single Done action rather than a create form
  * It sits below the secondary step-up and recovery-code modals that stack on top of it
  */
 export function MultiFactorModalShell({ open, closeDisabled = false, onClose, children }: MultiFactorModalShellProps) {

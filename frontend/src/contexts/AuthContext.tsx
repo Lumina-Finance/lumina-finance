@@ -55,10 +55,10 @@ function getSessionRestoreDelayMs(): number {
   return isBrowserReload() ? RELOAD_SESSION_RESTORE_DELAY_MS : 0;
 }
 
-// Module-scoped so concurrent callers share a single /auth/refresh request.
+// Module-scoped so concurrent callers share a single /auth/refresh request
 // The refresh token is rotated on use, so a second parallel call would race
 // the first, look up a now-deleted jti, and 401 — wiping the just-issued
-// cookie on the way out.
+// cookie on the way out
 let pendingSessionRestore: Promise<AuthResponse> | null = null;
 
 function restoreSession(): Promise<AuthResponse> {
@@ -80,19 +80,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
 
   // Ref mirrors state so the auth bindings' getAccessToken closure always
-  // reads the latest token without re-registering bindings on every change.
+  // reads the latest token without re-registering bindings on every change
   const stateRef = useRef(state);
   useEffect(() => { stateRef.current = state; }, [state]);
 
   // Child effects run before this provider's ref-sync effect, so any consumer that
-  // fetches on the same render a new token arrives would still read the stale ref.
+  // fetches on the same render a new token arrives would still read the stale ref
   // Full state replacements therefore update the ref synchronously, like primeAccessToken
   const applyState = useCallback((next: AuthState) => {
     stateRef.current = next;
     setState(next);
   }, []);
 
-  // Wire authenticatedFetch to our session lifecycle once on mount.
+  // Wire authenticatedFetch to our session lifecycle once on mount
   useEffect(() => {
     registerAuthBindings({
       getAccessToken: () => stateRef.current.accessToken,
@@ -150,8 +150,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [hadSession, queryClient, applyState]);
 
-  // Call the API and set the session flag, but don't update React state yet.
-  // The caller controls when to commit via setSession().
+  // Call the API and set the session flag, but don't update React state yet
+  // The caller controls when to commit via setSession()
   const login = useCallback(async (payload: LoginPayload): Promise<LoginResult> => {
     const res = await authApi.login(payload);
 
@@ -191,7 +191,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const primeAccessToken = useCallback((token: string) => {
     // Make the token usable by authenticated requests without setting `user`, so the signup
-    // 2FA step can call the API while the auth page stays mounted instead of redirecting home.
+    // 2FA step can call the API while the auth page stays mounted instead of redirecting home
     // The ref is updated synchronously so getAccessToken sees the token before the effect runs
     stateRef.current = { ...stateRef.current, accessToken: token };
     setState((prev) => ({ ...prev, accessToken: token }));
@@ -209,7 +209,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     applyState({ user: null, accessToken: null, loading: false });
     // Wipe every cached query so the next user can't see the previous user's
     // data (accounts, transactions, etc.). The persister is subscribed to the
-    // client, so clearing in-memory also flushes the localStorage copy.
+    // client, so clearing in-memory also flushes the localStorage copy
     queryClient.clear();
   }, [state.accessToken, queryClient, applyState]);
 

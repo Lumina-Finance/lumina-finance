@@ -17,10 +17,10 @@ from app.services.fx.frankfurter_provider import DEFAULT_FX_PROVIDER_RETRY_DELAY
 
 
 class _FakeProvider:
-    """Small test double for FxRateProvider.
+    """Small test double for FxRateProvider
 
     Converter tests should not hit Frankfurter or mock HTTP details. This fake lets
-    each test predeclare rates/errors and then assert how often the provider was used.
+    each test predeclare rates/errors and then assert how often the provider was used
     """
 
     def __init__(
@@ -30,15 +30,15 @@ class _FakeProvider:
         errors: dict[tuple[str, str, date], Exception] | None = None,
         range_errors: dict[tuple[str, str, date, date], Exception] | None = None,
     ):
-        # Success maps are keyed by the exact provider call arguments.
+        # Success maps are keyed by the exact provider call arguments
         self.rates = rates or {}
         self.rate_ranges = rate_ranges or {}
 
-        # Error maps simulate missing provider data and endpoint failures.
+        # Error maps simulate missing provider data and endpoint failures
         self.errors = errors or {}
         self.range_errors = range_errors or {}
 
-        # Call logs make memoization/prefetch behavior explicit in assertions.
+        # Call logs make memoization/prefetch behavior explicit in assertions
         self.calls: list[tuple[str, str, date]] = []
         self.range_calls: list[tuple[str, str, date, date]] = []
 

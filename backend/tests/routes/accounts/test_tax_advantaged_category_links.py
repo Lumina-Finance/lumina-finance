@@ -13,13 +13,13 @@ async def _seed_usd_currency() -> None:
 
 
 async def _create_second_user(client):
-    """Sign up a second test user.
+    """Sign up a second test user
 
     Args:
-        client: The async test client.
+        client: The async test client
 
     Returns:
-        The HTTP response from the signup endpoint.
+        The HTTP response from the signup endpoint
     """
     return await client.post("/auth/signup", json={
         "email": "other@example.com",
@@ -31,15 +31,15 @@ async def _create_second_user(client):
 
 
 async def _create_tax_advantaged_category(client, headers, **overrides):
-    """Create a tax-advantaged category.
+    """Create a tax-advantaged category
 
     Args:
-        client: The async test client.
-        headers: Auth headers for the requesting user.
-        **overrides: Fields to override in the default payload.
+        client: The async test client
+        headers: Auth headers for the requesting user
+        **overrides: Fields to override in the default payload
 
     Returns:
-        The HTTP response from the API.
+        The HTTP response from the API
     """
     payload = {
         "name": "TFSA",
@@ -51,14 +51,14 @@ async def _create_tax_advantaged_category(client, headers, **overrides):
 
 
 async def _create_group(client, headers):
-    """Create a group and return its ID.
+    """Create a group and return its ID
 
     Args:
-        client: The async test client.
-        headers: Auth headers for the requesting user.
+        client: The async test client
+        headers: Auth headers for the requesting user
 
     Returns:
-        The created group ID.
+        The created group ID
     """
     resp = await client.post("/groups", json={"name": "Household"}, headers=headers)
     assert resp.status_code == 201

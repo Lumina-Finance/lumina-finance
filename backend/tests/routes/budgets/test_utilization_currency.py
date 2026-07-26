@@ -43,7 +43,7 @@ async def test_get_budget_utilization_converts_foreign_account_transactions(clie
     )
 
     # Same tracked category, two account currencies — the USD row is converted
-    # before being added to the CAD budget's utilization.
+    # before being added to the CAD budget's utilization
     await _create_transaction(client, headers, cad_account_id, groceries, amount=-5000)
     await _create_transaction(client, headers, usd_account_id, groceries, amount=-3000, currency="USD")
 
@@ -99,13 +99,13 @@ async def test_get_budget_utilization_reports_incomplete_fx(client, monkeypatch)
 
 
 async def test_get_budget_utilization_personal_budget_excludes_group_account_transactions(client):
-    """A personal budget must not pick up transactions made on a group account.
+    """A personal budget must not pick up transactions made on a group account
 
     The transaction route allows a user's personal category to be used on a group
     account (an `OR` branch in `_check_category_access_or_422`), so without a
     scope filter a personal budget tracking that category would include group
     spending. The utilization query constrains accounts to those owned by the
-    base budget's owner, blocking the leak.
+    base budget's owner, blocking the leak
     """
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
@@ -133,7 +133,7 @@ async def test_get_budget_utilization_personal_budget_excludes_group_account_tra
 
 
 async def test_get_budget_utilization_group_budget_excludes_personal_account_transactions(client):
-    """The utilization query keeps personal-account spend out of a group budget even if upstream validators are bypassed.
+    """The utilization query keeps personal-account spend out of a group budget even if upstream validators are bypassed
 
     Two checks normally make this impossible to construct via the public API:
     `_validate_category_ids` rejects personal categories on group base budgets, and
@@ -142,7 +142,7 @@ async def test_get_budget_utilization_group_budget_excludes_personal_account_tra
     validators — the `Account.group_id == base_budget.group_id` filter on the
     utilization query is the backstop. This test bypasses both validators by
     inserting the row directly via TestSession and asserts the query still
-    filters it out.
+    filters it out
     """
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
@@ -170,8 +170,8 @@ async def test_get_budget_utilization_group_budget_excludes_personal_account_tra
         client, headers, str(group_account_id), str(group_groceries), amount=-3000,
     )
 
-    # Direct DB insert: personal-account txn referencing the group category.
-    # Bypasses _check_category_access_or_422 which would normally block it.
+    # Direct DB insert: personal-account txn referencing the group category
+    # Bypasses _check_category_access_or_422 which would normally block it
     async with TestSession() as session:
         session.add(Transaction(
             created_by_user_id=user_id,
@@ -214,7 +214,7 @@ async def test_get_budget_utilization_non_base_currency_converts_other_currencie
         base_overrides={"name": "USD Groceries", "currency": "USD"},
     )
 
-    # 4000 CAD converts to 3000 USD, then adds to 7000 USD same-currency spend.
+    # 4000 CAD converts to 3000 USD, then adds to 7000 USD same-currency spend
     await _create_transaction(client, headers, cad_account_id, groceries, amount=-4000)
     await _create_transaction(client, headers, usd_account_id, groceries, amount=-7000, currency="USD")
 
@@ -247,7 +247,7 @@ async def test_get_budget_utilization_converts_when_no_account_matches_budget_cu
         base_overrides={"name": "USD Vacation", "currency": "USD"},
     )
 
-    # CAD spending exists and is converted into the USD budget currency.
+    # CAD spending exists and is converted into the USD budget currency
     await _create_transaction(client, headers, cad_account_id, groceries, amount=-5000)
 
     data = await _get_budget_utilization_entry(client, headers, base_id, budget_id)

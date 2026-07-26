@@ -73,11 +73,11 @@ class AccountPermission(Base):
 
 
 class AccountBalanceSnapshot(Base):
-    """End-of-day balance record for historical balance charts and net worth tracking.
+    """End-of-day balance record for historical balance charts and net worth tracking
 
     Snapshots include a zero-balance anchor plus one row per (account, day) where
     a transaction occurred. The backend maintains these automatically on
-    transaction mutations — never written to directly by users.
+    transaction mutations — never written to directly by users
     """
 
     __tablename__ = "account_balance_snapshots"

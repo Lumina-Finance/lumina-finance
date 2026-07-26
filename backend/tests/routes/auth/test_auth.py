@@ -741,10 +741,10 @@ async def test_double_logout_is_idempotent(client):
 
 
 async def test_logout_without_refresh_cookie_still_revokes_session(client):
-    """Logout revokes the whole session (both rows) even if the refresh cookie is missing.
+    """Logout revokes the whole session (both rows) even if the refresh cookie is missing
 
     Session-scoped revocation reads the sid claim from the access token, so the cookie
-    is irrelevant for killing the session. This exercises the cookie-absent edge case.
+    is irrelevant for killing the session. This exercises the cookie-absent edge case
     """
     signup_resp = await _create_user(client)
     access_token = signup_resp.json()["access_token"]

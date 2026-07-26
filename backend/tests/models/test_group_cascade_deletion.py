@@ -1,7 +1,7 @@
-"""Cascade deletion tests for the Group model.
+"""Cascade deletion tests for the Group model
 
 Verifies that deleting a group cascades through its accounts to their
-transactions at the DB level.
+transactions at the DB level
 """
 from datetime import date
 

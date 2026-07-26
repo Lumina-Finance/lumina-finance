@@ -19,13 +19,13 @@ from tests.routes.support import _create_account, _create_user, _get_auth_header
 
 
 async def test_get_budget_utilization_re_add_past_period_old_row_included_new_row_excluded(client):
-    """For a past period whose period_end falls between removed_at and the re-add, the old row is what counts.
+    """For a past period whose period_end falls between removed_at and the re-add, the old row is what counts
 
     Stronger re-add check than the future-period test: here we use a past
     period whose `period_end` lies strictly between Row 1's `removed_at` and
     Row 2's `added_at`. Row 1 satisfies the predicate (removed_at > period_end),
     Row 2 does not (added_at > period_end). The tracked CTE returns just Row 1,
-    so in-period spend still counts via the historical row.
+    so in-period spend still counts via the historical row
     """
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
@@ -71,11 +71,11 @@ async def test_get_budget_utilization_re_add_past_period_old_row_included_new_ro
 
 
 async def test_get_budget_utilization_mixed_active_and_removed_categories_in_same_period(client):
-    """With one tracked category active and another removed mid-period, only the active one appears.
+    """With one tracked category active and another removed mid-period, only the active one appears
 
     Positive control for the mid-period removal test: distinguishes "removed
     during period" from "never tracked". The active category must show up with
-    its spend; the removed one must be absent entirely.
+    its spend; the removed one must be absent entirely
     """
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)

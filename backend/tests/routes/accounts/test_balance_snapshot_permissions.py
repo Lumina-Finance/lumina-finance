@@ -70,10 +70,10 @@ async def test_list_snapshots_group_admin_can_read_group_account(client):
 
 
 async def test_list_snapshots_non_group_user_returns_404(client):
-    """A user who is not a member of the account's group at all gets 404.
+    """A user who is not a member of the account's group at all gets 404
 
     Distinct code path from "group member without permission": this user
-    fails the membership lookup before any AccountPermission check.
+    fails the membership lookup before any AccountPermission check
     """
     signup_resp = await _create_user(client)
     admin_headers = _get_auth_header(signup_resp)

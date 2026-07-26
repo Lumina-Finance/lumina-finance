@@ -29,7 +29,7 @@ export function useTotpStatus() {
  * Begins TOTP enrolment by minting a pending secret for the current user
  *
  * Modelled as a query rather than a mutation so React Query dedupes the request the StrictMode
- * double-mount would otherwise duplicate, and so the data reliably reaches the rendered component.
+ * double-mount would otherwise duplicate, and so the data reliably reaches the rendered component
  * gcTime and staleTime of zero mint a fresh secret each time the enrolment view opens. The settings
  * flow steps up and mints the secret before opening enrolment, so it disables this and supplies the
  * result instead, while signup passes its password-only step-up here

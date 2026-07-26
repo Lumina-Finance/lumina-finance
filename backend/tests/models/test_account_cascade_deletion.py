@@ -1,7 +1,7 @@
-"""Cascade deletion tests for the Account model.
+"""Cascade deletion tests for the Account model
 
-Verifies that deleting an account removes its transactions at the DB level.
-Covers both personal and group-scoped accounts.
+Verifies that deleting an account removes its transactions at the DB level
+Covers both personal and group-scoped accounts
 """
 from datetime import date
 

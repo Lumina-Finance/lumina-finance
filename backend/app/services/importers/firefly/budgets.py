@@ -27,7 +27,7 @@ from app.utils.money import (
     parse_decimal_amount_to_minor_units,
 )
 
-# Cadence stored when the latest limit period fits none of Lumina's shapes.
+# Cadence stored when the latest limit period fits none of Lumina's shapes
 # It only drives the next-instance suggestion, because every imported period
 # keeps its exported dates regardless of the cadence
 FALLBACK_RECURRENCE_DOM = 1

@@ -121,7 +121,7 @@ function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase, 
     };
   }, [ready, routeLoading]);
 
-  // Enforce the first-session loading-screen minimum before revealing the app.
+  // Enforce the first-session loading-screen minimum before revealing the app
   useEffect(() => {
     if (hasShownLoadingScreen || !shouldShowLoading) return;
     const timer = setTimeout(() => {
@@ -244,7 +244,7 @@ function AnimatedRoutes() {
     scrollDocumentToTop();
   }, [displayLocation.pathname]);
 
-  // Keep rendering the previous protected route until its exit fade completes.
+  // Keep rendering the previous protected route until its exit fade completes
   useEffect(() => {
     if (location.pathname === displayLocation.pathname) {
       if (location.search !== displayLocation.search || location.hash !== displayLocation.hash) {
@@ -283,7 +283,7 @@ function AnimatedRoutes() {
     };
   }, [displayLocation.hash, displayLocation.pathname, displayLocation.search, location]);
 
-  // Finish the enter phase after the content fade-in completes.
+  // Finish the enter phase after the content fade-in completes
   useEffect(() => {
     if (pageTransitionPhase !== 'entering') return;
 

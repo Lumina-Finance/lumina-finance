@@ -4,16 +4,16 @@ import os
 
 
 def require(key: str) -> str:
-    """Return the value of an environment variable or raise if missing.
+    """Return the value of an environment variable or raise if missing
 
     Args:
-        key: The environment variable name.
+        key: The environment variable name
 
     Returns:
-        The environment variable value.
+        The environment variable value
 
     Raises:
-        RuntimeError: If the environment variable is not set.
+        RuntimeError: If the environment variable is not set
     """
     value = os.getenv(key)
     if not value:

@@ -78,7 +78,7 @@ async def test_get_budget_utilization_includes_transactions_from_closed_accounts
     )
     assert close_resp.status_code == 200
     # Verify the close actually took effect — if the field were renamed or the
-    # PATCH became a no-op, this test would otherwise pass for the wrong reason.
+    # PATCH became a no-op, this test would otherwise pass for the wrong reason
     account_resp = await client.get(f"/accounts/{account_id}", headers=headers)
     assert account_resp.json()["closed_at"] is not None
 

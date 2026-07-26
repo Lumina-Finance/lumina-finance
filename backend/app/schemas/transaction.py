@@ -37,10 +37,10 @@ class OutlierTransaction(BaseModel):
 
 
 class TransactionsOverview(BaseModel):
-    """Aggregated metrics for the transactions page header.
+    """Aggregated metrics for the transactions page header
 
     Nullable fields signal "no data for this period" — the frontend can
-    show a placeholder instead of rendering empty charts.
+    show a placeholder instead of rendering empty charts
     """
 
     total_inflow: int | None

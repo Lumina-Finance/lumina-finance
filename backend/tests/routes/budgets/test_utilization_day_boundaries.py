@@ -14,11 +14,11 @@ from tests.routes.support import _create_account, _create_user, _get_auth_header
 
 
 async def test_get_budget_utilization_added_at_equal_to_period_end_is_tracked(client):
-    """A category whose added_at day equals period_end is still tracked.
+    """A category whose added_at day equals period_end is still tracked
 
-    Pins the `added_at <= period_end` bound: same-day-as-period-end passes.
+    Pins the `added_at <= period_end` bound: same-day-as-period-end passes
     A regression that flipped `<=` to `<` would exclude the category and make
-    this test fail.
+    this test fail
     """
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
@@ -47,11 +47,11 @@ async def test_get_budget_utilization_added_at_equal_to_period_end_is_tracked(cl
 
 
 async def test_get_budget_utilization_added_at_day_after_period_end_is_not_tracked(client):
-    """A category whose added_at day is one day after period_end is excluded.
+    """A category whose added_at day is one day after period_end is excluded
 
     Pins the other side of the `added_at <= period_end` bound: April 1 for
     a March 1-31 instance is excluded. A regression that flipped the direction
-    of the comparison would include the row and make this test fail.
+    of the comparison would include the row and make this test fail
     """
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
@@ -78,11 +78,11 @@ async def test_get_budget_utilization_added_at_day_after_period_end_is_not_track
 
 
 async def test_get_budget_utilization_removed_at_equal_to_period_end_is_not_tracked(client):
-    """A category whose removed_at day equals period_end is excluded.
+    """A category whose removed_at day equals period_end is excluded
 
     Pins the strict `removed_at > period_end` bound: same-day-as-period-end
     fails the predicate. A regression that flipped `>` to `>=` would include
-    the row and make this test fail.
+    the row and make this test fail
     """
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
@@ -111,11 +111,11 @@ async def test_get_budget_utilization_removed_at_equal_to_period_end_is_not_trac
 
 
 async def test_get_budget_utilization_removed_at_day_after_period_end_is_tracked(client):
-    """A category whose removed_at day is one day after period_end stays tracked.
+    """A category whose removed_at day is one day after period_end stays tracked
 
     Pins the other side of `removed_at > period_end`: April 1 for a March
     1-31 instance still counts. A regression that flipped the comparison would
-    exclude the row and make this test fail.
+    exclude the row and make this test fail
     """
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)

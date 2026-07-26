@@ -7,10 +7,10 @@ from tests.routes.transactions._helpers import _seed_usd_currency
 
 
 def _firefly_row(**overrides):
-    """Build a Firefly III import row payload with expense-row defaults.
+    """Build a Firefly III import row payload with expense-row defaults
 
     Args:
-        **overrides: Fields to override in the default payload.
+        **overrides: Fields to override in the default payload
 
     Returns:
         Row payload dictionary for the import request
@@ -34,7 +34,7 @@ def _firefly_row(**overrides):
 
 
 def _chequing_mapping():
-    """Build the default chequing account create mapping.
+    """Build the default chequing account create mapping
 
     Returns:
         Account mapping dictionary for the import request
@@ -46,12 +46,12 @@ def _chequing_mapping():
 
 
 async def _get_system_category_id(client, headers, name):
-    """Return the id of a system category by name.
+    """Return the id of a system category by name
 
     Args:
-        client: The async test client.
-        headers: Auth headers for the requesting user.
-        name: System category name to find.
+        client: The async test client
+        headers: Auth headers for the requesting user
+        name: System category name to find
 
     Returns:
         Category id string

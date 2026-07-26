@@ -90,7 +90,7 @@ export default function CreateTransactionModal({
     [accounts],
   )
 
-  // Build the initial form from the existing transaction (edit) or sensible defaults (create).
+  // Build the initial form from the existing transaction (edit) or sensible defaults (create)
   const initialForm = useMemo<TransactionFormValues>(() => {
     return buildInitialTransactionForm({
       transaction,
@@ -710,7 +710,7 @@ export default function CreateTransactionModal({
 
   // A symmetric transfer shows its direction relative to the account being viewed, so the toggle
   // reflects whether that account is the source or destination instead of a user choice. It falls
-  // back to the unselected state when the viewed account is on neither leg or no account is in view.
+  // back to the unselected state when the viewed account is on neither leg or no account is in view
   const symmetricDisplayDirection: TransactionDirection | '' = !defaultAccountId
     ? ''
     : form.account_id === defaultAccountId
