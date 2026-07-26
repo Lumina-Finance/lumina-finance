@@ -24,7 +24,8 @@ from sqlalchemy import select
 from webauthn.helpers import bytes_to_base64url
 
 import app.services.auth.webauthn as webauthn_service
-from app.config import TWO_FACTOR_STAGING_EXPIRE_SECONDS, WEBAUTHN_ORIGINS, WEBAUTHN_RP_ID
+from app.config.two_factor import TWO_FACTOR_STAGING_EXPIRE_SECONDS
+from app.config.webauthn import WEBAUTHN_ORIGINS, WEBAUTHN_RP_ID
 from app.models.auth import AuthIdentity, RecoveryCode, WebauthnChallenge, WebauthnCredential
 from app.models.base import AuthProvider
 from app.models.user import User

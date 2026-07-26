@@ -7,7 +7,7 @@ from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
-from app.config import migration_database_url
+from app.config.database import migration_database_url
 
 # Import all models so Alembic can detect them for autogenerate
 from app.models import (  # noqa: F401

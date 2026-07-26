@@ -6,7 +6,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import WEBAUTHN_RP_ID
+from app.config.webauthn import WEBAUTHN_RP_ID
 from app.database import get_db
 from app.dependencies import get_authenticated_user, get_current_user
 from app.models.user import User

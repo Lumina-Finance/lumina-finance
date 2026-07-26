@@ -9,7 +9,7 @@ from typing import TypeVar
 
 import httpx
 
-from app.config import FRANKFURTER_URL
+from app.config.fx import FRANKFURTER_URL
 from app.services.fx.errors import FxRateError
 from app.services.fx.frankfurter_request_helpers import (
     request_frankfurter_rate_response,

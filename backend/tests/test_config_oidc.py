@@ -4,8 +4,8 @@ import os
 
 import pytest
 
-from app import config
-from app.config import load_oidc_provider_configs
+from app.config import oidc
+from app.config.oidc import load_oidc_provider_configs
 
 
 @pytest.fixture(autouse=True)
@@ -17,7 +17,7 @@ def clean_oidc_env(monkeypatch):
     for key in list(os.environ):
         if key.startswith("OIDC_"):
             monkeypatch.delenv(key)
-    monkeypatch.setattr(config, "APP_URL", "http://app.test")
+    monkeypatch.setattr(oidc, "APP_URL", "http://app.test")
 
 
 def _declare_generic(monkeypatch, **overrides):

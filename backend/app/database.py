@@ -6,7 +6,7 @@ from contextvars import ContextVar
 from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from app.config import APP_DB_USER, app_database_url, migration_database_url
+from app.config.database import APP_DB_USER, app_database_url, migration_database_url
 
 engine = create_async_engine(app_database_url())
 

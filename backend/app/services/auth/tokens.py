@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 
 import jwt
 
-from app.config import (
+from app.config.jwt import (
     JWT_ACCESS_KID,
     JWT_ACCESS_PRIVATE_KEY,
     JWT_ACCESS_TOKEN_EXPIRE_SECONDS,
@@ -13,10 +13,12 @@ from app.config import (
     JWT_REFRESH_KID,
     JWT_REFRESH_PRIVATE_KEY,
     JWT_REFRESH_TOKEN_EXPIRE_SECONDS,
-    MFA_CHALLENGE_TOKEN_EXPIRE_SECONDS,
+)
+from app.config.oidc import (
     OIDC_ONBOARDING_TOKEN_EXPIRE_SECONDS,
     OIDC_REAUTH_STEPUP_TOKEN_EXPIRE_SECONDS,
 )
+from app.config.two_factor import MFA_CHALLENGE_TOKEN_EXPIRE_SECONDS
 from app.models.base import AuthTokenKind
 
 # Token use claim for the step-up challenge

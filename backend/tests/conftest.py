@@ -5,7 +5,8 @@ from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
-from app.config import APP_DB_USER, _require
+from app.config.database import APP_DB_USER
+from app.config.env import require
 from app.database import stamp_request_identity
 from app.db.credentials import resolve_role_password
 from app.db.rls import apply_rls
@@ -32,11 +33,11 @@ from app.models.base import Base
 from app.services.categories.defaults import seed_system_categories
 
 # Database credentials come from .env.test, which points at the isolated test database
-DB_HOST = _require("DB_HOST")
-DB_PORT = _require("DB_PORT")
-DB_NAME = _require("DB_NAME")
-DB_USER = _require("DB_USER")
-DB_PASSWORD = _require("DB_PASSWORD")
+DB_HOST = require("DB_HOST")
+DB_PORT = require("DB_PORT")
+DB_NAME = require("DB_NAME")
+DB_USER = require("DB_USER")
+DB_PASSWORD = require("DB_PASSWORD")
 
 # Under pytest-xdist each worker gets its own database (e.g. lumina_test_gw0) so workers
 # don't trample each other's schema/data. When running sequentially the var is unset and

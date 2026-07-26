@@ -11,12 +11,12 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import func as sa_func
 
-from app.config import (
-    APP_URL,
+from app.config.oidc import (
     OIDC_AUTHORIZATION_REQUEST_EXPIRE_SECONDS,
     OIDC_REAUTH_MAX_AGE_SECONDS,
     OIDC_REQUIRE_VERIFIED_EMAIL,
 )
+from app.config.runtime import APP_URL
 from app.database import current_user_id_ctx
 from app.encryption import decrypt
 from app.models.auth import AuthIdentity

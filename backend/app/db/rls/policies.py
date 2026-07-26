@@ -7,7 +7,7 @@ changed search_path cannot route them to a different function
 
 from sqlalchemy import Connection, text
 
-from app.config import APP_DB_USER
+from app.config.database import APP_DB_USER
 from app.db.rls.functions import (
     CAN_ACCESS_ACCOUNT,
     CAN_ACCESS_BASE_BUDGET,

@@ -5,7 +5,7 @@ import time
 
 import httpx
 
-from app.config import APP_VERSION, UPDATE_CHECKS_ENABLED
+from app.config.runtime import APP_VERSION, UPDATE_CHECKS_ENABLED
 
 GITHUB_LATEST_RELEASE_URL = "https://api.github.com/repos/Lumina-Finance/lumina-finance/releases/latest"
 DOCKER_TAG_URL_TEMPLATE = "https://hub.docker.com/v2/repositories/luminahq/lumina-finance/tags/{tag}"

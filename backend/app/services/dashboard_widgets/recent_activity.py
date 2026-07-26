@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import DASHBOARD_RECENT_TRANSACTIONS_LIMIT
+from app.config.dashboard import DASHBOARD_RECENT_TRANSACTIONS_LIMIT
 from app.models.transaction import Transaction
 from app.schemas.transaction import TransactionResponse
 from app.services.transactions.response_helpers import (

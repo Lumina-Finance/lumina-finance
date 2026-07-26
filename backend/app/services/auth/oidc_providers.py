@@ -5,7 +5,7 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import OidcProviderConfig
+from app.config.oidc import OidcProviderConfig
 from app.encryption import encrypt
 from app.models.oidc import OidcProvider
 

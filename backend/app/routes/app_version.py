@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter
 
-from app.config import APP_VERSION
+from app.config.runtime import APP_VERSION
 from app.schemas.app_version import AppVersionResponse
 from app.services.app_version import get_available_update
 

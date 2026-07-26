@@ -30,8 +30,8 @@ from webauthn.helpers.structs import (
     UserVerificationRequirement,
 )
 
-from app.config import (
-    TWO_FACTOR_STAGING_EXPIRE_SECONDS,
+from app.config.two_factor import TWO_FACTOR_STAGING_EXPIRE_SECONDS
+from app.config.webauthn import (
     WEBAUTHN_CHALLENGE_EXPIRE_SECONDS,
     WEBAUTHN_ORIGINS,
     WEBAUTHN_RP_ID,

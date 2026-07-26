@@ -6,7 +6,7 @@ import jwt
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 
-from app.config import JWT_ACCESS_PRIVATE_KEY, JWT_ALGORITHM, JWT_ISSUER, JWT_REFRESH_PRIVATE_KEY
+from app.config.jwt import JWT_ACCESS_PRIVATE_KEY, JWT_ALGORITHM, JWT_ISSUER, JWT_REFRESH_PRIVATE_KEY
 from app.main import app
 from app.models.auth_session import AuthSession
 from app.models.auth_token import AuthToken
@@ -809,7 +809,7 @@ async def test_logout_only_affects_caller_session(client):
 
 async def test_jwks_returns_both_keys_with_correct_kids(client):
     """JWKS endpoint returns both access and refresh public keys with configured kid values."""
-    from app.config import JWT_ACCESS_KID, JWT_REFRESH_KID
+    from app.config.jwt import JWT_ACCESS_KID, JWT_REFRESH_KID
 
     resp = await client.get("/auth/.well-known/jwks.json")
 

@@ -3,7 +3,7 @@ from typing import Any
 
 from jwt.algorithms import RSAAlgorithm
 
-from app.config import JWT_ACCESS_KID, JWT_ALGORITHM, JWT_REFRESH_KID
+from app.config.jwt import JWT_ACCESS_KID, JWT_ALGORITHM, JWT_REFRESH_KID
 from app.routes.auth.token_helpers import get_access_public_key, get_refresh_public_key
 
 
