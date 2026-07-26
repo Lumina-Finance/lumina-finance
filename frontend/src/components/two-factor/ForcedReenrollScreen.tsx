@@ -2,9 +2,9 @@ import { KeyRound } from 'lucide-react';
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { usePasskeyConfig } from '@/api/passkeys';
-import { PasskeyReenrollment } from '@/components/twoFactor/PasskeyReenrollment';
-import { TotpEnrollment } from '@/components/twoFactor/TotpEnrollment';
-import { WarningCallout } from '@/components/twoFactor/WarningCallout';
+import { PasskeyReenrollment } from '@/components/two-factor/PasskeyReenrollment';
+import { TotpEnrollment } from '@/components/two-factor/TotpEnrollment';
+import { WarningCallout } from '@/components/two-factor/WarningCallout';
 import { useAuth } from '@/hooks/useAuth';
 import { assessPasskeySupport } from '@/utils/passkeySupport';
 

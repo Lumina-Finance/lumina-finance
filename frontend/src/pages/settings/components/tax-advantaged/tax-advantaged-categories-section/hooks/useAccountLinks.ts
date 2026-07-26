@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useUpdateAccount, type AccountsOverview } from '@/api/accounts'
-import type { TaxAdvantagedCategory } from '@/api/taxAdvantagedCategories'
+import type { TaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
 import type { AutosaveNotice } from '@/pages/settings/components/tax-advantaged/types'
 import {
   ACCOUNT_LINK_SAVE_MIN_LOADING_MS,

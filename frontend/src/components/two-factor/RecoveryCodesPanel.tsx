@@ -1,4 +1,4 @@
-import { WarningCallout } from '@/components/twoFactor/WarningCallout';
+import { WarningCallout } from '@/components/two-factor/WarningCallout';
 import { copyText } from '@/utils/clipboard';
 
 const RECOVERY_CODES_FILENAME = 'lumina-recovery-codes.txt';

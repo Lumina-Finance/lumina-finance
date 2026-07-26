@@ -7,7 +7,7 @@ import {
   useUpdateTaxAdvantagedCategoryLimit,
   type TaxAdvantagedCategory,
   type TaxAdvantagedCategoryLimit,
-} from '@/api/taxAdvantagedCategories'
+} from '@/api/tax-advantaged-categories'
 import type {
   AutosaveNotice,
   TaxPlanLimitDraftField,

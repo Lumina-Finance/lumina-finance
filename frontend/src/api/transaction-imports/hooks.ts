@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { invalidateAppData } from '@/api/cache/invalidation';
-import { importTransactionsInBatches } from '@/api/transactionImports/batching';
+import { importTransactionsInBatches } from '@/api/transaction-imports/batching';
 
 /**
  * Provides the mutation boundary for uploading prepared transaction import payloads

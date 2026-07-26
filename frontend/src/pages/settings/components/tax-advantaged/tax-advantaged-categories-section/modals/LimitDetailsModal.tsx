@@ -4,7 +4,7 @@ import type { Currency } from '@/api/currency'
 import type {
   TaxAdvantagedCategory,
   TaxAdvantagedCategoryLimit,
-} from '@/api/taxAdvantagedCategories'
+} from '@/api/tax-advantaged-categories'
 import type {
   TaxPlanLimitDraftField,
   TaxPlanLimitDraftState,

@@ -1,6 +1,6 @@
 import { Pencil } from 'lucide-react'
 import type { Account } from '@/api/accounts'
-import type { TaxAdvantagedCategory } from '@/api/taxAdvantagedCategories'
+import type { TaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { InstitutionLogo } from '@/pages/accounts/components/InstitutionLogo'
 import { ACCOUNT_KIND_LABEL } from '@/pages/accounts/detail/constants/accountDetail'

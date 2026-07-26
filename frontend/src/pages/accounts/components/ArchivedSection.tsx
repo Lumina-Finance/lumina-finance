@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ChevronDown, EyeOff } from 'lucide-react'
 import { motion, useReducedMotion } from 'motion/react'
 import type { AccountsOverview } from '@/api/accounts'
-import type { TaxAdvantagedCategory } from '@/api/taxAdvantagedCategories'
+import type { TaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
 import AccountRow from '@/pages/accounts/components/Row'
 
 const ARCHIVED_ACCOUNTS_EASE = [0.25, 0.1, 0.25, 1] as const

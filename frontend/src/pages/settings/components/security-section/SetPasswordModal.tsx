@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Check, X } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { setPassword } from '@/api/user'
-import { TwoFactorModalShell } from '@/components/twoFactor/TwoFactorModalShell'
+import { TwoFactorModalShell } from '@/components/two-factor/TwoFactorModalShell'
 import { isNewPasswordValid, NEW_PASSWORD_RULES } from '@/utils/passwordPolicy'
 import { withMinDelay } from '@/utils/timing'
 

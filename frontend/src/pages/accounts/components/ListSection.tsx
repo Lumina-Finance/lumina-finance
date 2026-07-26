@@ -1,6 +1,6 @@
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import type { AccountsOverview } from '@/api/accounts'
-import type { TaxAdvantagedCategory } from '@/api/taxAdvantagedCategories'
+import type { TaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
 import { formatCurrency } from '@/utils/formatCurrency'
 import AccountRow from '@/pages/accounts/components/Row'
 import type { AccountAccent } from '@/pages/accounts/types/accounts'

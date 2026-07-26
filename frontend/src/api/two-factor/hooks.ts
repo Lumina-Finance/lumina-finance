@@ -8,8 +8,8 @@ import {
   fetchTotpStatus,
   regenerateRecoveryCodes,
   setupTotp,
-} from '@/api/twoFactor/requests';
-import type { StepUpPayload } from '@/api/twoFactor/types';
+} from '@/api/two-factor/requests';
+import type { StepUpPayload } from '@/api/two-factor/types';
 import { useAuth } from '@/hooks/useAuth';
 import { withMinDelay } from '@/utils/timing';
 

@@ -4,7 +4,7 @@ import type {
   FireflyBudgetImportResponse,
   FireflyTransactionImportPayload,
   FireflyTransactionImportResponse,
-} from '@/api/fireflyImports/types';
+} from '@/api/firefly-imports/types';
 
 /**
  * Uploads one prepared Firefly III transaction import batch to the backend

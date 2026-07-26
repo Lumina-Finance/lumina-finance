@@ -1,5 +1,5 @@
 import type { AccountsOverview } from '@/api/accounts'
-import type { TaxAdvantagedCategory } from '@/api/taxAdvantagedCategories'
+import type { TaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
 import { formatCurrency } from '@/utils/formatCurrency'
 
 interface TaxAdvantagedAccountLinksPanelProps {

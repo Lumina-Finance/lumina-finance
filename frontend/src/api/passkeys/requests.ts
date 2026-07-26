@@ -9,7 +9,7 @@ import type { AuthResponse } from '@/api/auth/types';
 import { authenticatedFetch } from '@/api/client';
 import { API_BASE } from '@/api/config';
 import type { Passkey, PasskeyConfig, RegisterPasskeyPayload, RegisterPasskeyResult } from '@/api/passkeys/types';
-import type { StepUpPayload } from '@/api/twoFactor/types';
+import type { StepUpPayload } from '@/api/two-factor/types';
 
 /**
  * Reads the relying party id from the public config endpoint

@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { RecoveryCodesPanel } from '@/components/twoFactor/RecoveryCodesPanel';
-import { TwoFactorModalShell } from '@/components/twoFactor/TwoFactorModalShell';
+import { RecoveryCodesPanel } from '@/components/two-factor/RecoveryCodesPanel';
+import { TwoFactorModalShell } from '@/components/two-factor/TwoFactorModalShell';
 import { delayToMinimum } from '@/utils/timing';
 
 const DEFAULT_DESCRIPTION =

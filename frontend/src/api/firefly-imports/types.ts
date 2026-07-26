@@ -2,7 +2,7 @@ import type {
   TransactionImportAccountMapping,
   TransactionImportCategoryMapping,
   TransactionImportResponse,
-} from '@/api/transactionImports/types';
+} from '@/api/transaction-imports/types';
 
 /**
  * One Firefly III export journal row compiled by the frontend

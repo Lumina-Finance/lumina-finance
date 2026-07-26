@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from 'motion/react'
 import { Pencil, X } from 'lucide-react'
 import type { Currency } from '@/api/currency'
-import type { TaxAdvantagedCategory } from '@/api/taxAdvantagedCategories'
+import type { TaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
 import ActionFeedbackButton from '@/components/feedback/ActionButton'
 import Dropdown from '@/components/dropdown/Dropdown'
 import type { TaxPlanFormState } from '@/pages/settings/components/tax-advantaged/types'

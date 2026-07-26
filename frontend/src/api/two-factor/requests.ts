@@ -5,7 +5,7 @@ import type {
   StepUpPayload,
   TotpSetupResponse,
   TotpStatusResponse,
-} from '@/api/twoFactor/types';
+} from '@/api/two-factor/types';
 
 /**
  * Reports whether the current user has two-factor authentication enabled

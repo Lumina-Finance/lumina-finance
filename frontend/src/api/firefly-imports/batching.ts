@@ -1,11 +1,17 @@
-import { postTransactionImportBatch } from '@/api/transactionImports/requests';
+import { postFireflyTransactionImportBatch } from '@/api/firefly-imports/requests';
+import {
+  getFireflyRowAccountSources,
+  getFireflyRowCategorySource,
+} from '@/api/firefly-imports/rowSources';
+import type {
+  FireflyTransactionImportPayload,
+  FireflyTransactionImportResponse,
+  FireflyTransactionImportRow,
+} from '@/api/firefly-imports/types';
 import type {
   TransactionImportAccountMapping,
   TransactionImportCategoryMapping,
-  TransactionImportPayload,
-  TransactionImportResponse,
-  TransactionImportRow,
-} from '@/api/transactionImports/types';
+} from '@/api/transaction-imports/types';
 
 const MAX_IMPORT_BATCH_BYTES = 750 * 1024;
 const TARGET_IMPORT_BATCH_BYTES = 650 * 1024;
@@ -13,9 +19,9 @@ const IMPORT_BATCH_YIELD_INTERVAL = 250;
 const IMPORT_PAYLOAD_ENCODER = new TextEncoder();
 
 /**
- * Uploads transaction imports in bounded batches that preserve backend-created source mappings
+ * Uploads Firefly III imports in bounded batches that preserve backend-created source mappings
  */
-export async function importTransactionsInBatches(payload: TransactionImportPayload) {
+export async function importFireflyTransactionsInBatches(payload: FireflyTransactionImportPayload) {
   const accountMappingsBySource = getImportMappingsBySource(payload.accounts);
   const categoryMappingsBySource = getImportMappingsBySource(payload.categories);
   const accountSourceIds: Record<string, string> = {};
@@ -26,16 +32,15 @@ export async function importTransactionsInBatches(payload: TransactionImportPayl
   // Later batches must reuse account and category IDs created by earlier batches
   while (rowIndex < payload.rows.length) {
     const batch = await buildNextImportBatch(
-      payload.rows,
+      payload,
       rowIndex,
       accountMappingsBySource,
       categoryMappingsBySource,
       accountSourceIds,
       categorySourceIds,
     );
-    const batchPayload = batch.payload;
     rowIndex = batch.nextRowIndex;
-    const batchResult = await postTransactionImportBatch(batchPayload);
+    const batchResult = await postFireflyTransactionImportBatch(batch.payload);
     mergeImportResponse(result, batchResult);
     Object.assign(accountSourceIds, batchResult.account_source_ids);
     Object.assign(categorySourceIds, batchResult.category_source_ids);
@@ -48,36 +53,42 @@ export async function importTransactionsInBatches(payload: TransactionImportPayl
  * Builds the next import batch without exceeding the request-size budget
  */
 async function buildNextImportBatch(
-  sourceRows: TransactionImportRow[],
+  payload: FireflyTransactionImportPayload,
   startIndex: number,
   accountMappingsBySource: Map<string, TransactionImportAccountMapping>,
   categoryMappingsBySource: Map<string, TransactionImportCategoryMapping>,
   accountSourceIds: Record<string, string>,
   categorySourceIds: Record<string, string>,
 ) {
-  const rows: TransactionImportRow[] = [];
+  const sourceRows = payload.rows;
+  const rows: FireflyTransactionImportRow[] = [];
   const accountSources = new Set<string>();
   const categorySources = new Set<string>();
   let estimatedBytes = getEmptyImportPayloadByteSize();
   let rowIndex = startIndex;
 
-  // Each row may introduce account and category mappings, so the batch budget tracks both
+  // Each row may introduce up to two account mappings plus a category mapping,
+  // so the batch budget tracks all of them
   while (rowIndex < sourceRows.length) {
     const row = sourceRows[rowIndex];
-    const nextEstimatedBytes = estimatedBytes
+    const rowAccountSources = getFireflyRowAccountSources(row);
+    const rowCategorySource = getFireflyRowCategorySource(row);
+    let nextEstimatedBytes = estimatedBytes
       + getNextArrayItemByteSize(rows.length, row)
-      + getNextAccountMappingByteSize(
-        row.account_source,
-        accountSources,
-        accountMappingsBySource,
-        accountSourceIds,
-      )
       + getNextCategoryMappingByteSize(
-        row.category_source,
+        rowCategorySource,
         categorySources,
         categoryMappingsBySource,
         categorySourceIds,
       );
+    for (const source of rowAccountSources) {
+      nextEstimatedBytes += getNextAccountMappingByteSize(
+        source,
+        accountSources,
+        accountMappingsBySource,
+        accountSourceIds,
+      );
+    }
 
     if (rows.length > 0 && nextEstimatedBytes > TARGET_IMPORT_BATCH_BYTES) break;
     if (rows.length === 0 && nextEstimatedBytes > MAX_IMPORT_BATCH_BYTES) {
@@ -85,8 +96,8 @@ async function buildNextImportBatch(
     }
 
     rows.push(row);
-    accountSources.add(row.account_source);
-    categorySources.add(row.category_source);
+    for (const source of rowAccountSources) accountSources.add(source);
+    categorySources.add(rowCategorySource);
     estimatedBytes = nextEstimatedBytes;
     rowIndex += 1;
 
@@ -96,6 +107,12 @@ async function buildNextImportBatch(
   }
 
   if (rows.length === 0) throw new Error('No import rows are available to upload.');
+
+  // The endpoint requires at least one account mapping per request, so a batch
+  // made entirely of rows without tracked endpoints borrows one known mapping
+  if (accountSources.size === 0 && payload.accounts.length > 0) {
+    accountSources.add(payload.accounts[0].source);
+  }
 
   return {
     payload: buildImportBatchPayload(
@@ -115,14 +132,14 @@ async function buildNextImportBatch(
  * Builds the backend payload for one bounded import batch
  */
 function buildImportBatchPayload(
-  rows: TransactionImportRow[],
+  rows: FireflyTransactionImportRow[],
   accountSources: string[],
   categorySources: string[],
   accountMappingsBySource: Map<string, TransactionImportAccountMapping>,
   categoryMappingsBySource: Map<string, TransactionImportCategoryMapping>,
   accountSourceIds: Record<string, string>,
   categorySourceIds: Record<string, string>,
-): TransactionImportPayload {
+): FireflyTransactionImportPayload {
   return {
     accounts: accountSources.map((source) =>
       getBatchAccountMapping(source, accountMappingsBySource, accountSourceIds),
@@ -224,8 +241,11 @@ function getJsonByteSize(value: unknown) {
 /**
  * Builds the aggregate response shape before batch results are merged into it
  */
-function getEmptyImportResponse(): TransactionImportResponse {
+function getEmptyImportResponse(): FireflyTransactionImportResponse {
   return {
+    rows_imported: 0,
+    rows_skipped: 0,
+    skipped: [],
     transactions_created: 0,
     accounts_created: 0,
     accounts_reused: 0,
@@ -248,7 +268,13 @@ function getEmptyImportResponse(): TransactionImportResponse {
 /**
  * Merges batch responses into the aggregate import result shown to the user
  */
-function mergeImportResponse(target: TransactionImportResponse, source: TransactionImportResponse) {
+function mergeImportResponse(
+  target: FireflyTransactionImportResponse,
+  source: FireflyTransactionImportResponse,
+) {
+  target.rows_imported += source.rows_imported;
+  target.rows_skipped += source.rows_skipped;
+  target.skipped.push(...source.skipped);
   target.transactions_created += source.transactions_created;
   target.accounts_created += source.accounts_created;
   target.accounts_reused += source.accounts_reused;

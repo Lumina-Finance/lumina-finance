@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { useAccounts } from '@/api/accounts'
-import { useTaxAdvantagedCategories } from '@/api/taxAdvantagedCategories'
+import { useTaxAdvantagedCategories } from '@/api/tax-advantaged-categories'
 import CreateAccountModal from '@/pages/accounts/components/create-account-modal/Modal'
 import AccountListToolbar from '@/pages/accounts/components/toolbar/ListToolbar'
 import AccountListSection from '@/pages/accounts/components/ListSection'

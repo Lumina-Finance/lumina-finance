@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { motion } from 'motion/react';
-import type { StepUpPayload } from '@/api/twoFactor/types';
+import type { StepUpPayload } from '@/api/two-factor/types';
 import { PasskeyEnrollment } from '@/components/passkeys/PasskeyEnrollment';
-import { TotpEnrollment } from '@/components/twoFactor/TotpEnrollment';
-import { TwoFactorModalShell } from '@/components/twoFactor/TwoFactorModalShell';
+import { TotpEnrollment } from '@/components/two-factor/TotpEnrollment';
+import { TwoFactorModalShell } from '@/components/two-factor/TwoFactorModalShell';
 import { AUTH_VIEW_TRANSITION } from '@/pages/auth/constants/authAnimations';
 
 interface SignupFactorSetupProps {

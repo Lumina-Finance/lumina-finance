@@ -4,7 +4,7 @@ export type {
   StepUpPayload,
   TotpSetupResponse,
   TotpStatusResponse,
-} from '@/api/twoFactor/types';
+} from '@/api/two-factor/types';
 
 export {
   completeTotp,
@@ -14,7 +14,7 @@ export {
   fetchTotpStatus,
   regenerateRecoveryCodes,
   setupTotp,
-} from '@/api/twoFactor/requests';
+} from '@/api/two-factor/requests';
 
 export {
   useCompleteTotp,
@@ -24,4 +24,4 @@ export {
   useRegenerateRecoveryCodes,
   useSetupTotp,
   useTotpStatus,
-} from '@/api/twoFactor/hooks';
+} from '@/api/two-factor/hooks';

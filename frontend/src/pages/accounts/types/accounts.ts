@@ -1,6 +1,6 @@
 import type { AccountKind, AccountType } from '@/api/accounts'
 import type { FxStatus } from '@/api/shared/fx'
-import type { TaxAdvantagedCategory } from '@/api/taxAdvantagedCategories'
+import type { TaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
 
 export interface FilterValues {
   institution_id?: string[]

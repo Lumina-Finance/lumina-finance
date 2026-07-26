@@ -2,7 +2,7 @@ import type { AccountType } from '@/api/accounts'
 import type {
   FireflyTransactionImportPayload,
   FireflyTransactionImportResponse,
-} from '@/api/fireflyImports'
+} from '@/api/firefly-imports'
 import {
   ACCOUNT_TYPE_OPTIONS,
   CREATE_ACCOUNT_VALUE,

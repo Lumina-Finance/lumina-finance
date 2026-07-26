@@ -1,4 +1,4 @@
-import type { FireflyTransactionImportRow } from '@/api/fireflyImports/types';
+import type { FireflyTransactionImportRow } from '@/api/firefly-imports/types';
 
 /**
  * Firefly III account types that resolve to Lumina accounts rather than

@@ -2,7 +2,7 @@ import { authenticatedFetch } from '@/api/client';
 import type {
   TransactionImportPayload,
   TransactionImportResponse,
-} from '@/api/transactionImports/types';
+} from '@/api/transaction-imports/types';
 
 /**
  * Uploads one prepared transaction import batch to the backend

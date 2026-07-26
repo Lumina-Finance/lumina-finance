@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { Check, Copy } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
-import { useCompleteTotp, useConfirmTotp, useSetupTotp } from '@/api/twoFactor';
-import type { RecoveryCodesResponse, StepUpPayload, TotpSetupResponse } from '@/api/twoFactor/types';
+import { useCompleteTotp, useConfirmTotp, useSetupTotp } from '@/api/two-factor';
+import type { RecoveryCodesResponse, StepUpPayload, TotpSetupResponse } from '@/api/two-factor/types';
 import { OtpInput, OTP_LENGTH } from '@/components/OtpInput';
-import { RecoveryCodesPanel } from '@/components/twoFactor/RecoveryCodesPanel';
-import { StepTransition } from '@/components/twoFactor/StepTransition';
+import { RecoveryCodesPanel } from '@/components/two-factor/RecoveryCodesPanel';
+import { StepTransition } from '@/components/two-factor/StepTransition';
 import { copyText } from '@/utils/clipboard';
 import { delayToMinimum, MFA_LOADING_MIN_MS } from '@/utils/timing';
 

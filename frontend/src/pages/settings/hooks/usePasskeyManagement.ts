@@ -8,7 +8,7 @@ import {
   useRemovePasskey,
   useRenamePasskey,
 } from '@/api/passkeys';
-import type { StepUpCredentials } from '@/components/twoFactor/StepUpModal';
+import type { StepUpCredentials } from '@/components/two-factor/StepUpModal';
 // StepUpCredentials is structurally the StepUpPayload the register call carries, so it passes straight through
 import { assessPasskeySupport, type PasskeySupport } from '@/utils/passkeySupport';
 import { withMinDelay } from '@/utils/timing';

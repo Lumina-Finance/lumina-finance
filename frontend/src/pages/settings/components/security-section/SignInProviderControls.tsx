@@ -11,7 +11,7 @@ import {
   type OidcProvider,
 } from '@/api/oidc';
 import { ProviderMark } from '@/components/ProviderMark';
-import { StepUpModal, type StepUpCredentials } from '@/components/twoFactor/StepUpModal';
+import { StepUpModal, type StepUpCredentials } from '@/components/two-factor/StepUpModal';
 import { ProviderReauthModal } from '@/pages/settings/components/security-section/ProviderReauthModal';
 import { useProviderReauth } from '@/pages/settings/hooks/useProviderReauth';
 import { markOidcIntent } from '@/utils/oidcIntent';

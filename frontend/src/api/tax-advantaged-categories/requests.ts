@@ -6,7 +6,7 @@ import type {
   TaxAdvantagedCategoryLimit,
   UpdateTaxAdvantagedCategoryLimitPayload,
   UpdateTaxAdvantagedCategoryPayload,
-} from '@/api/taxAdvantagedCategories/types';
+} from '@/api/tax-advantaged-categories/types';
 
 /**
  * Fetches tax-advantaged category summaries

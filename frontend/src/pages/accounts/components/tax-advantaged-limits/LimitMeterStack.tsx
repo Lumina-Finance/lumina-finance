@@ -1,4 +1,4 @@
-import type { TaxAdvantagedCategory } from '@/api/taxAdvantagedCategories'
+import type { TaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
 import { getLifetimeAvailableBoundary } from '@/pages/accounts/utils/taxAdvantagedLimits'
 import { TaxAdvantagedCompactLimitMeter } from './CompactLimitMeter'
 

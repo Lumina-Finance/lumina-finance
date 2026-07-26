@@ -1,4 +1,4 @@
-import { useTaxAdvantagedCategoryLimits, type TaxAdvantagedCategory } from '@/api/taxAdvantagedCategories'
+import { useTaxAdvantagedCategoryLimits, type TaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
 import {
   formatLimitYears,
   formatTaxTreatment,

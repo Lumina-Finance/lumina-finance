@@ -4,7 +4,7 @@ import {
   useDeleteTaxAdvantagedCategory,
   useUpdateTaxAdvantagedCategory,
   type TaxAdvantagedCategory,
-} from '@/api/taxAdvantagedCategories'
+} from '@/api/tax-advantaged-categories'
 import type { TaxPlanFormState } from '@/pages/settings/components/tax-advantaged/types'
 import { DELETE_TAX_CATEGORY_MIN_LOADING_MS } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/constants'
 import {

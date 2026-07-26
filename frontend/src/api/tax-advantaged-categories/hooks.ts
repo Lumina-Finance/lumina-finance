@@ -19,10 +19,10 @@ import {
   fetchTaxAdvantagedCategoryLimits,
   updateTaxAdvantagedCategory,
   updateTaxAdvantagedCategoryLimit,
-} from '@/api/taxAdvantagedCategories/requests';
+} from '@/api/tax-advantaged-categories/requests';
 import type {
   UpdateTaxAdvantagedCategoryPayload,
-} from '@/api/taxAdvantagedCategories/types';
+} from '@/api/tax-advantaged-categories/types';
 import { useAuth } from '@/hooks/useAuth';
 
 /**

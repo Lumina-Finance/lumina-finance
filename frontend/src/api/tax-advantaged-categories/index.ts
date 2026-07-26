@@ -6,7 +6,7 @@ export type {
   TaxTreatment,
   UpdateTaxAdvantagedCategoryLimitPayload,
   UpdateTaxAdvantagedCategoryPayload,
-} from '@/api/taxAdvantagedCategories/types';
+} from '@/api/tax-advantaged-categories/types';
 
 export {
   createTaxAdvantagedCategory,
@@ -18,7 +18,7 @@ export {
   fetchTaxAdvantagedCategoryLimits,
   updateTaxAdvantagedCategory,
   updateTaxAdvantagedCategoryLimit,
-} from '@/api/taxAdvantagedCategories/requests';
+} from '@/api/tax-advantaged-categories/requests';
 
 export {
   useCreateTaxAdvantagedCategory,
@@ -30,4 +30,4 @@ export {
   useTaxAdvantagedCategoryLimits,
   useUpdateTaxAdvantagedCategory,
   useUpdateTaxAdvantagedCategoryLimit,
-} from '@/api/taxAdvantagedCategories/hooks';
+} from '@/api/tax-advantaged-categories/hooks';

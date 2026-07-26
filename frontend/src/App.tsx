@@ -9,7 +9,7 @@ import { useCacheValidation } from '@/hooks/useCacheValidation'
 import { useTheme } from '@/hooks/useTheme'
 import Navigation from '@/components/navigation/Navigation'
 import LoadingScreen from '@/components/loading/Screen'
-import ForcedReenrollScreen from '@/components/twoFactor/ForcedReenrollScreen'
+import ForcedReenrollScreen from '@/components/two-factor/ForcedReenrollScreen'
 
 // Pages are lazy-loaded so each route ships as its own chunk instead of the
 // initial bundle, keeping first load small and pulling heavy page-only deps

@@ -1,4 +1,4 @@
-import type { TaxAdvantagedCategory } from '@/api/taxAdvantagedCategories'
+import type { TaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
 import { DetailLimitUsage } from './LimitUsage'
 
 type TaxAdvantagedCategoryBandProps = {

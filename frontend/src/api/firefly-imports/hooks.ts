@@ -1,8 +1,8 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { invalidateAppData } from '@/api/cache/invalidation';
 import { invalidateBudgetActivity } from '@/api/cache/updates/budgets';
-import { importFireflyTransactionsInBatches } from '@/api/fireflyImports/batching';
-import { postFireflyBudgetImport } from '@/api/fireflyImports/requests';
+import { importFireflyTransactionsInBatches } from '@/api/firefly-imports/batching';
+import { postFireflyBudgetImport } from '@/api/firefly-imports/requests';
 
 /**
  * Provides the mutation boundary for uploading prepared Firefly III import payloads
