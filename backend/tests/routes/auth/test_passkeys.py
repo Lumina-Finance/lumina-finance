@@ -1,16 +1,24 @@
 """Passkey registration, management, and sign-in route tests
 
-The attestation and assertion crypto belong to the WebAuthn library and are verified there, so the
-happy paths stub only that one call and exercise the real challenge, storage, and identity logic
+Most tests replace the library's attestation and assertion checks with fixed results so they can
+exercise the real challenge, storage, and identity logic. The ceremony tests at the end of this file
+instead sign real responses with a software authenticator, so a library upgrade that changes what
+those calls accept, return, or raise fails here rather than passing unnoticed
 """
 
 import asyncio
+import hashlib
 import json
+import os
+import struct
 import uuid
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
+import cbor2
 import pyotp
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import ec
 from fastapi import HTTPException
 from sqlalchemy import select
 from webauthn.helpers import bytes_to_base64url
@@ -25,6 +33,23 @@ from tests.conftest import TestSession
 from tests.routes.support import SIGNUP_PAYLOAD, _create_user, _get_auth_header, _seed_reset_token
 
 _NEW_PASSWORD = "NewSecurePass123!"
+
+# Authenticator data flag bits, which tell the library whether the user was present and verified and
+# whether an attested credential follows the header
+_FLAG_USER_PRESENT = 0x01
+_FLAG_USER_VERIFIED = 0x04
+_FLAG_BACKUP_ELIGIBLE = 0x08
+_FLAG_BACKED_UP = 0x10
+_FLAG_ATTESTED_CREDENTIAL = 0x40
+
+# An authenticator that reports no make and model sends an all-zero identifier
+_TEST_AAGUID = bytes(16)
+
+_CREDENTIAL_ID_BYTES = 32
+_P256_COORDINATE_BYTES = 32
+
+# Counter a signed assertion reports, which has to exceed the count stored at registration
+_ASSERTION_SIGN_COUNT = 5
 
 
 async def _create_second_user(client):
@@ -1109,4 +1134,208 @@ async def test_passkey_reset_options_reject_a_login_challenge(client):
     login_mfa_token = (await _login(client)).json()["mfa_token"]
 
     response = await client.post("/auth/passkeys/reset/options", json={"mfa_token": login_mfa_token})
+    assert response.status_code == 401
+
+
+class _SoftwareAuthenticator:
+    """A passkey authenticator that signs real ceremony responses with a generated ES256 key"""
+
+    def __init__(self) -> None:
+        """Generate this authenticator's signing key and credential id"""
+        self._private_key = ec.generate_private_key(ec.SECP256R1())
+        self.credential_id = os.urandom(_CREDENTIAL_ID_BYTES)
+
+    def build_registration_response(self, challenge: str) -> dict:
+        """Assemble a registration response whose attestation carries this authenticator's public key
+
+        Args:
+            challenge: Base64url challenge the server issued for the ceremony
+
+        Returns:
+            The body a browser would send back to finish registration
+        """
+        flags = (
+            _FLAG_USER_PRESENT
+            | _FLAG_USER_VERIFIED
+            | _FLAG_BACKUP_ELIGIBLE
+            | _FLAG_BACKED_UP
+            | _FLAG_ATTESTED_CREDENTIAL
+        )
+        authenticator_data = self._build_authenticator_data(flags, sign_count=0)
+
+        # A passkey with no hardware attestation to offer reports the "none" format and an empty statement
+        attestation = cbor2.dumps({"fmt": "none", "attStmt": {}, "authData": authenticator_data})
+
+        return {
+            "id": bytes_to_base64url(self.credential_id),
+            "rawId": bytes_to_base64url(self.credential_id),
+            "type": "public-key",
+            "response": {
+                "clientDataJSON": bytes_to_base64url(self._build_client_data(challenge, "webauthn.create")),
+                "attestationObject": bytes_to_base64url(attestation),
+                "transports": ["internal", "hybrid"],
+            },
+            "clientExtensionResults": {},
+        }
+
+    def build_assertion(self, challenge: str, user_id: str, sign_count: int) -> dict:
+        """Assemble a sign-in assertion signed by this authenticator's key
+
+        Args:
+            challenge: Base64url challenge the server issued for the ceremony
+            user_id: Account the discoverable credential belongs to
+            sign_count: Counter this authenticator reports for the signature
+
+        Returns:
+            The body a browser would send back to finish a sign-in
+        """
+        flags = _FLAG_USER_PRESENT | _FLAG_USER_VERIFIED | _FLAG_BACKUP_ELIGIBLE | _FLAG_BACKED_UP
+        authenticator_data = self._build_authenticator_data(flags, sign_count=sign_count)
+        client_data = self._build_client_data(challenge, "webauthn.get")
+
+        # The signature covers the authenticator data followed by the hash of the client data
+        signature = self._private_key.sign(
+            authenticator_data + hashlib.sha256(client_data).digest(), ec.ECDSA(hashes.SHA256())
+        )
+
+        return {
+            "id": bytes_to_base64url(self.credential_id),
+            "rawId": bytes_to_base64url(self.credential_id),
+            "type": "public-key",
+            "response": {
+                "clientDataJSON": bytes_to_base64url(client_data),
+                "authenticatorData": bytes_to_base64url(authenticator_data),
+                "signature": bytes_to_base64url(signature),
+                "userHandle": bytes_to_base64url(uuid.UUID(user_id).bytes),
+            },
+            "clientExtensionResults": {},
+        }
+
+    def _build_authenticator_data(self, flags: int, sign_count: int) -> bytes:
+        """Assemble authenticator data, appending the credential and key when it is an attested one"""
+        header = hashlib.sha256(WEBAUTHN_RP_ID.encode()).digest() + struct.pack(">BI", flags, sign_count)
+        if not flags & _FLAG_ATTESTED_CREDENTIAL:
+            return header
+        return (
+            header
+            + _TEST_AAGUID
+            + struct.pack(">H", len(self.credential_id))
+            + self.credential_id
+            + self._encode_cose_public_key()
+        )
+
+    def _encode_cose_public_key(self) -> bytes:
+        """Encode this authenticator's public key in the COSE form the library reads"""
+        numbers = self._private_key.public_key().public_numbers()
+
+        # COSE labels: 1 is the key type where 2 means elliptic curve, 3 is the algorithm where -7
+        # means ES256, -1 is the curve where 1 means P-256, and -2 and -3 hold the point coordinates
+        return cbor2.dumps({
+            1: 2,
+            3: -7,
+            -1: 1,
+            -2: numbers.x.to_bytes(_P256_COORDINATE_BYTES, "big"),
+            -3: numbers.y.to_bytes(_P256_COORDINATE_BYTES, "big"),
+        })
+
+    @staticmethod
+    def _build_client_data(challenge: str, ceremony_type: str) -> bytes:
+        """Assemble the client data a browser echoes back for a ceremony"""
+        return json.dumps({
+            "type": ceremony_type,
+            "challenge": challenge,
+            "origin": WEBAUTHN_ORIGINS[0],
+        }).encode()
+
+
+async def _request_registration_options(client, auth) -> dict:
+    """Return registration ceremony options, reauthorizing with the account password"""
+    response = await client.post(
+        "/auth/passkeys/register/options", headers=auth, json={"step_up": {"password": SIGNUP_PAYLOAD["password"]}}
+    )
+    return response.json()
+
+
+async def _register_real_passkey(client, auth, authenticator: _SoftwareAuthenticator, name: str = "Real key"):
+    """Run a registration ceremony end to end with nothing replaced, returning the register response"""
+    options = await _request_registration_options(client, auth)
+    credential = authenticator.build_registration_response(options["challenge"])
+    return await client.post("/auth/passkeys/register", headers=auth, json={"name": name, "credential": credential})
+
+
+async def test_real_ceremony_registers_and_signs_in(client):
+    """A genuinely signed passkey registers and then signs in, with the library verifying both
+
+    Every other ceremony test replaces the library's verification with a fixed result, so this is the
+    only coverage that fails when a library upgrade changes what those calls accept or return
+    """
+    signup = await _create_user(client)
+    auth = _get_auth_header(signup)
+    user_id = signup.json()["user"]["id"]
+    authenticator = _SoftwareAuthenticator()
+
+    registered = await _register_real_passkey(client, auth, authenticator, "Verified laptop")
+    assert registered.status_code == 201
+    assert len(registered.json()["recovery_codes"]) == 10
+    assert (await client.post("/auth/passkeys/register/confirm", headers=auth)).status_code == 204
+
+    # The stored key is read out of the attestation, so an empty one means the library returned nothing
+    stored = await _read_passkey(authenticator.credential_id)
+    assert stored.public_key
+    assert stored.sign_count == 0
+
+    options = (await client.post("/auth/passkeys/authenticate/options")).json()
+    assertion = authenticator.build_assertion(options["challenge"], user_id, _ASSERTION_SIGN_COUNT)
+
+    signed_in = await client.post("/auth/passkeys/authenticate", json={"credential": assertion})
+    assert signed_in.status_code == 200
+    assert signed_in.json()["user"]["id"] == user_id
+
+    # The counter moving to the value the assertion reported proves the signature was checked
+    stored = await _read_passkey(authenticator.credential_id)
+    assert stored.sign_count == _ASSERTION_SIGN_COUNT
+    assert stored.last_used_at is not None
+
+
+async def test_real_ceremony_rejects_a_damaged_attestation(client):
+    """A registration response whose attestation cannot be read is refused as a bad request
+
+    The service turns the library's registration error into a 400, so a library that raised something
+    else would surface here as a 500
+    """
+    auth = _get_auth_header(await _create_user(client))
+    authenticator = _SoftwareAuthenticator()
+
+    options = await _request_registration_options(client, auth)
+    credential = authenticator.build_registration_response(options["challenge"])
+    credential["response"]["attestationObject"] = bytes_to_base64url(b"not-an-attestation-object")
+
+    response = await client.post(
+        "/auth/passkeys/register", headers=auth, json={"name": "Damaged", "credential": credential}
+    )
+    assert response.status_code == 400
+
+
+async def test_real_ceremony_rejects_a_forged_signature(client):
+    """An assertion signed by a different key than the registered passkey is refused as unauthorized
+
+    The service turns the library's authentication error into a 401, so a library that raised
+    something else would surface here as a 500
+    """
+    signup = await _create_user(client)
+    auth = _get_auth_header(signup)
+    user_id = signup.json()["user"]["id"]
+    authenticator = _SoftwareAuthenticator()
+
+    assert (await _register_real_passkey(client, auth, authenticator)).status_code == 201
+    assert (await client.post("/auth/passkeys/register/confirm", headers=auth)).status_code == 204
+
+    # A second authenticator claims the registered credential id while signing with its own key
+    forger = _SoftwareAuthenticator()
+    forger.credential_id = authenticator.credential_id
+
+    options = (await client.post("/auth/passkeys/authenticate/options")).json()
+    assertion = forger.build_assertion(options["challenge"], user_id, _ASSERTION_SIGN_COUNT)
+
+    response = await client.post("/auth/passkeys/authenticate", json={"credential": assertion})
     assert response.status_code == 401
