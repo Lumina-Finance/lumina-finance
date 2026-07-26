@@ -4,8 +4,6 @@ import os
 import secrets
 from pathlib import Path
 
-# --- Secret storage ---
-
 # Fixed location for persisted password files
 _SECRETS_DIR = Path("/data/secrets")
 

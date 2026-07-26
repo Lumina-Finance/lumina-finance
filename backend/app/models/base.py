@@ -11,8 +11,6 @@ class Base(DeclarativeBase):
     pass
 
 
-# --- Auth ---
-
 class AuthProvider(enum.StrEnum):
     """Authentication provider identifiers"""
 
@@ -28,16 +26,12 @@ class AuthTokenKind(enum.StrEnum):
     REFRESH = "refresh"
 
 
-# --- Institutions ---
-
 class InstitutionStatus(enum.StrEnum):
     """Institution curation states"""
 
     CANONICAL = "canonical"
     PENDING = "pending"
 
-
-# --- Accounts ---
 
 class TaxTreatment(enum.StrEnum):
     """Tax treatment categories for account reporting"""
@@ -100,8 +94,6 @@ if set(ACCOUNT_KIND_BY_TYPE.keys()) != set(AccountType):
     raise RuntimeError(f"ACCOUNT_KIND_BY_TYPE is missing entries for: {_missing}")
 
 
-# --- Categories ---
-
 class CategoryKind(enum.StrEnum):
     """Category direction used for transaction classification"""
 
@@ -110,8 +102,6 @@ class CategoryKind(enum.StrEnum):
     TRANSFER = "transfer"
 
 
-# --- Budgets ---
-
 class RecurrenceFreq(enum.StrEnum):
     """Budget recurrence frequency values"""
 
@@ -119,8 +109,6 @@ class RecurrenceFreq(enum.StrEnum):
     MONTHLY = "monthly"
     YEARLY = "yearly"
 
-
-# --- Permissions ---
 
 class PermissionLevel(enum.StrEnum):
     """Shared access level values"""

@@ -7,8 +7,6 @@ from pydantic import BaseModel
 
 from app.models.base import PermissionLevel
 
-# --- Account permissions ---
-
 
 class GrantAccountPermissionRequest(BaseModel):
     """Grant or update a member's access level on a group account."""
@@ -28,9 +26,6 @@ class AccountPermissionResponse(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
-
-
-# --- Budget permissions ---
 
 
 class GrantBudgetPermissionRequest(BaseModel):
