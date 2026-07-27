@@ -3,7 +3,6 @@ import CreateInstitutionModal from '@/components/reference-modals/CreateInstitut
 import { ACCOUNT_TYPE_OPTIONS } from '../constants'
 import { ImportAccountMappingTable, EmptyState, ImportNotice, ImportStep } from '../components'
 import type { TransactionImportWorkflow } from '../hooks'
-import { getResolvedAccountChoice, getResolvedAccountCreateCurrency, getResolvedAccountCreateInstitution, getResolvedAccountCreateType } from '../utils'
 
 type ImportAccountMappingStepProps = Pick<
   TransactionImportWorkflow,
@@ -98,7 +97,7 @@ export function ImportAccountMappingStep({
       ) : (
         <ImportAccountMappingTable
           rows={accountMappingSources.map((sourceAccount) => {
-            const value = getResolvedAccountChoice(accountMappings[sourceAccount.id])
+            const value = accountMappings[sourceAccount.id] ?? ''
             const account = accountById.get(value)
 
             return {
@@ -109,9 +108,9 @@ export function ImportAccountMappingStep({
               accountType: account?.account_type ?? '',
               accountCurrency: account?.currency ?? '',
               accountInstitution: account?.institution?.id ?? '',
-              createType: getResolvedAccountCreateType(sourceAccount.id, accountCreateTypes),
-              createCurrency: getResolvedAccountCreateCurrency(sourceAccount.id, accountCreateCurrencies),
-              createInstitution: getResolvedAccountCreateInstitution(sourceAccount.id, accountCreateInstitutions),
+              createType: accountCreateTypes[sourceAccount.id] ?? '',
+              createCurrency: accountCreateCurrencies[sourceAccount.id] ?? '',
+              createInstitution: accountCreateInstitutions[sourceAccount.id] ?? '',
               onChange: (nextValue: string) => updateSourceAccount(sourceAccount.id, nextValue),
               onCreateTypeChange: (nextValue: string) => setAccountCreateTypes((current) => ({ ...current, [sourceAccount.id]: nextValue })),
               onCreateCurrencyChange: (nextValue: string) => setAccountCreateCurrencies((current) => ({ ...current, [sourceAccount.id]: nextValue })),

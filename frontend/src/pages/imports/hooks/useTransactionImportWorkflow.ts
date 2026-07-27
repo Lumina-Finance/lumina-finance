@@ -1,21 +1,10 @@
 import { useMemo, useRef, useState, type ChangeEvent } from 'react'
-import { useCategories } from '@/api/categories'
-import { useAccounts } from '@/api/accounts'
-import { useCurrencies } from '@/api/currency'
-import { useInstitutions } from '@/api/institutions'
 import { useImportTransactions, type TransactionImportResponse } from '@/api/transaction-imports'
-import {
-  CREATE_ACCOUNT_VALUE,
-  EMPTY_COLUMN_MAP,
-} from '../constants'
+import { EMPTY_COLUMN_MAP } from '../constants'
 import type { ColumnMap, ColumnTarget, ColumnValidationErrors, ImportCategoryKind, ImportFileDraft, ImportOverlayPhase, PreviewTransactionRow } from '../types'
 import {
   buildColumnTargetOptions,
   buildImportAccountMappingSources,
-  buildImportAccountOptions,
-  buildImportCategoryMatchOptions,
-  buildImportCurrencyOptions,
-  buildImportInstitutionOptions,
   buildTransactionImportPayload,
   buildImportPreviewRows,
   formatImportSummary,
@@ -36,11 +25,11 @@ import {
   inferColumnMap,
   keepCurrentMatchMap,
   readCsvFile,
-  removeRecordKey,
-  removeSetValue,
   validateColumnValues,
 } from '../utils'
 import { waitForMilliseconds } from '@/utils/timing'
+import { useImportAccountCreateState } from './useImportAccountCreateState'
+import { useImportReferenceData } from './useImportReferenceData'
 
 const FILE_ACCOUNT_MATCH_KEY = '__file_account__'
 const CSV_PROCESSING_MIN_MS = 1500
@@ -63,13 +52,23 @@ export function useTransactionImportWorkflow() {
   const [columnMap, setColumnMap] = useState<ColumnMap>(EMPTY_COLUMN_MAP)
   const [accountMappings, setAccountMappings] = useState<Record<string, string>>({})
   const [accountAutoMatchKey, setAccountAutoMatchKey] = useState('')
-  const [accountCreateTypes, setAccountCreateTypes] = useState<Record<string, string>>({})
-  const [accountCreateCurrencies, setAccountCreateCurrencies] = useState<Record<string, string>>({})
-  const [accountCreateInstitutions, setAccountCreateInstitutions] = useState<Record<string, string>>({})
-  const [selectedAccountRows, setSelectedAccountRows] = useState<Set<string>>(() => new Set())
-  const [batchAccountType, setBatchAccountType] = useState('')
-  const [batchAccountCurrency, setBatchAccountCurrency] = useState('')
-  const [batchAccountInstitution, setBatchAccountInstitution] = useState('')
+  const {
+    accountCreateTypes,
+    accountCreateCurrencies,
+    accountCreateInstitutions,
+    selectedAccountRows,
+    batchAccountType,
+    batchAccountCurrency,
+    batchAccountInstitution,
+    setAccountCreateTypes,
+    setAccountCreateCurrencies,
+    setAccountCreateInstitutions,
+    setSelectedAccountRows,
+    setBatchAccountType,
+    setBatchAccountCurrency,
+    setBatchAccountInstitution,
+    updateAccountMapping: updateSourceAccount,
+  } = useImportAccountCreateState(setAccountMappings)
   const [merchantHandlingOpen, setMerchantHandlingOpen] = useState(true)
   const [tagHandlingOpen, setTagHandlingOpen] = useState(true)
   const [columnValidationErrors, setColumnValidationErrors] = useState<ColumnValidationErrors>({})
@@ -79,50 +78,23 @@ export function useTransactionImportWorkflow() {
   const [importError, setImportError] = useState<string | null>(null)
   const [importResult, setImportResult] = useState<TransactionImportResponse | null>(null)
   const [importOverlayPhase, setImportOverlayPhase] = useState<ImportOverlayPhase>('idle')
-  const { data: accounts = [], isLoading: accountsLoading } = useAccounts()
-  const { data: currencies = [], isLoading: currenciesLoading } = useCurrencies()
-  const { data: institutions = [], isLoading: institutionsLoading } = useInstitutions()
-  const { data: categories, isLoading: categoriesLoading } = useCategories()
   const importTransactions = useImportTransactions()
-  const selectableAccounts = useMemo(
-    () => accounts.filter((account) => !account.is_archived),
-    [accounts],
-  )
-
-  const accountOptions = useMemo(
-    () => buildImportAccountOptions(selectableAccounts),
-    [selectableAccounts],
-  )
-
-  const currencyOptions = useMemo(
-    () => buildImportCurrencyOptions(currencies),
-    [currencies],
-  )
-
-  const institutionOptions = useMemo(
-    () => buildImportInstitutionOptions(institutions),
-    [institutions],
-  )
-
-  const categoryMatchOptions = useMemo(
-    () => buildImportCategoryMatchOptions(categories),
-    [categories],
-  )
-
-  const accountById = useMemo(
-    () => new Map(selectableAccounts.map((account) => [account.id, account])),
-    [selectableAccounts],
-  )
-
-  const categoryById = useMemo(
-    () => new Map((categories ?? []).map((category) => [category.id, category])),
-    [categories],
-  )
-
-  const institutionById = useMemo(
-    () => new Map(institutions.map((institution) => [institution.id, institution])),
-    [institutions],
-  )
+  const {
+    currencies,
+    categories,
+    accountsLoading,
+    currenciesLoading,
+    institutionsLoading,
+    categoriesLoading,
+    selectableAccounts,
+    accountOptions,
+    currencyOptions,
+    institutionOptions,
+    categoryMatchOptions,
+    accountById,
+    categoryById,
+    institutionById,
+  } = useImportReferenceData()
 
   const headers = useMemo(
     () => getImportHeaders(files),
@@ -320,16 +292,6 @@ export function useTransactionImportWorkflow() {
       })
       return next
     })
-  }
-
-  const updateSourceAccount = (sourceAccount: string, accountId: string) => {
-    setAccountMappings((current) => ({ ...current, [sourceAccount]: accountId }))
-    if (accountId !== CREATE_ACCOUNT_VALUE) {
-      setAccountCreateTypes((current) => removeRecordKey(current, sourceAccount))
-      setAccountCreateCurrencies((current) => removeRecordKey(current, sourceAccount))
-      setAccountCreateInstitutions((current) => removeRecordKey(current, sourceAccount))
-      setSelectedAccountRows((current) => removeSetValue(current, sourceAccount))
-    }
   }
 
   const updateColumnTarget = (header: string, targetValue: string) => {

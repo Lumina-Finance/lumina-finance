@@ -5,7 +5,6 @@ import type { ColumnMap, ColumnValidationErrors, ImportAccountSource, ImportBuil
 import { isImportAccountType } from '@/pages/imports/accountTypeGuard'
 import { getCategoryMatchKind, splitImportedValues } from './categoryMatching'
 import { getMappedValue } from './columnMapping'
-import { getResolvedAccountChoice } from './accountMapping'
 import { normalizeImportDate, parseImportNumber } from './valueParsers'
 
 /**
@@ -67,7 +66,7 @@ export function buildTransactionImportPayload({
 
   const accounts: TransactionImportPayload['accounts'] = []
   for (const source of accountSources) {
-    const choice = getResolvedAccountChoice(accountMappings[source.id])
+    const choice = accountMappings[source.id] ?? ''
     appendAccountMapping(
       accounts,
       errors,

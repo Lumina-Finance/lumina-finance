@@ -4,12 +4,7 @@ import type { Currency } from '@/api/currency'
 import type { Institution } from '@/api/institutions'
 import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, DEFAULT_CATEGORY_ICON } from '../constants'
 import type { ColumnMap, ImportCategoryKind, ImportFileDraft, PreviewTransactionRow } from '../types'
-import {
-  getImportAccountName,
-  getResolvedAccountChoice,
-  getResolvedAccountCreateCurrency,
-  getResolvedAccountCreateInstitution,
-} from './accountMapping'
+import { getImportAccountName } from './accountMapping'
 import { splitImportedValues } from './categoryMatching'
 import { getMappedValue } from './columnMapping'
 import {
@@ -85,13 +80,13 @@ export function buildImportPreviewRows({
       const row = file.rows[rowIndex]
       const accountSource = columnMap.account_id ? getMappedValue(row, columnMap.account_id) : file.id
       const accountLabel = columnMap.account_id ? accountSource : getImportAccountName(file.name)
-      const accountChoice = getResolvedAccountChoice(resolvedAccountMappings[accountSource])
+      const accountChoice = resolvedAccountMappings[accountSource] ?? ''
       const account = accountChoice === CREATE_ACCOUNT_VALUE ? undefined : accountById.get(accountChoice)
       const createAccountCurrency = accountChoice === CREATE_ACCOUNT_VALUE
-        ? getResolvedAccountCreateCurrency(accountSource, accountCreateCurrencies)
+        ? accountCreateCurrencies[accountSource] ?? ''
         : ''
       const createAccountInstitution = accountChoice === CREATE_ACCOUNT_VALUE
-        ? institutionById.get(getResolvedAccountCreateInstitution(accountSource, accountCreateInstitutions))
+        ? institutionById.get(accountCreateInstitutions[accountSource] ?? '')
         : undefined
       const importedDate = getMappedValue(row, columnMap.dt)
       const dt = normalizeImportDate(importedDate)
