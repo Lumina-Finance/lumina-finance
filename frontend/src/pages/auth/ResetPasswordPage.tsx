@@ -1,12 +1,13 @@
 import type { FormEvent } from 'react'
 import { useRef, useState } from 'react'
 import { Navigate, useNavigate, useSearchParams } from 'react-router'
-import { Check, KeyRound, X } from 'lucide-react'
+import { KeyRound } from 'lucide-react'
 import { AnimatePresence, animate, motion } from 'motion/react'
 import { ApiError, resetPassword, verifyResetMfa } from '@/api/auth'
 import type { MfaRequiredResponse } from '@/api/auth'
 import { usePasskeyConfig, useVerifyPasskeyReset } from '@/api/passkeys'
 import { OtpInput, OTP_LENGTH } from '@/components/OtpInput'
+import { PasswordRequirements } from '@/components/PasswordRequirements'
 import { WarningCallout } from '@/components/two-factor/WarningCallout'
 import { useAuth } from '@/hooks/useAuth'
 import { AuthErrorBanner } from '@/pages/auth/components/feedback/ErrorBanner'
@@ -16,7 +17,7 @@ import { getAuthErrorMessage } from '@/pages/auth/utils/authForm'
 import { getPasskeySignInMessage, isPasskeyCeremonyCancelled } from '@/utils/passkeyErrors'
 import { assessPasskeySupport } from '@/utils/passkeySupport'
 import { AUTH_LOADING_MIN_MS, withMinDelay } from '@/utils/timing'
-import { NEW_PASSWORD_RULES, isNewPasswordValid } from '@/utils/passwordPolicy'
+import { isNewPasswordValid } from '@/utils/passwordPolicy'
 
 /**
  * Renders the password reset form reached from the emailed link, validating the new password
@@ -370,28 +371,7 @@ const ResetPasswordPage = () => {
                   value={newPassword}
                   onChange={setNewPassword}
                 />
-                {showRules && (
-                  <ul className="mt-2 space-y-1">
-                    {NEW_PASSWORD_RULES.map((rule) => {
-                      const passed = rule.test(newPassword)
-                      return (
-                        <li key={rule.label} className="flex items-center gap-2 text-sm">
-                          {passed ? (
-                            <Check size={14} strokeWidth={2.5} style={{ color: 'var(--app-accent)' }} aria-hidden />
-                          ) : (
-                            <X size={14} strokeWidth={2.5} style={{ color: 'var(--app-text-muted)' }} aria-hidden />
-                          )}
-                          <span
-                            className={passed ? 'line-through' : ''}
-                            style={{ color: passed ? 'var(--app-text-subtle)' : 'var(--app-text-muted)' }}
-                          >
-                            {rule.label}
-                          </span>
-                        </li>
-                      )
-                    })}
-                  </ul>
-                )}
+                <PasswordRequirements password={newPassword} visible={showRules} className="mt-2 space-y-1" />
               </div>
 
               <div className="mt-5">

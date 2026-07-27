@@ -14,10 +14,11 @@ import { OidcProviderButtons } from '@/pages/auth/components/OidcProviderButtons
 import { AuthSignupNameFields } from '@/pages/auth/components/fields/SignupNameFields';
 import { AuthSignupReferenceFields } from '@/pages/auth/components/fields/SignupReferenceFields';
 import { AuthTextField } from '@/pages/auth/components/fields/TextField';
-import { PasswordRequirements } from '@/pages/auth/components/feedback/PasswordRequirements';
+import { PasswordRequirements } from '@/components/PasswordRequirements';
 import { AUTH_VIEW_TRANSITION, SIGNUP_FIELD_ANIMATION } from '@/pages/auth/constants/authAnimations';
 import { useAuthFormWorkflow } from '@/pages/auth/hooks/useAuthFormWorkflow';
 import { getAuthMode } from '@/pages/auth/utils/authForm';
+import { isNewPasswordValid } from '@/utils/passwordPolicy';
 
 const DETECTED_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
@@ -96,6 +97,11 @@ const AuthPage = () => {
   // Provider sign-in also onboards new users, so the buttons show on signup as well
   const showPasskeyButton = isLogin && canUsePasskeys;
   const showOidcButtons = (isLogin || isSignup) && oidcProviders.length > 0;
+
+  // The checklist stays open while the field is focused or has content, and hides once the password
+  // has been touched and satisfies every rule
+  const passwordRequirementsVisible =
+    (passwordFocused || form.password.length > 0) && !(touched.password && isNewPasswordValid(form.password));
 
   const submitLabel = isLogin ? 'Log in' : isSignup ? 'Sign up' : 'Send reset link';
   const switchPrompt = isLogin
@@ -364,9 +370,10 @@ const AuthPage = () => {
                     />
                     {isSignup && (
                       <PasswordRequirements
-                        focused={passwordFocused}
                         password={form.password}
-                        touched={touched.password}
+                        visible={passwordRequirementsVisible}
+                        animated
+                        className="mt-2 space-y-1"
                       />
                     )}
                   </motion.div>
