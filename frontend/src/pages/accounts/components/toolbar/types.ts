@@ -15,9 +15,3 @@ export type AccountListToolbarProps = {
   typeOptions: OptionItem[]
   onAddAccount: () => void
 }
-
-export type AccountFilterOptions = {
-  institutionOptions: OptionItem[]
-  kindOptions: OptionItem[]
-  typeOptions: OptionItem[]
-}

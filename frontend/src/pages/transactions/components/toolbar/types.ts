@@ -1,5 +1,4 @@
 import type { Category } from '@/api/categories'
-import type { OptionItem } from '@/components/filters/OptionList'
 import type { TransactionListAccount, TransactionListFilters } from '@/pages/transactions/types/transactionList'
 
 export type TransactionFilterSetter = (patch: Partial<TransactionListFilters>) => void
@@ -19,9 +18,4 @@ export type TransactionListToolbarProps = {
   createDisabled?: boolean
   createDisabledReason?: string
   onStickyOffsetChange?: (offset: number) => void
-}
-
-export type TransactionToolbarOptions = {
-  accountOptions: OptionItem[]
-  categoryOptions: OptionItem[]
 }

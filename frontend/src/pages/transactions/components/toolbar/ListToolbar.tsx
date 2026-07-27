@@ -1,13 +1,13 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useMemo } from 'react'
+import { DesktopToolbarControls } from '@/components/list-controls/DesktopToolbarControls'
+import { GlassSearchField } from '@/components/list-controls/GlassSearchField'
+import { MobileToolbarActions } from '@/components/list-controls/MobileToolbarActions'
+import { ToolbarStickyShell } from '@/components/list-controls/ToolbarStickyShell'
+import { getSearchFieldWrapperClassName } from '@/components/list-controls/toolbarStyles'
+import { useToolbarShellState } from '@/components/list-controls/useToolbarShellState'
 import type { TransactionListToolbarProps } from '@/pages/transactions/components/toolbar/types'
-import { DesktopTransactionToolbarControls } from '@/pages/transactions/components/toolbar/desktop/Controls'
-import { MobileToolbarActions } from '@/pages/transactions/components/toolbar/mobile/Actions'
+import { TransactionFilterPanel } from '@/pages/transactions/components/toolbar/FilterPanel'
 import { MobileFilterPanel } from '@/pages/transactions/components/toolbar/MobileFilterPanel'
-import { TransactionSearchField } from '@/pages/transactions/components/toolbar/SearchField'
-import { useDesktopToolbarLayout } from '@/components/filters/hooks/useDesktopToolbarLayout'
-import { useMobileSearchStuck } from '@/components/filters/hooks/useMobileSearchStuck'
-import { useToolbarStuck } from '@/components/filters/hooks/useToolbarStuck'
-import { getToolbarStickyRowClass, getToolbarStuckShadow } from '@/components/list-controls/toolbarStyles'
 import { useToolbarStickyOffset } from '@/pages/transactions/components/toolbar/hooks/useStickyOffset'
 import {
   getAccountOptions,
@@ -33,10 +33,8 @@ export default function TransactionListToolbar({
   createDisabledReason,
   onStickyOffsetChange,
 }: TransactionListToolbarProps) {
-  const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(false)
-  // Kept mounted through the close animation so the sheet's scroll lock is only ever active while
-  // the sheet exists, never on the page underneath
-  const [isMobileSheetMounted, setIsMobileSheetMounted] = useState(false)
+  const shell = useToolbarShellState()
+  useToolbarStickyOffset(shell.toolbarRef, onStickyOffsetChange)
 
   const accountOptions = useMemo(
     () => getAccountOptions(accounts),
@@ -48,79 +46,60 @@ export default function TransactionListToolbar({
   )
   const activeFilterCount = getActiveFilterCount(filters, showAccountFilter)
 
-  const {
-    toolbarRef,
-    controlsRef,
-    filterGroupRef,
-    createMeasureRef,
-    desktopInlineLayout,
-    desktopCreateStacked,
-  } = useDesktopToolbarLayout()
-  const { mobileSearchStickySentinelRef, mobileSearchStuck } = useMobileSearchStuck()
-  const { toolbarStuckSentinelRef, isToolbarStuck } = useToolbarStuck()
-
-  useToolbarStickyOffset(toolbarRef, onStickyOffsetChange)
-
-  const openMobileSheet = useCallback(() => {
-    setIsMobileSheetMounted(true)
-    setIsMobileSheetOpen(true)
-  }, [])
-
-  const closeMobileSheet = useCallback(() => setIsMobileSheetOpen(false), [])
-
   return (
     <>
-      <div ref={mobileSearchStickySentinelRef} aria-hidden className="h-px min-[1050px]:hidden" />
-      <div ref={toolbarStuckSentinelRef} aria-hidden className="h-px max-[1049px]:hidden" />
-      <div
-        ref={toolbarRef}
-        className={getToolbarStickyRowClass(desktopInlineLayout)}
-        style={{
-          background: 'var(--app-bg)',
-          boxShadow: getToolbarStuckShadow(isToolbarStuck),
-        }}
+      <ToolbarStickyShell
+        toolbarRef={shell.toolbarRef}
+        mobileSearchStickySentinelRef={shell.mobileSearchStickySentinelRef}
+        toolbarStuckSentinelRef={shell.toolbarStuckSentinelRef}
+        desktopInlineLayout={shell.desktopInlineLayout}
+        isToolbarStuck={shell.isToolbarStuck}
       >
-        <TransactionSearchField
-          search={search}
-          onSearchChange={onSearchChange}
-          onSearchSubmit={onSearchSubmit}
-          mobileSearchStuck={mobileSearchStuck}
-          desktopInlineLayout={desktopInlineLayout}
+        <GlassSearchField
+          value={search}
+          onValueChange={onSearchChange}
+          onSubmit={onSearchSubmit}
+          placeholder="Search transactions..."
+          wrapperClassName={getSearchFieldWrapperClassName(shell.mobileSearchStuck, shell.desktopInlineLayout)}
         />
 
         <MobileToolbarActions
           activeFilterCount={activeFilterCount}
-          onOpenFilters={openMobileSheet}
-          onCreateTransaction={onCreateTransaction}
+          onOpenFilters={shell.openMobileSheet}
+          onPrimaryAction={onCreateTransaction}
+          primaryLabel="Add transaction"
+          primaryDisabled={createDisabled}
+          primaryDisabledReason={createDisabledReason}
+        />
+
+        <DesktopToolbarControls
+          controlsRef={shell.controlsRef}
+          filterGroupRef={shell.filterGroupRef}
+          createMeasureRef={shell.createMeasureRef}
+          desktopInlineLayout={shell.desktopInlineLayout}
+          desktopCreateStacked={shell.desktopCreateStacked}
+          filterPanel={
+            <TransactionFilterPanel
+              accountOptions={accountOptions}
+              categoryOptions={categoryOptions}
+              filters={filters}
+              setFilter={setFilter}
+              showAccountFilter={showAccountFilter}
+              lockedCurrency={lockedCurrency}
+            />
+          }
+          createLabel="Add Transaction"
+          onCreate={onCreateTransaction}
           createDisabled={createDisabled}
           createDisabledReason={createDisabledReason}
         />
+      </ToolbarStickyShell>
 
-        <DesktopTransactionToolbarControls
-          filters={filters}
-          setFilter={setFilter}
-          showAccountFilter={showAccountFilter}
-          lockedCurrency={lockedCurrency}
-          accountOptions={accountOptions}
-          categoryOptions={categoryOptions}
-          desktopInlineLayout={desktopInlineLayout}
-          desktopCreateStacked={desktopCreateStacked}
-          controlsRef={controlsRef}
-          filterGroupRef={filterGroupRef}
-          createMeasureRef={createMeasureRef}
-          onCreateTransaction={onCreateTransaction}
-          createDisabled={createDisabled}
-          createDisabledReason={createDisabledReason}
-        />
-      </div>
-
-      {isMobileSheetMounted && (
+      {shell.isMobileSheetMounted && (
         <MobileFilterPanel
-          isOpen={isMobileSheetOpen}
-          onClose={closeMobileSheet}
-          onExitComplete={() => {
-            if (!isMobileSheetOpen) setIsMobileSheetMounted(false)
-          }}
+          isOpen={shell.isMobileSheetOpen}
+          onClose={shell.closeMobileSheet}
+          onExitComplete={shell.finishMobileSheetExit}
           accountOptions={accountOptions}
           categoryOptions={categoryOptions}
           filters={filters}

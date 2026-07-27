@@ -10,9 +10,6 @@ import { useAuth } from '@/hooks/useAuth'
 import type { TransactionListFilters } from '@/pages/transactions/types/transactionList'
 import type { TransactionFilterSetter } from '@/pages/transactions/components/toolbar/types'
 
-// Lightly damped spring matching the insights range pill so both controls share a settle feel
-export const FILTER_GLASS_SPRING = { type: 'spring', stiffness: 420, damping: 34, mass: 0.9 } as const
-
 export type FacetKind = 'multi' | 'amount' | 'date'
 
 export type FacetConfig = {

@@ -3,20 +3,25 @@ import { Plus, SlidersHorizontal } from 'lucide-react'
 type MobileToolbarActionsProps = {
   activeFilterCount: number
   onOpenFilters: () => void
-  onCreateTransaction: () => void
-  createDisabled: boolean
-  createDisabledReason?: string
+  onPrimaryAction: () => void
+  // Accessible name for the primary action, shown while it is enabled
+  primaryLabel: string
+  primaryDisabled?: boolean
+  // Shown as the button's title and accessible name in place of primaryLabel while disabled
+  primaryDisabledReason?: string
 }
 
 /**
- * Renders the mobile toolbar action row below transaction search
+ * Renders the mobile toolbar action row shared by the account and transaction lists: the filters
+ * button with its active-count badge, and the list's primary create action
  */
 export function MobileToolbarActions({
   activeFilterCount,
   onOpenFilters,
-  onCreateTransaction,
-  createDisabled,
-  createDisabledReason,
+  onPrimaryAction,
+  primaryLabel,
+  primaryDisabled = false,
+  primaryDisabledReason,
 }: MobileToolbarActionsProps) {
   return (
     <div className="flex w-full items-center gap-3 min-[750px]:hidden">
@@ -45,10 +50,10 @@ export function MobileToolbarActions({
       <button
         type="button"
         className="app-glass-button-primary h-11 w-11 shrink-0 px-0"
-        onClick={onCreateTransaction}
-        disabled={createDisabled}
-        title={createDisabledReason}
-        aria-label={createDisabledReason ?? 'Add transaction'}
+        onClick={onPrimaryAction}
+        disabled={primaryDisabled}
+        title={primaryDisabledReason}
+        aria-label={primaryDisabledReason ?? primaryLabel}
       >
         <Plus size={18} aria-hidden />
       </button>

@@ -1,36 +1,37 @@
-import type { RefObject } from 'react'
+import type { ReactNode, RefObject } from 'react'
 import { Plus } from 'lucide-react'
-import { AccountFilterPanel } from '@/pages/accounts/components/toolbar/FilterPanel'
-import type { AccountFilterOptions, AccountFilterSetter } from '@/pages/accounts/components/toolbar/types'
-import type { FilterValues } from '@/pages/accounts/types/accounts'
 
-type DesktopAccountToolbarControlsProps = AccountFilterOptions & {
-  filters: FilterValues
-  setFilter: AccountFilterSetter
-  desktopInlineLayout: boolean
-  desktopCreateStacked: boolean
+type DesktopToolbarControlsProps = {
   controlsRef: RefObject<HTMLDivElement | null>
   filterGroupRef: RefObject<HTMLDivElement | null>
   createMeasureRef: RefObject<HTMLButtonElement | null>
-  onAddAccount: () => void
+  desktopInlineLayout: boolean
+  desktopCreateStacked: boolean
+  // The domain-specific filter glass panel slotted into the filter group
+  filterPanel: ReactNode
+  createLabel: string
+  onCreate: () => void
+  createDisabled?: boolean
+  createDisabledReason?: string
 }
 
 /**
- * Renders the desktop account filters and add action while exposing measurement refs to the toolbar layout hook
+ * Renders the desktop toolbar's filter slot and create action shared by the account and transaction
+ * lists, plus the hidden measurement twin of the create button the toolbar layout hook reads to
+ * decide when the row wraps
  */
-export function DesktopAccountToolbarControls({
-  filters,
-  setFilter,
-  institutionOptions,
-  kindOptions,
-  typeOptions,
-  desktopInlineLayout,
-  desktopCreateStacked,
+export function DesktopToolbarControls({
   controlsRef,
   filterGroupRef,
   createMeasureRef,
-  onAddAccount,
-}: DesktopAccountToolbarControlsProps) {
+  desktopInlineLayout,
+  desktopCreateStacked,
+  filterPanel,
+  createLabel,
+  onCreate,
+  createDisabled = false,
+  createDisabledReason,
+}: DesktopToolbarControlsProps) {
   return (
     <div
       ref={controlsRef}
@@ -40,22 +41,18 @@ export function DesktopAccountToolbarControls({
         ref={filterGroupRef}
         className={`flex min-w-0 flex-1 flex-wrap items-center gap-3 ${desktopInlineLayout ? 'min-[750px]:flex-none min-[750px]:flex-nowrap' : ''} ${desktopCreateStacked ? 'justify-between' : ''}`}
       >
-        <AccountFilterPanel
-          institutionOptions={institutionOptions}
-          kindOptions={kindOptions}
-          typeOptions={typeOptions}
-          filters={filters}
-          setFilter={setFilter}
-        />
+        {filterPanel}
       </div>
 
       <button
         type="button"
         className={`app-glass-button-primary h-10 shrink-0 ${desktopCreateStacked ? 'basis-full justify-center' : 'w-auto'}`}
-        onClick={onAddAccount}
+        onClick={onCreate}
+        disabled={createDisabled}
+        title={createDisabledReason}
       >
         <Plus size={18} aria-hidden />
-        <span>Add Account</span>
+        <span>{createLabel}</span>
       </button>
       <button
         ref={createMeasureRef}
@@ -65,7 +62,7 @@ export function DesktopAccountToolbarControls({
         aria-hidden
       >
         <Plus size={18} aria-hidden />
-        <span>Add Account</span>
+        <span>{createLabel}</span>
       </button>
     </div>
   )

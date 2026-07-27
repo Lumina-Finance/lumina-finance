@@ -1,11 +1,10 @@
-import { useCallback, useState } from 'react'
-import { useDesktopToolbarLayout } from '@/components/filters/hooks/useDesktopToolbarLayout'
-import { useMobileSearchStuck } from '@/components/filters/hooks/useMobileSearchStuck'
-import { useToolbarStuck } from '@/components/filters/hooks/useToolbarStuck'
-import { getToolbarStickyRowClass, getToolbarStuckShadow } from '@/components/list-controls/toolbarStyles'
-import { AccountSearchField } from '@/pages/accounts/components/toolbar/SearchField'
-import { MobileToolbarActions } from '@/pages/accounts/components/toolbar/mobile/Actions'
-import { DesktopAccountToolbarControls } from '@/pages/accounts/components/toolbar/desktop/Controls'
+import { DesktopToolbarControls } from '@/components/list-controls/DesktopToolbarControls'
+import { GlassSearchField } from '@/components/list-controls/GlassSearchField'
+import { MobileToolbarActions } from '@/components/list-controls/MobileToolbarActions'
+import { ToolbarStickyShell } from '@/components/list-controls/ToolbarStickyShell'
+import { getSearchFieldWrapperClassName } from '@/components/list-controls/toolbarStyles'
+import { useToolbarShellState } from '@/components/list-controls/useToolbarShellState'
+import { AccountFilterPanel } from '@/pages/accounts/components/toolbar/FilterPanel'
 import { MobileFilterPanel } from '@/pages/accounts/components/toolbar/MobileFilterPanel'
 import type { AccountListToolbarProps } from '@/pages/accounts/components/toolbar/types'
 
@@ -23,76 +22,56 @@ export default function AccountListToolbar({
   typeOptions,
   onAddAccount,
 }: AccountListToolbarProps) {
-  const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(false)
-  // Kept mounted through the close animation so the sheet's scroll lock is only ever active while
-  // the sheet exists, never on the page underneath
-  const [isMobileSheetMounted, setIsMobileSheetMounted] = useState(false)
-
-  const {
-    toolbarRef,
-    controlsRef,
-    filterGroupRef,
-    createMeasureRef,
-    desktopInlineLayout,
-    desktopCreateStacked,
-  } = useDesktopToolbarLayout()
-  const { mobileSearchStickySentinelRef, mobileSearchStuck } = useMobileSearchStuck()
-  const { toolbarStuckSentinelRef, isToolbarStuck } = useToolbarStuck()
-
-  const openMobileSheet = useCallback(() => {
-    setIsMobileSheetMounted(true)
-    setIsMobileSheetOpen(true)
-  }, [])
-
-  const closeMobileSheet = useCallback(() => setIsMobileSheetOpen(false), [])
+  const shell = useToolbarShellState()
 
   return (
     <>
-      <div ref={mobileSearchStickySentinelRef} aria-hidden className="h-px min-[1050px]:hidden" />
-      <div ref={toolbarStuckSentinelRef} aria-hidden className="h-px max-[1049px]:hidden" />
-      <div
-        ref={toolbarRef}
-        className={getToolbarStickyRowClass(desktopInlineLayout)}
-        style={{
-          background: 'var(--app-bg)',
-          boxShadow: getToolbarStuckShadow(isToolbarStuck),
-        }}
+      <ToolbarStickyShell
+        toolbarRef={shell.toolbarRef}
+        mobileSearchStickySentinelRef={shell.mobileSearchStickySentinelRef}
+        toolbarStuckSentinelRef={shell.toolbarStuckSentinelRef}
+        desktopInlineLayout={shell.desktopInlineLayout}
+        isToolbarStuck={shell.isToolbarStuck}
       >
-        <AccountSearchField
-          search={search}
-          onSearchChange={onSearchChange}
-          mobileSearchStuck={mobileSearchStuck}
-          desktopInlineLayout={desktopInlineLayout}
+        <GlassSearchField
+          value={search}
+          onValueChange={onSearchChange}
+          placeholder="Search accounts..."
+          wrapperClassName={getSearchFieldWrapperClassName(shell.mobileSearchStuck, shell.desktopInlineLayout)}
         />
 
         <MobileToolbarActions
           activeFilterCount={activeFilterCount}
-          onOpenFilters={openMobileSheet}
-          onAddAccount={onAddAccount}
+          onOpenFilters={shell.openMobileSheet}
+          onPrimaryAction={onAddAccount}
+          primaryLabel="Add account"
         />
 
-        <DesktopAccountToolbarControls
-          filters={filters}
-          setFilter={setFilter}
-          institutionOptions={institutionOptions}
-          kindOptions={kindOptions}
-          typeOptions={typeOptions}
-          desktopInlineLayout={desktopInlineLayout}
-          desktopCreateStacked={desktopCreateStacked}
-          controlsRef={controlsRef}
-          filterGroupRef={filterGroupRef}
-          createMeasureRef={createMeasureRef}
-          onAddAccount={onAddAccount}
+        <DesktopToolbarControls
+          controlsRef={shell.controlsRef}
+          filterGroupRef={shell.filterGroupRef}
+          createMeasureRef={shell.createMeasureRef}
+          desktopInlineLayout={shell.desktopInlineLayout}
+          desktopCreateStacked={shell.desktopCreateStacked}
+          filterPanel={
+            <AccountFilterPanel
+              institutionOptions={institutionOptions}
+              kindOptions={kindOptions}
+              typeOptions={typeOptions}
+              filters={filters}
+              setFilter={setFilter}
+            />
+          }
+          createLabel="Add Account"
+          onCreate={onAddAccount}
         />
-      </div>
+      </ToolbarStickyShell>
 
-      {isMobileSheetMounted && (
+      {shell.isMobileSheetMounted && (
         <MobileFilterPanel
-          isOpen={isMobileSheetOpen}
-          onClose={closeMobileSheet}
-          onExitComplete={() => {
-            if (!isMobileSheetOpen) setIsMobileSheetMounted(false)
-          }}
+          isOpen={shell.isMobileSheetOpen}
+          onClose={shell.closeMobileSheet}
+          onExitComplete={shell.finishMobileSheetExit}
           institutionOptions={institutionOptions}
           kindOptions={kindOptions}
           typeOptions={typeOptions}

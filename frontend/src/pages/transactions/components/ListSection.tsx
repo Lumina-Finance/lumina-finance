@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useCategories } from '@/api/categories'
 import {
@@ -61,13 +61,7 @@ export default function TransactionListSection({
     fixedAccount ? { account_id: [fixedAccount.id] } : {},
   )
   const filters = controlledFilters ?? internalFilters
-  const filtersRef = useRef(filters)
   const [dateHeaderStickyTop, setDateHeaderStickyTop] = useState(DEFAULT_DATE_HEADER_STICKY_TOP)
-
-  // `setFilter` reads from a ref so toolbar callbacks can stay stable while filters change
-  useEffect(() => {
-    filtersRef.current = filters
-  }, [filters])
 
   const {
     data: txnPages,
@@ -102,7 +96,7 @@ export default function TransactionListSection({
    * Applies list filters and tells the transition hook whether rows should hold or fade while the query updates
    */
   function setFilter(patch: Partial<TransactionListFilters>) {
-    const current = filtersRef.current
+    const current = filters
     const fixedAccountPatch = fixedAccount ? { account_id: [fixedAccount.id] } : {}
     const next = normalizeTransactionFilters({ ...current, ...patch, ...fixedAccountPatch })
     const changed = TRANSACTION_FILTER_KEYS.some((key) => !isSameFilterValue(current[key], next[key]))

@@ -5,10 +5,6 @@ import type { OptionItem } from '@/components/filters/OptionList'
 import type { AccountKind, AccountType } from '@/api/accounts'
 import type { FilterValues } from '@/pages/accounts/types/accounts'
 
-// Lightly damped spring shared with the transaction filter pill and the insights range control so
-// every glass surface settles with the same feel
-export const FILTER_GLASS_SPRING = { type: 'spring', stiffness: 420, damping: 34, mass: 0.9 } as const
-
 export type FacetId = keyof FilterValues
 
 export type FacetConfig = {
