@@ -1,3 +1,7 @@
+/**
+ * Writes the browser-local calendar day of a date as a date-only string, so a date sitting near
+ * midnight is not pushed onto the neighbouring day the way converting to UTC would
+ */
 export function toISODate(d: Date): string {
   const y = d.getFullYear()
   const m = String(d.getMonth() + 1).padStart(2, '0')

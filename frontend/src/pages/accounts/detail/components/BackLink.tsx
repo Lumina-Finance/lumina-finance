@@ -1,6 +1,10 @@
 import { Link } from 'react-router'
 import { ArrowLeft } from 'lucide-react'
 
+/**
+ * Link back to the accounts list, shown above the content on every state of the account detail
+ * page so a reader who reached a missing account can still leave
+ */
 export default function AccountDetailBackLink() {
   return (
     <Link

@@ -9,6 +9,16 @@ import { humanizeAccountType } from '@/pages/accounts/detail/utils/formatAccount
 import type { AccountAccent } from '@/pages/accounts/types/accounts'
 import { getAccountBalanceFxStatusMessage } from '@/pages/accounts/utils/fxTooltipMessages'
 
+/**
+ * One account in a list, linking to its detail page and showing the institution logo, name, any
+ * linked tax-advantaged plan, the balance in the account's own currency and, where the list asks
+ * for it, the credit still available
+ *
+ * The balance is tinted by whether it helps or hurts the reader rather than by its sign alone, so
+ * an asset account turns green only above zero while a debt account is never green. Where the
+ * account is held in another currency, the converted amount sits underneath and reads as
+ * unavailable when the exchange rates behind it are incomplete
+ */
 export default function AccountRow({
   account,
   accent,

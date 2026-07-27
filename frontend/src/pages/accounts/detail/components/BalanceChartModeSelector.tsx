@@ -10,6 +10,11 @@ const BALANCE_CHART_MODE_OPTIONS: Array<{ value: BalanceChartMode; label: string
   { value: 'change', label: 'Change' },
 ]
 
+/**
+ * Two-option control that switches the balance chart between the running balance and the change
+ * over the selected period, sliding a highlight onto the chosen option unless the reader has
+ * asked for reduced motion
+ */
 export function BalanceChartModeSelector({
   value,
   onChange,
