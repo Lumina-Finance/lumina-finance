@@ -6,12 +6,11 @@ import { useCategories, type Category } from '@/api/categories'
 import { useInfiniteMerchants, useMerchant, useUpdateMerchant, type Merchant } from '@/api/merchants'
 import { useInfiniteTags, type Tag } from '@/api/tags'
 import { useCurrencies } from '@/api/currency'
-import { invalidateTransactionAccountData } from '@/api/cache/updates/transactions'
-import { invalidateTransactions, invalidateTransactionOverview } from '@/api/cache/invalidation/transactions'
 import {
   applyTransactionDeletion,
   useCreateTransaction,
   useDeleteTransaction,
+  useRefreshCreatedTransactions,
   useUpdateTransaction,
   type Transaction,
 } from '@/api/transactions'
@@ -87,6 +86,7 @@ export default function CreateTransactionModal({
 }: CreateTransactionModalProps) {
   const editing = !!transaction
   const queryClient = useQueryClient()
+  const refreshCreatedTransactions = useRefreshCreatedTransactions()
   const createMutation = useCreateTransaction({ deferAccountInvalidation: true, deferTransactionInvalidation: true })
   const updateMutation = useUpdateTransaction()
   const updateMerchantMutation = useUpdateMerchant()
@@ -149,10 +149,8 @@ export default function CreateTransactionModal({
     if (accountIds.length === 0) return
 
     createdAccountIdsRef.current.clear()
-    invalidateTransactions(queryClient)
-    invalidateTransactionOverview(queryClient)
-    invalidateTransactionAccountData(queryClient, accountIds, { refetchAccountList: true })
-  }, [queryClient])
+    refreshCreatedTransactions(accountIds)
+  }, [refreshCreatedTransactions])
 
   const handleClose = useCallback(() => {
     onClose()

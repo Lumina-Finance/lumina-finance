@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   removeCategoryCaches,
@@ -11,6 +12,7 @@ import {
   mergeCategory,
   updateCategory,
 } from '@/api/categories/requests';
+import type { Category } from '@/api/categories/types';
 import { categoryKeys } from '@/api/cache/queryKeys';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -65,6 +67,22 @@ export function useDeleteCategory() {
       removeCategoryCaches(queryClient, categoryId);
     },
   });
+}
+
+/**
+ * Forgets a category by dropping it from the cached category list without a refetch, since the
+ * list already reflects every category that exists
+ */
+export function useForgetCategory() {
+  const queryClient = useQueryClient();
+  return useCallback(
+    (categoryId: string) => {
+      queryClient.setQueryData<Category[]>(categoryKeys.list(), (currentCategories) =>
+        currentCategories?.filter((currentCategory) => currentCategory.id !== categoryId) ?? currentCategories,
+      );
+    },
+    [queryClient],
+  );
 }
 
 /**

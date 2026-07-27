@@ -1,4 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
+import { useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { oidcKeys } from '@/api/cache/queryKeys';
 import { fetchOidcIdentities, fetchOidcProviders } from '@/api/oidc/requests';
 
@@ -23,4 +24,15 @@ export function useOidcIdentities() {
     queryKey: oidcKeys.identities(),
     queryFn: fetchOidcIdentities,
   });
+}
+
+/**
+ * Invalidates the cached linked-identity list so the next read refetches it
+ */
+export function useRefreshOidcIdentities() {
+  const queryClient = useQueryClient();
+  return useCallback(
+    () => queryClient.invalidateQueries({ queryKey: oidcKeys.identities() }),
+    [queryClient],
+  );
 }

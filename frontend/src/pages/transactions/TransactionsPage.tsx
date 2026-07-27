@@ -1,14 +1,12 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
 import { useReducedMotion } from 'motion/react'
 import { useAuth } from '@/hooks/useAuth'
 import { useAccounts } from '@/api/accounts'
 import {
-  fetchTransaction,
+  useLoadTransaction,
   useTransactionsOverview,
   type Transaction,
 } from '@/api/transactions'
-import { transactionKeys } from '@/api/cache/queryKeys'
 import TransactionListSection from '@/pages/transactions/components/ListSection'
 import CreateTransactionModal from '@/pages/transactions/components/transaction-modal/Modal'
 import TransactionsTopBand from '@/pages/transactions/components/TopBand'
@@ -23,7 +21,7 @@ import {
  */
 export default function TransactionsPage() {
   const prefersReducedMotion = useReducedMotion()
-  const queryClient = useQueryClient()
+  const loadTransaction = useLoadTransaction()
   const { user } = useAuth()
   const { data: accounts } = useAccounts()
   const displayCurrency = user!.base_currency
@@ -69,11 +67,7 @@ export default function TransactionsPage() {
 
     setOpeningOutlierId(transactionId)
     try {
-      const transaction = await queryClient.fetchQuery({
-        queryKey: transactionKeys.detail(transactionId),
-        queryFn: () => fetchTransaction(transactionId),
-        staleTime: 10 * 60 * 1000,
-      })
+      const transaction = await loadTransaction(transactionId)
       openEditModal(transaction)
     } catch {
       setOutlierLoadError('Unable to open transaction')

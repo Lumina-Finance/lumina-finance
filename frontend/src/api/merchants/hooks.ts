@@ -1,4 +1,5 @@
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCallback } from 'react';
+import { useInfiniteQuery, useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   removeMerchantCaches,
   updateMerchantCreateCaches,
@@ -27,6 +28,23 @@ export function useMerchant(merchantId: string | null | undefined, enabled = tru
     enabled: !!accessToken && !!merchantId && enabled,
     staleTime: Infinity,
     gcTime: Infinity,
+  });
+}
+
+/**
+ * Reads merchant detail records for a list of ids, mapped in the same order as the input, so
+ * results can be paired with the ids by index
+ */
+export function useMerchantDetails(merchantIds: string[]) {
+  const { accessToken } = useAuth();
+  return useQueries({
+    queries: merchantIds.map((merchantId) => ({
+      queryKey: merchantKeys.detail(merchantId),
+      queryFn: () => fetchMerchant(merchantId),
+      enabled: !!accessToken,
+      staleTime: Infinity,
+      gcTime: Infinity,
+    })),
   });
 }
 
@@ -101,4 +119,15 @@ export function useMergeMerchant() {
       removeMerchantCaches(queryClient, merchantId);
     },
   });
+}
+
+/**
+ * Invalidates every cached merchant list and detail so the next read refetches them
+ */
+export function useRefreshMerchants() {
+  const queryClient = useQueryClient();
+  return useCallback(
+    () => queryClient.invalidateQueries({ queryKey: merchantKeys.all, exact: false }),
+    [queryClient],
+  );
 }

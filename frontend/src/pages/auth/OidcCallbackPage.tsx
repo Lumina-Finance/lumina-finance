@@ -1,9 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
 import { AnimatePresence, motion } from 'motion/react'
-import { useQueryClient } from '@tanstack/react-query'
-import { ApiError } from '@/api/auth/errors'
-import { oidcKeys } from '@/api/cache/queryKeys'
+import { ApiError } from '@/api/auth'
 import { useCurrencies } from '@/api/currency'
 import {
   completeOidcCallback,
@@ -12,6 +10,7 @@ import {
   completeOidcSignup,
   isOidcOnboardingRequired,
   OidcEmailConflictError,
+  useRefreshOidcIdentities,
   type OidcOnboardingResponse,
 } from '@/api/oidc'
 import Dropdown from '@/components/dropdown/Dropdown'
@@ -42,7 +41,7 @@ const IMMUTABLE_FIELD_STYLE: CSSProperties = { opacity: 0.55, cursor: 'not-allow
 const OidcCallbackPage = () => {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
-  const queryClient = useQueryClient()
+  const refreshOidcIdentities = useRefreshOidcIdentities()
   const { user, loading, setSession } = useAuth()
 
   const [onboarding, setOnboarding] = useState<OidcOnboardingResponse | null>(null)
@@ -113,7 +112,7 @@ const OidcCallbackPage = () => {
     if (user) {
       completeOidcLinkCallback({ code, state })
         .then(async (identity) => {
-          await queryClient.invalidateQueries({ queryKey: oidcKeys.identities() })
+          await refreshOidcIdentities()
 
           // The linked slug rides along so the settings page can scroll to and highlight it
           navigate('/settings', { replace: true, state: { linkedProvider: identity.provider_slug } })
@@ -151,7 +150,7 @@ const OidcCallbackPage = () => {
         }
         setError(callbackError.message || 'Single sign-on failed.')
       })
-  }, [loading, user, signedInIntent, code, state, paramError, setSession, navigate, queryClient])
+  }, [loading, user, signedInIntent, code, state, paramError, setSession, navigate, refreshOidcIdentities])
 
   // The loading screen also covers session restore, so the failure view never renders
   // with one audience's wording and then flips to the other's

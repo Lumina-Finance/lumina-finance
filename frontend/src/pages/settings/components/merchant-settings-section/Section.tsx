@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence } from 'motion/react'
 import { Plus } from 'lucide-react'
 import { GlassSearchField } from '@/components/list-controls/GlassSearchField'
@@ -8,9 +7,9 @@ import { useCategories } from '@/api/categories'
 import {
   useDeleteMerchant,
   useMergeMerchant,
+  useRefreshMerchants,
   type Merchant,
 } from '@/api/merchants'
-import { merchantKeys } from '@/api/cache/queryKeys'
 import CreateMerchantModal from '@/components/reference-modals/CreateMerchantModal'
 import MerchantSettingsList from '@/pages/settings/components/merchant-settings-section/list/List'
 import MergeDeleteMerchantModal from '@/pages/settings/components/merchant-settings-section/modals/MergeDeleteModal'
@@ -30,7 +29,7 @@ import { waitForMilliseconds } from '@/utils/timing'
  * replacement merchant
  */
 export default function MerchantSettingsSection() {
-  const queryClient = useQueryClient()
+  const refreshMerchants = useRefreshMerchants()
   const { data: categories = [] } = useCategories()
   const deleteMerchant = useDeleteMerchant()
   const mergeMerchant = useMergeMerchant()
@@ -68,7 +67,7 @@ export default function MerchantSettingsSection() {
     if (deleteResult[0].status === 'fulfilled') {
       setLocallyDeletedMerchantIds((ids) => ids.includes(merchant.id) ? ids : [...ids, merchant.id])
       merchantList.setVisibleMerchants((merchants) => merchants.filter((item) => item.id !== merchant.id))
-      queryClient.invalidateQueries({ queryKey: merchantKeys.all, exact: false })
+      refreshMerchants()
       setConfirmingDeleteMerchantId(null)
     } else {
       const error = deleteResult[0].reason

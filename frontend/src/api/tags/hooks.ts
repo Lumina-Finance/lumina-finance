@@ -1,4 +1,5 @@
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCallback } from 'react';
+import { useInfiniteQuery, useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   removeTagCaches,
   updateTagCreateCaches,
@@ -27,6 +28,23 @@ export function useTag(tagId: string | null | undefined, enabled = true) {
     enabled: !!accessToken && !!tagId && enabled,
     staleTime: Infinity,
     gcTime: Infinity,
+  });
+}
+
+/**
+ * Reads tag detail records for a list of ids, mapped in the same order as the input, so results
+ * can be paired with the ids by index
+ */
+export function useTagDetails(tagIds: string[]) {
+  const { accessToken } = useAuth();
+  return useQueries({
+    queries: tagIds.map((tagId) => ({
+      queryKey: tagKeys.detail(tagId),
+      queryFn: () => fetchTag(tagId),
+      enabled: !!accessToken,
+      staleTime: Infinity,
+      gcTime: Infinity,
+    })),
   });
 }
 
@@ -84,6 +102,21 @@ export function useDeleteTag() {
       removeTagCaches(queryClient, tagId);
     },
   });
+}
+
+/**
+ * Forgets a tag: drops its cached detail record and invalidates the tag list, for a delete whose
+ * 409 conflict reopens as a merge that must no longer offer the forgotten tag
+ */
+export function useForgetTag() {
+  const queryClient = useQueryClient();
+  return useCallback(
+    (tagId: string) => {
+      queryClient.removeQueries({ queryKey: tagKeys.detail(tagId), exact: true });
+      return queryClient.invalidateQueries({ queryKey: tagKeys.all, exact: false });
+    },
+    [queryClient],
+  );
 }
 
 /**
