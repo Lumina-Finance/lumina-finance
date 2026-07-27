@@ -7,6 +7,7 @@ import type {
 } from '@/api/insights'
 import type { InsightsRangeInputDates, InsightsRangePreset } from '@/pages/insights/types/range'
 import { getRangeComparisonPeriod, getRangeInputDates, getRelativeRangeInputDates } from '@/pages/insights/utils/range'
+import { useAuth } from '@/hooks/useAuth'
 
 // The relative builder opens on a familiar three-month rolling window when Custom is first picked
 const DEFAULT_RELATIVE_AMOUNT = 3
@@ -60,7 +61,9 @@ export type InsightsRangeState = {
  * cards query, query enablement, and card transition keys
  */
 export function useInsightsRange(): InsightsRangeState {
-  const initialDates = useMemo(() => getRangeInputDates('THIS_MONTH'), [])
+  const { user } = useAuth()
+  const timeZone = user?.tz
+  const initialDates = useMemo(() => getRangeInputDates('THIS_MONTH', timeZone), [timeZone])
   const [selectedPreset, setSelectedPreset] = useState<InsightsRangePreset>('THIS_MONTH')
   const [draftAmount, setDraftAmountState] = useState(DEFAULT_RELATIVE_AMOUNT)
   const [draftUnit, setDraftUnitState] = useState<SavedInsightsRangeUnit>(DEFAULT_RELATIVE_UNIT)
@@ -75,7 +78,7 @@ export function useInsightsRange(): InsightsRangeState {
     comparisonPeriod: getRangeComparisonPeriod('THIS_MONTH'),
   })
 
-  const draftInputDates = getRelativeRangeInputDates(draftAmount, draftUnit, draftQualifier)
+  const draftInputDates = getRelativeRangeInputDates(draftAmount, draftUnit, draftQualifier, timeZone)
   const cardTransitionKey = `${committed.inputDates.from}:${committed.inputDates.to}:${committed.comparisonPeriod}`
   const cardQueriesEnabled = committed.inputDates.from !== '' && committed.inputDates.to !== ''
 
@@ -99,7 +102,7 @@ export function useInsightsRange(): InsightsRangeState {
       unit: committed.unit,
       qualifier: committed.qualifier,
       savedRangeName: null,
-      inputDates: getRangeInputDates(value),
+      inputDates: getRangeInputDates(value, timeZone),
       comparisonPeriod: getRangeComparisonPeriod(value),
     })
   }
@@ -143,7 +146,7 @@ export function useInsightsRange(): InsightsRangeState {
       unit: draftUnit,
       qualifier: draftQualifier,
       savedRangeName,
-      inputDates: getRelativeRangeInputDates(draftAmount, draftUnit, draftQualifier),
+      inputDates: getRelativeRangeInputDates(draftAmount, draftUnit, draftQualifier, timeZone),
       comparisonPeriod: getRangeComparisonPeriod('CUSTOM'),
     })
   }
@@ -162,7 +165,7 @@ export function useInsightsRange(): InsightsRangeState {
       unit: savedRange.unit,
       qualifier: savedRange.qualifier,
       savedRangeName: savedRange.name,
-      inputDates: getRelativeRangeInputDates(savedRange.amount, savedRange.unit, savedRange.qualifier),
+      inputDates: getRelativeRangeInputDates(savedRange.amount, savedRange.unit, savedRange.qualifier, timeZone),
       comparisonPeriod: getRangeComparisonPeriod('CUSTOM'),
     })
   }

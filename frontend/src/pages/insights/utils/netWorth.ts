@@ -1,5 +1,5 @@
 import type { InsightsNetWorthResponse } from '@/api/insights'
-import { parseYmd } from './date'
+import { parseYmd } from '@/utils/date'
 import type { NetWorthGroup, NetWorthPoint } from './netWorthChart'
 import { getCustomRangeDays } from './range'
 

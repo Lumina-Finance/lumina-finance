@@ -1,17 +1,20 @@
 import type { Currency } from '@/api/currency'
 import type { TaxAdvantagedCategoryLimit, TaxTreatment } from '@/api/tax-advantaged-categories'
-import { DEFAULT_NEW_LIMIT_YEAR, TAX_TREATMENT_OPTIONS } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/constants'
+import { TAX_TREATMENT_OPTIONS } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/constants'
 
 /**
- * Latest year not already used by an existing limit, counting backward from the default new
- * limit year so a duplicate year is never suggested
+ * Latest year not already used by an existing limit, counting backward from the current year so a
+ * duplicate year is never suggested
+ *
+ * @param limits - Limits already configured on the category
+ * @param currentYear - Year to count back from, resolved in the profile's timezone
  */
-export function nextAvailableLimitYear(limits: TaxAdvantagedCategoryLimit[]) {
+export function nextAvailableLimitYear(limits: TaxAdvantagedCategoryLimit[], currentYear: number) {
   const existingYears = new Set(limits.map((limit) => limit.year))
-  for (let year = DEFAULT_NEW_LIMIT_YEAR; year >= 1900; year -= 1) {
+  for (let year = currentYear; year >= 1900; year -= 1) {
     if (!existingYears.has(year)) return year
   }
-  return DEFAULT_NEW_LIMIT_YEAR
+  return currentYear
 }
 
 /**
@@ -87,20 +90,6 @@ export function fromMinorUnits(value: number | null, currencies: Currency[], cod
  */
 export function formatTaxTreatment(value: TaxTreatment) {
   return TAX_TREATMENT_OPTIONS.find((option) => option.value === value)?.label ?? value
-}
-
-/**
- * Current calendar year in the given timezone, falling back to the browser's local year when no
- * timezone is given or the timezone cannot be resolved
- */
-export function currentYearForTimezone(timeZone?: string) {
-  if (!timeZone) return new Date().getFullYear()
-
-  try {
-    return Number(new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric' }).format(new Date()))
-  } catch {
-    return new Date().getFullYear()
-  }
 }
 
 /**

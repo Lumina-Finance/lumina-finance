@@ -19,7 +19,7 @@ import BudgetDetailsModal from '@/pages/budgets/components/budget-details-modal/
 import { useBudgetCards } from '@/pages/budgets/hooks/useBudgetCards'
 import { useRecurringBudgetBackfill } from '@/pages/budgets/hooks/useRecurringBudgetBackfill'
 import type { BudgetCardViewModel } from '@/pages/budgets/types'
-import { todayYmd } from '@/pages/budgets/utils/date'
+import { getTodayYmd, resolveTimeZone } from '@/utils/date'
 
 /**
  * Coordinates budget data loading, URL selection, recurring backfill, and modal workflows
@@ -38,8 +38,8 @@ export default function BudgetsPage() {
   const [budgetDetailsSnapshot, setBudgetDetailsSnapshot] = useState<BudgetCardViewModel | null>(null)
   const selectedBudgetId = budgetParam
   const defaultCurrency = user?.base_currency ?? currencies?.[0]?.id ?? 'USD'
-  const userTimeZone = user?.tz ?? Intl.DateTimeFormat().resolvedOptions().timeZone
-  const today = useMemo(() => todayYmd(userTimeZone), [userTimeZone])
+  const userTimeZone = resolveTimeZone(user?.tz)
+  const today = useMemo(() => getTodayYmd(userTimeZone), [userTimeZone])
   const categoryById = useMemo(
     () => new Map((categories ?? []).map((category) => [category.id, category.name])),
     [categories],

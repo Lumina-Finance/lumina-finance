@@ -1,6 +1,6 @@
 import type { InsightsSavingsRateTrendResponse } from '@/api/insights'
 import type { SavingsRateHistoryPoint } from '@/pages/insights/types/savingsRate'
-import { getMonthLabel } from './date'
+import { DATE_FORMATS, formatDate } from '@/utils/date'
 import { getSavingsRate } from './money'
 
 /**
@@ -22,7 +22,7 @@ export function getSavingsRateHistory(
       : expenses > 0
         ? Number.NEGATIVE_INFINITY
         : null
-    const monthLabel = getMonthLabel(month)
+    const monthLabel = formatDate(month, DATE_FORMATS.month)
 
     return {
       monthKey,

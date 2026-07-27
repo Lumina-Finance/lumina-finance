@@ -1,22 +1,6 @@
 import type { CalendarDate } from '@/pages/budgets/types'
 
 /**
- * Formats today's calendar day in the user's configured timezone for date inputs
- */
-export function todayYmd(timeZone: string) {
-
-  // Format parts avoid UTC conversion changing the user's local calendar day
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(new Date())
-  const part = (type: string) => parts.find((item) => item.type === type)?.value ?? ''
-  return `${part('year')}-${part('month')}-${part('day')}`
-}
-
-/**
  * Parses a backend YYYY-MM-DD value into a plain calendar date
  */
 export function parseYmd(ymd: string): CalendarDate {

@@ -14,7 +14,7 @@ import { CREATE_BUDGET_MIN_LOADING_MS, MODAL_SURFACE_TRANSITION_MS, MODAL_SURFAC
 import type { BudgetFormFieldErrors, BudgetFormState } from '@/pages/budgets/types'
 import { recurrenceAnchorsFromStart } from '@/pages/budgets/utils/budgetPeriods'
 import { validateBudgetCreateForm } from '@/pages/budgets/utils/budgetCreateValidation'
-import { todayYmd } from '@/pages/budgets/utils/date'
+import { getTodayYmd } from '@/utils/date'
 import { currencySymbol, toMinorUnits } from '@/pages/budgets/utils/money'
 import { waitForMilliseconds } from '@/utils/timing'
 
@@ -80,7 +80,7 @@ export default function BudgetCreateModal({
     limit: '',
     recurrenceFreq: 'monthly',
     instanceLength: '1',
-    periodStart: todayYmd(timeZone),
+    periodStart: getTodayYmd(timeZone),
     recurs: true,
   }), [defaultCurrency, timeZone])
 

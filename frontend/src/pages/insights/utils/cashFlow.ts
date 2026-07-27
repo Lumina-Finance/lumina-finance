@@ -1,11 +1,6 @@
 import type { InsightsCashFlowResponse } from '@/api/insights'
 import type { CashFlowBarBucket, CashFlowGranularity } from '@/pages/insights/types/cashFlow'
-import {
-  getIsoWeek,
-  getMonthLabel,
-  getShortDateLabel,
-  parseYmd,
-} from './date'
+import { DATE_FORMATS, formatDate, getIsoWeek, parseYmd } from '@/utils/date'
 import { getCustomRangeDays } from './range'
 
 function getCashFlowGranularity(dayCount: number): CashFlowGranularity {
@@ -36,14 +31,14 @@ export function getCashFlowBarData(
       const firstDate = parseYmd(bucketStart)
       const lastDate = parseYmd(bucketEnd)
       const label = granularity === 'day'
-        ? (firstDate ? getShortDateLabel(firstDate) : bucketStart)
+        ? (firstDate ? formatDate(firstDate, DATE_FORMATS.monthDay) : bucketStart)
         : granularity === 'week'
           ? firstDate ? `W${getIsoWeek(firstDate)}` : bucketStart
-          : firstDate ? getMonthLabel(firstDate) : bucketStart
+          : firstDate ? formatDate(firstDate, DATE_FORMATS.month) : bucketStart
       const rangeLabel = firstDate && lastDate && firstDate.getTime() === lastDate.getTime()
-        ? getShortDateLabel(firstDate)
+        ? formatDate(firstDate, DATE_FORMATS.monthDay)
         : firstDate && lastDate
-          ? `${getShortDateLabel(firstDate)}-${getShortDateLabel(lastDate)}`
+          ? `${formatDate(firstDate, DATE_FORMATS.monthDay)}-${formatDate(lastDate, DATE_FORMATS.monthDay)}`
           : `${bucketStart}-${bucketEnd}`
 
       return {

@@ -112,6 +112,16 @@ export function getTodayDate(timeZone?: string, now = new Date()): Date {
 }
 
 /**
+ * Returns the calendar year it currently is in the given zone
+ *
+ * @param timeZone - Zone deciding which year it currently is, defaulting to the browser's
+ * @param now - Instant to read the year from, overridable so tests can pin it
+ */
+export function getTodayYear(timeZone?: string, now = new Date()): number {
+  return Number(getTodayYmd(timeZone, now).slice(0, 4))
+}
+
+/**
  * Writes the date as a zero-padded "YYYY-MM-DD" string, the form the API expects
  *
  * The parts are read off the local calendar rather than converted to UTC, so the string names the
