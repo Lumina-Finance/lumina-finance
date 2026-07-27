@@ -1,7 +1,17 @@
 import { TriangleAlert } from 'lucide-react'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
+import { IMPORT_DATE_FORMAT_OPTIONS } from '@/pages/imports/constants'
 import type { ColumnMap, ColumnValidationErrors, ImportFileDraft } from '@/pages/imports/types'
-import { getColumnSamples, getTargetForHeader } from '@/pages/imports/utils'
+import {
+  type ImportDateFormat,
+  type ImportDateFormatScan,
+  getColumnSamples,
+  getTargetForHeader,
+} from '@/pages/imports/utils'
+
+// Marks a format the column cannot be read in, kept short because it renders as a pill beside the
+// option label. Choosing it anyway is allowed, and the column error then names the value that broke
+const UNREADABLE_FORMAT_BADGE = 'Does not fit'
 
 /**
  * Table mapping each column header found in the uploaded files to an app field, showing sample
@@ -17,7 +27,10 @@ export function ImportHeaderMappingTable({
   autoFilledHeaders,
   columnMap,
   validationErrors,
+  dateFormat,
+  dateFormatScan,
   onChange,
+  onDateFormatChange,
 }: {
   headers: string[]
   files: ImportFileDraft[]
@@ -25,8 +38,17 @@ export function ImportHeaderMappingTable({
   autoFilledHeaders: Set<string>
   columnMap: ColumnMap
   validationErrors: ColumnValidationErrors
+  dateFormat: ImportDateFormat | null
+  dateFormatScan: ImportDateFormatScan
   onChange: (header: string, target: string) => void
+  onDateFormatChange: (dateFormat: ImportDateFormat) => void
 }) {
+  const dateFormatOptions: DropdownOption[] = IMPORT_DATE_FORMAT_OPTIONS.map((option) => ({
+    value: option.value,
+    label: `${option.label} (${option.example})`,
+    badge: dateFormatScan.rejectedBy[option.value] ? UNREADABLE_FORMAT_BADGE : undefined,
+  }))
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full table-fixed min-w-[48rem] text-left text-[0.9375rem]">
@@ -103,6 +125,17 @@ export function ImportHeaderMappingTable({
                         searchable
                         className={`app-input ${validationError ? 'app-input-error' : ''}`}
                       />
+                      {selectedTarget === 'dt' && (
+                        <div className="mt-2">
+                          <Dropdown
+                            options={dateFormatOptions}
+                            value={dateFormat ?? ''}
+                            onChange={(nextValue) => onDateFormatChange(nextValue as ImportDateFormat)}
+                            placeholder="Choose the date format"
+                            className="app-input"
+                          />
+                        </div>
+                      )}
                     </div>
                   </div>
                 </td>

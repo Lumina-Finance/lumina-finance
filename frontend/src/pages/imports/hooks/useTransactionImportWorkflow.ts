@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
+import { useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { useImportTransactions, type TransactionImportResponse } from '@/api/transaction-imports'
 import { EMPTY_COLUMN_MAP } from '@/pages/imports/constants'
 import type { ColumnMap, ColumnTarget, ColumnValidationErrors, ImportCategoryKind, ImportFileDraft, ImportOverlayPhase, PreviewTransactionRow } from '@/pages/imports/types'
@@ -33,6 +33,14 @@ import {
 import { waitForMilliseconds } from '@/utils/timing'
 import { useImportAccountCreateState } from './useImportAccountCreateState'
 import { useImportReferenceData } from './useImportReferenceData'
+
+/**
+ * A date format the user picked, tagged with the column and files it was picked for
+ */
+interface DateFormatChoice {
+  scope: string
+  format: ImportDateFormat
+}
 
 const FILE_ACCOUNT_MATCH_KEY = '__file_account__'
 const CSV_PROCESSING_MIN_MS = 1500
@@ -75,7 +83,7 @@ export function useTransactionImportWorkflow() {
   const [merchantHandlingOpen, setMerchantHandlingOpen] = useState(true)
   const [tagHandlingOpen, setTagHandlingOpen] = useState(true)
   const [columnValidationErrors, setColumnValidationErrors] = useState<ColumnValidationErrors>({})
-  const [dateFormat, setDateFormat] = useState<ImportDateFormat | null>(null)
+  const [dateFormatChoice, setDateFormatChoice] = useState<DateFormatChoice | null>(null)
   const [categoryMappings, setCategoryMappings] = useState<Record<string, string>>({})
   const [categoryAutoMatchKey, setCategoryAutoMatchKey] = useState('')
   const [categoryCreateKinds, setCategoryCreateKinds] = useState<Record<string, ImportCategoryKind>>({})
@@ -120,27 +128,37 @@ export function useTransactionImportWorkflow() {
     [columnMap.dt, files],
   )
 
-  // Settles on the only format the column can be read in, and leaves the choice open when more than
-  // one survives, because picking between them is the guess this whole path exists to remove. The
-  // scan only changes when the column or the files do, so an answer the user gave is left alone
-  useEffect(() => {
-    setDateFormat(dateFormatScan.readable.length === 1 ? dateFormatScan.readable[0] : null)
-  }, [dateFormatScan])
+  // Names what the scan was run against, so a format chosen for one column and set of files is
+  // dropped rather than carried onto another
+  const dateFormatScope = `${columnMap.dt}:${files.map((file) => file.id).join(',')}`
 
-  // The date column is the one target judged against a choice made outside the mapping table, so
-  // settling or changing that choice re-runs its check without disturbing the other columns
-  useEffect(() => {
-    const header = columnMap.dt
-    if (!header) return
+  // The user's answer while it still applies, otherwise the only format the column can be read in.
+  // More than one survivor leaves it unanswered, because choosing between them is exactly the guess
+  // this path exists to remove
+  const dateFormat = dateFormatChoice?.scope === dateFormatScope
+    ? dateFormatChoice.format
+    : (dateFormatScan.readable.length === 1 ? dateFormatScan.readable[0] : null)
 
-    const validation = validateColumnValues(files, header, 'dt', dateFormat)
-    setColumnValidationErrors((current) => {
-      const next = { ...current }
-      if (validation.valid) delete next[header]
-      else next[header] = validation.message
-      return next
-    })
-  }, [columnMap.dt, dateFormat, files])
+  // The date column answers to a choice made outside the mapping table, so its error is worked out
+  // on every render rather than kept in the stored map, which only refreshes when a mapping changes
+  const dateColumnValidation = useMemo(
+    () => (columnMap.dt ? validateColumnValues(files, columnMap.dt, 'dt', dateFormat) : null),
+    [columnMap.dt, dateFormat, files],
+  )
+
+  const resolvedColumnValidationErrors = useMemo(() => {
+    if (!columnMap.dt || !dateColumnValidation) return columnValidationErrors
+
+    const next = { ...columnValidationErrors }
+    if (dateColumnValidation.valid) delete next[columnMap.dt]
+    else next[columnMap.dt] = dateColumnValidation.message
+
+    return next
+  }, [columnMap.dt, columnValidationErrors, dateColumnValidation])
+
+  const setDateFormat = (format: ImportDateFormat) => {
+    setDateFormatChoice({ scope: dateFormatScope, format })
+  }
 
   const accountMappingSources = useMemo(
     () => buildImportAccountMappingSources(files, columnMap.account_id),
@@ -243,7 +261,7 @@ export function useTransactionImportWorkflow() {
       categoryMappings: resolvedCategoryMappings,
       categoryTypesBySource,
       columnMap,
-      columnValidationErrors,
+      columnValidationErrors: resolvedColumnValidationErrors,
       dateFormat,
       files,
       importedCategories,
@@ -257,12 +275,12 @@ export function useTransactionImportWorkflow() {
       categoryCreateKinds,
       categoryTypesBySource,
       columnMap,
-      columnValidationErrors,
       dateFormat,
       files,
       importedCategories,
       resolvedAccountMappings,
       resolvedCategoryMappings,
+      resolvedColumnValidationErrors,
     ],
   )
   const totalRows = files.reduce((sum, file) => sum + file.rows.length, 0)
@@ -415,7 +433,7 @@ export function useTransactionImportWorkflow() {
     setMerchantHandlingOpen(true)
     setTagHandlingOpen(true)
     setColumnValidationErrors({})
-    setDateFormat(null)
+    setDateFormatChoice(null)
     setCategoryMappings({})
     setCategoryAutoMatchKey('')
     setCategoryCreateKinds({})
@@ -443,7 +461,7 @@ export function useTransactionImportWorkflow() {
     batchAccountInstitution,
     merchantHandlingOpen,
     tagHandlingOpen,
-    columnValidationErrors,
+    columnValidationErrors: resolvedColumnValidationErrors,
     dateFormat,
     dateFormatScan,
     setDateFormat,

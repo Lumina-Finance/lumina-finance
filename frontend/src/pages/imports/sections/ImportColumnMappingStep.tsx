@@ -3,7 +3,7 @@ import type { TransactionImportWorkflow } from '@/pages/imports/hooks'
 
 type ImportColumnMappingStepProps = Pick<
   TransactionImportWorkflow,
-  'headers' | 'files' | 'columnTargetOptions' | 'autoFilledColumnHeaders' | 'columnMap' | 'columnValidationErrors' | 'updateColumnTarget'
+  'headers' | 'files' | 'columnTargetOptions' | 'autoFilledColumnHeaders' | 'columnMap' | 'columnValidationErrors' | 'dateFormat' | 'dateFormatScan' | 'setDateFormat' | 'updateColumnTarget'
 >
 
 /**
@@ -17,6 +17,9 @@ export function ImportColumnMappingStep({
   autoFilledColumnHeaders,
   columnMap,
   columnValidationErrors,
+  dateFormat,
+  dateFormatScan,
+  setDateFormat,
   updateColumnTarget,
 }: ImportColumnMappingStepProps) {
   return (
@@ -38,7 +41,10 @@ export function ImportColumnMappingStep({
           autoFilledHeaders={autoFilledColumnHeaders}
           columnMap={columnMap}
           validationErrors={columnValidationErrors}
+          dateFormat={dateFormat}
+          dateFormatScan={dateFormatScan}
           onChange={updateColumnTarget}
+          onDateFormatChange={setDateFormat}
         />
       )}
     </ImportStep>
