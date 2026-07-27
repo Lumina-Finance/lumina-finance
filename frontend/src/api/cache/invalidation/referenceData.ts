@@ -15,13 +15,6 @@ export const referenceDataTargets: InvalidationTarget[] = [
 ];
 
 /**
- * Invalidates category reference data
- */
-export function invalidateCategories(queryClient: QueryClient) {
-  invalidateTargets(queryClient, [{ queryKey: categoryKeys.list(), exact: true }]);
-}
-
-/**
  * Invalidates merchant reference data
  */
 export function invalidateMerchants(queryClient: QueryClient) {

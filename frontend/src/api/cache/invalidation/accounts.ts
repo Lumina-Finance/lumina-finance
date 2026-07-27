@@ -5,7 +5,7 @@ import { invalidateTargets } from '@/api/cache/invalidation/types';
 /**
  * Invalidates the account list used by account summaries and selectors
  */
-export function invalidateAccountSummaries(queryClient: QueryClient) {
+function invalidateAccountSummaries(queryClient: QueryClient) {
   invalidateTargets(queryClient, [{ queryKey: accountKeys.list(), exact: true }]);
 }
 
@@ -14,16 +14,6 @@ export function invalidateAccountSummaries(queryClient: QueryClient) {
  */
 export function invalidateAccounts(queryClient: QueryClient) {
   invalidateTargets(queryClient, [{ queryKey: accountKeys.all }]);
-}
-
-/**
- * Invalidates detail records for specific accounts
- */
-export function invalidateAccountDetails(queryClient: QueryClient, accountIds: string[]) {
-  invalidateTargets(queryClient, accountIds.map((accountId) => ({
-    queryKey: accountKeys.detail(accountId),
-    exact: true,
-  })));
 }
 
 /**

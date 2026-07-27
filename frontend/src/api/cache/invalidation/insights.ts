@@ -45,10 +45,3 @@ export function invalidateInsightsIncomeExpense(queryClient: QueryClient) {
 export function invalidateInsightsMerchants(queryClient: QueryClient) {
   invalidateTargets(queryClient, insightsMerchantTargets);
 }
-
-/**
- * Invalidates every insights query
- */
-export function invalidateInsightsData(queryClient: QueryClient) {
-  invalidateTargets(queryClient, insightsTargets);
-}
