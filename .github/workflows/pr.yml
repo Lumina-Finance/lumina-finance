@@ -26,12 +26,20 @@ jobs:
         uses: dorny/paths-filter@v4
         with:
           filters: |
+            # Every area watches the workflow files as well, so that a change to the
+            # pipeline runs the pipeline, which is otherwise the one edit that merges
+            # without any branch having exercised it. The composite action is used by
+            # the Docker jobs alone, which is why the other two do not name it
             backend:
               - 'backend/**'
+              - '.github/workflows/**'
             frontend:
               - 'frontend/**'
+              - '.github/workflows/**'
             docker:
               - 'docker/**'
+              - '.github/workflows/**'
+              - '.github/actions/**'
 
             # A lockfile change can shift transitive dependencies that affect the
             # other side or the built image, so it forces the whole pipeline to run
