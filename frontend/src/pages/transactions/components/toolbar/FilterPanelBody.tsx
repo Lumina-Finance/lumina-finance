@@ -1,4 +1,4 @@
-import { useId, useState } from 'react'
+import { useId, useState, type Dispatch, type SetStateAction } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { X } from 'lucide-react'
 import DateField from '@/components/date-field/DateField'
@@ -7,7 +7,7 @@ import { MultiSelectChecklist } from '@/components/filters/MultiSelectChecklist'
 import { FacetSelectDropdown } from '@/components/list-controls/FacetSelectDropdown'
 import { FILTER_GLASS_SPRING } from '@/components/list-controls/toolbarStyles'
 import { joinClassNames } from '@/utils/classNames'
-import { formatMoneyInputLive, sanitizeMoneyInput } from '@/utils/moneyInput'
+import { useMoneyInput } from '@/hooks/useMoneyInput'
 import { ReferenceFacet } from '@/pages/transactions/components/toolbar/ReferenceFacet'
 import {
   FILTER_FACETS,
@@ -139,6 +139,7 @@ export function FilterPanelBody({
               amount={draft.amount}
               amountSymbol={draft.amountSymbol}
               amountCurrencyNote={draft.amountCurrencyNote}
+              amountExponent={draft.amountExponent}
               currencyOptions={draft.getFacetOptions('currency')}
               currencyValue={draft.currencyLocked ? draft.amountCurrency : draft.selections.currency[0] ?? ''}
               currencyLocked={draft.currencyLocked}
@@ -223,6 +224,8 @@ type FacetEditorProps = {
   amount: AmountDraft
   amountSymbol: string
   amountCurrencyNote: string
+  // Decimal places of the currency the amount range matches, for parsing and normalizing input
+  amountExponent: number
   // The currency the amount range matches, chosen inside the amount section
   currencyOptions: OptionItem[]
   currencyValue: string
@@ -233,7 +236,9 @@ type FacetEditorProps = {
   onToggle: (value: string, label?: string) => void
   onCurrencyToggle: (value: string) => void
   onTagMatchChange: (value: 'all' | 'any') => void
-  onAmountChange: (value: AmountDraft) => void
+  // Takes an updater rather than a value, so two bounds settling in the same commit cannot
+  // overwrite each other when the currency changes under them
+  onAmountChange: Dispatch<SetStateAction<AmountDraft>>
   onDateRangeChange: (value: { from: string; to: string }) => void
 }
 
@@ -250,6 +255,7 @@ function FacetEditor({
   amount,
   amountSymbol,
   amountCurrencyNote,
+  amountExponent,
   currencyOptions,
   currencyValue,
   currencyLocked,
@@ -263,6 +269,18 @@ function FacetEditor({
 }: FacetEditorProps) {
   const shouldReduceMotion = useReducedMotion()
   const tagMatchThumbId = useId()
+  // Called on every render regardless of facet kind so the rules of hooks hold, since the amount
+  // instance is the only one ever mounted with facet.kind === 'amount'
+  const minAmountInput = useMoneyInput({
+    value: amount.min,
+    exponent: amountExponent,
+    onChange: (value) => onAmountChange((current) => ({ ...current, min: value })),
+  })
+  const maxAmountInput = useMoneyInput({
+    value: amount.max,
+    exponent: amountExponent,
+    onChange: (value) => onAmountChange((current) => ({ ...current, max: value })),
+  })
 
   if (facet.kind === 'amount') {
     return (
@@ -323,12 +341,9 @@ function FacetEditor({
                   </span>
                 )}
                 <input
-                  type="text"
-                  inputMode="decimal"
                   className={joinClassNames('app-input', amountSymbol && 'pl-8')}
                   placeholder="0.00"
-                  value={formatMoneyInputLive(amount.min)}
-                  onChange={(event) => onAmountChange({ ...amount, min: sanitizeMoneyInput(event.target.value) })}
+                  {...minAmountInput}
                 />
               </div>
             </label>
@@ -347,12 +362,9 @@ function FacetEditor({
                   </span>
                 )}
                 <input
-                  type="text"
-                  inputMode="decimal"
                   className={joinClassNames('app-input', amountSymbol && 'pl-8')}
                   placeholder="Any"
-                  value={formatMoneyInputLive(amount.max)}
-                  onChange={(event) => onAmountChange({ ...amount, max: sanitizeMoneyInput(event.target.value) })}
+                  {...maxAmountInput}
                 />
               </div>
             </label>
@@ -464,6 +476,23 @@ type ActiveFilterSummaryProps = {
 }
 
 /**
+ * Renders a filter bound for the summary chip, which is read-only text and so follows the reader's
+ * own number convention rather than the plain format the amount fields hold
+ */
+function formatFilterAmount(value: string): string {
+  if (!value.trim()) return ''
+
+  // The bound already carries the decimals its currency uses, so the chip keeps exactly those
+  // rather than letting the formatter trim a trailing zero
+  const decimals = value.split('.')[1]?.length ?? 0
+
+  return new Intl.NumberFormat(undefined, {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  }).format(Number(value))
+}
+
+/**
  * Renders the removable chips for every live selection across all facets, so the full filter state
  * stays visible while only one facet editor shows at a time
  */
@@ -487,7 +516,7 @@ function ActiveFilterSummary({
   )
 
   const amountChip = amount.min || amount.max
-    ? [{ key: 'amount', label: `${amountSymbol}${formatMoneyInputLive(amount.min) || '0'}–${formatMoneyInputLive(amount.max) || 'any'}`, onRemove: onClearAmount }]
+    ? [{ key: 'amount', label: `${amountSymbol}${formatFilterAmount(amount.min) || '0'}–${formatFilterAmount(amount.max) || 'any'}`, onRemove: onClearAmount }]
     : []
 
   const dateChip = dateRange.from || dateRange.to

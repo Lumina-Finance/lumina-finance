@@ -7,6 +7,7 @@ import { useCurrencies } from '@/api/currency'
 import { useMerchantDetails } from '@/api/merchants'
 import { useTagDetails } from '@/api/tags'
 import { useAuth } from '@/hooks/useAuth'
+import { fromMinorUnits, getCurrencyExponent, toMinorUnits } from '@/utils/moneyInput'
 import type { TransactionListFilters } from '@/pages/transactions/types/transactionList'
 import type { TransactionFilterSetter } from '@/pages/transactions/components/toolbar/types'
 
@@ -111,6 +112,7 @@ export function useTransactionFilterDraft({
   const currencyLocked = Boolean(lockedCurrency)
   const amountCurrency = lockedCurrency ?? selections.currency[0] ?? baseCurrency
   const amountSymbol = currencies.find((currency) => currency.id === amountCurrency)?.symbol ?? ''
+  const amountExponent = getCurrencyExponent(currencies, amountCurrency)
   const amountCurrencyNote = currencyLocked
     ? `Amounts are matched in ${amountCurrency}, this account's currency`
     : selections.currency[0]
@@ -163,9 +165,10 @@ export function useTransactionFilterDraft({
     })
     setTagMatch(filters.tag_match ?? 'all')
     setDateRange({ from: filters.from_date ?? '', to: filters.to_date ?? '' })
-    // Stored bounds are in the amount currency's minor units, so they are scaled back to a decimal
-    const exponent = currencies.find((currency) => currency.id === filters.amount_currency)?.minor_unit_exponent ?? 2
-    const toInput = (value?: number) => (value === undefined ? '' : String(value / 10 ** exponent))
+    // Stored bounds are in the minor units of the currency they were applied in, which is not
+    // necessarily the one the draft is now editing
+    const exponent = getCurrencyExponent(currencies, filters.amount_currency ?? '')
+    const toInput = (value?: number) => fromMinorUnits(value ?? null, exponent)
     setAmount({ min: toInput(filters.min_amount), max: toInput(filters.max_amount) })
   }, [filters, currencies, showAccountFilter, currencyLocked])
 
@@ -220,8 +223,9 @@ export function useTransactionFilterDraft({
    * currency's minor units, then closes the surface
    */
   function applyFilters() {
-    const exponent = currencies.find((currency) => currency.id === amountCurrency)?.minor_unit_exponent ?? 2
-    const toMinor = (value: string) => (value.trim() ? Math.round(Number(value) * 10 ** exponent) : undefined)
+    // toMinorUnits returns null rather than undefined for a blank amount, so the setFilter payload
+    // below converts it back to keep min_amount and max_amount optional
+    const toMinor = (value: string) => toMinorUnits(value, amountExponent) ?? undefined
     const hasAmount = Boolean(amount.min.trim() || amount.max.trim())
 
     setFilter({
@@ -249,6 +253,7 @@ export function useTransactionFilterDraft({
     activeFacetCount,
     amountCurrency,
     amountSymbol,
+    amountExponent,
     amountCurrencyNote,
     currencyLocked,
     getFacetOptions,
