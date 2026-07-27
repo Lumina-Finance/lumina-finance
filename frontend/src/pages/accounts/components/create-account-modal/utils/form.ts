@@ -2,6 +2,7 @@ import { ACCOUNT_KIND_BY_TYPE, type AccountType, type CreateAccountPayload } fro
 import type { Currency } from '@/api/currency'
 import { CREATE_ACCOUNT_TYPE_OPTIONS, INITIAL_CREATE_ACCOUNT_FORM } from '@/pages/accounts/components/create-account-modal/constants'
 import { optionalAccountMoneyInputToMinorUnits } from '@/pages/accounts/components/create-account-modal/utils/money'
+import { isValidMoneyInput } from '@/utils/moneyInput'
 import type {
   CreateAccountFieldErrors,
   CreateAccountForm,
@@ -56,15 +57,8 @@ export function validateCreateAccountForm(form: CreateAccountForm): CreateAccoun
   }
   if (!form.currency) errors.currency = 'Select a currency'
 
-  if (form.credit_limit) {
-    const creditLimit = Number(form.credit_limit.replace(/,/g, ''))
-    if (!Number.isFinite(creditLimit) || creditLimit < 0) errors.credit_limit = 'Must be a positive number'
-  }
-
-  if (form.starting_balance) {
-    const startingBalance = Number(form.starting_balance.replace(/,/g, ''))
-    if (!Number.isFinite(startingBalance) || startingBalance < 0) errors.starting_balance = 'Must be zero or higher'
-  }
+  if (!isValidMoneyInput(form.credit_limit)) errors.credit_limit = 'Must be a positive number'
+  if (!isValidMoneyInput(form.starting_balance)) errors.starting_balance = 'Must be zero or higher'
 
   return errors
 }

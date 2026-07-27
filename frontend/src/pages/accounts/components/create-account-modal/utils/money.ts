@@ -1,11 +1,13 @@
+import { toMinorUnits } from '@/utils/moneyInput'
+
 /**
- * Converts optional account money input into currency minor units while preserving empty optional fields
+ * Converts optional account money input into currency minor units, keeping this field's own
+ * policies on top of the shared conversion: a blank value stays null and a negative amount is
+ * rejected rather than stored signed
  */
 export function optionalAccountMoneyInputToMinorUnits(value: string, exponent: number): number | null {
   if (!value) return null
+  if (Number(value) < 0) return null
 
-  const numericValue = Number.parseFloat(value.replace(/,/g, ''))
-  if (!Number.isFinite(numericValue) || numericValue < 0) return null
-
-  return Math.round(numericValue * Math.pow(10, exponent))
+  return toMinorUnits(value, exponent)
 }

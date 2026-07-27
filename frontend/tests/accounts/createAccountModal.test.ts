@@ -81,7 +81,7 @@ describe('create account modal helpers', () => {
       ...buildInitialCreateAccountForm('CAD'),
       account_type: 'checking' as const,
       tax_advantaged_category_id: 'tfsa',
-      credit_limit: '1,000',
+      credit_limit: '1000',
     }
 
     expect(buildInitialCreateAccountForm('CAD')).toMatchObject({ currency: 'CAD' })
@@ -131,7 +131,7 @@ describe('create account modal helpers', () => {
       account_type: 'credit_card' as const,
       name: 'Rewards Card',
       institution_id: 'td',
-      credit_limit: '10,000.50',
+      credit_limit: '10000.50',
       starting_balance: '123.45',
     }
 
