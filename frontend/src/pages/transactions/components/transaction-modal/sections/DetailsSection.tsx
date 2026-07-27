@@ -1,8 +1,8 @@
+import CreateModalFieldLabelRow from '@/components/create-modal/FieldLabelRow'
+import CreateModalSectionFrame from '@/components/create-modal/SectionFrame'
 import DateField from '@/components/date-field/DateField'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
 import IconTooltip from '@/components/tooltips/IconTooltip'
-import TransactionModalFieldLabelRow from '@/pages/transactions/components/transaction-modal/controls/FieldLabelRow'
-import TransactionModalSectionFrame from '@/pages/transactions/components/transaction-modal/controls/SectionFrame'
 import { formatMoneyInputLive } from '@/utils/moneyInput'
 
 interface TransactionDetailsSectionProps {
@@ -44,10 +44,10 @@ export default function TransactionDetailsSection({
   onNotesChange,
 }: TransactionDetailsSectionProps) {
   return (
-    <TransactionModalSectionFrame number="03" title="Details">
+    <CreateModalSectionFrame step="03" title="Details">
       <div className="grid gap-3 sm:grid-cols-[11rem_8.5rem_minmax(0,1fr)]">
         <div>
-          <TransactionModalFieldLabelRow htmlFor="txn-date" label="Date" error={dateError} />
+          <CreateModalFieldLabelRow htmlFor="txn-date" label="Date" error={dateError} />
           <DateField
             id="txn-date"
             ariaLabel="Date"
@@ -76,7 +76,7 @@ export default function TransactionDetailsSection({
           />
         </div>
         <div>
-          <TransactionModalFieldLabelRow htmlFor="txn-amount" label="Amount" error={amountError} />
+          <CreateModalFieldLabelRow htmlFor="txn-amount" label="Amount" error={amountError} />
           <div className="relative">
             {selectedCurrencySymbol && (
               <span
@@ -119,6 +119,6 @@ export default function TransactionDetailsSection({
           maxLength={500}
         />
       </div>
-    </TransactionModalSectionFrame>
+    </CreateModalSectionFrame>
   )
 }

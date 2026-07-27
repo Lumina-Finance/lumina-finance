@@ -1,4 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react'
+import CreateModalSectionFrame from '@/components/create-modal/SectionFrame'
 import {
   DIRECTION_OPTIONS,
   EASE,
@@ -9,7 +10,6 @@ import type {
   TransactionModalKind,
 } from '@/pages/transactions/components/transaction-modal/types'
 import TransactionModalPillSelector from '@/pages/transactions/components/transaction-modal/controls/PillSelector'
-import TransactionModalSectionFrame from '@/pages/transactions/components/transaction-modal/controls/SectionFrame'
 
 interface TransactionTypeDirectionSectionProps {
   kind: TransactionModalKind
@@ -40,7 +40,7 @@ export default function TransactionTypeDirectionSection({
   onDirectionChange,
 }: TransactionTypeDirectionSectionProps) {
   return (
-    <TransactionModalSectionFrame number="01" title="Type & Direction">
+    <CreateModalSectionFrame step="01" title="Type & Direction">
       <div className="grid gap-3 sm:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <TransactionModalPillSelector
           value={kind}
@@ -72,6 +72,6 @@ export default function TransactionTypeDirectionSection({
           />
         </div>
       </div>
-    </TransactionModalSectionFrame>
+    </CreateModalSectionFrame>
   )
 }
