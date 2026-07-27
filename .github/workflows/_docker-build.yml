@@ -1,4 +1,4 @@
-name: Docker build
+name: Docker build and smoke test
 
 # Reusable step invoked by the pull request pipeline, it does not trigger on its own
 on:
@@ -13,35 +13,46 @@ env:
 
 jobs:
   build:
-    name: Build Docker image
-    runs-on: ubuntu-latest
+    name: Build and smoke test Docker image (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+
+    # Each leg builds on a runner of its own architecture, so neither is emulated. One
+    # architecture failing must not cancel the other, since knowing whether the break is
+    # architecture specific is the point of running both
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: amd64
+            runner: ubuntu-latest
+          - platform: arm64
+            runner: ubuntu-24.04-arm
+
+    # Feed docker/compose.yml the built image tag and a throwaway database identity
+    env:
+      APP_IMAGE_TAG: ci
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: lumina
+      DB_USER: lumina
+      DB_PASSWORD: lumina-smoke
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
 
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v4
+      - name: Set up Docker build
+        uses: ./.github/actions/setup-docker-build
         with:
-          username: ${{ vars.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          registry-username: ${{ vars.DOCKERHUB_USERNAME }}
+          registry-token: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # The base images live in Docker Hardened Images so the build needs this registry too
-      - name: Log in to Docker Hardened Images
-        uses: docker/login-action@v4
-        with:
-          registry: dhi.io
-          username: ${{ vars.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
-
-      # Load the image into the local daemon instead of pushing so the smoke test can run it
+      # Load the image into the local daemon rather than pushing, so the smoke test below
+      # can run the exact image this job just built without it leaving the runner
       - name: Build image
         uses: docker/build-push-action@v7
         env:
-          # The build record artifact is unused here and would linger past the image tarball
+          # The build record artifact is unused here and would outlive the job that made it
           DOCKER_BUILD_RECORD_UPLOAD: false
         with:
           context: .
@@ -52,12 +63,34 @@ jobs:
           build-args: |
             APP_VERSION=ci
 
-      - name: Save image to a tarball
-        run: docker save ${{ env.IMAGE_REF }} -o image.tar
+      - name: Write the operator env file
+        run: |
+          cat > docker/.env <<EOF
+          DB_HOST=${DB_HOST}
+          DB_PORT=${DB_PORT}
+          DB_NAME=${DB_NAME}
+          DB_USER=${DB_USER}
+          DB_PASSWORD=${DB_PASSWORD}
+          EOF
 
-      - name: Upload image artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: docker-image
-          path: image.tar
-          retention-days: 1
+      - name: Start the stack
+        run: docker compose -f docker/compose.yml up -d
+
+      # Caddy serves the backend health route under /api, poll until the app reports ready
+      - name: Ping the health endpoint
+        run: |
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://localhost:8080/api/health | grep -qE '"status":\s*"ok"'; then
+              echo "Health check passed"
+              exit 0
+            fi
+            echo "Attempt ${attempt}: app not ready yet"
+            sleep 5
+          done
+          echo "Health check never succeeded, dumping logs"
+          docker compose -f docker/compose.yml logs
+          exit 1
+
+      - name: Tear down the stack
+        if: always()
+        run: docker compose -f docker/compose.yml down -v

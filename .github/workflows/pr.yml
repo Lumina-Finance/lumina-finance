@@ -82,11 +82,6 @@ jobs:
     uses: ./.github/workflows/_docker-build.yml
     secrets: inherit
 
-  smoke-test:
-    needs: docker-build
-    if: ${{ !cancelled() && needs.docker-build.result == 'success' }}
-    uses: ./.github/workflows/_smoke_test_docker_image.yml
-
   # Single required status check, it fails if any branch failed or was cancelled
   # while treating path skipped branches as a pass
   pr-gate:
@@ -99,7 +94,6 @@ jobs:
       - frontend-test
       - frontend-build
       - docker-build
-      - smoke-test
     if: ${{ always() }}
     runs-on: ubuntu-latest
     steps:
