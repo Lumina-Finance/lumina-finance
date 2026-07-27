@@ -1,5 +1,6 @@
 import type { DailyCashFlow } from '@/api/transactions'
 import { parseYmdLocal } from '@/pages/transactions/utils/date'
+import { DATE_FORMATS, formatDate } from '@/utils/date'
 
 export type DailyCashFlowChartMode = 'net' | 'gross'
 export type DailyCashFlowGranularity = 'day' | 'week' | 'month'
@@ -86,21 +87,14 @@ export function getDailyCashFlowCalculation(
  * Formats the short label shown on the chart X-axis
  */
 function formatCashFlowPointLabel(date: Date, granularity: DailyCashFlowGranularity) {
-  return date.toLocaleDateString('en-US', {
-    month: 'short',
-    day: granularity === 'month' ? undefined : 'numeric',
-  })
+  return formatDate(date, granularity === 'month' ? DATE_FORMATS.month : DATE_FORMATS.monthDay)
 }
 
 /**
  * Formats one date in the fuller tooltip label
  */
 function formatCashFlowTooltipDate(date: Date) {
-  return date.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  })
+  return formatDate(date, DATE_FORMATS.monthDayYear)
 }
 
 /**

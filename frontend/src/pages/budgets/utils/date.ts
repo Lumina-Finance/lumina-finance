@@ -1,9 +1,10 @@
 import type { CalendarDate } from '@/pages/budgets/types'
+import { DATE_FORMATS, formatDate } from '@/utils/date'
 
 /**
  * Parses a backend YYYY-MM-DD value into a plain calendar date
  */
-export function parseYmd(ymd: string): CalendarDate {
+export function parseCalendarDate(ymd: string): CalendarDate {
   const [year, month, day] = ymd.split('-').map(Number)
   return { year, month, day }
 }
@@ -12,11 +13,7 @@ export function parseYmd(ymd: string): CalendarDate {
  * Formats a plain calendar date for short labels in budget UI
  */
 export function formatCalendarDate(date: CalendarDate) {
-  return new Date(date.year, date.month - 1, date.day).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  })
+  return formatDate(new Date(date.year, date.month - 1, date.day), DATE_FORMATS.monthDayYear)
 }
 
 /**

@@ -1,12 +1,12 @@
 import type { BaseBudget, Budget, RecurrenceFreq } from '@/api/budgets'
 import type { BudgetFormState, CalendarDate } from '@/pages/budgets/types'
-import { addDays, addMonths, anchorDay, formatCalendarDate, parseYmd } from '@/pages/budgets/utils/date'
+import { addDays, addMonths, anchorDay, formatCalendarDate, parseCalendarDate } from '@/pages/budgets/utils/date'
 
 /**
  * Converts a period start date into the backend recurrence anchor fields
  */
 export function recurrenceAnchorsFromStart(freq: RecurrenceFreq, periodStart: string) {
-  const { year, month, day } = parseYmd(periodStart)
+  const { year, month, day } = parseCalendarDate(periodStart)
   const start = new Date(year, month - 1, day)
 
   // Backend stores Monday as 0 for weekly recurrence anchors
@@ -27,7 +27,7 @@ export function recurrenceAnchorsFromStart(freq: RecurrenceFreq, periodStart: st
  * Derives the inclusive end date for one-off budgets from the selected cadence
  */
 export function oneOffPeriodEnd(form: BudgetFormState): CalendarDate {
-  const start = parseYmd(form.periodStart)
+  const start = parseCalendarDate(form.periodStart)
 
   if (form.recurrenceFreq === 'weekly') {
     return addDays(start, 6)
@@ -50,7 +50,7 @@ export function cadenceSummary(form: BudgetFormState) {
 
   if (!form.recurs) {
     if (!form.periodStart) return `"${name}" is one-off`
-    return `"${name}" is one-off starting ${formatCalendarDate(parseYmd(form.periodStart))} and ending ${formatCalendarDate(oneOffPeriodEnd(form))}`
+    return `"${name}" is one-off starting ${formatCalendarDate(parseCalendarDate(form.periodStart))} and ending ${formatCalendarDate(oneOffPeriodEnd(form))}`
   }
 
   let cadence: string
@@ -62,7 +62,7 @@ export function cadenceSummary(form: BudgetFormState) {
     cadence = safeLength === 1 ? 'yearly' : `every ${safeLength} years`
   }
 
-  return `"${name}" will repeat ${cadence} starting ${form.periodStart ? formatCalendarDate(parseYmd(form.periodStart)) : 'the selected start date'}`
+  return `"${name}" will repeat ${cadence} starting ${form.periodStart ? formatCalendarDate(parseCalendarDate(form.periodStart)) : 'the selected start date'}`
 }
 
 /**
@@ -81,7 +81,7 @@ export function budgetCadenceLabel(baseBudget: BaseBudget) {
  */
 export function formatBudgetPeriod(period: Budget | undefined) {
   if (!period) return 'No period yet'
-  return `${formatCalendarDate(parseYmd(period.period_start))} - ${formatCalendarDate(parseYmd(period.period_end))}`
+  return `${formatCalendarDate(parseCalendarDate(period.period_start))} - ${formatCalendarDate(parseCalendarDate(period.period_end))}`
 }
 
 /**
@@ -138,7 +138,7 @@ function formatPeriodRange(start: CalendarDate, baseBudget: BaseBudget) {
  * Returns the period start that immediately follows the supplied start after one recurrence cycle
  */
 export function nextRecurringPeriodStart(baseBudget: BaseBudget, periodStart: string) {
-  return formatYmd(addBudgetPeriod(parseYmd(periodStart), baseBudget))
+  return formatYmd(addBudgetPeriod(parseCalendarDate(periodStart), baseBudget))
 }
 
 /**
@@ -148,7 +148,7 @@ export function nextBudgetPeriods(baseBudget: BaseBudget, latestPeriod: Budget |
   // Archived budgets stop generating periods, so there is nothing upcoming to preview
   if (!baseBudget.recurs || !latestPeriod || baseBudget.is_archived) return []
 
-  const nextStart = addBudgetPeriod(parseYmd(latestPeriod.period_start), baseBudget)
+  const nextStart = addBudgetPeriod(parseCalendarDate(latestPeriod.period_start), baseBudget)
   const followingStart = addBudgetPeriod(nextStart, baseBudget)
 
   return [
@@ -163,9 +163,9 @@ export function nextBudgetPeriods(baseBudget: BaseBudget, latestPeriod: Budget |
 export function missingRecurringPeriodStarts(baseBudget: BaseBudget, latestPeriod: Budget | undefined, today: string) {
   if (!baseBudget.recurs || !latestPeriod) return []
 
-  const todayDate = parseYmd(today)
+  const todayDate = parseCalendarDate(today)
   const starts: string[] = []
-  let nextStart = addBudgetPeriod(parseYmd(latestPeriod.period_start), baseBudget)
+  let nextStart = addBudgetPeriod(parseCalendarDate(latestPeriod.period_start), baseBudget)
 
   // Create every elapsed start so stale budgets catch up after multiple missed cycles
   while (compareCalendarDates(nextStart, todayDate) <= 0) {

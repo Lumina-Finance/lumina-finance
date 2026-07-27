@@ -3,7 +3,8 @@ import type { Category } from '@/api/categories'
 import type { BudgetChartPoint } from '@/pages/budgets/components/budget-details-modal/ChartTooltip'
 import type { CalendarDate } from '@/pages/budgets/types'
 import { nextRecurringPeriodStart } from '@/pages/budgets/utils/budgetPeriods'
-import { formatCalendarDate, parseYmd } from '@/pages/budgets/utils/date'
+import { formatCalendarDate, parseCalendarDate } from '@/pages/budgets/utils/date'
+import { DATE_FORMATS, formatDate } from '@/utils/date'
 import { getBudgetUtilizationPercent } from '@/pages/budgets/utils/utilization'
 import { getCategoryColorMap } from '@/utils/chartColor'
 
@@ -143,7 +144,7 @@ function getBudgetChartAxisLabel(
   }
 
   const hasYearLabel = date.month === 1
-  const monthLabel = new Date(date.year, date.month - 1, date.day).toLocaleDateString('en-US', { month: 'short' })
+  const monthLabel = formatDate(new Date(date.year, date.month - 1, date.day), DATE_FORMATS.month)
   return {
     axisLabel: hasYearLabel ? `${monthLabel} '${String(date.year).slice(2)}` : monthLabel,
     hasYearLabel,
@@ -169,7 +170,7 @@ function buildBudgetPeriodPoint(
     values[category.dataKey] = getBudgetUtilizationPercent(categorySpentById.get(category.id) ?? 0, period.overall_limit)
     return values
   }, {})
-  const periodStart = parseYmd(period.period_start)
+  const periodStart = parseCalendarDate(period.period_start)
   const { axisLabel, hasYearLabel } = getBudgetChartAxisLabel(periodStart, recurrenceFreq)
 
   return {
