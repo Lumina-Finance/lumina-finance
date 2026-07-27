@@ -12,6 +12,7 @@ export {
   registerPasskey,
   removePasskey,
   renamePasskey,
+  requestPasskeyStepUpAssertion,
   verifyPasskeyMfa,
   verifyPasskeyReset,
 } from '@/api/passkeys/requests';
