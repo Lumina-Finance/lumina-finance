@@ -13,6 +13,7 @@ import {
   FIREFLY_TYPE_WITHDRAWAL,
 } from '@/pages/imports/firefly/constants'
 import type { FireflyAccountPrefill } from '@/pages/imports/firefly/types'
+import { parseYmd } from '@/utils/date'
 
 /**
  * Extracts the date part of a Firefly III timestamp, empty when unparseable
@@ -23,20 +24,8 @@ import type { FireflyAccountPrefill } from '@/pages/imports/firefly/types'
  */
 export function getFireflyRowDate(value: string) {
   const match = value.trim().match(/^(\d{4}-\d{2}-\d{2})/)
-  if (!match || !isRealCalendarDate(match[1])) return ''
+  if (!match || !parseYmd(match[1])) return ''
   return match[1]
-}
-
-/**
- * Whether a YYYY-MM-DD string names a real calendar day
- *
- * Date.UTC quietly normalises overflowed parts, so the parsed date is
- * formatted back and must reproduce the input exactly
- */
-export function isRealCalendarDate(value: string): boolean {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
-  const [year, month, day] = value.split('-').map(Number)
-  return new Date(Date.UTC(year, month - 1, day)).toISOString().slice(0, 10) === value
 }
 
 /**
