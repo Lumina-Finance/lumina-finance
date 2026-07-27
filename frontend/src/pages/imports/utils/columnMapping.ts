@@ -133,7 +133,9 @@ export function validateColumnValues(
 function getDateFormatExpectation(dateFormat: ImportDateFormat) {
   const { label, example } = IMPORT_DATE_FORMAT_LABELS[dateFormat]
 
-  return `valid dates in the ${label} format, such as ${example}; every row must have a value`
+  // The label is title case because it names a dropdown entry, and reads as a proper noun mid
+  // sentence unless it is lowered
+  return `valid dates in the ${label.toLowerCase()} format, such as ${example}; every row must have a value`
 }
 
 /**

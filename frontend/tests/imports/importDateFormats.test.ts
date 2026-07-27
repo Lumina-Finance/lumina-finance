@@ -212,11 +212,18 @@ describe('validating a date column', () => {
     expect(validateColumnValues(files, 'Date', 'dt', 'dayFirst').valid).toBe(false)
   })
 
-  it('names the Written format without repeating the word', () => {
+  it('names the written format in sentence case, without repeating the word', () => {
     const files = [createDateFile(['July 4th, 2024'])]
 
     expect(validateColumnValues(files, 'Date', 'dt', 'written').message)
-      .toBe('Expected valid dates in the Written format, such as April 30, 2026; every row must have a value. "July 4th, 2024" is not a valid date.')
+      .toBe('Expected valid dates in the written format, such as April 30, 2026; every row must have a value. "July 4th, 2024" is not a valid date.')
+  })
+
+  it('lowers every other format name the same way', () => {
+    const files = [createDateFile(['2024-13-01'])]
+
+    expect(validateColumnValues(files, 'Date', 'dt', 'yearFirst').message)
+      .toContain('valid dates in the year first format, such as 2026-04-30')
   })
 
   it('does not blame the shape when the value is that shape but names no real day', () => {
