@@ -1,6 +1,6 @@
 // Presentation helpers for the runway widget. The compute itself lives in the
 // backend (GET /me/runway) — these functions just format the months figure and
-// classify it into one of three risk bands.
+// classify it into one of three risk bands
 
 export const RUNWAY_TARGET_MONTHS = 6
 export const RUNWAY_THRESHOLD_MIN_MONTHS = 0
@@ -60,15 +60,15 @@ export function runwayBand(
 }
 
 // Compact runway display. Prefixes with "≈" to signal that this is a rough
-// projection from trailing-average expenses, not a precise prediction.
-// < 1 → "< 1 mth", 1–11 → "≈ 4 mths", 12–23 → "≈ 1 yr" / "≈ 1.5 yrs", ≥ 24 → "≈ N yrs".
+// projection from trailing-average expenses, not a precise prediction
+// < 1 → "< 1 mth", 1–11 → "≈ 4 mths", 12–23 → "≈ 1 yr" / "≈ 1.5 yrs", ≥ 24 → "≈ N yrs"
 export function formatCompactRunway(months: number | null): string {
   if (months === null || !Number.isFinite(months)) return 'N/A'
   if (months < 1) return '< 1 mth'
   if (months < 12) return `≈ ${Math.round(months)} mths`
   const years = months / 12
   if (months < 24) {
-    // 12 → "1 yr", 18 → "1.5 yrs". Half-step resolution reads naturally here.
+    // 12 → "1 yr", 18 → "1.5 yrs". Half-step resolution reads naturally here
     const rounded = Math.round(years * 2) / 2
     return `≈ ${rounded} ${rounded === 1 ? 'yr' : 'yrs'}`
   }

@@ -4,7 +4,7 @@ import type { RefObject } from 'react'
 import type {
   TaxAdvantagedCategory,
   TaxAdvantagedCategoryLimit,
-} from '@/api/taxAdvantagedCategories'
+} from '@/api/tax-advantaged-categories'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { LIMIT_DELETE_BUTTON_TRANSITION } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/constants'
 import TaxAdvantagedOpeningUsageLabel from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/controls/OpeningUsageLabel'

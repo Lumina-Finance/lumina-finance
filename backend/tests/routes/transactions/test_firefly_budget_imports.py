@@ -5,9 +5,9 @@ async def _get_category_id(client, headers, name):
     """Return the id of a visible category by name
 
     Args:
-        client: The async test client.
-        headers: Auth headers for the requesting user.
-        name: Category name to find.
+        client: The async test client
+        headers: Auth headers for the requesting user
+        name: Category name to find
 
     Returns:
         Category id string
@@ -20,13 +20,13 @@ async def _import_one_budget(client, headers, category_id, limits, name="Groceri
     """Import one budget and return the created base budget and its instances
 
     Args:
-        client: The async test client.
-        headers: Auth headers for the requesting user.
-        category_id: Tracked category for the budget.
-        limits: Limit periods for the import payload.
-        name: Budget name.
+        client: The async test client
+        headers: Auth headers for the requesting user
+        category_id: Tracked category for the budget
+        limits: Limit periods for the import payload
+        name: Budget name
         is_archived: Archived flag for the payload, omitted when None so the
-            default is exercised.
+            default is exercised
 
     Returns:
         Base budget response paired with its instance list

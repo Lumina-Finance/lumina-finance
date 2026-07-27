@@ -3,7 +3,7 @@ from datetime import date, datetime, timedelta
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import DASHBOARD_SAVINGS_HISTORY_MONTHS
+from app.config.dashboard import DASHBOARD_SAVINGS_HISTORY_MONTHS
 from app.models.account import Account
 from app.schemas.dashboard import MonthlyIncomeExpense
 from app.schemas.fx import FxStatus

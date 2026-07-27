@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { usePasskeys } from '@/api/passkeys';
-import { useTotpStatus } from '@/api/twoFactor';
+import { useTotpStatus } from '@/api/two-factor';
 import { MultiFactorModal } from '@/pages/settings/components/security-section/MultiFactorModal';
 
 const BADGE_BASE_CLASS = 'rounded-full px-2 py-0.5 text-xs font-medium';

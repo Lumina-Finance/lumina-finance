@@ -1,7 +1,7 @@
 import type { DropdownOption } from '@/components/dropdown/Dropdown';
 
 // ISO 3166-1 alpha-2 codes. Labels are derived at runtime via Intl.DisplayNames
-// so we don't need to maintain a parallel name list.
+// so we don't need to maintain a parallel name list
 const COUNTRY_CODES = [
   'AD', 'AE', 'AF', 'AG', 'AI', 'AL', 'AM', 'AO', 'AQ', 'AR',
   'AS', 'AT', 'AU', 'AW', 'AX', 'AZ', 'BA', 'BB', 'BD', 'BE',

@@ -38,7 +38,7 @@ async def test_list_transactions_pagination_offset(client):
             amount=-(i + 1) * 1000, dt=f"2026-03-{i + 1:02d}",
         )
 
-    # Default sort is dt desc: [Mar 5, 4, 3, 2, 1]. Offset 3 skips first 3, leaving Mar 2 and 1.
+    # Default sort is dt desc: [Mar 5, 4, 3, 2, 1]. Offset 3 skips first 3, leaving Mar 2 and 1
     resp = await client.get("/transactions?limit=3&offset=3", headers=headers)
     data = resp.json()
     assert len(data) == 2

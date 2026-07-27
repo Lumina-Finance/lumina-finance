@@ -13,11 +13,11 @@ from tests.routes.support import _create_account, _create_user, _get_auth_header
 
 
 async def test_get_budget_utilization_aggregates_across_multiple_accounts_in_same_currency(client):
-    """A category's spend sums across all accounts the user owns in that currency.
+    """A category's spend sums across all accounts the user owns in that currency
 
     The endpoint intentionally does not filter by account_id — only by category
     and date. This test locks in that contract: a regression that accidentally
-    scoped the spend query to a single account would lose data.
+    scoped the spend query to a single account would lose data
     """
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
@@ -54,7 +54,7 @@ async def test_get_budget_utilization_with_zero_amount_transaction(client):
 
     # Assert the zero-amount txn was actually created — guards against a future
     # CHECK > 0 on Transaction.amount silently making this test pass for the
-    # wrong reason (no txn created, no spend, zero total).
+    # wrong reason (no txn created, no spend, zero total)
     create_resp = await _create_transaction(client, headers, account_id, groceries, amount=0)
     assert create_resp.status_code == 201
 

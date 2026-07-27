@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { Check, Trash2, X } from 'lucide-react'
 import type { AccountsOverview } from '@/api/accounts'
 import type { Currency } from '@/api/currency'
-import type { TaxAdvantagedCategory } from '@/api/taxAdvantagedCategories'
+import type { TaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock'
 import type {
   AutosaveNotice,

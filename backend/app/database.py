@@ -6,7 +6,7 @@ from contextvars import ContextVar
 from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from app.config import APP_DB_USER, app_database_url, migration_database_url
+from app.config.database import APP_DB_USER, app_database_url, migration_database_url
 
 engine = create_async_engine(app_database_url())
 
@@ -36,10 +36,10 @@ event.listen(engine.sync_engine, "begin", stamp_request_identity)
 
 
 async def get_db():
-    """Yield an async database session for use as a FastAPI dependency.
+    """Yield an async database session for use as a FastAPI dependency
 
     Yields:
-        An AsyncSession that is automatically closed when the request completes.
+        An AsyncSession that is automatically closed when the request completes
     """
     # Clear any inherited identity so a request can only ever stamp its own user,
     # independent of how the server reuses execution contexts between requests

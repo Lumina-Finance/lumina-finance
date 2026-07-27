@@ -114,10 +114,10 @@ class RunwayAccountBalance(BaseModel):
 
 
 class RunwayResponse(BaseModel):
-    """Runway projection in months.
+    """Runway projection in months
 
     How many months the user's selected active liquid balance covers at their
-    trailing 12-month average monthly net expense across readable non-archived accounts.
+    trailing 12-month average monthly net expense across readable non-archived accounts
     """
 
     months: float | None

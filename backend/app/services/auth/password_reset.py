@@ -11,7 +11,8 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import func as sa_func
 
-from app.config import APP_URL, PASSWORD_RESET_DAILY_EMAIL_LIMIT, PASSWORD_RESET_TOKEN_EXPIRE_SECONDS
+from app.config.password_reset import PASSWORD_RESET_DAILY_EMAIL_LIMIT, PASSWORD_RESET_TOKEN_EXPIRE_SECONDS
+from app.config.runtime import APP_URL
 from app.database import current_user_id_ctx
 from app.models.auth import PasswordCredential, PasswordResetToken
 from app.models.user import User

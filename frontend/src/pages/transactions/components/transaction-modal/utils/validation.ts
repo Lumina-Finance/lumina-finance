@@ -39,7 +39,7 @@ export function validateTransactionForm(form: TransactionFormValues): Transactio
  * Validates the receiving account against the originating account for a symmetric transfer
  *
  * The two legs share a currency and a group so a single amount, category, and tag set apply to
- * both. It returns the receiving-account error message, or undefined when the pair is valid.
+ * both. It returns the receiving-account error message, or undefined when the pair is valid
  */
 export function getSymmetricTransferAccountError(
   fromAccount: AccountsOverview | undefined,

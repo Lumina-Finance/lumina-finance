@@ -11,7 +11,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import func as sa_func
 
-from app.config import (
+from app.config.jwt import (
     JWT_ACCESS_PRIVATE_KEY,
     JWT_ALGORITHM,
     JWT_ISSUER,

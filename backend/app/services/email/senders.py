@@ -6,7 +6,7 @@ from email.message import EmailMessage
 
 import aiosmtplib
 
-from app.config import (
+from app.config.email import (
     EMAIL_BACKEND,
     EMAIL_BACKEND_LOGGING,
     EMAIL_BACKEND_SMTP,

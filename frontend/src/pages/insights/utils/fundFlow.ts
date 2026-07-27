@@ -83,7 +83,7 @@ function getFlowData(data: InsightsFundFlowResponse | undefined): FundFlowData {
   const expenseInflowTotal = getEntryTotal(data.expense_inflows)
 
   // Expense-kind inflows are drawn as income-side sources, but expense
-  // categories must stay as the backend's already-netted category totals.
+  // categories must stay as the backend's already-netted category totals
   return getFlowDataFromEntries(
     data.income_sources,
     data.expense_categories,

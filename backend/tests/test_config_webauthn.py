@@ -1,6 +1,6 @@
 import pytest
 
-from app.config import _DEFAULT_WEBAUTHN_RP_NAME, resolve_webauthn_rp_name
+from app.config.webauthn import _DEFAULT_WEBAUTHN_RP_NAME, resolve_webauthn_rp_name
 
 
 @pytest.mark.parametrize(

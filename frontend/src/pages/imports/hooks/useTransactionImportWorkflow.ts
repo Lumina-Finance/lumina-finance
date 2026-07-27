@@ -3,7 +3,7 @@ import { useCategories } from '@/api/categories'
 import { useAccounts } from '@/api/accounts'
 import { useCurrencies } from '@/api/currency'
 import { useInstitutions } from '@/api/institutions'
-import { useImportTransactions, type TransactionImportResponse } from '@/api/transactionImports'
+import { useImportTransactions, type TransactionImportResponse } from '@/api/transaction-imports'
 import {
   CREATE_ACCOUNT_VALUE,
   EMPTY_COLUMN_MAP,

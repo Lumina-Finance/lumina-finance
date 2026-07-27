@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Currency } from '@/api/currency'
 import type { Institution } from '@/api/institutions'
-import type { TaxAdvantagedCategory } from '@/api/taxAdvantagedCategories'
+import type { TaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
 import {
   buildCreateAccountPayload,
   buildCreateAccountViewModel,

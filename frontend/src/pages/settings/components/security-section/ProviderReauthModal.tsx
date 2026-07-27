@@ -1,6 +1,6 @@
 import type { OidcLinkedIdentity } from '@/api/oidc';
 import { ProviderMark } from '@/components/ProviderMark';
-import { TwoFactorModalShell } from '@/components/twoFactor/TwoFactorModalShell';
+import { TwoFactorModalShell } from '@/components/two-factor/TwoFactorModalShell';
 
 interface ProviderReauthModalProps {
   open: boolean;

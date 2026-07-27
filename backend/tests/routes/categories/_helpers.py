@@ -8,14 +8,14 @@ CATEGORY_PAYLOAD = {
 }
 
 async def _create_category(client, headers, **overrides):
-    """Create a category via POST /categories.
+    """Create a category via POST /categories
 
-    Defaults: name="Custom Test Category", kind="expense".
+    Defaults: name="Custom Test Category", kind="expense"
 
     Args:
-        client: The async test client.
-        headers: Auth headers for the requesting user.
-        **overrides: Fields to override in the default payload.
+        client: The async test client
+        headers: Auth headers for the requesting user
+        **overrides: Fields to override in the default payload
 
     Returns:
         The HTTP response from the API
@@ -24,10 +24,10 @@ async def _create_category(client, headers, **overrides):
     return await client.post("/categories", json=payload, headers=headers)
 
 async def _create_second_user(client):
-    """Sign up a second user for ownership-isolation tests.
+    """Sign up a second user for ownership-isolation tests
 
     Args:
-        client: The async test client.
+        client: The async test client
 
     Returns:
         The HTTP response from the signup endpoint
@@ -41,11 +41,11 @@ async def _create_second_user(client):
     })
 
 async def _create_group(client, headers):
-    """Create a group and return its ID.
+    """Create a group and return its ID
 
     Args:
-        client: The async test client.
-        headers: Auth headers for the requesting user.
+        client: The async test client
+        headers: Auth headers for the requesting user
 
     Returns:
         The created group's ID
@@ -54,10 +54,10 @@ async def _create_group(client, headers):
     return resp.json()["id"]
 
 async def _setup_group_with_member(client):
-    """Create a group with an admin (owner) and a regular member.
+    """Create a group with an admin (owner) and a regular member
 
     Args:
-        client: The async test client.
+        client: The async test client
 
     Returns:
         Tuple of (admin_headers, member_headers, member_user_id, group_id)

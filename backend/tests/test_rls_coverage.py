@@ -2,7 +2,7 @@
 
 from sqlalchemy import text
 
-from app.config import APP_DB_USER
+from app.config.database import APP_DB_USER
 from app.db.rls import AUTH_TABLES, GLOBAL_READ_TABLES
 from app.models.base import Base
 from tests.conftest import engine

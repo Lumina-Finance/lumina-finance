@@ -4,8 +4,8 @@ import {
   useDisableTotp,
   useRegenerateRecoveryCodes,
   useTotpStatus,
-} from '@/api/twoFactor'
-import type { StepUpCredentials } from '@/components/twoFactor/StepUpModal'
+} from '@/api/two-factor'
+import type { StepUpCredentials } from '@/components/two-factor/StepUpModal'
 import { withMinDelay } from '@/utils/timing'
 
 type TwoFactorModal = 'none' | 'enable' | 'disable' | 'regenerate'

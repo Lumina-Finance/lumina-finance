@@ -8,7 +8,7 @@ import jwt as pyjwt
 import pytest
 from sqlalchemy import select
 
-from app.config import OIDC_REAUTH_MAX_AGE_SECONDS
+from app.config.oidc import OIDC_REAUTH_MAX_AGE_SECONDS
 from app.encryption import encrypt
 from app.models.auth import AuthIdentity
 from app.models.base import AuthProvider

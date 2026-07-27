@@ -11,7 +11,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 from sqlalchemy.pool import NullPool
 
-from app.config import MIGRATOR_DB_USER
+from app.config.database import MIGRATOR_DB_USER
 from app.models.base import Base
 from tests.conftest import (
     DB_HOST,

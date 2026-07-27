@@ -6,30 +6,30 @@ NONEXISTENT_ID = "00000000-0000-0000-0000-000000000000"
 
 
 async def _create_group(client, headers, **overrides):
-    """Create a group via POST /groups.
+    """Create a group via POST /groups
 
-    Defaults: name="Smith Family".
+    Defaults: name="Smith Family"
 
     Args:
-        client: The async test client.
-        headers: Auth headers for the requesting user.
-        **overrides: Fields to override in the default payload.
+        client: The async test client
+        headers: Auth headers for the requesting user
+        **overrides: Fields to override in the default payload
 
     Returns:
-        The HTTP response from the API.
+        The HTTP response from the API
     """
     payload = {"name": "Smith Family", **overrides}
     return await client.post("/groups", json=payload, headers=headers)
 
 
 async def _create_second_user(client):
-    """Sign up a second user and return (headers, user_id).
+    """Sign up a second user and return (headers, user_id)
 
     Args:
-        client: The async test client.
+        client: The async test client
 
     Returns:
-        Tuple of (auth_headers, user_id).
+        Tuple of (auth_headers, user_id)
     """
     resp = await client.post("/auth/signup", json={
         "email": "other@example.com",

@@ -169,10 +169,10 @@ async def test_recompute_anchor_carries_forward_from_earlier_snapshot(db, user, 
 
 
 async def test_recompute_replaces_stale_snapshots_in_range(db, user, account, category):
-    """Stale snapshots on or after from_dt are wiped and rebuilt.
+    """Stale snapshots on or after from_dt are wiped and rebuilt
 
     Covers the case where a stale snapshot sits between two legitimate
-    days — the day with no transactions should end up without any snapshot.
+    days — the day with no transactions should end up without any snapshot
     """
     db.add(AccountBalanceSnapshot(account_id=account.id, dt=date(2026, 2, 28), balance=2000))
     # Stale snapshots across the recompute window

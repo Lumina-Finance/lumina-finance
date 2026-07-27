@@ -6,7 +6,7 @@ import { useCurrencies } from '@/api/currency';
 import { useOidcProviders } from '@/api/oidc';
 import { OtpInput, OTP_LENGTH } from '@/components/OtpInput';
 import { SignupFactorSetup } from '@/pages/auth/components/SignupFactorSetup';
-import { WarningCallout } from '@/components/twoFactor/WarningCallout';
+import { WarningCallout } from '@/components/two-factor/WarningCallout';
 import { AuthAnimatedTitle } from '@/pages/auth/components/AnimatedTitle';
 import { AuthConfirmPasswordField } from '@/pages/auth/components/fields/ConfirmPasswordField';
 import { AuthErrorBanner } from '@/pages/auth/components/feedback/ErrorBanner';

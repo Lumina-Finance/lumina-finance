@@ -33,8 +33,8 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 
-// Maps the kebab-case Lucide names stored on `categories.icon` to their React components.
-// Only the icons referenced by seeded defaults are imported to keep the bundle small.
+// Maps the kebab-case Lucide names stored on `categories.icon` to their React components
+// Only the icons referenced by seeded defaults are imported to keep the bundle small
 const ICONS: Record<string, LucideIcon> = {
   'arrow-right-left': ArrowRightLeft,
   award: Award,

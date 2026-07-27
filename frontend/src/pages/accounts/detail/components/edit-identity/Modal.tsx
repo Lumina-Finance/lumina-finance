@@ -8,7 +8,7 @@ import {
 } from '@/api/accounts'
 import { useCurrencies } from '@/api/currency'
 import { useInstitutions } from '@/api/institutions'
-import { useTaxAdvantagedCategories } from '@/api/taxAdvantagedCategories'
+import { useTaxAdvantagedCategories } from '@/api/tax-advantaged-categories'
 import CreateInstitutionModal from '@/components/reference-modals/CreateInstitutionModal'
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
 import { useModalFieldFocus } from '@/components/modal/useModalFieldFocus'

@@ -21,12 +21,12 @@ from tests.routes.support import _create_account, _create_user, _get_auth_header
 
 
 async def test_get_budget_utilization_category_added_after_period_end_is_not_tracked(client):
-    """A category whose added_at is after the instance's period_end is not tracked.
+    """A category whose added_at is after the instance's period_end is not tracked
 
     Positive counterpart to the historical-accuracy guarantee: creating a base
     budget today and attaching it to a past instance does NOT retroactively pull
     that category into the past period. The predicate is `added_at <= period_end`,
-    so a category added "now" (well after the past period_end) fails it entirely.
+    so a category added "now" (well after the past period_end) fails it entirely
     """
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
@@ -40,7 +40,7 @@ async def test_get_budget_utilization_category_added_after_period_end_is_not_tra
     # Create the base budget + past-period instance via low-level helpers so
     # added_at stays at the user's local today (well after Jan 31). The
     # high-level _create_base_with_instance helper backdates added_at, which
-    # would mask the behavior under test.
+    # would mask the behavior under test
     base_resp = await _create_base_budget(client, headers, category_ids=[groceries])
     base_id = base_resp.json()["id"]
     inst_resp = await _create_budget_instance(
@@ -55,11 +55,11 @@ async def test_get_budget_utilization_category_added_after_period_end_is_not_tra
 
 
 async def test_get_budget_utilization_mid_period_category_addition_counts_whole_period_retroactively(client):
-    """Mid-period category additions count transactions from the start of the period.
+    """Mid-period category additions count transactions from the start of the period
 
     Predicate is `added_at <= period_end`, not `added_at <= transaction_day`. So a
     category added on March 15 for a March 1-31 instance sweeps in transactions
-    dated March 5 — the add applies to the whole period retroactively.
+    dated March 5 — the add applies to the whole period retroactively
     """
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
@@ -72,12 +72,12 @@ async def test_get_budget_utilization_mid_period_category_addition_counts_whole_
     )
 
     # Force added_at to mid-period (Mar 15). Direct DB edit because the public
-    # API sets added_at to the user's local today.
+    # API sets added_at to the user's local today
     await _set_tracked_category_timestamps(
         base_id, groceries, added_at=date(2026, 3, 15),
     )
 
-    # One txn before added_at (Mar 5) and one after (Mar 20). Both should count.
+    # One txn before added_at (Mar 5) and one after (Mar 20). Both should count
     await _create_transaction(client, headers, account_id, groceries, dt="2026-03-05", amount=-1000)
     await _create_transaction(client, headers, account_id, groceries, dt="2026-03-20", amount=-2000)
 
@@ -88,12 +88,12 @@ async def test_get_budget_utilization_mid_period_category_addition_counts_whole_
 
 
 async def test_get_budget_utilization_mid_period_category_removal_excludes_whole_period(client):
-    """Mid-period category removal excludes the whole period, not just post-removal spend.
+    """Mid-period category removal excludes the whole period, not just post-removal spend
 
     Predicate is `removed_at IS NULL OR removed_at > period_end`. If removed_at
     lands inside the period (strictly before period_end), the category fails the
     predicate entirely and ALL of its in-period spend is dropped — including
-    transactions that predate the removal.
+    transactions that predate the removal
     """
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
@@ -105,14 +105,14 @@ async def test_get_budget_utilization_mid_period_category_removal_excludes_whole
         client, headers, category_ids=[groceries],
     )
 
-    # added_at before period_start, removed_at mid-period. Forces the removed branch.
+    # added_at before period_start, removed_at mid-period. Forces the removed branch
     await _set_tracked_category_timestamps(
         base_id, groceries,
         added_at=date(2026, 2, 1),
         removed_at=date(2026, 3, 15),
     )
 
-    # Both txns should be excluded — the one before removal AND the one after.
+    # Both txns should be excluded — the one before removal AND the one after
     await _create_transaction(client, headers, account_id, groceries, dt="2026-03-05", amount=-1000)
     await _create_transaction(client, headers, account_id, groceries, dt="2026-03-20", amount=-2000)
 
@@ -122,12 +122,12 @@ async def test_get_budget_utilization_mid_period_category_removal_excludes_whole
 
 
 async def test_get_budget_utilization_past_period_frozen_when_category_removed_today(client):
-    """Removing a category today leaves a past period's utilization unchanged.
+    """Removing a category today leaves a past period's utilization unchanged
 
     When a user edits their base budget in April to remove a category, the
     January instance that already ended must not retroactively lose that
     category's spend. `removed_at` (April) > `period_end` (Jan 31), so the
-    category still satisfies the predicate for the past period.
+    category still satisfies the predicate for the past period
     """
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
@@ -143,7 +143,7 @@ async def test_get_budget_utilization_past_period_frozen_when_category_removed_t
 
     # Backdate added_at to before the past period so the base was "tracking"
     # groceries during January. Without this, added_at = today > Jan 31 and the
-    # category would never enter the tracked set in the first place.
+    # category would never enter the tracked set in the first place
     await _set_tracked_category_timestamps(
         base_id, groceries, added_at=date(2025, 12, 1),
     )
@@ -153,7 +153,7 @@ async def test_get_budget_utilization_past_period_frozen_when_category_removed_t
         dt="2026-01-15", amount=-5000,
     )
 
-    # Remove groceries via PATCH. removed_at is set to the user's local today — well after Jan 31.
+    # Remove groceries via PATCH. removed_at is set to the user's local today — well after Jan 31
     new_cat = await _create_category(client, headers, name="Replacement")
     patch_resp = await client.patch(
         f"/base-budgets/{base_id}",
@@ -164,7 +164,7 @@ async def test_get_budget_utilization_past_period_frozen_when_category_removed_t
 
     # The January period still reports the old groceries spend because removed_at
     # > period_end. The replacement category's added_at is today > Jan 31, so it
-    # is NOT in the tracked set for January.
+    # is NOT in the tracked set for January
     data = await _get_budget_utilization_entry(client, headers, base_id, budget_id)
     assert data["total_spent"] == 5000
     assert len(data["categories"]) == 1
@@ -173,12 +173,12 @@ async def test_get_budget_utilization_past_period_frozen_when_category_removed_t
 
 
 async def test_get_budget_utilization_past_period_frozen_when_category_added_today(client):
-    """Adding a category today does not pull it into a past period's tracked set.
+    """Adding a category today does not pull it into a past period's tracked set
 
     The inverse of the removal-freeze test: a category added to the base budget
     in April (added_at = now) fails the `added_at <= period_end` predicate for
     a January instance, so it never appears in that period's response — even
-    if there are January transactions in its category.
+    if there are January transactions in its category
     """
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
@@ -200,7 +200,7 @@ async def test_get_budget_utilization_past_period_frozen_when_category_added_tod
     await _create_transaction(client, headers, account_id, original, dt="2026-01-10", amount=-3000)
     await _create_transaction(client, headers, account_id, addon, dt="2026-01-20", amount=-7777)
 
-    # PATCH the base today to start tracking `addon` — added_at is the user's local today, well after Jan 31.
+    # PATCH the base today to start tracking `addon` — added_at is the user's local today, well after Jan 31
     patch_resp = await client.patch(
         f"/base-budgets/{base_id}",
         json={"category_ids": [original, addon]},
@@ -217,12 +217,12 @@ async def test_get_budget_utilization_past_period_frozen_when_category_added_tod
 
 
 async def test_get_budget_utilization_re_add_after_remove_single_counts(client):
-    """Re-adding a category after removal does not double-count its transactions.
+    """Re-adding a category after removal does not double-count its transactions
 
     The re-add pattern creates a second BudgetTrackedCategory row for the same
     (base_budget_id, category_id) pair — row 1 (removed), row 2 (active). The
     utilization query's DISTINCT + GROUP BY ensure the in-period spend is
-    aggregated once per category, not once per historical row.
+    aggregated once per category, not once per historical row
     """
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
@@ -279,11 +279,11 @@ async def test_get_budget_utilization_re_add_after_remove_single_counts(client):
 
 
 async def test_get_budget_utilization_current_period_uses_currently_active_categories(client):
-    """For a period_end in the future, the tracked set is exactly the currently active categories.
+    """For a period_end in the future, the tracked set is exactly the currently active categories
 
     Validates the "current period = currently active" reduction of the
     period_end cutoff predicate: added_at <= period_end is trivially true (now
-    is before the future period_end), and removed_at IS NULL trivially wins.
+    is before the future period_end), and removed_at IS NULL trivially wins
     """
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)

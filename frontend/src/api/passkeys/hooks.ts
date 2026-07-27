@@ -16,7 +16,7 @@ import {
   verifyPasskeyMfa,
   verifyPasskeyReset,
 } from '@/api/passkeys/requests';
-import type { StepUpPayload } from '@/api/twoFactor/types';
+import type { StepUpPayload } from '@/api/two-factor/types';
 import { useAuth } from '@/hooks/useAuth';
 import { withMinDelay } from '@/utils/timing';
 

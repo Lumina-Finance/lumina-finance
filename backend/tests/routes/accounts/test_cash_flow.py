@@ -28,10 +28,10 @@ def _first_of_prior_month(today: date) -> date:
 
 
 def _mid_of_prior_month(today: date) -> date:
-    """Return the 15th of the month before ``today``'s month.
+    """Return the 15th of the month before ``today``'s month
 
     The 15th avoids month-length edge cases (Feb 29 / 30 / 31) when a test
-    shifts into the previous month.
+    shifts into the previous month
     """
     return _first_of_prior_month(today).replace(day=15)
 
@@ -49,10 +49,10 @@ def _first_of_month_n_back(today: date, n: int) -> date:
 
 
 async def _create_category(client, headers, **overrides):
-    """Create a category via POST /categories. Defaults to a unique expense category.
+    """Create a category via POST /categories. Defaults to a unique expense category
 
     Uses a "Test " prefix so the names don't collide with the default set
-    seeded on signup ("Groceries", "Salary", "Transfer", ...).
+    seeded on signup ("Groceries", "Salary", "Transfer", ...)
     """
     payload = {"name": "Test Groceries", "kind": "expense", **overrides}
     return await client.post("/categories", json=payload, headers=headers)
@@ -227,9 +227,9 @@ async def test_series_is_ordered_oldest_first_and_anchored_to_current_month(clie
     data = resp.json()
 
     months = [date.fromisoformat(entry["month"]) for entry in data]
-    # Last entry anchors to the first of the viewer-local month.
+    # Last entry anchors to the first of the viewer-local month
     assert months[-1] == _first_of_current_month(_today_utc())
-    # Every month is the 1st of its month and each step forward by one month.
+    # Every month is the 1st of its month and each step forward by one month
     assert all(m.day == 1 for m in months)
     assert all(months[i] < months[i + 1] for i in range(len(months) - 1))
 
@@ -256,11 +256,11 @@ async def test_account_with_activity_only_in_current_month_zero_fills_others(cli
     data = resp.json()
     assert len(data) == 6
 
-    # First 5 entries are all zero.
+    # First 5 entries are all zero
     for entry in data[:-1]:
         assert entry["income"] == 0
         assert entry["expenses"] == 0
-    # Current month shows the expense.
+    # Current month shows the expense
     assert data[-1]["income"] == 0
     assert data[-1]["expenses"] == 1500
 
@@ -413,12 +413,12 @@ async def test_other_accounts_of_the_same_user_do_not_leak_into_the_series(clien
     category_id = await _get_category_id(client, headers, "Transfer")
 
     today = _today_utc().isoformat()
-    # Queried account — should appear.
+    # Queried account — should appear
     await _create_transaction(
         client, headers, account_id, category_id,
         dt=today, amount=-1000,
     )
-    # Other account — same user, same category, must NOT appear.
+    # Other account — same user, same category, must NOT appear
     await _create_transaction(
         client, headers, other_account_id, category_id,
         dt=today, amount=-9999,
@@ -444,12 +444,12 @@ async def test_prior_month_transaction_lands_in_second_to_last_entry(client):
     category_id = await _get_category_id(client, headers, "Transfer")
 
     today = _today_utc()
-    # Seed an expense on the 15th of last month (safe across month-length boundaries).
+    # Seed an expense on the 15th of last month (safe across month-length boundaries)
     await _create_transaction(
         client, headers, account_id, category_id,
         dt=_mid_of_prior_month(today).isoformat(), amount=-3000,
     )
-    # And a different expense in the current month — confirms both buckets compute independently.
+    # And a different expense in the current month — confirms both buckets compute independently
     await _create_transaction(
         client, headers, account_id, category_id,
         dt=today.isoformat(), amount=-700,
@@ -463,11 +463,11 @@ async def test_prior_month_transaction_lands_in_second_to_last_entry(client):
     assert resp.status_code == 200
     data = resp.json()
 
-    # Second-to-last entry is the prior calendar month, anchored to its 1st.
+    # Second-to-last entry is the prior calendar month, anchored to its 1st
     assert data[-2]["month"] == _first_of_prior_month(today).isoformat()
     assert data[-2]["expenses"] == 3000
     assert data[-2]["income"] == 0
-    # Current-month bucket is unaffected.
+    # Current-month bucket is unaffected
     assert data[-1]["month"] == _first_of_current_month(today).isoformat()
     assert data[-1]["expenses"] == 700
 
@@ -495,17 +495,17 @@ async def test_transaction_outside_the_window_does_not_contribute(client):
     assert resp.status_code == 200
     data = resp.json()
     assert len(data) == 3
-    # Every bucket stays at zero — the seed falls outside the 3-month window.
+    # Every bucket stays at zero — the seed falls outside the 3-month window
     for entry in data:
         assert entry["income"] == 0
         assert entry["expenses"] == 0
 
 
 async def test_transaction_on_window_start_is_included(client):
-    """A transaction dated on the first of the oldest window month is included.
+    """A transaction dated on the first of the oldest window month is included
 
     Window bounds are inclusive on the start; this test guards the hinge at
-    window_start itself rather than the comfortable interior.
+    window_start itself rather than the comfortable interior
     """
     headers, account_id = await _setup_account(client)
     category_id = await _get_category_id(client, headers, "Transfer")
@@ -529,10 +529,10 @@ async def test_transaction_on_window_start_is_included(client):
 
 
 async def test_transaction_on_day_before_window_start_is_excluded(client):
-    """A transaction dated one day before the oldest window month is excluded.
+    """A transaction dated one day before the oldest window month is excluded
 
     Paired with the prior test to pin down the inclusive/exclusive hinge at
-    window_start.
+    window_start
     """
     headers, account_id = await _setup_account(client)
     category_id = await _get_category_id(client, headers, "Transfer")
@@ -552,7 +552,7 @@ async def test_transaction_on_day_before_window_start_is_excluded(client):
     )
     assert resp.status_code == 200
     data = resp.json()
-    # The seed falls in the month just before the window; every bucket stays zero.
+    # The seed falls in the month just before the window; every bucket stays zero
     for entry in data:
         assert entry["income"] == 0
         assert entry["expenses"] == 0

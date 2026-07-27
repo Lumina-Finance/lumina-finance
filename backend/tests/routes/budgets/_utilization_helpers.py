@@ -16,7 +16,7 @@ async def _get_base_budget_utilizations(client, headers, base_budget_id):
     return await client.get(f"/base-budgets/{base_budget_id}/utilizations", headers=headers)
 
 async def _get_budget_utilization_entry(client, headers, base_budget_id, budget_id):
-    """Return the batched utilization entry for one instance under a base budget.
+    """Return the batched utilization entry for one instance under a base budget
 
     GETs the base-budget-scoped utilizations, asserts a 200 response and that an
     entry with a matching budget_id exists, then returns that parsed entry
@@ -58,7 +58,7 @@ async def _seed_usd_currency():
         await session.commit()
 
 async def _create_base_budget(client, headers, *, category_ids=None, **overrides):
-    """Create a base budget via POST /base-budgets.
+    """Create a base budget via POST /base-budgets
 
     Defaults: name="March Budget", currency="CAD", one freshly-created tracked
     category. The category's `added_at` is set from the user's local today — tests
@@ -79,7 +79,7 @@ async def _create_base_budget(client, headers, *, category_ids=None, **overrides
     return await client.post("/base-budgets", json=payload, headers=headers)
 
 async def _create_budget_instance(client, headers, base_budget_id, **overrides):
-    """Create a budget instance via POST /base-budgets/{id}/budgets.
+    """Create a budget instance via POST /base-budgets/{id}/budgets
 
     Defaults: period_start=2026-03-01, overall_limit=100000. period_end is
     computed by the backend from the base's cadence
@@ -96,7 +96,7 @@ async def _create_budget_instance(client, headers, base_budget_id, **overrides):
 async def _create_base_with_instance(
     client, headers, *, category_ids=None, base_overrides=None, instance_overrides=None,
 ):
-    """Create a base budget and one instance. Returns (base_id, instance_id).
+    """Create a base budget and one instance. Returns (base_id, instance_id)
 
     Backdates every tracked category's `added_at` to 2000-01-01 so the common
     happy-path flow works with past periods (e.g. the default March 2026 period)
@@ -157,10 +157,10 @@ async def _grant_account_permission(client, admin_headers, account_id, user_id, 
     )
 
 async def _set_tracked_category_timestamps(base_budget_id, category_id, *, added_at=None, removed_at=None):
-    """Directly patch a BudgetTrackedCategory row's added_at/removed_at.
+    """Directly patch a BudgetTrackedCategory row's added_at/removed_at
 
     Needed for mid-period add/remove tests — the public API only sets these to
-    `now()`, so scenarios with period-relative timing require direct DB edits.
+    `now()`, so scenarios with period-relative timing require direct DB edits
 
     Only targets the currently-active row (`removed_at IS NULL`). Once a row
     has been soft-deleted, this helper cannot be used to adjust it — insert a

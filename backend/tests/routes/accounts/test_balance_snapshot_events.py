@@ -90,11 +90,11 @@ async def test_failed_account_creation_leaves_no_snapshot(client):
 
 
 async def test_create_transaction_after_creation_day_keeps_zero_anchor(client):
-    """Transactions dated after the account creation day leave the zero anchor in place.
+    """Transactions dated after the account creation day leave the zero anchor in place
 
-    The anchor exists so the frontend has a starting point at the creation day.
+    The anchor exists so the frontend has a starting point at the creation day
     A future-dated transaction is appended forward of the anchor — both rows
-    coexist and the anchor remains the earliest snapshot.
+    coexist and the anchor remains the earliest snapshot
     """
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
@@ -123,11 +123,11 @@ async def test_create_transaction_after_creation_day_keeps_zero_anchor(client):
 
 
 async def test_create_transaction_before_creation_day_replaces_zero_anchor(client):
-    """Transactions dated before the account creation day replace the zero anchor.
+    """Transactions dated before the account creation day replace the zero anchor
 
     The recompute window starts at the transaction's day, which wipes any
     snapshots at or after that day — including the original creation-day
-    anchor. The earliest transaction becomes the new anchor.
+    anchor. The earliest transaction becomes the new anchor
     """
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
@@ -259,12 +259,12 @@ async def test_failed_create_transaction_with_invalid_currency_leaves_no_snapsho
 
 
 async def test_fx_rate_is_metadata_and_does_not_affect_snapshot_balance(client):
-    """fx_rate is metadata; the snapshot must use Transaction.amount as-is.
+    """fx_rate is metadata; the snapshot must use Transaction.amount as-is
 
     fx_rate and currency are metadata about the original receipt; the
     Transaction.amount field is already denominated in the account's base
     currency. The snapshot service must therefore sum amounts directly and
-    must NOT multiply by fx_rate.
+    must NOT multiply by fx_rate
     """
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
@@ -278,7 +278,7 @@ async def test_fx_rate_is_metadata_and_does_not_affect_snapshot_balance(client):
 
     # The user paid 100 USD at 1.4 CAD/USD; the client pre-converted to 140
     # CAD cents and posts that as `amount` with the original currency and rate
-    # preserved as metadata.
+    # preserved as metadata
     await _create_transaction(
         client, headers, str(account_id), category_id,
         dt="2026-03-15", amount=14000, currency="USD", fx_rate=1.4,
@@ -467,7 +467,7 @@ async def test_update_transaction_account_id_recomputes_both_accounts(client):
     src_map = {s.dt: s.balance for s in src_snapshots}
     dst_map = {s.dt: s.balance for s in dst_snapshots}
 
-    # Source loses the moved txn's day; with no other txns it keeps its zero anchor.
+    # Source loses the moved txn's day; with no other txns it keeps its zero anchor
     assert date(2026, 3, 15) not in src_map
     assert src_map[src_creation_day] == 0
     assert len(src_snapshots) == 1

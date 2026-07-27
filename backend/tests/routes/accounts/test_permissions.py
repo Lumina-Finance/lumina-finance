@@ -6,13 +6,13 @@ NONEXISTENT_ID = "00000000-0000-0000-0000-000000000000"
 
 
 async def _create_second_user(client):
-    """Sign up a second user and return (headers, user_id).
+    """Sign up a second user and return (headers, user_id)
 
     Args:
-        client: The async test client.
+        client: The async test client
 
     Returns:
-        Tuple of (auth_headers, user_id).
+        Tuple of (auth_headers, user_id)
     """
     resp = await client.post("/auth/signup", json={
         "email": "other@example.com",
@@ -25,29 +25,29 @@ async def _create_second_user(client):
 
 
 async def _create_group(client, headers):
-    """Create a group and return its ID.
+    """Create a group and return its ID
 
     Args:
-        client: The async test client.
-        headers: Auth headers for the requesting user.
+        client: The async test client
+        headers: Auth headers for the requesting user
 
     Returns:
-        The created group's ID.
+        The created group's ID
     """
     resp = await client.post("/groups", json={"name": "Smith Family"}, headers=headers)
     return resp.json()["id"]
 
 
 async def _create_group_account(client, headers, group_id):
-    """Create a group-scoped account via POST /accounts.
+    """Create a group-scoped account via POST /accounts
 
     Args:
-        client: The async test client.
-        headers: Auth headers for an admin of the group.
-        group_id: UUID of the group.
+        client: The async test client
+        headers: Auth headers for an admin of the group
+        group_id: UUID of the group
 
     Returns:
-        The created account's ID.
+        The created account's ID
     """
     resp = await client.post("/accounts", json={
         "account_kind": "asset",
@@ -60,13 +60,13 @@ async def _create_group_account(client, headers, group_id):
 
 
 async def _setup_group_with_member_and_account(client):
-    """Create a group with an admin (owner), a regular member, and a group account.
+    """Create a group with an admin (owner), a regular member, and a group account
 
     Args:
-        client: The async test client.
+        client: The async test client
 
     Returns:
-        Tuple of (admin_headers, member_headers, member_user_id, group_id, account_id).
+        Tuple of (admin_headers, member_headers, member_user_id, group_id, account_id)
     """
     signup_resp = await _create_user(client)
     admin_headers = _get_auth_header(signup_resp)
@@ -516,14 +516,14 @@ async def test_list_account_permissions_unauthenticated_returns_401(client):
 
 
 async def _grant_account_permission(client, admin_headers, account_id, member_user_id, level):
-    """Grant an account permission to a member via POST /accounts/{id}/permissions.
+    """Grant an account permission to a member via POST /accounts/{id}/permissions
 
     Args:
-        client: The async test client.
-        admin_headers: Auth headers for a group admin.
-        account_id: UUID of the account.
-        member_user_id: UUID of the member receiving permission.
-        level: Permission level ("read", "write", or "admin").
+        client: The async test client
+        admin_headers: Auth headers for a group admin
+        account_id: UUID of the account
+        member_user_id: UUID of the member receiving permission
+        level: Permission level ("read", "write", or "admin")
     """
     await client.post(
         f"/accounts/{account_id}/permissions",

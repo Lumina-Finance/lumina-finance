@@ -6,7 +6,7 @@ import sys
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from app.config import APP_DB_USER, DB_NAME, MIGRATOR_DB_USER, admin_database_url, migration_database_url
+from app.config.database import APP_DB_USER, DB_NAME, MIGRATOR_DB_USER, admin_database_url, migration_database_url
 from app.db.credentials import resolve_role_password
 from app.db.rls import apply_rls, revoke_rls
 

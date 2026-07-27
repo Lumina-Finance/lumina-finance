@@ -6,7 +6,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.config import ALLOWED_ORIGINS, OIDC_PROVIDER_CONFIGS, RUNTIME
+from app.config.oidc import OIDC_PROVIDER_CONFIGS
+from app.config.runtime import ALLOWED_ORIGINS, RUNTIME
 from app.database import async_session, verify_app_role_is_unprivileged
 from app.routes.accounts import router as account_router
 from app.routes.app_version import router as app_version_router

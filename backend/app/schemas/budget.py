@@ -87,10 +87,10 @@ class BaseBudgetResponse(BaseModel):
 
 
 class CreateBudgetRequest(BaseModel):
-    """Create a per-period instance under a base budget.
+    """Create a per-period instance under a base budget
 
     Only period_start and overall_limit are user-provided. period_end is
-    computed from the parent base's cadence settings.
+    computed from the parent base's cadence settings
     """
 
     period_start: date
@@ -125,11 +125,11 @@ class BudgetCategoryUtilization(BaseModel):
 
 
 class BudgetUtilizationResponse(BaseModel):
-    """Aggregated spending for a budget, grouped by tracked category.
+    """Aggregated spending for a budget, grouped by tracked category
 
     `spent` values are positive when the net is an outflow. Currently-active
     tracked categories are always included even with zero spend so the
-    frontend can render all of them.
+    frontend can render all of them
     """
 
     budget_id: uuid.UUID

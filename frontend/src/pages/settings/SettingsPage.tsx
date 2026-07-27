@@ -5,7 +5,7 @@ import MerchantSettingsSection from '@/pages/settings/components/merchant-settin
 import TagSettingsSection from '@/pages/settings/components/tag-settings-section'
 import ProfileSection from '@/pages/settings/components/ProfileSection'
 import RunwaySection from '@/pages/settings/components/runway-section'
-import { StepUpModal } from '@/components/twoFactor/StepUpModal'
+import { StepUpModal } from '@/components/two-factor/StepUpModal'
 import SecuritySection from '@/pages/settings/components/security-section'
 import {
   SettingsDesktopSectionSidebar,

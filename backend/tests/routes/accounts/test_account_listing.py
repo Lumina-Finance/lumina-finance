@@ -110,7 +110,7 @@ async def test_list_accounts_current_balance_uses_latest_snapshot(client):
 
     # Insert two snapshots after the creation-day zero anchor: the older of the two (12345)
     # and the newer (98765). Both are dated relative to today with margin so they stay after
-    # the anchor on any run date, letting the helper return the most recent.
+    # the anchor on any run date, letting the helper return the most recent
     older_dt = date.today() + timedelta(days=30)
     newer_dt = date.today() + timedelta(days=60)
     async with TestSession() as session:

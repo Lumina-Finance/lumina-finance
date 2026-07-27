@@ -1,6 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import type { Currency } from '@/api/currency'
-import { useCreateTaxAdvantagedCategory } from '@/api/taxAdvantagedCategories'
+import { useCreateTaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
 import type { TaxPlanFormState } from '@/pages/settings/components/tax-advantaged/types'
 import { CREATE_TAX_CATEGORY_MIN_LOADING_MS } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/constants'
 import {

@@ -11,11 +11,11 @@ from tests.routes.support import _create_user, _get_auth_header
 
 
 async def _create_checking_account(client, headers):
-    """Create a CAD chequing account and return its ID for transaction setup.
+    """Create a CAD chequing account and return its ID for transaction setup
 
     Args:
-        client: The async test client.
-        headers: Auth headers for the requesting user.
+        client: The async test client
+        headers: Auth headers for the requesting user
 
     Returns:
         The created account's ID
@@ -30,16 +30,16 @@ async def _create_checking_account(client, headers):
 
 
 async def _record_merchant_transactions(client, headers, account_id, category_id, merchant_id, count, dt):
-    """Record a number of identical transactions against one merchant on a given date.
+    """Record a number of identical transactions against one merchant on a given date
 
     Args:
-        client: The async test client.
-        headers: Auth headers for the requesting user.
-        account_id: Account the transactions belong to.
-        category_id: Category assigned to each transaction.
-        merchant_id: Merchant the transactions reference.
-        count: Number of transactions to record.
-        dt: Transaction date applied to every recorded row.
+        client: The async test client
+        headers: Auth headers for the requesting user
+        account_id: Account the transactions belong to
+        category_id: Category assigned to each transaction
+        merchant_id: Merchant the transactions reference
+        count: Number of transactions to record
+        dt: Transaction date applied to every recorded row
     """
     for _ in range(count):
         await client.post("/transactions", json={

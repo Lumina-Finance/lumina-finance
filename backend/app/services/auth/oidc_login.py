@@ -11,12 +11,12 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import func as sa_func
 
-from app.config import (
-    APP_URL,
+from app.config.oidc import (
     OIDC_AUTHORIZATION_REQUEST_EXPIRE_SECONDS,
     OIDC_REAUTH_MAX_AGE_SECONDS,
     OIDC_REQUIRE_VERIFIED_EMAIL,
 )
+from app.config.runtime import APP_URL
 from app.database import current_user_id_ctx
 from app.encryption import decrypt
 from app.models.auth import AuthIdentity
@@ -172,7 +172,7 @@ async def complete_oidc_sign_in(
 
     The stored roundtrip is consumed and committed before the provider is contacted, so a
     replayed callback finds it already spent. The binding secret is verified first, so a
-    stolen state and code cannot complete a login in a browser that never started it.
+    stolen state and code cannot complete a login in a browser that never started it
     Resolution then runs in order: a known provider subject signs in, an email matching an
     existing account is refused so it can be linked from settings under step-up instead,
     and an unmatched email onboards a new user
@@ -306,7 +306,7 @@ async def complete_oidc_signup(
     db.add(user)
 
     # A parallel completion of the same onboarding token can claim the email or provider subject
-    # first, so the unique constraints turn that race into a conflict rather than an unhandled error.
+    # first, so the unique constraints turn that race into a conflict rather than an unhandled error
     # The user is flushed first so its row exists before the identity rows that reference it
     try:
         await db.flush()
@@ -508,7 +508,7 @@ async def complete_oidc_link(
         )
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=detail)
 
-    # A first link also records OIDC as an auth provider for the account, once across all providers.
+    # A first link also records OIDC as an auth provider for the account, once across all providers
     # The lookup runs before the identity is added so the identity insert is deferred to the commit,
     # where a parallel link of the same subject is caught as a conflict rather than autoflushing early
     auth_identity_query = select(AuthIdentity).where(

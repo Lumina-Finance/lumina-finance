@@ -31,11 +31,11 @@ async def _create_category(client, headers, **overrides):
 
 
 async def _create_group_base_budget(client, headers, group_id, *, name="Family Budget", category_name="Shared"):
-    """Create a group-scoped base budget and return its ID.
+    """Create a group-scoped base budget and return its ID
 
     Caller can override `name` and `category_name` so multiple budgets can be
     created in the same group without tripping the per-group uniqueness on
-    either base budget names or category names.
+    either base budget names or category names
     """
     cat_id = await _create_category(client, headers, name=category_name, group_id=group_id)
     resp = await client.post("/base-budgets", json={
@@ -63,10 +63,10 @@ async def _create_personal_base_budget(client, headers):
 
 
 async def _setup_group_with_member_and_base_budget(client):
-    """Create a group with an admin (owner), a regular member, and a group base budget.
+    """Create a group with an admin (owner), a regular member, and a group base budget
 
     Returns:
-        Tuple of (admin_headers, member_headers, member_user_id, group_id, base_budget_id).
+        Tuple of (admin_headers, member_headers, member_user_id, group_id, base_budget_id)
     """
     signup_resp = await _create_user(client)
     admin_headers = _get_auth_header(signup_resp)

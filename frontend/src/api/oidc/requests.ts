@@ -3,7 +3,7 @@ import type { AuthResponse } from '@/api/auth/types';
 import { API_BASE } from '@/api/config';
 import { OIDC_EMAIL_CONFLICT_CODE, OidcEmailConflictError } from '@/api/oidc/errors';
 import { authenticatedFetch } from '@/api/client';
-import type { StepUpPayload } from '@/api/twoFactor/types';
+import type { StepUpPayload } from '@/api/two-factor/types';
 import type {
   OidcAuthorizeResponse,
   OidcIdentitiesResponse,

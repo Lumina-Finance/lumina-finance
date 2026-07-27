@@ -171,11 +171,11 @@ async def test_create_base_budget_weekly_with_recurrence(client):
 
 
 async def test_create_base_budget_non_base_currency_returns_201(client):
-    """Base budgets may be created in any supported currency, not just the user's base.
+    """Base budgets may be created in any supported currency, not just the user's base
 
     The frontend defaults to the user's base currency, but multi-currency users
     (e.g., a CAD-base user with a USD account) need separate per-currency base
-    budgets to track spending against the correct accounts.
+    budgets to track spending against the correct accounts
     """
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
@@ -607,11 +607,11 @@ async def test_create_group_base_budget_nonexistent_group_returns_404(client):
 
 
 async def test_create_group_base_budget_with_personal_category_returns_422(client):
-    """A group base budget cannot track a personal category — scopes must match.
+    """A group base budget cannot track a personal category — scopes must match
 
     If a group base budget tracked a personal category, only the creator could see
     and post to it; other group members would see a tracked-category UUID they don't
-    own and their own transactions wouldn't reconcile against the group totals.
+    own and their own transactions wouldn't reconcile against the group totals
     """
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
@@ -643,11 +643,11 @@ async def test_create_group_base_budget_with_system_category(client):
 
 
 async def test_create_personal_base_budget_with_group_category_returns_422(client):
-    """A personal base budget cannot track a group category — symmetry of the group rule.
+    """A personal base budget cannot track a group category — symmetry of the group rule
 
     Even if the user is a member of the group that owns the category, mixing a
     group category into a personal base budget would let them aggregate spend
-    other group members can also see, blurring the personal/group boundary.
+    other group members can also see, blurring the personal/group boundary
     """
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)

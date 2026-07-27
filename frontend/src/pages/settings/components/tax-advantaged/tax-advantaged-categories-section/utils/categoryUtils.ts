@@ -1,5 +1,5 @@
 import type { Currency } from '@/api/currency'
-import type { TaxAdvantagedCategoryLimit, TaxTreatment } from '@/api/taxAdvantagedCategories'
+import type { TaxAdvantagedCategoryLimit, TaxTreatment } from '@/api/tax-advantaged-categories'
 import { DEFAULT_NEW_LIMIT_YEAR, TAX_TREATMENT_OPTIONS } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/constants'
 
 export function nextAvailableLimitYear(limits: TaxAdvantagedCategoryLimit[]) {

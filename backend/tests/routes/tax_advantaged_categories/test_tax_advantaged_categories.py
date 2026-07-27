@@ -40,15 +40,15 @@ async def _create_tax_advantaged_category(client, headers, **overrides):
 
 
 async def _seed_category(owner_id, kind: CategoryKind, name: str):
-    """Insert a category directly via DB.
+    """Insert a category directly via DB
 
     Args:
-        owner_id: User that owns the category.
-        kind: Category kind.
-        name: Category name.
+        owner_id: User that owns the category
+        kind: Category kind
+        name: Category name
 
     Returns:
-        The created category ID.
+        The created category ID
     """
     async with TestSession() as session:
         category = Category(name=name, kind=kind, owner_id=owner_id)
@@ -69,14 +69,14 @@ async def _get_system_category_id(name: str):
 
 
 async def _seed_transaction(account_id, category_id, created_by_user_id, amount: int, dt: date) -> None:
-    """Insert a transaction directly via DB.
+    """Insert a transaction directly via DB
 
     Args:
-        account_id: Account that owns the transaction.
-        category_id: Transaction category.
-        created_by_user_id: User that created the transaction.
-        amount: Signed transaction amount in minor units.
-        dt: Transaction date.
+        account_id: Account that owns the transaction
+        category_id: Transaction category
+        created_by_user_id: User that created the transaction
+        amount: Signed transaction amount in minor units
+        dt: Transaction date
     """
     async with TestSession() as session:
         session.add(Transaction(
@@ -301,13 +301,13 @@ async def test_tax_advantaged_category_metrics_use_tax_advantaged_category_owner
 
         @classmethod
         def now(cls, tz=None):
-            """Return the fixed instant converted into the requested timezone.
+            """Return the fixed instant converted into the requested timezone
 
             Args:
-                tz: Optional timezone.
+                tz: Optional timezone
 
             Returns:
-                The fixed datetime in the requested timezone.
+                The fixed datetime in the requested timezone
             """
             instant = datetime(2026, 1, 1, 1, 0, tzinfo=UTC)
             return instant.astimezone(tz) if tz else instant

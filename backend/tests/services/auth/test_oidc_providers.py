@@ -2,7 +2,7 @@
 
 from sqlalchemy import select
 
-from app.config import OidcProviderConfig
+from app.config.oidc import OidcProviderConfig
 from app.encryption import decrypt
 from app.models.oidc import OidcProvider
 from app.services.auth.oidc_providers import sync_oidc_providers

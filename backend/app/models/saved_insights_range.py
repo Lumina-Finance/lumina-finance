@@ -31,7 +31,7 @@ class SavedInsightsRange(Base):
     """A user's named relative date window for the insights page
 
     Stores the window as an amount and unit, for example three months, rather than fixed
-    dates, so applying a saved range always recomputes against the current day.
+    dates, so applying a saved range always recomputes against the current day
     """
 
     __tablename__ = "saved_insights_ranges"

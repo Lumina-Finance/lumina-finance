@@ -18,12 +18,12 @@ from tests.routes.support import _create_account, _create_user, _get_auth_header
 
 
 async def test_get_budget_utilization_personal_budget_excludes_single_member_group_account(client):
-    """A personal budget excludes spending on a group account the user solely owns.
+    """A personal budget excludes spending on a group account the user solely owns
 
     Even when the user is the only admin of their own single-member group, the
     group account's transactions must stay out of a personal base budget. Pins
     the personal scope filter `Account.owner_id = base_budget.owner_id` — the
-    group account has `owner_id IS NULL`, so it cannot match.
+    group account has `owner_id IS NULL`, so it cannot match
     """
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
@@ -50,13 +50,13 @@ async def test_get_budget_utilization_personal_budget_excludes_single_member_gro
 
 
 async def test_get_budget_utilization_personal_budget_aggregates_multiple_personal_accounts_excludes_group(client):
-    """A personal budget sums across all personal accounts in the currency but excludes a group account.
+    """A personal budget sums across all personal accounts in the currency but excludes a group account
 
     Strengthens the single-account scope test: with two personal CAD accounts
     and one group CAD account all tracking the same category, the response
     must sum the two personal-account spends and exclude the group-account
     spend entirely. A regression that keyed the filter off a single account
-    (rather than `owner_id == base_budget.owner_id`) would fail this.
+    (rather than `owner_id == base_budget.owner_id`) would fail this
     """
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
@@ -137,7 +137,7 @@ async def test_get_budget_utilization_three_currency_user_converts_all_account_c
     )
 
     data = await _get_budget_utilization_entry(client, headers, base_id, usd_budget_id)
-    # 4000 CAD -> 3000 USD, 3500 EUR -> 3850 USD, plus 7000 USD.
+    # 4000 CAD -> 3000 USD, 3500 EUR -> 3850 USD, plus 7000 USD
     assert data["total_spent"] == 13850
     assert data["categories"][0]["spent"] == 13850
     assert data["fx_status"] == {"state": "complete", "missing_pairs": []}

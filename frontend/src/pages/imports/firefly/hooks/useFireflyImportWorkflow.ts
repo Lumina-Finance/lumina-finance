@@ -6,7 +6,7 @@ import {
   useImportFireflyBudgets,
   useImportFireflyTransactions,
   type FireflyTransactionImportResponse,
-} from '@/api/fireflyImports'
+} from '@/api/firefly-imports'
 import { useInstitutions } from '@/api/institutions'
 import { waitForMilliseconds } from '@/utils/timing'
 import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE } from '../../constants'

@@ -363,7 +363,7 @@ async def test_update_budget_ignores_unknown_fields(client):
 
 
 async def test_update_budget_overall_limit_returns_409_for_archived_base_budget(client):
-    """Updating overall_limit on an instance whose base budget is archived is rejected.
+    """Updating overall_limit on an instance whose base budget is archived is rejected
 
     A non-archived base budget's instance is patched in the same test as a control, proving
     the 409 comes from the archived flag and not some other blocker

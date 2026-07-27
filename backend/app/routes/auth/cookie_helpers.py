@@ -2,8 +2,8 @@
 
 from fastapi import Request, Response
 
-from app.config import (
-    JWT_REFRESH_TOKEN_EXPIRE_SECONDS,
+from app.config.jwt import JWT_REFRESH_TOKEN_EXPIRE_SECONDS
+from app.config.oidc import (
     OIDC_AUTHORIZATION_REQUEST_EXPIRE_SECONDS,
     OIDC_REAUTH_STEPUP_TOKEN_EXPIRE_SECONDS,
 )

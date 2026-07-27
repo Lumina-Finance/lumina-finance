@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Pencil } from 'lucide-react'
 import type { Currency } from '@/api/currency'
-import type { TaxTreatment } from '@/api/taxAdvantagedCategories'
+import type { TaxTreatment } from '@/api/tax-advantaged-categories'
 import IconTooltip from '@/components/tooltips/IconTooltip'
 import { TAX_TREATMENT_OPTIONS } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/constants'
 import {

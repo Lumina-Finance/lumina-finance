@@ -316,10 +316,10 @@ async def test_update_base_budget_with_system_category(client):
 
 
 async def test_update_personal_base_budget_with_group_category_returns_422(client):
-    """PATCH cannot smuggle a group category onto a personal base budget.
+    """PATCH cannot smuggle a group category onto a personal base budget
 
     Symmetry with the POST rule: personal budgets must stay within the user's own
-    scope so aggregated spend never bleeds across the personal/group boundary.
+    scope so aggregated spend never bleeds across the personal/group boundary
     """
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
@@ -339,11 +339,11 @@ async def test_update_personal_base_budget_with_group_category_returns_422(clien
 
 
 async def test_update_group_base_budget_with_personal_category_returns_422(client):
-    """PATCH cannot smuggle a personal category onto a group base budget.
+    """PATCH cannot smuggle a personal category onto a group base budget
 
     The same scope rule that blocks creation must apply to updates — otherwise
     a client could create the base budget cleanly and then PATCH in a personal
-    category, breaking the group-wide reconciliation.
+    category, breaking the group-wide reconciliation
     """
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
@@ -610,7 +610,7 @@ async def test_update_base_budget_unauthenticated_returns_401(client):
 
 
 async def test_unarchive_base_budget_resumes_current_period_only(client, monkeypatch):
-    """Unarchiving materializes only the current period and carries the newest cap forward.
+    """Unarchiving materializes only the current period and carries the newest cap forward
 
     The archived gap between the last prior instance and the current period is never backfilled
     """
@@ -733,7 +733,7 @@ async def test_unarchive_base_budget_without_prior_instances_creates_nothing(cli
 
 
 async def test_unarchive_multi_unit_base_budget_resumes_phase_aligned_period(client, monkeypatch):
-    """A quarterly budget resumes on a period phase-aligned to its series, skipping the gap.
+    """A quarterly budget resumes on a period phase-aligned to its series, skipping the gap
 
     Resumption steps forward in whole three-month periods from the newest instance so the
     resumed period stays on the same cadence phase rather than anchoring to a single month
@@ -847,7 +847,7 @@ async def test_update_archived_base_budget_category_ids_returns_409(client):
 
 
 async def test_update_archived_base_budget_combined_unarchive_and_edit_returns_409(client):
-    """Combining is_archived False with another field in the same patch is rejected.
+    """Combining is_archived False with another field in the same patch is rejected
 
     The guard reads the stored archived state before the patch applies, so bundling an edit
     with the unarchive flag cannot use the unarchive to bypass the block

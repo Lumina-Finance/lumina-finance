@@ -12,13 +12,13 @@ from tests.conftest import ScopedSession
 
 
 async def _override_get_db():
-    """Override the app's DB dependency to use the row-level-security test session.
+    """Override the app's DB dependency to use the row-level-security test session
 
     Connects as the app role so route tests run under the policies exactly as
-    production does, confirming legitimate access is never blocked.
+    production does, confirming legitimate access is never blocked
 
     Yields:
-        An async SQLAlchemy session bound to the test database as the app role.
+        An async SQLAlchemy session bound to the test database as the app role
     """
     # Clear any inherited identity so a request can only ever stamp its own user,
     # matching the production dependency
@@ -46,10 +46,10 @@ async def _test_me(user: Annotated[User, Depends(get_current_user)]):
 
 @pytest.fixture
 async def client():
-    """Provide an async HTTP client wired to the FastAPI app with the test database.
+    """Provide an async HTTP client wired to the FastAPI app with the test database
 
     Yields:
-        An httpx AsyncClient bound to the FastAPI app via ASGITransport.
+        An httpx AsyncClient bound to the FastAPI app via ASGITransport
     """
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:

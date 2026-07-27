@@ -8,7 +8,7 @@ import type { Account, AccountsOverview } from '@/api/accounts/types';
 import type {
   TaxAdvantagedCategory,
   TaxAdvantagedCategoryLimit,
-} from '@/api/taxAdvantagedCategories/types';
+} from '@/api/tax-advantaged-categories/types';
 
 /**
  * Updates cached tax-advantaged category list and detail entries
