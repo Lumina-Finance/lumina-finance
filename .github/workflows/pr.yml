@@ -1,4 +1,4 @@
-name: PR
+name: Pull request checks
 
 on:
   pull_request:
@@ -87,11 +87,13 @@ jobs:
             || needs.changes.outputs.frontend == 'true'
             || needs.changes.outputs.docker == 'true'
             || needs.changes.outputs.lockfiles == 'true') }}
-    uses: ./.github/workflows/_docker-build.yml
+    uses: ./.github/workflows/_docker-build-and-test.yml
     secrets: inherit
 
   # Single required status check, it fails if any branch failed or was cancelled
-  # while treating path skipped branches as a pass
+  # while treating path skipped branches as a pass. The name below is the exact
+  # context the branch ruleset requires, so renaming it leaves every pull request
+  # waiting forever on a check that no longer reports under that name
   pr-gate:
     name: PR gate
     needs:
