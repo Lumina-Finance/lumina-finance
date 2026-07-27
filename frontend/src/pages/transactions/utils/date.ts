@@ -1,13 +1,16 @@
-import { DATE_FORMATS, formatDate, getTodayYmd } from '@/utils/date'
+import { DATE_FORMATS, formatDate, parseYmd, getTodayYmd } from '@/utils/date'
 
 /**
  * Formats the full overview range label while treating YYYY-MM-DD inputs as calendar dates
+ *
+ * An end of the range that names no real day keeps its raw string, so the label states what it was
+ * given rather than the day the date constructor would have rolled it forward to
  */
 export function formatOverviewRangeLabel(from: string, to: string): string {
-  // Reading the day back in UTC after parsing it as UTC midnight keeps the label on the day the
-  // string names, whatever zone the browser is in
-  const label = (value: string) =>
-    formatDate(new Date(`${value}T00:00:00Z`), DATE_FORMATS.monthDayYear, 'UTC')
+  const label = (value: string) => {
+    const date = parseYmd(value)
+    return date ? formatDate(date, DATE_FORMATS.monthDayYear) : value
+  }
   return `${label(from)} – ${label(to)}`
 }
 

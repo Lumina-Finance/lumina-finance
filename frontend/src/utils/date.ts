@@ -147,8 +147,8 @@ export function formatYmd(date: Date): string {
  * the local calendar, since a bare date string is otherwise read as UTC and can land on the
  * previous day west of Greenwich
  *
- * This is the only day check in the product, so anything asking whether a string names a real day
- * calls it and tests the result for null rather than repeating the reasoning below
+ * Anything asking whether a string names a real day calls this and tests the result for null,
+ * rather than repeating the reasoning below
  */
 export function parseYmd(ymd: string): Date | null {
   const match = YMD_PATTERN.exec(ymd)

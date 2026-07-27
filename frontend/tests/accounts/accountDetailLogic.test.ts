@@ -268,6 +268,14 @@ describe('monthly cash flow view model helpers', () => {
     ])
   })
 
+  it('keeps a month dated with a day the calendar does not have, labelled with its raw value', () => {
+    expect(getMonthlyCashFlowBars([
+      { month: '2026-02-31', income: 1_000, expenses: 600 },
+    ])).toEqual([
+      { label: '2026-02-31', tooltipLabel: '2026-02-31', income: 1_000, expense: 600 },
+    ])
+  })
+
   it('excludes the current partial month from the average bar', () => {
     expect(getCompletedCashFlowAverage(rows)).toEqual({
       avgIn: 1_500,

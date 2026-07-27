@@ -342,10 +342,14 @@ function addDays(value: string, days: number): string {
 
 /**
  * Parses an ISO date at UTC so day arithmetic never crosses DST boundaries
+ *
+ * Whether the string names a real day is the shared parser's decision; the date is then rebuilt at
+ * UTC rather than reusing its local-midnight result, which is what the arithmetic here needs
  */
 function parseIsoDateUtc(value: string): Date | null {
+  if (!parseYmd(value)) return null
+
   const [year, month, day] = value.split('-').map(Number)
-  if (!year || !month || !day) return null
   return new Date(Date.UTC(year, month - 1, day))
 }
 
