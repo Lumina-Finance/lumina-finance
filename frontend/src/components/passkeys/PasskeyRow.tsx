@@ -4,8 +4,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import type { Passkey } from '@/api/passkeys';
 import { OverflowMenu } from '@/components/passkeys/OverflowMenu';
 import { formatRelativeTime } from '@/utils/relativeTime';
-
-const CREATED_DATE_OPTIONS: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'short', day: 'numeric' };
+import { DATE_FORMATS, formatDate } from '@/utils/date';
 
 // Crossfade the card between its resting details and the rename fields so neither state snaps in
 const FIELD_TRANSITION = { duration: 0.18, ease: [0.25, 0.1, 0.25, 1] as const };
@@ -56,7 +55,7 @@ export function PasskeyRow({ passkey, onRename, onRemove, disabled }: PasskeyRow
     }
   }
 
-  const addedLabel = `Added ${new Date(passkey.created_at).toLocaleDateString(undefined, CREATED_DATE_OPTIONS)}`;
+  const addedLabel = `Added ${formatDate(new Date(passkey.created_at), DATE_FORMATS.monthDayYear)}`;
   const usageLabel = passkey.last_used_at ? `last used ${formatRelativeTime(passkey.last_used_at)}` : 'not used yet';
 
   return (

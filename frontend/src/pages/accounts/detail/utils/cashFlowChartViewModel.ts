@@ -1,5 +1,6 @@
 import type { AccountMonthlyCashFlow } from '@/api/accounts'
 import { parseYmdLocal } from '@/pages/accounts/detail/utils/date'
+import { DATE_FORMATS, formatDate } from '@/utils/date'
 
 // One extra month keeps the current partial month visible while averages use completed months only
 export const CASH_FLOW_AVG_MONTHS = 6
@@ -25,11 +26,8 @@ export function getMonthlyCashFlowBars(rows: AccountMonthlyCashFlow[] | undefine
     const monthDate = parseYmdLocal(row.month)
 
     return {
-      label: monthDate.toLocaleDateString('en-US', { month: 'short' }),
-      tooltipLabel: monthDate.toLocaleDateString('en-US', {
-        month: 'short',
-        year: 'numeric',
-      }),
+      label: formatDate(monthDate, DATE_FORMATS.month),
+      tooltipLabel: formatDate(monthDate, DATE_FORMATS.monthYear),
       income: row.income,
       expense: row.expenses,
     }

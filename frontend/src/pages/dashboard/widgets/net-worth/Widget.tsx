@@ -6,6 +6,7 @@ import { NetWorthChart } from './Chart'
 import { NetWorthHeader } from './Header'
 import { NetWorthMetric } from './Metric'
 import { getNetWorthSeries } from '@/pages/dashboard/utils/getNetWorthSeries'
+import { useAuth } from '@/hooks/useAuth'
 
 type NetWorthWidgetProps = {
   displayCurrency: string
@@ -15,6 +16,7 @@ type NetWorthWidgetProps = {
  * Loads net worth data and composes the summary metric, FX status, and trend chart
  */
 export function NetWorthWidget({ displayCurrency }: NetWorthWidgetProps) {
+  const { user } = useAuth()
   const { data: incomingDashboardNetWorth, isFetching: dashboardNetWorthLoading } = useDashboardNetWorth()
   const loadingSnapshot = useMemo(
     () => ({ dashboardNetWorth: incomingDashboardNetWorth }),
@@ -32,8 +34,8 @@ export function NetWorthWidget({ displayCurrency }: NetWorthWidgetProps) {
   })
   const dashboardNetWorth = displaySnapshot.dashboardNetWorth
   const netWorthData = useMemo(
-    () => getNetWorthSeries(dashboardNetWorth),
-    [dashboardNetWorth],
+    () => getNetWorthSeries(dashboardNetWorth, user?.tz),
+    [dashboardNetWorth, user?.tz],
   )
   const netWorth = dashboardNetWorth?.current_net_worth ?? 0
   const netWorthChange = netWorthData.length >= 2 ? netWorth - netWorthData[0].value : null

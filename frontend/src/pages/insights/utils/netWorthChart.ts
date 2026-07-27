@@ -1,5 +1,6 @@
 import { formatCurrency } from '@/utils/formatCurrency'
 import { formatCompactMoney, type CompactMoneyRule } from '@/utils/formatCompactMoney'
+import { DATE_FORMATS, formatDate } from '@/utils/date'
 
 export type NetWorthViewMode = 'overview' | 'composition'
 
@@ -82,11 +83,7 @@ export function formatNetWorthAxisMoney(value: number, currency: string) {
  * underlying data point's calendar date rather than the viewer's local timezone
  */
 export function formatNetWorthAxisDate(value: number): string {
-  return new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: 'numeric',
-    timeZone: 'UTC',
-  }).format(new Date(value))
+  return formatDate(new Date(value), DATE_FORMATS.monthDay, 'UTC')
 }
 
 /**

@@ -4,7 +4,15 @@ import type {
   SavedInsightsRangeUnit,
 } from '@/api/insights'
 import type { InsightsRangeInputDates, InsightsRangePreset } from '@/pages/insights/types/range'
-import { addDays, formatYmd, getShortDateLabel, getStartOfWeek, parseYmd } from './date'
+import {
+  DATE_FORMATS,
+  addDays,
+  formatDate,
+  formatYmd,
+  getStartOfWeek,
+  getTodayDate,
+  parseYmd,
+} from '@/utils/date'
 
 // How many months each calendar unit spans, which doubles as the alignment granularity used to
 // roll a window start back to the first day of a whole month, quarter, or year
@@ -14,8 +22,8 @@ const MONTHS_PER_UNIT: Record<'month' | 'quarter' | 'year', number> = {
   year: 12,
 }
 
-function getFixedPresetBounds(preset: InsightsRangePreset): { start: Date; end: Date } {
-  const today = new Date()
+function getFixedPresetBounds(preset: InsightsRangePreset, timeZone?: string): { start: Date; end: Date } {
+  const today = getTodayDate(timeZone)
 
   switch (preset) {
     case 'THIS_MONTH':
@@ -46,9 +54,15 @@ export function getCustomRangeDays(from: string, to: string) {
 
 /**
  * Resolves a fixed preset to the inclusive from/to dates its cards query
+ *
+ * @param preset - The preset being resolved
+ * @param timeZone - Zone deciding which day the window ends on, defaulting to the browser's
  */
-export function getRangeInputDates(preset: InsightsRangePreset): InsightsRangeInputDates {
-  const { start, end } = getFixedPresetBounds(preset)
+export function getRangeInputDates(
+  preset: InsightsRangePreset,
+  timeZone?: string,
+): InsightsRangeInputDates {
+  const { start, end } = getFixedPresetBounds(preset, timeZone)
   return { from: formatYmd(start), to: formatYmd(end) }
 }
 
@@ -105,13 +119,19 @@ function getCompleteRangeInputDates(
  * Resolves a relative window to inclusive from/to dates based on its qualifier: the current
  * period to date (this), the last N whole completed periods (last), or a rolling window of the
  * last N periods ending today (past)
+ *
+ * @param amount - How many periods the window spans
+ * @param unit - The calendar period being counted
+ * @param qualifier - Which of the three window shapes to build
+ * @param timeZone - Zone deciding which day the window ends on, defaulting to the browser's
  */
 export function getRelativeRangeInputDates(
   amount: number,
   unit: SavedInsightsRangeUnit,
   qualifier: SavedInsightsRangeQualifier = 'past',
+  timeZone?: string,
 ): InsightsRangeInputDates {
-  const today = new Date()
+  const today = getTodayDate(timeZone)
   if (qualifier === 'this') {
     return getTrailingRangeInputDates(1, unit, today)
   }
@@ -151,9 +171,9 @@ export function formatResolvedRangeLabel(from: string, to: string) {
   if (!fromDate || !toDate) return ''
 
   if (fromDate.getFullYear() === toDate.getFullYear()) {
-    return `${getShortDateLabel(fromDate)} – ${getShortDateLabel(toDate)}`
+    return `${formatDate(fromDate, DATE_FORMATS.monthDay)} – ${formatDate(toDate, DATE_FORMATS.monthDay)}`
   }
-  return `${getShortDateLabel(fromDate)}, ${fromDate.getFullYear()} – ${getShortDateLabel(toDate)}, ${toDate.getFullYear()}`
+  return `${formatDate(fromDate, DATE_FORMATS.monthDayYear)} – ${formatDate(toDate, DATE_FORMATS.monthDayYear)}`
 }
 
 /**

@@ -1,10 +1,8 @@
 import { useMemo } from 'react'
 import type { AccountsOverview } from '@/api/accounts'
 import type { TaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
-import {
-  currentYearForTimezone,
-  formatTaxTreatment,
-} from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/utils/categoryUtils'
+import { formatTaxTreatment } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/utils/categoryUtils'
+import { getTodayYear } from '@/utils/date'
 
 /**
  * Derives the current tax year for the user's timezone, how many accounts link to each
@@ -21,7 +19,7 @@ export function useTaxAdvantagedCategoryList({
   search: string
   userTimezone?: string
 }) {
-  const currentYear = useMemo(() => currentYearForTimezone(userTimezone), [userTimezone])
+  const currentYear = useMemo(() => getTodayYear(userTimezone), [userTimezone])
   const linkedAccountCounts = useMemo(() => {
     const counts = new Map<string, number>()
     for (const account of accounts) {

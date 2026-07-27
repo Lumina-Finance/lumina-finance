@@ -1,5 +1,5 @@
 import type { InsightsNetWorthResponse } from '@/api/insights'
-import { parseYmd } from './date'
+import { DATE_FORMATS, formatDate, parseYmd } from '@/utils/date'
 import type { NetWorthGroup, NetWorthPoint } from './netWorthChart'
 import { getCustomRangeDays } from './range'
 
@@ -37,18 +37,9 @@ export function getNetWorthCardData(
       return {
         date: labelDate,
         dateLabel: label
-          ? label.toLocaleDateString('en-US', {
-              month: 'short',
-              day: granularity === 'month' ? undefined : 'numeric',
-            })
+          ? formatDate(label, granularity === 'month' ? DATE_FORMATS.month : DATE_FORMATS.monthDay)
           : labelDate,
-        tooltipLabel: tooltip
-          ? tooltip.toLocaleDateString('en-US', {
-              year: 'numeric',
-              month: 'short',
-              day: 'numeric',
-            })
-          : valueDate,
+        tooltipLabel: tooltip ? formatDate(tooltip, DATE_FORMATS.monthDayYear) : valueDate,
         total: values.reduce((sum, value) => sum + value, 0),
         values,
       }

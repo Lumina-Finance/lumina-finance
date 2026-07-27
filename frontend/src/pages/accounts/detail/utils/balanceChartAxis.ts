@@ -1,6 +1,7 @@
 import type { BalanceRange } from '@/pages/accounts/detail/constants/accountDetail'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { calendarDateMs } from './calendarDate'
+import { DATE_FORMATS, formatDate } from '@/utils/date'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const BALANCE_AXIS_TICK_COUNT_BY_RANGE: Record<BalanceRange, number> = {
@@ -37,11 +38,7 @@ export function getBalanceXAxisTicks(fromDate: Date, toDate: Date, range: Balanc
  * timestamps were built
  */
 export function formatUtcAxisDate(value: number): string {
-  return new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: 'numeric',
-    timeZone: 'UTC',
-  }).format(new Date(value))
+  return formatDate(new Date(value), DATE_FORMATS.monthDay, 'UTC')
 }
 
 /**

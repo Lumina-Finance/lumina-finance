@@ -18,7 +18,6 @@ export const TAX_TREATMENT_OPTIONS: { value: TaxTreatment; label: string }[] = [
   { value: 'tax_assisted', label: 'Assisted' },
 ]
 
-export const DEFAULT_NEW_LIMIT_YEAR = new Date().getFullYear()
 export const MAX_VISIBLE_LIMIT_ROWS = 5
 export const ACCOUNT_LINK_SAVE_NOTICE_DELAY_MS = 250
 export const ACCOUNT_LINK_SAVE_MIN_LOADING_MS = 500

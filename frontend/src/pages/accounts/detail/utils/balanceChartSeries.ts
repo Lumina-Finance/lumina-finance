@@ -1,6 +1,7 @@
 import type { AccountBalanceSnapshot, SnapshotGranularity } from '@/api/accounts'
 import { toISODate } from '@/pages/accounts/detail/utils/date'
 import { calendarDateMs } from './calendarDate'
+import { DATE_FORMATS, formatDate } from '@/utils/date'
 
 export interface BalanceChartPoint {
   date: string
@@ -92,15 +93,8 @@ export function buildChartSeries(
     points.push({
       date: sampleDateStr,
       dateMs: calendarDateMs(sampleDate),
-      dateLabel: sampleDate.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-      }),
-      tooltipLabel: sampleDate.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-      }),
+      dateLabel: formatDate(sampleDate, DATE_FORMATS.monthDay),
+      tooltipLabel: formatDate(sampleDate, DATE_FORMATS.monthDayYear),
       balance: runningBalance,
     })
   }

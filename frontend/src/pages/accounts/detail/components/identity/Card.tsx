@@ -5,6 +5,8 @@ import { formatCurrency } from '@/utils/formatCurrency'
 import { InstitutionLogo } from '@/pages/accounts/components/InstitutionLogo'
 import { ACCOUNT_KIND_LABEL } from '@/pages/accounts/detail/constants/accountDetail'
 import { humanizeAccountType } from '@/pages/accounts/detail/utils/formatAccountType'
+import { useAuth } from '@/hooks/useAuth'
+import { DATE_FORMATS, formatDate } from '@/utils/date'
 import { IdentityFacts } from './Facts'
 import { StandardAccountBand } from './StandardBand'
 import { TaxAdvantagedCategoryBand } from './TaxAdvantagedBand'
@@ -23,9 +25,12 @@ export default function AccountIdentityCard({
   linkedTaxAdvantagedCategoryError: unknown
   onEdit: () => void
 }) {
+  const { user } = useAuth()
   const linkedTaxAdvantagedCategoryId = account.group_id === null ? account.tax_advantaged_category_id : null
+
+  // closed_at is an instant rather than a calendar day, so it is read in the user's own zone
   const closedLabel = account.closed_at
-    ? ' · Closed ' + new Date(account.closed_at).toLocaleDateString()
+    ? ' · Closed ' + formatDate(new Date(account.closed_at), DATE_FORMATS.monthDayYear, user?.tz)
     : ''
   const identityFacts = [
     { label: 'Kind', value: ACCOUNT_KIND_LABEL[account.account_kind] ?? account.account_kind },

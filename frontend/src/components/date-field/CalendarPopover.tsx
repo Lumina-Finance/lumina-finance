@@ -3,6 +3,8 @@ import { createPortal } from 'react-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { parseIsoDate } from '@/components/date-field/dateSegments'
+import { useAuth } from '@/hooks/useAuth'
+import { formatYmd, getTodayYmd, getWeekdayIndex } from '@/utils/date'
 
 interface CalendarPopoverProps {
   open: boolean
@@ -16,7 +18,7 @@ interface CalendarPopoverProps {
 const POPOVER_WIDTH = 264
 const POPOVER_ESTIMATED_HEIGHT = 320
 const VIEWPORT_MARGIN = 8
-const WEEKDAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
+const WEEKDAY_LABELS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su']
 const MONTH_LABELS = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
@@ -25,23 +27,13 @@ const GRID_CELL_COUNT = 42
 const DAYS_PER_WEEK = 7
 
 /**
- * Formats a Date as an ISO yyyy-mm-dd string in local time so grid cells match the stored value
- */
-function formatDateIso(date: Date): string {
-  const year = String(date.getFullYear()).padStart(4, '0')
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-
-  return `${year}-${month}-${day}`
-}
-
-/**
  * Builds the six week rows shown for a month, including the trailing days of adjacent months that
  * fill the leading and closing cells
  */
 function buildMonthGrid(year: number, month: number): Date[] {
   const firstOfMonth = new Date(year, month - 1, 1)
-  const gridStart = new Date(year, month - 1, 1 - firstOfMonth.getDay())
+  // Columns run Monday to Sunday to match WEEKDAY_LABELS and the week the rest of the product buckets by
+  const gridStart = new Date(year, month - 1, 1 - getWeekdayIndex(firstOfMonth))
 
   return Array.from({ length: GRID_CELL_COUNT }, (_, index) => (
     new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + index)
@@ -97,10 +89,13 @@ export default function CalendarPopover({ open, anchorRef, value, onSelect, onCl
   const gridRef = useRef<HTMLDivElement>(null)
   const prefersReducedMotion = useReducedMotion()
 
-  const todayIso = formatDateIso(new Date())
+  const { user } = useAuth()
+
+  // The ring marks the user's own today, which their profile zone decides rather than the browser's
+  const todayIso = getTodayYmd(user?.tz)
 
   // The visible month follows the selected value while open, falling back to the current month
-  const [viewMonth, setViewMonth] = useState(() => initialViewMonth(value))
+  const [viewMonth, setViewMonth] = useState(() => initialViewMonth(value, todayIso))
   const [focusedIso, setFocusedIso] = useState(() => value || todayIso)
 
   // Sign of the last month change so the grid slides toward the month being revealed
@@ -112,7 +107,7 @@ export default function CalendarPopover({ open, anchorRef, value, onSelect, onCl
   if (open !== wasOpen) {
     setWasOpen(open)
     if (open) {
-      setViewMonth(initialViewMonth(value))
+      setViewMonth(initialViewMonth(value, todayIso))
       setFocusedIso(value || todayIso)
     }
   }
@@ -159,7 +154,7 @@ export default function CalendarPopover({ open, anchorRef, value, onSelect, onCl
     const base = new Date(Number(current.year), Number(current.month) - 1, Number(current.day))
     const next = new Date(base.getFullYear(), base.getMonth(), base.getDate() + dayDelta)
     setDirection(Math.sign(dayDelta))
-    setFocusedIso(formatDateIso(next))
+    setFocusedIso(formatYmd(next))
     setViewMonth({ year: next.getFullYear(), month: next.getMonth() + 1 })
   }
 
@@ -277,7 +272,7 @@ export default function CalendarPopover({ open, anchorRef, value, onSelect, onCl
                 className="grid w-full grid-cols-7 gap-0.5"
               >
                 {cells.map((date) => {
-                  const iso = formatDateIso(date)
+                  const iso = formatYmd(date)
                   const inMonth = date.getMonth() + 1 === viewMonth.month
                   const isSelected = iso === value
                   const isToday = iso === todayIso
@@ -314,13 +309,12 @@ export default function CalendarPopover({ open, anchorRef, value, onSelect, onCl
 
 /**
  * Resolves the month first shown when the popover opens from the selected value or today
+ *
+ * @param value - Selected date as an ISO yyyy-mm-dd string, empty when nothing is chosen yet
+ * @param todayIso - Today in the user's own zone, used when nothing is selected
  */
-function initialViewMonth(value: string): { year: number; month: number } {
-  const parsed = parseIsoDate(value)
-  if (parsed.year && parsed.month) {
-    return { year: Number(parsed.year), month: Number(parsed.month) }
-  }
+function initialViewMonth(value: string, todayIso: string): { year: number; month: number } {
+  const parsed = parseIsoDate(value || todayIso)
 
-  const today = new Date()
-  return { year: today.getFullYear(), month: today.getMonth() + 1 }
+  return { year: Number(parsed.year), month: Number(parsed.month) }
 }

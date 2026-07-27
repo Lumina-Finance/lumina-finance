@@ -15,7 +15,6 @@ import type {
   TaxPlanLimitFormState,
 } from '@/pages/settings/components/tax-advantaged/types'
 import {
-  DEFAULT_NEW_LIMIT_YEAR,
   LIMIT_DELETE_FEEDBACK_MS,
   LIMIT_SAVE_FEEDBACK_MS,
   MAX_VISIBLE_LIMIT_ROWS,
@@ -31,7 +30,9 @@ import {
   validateExistingLimitDraft,
   validateNewLimitForm,
 } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/utils/limitWorkflowUtils'
+import { getTodayYear } from '@/utils/date'
 import { waitForMilliseconds } from '@/utils/timing'
+import { useAuth } from '@/hooks/useAuth'
 
 interface UseTaxAdvantagedLimitWorkflowParams {
   currencies: Currency[]
@@ -53,11 +54,13 @@ export function useTaxAdvantagedLimitWorkflow({
   const createLimit = useCreateTaxAdvantagedCategoryLimit()
   const updateLimit = useUpdateTaxAdvantagedCategoryLimit()
   const deleteLimit = useDeleteTaxAdvantagedCategoryLimit()
+  const { user } = useAuth()
+  const currentYear = getTodayYear(user?.tz)
   const [showAddTaxYear, setShowAddTaxYear] = useState(false)
   const [selectedLimitYear, setSelectedLimitYear] = useState<number | null>(null)
   const [limitDrafts, setLimitDrafts] = useState<Record<number, Partial<TaxPlanLimitDraftState>>>({})
   const [newLimitForm, setNewLimitForm] = useState<TaxPlanLimitFormState>({
-    year: String(DEFAULT_NEW_LIMIT_YEAR),
+    year: String(currentYear),
     contribution_limit: '',
     withdrawal_limit: '',
     accrued_contributions: '',
@@ -133,7 +136,7 @@ export function useTaxAdvantagedLimitWorkflow({
    * Starts a new annual limit using the next available tax year as the initial value
    */
   function startNewLimitForm() {
-    setNewLimitForm(createEmptyLimitForm(nextAvailableLimitYear(limits)))
+    setNewLimitForm(createEmptyLimitForm(nextAvailableLimitYear(limits, currentYear)))
     setShowAddTaxYear(true)
     setSelectedLimitYear(null)
     setLimitError(null)
@@ -279,7 +282,7 @@ export function useTaxAdvantagedLimitWorkflow({
       return
     }
 
-    setNewLimitForm(createEmptyLimitForm(nextAvailableLimitYear(limits)))
+    setNewLimitForm(createEmptyLimitForm(nextAvailableLimitYear(limits, currentYear)))
     setShowAddTaxYear(false)
     setLimitError(null)
     showAutosaveNotice({ status: 'saved', message: 'Limits saved.' })

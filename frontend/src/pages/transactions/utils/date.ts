@@ -1,3 +1,5 @@
+import { DATE_FORMATS, formatDate, getTodayYmd } from '@/utils/date'
+
 /**
  * Parses a date-only string as browser-local midnight to avoid UTC shifts in list labels
  */
@@ -10,14 +12,11 @@ export function parseYmdLocal(ymd: string): Date {
  * Formats the full overview range label while treating YYYY-MM-DD inputs as calendar dates
  */
 export function formatOverviewRangeLabel(from: string, to: string): string {
-  const fmt = new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    timeZone: 'UTC',
-  })
-  const parse = (value: string) => new Date(`${value}T00:00:00Z`)
-  return `${fmt.format(parse(from))} – ${fmt.format(parse(to))}`
+  // Reading the day back in UTC after parsing it as UTC midnight keeps the label on the day the
+  // string names, whatever zone the browser is in
+  const label = (value: string) =>
+    formatDate(new Date(`${value}T00:00:00Z`), DATE_FORMATS.monthDayYear, 'UTC')
+  return `${label(from)} – ${label(to)}`
 }
 
 export type CurrentMonthOverviewRange = {
@@ -32,13 +31,7 @@ export function getCurrentMonthOverviewRange(
   timeZone: string,
   now = new Date(),
 ): CurrentMonthOverviewRange {
-  const fmt = new Intl.DateTimeFormat('en-CA', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    timeZone,
-  })
-  const today = fmt.format(now)
+  const today = getTodayYmd(timeZone, now)
   const monthStart = `${today.slice(0, 7)}-01`
   return { monthStart, today }
 }

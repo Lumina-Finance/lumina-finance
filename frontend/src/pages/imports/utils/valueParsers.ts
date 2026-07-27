@@ -1,3 +1,5 @@
+import { DATE_FORMATS, formatDate } from '@/utils/date'
+
 /**
  * Rewrites a date from an imported file into a year-month-day string, returning an empty string when
  * the value is not a date the import can read
@@ -42,11 +44,7 @@ export function normalizeImportDate(value: string) {
 export function getPreviewDateLabel(ymd: string) {
   if (!ymd) return 'Missing Date'
   const [year, month, day] = ymd.split('-').map(Number)
-  return new Date(year, month - 1, day).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  })
+  return formatDate(new Date(year, month - 1, day), DATE_FORMATS.longDate)
 }
 
 function formatYmd(year: number, month: number, day: number) {
