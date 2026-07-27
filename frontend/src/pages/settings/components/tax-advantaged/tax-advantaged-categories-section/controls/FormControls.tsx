@@ -1,14 +1,11 @@
-import { useState } from 'react'
 import { Pencil } from 'lucide-react'
 import type { Currency } from '@/api/currency'
 import type { TaxTreatment } from '@/api/tax-advantaged-categories'
 import IconTooltip from '@/components/tooltips/IconTooltip'
+import { useMoneyInput } from '@/hooks/useMoneyInput'
 import { TAX_TREATMENT_OPTIONS } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/constants'
-import {
-  currencySymbol,
-  formatMoneyInput,
-} from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/utils/categoryUtils'
-import { formatMoneyInputLive, sanitizeMoneyInput } from '@/utils/moneyInput'
+import { currencySymbol } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/utils/categoryUtils'
+import { getCurrencyExponent } from '@/utils/moneyInput'
 
 /**
  * Tooltip icon warning that tax-advantaged categories only link accounts sharing the category's
@@ -31,8 +28,8 @@ export function TaxAdvantagedCurrencyWarning() {
 }
 
 /**
- * Bordered money input that shows the currency symbol and a formatted value while idle, but
- * switches to the raw value while focused so the user can edit it freely
+ * Bordered money input that shows the currency symbol and renders its value through the shared
+ * money-input formatting, in the browser's own locale convention
  */
 export function CurrencyInput({
   ariaLabel,
@@ -55,9 +52,13 @@ export function CurrencyInput({
   required?: boolean
   value: string
 }) {
-  const [focused, setFocused] = useState(false)
   const symbol = currencySymbol(currencies, currency)
-  const displayValue = focused ? value : formatMoneyInput(value, currencies, currency)
+  const moneyInput = useMoneyInput({
+    value,
+    exponent: getCurrencyExponent(currencies, currency),
+    onChange,
+    onBlur,
+  })
 
   return (
     <div className="relative">
@@ -78,85 +79,17 @@ export function CurrencyInput({
         aria-label={ariaLabel}
         id={id}
         className={`app-input w-full ${symbol ? 'pl-8' : ''}`}
-        inputMode="decimal"
-        onBlur={() => {
-          setFocused(false)
-          onBlur?.()
-        }}
-        onChange={(event) => onChange(sanitizeMoneyInput(event.target.value))}
-        onFocus={() => setFocused(true)}
         placeholder={placeholder}
         required={required}
-        type="text"
-        value={displayValue}
+        {...moneyInput}
       />
     </div>
   )
 }
 
 /**
- * Underlined money input used in inline editors, formatting the value while idle and switching
- * to the raw value while focused so the user can edit it freely
- */
-export function InlineCurrencyInput({
-  ariaLabel,
-  currencies,
-  currency,
-  onBlur,
-  onChange,
-  placeholder,
-  value,
-}: {
-  ariaLabel: string
-  currencies: Currency[]
-  currency: string
-  onBlur?: () => void
-  onChange: (value: string) => void
-  placeholder?: string
-  value: string
-}) {
-  const [focused, setFocused] = useState(false)
-  const symbol = currencySymbol(currencies, currency)
-  const displayValue = focused ? value : formatMoneyInput(value, currencies, currency)
-
-  return (
-    <div
-      className="group flex h-6 min-w-0 items-center gap-1"
-      style={{ borderBottom: '1px solid var(--app-border-strong)' }}
-    >
-      {symbol && (
-        <span className="shrink-0 text-[0.9375rem]" style={{ color: 'var(--app-text-subtle)' }} aria-hidden>
-          {symbol}
-        </span>
-      )}
-      <input
-        aria-label={ariaLabel}
-        className="block h-6 min-w-0 flex-1 bg-transparent text-[0.9375rem] font-medium leading-6 outline-none"
-        inputMode="decimal"
-        onBlur={() => {
-          setFocused(false)
-          onBlur?.()
-        }}
-        onChange={(event) => onChange(sanitizeMoneyInput(event.target.value))}
-        onFocus={() => setFocused(true)}
-        placeholder={placeholder}
-        style={{ color: 'var(--app-text)' }}
-        type="text"
-        value={displayValue}
-      />
-      <Pencil
-        size={13}
-        className="shrink-0 opacity-45 transition-opacity duration-150 group-hover:opacity-70 group-focus-within:opacity-80"
-        style={{ color: 'var(--app-text-subtle)' }}
-        aria-hidden
-      />
-    </div>
-  )
-}
-
-/**
- * Compact bordered money input that formats the value live as it is typed, rather than
- * switching between a raw and a formatted value on focus like the other currency inputs
+ * Compact bordered money input used in modal fields, rendering its value through the shared
+ * money-input formatting like the other currency inputs
  */
 export function CompactCurrencyInput({
   ariaLabel,
@@ -176,7 +109,12 @@ export function CompactCurrencyInput({
   value: string
 }) {
   const symbol = currencySymbol(currencies, currency)
-  const displayValue = formatMoneyInputLive(value)
+  const moneyInput = useMoneyInput({
+    value,
+    exponent: getCurrencyExponent(currencies, currency),
+    onChange,
+    onBlur,
+  })
 
   return (
     <div
@@ -191,15 +129,9 @@ export function CompactCurrencyInput({
       <input
         aria-label={ariaLabel}
         className="block h-8 min-w-0 flex-1 bg-transparent text-[0.9375rem] font-medium leading-8 outline-none"
-        inputMode="decimal"
-        onBlur={() => {
-          onBlur?.()
-        }}
-        onChange={(event) => onChange(sanitizeMoneyInput(event.target.value))}
-        placeholder={placeholder}
         style={{ color: 'var(--app-text)' }}
-        type="text"
-        value={displayValue}
+        placeholder={placeholder}
+        {...moneyInput}
       />
       <Pencil
         size={13}
