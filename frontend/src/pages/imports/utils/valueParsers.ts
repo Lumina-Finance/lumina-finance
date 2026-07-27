@@ -1,54 +1,154 @@
-import { DATE_FORMATS, formatDate } from '@/utils/date'
+import { DATE_FORMATS, formatDate, parseYmd } from '@/utils/date'
 
 /**
- * Rewrites a date from an imported file into a year-month-day string, returning an empty string when
- * the value is not a date the import can read
- *
- * A two-part numeric date is read as month first and only falls back to day first when that reading
- * is not a real calendar day, and a two-digit year of 70 or above is treated as the twentieth century
+ * The shapes a date column can be read in. One is chosen for the whole import, because a file that
+ * changes format part way through has no single reading that is right for all of its rows
  */
-export function normalizeImportDate(value: string) {
-  const trimmed = value.trim()
-  if (!trimmed) return ''
+export const IMPORT_DATE_FORMATS = ['yearFirst', 'dayFirst', 'monthFirst', 'written'] as const
 
-  const isoMatch = trimmed.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/)
-  if (isoMatch) {
-    const year = Number(isoMatch[1])
-    const month = Number(isoMatch[2])
-    const day = Number(isoMatch[3])
-    return isValidDateParts(year, month, day) ? formatYmd(year, month, day) : ''
+export type ImportDateFormat = (typeof IMPORT_DATE_FORMATS)[number]
+
+/**
+ * Which formats every value in a column reads under, and the value that ruled each of the rest out
+ */
+export interface ImportDateFormatScan {
+  readable: ImportDateFormat[]
+  rejectedBy: Partial<Record<ImportDateFormat, string>>
+}
+
+interface CalendarDateParts {
+  year: number
+  month: number
+  day: number
+}
+
+// A transaction outside this span is a typo rather than a date, most often a year that lost or
+// gained a digit, and importing it would drag every chart axis out to meet it
+const MIN_IMPORT_YEAR = 1900
+const MAX_IMPORT_YEAR = 2100
+
+// Four-digit year, then month and day. The backreference makes the second separator match the
+// first, so a half-hyphenated value like 2024-03/15 is malformed rather than a format
+const YEAR_FIRST_PATTERN = /^(\d{4})([-/])(\d{1,2})\2(\d{1,2})$/
+
+// Day first and month first share one shape and differ only in which part is read as the month. The
+// year is four digits in both, since a two-digit year is a guess about the century
+const NUMERIC_PATTERN = /^(\d{1,2})([-/])(\d{1,2})\2(\d{4})$/
+
+// A written date carries the month name on either side of the day, with the comma and the
+// abbreviation's trailing period both optional
+const WRITTEN_MONTH_FIRST_PATTERN = /^([a-z]+)\.?\s+(\d{1,2}),?\s+(\d{4})$/i
+const WRITTEN_DAY_FIRST_PATTERN = /^(\d{1,2})\s+([a-z]+)\.?,?\s+(\d{4})$/i
+
+const MONTH_NAMES = [
+  'january', 'february', 'march', 'april', 'may', 'june',
+  'july', 'august', 'september', 'october', 'november', 'december',
+]
+
+// How many letters an accepted abbreviation has, so "sep" reads as September while "sept" does not
+const MONTH_ABBREVIATION_LENGTH = 3
+
+/**
+ * Reads one cell as a calendar day in the given format
+ *
+ * @param value - The raw cell value
+ * @param format - The format chosen for this import
+ * @returns The zero-padded YYYY-MM-DD string the API takes, or an empty string when the value does
+ * not read in that format, names a day the calendar does not have, or falls outside the year span
+ */
+export function readImportDate(value: string, format: ImportDateFormat) {
+  const parts = readCalendarDateParts(value.trim(), format)
+  if (!parts) return ''
+  if (parts.year < MIN_IMPORT_YEAR || parts.year > MAX_IMPORT_YEAR) return ''
+
+  const ymd = `${parts.year}-${String(parts.month).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}`
+
+  // Whether the parts name a day that exists is the shared parser's decision, so February 31 is
+  // refused identically whichever of the four formats it was written in
+  return parseYmd(ymd) ? ymd : ''
+}
+
+/**
+ * Reports which formats a whole column reads under, so the mapping step can default to the only
+ * survivor and name the value that ruled each of the others out
+ *
+ * @param values - Every cell in the column, blanks included
+ */
+export function scanImportDateFormats(values: string[]): ImportDateFormatScan {
+  const filled = values.map((value) => value.trim()).filter(Boolean)
+  const readable: ImportDateFormat[] = []
+  const rejectedBy: Partial<Record<ImportDateFormat, string>> = {}
+
+  for (const format of IMPORT_DATE_FORMATS) {
+    const offender = filled.find((value) => !readImportDate(value, format))
+    if (offender === undefined) readable.push(format)
+    else rejectedBy[format] = offender
   }
 
-  const slashMatch = trimmed.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2}|\d{4})$/)
-  if (slashMatch) {
-    const first = Number(slashMatch[1])
-    const second = Number(slashMatch[2])
-    const year = normalizeDateYear(Number(slashMatch[3]))
-    if (isValidDateParts(year, first, second)) return formatYmd(year, first, second)
-    if (isValidDateParts(year, second, first)) return formatYmd(year, second, first)
-    return ''
-  }
-
-  const parsed = new Date(trimmed)
-  if (Number.isNaN(parsed.getTime())) return ''
-  return formatYmd(parsed.getFullYear(), parsed.getMonth() + 1, parsed.getDate())
+  return { readable, rejectedBy }
 }
 
 /**
  * Turns a year-month-day string into the long date heading shown over a group of preview rows,
  * falling back to a missing-date label when no date could be read from the file
- *
- * The parts are handed to the date constructor separately rather than parsed from the string, so the
- * heading shows the day the file stated instead of shifting by one in western time zones
  */
 export function getPreviewDateLabel(ymd: string) {
-  if (!ymd) return 'Missing Date'
-  const [year, month, day] = ymd.split('-').map(Number)
-  return formatDate(new Date(year, month - 1, day), DATE_FORMATS.longDate)
+  const date = parseYmd(ymd)
+
+  return date ? formatDate(date, DATE_FORMATS.longDate) : 'Missing Date'
 }
 
-function formatYmd(year: number, month: number, day: number) {
-  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+/**
+ * Splits a value into calendar parts under one format, without judging whether they name a real day
+ */
+function readCalendarDateParts(value: string, format: ImportDateFormat): CalendarDateParts | null {
+  if (format === 'written') return readWrittenDateParts(value)
+
+  if (format === 'yearFirst') {
+    const match = YEAR_FIRST_PATTERN.exec(value)
+    return match ? { year: Number(match[1]), month: Number(match[3]), day: Number(match[4]) } : null
+  }
+
+  const match = NUMERIC_PATTERN.exec(value)
+  if (!match) return null
+
+  const first = Number(match[1])
+  const second = Number(match[3])
+  const year = Number(match[4])
+
+  return format === 'dayFirst'
+    ? { year, month: second, day: first }
+    : { year, month: first, day: second }
+}
+
+/**
+ * Splits a written date, accepting the month name on either side of the day
+ */
+function readWrittenDateParts(value: string): CalendarDateParts | null {
+  const monthFirst = WRITTEN_MONTH_FIRST_PATTERN.exec(value)
+  if (monthFirst) {
+    const month = getMonthNumber(monthFirst[1])
+    return month ? { year: Number(monthFirst[3]), month, day: Number(monthFirst[2]) } : null
+  }
+
+  const dayFirst = WRITTEN_DAY_FIRST_PATTERN.exec(value)
+  if (!dayFirst) return null
+
+  const month = getMonthNumber(dayFirst[2])
+  return month ? { year: Number(dayFirst[3]), month, day: Number(dayFirst[1]) } : null
+}
+
+/**
+ * Reads an English month name or its three-letter abbreviation as a month number, or null when the
+ * word names no month
+ */
+function getMonthNumber(name: string) {
+  const lowered = name.toLowerCase()
+  const index = MONTH_NAMES.findIndex(
+    (month) => month === lowered || month.slice(0, MONTH_ABBREVIATION_LENGTH) === lowered,
+  )
+
+  return index === -1 ? null : index + 1
 }
 
 /**
@@ -84,42 +184,13 @@ export function isSupportedCurrency(currency: string) {
 }
 
 /**
- * Reports whether a cell holds a date the import can read, covering year-first dates, two-part
- * numeric dates in either day or month order, and written dates such as 5 January 2024
+ * Reports whether a cell holds a date the import could read under any format
  *
- * A numeric date counts as valid when either reading of it lands on a real calendar day, and a value
- * with no letters in it that matched neither numeric shape is refused rather than handed to the
- * browser's own date parsing, which would accept things like a bare year
+ * This is the question auto-detection asks while working out which column holds the dates, before
+ * anyone has chosen a format. Judging a column against the chosen format is what the scan does
  */
 export function isValidDateValue(value: string) {
-  const trimmed = value.trim()
-  if (!trimmed) return false
-
-  const isoMatch = trimmed.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/)
-  if (isoMatch) {
-    return isValidDateParts(Number(isoMatch[1]), Number(isoMatch[2]), Number(isoMatch[3]))
-  }
-
-  const slashMatch = trimmed.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2}|\d{4})$/)
-  if (slashMatch) {
-    const first = Number(slashMatch[1])
-    const second = Number(slashMatch[2])
-    const year = normalizeDateYear(Number(slashMatch[3]))
-    return isValidDateParts(year, first, second) || isValidDateParts(year, second, first)
-  }
-
-  return /[a-z]/i.test(trimmed) && !Number.isNaN(Date.parse(trimmed))
-}
-
-function normalizeDateYear(year: number) {
-  if (year >= 100) return year
-  return year >= 70 ? 1900 + year : 2000 + year
-}
-
-function isValidDateParts(year: number, month: number, day: number) {
-  if (year < 1900 || year > 2100 || month < 1 || month > 12 || day < 1 || day > 31) return false
-  const date = new Date(year, month - 1, day)
-  return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day
+  return IMPORT_DATE_FORMATS.some((format) => Boolean(readImportDate(value, format)))
 }
 
 /**
