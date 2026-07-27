@@ -1,5 +1,5 @@
 /**
- * Tests the shared date layer, covering the zone guard that keeps an unrecognised profile setting
+ * Tests the shared date layer, covering the zone guard that keeps an unrecognized profile setting
  * from unmounting the app and the calendar arithmetic every view derives its ranges from
  */
 import { describe, expect, it } from 'vitest'
@@ -27,11 +27,11 @@ const BROWSER_TIME_ZONE = Intl.DateTimeFormat().resolvedOptions().timeZone
 const LATE_JUNE_EVENING = new Date('2026-07-01T02:00:00Z')
 
 describe('resolveTimeZone', () => {
-  it('keeps a zone the browser recognises', () => {
+  it('keeps a zone the browser recognizes', () => {
     expect(resolveTimeZone('America/Toronto')).toBe('America/Toronto')
   })
 
-  it('falls back to the browser zone for an unrecognised zone', () => {
+  it('falls back to the browser zone for an unrecognized zone', () => {
     expect(resolveTimeZone('Not/AZone')).toBe(BROWSER_TIME_ZONE)
   })
 
@@ -48,7 +48,7 @@ describe('today in a given zone', () => {
     expect(getTodayYmd('America/Toronto', LATE_JUNE_EVENING)).toBe('2026-06-30')
   })
 
-  it('degrades to the browser zone instead of throwing on an unrecognised zone', () => {
+  it('degrades to the browser zone instead of throwing on an unrecognized zone', () => {
     expect(getTodayYmd('Not/AZone', LATE_JUNE_EVENING)).toBe(
       getTodayYmd(BROWSER_TIME_ZONE, LATE_JUNE_EVENING),
     )
@@ -78,7 +78,7 @@ describe('formatDate', () => {
     expect(formatDate(LATE_JUNE_EVENING, DATE_FORMATS.monthDay, 'America/Toronto')).toBe('Jun 30')
   })
 
-  it('degrades to the browser zone instead of throwing on an unrecognised zone', () => {
+  it('degrades to the browser zone instead of throwing on an unrecognized zone', () => {
     expect(formatDate(LATE_JUNE_EVENING, DATE_FORMATS.monthDay, 'Not/AZone')).toBe(
       formatDate(LATE_JUNE_EVENING, DATE_FORMATS.monthDay, BROWSER_TIME_ZONE),
     )

@@ -34,7 +34,7 @@ function getBrowserTimeZone(): string {
 
 /**
  * Returns a timezone the browser can format with, falling back to its own zone when the given one
- * is missing or unrecognised
+ * is missing or unrecognized
  *
  * A zone stored on the profile can outlive the browser that chose it, and Intl throws from the
  * constructor rather than degrading, which would otherwise unmount the whole app
