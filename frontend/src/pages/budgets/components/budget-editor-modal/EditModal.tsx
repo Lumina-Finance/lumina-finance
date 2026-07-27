@@ -13,7 +13,8 @@ import type { BudgetEditorModalErrorGetter, BudgetEditorModalFieldIds, BudgetEdi
 import type { BudgetFormFieldErrors, BudgetFormState } from '@/pages/budgets/types'
 import { budgetCadenceLabel, formatBudgetPeriod } from '@/pages/budgets/utils/budgetPeriods'
 import { sameStringSet } from '@/pages/budgets/utils/form'
-import { currencySymbol, formatMinorUnitsInput, toMinorUnits } from '@/pages/budgets/utils/money'
+import { currencySymbol, toMinorUnits } from '@/pages/budgets/utils/money'
+import { fromMinorUnits, getCurrencyExponent } from '@/utils/moneyInput'
 import { waitForMilliseconds } from '@/utils/timing'
 
 const EDIT_FIELD_IDS: BudgetEditorModalFieldIds = {
@@ -63,7 +64,7 @@ function getInitialEditForm(baseBudget: BaseBudget, latestPeriod: Budget | undef
     name: baseBudget.name,
     currency: baseBudget.currency,
     categoryIds: baseBudget.category_ids,
-    limit: latestPeriod ? formatMinorUnitsInput(latestPeriod.overall_limit, currencies, baseBudget.currency) : '',
+    limit: latestPeriod ? fromMinorUnits(latestPeriod.overall_limit, getCurrencyExponent(currencies, baseBudget.currency)) : '',
     recurrenceFreq: baseBudget.recurrence_freq,
     instanceLength: String(baseBudget.instance_length),
     periodStart: latestPeriod?.period_start ?? '',

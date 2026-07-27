@@ -1,10 +1,7 @@
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
 import Dropdown from '@/components/dropdown/Dropdown'
+import { useMoneyInput } from '@/hooks/useMoneyInput'
 import { EDIT_ACCOUNT_IDENTITY_FIELD_IDS } from '@/pages/accounts/detail/constants/accountDetail'
-import {
-  formatMoneyInputLive,
-  sanitizeMoneyInput,
-} from '@/utils/moneyInput'
 import type {
   IdentityFieldErrors,
   IdentityFormValues,
@@ -19,6 +16,8 @@ type AccountDetailsSectionProps = {
   canLinkTaxAdvantagedCategory: boolean
   isRevolving: boolean
   selectedCurrencySymbol: string
+  // Decimal places of the account's currency, used to settle the credit limit field on blur
+  creditLimitExponent: number
   taxAdvantagedCategoryOptions: DropdownOption[]
   setField: SetIdentityFormField
 }
@@ -32,9 +31,16 @@ export function AccountDetailsSection({
   canLinkTaxAdvantagedCategory,
   isRevolving,
   selectedCurrencySymbol,
+  creditLimitExponent,
   taxAdvantagedCategoryOptions,
   setField,
 }: AccountDetailsSectionProps) {
+  const creditLimitInput = useMoneyInput({
+    value: form.credit_limit,
+    exponent: creditLimitExponent,
+    onChange: (value) => setField('credit_limit', value),
+  })
+
   return (
     <EditModalSection number="02" title="Details">
       {canLinkTaxAdvantagedCategory && (
@@ -68,13 +74,8 @@ export function AccountDetailsSection({
             <input
               id={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.creditLimit}
               className={`app-input ${selectedCurrencySymbol ? 'pl-8' : ''} ${fieldErrors.credit_limit ? 'app-input-error' : ''}`}
-              inputMode="decimal"
-              value={form.credit_limit}
-              onChange={(event) => setField(
-                'credit_limit',
-                formatMoneyInputLive(sanitizeMoneyInput(event.target.value)),
-              )}
               placeholder="Optional"
+              {...creditLimitInput}
             />
           </div>
         </div>

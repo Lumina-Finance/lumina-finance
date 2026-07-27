@@ -1,5 +1,4 @@
 import { useState, type Dispatch, type SetStateAction } from 'react'
-import { sanitizeMoneyInput } from '@/utils/moneyInput'
 import { getDefaultDirectionForKind } from '@/pages/transactions/components/transaction-modal/utils/categories'
 import { getDirectionFromAmountInputSign } from '@/pages/transactions/components/transaction-modal/utils/money'
 import { validateTransactionForm } from '@/pages/transactions/components/transaction-modal/utils/validation'
@@ -24,7 +23,7 @@ interface TransactionFormState {
   clearError: (field: keyof TransactionFormFieldErrors) => void
   applyKindChange: (nextKind: TransactionModalKind, fields?: Partial<TransactionFormValues>) => void
   handleField: <K extends keyof TransactionFormValues>(field: K, value: TransactionFormValues[K]) => void
-  handleAmountChange: (value: string) => void
+  handleAmountChange: (value: string, typed?: string) => void
   handleBlur: (field: keyof TransactionFormFieldErrors) => void
   showError: (field: keyof TransactionFormFieldErrors) => string | false | undefined
 }
@@ -68,11 +67,13 @@ export function useTransactionFormState(initialForm: TransactionFormValues): Tra
     if (field in fieldErrors) clearError(field as keyof TransactionFormFieldErrors)
   }
 
-  const handleAmountChange = (value: string) => {
-    const signDirection = getDirectionFromAmountInputSign(value)
+  const handleAmountChange = (value: string, typed?: string) => {
+    // The field settling on blur re-fires onChange with only the canonical value, so a missing
+    // typed argument means there is no fresh sign to read and the direction stays put
+    const signDirection = typed === undefined ? null : getDirectionFromAmountInputSign(typed)
     setForm((f) => ({
       ...f,
-      amount: sanitizeMoneyInput(value),
+      amount: value,
       direction: signDirection ?? f.direction,
     }))
     if (signDirection && signDirection !== form.direction) setDirectionHighlightKey((key) => key + 1)

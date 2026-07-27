@@ -1,12 +1,5 @@
 import type { Currency } from '@/api/currency'
-
-/**
- * Looks up the currency's minor unit exponent by code, defaulting to 2 decimal places when the
- * currency isn't found
- */
-export function currencyExponent(currencies: Currency[], code: string) {
-  return currencies.find((currency) => currency.id === code)?.minor_unit_exponent ?? 2
-}
+import { getCurrencyExponent, toMinorUnits as toMinorUnitsCanonical } from '@/utils/moneyInput'
 
 /**
  * Looks up the currency's symbol by code, returning an empty string when the currency isn't found
@@ -16,21 +9,12 @@ export function currencySymbol(currencies: Currency[], code: string) {
 }
 
 /**
- * Converts a positive user-entered decimal amount into the currency's minor units
+ * Converts a canonical user-entered decimal amount into the currency's minor units, returning null
+ * when the amount is blank, unparseable, or not strictly positive
  */
-export function toMinorUnits(value: string, currencies: Currency[], code: string) {
-  if (!value.trim()) return null
-  const numberValue = Number(value.replace(/,/g, ''))
-  if (!Number.isFinite(numberValue) || numberValue <= 0) return null
-  return Math.round(numberValue * Math.pow(10, currencyExponent(currencies, code)))
-}
+export function toMinorUnits(value: string, currencies: Currency[], code: string): number | null {
+  const minorUnits = toMinorUnitsCanonical(value, getCurrencyExponent(currencies, code))
+  if (minorUnits === null || minorUnits <= 0) return null
 
-/**
- * Formats a stored minor-unit value back into an editable decimal input
- */
-export function formatMinorUnitsInput(value: number, currencies: Currency[], code: string) {
-  const exponent = currencyExponent(currencies, code)
-  return new Intl.NumberFormat(undefined, {
-    maximumFractionDigits: exponent,
-  }).format(value / Math.pow(10, exponent))
+  return minorUnits
 }

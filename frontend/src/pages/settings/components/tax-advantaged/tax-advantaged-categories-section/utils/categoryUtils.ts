@@ -1,6 +1,12 @@
 import type { Currency } from '@/api/currency'
 import type { TaxAdvantagedCategoryLimit, TaxTreatment } from '@/api/tax-advantaged-categories'
 import { TAX_TREATMENT_OPTIONS } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/constants'
+import {
+  fromMinorUnits as fromMinorUnitsCanonical,
+  getCurrencyExponent,
+  isValidMoneyInput as isValidMoneyInputCanonical,
+  toMinorUnits as toMinorUnitsCanonical,
+} from '@/utils/moneyInput'
 
 /**
  * Latest year not already used by an existing limit, counting backward from the current year so a
@@ -25,14 +31,6 @@ export function currencyOptions(currencies: Currency[]) {
 }
 
 /**
- * Minor unit exponent for a currency code, falling back to 2 decimal places when the currency
- * is not found
- */
-export function currencyExponent(currencies: Currency[], code: string) {
-  return currencies.find((c) => c.id === code)?.minor_unit_exponent ?? 2
-}
-
-/**
  * Symbol for a currency code, falling back to an empty string when the currency is not found
  */
 export function currencySymbol(currencies: Currency[], code: string) {
@@ -40,27 +38,12 @@ export function currencySymbol(currencies: Currency[], code: string) {
 }
 
 /**
- * Formats a raw money input string at the currency's decimal precision, leaving it untouched
- * while it is empty or not a valid number
- */
-export function formatMoneyInput(value: string, currencies: Currency[], code: string) {
-  if (!value.trim() || !isValidMoneyInput(value)) return value
-  const exponent = currencyExponent(currencies, code)
-  return new Intl.NumberFormat(undefined, {
-    minimumFractionDigits: exponent,
-    maximumFractionDigits: exponent,
-  }).format(Number(value))
-}
-
-/**
  * Checks whether a money input string is a valid non-negative number, treating an empty value
  * as valid unless the field is required
  */
 export function isValidMoneyInput(value: string, required = false) {
-  const trimmed = value.trim()
-  if (!trimmed) return !required
-  const n = Number(trimmed)
-  return Number.isFinite(n) && n >= 0
+  if (!value.trim()) return !required
+  return isValidMoneyInputCanonical(value)
 }
 
 /**
@@ -68,9 +51,7 @@ export function isValidMoneyInput(value: string, required = false) {
  * input
  */
 export function toMinorUnits(value: string, currencies: Currency[], code: string) {
-  if (!value.trim()) return null
-  const multiplier = Math.pow(10, currencyExponent(currencies, code))
-  return Math.round(Number(value) * multiplier)
+  return toMinorUnitsCanonical(value, getCurrencyExponent(currencies, code))
 }
 
 /**
@@ -78,10 +59,7 @@ export function toMinorUnits(value: string, currencies: Currency[], code: string
  * precision, returning an empty string for a null amount
  */
 export function fromMinorUnits(value: number | null, currencies: Currency[], code: string) {
-  if (value === null) return ''
-  const exponent = currencyExponent(currencies, code)
-  const major = value / Math.pow(10, exponent)
-  return exponent === 0 ? String(Math.round(major)) : Number(major.toFixed(exponent)).toString()
+  return fromMinorUnitsCanonical(value, getCurrencyExponent(currencies, code))
 }
 
 /**

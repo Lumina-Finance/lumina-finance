@@ -3,7 +3,7 @@ import CreateModalSectionFrame from '@/components/create-modal/SectionFrame'
 import DateField from '@/components/date-field/DateField'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
 import IconTooltip from '@/components/tooltips/IconTooltip'
-import { formatMoneyInputLive } from '@/utils/moneyInput'
+import { useMoneyInput } from '@/hooks/useMoneyInput'
 
 interface TransactionDetailsSectionProps {
   date: string
@@ -14,11 +14,12 @@ interface TransactionDetailsSectionProps {
   selectedCurrencySymbol: string
   amount: string
   amountError?: string | false
+  currencyExponent: number
   notes: string
   readOnly: boolean
   onDateChange: (value: string) => void
   onDateBlur: () => void
-  onAmountChange: (value: string) => void
+  onAmountChange: (value: string, typed?: string) => void
   onAmountBlur: () => void
   onNotesChange: (value: string) => void
 }
@@ -35,6 +36,7 @@ export default function TransactionDetailsSection({
   selectedCurrencySymbol,
   amount,
   amountError,
+  currencyExponent,
   notes,
   readOnly,
   onDateChange,
@@ -43,6 +45,13 @@ export default function TransactionDetailsSection({
   onAmountBlur,
   onNotesChange,
 }: TransactionDetailsSectionProps) {
+  const amountInput = useMoneyInput({
+    value: amount,
+    exponent: currencyExponent,
+    onChange: onAmountChange,
+    onBlur: onAmountBlur,
+  })
+
   return (
     <CreateModalSectionFrame step="03" title="Details">
       <div className="grid gap-3 sm:grid-cols-[11rem_8.5rem_minmax(0,1fr)]">
@@ -93,14 +102,10 @@ export default function TransactionDetailsSection({
             )}
             <input
               id="txn-amount"
-              type="text"
-              inputMode="decimal"
               className={`app-input w-full disabled:cursor-not-allowed disabled:opacity-60 ${selectedCurrencySymbol ? 'pl-8' : ''} ${amountError ? 'app-input-error' : ''}`}
               placeholder="0.00"
-              value={formatMoneyInputLive(amount)}
               disabled={readOnly}
-              onChange={(event) => onAmountChange(event.target.value)}
-              onBlur={onAmountBlur}
+              {...amountInput}
             />
           </div>
         </div>

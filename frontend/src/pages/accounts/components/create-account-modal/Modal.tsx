@@ -12,10 +12,8 @@ import CreateInstitutionModal from '@/components/reference-modals/CreateInstitut
 import { useCreateAccount } from '@/api/accounts';
 import { ApiError } from '@/api/auth';
 import { useAuth } from '@/hooks/useAuth';
-import {
-  formatMoneyInputLive,
-  sanitizeMoneyInput,
-} from '@/utils/moneyInput';
+import { useMoneyInput } from '@/hooks/useMoneyInput';
+import { getCurrencyExponent } from '@/utils/moneyInput';
 import {
   ALL_CREATE_ACCOUNT_FIELDS_TOUCHED,
   CREATE_ACCOUNT_EASE,
@@ -114,6 +112,20 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
     const errors = validateCreateAccountForm(form);
     setFieldErrors((prev) => ({ ...prev, [field]: errors[field] }));
   };
+
+  const currencyExponent = getCurrencyExponent(currencies, form.currency);
+  const startingBalanceInput = useMoneyInput({
+    value: form.starting_balance,
+    exponent: currencyExponent,
+    onChange: (value) => handleChange('starting_balance', value),
+    onBlur: () => handleBlur('starting_balance'),
+  });
+  const creditLimitInput = useMoneyInput({
+    value: form.credit_limit,
+    exponent: currencyExponent,
+    onChange: (value) => handleChange('credit_limit', value),
+    onBlur: () => handleBlur('credit_limit'),
+  });
 
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -247,14 +259,8 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                   <input
                     id="starting-balance"
                     className={`app-input ${selectedCurrencySymbol ? 'pl-8' : ''} ${showError('starting_balance') ? 'app-input-error' : ''}`}
-                    inputMode="decimal"
                     placeholder="Optional"
-                    value={form.starting_balance}
-                    onChange={(e) => handleChange(
-                      'starting_balance',
-                      formatMoneyInputLive(sanitizeMoneyInput(e.target.value)),
-                    )}
-                    onBlur={() => handleBlur('starting_balance')}
+                    {...startingBalanceInput}
                   />
                 </div>
               </div>
@@ -299,14 +305,8 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                           <input
                             id="credit-limit"
                             className={`app-input ${selectedCurrencySymbol ? 'pl-8' : ''} ${showError('credit_limit') ? 'app-input-error' : ''}`}
-                            inputMode="decimal"
                             placeholder="Optional"
-                            value={form.credit_limit}
-                            onChange={(e) => handleChange(
-                              'credit_limit',
-                              formatMoneyInputLive(sanitizeMoneyInput(e.target.value)),
-                            )}
-                            onBlur={() => handleBlur('credit_limit')}
+                            {...creditLimitInput}
                           />
                         </div>
                       </div>

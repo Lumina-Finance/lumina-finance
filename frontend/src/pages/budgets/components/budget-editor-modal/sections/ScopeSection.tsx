@@ -1,8 +1,9 @@
 import Dropdown from '@/components/dropdown/Dropdown'
 import IconTooltip from '@/components/tooltips/IconTooltip'
+import { useMoneyInput } from '@/hooks/useMoneyInput'
 import type { BudgetEditorModalErrorGetter, BudgetEditorModalFieldIds, BudgetEditorModalHandlers, BudgetEditorModalOptions, BudgetEditorModalViewState } from '@/pages/budgets/components/budget-editor-modal/types'
 import BudgetEditorFieldLabelRow from '@/pages/budgets/components/shared/EditorFieldLabelRow'
-import { formatMoneyInputLive, sanitizeMoneyInput } from '@/utils/moneyInput'
+import { getCurrencyExponent } from '@/utils/moneyInput'
 
 interface BudgetEditorModalScopeSectionProps {
   state: BudgetEditorModalViewState
@@ -41,6 +42,12 @@ export default function BudgetEditorModalScopeSection({
   const { form } = state
   const { currencies } = options
   const { setField, onBlur } = handlers
+  const limitInput = useMoneyInput({
+    value: form.limit,
+    exponent: getCurrencyExponent(currencies, form.currency),
+    onChange: (value) => setField('limit', value),
+    onBlur: () => onBlur('limit'),
+  })
 
   return (
     <div className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-2 min-[1050px]:gap-x-3">
@@ -125,12 +132,9 @@ export default function BudgetEditorModalScopeSection({
               <input
                 id={ids.limit}
                 className={`app-input disabled:cursor-not-allowed disabled:opacity-60 ${selectedCurrencySymbol ? 'pl-8' : ''} ${showError('limit') ? 'app-input-error' : ''}`}
-                inputMode="decimal"
                 placeholder={limitPlaceholder}
-                value={form.limit}
-                onChange={(event) => setField('limit', formatMoneyInputLive(sanitizeMoneyInput(event.target.value)))}
-                onBlur={() => onBlur('limit')}
                 disabled={limitDisabled || fieldsLocked}
+                {...limitInput}
               />
             </div>
           </div>

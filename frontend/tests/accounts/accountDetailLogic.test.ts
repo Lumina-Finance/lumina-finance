@@ -101,7 +101,7 @@ describe('identity form helpers', () => {
       name: '  Travel Card  ',
       institution_id: '',
       tax_advantaged_category_id: 'plan',
-      credit_limit: '1,234.56',
+      credit_limit: '1234.56',
       is_archived: true,
     }
 
@@ -128,6 +128,25 @@ describe('identity form helpers', () => {
       institution_id: null,
       is_archived: true,
       tax_advantaged_category_id: 'plan',
+    })
+  })
+
+  it('round-trips a seeded credit limit back to the same stored minor units unchanged', () => {
+    const account = createAccount({ account_kind: 'revolving', credit_limit: 123_456 })
+    const form = createIdentityFormValues(account, currencies)
+
+    expect(form.credit_limit).toBe('1234.56')
+    expect(getIdentityUpdatePayload({
+      form,
+      isRevolving: true,
+      canLinkTaxAdvantagedCategory: false,
+      currencies,
+      accountCurrency: 'USD',
+    })).toEqual({
+      name: 'Account',
+      institution_id: null,
+      is_archived: false,
+      credit_limit: 123_456,
     })
   })
 

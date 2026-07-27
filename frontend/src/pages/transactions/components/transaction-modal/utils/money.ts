@@ -1,3 +1,4 @@
+import { fromMinorUnits, toMinorUnits } from '@/utils/moneyInput'
 import type { TransactionDirection } from '@/pages/transactions/components/transaction-modal/types'
 
 /**
@@ -10,10 +11,10 @@ export function getTodayLocalDateInputValue(): string {
 }
 
 /**
- * Converts a stored signed minor-unit amount into a positive fixed-decimal input value
+ * Converts a stored signed minor-unit amount into a positive canonical input value
  */
 export function amountToInputString(amountMinor: number, exponent: number): string {
-  return (Math.abs(amountMinor) / Math.pow(10, exponent)).toFixed(exponent)
+  return fromMinorUnits(Math.abs(amountMinor), exponent)
 }
 
 /**
@@ -32,12 +33,13 @@ export function getDirectionFromAmountInputSign(value: string): TransactionDirec
 }
 
 /**
- * Converts a positive decimal input into currency minor units
+ * Converts a positive canonical input into currency minor units, keeping the transaction amount's
+ * own "must be greater than zero" policy on top of the shared conversion
  */
 export function amountInputToMinorUnits(value: string, exponent: number): number | null {
-  const numericValue = Number.parseFloat(value)
-  if (!Number.isFinite(numericValue) || numericValue <= 0) return null
-  return Math.round(numericValue * Math.pow(10, exponent))
+  const minorUnits = toMinorUnits(value, exponent)
+  if (minorUnits === null || minorUnits <= 0) return null
+  return minorUnits
 }
 
 /**
