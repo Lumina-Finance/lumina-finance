@@ -1,12 +1,11 @@
 import { useMemo, useState } from 'react'
-import type { SavedInsightsRange } from '@/api/insights'
 import type {
   InsightsComparisonPeriod,
-  InsightsRangeInputDates,
-  InsightsRangePreset,
+  SavedInsightsRange,
   SavedInsightsRangeQualifier,
   SavedInsightsRangeUnit,
-} from '../types/range'
+} from '@/api/insights'
+import type { InsightsRangeInputDates, InsightsRangePreset } from '../types/range'
 import { getRangeComparisonPeriod, getRangeInputDates, getRelativeRangeInputDates } from '../utils/range'
 
 // The relative builder opens on a familiar three-month rolling window when Custom is first picked

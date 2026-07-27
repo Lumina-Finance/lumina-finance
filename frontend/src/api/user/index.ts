@@ -6,6 +6,7 @@ export type {
   RunwayResult,
   RunwaySettings,
   RunwaySettingsUpdate,
+  RunwayThresholds,
   UpdateProfilePayload,
 } from '@/api/user/types';
 

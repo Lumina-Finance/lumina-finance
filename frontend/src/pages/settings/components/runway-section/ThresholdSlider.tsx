@@ -12,8 +12,8 @@ import {
   RUNWAY_THRESHOLD_MIN_SEPARATION_MONTHS,
   RUNWAY_THRESHOLD_STEP_MONTHS,
   normalizeRunwayThresholds,
-  type RunwayThresholds,
 } from '@/utils/runway'
+import type { RunwayThresholds } from '@/api/user'
 import { RunwayBandLegend } from './BandLegend'
 import {
   clampThreshold,

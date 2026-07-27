@@ -2,6 +2,7 @@ import { authenticatedFetch } from '@/api/client';
 import { buildQueryString } from '@/api/utils/queryString';
 import type {
   InsightsCashFlowResponse,
+  InsightsComparisonPeriod,
   InsightsFundFlowResponse,
   InsightsIncomeExpenseBreakdownResponse,
   InsightsMerchantsResponse,
@@ -11,7 +12,6 @@ import type {
   SaveInsightsRangePayload,
   SavedInsightsRange,
 } from '@/api/insights/types';
-import type { InsightsComparisonPeriod } from '@/pages/insights/types/range';
 
 /**
  * Builds the backend range query shared by dated insights widgets

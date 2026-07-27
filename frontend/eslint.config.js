@@ -13,16 +13,24 @@ const restrictedApiIndexImports = [
   '@/api/categories',
   '@/api/currency',
   '@/api/dashboard',
+  '@/api/firefly-imports',
   '@/api/insights',
   '@/api/institutions',
   '@/api/merchants',
+  '@/api/oidc',
+  '@/api/passkeys',
   '@/api/tags',
   '@/api/tax-advantaged-categories',
   '@/api/transaction-imports',
   '@/api/transactions',
+  '@/api/two-factor',
   '@/api/user',
   '@/api/version',
 ]
+
+// The API layer talks to the backend and the query cache, never to the UI layers, so nothing
+// under src/api may reach into pages, components, or contexts
+const restrictedApiUiImports = ['@/pages/*', '@/components/*', '@/contexts/*']
 
 export default defineConfig([
   globalIgnores(['dist']),
@@ -49,6 +57,12 @@ export default defineConfig([
             name,
             message: 'Import the specific API source file instead of the domain folder index',
           })),
+          patterns: [
+            {
+              group: restrictedApiUiImports,
+              message: 'The API layer must not import from the UI layers',
+            },
+          ],
         },
       ],
     },

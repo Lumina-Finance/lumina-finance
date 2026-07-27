@@ -2,6 +2,11 @@
 // backend (GET /me/runway) — these functions just format the months figure and
 // classify it into one of three risk bands
 
+// Imported from the domain's types module rather than its index, because the index reaches
+// api/user/mappers, which imports normalizeRunwayThresholds from here. The edge is type-only and
+// erased at build, so this avoids writing a source-level cycle for no gain
+import type { RunwayThresholds } from '@/api/user/types'
+
 export const RUNWAY_TARGET_MONTHS = 6
 export const RUNWAY_THRESHOLD_MIN_MONTHS = 0
 export const RUNWAY_THRESHOLD_MAX_MONTHS = 12
@@ -9,11 +14,6 @@ export const RUNWAY_THRESHOLD_STEP_MONTHS = 0.5
 export const RUNWAY_THRESHOLD_MIN_SEPARATION_MONTHS = 2
 
 export type RunwayBand = 'healthy' | 'low' | 'risky'
-
-export type RunwayThresholds = {
-  riskyBelowMonths: number
-  healthyAtMonths: number
-}
 
 export const DEFAULT_RUNWAY_THRESHOLDS: RunwayThresholds = {
   riskyBelowMonths: 1,

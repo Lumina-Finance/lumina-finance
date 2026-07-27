@@ -14,8 +14,7 @@ import {
 import { insightsKeys } from '@/api/cache/queryKeys';
 import { getFxAwareStaleTime } from '@/api/shared/fxCache';
 import { useAuth } from '@/hooks/useAuth';
-import type { SavedInsightsRange } from '@/api/insights/types';
-import type { InsightsComparisonPeriod } from '@/pages/insights/types/range';
+import type { InsightsComparisonPeriod, SavedInsightsRange } from '@/api/insights/types';
 
 const INSIGHTS_FX_STALE_TIME_MS = 5 * 60 * 1000;
 

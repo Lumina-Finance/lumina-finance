@@ -5,9 +5,10 @@ import type {
   RunwaySettingsPayload,
   RunwaySettingsResponse,
   RunwaySettingsUpdate,
+  RunwayThresholds,
   RunwayThresholdsResponse,
 } from '@/api/user/types';
-import { normalizeRunwayThresholds, type RunwayThresholds } from '@/utils/runway';
+import { normalizeRunwayThresholds } from '@/utils/runway';
 
 /**
  * Converts backend runway thresholds into frontend threshold state

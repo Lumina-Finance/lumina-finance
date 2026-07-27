@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import type { AccountsOverview } from '@/api/accounts'
-import type { RunwayThresholds } from '@/utils/runway'
+import type { RunwayThresholds } from '@/api/user'
 import SettingsSectionHeader from '@/pages/settings/components/SectionHeader'
 import SettingsCard from '@/pages/settings/components/Card'
 import { ArchivedRunwayAccountTile, RunwayAccountTile } from './AccountTiles'

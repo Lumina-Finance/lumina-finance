@@ -1,6 +1,5 @@
 import type { AuthenticationResponseJSON } from '@simplewebauthn/browser';
 import type { FxStatus } from '@/api/shared/fx';
-import type { RunwayThresholds } from '@/utils/runway';
 
 /**
  * Editable profile fields for the current user
@@ -39,6 +38,13 @@ export interface RunwayThresholdsResponse {
   risky_below_months: number;
   healthy_at_months: number;
 }
+
+// Frontend-normalized runway thresholds, in months, snapped to half-month steps with the healthy
+// threshold always kept at least two months above the risky one
+export type RunwayThresholds = {
+  riskyBelowMonths: number;
+  healthyAtMonths: number;
+};
 
 export interface RunwaySettingsResponse {
   account_ids: string[];
