@@ -101,6 +101,12 @@ describe('written dates', () => {
     expect(readImportDate('Smarch 4, 2024', 'written')).toBe('')
   })
 
+  it('refuses a month named in another language', () => {
+    expect(readImportDate('juillet 4, 2024', 'written')).toBe('')
+    expect(readImportDate('4 mars 2024', 'written')).toBe('')
+    expect(readImportDate('4 März 2024', 'written')).toBe('')
+  })
+
   it('refuses a two-digit year', () => {
     expect(readImportDate('Jul 4, 24', 'written')).toBe('')
   })
@@ -136,6 +142,13 @@ describe('blank and unreadable cells', () => {
       expect(readImportDate('   ', format)).toBe('')
       expect(readImportDate('2024', format)).toBe('')
       expect(readImportDate('not a date', format)).toBe('')
+    }
+  })
+
+  it('refuses digits that are not Latin, which some keypads emit', () => {
+    for (const format of ALL_FORMATS) {
+      expect(readImportDate('٢٠٢٤-٠٣-١٥', format)).toBe('')
+      expect(readImportDate('２０２４-０３-１５', format)).toBe('')
     }
   })
 })
@@ -197,6 +210,23 @@ describe('validating a date column', () => {
     const files = [createDateFile(['15/03/24'])]
 
     expect(validateColumnValues(files, 'Date', 'dt', 'dayFirst').valid).toBe(false)
+  })
+
+  it('names the Written format without repeating the word', () => {
+    const files = [createDateFile(['July 4th, 2024'])]
+
+    expect(validateColumnValues(files, 'Date', 'dt', 'written').message)
+      .toBe('Expected valid dates in the Written format, such as April 30, 2026; every row must have a value. "July 4th, 2024" is not a valid date.')
+  })
+
+  it('does not blame the shape when the value is that shape but names no real day', () => {
+    const files = [createDateFile(['2024-02-31'])]
+
+    const result = validateColumnValues(files, 'Date', 'dt', 'yearFirst')
+
+    expect(result.valid).toBe(false)
+    expect(result.message).toContain('"2024-02-31" is not a valid date')
+    expect(result.message).not.toContain('does not match')
   })
 })
 

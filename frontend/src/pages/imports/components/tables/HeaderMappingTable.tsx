@@ -1,8 +1,9 @@
 import { TriangleAlert } from 'lucide-react'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
-import { IMPORT_DATE_FORMAT_OPTIONS } from '@/pages/imports/constants'
+import { IMPORT_DATE_FORMAT_LABELS } from '@/pages/imports/constants'
 import type { ColumnMap, ColumnValidationErrors, ImportFileDraft } from '@/pages/imports/types'
 import {
+  IMPORT_DATE_FORMATS,
   type ImportDateFormat,
   type ImportDateFormatScan,
   getColumnSamples,
@@ -43,10 +44,10 @@ export function ImportHeaderMappingTable({
   onChange: (header: string, target: string) => void
   onDateFormatChange: (dateFormat: ImportDateFormat) => void
 }) {
-  const dateFormatOptions: DropdownOption[] = IMPORT_DATE_FORMAT_OPTIONS.map((option) => ({
-    value: option.value,
-    label: `${option.label} (${option.example})`,
-    badge: dateFormatScan.rejectedBy[option.value] ? UNREADABLE_FORMAT_BADGE : undefined,
+  const dateFormatOptions: DropdownOption[] = IMPORT_DATE_FORMATS.map((format) => ({
+    value: format,
+    label: `${IMPORT_DATE_FORMAT_LABELS[format].label} (${IMPORT_DATE_FORMAT_LABELS[format].example})`,
+    badge: dateFormatScan.rejectedBy[format] ? UNREADABLE_FORMAT_BADGE : undefined,
   }))
 
   // The wrapper scrolls sideways only while the table is wider than the viewport. Past that it stops

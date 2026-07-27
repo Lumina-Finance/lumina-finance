@@ -1,4 +1,4 @@
-import { COLUMN_TARGETS, EMPTY_COLUMN_MAP, IMPORT_DATE_FORMAT_OPTIONS } from '@/pages/imports/constants'
+import { COLUMN_TARGETS, EMPTY_COLUMN_MAP, IMPORT_DATE_FORMAT_LABELS } from '@/pages/imports/constants'
 import type { ColumnMap, ColumnTarget, ColumnValidationErrors, CsvRow, ImportFileDraft } from '@/pages/imports/types'
 import { unique } from './common'
 import {
@@ -21,7 +21,7 @@ const COLUMN_VALIDATION_RULES: Record<ColumnTarget, {
     accepts: isPlainTextValue,
   },
   dt: {
-    expected: 'dates in one format across the whole file; every row must have a value',
+    expected: 'valid dates in one format across the whole file; every row must have a value',
     requiredValues: true,
     accepts: isValidDateValue,
   },
@@ -58,11 +58,7 @@ const COLUMN_VALIDATION_RULES: Record<ColumnTarget, {
  * records a validation error for any mapped column whose values do not match what the target field
  * expects
  */
-export function validateColumnMap(
-  columnMap: ColumnMap,
-  files: ImportFileDraft[],
-  dateFormat: ImportDateFormat | null = null,
-) {
+export function validateColumnMap(columnMap: ColumnMap, files: ImportFileDraft[]) {
   if (files.length === 0) return { map: EMPTY_COLUMN_MAP, errors: {} }
 
   const availableHeaders = new Set(files.flatMap((file) => file.headers))
@@ -73,7 +69,9 @@ export function validateColumnMap(
     const header = columnMap[target.id]
     if (!header || !availableHeaders.has(header)) continue
 
-    const validation = validateColumnValues(files, header, target.id, dateFormat)
+    // No format is passed, because this runs while inferring which column is which, before anyone
+    // has chosen one. The hook holds the date column to the chosen format on its own path
+    const validation = validateColumnValues(files, header, target.id)
     map[target.id] = header
     if (!validation.valid) errors[header] = validation.message
   }
@@ -121,7 +119,7 @@ export function validateColumnValues(
   if (invalidValue) {
     return {
       valid: false,
-      message: `Expected ${expected}. "${truncateValue(invalidValue)}" does not match.`,
+      message: `Expected ${expected}. "${truncateValue(invalidValue)}" ${getMismatchReason(target)}.`,
     }
   }
 
@@ -129,13 +127,24 @@ export function validateColumnValues(
 }
 
 /**
- * Names the chosen date format and an example of it, so a row that broke the column says what shape
- * the rest of the file is in rather than only that it did not match
+ * Names the chosen date format and an example of it, so a row that broke the column says what the
+ * rest of the file looks like rather than only that it failed
  */
 function getDateFormatExpectation(dateFormat: ImportDateFormat) {
-  const option = IMPORT_DATE_FORMAT_OPTIONS.find((candidate) => candidate.value === dateFormat)
+  const { label, example } = IMPORT_DATE_FORMAT_LABELS[dateFormat]
 
-  return `every date written ${option?.label.toLowerCase()}, such as ${option?.example}; every row must have a value`
+  return `valid dates in the ${label} format, such as ${example}; every row must have a value`
+}
+
+/**
+ * Says how a value failed its column
+ *
+ * A date can fail for three reasons the reader does not distinguish: a shape it does not fit, a day
+ * the calendar does not have, and a year outside the accepted span. Naming the value without
+ * claiming which of the three it was keeps the message from sending the user to the wrong fix
+ */
+function getMismatchReason(target: ColumnTarget) {
+  return target === 'dt' ? 'is not a valid date' : 'does not match'
 }
 
 /**

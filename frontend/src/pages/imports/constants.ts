@@ -33,13 +33,15 @@ export const COLUMN_TARGETS: Array<{
 ]
 
 // Each format is named by an example of its shape rather than by a standard, because the year-first
-// option deliberately takes a slash and an unpadded part, which ISO 8601 does not
-export const IMPORT_DATE_FORMAT_OPTIONS: Array<{ value: ImportDateFormat; label: string; example: string }> = [
-  { value: 'yearFirst', label: 'Year first', example: '2026-04-30' },
-  { value: 'dayFirst', label: 'Day first', example: '30/04/2026' },
-  { value: 'monthFirst', label: 'Month first', example: '04/30/2026' },
-  { value: 'written', label: 'Written', example: 'April 30, 2026' },
-]
+// option deliberately takes a slash and an unpadded part, which ISO 8601 does not. Keyed by format
+// rather than listed, so every format is guaranteed a label and the picker takes its order from
+// IMPORT_DATE_FORMATS instead of repeating it here
+export const IMPORT_DATE_FORMAT_LABELS: Record<ImportDateFormat, { label: string; example: string }> = {
+  yearFirst: { label: 'Year first', example: '2026-04-30' },
+  dayFirst: { label: 'Day first', example: '30/04/2026' },
+  monthFirst: { label: 'Month first', example: '04/30/2026' },
+  written: { label: 'Written', example: 'April 30, 2026' },
+}
 
 export const KIND_LABELS: Record<Category['kind'], string> = {
   expense: 'Expense',
