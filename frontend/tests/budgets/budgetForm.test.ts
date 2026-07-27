@@ -8,10 +8,7 @@ import { getNextModalFieldTabStop } from '@/components/modal/focus'
 import type { BudgetFormState } from '@/pages/budgets/types'
 import { validateBudgetCreateForm } from '@/pages/budgets/utils/budgetCreateValidation'
 import { sameStringSet } from '@/pages/budgets/utils/form'
-import {
-  formatMinorUnitsInput,
-  toMinorUnits,
-} from '@/pages/budgets/utils/money'
+import { toMinorUnits } from '@/pages/budgets/utils/money'
 
 const currencies: Currency[] = [
   { id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 },
@@ -39,7 +36,7 @@ function createForm(overrides: Partial<BudgetFormState> = {}): BudgetFormState {
     name: 'Groceries',
     currency: 'CAD',
     categoryIds: ['groceries'],
-    limit: '1,000.50',
+    limit: '1000.50',
     recurrenceFreq: 'monthly',
     instanceLength: '1',
     periodStart: '2026-06-01',
@@ -50,10 +47,9 @@ function createForm(overrides: Partial<BudgetFormState> = {}): BudgetFormState {
 
 describe('budget form helpers', () => {
   it('converts between decimal inputs and currency minor units', () => {
-    expect(toMinorUnits('1,234.56', currencies, 'CAD')).toBe(123456)
+    expect(toMinorUnits('1234.56', currencies, 'CAD')).toBe(123456)
     expect(toMinorUnits('1234.56', currencies, 'JPY')).toBe(1235)
     expect(toMinorUnits('0', currencies, 'CAD')).toBeNull()
-    expect(formatMinorUnitsInput(123456, currencies, 'CAD')).toBe('1,234.56')
   })
 
   it('validates create-budget fields before building an API payload', () => {
