@@ -20,11 +20,11 @@ export const DEFAULT_RUNWAY_THRESHOLDS: RunwayThresholds = {
   healthyAtMonths: 3,
 }
 
-function clamp(value: number, min: number, max: number) {
+export function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max)
 }
 
-function roundRunwayThreshold(value: number) {
+export function roundRunwayThreshold(value: number) {
   return Math.round(value / RUNWAY_THRESHOLD_STEP_MONTHS) * RUNWAY_THRESHOLD_STEP_MONTHS
 }
 

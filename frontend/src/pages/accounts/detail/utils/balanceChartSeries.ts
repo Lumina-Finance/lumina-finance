@@ -1,5 +1,6 @@
 import type { AccountBalanceSnapshot, SnapshotGranularity } from '@/api/accounts'
 import { toISODate } from '@/pages/accounts/detail/utils/date'
+import { calendarDateMs } from './calendarDate'
 
 export interface BalanceChartPoint {
   date: string
@@ -11,10 +12,6 @@ export interface BalanceChartPoint {
 
 export interface BalanceChartPeriodPoint extends BalanceChartPoint {
   periodBalance: number
-}
-
-function calendarDateMs(d: Date): number {
-  return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())
 }
 
 function startOfLocalDay(d: Date): Date {

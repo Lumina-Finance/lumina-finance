@@ -1,16 +1,15 @@
-import type { AccountType } from '@/api/accounts'
 import type {
   FireflyTransactionImportPayload,
   FireflyTransactionImportResponse,
 } from '@/api/firefly-imports'
 import {
-  ACCOUNT_TYPE_OPTIONS,
   CREATE_ACCOUNT_VALUE,
   CREATE_CATEGORY_VALUE,
   DEFAULT_CATEGORY_ICON,
 } from '../../constants'
 import type { CsvRow, ImportCategoryKind, ImportFileDraft } from '../../types'
 import type { FireflyImportBuildResult } from '../types'
+import { isImportAccountType } from '@/pages/imports/accountTypeGuard'
 import { getFireflyRowDate, isFireflyRowUploadable, splitFireflyTags } from './derivation'
 
 /**
@@ -157,10 +156,6 @@ function buildFireflyImportRows(rows: CsvRow[]): FireflyTransactionImportPayload
   }
 
   return payloadRows
-}
-
-function isImportAccountType(value: string): value is AccountType {
-  return ACCOUNT_TYPE_OPTIONS.some((option) => option.value === value)
 }
 
 function cleanOptional(value: string | undefined) {

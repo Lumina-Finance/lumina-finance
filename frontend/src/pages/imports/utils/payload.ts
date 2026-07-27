@@ -1,8 +1,8 @@
-import type { AccountType } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { TransactionImportPayload, TransactionImportResponse } from '@/api/transaction-imports'
-import { ACCOUNT_TYPE_OPTIONS, COLUMN_TARGETS, CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, DEFAULT_CATEGORY_ICON } from '../constants'
+import { COLUMN_TARGETS, CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, DEFAULT_CATEGORY_ICON } from '../constants'
 import type { ColumnMap, ColumnValidationErrors, ImportAccountSource, ImportBuildResult, ImportCategoryKind, ImportFileDraft } from '../types'
+import { isImportAccountType } from '@/pages/imports/accountTypeGuard'
 import { getCategoryMatchKind, splitImportedValues } from './categoryMatching'
 import { getMappedValue } from './columnMapping'
 import { getResolvedAccountChoice } from './accountMapping'
@@ -181,10 +181,6 @@ function appendAccountMapping(
       institution_id: createInstitution || null,
     },
   })
-}
-
-function isImportAccountType(value: string): value is AccountType {
-  return ACCOUNT_TYPE_OPTIONS.some((option) => option.value === value)
 }
 
 function cleanOptional(value: string) {

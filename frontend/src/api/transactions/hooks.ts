@@ -11,6 +11,7 @@ import {
   invalidateTransactions,
   invalidateTransactionOverview,
 } from '@/api/cache/invalidation';
+import { uniqueIds } from '@/api/cache/invalidation/types';
 import { runWithMinimumPendingTime } from '@/api/utils/mutationFeedback';
 import { transactionKeys, transactionOverviewKeys } from '@/api/cache/queryKeys';
 import {
@@ -19,7 +20,6 @@ import {
   invalidatePatchedTransactionData,
   invalidateTransactionAccountData,
   removeTransactionFromLists,
-  uniqueIds,
 } from '@/api/cache/updates/transactions';
 import {
   createTransaction,
