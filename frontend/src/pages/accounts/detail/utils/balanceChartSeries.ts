@@ -1,7 +1,6 @@
 import type { AccountBalanceSnapshot, SnapshotGranularity } from '@/api/accounts'
-import { toISODate } from '@/pages/accounts/detail/utils/date'
 import { calendarDateMs } from './calendarDate'
-import { DATE_FORMATS, formatDate } from '@/utils/date'
+import { DATE_FORMATS, formatDate, formatYmd } from '@/utils/date'
 
 export interface BalanceChartPoint {
   date: string
@@ -85,7 +84,7 @@ export function buildChartSeries(
   let runningBalance = 0
   const points: BalanceChartPoint[] = []
   for (const sampleDate of sampleDates) {
-    const sampleDateStr = toISODate(sampleDate)
+    const sampleDateStr = formatYmd(sampleDate)
     while (idx < sorted.length && sorted[idx].dt <= sampleDateStr) {
       runningBalance = sorted[idx].balance
       idx++

@@ -1,14 +1,6 @@
 import { DATE_FORMATS, formatDate, getTodayYmd } from '@/utils/date'
 
 /**
- * Parses a date-only string as browser-local midnight to avoid UTC shifts in list labels
- */
-export function parseYmdLocal(ymd: string): Date {
-  const [y, m, d] = ymd.split('-').map(Number)
-  return new Date(y, m - 1, d)
-}
-
-/**
  * Formats the full overview range label while treating YYYY-MM-DD inputs as calendar dates
  */
 export function formatOverviewRangeLabel(from: string, to: string): string {

@@ -33,7 +33,7 @@ import {
   getBreakdownRowFillPercent,
   getBreakdownRows,
 } from '@/pages/accounts/detail/utils/spendingBreakdownViewModel'
-import { toISODate } from '@/pages/accounts/detail/utils/date'
+import { formatYmd } from '@/utils/date'
 
 const currencies: Currency[] = [
   { id: 'USD', name: 'US Dollar', symbol: '$', minor_unit_exponent: 2 },
@@ -172,8 +172,8 @@ describe('balance chart view model helpers', () => {
   it('derives the selected range window from a local-day anchor date', () => {
     const window = getBalanceRangeWindow('30D', new Date(2026, 5, 13, 14, 30))
 
-    expect(toISODate(window.fromDate)).toBe('2026-05-15')
-    expect(toISODate(window.toDate)).toBe('2026-06-13')
+    expect(formatYmd(window.fromDate)).toBe('2026-05-15')
+    expect(formatYmd(window.toDate)).toBe('2026-06-13')
     expect(window.granularity).toBe('day')
   })
 

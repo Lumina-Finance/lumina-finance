@@ -1,6 +1,5 @@
 import type { DailyCashFlow } from '@/api/transactions'
-import { parseYmdLocal } from '@/pages/transactions/utils/date'
-import { DATE_FORMATS, formatDate } from '@/utils/date'
+import { DATE_FORMATS, formatDate, formatYmd, parseYmd } from '@/utils/date'
 
 export type DailyCashFlowChartMode = 'net' | 'gross'
 export type DailyCashFlowGranularity = 'day' | 'week' | 'month'
@@ -24,24 +23,15 @@ export const DAILY_CASH_FLOW_CHART_MARGIN = { top: 4, right: 12, bottom: 0, left
 export const DAILY_CASH_FLOW_X_AXIS_PADDING = { left: 20, right: 20 } as const
 
 /**
- * Formats a Date as a local YYYY-MM-DD key for comparing bucket boundaries without UTC conversion
- */
-function formatYmdLocal(date: Date) {
-  return [
-    date.getFullYear(),
-    String(date.getMonth() + 1).padStart(2, '0'),
-    String(date.getDate()).padStart(2, '0'),
-  ].join('-')
-}
-
-/**
  * Chooses the chart bucket size from the selected date range so dense ranges stay readable
  */
 export function getDailyCashFlowGranularity(fromDate: string, toDate: string): DailyCashFlowGranularity {
   if (fromDate > toDate) return 'day'
 
-  const from = parseYmdLocal(fromDate)
-  const to = parseYmdLocal(toDate)
+  const from = parseYmd(fromDate)
+  const to = parseYmd(toDate)
+  if (!from || !to) return 'day'
+
   const dayCount = Math.max(
     1,
     Math.round((to.getTime() - from.getTime()) / 86400000) + 1,
@@ -101,7 +91,7 @@ function formatCashFlowTooltipDate(date: Date) {
  * Formats a tooltip label that includes the full bucket range for weekly and monthly points
  */
 function formatCashFlowRangeLabel(start: Date, end: Date, granularity: DailyCashFlowGranularity) {
-  if (granularity === 'day' || formatYmdLocal(start) === formatYmdLocal(end)) {
+  if (granularity === 'day' || formatYmd(start) === formatYmd(end)) {
     return formatCashFlowTooltipDate(start)
   }
 
@@ -116,13 +106,17 @@ export function getDailyCashFlowSeries(
   granularity: DailyCashFlowGranularity,
 ): DailyCashFlowPoint[] {
   return raw.map((entry) => {
-    const bucketStart = parseYmdLocal(entry.date)
-    const bucketEnd = parseYmdLocal(entry.end_date)
+    const bucketStart = parseYmd(entry.date)
+    const bucketEnd = parseYmd(entry.end_date)
 
+    // A bucket dated with a day that does not exist falls back to its raw bounds, so the bar keeps
+    // its amounts and stays in the totals instead of vanishing over a label the chart cannot build
     return {
       key: entry.date,
-      date: formatCashFlowPointLabel(bucketStart, granularity),
-      rangeLabel: formatCashFlowRangeLabel(bucketStart, bucketEnd, granularity),
+      date: bucketStart ? formatCashFlowPointLabel(bucketStart, granularity) : entry.date,
+      rangeLabel: bucketStart && bucketEnd
+        ? formatCashFlowRangeLabel(bucketStart, bucketEnd, granularity)
+        : `${entry.date} - ${entry.end_date}`,
       inflow: entry.inflow,
       outflow: entry.outflow,
       net: entry.inflow + entry.outflow,

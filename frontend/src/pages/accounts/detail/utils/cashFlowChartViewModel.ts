@@ -1,6 +1,5 @@
 import type { AccountMonthlyCashFlow } from '@/api/accounts'
-import { parseYmdLocal } from '@/pages/accounts/detail/utils/date'
-import { DATE_FORMATS, formatDate } from '@/utils/date'
+import { DATE_FORMATS, formatDate, parseYmd } from '@/utils/date'
 
 // One extra month keeps the current partial month visible while averages use completed months only
 export const CASH_FLOW_AVG_MONTHS = 6
@@ -23,11 +22,13 @@ export type CashFlowAverage = {
  */
 export function getMonthlyCashFlowBars(rows: AccountMonthlyCashFlow[] | undefined): CashFlowBar[] {
   return (rows ?? []).map((row) => {
-    const monthDate = parseYmdLocal(row.month)
+    // A month the calendar does not have keeps its raw value on both labels, so the bar still
+    // carries its income and expense totals rather than dropping out of the chart
+    const monthDate = parseYmd(row.month)
 
     return {
-      label: formatDate(monthDate, DATE_FORMATS.month),
-      tooltipLabel: formatDate(monthDate, DATE_FORMATS.monthYear),
+      label: monthDate ? formatDate(monthDate, DATE_FORMATS.month) : row.month,
+      tooltipLabel: monthDate ? formatDate(monthDate, DATE_FORMATS.monthYear) : row.month,
       income: row.income,
       expense: row.expenses,
     }
