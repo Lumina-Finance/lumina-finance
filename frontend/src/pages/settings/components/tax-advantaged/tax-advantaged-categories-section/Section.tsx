@@ -12,6 +12,10 @@ import TaxAdvantagedCategoriesTable from '@/pages/settings/components/tax-advant
 import TaxAdvantagedCategoryModal from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/modals/CategoryModal'
 import { useTaxAdvantagedCategoryList } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/hooks/useCategoryList'
 
+/**
+ * Settings section for managing tax-advantaged categories, combining search, creation and a
+ * table of categories that opens the detail modal when a row is selected
+ */
 export default function TaxAdvantagedCategoriesSection({
   accounts,
   userBaseCurrency,

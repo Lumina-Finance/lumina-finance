@@ -191,10 +191,24 @@ function reserveFixedColor(color: string, usedIndexes: Set<number>) {
   if (colorIndex >= 0) usedIndexes.add(colorIndex)
 }
 
+/**
+ * Picks a palette colour for a single series, always the same colour for the same seed
+ *
+ * Nothing here keeps the colour apart from any other series, so anything drawing several at once uses
+ * the map version instead
+ */
 export function getDeterministicChartColor(seed: string) {
   return getPaletteColor(getPreferredPaletteIndex(seed))
 }
 
+/**
+ * Assigns a palette colour to every entry, keeping the whole set visually distinct rather than
+ * colouring each one on its own
+ *
+ * An entry carrying a fixed colour keeps it and takes that shade out of circulation. The rest are
+ * placed in an order that does not depend on how the caller sorted them, each moving along the palette
+ * until it sits far enough from the colours already taken, so the same input always yields the same map
+ */
 export function getDeterministicChartColorMap(entries: ChartColorMapInput[]) {
   const colors = new Map<string, string>()
   const usedIndexes = new Set<number>()
@@ -227,6 +241,12 @@ export function getDeterministicChartColorMap(entries: ChartColorMapInput[]) {
   return colors
 }
 
+/**
+ * Resolves the chart colour for one category, preferring a hand-picked shade over a derived one
+ *
+ * The seeded default categories are matched on their name and kind, so one that is deleted and
+ * recreated keeps the colour a user already associates with it. Anything else is derived from its id
+ */
 export function getCategoryColor({ id, name, kind }: CategoryColorInput) {
   if (isSyntheticOtherCategory(id)) return OTHER_CATEGORY_COLOR
 
@@ -236,6 +256,13 @@ export function getCategoryColor({ id, name, kind }: CategoryColorInput) {
   return getDeterministicChartColor(`${kind}:${id || name}`)
 }
 
+/**
+ * Builds the colour map for a set of categories shown together, so no two of them read as the same
+ * shade
+ *
+ * Categories are keyed by id, falling back to their name for the grouped rows a chart synthesizes
+ * rather than reads from the backend, and the rolled-up "other" bucket is pinned to its neutral grey
+ */
 export function getCategoryColorMap(entries: CategoryColorInput[]) {
   return getDeterministicChartColorMap(entries.map((entry) => {
     const key = getCategoryColorKey(entry)

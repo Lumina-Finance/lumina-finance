@@ -14,6 +14,10 @@ type ImportAutoCreateStepProps = {
   onToggle: () => void
 }
 
+/**
+ * Collapsible step listing source values, such as merchants or tags, that import will create or
+ * match by name without a mapping step of their own
+ */
 export function ImportAutoCreateStep({
   index,
   title,

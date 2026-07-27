@@ -13,6 +13,10 @@ function getNetWorthGranularity(dayCount: number): NetWorthGranularity {
   return 'month'
 }
 
+/**
+ * Builds the net worth card's groups, baseline, and chart series from the raw response, choosing
+ * a day, week, or month date label granularity based on how many days the range spans
+ */
 export function getNetWorthCardData(
   response: InsightsNetWorthResponse | undefined,
   fromDate: string,

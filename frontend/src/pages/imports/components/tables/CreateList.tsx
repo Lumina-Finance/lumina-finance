@@ -1,3 +1,7 @@
+/**
+ * Lists source values that will each be created or matched by name during import, since these
+ * sources have no mapping step of their own
+ */
 export function ImportCreateList({
   sourceLabel,
   rows,

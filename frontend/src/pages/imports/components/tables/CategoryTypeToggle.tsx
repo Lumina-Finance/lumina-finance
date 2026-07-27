@@ -2,6 +2,10 @@ import { motion, useReducedMotion } from 'motion/react'
 import { IMPORT_CATEGORY_KIND_OPTIONS } from '../../constants'
 import type { ImportCategoryKind } from '../../types'
 
+/**
+ * Segmented control for picking the kind of a category being created during import, with an
+ * animated highlight that slides to the selected option
+ */
 export function ImportCategoryTypeToggle({
   value,
   onChange,

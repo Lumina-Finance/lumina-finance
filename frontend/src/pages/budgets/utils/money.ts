@@ -1,9 +1,16 @@
 import type { Currency } from '@/api/currency'
 
+/**
+ * Looks up the currency's minor unit exponent by code, defaulting to 2 decimal places when the
+ * currency isn't found
+ */
 export function currencyExponent(currencies: Currency[], code: string) {
   return currencies.find((currency) => currency.id === code)?.minor_unit_exponent ?? 2
 }
 
+/**
+ * Looks up the currency's symbol by code, returning an empty string when the currency isn't found
+ */
 export function currencySymbol(currencies: Currency[], code: string) {
   return currencies.find((currency) => currency.id === code)?.symbol ?? ''
 }

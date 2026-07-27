@@ -12,6 +12,9 @@ const PIE_LEGEND_MIN_HEIGHT = 136
 
 export type BreakdownCrossoverKind = 'income-loss' | 'expense-refund'
 
+/**
+ * Sums the amount across a list of breakdown entries
+ */
 export function getBreakdownTotal(entries: BreakdownEntry[]) {
   return entries.reduce((sum, entry) => sum + entry.amount, 0)
 }
@@ -49,6 +52,9 @@ export function getCategoryDriverDescriptor(changeAmount: number) {
   return changeAmount > 0 ? 'increase' : 'decrease'
 }
 
+/**
+ * Formats a transaction count with the correctly pluralized word
+ */
 export function getTransactionCountLabel(count: number) {
   return `${count} ${count === 1 ? 'transaction' : 'transactions'}`
 }

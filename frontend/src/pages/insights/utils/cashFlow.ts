@@ -14,6 +14,15 @@ function getCashFlowGranularity(dayCount: number): CashFlowGranularity {
   return 'month'
 }
 
+/**
+ * Turns the cash flow response into labelled bars, choosing daily, weekly, or monthly buckets from
+ * the length of the selected range and adding the net of each bucket
+ *
+ * Every bucket also carries a longer range label naming the days it covers, which the tooltip
+ * shows because a bar labelled only "W12" or "Mar" does not say where the period starts and ends.
+ * A bucket whose dates cannot be read falls back to the raw dates from the backend rather than
+ * being dropped from the chart
+ */
 export function getCashFlowBarData(
   response: InsightsCashFlowResponse | undefined,
   fromDate: string,

@@ -52,6 +52,10 @@ const HEADER_ALIASES = new Set([
   'tag',
 ])
 
+/**
+ * Parses an uploaded CSV file into a staged import draft, detecting whether the first row is a
+ * header row and recording a readable error on the draft instead of throwing when parsing fails
+ */
 export async function readCsvFile(file: File): Promise<ImportFileDraft> {
   const id = createFileId(file)
 

@@ -16,6 +16,13 @@ import {
 import { merchantMergeOptions } from '@/pages/settings/components/merchant-settings-section/utils'
 import { waitForMilliseconds } from '@/utils/timing'
 
+/**
+ * Modal shown when a merchant cannot be deleted because transactions still reference it,
+ * asking which merchant those transactions should move to before the original is removed
+ *
+ * The replacement options only offer merchants sharing the same group as the one being deleted,
+ * and both the backdrop and the escape key stop closing the modal while the move is underway
+ */
 export default function MergeDeleteMerchantModal({
   merchant,
   isPending,

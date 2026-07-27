@@ -3,6 +3,13 @@ import type { Theme } from '@/types';
 
 const THEME_KEY = 'lumina:settings:theme';
 
+/**
+ * Reads and applies the user's theme preference, persisting it to local storage and toggling the
+ * document's dark class and colour scheme to match
+ *
+ * When the preference is `system`, it also tracks the OS colour scheme and re-applies whenever that
+ * changes, so the app follows a live OS toggle without a page reload
+ */
 export function useTheme() {
   const [theme, setTheme] = useState<Theme>(
     () => (localStorage.getItem(THEME_KEY) as Theme) || 'system'

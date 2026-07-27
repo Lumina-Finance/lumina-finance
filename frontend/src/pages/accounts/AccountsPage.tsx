@@ -14,6 +14,14 @@ import { useAccountSections } from '@/pages/accounts/hooks/useAccountSections'
 import { useAccountsMetrics } from '@/pages/accounts/hooks/useAccountsMetrics'
 import { useTaxAdvantagedLimitSummaries } from '@/pages/accounts/hooks/useTaxAdvantagedLimitSummaries'
 
+/**
+ * Accounts overview page listing every open account grouped into assets, revolving credit and
+ * amortizing debt, alongside net worth, contribution limit summaries and archived accounts
+ *
+ * Archived accounts are held out of the grouped lists, the totals and the filter toolbar, and
+ * appear only in their own section. The create-account modal is remounted each time it opens so
+ * it always starts from an empty form
+ */
 export default function AccountsPage() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [createModalKey, setCreateModalKey] = useState(0)

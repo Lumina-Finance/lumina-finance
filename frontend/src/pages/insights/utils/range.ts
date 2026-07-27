@@ -34,6 +34,10 @@ function getFixedPresetBounds(preset: InsightsRangePreset): { start: Date; end: 
   }
 }
 
+/**
+ * Returns the inclusive day count between two YYYY-MM-DD dates, or null when either date fails to
+ * parse or the range is inverted
+ */
 export function getCustomRangeDays(from: string, to: string) {
   const fromDate = parseYmd(from)
   const toDate = parseYmd(to)
@@ -153,6 +157,9 @@ export function formatResolvedRangeLabel(from: string, to: string) {
   return `${getShortDateLabel(fromDate)}, ${fromDate.getFullYear()} – ${getShortDateLabel(toDate)}, ${toDate.getFullYear()}`
 }
 
+/**
+ * Maps a fixed range preset to the comparison period used to compute its previous-period deltas
+ */
 export function getRangeComparisonPeriod(preset: InsightsRangePreset): InsightsComparisonPeriod {
   switch (preset) {
     case 'THIS_MONTH':

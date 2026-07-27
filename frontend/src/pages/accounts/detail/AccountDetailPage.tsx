@@ -17,6 +17,14 @@ import CreateTransactionModal from '@/pages/transactions/components/transaction-
 
 type DeleteExitPhase = 'idle' | 'pending' | 'modal' | 'page'
 
+/**
+ * Detail page for a single account, showing its identity card, balance chart, spending and cash
+ * flow breakdowns and its transactions, with modals for editing the account and its transactions
+ *
+ * Deleting the account holds on to a copy of it so the page still has something to render while
+ * the modal and then the page itself animate out, and the return to the accounts list waits for
+ * that exit to finish. A failed deletion drops the copy and leaves the page as it was
+ */
 export default function AccountDetailPage() {
   const navigate = useNavigate()
   const { accountId } = useParams<{ accountId: string }>()

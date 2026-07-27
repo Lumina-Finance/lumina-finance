@@ -11,6 +11,10 @@ import {
 } from '@/pages/settings/components/tag-settings-section/constants'
 import { waitForMilliseconds } from '@/utils/timing'
 
+/**
+ * Modal for creating a new tag, keeping the spinner visible for a minimum duration so a fast
+ * create does not flash
+ */
 export default function TagCreateModal({
   open,
   onClose,

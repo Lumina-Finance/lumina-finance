@@ -18,6 +18,13 @@ import { useRunwaySettingsForm } from '@/pages/settings/hooks/useRunwaySettingsF
 import { useSecuritySettingsForm } from '@/pages/settings/hooks/useSecuritySettingsForm'
 import { useSettingsSectionNavigation } from '@/pages/settings/hooks/useSettingsSectionNavigation'
 
+/**
+ * Settings page gathering the profile, security, runway, category, merchant, tag, and
+ * tax-advantaged panes behind one section navigation
+ *
+ * Each pane keeps its own draft, dirty state, and save controls, so saving or discarding one
+ * pane leaves the edits in the others alone
+ */
 export default function SettingsPage() {
   const {
     user,

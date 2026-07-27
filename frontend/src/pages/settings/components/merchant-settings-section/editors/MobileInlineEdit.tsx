@@ -5,6 +5,13 @@ import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
 import { NO_CATEGORY_VALUE } from '@/pages/settings/components/merchant-settings-section/constants'
 import { scopeLabel } from '@/pages/settings/components/merchant-settings-section/utils'
 
+/**
+ * Mobile counterpart to the desktop inline merchant editor, stacking the name and default
+ * category fields instead of laying them out in a row
+ *
+ * Submitting with nothing changed just cancels the edit rather than sending a pointless update,
+ * and an empty name is rejected before the request goes out
+ */
 export default function MobileInlineMerchantEdit({
   categoryOptions,
   isLast,

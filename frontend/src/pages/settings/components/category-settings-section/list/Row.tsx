@@ -3,6 +3,13 @@ import type { Category } from '@/api/categories'
 import InlineCategoryEdit from '@/pages/settings/components/category-settings-section/editors/InlineEdit'
 import { displayEmoji } from '@/pages/settings/components/category-settings-section/utils'
 
+/**
+ * One category in the settings list, showing its icon, name, and whether it is built in,
+ * shared with a group, or personal, alongside the edit and delete controls
+ *
+ * A built-in category carries a locked badge instead of any controls, and deleting asks for a
+ * second click on the row itself rather than opening a modal
+ */
 export default function CategorySettingsRow({
   category,
   confirmingDelete,

@@ -46,6 +46,15 @@ const FILE_ACCOUNT_MATCH_KEY = '__file_account__'
 const CSV_PROCESSING_MIN_MS = 1500
 const IMPORT_OVERLAY_MIN_MS = 2000
 
+/**
+ * Drives the generic CSV import flow: staging one file, mapping its columns to app fields, resolving
+ * the accounts and categories those columns reference against the user's existing ones, building the
+ * preview and commit payload, and running the commit
+ *
+ * Account and category matches are only inferred automatically while the required columns stay
+ * mapped to the same headers; changing a required column's mapping clears the matching auto-fill key
+ * so a stale inference is never carried into a different set of source values
+ */
 export function useTransactionImportWorkflow() {
   const inputRef = useRef<HTMLInputElement>(null)
   const [files, setFiles] = useState<ImportFileDraft[]>([])

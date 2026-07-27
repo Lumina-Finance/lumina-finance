@@ -24,6 +24,13 @@ interface ProfileSectionProps {
   userInformationActions: React.ReactNode
 }
 
+/**
+ * Profile pane showing the signed-in person's initials and display name above the editable
+ * first name, last name, and timezone fields
+ *
+ * Base currency is shown for reference only, since changing it is not supported yet, and its
+ * field falls back to the bare currency code until the currency list arrives
+ */
 export default function ProfileSection({
   user,
   form,

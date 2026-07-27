@@ -12,6 +12,10 @@ type ImportFilesStepProps = Pick<
   | 'removeFile'
 >
 
+/**
+ * Files step of the generic CSV import flow, taking a single upload and showing the staged file's
+ * row and mapped-field counts
+ */
 export function ImportFilesStep({
   inputRef,
   files,

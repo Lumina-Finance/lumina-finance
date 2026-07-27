@@ -49,6 +49,14 @@ function applyCompactRule(value: number, rule: CompactMoneyRule) {
   return signed * (Math.ceil(scaled * multiplier) / multiplier)
 }
 
+/**
+ * Formats an amount in a currency's minor units as compact text once it crosses one of the given
+ * thresholds, such as showing "≈$1.2M" instead of the full number, falling back to `formatCurrency`
+ * when no rule applies
+ *
+ * Rules are checked in order and the first whose threshold the absolute value meets is used, so callers
+ * should list rules from largest threshold to smallest
+ */
 export function formatCompactMoney(
   minorUnits: number,
   currency: string,

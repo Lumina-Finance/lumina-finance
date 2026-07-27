@@ -1,5 +1,9 @@
 import type React from 'react'
 
+/**
+ * Labelled wrapper for one settings control, with room for an accessory beside the label and
+ * a hint line beneath the control
+ */
 export default function SettingsField({
   label,
   labelAccessory,

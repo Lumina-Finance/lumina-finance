@@ -7,6 +7,14 @@ interface MarqueeTextProps {
   trackClassName?: string
 }
 
+/**
+ * Renders text that scrolls horizontally in place when it overflows its container and `active` is set,
+ * staying still otherwise
+ *
+ * Overflow is measured against a hidden copy of the text and re-measured on resize and once the
+ * document's fonts finish loading, so a scroll distance computed before a webfont swaps in does not
+ * clip the animation short
+ */
 export default function MarqueeText({
   children,
   active = false,

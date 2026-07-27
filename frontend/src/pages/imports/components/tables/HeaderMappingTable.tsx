@@ -3,6 +3,13 @@ import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
 import type { ColumnMap, ColumnValidationErrors, ImportFileDraft } from '../../types'
 import { getColumnSamples, getTargetForHeader } from '../../utils'
 
+/**
+ * Table mapping each column header found in the uploaded files to an app field, showing sample
+ * values from the file and any validation error beside the dropdown
+ *
+ * A header left unmapped is shown struck through and shaded as ignored rather than removed from the
+ * list, so the user can still see and reconsider every column that came from the file
+ */
 export function ImportHeaderMappingTable({
   headers,
   files,

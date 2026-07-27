@@ -7,6 +7,15 @@ const PERSONAL_CACHE_CHANGED_AT_KEY_PREFIX = 'lumina:personal-cache-changed-at'
 const FX_REFRESHED_AT_KEY_PREFIX = 'lumina:fx-refreshed-at'
 const FX_REFRESH_INTERVAL_MS = 12 * 60 * 60 * 1000
 
+/**
+ * Revalidates cached app and FX data on mount and whenever the window regains focus, comparing the
+ * server's last-changed timestamps against the ones stored locally for `userId`
+ *
+ * Personal data invalidates the app cache only when its server timestamp differs from what this device
+ * last saw and the change did not originate from the current session. FX data refreshes at most once
+ * every twelve hours, or immediately when app data was just invalidated. Overlapping validate calls are
+ * coalesced so a focus event during an in-flight check re-runs once it finishes rather than in parallel
+ */
 export function useCacheValidation(userId: string | undefined, enabled: boolean) {
   const queryClient = useQueryClient()
   const validatingRef = useRef(false)

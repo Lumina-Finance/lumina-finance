@@ -2,6 +2,13 @@ import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
 import { CREATE_ACCOUNT_VALUE, IMPORT_INSET_STYLE } from '../../constants'
 import { ImportCheckbox } from '../Primitives'
 
+/**
+ * Table mapping every source account found in an import to an existing account or a new one, with a
+ * batch bar above it that applies a type, currency, and institution to every selected row at once
+ *
+ * Applying the batch edit switches each selected row to create-new before filling in the chosen
+ * fields, so it never overwrites a row that is already mapped to an existing account
+ */
 export function ImportAccountMappingTable({
   rows,
   options,

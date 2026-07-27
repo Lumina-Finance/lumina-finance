@@ -22,6 +22,13 @@ const charVariants = {
   exit: { y: '-0.7em', opacity: 0, filter: 'blur(2px)' },
 } as const
 
+/**
+ * Displays text that transitions between values with a slot machine style character roll, staggering
+ * each character's entrance and exit
+ *
+ * Measures its width from `reserveText` instead of the live text when provided, so a value expected to
+ * grow does not shift the surrounding layout once the roll settles
+ */
 export function AppSlotMachineText({
   text,
   className,

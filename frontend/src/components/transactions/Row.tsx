@@ -108,6 +108,14 @@ function TagTooltip({ tags }: { tags: Transaction['tags'] }) {
   )
 }
 
+/**
+ * Renders one transaction as a clickable row, showing its category, account, notes, tags, and signed
+ * amount, and calling `onOpen` when clicked
+ *
+ * Renders three layouts gated by breakpoint, from a full grid of columns on wide screens down to a
+ * stacked two-line layout on narrow ones, and animates its height on mount and removal unless
+ * `prefersReducedMotion` is set. A `readOnlyReason` dims the row and shows why it cannot be edited
+ */
 export default function TransactionRow({
   accountName,
   accountInstitution,

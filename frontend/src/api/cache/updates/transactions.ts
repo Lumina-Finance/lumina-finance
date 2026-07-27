@@ -84,6 +84,9 @@ function patchTouches(
   return Object.keys(patch).some((key) => fields.has(key as keyof UpdateTransactionPayload));
 }
 
+/**
+ * Deduplicates a list of ids, dropping any null, undefined, or empty entries
+ */
 export function uniqueIds(ids: Array<string | null | undefined>): string[] {
   return [...new Set(ids.filter((id): id is string => !!id))];
 }

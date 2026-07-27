@@ -25,6 +25,10 @@ const BADGE_CONFIG = {
   },
 } as const
 
+/**
+ * Badge flagging a category whose amount crossed into the other side of a breakdown: an income category
+ * counted as an expense, or an expense category counted as income, such as a refund
+ */
 export function BreakdownCrossoverBadge({ kind }: BreakdownCrossoverBadgeProps) {
   const { Icon, label, title, background, borderColor, color } = BADGE_CONFIG[kind]
 

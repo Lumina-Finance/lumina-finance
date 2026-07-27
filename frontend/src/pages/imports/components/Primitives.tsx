@@ -2,6 +2,10 @@ import { type ReactNode } from 'react'
 import { Check, ChevronDown, Info, TriangleAlert } from 'lucide-react'
 import { IMPORT_INSET_STYLE } from '../constants'
 
+/**
+ * Small labelled stat tile, rendering the value with tabular figures unless it is explicitly marked
+ * as non-numeric
+ */
 export function ImportStat({ label, value, numeric = true }: { label: string; value: string; numeric?: boolean }) {
   return (
     <div className="min-w-0 px-3 py-1">
@@ -13,6 +17,10 @@ export function ImportStat({ label, value, numeric = true }: { label: string; va
   )
 }
 
+/**
+ * Renders one numbered step of the import wizard, with an index badge and connecting line on the
+ * left and a title, optional description, optional header action, and body content on the right
+ */
 export function ImportStep({
   index,
   title,
@@ -67,6 +75,9 @@ export function ImportStep({
   )
 }
 
+/**
+ * Icon button that expands or collapses a section, rotating its chevron to match the current state
+ */
 export function ImportCollapseToggle({
   expanded,
   label,
@@ -94,6 +105,9 @@ export function ImportCollapseToggle({
   )
 }
 
+/**
+ * Placeholder shown in place of an import table or list when it has nothing to display yet
+ */
 export function EmptyState({ title, description }: { title: string; description: string }) {
   return (
     <div
@@ -111,6 +125,10 @@ export function EmptyState({ title, description }: { title: string; description:
   )
 }
 
+/**
+ * Warning panel for currency handling guidance beside an import step, always titled "Currency
+ * Handling" with a warning icon rather than taking its own title prop
+ */
 export function ImportNotice({ children }: { children: ReactNode }) {
   return (
     <div
@@ -139,6 +157,10 @@ export function ImportNotice({ children }: { children: ReactNode }) {
   )
 }
 
+/**
+ * Info panel pairing a title with body text beside an accent info icon, used to surface neutral
+ * guidance next to an import step
+ */
 export function ImportInfoCard({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div
@@ -167,6 +189,10 @@ export function ImportInfoCard({ title, children }: { title: string; children: R
   )
 }
 
+/**
+ * Checkbox button used across import tables, supporting a mixed state for a row selection that is
+ * only partially checked
+ */
 export function ImportCheckbox({
   checked,
   disabled,

@@ -12,6 +12,14 @@ import {
 import { categoryMergeOptions } from '@/pages/settings/components/category-settings-section/utils'
 import { waitForMilliseconds } from '@/utils/timing'
 
+/**
+ * Modal shown when a category cannot be deleted because transactions still use it, asking
+ * which category those transactions should move to before the original is removed
+ *
+ * The choice falls back to the first available option whenever the current one disappears
+ * from the list, and both the backdrop and the escape key stop closing the modal while the
+ * move is underway
+ */
 export default function MergeDeleteCategoryModal({
   category,
   categories,

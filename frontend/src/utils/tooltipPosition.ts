@@ -37,6 +37,14 @@ function getDefaultBoundsRect(origin: HTMLElement) {
     : origin.getBoundingClientRect()
 }
 
+/**
+ * Works out where a tooltip that follows the cursor should sit, held inside the card it belongs to
+ * rather than inside the viewport
+ *
+ * Without an explicit bounds element the nearest enclosing card is used. Coordinates come back in the
+ * space the chosen strategy needs, relative to the viewport when fixed and to the origin element when
+ * absolute, together with the width the tooltip has to wrap within
+ */
 export function getCursorTooltipPosition({
   origin,
   tooltip,
@@ -71,6 +79,13 @@ export function getCursorTooltipPosition({
   }
 }
 
+/**
+ * Positions a tooltip element against the cursor by writing the computed coordinates onto its style
+ *
+ * The two axes are written to custom properties the caller names, so a stylesheet decides how each one
+ * animates, while the positioning strategy, stacking order, available width and flip offset are set
+ * directly
+ */
 export function applyCursorTooltipPosition({
   tooltip,
   xProperty,

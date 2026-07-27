@@ -13,6 +13,13 @@ import {
 import { tagMergeOptions } from '@/pages/settings/components/tag-settings-section/utils'
 import { waitForMilliseconds } from '@/utils/timing'
 
+/**
+ * Modal shown when a tag cannot be deleted because transactions still carry it, asking which
+ * tag those transactions should move to before the original is removed
+ *
+ * The replacement options only offer tags sharing the same group as the one being deleted, and
+ * both the backdrop and the escape key stop closing the modal while the move is underway
+ */
 export default function MergeDeleteTagModal({
   tag,
   isPending,

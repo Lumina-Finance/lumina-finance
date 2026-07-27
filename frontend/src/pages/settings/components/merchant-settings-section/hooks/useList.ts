@@ -12,6 +12,13 @@ import {
   MERCHANT_SEARCH_DEBOUNCE_MS,
 } from '@/pages/settings/components/merchant-settings-section/constants'
 
+/**
+ * Drives the paginated, searchable merchant list, revealing fetched pages only after a minimum
+ * loading time so the loading and fetching-more messages do not flash on a fast connection
+ *
+ * A locally deleted merchant is filtered out of the fetched results immediately, before the next
+ * server refetch catches up, so a deletion does not reappear in the list for a moment
+ */
 export function useMerchantSettingsList(locallyDeletedMerchantIds: string[]) {
   const [search, setSearch] = useState('')
   const [activeSearch, setActiveSearch] = useState('')

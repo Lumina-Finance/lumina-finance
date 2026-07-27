@@ -31,6 +31,10 @@ type FireflyAccountMappingStepProps = Pick<
   | 'setSelectedAccountRows'
 >
 
+/**
+ * Account mapping step of the Firefly III import flow, wrapping the shared mapping table with the
+ * modal used to create an institution from a row or from the batch bar
+ */
 export function FireflyAccountMappingStep({
   trackedAccountNames,
   accountMappings,

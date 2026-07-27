@@ -3,6 +3,12 @@ import { Check, Pencil, X } from 'lucide-react'
 import { useUpdateTag, type Tag } from '@/api/tags'
 import { scopeLabel } from '@/pages/settings/components/tag-settings-section/utils'
 
+/**
+ * Turns a tag row into a small form for renaming it, saving in place without leaving the list
+ *
+ * Submitting with nothing changed just cancels the edit rather than sending a pointless update,
+ * and an empty name is rejected before the request goes out
+ */
 export default function InlineTagEdit({
   isLast,
   tag,

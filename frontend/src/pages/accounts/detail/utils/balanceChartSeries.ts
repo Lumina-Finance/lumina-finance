@@ -111,6 +111,10 @@ export function buildChartSeries(
   return points
 }
 
+/**
+ * Restates a balance series as the movement since its first point, so the chart can show how much
+ * the account changed over the selected period rather than what it holds
+ */
 export function rezeroSeriesToPeriod(
   series: BalanceChartPoint[],
 ): BalanceChartPeriodPoint[] {

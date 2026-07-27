@@ -1,5 +1,9 @@
 import type { FxStatus } from '@/api/shared/fx'
 
+/**
+ * Returns the FX status badge tooltip text for the period glance card's primary metric, with
+ * separate wording for the none, complete, incomplete, and unavailable states
+ */
 export function getPeriodIncomeExpenseFxStatusMessage(fxStatus: FxStatus) {
   switch (fxStatus.state) {
     case 'none':
@@ -13,6 +17,10 @@ export function getPeriodIncomeExpenseFxStatusMessage(fxStatus: FxStatus) {
   }
 }
 
+/**
+ * Returns the FX status badge tooltip text for the period glance card's savings rate item, with
+ * separate wording for the none, complete, incomplete, and unavailable states
+ */
 export function getPeriodSavingsRateFxStatusMessage(fxStatus: FxStatus) {
   switch (fxStatus.state) {
     case 'none':
@@ -26,6 +34,10 @@ export function getPeriodSavingsRateFxStatusMessage(fxStatus: FxStatus) {
   }
 }
 
+/**
+ * Returns the FX status badge tooltip text for the period glance card's net worth change metric,
+ * with separate wording for the none, complete, incomplete, and unavailable states
+ */
 export function getNetWorthChangeFxStatusMessage(fxStatus: FxStatus) {
   switch (fxStatus.state) {
     case 'none':
@@ -39,6 +51,10 @@ export function getNetWorthChangeFxStatusMessage(fxStatus: FxStatus) {
   }
 }
 
+/**
+ * Returns the FX status badge tooltip text for the period glance card's biggest change item,
+ * with separate wording for the none, complete, incomplete, and unavailable states
+ */
 export function getBiggestChangeFxStatusMessage(fxStatus: FxStatus) {
   switch (fxStatus.state) {
     case 'none':
@@ -52,6 +68,10 @@ export function getBiggestChangeFxStatusMessage(fxStatus: FxStatus) {
   }
 }
 
+/**
+ * Returns the FX status badge tooltip text for the period glance card's top category item, with
+ * separate wording for the none, complete, incomplete, and unavailable states
+ */
 export function getPeriodTopCategoryFxStatusMessage(fxStatus: FxStatus) {
   switch (fxStatus.state) {
     case 'none':
@@ -65,6 +85,10 @@ export function getPeriodTopCategoryFxStatusMessage(fxStatus: FxStatus) {
   }
 }
 
+/**
+ * Returns the FX status badge tooltip text for the fund flow card, with separate wording for the
+ * none, complete, incomplete, and unavailable states
+ */
 export function getFundFlowFxStatusMessage(fxStatus: FxStatus) {
   switch (fxStatus.state) {
     case 'none':
@@ -78,6 +102,10 @@ export function getFundFlowFxStatusMessage(fxStatus: FxStatus) {
   }
 }
 
+/**
+ * Returns the FX status badge tooltip text for the income and expense breakdown card, with
+ * separate wording for the none, complete, incomplete, and unavailable states
+ */
 export function getIncomeExpenseBreakdownFxStatusMessage(fxStatus: FxStatus) {
   switch (fxStatus.state) {
     case 'none':
@@ -91,6 +119,10 @@ export function getIncomeExpenseBreakdownFxStatusMessage(fxStatus: FxStatus) {
   }
 }
 
+/**
+ * Returns the FX status badge tooltip text for the insights net worth card, with separate
+ * wording for the none, complete, incomplete, and unavailable states
+ */
 export function getInsightsNetWorthFxStatusMessage(fxStatus: FxStatus) {
   switch (fxStatus.state) {
     case 'none':
@@ -104,6 +136,10 @@ export function getInsightsNetWorthFxStatusMessage(fxStatus: FxStatus) {
   }
 }
 
+/**
+ * Returns the FX status badge tooltip text for the insights cash flow card, with separate
+ * wording for the none, complete, incomplete, and unavailable states
+ */
 export function getInsightsCashFlowFxStatusMessage(fxStatus: FxStatus) {
   switch (fxStatus.state) {
     case 'none':
@@ -117,6 +153,10 @@ export function getInsightsCashFlowFxStatusMessage(fxStatus: FxStatus) {
   }
 }
 
+/**
+ * Returns the FX status badge tooltip text for the savings rate trend card, with separate
+ * wording for the none, complete, incomplete, and unavailable states
+ */
 export function getSavingsRateTrendFxStatusMessage(fxStatus: FxStatus) {
   switch (fxStatus.state) {
     case 'none':
@@ -130,6 +170,11 @@ export function getSavingsRateTrendFxStatusMessage(fxStatus: FxStatus) {
   }
 }
 
+/**
+ * Returns the FX status badge tooltip text shared by the merchant ranking and merchant
+ * distribution cards, with separate wording for the none, complete, incomplete, and unavailable
+ * states
+ */
 export function getMerchantSpendingFxStatusMessage(fxStatus: FxStatus) {
   switch (fxStatus.state) {
     case 'none':

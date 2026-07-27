@@ -2,6 +2,10 @@ import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
 import type { ImportCategoryKind } from '../../types'
 import { ImportCategoryTypeToggle } from './CategoryTypeToggle'
 
+/**
+ * Table matching source values found in an import to an existing target or a new one, with an
+ * optional detail column that shows either read-only text or a type toggle for a row being created
+ */
 export function ImportValueMatchTable({
   sourceLabel,
   detailLabel,

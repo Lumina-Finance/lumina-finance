@@ -91,6 +91,13 @@ function getFlowData(data: InsightsFundFlowResponse | undefined): FundFlowData {
   )
 }
 
+/**
+ * Assembles everything the fund flow card draws: the diagram itself plus the income and expense
+ * lists beside it, substituting empty lists and zero counts while the response has not arrived
+ *
+ * The counts come from the backend rather than from the lists, because the lists hold only the
+ * largest entries while the counts cover every source and category in the range
+ */
 export function getFundFlowCardData(
   data: InsightsFundFlowResponse | undefined,
 ): FundFlowCardData {

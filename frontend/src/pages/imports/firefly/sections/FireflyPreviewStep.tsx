@@ -20,6 +20,13 @@ type FireflyPreviewStepProps = Pick<
   | 'handleCommitImport'
 >
 
+/**
+ * Preview and commit step of the Firefly III import flow, showing a sample of the transactions the
+ * commit will create, any rows it will skip, and the button that starts the commit
+ *
+ * The step number shifts by one depending on whether a budgets export is staged, since the budget
+ * step before it only exists when there is one
+ */
 export function FireflyPreviewStep({
   importEstimate,
   previewRows,

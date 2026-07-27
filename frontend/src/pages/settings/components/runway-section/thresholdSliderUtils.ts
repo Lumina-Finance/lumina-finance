@@ -14,6 +14,10 @@ export function formatThresholdMonths(value: number) {
   return `${label} ${value === 1 ? 'mth' : 'mths'}`
 }
 
+/**
+ * Converts a month value into its percentage position along the threshold slider's configured
+ * range
+ */
 export function thresholdPct(value: number) {
   const range = RUNWAY_THRESHOLD_MAX_MONTHS - RUNWAY_THRESHOLD_MIN_MONTHS
 
@@ -38,6 +42,9 @@ export function thresholdFromRailPoint(clientX: number, rail: HTMLDivElement | n
   return RUNWAY_THRESHOLD_MIN_MONTHS + pct * range
 }
 
+/**
+ * Rounds a threshold value to the nearest step the slider allows
+ */
 export function roundThresholdValue(value: number) {
   return Math.round(value / RUNWAY_THRESHOLD_STEP_MONTHS) * RUNWAY_THRESHOLD_STEP_MONTHS
 }

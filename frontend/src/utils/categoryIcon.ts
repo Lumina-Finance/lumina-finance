@@ -68,6 +68,12 @@ const ICONS: Record<string, LucideIcon> = {
   wrench: Wrench,
 }
 
+/**
+ * Resolves the icon component for a category from the icon name stored on the record
+ *
+ * A missing or unrecognized name falls back to a generic tag rather than rendering nothing, which
+ * covers any icon outside the small set bundled for the seeded defaults
+ */
 export function getCategoryIcon(iconName: string | null | undefined): LucideIcon {
   if (!iconName) return Tag
   return ICONS[iconName] ?? Tag

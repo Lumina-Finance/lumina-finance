@@ -68,6 +68,15 @@ import { useDebouncedReferenceSearch } from '@/pages/transactions/components/tra
 import { usePagedReferenceDropdown } from '@/pages/transactions/components/transaction-modal/hooks/usePagedReferenceDropdown'
 import { useTransactionModalEnvironment } from '@/pages/transactions/components/transaction-modal/hooks/useEnvironment'
 
+/**
+ * Modal for creating or editing a transaction, including symmetric transfers that record a
+ * linked debit and credit across two accounts, and inline creation of merchants, categories,
+ * and tags without leaving the form
+ *
+ * Cache invalidation for the affected accounts and transaction lists is deferred until the
+ * modal closes, so a session of edits refreshes the page once instead of behind the open
+ * modal after every save
+ */
 export default function CreateTransactionModal({
   open,
   onClose,

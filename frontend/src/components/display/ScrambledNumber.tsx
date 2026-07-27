@@ -18,6 +18,14 @@ function scrambleDigits(template: string) {
   return template.replace(/\d/g, () => String(Math.floor(Math.random() * 10)))
 }
 
+/**
+ * Displays a numeric value that briefly scrambles its digits before settling on the new text whenever
+ * the text or loading state changes after the first render, and keeps scrambling continuously while
+ * `loading` stays true
+ *
+ * Animates its width between the loading text and the final text as `loading` toggles, and skips the
+ * scramble and width animation entirely when the user prefers reduced motion
+ */
 export function AppScrambledNumber({
   text,
   loading = false,

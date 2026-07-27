@@ -17,6 +17,10 @@ type ImportCategoryMatchingStepProps = Pick<
   | 'categoriesLoading'
 >
 
+/**
+ * Category matching step of the generic CSV import flow, showing every category value found in the
+ * mapped column matched to an existing category or queued to be created with a chosen kind
+ */
 export function ImportCategoryMatchingStep({
   importedCategories,
   resolvedCategoryMappings,

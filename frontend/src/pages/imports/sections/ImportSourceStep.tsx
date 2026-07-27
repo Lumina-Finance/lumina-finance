@@ -10,6 +10,10 @@ const DATA_SOURCE_OPTIONS: DropdownOption[] = [
   { value: 'firefly', label: 'Firefly III', badge: 'Beta' },
 ]
 
+/**
+ * First step of the import flow, letting the user choose which app the export came from before any
+ * file is staged
+ */
 export function ImportSourceStep({
   value,
   onChange,

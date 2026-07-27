@@ -21,6 +21,14 @@ import SettingsSectionHeader from '@/pages/settings/components/SectionHeader'
 import SettingsCard from '@/pages/settings/components/Card'
 import { waitForMilliseconds } from '@/utils/timing'
 
+/**
+ * Settings section for managing merchants, combining search, creation, inline editing and
+ * deletion with the list of merchant rows
+ *
+ * A delete the backend rejects with a 409 conflict, meaning the merchant is still referenced by
+ * transactions, reopens as a merge instead of failing outright, prompting the user to pick a
+ * replacement merchant
+ */
 export default function MerchantSettingsSection() {
   const queryClient = useQueryClient()
   const { data: categories = [] } = useCategories()

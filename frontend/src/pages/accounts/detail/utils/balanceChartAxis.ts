@@ -9,10 +9,21 @@ const BALANCE_AXIS_TICK_COUNT_BY_RANGE: Record<BalanceRange, number> = {
   '1Y': 6,
 }
 
+/**
+ * Reads the calendar day a browser-local date falls on and returns it as UTC midnight, so chart
+ * positions and ticks depend only on the day and not on the reader's offset from UTC
+ */
 export function calendarDateMs(d: Date): number {
   return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())
 }
 
+/**
+ * Spreads the tick count chosen for the selected range evenly between the first and last day of
+ * the balance chart, always landing exactly on both ends
+ *
+ * A range spanning fewer days than the tick count would otherwise repeat a day, so duplicates are
+ * dropped and the axis simply carries fewer ticks
+ */
 export function getBalanceXAxisTicks(fromDate: Date, toDate: Date, range: BalanceRange): number[] {
   const startMs = calendarDateMs(fromDate)
   const endMs = calendarDateMs(toDate)
@@ -28,6 +39,10 @@ export function getBalanceXAxisTicks(fromDate: Date, toDate: Date, range: Balanc
   }))]
 }
 
+/**
+ * Labels a balance chart tick with its short month and day, read in UTC to match the way the tick
+ * timestamps were built
+ */
 export function formatUtcAxisDate(value: number): string {
   return new Intl.DateTimeFormat('en-US', {
     month: 'short',
@@ -36,6 +51,10 @@ export function formatUtcAxisDate(value: number): string {
   }).format(new Date(value))
 }
 
+/**
+ * Formats a change in balance with an explicit plus or minus in front of it, leaving an unchanged
+ * balance with no sign at all
+ */
 export function formatSignedBalanceCurrency(amount: number, currency: string): string {
   if (amount === 0) return formatCurrency(amount, currency)
   return `${amount > 0 ? '+' : '−'}${formatCurrency(Math.abs(amount), currency)}`

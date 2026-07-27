@@ -5,6 +5,13 @@ import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
 import { NO_CATEGORY_VALUE } from '@/pages/settings/components/merchant-settings-section/constants'
 import { scopeLabel } from '@/pages/settings/components/merchant-settings-section/utils'
 
+/**
+ * Desktop table row that turns a merchant into an inline form for renaming it and changing its
+ * default category, saving in place without leaving the list
+ *
+ * Submitting with nothing changed just cancels the edit rather than sending a pointless update,
+ * and an empty name is rejected before the request goes out
+ */
 export default function InlineMerchantEdit({
   categoryOptions,
   isLast,

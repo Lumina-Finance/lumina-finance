@@ -3,6 +3,10 @@ import { CREATE_CATEGORY_VALUE } from '../constants'
 import type { ImportCategoryKind, ImportFileDraft } from '../types'
 import { parseImportNumber } from './valueParsers'
 
+/**
+ * Breaks a cell holding several values into the individual ones, accepting semicolons, commas or
+ * pipes as the separator and dropping anything blank
+ */
 export function splitImportedValues(value: string) {
   return value
     .split(/[;,|]/)
@@ -10,6 +14,14 @@ export function splitImportedValues(value: string) {
     .filter(Boolean)
 }
 
+/**
+ * Reads each imported category name as income or expense by looking at the signs of the amounts
+ * filed against it, labelling a name Mixed when both signs appear
+ *
+ * Rows with an amount of zero or an amount that cannot be read are ignored, since neither says
+ * anything about direction, and every name is left blank until both the category and amount columns
+ * have been mapped
+ */
 export function getImportedCategoryTypes(
   files: ImportFileDraft[],
   categoryHeader: string,
@@ -46,6 +58,13 @@ export function getImportedCategoryTypes(
   }))
 }
 
+/**
+ * Lines a map of matches up with the values currently present in the imported files, keeping the
+ * matches that still apply, adding blanks for new values and dropping ones that have gone away
+ *
+ * The original map is returned untouched when nothing needed to change, so re-reading the same files
+ * does not restart the work that depends on this map
+ */
 export function keepCurrentMatchMap(
   current: Record<string, string>,
   sources: string[],
@@ -61,6 +80,14 @@ export function keepCurrentMatchMap(
   return changed ? next : current
 }
 
+/**
+ * Guesses which existing category each imported category name belongs to, filling only the names the
+ * user has not already matched by hand
+ *
+ * Candidates are limited to categories of the kind read from the imported amounts, so an expense
+ * called Groceries is never matched to an income category of the same name, and a name is left
+ * unmatched when two categories score equally well rather than picking one of them
+ */
 export function inferCategoryMappings(
   importedCategories: string[],
   current: Record<string, string>,
@@ -83,6 +110,13 @@ export function inferCategoryMappings(
   return next
 }
 
+/**
+ * Works out whether a matched category counts as income, an expense or a transfer, taking the kind
+ * from the selected category when one exists and otherwise from what the user chose to create
+ *
+ * Where no existing category is selected and no kind has been chosen for the one to create, the kind
+ * read from the signs of the imported amounts is used so the row shows a default instead of nothing
+ */
 export function getCategoryMatchKind(
   selectedCategoryId: string,
   createKind: ImportCategoryKind | undefined,
@@ -96,6 +130,10 @@ export function getCategoryMatchKind(
   return createKind ?? getCategoryKindFromTypeLabel(inferredType)
 }
 
+/**
+ * Reports whether a category selection points at a category that already exists, which is false both
+ * when nothing is selected and when the selection is the placeholder standing for a new category
+ */
 export function isExistingCategoryMatch(value: string) {
   return Boolean(value && value !== CREATE_CATEGORY_VALUE)
 }

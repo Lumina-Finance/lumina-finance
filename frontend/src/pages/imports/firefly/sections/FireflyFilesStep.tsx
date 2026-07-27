@@ -33,6 +33,10 @@ const FILE_SLOTS: Array<{ kind: FireflyFileKind; label: string; hint: string; re
   { kind: 'budgets', label: 'Budgets CSV', hint: 'Enables budget import after the transactions commit.', required: false },
 ]
 
+/**
+ * Files step of the Firefly III import flow, with a required slot for the transactions export and an
+ * optional one for the budgets export, plus row, account, and category counts once files are staged
+ */
 export function FireflyFilesStep({
   transactionsFile,
   budgetsFile,
