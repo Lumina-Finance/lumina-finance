@@ -2,9 +2,10 @@ import type { Account, UpdateAccountPayload } from '@/api/accounts'
 import type { Currency } from '@/api/currency'
 import {
   fromMinorUnits,
+  getCurrencyExponent,
   isValidMoneyInput,
   toMinorUnits,
-} from '@/pages/accounts/detail/utils/moneyInput'
+} from '@/utils/moneyInput'
 
 export interface IdentityFormValues {
   name: string
@@ -27,7 +28,7 @@ export function createIdentityFormValues(
     name: account.name,
     institution_id: account.institution?.id ?? '',
     tax_advantaged_category_id: account.tax_advantaged_category_id ?? '',
-    credit_limit: fromMinorUnits(account.credit_limit, currencies, account.currency),
+    credit_limit: fromMinorUnits(account.credit_limit, getCurrencyExponent(currencies, account.currency)),
     is_archived: account.is_archived,
   }
 }
@@ -69,7 +70,7 @@ export function getIdentityUpdatePayload({
     institution_id: form.institution_id || null,
     is_archived: form.is_archived,
     ...(isRevolving
-      ? { credit_limit: toMinorUnits(form.credit_limit, currencies, accountCurrency) }
+      ? { credit_limit: toMinorUnits(form.credit_limit, getCurrencyExponent(currencies, accountCurrency)) }
       : {}),
     ...(canLinkTaxAdvantagedCategory
       ? { tax_advantaged_category_id: form.tax_advantaged_category_id || null }

@@ -12,6 +12,7 @@ import { useTaxAdvantagedCategories } from '@/api/tax-advantaged-categories'
 import CreateInstitutionModal from '@/components/reference-modals/CreateInstitutionModal'
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
 import { useModalFieldFocus } from '@/components/modal/useModalFieldFocus'
+import { getCurrencyExponent } from '@/utils/moneyInput'
 import { waitForMilliseconds } from '@/utils/timing'
 import { EASE } from '@/pages/accounts/detail/constants/accountDetail'
 import {
@@ -73,6 +74,7 @@ export default function EditAccountIdentityModal({
   const isRevolving = account.account_kind === 'revolving'
   const canLinkTaxAdvantagedCategory = account.account_kind === 'asset' && account.group_id === null && !account.is_archived
   const selectedCurrencySymbol = currencies.find((currency) => currency.id === account.currency)?.symbol ?? ''
+  const creditLimitExponent = getCurrencyExponent(currencies, account.currency)
 
   const institutionOptions = useMemo<DropdownOption[]>(
     () => [
@@ -300,6 +302,7 @@ export default function EditAccountIdentityModal({
                         canLinkTaxAdvantagedCategory={canLinkTaxAdvantagedCategory}
                         isRevolving={isRevolving}
                         selectedCurrencySymbol={selectedCurrencySymbol}
+                        creditLimitExponent={creditLimitExponent}
                         taxAdvantagedCategoryOptions={taxAdvantagedCategoryOptions}
                         setField={setField}
                       />
