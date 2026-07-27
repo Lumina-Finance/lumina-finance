@@ -1,7 +1,14 @@
-import { COLUMN_TARGETS, EMPTY_COLUMN_MAP } from '@/pages/imports/constants'
+import { COLUMN_TARGETS, EMPTY_COLUMN_MAP, IMPORT_DATE_FORMAT_OPTIONS } from '@/pages/imports/constants'
 import type { ColumnMap, ColumnTarget, ColumnValidationErrors, CsvRow, ImportFileDraft } from '@/pages/imports/types'
 import { unique } from './common'
-import { isValidAmountValue, isValidCurrencyCode, isValidDateValue, truncateValue } from './valueParsers'
+import {
+  type ImportDateFormat,
+  isValidAmountValue,
+  isValidCurrencyCode,
+  isValidDateValue,
+  readImportDate,
+  truncateValue,
+} from './valueParsers'
 
 const COLUMN_VALIDATION_RULES: Record<ColumnTarget, {
   expected: string
@@ -14,7 +21,7 @@ const COLUMN_VALIDATION_RULES: Record<ColumnTarget, {
     accepts: isPlainTextValue,
   },
   dt: {
-    expected: 'a valid date such as 2026-04-30 or 04/30/2026; every row must have a value',
+    expected: 'dates in one format across the whole file; every row must have a value',
     requiredValues: true,
     accepts: isValidDateValue,
   },
@@ -51,7 +58,11 @@ const COLUMN_VALIDATION_RULES: Record<ColumnTarget, {
  * records a validation error for any mapped column whose values do not match what the target field
  * expects
  */
-export function validateColumnMap(columnMap: ColumnMap, files: ImportFileDraft[]) {
+export function validateColumnMap(
+  columnMap: ColumnMap,
+  files: ImportFileDraft[],
+  dateFormat: ImportDateFormat | null = null,
+) {
   if (files.length === 0) return { map: EMPTY_COLUMN_MAP, errors: {} }
 
   const availableHeaders = new Set(files.flatMap((file) => file.headers))
@@ -62,7 +73,7 @@ export function validateColumnMap(columnMap: ColumnMap, files: ImportFileDraft[]
     const header = columnMap[target.id]
     if (!header || !availableHeaders.has(header)) continue
 
-    const validation = validateColumnValues(files, header, target.id)
+    const validation = validateColumnValues(files, header, target.id, dateFormat)
     map[target.id] = header
     if (!validation.valid) errors[header] = validation.message
   }
@@ -75,14 +86,26 @@ export function validateColumnMap(columnMap: ColumnMap, files: ImportFileDraft[]
  * failed when it has no readable values, has blanks in a field where every row is required, or
  * contains a value that does not match what the field accepts
  */
-export function validateColumnValues(files: ImportFileDraft[], header: string, target: ColumnTarget) {
+export function validateColumnValues(
+  files: ImportFileDraft[],
+  header: string,
+  target: ColumnTarget,
+  dateFormat: ImportDateFormat | null = null,
+) {
   const rule = COLUMN_VALIDATION_RULES[target]
   const values = getColumnValues(files, header)
+  // Until a format is settled the date column is only asked whether its values could be dates at
+  // all, and it is held to the chosen format from the moment there is one
+  const isDateColumnInChosenFormat = target === 'dt' && dateFormat !== null
+  const expected = isDateColumnInChosenFormat ? getDateFormatExpectation(dateFormat) : rule.expected
+  const accepts = isDateColumnInChosenFormat
+    ? (value: string) => Boolean(readImportDate(value, dateFormat))
+    : rule.accepts
 
   if (values.length === 0) {
     return {
       valid: false,
-      message: `Expected ${rule.expected}. This column has no readable values.`,
+      message: `Expected ${expected}. This column has no readable values.`,
     }
   }
 
@@ -90,22 +113,35 @@ export function validateColumnValues(files: ImportFileDraft[], header: string, t
   if (rule.requiredValues && blankCount > 0) {
     return {
       valid: false,
-      message: `Expected ${rule.expected}. ${blankCount} row${blankCount === 1 ? '' : 's'} are blank.`,
+      message: `Expected ${expected}. ${blankCount} row${blankCount === 1 ? '' : 's'} are blank.`,
     }
   }
 
-  const invalidValue = values.filter(Boolean).find((value) => !rule.accepts(value))
+  const invalidValue = values.filter(Boolean).find((value) => !accepts(value))
   if (invalidValue) {
     return {
       valid: false,
-      message: `Expected ${rule.expected}. "${truncateValue(invalidValue)}" does not match.`,
+      message: `Expected ${expected}. "${truncateValue(invalidValue)}" does not match.`,
     }
   }
 
   return { valid: true, message: '' }
 }
 
-function getColumnValues(files: ImportFileDraft[], header: string) {
+/**
+ * Names the chosen date format and an example of it, so a row that broke the column says what shape
+ * the rest of the file is in rather than only that it did not match
+ */
+function getDateFormatExpectation(dateFormat: ImportDateFormat) {
+  const option = IMPORT_DATE_FORMAT_OPTIONS.find((candidate) => candidate.value === dateFormat)
+
+  return `every date written ${option?.label.toLowerCase()}, such as ${option?.example}; every row must have a value`
+}
+
+/**
+ * Reads every row's value for one header across all uploaded files, blanks included
+ */
+export function getColumnValues(files: ImportFileDraft[], header: string) {
   return files.flatMap((file) => {
     if (!file.headers.includes(header)) return []
     return file.rows.map((row) => row[header]?.trim() ?? '')

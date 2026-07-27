@@ -85,6 +85,7 @@ describe('import preview rows', () => {
     expect(buildImportPreviewRows({
       files: [createFile([])],
       columnMap: EMPTY_COLUMN_MAP,
+      dateFormat: null,
       missingRequiredColumnLabels: ['Date'],
       currencies,
       accountById: new Map(),
@@ -120,6 +121,7 @@ describe('import preview rows', () => {
         tag_ids: 'Tags',
         currency: 'Currency',
       },
+      dateFormat: 'monthFirst',
       missingRequiredColumnLabels: [],
       currencies,
       accountById: new Map(),
@@ -176,6 +178,7 @@ describe('import preview rows', () => {
         amount: 'Amount',
         category_id: 'Category',
       },
+      dateFormat: 'yearFirst',
       missingRequiredColumnLabels: [],
       currencies,
       accountById: new Map([['checking', createAccount()]]),

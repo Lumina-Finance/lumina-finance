@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type ChangeEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { useImportTransactions, type TransactionImportResponse } from '@/api/transaction-imports'
 import { EMPTY_COLUMN_MAP } from '@/pages/imports/constants'
 import type { ColumnMap, ColumnTarget, ColumnValidationErrors, ImportCategoryKind, ImportFileDraft, ImportOverlayPhase, PreviewTransactionRow } from '@/pages/imports/types'
@@ -14,6 +14,7 @@ import {
   getImportedMerchants,
   getImportedTags,
   getImportHeaders,
+  getColumnValues,
   getMissingRequiredColumnLabels,
   getNextAutoFilledColumnHeaders,
   getNextColumnMap,
@@ -23,8 +24,10 @@ import {
   isColumnMappingComplete,
   groupPreviewRowsByDate,
   inferColumnMap,
+  type ImportDateFormat,
   keepCurrentMatchMap,
   readCsvFile,
+  scanImportDateFormats,
   validateColumnValues,
 } from '@/pages/imports/utils'
 import { waitForMilliseconds } from '@/utils/timing'
@@ -72,6 +75,7 @@ export function useTransactionImportWorkflow() {
   const [merchantHandlingOpen, setMerchantHandlingOpen] = useState(true)
   const [tagHandlingOpen, setTagHandlingOpen] = useState(true)
   const [columnValidationErrors, setColumnValidationErrors] = useState<ColumnValidationErrors>({})
+  const [dateFormat, setDateFormat] = useState<ImportDateFormat | null>(null)
   const [categoryMappings, setCategoryMappings] = useState<Record<string, string>>({})
   const [categoryAutoMatchKey, setCategoryAutoMatchKey] = useState('')
   const [categoryCreateKinds, setCategoryCreateKinds] = useState<Record<string, ImportCategoryKind>>({})
@@ -110,6 +114,33 @@ export function useTransactionImportWorkflow() {
     () => buildColumnTargetOptions(),
     [],
   )
+
+  const dateFormatScan = useMemo(
+    () => scanImportDateFormats(columnMap.dt ? getColumnValues(files, columnMap.dt) : []),
+    [columnMap.dt, files],
+  )
+
+  // Settles on the only format the column can be read in, and leaves the choice open when more than
+  // one survives, because picking between them is the guess this whole path exists to remove. The
+  // scan only changes when the column or the files do, so an answer the user gave is left alone
+  useEffect(() => {
+    setDateFormat(dateFormatScan.readable.length === 1 ? dateFormatScan.readable[0] : null)
+  }, [dateFormatScan])
+
+  // The date column is the one target judged against a choice made outside the mapping table, so
+  // settling or changing that choice re-runs its check without disturbing the other columns
+  useEffect(() => {
+    const header = columnMap.dt
+    if (!header) return
+
+    const validation = validateColumnValues(files, header, 'dt', dateFormat)
+    setColumnValidationErrors((current) => {
+      const next = { ...current }
+      if (validation.valid) delete next[header]
+      else next[header] = validation.message
+      return next
+    })
+  }, [columnMap.dt, dateFormat, files])
 
   const accountMappingSources = useMemo(
     () => buildImportAccountMappingSources(files, columnMap.account_id),
@@ -180,6 +211,7 @@ export function useTransactionImportWorkflow() {
     () => buildImportPreviewRows({
       files,
       columnMap,
+      dateFormat,
       missingRequiredColumnLabels,
       currencies,
       accountById,
@@ -192,7 +224,7 @@ export function useTransactionImportWorkflow() {
       resolvedAccountMappings,
       resolvedCategoryMappings,
     }),
-    [accountById, accountCreateCurrencies, accountCreateInstitutions, categoryById, categoryCreateKinds, categoryTypesBySource, columnMap, currencies, files, institutionById, missingRequiredColumnLabels, resolvedAccountMappings, resolvedCategoryMappings],
+    [accountById, accountCreateCurrencies, accountCreateInstitutions, categoryById, categoryCreateKinds, categoryTypesBySource, columnMap, currencies, dateFormat, files, institutionById, missingRequiredColumnLabels, resolvedAccountMappings, resolvedCategoryMappings],
   )
 
   const previewGroups = useMemo(
@@ -212,6 +244,7 @@ export function useTransactionImportWorkflow() {
       categoryTypesBySource,
       columnMap,
       columnValidationErrors,
+      dateFormat,
       files,
       importedCategories,
     }),
@@ -225,6 +258,7 @@ export function useTransactionImportWorkflow() {
       categoryTypesBySource,
       columnMap,
       columnValidationErrors,
+      dateFormat,
       files,
       importedCategories,
       resolvedAccountMappings,
@@ -381,6 +415,7 @@ export function useTransactionImportWorkflow() {
     setMerchantHandlingOpen(true)
     setTagHandlingOpen(true)
     setColumnValidationErrors({})
+    setDateFormat(null)
     setCategoryMappings({})
     setCategoryAutoMatchKey('')
     setCategoryCreateKinds({})
@@ -409,6 +444,9 @@ export function useTransactionImportWorkflow() {
     merchantHandlingOpen,
     tagHandlingOpen,
     columnValidationErrors,
+    dateFormat,
+    dateFormatScan,
+    setDateFormat,
     categoryMappings,
     categoryCreateKinds,
     importError,

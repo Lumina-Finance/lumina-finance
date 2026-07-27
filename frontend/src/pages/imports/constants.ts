@@ -3,6 +3,7 @@ import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
 import type { ColumnMap, ColumnTarget, ImportCategoryKind } from './types'
+import type { ImportDateFormat } from './utils/valueParsers'
 
 export const EMPTY_COLUMN_MAP: ColumnMap = {
   account_id: '',
@@ -29,6 +30,15 @@ export const COLUMN_TARGETS: Array<{
   { id: 'merchant_id', label: 'Merchant', hint: 'Resolved from imported merchant text.' },
   { id: 'notes', label: 'Notes', hint: 'Optional transaction notes.' },
   { id: 'tag_ids', label: 'Tags', hint: 'Resolved from imported tag text.' },
+]
+
+// Each format is named by an example of its shape rather than by a standard, because the year-first
+// option deliberately takes a slash and an unpadded part, which ISO 8601 does not
+export const IMPORT_DATE_FORMAT_OPTIONS: Array<{ value: ImportDateFormat; label: string; example: string }> = [
+  { value: 'yearFirst', label: 'Year first', example: '2026-04-30' },
+  { value: 'dayFirst', label: 'Day first', example: '30/04/2026' },
+  { value: 'monthFirst', label: 'Month first', example: '04/30/2026' },
+  { value: 'written', label: 'Written', example: 'April 30, 2026' },
 ]
 
 export const KIND_LABELS: Record<Category['kind'], string> = {
