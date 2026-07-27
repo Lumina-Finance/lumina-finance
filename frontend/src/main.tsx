@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { defaultShouldDehydrateQuery, QueryClient, type Query } from '@tanstack/react-query'
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister'
-import '../styles/tailwind.css'
+import '@/styles/tailwind.css'
 import App from '@/App.tsx'
 import { hasUncacheableFxStatus } from '@/api/shared/fxCache'
 
