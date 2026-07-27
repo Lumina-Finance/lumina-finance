@@ -1,4 +1,4 @@
-import type { FireflyBudgetDraft } from '../types'
+import type { FireflyBudgetDraft } from '@/pages/imports/firefly/types'
 import { FireflySkippedTable, type FireflySkippedTableRow } from './FireflySkippedTable'
 
 const SKIPPED_BUDGET_HEADERS = [

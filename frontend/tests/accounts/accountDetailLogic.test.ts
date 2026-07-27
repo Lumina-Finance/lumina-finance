@@ -11,7 +11,7 @@ import type {
 import type { Currency } from '@/api/currency'
 import { getNextModalFieldTabStop } from '@/components/modal/focus'
 import { EDIT_ACCOUNT_IDENTITY_FIELD_IDS } from '@/pages/accounts/detail/constants/accountDetail'
-import { calendarDateMs } from '@/pages/accounts/detail/utils/balanceChartAxis'
+import { calendarDateMs } from '@/pages/accounts/detail/utils/calendarDate'
 import {
   getBalanceChartSnapshot,
   getBalancePeriodDelta,

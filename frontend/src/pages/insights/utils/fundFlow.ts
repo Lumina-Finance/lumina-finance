@@ -2,16 +2,16 @@ import type {
   InsightsFlowEntry,
   InsightsFundFlowResponse,
 } from '@/api/insights'
-import type { FundFlowData, FundFlowEntry, FundFlowNode } from '@/pages/insights/types/fundFlow'
+import type { FundFlowData, FundFlowNode } from '@/pages/insights/types/fundFlow'
 
 const EMPTY_FLOW_ENTRIES: InsightsFlowEntry[] = []
 
 export type FundFlowCardData = {
   flowData: FundFlowData
-  incomeSources: FundFlowEntry[]
-  expenseCategories: FundFlowEntry[]
-  incomeOutflows: FundFlowEntry[]
-  expenseInflows: FundFlowEntry[]
+  incomeSources: InsightsFlowEntry[]
+  expenseCategories: InsightsFlowEntry[]
+  incomeOutflows: InsightsFlowEntry[]
+  expenseInflows: InsightsFlowEntry[]
   incomeSourceCount: number
   expenseCategoryCount: number
 }

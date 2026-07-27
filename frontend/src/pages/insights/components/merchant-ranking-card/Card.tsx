@@ -10,8 +10,8 @@ import type { MerchantRankingRow } from '@/pages/insights/types/merchantRanking'
 import { getMerchantSpendingFxStatusMessage } from '@/pages/insights/utils/fxTooltipMessages'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
-import { InsightCalculationTooltip } from '../CalculationTooltip'
-import { InsightSectionHeader } from '../SectionHeader'
+import { InsightCalculationTooltip } from '@/pages/insights/components/CalculationTooltip'
+import { InsightSectionHeader } from '@/pages/insights/components/SectionHeader'
 
 type MerchantRankingCardProps = {
   merchants: MerchantRankingRow[]

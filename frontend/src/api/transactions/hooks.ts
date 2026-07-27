@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import {
   useInfiniteQuery,
   useMutation,
@@ -5,19 +6,25 @@ import {
   useQueryClient,
   type QueryClient,
 } from '@tanstack/react-query';
-import { invalidateInsightsMerchants, invalidateTransactions } from '@/api/cache/invalidation';
+import {
+  invalidateInsightsMerchants,
+  invalidateTransactions,
+  invalidateTransactionOverview,
+} from '@/api/cache/invalidation';
+import { uniqueIds } from '@/api/cache/invalidation/types';
 import { runWithMinimumPendingTime } from '@/api/utils/mutationFeedback';
 import { transactionKeys, transactionOverviewKeys } from '@/api/cache/queryKeys';
 import {
   findCachedTransaction,
   invalidateFinancialTransactionData,
   invalidatePatchedTransactionData,
+  invalidateTransactionAccountData,
   removeTransactionFromLists,
-  uniqueIds,
 } from '@/api/cache/updates/transactions';
 import {
   createTransaction,
   deleteTransaction,
+  fetchTransaction,
   fetchTransactionPage,
   fetchTransactions,
   fetchTransactionsOverview,
@@ -80,6 +87,27 @@ export function useTransactionsOverview(filters: OverviewFilters = {}) {
   });
 }
 
+// A transaction opened on its own is served from cache for this long before a refetch, since the
+// only edits that matter are the ones made in this tab, which invalidate the detail themselves
+const TRANSACTION_DETAIL_STALE_TIME_MS = 10 * 60 * 1000;
+
+/**
+ * Loads a single transaction by id through the query cache, for opening one that is not already
+ * sitting in a loaded list page
+ */
+export function useLoadTransaction() {
+  const queryClient = useQueryClient();
+  return useCallback(
+    (transactionId: string) =>
+      queryClient.fetchQuery({
+        queryKey: transactionKeys.detail(transactionId),
+        queryFn: () => fetchTransaction(transactionId),
+        staleTime: TRANSACTION_DETAIL_STALE_TIME_MS,
+      }),
+    [queryClient],
+  );
+}
+
 interface UseCreateTransactionOptions {
   deferAccountInvalidation?: boolean;
   // Holds the transactions-page list and overview refreshes so the caller can flush them once, when a
@@ -107,6 +135,22 @@ export function useCreateTransaction({
       invalidateInsightsMerchants(queryClient);
     },
   });
+}
+
+/**
+ * Invalidates the transactions list, its overview, and the account data for the given accounts,
+ * for flushing a session of created transactions that deferred its own invalidation
+ */
+export function useRefreshCreatedTransactions() {
+  const queryClient = useQueryClient();
+  return useCallback(
+    (accountIds: string[]) => {
+      invalidateTransactions(queryClient);
+      invalidateTransactionOverview(queryClient);
+      invalidateTransactionAccountData(queryClient, accountIds, { refetchAccountList: true });
+    },
+    [queryClient],
+  );
 }
 
 /**

@@ -1,4 +1,4 @@
-import type { FxStatus } from '@/api/shared/fx'
+import type { LatestBudgetUtilization } from '@/api/budgets'
 
 export type CreditTier = 'positive' | 'accent' | 'negative'
 
@@ -6,29 +6,9 @@ export type SavingsTier = 'positive' | 'accent' | 'negative'
 
 export type DashboardMoneyFormat = 'raw' | 'netWorth' | 'credit' | 'breakdown'
 
-export type TopBudget = {
-  budget_id: string
-  base_budget_id: string
-  name: string
-  currency: string
-  period_end: string
-  overall_limit: number
-  total_spent: number
-  fx_status: FxStatus
+export type TopBudget = Omit<LatestBudgetUtilization, 'period_start' | 'categories'> & {
   usageRatio: number
   usagePct: number
-}
-
-export type BudgetAttentionState = {
-  label: 'On track' | 'Watch' | 'Needs attention'
-  background: string
-  textColor: string
-  indicatorColor: string
-}
-
-export type CategoryMapEntry = {
-  name: string
-  kind: 'expense' | 'income' | 'transfer'
 }
 
 export type NetWorthSeriesPoint = {

@@ -1,7 +1,7 @@
-import { CREATE_CATEGORY_VALUE } from '../constants'
-import { EmptyState, ImportStep, ImportValueMatchTable } from '../components'
-import type { TransactionImportWorkflow } from '../hooks'
-import { getCategoryMatchKind, isExistingCategoryMatch } from '../utils'
+import { CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
+import { EmptyState, ImportStep, ImportValueMatchTable } from '@/pages/imports/components'
+import type { TransactionImportWorkflow } from '@/pages/imports/hooks'
+import { getCategoryMatchKind, isExistingCategoryMatch } from '@/pages/imports/utils'
 
 type ImportCategoryMatchingStepProps = Pick<
   TransactionImportWorkflow,

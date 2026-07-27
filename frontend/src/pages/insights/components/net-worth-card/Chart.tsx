@@ -39,7 +39,7 @@ import {
   type NetWorthDeltaPoint,
   type NetWorthGroup,
   type NetWorthViewMode,
-} from '../../utils/netWorthChart'
+} from '@/pages/insights/utils/netWorthChart'
 
 type AxisTickProps = {
   x?: number | string

@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react'
 import { Check, ChevronDown, Info, TriangleAlert } from 'lucide-react'
-import { IMPORT_INSET_STYLE } from '../constants'
+import { IMPORT_INSET_STYLE } from '@/pages/imports/constants'
 
 /**
  * Small labelled stat tile, rendering the value with tabular figures unless it is explicitly marked

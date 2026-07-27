@@ -11,8 +11,8 @@ import type { CashFlowBarBucket, CashFlowGranularity } from '@/pages/insights/ty
 import { getInsightsCashFlowFxStatusMessage } from '@/pages/insights/utils/fxTooltipMessages'
 import { formatSignedCurrency, getSignedAmountColor } from '@/pages/insights/utils/money'
 import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
-import { InsightCalculationTooltip } from '../CalculationTooltip'
-import { InsightSectionHeader } from '../SectionHeader'
+import { InsightCalculationTooltip } from '@/pages/insights/components/CalculationTooltip'
+import { InsightSectionHeader } from '@/pages/insights/components/SectionHeader'
 
 type CashFlowCardProps = {
   granularity: CashFlowGranularity

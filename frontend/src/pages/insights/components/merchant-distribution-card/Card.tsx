@@ -9,10 +9,10 @@ import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
 import type { MerchantMarketMerchant } from '@/pages/insights/types/merchantDistribution'
 import { getMerchantSpendingFxStatusMessage } from '@/pages/insights/utils/fxTooltipMessages'
 import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
-import { InsightCalculationTooltip } from '../CalculationTooltip'
+import { InsightCalculationTooltip } from '@/pages/insights/components/CalculationTooltip'
 import { MerchantDistributionLegend } from './Legend'
 import { MerchantMarketMap } from './MarketMap'
-import { InsightSectionHeader } from '../SectionHeader'
+import { InsightSectionHeader } from '@/pages/insights/components/SectionHeader'
 
 type MerchantDistributionCardProps = {
   merchants: MerchantMarketMerchant[]

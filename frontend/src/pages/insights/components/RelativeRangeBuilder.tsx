@@ -2,7 +2,7 @@ import { useId, useState, type ChangeEvent } from 'react'
 import { motion, useReducedMotion } from 'motion/react'
 import { ChevronDown } from 'lucide-react'
 import { joinClassNames } from '@/utils/classNames'
-import type { SavedInsightsRangeQualifier, SavedInsightsRangeUnit } from '../types/range'
+import type { SavedInsightsRangeQualifier, SavedInsightsRangeUnit } from '@/api/insights'
 
 const RELATIVE_UNITS: SavedInsightsRangeUnit[] = ['day', 'week', 'month', 'quarter', 'year']
 

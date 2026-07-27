@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import type { BreakdownMode } from '@/pages/insights/components/income-expense-breakdown-card/Card'
+import type { InsightsBreakdownCategoryKind } from '@/api/insights'
 import type { InsightsCardQueries } from '@/pages/insights/hooks/useInsightsCardQueries'
 import type { InsightsRangeInputDates } from '@/pages/insights/types/range'
 import { getCashFlowBarData } from '@/pages/insights/utils/cashFlow'
@@ -19,7 +19,7 @@ type UseInsightsCardDataParams = {
   queries: InsightsCardQueries
   displayCurrency: string
   rangeInputDates: InsightsRangeInputDates
-  breakdownMode: BreakdownMode
+  breakdownMode: InsightsBreakdownCategoryKind
 }
 
 /**

@@ -1,6 +1,6 @@
 import { TotpEnrollment } from '@/components/two-factor/TotpEnrollment';
 import { TwoFactorModalShell } from '@/components/two-factor/TwoFactorModalShell';
-import type { TotpSetupResponse } from '@/api/two-factor/types';
+import type { TotpSetupResponse } from '@/api/two-factor';
 
 interface TotpEnrollmentModalProps {
   open: boolean;

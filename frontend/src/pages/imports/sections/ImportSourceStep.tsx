@@ -1,6 +1,6 @@
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
-import { ImportStep } from '../components'
-import type { ImportDataSource } from '../types'
+import { ImportStep } from '@/pages/imports/components'
+import type { ImportDataSource } from '@/pages/imports/types'
 
 // The Firefly III flow is newer and converts most of an export but not all of
 // it, so the option is flagged as beta up front rather than letting that only

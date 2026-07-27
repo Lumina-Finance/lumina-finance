@@ -3,9 +3,9 @@ import { createRoot } from 'react-dom/client'
 import { defaultShouldDehydrateQuery, QueryClient, type Query } from '@tanstack/react-query'
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister'
-import '../styles/tailwind.css'
+import '@/styles/tailwind.css'
 import App from '@/App.tsx'
-import { shouldPersistFxData } from '@/api/shared/fxCache'
+import { hasUncacheableFxStatus } from '@/api/shared/fxCache'
 
 const SIX_MONTHS_MS = 180 * 24 * 60 * 60 * 1000;
 
@@ -29,7 +29,7 @@ const persister = createAsyncStoragePersister({
  * Persists successful query data while leaving failed FX responses out of local storage
  */
 function shouldDehydrateQuery(query: Query) {
-  return defaultShouldDehydrateQuery(query) && shouldPersistFxData(query.state.data);
+  return defaultShouldDehydrateQuery(query) && !hasUncacheableFxStatus(query.state.data);
 }
 
 createRoot(document.getElementById('root')!).render(

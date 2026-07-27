@@ -1,11 +1,10 @@
-import type { AccountType } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { TransactionImportPayload, TransactionImportResponse } from '@/api/transaction-imports'
-import { ACCOUNT_TYPE_OPTIONS, COLUMN_TARGETS, CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, DEFAULT_CATEGORY_ICON } from '../constants'
-import type { ColumnMap, ColumnValidationErrors, ImportAccountSource, ImportBuildResult, ImportCategoryKind, ImportFileDraft } from '../types'
+import { COLUMN_TARGETS, CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, DEFAULT_CATEGORY_ICON } from '@/pages/imports/constants'
+import type { ColumnMap, ColumnValidationErrors, ImportAccountSource, ImportBuildResult, ImportCategoryKind, ImportFileDraft } from '@/pages/imports/types'
+import { isImportAccountType } from '@/pages/imports/accountTypeGuard'
 import { getCategoryMatchKind, splitImportedValues } from './categoryMatching'
 import { getMappedValue } from './columnMapping'
-import { getResolvedAccountChoice } from './accountMapping'
 import { normalizeImportDate, parseImportNumber } from './valueParsers'
 
 /**
@@ -67,7 +66,7 @@ export function buildTransactionImportPayload({
 
   const accounts: TransactionImportPayload['accounts'] = []
   for (const source of accountSources) {
-    const choice = getResolvedAccountChoice(accountMappings[source.id])
+    const choice = accountMappings[source.id] ?? ''
     appendAccountMapping(
       accounts,
       errors,
@@ -181,10 +180,6 @@ function appendAccountMapping(
       institution_id: createInstitution || null,
     },
   })
-}
-
-function isImportAccountType(value: string): value is AccountType {
-  return ACCOUNT_TYPE_OPTIONS.some((option) => option.value === value)
 }
 
 function cleanOptional(value: string) {

@@ -1,32 +1,23 @@
 import { useMemo, useState, type ChangeEvent } from 'react'
-import { useAccounts } from '@/api/accounts'
-import { useCategories } from '@/api/categories'
-import { useCurrencies } from '@/api/currency'
 import {
   useImportFireflyBudgets,
   useImportFireflyTransactions,
   type FireflyTransactionImportResponse,
 } from '@/api/firefly-imports'
-import { useInstitutions } from '@/api/institutions'
 import { waitForMilliseconds } from '@/utils/timing'
-import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE } from '../../constants'
+import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
+import { useImportAccountCreateState, useImportReferenceData } from '@/pages/imports/hooks'
 import type {
   ImportCategoryKind,
   ImportFileDraft,
   ImportOverlayPhase,
   ImportProgressStep,
-} from '../../types'
+} from '@/pages/imports/types'
 import {
-  buildImportAccountOptions,
-  buildImportCategoryMatchOptions,
-  buildImportCurrencyOptions,
-  buildImportInstitutionOptions,
   getErrorMessage,
   groupPreviewRowsByDate,
   inferAccountMappings,
-  removeRecordKey,
-  removeSetValue,
-} from '../../utils'
+} from '@/pages/imports/utils'
 import {
   FIREFLY_BALANCE_ADJUSTMENT_CATEGORY_NAME,
   FIREFLY_CSV_PROCESSING_MIN_MS,
@@ -36,13 +27,13 @@ import {
   FIREFLY_IMPORT_STAGE_MIN_MS,
   FIREFLY_SAMPLE_PREVIEW_LIMIT,
   FIREFLY_TRANSFER_CATEGORY_NAME,
-} from '../constants'
+} from '@/pages/imports/firefly/constants'
 import type {
   FireflyBudgetDraft,
   FireflyBudgetImportStatus,
   FireflyFileKind,
   FireflyImportStageState,
-} from '../types'
+} from '@/pages/imports/firefly/types'
 import {
   buildFireflyAccountPrefills,
   buildFireflyBudgetDrafts,
@@ -59,7 +50,7 @@ import {
   inferFireflyCategoryMappings,
   readFireflyCsvFile,
   type FireflyAccountCreateDetails,
-} from '../utils'
+} from '@/pages/imports/firefly/utils'
 
 /**
  * Drives the whole Firefly III import flow: staging the transactions and budgets exports, resolving
@@ -76,13 +67,23 @@ export function useFireflyImportWorkflow() {
   const [budgetsFile, setBudgetsFile] = useState<ImportFileDraft | null>(null)
   const [processingFileKind, setProcessingFileKind] = useState<FireflyFileKind | null>(null)
   const [accountMappings, setAccountMappings] = useState<Record<string, string>>({})
-  const [accountCreateTypes, setAccountCreateTypes] = useState<Record<string, string>>({})
-  const [accountCreateCurrencies, setAccountCreateCurrencies] = useState<Record<string, string>>({})
-  const [accountCreateInstitutions, setAccountCreateInstitutions] = useState<Record<string, string>>({})
-  const [selectedAccountRows, setSelectedAccountRows] = useState<Set<string>>(() => new Set())
-  const [batchAccountType, setBatchAccountType] = useState('')
-  const [batchAccountCurrency, setBatchAccountCurrency] = useState('')
-  const [batchAccountInstitution, setBatchAccountInstitution] = useState('')
+  const {
+    accountCreateTypes,
+    accountCreateCurrencies,
+    accountCreateInstitutions,
+    selectedAccountRows,
+    batchAccountType,
+    batchAccountCurrency,
+    batchAccountInstitution,
+    setAccountCreateTypes,
+    setAccountCreateCurrencies,
+    setAccountCreateInstitutions,
+    setSelectedAccountRows,
+    setBatchAccountType,
+    setBatchAccountCurrency,
+    setBatchAccountInstitution,
+    updateAccountMapping: updateFireflyAccountMapping,
+  } = useImportAccountCreateState(setAccountMappings)
   const [categoryMappings, setCategoryMappings] = useState<Record<string, string>>({})
   const [categoryCreateKinds, setCategoryCreateKinds] = useState<Record<string, ImportCategoryKind>>({})
   const [importError, setImportError] = useState<string | null>(null)
@@ -95,52 +96,23 @@ export function useFireflyImportWorkflow() {
   const [budgetStageError, setBudgetStageError] = useState<string | null>(null)
   const [budgetsImportedCount, setBudgetsImportedCount] = useState(0)
   const [isImportingBudgets, setIsImportingBudgets] = useState(false)
-  const { data: accounts = [], isLoading: accountsLoading } = useAccounts()
-  const { data: currencies = [], isLoading: currenciesLoading } = useCurrencies()
-  const { data: institutions = [], isLoading: institutionsLoading } = useInstitutions()
-  const { data: categories, isLoading: categoriesLoading } = useCategories()
   const importFireflyTransactions = useImportFireflyTransactions()
   const importFireflyBudgets = useImportFireflyBudgets()
-
-  const selectableAccounts = useMemo(
-    () => accounts.filter((account) => !account.is_archived),
-    [accounts],
-  )
-
-  const accountOptions = useMemo(
-    () => buildImportAccountOptions(selectableAccounts),
-    [selectableAccounts],
-  )
-
-  const currencyOptions = useMemo(
-    () => buildImportCurrencyOptions(currencies),
-    [currencies],
-  )
-
-  const institutionOptions = useMemo(
-    () => buildImportInstitutionOptions(institutions),
-    [institutions],
-  )
-
-  const categoryMatchOptions = useMemo(
-    () => buildImportCategoryMatchOptions(categories),
-    [categories],
-  )
-
-  const accountById = useMemo(
-    () => new Map(selectableAccounts.map((account) => [account.id, account])),
-    [selectableAccounts],
-  )
-
-  const categoryById = useMemo(
-    () => new Map((categories ?? []).map((category) => [category.id, category])),
-    [categories],
-  )
-
-  const institutionById = useMemo(
-    () => new Map(institutions.map((institution) => [institution.id, institution])),
-    [institutions],
-  )
+  const {
+    categories,
+    accountsLoading,
+    currenciesLoading,
+    institutionsLoading,
+    categoriesLoading,
+    selectableAccounts,
+    accountOptions,
+    currencyOptions,
+    institutionOptions,
+    categoryMatchOptions,
+    accountById,
+    categoryById,
+    institutionById,
+  } = useImportReferenceData()
 
   // The commit assigns these seeded system categories to transfer legs and
   // balance rows, so the preview reads them from the user's category list
@@ -477,16 +449,6 @@ export function useFireflyImportWorkflow() {
 
   const removeFireflyFile = (kind: FireflyFileKind) => {
     assignFireflyFile(kind, null)
-  }
-
-  const updateFireflyAccountMapping = (sourceAccount: string, accountId: string) => {
-    setAccountMappings((current) => ({ ...current, [sourceAccount]: accountId }))
-    if (accountId !== CREATE_ACCOUNT_VALUE) {
-      setAccountCreateTypes((current) => removeRecordKey(current, sourceAccount))
-      setAccountCreateCurrencies((current) => removeRecordKey(current, sourceAccount))
-      setAccountCreateInstitutions((current) => removeRecordKey(current, sourceAccount))
-      setSelectedAccountRows((current) => removeSetValue(current, sourceAccount))
-    }
   }
 
   /**

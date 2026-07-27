@@ -1,7 +1,7 @@
 import { TriangleAlert } from 'lucide-react'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
-import type { ColumnMap, ColumnValidationErrors, ImportFileDraft } from '../../types'
-import { getColumnSamples, getTargetForHeader } from '../../utils'
+import type { ColumnMap, ColumnValidationErrors, ImportFileDraft } from '@/pages/imports/types'
+import { getColumnSamples, getTargetForHeader } from '@/pages/imports/utils'
 
 /**
  * Table mapping each column header found in the uploaded files to an app field, showing sample

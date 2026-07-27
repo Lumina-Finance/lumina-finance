@@ -60,13 +60,6 @@ export function getFxAwareStaleTime(staleTimeMs: number): FxAwareStaleTime {
 }
 
 /**
- * Keeps persisted cache storage from saving payloads whose FX values are known to be incomplete
- */
-export function shouldPersistFxData(data: unknown) {
-  return !hasUncacheableFxStatus(data);
-}
-
-/**
  * Narrows plain JSON response objects before checking response fields
  */
 function isRecord(value: unknown): value is Record<string, unknown> {

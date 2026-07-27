@@ -1,10 +1,6 @@
-export type SavingsRateHistoryPoint = {
+import type { SavingsRateSeriesPoint } from '@/pages/dashboard/types/dashboard'
+
+export type SavingsRateHistoryPoint = SavingsRateSeriesPoint & {
   monthKey: string
-  monthLabel: string
   tickLabel: string
-  fullLabel: string
-  rate: number | null
-  income: number
-  expenses: number
-  isCurrent: boolean
 }

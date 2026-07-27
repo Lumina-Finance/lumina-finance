@@ -4,10 +4,8 @@ import {
   type BalanceChartMode,
   type BalanceRange,
 } from '@/pages/accounts/detail/constants/accountDetail'
-import {
-  calendarDateMs,
-  getBalanceXAxisTicks,
-} from '@/pages/accounts/detail/utils/balanceChartAxis'
+import { getBalanceXAxisTicks } from '@/pages/accounts/detail/utils/balanceChartAxis'
+import { calendarDateMs } from '@/pages/accounts/detail/utils/calendarDate'
 import {
   buildChartSeries,
   rezeroSeriesToPeriod,

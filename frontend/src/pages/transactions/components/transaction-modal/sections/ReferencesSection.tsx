@@ -1,12 +1,12 @@
 import { AnimatePresence, motion } from 'motion/react'
 import { Tag as TagIcon, X } from 'lucide-react'
+import CreateModalFieldLabelRow from '@/components/create-modal/FieldLabelRow'
+import CreateModalSectionFrame from '@/components/create-modal/SectionFrame'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
 import {
   EASE,
   TRANSACTION_MODAL_FIELD_IDS,
 } from '@/pages/transactions/components/transaction-modal/constants'
-import TransactionModalFieldLabelRow from '@/pages/transactions/components/transaction-modal/controls/FieldLabelRow'
-import TransactionModalSectionFrame from '@/pages/transactions/components/transaction-modal/controls/SectionFrame'
 import TransferCashFlowNotice from '@/pages/transactions/components/transaction-modal/controls/TransferCashFlowNotice'
 import type { TransactionModalKind } from '@/pages/transactions/components/transaction-modal/types'
 import { formatCurrency } from '@/utils/formatCurrency'
@@ -132,9 +132,9 @@ export default function TransactionReferencesSection({
   onRemoveTag,
 }: TransactionReferencesSectionProps) {
   return (
-    <TransactionModalSectionFrame number="02" title="Source/Destination">
+    <CreateModalSectionFrame step="02" title="Source/Destination">
       <div>
-        <TransactionModalFieldLabelRow
+        <CreateModalFieldLabelRow
           label={kind === 'transfer' && isSymmetricTransfer ? 'From account' : 'Account'}
           error={accountError}
         />
@@ -221,7 +221,7 @@ export default function TransactionReferencesSection({
                       transition={{ duration: 0.2, ease: EASE }}
                     >
                       <div className="pt-3">
-                        <TransactionModalFieldLabelRow label="To account" error={toAccountError} />
+                        <CreateModalFieldLabelRow label="To account" error={toAccountError} />
                         <Dropdown
                           options={accountOptions}
                           value={toAccountValue}
@@ -243,7 +243,7 @@ export default function TransactionReferencesSection({
       </div>
 
       <div>
-        <TransactionModalFieldLabelRow label="Merchant" error={merchantError} />
+        <CreateModalFieldLabelRow label="Merchant" error={merchantError} />
         <Dropdown
           id={TRANSACTION_MODAL_FIELD_IDS.merchant}
           options={merchantOptions}
@@ -273,7 +273,7 @@ export default function TransactionReferencesSection({
       </div>
 
       <div>
-        <TransactionModalFieldLabelRow
+        <CreateModalFieldLabelRow
           label="Category"
           error={categoryError}
           action={showMerchantDefaultCategoryAction && (
@@ -306,7 +306,7 @@ export default function TransactionReferencesSection({
       </div>
 
       <div>
-        <TransactionModalFieldLabelRow label="Tags" />
+        <CreateModalFieldLabelRow label="Tags" />
         <Dropdown
           options={tagOptions}
           value=""
@@ -378,6 +378,6 @@ export default function TransactionReferencesSection({
           )}
         </AnimatePresence>
       </div>
-    </TransactionModalSectionFrame>
+    </CreateModalSectionFrame>
   )
 }

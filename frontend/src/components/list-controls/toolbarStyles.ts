@@ -18,6 +18,23 @@ export const FILTER_PANEL_BODY_TRANSITION: Transition = {
   opacity: { duration: 0.26, delay: 0.05 },
 }
 
+// Lightly damped spring shared by the account and transaction filter glass panels so both settle
+// with the same feel
+export const FILTER_GLASS_SPRING = { type: 'spring', stiffness: 420, damping: 34, mass: 0.9 } as const
+
+/**
+ * Builds the search field's responsive wrapper classes: room for the fixed mobile navigation toggle
+ * while the mobile search row is stuck, and letting the field grow inline once the desktop toolbar
+ * fits search, filters, and create on one row
+ */
+export function getSearchFieldWrapperClassName(mobileSearchStuck: boolean, desktopInlineLayout: boolean): string {
+  return joinClassNames(
+    'transition-[margin-right] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none',
+    mobileSearchStuck ? 'max-[1049px]:mr-14' : 'max-[1049px]:mr-0',
+    desktopInlineLayout && 'min-[750px]:min-w-80 min-[750px]:flex-1',
+  )
+}
+
 /**
  * Builds the sticky classes that dock the list toolbar to the navigation pane line on desktop, with
  * the inline layout moving the search and actions onto one row from the medium breakpoint up

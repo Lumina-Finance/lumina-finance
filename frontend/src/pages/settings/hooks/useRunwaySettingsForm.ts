@@ -3,12 +3,12 @@ import type { AccountsOverview } from '@/api/accounts'
 import {
   useRunwaySettings,
   useUpdateRunwaySettings,
+  type RunwayThresholds,
 } from '@/api/user'
 import { useActionFeedback } from '@/hooks/useActionFeedback'
 import {
   DEFAULT_RUNWAY_THRESHOLDS,
   normalizeRunwayThresholds,
-  type RunwayThresholds,
 } from '@/utils/runway'
 
 type UseRunwaySettingsFormParams = {

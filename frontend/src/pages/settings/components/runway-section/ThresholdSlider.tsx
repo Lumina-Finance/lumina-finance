@@ -11,15 +11,15 @@ import {
   RUNWAY_THRESHOLD_MIN_MONTHS,
   RUNWAY_THRESHOLD_MIN_SEPARATION_MONTHS,
   RUNWAY_THRESHOLD_STEP_MONTHS,
+  clamp,
   normalizeRunwayThresholds,
-  type RunwayThresholds,
+  roundRunwayThreshold,
 } from '@/utils/runway'
+import type { RunwayThresholds } from '@/api/user'
 import { RunwayBandLegend } from './BandLegend'
 import {
-  clampThreshold,
   formatThresholdMonths,
   getRunwayThresholdGradient,
-  roundThresholdValue,
   thresholdFromRailPoint,
   thresholdPct,
 } from './thresholdSliderUtils'
@@ -87,7 +87,7 @@ export function RunwayThresholdSlider({
   const updateRiskyThreshold = (value: number) => {
     onThresholdChange(
       'riskyBelowMonths',
-      clampThreshold(value, RUNWAY_THRESHOLD_MIN_MONTHS, riskyMax),
+      clamp(value, RUNWAY_THRESHOLD_MIN_MONTHS, riskyMax),
     )
   }
 
@@ -97,7 +97,7 @@ export function RunwayThresholdSlider({
   const updateHealthyThreshold = (value: number) => {
     onThresholdChange(
       'healthyAtMonths',
-      clampThreshold(value, healthyMin, RUNWAY_THRESHOLD_MAX_MONTHS),
+      clamp(value, healthyMin, RUNWAY_THRESHOLD_MAX_MONTHS),
     )
   }
   const updateThreshold = (field: keyof RunwayThresholds, value: number) => {
@@ -109,9 +109,9 @@ export function RunwayThresholdSlider({
    * Applies the active opposing threshold as a dynamic boundary for drag updates
    */
   const clampThresholdForField = (field: keyof RunwayThresholds, value: number) => {
-    if (field === 'riskyBelowMonths') return clampThreshold(value, RUNWAY_THRESHOLD_MIN_MONTHS, riskyMax)
+    if (field === 'riskyBelowMonths') return clamp(value, RUNWAY_THRESHOLD_MIN_MONTHS, riskyMax)
 
-    return clampThreshold(value, healthyMin, RUNWAY_THRESHOLD_MAX_MONTHS)
+    return clamp(value, healthyMin, RUNWAY_THRESHOLD_MAX_MONTHS)
   }
 
   /**
@@ -123,7 +123,7 @@ export function RunwayThresholdSlider({
 
     const clampedValue = clampThresholdForField(field, nextValue)
     setDragPreview({ field, value: clampedValue })
-    updateThreshold(field, roundThresholdValue(clampedValue))
+    updateThreshold(field, roundRunwayThreshold(clampedValue))
   }
 
   /**

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { ArrowRight, ChevronDown, Info } from 'lucide-react'
-import { IMPORT_INSET_STYLE } from '../../constants'
+import { IMPORT_INSET_STYLE } from '@/pages/imports/constants'
 
 /**
  * One concept that arrives intact but in a new shape, phrased as the user knows

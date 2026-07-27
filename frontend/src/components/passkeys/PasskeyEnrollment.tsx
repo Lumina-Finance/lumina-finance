@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { KeyRound } from 'lucide-react';
 import { useConfirmPasskeyRegistration, useRegisterPasskey } from '@/api/passkeys';
-import type { StepUpPayload } from '@/api/two-factor/types';
+import type { StepUpPayload } from '@/api/two-factor';
 import { RecoveryCodesPanel } from '@/components/two-factor/RecoveryCodesPanel';
 import { StepTransition } from '@/components/two-factor/StepTransition';
 import { getPasskeyRegistrationMessage, isPasskeyCeremonyCancelled } from '@/utils/passkeyErrors';

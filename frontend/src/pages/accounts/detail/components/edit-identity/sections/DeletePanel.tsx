@@ -5,7 +5,7 @@ import {
   EDIT_ACCOUNT_IDENTITY_FIELD_IDS,
   EASE,
 } from '@/pages/accounts/detail/constants/accountDetail'
-import type { DeleteStage } from '../types'
+import type { DeleteStage } from '@/pages/accounts/detail/components/edit-identity/types'
 
 type DeleteAccountPanelProps = {
   account: Account

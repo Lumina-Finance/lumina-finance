@@ -16,7 +16,6 @@ COPY frontend/index.html frontend/postcss.config.js frontend/tailwind.config.js 
 COPY frontend/tsconfig.app.json ./tsconfig.json
 COPY frontend/public ./public
 COPY frontend/src ./src
-COPY frontend/styles ./styles
 RUN npm run build:app
 
 

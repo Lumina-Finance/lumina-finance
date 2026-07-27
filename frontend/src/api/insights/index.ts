@@ -4,6 +4,7 @@ export type {
   InsightsCashFlowPoint,
   InsightsCashFlowResponse,
   InsightsCategoryTrendEntry,
+  InsightsComparisonPeriod,
   InsightsFlowEntry,
   InsightsFundFlowResponse,
   InsightsIncomeExpenseBreakdownResponse,
@@ -18,6 +19,8 @@ export type {
   InsightsSavingsRateTrendResponse,
   SaveInsightsRangePayload,
   SavedInsightsRange,
+  SavedInsightsRangeQualifier,
+  SavedInsightsRangeUnit,
 } from '@/api/insights/types';
 
 export {

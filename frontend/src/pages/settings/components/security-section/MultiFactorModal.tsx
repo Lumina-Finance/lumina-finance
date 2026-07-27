@@ -10,9 +10,8 @@ import { TwoFactorModalShell } from '@/components/two-factor/TwoFactorModalShell
 import { WarningCallout } from '@/components/two-factor/WarningCallout';
 import { usePasskeyManagement } from '@/pages/settings/hooks/usePasskeyManagement';
 import { useTwoFactorManagement } from '@/pages/settings/hooks/useTwoFactorManagement';
-import { ApiError } from '@/api/auth/errors';
-import { setupTotp } from '@/api/two-factor/requests';
-import type { TotpSetupResponse } from '@/api/two-factor/types';
+import { ApiError } from '@/api/auth';
+import { setupTotp, type TotpSetupResponse } from '@/api/two-factor';
 import { getPasskeyRegistrationMessage } from '@/utils/passkeyErrors';
 
 // Grow and fade a passkey row so it eases into the list instead of snapping, with the modal height

@@ -3,9 +3,10 @@ import { useNavigate } from 'react-router'
 import { animate } from 'motion/react'
 import { forgotPassword, isMfaRequired, type AuthResponse, type LoginResult } from '@/api/auth'
 import type { Currency } from '@/api/currency'
-import { useAuthenticatePasskey, usePasskeyConfig, useVerifyPasskeyMfa } from '@/api/passkeys'
-import { OTP_LENGTH } from '@/components/OtpInput'
+import { useAuthenticatePasskey, usePasskeyConfig } from '@/api/passkeys'
 import { useAuth } from '@/hooks/useAuth'
+import { useAuthLockout } from '@/pages/auth/hooks/useAuthLockout'
+import { useMfaChallenge } from '@/pages/auth/hooks/useMfaChallenge'
 import { getPasskeySignInMessage, isPasskeyCeremonyCancelled } from '@/utils/passkeyErrors'
 import { assessPasskeySupport } from '@/utils/passkeySupport'
 import { consumeRecoveryIntent } from '@/utils/recoveryIntent'
@@ -13,15 +14,12 @@ import { recordResetRequest } from '@/utils/resetRequestLog'
 import { delayToMinimum } from '@/utils/timing'
 import {
   FADE_OUT_MS,
-  LOCKOUT_KEY,
   buildInitialAuthForm,
   buildLoginPayload,
   buildSignupPayload,
   getAuthErrorMessage,
   getCurrencyPlaceholder,
   getDisplayAuthError,
-  getLockoutExpiry,
-  getLockoutRemainingLabel,
   getSubmitTouchedFields,
   isAuthFieldErrorKey,
   isAuthLockoutError,
@@ -55,10 +53,9 @@ export function useAuthFormWorkflow({
   mode,
   initialEmail,
 }: UseAuthFormWorkflowParams) {
-  const { login, verifyMfa, signup, setSession, primeAccessToken } = useAuth()
+  const { login, signup, setSession, primeAccessToken } = useAuth()
   const passkeyConfig = usePasskeyConfig()
   const passkeySignIn = useAuthenticatePasskey()
-  const passkeyMfa = useVerifyPasskeyMfa()
   const navigate = useNavigate()
   const pendingAuthRef = useRef<AuthResponse | null>(null)
   const [form, setForm] = useState<AuthFormValues>(() => {
@@ -72,22 +69,35 @@ export function useAuthFormWorkflow({
   const [submitted, setSubmitted] = useState(false)
   const [forgotRepeated, setForgotRepeated] = useState(false)
   const [passwordFocused, setPasswordFocused] = useState(false)
-  const [mfaToken, setMfaToken] = useState<string | null>(null)
-  const [mfaCode, setMfaCode] = useState('')
-  const [mfaUseRecoveryCode, setMfaUseRecoveryCode] = useState(false)
-  const [mfaRecoveryOnly, setMfaRecoveryOnly] = useState(false)
-  const [mfaTotpEnabled, setMfaTotpEnabled] = useState(false)
-  const [mfaPasskeyAvailable, setMfaPasskeyAvailable] = useState(false)
-  const [mfaUsePasskey, setMfaUsePasskey] = useState(false)
-  const [mfaSubmitting, setMfaSubmitting] = useState(false)
   const [enrolling, setEnrolling] = useState(false)
 
   // Read once on mount, so a sign-out from the lost-factor flow greets the user in recovery mode and
   // steers the second-factor step to the recovery-code input
   const [recoveryMode] = useState(() => consumeRecoveryIntent())
 
+  const lockout = useAuthLockout()
+  const {
+    mfaActive,
+    mfaCode,
+    setMfaCode,
+    mfaUseRecoveryCode,
+    toggleMfaRecoveryCode,
+    mfaRecoveryOnly,
+    mfaSubmitting,
+    handleMfaSubmit,
+    cancelMfa,
+    mfaUsePasskey,
+    mfaPasskeyAvailable,
+    mfaTotpEnabled,
+    handlePasskeyMfa,
+    passkeyMfaSubmitting,
+    switchToAuthenticatorMfa,
+    switchToRecoveryMfa,
+    switchToPasskeyMfa,
+    beginChallenge,
+  } = useMfaChallenge({ containerRef, recoveryMode, setError })
+
   const isLogin = mode === 'login'
-  const mfaActive = mfaToken !== null
   const currencyPlaceholder = getCurrencyPlaceholder(currenciesError, currencies.length)
   const displayError = getDisplayAuthError(error, mode, currenciesError, currencies.length)
   const submitDisabled = isAuthSubmitDisabled(submitting, fieldErrors, mode, currencies.length)
@@ -96,18 +106,6 @@ export function useAuthFormWorkflow({
   // a bare IP simply offers password login instead of a button that always fails
   const canUsePasskeys =
     passkeyConfig.data !== undefined && assessPasskeySupport(passkeyConfig.data.rp_id).supported
-
-  /**
-   * Returns the remaining local lockout time and clears expired lockout state
-   */
-  const getLockedRemaining = (): string | null => {
-    const stored = localStorage.getItem(LOCKOUT_KEY)
-    const remaining = getLockoutRemainingLabel(stored, Date.now())
-    if (!remaining && stored) {
-      localStorage.removeItem(LOCKOUT_KEY)
-    }
-    return remaining
-  }
 
   /**
    * Clears validation, error, and confirmation state that only belongs to the previous form
@@ -197,7 +195,7 @@ export function useAuthFormWorkflow({
     }
 
     // The browser mirrors backend lockout state before another request is sent
-    const remaining = getLockedRemaining()
+    const remaining = lockout.getLockedRemaining()
     if (remaining) {
       setError(`Too many failed attempts. Try again in ${remaining}.`)
       return
@@ -222,7 +220,7 @@ export function useAuthFormWorkflow({
     } catch (err) {
       setSubmitting(false)
       if (isAuthLockoutError(err)) {
-        localStorage.setItem(LOCKOUT_KEY, String(getLockoutExpiry(Date.now())))
+        lockout.recordLockout()
       }
       setError(getAuthErrorMessage(err))
       return
@@ -233,22 +231,7 @@ export function useAuthFormWorkflow({
     // A login that needs a second factor morphs to the verification step instead of completing
     if (isMfaRequired(res)) {
       setSubmitting(false)
-      setMfaToken(res.mfa_token)
-      setMfaTotpEnabled(res.totp_enabled)
-      setMfaPasskeyAvailable(res.passkey_available)
-
-      // The passkey is preferred when present, otherwise a revoked authenticator drops straight to
-      // the recovery-code input
-      setMfaUsePasskey(res.passkey_available)
-      setMfaRecoveryOnly(res.recovery_only)
-      setMfaUseRecoveryCode(res.recovery_only)
-
-      // A user who signed out to recover a lost factor lands on the recovery-code input directly,
-      // though the other factor prompts stay available in case they still have one
-      if (recoveryMode) {
-        setMfaUsePasskey(false)
-        setMfaUseRecoveryCode(true)
-      }
+      beginChallenge(res)
       return
     }
 
@@ -307,125 +290,6 @@ export function useAuthFormWorkflow({
     navigate('/', { replace: true })
   }
 
-  /**
-   * Clears every second-factor field, returning the form to the password step
-   */
-  const resetMfaState = () => {
-    setMfaToken(null)
-    setMfaCode('')
-    setMfaUseRecoveryCode(false)
-    setMfaRecoveryOnly(false)
-    setMfaUsePasskey(false)
-    setMfaTotpEnabled(false)
-    setMfaPasskeyAvailable(false)
-  }
-
-  /**
-   * Verifies the second factor with a passkey, committing the session when it succeeds
-   *
-   * A cancelled prompt leaves the challenge unspent so the user can retry or switch to a code, while a
-   * rejected assertion spends it and drops back to the login form
-   */
-  const handlePasskeyMfa = async () => {
-    if (!mfaToken) return
-
-    setError('')
-    let res: AuthResponse
-    try {
-      res = await passkeyMfa.mutateAsync(mfaToken)
-    } catch (err) {
-      if (isPasskeyCeremonyCancelled(err)) return
-      resetMfaState()
-      setError(getPasskeySignInMessage(err))
-      return
-    }
-
-    if (containerRef.current) {
-      await animate(containerRef.current, { opacity: 0 }, { duration: FADE_OUT_MS / 1000 })
-    }
-    setSession(res)
-    navigate('/', { replace: true })
-  }
-
-  /**
-   * Switches the second-factor step from the passkey to the authenticator code input
-   */
-  const switchToAuthenticatorMfa = () => {
-    setMfaUsePasskey(false)
-    setMfaUseRecoveryCode(false)
-    setMfaCode('')
-    setError('')
-  }
-
-  /**
-   * Switches the second-factor step to a recovery code
-   */
-  const switchToRecoveryMfa = () => {
-    setMfaUsePasskey(false)
-    setMfaUseRecoveryCode(true)
-    setMfaCode('')
-    setError('')
-  }
-
-  /**
-   * Switches the second-factor step back to the passkey prompt
-   */
-  const switchToPasskeyMfa = () => {
-    setMfaUsePasskey(true)
-    setMfaCode('')
-    setError('')
-  }
-
-  /**
-   * Exchanges the entered code for a session, returning to the login form when it is rejected
-   */
-  const handleMfaSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-
-    // A recovery code is a free-form string while an authenticator code is a fixed-length number
-    const code = mfaUseRecoveryCode ? mfaCode.trim() : mfaCode
-    const codeReady = mfaUseRecoveryCode ? code.length > 0 : code.length >= OTP_LENGTH
-    if (!mfaToken || !codeReady) return
-
-    setMfaSubmitting(true)
-    const start = Date.now()
-    let res: AuthResponse
-    try {
-      res = await verifyMfa({ mfa_token: mfaToken, code })
-    } catch (err) {
-      // The challenge is single-use, so a rejected code sends the user back to log in afresh
-      await delayToMinimum(start)
-      setMfaSubmitting(false)
-      resetMfaState()
-      setError(getAuthErrorMessage(err))
-      return
-    }
-
-    await delayToMinimum(start)
-    if (containerRef.current) {
-      await animate(containerRef.current, { opacity: 0 }, { duration: FADE_OUT_MS / 1000 })
-    }
-    setSession(res)
-    navigate('/', { replace: true })
-  }
-
-  /**
-   * Abandons the second-factor step and returns to the login form
-   */
-  const cancelMfa = () => {
-    resetMfaState()
-    setError('')
-  }
-
-  /**
-   * Switches the second-factor input between an authenticator code and a recovery code
-   */
-  const toggleMfaRecoveryCode = () => {
-    setMfaUseRecoveryCode((current) => !current)
-    setMfaCode('')
-    setError('')
-  }
-
   return {
     currencyPlaceholder,
     displayError,
@@ -461,7 +325,7 @@ export function useAuthFormWorkflow({
     mfaPasskeyAvailable,
     mfaTotpEnabled,
     handlePasskeyMfa,
-    passkeyMfaSubmitting: passkeyMfa.isPending,
+    passkeyMfaSubmitting,
     switchToAuthenticatorMfa,
     switchToRecoveryMfa,
     switchToPasskeyMfa,

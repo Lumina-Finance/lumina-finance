@@ -66,10 +66,3 @@ export function invalidateDashboardIncomeExpense(queryClient: QueryClient) {
 export function invalidateDashboardBudgets(queryClient: QueryClient) {
   invalidateTargets(queryClient, dashboardBudgetTargets);
 }
-
-/**
- * Invalidates every dashboard widget query
- */
-export function invalidateDashboardData(queryClient: QueryClient) {
-  invalidateTargets(queryClient, dashboardTargets);
-}

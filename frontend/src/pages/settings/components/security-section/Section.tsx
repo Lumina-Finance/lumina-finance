@@ -1,12 +1,11 @@
-import { Check, X } from 'lucide-react'
 import type React from 'react'
+import { PasswordRequirements } from '@/components/PasswordRequirements'
 import SettingsCard from '@/pages/settings/components/Card'
 import SettingsField from '@/pages/settings/components/Field'
 import SettingsSectionHeader from '@/pages/settings/components/SectionHeader'
 import MultiFactorControls from '@/pages/settings/components/security-section/MultiFactorControls'
 import { SetPasswordControls } from '@/pages/settings/components/security-section/SetPasswordControls'
 import SignInProviderControls from '@/pages/settings/components/security-section/SignInProviderControls'
-import { NEW_PASSWORD_RULES } from '@/utils/passwordPolicy'
 import type { PasswordFormState } from '@/pages/settings/hooks/useSecuritySettingsForm'
 
 const DISABLED_INPUT_STYLE: React.CSSProperties = {
@@ -84,28 +83,7 @@ export default function SecuritySection({
                       value={form.newPassword}
                       onChange={(e) => onFieldChange('newPassword', e.target.value)}
                     />
-                    {showRules && (
-                      <ul className="space-y-1">
-                        {NEW_PASSWORD_RULES.map((rule) => {
-                          const passed = rule.test(form.newPassword)
-                          return (
-                            <li key={rule.label} className="flex items-center gap-2 text-sm">
-                              {passed ? (
-                                <Check size={14} strokeWidth={2.5} style={{ color: 'var(--app-accent)' }} aria-hidden />
-                              ) : (
-                                <X size={14} strokeWidth={2.5} style={{ color: 'var(--app-text-muted)' }} aria-hidden />
-                              )}
-                              <span
-                                className={passed ? 'line-through' : ''}
-                                style={{ color: passed ? 'var(--app-text-subtle)' : 'var(--app-text-muted)' }}
-                              >
-                                {rule.label}
-                              </span>
-                            </li>
-                          )
-                        })}
-                      </ul>
-                    )}
+                    <PasswordRequirements password={form.newPassword} visible={showRules} />
                   </SettingsField>
 
                   <SettingsField label="Confirm new password">

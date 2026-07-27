@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence } from 'motion/react'
 import { Plus } from 'lucide-react'
 import { ApiError } from '@/api/auth'
@@ -7,10 +6,10 @@ import { GlassSearchField } from '@/components/list-controls/GlassSearchField'
 import {
   useCategories,
   useDeleteCategory,
+  useForgetCategory,
   useMergeCategory,
   type Category,
 } from '@/api/categories'
-import { categoryKeys } from '@/api/cache/queryKeys'
 import CreateCategoryModal from '@/components/reference-modals/CreateCategoryModal'
 import CategorySettingsGroup from '@/pages/settings/components/category-settings-section/list/Group'
 import MergeDeleteCategoryModal from '@/pages/settings/components/category-settings-section/modals/MergeDeleteModal'
@@ -29,9 +28,9 @@ import { waitForMilliseconds } from '@/utils/timing'
  * transactions should move instead
  */
 export default function CategorySettingsSection() {
-  const queryClient = useQueryClient()
   const { data: categories = [], isLoading } = useCategories()
   const deleteCategory = useDeleteCategory()
+  const forgetCategory = useForgetCategory()
   const mergeCategory = useMergeCategory()
   const [search, setSearch] = useState('')
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null)
@@ -66,9 +65,7 @@ export default function CategorySettingsSection() {
     ])
 
     if (deleteResult[0].status === 'fulfilled') {
-      queryClient.setQueryData<Category[]>(categoryKeys.list(), (currentCategories) =>
-        currentCategories?.filter((currentCategory) => currentCategory.id !== category.id) ?? currentCategories,
-      )
+      forgetCategory(category.id)
       setConfirmingDeleteCategoryId(null)
     } else {
       const error = deleteResult[0].reason

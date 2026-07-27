@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
-import { useQueryClient } from '@tanstack/react-query';
-import { oidcKeys } from '@/api/cache/queryKeys';
+import { useRefreshOidcIdentities } from '@/api/oidc';
 import { ProviderReauthModal } from '@/pages/settings/components/security-section/ProviderReauthModal';
 import { SetPasswordModal } from '@/pages/settings/components/security-section/SetPasswordModal';
 import { useProviderReauth } from '@/pages/settings/hooks/useProviderReauth';
@@ -15,7 +14,7 @@ import { useProviderReauth } from '@/pages/settings/hooks/useProviderReauth';
 export function SetPasswordControls() {
   const location = useLocation();
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
+  const refreshOidcIdentities = useRefreshOidcIdentities();
   const reauth = useProviderReauth();
 
   const [modalOpen, setModalOpen] = useState<boolean>(
@@ -40,7 +39,7 @@ export function SetPasswordControls() {
   const handleModalExit = () => {
     if (!refreshAfterExitRef.current) return;
     refreshAfterExitRef.current = false;
-    void queryClient.invalidateQueries({ queryKey: oidcKeys.identities() });
+    void refreshOidcIdentities();
   };
 
   return (

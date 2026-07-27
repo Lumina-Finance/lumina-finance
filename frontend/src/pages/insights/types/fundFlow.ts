@@ -16,5 +16,3 @@ export type FundFlowData = {
   nodes: FundFlowNode[]
   links: FundFlowLink[]
 }
-
-export type FundFlowEntry = [string, number]

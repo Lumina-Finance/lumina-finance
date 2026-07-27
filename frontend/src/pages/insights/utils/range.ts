@@ -1,10 +1,9 @@
 import type {
   InsightsComparisonPeriod,
-  InsightsRangeInputDates,
-  InsightsRangePreset,
   SavedInsightsRangeQualifier,
   SavedInsightsRangeUnit,
-} from '../types/range'
+} from '@/api/insights'
+import type { InsightsRangeInputDates, InsightsRangePreset } from '@/pages/insights/types/range'
 import { addDays, formatYmd, getShortDateLabel, getStartOfWeek, parseYmd } from './date'
 
 // How many months each calendar unit spans, which doubles as the alignment granularity used to

@@ -1,8 +1,7 @@
 import { KeyRound } from 'lucide-react';
 import { useState, type FormEvent, type MouseEvent } from 'react';
 import type { AuthenticationResponseJSON } from '@simplewebauthn/browser';
-import { usePasskeyConfig, usePasskeys } from '@/api/passkeys';
-import { requestPasskeyStepUpAssertion } from '@/api/passkeys/requests';
+import { requestPasskeyStepUpAssertion, usePasskeyConfig, usePasskeys } from '@/api/passkeys';
 import { useTotpStatus } from '@/api/two-factor';
 import { OtpInput, OTP_LENGTH } from '@/components/OtpInput';
 import { StepTransition } from '@/components/two-factor/StepTransition';

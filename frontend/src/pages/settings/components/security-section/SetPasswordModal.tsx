@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import { Check, X } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { setPassword } from '@/api/user'
+import { PasswordRequirements } from '@/components/PasswordRequirements'
 import { TwoFactorModalShell } from '@/components/two-factor/TwoFactorModalShell'
-import { isNewPasswordValid, NEW_PASSWORD_RULES } from '@/utils/passwordPolicy'
+import { isNewPasswordValid } from '@/utils/passwordPolicy'
 import { withMinDelay } from '@/utils/timing'
 
 // Password feedback grows and shrinks the modal, so height, fade, and the gap above each block animate
@@ -80,36 +80,13 @@ export function SetPasswordModal({ open, onClose, onDone, onExitComplete }: SetP
             onChange={(event) => setNewPassword(event.target.value)}
             autoFocus
           />
-          <AnimatePresence initial={false}>
-            {newPassword.length > 0 && (
-              <motion.ul
-                className="space-y-1 overflow-hidden"
-                initial={{ height: 0, opacity: 0, marginTop: 0 }}
-                animate={{ height: 'auto', opacity: 1, marginTop: 10 }}
-                exit={{ height: 0, opacity: 0, marginTop: 0 }}
-                transition={PASSWORD_FEEDBACK_TRANSITION}
-              >
-                {NEW_PASSWORD_RULES.map((rule) => {
-                  const passed = rule.test(newPassword)
-                  return (
-                    <li key={rule.label} className="flex items-center gap-2 text-sm">
-                      {passed ? (
-                        <Check size={14} strokeWidth={2.5} style={{ color: 'var(--app-accent)' }} aria-hidden />
-                      ) : (
-                        <X size={14} strokeWidth={2.5} style={{ color: 'var(--app-text-muted)' }} aria-hidden />
-                      )}
-                      <span
-                        className={passed ? 'line-through' : ''}
-                        style={{ color: passed ? 'var(--app-text-subtle)' : 'var(--app-text-muted)' }}
-                      >
-                        {rule.label}
-                      </span>
-                    </li>
-                  )
-                })}
-              </motion.ul>
-            )}
-          </AnimatePresence>
+          <PasswordRequirements
+            password={newPassword}
+            visible={newPassword.length > 0}
+            animated
+            animatedMarginTop={10}
+            className="space-y-1 overflow-hidden"
+          />
         </div>
 
         <div className="space-y-1.5">

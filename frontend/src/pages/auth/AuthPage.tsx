@@ -4,9 +4,8 @@ import { KeyRound } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useCurrencies } from '@/api/currency';
 import { useOidcProviders } from '@/api/oidc';
-import { OtpInput, OTP_LENGTH } from '@/components/OtpInput';
+import { MfaChallenge } from '@/components/two-factor/MfaChallenge';
 import { SignupFactorSetup } from '@/pages/auth/components/SignupFactorSetup';
-import { WarningCallout } from '@/components/two-factor/WarningCallout';
 import { AuthAnimatedTitle } from '@/pages/auth/components/AnimatedTitle';
 import { AuthConfirmPasswordField } from '@/pages/auth/components/fields/ConfirmPasswordField';
 import { AuthErrorBanner } from '@/pages/auth/components/feedback/ErrorBanner';
@@ -14,10 +13,11 @@ import { OidcProviderButtons } from '@/pages/auth/components/OidcProviderButtons
 import { AuthSignupNameFields } from '@/pages/auth/components/fields/SignupNameFields';
 import { AuthSignupReferenceFields } from '@/pages/auth/components/fields/SignupReferenceFields';
 import { AuthTextField } from '@/pages/auth/components/fields/TextField';
-import { PasswordRequirements } from '@/pages/auth/components/feedback/PasswordRequirements';
+import { PasswordRequirements } from '@/components/PasswordRequirements';
 import { AUTH_VIEW_TRANSITION, SIGNUP_FIELD_ANIMATION } from '@/pages/auth/constants/authAnimations';
 import { useAuthFormWorkflow } from '@/pages/auth/hooks/useAuthFormWorkflow';
 import { getAuthMode } from '@/pages/auth/utils/authForm';
+import { isNewPasswordValid } from '@/utils/passwordPolicy';
 
 const DETECTED_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
@@ -97,6 +97,11 @@ const AuthPage = () => {
   const showPasskeyButton = isLogin && canUsePasskeys;
   const showOidcButtons = (isLogin || isSignup) && oidcProviders.length > 0;
 
+  // The checklist stays open while the field is focused or has content, and hides once the password
+  // has been touched and satisfies every rule
+  const passwordRequirementsVisible =
+    (passwordFocused || form.password.length > 0) && !(touched.password && isNewPasswordValid(form.password));
+
   const submitLabel = isLogin ? 'Log in' : isSignup ? 'Sign up' : 'Send reset link';
   const switchPrompt = isLogin
     ? "Don't have an account? "
@@ -153,141 +158,27 @@ const AuthPage = () => {
               className="mt-5 space-y-6"
               {...AUTH_VIEW_TRANSITION}
             >
-              {mfaUsePasskey ? (
-                <>
-                  <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                    Verify with your passkey to finish signing in.
-                  </p>
-
-                  <div className="flex justify-center">
-                    <button
-                      type="button"
-                      onClick={handlePasskeyMfa}
-                      disabled={passkeyMfaSubmitting}
-                      className={`app-primary-button transition-all duration-300 ${passkeyMfaSubmitting ? 'app-primary-button-loading' : 'flex w-full items-center justify-center gap-2'}`}
-                    >
-                      {passkeyMfaSubmitting ? (
-                        <div className="app-spinner" />
-                      ) : (
-                        <>
-                          <KeyRound size={16} aria-hidden />
-                          Verify with a passkey
-                        </>
-                      )}
-                    </button>
-                  </div>
-
-                  {mfaTotpEnabled && (
-                    <button
-                      type="button"
-                      onClick={switchToAuthenticatorMfa}
-                      className="block w-full text-center text-sm font-medium underline underline-offset-2 transition-colors duration-200"
-                      style={{ color: 'var(--app-accent)' }}
-                    >
-                      Use authenticator code instead
-                    </button>
-                  )}
-
-                  <button
-                    type="button"
-                    onClick={switchToRecoveryMfa}
-                    className="block w-full text-center text-sm font-medium underline underline-offset-2 transition-colors duration-200"
-                    style={{ color: 'var(--app-accent)' }}
-                  >
-                    Enter a recovery code instead
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={cancelMfa}
-                    className="block w-full text-center text-sm font-medium underline underline-offset-2 transition-colors duration-200"
-                    style={{ color: 'var(--app-text-muted)' }}
-                  >
-                    Back to login
-                  </button>
-                </>
-              ) : (
-                <>
-                  <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                    {mfaRecoveryOnly
-                      ? 'Your second factors were removed. Enter a recovery code to continue.'
-                      : mfaUseRecoveryCode
-                        ? 'Enter one of your recovery codes.'
-                        : 'Enter the 6-digit code from your authenticator app.'}
-                  </p>
-
-                  {mfaUseRecoveryCode && (
-                    <WarningCallout>
-                      {mfaRecoveryOnly
-                        ? "Each recovery-code sign-in spends one of your remaining codes and signs you out everywhere. If you run out before you set up a new factor, you'll be permanently locked out of your account."
-                        : "Using a recovery code removes all your authenticators and passkeys and signs you out everywhere. You'll set up a new factor before you can use your account again."}
-                    </WarningCallout>
-                  )}
-
-                  {mfaUseRecoveryCode ? (
-                    <input
-                      className="app-input w-full"
-                      placeholder="Recovery code"
-                      // A recovery code is not a TOTP code, so suppress one-time-code autofill from password managers
-                      autoComplete="off"
-                      data-1p-ignore
-                      data-lpignore="true"
-                      value={mfaCode}
-                      onChange={(event) => setMfaCode(event.target.value)}
-                      disabled={mfaSubmitting}
-                      autoFocus
-                    />
-                  ) : (
-                    <OtpInput value={mfaCode} onChange={setMfaCode} disabled={mfaSubmitting} autoFocus />
-                  )}
-
-                  <div className="flex justify-center">
-                    <button
-                      type="submit"
-                      disabled={
-                        mfaSubmitting ||
-                        (mfaUseRecoveryCode ? mfaCode.trim().length === 0 : mfaCode.length < OTP_LENGTH)
-                      }
-                      className={`app-primary-button transition-all duration-300 ${
-                        mfaSubmitting ? 'app-primary-button-loading' : 'w-full'
-                      }`}
-                    >
-                      {mfaSubmitting ? <div className="app-spinner" /> : 'Verify'}
-                    </button>
-                  </div>
-
-                  {mfaTotpEnabled && (
-                    <button
-                      type="button"
-                      onClick={toggleMfaRecoveryCode}
-                      className="block w-full text-center text-sm font-medium underline underline-offset-2 transition-colors duration-200"
-                      style={{ color: 'var(--app-accent)' }}
-                    >
-                      {mfaUseRecoveryCode ? 'Use authenticator code' : 'Enter a recovery code instead'}
-                    </button>
-                  )}
-
-                  {mfaPasskeyAvailable && (
-                    <button
-                      type="button"
-                      onClick={switchToPasskeyMfa}
-                      className="block w-full text-center text-sm font-medium underline underline-offset-2 transition-colors duration-200"
-                      style={{ color: 'var(--app-accent)' }}
-                    >
-                      Use a passkey instead
-                    </button>
-                  )}
-
-                  <button
-                    type="button"
-                    onClick={cancelMfa}
-                    className="block w-full text-center text-sm font-medium underline underline-offset-2 transition-colors duration-200"
-                    style={{ color: 'var(--app-text-muted)' }}
-                  >
-                    Back to login
-                  </button>
-                </>
-              )}
+              <MfaChallenge
+                challenge={{
+                  canEnterAuthenticatorCode: mfaTotpEnabled,
+                  canOfferPasskey: mfaPasskeyAvailable,
+                  isRecoveryOnly: mfaRecoveryOnly,
+                }}
+                usePasskey={mfaUsePasskey}
+                useRecoveryCode={mfaUseRecoveryCode}
+                code={mfaCode}
+                onCodeChange={setMfaCode}
+                submitting={mfaSubmitting}
+                passkeySubmitting={passkeyMfaSubmitting}
+                onVerifyPasskey={handlePasskeyMfa}
+                onSwitchToAuthenticator={switchToAuthenticatorMfa}
+                onSwitchToRecovery={switchToRecoveryMfa}
+                onSwitchToPasskey={switchToPasskeyMfa}
+                onToggleRecoveryCode={toggleMfaRecoveryCode}
+                onCancel={cancelMfa}
+                passkeyVerifyDescription="Verify with your passkey to finish signing in."
+                hasAncestorForm
+              />
             </motion.div>
           ) : isForgot && submitted ? (
             <motion.div key="forgot-confirmation" className="mt-5 space-y-6" {...AUTH_VIEW_TRANSITION}>
@@ -364,9 +255,10 @@ const AuthPage = () => {
                     />
                     {isSignup && (
                       <PasswordRequirements
-                        focused={passwordFocused}
                         password={form.password}
-                        touched={touched.password}
+                        visible={passwordRequirementsVisible}
+                        animated
+                        className="mt-2 space-y-1"
                       />
                     )}
                   </motion.div>

@@ -1,13 +1,13 @@
-import type { FundFlowEntry } from '@/pages/insights/types/fundFlow'
+import type { InsightsFlowEntry } from '@/api/insights'
 
-function getEntryKey([name, amount]: FundFlowEntry) {
+function getEntryKey([name, amount]: InsightsFlowEntry) {
   return `${name}\u0000${amount}`
 }
 
 /**
  * Removes matching reversed entries without dropping duplicate categories incorrectly
  */
-export function withoutMatchingEntries(entries: FundFlowEntry[], exclusions: FundFlowEntry[]) {
+export function withoutMatchingEntries(entries: InsightsFlowEntry[], exclusions: InsightsFlowEntry[]) {
   const remainingExclusions = new Map<string, number>()
   for (const entry of exclusions) {
     const key = getEntryKey(entry)

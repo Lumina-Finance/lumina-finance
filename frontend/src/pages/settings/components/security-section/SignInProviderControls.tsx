@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
-import { useQueryClient } from '@tanstack/react-query';
-import { oidcKeys } from '@/api/cache/queryKeys';
 import {
   beginOidcLink,
   removeOidcIdentity,
   useOidcIdentities,
   useOidcProviders,
+  useRefreshOidcIdentities,
   type OidcLinkedIdentity,
   type OidcProvider,
 } from '@/api/oidc';
@@ -69,7 +68,7 @@ function buildProviderRows(
  * with a linked provider instead, which returns here to resume the action it started
  */
 export default function SignInProviderControls() {
-  const queryClient = useQueryClient();
+  const refreshOidcIdentities = useRefreshOidcIdentities();
   const location = useLocation();
   const navigate = useNavigate();
   const providers = useOidcProviders();
@@ -123,10 +122,10 @@ export default function SignInProviderControls() {
     } else if (navState.resumeUnlink) {
       const identityId = navState.resumeUnlink;
       withMinDelay(() => removeOidcIdentity(identityId))
-        .then(() => queryClient.invalidateQueries({ queryKey: oidcKeys.identities() }))
+        .then(() => refreshOidcIdentities())
         .catch((error: Error) => setResumeError(error.message || 'Could not remove the provider.'));
     }
-  }, [location.state, location.pathname, navigate, queryClient]);
+  }, [location.state, location.pathname, navigate, refreshOidcIdentities]);
 
   // The section stays visible without providers so operators discover the feature, with the guidance
   // split between a server that offers none and one that failed to answer
@@ -167,7 +166,7 @@ export default function SignInProviderControls() {
     // Hold the modal's pending state to the shared minimum so a fast unlink does not flash
     await withMinDelay(() => removeOidcIdentity(removeTarget.id, credentials));
     setRemoveTarget(null);
-    await queryClient.invalidateQueries({ queryKey: oidcKeys.identities() });
+    await refreshOidcIdentities();
   };
 
   return (

@@ -1,12 +1,11 @@
 import { useState } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence } from 'motion/react'
 import { Plus } from 'lucide-react'
 import { GlassSearchField } from '@/components/list-controls/GlassSearchField'
 import { ApiError } from '@/api/auth'
-import { tagKeys } from '@/api/cache/queryKeys'
 import {
   useDeleteTag,
+  useForgetTag,
   useMergeTag,
   type Tag,
 } from '@/api/tags'
@@ -28,8 +27,8 @@ import { waitForMilliseconds } from '@/utils/timing'
  * replacement tag
  */
 export default function TagSettingsSection() {
-  const queryClient = useQueryClient()
   const deleteTag = useDeleteTag()
+  const forgetTag = useForgetTag()
   const mergeTag = useMergeTag()
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [createModalKey, setCreateModalKey] = useState(0)
@@ -61,8 +60,7 @@ export default function TagSettingsSection() {
     if (deleteResult[0].status === 'fulfilled') {
       setLocallyDeletedTagIds((ids) => ids.includes(tag.id) ? ids : [...ids, tag.id])
       tagList.setVisibleTags((tags) => tags.filter((item) => item.id !== tag.id))
-      queryClient.removeQueries({ queryKey: tagKeys.detail(tag.id), exact: true })
-      queryClient.invalidateQueries({ queryKey: tagKeys.all, exact: false })
+      forgetTag(tag.id)
       setConfirmingDeleteTagId(null)
     } else {
       const error = deleteResult[0].reason

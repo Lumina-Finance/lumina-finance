@@ -1,7 +1,7 @@
-import { EmptyState, ImportPreviewList, ImportStat, ImportStep } from '../../components'
-import { FireflySkippedRowsTable } from '../components'
-import { FIREFLY_SAMPLE_PREVIEW_LIMIT } from '../constants'
-import type { FireflyImportWorkflow } from '../hooks'
+import { EmptyState, ImportPreviewList, ImportStat, ImportStep } from '@/pages/imports/components'
+import { FireflySkippedRowsTable } from '@/pages/imports/firefly/components'
+import { FIREFLY_SAMPLE_PREVIEW_LIMIT } from '@/pages/imports/firefly/constants'
+import type { FireflyImportWorkflow } from '@/pages/imports/firefly/hooks'
 
 type FireflyPreviewStepProps = Pick<
   FireflyImportWorkflow,

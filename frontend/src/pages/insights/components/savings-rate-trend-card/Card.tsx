@@ -12,10 +12,10 @@ import { getSavingsRateTrendFxStatusMessage } from '@/pages/insights/utils/fxToo
 import { formatSavingsRateValue } from '@/pages/insights/utils/money'
 import { getSavingsRateSummary } from '@/pages/insights/utils/savingsRateChart'
 import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
-import { InsightCalculationTooltip } from '../CalculationTooltip'
-import { InsightActionButton } from '../ActionButton'
+import { InsightCalculationTooltip } from '@/pages/insights/components/CalculationTooltip'
+import { InsightActionButton } from '@/pages/insights/components/ActionButton'
 import { SavingsRateChart } from './Chart'
-import { InsightSectionHeader } from '../SectionHeader'
+import { InsightSectionHeader } from '@/pages/insights/components/SectionHeader'
 
 type SavingsRateTrendCardProps = {
   series: SavingsRateHistoryPoint[]

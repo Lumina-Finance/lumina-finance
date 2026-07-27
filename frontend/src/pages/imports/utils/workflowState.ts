@@ -1,5 +1,5 @@
-import { COLUMN_TARGETS } from '../constants'
-import type { ColumnMap, ColumnTarget, ColumnValidationErrors, ImportFileDraft } from '../types'
+import { COLUMN_TARGETS } from '@/pages/imports/constants'
+import type { ColumnMap, ColumnTarget, ColumnValidationErrors, ImportFileDraft } from '@/pages/imports/types'
 import { removeRecordKey } from './common'
 
 /**

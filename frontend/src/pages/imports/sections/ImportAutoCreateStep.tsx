@@ -1,4 +1,4 @@
-import { EmptyState, ImportCollapseToggle, ImportCreateList, ImportStep } from '../components'
+import { EmptyState, ImportCollapseToggle, ImportCreateList, ImportStep } from '@/pages/imports/components'
 
 type ImportAutoCreateStepProps = {
   index: string

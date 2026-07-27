@@ -1,5 +1,6 @@
 import type { BalanceRange } from '@/pages/accounts/detail/constants/accountDetail'
 import { formatCurrency } from '@/utils/formatCurrency'
+import { calendarDateMs } from './calendarDate'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const BALANCE_AXIS_TICK_COUNT_BY_RANGE: Record<BalanceRange, number> = {
@@ -7,14 +8,6 @@ const BALANCE_AXIS_TICK_COUNT_BY_RANGE: Record<BalanceRange, number> = {
   '30D': 6,
   '90D': 6,
   '1Y': 6,
-}
-
-/**
- * Reads the calendar day a browser-local date falls on and returns it as UTC midnight, so chart
- * positions and ticks depend only on the day and not on the reader's offset from UTC
- */
-export function calendarDateMs(d: Date): number {
-  return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())
 }
 
 /**

@@ -1,5 +1,5 @@
-import { COLUMN_TARGETS, EMPTY_COLUMN_MAP } from '../constants'
-import type { ColumnMap, ColumnTarget, ColumnValidationErrors, CsvRow, ImportFileDraft } from '../types'
+import { COLUMN_TARGETS, EMPTY_COLUMN_MAP } from '@/pages/imports/constants'
+import type { ColumnMap, ColumnTarget, ColumnValidationErrors, CsvRow, ImportFileDraft } from '@/pages/imports/types'
 import { unique } from './common'
 import { isValidAmountValue, isValidCurrencyCode, isValidDateValue, truncateValue } from './valueParsers'
 

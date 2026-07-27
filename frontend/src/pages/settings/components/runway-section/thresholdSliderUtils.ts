@@ -2,7 +2,7 @@ import {
   RUNWAY_BAND_STYLE,
   RUNWAY_THRESHOLD_MAX_MONTHS,
   RUNWAY_THRESHOLD_MIN_MONTHS,
-  RUNWAY_THRESHOLD_STEP_MONTHS,
+  clamp,
 } from '@/utils/runway'
 
 /**
@@ -24,10 +24,6 @@ export function thresholdPct(value: number) {
   return ((value - RUNWAY_THRESHOLD_MIN_MONTHS) / range) * 100
 }
 
-export function clampThreshold(value: number, min: number, max: number) {
-  return Math.min(Math.max(value, min), max)
-}
-
 /**
  * Converts a pointer coordinate into the corresponding month value on the slider rail
  */
@@ -36,17 +32,10 @@ export function thresholdFromRailPoint(clientX: number, rail: HTMLDivElement | n
   const { left, width } = rail.getBoundingClientRect()
   if (width <= 0) return null
 
-  const pct = clampThreshold((clientX - left) / width, 0, 1)
+  const pct = clamp((clientX - left) / width, 0, 1)
   const range = RUNWAY_THRESHOLD_MAX_MONTHS - RUNWAY_THRESHOLD_MIN_MONTHS
 
   return RUNWAY_THRESHOLD_MIN_MONTHS + pct * range
-}
-
-/**
- * Rounds a threshold value to the nearest step the slider allows
- */
-export function roundThresholdValue(value: number) {
-  return Math.round(value / RUNWAY_THRESHOLD_STEP_MONTHS) * RUNWAY_THRESHOLD_STEP_MONTHS
 }
 
 /**

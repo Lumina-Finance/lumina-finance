@@ -7,10 +7,10 @@ import {
   ImportStat,
   ImportStep,
   ImportUploadCard,
-} from '../../components'
-import type { ImportFileDraft } from '../../types'
-import type { FireflyImportWorkflow } from '../hooks'
-import type { FireflyFileKind } from '../types'
+} from '@/pages/imports/components'
+import type { ImportFileDraft } from '@/pages/imports/types'
+import type { FireflyImportWorkflow } from '@/pages/imports/firefly/hooks'
+import type { FireflyFileKind } from '@/pages/imports/firefly/types'
 
 type FireflyFilesStepProps = Pick<
   FireflyImportWorkflow,

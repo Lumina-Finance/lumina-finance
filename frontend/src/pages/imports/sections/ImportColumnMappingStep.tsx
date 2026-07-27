@@ -1,5 +1,5 @@
-import { EmptyState, ImportHeaderMappingTable, ImportStep } from '../components'
-import type { TransactionImportWorkflow } from '../hooks'
+import { EmptyState, ImportHeaderMappingTable, ImportStep } from '@/pages/imports/components'
+import type { TransactionImportWorkflow } from '@/pages/imports/hooks'
 
 type ImportColumnMappingStepProps = Pick<
   TransactionImportWorkflow,

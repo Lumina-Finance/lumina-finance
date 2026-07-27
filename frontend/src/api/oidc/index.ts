@@ -24,6 +24,6 @@ export {
   removeOidcIdentity,
 } from '@/api/oidc/requests';
 
-export { useOidcIdentities, useOidcProviders } from '@/api/oidc/hooks';
+export { useOidcIdentities, useOidcProviders, useRefreshOidcIdentities } from '@/api/oidc/hooks';
 
 export { OidcEmailConflictError } from '@/api/oidc/errors';

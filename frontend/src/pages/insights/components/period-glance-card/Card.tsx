@@ -11,7 +11,7 @@ import {
 } from '@/components/loading/Transition'
 import { PeriodGlancePrimaryPanel } from './PrimaryPanel'
 import { PeriodGlanceSupportGrid } from './SupportGrid'
-import { InsightSectionHeader } from '../SectionHeader'
+import { InsightSectionHeader } from '@/pages/insights/components/SectionHeader'
 import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
 
 type PeriodGlanceSnapshot = {

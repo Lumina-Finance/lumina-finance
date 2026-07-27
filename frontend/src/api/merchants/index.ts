@@ -22,6 +22,8 @@ export {
   useDeleteMerchant,
   useInfiniteMerchants,
   useMerchant,
+  useMerchantDetails,
   useMergeMerchant,
+  useRefreshMerchants,
   useUpdateMerchant,
 } from '@/api/merchants/hooks';

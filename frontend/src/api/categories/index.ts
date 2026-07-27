@@ -19,6 +19,7 @@ export {
   useCategories,
   useCreateCategory,
   useDeleteCategory,
+  useForgetCategory,
   useMergeCategory,
   useUpdateCategory,
 } from '@/api/categories/hooks';

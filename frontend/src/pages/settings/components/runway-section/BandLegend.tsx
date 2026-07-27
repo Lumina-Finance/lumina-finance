@@ -7,8 +7,8 @@ import {
 import {
   DEFAULT_RUNWAY_THRESHOLDS,
   RUNWAY_BAND_STYLE,
+  clamp,
 } from '@/utils/runway'
-import { clampThreshold } from './thresholdSliderUtils'
 
 type RunwayBandLegendProps = {
   band: keyof typeof RUNWAY_BAND_STYLE
@@ -66,7 +66,7 @@ export function RunwayBandLegend(props: RunwayBandLegendProps) {
     const nextValue = Number(trimmedText)
     const invalidValue = trimmedText === '' || trimmedText === '.' || !Number.isFinite(nextValue)
       || nextValue < props.inputMin || nextValue > props.inputMax
-    const fallbackValue = clampThreshold(
+    const fallbackValue = clamp(
       defaultThresholdInputValue(band),
       props.inputMin,
       props.inputMax,

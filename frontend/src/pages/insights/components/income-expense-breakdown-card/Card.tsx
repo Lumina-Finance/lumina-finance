@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { PieChart as PieChartIcon, Repeat } from 'lucide-react'
+import type { InsightsBreakdownCategoryKind } from '@/api/insights'
 import type { FxStatus } from '@/api/shared/fx'
 import {
   LoadingContent,
@@ -9,24 +10,21 @@ import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
 import { AppSlotMachineText } from '@/components/display/SlotMachineText'
 import { getIncomeExpenseBreakdownFxStatusMessage } from '@/pages/insights/utils/fxTooltipMessages'
 import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
-import { InsightCalculationTooltip } from '../CalculationTooltip'
-import { InsightActionButton } from '../ActionButton'
+import { InsightCalculationTooltip } from '@/pages/insights/components/CalculationTooltip'
+import { InsightActionButton } from '@/pages/insights/components/ActionButton'
 import { IncomeExpensePieChart } from './PieChart'
 import { IncomeExpenseTrendSections } from './TrendSections'
-import { InsightSectionHeader } from '../SectionHeader'
+import { InsightSectionHeader } from '@/pages/insights/components/SectionHeader'
 import {
   getBreakdownCalculation,
 } from '@/pages/insights/utils/incomeExpenseBreakdownDisplay'
 import type {
   BreakdownEntry,
-  BreakdownMode,
   CategoryTrendSection,
 } from '@/pages/insights/types/incomeExpenseBreakdown'
 
-export type { BreakdownMode } from '@/pages/insights/types/incomeExpenseBreakdown'
-
 type IncomeExpenseBreakdownCardProps = {
-  mode: BreakdownMode
+  mode: InsightsBreakdownCategoryKind
   onModeToggle: () => void
   entries: BreakdownEntry[]
   total: number
@@ -39,7 +37,7 @@ type IncomeExpenseBreakdownCardProps = {
 }
 
 type IncomeExpenseBreakdownSnapshot = {
-  mode: BreakdownMode
+  mode: InsightsBreakdownCategoryKind
   entries: BreakdownEntry[]
   total: number
   trendSections: CategoryTrendSection[]

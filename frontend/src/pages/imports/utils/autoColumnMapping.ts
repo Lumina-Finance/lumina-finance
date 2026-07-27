@@ -1,5 +1,5 @@
-import { COLUMN_TARGETS } from '../constants'
-import type { ColumnMap, ColumnTarget, ImportFileDraft } from '../types'
+import { COLUMN_TARGETS } from '@/pages/imports/constants'
+import type { ColumnMap, ColumnTarget, ImportFileDraft } from '@/pages/imports/types'
 import { unique } from './common'
 import { validateColumnMap, validateColumnValues } from './columnMapping'
 import { isSupportedCurrency, isValidAmountValue, isValidDateValue } from './valueParsers'

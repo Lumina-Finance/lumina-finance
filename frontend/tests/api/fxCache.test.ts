@@ -3,7 +3,6 @@ import type { Query } from '@tanstack/react-query';
 import {
   getFxAwareStaleTime,
   hasUncacheableFxStatus,
-  shouldPersistFxData,
 } from '@/api/shared/fxCache';
 
 const completeFxStatus = {
@@ -70,7 +69,8 @@ describe('FX cache policy', () => {
 
     expect(staleTime(failedQuery)).toBe(0);
     expect(staleTime(successfulQuery)).toBe(600_000);
-    expect(shouldPersistFxData(failedQuery.state.data)).toBe(false);
-    expect(shouldPersistFxData(successfulQuery.state.data)).toBe(true);
+    // The persister asks the same question inverted, so this is what it decides to write
+    expect(hasUncacheableFxStatus(failedQuery.state.data)).toBe(true);
+    expect(hasUncacheableFxStatus(successfulQuery.state.data)).toBe(false);
   });
 });

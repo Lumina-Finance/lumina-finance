@@ -20,8 +20,10 @@ export {
 export {
   useCreateTag,
   useDeleteTag,
+  useForgetTag,
   useInfiniteTags,
   useMergeTag,
   useTag,
+  useTagDetails,
   useUpdateTag,
 } from '@/api/tags/hooks';
