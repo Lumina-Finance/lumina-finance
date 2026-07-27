@@ -122,6 +122,13 @@ function getHorizontalOffset({
   return 0
 }
 
+/**
+ * Icon that opens a tooltip panel on click, showing `children` as its content
+ *
+ * The panel's placement and horizontal offset are recalculated on open, hover, and focus so it flips
+ * above or below the trigger and shifts sideways to stay within the viewport or the nearest ancestor
+ * marked with `data-tooltip-bounds`, and it closes on any pointer down outside the trigger
+ */
 export default function IconTooltip({
   label,
   children,

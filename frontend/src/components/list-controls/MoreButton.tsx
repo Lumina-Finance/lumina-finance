@@ -7,6 +7,10 @@ const MORE_BUTTON_ANIMATE = { opacity: 1, y: 0, scale: 1 }
 const MORE_BUTTON_EXIT = { opacity: 0, y: 6, scale: 0.96 }
 const MORE_BUTTON_TRANSITION = { duration: 0.2, ease: EASE }
 
+/**
+ * Floating button prompting the user to scroll for more items in a list, appearing and disappearing
+ * with a fade and scale transition gated by `show`
+ */
 export default function ScrollableListMoreButton({
   show,
   onClick,

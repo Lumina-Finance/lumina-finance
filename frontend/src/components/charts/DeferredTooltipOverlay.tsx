@@ -218,6 +218,13 @@ function DeferredChartTooltipOverlayInner<T>({
   )
 }
 
+/**
+ * Chart tooltip overlay controlled imperatively through a ref, so a chart's pointer handlers can call
+ * `show` and `hide` without re-rendering the chart itself on every move
+ *
+ * The tooltip's position tracks the pointer immediately, but the item it displays only changes after
+ * `delayMs` unless the pointer lands back on the item already shown, in which case it reappears at once
+ */
 export const DeferredChartTooltipOverlay = forwardRef(DeferredChartTooltipOverlayInner) as <T>(
   props: DeferredChartTooltipOverlayProps<T> & {
     ref?: Ref<DeferredChartTooltipOverlayHandle<T>>

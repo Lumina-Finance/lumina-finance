@@ -22,6 +22,14 @@ interface CreateTagModalProps {
   onCreated: (tag: Tag) => void
 }
 
+/**
+ * Modal for creating a new tag, collecting its name before handing the created tag back through
+ * `onCreated`
+ *
+ * The secondary variant renders as the compact inline form used when creating a tag from inside another
+ * reference picker, while the primary variant is the standalone modal. Submission enforces a minimum
+ * loading duration so the success state does not flash by unnoticed on fast responses
+ */
 export default function CreateTagModal({
   open,
   groupId = null,

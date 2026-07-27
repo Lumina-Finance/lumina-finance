@@ -36,6 +36,14 @@ const KIND_LABELS: Record<CategoryKind, string> = {
 const KIND_ORDER: CategoryKind[] = ['expense', 'income', 'transfer']
 const KIND_OPTIONS = KIND_ORDER.map((kind) => ({ value: kind, label: KIND_LABELS[kind] }))
 
+/**
+ * Modal for creating a new category, collecting its icon, name, and kind before handing the created
+ * category back through `onCreated`
+ *
+ * The secondary variant renders as the compact inline form used when creating a category from inside
+ * another reference picker, while the primary variant is the standalone modal. Submission enforces a
+ * minimum loading duration so the success state does not flash by unnoticed on fast responses
+ */
 export default function CreateCategoryModal({
   open,
   initialKind = 'expense',

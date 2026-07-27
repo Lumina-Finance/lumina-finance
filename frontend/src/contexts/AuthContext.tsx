@@ -68,6 +68,15 @@ function restoreSession(): Promise<AuthResponse> {
   return pendingSessionRestore;
 }
 
+/**
+ * Provides the authenticated session to the component tree: the current user, access token, and the
+ * actions that start, refresh, or end it
+ *
+ * On mount, if a prior session flag is set, it silently attempts a token refresh to restore the
+ * session, waiting briefly first after a browser reload so a refresh already in flight from before the
+ * reload can finish rather than racing a second rotation. Every action that starts or ends a session
+ * also clears the cached React Query data so no previous user's data survives the switch
+ */
 export function AuthProvider({ children }: { children: ReactNode }) {
   // Check once on mount — not reactive to later changes
   const [hadSession] = useState(() => localStorage.getItem(SESSION_KEY) === '1');

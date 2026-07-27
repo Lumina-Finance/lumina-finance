@@ -27,6 +27,14 @@ interface CreateMerchantModalProps {
   onCreated: (merchant: Merchant) => void
 }
 
+/**
+ * Modal for creating a new merchant, collecting its name and an optional default category before
+ * handing the created merchant back through `onCreated`
+ *
+ * The secondary variant renders as the compact inline form used when creating a merchant from inside
+ * another reference picker, while the primary variant is the standalone modal. Submission enforces a
+ * minimum loading duration so the success state does not flash by unnoticed on fast responses
+ */
 export default function CreateMerchantModal({
   open,
   categoryOptions,

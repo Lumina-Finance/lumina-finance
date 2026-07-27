@@ -28,6 +28,13 @@ function roundRunwayThreshold(value: number) {
   return Math.round(value / RUNWAY_THRESHOLD_STEP_MONTHS) * RUNWAY_THRESHOLD_STEP_MONTHS
 }
 
+/**
+ * Snaps a user's chosen runway thresholds to the nearest half month and holds them inside the range
+ * the sliders allow
+ *
+ * The healthy threshold is raised where it needs to be so it always sits at least two months above the
+ * risky one, which stops the low band collapsing when both are dragged together
+ */
 export function normalizeRunwayThresholds(thresholds: RunwayThresholds): RunwayThresholds {
   const riskyBelowMonths = clamp(
     roundRunwayThreshold(thresholds.riskyBelowMonths),
@@ -49,6 +56,12 @@ export const RUNWAY_BAND_STYLE: Record<RunwayBand, { label: string; bg: string; 
   risky: { label: 'Risky', bg: 'var(--app-negative-soft)', fg: 'var(--app-negative)' },
 }
 
+/**
+ * Sorts a runway in months into the healthy, low or risky band the widget colours itself from
+ *
+ * A missing runway stays missing instead of falling into the risky band, so the widget can show an
+ * empty state rather than an alarming one
+ */
 export function runwayBand(
   months: number | null,
   thresholds: RunwayThresholds = DEFAULT_RUNWAY_THRESHOLDS,
@@ -59,9 +72,13 @@ export function runwayBand(
   return 'risky'
 }
 
-// Compact runway display. Prefixes with "≈" to signal that this is a rough
-// projection from trailing-average expenses, not a precise prediction
-// < 1 → "< 1 mth", 1–11 → "≈ 4 mths", 12–23 → "≈ 1 yr" / "≈ 1.5 yrs", ≥ 24 → "≈ N yrs"
+/**
+ * Formats a runway in months for compact display, reading as "< 1 mth", "≈ 4 mths", "≈ 1.5 yrs" or
+ * "≈ 9 yrs"
+ *
+ * The "≈" marks this as a rough projection from trailing-average expenses rather than a precise
+ * prediction, and a missing or non-finite figure reads as "N/A"
+ */
 export function formatCompactRunway(months: number | null): string {
   if (months === null || !Number.isFinite(months)) return 'N/A'
   if (months < 1) return '< 1 mth'
@@ -75,6 +92,9 @@ export function formatCompactRunway(months: number | null): string {
   return `≈ ${Math.floor(years)} yrs`
 }
 
+/**
+ * Labels the trailing window a runway estimate was calculated over, reading as "3 mths basis"
+ */
 export function formatRunwayBasis(months: number): string {
   return `${months} ${months === 1 ? 'mth' : 'mths'} basis`
 }

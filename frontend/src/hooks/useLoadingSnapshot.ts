@@ -17,6 +17,14 @@ type LoadingSnapshotState<T> = {
   shouldReduceMotion: boolean
 }
 
+/**
+ * Holds a stable snapshot of data behind a minimum-duration loading state, so a quick fetch or a
+ * transition to new data still shows the loading UI for at least `minVisibleMs` instead of flashing
+ *
+ * A concealment starts whenever `loading` is true or `transitionKey` changes, even if `loading` is
+ * already false, and only reveals the latest `snapshot` once both loading has ended and the minimum
+ * time has elapsed. Skips the minimum hold when the user prefers reduced motion
+ */
 export function useLoadingSnapshot<T>({
   snapshot,
   loading = false,
