@@ -1,5 +1,5 @@
-import { EmptyState, ImportPreviewList, ImportStep } from '../components'
-import type { TransactionImportWorkflow } from '../hooks'
+import { EmptyState, ImportPreviewList, ImportStep } from '@/pages/imports/components'
+import type { TransactionImportWorkflow } from '@/pages/imports/hooks'
 
 type ImportPreviewStepProps = Pick<
   TransactionImportWorkflow,

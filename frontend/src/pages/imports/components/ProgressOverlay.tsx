@@ -1,7 +1,7 @@
 import { AlertCircle, CheckCircle2, LoaderCircle } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import type { Variants } from 'motion/react'
-import type { ImportOverlayPhase, ImportProgressStep, ImportProgressStepStatus } from '../types'
+import type { ImportOverlayPhase, ImportProgressStep, ImportProgressStepStatus } from '@/pages/imports/types'
 
 const OVERLAY_BACKGROUND = 'var(--app-bg)'
 const OVERLAY_TEXT = 'var(--app-text)'

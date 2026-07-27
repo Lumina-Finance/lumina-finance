@@ -10,8 +10,8 @@ import {
   CREATE_CATEGORY_VALUE,
   DEFAULT_CATEGORY_ICON,
   KIND_LABELS,
-} from '../constants'
-import type { ColumnMap, ImportAccountSource, ImportFileDraft } from '../types'
+} from '@/pages/imports/constants'
+import type { ColumnMap, ImportAccountSource, ImportFileDraft } from '@/pages/imports/types'
 import { getImportAccountName } from './accountMapping'
 import { splitImportedValues } from './categoryMatching'
 import { unique } from './common'

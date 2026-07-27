@@ -1,4 +1,4 @@
-import type { CsvRow, ImportFileDraft } from '../types'
+import type { CsvRow, ImportFileDraft } from '@/pages/imports/types'
 import { isSupportedCurrency, isValidAmountValue, isValidDateValue } from './valueParsers'
 
 const HEADER_ALIASES = new Set([

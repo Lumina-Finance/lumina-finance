@@ -4,7 +4,7 @@ import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
 import type { PeriodGlancePrimaryMetric } from '@/pages/insights/types/periodGlance'
 import { getPeriodIncomeExpenseFxStatusMessage } from '@/pages/insights/utils/fxTooltipMessages'
 import { formatCurrency } from '@/utils/formatCurrency'
-import { InsightCalculationTooltip } from '../CalculationTooltip'
+import { InsightCalculationTooltip } from '@/pages/insights/components/CalculationTooltip'
 import { getPeriodGlanceToneClass } from './display'
 import { useFittedPrimaryAmount } from './useFittedPrimaryAmount'
 

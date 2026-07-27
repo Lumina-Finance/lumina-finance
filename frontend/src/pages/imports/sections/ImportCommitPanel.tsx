@@ -1,4 +1,4 @@
-import type { TransactionImportWorkflow } from '../hooks'
+import type { TransactionImportWorkflow } from '@/pages/imports/hooks'
 
 type ImportCommitPanelProps = Pick<
   TransactionImportWorkflow,

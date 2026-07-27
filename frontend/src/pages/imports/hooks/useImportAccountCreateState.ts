@@ -1,6 +1,6 @@
 import { useState, type Dispatch, type SetStateAction } from 'react'
-import { CREATE_ACCOUNT_VALUE } from '../constants'
-import { removeRecordKey, removeSetValue } from '../utils'
+import { CREATE_ACCOUNT_VALUE } from '@/pages/imports/constants'
+import { removeRecordKey, removeSetValue } from '@/pages/imports/utils'
 
 /**
  * Account-create state shared by both import flows: the per-row type, currency and institution picked

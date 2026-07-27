@@ -1,7 +1,7 @@
 import { useState, type CSSProperties, type ReactNode } from 'react'
 import { ChevronDown, TriangleAlert } from 'lucide-react'
-import { IMPORT_INSET_STYLE } from '../../constants'
-import { FIREFLY_SKIPPED_TABLE_VISIBLE_LIMIT } from '../constants'
+import { IMPORT_INSET_STYLE } from '@/pages/imports/constants'
+import { FIREFLY_SKIPPED_TABLE_VISIBLE_LIMIT } from '@/pages/imports/firefly/constants'
 
 // Share of the visible panel the frozen pair holds, measured with container
 // units against the horizontal scroller

@@ -1,5 +1,5 @@
-import type { CsvRow } from '../../types'
-import { FIREFLY_MISSING_REQUIRED_VALUES_REASON, FIREFLY_TAG_TOO_LONG_REASON } from '../constants'
+import type { CsvRow } from '@/pages/imports/types'
+import { FIREFLY_MISSING_REQUIRED_VALUES_REASON, FIREFLY_TAG_TOO_LONG_REASON } from '@/pages/imports/firefly/constants'
 import { getFireflyMissingRequiredFields, getFireflyOverlongTag } from './derivation'
 import { resolveFireflyRowLegs, type FireflyRowResolutionOptions } from './rowResolution'
 

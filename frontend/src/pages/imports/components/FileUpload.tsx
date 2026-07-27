@@ -1,8 +1,8 @@
 import { FileText, LoaderCircle, TriangleAlert, Upload, X } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import { IMPORT_INSET_STYLE } from '../constants'
-import type { ImportFileDraft } from '../types'
-import { formatBytes } from '../utils'
+import { IMPORT_INSET_STYLE } from '@/pages/imports/constants'
+import type { ImportFileDraft } from '@/pages/imports/types'
+import { formatBytes } from '@/pages/imports/utils'
 
 /**
  * Upload affordance shared by the import flows that animates between its idle

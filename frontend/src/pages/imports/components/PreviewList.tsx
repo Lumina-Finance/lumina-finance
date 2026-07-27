@@ -1,5 +1,5 @@
 import TransactionRow from '@/components/transactions/Row'
-import type { PreviewTransactionRow } from '../types'
+import type { PreviewTransactionRow } from '@/pages/imports/types'
 
 /**
  * Renders preview transactions with the ledger's date-group presentation

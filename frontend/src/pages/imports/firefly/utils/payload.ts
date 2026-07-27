@@ -6,9 +6,9 @@ import {
   CREATE_ACCOUNT_VALUE,
   CREATE_CATEGORY_VALUE,
   DEFAULT_CATEGORY_ICON,
-} from '../../constants'
-import type { CsvRow, ImportCategoryKind, ImportFileDraft } from '../../types'
-import type { FireflyImportBuildResult } from '../types'
+} from '@/pages/imports/constants'
+import type { CsvRow, ImportCategoryKind, ImportFileDraft } from '@/pages/imports/types'
+import type { FireflyImportBuildResult } from '@/pages/imports/firefly/types'
 import { isImportAccountType } from '@/pages/imports/accountTypeGuard'
 import { getFireflyRowDate, isFireflyRowUploadable, splitFireflyTags } from './derivation'
 

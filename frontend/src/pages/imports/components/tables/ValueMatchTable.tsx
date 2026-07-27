@@ -1,5 +1,5 @@
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
-import type { ImportCategoryKind } from '../../types'
+import type { ImportCategoryKind } from '@/pages/imports/types'
 import { ImportCategoryTypeToggle } from './CategoryTypeToggle'
 
 /**

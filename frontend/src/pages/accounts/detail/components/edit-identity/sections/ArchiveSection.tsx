@@ -4,8 +4,8 @@ import {
   EDIT_ACCOUNT_IDENTITY_FIELD_IDS,
   EASE,
 } from '@/pages/accounts/detail/constants/accountDetail'
-import { ArchiveBalanceWarning } from '../controls/ArchiveBalanceWarning'
-import { EditModalSection } from '../layout/Section'
+import { ArchiveBalanceWarning } from '@/pages/accounts/detail/components/edit-identity/controls/ArchiveBalanceWarning'
+import { EditModalSection } from '@/pages/accounts/detail/components/edit-identity/layout/Section'
 
 type AccountArchiveSectionProps = {
   sectionNumber: string

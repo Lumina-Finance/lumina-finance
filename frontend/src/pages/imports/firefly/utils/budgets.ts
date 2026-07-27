@@ -1,5 +1,5 @@
 import type { FireflyBudgetImportBudget, FireflyBudgetImportLimit } from '@/api/firefly-imports'
-import type { CsvRow, ImportFileDraft } from '../../types'
+import type { CsvRow, ImportFileDraft } from '@/pages/imports/types'
 import {
   FIREFLY_BUDGET_ACTIVE_VALUE,
   FIREFLY_BUDGET_MIXED_CURRENCIES_REASON,
@@ -8,8 +8,8 @@ import {
   FIREFLY_BUDGET_NO_TRANSACTIONS_REASON,
   FIREFLY_BUDGET_UNREADABLE_DATES_REASON,
   FIREFLY_BUDGET_UNSUPPORTED_CADENCE_REASON,
-} from '../constants'
-import type { FireflyBudgetDraft } from '../types'
+} from '@/pages/imports/firefly/constants'
+import type { FireflyBudgetDraft } from '@/pages/imports/firefly/types'
 import { getFireflyRowDate, isFireflyRowUploadable, isRealCalendarDate } from './derivation'
 
 const DAYS_PER_WEEK = 7

@@ -1,6 +1,6 @@
 import { motion, useReducedMotion } from 'motion/react'
-import { IMPORT_CATEGORY_KIND_OPTIONS } from '../../constants'
-import type { ImportCategoryKind } from '../../types'
+import { IMPORT_CATEGORY_KIND_OPTIONS } from '@/pages/imports/constants'
+import type { ImportCategoryKind } from '@/pages/imports/types'
 
 /**
  * Segmented control for picking the kind of a category being created during import, with an

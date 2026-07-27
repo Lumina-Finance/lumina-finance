@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { BookmarkPlus, X } from 'lucide-react'
 import type { SavedInsightsRange } from '@/api/insights'
-import { getRelativeRangeLabel } from '../utils/range'
+import { getRelativeRangeLabel } from '@/pages/insights/utils/range'
 
 const SAVED_RANGE_NAME_MAX_LENGTH = 64
 

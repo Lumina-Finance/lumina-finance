@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import CreateInstitutionModal from '@/components/reference-modals/CreateInstitutionModal'
-import { ACCOUNT_TYPE_OPTIONS } from '../constants'
-import { ImportAccountMappingTable, EmptyState, ImportNotice, ImportStep } from '../components'
-import type { TransactionImportWorkflow } from '../hooks'
+import { ACCOUNT_TYPE_OPTIONS } from '@/pages/imports/constants'
+import { ImportAccountMappingTable, EmptyState, ImportNotice, ImportStep } from '@/pages/imports/components'
+import type { TransactionImportWorkflow } from '@/pages/imports/hooks'
 
 type ImportAccountMappingStepProps = Pick<
   TransactionImportWorkflow,

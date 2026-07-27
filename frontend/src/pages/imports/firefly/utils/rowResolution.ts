@@ -2,9 +2,9 @@ import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import { FIREFLY_NO_CATEGORY_SOURCE, isFireflyTrackedAccountType } from '@/api/firefly-imports'
 import type { Institution } from '@/api/institutions'
-import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, DEFAULT_CATEGORY_ICON } from '../../constants'
-import type { CsvRow, ImportCategoryKind } from '../../types'
-import { parseImportNumber, toMinorUnits } from '../../utils'
+import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, DEFAULT_CATEGORY_ICON } from '@/pages/imports/constants'
+import type { CsvRow, ImportCategoryKind } from '@/pages/imports/types'
+import { parseImportNumber, toMinorUnits } from '@/pages/imports/utils'
 import {
   FIREFLY_GENERIC_SKIP_REASON,
   FIREFLY_TYPE_DEPOSIT,
@@ -12,7 +12,7 @@ import {
   FIREFLY_TYPE_RECONCILIATION,
   FIREFLY_TYPE_TRANSFER,
   FIREFLY_TYPE_WITHDRAWAL,
-} from '../constants'
+} from '@/pages/imports/firefly/constants'
 import type { FireflyAccountCreateDetails } from './payload'
 
 /**

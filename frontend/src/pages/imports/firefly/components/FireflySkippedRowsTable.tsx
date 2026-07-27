@@ -1,4 +1,4 @@
-import type { FireflySkippedRowDetail } from '../utils'
+import type { FireflySkippedRowDetail } from '@/pages/imports/firefly/utils'
 import { FireflySkippedTable, SkippedLeadPlaceholder, type FireflySkippedTableRow } from './FireflySkippedTable'
 
 /**

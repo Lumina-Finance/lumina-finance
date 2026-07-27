@@ -1,8 +1,8 @@
 import type { AccountType } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import { FIREFLY_NO_CATEGORY_SOURCE, isFireflyTrackedAccountType } from '@/api/firefly-imports'
-import { CREATE_CATEGORY_VALUE } from '../../constants'
-import type { CsvRow, ImportCategoryKind } from '../../types'
+import { CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
+import type { CsvRow, ImportCategoryKind } from '@/pages/imports/types'
 import {
   FIREFLY_FALLBACK_ACCOUNT_TYPE,
   FIREFLY_LIABILITY_ACCOUNT_TYPES,
@@ -11,8 +11,8 @@ import {
   FIREFLY_TYPE_DEPOSIT,
   FIREFLY_TYPE_TRANSFER,
   FIREFLY_TYPE_WITHDRAWAL,
-} from '../constants'
-import type { FireflyAccountPrefill } from '../types'
+} from '@/pages/imports/firefly/constants'
+import type { FireflyAccountPrefill } from '@/pages/imports/firefly/types'
 
 /**
  * Extracts the date part of a Firefly III timestamp, empty when unparseable

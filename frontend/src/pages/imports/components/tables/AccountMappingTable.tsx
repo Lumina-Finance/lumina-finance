@@ -1,6 +1,6 @@
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
-import { CREATE_ACCOUNT_VALUE, IMPORT_INSET_STYLE } from '../../constants'
-import { ImportCheckbox } from '../Primitives'
+import { CREATE_ACCOUNT_VALUE, IMPORT_INSET_STYLE } from '@/pages/imports/constants'
+import { ImportCheckbox } from '@/pages/imports/components/Primitives'
 
 /**
  * Table mapping every source account found in an import to an existing account or a new one, with a

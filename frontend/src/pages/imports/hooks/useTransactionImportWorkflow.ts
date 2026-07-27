@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { useImportTransactions, type TransactionImportResponse } from '@/api/transaction-imports'
-import { EMPTY_COLUMN_MAP } from '../constants'
-import type { ColumnMap, ColumnTarget, ColumnValidationErrors, ImportCategoryKind, ImportFileDraft, ImportOverlayPhase, PreviewTransactionRow } from '../types'
+import { EMPTY_COLUMN_MAP } from '@/pages/imports/constants'
+import type { ColumnMap, ColumnTarget, ColumnValidationErrors, ImportCategoryKind, ImportFileDraft, ImportOverlayPhase, PreviewTransactionRow } from '@/pages/imports/types'
 import {
   buildColumnTargetOptions,
   buildImportAccountMappingSources,
@@ -26,7 +26,7 @@ import {
   keepCurrentMatchMap,
   readCsvFile,
   validateColumnValues,
-} from '../utils'
+} from '@/pages/imports/utils'
 import { waitForMilliseconds } from '@/utils/timing'
 import { useImportAccountCreateState } from './useImportAccountCreateState'
 import { useImportReferenceData } from './useImportReferenceData'

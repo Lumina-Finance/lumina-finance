@@ -1,5 +1,5 @@
-import type { CsvRow, PreviewTransactionRow } from '../../types'
-import { getPreviewDateLabel } from '../../utils'
+import type { CsvRow, PreviewTransactionRow } from '@/pages/imports/types'
+import { getPreviewDateLabel } from '@/pages/imports/utils'
 import { getFireflyRowDate, isFireflyRowImportable, splitFireflyTags } from './derivation'
 import { resolveFireflyRowLegs, type FireflyResolvedLeg, type FireflyRowResolutionOptions } from './rowResolution'
 

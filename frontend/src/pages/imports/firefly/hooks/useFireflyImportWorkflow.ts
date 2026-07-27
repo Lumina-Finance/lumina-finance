@@ -5,19 +5,19 @@ import {
   type FireflyTransactionImportResponse,
 } from '@/api/firefly-imports'
 import { waitForMilliseconds } from '@/utils/timing'
-import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE } from '../../constants'
-import { useImportAccountCreateState, useImportReferenceData } from '../../hooks'
+import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
+import { useImportAccountCreateState, useImportReferenceData } from '@/pages/imports/hooks'
 import type {
   ImportCategoryKind,
   ImportFileDraft,
   ImportOverlayPhase,
   ImportProgressStep,
-} from '../../types'
+} from '@/pages/imports/types'
 import {
   getErrorMessage,
   groupPreviewRowsByDate,
   inferAccountMappings,
-} from '../../utils'
+} from '@/pages/imports/utils'
 import {
   FIREFLY_BALANCE_ADJUSTMENT_CATEGORY_NAME,
   FIREFLY_CSV_PROCESSING_MIN_MS,
@@ -27,13 +27,13 @@ import {
   FIREFLY_IMPORT_STAGE_MIN_MS,
   FIREFLY_SAMPLE_PREVIEW_LIMIT,
   FIREFLY_TRANSFER_CATEGORY_NAME,
-} from '../constants'
+} from '@/pages/imports/firefly/constants'
 import type {
   FireflyBudgetDraft,
   FireflyBudgetImportStatus,
   FireflyFileKind,
   FireflyImportStageState,
-} from '../types'
+} from '@/pages/imports/firefly/types'
 import {
   buildFireflyAccountPrefills,
   buildFireflyBudgetDrafts,
@@ -50,7 +50,7 @@ import {
   inferFireflyCategoryMappings,
   readFireflyCsvFile,
   type FireflyAccountCreateDetails,
-} from '../utils'
+} from '@/pages/imports/firefly/utils'
 
 /**
  * Drives the whole Firefly III import flow: staging the transactions and budgets exports, resolving

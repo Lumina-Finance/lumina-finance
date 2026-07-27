@@ -1,6 +1,6 @@
-import { CREATE_CATEGORY_VALUE } from '../../constants'
-import { EmptyState, ImportStep, ImportValueMatchTable } from '../../components'
-import type { FireflyImportWorkflow } from '../hooks'
+import { CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
+import { EmptyState, ImportStep, ImportValueMatchTable } from '@/pages/imports/components'
+import type { FireflyImportWorkflow } from '@/pages/imports/firefly/hooks'
 
 type FireflyCategoryMatchingStepProps = Pick<
   FireflyImportWorkflow,

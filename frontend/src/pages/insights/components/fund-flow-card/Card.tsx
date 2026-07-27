@@ -10,8 +10,8 @@ import { getFundFlowFxStatusMessage } from '@/pages/insights/utils/fxTooltipMess
 import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
 import { FundFlowCategoryList } from './CategoryList'
 import { FundFlowChart } from './Chart'
-import { InsightCalculationTooltip } from '../CalculationTooltip'
-import { InsightSectionHeader } from '../SectionHeader'
+import { InsightCalculationTooltip } from '@/pages/insights/components/CalculationTooltip'
+import { InsightSectionHeader } from '@/pages/insights/components/SectionHeader'
 
 type FundFlowSnapshot = {
   flowData: FundFlowData

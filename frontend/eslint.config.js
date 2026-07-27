@@ -32,6 +32,17 @@ const restrictedApiIndexImports = [
 // under src/api may reach into pages, components, or contexts
 const restrictedApiUiImports = ['@/pages/*', '@/components/*', '@/contexts/*']
 
+// A path leaving its own folder is written through the alias so it reads the same wherever the
+// importing file sits and survives the file being moved. Same-folder './' imports stay relative
+const crossFolderRelativeImport = {
+  group: ['../*', '../**'],
+  message: 'Import through the @/ alias rather than a relative path that leaves the folder',
+}
+
+// Flat config replaces a rule outright rather than merging it, so a block that sets
+// no-restricted-imports has to restate every pattern that should still apply to its files
+const restrictedImportPatterns = [crossFolderRelativeImport]
+
 export default defineConfig([
   globalIgnores(['dist']),
   {
@@ -46,6 +57,9 @@ export default defineConfig([
       ecmaVersion: 2020,
       globals: globals.browser,
     },
+    rules: {
+      'no-restricted-imports': ['error', { patterns: restrictedImportPatterns }],
+    },
   },
   {
     files: ['src/api/**/*.{ts,tsx}'],
@@ -58,6 +72,7 @@ export default defineConfig([
             message: 'Import the specific API source file instead of the domain folder index',
           })),
           patterns: [
+            ...restrictedImportPatterns,
             {
               group: restrictedApiUiImports,
               message: 'The API layer must not import from the UI layers',

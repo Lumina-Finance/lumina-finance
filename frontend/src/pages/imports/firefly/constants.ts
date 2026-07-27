@@ -1,5 +1,5 @@
 import type { AccountType } from '@/api/accounts'
-import { STEP_DOT_WAVE_MS } from '../components'
+import { STEP_DOT_WAVE_MS } from '@/pages/imports/components'
 import type { FireflyImportStage } from './types'
 
 /**

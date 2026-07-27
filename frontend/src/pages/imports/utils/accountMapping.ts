@@ -1,5 +1,5 @@
 import type { AccountsOverview } from '@/api/accounts'
-import type { ImportAccountSource } from '../types'
+import type { ImportAccountSource } from '@/pages/imports/types'
 
 /**
  * Guesses which existing account each import source belongs to by name, filling only the sources the

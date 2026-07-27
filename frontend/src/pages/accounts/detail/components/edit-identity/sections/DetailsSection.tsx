@@ -9,9 +9,9 @@ import type {
   IdentityFieldErrors,
   IdentityFormValues,
 } from '@/pages/accounts/detail/utils/identityForm'
-import type { SetIdentityFormField } from '../types'
-import { EditModalSection } from '../layout/Section'
-import { AccountIdentityFieldLabelRow } from '../controls/FieldLabelRow'
+import type { SetIdentityFormField } from '@/pages/accounts/detail/components/edit-identity/types'
+import { EditModalSection } from '@/pages/accounts/detail/components/edit-identity/layout/Section'
+import { AccountIdentityFieldLabelRow } from '@/pages/accounts/detail/components/edit-identity/controls/FieldLabelRow'
 
 type AccountDetailsSectionProps = {
   form: IdentityFormValues

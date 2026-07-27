@@ -1,7 +1,7 @@
 import { EyeOff } from 'lucide-react'
-import { EmptyState, ImportCheckbox, ImportInfoCard, ImportStep } from '../../components'
-import { FireflySkippedBudgetsTable } from '../components'
-import type { FireflyImportWorkflow } from '../hooks'
+import { EmptyState, ImportCheckbox, ImportInfoCard, ImportStep } from '@/pages/imports/components'
+import { FireflySkippedBudgetsTable } from '@/pages/imports/firefly/components'
+import type { FireflyImportWorkflow } from '@/pages/imports/firefly/hooks'
 
 type FireflyBudgetImportStepProps = Pick<
   FireflyImportWorkflow,

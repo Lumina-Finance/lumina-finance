@@ -8,7 +8,7 @@ import {
   useInsightsSavingsRateTrend,
   type InsightsComparisonPeriod,
 } from '@/api/insights'
-import type { InsightsRangeInputDates } from '../types/range'
+import type { InsightsRangeInputDates } from '@/pages/insights/types/range'
 
 type InsightsCardQueryVisibility = {
   periodGlance: boolean

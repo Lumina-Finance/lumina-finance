@@ -1,6 +1,6 @@
 import type { Category } from '@/api/categories'
-import { CREATE_CATEGORY_VALUE } from '../constants'
-import type { ImportCategoryKind, ImportFileDraft } from '../types'
+import { CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
+import type { ImportCategoryKind, ImportFileDraft } from '@/pages/imports/types'
 import { parseImportNumber } from './valueParsers'
 
 /**

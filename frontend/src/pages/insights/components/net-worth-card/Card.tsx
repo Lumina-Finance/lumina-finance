@@ -9,10 +9,10 @@ import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
 import { getInsightsNetWorthFxStatusMessage } from '@/pages/insights/utils/fxTooltipMessages'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
-import { InsightCalculationTooltip } from '../CalculationTooltip'
-import { InsightActionButton } from '../ActionButton'
+import { InsightCalculationTooltip } from '@/pages/insights/components/CalculationTooltip'
+import { InsightActionButton } from '@/pages/insights/components/ActionButton'
 import { NetWorthChart } from './Chart'
-import { InsightSectionHeader } from '../SectionHeader'
+import { InsightSectionHeader } from '@/pages/insights/components/SectionHeader'
 import {
   formatSignedNetWorthCurrency,
   getNetWorthChartData,
@@ -20,9 +20,9 @@ import {
   type NetWorthGroup,
   type NetWorthPoint,
   type NetWorthViewMode,
-} from '../../utils/netWorthChart'
+} from '@/pages/insights/utils/netWorthChart'
 
-export type { NetWorthViewMode } from '../../utils/netWorthChart'
+export type { NetWorthViewMode } from '@/pages/insights/utils/netWorthChart'
 
 type NetWorthCardProps = {
   mode: NetWorthViewMode
