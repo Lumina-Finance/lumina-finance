@@ -1,9 +1,7 @@
 import { AnimatePresence, motion } from 'motion/react'
+import type { InsightsBreakdownCategoryKind } from '@/api/insights'
 import { InsightCalculationTooltip } from '@/pages/insights/components/CalculationTooltip'
-import type {
-  BreakdownMode,
-  CategoryTrendSection,
-} from '@/pages/insights/types/incomeExpenseBreakdown'
+import type { CategoryTrendSection } from '@/pages/insights/types/incomeExpenseBreakdown'
 import {
   formatSignedBreakdownCurrency,
   getCategoryDriverColor,
@@ -14,7 +12,7 @@ import {
 import { formatCurrency } from '@/utils/formatCurrency'
 
 type IncomeExpenseTrendSectionsProps = {
-  mode: BreakdownMode
+  mode: InsightsBreakdownCategoryKind
   sections: CategoryTrendSection[]
   displayCurrency: string
   animationKey: string

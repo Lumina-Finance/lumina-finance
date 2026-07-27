@@ -2,14 +2,14 @@ import { useId } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { ChevronDown } from 'lucide-react'
 import { InsightCalculationTooltip } from '@/pages/insights/components/CalculationTooltip'
-import type { FundFlowEntry } from '@/pages/insights/types/fundFlow'
+import type { InsightsFlowEntry } from '@/api/insights'
 import { joinClassNames } from '@/utils/classNames'
 import { formatCurrency } from '@/utils/formatCurrency'
 
 type FundFlowCategoryListProps = {
   title: string
-  normalEntries: FundFlowEntry[]
-  flippedEntries: FundFlowEntry[]
+  normalEntries: InsightsFlowEntry[]
+  flippedEntries: InsightsFlowEntry[]
   flippedLabel: string
   normalLabel: string
   calculation: string

@@ -1,9 +1,9 @@
-export type BreakdownMode = 'expense' | 'income'
+import type { InsightsBreakdownCategoryKind } from '@/api/insights'
 
 export type BreakdownEntry = {
   id: string
   name: string
-  categoryKind: BreakdownMode
+  categoryKind: InsightsBreakdownCategoryKind
   amount: number
 }
 

@@ -1,15 +1,13 @@
 import { useState } from 'react'
 import {
+  type InsightsBreakdownCategoryKind,
   useDeleteSavedInsightsRange,
   useSaveInsightsRange,
   useSavedInsightsRanges,
 } from '@/api/insights'
 import { useAuth } from '@/hooks/useAuth'
 import { CashFlowCard } from './components/cash-flow-card/Card'
-import {
-  IncomeExpenseBreakdownCard,
-  type BreakdownMode,
-} from './components/income-expense-breakdown-card/Card'
+import { IncomeExpenseBreakdownCard } from './components/income-expense-breakdown-card/Card'
 import { InsightsFloatingRangeControl } from './components/FloatingRangeControl'
 import { MerchantDistributionCard } from './components/merchant-distribution-card/Card'
 import { MerchantRankingCard } from './components/merchant-ranking-card/Card'
@@ -28,7 +26,7 @@ import type { NetWorthViewMode } from './utils/netWorth'
  */
 export default function InsightsPage() {
   const { user } = useAuth()
-  const [breakdownMode, setBreakdownMode] = useState<BreakdownMode>('expense')
+  const [breakdownMode, setBreakdownMode] = useState<InsightsBreakdownCategoryKind>('expense')
   const [netWorthMode, setNetWorthMode] = useState<NetWorthViewMode>('overview')
   const [capSavingsRateChart, setCapSavingsRateChart] = useState(false)
   const range = useInsightsRange()

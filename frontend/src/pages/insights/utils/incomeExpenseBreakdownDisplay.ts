@@ -1,6 +1,6 @@
+import type { InsightsBreakdownCategoryKind } from '@/api/insights'
 import type {
   BreakdownEntry,
-  BreakdownMode,
   CategoryTrendSection,
 } from '@/pages/insights/types/incomeExpenseBreakdown'
 import { formatCurrency } from '@/utils/formatCurrency'
@@ -38,7 +38,7 @@ export function formatSignedBreakdownCurrency(amount: number, currency: string) 
 /**
  * Colours driver changes according to whether higher values are good for the active mode
  */
-export function getCategoryDriverColor(mode: BreakdownMode, changeAmount: number) {
+export function getCategoryDriverColor(mode: InsightsBreakdownCategoryKind, changeAmount: number) {
   if (changeAmount === 0) return 'var(--app-text-muted)'
   if (mode === 'income') return changeAmount > 0 ? 'var(--app-chart-positive)' : 'var(--app-chart-negative)'
   return changeAmount > 0 ? 'var(--app-chart-negative)' : 'var(--app-chart-positive)'
@@ -64,7 +64,7 @@ export function getTransactionCountLabel(count: number) {
  */
 export function getBreakdownCrossoverKind(
   entry: BreakdownEntry,
-  mode: BreakdownMode,
+  mode: InsightsBreakdownCategoryKind,
 ): BreakdownCrossoverKind | null {
   if (mode === 'expense' && entry.categoryKind === 'income') return 'income-loss'
   if (mode === 'income' && entry.categoryKind === 'expense') return 'expense-refund'
@@ -74,7 +74,7 @@ export function getBreakdownCrossoverKind(
 /**
  * Describes the netting rules behind the active breakdown mode
  */
-export function getBreakdownCalculation(mode: BreakdownMode) {
+export function getBreakdownCalculation(mode: InsightsBreakdownCategoryKind) {
   return mode === 'expense'
     ? 'Spending by category for this range. Refunds reduce spending first before flipping into income. Transfers are excluded'
     : 'Income by category for this range. Reversals reduce income first before flipping into spending. Transfers are excluded'
@@ -92,7 +92,7 @@ export function getTrendSectionCalculation(sectionId: CategoryTrendSection['id']
 /**
  * Keeps flipped categories visible even when they fall outside the top legend entries
  */
-export function getBreakdownLegendEntries(entries: BreakdownEntry[], mode: BreakdownMode) {
+export function getBreakdownLegendEntries(entries: BreakdownEntry[], mode: InsightsBreakdownCategoryKind) {
   const visibleEntries = entries.slice(0, PIE_LEGEND_LIMIT)
   const visibleIds = new Set(visibleEntries.map((entry) => entry.id))
   const hiddenFlippedEntries = entries

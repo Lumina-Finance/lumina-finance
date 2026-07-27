@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { PieChart as PieChartIcon, Repeat } from 'lucide-react'
+import type { InsightsBreakdownCategoryKind } from '@/api/insights'
 import type { FxStatus } from '@/api/shared/fx'
 import {
   LoadingContent,
@@ -19,14 +20,11 @@ import {
 } from '@/pages/insights/utils/incomeExpenseBreakdownDisplay'
 import type {
   BreakdownEntry,
-  BreakdownMode,
   CategoryTrendSection,
 } from '@/pages/insights/types/incomeExpenseBreakdown'
 
-export type { BreakdownMode } from '@/pages/insights/types/incomeExpenseBreakdown'
-
 type IncomeExpenseBreakdownCardProps = {
-  mode: BreakdownMode
+  mode: InsightsBreakdownCategoryKind
   onModeToggle: () => void
   entries: BreakdownEntry[]
   total: number
@@ -39,7 +37,7 @@ type IncomeExpenseBreakdownCardProps = {
 }
 
 type IncomeExpenseBreakdownSnapshot = {
-  mode: BreakdownMode
+  mode: InsightsBreakdownCategoryKind
   entries: BreakdownEntry[]
   total: number
   trendSections: CategoryTrendSection[]

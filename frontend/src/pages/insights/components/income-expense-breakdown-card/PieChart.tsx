@@ -9,11 +9,12 @@ import {
   PieChart,
   ResponsiveContainer,
 } from 'recharts'
+import type { InsightsBreakdownCategoryKind } from '@/api/insights'
 import { BreakdownCrossoverBadge } from '@/components/display/BreakdownCrossoverBadge'
 import { ChartTooltipTitle, ChartTooltipValue } from '@/components/charts/TooltipContent'
 import CursorTooltipPortal from '@/components/charts/CursorTooltipPortal'
 import { useCursorTooltip } from '@/hooks/useCursorTooltip'
-import type { BreakdownEntry, BreakdownMode } from '@/pages/insights/types/incomeExpenseBreakdown'
+import type { BreakdownEntry } from '@/pages/insights/types/incomeExpenseBreakdown'
 import {
   getBreakdownCrossoverKind,
   getBreakdownLegendEntries,
@@ -25,7 +26,7 @@ import { getCategoryColor, getCategoryColorMap } from '@/utils/chartColor'
 import { formatCurrency } from '@/utils/formatCurrency'
 
 type IncomeExpensePieChartProps = {
-  mode: BreakdownMode
+  mode: InsightsBreakdownCategoryKind
   entries: BreakdownEntry[]
   total: number
   displayCurrency: string
@@ -47,7 +48,7 @@ const pieLegendItemVariants = {
 
 const pieLegendItemTransition = { duration: 0.24, ease: [0.16, 1, 0.3, 1] } as const
 
-function renderCrossoverBadge(entry: BreakdownEntry, mode: BreakdownMode) {
+function renderCrossoverBadge(entry: BreakdownEntry, mode: InsightsBreakdownCategoryKind) {
   const kind = getBreakdownCrossoverKind(entry, mode)
   return kind ? <BreakdownCrossoverBadge kind={kind} /> : null
 }

@@ -1,11 +1,9 @@
 import { useMemo, useState } from 'react'
 import { Network } from 'lucide-react'
+import type { InsightsFlowEntry } from '@/api/insights'
 import type { FxStatus } from '@/api/shared/fx'
 import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
-import type {
-  FundFlowData,
-  FundFlowEntry,
-} from '@/pages/insights/types/fundFlow'
+import type { FundFlowData } from '@/pages/insights/types/fundFlow'
 import { getFundFlowChartHeight } from '@/pages/insights/utils/fundFlowChart'
 import { withoutMatchingEntries } from '@/pages/insights/utils/fundFlowEntries'
 import { getFundFlowFxStatusMessage } from '@/pages/insights/utils/fxTooltipMessages'
@@ -17,10 +15,10 @@ import { InsightSectionHeader } from '../SectionHeader'
 
 type FundFlowSnapshot = {
   flowData: FundFlowData
-  incomeSources: FundFlowEntry[]
-  expenseCategories: FundFlowEntry[]
-  incomeOutflows: FundFlowEntry[]
-  expenseInflows: FundFlowEntry[]
+  incomeSources: InsightsFlowEntry[]
+  expenseCategories: InsightsFlowEntry[]
+  incomeOutflows: InsightsFlowEntry[]
+  expenseInflows: InsightsFlowEntry[]
   incomeSourceCount: number
   expenseCategoryCount: number
   fxStatus: FxStatus | undefined
@@ -31,10 +29,10 @@ type FundFlowSnapshot = {
 
 type FundFlowCardProps = {
   flowData: FundFlowData
-  incomeSources: FundFlowEntry[]
-  expenseCategories: FundFlowEntry[]
-  incomeOutflows: FundFlowEntry[]
-  expenseInflows: FundFlowEntry[]
+  incomeSources: InsightsFlowEntry[]
+  expenseCategories: InsightsFlowEntry[]
+  incomeOutflows: InsightsFlowEntry[]
+  expenseInflows: InsightsFlowEntry[]
   incomeSourceCount: number
   expenseCategoryCount: number
   fxStatus: FxStatus | undefined

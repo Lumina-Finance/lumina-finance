@@ -1,11 +1,11 @@
 import type {
+  InsightsBreakdownCategoryKind,
   InsightsBreakdownEntry,
   InsightsCategoryTrendEntry,
   InsightsIncomeExpenseBreakdownResponse,
 } from '@/api/insights'
 import type {
   BreakdownEntry,
-  BreakdownMode,
   CategoryDriver,
   CategoryTrendSection,
 } from '@/pages/insights/types/incomeExpenseBreakdown'
@@ -35,7 +35,7 @@ function getCategoryDrivers(entries: InsightsCategoryTrendEntry[] | undefined): 
  */
 export function getBreakdownEntriesForMode(
   data: InsightsIncomeExpenseBreakdownResponse | undefined,
-  mode: BreakdownMode,
+  mode: InsightsBreakdownCategoryKind,
 ): BreakdownEntry[] {
   return getBreakdownEntries(mode === 'expense' ? data?.expense : data?.income)
 }
@@ -46,7 +46,7 @@ export function getBreakdownEntriesForMode(
  */
 export function getBreakdownTotalForMode(
   data: InsightsIncomeExpenseBreakdownResponse | undefined,
-  mode: BreakdownMode,
+  mode: InsightsBreakdownCategoryKind,
 ): number {
   if (!data) return 0
   const total = mode === 'expense' ? data.expense_total : data.income_total
@@ -62,7 +62,7 @@ export function getBreakdownTotalForMode(
  */
 export function getCategoryTrendSections(
   data: InsightsIncomeExpenseBreakdownResponse | undefined,
-  mode: BreakdownMode,
+  mode: InsightsBreakdownCategoryKind,
 ): CategoryTrendSection[] {
   return [
     {
