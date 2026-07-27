@@ -4,7 +4,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { parseIsoDate } from '@/components/date-field/dateSegments'
 import { useAuth } from '@/hooks/useAuth'
-import { formatYmd, getTodayYmd } from '@/utils/date'
+import { formatYmd, getTodayYmd, getWeekdayIndex } from '@/utils/date'
 
 interface CalendarPopoverProps {
   open: boolean
@@ -18,7 +18,7 @@ interface CalendarPopoverProps {
 const POPOVER_WIDTH = 264
 const POPOVER_ESTIMATED_HEIGHT = 320
 const VIEWPORT_MARGIN = 8
-const WEEKDAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
+const WEEKDAY_LABELS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su']
 const MONTH_LABELS = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
@@ -32,7 +32,8 @@ const DAYS_PER_WEEK = 7
  */
 function buildMonthGrid(year: number, month: number): Date[] {
   const firstOfMonth = new Date(year, month - 1, 1)
-  const gridStart = new Date(year, month - 1, 1 - firstOfMonth.getDay())
+  // Columns run Monday to Sunday to match WEEKDAY_LABELS and the week the rest of the product buckets by
+  const gridStart = new Date(year, month - 1, 1 - getWeekdayIndex(firstOfMonth))
 
   return Array.from({ length: GRID_CELL_COUNT }, (_, index) => (
     new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + index)
