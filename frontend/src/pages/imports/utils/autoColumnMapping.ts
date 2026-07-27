@@ -124,6 +124,15 @@ const EXCLUDED_HEADER_PARTS: Partial<Record<ColumnTarget, string[]>> = {
   amount: ['balance', 'available', 'limit', 'rate'],
 }
 
+/**
+ * Infers which app field each unmapped column corresponds to, scoring both the header text and a
+ * sample of its values against known patterns for each target field, then validates the resulting
+ * map against the uploaded files
+ *
+ * A column already mapped, explicitly or from a previous inference, is left alone, and each column
+ * can only be claimed by the single best-scoring target so two fields never end up pointing at the
+ * same header
+ */
 export function inferColumnMap(columnMap: ColumnMap, files: ImportFileDraft[]) {
   const result = validateColumnMap(columnMap, files)
   if (files.length === 0) return result

@@ -6,6 +6,10 @@ type ImportColumnMappingStepProps = Pick<
   'headers' | 'files' | 'columnTargetOptions' | 'autoFilledColumnHeaders' | 'columnMap' | 'columnValidationErrors' | 'updateColumnTarget'
 >
 
+/**
+ * Column mapping step of the generic CSV import flow, matching each header found in the uploaded
+ * file to an app field
+ */
 export function ImportColumnMappingStep({
   headers,
   files,

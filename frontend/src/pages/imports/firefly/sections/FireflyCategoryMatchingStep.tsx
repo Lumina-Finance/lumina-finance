@@ -15,6 +15,10 @@ type FireflyCategoryMatchingStepProps = Pick<
   | 'categoriesLoading'
 >
 
+/**
+ * Category matching step of the Firefly III import flow, showing every category found in the export
+ * matched to an existing category or queued to be created with a chosen kind
+ */
 export function FireflyCategoryMatchingStep({
   importedCategories,
   resolvedCategoryMappings,

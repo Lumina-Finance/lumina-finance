@@ -46,6 +46,11 @@ const COLUMN_VALIDATION_RULES: Record<ColumnTarget, {
   },
 }
 
+/**
+ * Rebuilds a column map to keep only mappings whose header still exists in the uploaded files, and
+ * records a validation error for any mapped column whose values do not match what the target field
+ * expects
+ */
 export function validateColumnMap(columnMap: ColumnMap, files: ImportFileDraft[]) {
   if (files.length === 0) return { map: EMPTY_COLUMN_MAP, errors: {} }
 
@@ -65,6 +70,11 @@ export function validateColumnMap(columnMap: ColumnMap, files: ImportFileDraft[]
   return { map, errors }
 }
 
+/**
+ * Checks a column's values against the target field's expected format, returning why the column
+ * failed when it has no readable values, has blanks in a field where every row is required, or
+ * contains a value that does not match what the field accepts
+ */
 export function validateColumnValues(files: ImportFileDraft[], header: string, target: ColumnTarget) {
   const rule = COLUMN_VALIDATION_RULES[target]
   const values = getColumnValues(files, header)
@@ -102,14 +112,25 @@ function getColumnValues(files: ImportFileDraft[], header: string) {
   })
 }
 
+/**
+ * Reads a row's trimmed value for the given header, or an empty string when the header is unmapped
+ */
 export function getMappedValue(row: CsvRow, header: string) {
   return header ? row[header]?.trim() ?? '' : ''
 }
 
+/**
+ * Finds which transaction field a column has been mapped to, returning an empty string when the
+ * column is not mapped to anything
+ */
 export function getTargetForHeader(columnMap: ColumnMap, header: string) {
   return COLUMN_TARGETS.find((target) => columnMap[target.id] === header)?.id ?? ''
 }
 
+/**
+ * Picks up to three distinct non-empty values from a column, used to show the user what a column
+ * actually holds while they decide what to map it to
+ */
 export function getColumnSamples(files: ImportFileDraft[], header: string) {
   return unique(
     getColumnValues(files, header).filter(Boolean),

@@ -36,6 +36,10 @@ interface BuildImportPreviewRowsOptions {
   resolvedCategoryMappings: Record<string, string>
 }
 
+/**
+ * Groups consecutive preview rows that share the same date label, for rendering the preview list
+ * under one heading per day
+ */
 export function groupPreviewRowsByDate(rows: PreviewTransactionRow[]) {
   const groups: Array<{ dateLabel: string; rows: PreviewTransactionRow[] }> = []
 
@@ -152,6 +156,11 @@ export function buildImportPreviewRows({
   return rows
 }
 
+/**
+ * Picks the currency a previewed transaction will use, preferring the imported value over the
+ * mapped account's currency, the currency chosen for a new account, and finally the caller's
+ * fallback, and falling back to CAD when none of those is a supported currency
+ */
 export function getPreviewCurrency(
   importedCurrency: string,
   accountCurrency: string | undefined,
@@ -166,6 +175,10 @@ export function getPreviewCurrency(
   return 'CAD'
 }
 
+/**
+ * Resolves the category a previewed transaction will use, building a placeholder record for a
+ * category queued to be created and looking up an existing one otherwise
+ */
 export function getPreviewCategory(
   importedCategory: string,
   categoryMappings: Record<string, string>,
@@ -194,6 +207,10 @@ export function getPreviewCategory(
   return undefined
 }
 
+/**
+ * Determines the kind a previewed category will be created with, preferring an explicit choice over
+ * a kind implied by the imported data, and falling back to the transaction amount's sign
+ */
 export function getPreviewCategoryKind(
   categoryKind: ImportCategoryKind | undefined,
   categoryType: string | undefined,

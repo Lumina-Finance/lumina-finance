@@ -34,6 +34,10 @@ type ImportAccountMappingStepProps = Pick<
   | 'setSelectedAccountRows'
 >
 
+/**
+ * Account mapping step of the generic CSV import flow, wrapping the shared mapping table with the
+ * modal used to create an institution from a row or from the batch bar
+ */
 export function ImportAccountMappingStep({
   accountMappingSources,
   accountMappings,

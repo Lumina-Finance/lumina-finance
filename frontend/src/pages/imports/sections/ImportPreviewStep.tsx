@@ -6,6 +6,10 @@ type ImportPreviewStepProps = Pick<
   'missingRequiredColumnLabels' | 'previewRows' | 'previewGroups'
 >
 
+/**
+ * Preview step of the generic CSV import flow, showing a sample of the compiled transactions or,
+ * when required columns are still unmapped, which ones are missing instead
+ */
 export function ImportPreviewStep({
   missingRequiredColumnLabels,
   previewRows,

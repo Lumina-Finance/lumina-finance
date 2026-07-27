@@ -24,6 +24,13 @@ import {
 } from './sections'
 import type { ImportDataSource } from './types'
 
+/**
+ * Renders the CSV import workflow page, switching between the generic and Firefly III flows and
+ * showing the shared progress overlay while a commit runs
+ *
+ * Only one flow can be staged at a time, so changing the data source resets whichever flow is being
+ * left, so its staged state cannot leak into a later import run
+ */
 export default function ImportsPage() {
   const navigate = useNavigate()
   const [dataSource, setDataSource] = useState<ImportDataSource>('generic')

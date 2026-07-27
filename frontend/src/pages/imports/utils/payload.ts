@@ -8,6 +8,14 @@ import { getMappedValue } from './columnMapping'
 import { getResolvedAccountChoice } from './accountMapping'
 import { normalizeImportDate, parseImportNumber } from './valueParsers'
 
+/**
+ * Builds the commit payload for the generic CSV import flow from the staged files and every mapping
+ * choice made so far, collecting every validation problem along the way instead of stopping at the
+ * first one
+ *
+ * Returns the built payload only when no error was collected. A mapping or data problem instead
+ * returns every accumulated error with a null payload, so the caller can show them all at once
+ */
 export function buildTransactionImportPayload({
   accountCreateCurrencies,
   accountCreateInstitutions,
@@ -184,6 +192,9 @@ function cleanOptional(value: string) {
   return trimmed || null
 }
 
+/**
+ * Formats a completed import's created counts into one summary line for the progress overlay
+ */
 export function formatImportSummary(result: TransactionImportResponse) {
   const parts = [
     `${result.transactions_created} transaction${result.transactions_created === 1 ? '' : 's'} imported`,
@@ -194,6 +205,10 @@ export function formatImportSummary(result: TransactionImportResponse) {
   return parts.join(' · ')
 }
 
+/**
+ * Extracts a user-facing message from a failed import request, falling back to a generic message
+ * for a non-Error rejection
+ */
 export function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : 'Import failed.'
 }

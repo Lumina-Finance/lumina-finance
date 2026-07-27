@@ -113,6 +113,13 @@ interface ImportProgressOverlayProps {
   summary: string
 }
 
+/**
+ * Full-screen overlay shown while an import is running, and after it finishes or fails
+ *
+ * The title and message read off the phase and, when supplied, the multi-stage step list rather than
+ * a fixed set of copy, so a single-stage commit collapses to a plain spinner while a multi-stage one
+ * shows the stage wheel underneath it
+ */
 export function ImportProgressOverlay({
   error,
   onDone,

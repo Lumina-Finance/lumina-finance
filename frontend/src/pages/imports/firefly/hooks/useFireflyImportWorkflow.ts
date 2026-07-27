@@ -61,6 +61,16 @@ import {
   type FireflyAccountCreateDetails,
 } from '../utils'
 
+/**
+ * Drives the whole Firefly III import flow: staging the transactions and budgets exports, resolving
+ * their accounts and categories against the user's existing ones, building the commit payload, and
+ * running the two-stage commit that imports transactions before budgets
+ *
+ * Uploading a new transactions export resets every derived mapping and any prior commit result, since
+ * a different export invalidates all of it. A budget failure after the transactions have committed
+ * leaves those transactions in place and only fails the budget stage, so it can be retried on its own
+ * without re-importing anything already committed
+ */
 export function useFireflyImportWorkflow() {
   const [transactionsFile, setTransactionsFile] = useState<ImportFileDraft | null>(null)
   const [budgetsFile, setBudgetsFile] = useState<ImportFileDraft | null>(null)

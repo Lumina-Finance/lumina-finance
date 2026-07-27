@@ -5,6 +5,10 @@ type ImportCommitPanelProps = Pick<
   'importBuild' | 'importError' | 'handleCommitImport' | 'canCommitImport' | 'importResult'
 >
 
+/**
+ * Commit panel for the generic CSV import flow, surfacing the first payload-build error or import
+ * error above the button that starts the commit
+ */
 export function ImportCommitPanel({
   importBuild,
   importError,
