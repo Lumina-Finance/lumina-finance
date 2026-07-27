@@ -40,6 +40,10 @@ function getChangeLabel(changePct: number | null) {
   return `${changePct > 0 ? '+' : ''}${changePct}%`
 }
 
+/**
+ * Renders the merchant ranking card, listing the top merchants by spending after refunds along
+ * with their change against the comparison period
+ */
 export function MerchantRankingCard({
   merchants,
   fxStatus,

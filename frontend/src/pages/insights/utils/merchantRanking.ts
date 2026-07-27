@@ -1,6 +1,10 @@
 import type { InsightsMerchantsResponse } from '@/api/insights'
 import type { MerchantRankingRow } from '@/pages/insights/types/merchantRanking'
 
+/**
+ * Maps the merchant ranking response rows into ranking rows, computing the average transaction
+ * amount for each merchant
+ */
 export function getMerchantRankingRows(
   response: InsightsMerchantsResponse | undefined,
 ): MerchantRankingRow[] {

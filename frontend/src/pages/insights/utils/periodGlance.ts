@@ -198,6 +198,10 @@ function getSupportItems(secondaryMetric: PeriodBrief['metrics'][number], signal
   ]
 }
 
+/**
+ * Builds the period glance card's primary metric and supporting insight items from the raw
+ * response, falling back to loading placeholders when the response has not arrived yet
+ */
 export function getPeriodGlanceCardData(
   data: InsightsPeriodGlanceResponse | undefined,
   displayCurrency: string,

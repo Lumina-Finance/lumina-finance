@@ -30,6 +30,9 @@ function getCategoryDrivers(entries: InsightsCategoryTrendEntry[] | undefined): 
   }))
 }
 
+/**
+ * Picks the income or expense category entries for the active breakdown mode
+ */
 export function getBreakdownEntriesForMode(
   data: InsightsIncomeExpenseBreakdownResponse | undefined,
   mode: BreakdownMode,
@@ -37,6 +40,10 @@ export function getBreakdownEntriesForMode(
   return getBreakdownEntries(mode === 'expense' ? data?.expense : data?.income)
 }
 
+/**
+ * Returns the income or expense total for the active breakdown mode, falling back to summing the
+ * category entries when the server total is missing or not finite
+ */
 export function getBreakdownTotalForMode(
   data: InsightsIncomeExpenseBreakdownResponse | undefined,
   mode: BreakdownMode,
@@ -49,6 +56,10 @@ export function getBreakdownTotalForMode(
     .reduce((sum, entry) => sum + entry.amount, 0)
 }
 
+/**
+ * Builds the increases and decreases sections for the category trend list, using the entries
+ * that match the active breakdown mode
+ */
 export function getCategoryTrendSections(
   data: InsightsIncomeExpenseBreakdownResponse | undefined,
   mode: BreakdownMode,

@@ -7,6 +7,10 @@ type InsightSectionHeaderProps = {
   action?: ReactNode
 }
 
+/**
+ * Renders the shared insight section header: an accent icon chip, a label, and an optional
+ * action pinned to the right edge
+ */
 export function InsightSectionHeader({
   icon: Icon,
   label,

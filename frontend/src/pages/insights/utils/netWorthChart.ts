@@ -62,15 +62,25 @@ const netWorthAxisMoneyRules: CompactMoneyRule[] = [
   { threshold: 1_000, divisor: 1_000, suffix: 'K', fractionDigits: 0 },
 ]
 
+/**
+ * Formats signed currency changes without showing a sign for unchanged values
+ */
 export function formatSignedNetWorthCurrency(amount: number, currency: string) {
   if (amount === 0) return formatCurrency(amount, currency)
   return `${amount > 0 ? '+' : '-'}${formatCurrency(Math.abs(amount), currency)}`
 }
 
+/**
+ * Formats a net worth chart axis value with K/M compaction rules and no currency prefix
+ */
 export function formatNetWorthAxisMoney(value: number, currency: string) {
   return formatCompactMoney(value, currency, netWorthAxisMoneyRules, { prefix: '' })
 }
 
+/**
+ * Formats an axis tick timestamp as a short month and day, read in UTC so the label matches the
+ * underlying data point's calendar date rather than the viewer's local timezone
+ */
 export function formatNetWorthAxisDate(value: number): string {
   return new Intl.DateTimeFormat('en-US', {
     month: 'short',
@@ -79,18 +89,33 @@ export function formatNetWorthAxisDate(value: number): string {
   }).format(new Date(value))
 }
 
+/**
+ * Builds the per-series data key that holds a chart item's raw value at each point
+ */
 export function getValueKey(index: number) {
   return `series${index}Value`
 }
 
+/**
+ * Builds the per-series data key that holds a chart item's change from the baseline point
+ */
 export function getChangeKey(index: number) {
   return `series${index}Change`
 }
 
+/**
+ * Builds the per-series data key the chart actually plots, which holds the raw value or the
+ * change from baseline depending on which key was written for the active view mode
+ */
 export function getChartKey(index: number) {
   return `series${index}Chart`
 }
 
+/**
+ * Builds the chart items for the active view mode: one item per account group in composition
+ * mode, or two combined items, assets and debt, that each sum their member groups in overview
+ * mode
+ */
 export function getNetWorthChartItems(
   groups: NetWorthGroup[],
   mode: NetWorthViewMode,
@@ -127,6 +152,13 @@ export function getNetWorthChartItems(
   ]
 }
 
+/**
+ * Turns the raw series into chart points with values relative to a baseline, writing each item's
+ * raw value, its change from baseline, and the key the chart plots for the active view mode
+ *
+ * The baseline is the explicit baseline values when given, otherwise the first series point, so
+ * a caller can pin the comparison to a day before the range without changing the plotted series
+ */
 export function getNetWorthChartData(
   series: NetWorthPoint[],
   items: NetWorthChartItem[],
@@ -163,6 +195,10 @@ export function getNetWorthChartData(
   })
 }
 
+/**
+ * Builds the chart legend entries, prefixing a net worth change swatch ahead of the chart items
+ * in overview mode
+ */
 export function getNetWorthLegendItems(
   mode: NetWorthViewMode,
   items: NetWorthChartItem[],
@@ -175,6 +211,10 @@ export function getNetWorthLegendItems(
   ]
 }
 
+/**
+ * Picks evenly spaced tick timestamps across the series' date range, always keeping the first
+ * and last points so the axis anchors on the range boundaries
+ */
 export function getNetWorthDateAxisTicks(
   series: NetWorthDeltaPoint[],
   tickCount: number,
