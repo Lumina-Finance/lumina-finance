@@ -10,6 +10,10 @@ import {
 } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/utils/categoryUtils'
 import { formatMoneyInputLive, sanitizeMoneyInput } from '@/utils/moneyInput'
 
+/**
+ * Tooltip icon warning that tax-advantaged categories only link accounts sharing the category's
+ * currency
+ */
 export function TaxAdvantagedCurrencyWarning() {
   return (
     <span className="inline-flex h-4 items-center align-middle leading-none">
@@ -26,6 +30,10 @@ export function TaxAdvantagedCurrencyWarning() {
   )
 }
 
+/**
+ * Bordered money input that shows the currency symbol and a formatted value while idle, but
+ * switches to the raw value while focused so the user can edit it freely
+ */
 export function CurrencyInput({
   ariaLabel,
   currencies,
@@ -86,6 +94,10 @@ export function CurrencyInput({
   )
 }
 
+/**
+ * Underlined money input used in inline editors, formatting the value while idle and switching
+ * to the raw value while focused so the user can edit it freely
+ */
 export function InlineCurrencyInput({
   ariaLabel,
   currencies,
@@ -142,6 +154,10 @@ export function InlineCurrencyInput({
   )
 }
 
+/**
+ * Compact bordered money input that formats the value live as it is typed, rather than
+ * switching between a raw and a formatted value on focus like the other currency inputs
+ */
 export function CompactCurrencyInput({
   ariaLabel,
   currencies,
@@ -195,6 +211,10 @@ export function CompactCurrencyInput({
   )
 }
 
+/**
+ * Underlined select for choosing a category's tax treatment inline, styled to match the other
+ * inline editors
+ */
 export function InlineTaxTreatmentSelect({
   onBlur,
   onChange,

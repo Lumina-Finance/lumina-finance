@@ -6,6 +6,13 @@ import {
 } from '@/pages/settings/components/category-settings-section/constants'
 import { displayKind } from '@/pages/settings/components/category-settings-section/utils'
 
+/**
+ * Splits the categories into their kinds in a fixed display order, narrows each kind by the
+ * search text, and tracks which kinds the user has opened
+ *
+ * Every kind is returned even when it holds nothing after filtering, so the caller decides
+ * whether an empty kind is hidden or shown as empty
+ */
 export function useCategorySettingsGroups(categories: Category[], search: string) {
   const [expandedKinds, setExpandedKinds] = useState<Set<CategoryKind>>(() => new Set())
 

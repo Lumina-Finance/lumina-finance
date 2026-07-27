@@ -4,6 +4,13 @@ import { useUpdateCategory, type Category } from '@/api/categories'
 import CategoryIconSelector from '@/components/category-icon-selector/Selector'
 import { editableEmoji } from '@/pages/settings/components/category-settings-section/utils'
 
+/**
+ * Turns a category row into a small form for renaming it and choosing a new icon, saving in
+ * place without leaving the list
+ *
+ * Submitting with nothing changed just closes the editor rather than sending a pointless
+ * update, and a failed save keeps the row open with the reason beneath the name
+ */
 export default function InlineCategoryEdit({
   category,
   isLast,

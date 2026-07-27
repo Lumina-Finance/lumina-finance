@@ -1,6 +1,10 @@
 import type React from 'react'
 import { CATEGORY_SUMMARY_VALUE_CLASS } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/constants'
 
+/**
+ * Label and value pair used across the tax-advantaged category summary, optionally styled as a
+ * financial figure and with room for an accessory beside the label
+ */
 export default function TaxAdvantagedInfoItem({
   financial = false,
   label,

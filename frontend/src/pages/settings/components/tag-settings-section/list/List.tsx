@@ -5,6 +5,10 @@ import ScrollableListMoreButton from '@/components/list-controls/MoreButton'
 import TagRow from '@/pages/settings/components/tag-settings-section/list/Row'
 import { TAG_LIST_HEIGHT_TRANSITION } from '@/pages/settings/components/tag-settings-section/constants'
 
+/**
+ * Renders the tag settings table, animating its container height to match the content so rows
+ * appearing, leaving, or the empty state swapping in does not jump the surrounding layout
+ */
 export default function TagSettingsList({
   activeSearch,
   confirmingDeleteTagId,

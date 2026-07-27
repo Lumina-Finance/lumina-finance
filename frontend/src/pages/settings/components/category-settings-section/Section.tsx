@@ -20,6 +20,14 @@ import SettingsSectionHeader from '@/pages/settings/components/SectionHeader'
 import SettingsCard from '@/pages/settings/components/Card'
 import { waitForMilliseconds } from '@/utils/timing'
 
+/**
+ * Categories pane where the user searches the category list, creates categories, and renames
+ * or deletes the ones that are not built in
+ *
+ * A category still attached to transactions cannot be deleted outright, so a refusal from the
+ * backend swaps the confirmation for the merge modal and the user picks where those
+ * transactions should move instead
+ */
 export default function CategorySettingsSection() {
   const queryClient = useQueryClient()
   const { data: categories = [], isLoading } = useCategories()

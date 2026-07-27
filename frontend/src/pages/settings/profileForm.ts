@@ -6,6 +6,9 @@ export interface ProfileFormState {
 
 // last_name is stored as "" in the form so the input stays controlled; save
 // translates it back to null when clearing the backend column
+/**
+ * Builds the editable profile form state from the saved user record
+ */
 export function profileFormFromUser(user: {
   first_name: string
   last_name: string | null

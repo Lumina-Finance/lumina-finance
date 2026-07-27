@@ -4,6 +4,11 @@ import {
   formatTaxTreatment,
 } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/utils/categoryUtils'
 
+/**
+ * Renders the tax-advantaged categories as a table on wider screens and stacked cards on
+ * narrower ones, opening the category detail modal when a row is clicked or activated by
+ * keyboard
+ */
 export default function TaxAdvantagedCategoriesTable({
   currentYear,
   linkedAccountCounts,

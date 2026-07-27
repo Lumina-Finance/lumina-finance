@@ -8,6 +8,13 @@ import {
   type CategoryKind,
 } from '@/pages/settings/components/category-settings-section/constants'
 
+/**
+ * One collapsible kind of category, with a header giving the kind name and how many it holds,
+ * and the rows sliding open beneath it
+ *
+ * Rows fade in one slightly after the next, and the stagger stops growing partway down so a
+ * long group does not leave the last rows waiting
+ */
 export default function CategorySettingsGroup({
   categories,
   confirmingDeleteCategoryId,

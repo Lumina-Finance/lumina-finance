@@ -19,6 +19,14 @@ import { DELETE_SPINNER_MS } from '@/pages/settings/components/tag-settings-sect
 import { useTagSettingsList } from '@/pages/settings/components/tag-settings-section/hooks/useList'
 import { waitForMilliseconds } from '@/utils/timing'
 
+/**
+ * Settings section for managing tags, combining search, creation, inline editing and deletion
+ * with the list of tag rows
+ *
+ * A delete the backend rejects with a 409 conflict, meaning the tag is still applied to
+ * transactions, reopens as a merge instead of failing outright, prompting the user to pick a
+ * replacement tag
+ */
 export default function TagSettingsSection() {
   const queryClient = useQueryClient()
   const deleteTag = useDeleteTag()

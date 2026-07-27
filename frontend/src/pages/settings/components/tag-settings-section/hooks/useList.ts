@@ -9,6 +9,15 @@ import {
   TAG_SEARCH_DEBOUNCE_MS,
 } from '@/pages/settings/components/tag-settings-section/constants'
 
+/**
+ * Drives the paginated, searchable tag list, sorting each fetched page alphabetically and
+ * revealing it only after a minimum loading time so the loading and fetching-more messages do
+ * not flash on a fast connection
+ *
+ * Whether new data counts as an appended page is tracked by a flag set when the caller asks for
+ * more, rather than inferred from a growing list, so a background refetch is not mistaken for
+ * the next page
+ */
 export function useTagSettingsList(locallyDeletedTagIds: string[]) {
   const [search, setSearch] = useState('')
   const [activeSearch, setActiveSearch] = useState('')

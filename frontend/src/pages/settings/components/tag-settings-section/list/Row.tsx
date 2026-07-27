@@ -11,6 +11,13 @@ import {
 } from '@/pages/settings/components/tag-settings-section/constants'
 import { scopeLabel } from '@/pages/settings/components/tag-settings-section/utils'
 
+/**
+ * One tag in the settings table, showing its name and scope alongside the edit and delete
+ * controls
+ *
+ * Deleting asks for a second click on the row itself, confirming or cancelling in place, rather
+ * than opening a separate modal
+ */
 export default function TagRow({
   confirmingDelete,
   deleting,

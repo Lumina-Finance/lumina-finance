@@ -6,6 +6,10 @@ import {
   formatTaxTreatment,
 } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/utils/categoryUtils'
 
+/**
+ * Derives the current tax year for the user's timezone, how many accounts link to each
+ * category, and the categories narrowed by the search text
+ */
 export function useTaxAdvantagedCategoryList({
   accounts,
   plans,

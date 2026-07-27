@@ -14,6 +14,13 @@ import {
   scopeLabel,
 } from '@/pages/settings/components/merchant-settings-section/utils'
 
+/**
+ * One merchant in the mobile settings list, showing its name, scope and default category
+ * alongside the edit and delete controls
+ *
+ * Deleting asks for a second tap on the row itself, confirming or cancelling in place, rather
+ * than opening a separate modal
+ */
 export default function MobileMerchantRow({
   categoryById,
   categoryOptions,

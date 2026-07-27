@@ -7,6 +7,10 @@ import ScrollableListMoreButton from '@/components/list-controls/MoreButton'
 import MerchantRow from '@/pages/settings/components/merchant-settings-section/list/Row'
 import MobileMerchantRow from '@/pages/settings/components/merchant-settings-section/list/MobileRow'
 
+/**
+ * Renders the merchant list as a table on wider screens and stacked cards on narrow ones,
+ * sharing the same rows, loading state and end-of-list markers between both layouts
+ */
 export default function MerchantSettingsList({
   activeSearch,
   categoryById,
