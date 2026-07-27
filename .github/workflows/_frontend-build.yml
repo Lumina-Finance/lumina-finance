@@ -9,7 +9,6 @@ permissions:
 
 jobs:
   build:
-    name: Build frontend
     runs-on: ubuntu-latest
 
     defaults:
