@@ -306,6 +306,7 @@ export default function CreateTransactionModal({
             currencyValue={form.currency}
             currencyPlaceholder={currencies.length === 0 ? 'Loading...' : 'Select...'}
             selectedCurrencySymbol={selectedCurrencySymbol}
+            currencyExponent={selectedCurrencyExponent}
             amount={form.amount}
             amountError={showError('amount')}
             notes={form.notes}
