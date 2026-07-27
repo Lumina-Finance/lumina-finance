@@ -4,6 +4,8 @@
  * could be read in
  */
 import { describe, expect, it } from 'vitest'
+import type { ImportFileDraft } from '@/pages/imports/types'
+import { validateColumnValues } from '@/pages/imports/utils'
 import {
   type ImportDateFormat,
   isValidDateValue,
@@ -12,6 +14,21 @@ import {
 } from '@/pages/imports/utils/valueParsers'
 
 const ALL_FORMATS: ImportDateFormat[] = ['yearFirst', 'dayFirst', 'monthFirst', 'written']
+
+/**
+ * Creates a one-column file whose every row holds the given date
+ */
+function createDateFile(dates: string[]): ImportFileDraft {
+  return {
+    id: 'file-1',
+    name: 'Checking.csv',
+    size: 512,
+    headers: ['Date'],
+    hasHeaderRow: true,
+    rows: dates.map((date) => ({ Date: date })),
+    error: null,
+  }
+}
 
 describe('year first dates', () => {
   it('reads a date with either separator, padded or not', () => {
@@ -150,6 +167,36 @@ describe('scanning a column', () => {
     const scan = scanImportDateFormats(['2024-03-15', '', '   ', '2024-04-01'])
 
     expect(scan.readable).toEqual(['yearFirst'])
+  })
+})
+
+describe('validating a date column', () => {
+  it('accepts a column that could be read some way when no format is settled yet', () => {
+    const files = [createDateFile(['15/03/2024', '2024-03-15'])]
+
+    expect(validateColumnValues(files, 'Date', 'dt').valid).toBe(true)
+  })
+
+  it('refuses the same column once a format is chosen, naming the value that broke it', () => {
+    const files = [createDateFile(['15/03/2024', '2024-03-15'])]
+
+    const result = validateColumnValues(files, 'Date', 'dt', 'dayFirst')
+
+    expect(result.valid).toBe(false)
+    expect(result.message).toContain('2024-03-15')
+    expect(result.message).toContain('30/04/2026')
+  })
+
+  it('accepts a column that reads all the way through in the chosen format', () => {
+    const files = [createDateFile(['15/03/2024', '02/04/2024'])]
+
+    expect(validateColumnValues(files, 'Date', 'dt', 'dayFirst').valid).toBe(true)
+  })
+
+  it('refuses a two-digit year that used to import as this century', () => {
+    const files = [createDateFile(['15/03/24'])]
+
+    expect(validateColumnValues(files, 'Date', 'dt', 'dayFirst').valid).toBe(false)
   })
 })
 
