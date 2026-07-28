@@ -1,4 +1,4 @@
-name: Smoke test
+name: Docker build and smoke test
 
 # Reusable step invoked by the pull request pipeline, it does not trigger on its own
 on:
@@ -7,10 +7,26 @@ on:
 permissions:
   contents: read
 
+env:
+  # Fixed local tag the smoke test reuses, it matches the image name in docker/compose.yml
+  IMAGE_REF: luminahq/lumina-finance:ci
+
 jobs:
-  smoke:
-    name: Smoke test Docker image
-    runs-on: ubuntu-latest
+  build:
+    name: Build and smoke test Docker image (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+
+    # Each leg builds on a runner of its own architecture, so neither is emulated. One
+    # architecture failing must not cancel the other, since knowing whether the break is
+    # architecture specific is the point of running both
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: amd64
+            runner: ubuntu-latest
+          - platform: arm64
+            runner: ubuntu-24.04-arm
 
     # Feed docker/compose.yml the built image tag and a throwaway database identity
     env:
@@ -25,13 +41,27 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v6
 
-      - name: Download image artifact
-        uses: actions/download-artifact@v8
+      - name: Set up Docker build
+        uses: ./.github/actions/docker-build-setup
         with:
-          name: docker-image
+          registry-username: ${{ vars.DOCKERHUB_USERNAME }}
+          registry-token: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Load image into the daemon
-        run: docker load -i image.tar
+      # Load the image into the local daemon rather than pushing, so the smoke test below
+      # can run the exact image this job just built without it leaving the runner
+      - name: Build image
+        uses: docker/build-push-action@v7
+        env:
+          # The build record artifact is unused here and would outlive the job that made it
+          DOCKER_BUILD_RECORD_UPLOAD: false
+        with:
+          context: .
+          file: ./docker/Dockerfile
+          push: false
+          load: true
+          tags: ${{ env.IMAGE_REF }}
+          build-args: |
+            APP_VERSION=ci
 
       - name: Write the operator env file
         run: |

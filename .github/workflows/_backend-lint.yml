@@ -9,7 +9,6 @@ permissions:
 
 jobs:
   lint:
-    name: Lint backend
     runs-on: ubuntu-latest
 
     defaults:

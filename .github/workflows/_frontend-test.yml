@@ -9,7 +9,6 @@ permissions:
 
 jobs:
   test:
-    name: Test frontend
     runs-on: ubuntu-latest
 
     defaults:
