@@ -1,4 +1,4 @@
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Check, Copy, RefreshCw } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useServerReachability } from '@/hooks/useServerReachability';
 import { copyText } from '@/utils/clipboard';
@@ -15,7 +15,9 @@ const COPY_LABELS: Record<CopyStatus, string> = {
   failed: 'Could not copy',
 };
 
-const BUG_REPORT_URL = 'https://github.com/Lumina-Finance/lumina-finance/issues/new';
+// The issue list rather than a blank new issue, so the repository's own template picker is what
+// the user lands on
+const BUG_REPORT_URL = 'https://github.com/Lumina-Finance/lumina-finance/issues';
 
 // How long the copy button confirms before returning to its usual label
 const COPY_CONFIRMATION_MS = 2000;
@@ -79,18 +81,21 @@ export default function Fallback({ componentStack, error, variant }: FallbackPro
 
   const content = (
     <>
-      <AlertTriangle
-        size={variant === 'screen' ? 22 : 20}
-        strokeWidth={2}
-        style={{ color: 'var(--app-accent)' }}
-        aria-hidden
-      />
+      <div className="flex items-center gap-3">
+        <AlertTriangle
+          size={variant === 'screen' ? 26 : 22}
+          strokeWidth={2}
+          className="shrink-0"
+          style={{ color: 'var(--app-accent)' }}
+          aria-hidden
+        />
 
-      <h1
-        className={`mt-3 font-serif font-normal tracking-tight ${variant === 'screen' ? 'text-4xl' : 'text-2xl'}`}
-      >
-        OK this was not in the plan <span aria-hidden>:(</span>
-      </h1>
+        <h1
+          className={`font-serif font-normal tracking-tight ${variant === 'screen' ? 'text-3xl' : 'text-2xl'}`}
+        >
+          OK this was not in the plan <span aria-hidden>:(</span>
+        </h1>
+      </div>
 
       <p className="mt-4 text-sm leading-relaxed" style={{ color: 'var(--app-text-muted)' }}>
         {serverUnreachable ? (
@@ -118,15 +123,21 @@ export default function Fallback({ componentStack, error, variant }: FallbackPro
 
       <div className="mt-6 flex flex-wrap items-center gap-4">
         <button type="button" className="app-primary-button" onClick={handleReload}>
+          <RefreshCw size={15} strokeWidth={2} aria-hidden />
           Reload
         </button>
 
         <button
           type="button"
-          className="text-xs font-medium underline underline-offset-2 transition-colors duration-200"
+          className="inline-flex items-center gap-1.5 text-xs font-medium underline underline-offset-2 transition-colors duration-200"
           style={{ color: 'var(--app-text-muted)' }}
           onClick={handleCopy}
         >
+          {copyStatus === 'copied' ? (
+            <Check size={14} strokeWidth={2.5} style={{ color: 'var(--app-positive)' }} aria-hidden />
+          ) : (
+            <Copy size={14} strokeWidth={2} aria-hidden />
+          )}
           {COPY_LABELS[copyStatus]}
         </button>
       </div>
@@ -136,16 +147,18 @@ export default function Fallback({ componentStack, error, variant }: FallbackPro
   if (variant === 'screen') {
     return (
       <div
-        className="flex min-h-[100dvh] items-start justify-center px-4 pt-[10dvh] lg:pt-[20dvh]"
+        className="flex min-h-[100dvh] items-center justify-center px-4"
         style={{ backgroundColor: 'var(--app-bg)' }}
       >
-        <div className="w-full max-w-sm">{content}</div>
+        <div className="w-full max-w-md">{content}</div>
       </div>
     );
   }
 
   return (
-    <div className="flex justify-center py-10">
+    // The page area is taller than the card, so the height gives it something to sit in the middle
+    // of rather than hugging the top of the content column
+    <div className="flex min-h-[70dvh] items-center justify-center">
       <div
         className="w-full max-w-md rounded-2xl border p-6"
         style={{ backgroundColor: 'var(--app-surface-soft)', borderColor: 'var(--app-border)' }}
