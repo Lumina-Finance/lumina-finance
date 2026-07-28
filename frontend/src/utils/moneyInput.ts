@@ -57,6 +57,10 @@ export function readMoneyInputChange(value: string, typed: string, exponent: num
 /**
  * Returns the number of decimal places a currency uses, falling back to two when the code is not
  * in the table
+ *
+ * The fallback cannot tell an unrecognized code from a table that has not loaded yet, so a field
+ * whose text is frozen at mount must wait for the currencies query to resolve. A field that
+ * recomputes its text every render corrects itself once the table arrives and needs no wait
  */
 export function getCurrencyExponent(currencies: Currency[], code: string): number {
   return currencies.find((currency) => currency.id === code)?.minor_unit_exponent ?? DEFAULT_MINOR_UNIT_EXPONENT
