@@ -63,13 +63,13 @@ event.listen(scoped_engine.sync_engine, "begin", stamp_request_identity)
 
 @pytest.fixture(scope="session", autouse=True)
 async def _setup_schema():
-    """Ensure the worker's test DB exists, then drop and recreate all tables
+    """Recreate the worker's test DB, then drop and recreate all tables
 
     Runs once per pytest session (i.e. once per xdist worker). Connects to the
-    ``postgres`` maintenance DB with AUTOCOMMIT isolation to issue
-    ``CREATE DATABASE`` if the worker DB doesn't already exist, then recreates
-    the worker's ``public`` schema from metadata. Requires the test user to
-    have the ``CREATEDB`` role attribute (``ALTER ROLE <user> CREATEDB;``)
+    ``postgres`` maintenance DB with AUTOCOMMIT isolation to drop and recreate
+    the worker DB, then recreates the worker's ``public`` schema from metadata.
+    Requires the test user to have the ``CREATEDB`` role attribute
+    (``ALTER ROLE <user> CREATEDB;``)
     """
     # Sanity-check the worker DB name since it's interpolated into DDL — the
     # identifier can't be passed as a bind parameter. WORKER_DB_NAME is derived
@@ -81,12 +81,12 @@ async def _setup_schema():
     maintenance_engine = create_async_engine(maintenance_url, poolclass=NullPool, isolation_level="AUTOCOMMIT")
     try:
         async with maintenance_engine.connect() as conn:
-            exists = await conn.scalar(
-                text("SELECT 1 FROM pg_database WHERE datname = :name"),
-                {"name": WORKER_DB_NAME},
-            )
-            if not exists:
-                await conn.execute(text(f'CREATE DATABASE "{WORKER_DB_NAME}"'))
+            # Starting from a new database puts every run on the same path as the
+            # first one. Reusing it leaves the previous run's objects for the schema
+            # drop below to lock, and across parallel workers that exhausts the
+            # cluster's lock table. FORCE closes connections a dead run left open
+            await conn.execute(text(f'DROP DATABASE IF EXISTS "{WORKER_DB_NAME}" WITH (FORCE)'))
+            await conn.execute(text(f'CREATE DATABASE "{WORKER_DB_NAME}"'))
     finally:
         await maintenance_engine.dispose()
 
