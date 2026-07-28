@@ -35,7 +35,7 @@ export interface AuthContextValue extends AuthState {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-const SESSION_KEY = 'lumina:has_session';
+export const SESSION_KEY = 'lumina:has_session';
 const RELOAD_SESSION_RESTORE_DELAY_MS = 750;
 
 /**

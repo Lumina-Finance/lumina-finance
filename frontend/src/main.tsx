@@ -5,6 +5,7 @@ import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister'
 import '@/styles/tailwind.css'
 import App from '@/App.tsx'
+import ErrorBoundary from '@/components/errors/Boundary'
 import { hasUncacheableFxStatus } from '@/api/shared/fxCache'
 
 const SIX_MONTHS_MS = 180 * 24 * 60 * 60 * 1000;
@@ -34,15 +35,19 @@ function shouldDehydrateQuery(query: Query) {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <PersistQueryClientProvider
-      client={queryClient}
-      persistOptions={{
-        persister,
-        maxAge: SIX_MONTHS_MS,
-        dehydrateOptions: { shouldDehydrateQuery },
-      }}
-    >
-      <App />
-    </PersistQueryClientProvider>
+    {/* Above the providers, so a provider that throws while starting up is caught too. React logs
+        every caught error to the console on its own, so nothing is wired up for reporting here */}
+    <ErrorBoundary variant="screen">
+      <PersistQueryClientProvider
+        client={queryClient}
+        persistOptions={{
+          persister,
+          maxAge: SIX_MONTHS_MS,
+          dehydrateOptions: { shouldDehydrateQuery },
+        }}
+      >
+        <App />
+      </PersistQueryClientProvider>
+    </ErrorBoundary>
   </StrictMode>,
 )

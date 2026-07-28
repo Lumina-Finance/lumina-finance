@@ -8,6 +8,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { useCacheValidation } from '@/hooks/useCacheValidation'
 import { useTheme } from '@/hooks/useTheme'
 import Navigation from '@/components/navigation/Navigation'
+import ErrorBoundary from '@/components/errors/Boundary'
 import LoadingScreen from '@/components/loading/Screen'
 import ForcedReenrollScreen from '@/components/two-factor/ForcedReenrollScreen'
 
@@ -191,8 +192,17 @@ function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase, 
               <Suspense fallback={null}>
                 {contentMounted && (
                   <>
+                    {/* The notifier stays outside the boundary so a route that throws still
+                        reports itself as displayed. Inside it, the transition would never leave
+                        the loading phase and the recovery screen would sit invisible at zero
+                        opacity under a route loader that never fades out */}
                     <RouteReadyNotifier path={displayLocation.pathname} onReady={onContentReady} />
-                    <Outlet />
+                    {/* A focused page covers the viewport above the navigation, so a card there
+                        would float over a menu the user cannot reach. It gets the standalone
+                        screen instead, which is what that route already looks like */}
+                    <ErrorBoundary variant={isFocusedPage ? 'screen' : 'card'}>
+                      <Outlet />
+                    </ErrorBoundary>
                   </>
                 )}
               </Suspense>
@@ -212,9 +222,11 @@ function PublicRoute() {
   if (user) return <Navigate to="/" replace />;
 
   return (
-    <Suspense fallback={null}>
-      <Outlet />
-    </Suspense>
+    <ErrorBoundary variant="screen">
+      <Suspense fallback={null}>
+        <Outlet />
+      </Suspense>
+    </ErrorBoundary>
   );
 }
 
@@ -323,9 +335,11 @@ function AnimatedRoutes() {
         <Route
           path="/auth/oidc/callback"
           element={
-            <Suspense fallback={null}>
-              <OidcCallbackPage />
-            </Suspense>
+            <ErrorBoundary variant="screen">
+              <Suspense fallback={null}>
+                <OidcCallbackPage />
+              </Suspense>
+            </ErrorBoundary>
           }
         />
 
