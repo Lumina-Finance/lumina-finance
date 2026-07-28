@@ -6,7 +6,7 @@ import {
   useUpdateAccount,
   type Account,
 } from '@/api/accounts'
-import { useCurrencies } from '@/api/currency'
+import { useCurrencies, type Currency } from '@/api/currency'
 import { useInstitutions } from '@/api/institutions'
 import { useTaxAdvantagedCategories } from '@/api/tax-advantaged-categories'
 import CreateInstitutionModal from '@/components/reference-modals/CreateInstitutionModal'
@@ -39,23 +39,42 @@ type EditAccountIdentityModalProps = {
   onDeleteFailed: () => void
 }
 
+type EditAccountIdentityFormProps = EditAccountIdentityModalProps & {
+  currencies: Currency[]
+}
+
 const MIN_SAVE_SPINNER_MS = 800
 const MIN_DELETE_SPINNER_MS = 1000
 
 /**
+ * Holds the form back until the currency table has arrived
+ *
+ * The form turns the stored credit limit into text using the account currency's decimal places and
+ * seeds that text once, so building it from a table that has not loaded would freeze an amount
+ * scaled by the wrong power of ten
+ */
+export default function EditAccountIdentityModal(props: EditAccountIdentityModalProps) {
+  const { data: currencies } = useCurrencies()
+
+  if (!currencies) return null
+
+  return <EditAccountIdentityForm {...props} currencies={currencies} />
+}
+
+/**
  * Coordinates account identity edits, archive changes, and destructive deletion from one modal workflow
  */
-export default function EditAccountIdentityModal({
+function EditAccountIdentityForm({
   account,
+  currencies,
   onClose,
   onDeleteStarted,
   onDeleted,
   onDeleteFailed,
-}: EditAccountIdentityModalProps) {
+}: EditAccountIdentityFormProps) {
   const { panelRef, handleModalFieldKeyDown } = useModalFieldFocus()
   const updateAccount = useUpdateAccount()
   const deleteAccount = useDeleteAccount({ minimumPendingMs: MIN_DELETE_SPINNER_MS })
-  const { data: currencies = [] } = useCurrencies()
   const { data: institutions = [] } = useInstitutions()
   const { data: taxAdvantagedCategories = [] } = useTaxAdvantagedCategories()
   const [form, setForm] = useState<IdentityFormValues>(() => (

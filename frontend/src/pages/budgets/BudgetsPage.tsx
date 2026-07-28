@@ -148,25 +148,31 @@ export default function BudgetsPage() {
         )}
       </AnimatePresence>
 
-      <BudgetCreateModal
-        key={`${defaultCurrency}-${userTimeZone}`}
-        open={createOpen}
-        categories={categories ?? []}
-        currencies={currencies ?? []}
-        defaultCurrency={defaultCurrency}
-        timeZone={userTimeZone}
-        onClose={() => setCreateOpen(false)}
-        onCreated={() => undefined}
-      />
+      {/* Held for the currency table so both budget modals follow one rule, though a new budget has
+          no stored amount to convert and could safely start without it */}
+      {currencies && (
+        <BudgetCreateModal
+          key={`${defaultCurrency}-${userTimeZone}`}
+          open={createOpen}
+          categories={categories ?? []}
+          currencies={currencies}
+          defaultCurrency={defaultCurrency}
+          timeZone={userTimeZone}
+          onClose={() => setCreateOpen(false)}
+          onCreated={() => undefined}
+        />
+      )}
 
       <AnimatePresence>
-        {visibleBudgetDetails && (
+        {/* Held for the currency table, since the editor inside turns the stored limit into text
+            using the currency's decimal places and seeds that text once */}
+        {visibleBudgetDetails && currencies && (
           <BudgetDetailsModal
             key={visibleBudgetDetails.baseBudget.id}
             baseBudget={visibleBudgetDetails.baseBudget}
             periods={visibleBudgetDetails.periods}
             categories={categories ?? []}
-            currencies={currencies ?? []}
+            currencies={currencies}
             categoryById={categoryById}
             initialLatestUtilization={
               visibleBudgetDetails.latestPeriod
