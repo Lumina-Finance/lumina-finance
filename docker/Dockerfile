@@ -1,5 +1,5 @@
 # Build the Vite frontend into static assets.
-FROM dhi.io/node:26-debian13-sfw-dev AS frontend-builder
+FROM dhi.io/node:26.5-debian13-sfw-dev AS frontend-builder
 
 ARG APP_VERSION
 
