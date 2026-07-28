@@ -5,7 +5,7 @@ import IconTooltip from '@/components/tooltips/IconTooltip'
 import { useMoneyInput } from '@/hooks/useMoneyInput'
 import { TAX_TREATMENT_OPTIONS } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/constants'
 import { currencySymbol } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/utils/categoryUtils'
-import { getCurrencyExponent } from '@/utils/moneyInput'
+import { getCurrencyExponent, getMoneyPlaceholder } from '@/utils/moneyInput'
 
 /**
  * Tooltip icon warning that tax-advantaged categories only link accounts sharing the category's
@@ -48,14 +48,18 @@ export function CurrencyInput({
   id?: string
   onBlur?: () => void
   onChange: (value: string) => void
+
+  // Left out to show the currency's own zero. A word is passed instead where telling the user the
+  // field is required or optional helps more than showing the amount format
   placeholder?: string
   required?: boolean
   value: string
 }) {
   const symbol = currencySymbol(currencies, currency)
+  const exponent = getCurrencyExponent(currencies, currency)
   const moneyInput = useMoneyInput({
     value,
-    exponent: getCurrencyExponent(currencies, currency),
+    exponent,
     onChange,
     onBlur,
   })
@@ -79,7 +83,7 @@ export function CurrencyInput({
         aria-label={ariaLabel}
         id={id}
         className={`app-input w-full ${symbol ? 'pl-8' : ''}`}
-        placeholder={placeholder}
+        placeholder={placeholder ?? getMoneyPlaceholder(exponent)}
         required={required}
         {...moneyInput}
       />
@@ -105,13 +109,17 @@ export function CompactCurrencyInput({
   currency: string
   onBlur?: () => void
   onChange: (value: string) => void
+
+  // Left out to show the currency's own zero. A word is passed instead where telling the user the
+  // field is required or optional helps more than showing the amount format
   placeholder?: string
   value: string
 }) {
   const symbol = currencySymbol(currencies, currency)
+  const exponent = getCurrencyExponent(currencies, currency)
   const moneyInput = useMoneyInput({
     value,
-    exponent: getCurrencyExponent(currencies, currency),
+    exponent,
     onChange,
     onBlur,
   })
@@ -130,7 +138,7 @@ export function CompactCurrencyInput({
         aria-label={ariaLabel}
         className="block h-8 min-w-0 flex-1 bg-transparent text-[0.9375rem] font-medium leading-8 outline-none"
         style={{ color: 'var(--app-text)' }}
-        placeholder={placeholder}
+        placeholder={placeholder ?? getMoneyPlaceholder(exponent)}
         {...moneyInput}
       />
       <Pencil

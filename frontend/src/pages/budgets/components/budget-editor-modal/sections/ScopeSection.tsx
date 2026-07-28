@@ -3,7 +3,7 @@ import IconTooltip from '@/components/tooltips/IconTooltip'
 import { useMoneyInput } from '@/hooks/useMoneyInput'
 import type { BudgetEditorModalErrorGetter, BudgetEditorModalFieldIds, BudgetEditorModalHandlers, BudgetEditorModalOptions, BudgetEditorModalViewState } from '@/pages/budgets/components/budget-editor-modal/types'
 import BudgetEditorFieldLabelRow from '@/pages/budgets/components/shared/EditorFieldLabelRow'
-import { getCurrencyExponent } from '@/utils/moneyInput'
+import { getCurrencyExponent, getMoneyPlaceholder } from '@/utils/moneyInput'
 
 interface BudgetEditorModalScopeSectionProps {
   state: BudgetEditorModalViewState
@@ -11,7 +11,10 @@ interface BudgetEditorModalScopeSectionProps {
   ids: BudgetEditorModalFieldIds
   selectedCurrencySymbol: string
   namePlaceholder?: string
-  limitPlaceholder: string
+
+  // Stands in for the amount format when the field cannot take a limit at all, such as a budget
+  // with no period yet
+  limitPlaceholder?: string
   currencyReadOnly: boolean
   currencyTooltip: boolean
   limitDisabled: boolean
@@ -42,9 +45,10 @@ export default function BudgetEditorModalScopeSection({
   const { form } = state
   const { currencies } = options
   const { setField, onBlur } = handlers
+  const limitExponent = getCurrencyExponent(currencies, form.currency)
   const limitInput = useMoneyInput({
     value: form.limit,
-    exponent: getCurrencyExponent(currencies, form.currency),
+    exponent: limitExponent,
     onChange: (value) => setField('limit', value),
     onBlur: () => onBlur('limit'),
   })
@@ -132,7 +136,7 @@ export default function BudgetEditorModalScopeSection({
               <input
                 id={ids.limit}
                 className={`app-input disabled:cursor-not-allowed disabled:opacity-60 ${selectedCurrencySymbol ? 'pl-8' : ''} ${showError('limit') ? 'app-input-error' : ''}`}
-                placeholder={limitPlaceholder}
+                placeholder={limitPlaceholder ?? getMoneyPlaceholder(limitExponent)}
                 disabled={limitDisabled || fieldsLocked}
                 {...limitInput}
               />

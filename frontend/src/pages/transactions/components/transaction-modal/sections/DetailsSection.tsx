@@ -4,6 +4,7 @@ import DateField from '@/components/date-field/DateField'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
 import IconTooltip from '@/components/tooltips/IconTooltip'
 import { useMoneyInput } from '@/hooks/useMoneyInput'
+import { getMoneyPlaceholder } from '@/utils/moneyInput'
 
 interface TransactionDetailsSectionProps {
   date: string
@@ -103,7 +104,7 @@ export default function TransactionDetailsSection({
             <input
               id="txn-amount"
               className={`app-input w-full disabled:cursor-not-allowed disabled:opacity-60 ${selectedCurrencySymbol ? 'pl-8' : ''} ${amountError ? 'app-input-error' : ''}`}
-              placeholder="0.00"
+              placeholder={getMoneyPlaceholder(currencyExponent)}
               disabled={readOnly}
               {...amountInput}
             />

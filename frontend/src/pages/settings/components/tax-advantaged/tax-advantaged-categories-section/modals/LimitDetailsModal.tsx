@@ -141,14 +141,14 @@ export default function TaxAdvantagedLimitDetailsModal({
                       <p className="text-sm font-medium">Contribution</p>
                       <div className="grid grid-cols-2 gap-3">
                         {renderNewLimitEditorField('contribution_limit', 'Limit', 'New tax-year contribution limit', currencies, plan, newLimitForm, onNewLimitFieldChange, 'Required')}
-                        {renderNewLimitEditorField('accrued_contributions', 'Opening', 'New tax-year opening contributions', currencies, plan, newLimitForm, onNewLimitFieldChange, '0')}
+                        {renderNewLimitEditorField('accrued_contributions', 'Opening', 'New tax-year opening contributions', currencies, plan, newLimitForm, onNewLimitFieldChange)}
                       </div>
                     </div>
                     <div className="space-y-2">
                       <p className="text-sm font-medium">Withdrawal</p>
                       <div className="grid grid-cols-2 gap-3">
                         {renderNewLimitEditorField('withdrawal_limit', 'Limit', 'New tax-year withdrawal limit', currencies, plan, newLimitForm, onNewLimitFieldChange, 'Optional')}
-                        {renderNewLimitEditorField('accrued_withdrawals', 'Opening', 'New tax-year opening withdrawals', currencies, plan, newLimitForm, onNewLimitFieldChange, '0')}
+                        {renderNewLimitEditorField('accrued_withdrawals', 'Opening', 'New tax-year opening withdrawals', currencies, plan, newLimitForm, onNewLimitFieldChange)}
                       </div>
                     </div>
                     {limitError && (
@@ -162,15 +162,15 @@ export default function TaxAdvantagedLimitDetailsModal({
                     <div className="space-y-2">
                       <p className="text-sm font-medium">Contribution</p>
                       <div className="grid grid-cols-2 gap-3">
-                        {renderLimitEditorField(selectedLimit.year, 'contribution_limit', 'Limit', 'Contribution limit', selectedDraft.contribution_limit, currencies, plan, onLimitFieldChange)}
-                        {renderLimitEditorField(selectedLimit.year, 'accrued_contributions', 'Opening', 'Opening contributions', selectedDraft.accrued_contributions, currencies, plan, onLimitFieldChange, '0')}
+                        {renderLimitEditorField(selectedLimit.year, 'contribution_limit', 'Limit', 'Contribution limit', selectedDraft.contribution_limit, currencies, plan, onLimitFieldChange, 'Required')}
+                        {renderLimitEditorField(selectedLimit.year, 'accrued_contributions', 'Opening', 'Opening contributions', selectedDraft.accrued_contributions, currencies, plan, onLimitFieldChange)}
                       </div>
                     </div>
                     <div className="space-y-2">
                       <p className="text-sm font-medium">Withdrawal</p>
                       <div className="grid grid-cols-2 gap-3">
                         {renderLimitEditorField(selectedLimit.year, 'withdrawal_limit', 'Limit', 'Withdrawal limit', selectedDraft.withdrawal_limit, currencies, plan, onLimitFieldChange, 'Optional')}
-                        {renderLimitEditorField(selectedLimit.year, 'accrued_withdrawals', 'Opening', 'Opening withdrawals', selectedDraft.accrued_withdrawals, currencies, plan, onLimitFieldChange, '0')}
+                        {renderLimitEditorField(selectedLimit.year, 'accrued_withdrawals', 'Opening', 'Opening withdrawals', selectedDraft.accrued_withdrawals, currencies, plan, onLimitFieldChange)}
                       </div>
                     </div>
                     {limitError && (

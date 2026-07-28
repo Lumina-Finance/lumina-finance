@@ -293,7 +293,6 @@ export default function BudgetCreateModal({
             ids={CREATE_FIELD_IDS}
             selectedCurrencySymbol={currencySymbol(currencies, form.currency)}
             namePlaceholder="e.g. Groceries"
-            limitPlaceholder="0.00"
             currencyReadOnly={false}
             currencyTooltip
             limitDisabled={false}

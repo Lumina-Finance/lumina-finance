@@ -171,7 +171,6 @@ export default function TaxAdvantagedCategoryDetailsModal({
                           currency={plan.currency}
                           value={planForm.accrued_contributions}
                           onChange={(value) => onPlanFieldChange('accrued_contributions', value)}
-                          placeholder="0"
                         />
                       </div>
                     </div>

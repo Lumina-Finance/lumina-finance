@@ -7,6 +7,7 @@ import { MultiSelectChecklist } from '@/components/filters/MultiSelectChecklist'
 import { FacetSelectDropdown } from '@/components/list-controls/FacetSelectDropdown'
 import { FILTER_GLASS_SPRING } from '@/components/list-controls/toolbarStyles'
 import { joinClassNames } from '@/utils/classNames'
+import { getMoneyPlaceholder } from '@/utils/moneyInput'
 import { useMoneyInput } from '@/hooks/useMoneyInput'
 import { ReferenceFacet } from '@/pages/transactions/components/toolbar/ReferenceFacet'
 import {
@@ -342,7 +343,7 @@ function FacetEditor({
                 )}
                 <input
                   className={joinClassNames('app-input', amountSymbol && 'pl-8')}
-                  placeholder="0.00"
+                  placeholder={getMoneyPlaceholder(amountExponent)}
                   {...minAmountInput}
                 />
               </div>

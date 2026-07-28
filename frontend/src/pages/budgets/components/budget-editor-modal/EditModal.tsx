@@ -351,7 +351,7 @@ export default function BudgetEditModal({
             options={options}
             ids={EDIT_FIELD_IDS}
             selectedCurrencySymbol={currencySymbol(currencies, form.currency)}
-            limitPlaceholder={latestPeriod ? '0.00' : 'No period yet'}
+            limitPlaceholder={latestPeriod ? undefined : 'No period yet'}
             currencyReadOnly
             currencyTooltip={false}
             limitDisabled={!latestPeriod}
