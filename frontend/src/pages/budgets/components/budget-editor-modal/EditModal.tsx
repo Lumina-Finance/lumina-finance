@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type React from 'react'
 import { useUpdateBaseBudget, useUpdateBudget, type BaseBudget, type Budget } from '@/api/budgets'
 import type { Category } from '@/api/categories'
@@ -110,8 +110,28 @@ export default function BudgetEditModal({
   // Archiving stays outside the shared budget form because only the edit workflow exposes it
   const [isArchived, setIsArchived] = useState(baseBudget.is_archived)
 
-  // Tracks the previous open flag so the edit state only re-syncs on a closed-to-open transition
-  const prevOpen = useRef(open)
+  /**
+   * Restores edit state from the latest budget snapshot after save or close
+   */
+  const resetEditState = useCallback(() => {
+    setForm(initialForm)
+    setIsArchived(baseBudget.is_archived)
+    setFieldErrors({})
+    setTouched(EDIT_INITIAL_TOUCHED)
+    setFormError(null)
+    setCategorySearch('')
+    setSaveInProgress(false)
+  }, [baseBudget.is_archived, initialForm])
+
+  // The edit modal stays mounted, so reopening must reseed form and archive state from the current
+  // base budget, otherwise a stale archive toggle would silently unarchive on the next save. This
+  // adjusts state during render rather than in an effect so the reseed lands before the reopened
+  // modal paints
+  const [wasOpen, setWasOpen] = useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (open) resetEditState()
+  }
 
   // Preserve the budget's ownership scope so shared and personal budgets cannot cross category boundaries
   const categoryOptions = useMemo(
@@ -161,32 +181,12 @@ export default function BudgetEditModal({
   const showError: BudgetEditorModalErrorGetter = (field) => touched[field] ? fieldErrors[field] : undefined
 
   /**
-   * Restores edit state from the latest budget snapshot after save or close
-   */
-  const resetEditState = useCallback(() => {
-    setForm(initialForm)
-    setIsArchived(baseBudget.is_archived)
-    setFieldErrors({})
-    setTouched(EDIT_INITIAL_TOUCHED)
-    setFormError(null)
-    setCategorySearch('')
-    setSaveInProgress(false)
-  }, [baseBudget.is_archived, initialForm])
-
-  /**
    * Closes the nested edit dialog and clears any transient form state immediately
    */
   const closeAndReset = useCallback(() => {
     onClose()
     resetEditState()
   }, [onClose, resetEditState])
-
-  useEffect(() => {
-    // The edit modal stays mounted, so reopening must reseed form and archive state from the current
-    // base budget, otherwise a stale archive toggle would silently unarchive on the next save
-    if (open && !prevOpen.current) resetEditState()
-    prevOpen.current = open
-  }, [open, resetEditState])
 
   useEffect(() => {
     if (!open) return
