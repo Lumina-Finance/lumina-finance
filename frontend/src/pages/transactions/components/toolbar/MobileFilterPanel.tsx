@@ -47,6 +47,7 @@ export function MobileFilterPanel({
       seedDraftFromFilters={draft.seedDraftFromFilters}
       clearAll={draft.clearAll}
       applyFilters={draft.applyFilters}
+      isApplyDisabled={draft.hasCrossedAmountBounds}
     >
       <FilterPanelBody draft={draft} showFooter={false} mobile fillHeight showAccountFilter={showAccountFilter} />
     </MobileFilterGlassPanel>

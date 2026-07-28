@@ -8,6 +8,7 @@ import { useMerchantDetails } from '@/api/merchants'
 import { useTagDetails } from '@/api/tags'
 import { useAuth } from '@/hooks/useAuth'
 import { fromMinorUnits, getCurrencyExponent, toMinorUnits } from '@/utils/moneyInput'
+import { isAmountRangeCrossed } from '@/pages/transactions/utils/amountRange'
 import type { TransactionListFilters } from '@/pages/transactions/types/transactionList'
 import type { TransactionFilterSetter } from '@/pages/transactions/components/toolbar/types'
 
@@ -113,6 +114,7 @@ export function useTransactionFilterDraft({
   const amountCurrency = lockedCurrency ?? selections.currency[0] ?? baseCurrency
   const amountSymbol = currencies.find((currency) => currency.id === amountCurrency)?.symbol ?? ''
   const amountExponent = getCurrencyExponent(currencies, amountCurrency)
+  const hasCrossedAmountBounds = isAmountRangeCrossed(amount, amountExponent)
   const amountCurrencyNote = currencyLocked
     ? `Amounts are matched in ${amountCurrency}, this account's currency`
     : selections.currency[0]
@@ -220,9 +222,12 @@ export function useTransactionFilterDraft({
 
   /**
    * Commits the draft to the applied filters, converting the amount bounds into the matched
-   * currency's minor units, then closes the surface
+   * currency's minor units, then closes the surface. Bounds that exclude each other are refused,
+   * leaving the panel open on the message rather than closing on a list that cannot have results
    */
   function applyFilters() {
+    if (hasCrossedAmountBounds) return
+
     // toMinorUnits returns null rather than undefined for a blank amount, so the setFilter payload
     // below converts it back to keep min_amount and max_amount optional
     const toMinor = (value: string) => toMinorUnits(value, amountExponent) ?? undefined
@@ -255,6 +260,7 @@ export function useTransactionFilterDraft({
     amountSymbol,
     amountExponent,
     amountCurrencyNote,
+    hasCrossedAmountBounds,
     currencyLocked,
     getFacetOptions,
     countFacet,
