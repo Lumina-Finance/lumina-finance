@@ -22,7 +22,7 @@ RUN npm run build:app
 # Install locked Python production dependencies into a virtualenv.
 FROM dhi.io/python:3-debian13-sfw-dev AS backend-deps
 
-ARG UV_VERSION=0.11.14
+ARG UV_VERSION=0.12.0
 
 WORKDIR /app/backend
 
