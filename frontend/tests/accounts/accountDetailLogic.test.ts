@@ -33,7 +33,7 @@ import {
   getBreakdownRowFillPercent,
   getBreakdownRows,
 } from '@/pages/accounts/detail/utils/spendingBreakdownViewModel'
-import { toISODate } from '@/pages/accounts/detail/utils/date'
+import { formatYmd } from '@/utils/date'
 
 const currencies: Currency[] = [
   { id: 'USD', name: 'US Dollar', symbol: '$', minor_unit_exponent: 2 },
@@ -172,8 +172,8 @@ describe('balance chart view model helpers', () => {
   it('derives the selected range window from a local-day anchor date', () => {
     const window = getBalanceRangeWindow('30D', new Date(2026, 5, 13, 14, 30))
 
-    expect(toISODate(window.fromDate)).toBe('2026-05-15')
-    expect(toISODate(window.toDate)).toBe('2026-06-13')
+    expect(formatYmd(window.fromDate)).toBe('2026-05-15')
+    expect(formatYmd(window.toDate)).toBe('2026-06-13')
     expect(window.granularity).toBe('day')
   })
 
@@ -265,6 +265,14 @@ describe('monthly cash flow view model helpers', () => {
       { label: 'Apr', tooltipLabel: 'Apr 2026', income: 1_000, expense: 600 },
       { label: 'May', tooltipLabel: 'May 2026', income: 2_000, expense: 900 },
       { label: 'Jun', tooltipLabel: 'Jun 2026', income: 500, expense: 200 },
+    ])
+  })
+
+  it('keeps a month dated with a day the calendar does not have, labelled with its raw value', () => {
+    expect(getMonthlyCashFlowBars([
+      { month: '2026-02-31', income: 1_000, expenses: 600 },
+    ])).toEqual([
+      { label: '2026-02-31', tooltipLabel: '2026-02-31', income: 1_000, expense: 600 },
     ])
   })
 

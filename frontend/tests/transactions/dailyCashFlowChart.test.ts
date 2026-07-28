@@ -12,6 +12,17 @@ import {
 } from '@/pages/transactions/utils/dailyCashFlowChart'
 
 describe('daily cash-flow chart helpers', () => {
+  it('keeps a bucket dated with a day the calendar does not have, labelled with its raw bounds', () => {
+    const series = getDailyCashFlowSeries([
+      { date: '2026-02-31', end_date: '2026-03-06', inflow: 10000, outflow: -2500 },
+    ], 'week')
+
+    expect(series).toHaveLength(1)
+    expect(series[0].date).toBe('2026-02-31')
+    expect(series[0].rangeLabel).toBe('2026-02-31 - 2026-03-06')
+    expect(series[0].net).toBe(7500)
+  })
+
   it('selects day, week, and month granularity from the selected date span', () => {
     expect(getDailyCashFlowGranularity('2026-01-01', '2026-01-31')).toBe('day')
     expect(getDailyCashFlowGranularity('2026-01-01', '2026-02-01')).toBe('week')

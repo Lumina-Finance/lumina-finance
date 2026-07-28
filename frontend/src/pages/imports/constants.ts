@@ -3,6 +3,7 @@ import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
 import type { ColumnMap, ColumnTarget, ImportCategoryKind } from './types'
+import type { ImportDateFormat } from './utils/valueParsers'
 
 export const EMPTY_COLUMN_MAP: ColumnMap = {
   account_id: '',
@@ -30,6 +31,17 @@ export const COLUMN_TARGETS: Array<{
   { id: 'notes', label: 'Notes', hint: 'Optional transaction notes.' },
   { id: 'tag_ids', label: 'Tags', hint: 'Resolved from imported tag text.' },
 ]
+
+// Each format is named by an example of its shape rather than by a standard, because the year-first
+// option deliberately takes a slash and an unpadded part, which ISO 8601 does not. Keyed by format
+// rather than listed, so every format is guaranteed a label and the picker takes its order from
+// IMPORT_DATE_FORMATS instead of repeating it here
+export const IMPORT_DATE_FORMAT_LABELS: Record<ImportDateFormat, { label: string; example: string }> = {
+  yearFirst: { label: 'Year first', example: '2026-04-30' },
+  dayFirst: { label: 'Day first', example: '30/04/2026' },
+  monthFirst: { label: 'Month first', example: '04/30/2026' },
+  written: { label: 'Written', example: 'April 30, 2026' },
+}
 
 export const KIND_LABELS: Record<Category['kind'], string> = {
   expense: 'Expense',

@@ -14,7 +14,7 @@ import {
   getBalanceRangeWindow,
   type BalanceChartSnapshot,
 } from '@/pages/accounts/detail/utils/balanceChartViewModel'
-import { toISODate } from '@/pages/accounts/detail/utils/date'
+import { formatYmd } from '@/utils/date'
 import { BalanceChart } from './Chart'
 import { BalanceChartHeader } from './Header'
 import { BalanceValueSummary } from './ValueSummary'
@@ -32,8 +32,8 @@ export default function BalanceChartCard({ account }: { account: Account }) {
   )
 
   const { data: snapshots, isFetching } = useAccountSnapshots(account.id, {
-    fromDate: toISODate(fromDate),
-    toDate: toISODate(toDate),
+    fromDate: formatYmd(fromDate),
+    toDate: formatYmd(toDate),
     granularity: 'day',
     includeAnchor: true,
   })

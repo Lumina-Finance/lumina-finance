@@ -8,16 +8,18 @@ import { getImportAccountName } from './accountMapping'
 import { splitImportedValues } from './categoryMatching'
 import { getMappedValue } from './columnMapping'
 import {
+  type ImportDateFormat,
   getPreviewDateLabel,
   isSupportedCurrency,
-  normalizeImportDate,
   parseImportNumber,
+  readImportDate,
   toMinorUnits,
 } from './valueParsers'
 
 interface BuildImportPreviewRowsOptions {
   files: ImportFileDraft[]
   columnMap: ColumnMap
+  dateFormat: ImportDateFormat | null
   missingRequiredColumnLabels: string[]
   currencies: Currency[]
   accountById: Map<string, AccountsOverview>
@@ -56,6 +58,7 @@ export function groupPreviewRowsByDate(rows: PreviewTransactionRow[]) {
 export function buildImportPreviewRows({
   files,
   columnMap,
+  dateFormat,
   missingRequiredColumnLabels,
   currencies,
   accountById,
@@ -89,7 +92,7 @@ export function buildImportPreviewRows({
         ? institutionById.get(accountCreateInstitutions[accountSource] ?? '')
         : undefined
       const importedDate = getMappedValue(row, columnMap.dt)
-      const dt = normalizeImportDate(importedDate)
+      const dt = dateFormat ? readImportDate(importedDate, dateFormat) : ''
       const merchant = getMappedValue(row, columnMap.merchant_id)
       const notes = getMappedValue(row, columnMap.notes)
       const currency = getPreviewCurrency(

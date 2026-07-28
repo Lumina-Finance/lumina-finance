@@ -6,6 +6,10 @@ const DATE_LOCALE = 'en-CA'
 
 const DAYS_PER_WEEK = 7
 
+// The shape the API sends and expects: a zero-padded ISO 8601 calendar date, and nothing looser,
+// so a string carrying a time or a missing pad is refused rather than half-read
+const YMD_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/
+
 /**
  * The date formats the product renders, so a call site names the format it wants instead of
  * respelling the options
@@ -142,12 +146,23 @@ export function formatYmd(date: Date): string {
  * Building the date from its parts rather than letting the browser parse the string keeps it on
  * the local calendar, since a bare date string is otherwise read as UTC and can land on the
  * previous day west of Greenwich
+ *
+ * Anything asking whether a string names a real day calls this and tests the result for null,
+ * rather than repeating the reasoning below
  */
 export function parseYmd(ymd: string): Date | null {
-  const [year, month, day] = ymd.split('-').map(Number)
-  const parsed = new Date(year, month - 1, day)
+  const match = YMD_PATTERN.exec(ymd)
+  if (!match) return null
 
-  return Number.isNaN(parsed.getTime()) ? null : parsed
+  const [year, month, day] = match.slice(1).map(Number)
+  const parsed = new Date(year, month - 1, day)
+  // An overflowed part rolls forward instead of failing, so February 31 arrives as March 3 unless
+  // the parts are read back and compared against what was asked for
+  if (parsed.getFullYear() !== year || parsed.getMonth() !== month - 1 || parsed.getDate() !== day) {
+    return null
+  }
+
+  return parsed
 }
 
 /**

@@ -94,6 +94,26 @@ describe('YYYY-MM-DD strings', () => {
   it('returns null for a string that names no date', () => {
     expect(parseYmd('not-a-date')).toBeNull()
   })
+
+  it('refuses a day the calendar does not have instead of rolling it forward', () => {
+    expect(parseYmd('2026-02-31')).toBeNull()
+    expect(parseYmd('2025-02-29')).toBeNull()
+    expect(parseYmd('2026-04-31')).toBeNull()
+    expect(parseYmd('2026-13-01')).toBeNull()
+    expect(parseYmd('2026-00-10')).toBeNull()
+    expect(parseYmd('2026-01-00')).toBeNull()
+  })
+
+  it('keeps the leap day of a leap year', () => {
+    expect(formatYmd(parseYmd('2024-02-29')!)).toBe('2024-02-29')
+  })
+
+  it('refuses anything that is not a zero-padded date on its own', () => {
+    expect(parseYmd('2026-1-5')).toBeNull()
+    expect(parseYmd('2026-01-05T00:00:00Z')).toBeNull()
+    expect(parseYmd('2026/01/05')).toBeNull()
+    expect(parseYmd('')).toBeNull()
+  })
 })
 
 describe('calendar arithmetic', () => {

@@ -36,6 +36,16 @@ function createTransaction(overrides: Partial<Transaction>): Transaction {
 }
 
 describe('transaction date-group helpers', () => {
+  it('keeps a transaction dated with a day the calendar does not have, under its raw heading', () => {
+    const groups = groupTransactionsByDate([
+      createTransaction({ id: 'impossible', dt: '2026-02-31', base_currency_amount: -500 }),
+    ])
+
+    expect(groups).toHaveLength(1)
+    expect(groups[0].dateLabel).toBe('2026-02-31')
+    expect(groups[0].transactions).toHaveLength(1)
+  })
+
   it('groups transactions by browser-local calendar date without reordering rows', () => {
     const transactions = [
       createTransaction({ id: 'first', dt: '2026-06-02' }),

@@ -10,7 +10,8 @@ import {
   FIREFLY_BUDGET_UNSUPPORTED_CADENCE_REASON,
 } from '@/pages/imports/firefly/constants'
 import type { FireflyBudgetDraft } from '@/pages/imports/firefly/types'
-import { getFireflyRowDate, isFireflyRowUploadable, isRealCalendarDate } from './derivation'
+import { parseYmd } from '@/utils/date'
+import { getFireflyRowDate, isFireflyRowUploadable } from './derivation'
 
 const DAYS_PER_WEEK = 7
 const MONTHS_PER_YEAR = 12
@@ -170,7 +171,7 @@ function buildLimitSchedule(limitRows: FireflyLimitRow[]): {
     // A present date that names no real day marks the file as corrupted, so
     // the budget is refused loudly rather than the row quietly vanishing or
     // the backend failing the whole batch
-    if (!isRealCalendarDate(row.start) || !isRealCalendarDate(row.end)) {
+    if (!parseYmd(row.start) || !parseYmd(row.end)) {
       hasUnreadableDates = true
       continue
     }

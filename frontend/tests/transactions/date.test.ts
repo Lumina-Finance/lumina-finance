@@ -12,6 +12,10 @@ describe('transaction date helpers', () => {
     expect(formatOverviewRangeLabel('2026-06-01', '2026-06-30')).toBe('Jun 1, 2026 – Jun 30, 2026')
   })
 
+  it('keeps a bound naming no real day as written, rather than the day it would roll forward to', () => {
+    expect(formatOverviewRangeLabel('2026-02-31', '2026-03-31')).toBe('2026-02-31 – Mar 31, 2026')
+  })
+
   it('builds the current month overview range in the user timezone', () => {
     const now = new Date('2026-07-01T02:00:00Z')
 

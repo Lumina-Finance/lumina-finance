@@ -5,7 +5,7 @@ import type { ColumnMap, ColumnValidationErrors, ImportAccountSource, ImportBuil
 import { isImportAccountType } from '@/pages/imports/accountTypeGuard'
 import { getCategoryMatchKind, splitImportedValues } from './categoryMatching'
 import { getMappedValue } from './columnMapping'
-import { normalizeImportDate, parseImportNumber } from './valueParsers'
+import { type ImportDateFormat, parseImportNumber, readImportDate } from './valueParsers'
 
 /**
  * Builds the commit payload for the generic CSV import flow from the staged files and every mapping
@@ -27,6 +27,7 @@ export function buildTransactionImportPayload({
   categoryTypesBySource,
   columnMap,
   columnValidationErrors,
+  dateFormat,
   files,
   importedCategories,
 }: {
@@ -41,6 +42,7 @@ export function buildTransactionImportPayload({
   categoryTypesBySource: Record<string, string>
   columnMap: ColumnMap
   columnValidationErrors: ColumnValidationErrors
+  dateFormat: ImportDateFormat | null
   files: ImportFileDraft[]
   importedCategories: string[]
 }): ImportBuildResult {
@@ -58,6 +60,10 @@ export function buildTransactionImportPayload({
     .filter((target) => target.required && !columnMap[target.id])
     .map((target) => target.label)
   if (missingRequired.length > 0) addError(`Missing required columns: ${missingRequired.join(', ')}`)
+
+  // Without a settled format every row would fail its own date check, which reads as a file full of
+  // bad dates rather than one unanswered question
+  if (columnMap.dt && !dateFormat) addError('Choose the date format this file is written in.')
 
   const mappedHeaders = new Set(Object.values(columnMap).filter(Boolean))
   for (const [header, message] of Object.entries(columnValidationErrors)) {
@@ -113,7 +119,7 @@ export function buildTransactionImportPayload({
     for (const row of file.rows) {
       const accountSource = columnMap.account_id ? getMappedValue(row, columnMap.account_id) : file.id
       const categorySource = getMappedValue(row, columnMap.category_id)
-      const dt = normalizeImportDate(getMappedValue(row, columnMap.dt))
+      const dt = dateFormat ? readImportDate(getMappedValue(row, columnMap.dt), dateFormat) : ''
       const amount = getMappedValue(row, columnMap.amount)
 
       if (!accountSource) addError('Account source cannot be blank.')
