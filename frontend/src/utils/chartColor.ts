@@ -183,6 +183,19 @@ function getCollisionSafePaletteIndex(preferredIndex: number, usedIndexes: Set<n
   return bestCandidate?.index ?? preferredIndex
 }
 
+/**
+ * Orders two keys by their code units, settling a tie the same way on every device
+ *
+ * This is machine ordering rather than a list anyone reads, and locale-aware collation varies with the
+ * browser's locale and its collation data, which would hand the same categories different colours on a
+ * phone and a desktop
+ */
+function compareKeys(a: string, b: string) {
+  if (a === b) return 0
+
+  return a < b ? -1 : 1
+}
+
 function reserveFixedColor(color: string, usedIndexes: Set<number>) {
   const colorIndex = CURATED_CHART_COLORS.findIndex((paletteColor) => (
     paletteColor.toLowerCase() === color.toLowerCase()
@@ -230,7 +243,7 @@ export function getDeterministicChartColorMap(entries: ChartColorMapInput[]) {
         preferredIndex: hash % CURATED_CHART_COLORS.length,
       }
     })
-    .sort((a, b) => a.preferredIndex - b.preferredIndex || a.hash - b.hash || a.key.localeCompare(b.key))
+    .sort((a, b) => a.preferredIndex - b.preferredIndex || a.hash - b.hash || compareKeys(a.key, b.key))
     .forEach((entry) => {
       const colorIndex = getCollisionSafePaletteIndex(entry.preferredIndex, usedIndexes)
 
