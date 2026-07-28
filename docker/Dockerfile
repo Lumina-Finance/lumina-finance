@@ -1,5 +1,5 @@
 # Build the Vite frontend into static assets.
-FROM dhi.io/node:26-debian13-sfw-dev AS frontend-builder
+FROM dhi.io/node:26.5-debian13-sfw-dev AS frontend-builder
 
 ARG APP_VERSION
 
@@ -22,7 +22,7 @@ RUN npm run build:app
 # Install locked Python production dependencies into a virtualenv.
 FROM dhi.io/python:3-debian13-sfw-dev AS backend-deps
 
-ARG UV_VERSION=0.11.14
+ARG UV_VERSION=0.12.0
 
 WORKDIR /app/backend
 
