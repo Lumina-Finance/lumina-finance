@@ -11,6 +11,8 @@ import type { ImportDateFormat } from '@/pages/imports/utils/valueParsers'
 
 const CATEGORY: Category = {
   id: 'category-1',
+  group_id: null,
+  owner_id: null,
   name: 'Groceries',
   kind: 'expense',
   icon: null,

@@ -129,9 +129,14 @@ describe('days the calendar does not have', () => {
     expect(readImportDate('29/02/2024', 'dayFirst')).toBe('2024-02-29')
   })
 
-  it('refuses a year far enough out to be a typo', () => {
-    expect(readImportDate('1899-03-15', 'yearFirst')).toBe('')
-    expect(readImportDate('2101-03-15', 'yearFirst')).toBe('')
+  it('accepts any four-digit year the calendar can express', () => {
+    expect(readImportDate('1899-03-15', 'yearFirst')).toBe('1899-03-15')
+    expect(readImportDate('2101-03-15', 'yearFirst')).toBe('2101-03-15')
+  })
+
+  it('refuses a year the date constructor would silently move into the 1900s', () => {
+    expect(readImportDate('0099-03-15', 'yearFirst')).toBe('')
+    expect(readImportDate('0001-03-15', 'yearFirst')).toBe('')
   })
 })
 
@@ -219,11 +224,20 @@ describe('validating a date column', () => {
       .toBe('Expected valid dates in the written format, such as April 30, 2026; every row must have a value. "July 4th, 2024" is not a valid date.')
   })
 
-  it('lowers every other format name the same way', () => {
-    const files = [createDateFile(['2024-13-01'])]
+  it('names every format in sentence case', () => {
+    const files = [createDateFile(['nonsense'])]
+    const named = (format: ImportDateFormat) => validateColumnValues(files, 'Date', 'dt', format).message
 
-    expect(validateColumnValues(files, 'Date', 'dt', 'yearFirst').message)
-      .toContain('valid dates in the year first format, such as 2026-04-30')
+    expect(named('yearFirst')).toContain('in the year first format, such as 2026-04-30')
+    expect(named('dayFirst')).toContain('in the day first format, such as 30/04/2026')
+    expect(named('monthFirst')).toContain('in the month first format, such as 04/30/2026')
+    expect(named('written')).toContain('in the written format, such as April 30, 2026')
+  })
+
+  it('accepts a real date whatever century it falls in', () => {
+    const files = [createDateFile(['1899-12-31'])]
+
+    expect(validateColumnValues(files, 'Date', 'dt', 'yearFirst').valid).toBe(true)
   })
 
   it('does not blame the shape when the value is that shape but names no real day', () => {

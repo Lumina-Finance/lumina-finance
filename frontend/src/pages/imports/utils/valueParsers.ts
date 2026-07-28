@@ -22,11 +22,6 @@ interface CalendarDateParts {
   day: number
 }
 
-// A transaction outside this span is a typo rather than a date, most often a year that lost or
-// gained a digit, and importing it would drag every chart axis out to meet it
-const MIN_IMPORT_YEAR = 1900
-const MAX_IMPORT_YEAR = 2100
-
 // Four-digit year, then month and day. The backreference makes the second separator match the
 // first, so a half-hyphenated value like 2024-03/15 is malformed rather than a format
 const YEAR_FIRST_PATTERN = /^(\d{4})([-/])(\d{1,2})\2(\d{1,2})$/
@@ -54,12 +49,11 @@ const MONTH_ABBREVIATION_LENGTH = 3
  * @param value - The raw cell value
  * @param format - The format chosen for this import
  * @returns The zero-padded YYYY-MM-DD string the API takes, or an empty string when the value does
- * not read in that format, names a day the calendar does not have, or falls outside the year span
+ * not read in that format or names a day the calendar does not have
  */
 export function readImportDate(value: string, format: ImportDateFormat) {
   const parts = readCalendarDateParts(value.trim(), format)
   if (!parts) return ''
-  if (parts.year < MIN_IMPORT_YEAR || parts.year > MAX_IMPORT_YEAR) return ''
 
   const ymd = `${parts.year}-${String(parts.month).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}`
 
