@@ -7,6 +7,7 @@ import type { Currency } from '@/api/currency'
 import {
   fromMinorUnits,
   getCurrencyExponent,
+  getMoneyPlaceholder,
   isAcceptedMoneyInput,
   isValidMoneyInput,
   normalizeMoneyInput,
@@ -151,6 +152,14 @@ describe('currency decimal places', () => {
     expect(getCurrencyExponent(currencies, 'CAD')).toBe(2)
     expect(getCurrencyExponent(currencies, 'JPY')).toBe(0)
     expect(getCurrencyExponent(currencies, 'XXX')).toBe(2)
+  })
+})
+
+describe('the placeholder a field shows', () => {
+  it('shows a zero carrying the currency decimal places', () => {
+    expect(getMoneyPlaceholder(CENTS)).toBe('0.00')
+    expect(getMoneyPlaceholder(WHOLE_UNITS)).toBe('0')
+    expect(getMoneyPlaceholder(MILS)).toBe('0.000')
   })
 })
 

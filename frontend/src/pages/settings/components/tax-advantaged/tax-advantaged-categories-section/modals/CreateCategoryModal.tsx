@@ -218,7 +218,6 @@ export default function CreateTaxAdvantagedCategoryModal({
                           currency={selectedCurrency}
                           value={form.accrued_contributions}
                           onChange={(value) => setField('accrued_contributions', value)}
-                          placeholder="0"
                         />
                       </div>
                     </div>

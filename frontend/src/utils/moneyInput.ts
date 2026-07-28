@@ -101,6 +101,14 @@ export function fromMinorUnits(minorUnits: number | null, exponent: number): str
 }
 
 /**
+ * Returns the zero a money field shows as its placeholder, carrying the currency's decimal places
+ * so the field demonstrates a form it will actually take
+ */
+export function getMoneyPlaceholder(exponent: number): string {
+  return fromMinorUnits(0, exponent)
+}
+
+/**
  * Settles a money value to the currency's decimal places, so the amount left on screen once the
  * field loses focus is the amount that will be stored
  */

@@ -7,6 +7,7 @@ import { MultiSelectChecklist } from '@/components/filters/MultiSelectChecklist'
 import { FacetSelectDropdown } from '@/components/list-controls/FacetSelectDropdown'
 import { FILTER_GLASS_SPRING } from '@/components/list-controls/toolbarStyles'
 import { joinClassNames } from '@/utils/classNames'
+import { getMoneyPlaceholder } from '@/utils/moneyInput'
 import { useMoneyInput } from '@/hooks/useMoneyInput'
 import { ReferenceFacet } from '@/pages/transactions/components/toolbar/ReferenceFacet'
 import {
@@ -51,6 +52,8 @@ export function FilterPanelBody({
   )
   // Scopes the sliding-thumb layout animation to this instance
   const segId = useId()
+  // Names the crossed-bounds message so the amount fields can point at it from the facet editor
+  const amountRangeMessageId = useId()
   const shouldReduceMotion = useReducedMotion()
   const transition = shouldReduceMotion ? { duration: 0 } : FILTER_GLASS_SPRING
   const activeFacet = FILTER_FACETS.find((facet) => facet.id === activeFacetId) ?? FILTER_FACETS[0]
@@ -140,6 +143,8 @@ export function FilterPanelBody({
               amountSymbol={draft.amountSymbol}
               amountCurrencyNote={draft.amountCurrencyNote}
               amountExponent={draft.amountExponent}
+              hasCrossedAmountBounds={draft.hasCrossedAmountBounds}
+              amountRangeMessageId={amountRangeMessageId}
               currencyOptions={draft.getFacetOptions('currency')}
               currencyValue={draft.currencyLocked ? draft.amountCurrency : draft.selections.currency[0] ?? ''}
               currencyLocked={draft.currencyLocked}
@@ -170,9 +175,17 @@ export function FilterPanelBody({
       </motion.div>
 
       <motion.div layout={blockLayout} transition={transition}>
-        <p className="mt-2 px-0.5 text-xs" style={{ color: 'var(--app-text-subtle)' }}>
-          Transactions must match every filter you apply
-        </p>
+        {/* The crossed-bounds message takes this line rather than sitting in the amount editor, so
+            the reason Apply is unavailable stays on screen whichever facet is open */}
+        {draft.hasCrossedAmountBounds ? (
+          <p id={amountRangeMessageId} className="mt-2 px-0.5 text-xs" style={{ color: 'var(--app-negative)' }}>
+            Enter a minimum at or below the maximum
+          </p>
+        ) : (
+          <p className="mt-2 px-0.5 text-xs" style={{ color: 'var(--app-text-subtle)' }}>
+            Transactions must match every filter you apply
+          </p>
+        )}
       </motion.div>
 
       {showFooter && (
@@ -186,7 +199,12 @@ export function FilterPanelBody({
           >
             Clear all
           </button>
-          <button type="button" className="app-glass-button-primary" onClick={draft.applyFilters}>
+          <button
+            type="button"
+            className="app-glass-button-primary"
+            disabled={draft.hasCrossedAmountBounds}
+            onClick={draft.applyFilters}
+          >
             Apply filters
           </button>
         </motion.div>
@@ -226,6 +244,11 @@ type FacetEditorProps = {
   amountCurrencyNote: string
   // Decimal places of the currency the amount range matches, for parsing and normalizing input
   amountExponent: number
+  // True while the minimum sits above the maximum once both are rounded to the currency's minor
+  // units, which no transaction can satisfy
+  hasCrossedAmountBounds: boolean
+  // Names the message explaining the crossed bounds, which the panel renders outside this editor
+  amountRangeMessageId: string
   // The currency the amount range matches, chosen inside the amount section
   currencyOptions: OptionItem[]
   currencyValue: string
@@ -256,6 +279,8 @@ function FacetEditor({
   amountSymbol,
   amountCurrencyNote,
   amountExponent,
+  hasCrossedAmountBounds,
+  amountRangeMessageId,
   currencyOptions,
   currencyValue,
   currencyLocked,
@@ -341,8 +366,10 @@ function FacetEditor({
                   </span>
                 )}
                 <input
-                  className={joinClassNames('app-input', amountSymbol && 'pl-8')}
-                  placeholder="0.00"
+                  className={joinClassNames('app-input', amountSymbol && 'pl-8', hasCrossedAmountBounds && 'app-input-error')}
+                  placeholder={getMoneyPlaceholder(amountExponent)}
+                  aria-invalid={hasCrossedAmountBounds}
+                  aria-describedby={hasCrossedAmountBounds ? amountRangeMessageId : undefined}
                   {...minAmountInput}
                 />
               </div>
@@ -362,8 +389,10 @@ function FacetEditor({
                   </span>
                 )}
                 <input
-                  className={joinClassNames('app-input', amountSymbol && 'pl-8')}
+                  className={joinClassNames('app-input', amountSymbol && 'pl-8', hasCrossedAmountBounds && 'app-input-error')}
                   placeholder="Any"
+                  aria-invalid={hasCrossedAmountBounds}
+                  aria-describedby={hasCrossedAmountBounds ? amountRangeMessageId : undefined}
                   {...maxAmountInput}
                 />
               </div>

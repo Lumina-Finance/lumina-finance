@@ -17,6 +17,10 @@ type MobileFilterGlassPanelProps = {
   seedDraftFromFilters: () => void
   clearAll: () => void
   applyFilters: () => void
+
+  // Greys out Apply while the body holds an entry the draft will refuse, so the button never looks
+  // live for a commit that cannot happen
+  isApplyDisabled?: boolean
   children: ReactNode
 }
 
@@ -36,6 +40,7 @@ export function MobileFilterGlassPanel({
   seedDraftFromFilters,
   clearAll,
   applyFilters,
+  isApplyDisabled = false,
   children,
 }: MobileFilterGlassPanelProps) {
   // The full-screen modal covers the page, so the page-content dim is left off to keep the glass
@@ -109,7 +114,7 @@ export function MobileFilterGlassPanel({
             >
               Clear all
             </button>
-            <button type="button" className="app-glass-button-primary" onClick={applyFilters}>
+            <button type="button" className="app-glass-button-primary" disabled={isApplyDisabled} onClick={applyFilters}>
               Apply filters
             </button>
           </div>
