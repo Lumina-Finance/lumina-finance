@@ -1,5 +1,6 @@
 import { AlertTriangle } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { useServerReachability } from '@/hooks/useServerReachability';
 import { copyText } from '@/utils/clipboard';
 import { buildErrorReport } from '@/utils/errorReport';
 import { clearStoredData } from '@/utils/storedData';
@@ -35,6 +36,9 @@ interface FallbackProps {
 export default function Fallback({ componentStack, error, variant }: FallbackProps) {
   const [copyStatus, setCopyStatus] = useState<CopyStatus>('idle');
   const copyResetTimer = useRef<number | null>(null);
+  // Until the probe comes back the message assumes a bug, since that is the only thing the user
+  // can act on. An unreachable server rewrites it rather than the other way round
+  const serverUnreachable = useServerReachability() === 'unreachable';
 
   useEffect(() => () => {
     if (copyResetTimer.current !== null) window.clearTimeout(copyResetTimer.current);
@@ -89,18 +93,27 @@ export default function Fallback({ componentStack, error, variant }: FallbackPro
       </h1>
 
       <p className="mt-4 text-sm leading-relaxed" style={{ color: 'var(--app-text-muted)' }}>
-        The app ran into an issue while trying to respond to your request. Your data is fine, and
-        reloading usually fixes it. If it persists, please try again in a bit and submit a{' '}
-        <a
-          href={BUG_REPORT_URL}
-          target="_blank"
-          rel="noreferrer"
-          className="underline underline-offset-2"
-          style={{ color: 'var(--app-accent)' }}
-        >
-          bug report
-        </a>{' '}
-        if it still doesn&apos;t resolve.
+        {serverUnreachable ? (
+          <>
+            The app can&apos;t reach the server right now. Your data is fine. Reload once your
+            connection is back.
+          </>
+        ) : (
+          <>
+            The app ran into an issue while trying to respond to your request. Your data is fine,
+            and reloading usually fixes it. If it persists, please try again in a bit and submit a{' '}
+            <a
+              href={BUG_REPORT_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="underline underline-offset-2"
+              style={{ color: 'var(--app-accent)' }}
+            >
+              bug report
+            </a>{' '}
+            if it still doesn&apos;t resolve.
+          </>
+        )}
       </p>
 
       <div className="mt-6 flex flex-wrap items-center gap-4">
