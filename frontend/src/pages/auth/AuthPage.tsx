@@ -17,9 +17,10 @@ import { PasswordRequirements } from '@/components/PasswordRequirements';
 import { AUTH_VIEW_TRANSITION, SIGNUP_FIELD_ANIMATION } from '@/pages/auth/constants/authAnimations';
 import { useAuthFormWorkflow } from '@/pages/auth/hooks/useAuthFormWorkflow';
 import { getAuthMode } from '@/pages/auth/utils/authForm';
+import { getBrowserTimeZone } from '@/utils/date';
 import { isNewPasswordValid } from '@/utils/passwordPolicy';
 
-const DETECTED_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
+const DETECTED_TZ = getBrowserTimeZone();
 
 const TIMEZONES = Intl.supportedValuesOf('timeZone').map((tz) => ({
   value: tz,

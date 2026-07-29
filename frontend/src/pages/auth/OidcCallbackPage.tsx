@@ -20,8 +20,9 @@ import { AuthTextField } from '@/pages/auth/components/fields/TextField'
 import { AUTH_VIEW_TRANSITION } from '@/pages/auth/constants/authAnimations'
 import { consumeOidcIntent, type OidcSignedInIntent } from '@/utils/oidcIntent'
 import { buildCurrencyOptions, getCurrencyPlaceholder } from '@/pages/auth/utils/authForm'
+import { getBrowserTimeZone } from '@/utils/date'
 
-const DETECTED_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone
+const DETECTED_TZ = getBrowserTimeZone()
 
 const TIMEZONES = Intl.supportedValuesOf('timeZone').map((tz) => ({
   value: tz,
