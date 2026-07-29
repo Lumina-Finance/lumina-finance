@@ -1,6 +1,6 @@
 /**
- * Covers the relative range resolver that turns a saved "last N units" window into the
- * inclusive from/to dates the insights cards query
+ * Covers the two resolvers that turn an insights range into the inclusive from/to dates the cards
+ * query, one for a saved "last N units" window and one for a fixed preset
  *
  * The system clock is pinned so trailing-window arithmetic and month-end clamping are
  * asserted against known dates
@@ -8,9 +8,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   formatResolvedRangeLabel,
+  getRangeInputDates,
   getRelativeRangeInputDates,
   getRelativeRangeLabel,
 } from '@/pages/insights/utils/range';
+
+// Late evening in Toronto on 30 June, already 1 July in UTC, so a zone mix-up shows up as a
+// different day and a different month
+const LATE_JUNE_EVENING = new Date('2026-07-01T02:00:00Z');
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -60,6 +65,30 @@ describe('getRelativeRangeInputDates', () => {
     expect(getRelativeRangeInputDates(1, 'quarter', 'this')).toEqual({ from: '2026-04-01', to: '2026-06-18' });
     expect(getRelativeRangeInputDates(1, 'year', 'this')).toEqual({ from: '2026-01-01', to: '2026-06-18' });
     expect(getRelativeRangeInputDates(1, 'week', 'this')).toEqual({ from: '2026-06-15', to: '2026-06-18' });
+  });
+
+  it('ends the window on the given zone\'s day rather than the browser calendar', () => {
+    vi.setSystemTime(LATE_JUNE_EVENING);
+
+    expect(getRelativeRangeInputDates(1, 'day', 'past', 'America/Toronto')).toEqual({ from: '2026-06-30', to: '2026-06-30' });
+    expect(getRelativeRangeInputDates(1, 'day', 'past', 'UTC')).toEqual({ from: '2026-07-01', to: '2026-07-01' });
+  });
+});
+
+describe('getRangeInputDates', () => {
+  it('resolves the presets that name their own window against today', () => {
+    expect(getRangeInputDates('THIS_MONTH')).toEqual({ from: '2026-06-01', to: '2026-06-18' });
+    expect(getRangeInputDates('LAST_MONTH')).toEqual({ from: '2026-05-01', to: '2026-05-31' });
+    expect(getRangeInputDates('LAST_30_DAYS')).toEqual({ from: '2026-05-20', to: '2026-06-18' });
+    expect(getRangeInputDates('LAST_90_DAYS')).toEqual({ from: '2026-03-21', to: '2026-06-18' });
+    expect(getRangeInputDates('THIS_YEAR')).toEqual({ from: '2026-01-01', to: '2026-06-18' });
+  });
+
+  it('reads which period is current from the given zone rather than the browser calendar', () => {
+    vi.setSystemTime(LATE_JUNE_EVENING);
+
+    expect(getRangeInputDates('THIS_MONTH', 'America/Toronto')).toEqual({ from: '2026-06-01', to: '2026-06-30' });
+    expect(getRangeInputDates('THIS_MONTH', 'UTC')).toEqual({ from: '2026-07-01', to: '2026-07-01' });
   });
 });
 
