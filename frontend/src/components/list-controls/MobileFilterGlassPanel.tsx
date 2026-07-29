@@ -1,4 +1,3 @@
-import { useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
@@ -14,7 +13,6 @@ type MobileFilterGlassPanelProps = {
   // Accessible name for the modal dialog, naming the domain being filtered
   ariaLabel: string
   activeFacetCount: number
-  seedDraftFromFilters: () => void
   clearAll: () => void
   applyFilters: () => void
 
@@ -37,7 +35,6 @@ export function MobileFilterGlassPanel({
   onExitComplete,
   ariaLabel,
   activeFacetCount,
-  seedDraftFromFilters,
   clearAll,
   applyFilters,
   isApplyDisabled = false,
@@ -47,14 +44,6 @@ export function MobileFilterGlassPanel({
   // toolbar from breaking and because nothing behind the modal is visible anyway
   const panelRef = useMobileFilterSheetEffects({ isOpen, onClose, dimPageContent: false, lockScroll: false })
   const shouldReduceMotion = useReducedMotion()
-
-  // Seed the draft only on the rising edge of opening, so an async data load or a re-render never
-  // wipes the edits the user is making in the open modal
-  const wasOpen = useRef(false)
-  useEffect(() => {
-    if (isOpen && !wasOpen.current) seedDraftFromFilters()
-    wasOpen.current = isOpen
-  }, [isOpen, seedDraftFromFilters])
 
   // Hold the page still behind the full-screen modal without overflow: hidden, which would strip the
   // sticky toolbar back to its in-flow position

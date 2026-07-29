@@ -1,5 +1,6 @@
 import type { OptionItem } from '@/components/filters/OptionList'
 import { MobileFilterGlassPanel } from '@/components/list-controls/MobileFilterGlassPanel'
+import { useSeedDraftOnOpen } from '@/components/list-controls/useSeedDraftOnOpen'
 import { FilterPanelBody } from '@/pages/accounts/components/toolbar/FilterPanelBody'
 import { useAccountFilterDraft } from '@/pages/accounts/components/toolbar/useAccountFilterDraft'
 import type { AccountFilterSetter } from '@/pages/accounts/components/toolbar/types'
@@ -33,6 +34,8 @@ export function MobileFilterPanel({
 }: MobileFilterPanelProps) {
   const draft = useAccountFilterDraft({ filters, setFilter, institutionOptions, kindOptions, typeOptions, onClose })
 
+  useSeedDraftOnOpen(isOpen, draft.seedDraftFromFilters)
+
   return (
     <MobileFilterGlassPanel
       isOpen={isOpen}
@@ -40,7 +43,6 @@ export function MobileFilterPanel({
       onExitComplete={onExitComplete}
       ariaLabel="Account filters"
       activeFacetCount={draft.activeFacetCount}
-      seedDraftFromFilters={draft.seedDraftFromFilters}
       clearAll={draft.clearAll}
       applyFilters={draft.applyFilters}
     >
