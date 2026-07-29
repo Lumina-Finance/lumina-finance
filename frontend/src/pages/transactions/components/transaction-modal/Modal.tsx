@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useAccounts } from '@/api/accounts'
 import { useCategories } from '@/api/categories'
 import { useCurrencies } from '@/api/currency'
+import { useAuth } from '@/hooks/useAuth'
 import { KIND_LABELS } from '@/pages/transactions/components/transaction-modal/constants'
 import { buildInitialTransactionForm } from '@/pages/transactions/components/transaction-modal/utils/initialForm'
 import { buildCurrencyOptions } from '@/pages/transactions/components/transaction-modal/utils/options'
@@ -47,6 +48,7 @@ export default function CreateTransactionModal({
   readOnly: readOnlyProp = false,
 }: CreateTransactionModalProps) {
   const editing = !!transaction
+  const { user } = useAuth()
   const { data: accounts = [] } = useAccounts()
   const { data: categories = [] } = useCategories()
   const { data: currencies = [] } = useCurrencies()
@@ -64,8 +66,9 @@ export default function CreateTransactionModal({
       selectableAccounts,
       defaultAccountId,
       defaultCurrency,
+      timeZone: user?.tz,
     })
-  }, [transaction, categories, currencies, defaultAccountId, defaultCurrency, selectableAccounts])
+  }, [transaction, categories, currencies, defaultAccountId, defaultCurrency, selectableAccounts, user?.tz])
 
   const {
     form,

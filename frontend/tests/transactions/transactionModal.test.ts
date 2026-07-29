@@ -134,6 +134,7 @@ describe('transaction modal helpers', () => {
       currencies,
       selectableAccounts: accounts,
       defaultAccountId: 'checking',
+      timeZone: undefined,
     })).toMatchObject({
       account_id: 'checking',
       currency: 'CAD',
@@ -149,12 +150,29 @@ describe('transaction modal helpers', () => {
       categories,
       currencies,
       selectableAccounts: accounts,
+      timeZone: undefined,
     })).toMatchObject({
       kind: 'expense',
       direction: 'debit',
       amount: '98.76',
       tag_ids: ['tax'],
     })
+  })
+
+  it('opens a new transaction on the profile timezone day rather than the browser calendar', () => {
+    vi.useFakeTimers()
+    // Late evening in Toronto on 30 June, already 1 July in UTC, so a zone mix-up shows up as a
+    // different day and a different month
+    vi.setSystemTime(new Date('2026-07-01T02:00:00Z'))
+    const options = {
+      categories: [createCategory({ id: 'groceries', kind: 'expense' })],
+      currencies,
+      selectableAccounts: [createAccount({ id: 'checking', currency: 'CAD' })],
+      defaultAccountId: 'checking',
+    }
+
+    expect(buildInitialTransactionForm({ ...options, timeZone: 'America/Toronto' }).date).toBe('2026-06-30')
+    expect(buildInitialTransactionForm({ ...options, timeZone: 'UTC' }).date).toBe('2026-07-01')
   })
 
   it('validates required fields and positive amounts before creating payloads', () => {
@@ -218,6 +236,7 @@ describe('transaction modal helpers', () => {
       categories: [createCategory({ id: 'groceries' })],
       currencies,
       selectableAccounts: [createAccount({ id: 'checking' })],
+      timeZone: undefined,
     })
 
     expect(buildUpdateTransactionPatch(unchangedForm, transaction, 2)).toBeNull()

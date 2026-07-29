@@ -2,15 +2,6 @@ import { fromMinorUnits, toMinorUnits } from '@/utils/moneyInput'
 import type { TransactionDirection } from '@/pages/transactions/components/transaction-modal/types'
 
 /**
- * Builds the date input value using the browser's local calendar day
- */
-export function getTodayLocalDateInputValue(): string {
-  const date = new Date()
-  const pad = (value: number) => String(value).padStart(2, '0')
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
-}
-
-/**
  * Converts a stored signed minor-unit amount into a positive canonical input value
  */
 export function amountToInputString(amountMinor: number, exponent: number): string {
