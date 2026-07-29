@@ -4,6 +4,7 @@ import {
   LoadingContent,
   LoadingOverlay,
 } from '@/components/loading/Transition'
+import { useAuth } from '@/hooks/useAuth'
 import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
 import type {
   BalanceChartMode,
@@ -25,10 +26,11 @@ import { BalanceValueSummary } from './ValueSummary'
 export default function BalanceChartCard({ account }: { account: Account }) {
   const [range, setRange] = useState<BalanceRange>('30D')
   const [chartMode, setChartMode] = useState<BalanceChartMode>('balance')
+  const { user } = useAuth()
 
   const { fromDate, toDate, granularity } = useMemo(
-    () => getBalanceRangeWindow(range),
-    [range],
+    () => getBalanceRangeWindow(range, user?.tz),
+    [range, user?.tz],
   )
 
   const { data: snapshots, isFetching } = useAccountSnapshots(account.id, {

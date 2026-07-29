@@ -31,8 +31,11 @@ const resolvedTimeZones = new Map<string, string>()
 
 /**
  * Returns the timezone the browser is running in
+ *
+ * Sign-up reads this directly, having no profile yet to take a zone from. Anywhere a user exists,
+ * the profile setting is passed to resolveTimeZone or to one of the getToday helpers instead
  */
-function getBrowserTimeZone(): string {
+export function getBrowserTimeZone(): string {
   return Intl.DateTimeFormat().resolvedOptions().timeZone
 }
 

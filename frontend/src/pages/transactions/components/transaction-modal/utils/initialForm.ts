@@ -3,11 +3,12 @@ import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import type { Transaction } from '@/api/transactions'
 import { INITIAL_TRANSACTION_FORM } from '@/pages/transactions/components/transaction-modal/constants'
-import { amountToInputString, getTodayLocalDateInputValue } from '@/pages/transactions/components/transaction-modal/utils/money'
+import { amountToInputString } from '@/pages/transactions/components/transaction-modal/utils/money'
 import type {
   TransactionFormValues,
   TransactionModalKind,
 } from '@/pages/transactions/components/transaction-modal/types'
+import { getTodayYmd } from '@/utils/date'
 
 interface BuildInitialTransactionFormOptions {
   transaction?: Transaction
@@ -16,6 +17,10 @@ interface BuildInitialTransactionFormOptions {
   selectableAccounts: AccountsOverview[]
   defaultAccountId?: string
   defaultCurrency?: string
+  // Required rather than optional so a call site has to name the zone it means, since an omitted
+  // one falls back to the browser's calendar and dates a new transaction on the wrong day for
+  // anyone away from the region their profile names
+  timeZone: string | undefined
 }
 
 /**
@@ -28,6 +33,7 @@ export function buildInitialTransactionForm({
   selectableAccounts,
   defaultAccountId,
   defaultCurrency,
+  timeZone,
 }: BuildInitialTransactionFormOptions): TransactionFormValues {
   if (!transaction) {
     const defaultAccount = defaultAccountId
@@ -37,7 +43,7 @@ export function buildInitialTransactionForm({
       ...INITIAL_TRANSACTION_FORM,
       account_id: defaultAccount?.id ?? INITIAL_TRANSACTION_FORM.account_id,
       currency: defaultAccount?.currency ?? defaultCurrency ?? INITIAL_TRANSACTION_FORM.currency,
-      date: getTodayLocalDateInputValue(),
+      date: getTodayYmd(timeZone),
     }
   }
 

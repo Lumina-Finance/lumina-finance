@@ -11,6 +11,7 @@ import {
   rezeroSeriesToPeriod,
   type BalanceChartPoint,
 } from '@/pages/accounts/detail/utils/balanceChartSeries'
+import { getTodayDate } from '@/utils/date'
 
 export type BalanceChartDataPoint = BalanceChartPoint & {
   periodBalance?: number
@@ -60,15 +61,22 @@ type BalanceChartSnapshotOptions = {
 }
 
 /**
- * Derives the local-day snapshot query window from the selected balance range
+ * Derives the snapshot query window from the selected balance range
+ *
+ * The window has to be read in the profile's zone rather than the browser's, because the backend
+ * computes each daily balance row on the account owner's own calendar date
+ *
+ * @param range - The selected range, deciding how many days the window spans
+ * @param timeZone - Zone deciding where the window ends, typically the profile setting
+ * @param now - Instant to read the day from, overridable so tests can pin it
  */
 export function getBalanceRangeWindow(
   range: BalanceRange,
-  today: Date = new Date(),
+  timeZone: string | undefined,
+  now = new Date(),
 ): BalanceRangeWindow {
   const config = RANGE_CONFIG[range]
-  const toDate = new Date(today)
-  toDate.setHours(0, 0, 0, 0)
+  const toDate = getTodayDate(timeZone, now)
   const fromDate = new Date(toDate)
   fromDate.setDate(fromDate.getDate() - (config.days - 1))
 
