@@ -12,6 +12,8 @@ import {
   type DateSegmentName,
   type DateSegments,
 } from '@/components/date-field/dateSegments'
+import { useAuth } from '@/hooks/useAuth'
+import { getTodayDate } from '@/utils/date'
 
 interface DateFieldProps {
   // Selected date as an ISO yyyy-mm-dd string, empty while the date is incomplete
@@ -53,6 +55,7 @@ export default function DateField({
   readOnly = false,
   error = false,
 }: DateFieldProps) {
+  const { user } = useAuth()
   const [segments, setSegments] = useState<DateSegments>(() => parseIsoDate(value))
   const [popoverOpen, setPopoverOpen] = useState(false)
   const lastEmittedRef = useRef(value)
@@ -128,11 +131,11 @@ export default function DateField({
     switch (event.key) {
       case 'ArrowUp':
         event.preventDefault()
-        commit(stepSegment(segments, segment, 1, new Date()))
+        commit(stepSegment(segments, segment, 1, getTodayDate(user?.tz)))
         break
       case 'ArrowDown':
         event.preventDefault()
-        commit(stepSegment(segments, segment, -1, new Date()))
+        commit(stepSegment(segments, segment, -1, getTodayDate(user?.tz)))
         break
       case 'ArrowRight':
         if ((input.selectionEnd ?? 0) >= input.value.length) {
