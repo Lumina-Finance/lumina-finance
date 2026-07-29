@@ -9,6 +9,7 @@ import { useTagDetails } from '@/api/tags'
 import { useAuth } from '@/hooks/useAuth'
 import { fromMinorUnits, getCurrencyExponent, toMinorUnits } from '@/utils/moneyInput'
 import { isAmountRangeCrossed } from '@/pages/transactions/utils/amountRange'
+import { isDateRangeCrossed } from '@/pages/transactions/utils/dateRange'
 import type { TransactionListFilters } from '@/pages/transactions/types/transactionList'
 import type { TransactionFilterSetter } from '@/pages/transactions/components/toolbar/types'
 
@@ -120,6 +121,11 @@ export function useTransactionFilterDraft({
     : selections.currency[0]
       ? `Amounts are matched in ${amountCurrency}, from the currency filter`
       : `Amounts are matched in ${amountCurrency}, your base currency`
+  const hasCrossedDateRange = isDateRangeCrossed(dateRange)
+
+  // Either range excluding itself blocks the whole commit, since no transaction can satisfy it and
+  // applying it would close the panel on an empty list
+  const isApplyBlocked = hasCrossedAmountBounds || hasCrossedDateRange
 
   /**
    * Counts the live selections on a facet so its tab can show a badge and the pill can show a total
@@ -222,11 +228,12 @@ export function useTransactionFilterDraft({
 
   /**
    * Commits the draft to the applied filters, converting the amount bounds into the matched
-   * currency's minor units, then closes the surface. Bounds that exclude each other are refused,
-   * leaving the panel open on the message rather than closing on a list that cannot have results
+   * currency's minor units, then closes the surface. An amount or date range whose bounds exclude
+   * each other is refused, leaving the panel open on the message rather than closing on a list that
+   * cannot have results
    */
   function applyFilters() {
-    if (hasCrossedAmountBounds) return
+    if (isApplyBlocked) return
 
     // toMinorUnits returns null rather than undefined for a blank amount, so the setFilter payload
     // below converts it back to keep min_amount and max_amount optional
@@ -261,6 +268,8 @@ export function useTransactionFilterDraft({
     amountExponent,
     amountCurrencyNote,
     hasCrossedAmountBounds,
+    hasCrossedDateRange,
+    isApplyBlocked,
     currencyLocked,
     getFacetOptions,
     countFacet,

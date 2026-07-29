@@ -52,8 +52,10 @@ export function FilterPanelBody({
   )
   // Scopes the sliding-thumb layout animation to this instance
   const segId = useId()
-  // Names the crossed-bounds message so the amount fields can point at it from the facet editor
+  // Name the crossed-range messages so the amount and date fields can point at them from the facet
+  // editor, which renders outside the block holding them
   const amountRangeMessageId = useId()
+  const dateRangeMessageId = useId()
   const shouldReduceMotion = useReducedMotion()
   const transition = shouldReduceMotion ? { duration: 0 } : FILTER_GLASS_SPRING
   const activeFacet = FILTER_FACETS.find((facet) => facet.id === activeFacetId) ?? FILTER_FACETS[0]
@@ -145,6 +147,8 @@ export function FilterPanelBody({
               amountExponent={draft.amountExponent}
               hasCrossedAmountBounds={draft.hasCrossedAmountBounds}
               amountRangeMessageId={amountRangeMessageId}
+              hasCrossedDateRange={draft.hasCrossedDateRange}
+              dateRangeMessageId={dateRangeMessageId}
               currencyOptions={draft.getFacetOptions('currency')}
               currencyValue={draft.currencyLocked ? draft.amountCurrency : draft.selections.currency[0] ?? ''}
               currencyLocked={draft.currencyLocked}
@@ -175,12 +179,21 @@ export function FilterPanelBody({
       </motion.div>
 
       <motion.div layout={blockLayout} transition={transition}>
-        {/* The crossed-bounds message takes this line rather than sitting in the amount editor, so
-            the reason Apply is unavailable stays on screen whichever facet is open */}
-        {draft.hasCrossedAmountBounds ? (
-          <p id={amountRangeMessageId} className="mt-2 px-0.5 text-xs" style={{ color: 'var(--app-negative)' }}>
-            Enter a minimum at or below the maximum
-          </p>
+        {/* The crossed-range messages take this line rather than sitting in their own editors, so
+            every reason Apply is unavailable stays on screen whichever facet is open */}
+        {draft.isApplyBlocked ? (
+          <>
+            {draft.hasCrossedAmountBounds && (
+              <p id={amountRangeMessageId} className="mt-2 px-0.5 text-xs" style={{ color: 'var(--app-negative)' }}>
+                Enter a minimum at or below the maximum
+              </p>
+            )}
+            {draft.hasCrossedDateRange && (
+              <p id={dateRangeMessageId} className="mt-2 px-0.5 text-xs" style={{ color: 'var(--app-negative)' }}>
+                The From date must be on or before the To date
+              </p>
+            )}
+          </>
         ) : (
           <p className="mt-2 px-0.5 text-xs" style={{ color: 'var(--app-text-subtle)' }}>
             Transactions must match every filter you apply
@@ -202,7 +215,7 @@ export function FilterPanelBody({
           <button
             type="button"
             className="app-glass-button-primary"
-            disabled={draft.hasCrossedAmountBounds}
+            disabled={draft.isApplyBlocked}
             onClick={draft.applyFilters}
           >
             Apply filters
@@ -219,16 +232,28 @@ export function FilterPanelBody({
 function DateFacetInput({
   label,
   value,
+  error,
+  describedById,
   onValueChange,
 }: {
   label: string
   value: string
+  // True while the two dates exclude each other, which marks both fields rather than blaming one
+  error: boolean
+  // Names the message explaining the crossed range, which the panel renders outside this field
+  describedById: string
   onValueChange: (value: string) => void
 }) {
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-1 text-xs" style={{ color: 'var(--app-text-muted)' }}>
       {label}
-      <DateField ariaLabel={label} value={value} onChange={onValueChange} />
+      <DateField
+        ariaLabel={label}
+        value={value}
+        error={error}
+        describedById={describedById}
+        onChange={onValueChange}
+      />
     </div>
   )
 }
@@ -249,6 +274,10 @@ type FacetEditorProps = {
   hasCrossedAmountBounds: boolean
   // Names the message explaining the crossed bounds, which the panel renders outside this editor
   amountRangeMessageId: string
+  // True while the from date sits after the to date, leaving a range no transaction can satisfy
+  hasCrossedDateRange: boolean
+  // Names the message explaining the crossed range, which the panel renders outside this editor
+  dateRangeMessageId: string
   // The currency the amount range matches, chosen inside the amount section
   currencyOptions: OptionItem[]
   currencyValue: string
@@ -281,6 +310,8 @@ function FacetEditor({
   amountExponent,
   hasCrossedAmountBounds,
   amountRangeMessageId,
+  hasCrossedDateRange,
+  dateRangeMessageId,
   currencyOptions,
   currencyValue,
   currencyLocked,
@@ -412,6 +443,8 @@ function FacetEditor({
         <DateFacetInput
           label="From"
           value={dateRange.from}
+          error={hasCrossedDateRange}
+          describedById={dateRangeMessageId}
           onValueChange={(value) => onDateRangeChange({ ...dateRange, from: value })}
         />
         <span className="pb-2.5 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
@@ -420,6 +453,8 @@ function FacetEditor({
         <DateFacetInput
           label="To"
           value={dateRange.to}
+          error={hasCrossedDateRange}
+          describedById={dateRangeMessageId}
           onValueChange={(value) => onDateRangeChange({ ...dateRange, to: value })}
         />
       </div>
