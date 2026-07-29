@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { motion, useReducedMotion } from 'motion/react'
 import { ChevronDown, SlidersHorizontal, X } from 'lucide-react'
 import { FILTER_GLASS_SPRING, FILTER_PANEL_BODY_TRANSITION, FILTER_PILL_HEAD_STYLE } from '@/components/list-controls/toolbarStyles'
+import { isFloatingLayerOpen, isInsideFloatingLayer } from '@/utils/floatingLayer'
 
 // Collapsed footprint used before the head is measured, so the toolbar slot does not jump on mount
 const COLLAPSED_FALLBACK = { width: 140, height: 34 }
@@ -116,12 +117,20 @@ export function FilterGlassPanel({
     if (!open) return
 
     function handlePointerDown(event: PointerEvent) {
+      // A popover this panel opened portals out of the wrapper, so a press on one lands outside the
+      // wrapper node while still belonging to the panel
+      if (isInsideFloatingLayer(event.target)) return
+
       if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
         dismiss()
       }
     }
 
     function handleKeyDown(event: KeyboardEvent) {
+      // The topmost layer answers Escape, and an open popover closes itself on it wherever focus
+      // sits, so the panel only takes the key once nothing is layered over it
+      if (isFloatingLayerOpen()) return
+
       if (event.key === 'Escape') dismiss()
     }
 
