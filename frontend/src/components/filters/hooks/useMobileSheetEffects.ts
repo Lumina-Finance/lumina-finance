@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { isInsideFloatingLayer } from '@/utils/floatingLayer'
 
 type MobileFilterSheetEffectsOptions = {
   isOpen: boolean
@@ -28,7 +29,11 @@ export function useMobileFilterSheetEffects({
 
     const dismissOnOutsidePointer = (event: PointerEvent) => {
       const panel = panelRef.current
-      if (!panel || panel.contains(event.target as Node)) return
+
+      // A popover opened from inside the sheet portals out of it, so a press on one lands outside
+      // the panel node while still belonging to the sheet
+      if (!panel || panel.contains(event.target as Node) || isInsideFloatingLayer(event.target)) return
+
       onClose()
     }
 

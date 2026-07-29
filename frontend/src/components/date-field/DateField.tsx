@@ -33,7 +33,10 @@ interface DateFieldProps {
 
 const SEGMENT_PLACEHOLDER: Record<DateSegmentName, string> = { year: 'yyyy', month: 'mm', day: 'dd' }
 const SEGMENT_LABEL: Record<DateSegmentName, string> = { year: 'Year', month: 'Month', day: 'Day' }
-const SEGMENT_WIDTH: Record<DateSegmentName, string> = { year: 'w-[4ch]', month: 'w-[2ch]', day: 'w-[2ch]' }
+// Sized for the yyyy, mm and dd placeholders rather than for digits, since a letter is wider than a
+// figure and an input clips whatever does not fit. Measured in the interface font, they need 3.40ch,
+// 2.68ch and 1.89ch, and month and day share a width so the two dashes sit symmetrically
+const SEGMENT_WIDTH: Record<DateSegmentName, string> = { year: 'w-[4ch]', month: 'w-[3ch]', day: 'w-[3ch]' }
 
 /**
  * Pads a single filled digit to two characters so month and day read tidily once focus leaves

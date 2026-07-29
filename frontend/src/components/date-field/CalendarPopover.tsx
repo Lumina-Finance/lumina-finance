@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { parseIsoDate } from '@/components/date-field/dateSegments'
 import { useAuth } from '@/hooks/useAuth'
 import { formatYmd, getTodayYmd, getWeekdayIndex } from '@/utils/date'
+import { FLOATING_LAYER_PROPS } from '@/utils/floatingLayer'
 
 interface CalendarPopoverProps {
   open: boolean
@@ -16,6 +17,10 @@ interface CalendarPopoverProps {
 }
 
 const POPOVER_WIDTH = 264
+
+// The popover portals to the body, so it has to clear the full-screen sheets and modals at 100 to
+// draw above whatever opened it. Nothing in the app renders above this
+const POPOVER_Z_INDEX = 110
 const POPOVER_ESTIMATED_HEIGHT = 320
 const VIEWPORT_MARGIN = 8
 const WEEKDAY_LABELS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su']
@@ -121,8 +126,21 @@ export default function CalendarPopover({ open, anchorRef, value, onSelect, onCl
       onClose()
     }
 
+    // Escape is taken here rather than on the grid, because opening the popover with the mouse
+    // leaves focus in the date field and the surface underneath would otherwise answer the key
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+
+      event.preventDefault()
+      onClose()
+    }
+
     document.addEventListener('pointerdown', handlePointerDown)
-    return () => document.removeEventListener('pointerdown', handlePointerDown)
+    document.addEventListener('keydown', handleEscape)
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown)
+      document.removeEventListener('keydown', handleEscape)
+    }
   }, [open, anchorRef, onClose])
 
   const monthKey = `${viewMonth.year}-${viewMonth.month}`
@@ -191,10 +209,6 @@ export default function CalendarPopover({ open, anchorRef, value, onSelect, onCl
         event.preventDefault()
         changeMonth(1)
         break
-      case 'Escape':
-        event.preventDefault()
-        onClose()
-        break
       default:
         break
     }
@@ -209,11 +223,13 @@ export default function CalendarPopover({ open, anchorRef, value, onSelect, onCl
           ref={gridRef}
           role="dialog"
           aria-label="Choose date"
-          className="fixed z-[70] rounded-xl p-3"
+          {...FLOATING_LAYER_PROPS}
+          className="fixed rounded-xl p-3"
           style={{
             top: position.top,
             left: position.left,
             width: POPOVER_WIDTH,
+            zIndex: POPOVER_Z_INDEX,
             background: 'var(--app-input-bg)',
             border: '1px solid var(--app-border-strong)',
             boxShadow: 'var(--app-shadow-soft)',
