@@ -25,6 +25,10 @@ interface DateFieldProps {
   disabled?: boolean
   readOnly?: boolean
   error?: boolean
+
+  // Names the message explaining the error, which each segment points at while error is set so the
+  // reason is announced wherever focus lands in the field
+  describedById?: string
 }
 
 const SEGMENT_PLACEHOLDER: Record<DateSegmentName, string> = { year: 'yyyy', month: 'mm', day: 'dd' }
@@ -54,6 +58,7 @@ export default function DateField({
   disabled = false,
   readOnly = false,
   error = false,
+  describedById,
 }: DateFieldProps) {
   const { user } = useAuth()
   const [segments, setSegments] = useState<DateSegments>(() => parseIsoDate(value))
@@ -206,6 +211,8 @@ export default function DateField({
               inputMode="numeric"
               autoComplete="off"
               aria-label={SEGMENT_LABEL[segment]}
+              aria-invalid={error}
+              aria-describedby={error ? describedById : undefined}
               placeholder={SEGMENT_PLACEHOLDER[segment]}
               disabled={disabled}
               readOnly={readOnly}
