@@ -1,5 +1,6 @@
 import type { OptionItem } from '@/components/filters/OptionList'
 import { MobileFilterGlassPanel } from '@/components/list-controls/MobileFilterGlassPanel'
+import { useSeedDraftOnOpen } from '@/components/list-controls/useSeedDraftOnOpen'
 import { FilterPanelBody } from '@/pages/transactions/components/toolbar/FilterPanelBody'
 import { useTransactionFilterDraft } from '@/pages/transactions/components/toolbar/useTransactionFilterDraft'
 import type { TransactionListFilters } from '@/pages/transactions/types/transactionList'
@@ -37,6 +38,8 @@ export function MobileFilterPanel({
 }: MobileFilterPanelProps) {
   const draft = useTransactionFilterDraft({ filters, setFilter, accountOptions, categoryOptions, showAccountFilter, lockedCurrency, onClose })
 
+  useSeedDraftOnOpen(isOpen, draft.seedDraftFromFilters)
+
   return (
     <MobileFilterGlassPanel
       isOpen={isOpen}
@@ -44,7 +47,6 @@ export function MobileFilterPanel({
       onExitComplete={onExitComplete}
       ariaLabel="Transaction filters"
       activeFacetCount={draft.activeFacetCount}
-      seedDraftFromFilters={draft.seedDraftFromFilters}
       clearAll={draft.clearAll}
       applyFilters={draft.applyFilters}
       isApplyDisabled={draft.hasCrossedAmountBounds}
