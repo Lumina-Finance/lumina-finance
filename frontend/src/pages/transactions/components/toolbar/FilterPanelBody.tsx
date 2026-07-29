@@ -154,6 +154,7 @@ export function FilterPanelBody({
               currencyLocked={draft.currencyLocked}
               dateRange={draft.dateRange}
               fillHeight={fillHeight}
+              mobile={mobile}
               onToggle={(value, label) => draft.toggleSelection(activeFacet.id, value, label)}
               onCurrencyToggle={(value) => draft.toggleSelection('currency', value)}
               onTagMatchChange={draft.setTagMatch}
@@ -285,6 +286,8 @@ type FacetEditorProps = {
   currencyLocked: boolean
   dateRange: { from: string; to: string }
   fillHeight: boolean
+  // True in the mobile sheet, where the date range stacks into two rows rather than sharing one
+  mobile: boolean
   onToggle: (value: string, label?: string) => void
   onCurrencyToggle: (value: string) => void
   onTagMatchChange: (value: 'all' | 'any') => void
@@ -317,6 +320,7 @@ function FacetEditor({
   currencyLocked,
   dateRange,
   fillHeight,
+  mobile,
   onToggle,
   onCurrencyToggle,
   onTagMatchChange,
@@ -439,7 +443,7 @@ function FacetEditor({
 
   if (facet.kind === 'date') {
     return (
-      <div className="flex items-end gap-2">
+      <div className={joinClassNames('flex gap-2', mobile ? 'flex-col' : 'items-end')}>
         <DateFacetInput
           label="From"
           value={dateRange.from}
@@ -447,9 +451,13 @@ function FacetEditor({
           describedById={dateRangeMessageId}
           onValueChange={(value) => onDateRangeChange({ ...dateRange, from: value })}
         />
-        <span className="pb-2.5 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
-          to
-        </span>
+        {/* Each field carries its own From or To label, so the joining word only reads as one while
+            the two sit side by side */}
+        {!mobile && (
+          <span className="pb-2.5 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
+            to
+          </span>
+        )}
         <DateFacetInput
           label="To"
           value={dateRange.to}
