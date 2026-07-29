@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import type { Passkey } from '@/api/passkeys';
 import { OverflowMenu } from '@/components/passkeys/OverflowMenu';
+import { useAuth } from '@/hooks/useAuth';
 import { formatRelativeTime } from '@/utils/relativeTime';
 import { DATE_FORMATS, formatDate } from '@/utils/date';
 
@@ -23,6 +24,7 @@ interface PasskeyRowProps {
  * the backend re-checks a current second factor before deleting a passkey
  */
 export function PasskeyRow({ passkey, onRename, onRemove, disabled }: PasskeyRowProps) {
+  const { user } = useAuth();
   const [isRenaming, setIsRenaming] = useState(false);
   const [draftName, setDraftName] = useState(passkey.name);
   const [error, setError] = useState<string | null>(null);
@@ -55,7 +57,7 @@ export function PasskeyRow({ passkey, onRename, onRemove, disabled }: PasskeyRow
     }
   }
 
-  const addedLabel = `Added ${formatDate(new Date(passkey.created_at), DATE_FORMATS.monthDayYear)}`;
+  const addedLabel = `Added ${formatDate(new Date(passkey.created_at), DATE_FORMATS.monthDayYear, user?.tz)}`;
   const usageLabel = passkey.last_used_at ? `last used ${formatRelativeTime(passkey.last_used_at)}` : 'not used yet';
 
   return (
