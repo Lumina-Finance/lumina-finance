@@ -92,6 +92,12 @@ describe('getRangeInputDates', () => {
   });
 });
 
+// Nothing calls this, because the type is the whole guard: the suppression fails the type-check
+// as an unused directive if a custom range is ever allowed back into the call that resolves a
+// preset to its dates. Vitest strips types without checking them, so the suite cannot cover it
+// @ts-expect-error A custom range cannot be resolved from a preset name
+'CUSTOM' satisfies Parameters<typeof getRangeInputDates>[0];
+
 describe('getRelativeRangeLabel', () => {
   it('labels the current period without a count', () => {
     expect(getRelativeRangeLabel(1, 'month', 'this')).toBe('This month');

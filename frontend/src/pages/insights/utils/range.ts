@@ -3,7 +3,11 @@ import type {
   SavedInsightsRangeQualifier,
   SavedInsightsRangeUnit,
 } from '@/api/insights'
-import type { InsightsRangeInputDates, InsightsRangePreset } from '@/pages/insights/types/range'
+import type {
+  InsightsFixedRangePreset,
+  InsightsRangeInputDates,
+  InsightsRangePreset,
+} from '@/pages/insights/types/range'
 import {
   DATE_FORMATS,
   addDays,
@@ -22,7 +26,7 @@ const MONTHS_PER_UNIT: Record<'month' | 'quarter' | 'year', number> = {
   year: 12,
 }
 
-function getFixedPresetBounds(preset: InsightsRangePreset, timeZone?: string): { start: Date; end: Date } {
+function getFixedPresetBounds(preset: InsightsFixedRangePreset, timeZone?: string): { start: Date; end: Date } {
   const today = getTodayDate(timeZone)
 
   switch (preset) {
@@ -34,10 +38,10 @@ function getFixedPresetBounds(preset: InsightsRangePreset, timeZone?: string): {
       const start = new Date(today.getFullYear(), today.getMonth() - 1, 1)
       return { start, end: new Date(today.getFullYear(), today.getMonth(), 0) }
     }
+    case 'LAST_30_DAYS':
+      return { start: addDays(today, -29), end: today }
     case 'LAST_90_DAYS':
       return { start: addDays(today, -89), end: today }
-    default:
-      return { start: addDays(today, -29), end: today }
   }
 }
 
@@ -59,7 +63,7 @@ export function getCustomRangeDays(from: string, to: string) {
  * @param timeZone - Zone deciding which day the window ends on, defaulting to the browser's
  */
 export function getRangeInputDates(
-  preset: InsightsRangePreset,
+  preset: InsightsFixedRangePreset,
   timeZone?: string,
 ): InsightsRangeInputDates {
   const { start, end } = getFixedPresetBounds(preset, timeZone)
@@ -186,7 +190,9 @@ export function getRangeComparisonPeriod(preset: InsightsRangePreset): InsightsC
       return 'previous_month'
     case 'THIS_YEAR':
       return 'previous_year'
-    default:
+    case 'LAST_30_DAYS':
+    case 'LAST_90_DAYS':
+    case 'CUSTOM':
       return 'same_length'
   }
 }
