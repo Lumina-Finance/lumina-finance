@@ -169,12 +169,17 @@ describe('identity form helpers', () => {
 })
 
 describe('balance chart view model helpers', () => {
-  it('derives the selected range window from a local-day anchor date', () => {
-    const window = getBalanceRangeWindow('30D', new Date(2026, 5, 13, 14, 30))
+  it('ends the selected range window on the profile timezone day rather than the browser calendar', () => {
+    // Late evening in Toronto on 30 June, already 1 July in UTC, so a zone mix-up shows up as a
+    // different day and a different month
+    const lateJuneEvening = new Date('2026-07-01T02:00:00Z')
+    const window = getBalanceRangeWindow('30D', 'America/Toronto', lateJuneEvening)
 
-    expect(formatYmd(window.fromDate)).toBe('2026-05-15')
-    expect(formatYmd(window.toDate)).toBe('2026-06-13')
+    expect(formatYmd(window.fromDate)).toBe('2026-06-01')
+    expect(formatYmd(window.toDate)).toBe('2026-06-30')
     expect(window.granularity).toBe('day')
+
+    expect(formatYmd(getBalanceRangeWindow('30D', 'UTC', lateJuneEvening).toDate)).toBe('2026-07-01')
   })
 
   it('calculates absolute and percentage movement from the first and last chart points', () => {
