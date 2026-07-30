@@ -5,9 +5,9 @@ import { ApiError } from '@/api/auth'
 import { useCreateMerchant, type Merchant } from '@/api/merchants'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
 import CreateModalSectionFrame from '@/components/create-modal/SectionFrame'
-import CreateReferenceModalShell, {
-  type CreateReferenceModalVariant,
-} from '@/components/create-modal/ReferenceModalShell'
+import { ModalTitledPanel } from '@/components/modal/TitledPanel'
+import { ModalFormFooter } from '@/components/modal/FormFooter'
+import type { ModalLevel } from '@/components/modal/Shell'
 import { CREATE_MERCHANT_FIELD_IDS, NO_DEFAULT_CATEGORY_VALUE } from '@/components/reference-modals/createMerchantConstants'
 import { waitForMilliseconds } from '@/utils/timing'
 
@@ -15,14 +15,14 @@ const CREATE_MERCHANT_MIN_LOADING_MS = 800
 
 type CreateMerchantField = 'name'
 type CreateMerchantFieldErrors = Partial<Record<CreateMerchantField, string>>
-type CreateMerchantModalVariant = CreateReferenceModalVariant
 
 interface CreateMerchantModalProps {
   open: boolean
   categoryOptions: DropdownOption[]
   initialName?: string
   defaultCategoryValue?: string
-  variant?: CreateMerchantModalVariant
+  /** Set to stacked where this opens from inside another modal's picker */
+  level?: ModalLevel
   onClose: () => void
   onCreated: (merchant: Merchant) => void
 }
@@ -31,8 +31,8 @@ interface CreateMerchantModalProps {
  * Modal for creating a new merchant, collecting its name and an optional default category before
  * handing the created merchant back through `onCreated`
  *
- * The secondary variant renders as the compact inline form used when creating a merchant from inside
- * another reference picker, while the primary variant is the standalone modal. Submission enforces a
+ * At the stacked level it renders as the compact inline form used when creating a merchant from inside
+ * another reference picker, and at the page level as the standalone modal. Submission enforces a
  * minimum loading duration so the success state does not flash by unnoticed on fast responses
  */
 export default function CreateMerchantModal({
@@ -40,7 +40,7 @@ export default function CreateMerchantModal({
   categoryOptions,
   initialName = '',
   defaultCategoryValue = NO_DEFAULT_CATEGORY_VALUE,
-  variant = 'primary',
+  level = 'page',
   onClose,
   onCreated,
 }: CreateMerchantModalProps) {
@@ -56,7 +56,7 @@ export default function CreateMerchantModal({
   const [formError, setFormError] = useState<string | null>(null)
   const [createInProgress, setCreateInProgress] = useState(false)
   const isCreating = createMerchant.isPending || createInProgress
-  const isSecondary = variant === 'secondary'
+  const isSecondary = level === 'stacked'
 
   const showError = (field: CreateMerchantField) => touched[field] && fieldErrors[field]
   const setField = <K extends keyof typeof form>(field: K, value: (typeof form)[K]) => {
@@ -105,19 +105,25 @@ export default function CreateMerchantModal({
   const submitWidth = isSecondary ? 'w-full sm:w-32' : 'w-full sm:w-40'
 
   return (
-    <CreateReferenceModalShell
+    <ModalTitledPanel
       open={open}
-      variant={variant}
-      modalTitleId="create-merchant-title"
+      level={level}
+      titleId="create-merchant-title"
       eyebrow={eyebrow}
       title={title}
       railLabel={railLabel}
       RailIcon={Store}
-      submitDisabled={isCreating}
-      submitLabel={submitLabel}
-      submitWidthClassName={submitWidth}
       onClose={onClose}
       onSubmit={handleSubmit}
+      footer={
+        <ModalFormFooter
+          submitLabel={submitLabel}
+          submitDisabled={isCreating}
+          submitWidthClassName={submitWidth}
+          level={level}
+          onCancel={onClose}
+        />
+      }
     >
       <div className="space-y-5">
         <CreateModalSectionFrame step="01">
@@ -193,6 +199,6 @@ export default function CreateMerchantModal({
           )}
         </AnimatePresence>
       </div>
-    </CreateReferenceModalShell>
+    </ModalTitledPanel>
   )
 }

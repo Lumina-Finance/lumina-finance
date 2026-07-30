@@ -72,6 +72,9 @@ export default function BudgetsPage() {
   const visibleBudgetDetails = selectedBudget ?? (
     budgetDetailsSnapshot?.baseBudget.id === selectedBudgetId ? budgetDetailsSnapshot : null
   )
+  // The snapshot is what stays mounted while the panel animates out, after the URL has already dropped the
+  // selection, so the contents do not vanish mid-exit
+  const detailsBudget = visibleBudgetDetails ?? budgetDetailsSnapshot
 
   /**
    * Stores a selected-budget snapshot before syncing the detail modal to the URL
@@ -86,10 +89,12 @@ export default function BudgetsPage() {
   }
 
   /**
-   * Clears the selected-budget URL state and any stale details snapshot
+   * Clears the selected-budget URL state, holding the budget itself until the panel has finished leaving
    */
   const closeBudget = () => {
-    setBudgetDetailsSnapshot(null)
+    // Taken here rather than at open, since arriving on the URL directly never goes through openBudget and
+    // would otherwise leave the panel with nothing to render on the way out
+    setBudgetDetailsSnapshot(visibleBudgetDetails)
     setSearchParams((current) => {
       const next = new URLSearchParams(current)
       next.delete('budget')
@@ -163,37 +168,38 @@ export default function BudgetsPage() {
         onCreated={() => undefined}
       />
 
-      <AnimatePresence>
-        {/* Opens without the currency table, since everything the details view shows comes from the budget
-            itself. Only the editor nested inside needs the table, and it stands its limit down instead */}
-        {visibleBudgetDetails && (
-          <BudgetDetailsModal
-            key={visibleBudgetDetails.baseBudget.id}
-            baseBudget={visibleBudgetDetails.baseBudget}
-            periods={visibleBudgetDetails.periods}
-            categories={categories ?? []}
-            currencies={currencies ?? []}
-            categoryById={categoryById}
-            initialLatestUtilization={
-              visibleBudgetDetails.latestPeriod
-                ? latestUtilizationByBudgetId.get(visibleBudgetDetails.latestPeriod.id)
-                : undefined
-            }
-            today={today}
-            onClose={closeBudget}
-            onDeleted={() => {
-              void baseBudgetsQuery.refetch()
-              void budgetsQuery.refetch()
-              void latestUtilizationsQuery.refetch()
-            }}
-            onSaved={() => {
-              void baseBudgetsQuery.refetch()
-              void budgetsQuery.refetch()
-              void latestUtilizationsQuery.refetch()
-            }}
-          />
-        )}
-      </AnimatePresence>
+      {/* Opens without the currency table, since everything the details view shows comes from the budget
+          itself. Only the editor nested inside needs the table, and it stands its limit down instead. The
+          snapshot outlives the URL change, so it also keeps the panel's contents in place while it leaves */}
+      {detailsBudget && (
+        <BudgetDetailsModal
+          key={detailsBudget.baseBudget.id}
+          open={Boolean(visibleBudgetDetails)}
+          baseBudget={detailsBudget.baseBudget}
+          periods={detailsBudget.periods}
+          categories={categories ?? []}
+          currencies={currencies ?? []}
+          categoryById={categoryById}
+          initialLatestUtilization={
+            detailsBudget.latestPeriod
+              ? latestUtilizationByBudgetId.get(detailsBudget.latestPeriod.id)
+              : undefined
+          }
+          today={today}
+          onClose={closeBudget}
+          onExitComplete={() => setBudgetDetailsSnapshot(null)}
+          onDeleted={() => {
+            void baseBudgetsQuery.refetch()
+            void budgetsQuery.refetch()
+            void latestUtilizationsQuery.refetch()
+          }}
+          onSaved={() => {
+            void baseBudgetsQuery.refetch()
+            void budgetsQuery.refetch()
+            void latestUtilizationsQuery.refetch()
+          }}
+        />
+      )}
     </div>
   )
 }

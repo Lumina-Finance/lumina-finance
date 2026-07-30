@@ -1,6 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
-import { motion } from 'motion/react'
 import { X } from 'lucide-react'
 import { useBaseBudgetUtilizations, useDeleteBaseBudget, type BaseBudget, type Budget, type BudgetUtilization } from '@/api/budgets'
 import type { Category } from '@/api/categories'
@@ -10,7 +8,8 @@ import BudgetHistoryChart from '@/pages/budgets/components/budget-details-modal/
 import BudgetPeriodHistory from '@/pages/budgets/components/budget-details-modal/PeriodHistory'
 import BudgetEditModal from '@/pages/budgets/components/budget-editor-modal/EditModal'
 import BudgetFxStatusBadge from '@/pages/budgets/components/shared/FxStatusBadge'
-import { DELETE_BUDGET_MIN_LOADING_MS, EASE, MODAL_SURFACE_TRANSITION_SECONDS } from '@/pages/budgets/constants'
+import { ModalShell } from '@/components/modal/Shell'
+import { DELETE_BUDGET_MIN_LOADING_MS } from '@/pages/budgets/constants'
 import { attentionState } from '@/pages/budgets/utils/budgetStatus'
 import { getHistoricalBudgetUtilizationFxStatusMessage } from '@/pages/budgets/utils/fxTooltipMessages'
 import {
@@ -27,6 +26,7 @@ import { combineFxStatuses } from '@/utils/fxStatus'
  * Coordinates budget details data, edit/delete actions, and the responsive details dialog layout
  */
 export default function BudgetDetailsModal({
+  open,
   baseBudget,
   periods,
   categories,
@@ -37,7 +37,9 @@ export default function BudgetDetailsModal({
   onClose,
   onDeleted,
   onSaved,
+  onExitComplete,
 }: {
+  open: boolean
   baseBudget: BaseBudget
   periods: Budget[]
   categories: Category[]
@@ -48,6 +50,8 @@ export default function BudgetDetailsModal({
   onClose: () => void
   onDeleted: () => void
   onSaved: () => void
+  /** Runs once the panel has finished leaving, which the page waits on before dropping its budget snapshot */
+  onExitComplete: () => void
 }) {
   const deleteBaseBudget = useDeleteBaseBudget({ minimumPendingMs: DELETE_BUDGET_MIN_LOADING_MS })
   const [editOpen, setEditOpen] = useState(false)
@@ -142,108 +146,89 @@ export default function BudgetDetailsModal({
     }
   }
 
-  return createPortal(
+  return (
     <>
-      <motion.div
-        className="fixed inset-0 z-50"
-        style={{ background: 'rgba(0, 0, 0, 0.35)', backdropFilter: 'blur(4px)' }}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.2 }}
-        onClick={onClose}
-        aria-hidden
-      />
-
-      <motion.div
-        className="fixed inset-0 z-50 flex items-center justify-center p-4"
-        initial={{ opacity: 0, scale: 0.96, y: 12 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.96, y: 12 }}
-        transition={{ duration: MODAL_SURFACE_TRANSITION_SECONDS, ease: EASE }}
-        onClick={onClose}
+      <ModalShell
+        open={open}
+        onClose={onClose}
+        titleId="budget-detail-title"
+        panelClassName="relative h-[44rem] max-h-[88vh] w-full max-w-6xl overflow-hidden"
+        onExitComplete={onExitComplete}
       >
+        <span id="budget-detail-title" className="sr-only">
+          {baseBudget.name}
+        </span>
         <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="budget-detail-title"
-          className="app-modal-panel relative h-[44rem] max-h-[88vh] w-full max-w-6xl overflow-hidden"
-          onClick={(event) => event.stopPropagation()}
+          ref={modalScrollRef}
+          className="flex h-full min-h-0 flex-col overflow-y-auto min-[1050px]:grid min-[1050px]:grid-cols-[22rem_minmax(0,1fr)] min-[1050px]:overflow-hidden"
+          onScroll={syncHistoryScrollState}
         >
-          <span id="budget-detail-title" className="sr-only">
-            {baseBudget.name}
-          </span>
-          <div
-            ref={modalScrollRef}
-            className="flex h-full min-h-0 flex-col overflow-y-auto min-[1050px]:grid min-[1050px]:grid-cols-[22rem_minmax(0,1fr)] min-[1050px]:overflow-hidden"
-            onScroll={syncHistoryScrollState}
+          <BudgetDetailsSidebar
+            baseBudget={baseBudget}
+            latestPeriod={latestPeriod}
+            latestUtilization={latestUtilization}
+            latestCategories={latestCategories}
+            categoryById={categoryById}
+            categoryColorById={categoryColorById}
+            attention={attention}
+            spent={spent}
+            limit={limit}
+            remaining={remaining}
+            isOverBudget={isOverBudget}
+            showStackedCategoryChart={showStackedCategoryChart}
+            confirmDelete={confirmDelete}
+            deleteError={deleteError}
+            isDeleting={isDeleting}
+            onClose={onClose}
+            onEdit={() => setEditOpen(true)}
+            onDelete={handleDelete}
+          />
+
+          <section
+            data-tooltip-bounds
+            className={`sticky top-[6rem] z-20 h-[calc(100dvh-6rem)] shrink-0 space-y-6 pb-5 px-5 pt-2 min-[750px]:top-24 min-[750px]:h-[calc(100dvh-6rem)] min-[750px]:space-y-8 min-[750px]:p-7 min-[1050px]:static min-[1050px]:z-auto min-[1050px]:flex min-[1050px]:h-full min-[1050px]:min-h-0 min-[1050px]:shrink min-[1050px]:flex-col min-[1050px]:gap-6 min-[1050px]:space-y-0 min-[1050px]:overflow-hidden ${historyCanScroll ? 'overflow-y-auto' : 'overflow-hidden'}`}
+            style={{ background: 'var(--app-surface-soft)' }}
           >
-            <BudgetDetailsSidebar
-              baseBudget={baseBudget}
-              latestPeriod={latestPeriod}
-              latestUtilization={latestUtilization}
-              latestCategories={latestCategories}
-              categoryById={categoryById}
-              categoryColorById={categoryColorById}
-              attention={attention}
-              spent={spent}
-              limit={limit}
-              remaining={remaining}
-              isOverBudget={isOverBudget}
-              showStackedCategoryChart={showStackedCategoryChart}
-              confirmDelete={confirmDelete}
-              deleteError={deleteError}
-              isDeleting={isDeleting}
-              onClose={onClose}
-              onEdit={() => setEditOpen(true)}
-              onDelete={handleDelete}
-            />
-
-            <section
-              data-tooltip-bounds
-              className={`sticky top-[6rem] z-20 h-[calc(100dvh-6rem)] shrink-0 space-y-6 pb-5 px-5 pt-2 min-[750px]:top-24 min-[750px]:h-[calc(100dvh-6rem)] min-[750px]:space-y-8 min-[750px]:p-7 min-[1050px]:static min-[1050px]:z-auto min-[1050px]:flex min-[1050px]:h-full min-[1050px]:min-h-0 min-[1050px]:shrink min-[1050px]:flex-col min-[1050px]:gap-6 min-[1050px]:space-y-0 min-[1050px]:overflow-hidden ${historyCanScroll ? 'overflow-y-auto' : 'overflow-hidden'}`}
-              style={{ background: 'var(--app-surface-soft)' }}
-            >
-              <header className="flex shrink-0 items-start justify-between gap-4">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-xl font-semibold" style={{ color: 'var(--app-text)' }}>Historical utilization</h3>
-                    <BudgetFxStatusBadge
-                      fxStatus={utilizationHistoryFxStatus}
-                      label="Historical utilization FX status"
-                      getMessage={getHistoricalBudgetUtilizationFxStatusMessage}
-                    />
-                  </div>
-                  <p className="mt-1 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
-                    Percentage used for each budget period.
-                  </p>
+            <header className="flex shrink-0 items-start justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-xl font-semibold" style={{ color: 'var(--app-text)' }}>Historical utilization</h3>
+                  <BudgetFxStatusBadge
+                    fxStatus={utilizationHistoryFxStatus}
+                    label="Historical utilization FX status"
+                    getMessage={getHistoricalBudgetUtilizationFxStatusMessage}
+                  />
                 </div>
-                <button type="button" className="app-icon-button hidden min-[1050px]:inline-flex" aria-label="Close budget details" onClick={onClose}>
-                  <X size={20} aria-hidden />
-                </button>
-              </header>
+                <p className="mt-1 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
+                  Percentage used for each budget period.
+                </p>
+              </div>
+              <button type="button" className="app-icon-button hidden min-[1050px]:inline-flex" aria-label="Close budget details" onClick={onClose}>
+                <X size={20} aria-hidden />
+              </button>
+            </header>
 
-              <section className="shrink-0">
-                <BudgetHistoryChart
-                  chartData={chartData}
-                  chartCategories={chartCategories}
-                  currency={baseBudget.currency}
-                  loading={utilizationHistoryLoading}
-                  error={utilizationHistoryError}
-                />
-              </section>
-
-              <BudgetPeriodHistory
-                periodHistory={periodHistory}
+            <section className="shrink-0">
+              <BudgetHistoryChart
+                chartData={chartData}
+                chartCategories={chartCategories}
                 currency={baseBudget.currency}
                 loading={utilizationHistoryLoading}
                 error={utilizationHistoryError}
               />
-
             </section>
+
+            <BudgetPeriodHistory
+              periodHistory={periodHistory}
+              currency={baseBudget.currency}
+              loading={utilizationHistoryLoading}
+              error={utilizationHistoryError}
+            />
+
+          </section>
           </div>
-        </div>
-      </motion.div>
+      </ModalShell>
+
       <BudgetEditModal
         open={editOpen}
         baseBudget={baseBudget}
@@ -260,7 +245,6 @@ export default function BudgetDetailsModal({
           if (archiveChanged) onClose()
         }}
       />
-    </>,
-    document.body,
+    </>
   )
 }

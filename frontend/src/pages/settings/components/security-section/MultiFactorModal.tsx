@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { Fingerprint, KeyRound, Plus, RefreshCw, Smartphone } from 'lucide-react';
+import { Fingerprint, KeyRound, Plus, RefreshCw, ShieldCheck, Smartphone } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { PasskeyRow } from '@/components/passkeys/PasskeyRow';
-import { MultiFactorModalShell } from '@/components/two-factor/MultiFactorModalShell';
+import { ModalContentPanel } from '@/components/modal/ContentPanel';
+import { ModalTitledPanel } from '@/components/modal/TitledPanel';
 import { RecoveryCodesModal } from '@/components/two-factor/RecoveryCodesModal';
 import { StepUpModal, type StepUpCredentials } from '@/components/two-factor/StepUpModal';
 import { TotpEnrollmentModal } from '@/components/two-factor/TotpEnrollmentModal';
-import { TwoFactorModalShell } from '@/components/two-factor/TwoFactorModalShell';
 import { WarningCallout } from '@/components/two-factor/WarningCallout';
 import { usePasskeyManagement } from '@/pages/settings/hooks/usePasskeyManagement';
 import { useTwoFactorManagement } from '@/pages/settings/hooks/useTwoFactorManagement';
@@ -129,7 +129,28 @@ export function MultiFactorModal({ open, onClose }: MultiFactorModalProps) {
 
   return (
     <>
-      <MultiFactorModalShell open={open} closeDisabled={isSecondaryOpen} onClose={handleClose}>
+      <ModalTitledPanel
+        open={open}
+        onClose={handleClose}
+        closeDisabled={isSecondaryOpen}
+        titleId="multi-factor-title"
+        title="Multi-factor authentication"
+        eyebrow="Account protection"
+        RailIcon={ShieldCheck}
+        railLabel="Security"
+        footer={
+          <div className="flex shrink-0 justify-end px-6 py-4" style={{ borderTop: '1px solid var(--app-border)' }}>
+            <button
+              type="button"
+              onClick={handleClose}
+              disabled={isSecondaryOpen}
+              className="app-primary-button w-full sm:w-auto"
+            >
+              Done
+            </button>
+          </div>
+        }
+      >
         <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
           Add a second factor so a stolen password isn't enough to sign in.
         </p>
@@ -275,9 +296,10 @@ export function MultiFactorModal({ open, onClose }: MultiFactorModalProps) {
             Regenerate
           </button>
         </div>
-      </MultiFactorModalShell>
+      </ModalTitledPanel>
 
       <TotpEnrollmentModal
+        level="stacked"
         open={totp.openModal === 'enable'}
         initialSetup={totpSetup ?? undefined}
         onClose={() => {
@@ -287,6 +309,7 @@ export function MultiFactorModal({ open, onClose }: MultiFactorModalProps) {
       />
 
       <StepUpModal
+        level="stacked"
         open={totp.openModal === 'disable'}
         title="Turn off two-factor authentication"
         description="Confirm it's you to turn two-factor off."
@@ -300,6 +323,7 @@ export function MultiFactorModal({ open, onClose }: MultiFactorModalProps) {
       />
 
       <StepUpModal
+        level="stacked"
         open={totp.openModal === 'regenerate'}
         title="Regenerate recovery codes"
         description="Confirm it's you to replace your recovery codes."
@@ -312,6 +336,7 @@ export function MultiFactorModal({ open, onClose }: MultiFactorModalProps) {
       />
 
       <RecoveryCodesModal
+        level="stacked"
         open={totp.regeneratedCodes !== null}
         codes={totp.regeneratedCodes}
         onConfirm={totp.acknowledgeRegeneratedCodes}
@@ -319,6 +344,7 @@ export function MultiFactorModal({ open, onClose }: MultiFactorModalProps) {
       />
 
       <RecoveryCodesModal
+        level="stacked"
         open={passkey.pendingRecoveryCodes !== null}
         codes={passkey.pendingRecoveryCodes}
         description={FIRST_PASSKEY_CODES_DESCRIPTION}
@@ -326,9 +352,9 @@ export function MultiFactorModal({ open, onClose }: MultiFactorModalProps) {
         onClose={passkey.dismissRecoveryCodes}
       />
 
-      <TwoFactorModalShell open={passkey.reuseReminder} onClose={passkey.dismissReuseReminder}>
+      <ModalContentPanel open={passkey.reuseReminder} onClose={passkey.dismissReuseReminder} titleId="passkey-added-title" level="stacked">
         <div className="space-y-1">
-          <h3 className="text-base font-semibold">Passkey added</h3>
+          <h3 id="passkey-added-title" className="text-base font-semibold">Passkey added</h3>
           <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
             Your existing recovery codes also cover it, so there are no new codes to save.
           </p>
@@ -336,9 +362,10 @@ export function MultiFactorModal({ open, onClose }: MultiFactorModalProps) {
         <button type="button" onClick={passkey.dismissReuseReminder} className="app-primary-button w-full">
           Done
         </button>
-      </TwoFactorModalShell>
+      </ModalContentPanel>
 
       <StepUpModal
+        level="stacked"
         open={passkey.isRemovalOpen}
         title="Remove this passkey"
         description="Confirm it's you to remove this passkey."
@@ -352,6 +379,7 @@ export function MultiFactorModal({ open, onClose }: MultiFactorModalProps) {
       />
 
       <StepUpModal
+        level="stacked"
         open={isTotpEnableStepUpOpen}
         title="Turn on two-factor authentication"
         description="Confirm it's you to turn two-factor on."
@@ -363,6 +391,7 @@ export function MultiFactorModal({ open, onClose }: MultiFactorModalProps) {
       />
 
       <StepUpModal
+        level="stacked"
         open={pendingPasskeyName !== null}
         title="Add a passkey"
         description="Confirm it's you before adding a passkey."

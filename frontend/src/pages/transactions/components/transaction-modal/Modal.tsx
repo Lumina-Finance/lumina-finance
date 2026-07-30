@@ -16,12 +16,12 @@ import type {
 } from '@/pages/transactions/components/transaction-modal/types'
 import TransactionDetailsSection from '@/pages/transactions/components/transaction-modal/sections/DetailsSection'
 import TransactionModalFooter from '@/pages/transactions/components/transaction-modal/layout/Footer'
-import TransactionModalShell from '@/pages/transactions/components/transaction-modal/layout/Shell'
+import { ReceiptText } from 'lucide-react'
+import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import TransactionModalSubmitError from '@/pages/transactions/components/transaction-modal/controls/SubmitError'
 import TransactionReferenceCreationModals from '@/pages/transactions/components/transaction-modal/modals/ReferenceCreationModals'
 import TransactionReferencesSection from '@/pages/transactions/components/transaction-modal/sections/ReferencesSection'
 import TransactionTypeDirectionSection from '@/pages/transactions/components/transaction-modal/sections/TypeDirectionSection'
-import { useTransactionModalEnvironment } from '@/pages/transactions/components/transaction-modal/hooks/useEnvironment'
 import { useTransactionFormState } from '@/pages/transactions/components/transaction-modal/hooks/useFormState'
 import { useTransactionReferenceCreationModals } from '@/pages/transactions/components/transaction-modal/hooks/useReferenceCreationModals'
 import { useCategoryField } from '@/pages/transactions/components/transaction-modal/hooks/useCategoryField'
@@ -198,7 +198,6 @@ export default function CreateTransactionModal({
     closeModal,
   })
 
-  useTransactionModalEnvironment({ open, onClose: closeModal })
 
   const showRunningBalance = !editing && keepOpenAfterCreate && !!selectedAccount
   const isSymmetricTransfer = isSymmetricTransferForm(form)
@@ -217,13 +216,17 @@ export default function CreateTransactionModal({
 
   return (
     <>
-      <TransactionModalShell
+      <ModalTitledPanel
         open={open}
-        editing={editing}
-        transactionKindLabel={KIND_LABELS[form.kind]}
+        titleId="create-txn-title"
+        title={editing ? 'Edit Transaction' : 'Add Transaction'}
+        eyebrow={editing ? 'Existing transaction' : `${KIND_LABELS[form.kind]} transaction`}
         headerStatus={readOnly ? 'Archived account' : undefined}
+        RailIcon={ReceiptText}
+        railLabel="Transaction"
+        animateHeight
         onClose={closeModal}
-        onDismissed={applyPendingDeletion}
+        onExitComplete={applyPendingDeletion}
         onSubmit={handleSubmit}
         footer={(
           <TransactionModalFooter
@@ -330,7 +333,7 @@ export default function CreateTransactionModal({
 
           <TransactionModalSubmitError error={submitError} title={submitErrorTitle} />
         </div>
-      </TransactionModalShell>
+      </ModalTitledPanel>
       <TransactionReferenceCreationModals
         parentOpen={open}
         merchantModalKey={merchantModal.remountKey}

@@ -40,18 +40,23 @@ function useMerchantReplacementQuery(merchant: Merchant, search: string) {
  * The replacement options only offer merchants sharing the same group as the one being deleted
  */
 export default function MergeDeleteMerchantModal({
+  open,
   merchant,
   isPending,
   onClose,
+  onExitComplete,
   onMerge,
 }: {
+  open: boolean
   merchant: Merchant
   isPending: boolean
   onClose: () => void
+  onExitComplete: () => void
   onMerge: (replacementMerchantId: string) => Promise<void>
 }) {
   return (
     <MergeDeleteReferenceModal
+      open={open}
       item={merchant}
       isPending={isPending}
       submitMinVisibleMs={DELETE_SPINNER_MS}
@@ -72,6 +77,7 @@ export default function MergeDeleteMerchantModal({
         deleteErrorFallback: 'Failed to delete merchant.',
       }}
       onClose={onClose}
+      onExitComplete={onExitComplete}
       onMerge={onMerge}
     />
   )

@@ -17,8 +17,6 @@ import {
   buildCreateAccountInstitutionOptions,
   buildCreateAccountTaxPlanOptions,
 } from '@/pages/accounts/components/create-account-modal/utils/options'
-import { getNextModalFieldTabStop } from '@/components/modal/focus'
-import { CREATE_ACCOUNT_MODAL_FIELD_IDS } from '@/pages/accounts/components/create-account-modal/constants'
 
 const currencies: Currency[] = [
   { id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 },
@@ -156,21 +154,4 @@ describe('create account modal helpers', () => {
     })
   })
 
-  it('wraps create account modal Tab focus through field controls only', () => {
-    const fieldTabStops = [
-      CREATE_ACCOUNT_MODAL_FIELD_IDS.accountType,
-      'account-name',
-      CREATE_ACCOUNT_MODAL_FIELD_IDS.currency,
-      CREATE_ACCOUNT_MODAL_FIELD_IDS.institution,
-      'starting-balance',
-      CREATE_ACCOUNT_MODAL_FIELD_IDS.taxAdvantagedCategory,
-    ]
-
-    expect(getNextModalFieldTabStop(fieldTabStops, null, false)).toBe(CREATE_ACCOUNT_MODAL_FIELD_IDS.accountType)
-    expect(getNextModalFieldTabStop(fieldTabStops, CREATE_ACCOUNT_MODAL_FIELD_IDS.accountType, false)).toBe('account-name')
-    expect(getNextModalFieldTabStop(fieldTabStops, CREATE_ACCOUNT_MODAL_FIELD_IDS.currency, false)).toBe(CREATE_ACCOUNT_MODAL_FIELD_IDS.institution)
-    expect(getNextModalFieldTabStop(fieldTabStops, CREATE_ACCOUNT_MODAL_FIELD_IDS.institution, false)).toBe('starting-balance')
-    expect(getNextModalFieldTabStop(fieldTabStops, CREATE_ACCOUNT_MODAL_FIELD_IDS.taxAdvantagedCategory, false)).toBe(CREATE_ACCOUNT_MODAL_FIELD_IDS.accountType)
-    expect(getNextModalFieldTabStop(fieldTabStops, CREATE_ACCOUNT_MODAL_FIELD_IDS.accountType, true)).toBe(CREATE_ACCOUNT_MODAL_FIELD_IDS.taxAdvantagedCategory)
-  })
 })

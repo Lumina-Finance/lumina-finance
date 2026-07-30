@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { AnimatePresence } from 'motion/react'
 import { Plus } from 'lucide-react'
 import { ApiError } from '@/api/auth'
 import { GlassSearchField } from '@/components/list-controls/GlassSearchField'
@@ -39,6 +38,8 @@ export default function CategorySettingsSection() {
   const [confirmingDeleteCategoryId, setConfirmingDeleteCategoryId] = useState<string | null>(null)
   const [deletingCategoryId, setDeletingCategoryId] = useState<string | null>(null)
   const [mergeDeleteCategory, setMergeDeleteCategory] = useState<Category | null>(null)
+  // Held apart from the item so the panel keeps its contents while it animates out
+  const [isCategoryMergeDeleteOpen, setIsCategoryMergeDeleteOpen] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const {
     expandedKinds,
@@ -72,6 +73,7 @@ export default function CategorySettingsSection() {
       if (error instanceof ApiError && error.status === 409) {
         setConfirmingDeleteCategoryId(null)
         setMergeDeleteCategory(category)
+        setIsCategoryMergeDeleteOpen(true)
       } else {
         setDeleteError(error instanceof Error ? error.message : 'Failed to delete category.')
       }
@@ -160,22 +162,22 @@ export default function CategorySettingsSection() {
         onClose={() => setShowCreateModal(false)}
         onCreated={handleCreated}
       />
-      <AnimatePresence>
-        {mergeDeleteCategory && (
-          <MergeDeleteCategoryModal
-            category={mergeDeleteCategory}
-            categories={categories}
-            isPending={mergeCategory.isPending}
-            onClose={() => setMergeDeleteCategory(null)}
-            onMerge={async (replacementCategoryId) => {
-              await mergeCategory.mutateAsync({
-                categoryId: mergeDeleteCategory.id,
-                payload: { replacement_category_id: replacementCategoryId },
-              })
-            }}
-          />
-        )}
-      </AnimatePresence>
+      {mergeDeleteCategory && (
+        <MergeDeleteCategoryModal
+          open={isCategoryMergeDeleteOpen}
+          category={mergeDeleteCategory}
+          categories={categories}
+          isPending={mergeCategory.isPending}
+          onClose={() => setIsCategoryMergeDeleteOpen(false)}
+          onExitComplete={() => setMergeDeleteCategory(null)}
+          onMerge={async (replacementCategoryId) => {
+            await mergeCategory.mutateAsync({
+              categoryId: mergeDeleteCategory.id,
+              payload: { replacement_category_id: replacementCategoryId },
+            })
+          }}
+        />
+      )}
     </section>
   )
 }

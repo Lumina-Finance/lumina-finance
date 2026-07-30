@@ -1,6 +1,6 @@
 import type { OidcLinkedIdentity } from '@/api/oidc';
 import { ProviderMark } from '@/components/ProviderMark';
-import { TwoFactorModalShell } from '@/components/two-factor/TwoFactorModalShell';
+import { ModalContentPanel } from '@/components/modal/ContentPanel';
 
 interface ProviderReauthModalProps {
   open: boolean;
@@ -17,10 +17,10 @@ interface ProviderReauthModalProps {
  */
 export function ProviderReauthModal({ open, providers, busySlug, onChoose, onClose }: ProviderReauthModalProps) {
   return (
-    <TwoFactorModalShell open={open} onClose={onClose} closeDisabled={busySlug !== null}>
+    <ModalContentPanel open={open} onClose={onClose} closeDisabled={busySlug !== null} titleId="provider-reauth-title">
       <div className="space-y-4">
         <div className="space-y-1">
-          <h3 className="text-base font-semibold">Confirm it's you</h3>
+          <h3 id="provider-reauth-title" className="text-base font-semibold">Confirm it's you</h3>
           <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
             Choose a provider to re-confirm your identity before continuing.
           </p>
@@ -48,6 +48,6 @@ export function ProviderReauthModal({ open, providers, busySlug, onChoose, onClo
           ))}
         </div>
       </div>
-    </TwoFactorModalShell>
+    </ModalContentPanel>
   );
 }
