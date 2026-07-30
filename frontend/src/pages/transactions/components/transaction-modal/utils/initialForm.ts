@@ -4,6 +4,7 @@ import type { Currency } from '@/api/currency'
 import type { Transaction } from '@/api/transactions'
 import { INITIAL_TRANSACTION_FORM } from '@/pages/transactions/components/transaction-modal/constants'
 import { amountToInputString } from '@/pages/transactions/components/transaction-modal/utils/money'
+import { findCurrencyExponent } from '@/utils/moneyInput'
 import type {
   TransactionFormValues,
   TransactionModalKind,
@@ -48,7 +49,9 @@ export function buildInitialTransactionForm({
   }
 
   const category = categories.find((item) => item.id === transaction.category_id)
-  const exponent = currencies.find((currency) => currency.id === transaction.currency)?.minor_unit_exponent ?? 2
+  // Left blank rather than scaled by an assumed two decimal places, since the stored amount can only be
+  // turned into text through the real ones
+  const exponent = findCurrencyExponent(currencies, transaction.currency)
 
   return {
     kind: (category?.kind as TransactionModalKind) ?? 'expense',
@@ -56,7 +59,7 @@ export function buildInitialTransactionForm({
     account_id: transaction.account_id,
     category_id: transaction.category_id,
     merchant_id: transaction.merchant_id ?? '',
-    amount: amountToInputString(transaction.amount, exponent),
+    amount: exponent === null ? '' : amountToInputString(transaction.amount, exponent),
     currency: transaction.currency,
     notes: transaction.notes ?? '',
     date: transaction.dt,

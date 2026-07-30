@@ -15,6 +15,10 @@ interface TransactionDetailsSectionProps {
   selectedCurrencySymbol: string
   amount: string
   amountError?: string | false
+
+  // Stands the amount down when the selected currency is missing from the currency table, whose decimal
+  // places the stored amount can only be read or written through
+  isAmountLocked: boolean
   currencyExponent: number
   notes: string
   readOnly: boolean
@@ -37,6 +41,7 @@ export default function TransactionDetailsSection({
   selectedCurrencySymbol,
   amount,
   amountError,
+  isAmountLocked,
   currencyExponent,
   notes,
   readOnly,
@@ -86,7 +91,19 @@ export default function TransactionDetailsSection({
           />
         </div>
         <div>
-          <CreateModalFieldLabelRow htmlFor="txn-amount" label="Amount" error={amountError} />
+          <CreateModalFieldLabelRow
+            htmlFor="txn-amount"
+            label={isAmountLocked ? (
+              <span className="inline-flex items-center gap-2">
+                Amount
+                <IconTooltip label="Amount unavailable" level="important">
+                  We can't load the currency list right now, so the amount can't be shown or changed.
+                  Refresh the page to try again.
+                </IconTooltip>
+              </span>
+            ) : 'Amount'}
+            error={amountError}
+          />
           <div className="relative">
             {selectedCurrencySymbol && (
               <span
@@ -105,7 +122,7 @@ export default function TransactionDetailsSection({
               id="txn-amount"
               className={`app-input w-full disabled:cursor-not-allowed disabled:opacity-60 ${selectedCurrencySymbol ? 'pl-8' : ''} ${amountError ? 'app-input-error' : ''}`}
               placeholder={getMoneyPlaceholder(currencyExponent)}
-              disabled={readOnly}
+              disabled={readOnly || isAmountLocked}
               {...amountInput}
             />
           </div>

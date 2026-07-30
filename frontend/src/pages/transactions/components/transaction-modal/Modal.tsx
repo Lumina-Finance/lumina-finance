@@ -150,6 +150,10 @@ export default function CreateTransactionModal({
   const selectedCurrency = currencies.find((c) => c.id === form.currency)
   const selectedCurrencySymbol = selectedCurrency?.symbol ?? ''
   const selectedCurrencyExponent = selectedCurrency?.minor_unit_exponent ?? 2
+  // Keyed on the list being absent rather than on the selected currency being unknown, so a form that
+  // has not picked a currency yet is not mistaken for a failed fetch. Only reachable while editing,
+  // since a create click is refused before the modal opens
+  const isAmountLocked = currencies.length === 0
 
   const { openRef, recordCreatedAccountId, flushDeferredRefresh, closeModal } = useDeferredTransactionRefresh({
     open,
@@ -185,6 +189,7 @@ export default function CreateTransactionModal({
     selectedAccount,
     selectedToAccount,
     selectedCurrencyExponent,
+    isAmountLocked,
     deleteLoading,
     openRef,
     recordCreatedAccountId,
@@ -310,6 +315,7 @@ export default function CreateTransactionModal({
             currencyPlaceholder={currencies.length === 0 ? 'Loading...' : 'Select...'}
             selectedCurrencySymbol={selectedCurrencySymbol}
             currencyExponent={selectedCurrencyExponent}
+            isAmountLocked={isAmountLocked}
             amount={form.amount}
             amountError={showError('amount')}
             notes={form.notes}
