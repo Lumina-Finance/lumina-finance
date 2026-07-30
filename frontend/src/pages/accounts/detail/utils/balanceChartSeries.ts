@@ -1,6 +1,6 @@
 import type { AccountBalanceSnapshot, SnapshotGranularity } from '@/api/accounts'
 import { calendarDateMs } from './calendarDate'
-import { DATE_FORMATS, formatDate, formatYmd } from '@/utils/date'
+import { DATE_FORMATS, formatDate, formatYmd, getYmdTime } from '@/utils/date'
 
 export interface BalanceChartPoint {
   date: string
@@ -77,20 +77,24 @@ export function buildChartSeries(
   const sampleDates = generateSampleDates(fromDate, toDate, granularity)
   if (sampleDates.length === 0) return []
 
-  const sorted = [...snapshots].sort((a, b) => a.dt.localeCompare(b.dt))
+  // Each snapshot date is read into a time value once, so the walk below advances in calendar order
+  // and every comparison it makes is arithmetic on those values
+  const sorted = snapshots
+    .map((snapshot) => ({ time: getYmdTime(snapshot.dt), balance: snapshot.balance }))
+    .sort((a, b) => a.time - b.time)
 
   // The pointer advances once through sorted snapshots so each sample uses the latest known balance
   let idx = 0
   let runningBalance = 0
   const points: BalanceChartPoint[] = []
   for (const sampleDate of sampleDates) {
-    const sampleDateStr = formatYmd(sampleDate)
-    while (idx < sorted.length && sorted[idx].dt <= sampleDateStr) {
+    const sampleTime = sampleDate.getTime()
+    while (idx < sorted.length && sorted[idx].time <= sampleTime) {
       runningBalance = sorted[idx].balance
       idx++
     }
     points.push({
-      date: sampleDateStr,
+      date: formatYmd(sampleDate),
       dateMs: calendarDateMs(sampleDate),
       dateLabel: formatDate(sampleDate, DATE_FORMATS.monthDay),
       tooltipLabel: formatDate(sampleDate, DATE_FORMATS.monthDayYear),

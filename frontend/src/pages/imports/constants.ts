@@ -49,6 +49,16 @@ export const KIND_LABELS: Record<Category['kind'], string> = {
   transfer: 'Transfer',
 }
 
+// Kind decides which group a category falls under in the import dropdowns, and an explicit rank
+// fixes that group order rather than leaving it to the browser's language rules, which can differ
+// between a user's devices. The ranks run alphabetically, matching what the dropdown showed before,
+// so a kind added later has to be placed here for the order to stay alphabetical
+export const KIND_RANKS: Record<Category['kind'], number> = {
+  expense: 0,
+  income: 1,
+  transfer: 2,
+}
+
 export const DEFAULT_CATEGORY_ICON = '🏷️'
 export const CREATE_ACCOUNT_VALUE = '__create_account__'
 export const CREATE_CATEGORY_VALUE = '__create_category__'

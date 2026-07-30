@@ -144,20 +144,36 @@ export function buildFireflyBudgetImportBudgets(
 }
 
 /**
+ * One deduplicated limit period, with its dates read into time values so the
+ * schedule can be ordered without comparing the strings
+ */
+interface FireflyLimitEntry {
+  limit: FireflyBudgetImportLimit
+  currencyCode: string
+  startTime: number
+  endTime: number
+}
+
+/**
  * Builds the sorted limit period schedule for one budget from its export rows
  *
  * Rows missing a date, amount, or currency cannot place a period in the
  * schedule and are dropped, and exact duplicate rows collapse to one entry
  * while conflicting rows over the same days pass through for the backend to
  * reject
+ *
+ * The latest period's currency comes back alongside the schedule because it is
+ * the one the drafts table displays, and ordering the rows a second time to
+ * find it would order rows this pass has already refused
  */
 function buildLimitSchedule(limitRows: FireflyLimitRow[]): {
   limits: FireflyBudgetImportLimit[]
   currencyCodes: string[]
+  latestCurrencyCode: string
   hasUnreadableDates: boolean
 } {
   const seen = new Set<string>()
-  const limits: FireflyBudgetImportLimit[] = []
+  const entries: FireflyLimitEntry[] = []
   const currencyCodes = new Set<string>()
   let hasUnreadableDates = false
 
@@ -171,7 +187,9 @@ function buildLimitSchedule(limitRows: FireflyLimitRow[]): {
     // A present date that names no real day marks the file as corrupted, so
     // the budget is refused loudly rather than the row quietly vanishing or
     // the backend failing the whole batch
-    if (!parseYmd(row.start) || !parseYmd(row.end)) {
+    const start = parseYmd(row.start)
+    const end = parseYmd(row.end)
+    if (!start || !end) {
       hasUnreadableDates = true
       continue
     }
@@ -180,12 +198,20 @@ function buildLimitSchedule(limitRows: FireflyLimitRow[]): {
     const key = `${row.start} ${row.end} ${row.amount} ${row.currencyCode}`
     if (seen.has(key)) continue
     seen.add(key)
-    limits.push({ start: row.start, end: row.end, amount: row.amount })
+    entries.push({
+      limit: { start: row.start, end: row.end, amount: row.amount },
+      currencyCode: row.currencyCode,
+      startTime: start.getTime(),
+      endTime: end.getTime(),
+    })
   }
 
+  entries.sort((a, b) => a.startTime - b.startTime || a.endTime - b.endTime)
+
   return {
-    limits: limits.sort((a, b) => a.start.localeCompare(b.start) || a.end.localeCompare(b.end)),
+    limits: entries.map((entry) => entry.limit),
     currencyCodes: [...currencyCodes].sort(),
+    latestCurrencyCode: entries[entries.length - 1]?.currencyCode ?? '',
     hasUnreadableDates,
   }
 }
@@ -200,15 +226,16 @@ function buildBudgetDraft(
   usage: FireflyBudgetUsage | undefined,
 ): FireflyBudgetDraft {
   const categoryNames = [...usage?.categoryNames ?? []].sort((a, b) => a.localeCompare(b))
-  const { limits, currencyCodes, hasUnreadableDates } = buildLimitSchedule(budget.limitRows)
-  const latest = limits.length > 0 ? limits[limits.length - 1] : null
+  const {
+    limits,
+    currencyCodes,
+    latestCurrencyCode,
+    hasUnreadableDates,
+  } = buildLimitSchedule(budget.limitRows)
 
   // The most recent period decides the amount and currency the drafts table
   // displays, while the full schedule travels to the backend
-  const latestCurrency = [...budget.limitRows]
-    .filter((row) => row.start && row.end && row.amount && row.currencyCode)
-    .sort((a, b) => a.start.localeCompare(b.start))
-    .pop()?.currencyCode ?? ''
+  const latest = limits.length > 0 ? limits[limits.length - 1] : null
 
   const disabledReason = !usage || !usage.earliestDate
     ? FIREFLY_BUDGET_NO_TRANSACTIONS_REASON
@@ -227,7 +254,7 @@ function buildBudgetDraft(
   return {
     name,
     amount: latest?.amount ?? '',
-    currencyCode: latestCurrency,
+    currencyCode: latestCurrencyCode,
     currencyCodes,
     isArchived: budget.isArchived,
     limits,

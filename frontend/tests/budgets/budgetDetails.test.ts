@@ -152,6 +152,24 @@ describe('budget details helpers', () => {
     expect(getBudgetUtilizationByBudgetId(seeded, [loaded]).get('budget')?.total_spent).toBe(2000)
   })
 
+  it('orders periods by calendar date and leaves the array passed in alone', () => {
+    const periods = [
+      createBudget({ id: 'october', period_start: '2026-10-01', period_end: '2026-10-31' }),
+      createBudget({ id: 'february', period_start: '2026-02-01', period_end: '2026-02-28' }),
+      createBudget({ id: 'september', period_start: '2026-09-01', period_end: '2026-09-30' }),
+    ]
+
+    expect(getSortedBudgetPeriods(periods).map((period) => period.id))
+      .toEqual(['february', 'september', 'october'])
+    expect(periods.map((period) => period.id)).toEqual(['october', 'february', 'september'])
+  })
+
+  it('refuses a period whose start date is not a real day', () => {
+    const periods = [createBudget({ period_start: '2026-02-31' })]
+
+    expect(() => getSortedBudgetPeriods(periods)).toThrow('2026-02-31')
+  })
+
   it('sorts periods and builds chart rows from the latest twelve periods', () => {
     const periods = Array.from({ length: 13 }, (_, index) => {
       const month = (index % 12) + 1

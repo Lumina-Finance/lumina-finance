@@ -102,6 +102,7 @@ describe('import workflow option helpers', () => {
 
   it('sorts category match options by kind and name after the create action', () => {
     expect(buildImportCategoryMatchOptions([
+      createCategory({ id: 'transfer', name: 'Between accounts', kind: 'transfer' }),
       createCategory({ id: 'salary', name: 'Salary', kind: 'income', icon: '💵' }),
       createCategory({ id: 'food', name: 'Food', kind: 'expense' }),
       createCategory({ id: 'rent', name: 'Rent', kind: 'expense' }),
@@ -110,6 +111,7 @@ describe('import workflow option helpers', () => {
       { value: 'food', label: 'Food', group: 'Expense' },
       { value: 'rent', label: 'Rent', group: 'Expense' },
       { value: 'salary', label: 'Salary', group: 'Income' },
+      { value: 'transfer', label: 'Between accounts', group: 'Transfer' },
     ])
   })
 

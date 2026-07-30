@@ -14,6 +14,7 @@ import {
   getTodayDate,
   getTodayYmd,
   getWeekdayIndex,
+  getYmdTime,
   parseYmd,
   resolveTimeZone,
 } from '@/utils/date'
@@ -113,6 +114,17 @@ describe('YYYY-MM-DD strings', () => {
     expect(parseYmd('2026-01-05T00:00:00Z')).toBeNull()
     expect(parseYmd('2026/01/05')).toBeNull()
     expect(parseYmd('')).toBeNull()
+  })
+
+  it('orders dates by their time value', () => {
+    expect(getYmdTime('2026-01-05')).toBe(new Date(2026, 0, 5).getTime())
+    expect(getYmdTime('2026-01-09')).toBeLessThan(getYmdTime('2026-01-10'))
+    expect(getYmdTime('2025-12-31')).toBeLessThan(getYmdTime('2026-01-01'))
+  })
+
+  it('throws rather than ordering a date it cannot read', () => {
+    expect(() => getYmdTime('2026-02-31')).toThrow('2026-02-31')
+    expect(() => getYmdTime('')).toThrow()
   })
 })
 
