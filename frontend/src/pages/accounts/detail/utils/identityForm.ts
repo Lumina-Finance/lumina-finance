@@ -1,8 +1,8 @@
 import type { Account, UpdateAccountPayload } from '@/api/accounts'
 import type { Currency } from '@/api/currency'
 import {
+  findCurrencyExponent,
   fromMinorUnits,
-  getCurrencyExponent,
   isValidMoneyInput,
   toMinorUnits,
 } from '@/utils/moneyInput'
@@ -19,16 +19,23 @@ export type IdentityFieldErrors = Partial<Record<keyof IdentityFormValues, strin
 
 /**
  * Creates form state from the backend account shape while keeping optional links editable as blank fields
+ *
+ * The credit limit is left blank when the account's currency is not in the table, since the stored
+ * amount can only be turned into text through that currency's decimal places
  */
 export function createIdentityFormValues(
   account: Account,
   currencies: Currency[],
 ): IdentityFormValues {
+  const creditLimitExponent = findCurrencyExponent(currencies, account.currency)
+
   return {
     name: account.name,
     institution_id: account.institution?.id ?? '',
     tax_advantaged_category_id: account.tax_advantaged_category_id ?? '',
-    credit_limit: fromMinorUnits(account.credit_limit, getCurrencyExponent(currencies, account.currency)),
+    credit_limit: creditLimitExponent === null
+      ? ''
+      : fromMinorUnits(account.credit_limit, creditLimitExponent),
     is_archived: account.is_archived,
   }
 }
@@ -51,6 +58,10 @@ export function getIdentityFieldErrors(
 
 /**
  * Builds the update payload with only fields the account type is allowed to send
+ *
+ * The credit limit is left out entirely when the account's currency is not in the table. The field is
+ * blank in that state, and a blank converts to null, so sending it would clear a stored limit that the
+ * user was never shown
  */
 export function getIdentityUpdatePayload({
   form,
@@ -65,12 +76,14 @@ export function getIdentityUpdatePayload({
   currencies: Currency[]
   accountCurrency: string
 }): UpdateAccountPayload {
+  const creditLimitExponent = findCurrencyExponent(currencies, accountCurrency)
+
   return {
     name: form.name.trim(),
     institution_id: form.institution_id || null,
     is_archived: form.is_archived,
-    ...(isRevolving
-      ? { credit_limit: toMinorUnits(form.credit_limit, getCurrencyExponent(currencies, accountCurrency)) }
+    ...(isRevolving && creditLimitExponent !== null
+      ? { credit_limit: toMinorUnits(form.credit_limit, creditLimitExponent) }
       : {}),
     ...(canLinkTaxAdvantagedCategory
       ? { tax_advantaged_category_id: form.tax_advantaged_category_id || null }

@@ -223,6 +223,29 @@ describe('transaction modal helpers', () => {
     })
   })
 
+  it('withholds the amount rather than scaling it by a guess when the currency list is missing', () => {
+    const transaction = createTransaction({ amount: -500_000, currency: 'JPY' })
+    const form = buildInitialTransactionForm({
+      transaction,
+      categories: [createCategory({ id: 'groceries' })],
+      currencies: [],
+      selectableAccounts: [createAccount({ id: 'checking' })],
+      timeZone: undefined,
+    })
+
+    // Blank rather than 5000.00, which is what two assumed decimal places would have shown for ¥500,000
+    expect(form.amount).toBe('')
+
+    // A blank amount converts to zero, so leaving it out is what stops the save wiping the stored value
+    expect(buildUpdateTransactionPatch(form, transaction, null)).toBeNull()
+    expect(buildUpdateTransactionPatch({ ...form, notes: 'Checked' }, transaction, null))
+      .toEqual({ notes: 'Checked' })
+
+    // The rest of the form still has to pass, so the blank amount cannot block an edit to anything else
+    expect(validateTransactionForm(form, true)).toEqual({})
+    expect(validateTransactionForm(form)).toEqual({ amount: 'Enter an amount' })
+  })
+
   it('builds minimal edit patches and returns null when the transaction is unchanged', () => {
     const transaction = createTransaction({
       tag_ids: ['tax', 'business'],

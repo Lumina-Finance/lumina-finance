@@ -8,6 +8,7 @@ import { useTaxAdvantagedCategories } from '@/api/tax-advantaged-categories'
 import SettingsSectionHeader from '@/pages/settings/components/SectionHeader'
 import SettingsCard from '@/pages/settings/components/Card'
 import CreateTaxAdvantagedCategoryModal from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/modals/CreateCategoryModal'
+import { useCurrencyGuard } from '@/hooks/useCurrencyGuard'
 import TaxAdvantagedCategoriesTable from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/table/CategoriesTable'
 import TaxAdvantagedCategoryModal from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/modals/CategoryModal'
 import { useTaxAdvantagedCategoryList } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/hooks/useCategoryList'
@@ -29,6 +30,7 @@ export default function TaxAdvantagedCategoriesSection({
   const { data: plans = [], isLoading } = useTaxAdvantagedCategories()
   const [openCategoryId, setOpenCategoryId] = useState<string | null>(null)
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const requireCurrencies = useCurrencyGuard()
   const [createModalKey, setCreateModalKey] = useState(0)
   const [search, setSearch] = useState('')
   const openCategory = plans.find((plan) => plan.id === openCategoryId) ?? null
@@ -40,8 +42,10 @@ export default function TaxAdvantagedCategoriesSection({
   })
 
   const openCreateModal = () => {
-    setCreateModalKey((key) => key + 1)
-    setShowCreateModal(true)
+    requireCurrencies(() => {
+      setCreateModalKey((key) => key + 1)
+      setShowCreateModal(true)
+    })
   }
 
   return (

@@ -30,7 +30,12 @@ describe('currency API functions', () => {
     });
 
     await expect(fetchCurrencies()).resolves.toEqual(currencies);
-    expect(fetchMock).toHaveBeenCalledWith(`${API_BASE}/currencies`);
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${API_BASE}/currencies`,
+      // Carries a timeout, so a request that hangs fails instead of leaving every form saying it is
+      // still loading forever
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
   });
 
   it('raises an error when currencies fail to load', async () => {

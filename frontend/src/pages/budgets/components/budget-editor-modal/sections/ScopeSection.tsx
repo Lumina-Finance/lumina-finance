@@ -4,6 +4,12 @@ import { useMoneyInput } from '@/hooks/useMoneyInput'
 import type { BudgetEditorModalErrorGetter, BudgetEditorModalFieldIds, BudgetEditorModalHandlers, BudgetEditorModalOptions, BudgetEditorModalViewState } from '@/pages/budgets/components/budget-editor-modal/types'
 import BudgetEditorFieldLabelRow from '@/pages/budgets/components/shared/EditorFieldLabelRow'
 import { getCurrencyExponent, getMoneyPlaceholder } from '@/utils/moneyInput'
+import {
+  CURRENCY_AMOUNT_NOTICE,
+  CURRENCY_LIST_LOADING,
+  CURRENCY_LIST_NOTICE,
+  type CurrencyListState,
+} from '@/utils/currencyStatus'
 
 interface BudgetEditorModalScopeSectionProps {
   state: BudgetEditorModalViewState
@@ -18,6 +24,10 @@ interface BudgetEditorModalScopeSectionProps {
   currencyReadOnly: boolean
   currencyTooltip: boolean
   limitDisabled: boolean
+
+  // Stands the limit down unless the currency table is in hand, since its decimal places are the only way
+  // to read or write the stored amount, and says which of the two reasons applies
+  currencyState: CurrencyListState
 
   // Locks every editable field while the budget is archived so only the archive toggle stays live
   fieldsLocked: boolean
@@ -38,6 +48,7 @@ export default function BudgetEditorModalScopeSection({
   currencyReadOnly,
   currencyTooltip,
   limitDisabled,
+  currencyState,
   fieldsLocked,
   showError,
   handlers,
@@ -45,6 +56,7 @@ export default function BudgetEditorModalScopeSection({
   const { form } = state
   const { currencies } = options
   const { setField, onBlur } = handlers
+  const isLimitLocked = currencyState !== 'ready'
   const limitExponent = getCurrencyExponent(currencies, form.currency)
   const limitInput = useMoneyInput({
     value: form.limit,
@@ -86,12 +98,24 @@ export default function BudgetEditorModalScopeSection({
           <div>
             <BudgetEditorFieldLabelRow
               htmlFor={ids.currency}
-              label={currencyTooltip ? (
+              label={currencyTooltip || isLimitLocked ? (
                 <span className="inline-flex items-center gap-2">
                   Currency
-                  <IconTooltip label="Budget currency limitation" level="important">
-                    Budgets currently track only accounts in the same currency
-                  </IconTooltip>
+                  {currencyTooltip && (
+                    <IconTooltip label="Budget currency limitation" level="important">
+                      Budgets currently track only accounts in the same currency
+                    </IconTooltip>
+                  )}
+                  {currencyState === 'loading' && (
+                    <IconTooltip label="Loading currencies" modalFieldTabStop>
+                      {CURRENCY_LIST_LOADING}
+                    </IconTooltip>
+                  )}
+                  {currencyState === 'unavailable' && (
+                    <IconTooltip label="Currency list unavailable" level="important" modalFieldTabStop>
+                      {CURRENCY_LIST_NOTICE}
+                    </IconTooltip>
+                  )}
                 </span>
               ) : 'Currency'}
               error={showError('currency')}
@@ -101,6 +125,7 @@ export default function BudgetEditorModalScopeSection({
                 id={ids.currency}
                 className="app-input disabled:cursor-not-allowed disabled:opacity-60"
                 value={form.currency}
+                placeholder={currencyState === 'loading' ? CURRENCY_LIST_LOADING : undefined}
                 disabled
                 readOnly
               />
@@ -122,7 +147,24 @@ export default function BudgetEditorModalScopeSection({
           </div>
 
           <div>
-            <BudgetEditorFieldLabelRow htmlFor={ids.limit} label="Limit" error={showError('limit')} />
+            <BudgetEditorFieldLabelRow
+              htmlFor={ids.limit}
+              label={isLimitLocked ? (
+                <span className="inline-flex items-center gap-2">
+                  Limit
+                  {currencyState === 'loading' ? (
+                    <IconTooltip label="Loading currencies" modalFieldTabStop>
+                      {CURRENCY_LIST_LOADING}
+                    </IconTooltip>
+                  ) : (
+                    <IconTooltip label="Limit unavailable" level="important" modalFieldTabStop>
+                      {CURRENCY_AMOUNT_NOTICE}
+                    </IconTooltip>
+                  )}
+                </span>
+              ) : 'Limit'}
+              error={showError('limit')}
+            />
             <div className="relative">
               {selectedCurrencySymbol && (
                 <span
@@ -136,8 +178,8 @@ export default function BudgetEditorModalScopeSection({
               <input
                 id={ids.limit}
                 className={`app-input disabled:cursor-not-allowed disabled:opacity-60 ${selectedCurrencySymbol ? 'pl-8' : ''} ${showError('limit') ? 'app-input-error' : ''}`}
-                placeholder={limitPlaceholder ?? getMoneyPlaceholder(limitExponent)}
-                disabled={limitDisabled || fieldsLocked}
+                placeholder={isLimitLocked ? undefined : limitPlaceholder ?? getMoneyPlaceholder(limitExponent)}
+                disabled={limitDisabled || fieldsLocked || isLimitLocked}
                 {...limitInput}
               />
             </div>

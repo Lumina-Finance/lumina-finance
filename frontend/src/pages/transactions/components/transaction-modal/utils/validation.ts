@@ -14,15 +14,23 @@ export function isSymmetricTransferForm(form: TransactionFormValues): boolean {
 /**
  * Validates fields required before a transaction can be sent to the API
  */
-export function validateTransactionForm(form: TransactionFormValues): TransactionFormFieldErrors {
+export function validateTransactionForm(
+  form: TransactionFormValues,
+  isAmountLocked = false,
+): TransactionFormFieldErrors {
   const errors: TransactionFormFieldErrors = {}
   if (!form.account_id) errors.account_id = 'Select an account'
   if (!form.category_id) errors.category_id = 'Select a category'
   if (!form.merchant_id) errors.merchant_id = 'Select or create a merchant'
-  if (!form.amount) errors.amount = 'Enter an amount'
-  else {
-    const amount = Number.parseFloat(form.amount)
-    if (!Number.isFinite(amount) || amount <= 0) errors.amount = 'Amount must be greater than zero'
+
+  // A locked amount is blank, disabled and left out of the update, so requiring one here would block
+  // every other edit to the transaction
+  if (!isAmountLocked) {
+    if (!form.amount) errors.amount = 'Enter an amount'
+    else {
+      const amount = Number.parseFloat(form.amount)
+      if (!Number.isFinite(amount) || amount <= 0) errors.amount = 'Amount must be greater than zero'
+    }
   }
   if (!form.currency) errors.currency = 'Select a currency'
   if (!form.date) errors.date = 'Select a date'

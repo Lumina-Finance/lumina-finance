@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation, type Locat
 import { AnimatePresence, motion } from 'motion/react'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { NavCollapseProvider } from '@/contexts/NavCollapseContext'
+import { ToastProvider } from '@/contexts/ToastContext'
 import { useNavCollapse } from '@/hooks/useNavCollapse'
 import { useAuth } from '@/hooks/useAuth'
 import { useCacheValidation } from '@/hooks/useCacheValidation'
@@ -374,7 +375,9 @@ function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <AppShell />
+        <ToastProvider>
+          <AppShell />
+        </ToastProvider>
       </AuthProvider>
     </BrowserRouter>
   )

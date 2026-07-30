@@ -3,6 +3,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { useAccounts } from '@/api/accounts'
 import { useTaxAdvantagedCategories } from '@/api/tax-advantaged-categories'
 import CreateAccountModal from '@/pages/accounts/components/create-account-modal/Modal'
+import { useCurrencyGuard } from '@/hooks/useCurrencyGuard'
 import AccountListToolbar from '@/pages/accounts/components/toolbar/ListToolbar'
 import AccountListSection from '@/pages/accounts/components/ListSection'
 import SummaryStatement from '@/pages/accounts/components/summary/Statement'
@@ -24,6 +25,7 @@ import { useTaxAdvantagedLimitSummaries } from '@/pages/accounts/hooks/useTaxAdv
  */
 export default function AccountsPage() {
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const requireCurrencies = useCurrencyGuard()
   const [createModalKey, setCreateModalKey] = useState(0)
   const { user } = useAuth()
   const { data: accounts, isFetching: accountsLoading, error } = useAccounts()
@@ -93,10 +95,10 @@ export default function AccountsPage() {
         institutionOptions={institutionOptions}
         kindOptions={kindOptions}
         typeOptions={typeOptions}
-        onAddAccount={() => {
+        onAddAccount={() => requireCurrencies(() => {
           setCreateModalKey((key) => key + 1)
           setShowCreateModal(true)
-        }}
+        })}
       />
 
       <div className="space-y-4">

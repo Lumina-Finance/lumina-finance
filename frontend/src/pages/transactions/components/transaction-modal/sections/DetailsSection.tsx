@@ -5,6 +5,12 @@ import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
 import IconTooltip from '@/components/tooltips/IconTooltip'
 import { useMoneyInput } from '@/hooks/useMoneyInput'
 import { getMoneyPlaceholder } from '@/utils/moneyInput'
+import {
+  CURRENCY_AMOUNT_NOTICE,
+  CURRENCY_LIST_LOADING,
+  CURRENCY_LIST_NOTICE,
+  type CurrencyListState,
+} from '@/utils/currencyStatus'
 
 interface TransactionDetailsSectionProps {
   date: string
@@ -15,6 +21,10 @@ interface TransactionDetailsSectionProps {
   selectedCurrencySymbol: string
   amount: string
   amountError?: string | false
+
+  // Stands the amount down unless the currency table is in hand, since its decimal places are the only way
+  // to read or write the stored amount, and says which of the two reasons applies
+  currencyState: CurrencyListState
   currencyExponent: number
   notes: string
   readOnly: boolean
@@ -37,6 +47,7 @@ export default function TransactionDetailsSection({
   selectedCurrencySymbol,
   amount,
   amountError,
+  currencyState,
   currencyExponent,
   notes,
   readOnly,
@@ -46,6 +57,7 @@ export default function TransactionDetailsSection({
   onAmountBlur,
   onNotesChange,
 }: TransactionDetailsSectionProps) {
+  const isAmountLocked = currencyState !== 'ready'
   const amountInput = useMoneyInput({
     value: amount,
     exponent: currencyExponent,
@@ -74,6 +86,16 @@ export default function TransactionDetailsSection({
             <IconTooltip label="Transaction currency limitation">
               Locked to the selected account's currency
             </IconTooltip>
+            {currencyState === 'loading' && (
+              <IconTooltip label="Loading currencies" modalFieldTabStop>
+                {CURRENCY_LIST_LOADING}
+              </IconTooltip>
+            )}
+            {currencyState === 'unavailable' && (
+              <IconTooltip label="Currency list unavailable" level="important" modalFieldTabStop>
+                {CURRENCY_LIST_NOTICE}
+              </IconTooltip>
+            )}
           </div>
           <Dropdown
             options={currencyOptions}
@@ -86,7 +108,24 @@ export default function TransactionDetailsSection({
           />
         </div>
         <div>
-          <CreateModalFieldLabelRow htmlFor="txn-amount" label="Amount" error={amountError} />
+          <CreateModalFieldLabelRow
+            htmlFor="txn-amount"
+            label={isAmountLocked ? (
+              <span className="inline-flex items-center gap-2">
+                Amount
+                {currencyState === 'loading' ? (
+                  <IconTooltip label="Loading currencies" modalFieldTabStop>
+                    {CURRENCY_LIST_LOADING}
+                  </IconTooltip>
+                ) : (
+                  <IconTooltip label="Amount unavailable" level="important" modalFieldTabStop>
+                    {CURRENCY_AMOUNT_NOTICE}
+                  </IconTooltip>
+                )}
+              </span>
+            ) : 'Amount'}
+            error={amountError}
+          />
           <div className="relative">
             {selectedCurrencySymbol && (
               <span
@@ -104,8 +143,8 @@ export default function TransactionDetailsSection({
             <input
               id="txn-amount"
               className={`app-input w-full disabled:cursor-not-allowed disabled:opacity-60 ${selectedCurrencySymbol ? 'pl-8' : ''} ${amountError ? 'app-input-error' : ''}`}
-              placeholder={getMoneyPlaceholder(currencyExponent)}
-              disabled={readOnly}
+              placeholder={isAmountLocked ? undefined : getMoneyPlaceholder(currencyExponent)}
+              disabled={readOnly || isAmountLocked}
               {...amountInput}
             />
           </div>

@@ -41,6 +41,7 @@ interface UseTransactionSubmitOptions {
   selectedAccount: AccountsOverview | undefined
   selectedToAccount: AccountsOverview | undefined
   selectedCurrencyExponent: number
+  isAmountLocked: boolean
   deleteLoading: boolean
   openRef: MutableRefObject<boolean>
   recordCreatedAccountId: (accountId: string) => void
@@ -75,6 +76,7 @@ export function useTransactionSubmit({
   selectedAccount,
   selectedToAccount,
   selectedCurrencyExponent,
+  isAmountLocked,
   deleteLoading,
   openRef,
   recordCreatedAccountId,
@@ -126,7 +128,7 @@ export function useTransactionSubmit({
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     if (isPending || readOnly) return
-    const errors = validateTransactionForm(form)
+    const errors = validateTransactionForm(form, isAmountLocked)
     // The receiving account needs both accounts loaded to compare currency and group
     if (!editing && isSymmetricTransferForm(form) && !errors.to_account_id) {
       const accountError = getSymmetricTransferAccountError(selectedAccount, selectedToAccount)
@@ -137,7 +139,11 @@ export function useTransactionSubmit({
     if (Object.keys(errors).length > 0) return
 
     if (editing && transaction) {
-      const patch = buildUpdateTransactionPatch(form, transaction, selectedCurrencyExponent)
+      const patch = buildUpdateTransactionPatch(
+        form,
+        transaction,
+        isAmountLocked ? null : selectedCurrencyExponent,
+      )
 
       if (!patch) {
         closeModal()

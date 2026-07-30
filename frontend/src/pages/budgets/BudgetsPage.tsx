@@ -12,6 +12,7 @@ import {
 import { useCategories } from '@/api/categories'
 import { useCurrencies } from '@/api/currency'
 import { useAuth } from '@/hooks/useAuth'
+import { useCurrencyGuard } from '@/hooks/useCurrencyGuard'
 import BudgetCardsSection from '@/pages/budgets/components/budget-cards/Section'
 import BudgetArchivedSection from '@/pages/budgets/components/budget-cards/ArchivedSection'
 import BudgetCreateModal from '@/pages/budgets/components/budget-editor-modal/CreateModal'
@@ -28,11 +29,12 @@ export default function BudgetsPage() {
   const { user } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
   const { data: categories, isLoading: categoriesLoading } = useCategories()
-  const { data: currencies, isLoading: currenciesLoading } = useCurrencies()
+  const { data: currencies } = useCurrencies()
   const baseBudgetsQuery = useBaseBudgets()
   const budgetsQuery = useBudgets()
   const latestUtilizationsQuery = useLatestBudgetUtilizations()
   const createBackfillBudget = useCreateBudgetInstance()
+  const requireCurrencies = useCurrencyGuard()
   const [createOpen, setCreateOpen] = useState(false)
   const budgetParam = searchParams.get('budget')
   const [budgetDetailsSnapshot, setBudgetDetailsSnapshot] = useState<BudgetCardViewModel | null>(null)
@@ -123,7 +125,7 @@ export default function BudgetsPage() {
             Plan ahead and keep your spending in check.
           </p>
         </header>
-        <button type="button" className="app-primary-button w-full min-[750px]:w-auto" onClick={() => setCreateOpen(true)}>
+        <button type="button" className="app-primary-button w-full min-[750px]:w-auto" onClick={() => requireCurrencies(() => setCreateOpen(true))}>
           <Plus size={18} aria-hidden />
           New Budget
         </button>
@@ -134,7 +136,7 @@ export default function BudgetsPage() {
         latestUtilizationByBudgetId={latestUtilizationByBudgetId}
         loading={budgetsLoading}
         error={budgetsError}
-        formOptionsLoading={categoriesLoading || currenciesLoading}
+        formOptionsLoading={categoriesLoading}
         onOpenBudget={openBudget}
       />
 
@@ -148,31 +150,29 @@ export default function BudgetsPage() {
         )}
       </AnimatePresence>
 
-      {/* Held for the currency table so both budget modals follow one rule, though a new budget has
-          no stored amount to convert and could safely start without it */}
-      {currencies && (
-        <BudgetCreateModal
-          key={`${defaultCurrency}-${userTimeZone}`}
-          open={createOpen}
-          categories={categories ?? []}
-          currencies={currencies}
-          defaultCurrency={defaultCurrency}
-          timeZone={userTimeZone}
-          onClose={() => setCreateOpen(false)}
-          onCreated={() => undefined}
-        />
-      )}
+      {/* The New Budget button refuses the click while the currency table is missing, so this only ever
+          opens with the table in hand */}
+      <BudgetCreateModal
+        key={`${defaultCurrency}-${userTimeZone}`}
+        open={createOpen}
+        categories={categories ?? []}
+        currencies={currencies ?? []}
+        defaultCurrency={defaultCurrency}
+        timeZone={userTimeZone}
+        onClose={() => setCreateOpen(false)}
+        onCreated={() => undefined}
+      />
 
       <AnimatePresence>
-        {/* Held for the currency table, since the editor inside turns the stored limit into text
-            using the currency's decimal places and seeds that text once */}
-        {visibleBudgetDetails && currencies && (
+        {/* Opens without the currency table, since everything the details view shows comes from the budget
+            itself. Only the editor nested inside needs the table, and it stands its limit down instead */}
+        {visibleBudgetDetails && (
           <BudgetDetailsModal
             key={visibleBudgetDetails.baseBudget.id}
             baseBudget={visibleBudgetDetails.baseBudget}
             periods={visibleBudgetDetails.periods}
             categories={categories ?? []}
-            currencies={currencies}
+            currencies={currencies ?? []}
             categoryById={categoryById}
             initialLatestUtilization={
               visibleBudgetDetails.latestPeriod

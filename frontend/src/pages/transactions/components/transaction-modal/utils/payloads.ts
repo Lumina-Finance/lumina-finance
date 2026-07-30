@@ -64,17 +64,21 @@ export function buildSymmetricTransferPayloads(
 export function buildUpdateTransactionPatch(
   form: TransactionFormValues,
   transaction: Transaction,
-  selectedCurrencyExponent: number,
+  selectedCurrencyExponent: number | null,
 ): UpdateTransactionPayload | null {
-  const magnitude = amountInputToMinorUnits(form.amount, selectedCurrencyExponent) ?? 0
-  const signedAmount = applyTransactionDirection(magnitude, form.direction)
   const notes = form.notes.trim() || null
   const patch: UpdateTransactionPayload = {}
 
   if (form.account_id !== transaction.account_id) patch.account_id = form.account_id
   if (form.category_id !== transaction.category_id) patch.category_id = form.category_id
   if (form.merchant_id !== (transaction.merchant_id ?? '')) patch.merchant_id = form.merchant_id || null
-  if (signedAmount !== transaction.amount) patch.amount = signedAmount
+  // Left out entirely when the currency's decimal places are unknown. The field is blank in that state,
+  // and a blank converts to zero, so sending it would wipe an amount the user was never shown
+  if (selectedCurrencyExponent !== null) {
+    const magnitude = amountInputToMinorUnits(form.amount, selectedCurrencyExponent) ?? 0
+    const signedAmount = applyTransactionDirection(magnitude, form.direction)
+    if (signedAmount !== transaction.amount) patch.amount = signedAmount
+  }
   if (form.date !== transaction.dt) patch.dt = form.date
   if (notes !== (transaction.notes ?? null)) patch.notes = notes
   if (!sameStringSet(form.tag_ids, transaction.tag_ids)) patch.tag_ids = form.tag_ids

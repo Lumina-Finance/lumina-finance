@@ -2,6 +2,8 @@ import { useMemo } from 'react'
 import { useAccounts } from '@/api/accounts'
 import { useCategories } from '@/api/categories'
 import { useCurrencies } from '@/api/currency'
+import { useCurrencyListState } from '@/hooks/useCurrencyListState'
+import { CURRENCY_LIST_LOADING } from '@/utils/currencyStatus'
 import { useAuth } from '@/hooks/useAuth'
 import { KIND_LABELS } from '@/pages/transactions/components/transaction-modal/constants'
 import { buildInitialTransactionForm } from '@/pages/transactions/components/transaction-modal/utils/initialForm'
@@ -52,6 +54,7 @@ export default function CreateTransactionModal({
   const { data: accounts = [] } = useAccounts()
   const { data: categories = [] } = useCategories()
   const { data: currencies = [] } = useCurrencies()
+  const currencyState = useCurrencyListState()
   const selectableAccounts = useMemo(
     () => accounts.filter((account) => !account.is_archived),
     [accounts],
@@ -150,6 +153,8 @@ export default function CreateTransactionModal({
   const selectedCurrency = currencies.find((c) => c.id === form.currency)
   const selectedCurrencySymbol = selectedCurrency?.symbol ?? ''
   const selectedCurrencyExponent = selectedCurrency?.minor_unit_exponent ?? 2
+  // Only reachable while editing, since a create click is refused before the modal opens
+  const isAmountLocked = currencyState !== 'ready'
 
   const { openRef, recordCreatedAccountId, flushDeferredRefresh, closeModal } = useDeferredTransactionRefresh({
     open,
@@ -185,6 +190,7 @@ export default function CreateTransactionModal({
     selectedAccount,
     selectedToAccount,
     selectedCurrencyExponent,
+    isAmountLocked,
     deleteLoading,
     openRef,
     recordCreatedAccountId,
@@ -307,9 +313,10 @@ export default function CreateTransactionModal({
             dateError={showError('date')}
             currencyOptions={currencyOptions}
             currencyValue={form.currency}
-            currencyPlaceholder={currencies.length === 0 ? 'Loading...' : 'Select...'}
+            currencyPlaceholder={isAmountLocked ? CURRENCY_LIST_LOADING : 'Select...'}
             selectedCurrencySymbol={selectedCurrencySymbol}
             currencyExponent={selectedCurrencyExponent}
+            currencyState={currencyState}
             amount={form.amount}
             amountError={showError('amount')}
             notes={form.notes}
