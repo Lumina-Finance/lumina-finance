@@ -100,9 +100,8 @@ export default function BudgetEditorModalScopeSection({
                     </IconTooltip>
                   )}
                   {isLimitLocked && (
-                    <IconTooltip label="Currency list unavailable" level="warn">
-                      We can't load the currency list right now, so the limit can't be shown or changed.
-                      Refresh the page to try again.
+                    <IconTooltip label="Currency list unavailable" level="important">
+                      We can't load the currency list right now. Refresh the page to try again.
                     </IconTooltip>
                   )}
                 </span>
@@ -135,7 +134,19 @@ export default function BudgetEditorModalScopeSection({
           </div>
 
           <div>
-            <BudgetEditorFieldLabelRow htmlFor={ids.limit} label="Limit" error={showError('limit')} />
+            <BudgetEditorFieldLabelRow
+              htmlFor={ids.limit}
+              label={isLimitLocked ? (
+                <span className="inline-flex items-center gap-2">
+                  Limit
+                  <IconTooltip label="Limit unavailable" level="important">
+                    We can't load the currency list right now, so the limit can't be shown or changed.
+                    Refresh the page to try again.
+                  </IconTooltip>
+                </span>
+              ) : 'Limit'}
+              error={showError('limit')}
+            />
             <div className="relative">
               {selectedCurrencySymbol && (
                 <span

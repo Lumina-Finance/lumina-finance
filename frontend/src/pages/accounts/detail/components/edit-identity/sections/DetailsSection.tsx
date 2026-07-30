@@ -71,7 +71,7 @@ export function AccountDetailsSection({
             label={isCreditLimitLocked ? (
               <span className="inline-flex items-center gap-2">
                 Credit Limit
-                <IconTooltip label="Currency list unavailable" level="warn">
+                <IconTooltip label="Currency list unavailable" level="important">
                   We can't load the currency list right now, so this amount can't be shown or changed.
                   Refresh the page to try again.
                 </IconTooltip>
