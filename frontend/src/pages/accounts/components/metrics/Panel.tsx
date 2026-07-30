@@ -16,6 +16,10 @@ type MetricPanelProps = {
   progress: number
   progressColor: string
   caption: string
+
+  // Explanation of the metric, shown between the label and the FX badge on metrics that have one
+  help?: ReactNode
+
   badge?: ReactNode
   headerClassName?: string
 }
@@ -36,6 +40,7 @@ export function MetricPanel({
   progress,
   progressColor,
   caption,
+  help,
   badge,
   headerClassName = '',
 }: MetricPanelProps) {
@@ -43,6 +48,7 @@ export function MetricPanel({
     <div className={className}>
       <div className={`mb-1 flex items-center gap-2 ${headerClassName}`}>
         <p className="app-label">{label}</p>
+        {help}
         <FxStatusBadge
           label={tooltipLabel}
           fxStatus={fxStatus}
