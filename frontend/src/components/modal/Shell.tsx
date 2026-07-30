@@ -7,6 +7,10 @@ import { useBodyScrollLock } from '@/hooks/useBodyScrollLock'
 
 const EASE = [0.25, 0.1, 0.25, 1] as const
 
+// Slightly quicker than the panel's own entrance, so a height change that happens while the modal is open
+// reads as the content settling rather than as the panel animating again
+const LAYOUT_TRANSITION = { duration: 0.22, ease: EASE } as const
+
 // A modal opened from the page and a modal opened from another modal. The stacked level sits above every
 // page-level modal, blurs harder so the two panels stay visually separate, and settles a little faster so
 // the second one never feels slower to arrive than the first
@@ -42,6 +46,8 @@ interface ModalShellProps {
   closeDisabled?: boolean
   /** Runs once the exit animation has finished, for work that must wait until the modal is fully gone */
   onExitComplete?: () => void
+  /** Animates the panel's height as its content grows, for a form that reveals whole rows as it is filled in */
+  animateHeight?: boolean
   children: ReactNode
 }
 
@@ -58,6 +64,7 @@ export function ModalShell({
   level = 'page',
   closeDisabled = false,
   onExitComplete,
+  animateHeight = false,
   children,
 }: ModalShellProps) {
   const token = useId()
@@ -158,10 +165,11 @@ export function ModalShell({
             className={`app-modal-panel ${panelClassName}`}
             onClick={(event) => event.stopPropagation()}
             onKeyDown={holdFocusInPanel}
+            layout={animateHeight}
             initial={appearance.panelOffset}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={appearance.panelOffset}
-            transition={appearance.panelTransition}
+            transition={animateHeight ? { ...appearance.panelTransition, layout: LAYOUT_TRANSITION } : appearance.panelTransition}
           >
             {children}
           </motion.div>
