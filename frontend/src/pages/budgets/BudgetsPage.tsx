@@ -89,9 +89,12 @@ export default function BudgetsPage() {
   }
 
   /**
-   * Clears the selected-budget URL state, leaving the snapshot for the panel's exit to drop
+   * Clears the selected-budget URL state, holding the budget itself until the panel has finished leaving
    */
   const closeBudget = () => {
+    // Taken here rather than at open, since arriving on the URL directly never goes through openBudget and
+    // would otherwise leave the panel with nothing to render on the way out
+    setBudgetDetailsSnapshot(visibleBudgetDetails)
     setSearchParams((current) => {
       const next = new URLSearchParams(current)
       next.delete('budget')
