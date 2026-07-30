@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { AnimatePresence } from 'motion/react'
 import { Plus } from 'lucide-react'
 import { GlassSearchField } from '@/components/list-controls/GlassSearchField'
 import { ApiError } from '@/api/auth'
@@ -36,6 +35,8 @@ export default function TagSettingsSection() {
   const [confirmingDeleteTagId, setConfirmingDeleteTagId] = useState<string | null>(null)
   const [deletingTagId, setDeletingTagId] = useState<string | null>(null)
   const [mergeDeleteTag, setMergeDeleteTag] = useState<Tag | null>(null)
+  // Held apart from the item so the panel keeps its contents while it animates out
+  const [isTagMergeDeleteOpen, setIsTagMergeDeleteOpen] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [locallyDeletedTagIds, setLocallyDeletedTagIds] = useState<string[]>([])
   const tagList = useTagSettingsList(locallyDeletedTagIds)
@@ -67,6 +68,7 @@ export default function TagSettingsSection() {
       if (error instanceof ApiError && error.status === 409) {
         setConfirmingDeleteTagId(null)
         setMergeDeleteTag(tag)
+        setIsTagMergeDeleteOpen(true)
       } else {
         setDeleteError(error instanceof Error ? error.message : 'Failed to delete tag.')
       }
@@ -141,22 +143,22 @@ export default function TagSettingsSection() {
         onClose={() => setShowCreateModal(false)}
         onCreated={() => setShowCreateModal(false)}
       />
-      <AnimatePresence>
-        {mergeDeleteTag && (
-          <MergeDeleteTagModal
-            key={mergeDeleteTag.id}
-            tag={mergeDeleteTag}
-            isPending={mergeTag.isPending}
-            onClose={() => setMergeDeleteTag(null)}
-            onMerge={async (replacementTagId) => {
-              await mergeTag.mutateAsync({
-                tagId: mergeDeleteTag.id,
-                payload: { replacement_tag_id: replacementTagId },
-              })
-            }}
-          />
-        )}
-      </AnimatePresence>
+      {mergeDeleteTag && (
+        <MergeDeleteTagModal
+          open={isTagMergeDeleteOpen}
+          key={mergeDeleteTag.id}
+          tag={mergeDeleteTag}
+          isPending={mergeTag.isPending}
+          onClose={() => setIsTagMergeDeleteOpen(false)}
+          onExitComplete={() => setMergeDeleteTag(null)}
+          onMerge={async (replacementTagId) => {
+            await mergeTag.mutateAsync({
+              tagId: mergeDeleteTag.id,
+              payload: { replacement_tag_id: replacementTagId },
+            })
+          }}
+        />
+      )}
     </section>
   )
 }

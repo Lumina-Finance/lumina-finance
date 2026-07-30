@@ -37,18 +37,23 @@ function useTagReplacementQuery(tag: Tag, search: string) {
  * The replacement options only offer tags sharing the same group as the one being deleted
  */
 export default function MergeDeleteTagModal({
+  open,
   tag,
   isPending,
   onClose,
+  onExitComplete,
   onMerge,
 }: {
+  open: boolean
   tag: Tag
   isPending: boolean
   onClose: () => void
+  onExitComplete: () => void
   onMerge: (replacementTagId: string) => Promise<void>
 }) {
   return (
     <MergeDeleteReferenceModal
+      open={open}
       item={tag}
       isPending={isPending}
       submitMinVisibleMs={DELETE_SPINNER_MS}
@@ -69,6 +74,7 @@ export default function MergeDeleteTagModal({
         deleteErrorFallback: 'Failed to delete tag.',
       }}
       onClose={onClose}
+      onExitComplete={onExitComplete}
       onMerge={onMerge}
     />
   )

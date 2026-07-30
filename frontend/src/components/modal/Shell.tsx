@@ -48,6 +48,8 @@ interface ModalShellProps {
   onExitComplete?: () => void
   /** Animates the panel's height as its content grows, for a form that reveals whole rows as it is filled in */
   animateHeight?: boolean
+  /** Keeps tooltips opened inside the panel within its edges, for one whose content would otherwise push them off */
+  boundsTooltips?: boolean
   children: ReactNode
 }
 
@@ -65,6 +67,7 @@ export function ModalShell({
   closeDisabled = false,
   onExitComplete,
   animateHeight = false,
+  boundsTooltips = false,
   children,
 }: ModalShellProps) {
   const token = useId()
@@ -162,6 +165,7 @@ export function ModalShell({
             aria-labelledby={titleId}
             tabIndex={-1}
             inert={covered}
+            data-tooltip-bounds={boundsTooltips ? true : undefined}
             className={`app-modal-panel ${panelClassName}`}
             onClick={(event) => event.stopPropagation()}
             onKeyDown={holdFocusInPanel}

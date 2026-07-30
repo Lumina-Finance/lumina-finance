@@ -12,16 +12,20 @@ import { categoryMergeOptions } from '@/pages/settings/components/category-setti
  * rather than driving a remote search
  */
 export default function MergeDeleteCategoryModal({
+  open,
   category,
   categories,
   isPending,
   onClose,
+  onExitComplete,
   onMerge,
 }: {
+  open: boolean
   category: Category
   categories: Category[]
   isPending: boolean
   onClose: () => void
+  onExitComplete: () => void
   onMerge: (replacementCategoryId: string) => Promise<void>
 }) {
   const resolveCategoryReplacements = () => ({
@@ -34,6 +38,7 @@ export default function MergeDeleteCategoryModal({
 
   return (
     <MergeDeleteReferenceModal
+      open={open}
       item={category}
       isPending={isPending}
       submitMinVisibleMs={DELETE_SPINNER_MS}
@@ -53,6 +58,7 @@ export default function MergeDeleteCategoryModal({
         deleteErrorFallback: 'Failed to delete category.',
       }}
       onClose={onClose}
+      onExitComplete={onExitComplete}
       onMerge={onMerge}
     />
   )

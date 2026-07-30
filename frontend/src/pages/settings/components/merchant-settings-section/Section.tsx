@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react'
-import { AnimatePresence } from 'motion/react'
 import { Plus } from 'lucide-react'
 import { GlassSearchField } from '@/components/list-controls/GlassSearchField'
 import { ApiError } from '@/api/auth'
@@ -39,6 +38,8 @@ export default function MerchantSettingsSection() {
   const [confirmingDeleteMerchantId, setConfirmingDeleteMerchantId] = useState<string | null>(null)
   const [deletingMerchantId, setDeletingMerchantId] = useState<string | null>(null)
   const [mergeDeleteMerchant, setMergeDeleteMerchant] = useState<Merchant | null>(null)
+  // Held apart from the item so the panel keeps its contents while it animates out
+  const [isMerchantMergeDeleteOpen, setIsMerchantMergeDeleteOpen] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [locallyDeletedMerchantIds, setLocallyDeletedMerchantIds] = useState<string[]>([])
   const merchantList = useMerchantSettingsList(locallyDeletedMerchantIds)
@@ -74,6 +75,7 @@ export default function MerchantSettingsSection() {
       if (error instanceof ApiError && error.status === 409) {
         setConfirmingDeleteMerchantId(null)
         setMergeDeleteMerchant(merchant)
+        setIsMerchantMergeDeleteOpen(true)
       } else {
         setDeleteError(error instanceof Error ? error.message : 'Failed to delete merchant.')
       }
@@ -151,22 +153,22 @@ export default function MerchantSettingsSection() {
         onClose={() => setShowCreateModal(false)}
         onCreated={() => setShowCreateModal(false)}
       />
-      <AnimatePresence>
-        {mergeDeleteMerchant && (
-          <MergeDeleteMerchantModal
-            key={mergeDeleteMerchant.id}
-            merchant={mergeDeleteMerchant}
-            isPending={mergeMerchant.isPending}
-            onClose={() => setMergeDeleteMerchant(null)}
-            onMerge={async (replacementMerchantId) => {
-              await mergeMerchant.mutateAsync({
-                merchantId: mergeDeleteMerchant.id,
-                payload: { replacement_merchant_id: replacementMerchantId },
-              })
-            }}
-          />
-        )}
-      </AnimatePresence>
+      {mergeDeleteMerchant && (
+        <MergeDeleteMerchantModal
+          open={isMerchantMergeDeleteOpen}
+          key={mergeDeleteMerchant.id}
+          merchant={mergeDeleteMerchant}
+          isPending={mergeMerchant.isPending}
+          onClose={() => setIsMerchantMergeDeleteOpen(false)}
+          onExitComplete={() => setMergeDeleteMerchant(null)}
+          onMerge={async (replacementMerchantId) => {
+            await mergeMerchant.mutateAsync({
+              merchantId: mergeDeleteMerchant.id,
+              payload: { replacement_merchant_id: replacementMerchantId },
+            })
+          }}
+        />
+      )}
     </section>
   )
 }
