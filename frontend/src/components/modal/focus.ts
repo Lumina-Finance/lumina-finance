@@ -53,15 +53,6 @@ export function getNextTabStop<T>(
 }
 
 /**
- * Requests focus for the first enabled modal field after the modal panel mounts
- */
-export function requestFirstModalFieldFocus(panel: HTMLElement) {
-  return window.requestAnimationFrame(() => {
-    getModalFieldTabStops(panel)[0]?.focus({ preventScroll: true })
-  })
-}
-
-/**
  * Moves focus into the panel once it has mounted, preferring its first field so a form opens ready to type
  * in, and falling back to the panel itself so a dialog with no fields still takes focus off the page behind
  */

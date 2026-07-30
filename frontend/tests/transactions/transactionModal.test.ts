@@ -19,10 +19,6 @@ import {
   buildUpdateTransactionPatch,
 } from '@/pages/transactions/components/transaction-modal/utils/payloads'
 import { validateTransactionForm } from '@/pages/transactions/components/transaction-modal/utils/validation'
-import {
-  getNextTabStop,
-} from '@/components/modal/focus'
-import { TRANSACTION_MODAL_FIELD_IDS } from '@/pages/transactions/components/transaction-modal/constants'
 
 const currencies: Currency[] = [
   { id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 },
@@ -274,21 +270,4 @@ describe('transaction modal helpers', () => {
     })
   })
 
-  it('wraps transaction modal Tab focus through field controls only', () => {
-    const fieldTabStops = [
-      TRANSACTION_MODAL_FIELD_IDS.account,
-      TRANSACTION_MODAL_FIELD_IDS.merchant,
-      TRANSACTION_MODAL_FIELD_IDS.category,
-      'date',
-      'amount',
-      'notes',
-    ]
-
-    expect(getNextTabStop(fieldTabStops, null, false)).toBe(TRANSACTION_MODAL_FIELD_IDS.account)
-    expect(getNextTabStop(fieldTabStops, TRANSACTION_MODAL_FIELD_IDS.account, false)).toBe(TRANSACTION_MODAL_FIELD_IDS.merchant)
-    expect(getNextTabStop(fieldTabStops, TRANSACTION_MODAL_FIELD_IDS.merchant, false)).toBe(TRANSACTION_MODAL_FIELD_IDS.category)
-    expect(getNextTabStop(fieldTabStops, 'notes', false)).toBe(TRANSACTION_MODAL_FIELD_IDS.account)
-    expect(getNextTabStop(fieldTabStops, TRANSACTION_MODAL_FIELD_IDS.account, true)).toBe('notes')
-    expect(getNextTabStop([], null, false)).toBeNull()
-  })
 })

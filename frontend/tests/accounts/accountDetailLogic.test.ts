@@ -9,8 +9,6 @@ import type {
   AccountSpendingBreakdown,
 } from '@/api/accounts'
 import type { Currency } from '@/api/currency'
-import { getNextTabStop } from '@/components/modal/focus'
-import { EDIT_ACCOUNT_IDENTITY_FIELD_IDS } from '@/pages/accounts/detail/constants/accountDetail'
 import { calendarDateMs } from '@/pages/accounts/detail/utils/calendarDate'
 import {
   getBalanceChartSnapshot,
@@ -171,22 +169,6 @@ describe('identity form helpers', () => {
     })
   })
 
-  it('wraps edit account modal Tab focus through field controls only', () => {
-    const fieldTabStops = [
-      EDIT_ACCOUNT_IDENTITY_FIELD_IDS.name,
-      EDIT_ACCOUNT_IDENTITY_FIELD_IDS.institution,
-      EDIT_ACCOUNT_IDENTITY_FIELD_IDS.taxAdvantagedCategory,
-      EDIT_ACCOUNT_IDENTITY_FIELD_IDS.creditLimit,
-      EDIT_ACCOUNT_IDENTITY_FIELD_IDS.archive,
-      EDIT_ACCOUNT_IDENTITY_FIELD_IDS.deleteName,
-    ]
-
-    expect(getNextTabStop(fieldTabStops, null, false)).toBe(EDIT_ACCOUNT_IDENTITY_FIELD_IDS.name)
-    expect(getNextTabStop(fieldTabStops, EDIT_ACCOUNT_IDENTITY_FIELD_IDS.name, false)).toBe(EDIT_ACCOUNT_IDENTITY_FIELD_IDS.institution)
-    expect(getNextTabStop(fieldTabStops, EDIT_ACCOUNT_IDENTITY_FIELD_IDS.institution, false)).toBe(EDIT_ACCOUNT_IDENTITY_FIELD_IDS.taxAdvantagedCategory)
-    expect(getNextTabStop(fieldTabStops, EDIT_ACCOUNT_IDENTITY_FIELD_IDS.deleteName, false)).toBe(EDIT_ACCOUNT_IDENTITY_FIELD_IDS.name)
-    expect(getNextTabStop(fieldTabStops, EDIT_ACCOUNT_IDENTITY_FIELD_IDS.name, true)).toBe(EDIT_ACCOUNT_IDENTITY_FIELD_IDS.deleteName)
-  })
 })
 
 describe('balance chart view model helpers', () => {

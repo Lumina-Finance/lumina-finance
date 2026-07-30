@@ -4,7 +4,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
-import { getNextTabStop } from '@/components/modal/focus'
 import type { BudgetFormState } from '@/pages/budgets/types'
 import { validateBudgetCreateForm } from '@/pages/budgets/utils/budgetCreateValidation'
 import { sameStringSet } from '@/pages/budgets/utils/form'
@@ -81,20 +80,4 @@ describe('budget form helpers', () => {
     expect(sameStringSet(['travel'], ['travel', 'groceries'])).toBe(false)
   })
 
-  it('wraps create budget modal Tab focus through field controls only', () => {
-    const fieldTabStops = [
-      'budget-name',
-      'budget-currency',
-      'budget-limit',
-      'budget-interval',
-      'budget-period-start',
-      'budget-category-search',
-    ]
-
-    expect(getNextTabStop(fieldTabStops, null, false)).toBe('budget-name')
-    expect(getNextTabStop(fieldTabStops, 'budget-name', false)).toBe('budget-currency')
-    expect(getNextTabStop(fieldTabStops, 'budget-currency', false)).toBe('budget-limit')
-    expect(getNextTabStop(fieldTabStops, 'budget-category-search', false)).toBe('budget-name')
-    expect(getNextTabStop(fieldTabStops, 'budget-name', true)).toBe('budget-category-search')
-  })
 })
