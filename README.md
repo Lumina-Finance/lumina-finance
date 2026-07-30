@@ -94,46 +94,46 @@ Every page is fully optimized for desktop, tablet, and mobile.
 <!-- markdownlint-disable MD033 -->
 
 <p align="center">
-  <img src="docs/screenshots/dashboard_light.png" alt="Screenshot of dashboard in light mode" width="49%">
-  <img src="docs/screenshots/dashboard_dark.png" alt="Screenshot of dashboard in dark mode" width="49%">
+  <img src="docs/screenshots/desktop/dashboard_light.png" alt="Screenshot of dashboard in light mode" width="49%">
+  <img src="docs/screenshots/desktop/dashboard_dark.png" alt="Screenshot of dashboard in dark mode" width="49%">
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/accounts_light.png" alt="Screenshot of accounts page in light mode" width="49%">
-  <img src="docs/screenshots/accounts_dark.png" alt="Screenshot of accounts page in dark mode" width="49%">
+  <img src="docs/screenshots/desktop/accounts_light.png" alt="Screenshot of accounts page in light mode" width="49%">
+  <img src="docs/screenshots/desktop/accounts_dark.png" alt="Screenshot of accounts page in dark mode" width="49%">
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/insights_light.png" alt="Screenshot of insights page in light mode" width="49%">
-  <img src="docs/screenshots/insights_dark.png" alt="Screenshot of insights page in dark mode" width="49%">
+  <img src="docs/screenshots/desktop/insights_light.png" alt="Screenshot of insights page in light mode" width="49%">
+  <img src="docs/screenshots/desktop/insights_dark.png" alt="Screenshot of insights page in dark mode" width="49%">
 </p>
 
 <details>
 <summary>More screenshots</summary>
 
 <p align="center">
-  <img src="docs/screenshots/account_details_light.png" alt="Screenshot of account details in light mode" width="49%">
-  <img src="docs/screenshots/account_details_dark.png" alt="Screenshot of account details in dark mode" width="49%">
+  <img src="docs/screenshots/desktop/account_details_light.png" alt="Screenshot of account details in light mode" width="49%">
+  <img src="docs/screenshots/desktop/account_details_dark.png" alt="Screenshot of account details in dark mode" width="49%">
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/transactions_light.png" alt="Screenshot of transactions page in light mode" width="49%">
-  <img src="docs/screenshots/transactions_dark.png" alt="Screenshot of transactions page in dark mode" width="49%">
+  <img src="docs/screenshots/desktop/transactions_light.png" alt="Screenshot of transactions page in light mode" width="49%">
+  <img src="docs/screenshots/desktop/transactions_dark.png" alt="Screenshot of transactions page in dark mode" width="49%">
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/budgets_light.png" alt="Screenshot of budgets page in light mode" width="49%">
-  <img src="docs/screenshots/budgets_dark.png" alt="Screenshot of budgets page in dark mode" width="49%">
+  <img src="docs/screenshots/desktop/budgets_light.png" alt="Screenshot of budgets page in light mode" width="49%">
+  <img src="docs/screenshots/desktop/budgets_dark.png" alt="Screenshot of budgets page in dark mode" width="49%">
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/budget_details_light.png" alt="Screenshot of budget details in light mode" width="49%">
-  <img src="docs/screenshots/budget_details_dark.png" alt="Screenshot of budget details in dark mode" width="49%">
+  <img src="docs/screenshots/desktop/budget_details_light.png" alt="Screenshot of budget details in light mode" width="49%">
+  <img src="docs/screenshots/desktop/budget_details_dark.png" alt="Screenshot of budget details in dark mode" width="49%">
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/transaction_import_light.png" alt="Screenshot of transaction import in light mode" width="49%">
-  <img src="docs/screenshots/transaction_import_dark.png" alt="Screenshot of transaction import in dark mode" width="49%">
+  <img src="docs/screenshots/desktop/transaction_import_light.png" alt="Screenshot of transaction import in light mode" width="49%">
+  <img src="docs/screenshots/desktop/transaction_import_dark.png" alt="Screenshot of transaction import in dark mode" width="49%">
 </p>
 
 </details>
