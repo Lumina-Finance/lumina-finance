@@ -18,6 +18,15 @@ export const FILTER_PANEL_BODY_TRANSITION: Transition = {
   opacity: { duration: 0.26, delay: 0.05 },
 }
 
+// The body pulling back into the pill before a flip switches sides. It mirrors the expansion: the
+// curve is that one reversed, and the content leaves ahead of the box rather than settling after
+// it. Quick, because the weight of a flip belongs in the panel arriving on the other side, which
+// runs the expansion itself
+export const FILTER_PANEL_RETRACT_TRANSITION: Transition = {
+  height: { duration: 0.2, ease: [0.64, 0, 0.78, 0] },
+  opacity: { duration: 0.12 },
+}
+
 // Lightly damped spring shared by the account and transaction filter glass panels so both settle
 // with the same feel
 export const FILTER_GLASS_SPRING = { type: 'spring', stiffness: 420, damping: 34, mass: 0.9 } as const
