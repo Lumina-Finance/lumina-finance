@@ -8,9 +8,9 @@ import BudgetEditorModalCadenceSection from '@/pages/budgets/components/budget-e
 import BudgetEditorModalCategorySection from '@/pages/budgets/components/budget-editor-modal/sections/CategorySection'
 import BudgetEditorModalFooter from '@/pages/budgets/components/budget-editor-modal/layout/Footer'
 import BudgetEditorModalScopeSection from '@/pages/budgets/components/budget-editor-modal/sections/ScopeSection'
-import BudgetEditorModalShell, { type BudgetEditorModalShellAppearance } from '@/pages/budgets/components/budget-editor-modal/layout/Shell'
+import BudgetEditorModalShell from '@/pages/budgets/components/budget-editor-modal/layout/Shell'
 import type { BudgetEditorModalErrorGetter, BudgetEditorModalFieldIds, BudgetEditorModalHandlers, BudgetEditorModalOptions, BudgetEditorModalViewState } from '@/pages/budgets/components/budget-editor-modal/types'
-import { CREATE_BUDGET_MIN_LOADING_MS, MODAL_SURFACE_TRANSITION_MS, MODAL_SURFACE_TRANSITION_SECONDS } from '@/pages/budgets/constants'
+import { CREATE_BUDGET_MIN_LOADING_MS, MODAL_SURFACE_TRANSITION_MS } from '@/pages/budgets/constants'
 import type { BudgetFormFieldErrors, BudgetFormState } from '@/pages/budgets/types'
 import { recurrenceAnchorsFromStart } from '@/pages/budgets/utils/budgetPeriods'
 import { validateBudgetCreateForm } from '@/pages/budgets/utils/budgetCreateValidation'
@@ -26,26 +26,6 @@ const CREATE_FIELD_IDS: BudgetEditorModalFieldIds = {
   periodStart: 'budget-period-start',
   categorySearch: 'budget-category-search',
   categoryError: 'categoryIds-error',
-}
-
-const CREATE_SHELL_APPEARANCE: BudgetEditorModalShellAppearance = {
-  backdropClassName: 'fixed inset-0 z-50',
-  backdropStyle: { background: 'rgba(0, 0, 0, 0.35)', backdropFilter: 'blur(4px)' },
-  backdropDuration: 0.2,
-  stageClassName: 'fixed inset-0 z-50 flex items-center justify-center p-4',
-  panelClassName: 'app-modal-panel flex max-h-[86vh] w-full max-w-5xl overflow-hidden rounded-2xl',
-  surfaceInitial: { opacity: 0, scale: 0.96, y: 12 },
-  surfaceExit: { opacity: 0, scale: 0.96, y: 12 },
-  surfaceDuration: MODAL_SURFACE_TRANSITION_SECONDS,
-  sideRailClassName: 'hidden w-16 shrink-0 flex-col items-center justify-between py-6 sm:flex',
-  sideRailStyle: {
-    background: 'var(--app-button-primary-bg)',
-    color: 'var(--app-button-primary-text)',
-  },
-  sideRailIconSize: 20,
-  sideLabelClassName: 'rotate-180 text-xs font-semibold uppercase',
-  headerClassName: 'shrink-0 pb-5 pl-4 pr-5 pt-6 sm:pt-7 min-[1050px]:px-8',
-  bodyClassName: 'min-h-0 flex-1 overflow-y-auto pb-3 pl-4 pr-5 pt-4 min-[1050px]:px-8',
 }
 
 const CREATE_FOOTER_CLASS_NAME = 'grid shrink-0 grid-cols-2 gap-3 px-6 py-4 sm:flex sm:justify-end sm:px-8 min-[1050px]:py-5'
@@ -272,7 +252,7 @@ export default function BudgetCreateModal({
       eyebrow={form.recurs ? 'Recurring budget' : 'One-off budget'}
       sideLabel="Budget"
       formError={formError}
-      appearance={CREATE_SHELL_APPEARANCE}
+      level="page"
       onClose={closeAndReset}
       onSubmit={handleSubmit}
       footer={(

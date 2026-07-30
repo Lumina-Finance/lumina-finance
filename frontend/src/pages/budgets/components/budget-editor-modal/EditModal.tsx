@@ -8,7 +8,7 @@ import BudgetEditorModalCadenceSection from '@/pages/budgets/components/budget-e
 import BudgetEditorModalCategorySection from '@/pages/budgets/components/budget-editor-modal/sections/CategorySection'
 import BudgetEditorModalFooter from '@/pages/budgets/components/budget-editor-modal/layout/Footer'
 import BudgetEditorModalScopeSection from '@/pages/budgets/components/budget-editor-modal/sections/ScopeSection'
-import BudgetEditorModalShell, { type BudgetEditorModalShellAppearance } from '@/pages/budgets/components/budget-editor-modal/layout/Shell'
+import BudgetEditorModalShell from '@/pages/budgets/components/budget-editor-modal/layout/Shell'
 import type { BudgetEditorModalErrorGetter, BudgetEditorModalFieldIds, BudgetEditorModalHandlers, BudgetEditorModalOptions, BudgetEditorModalViewState } from '@/pages/budgets/components/budget-editor-modal/types'
 import type { BudgetFormFieldErrors, BudgetFormState } from '@/pages/budgets/types'
 import { budgetCadenceLabel, formatBudgetPeriod } from '@/pages/budgets/utils/budgetPeriods'
@@ -26,27 +26,6 @@ const EDIT_FIELD_IDS: BudgetEditorModalFieldIds = {
   periodStart: 'budget-edit-period-start',
   categorySearch: 'budget-edit-category-search',
   categoryError: 'budget-edit-category-error',
-}
-
-const EDIT_SHELL_APPEARANCE: BudgetEditorModalShellAppearance = {
-  backdropClassName: 'fixed inset-0 z-[100]',
-  backdropStyle: { background: 'rgba(0, 0, 0, 0.22)', backdropFilter: 'blur(6px)' },
-  backdropDuration: 0.15,
-  stageClassName: 'fixed inset-0 z-[100] flex items-center justify-center p-4',
-  panelClassName: 'app-modal-panel flex max-h-[84vh] w-full max-w-5xl overflow-hidden rounded-2xl',
-  surfaceInitial: { opacity: 0, scale: 0.94, y: 16 },
-  surfaceExit: { opacity: 0, scale: 0.94, y: 16 },
-  surfaceDuration: 0.22,
-  sideRailClassName: 'app-secondary-modal-rail hidden w-12 shrink-0 flex-col items-center justify-between py-5 sm:flex',
-  sideRailStyle: {
-    background: 'var(--app-surface-soft)',
-    borderRight: '1px solid var(--app-border)',
-    color: 'var(--app-accent)',
-  },
-  sideRailIconSize: 18,
-  sideLabelClassName: 'rotate-180 text-[0.6875rem] font-semibold uppercase',
-  headerClassName: 'shrink-0 pb-5 pl-4 pr-5 pt-6 min-[1050px]:px-7',
-  bodyClassName: 'min-h-0 flex-1 overflow-y-auto pb-3 pl-4 pr-5 pt-4 min-[1050px]:px-7',
 }
 
 const EDIT_FOOTER_CLASS_NAME = 'flex shrink-0 flex-col-reverse gap-3 px-6 py-4 sm:flex-row sm:justify-end sm:px-7 min-[1050px]:py-5'
@@ -357,7 +336,7 @@ export default function BudgetEditModal({
       sideLabel="Edit"
       formError={formError}
       warning="Changes apply from now forward. Past periods stay unchanged. To back propagate changes, create a new budget instead."
-      appearance={EDIT_SHELL_APPEARANCE}
+      level="stacked"
       onClose={closeAndReset}
       onSubmit={handleSubmit}
       footer={(

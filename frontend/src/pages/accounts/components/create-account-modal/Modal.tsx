@@ -4,7 +4,9 @@ import Dropdown from '@/components/dropdown/Dropdown';
 import IconTooltip from '@/components/tooltips/IconTooltip';
 import CreateModalFieldLabelRow from '@/components/create-modal/FieldLabelRow';
 import CreateModalSectionFrame from '@/components/create-modal/SectionFrame';
-import CreateAccountModalShell from '@/pages/accounts/components/create-account-modal/Shell';
+import { Landmark } from 'lucide-react';
+import { ModalTitledPanel } from '@/components/modal/TitledPanel';
+import { ModalFormFooter } from '@/components/modal/FormFooter';
 import { useCurrencies } from '@/api/currency';
 import { useInstitutions } from '@/api/institutions';
 import { useTaxAdvantagedCategories } from '@/api/tax-advantaged-categories';
@@ -149,12 +151,23 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
 
   return (
     <>
-      <CreateAccountModalShell
+      <ModalTitledPanel
         open={open}
-        isSubmitting={mutation.isPending}
-        selectedAccountTypeLabel={selectedAccountTypeLabel}
+        titleId="create-account-title"
+        title="Add Account"
+        eyebrow={selectedAccountTypeLabel ?? 'New account'}
+        RailIcon={Landmark}
+        railLabel="Account"
         onClose={onClose}
         onSubmit={handleSubmit}
+        footer={
+          <ModalFormFooter
+            submitLabel="Create Account"
+            submitDisabled={mutation.isPending}
+            submitWidthClassName="w-full sm:w-40"
+            onCancel={onClose}
+          />
+        }
       >
         <div className="space-y-5">
           <CreateModalSectionFrame step="01">
@@ -332,7 +345,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
             )}
           </AnimatePresence>
         </div>
-      </CreateAccountModalShell>
+      </ModalTitledPanel>
 
       <CreateInstitutionModal
         key={institutionModalKey}

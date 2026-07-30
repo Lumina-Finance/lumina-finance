@@ -6,7 +6,8 @@ import { ModalShell, type ModalLevel } from '@/components/modal/Shell'
 // thing it is over a modal that is already open
 const CHROME = {
   page: {
-    panelClassName: 'flex max-h-[86vh] w-full max-w-2xl overflow-hidden',
+    panelClassName: 'flex max-h-[86vh] w-full overflow-hidden',
+    widthClassName: 'max-w-2xl',
     railClassName: 'hidden w-16 shrink-0 flex-col items-center justify-between py-6 sm:flex',
     railStyle: { background: 'var(--app-button-primary-bg)', color: 'var(--app-button-primary-text)' },
     railIconSize: 20,
@@ -15,7 +16,8 @@ const CHROME = {
     bodyClassName: 'min-h-0 flex-1 overflow-y-auto pb-3 pl-4 pr-5 pt-4 min-[1050px]:px-8',
   },
   stacked: {
-    panelClassName: 'flex max-h-[84vh] w-full max-w-xl overflow-hidden',
+    panelClassName: 'flex max-h-[84vh] w-full overflow-hidden',
+    widthClassName: 'max-w-xl',
     railClassName: 'app-secondary-modal-rail hidden w-12 shrink-0 flex-col items-center justify-between py-5 sm:flex',
     railStyle: {
       background: 'var(--app-surface-soft)',
@@ -44,6 +46,8 @@ interface ModalTitledPanelProps {
   /** Icon for the labelled edge of the panel. Left out together with railLabel by a panel with no rail */
   RailIcon?: LucideIcon
   railLabel?: string
+  /** Overrides the level's own panel width, for a body that needs more room than the usual form */
+  widthClassName?: string
   level?: ModalLevel
   /** Blocks dismissal while an action is in flight */
   closeDisabled?: boolean
@@ -69,6 +73,7 @@ export function ModalTitledPanel({
   headerStatus,
   RailIcon,
   railLabel,
+  widthClassName,
   level = 'page',
   closeDisabled = false,
   onExitComplete,
@@ -124,7 +129,7 @@ export function ModalTitledPanel({
       open={open}
       onClose={onClose}
       titleId={titleId}
-      panelClassName={chrome.panelClassName}
+      panelClassName={`${chrome.panelClassName} ${widthClassName ?? chrome.widthClassName}`}
       level={level}
       closeDisabled={closeDisabled}
       onExitComplete={onExitComplete}
