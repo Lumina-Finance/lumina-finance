@@ -4,6 +4,7 @@ import { useMoneyInput } from '@/hooks/useMoneyInput'
 import type { BudgetEditorModalErrorGetter, BudgetEditorModalFieldIds, BudgetEditorModalHandlers, BudgetEditorModalOptions, BudgetEditorModalViewState } from '@/pages/budgets/components/budget-editor-modal/types'
 import BudgetEditorFieldLabelRow from '@/pages/budgets/components/shared/EditorFieldLabelRow'
 import { getCurrencyExponent, getMoneyPlaceholder } from '@/utils/moneyInput'
+import { CURRENCY_LIST_FIELD_NOTICE } from '@/utils/currencyStatus'
 
 interface BudgetEditorModalScopeSectionProps {
   state: BudgetEditorModalViewState
@@ -100,8 +101,8 @@ export default function BudgetEditorModalScopeSection({
                     </IconTooltip>
                   )}
                   {isLimitLocked && (
-                    <IconTooltip label="Currency list unavailable" level="important">
-                      We can't load the currency list right now. Refresh the page to try again.
+                    <IconTooltip label="Currency list unavailable" level="important" modalFieldTabStop>
+                      {CURRENCY_LIST_FIELD_NOTICE}
                     </IconTooltip>
                   )}
                 </span>
@@ -139,9 +140,8 @@ export default function BudgetEditorModalScopeSection({
               label={isLimitLocked ? (
                 <span className="inline-flex items-center gap-2">
                   Limit
-                  <IconTooltip label="Limit unavailable" level="important">
-                    We can't load the currency list right now, so the limit can't be shown or changed.
-                    Refresh the page to try again.
+                  <IconTooltip label="Limit unavailable" level="important" modalFieldTabStop>
+                    {CURRENCY_LIST_FIELD_NOTICE}
                   </IconTooltip>
                 </span>
               ) : 'Limit'}
@@ -160,7 +160,7 @@ export default function BudgetEditorModalScopeSection({
               <input
                 id={ids.limit}
                 className={`app-input disabled:cursor-not-allowed disabled:opacity-60 ${selectedCurrencySymbol ? 'pl-8' : ''} ${showError('limit') ? 'app-input-error' : ''}`}
-                placeholder={limitPlaceholder ?? getMoneyPlaceholder(limitExponent)}
+                placeholder={isLimitLocked ? undefined : limitPlaceholder ?? getMoneyPlaceholder(limitExponent)}
                 disabled={limitDisabled || fieldsLocked || isLimitLocked}
                 {...limitInput}
               />

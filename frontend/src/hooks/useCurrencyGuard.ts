@@ -1,8 +1,7 @@
 import { useCallback } from 'react'
 import { useCurrencies } from '@/api/currency'
 import { useToast } from '@/hooks/useToast'
-
-const CURRENCY_UNAVAILABLE_MESSAGE = "We can't load the currency list right now. Refresh the page to try again."
+import { CURRENCY_LIST_REFUSAL } from '@/utils/currencyStatus'
 
 /**
  * Returns a function that runs an action only while the currency list is in hand, and otherwise says why
@@ -18,7 +17,7 @@ export function useCurrencyGuard(): (action: () => void) => void {
 
   return useCallback((action: () => void) => {
     if (!currencies?.length) {
-      showToast({ status: 'error', text: CURRENCY_UNAVAILABLE_MESSAGE })
+      showToast({ status: 'error', text: CURRENCY_LIST_REFUSAL })
       return
     }
 

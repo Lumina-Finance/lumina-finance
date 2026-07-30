@@ -19,6 +19,10 @@ interface IconTooltipProps {
   fxTone?: IconTooltipFxTone
   size?: number
   strokeWidth?: number
+
+  // Joins the Tab order inside a modal, whose focus handling only visits fields and anything carrying
+  // this marker, so an explanation attached to a field label stays reachable without a mouse
+  modalFieldTabStop?: boolean
 }
 
 const placementClass: Record<IconTooltipPlacement, string> = {
@@ -140,6 +144,7 @@ export default function IconTooltip({
   fxTone = 'blue',
   size = 15,
   strokeWidth = 2.5,
+  modalFieldTabStop = false,
 }: IconTooltipProps) {
   const { Icon: DefaultIcon, color } = levelConfig[level]
   const isFxIcon = IconOverride === 'fx'
@@ -200,6 +205,7 @@ export default function IconTooltip({
         type="button"
         aria-label={label}
         aria-expanded={isOpen}
+        data-modal-field-tab-stop={modalFieldTabStop ? 'true' : undefined}
         className={triggerClassName}
         style={isFxIcon ? undefined : { color: iconColor ?? color }}
         onClick={() => {

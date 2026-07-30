@@ -178,9 +178,8 @@ export default function BudgetEditModal({
   // The backend rejects any non-unarchive change to an archived budget, so every other field is locked
   // against the persisted archived state rather than the staged toggle until the unarchive is saved
   const fieldsLocked = baseBudget.is_archived
-  // A locked limit is blank, which converts to null, so the usual requirement for a readable amount is
-  // waived. Everything else on the form stays editable and saveable, and periodChanged is already false
-  // while the limit is blank, so the period is left alone
+  // The same waiver as the validator: a locked limit is blank and stays out of the save, so it must not
+  // hold the button down either. periodChanged is already false while the limit is blank
   const canSave =
     !isPending
     && form.name.trim().length > 0
@@ -215,7 +214,7 @@ export default function BudgetEditModal({
   // The form can be seeded before the currency table arrives, which leaves the limit blank. Fill it in
   // when the table lands so the field does not sit editable and empty over a stored limit. The field is
   // disabled until this runs, so it can never discard something the user typed
-  const seededWithoutExponentRef = useRef(findCurrencyExponent(currencies, baseBudget.currency) === null)
+  const seededWithoutExponentRef = useRef(isLimitLocked && latestPeriod !== undefined)
 
   useEffect(() => {
     const limitExponent = findCurrencyExponent(currencies, baseBudget.currency)
@@ -235,7 +234,11 @@ export default function BudgetEditModal({
     const errors: BudgetFormFieldErrors = {}
     if (!form.name.trim()) errors.name = 'Name is required'
     if (!hasCategory) errors.categoryIds = 'Select at least one category'
-    if (latestPeriod && limitMinorUnits === null) errors.limit = 'Limit must be greater than zero'
+    // A locked limit is blank, disabled and left out of the save, so requiring a readable one here would
+    // refuse every other edit to the budget
+    if (latestPeriod && !isLimitLocked && limitMinorUnits === null) {
+      errors.limit = 'Limit must be greater than zero'
+    }
     return errors
   }
 

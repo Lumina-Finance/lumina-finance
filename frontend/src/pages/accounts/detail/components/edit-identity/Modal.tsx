@@ -88,7 +88,7 @@ export default function EditAccountIdentityModal({
   // The modal can open before the currency table arrives, which seeds the credit limit blank. Fill it in
   // when the table lands so the field does not sit editable and empty over a stored limit, which a save
   // would then clear. The field is disabled until this runs, so no typing can be overwritten
-  const seededWithoutExponentRef = useRef(knownCreditLimitExponent === null)
+  const seededWithoutExponentRef = useRef(isCreditLimitLocked && account.credit_limit !== null)
 
   useEffect(() => {
     if (knownCreditLimitExponent === null || !seededWithoutExponentRef.current) return

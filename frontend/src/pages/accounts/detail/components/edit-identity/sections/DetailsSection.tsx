@@ -2,6 +2,7 @@ import type { DropdownOption } from '@/components/dropdown/Dropdown'
 import Dropdown from '@/components/dropdown/Dropdown'
 import IconTooltip from '@/components/tooltips/IconTooltip'
 import { useMoneyInput } from '@/hooks/useMoneyInput'
+import { CURRENCY_LIST_FIELD_NOTICE } from '@/utils/currencyStatus'
 import { EDIT_ACCOUNT_IDENTITY_FIELD_IDS } from '@/pages/accounts/detail/constants/accountDetail'
 import type {
   IdentityFieldErrors,
@@ -71,9 +72,8 @@ export function AccountDetailsSection({
             label={isCreditLimitLocked ? (
               <span className="inline-flex items-center gap-2">
                 Credit Limit
-                <IconTooltip label="Currency list unavailable" level="important">
-                  We can't load the currency list right now, so this amount can't be shown or changed.
-                  Refresh the page to try again.
+                <IconTooltip label="Currency list unavailable" level="important" modalFieldTabStop>
+                  {CURRENCY_LIST_FIELD_NOTICE}
                 </IconTooltip>
               </span>
             ) : 'Credit Limit'}

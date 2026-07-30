@@ -59,8 +59,8 @@ export function readMoneyInputChange(value: string, typed: string, exponent: num
  * in the table
  *
  * The fallback cannot tell an unrecognized code from a table that has not loaded yet, so a field
- * whose text is frozen at mount must wait for the currencies query to resolve. A field that
- * recomputes its text every render corrects itself once the table arrives and needs no wait
+ * holding a stored amount should read its exponent through findCurrencyExponent below and stand down
+ * when there is none, rather than displaying an amount scaled by this guess
  */
 export function getCurrencyExponent(currencies: Currency[], code: string): number {
   return currencies.find((currency) => currency.id === code)?.minor_unit_exponent ?? DEFAULT_MINOR_UNIT_EXPONENT

@@ -5,6 +5,7 @@ import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
 import IconTooltip from '@/components/tooltips/IconTooltip'
 import { useMoneyInput } from '@/hooks/useMoneyInput'
 import { getMoneyPlaceholder } from '@/utils/moneyInput'
+import { CURRENCY_LIST_FIELD_NOTICE } from '@/utils/currencyStatus'
 
 interface TransactionDetailsSectionProps {
   date: string
@@ -96,9 +97,8 @@ export default function TransactionDetailsSection({
             label={isAmountLocked ? (
               <span className="inline-flex items-center gap-2">
                 Amount
-                <IconTooltip label="Amount unavailable" level="important">
-                  We can't load the currency list right now, so the amount can't be shown or changed.
-                  Refresh the page to try again.
+                <IconTooltip label="Amount unavailable" level="important" modalFieldTabStop>
+                  {CURRENCY_LIST_FIELD_NOTICE}
                 </IconTooltip>
               </span>
             ) : 'Amount'}
@@ -121,7 +121,7 @@ export default function TransactionDetailsSection({
             <input
               id="txn-amount"
               className={`app-input w-full disabled:cursor-not-allowed disabled:opacity-60 ${selectedCurrencySymbol ? 'pl-8' : ''} ${amountError ? 'app-input-error' : ''}`}
-              placeholder={getMoneyPlaceholder(currencyExponent)}
+              placeholder={isAmountLocked ? undefined : getMoneyPlaceholder(currencyExponent)}
               disabled={readOnly || isAmountLocked}
               {...amountInput}
             />
