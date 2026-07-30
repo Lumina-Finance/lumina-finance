@@ -5,7 +5,7 @@ import { ChevronDown, SlidersHorizontal, X } from 'lucide-react'
 import {
   FILTER_GLASS_SPRING,
   FILTER_PANEL_BODY_TRANSITION,
-  FILTER_PANEL_FLIP_TRANSITION,
+  FILTER_PANEL_RETRACT_TRANSITION,
   FILTER_PILL_HEAD_STYLE,
 } from '@/components/list-controls/toolbarStyles'
 import {
@@ -58,9 +58,6 @@ export function FilterGlassPanel({
   // The side the body is drawn on, which lags a measured change of direction until the body has
   // pulled back into the pill, so the anchoring never switches under content that is on screen
   const [renderedDirection, setRenderedDirection] = useState(DEFAULT_FILTER_PANEL_PLACEMENT.direction)
-  // True for the second half of a flip, so coming back out runs at the flip's pace rather than the
-  // slower pace of an ordinary open
-  const [isFlipOpening, setIsFlipOpening] = useState(false)
   const wrapperRef = useRef<HTMLDivElement>(null)
   const headRef = useRef<HTMLButtonElement>(null)
   const headContentRef = useRef<HTMLSpanElement>(null)
@@ -180,16 +177,11 @@ export function FilterGlassPanel({
   const isRetracting = open && renderedDirection !== placement.direction
 
   /**
-   * Carries a flip from one half to the next: the anchoring switches once the body is fully
-   * retracted, and the second half ends the flip so an ordinary close animates at its own pace
+   * Switches the anchoring once the body has finished retracting, which is what turns the second
+   * half of a flip into an ordinary open on the other side
    */
   function handleBodyAnimationComplete() {
-    if (isRetracting) {
-      setRenderedDirection(placement.direction)
-      setIsFlipOpening(true)
-      return
-    }
-    if (isFlipOpening) setIsFlipOpening(false)
+    if (isRetracting) setRenderedDirection(placement.direction)
   }
 
   return (
@@ -271,7 +263,7 @@ export function FilterGlassPanel({
           transition={
             shouldReduceMotion
               ? { duration: 0 }
-              : isRetracting || isFlipOpening ? FILTER_PANEL_FLIP_TRANSITION : FILTER_PANEL_BODY_TRANSITION
+              : isRetracting ? FILTER_PANEL_RETRACT_TRANSITION : FILTER_PANEL_BODY_TRANSITION
           }
           onAnimationComplete={handleBodyAnimationComplete}
         >
