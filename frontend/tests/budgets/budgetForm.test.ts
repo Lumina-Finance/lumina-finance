@@ -52,6 +52,11 @@ describe('budget form helpers', () => {
     expect(toMinorUnits('0', currencies, 'CAD')).toBeNull()
   })
 
+  it('reads no amount from the blank limit a missing currency table leaves behind', () => {
+    // The edit form treats this null as no change, so a period keeps the limit the user was never shown
+    expect(toMinorUnits('', [], 'JPY')).toBeNull()
+  })
+
   it('validates create-budget fields before building an API payload', () => {
     expect(validateBudgetCreateForm(createForm(), currencies, categories)).toEqual({})
     expect(validateBudgetCreateForm(createForm({

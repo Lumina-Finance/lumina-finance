@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type React from 'react'
 import { useUpdateBaseBudget, useUpdateBudget, type BaseBudget, type Budget } from '@/api/budgets'
 import type { Category } from '@/api/categories'
@@ -14,7 +14,7 @@ import type { BudgetFormFieldErrors, BudgetFormState } from '@/pages/budgets/typ
 import { budgetCadenceLabel, formatBudgetPeriod } from '@/pages/budgets/utils/budgetPeriods'
 import { sameStringSet } from '@/pages/budgets/utils/form'
 import { currencySymbol, toMinorUnits } from '@/pages/budgets/utils/money'
-import { fromMinorUnits, getCurrencyExponent } from '@/utils/moneyInput'
+import { findCurrencyExponent, fromMinorUnits } from '@/utils/moneyInput'
 import { waitForMilliseconds } from '@/utils/timing'
 
 const EDIT_FIELD_IDS: BudgetEditorModalFieldIds = {
@@ -58,13 +58,20 @@ const EDIT_INITIAL_TOUCHED = {
 
 /**
  * Converts the saved budget and latest period into editable form state
+ *
+ * The limit stays blank when the budget's currency is missing from the table, since the stored amount
+ * can only be turned into text through that currency's decimal places
  */
 function getInitialEditForm(baseBudget: BaseBudget, latestPeriod: Budget | undefined, currencies: Currency[]): BudgetFormState {
+  const limitExponent = findCurrencyExponent(currencies, baseBudget.currency)
+
   return {
     name: baseBudget.name,
     currency: baseBudget.currency,
     categoryIds: baseBudget.category_ids,
-    limit: latestPeriod ? fromMinorUnits(latestPeriod.overall_limit, getCurrencyExponent(currencies, baseBudget.currency)) : '',
+    limit: latestPeriod && limitExponent !== null
+      ? fromMinorUnits(latestPeriod.overall_limit, limitExponent)
+      : '',
     recurrenceFreq: baseBudget.recurrence_freq,
     instanceLength: String(baseBudget.instance_length),
     periodStart: latestPeriod?.period_start ?? '',
@@ -157,6 +164,7 @@ export default function BudgetEditModal({
   }, [categoryOptions, categorySearch, form.categoryIds])
   const isPending = updateBaseBudget.isPending || updateBudget.isPending || saveInProgress
   const limitMinorUnits = latestPeriod ? toMinorUnits(form.limit, currencies, baseBudget.currency) : null
+  const isLimitLocked = findCurrencyExponent(currencies, baseBudget.currency) === null
   const hasCategory = form.categoryIds.some((categoryId) =>
     categoryOptions.some((category) => category.id === categoryId),
   )
@@ -170,11 +178,14 @@ export default function BudgetEditModal({
   // The backend rejects any non-unarchive change to an archived budget, so every other field is locked
   // against the persisted archived state rather than the staged toggle until the unarchive is saved
   const fieldsLocked = baseBudget.is_archived
+  // A locked limit is blank, which converts to null, so the usual requirement for a readable amount is
+  // waived. Everything else on the form stays editable and saveable, and periodChanged is already false
+  // while the limit is blank, so the period is left alone
   const canSave =
     !isPending
     && form.name.trim().length > 0
     && hasCategory
-    && (!latestPeriod || limitMinorUnits !== null)
+    && (!latestPeriod || isLimitLocked || limitMinorUnits !== null)
     && (baseChanged || periodChanged || archiveChanged)
   const state: BudgetEditorModalViewState = { form, formError, fieldErrors, touched, categorySearch }
   const options: BudgetEditorModalOptions = { categories: categoryOptions, filteredCategories, currencies }
@@ -200,6 +211,22 @@ export default function BudgetEditModal({
     window.addEventListener('keydown', closeOnEscape)
     return () => window.removeEventListener('keydown', closeOnEscape)
   }, [closeAndReset, open])
+
+  // The form can be seeded before the currency table arrives, which leaves the limit blank. Fill it in
+  // when the table lands so the field does not sit editable and empty over a stored limit. The field is
+  // disabled until this runs, so it can never discard something the user typed
+  const seededWithoutExponentRef = useRef(findCurrencyExponent(currencies, baseBudget.currency) === null)
+
+  useEffect(() => {
+    const limitExponent = findCurrencyExponent(currencies, baseBudget.currency)
+    if (limitExponent === null || !seededWithoutExponentRef.current) return
+
+    seededWithoutExponentRef.current = false
+    setForm((current) => ({
+      ...current,
+      limit: latestPeriod ? fromMinorUnits(latestPeriod.overall_limit, limitExponent) : '',
+    }))
+  }, [baseBudget.currency, currencies, latestPeriod])
 
   /**
    * Validates fields that can be edited without changing immutable budget cadence fields
@@ -353,6 +380,7 @@ export default function BudgetEditModal({
             selectedCurrencySymbol={currencySymbol(currencies, form.currency)}
             limitPlaceholder={latestPeriod ? undefined : 'No period yet'}
             currencyReadOnly
+            isLimitLocked={isLimitLocked}
             currencyTooltip={false}
             limitDisabled={!latestPeriod}
             fieldsLocked={fieldsLocked}

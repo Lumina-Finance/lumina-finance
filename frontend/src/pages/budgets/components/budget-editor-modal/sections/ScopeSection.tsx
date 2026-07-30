@@ -19,6 +19,10 @@ interface BudgetEditorModalScopeSectionProps {
   currencyTooltip: boolean
   limitDisabled: boolean
 
+  // Stands the limit down when the budget's currency is missing from the currency table, whose decimal
+  // places the stored amount can only be read or written through
+  isLimitLocked: boolean
+
   // Locks every editable field while the budget is archived so only the archive toggle stays live
   fieldsLocked: boolean
   showError: BudgetEditorModalErrorGetter
@@ -38,6 +42,7 @@ export default function BudgetEditorModalScopeSection({
   currencyReadOnly,
   currencyTooltip,
   limitDisabled,
+  isLimitLocked,
   fieldsLocked,
   showError,
   handlers,
@@ -86,12 +91,20 @@ export default function BudgetEditorModalScopeSection({
           <div>
             <BudgetEditorFieldLabelRow
               htmlFor={ids.currency}
-              label={currencyTooltip ? (
+              label={currencyTooltip || isLimitLocked ? (
                 <span className="inline-flex items-center gap-2">
                   Currency
-                  <IconTooltip label="Budget currency limitation" level="important">
-                    Budgets currently track only accounts in the same currency
-                  </IconTooltip>
+                  {currencyTooltip && (
+                    <IconTooltip label="Budget currency limitation" level="important">
+                      Budgets currently track only accounts in the same currency
+                    </IconTooltip>
+                  )}
+                  {isLimitLocked && (
+                    <IconTooltip label="Currency list unavailable" level="warn">
+                      We can't load the currency list right now, so the limit can't be shown or changed.
+                      Refresh the page to try again.
+                    </IconTooltip>
+                  )}
                 </span>
               ) : 'Currency'}
               error={showError('currency')}
@@ -137,7 +150,7 @@ export default function BudgetEditorModalScopeSection({
                 id={ids.limit}
                 className={`app-input disabled:cursor-not-allowed disabled:opacity-60 ${selectedCurrencySymbol ? 'pl-8' : ''} ${showError('limit') ? 'app-input-error' : ''}`}
                 placeholder={limitPlaceholder ?? getMoneyPlaceholder(limitExponent)}
-                disabled={limitDisabled || fieldsLocked}
+                disabled={limitDisabled || fieldsLocked || isLimitLocked}
                 {...limitInput}
               />
             </div>

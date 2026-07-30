@@ -28,7 +28,7 @@ export default function BudgetsPage() {
   const { user } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
   const { data: categories, isLoading: categoriesLoading } = useCategories()
-  const { data: currencies, isLoading: currenciesLoading } = useCurrencies()
+  const { data: currencies } = useCurrencies()
   const baseBudgetsQuery = useBaseBudgets()
   const budgetsQuery = useBudgets()
   const latestUtilizationsQuery = useLatestBudgetUtilizations()
@@ -134,7 +134,7 @@ export default function BudgetsPage() {
         latestUtilizationByBudgetId={latestUtilizationByBudgetId}
         loading={budgetsLoading}
         error={budgetsError}
-        formOptionsLoading={categoriesLoading || currenciesLoading}
+        formOptionsLoading={categoriesLoading}
         onOpenBudget={openBudget}
       />
 
@@ -148,31 +148,29 @@ export default function BudgetsPage() {
         )}
       </AnimatePresence>
 
-      {/* Held for the currency table so both budget modals follow one rule, though a new budget has
-          no stored amount to convert and could safely start without it */}
-      {currencies && (
-        <BudgetCreateModal
-          key={`${defaultCurrency}-${userTimeZone}`}
-          open={createOpen}
-          categories={categories ?? []}
-          currencies={currencies}
-          defaultCurrency={defaultCurrency}
-          timeZone={userTimeZone}
-          onClose={() => setCreateOpen(false)}
-          onCreated={() => undefined}
-        />
-      )}
+      {/* The create modal says why it cannot take a new budget when the currency table is missing, so it
+          is mounted whether or not the table arrived */}
+      <BudgetCreateModal
+        key={`${defaultCurrency}-${userTimeZone}`}
+        open={createOpen}
+        categories={categories ?? []}
+        currencies={currencies ?? []}
+        defaultCurrency={defaultCurrency}
+        timeZone={userTimeZone}
+        onClose={() => setCreateOpen(false)}
+        onCreated={() => undefined}
+      />
 
       <AnimatePresence>
-        {/* Held for the currency table, since the editor inside turns the stored limit into text
-            using the currency's decimal places and seeds that text once */}
-        {visibleBudgetDetails && currencies && (
+        {/* Opens without the currency table, since everything the details view shows comes from the budget
+            itself. Only the editor nested inside needs the table, and it stands its limit down instead */}
+        {visibleBudgetDetails && (
           <BudgetDetailsModal
             key={visibleBudgetDetails.baseBudget.id}
             baseBudget={visibleBudgetDetails.baseBudget}
             periods={visibleBudgetDetails.periods}
             categories={categories ?? []}
-            currencies={currencies}
+            currencies={currencies ?? []}
             categoryById={categoryById}
             initialLatestUtilization={
               visibleBudgetDetails.latestPeriod

@@ -264,6 +264,31 @@ export default function BudgetCreateModal({
     onBlur: handleBlur,
   }
 
+  // A new budget has no stored amount to fall back on the way an edit does: its limit has to be converted
+  // from what the user types, which needs the currency's decimal places, and the picker has nothing to
+  // offer without the table. So the reason takes the place of the form rather than opening it unusable
+  if (currencies.length === 0) {
+    return (
+      <BudgetEditorModalShell
+        open={open}
+        title="Add Budget"
+        titleId="budget-create-title"
+        eyebrow="Currencies unavailable"
+        sideLabel="Budget"
+        formError={null}
+        appearance={CREATE_SHELL_APPEARANCE}
+        onClose={closeAndReset}
+        onSubmit={(event) => event.preventDefault()}
+        footer={null}
+      >
+        <p className="text-sm leading-6" style={{ color: 'var(--app-text-muted)' }}>
+          We can't load the currency list right now, so a new budget can't be created yet. Refresh the
+          page to try again.
+        </p>
+      </BudgetEditorModalShell>
+    )
+  }
+
   return (
     <BudgetEditorModalShell
       open={open}
@@ -294,6 +319,7 @@ export default function BudgetCreateModal({
             selectedCurrencySymbol={currencySymbol(currencies, form.currency)}
             namePlaceholder="e.g. Groceries"
             currencyReadOnly={false}
+            isLimitLocked={false}
             currencyTooltip
             limitDisabled={false}
             fieldsLocked={false}
