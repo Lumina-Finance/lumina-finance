@@ -7,6 +7,7 @@ import {
   type Account,
 } from '@/api/accounts'
 import { useCurrencies } from '@/api/currency'
+import { useCurrencyListState } from '@/hooks/useCurrencyListState'
 import { useInstitutions } from '@/api/institutions'
 import { useTaxAdvantagedCategories } from '@/api/tax-advantaged-categories'
 import CreateInstitutionModal from '@/components/reference-modals/CreateInstitutionModal'
@@ -61,6 +62,7 @@ export default function EditAccountIdentityModal({
   onDeleteFailed,
 }: EditAccountIdentityModalProps) {
   const { data: currencies = [] } = useCurrencies()
+  const currencyState = useCurrencyListState()
   const { panelRef, handleModalFieldKeyDown } = useModalFieldFocus()
   const updateAccount = useUpdateAccount()
   const deleteAccount = useDeleteAccount({ minimumPendingMs: MIN_DELETE_SPINNER_MS })
@@ -325,7 +327,7 @@ export default function EditAccountIdentityModal({
                         fieldErrors={fieldErrors}
                         canLinkTaxAdvantagedCategory={canLinkTaxAdvantagedCategory}
                         isRevolving={isRevolving}
-                        isCreditLimitLocked={isCreditLimitLocked}
+                        currencyState={currencyState}
                         selectedCurrencySymbol={selectedCurrencySymbol}
                         creditLimitExponent={knownCreditLimitExponent ?? DEFAULT_MINOR_UNIT_EXPONENT}
                         taxAdvantagedCategoryOptions={taxAdvantagedCategoryOptions}

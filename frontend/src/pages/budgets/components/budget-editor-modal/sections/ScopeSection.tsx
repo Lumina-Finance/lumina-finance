@@ -4,7 +4,12 @@ import { useMoneyInput } from '@/hooks/useMoneyInput'
 import type { BudgetEditorModalErrorGetter, BudgetEditorModalFieldIds, BudgetEditorModalHandlers, BudgetEditorModalOptions, BudgetEditorModalViewState } from '@/pages/budgets/components/budget-editor-modal/types'
 import BudgetEditorFieldLabelRow from '@/pages/budgets/components/shared/EditorFieldLabelRow'
 import { getCurrencyExponent, getMoneyPlaceholder } from '@/utils/moneyInput'
-import { CURRENCY_LIST_FIELD_NOTICE } from '@/utils/currencyStatus'
+import {
+  CURRENCY_AMOUNT_NOTICE,
+  CURRENCY_LIST_LOADING,
+  CURRENCY_LIST_NOTICE,
+  type CurrencyListState,
+} from '@/utils/currencyStatus'
 
 interface BudgetEditorModalScopeSectionProps {
   state: BudgetEditorModalViewState
@@ -20,9 +25,9 @@ interface BudgetEditorModalScopeSectionProps {
   currencyTooltip: boolean
   limitDisabled: boolean
 
-  // Stands the limit down when the budget's currency is missing from the currency table, whose decimal
-  // places the stored amount can only be read or written through
-  isLimitLocked: boolean
+  // Stands the limit down unless the currency table is in hand, since its decimal places are the only way
+  // to read or write the stored amount, and says which of the two reasons applies
+  currencyState: CurrencyListState
 
   // Locks every editable field while the budget is archived so only the archive toggle stays live
   fieldsLocked: boolean
@@ -43,7 +48,7 @@ export default function BudgetEditorModalScopeSection({
   currencyReadOnly,
   currencyTooltip,
   limitDisabled,
-  isLimitLocked,
+  currencyState,
   fieldsLocked,
   showError,
   handlers,
@@ -51,6 +56,7 @@ export default function BudgetEditorModalScopeSection({
   const { form } = state
   const { currencies } = options
   const { setField, onBlur } = handlers
+  const isLimitLocked = currencyState !== 'ready'
   const limitExponent = getCurrencyExponent(currencies, form.currency)
   const limitInput = useMoneyInput({
     value: form.limit,
@@ -100,9 +106,14 @@ export default function BudgetEditorModalScopeSection({
                       Budgets currently track only accounts in the same currency
                     </IconTooltip>
                   )}
-                  {isLimitLocked && (
+                  {currencyState === 'loading' && (
+                    <IconTooltip label="Loading currencies" modalFieldTabStop>
+                      {CURRENCY_LIST_LOADING}
+                    </IconTooltip>
+                  )}
+                  {currencyState === 'unavailable' && (
                     <IconTooltip label="Currency list unavailable" level="important" modalFieldTabStop>
-                      {CURRENCY_LIST_FIELD_NOTICE}
+                      {CURRENCY_LIST_NOTICE}
                     </IconTooltip>
                   )}
                 </span>
@@ -114,6 +125,7 @@ export default function BudgetEditorModalScopeSection({
                 id={ids.currency}
                 className="app-input disabled:cursor-not-allowed disabled:opacity-60"
                 value={form.currency}
+                placeholder={currencyState === 'loading' ? CURRENCY_LIST_LOADING : undefined}
                 disabled
                 readOnly
               />
@@ -140,9 +152,15 @@ export default function BudgetEditorModalScopeSection({
               label={isLimitLocked ? (
                 <span className="inline-flex items-center gap-2">
                   Limit
-                  <IconTooltip label="Limit unavailable" level="important" modalFieldTabStop>
-                    {CURRENCY_LIST_FIELD_NOTICE}
-                  </IconTooltip>
+                  {currencyState === 'loading' ? (
+                    <IconTooltip label="Loading currencies" modalFieldTabStop>
+                      {CURRENCY_LIST_LOADING}
+                    </IconTooltip>
+                  ) : (
+                    <IconTooltip label="Limit unavailable" level="important" modalFieldTabStop>
+                      {CURRENCY_AMOUNT_NOTICE}
+                    </IconTooltip>
+                  )}
                 </span>
               ) : 'Limit'}
               error={showError('limit')}

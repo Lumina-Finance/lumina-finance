@@ -14,6 +14,7 @@ import type { BudgetFormFieldErrors, BudgetFormState } from '@/pages/budgets/typ
 import { budgetCadenceLabel, formatBudgetPeriod } from '@/pages/budgets/utils/budgetPeriods'
 import { sameStringSet } from '@/pages/budgets/utils/form'
 import { currencySymbol, toMinorUnits } from '@/pages/budgets/utils/money'
+import { useCurrencyListState } from '@/hooks/useCurrencyListState'
 import { findCurrencyExponent, fromMinorUnits } from '@/utils/moneyInput'
 import { waitForMilliseconds } from '@/utils/timing'
 
@@ -101,6 +102,7 @@ export default function BudgetEditModal({
   // Reports whether the save flipped the archived flag so callers can reveal the archive animations
   onSaved: (archiveChanged: boolean) => void
 }) {
+  const currencyState = useCurrencyListState()
   const updateBaseBudget = useUpdateBaseBudget()
   const updateBudget = useUpdateBudget()
   const initialForm = useMemo(
@@ -383,7 +385,7 @@ export default function BudgetEditModal({
             selectedCurrencySymbol={currencySymbol(currencies, form.currency)}
             limitPlaceholder={latestPeriod ? undefined : 'No period yet'}
             currencyReadOnly
-            isLimitLocked={isLimitLocked}
+            currencyState={currencyState}
             currencyTooltip={false}
             limitDisabled={!latestPeriod}
             fieldsLocked={fieldsLocked}
