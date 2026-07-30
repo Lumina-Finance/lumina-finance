@@ -301,6 +301,23 @@ describe('buildFireflyBudgetDrafts', () => {
     expect(draft.disabledReason).toBe(FIREFLY_BUDGET_UNREADABLE_DATES_REASON)
   })
 
+  // The displayed currency comes off the schedule the export rows were cleaned into, so a row the
+  // cleaning refused cannot decide it however late its unreadable date would have sorted
+  it('takes the displayed currency from the latest period in the schedule', () => {
+    const budgetsFile = createBudgetsFile([
+      createLimitRow({ start_date: '2024-01-01', end_date: '2024-01-31' }),
+      createLimitRow({ start_date: '2025-02-31', end_date: '2025-03-31', currency_code: 'USD' }),
+    ])
+
+    const [draft] = buildFireflyBudgetDrafts({
+      budgetsFile,
+      transactionRows: [createTransactionRow()],
+    })
+
+    expect(draft.currencyCode).toBe('CAD')
+    expect(draft.currencyCodes).toEqual(['CAD'])
+  })
+
   it('disables a budget whose export rows cannot form a limit schedule', () => {
     const budgetsFile = createBudgetsFile([
       createLimitRow({ start_date: '', amount: '' }),
