@@ -1,5 +1,6 @@
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
 import Dropdown from '@/components/dropdown/Dropdown'
+import IconTooltip from '@/components/tooltips/IconTooltip'
 import { useMoneyInput } from '@/hooks/useMoneyInput'
 import { EDIT_ACCOUNT_IDENTITY_FIELD_IDS } from '@/pages/accounts/detail/constants/accountDetail'
 import type {
@@ -15,6 +16,10 @@ type AccountDetailsSectionProps = {
   fieldErrors: IdentityFieldErrors
   canLinkTaxAdvantagedCategory: boolean
   isRevolving: boolean
+
+  // Stands the credit limit down when the account's currency is missing from the currency table, whose
+  // decimal places the stored amount can only be read or written through
+  isCreditLimitLocked: boolean
   selectedCurrencySymbol: string
   // Decimal places of the account's currency, used to settle the credit limit field on blur
   creditLimitExponent: number
@@ -30,6 +35,7 @@ export function AccountDetailsSection({
   fieldErrors,
   canLinkTaxAdvantagedCategory,
   isRevolving,
+  isCreditLimitLocked,
   selectedCurrencySymbol,
   creditLimitExponent,
   taxAdvantagedCategoryOptions,
@@ -60,7 +66,19 @@ export function AccountDetailsSection({
 
       {isRevolving && (
         <div>
-          <AccountIdentityFieldLabelRow htmlFor={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.creditLimit} label="Credit Limit" error={fieldErrors.credit_limit} />
+          <AccountIdentityFieldLabelRow
+            htmlFor={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.creditLimit}
+            label={isCreditLimitLocked ? (
+              <span className="inline-flex items-center gap-2">
+                Credit Limit
+                <IconTooltip label="Currency list unavailable" level="warn">
+                  We can't load the currency list right now, so this amount can't be shown or changed.
+                  Refresh the page to try again.
+                </IconTooltip>
+              </span>
+            ) : 'Credit Limit'}
+            error={fieldErrors.credit_limit}
+          />
           <div className="relative">
             {selectedCurrencySymbol && (
               <span
@@ -73,8 +91,9 @@ export function AccountDetailsSection({
             )}
             <input
               id={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.creditLimit}
-              className={`app-input ${selectedCurrencySymbol ? 'pl-8' : ''} ${fieldErrors.credit_limit ? 'app-input-error' : ''}`}
+              className={`app-input disabled:cursor-not-allowed disabled:opacity-60 ${selectedCurrencySymbol ? 'pl-8' : ''} ${fieldErrors.credit_limit ? 'app-input-error' : ''}`}
               placeholder="Optional"
+              disabled={isCreditLimitLocked}
               {...creditLimitInput}
             />
           </div>

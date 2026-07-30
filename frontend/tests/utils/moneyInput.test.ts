@@ -5,6 +5,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Currency } from '@/api/currency'
 import {
+  findCurrencyExponent,
   fromMinorUnits,
   getCurrencyExponent,
   getMoneyPlaceholder,
@@ -152,6 +153,12 @@ describe('currency decimal places', () => {
     expect(getCurrencyExponent(currencies, 'CAD')).toBe(2)
     expect(getCurrencyExponent(currencies, 'JPY')).toBe(0)
     expect(getCurrencyExponent(currencies, 'XXX')).toBe(2)
+  })
+
+  it('reports an absent exponent instead of guessing one', () => {
+    expect(findCurrencyExponent(currencies, 'JPY')).toBe(0)
+    expect(findCurrencyExponent(currencies, 'XXX')).toBeNull()
+    expect(findCurrencyExponent([], 'CAD')).toBeNull()
   })
 })
 

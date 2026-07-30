@@ -150,6 +150,27 @@ describe('identity form helpers', () => {
     })
   })
 
+  it('withholds the credit limit rather than scaling it by a guess when the currency is not in the table', () => {
+    const account = createAccount({ account_kind: 'revolving', credit_limit: 500_000, currency: 'JPY' })
+    const form = createIdentityFormValues(account, [])
+
+    // Blank rather than 5000.00, which is what two assumed decimal places would have shown for ¥500,000
+    expect(form.credit_limit).toBe('')
+
+    // Left out of the payload entirely, since a blank converts to null and would clear the stored limit
+    expect(getIdentityUpdatePayload({
+      form,
+      isRevolving: true,
+      canLinkTaxAdvantagedCategory: false,
+      currencies: [],
+      accountCurrency: 'JPY',
+    })).toEqual({
+      name: 'Account',
+      institution_id: null,
+      is_archived: false,
+    })
+  })
+
   it('wraps edit account modal Tab focus through field controls only', () => {
     const fieldTabStops = [
       EDIT_ACCOUNT_IDENTITY_FIELD_IDS.name,

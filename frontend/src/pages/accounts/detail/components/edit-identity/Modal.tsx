@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import {
@@ -6,13 +6,17 @@ import {
   useUpdateAccount,
   type Account,
 } from '@/api/accounts'
-import { useCurrencies, type Currency } from '@/api/currency'
+import { useCurrencies } from '@/api/currency'
 import { useInstitutions } from '@/api/institutions'
 import { useTaxAdvantagedCategories } from '@/api/tax-advantaged-categories'
 import CreateInstitutionModal from '@/components/reference-modals/CreateInstitutionModal'
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
 import { useModalFieldFocus } from '@/components/modal/useModalFieldFocus'
-import { getCurrencyExponent } from '@/utils/moneyInput'
+import {
+  DEFAULT_MINOR_UNIT_EXPONENT,
+  findCurrencyExponent,
+  fromMinorUnits,
+} from '@/utils/moneyInput'
 import { waitForMilliseconds } from '@/utils/timing'
 import { EASE } from '@/pages/accounts/detail/constants/accountDetail'
 import {
@@ -39,39 +43,24 @@ type EditAccountIdentityModalProps = {
   onDeleteFailed: () => void
 }
 
-type EditAccountIdentityFormProps = EditAccountIdentityModalProps & {
-  currencies: Currency[]
-}
-
 const MIN_SAVE_SPINNER_MS = 800
 const MIN_DELETE_SPINNER_MS = 1000
 
 /**
- * Holds the form back until the currency table has arrived
- *
- * The form turns the stored credit limit into text using the account currency's decimal places and
- * seeds that text once, so building it from a table that has not loaded would freeze an amount
- * scaled by the wrong power of ten
- */
-export default function EditAccountIdentityModal(props: EditAccountIdentityModalProps) {
-  const { data: currencies } = useCurrencies()
-
-  if (!currencies) return null
-
-  return <EditAccountIdentityForm {...props} currencies={currencies} />
-}
-
-/**
  * Coordinates account identity edits, archive changes, and destructive deletion from one modal workflow
+ *
+ * Opens whether or not the currency table arrived. Everything except the credit limit is independent of
+ * it, and that one field stands down when the account's currency is missing from the table, since its
+ * stored amount can only be read or written through that currency's decimal places
  */
-function EditAccountIdentityForm({
+export default function EditAccountIdentityModal({
   account,
-  currencies,
   onClose,
   onDeleteStarted,
   onDeleted,
   onDeleteFailed,
-}: EditAccountIdentityFormProps) {
+}: EditAccountIdentityModalProps) {
+  const { data: currencies = [] } = useCurrencies()
   const { panelRef, handleModalFieldKeyDown } = useModalFieldFocus()
   const updateAccount = useUpdateAccount()
   const deleteAccount = useDeleteAccount({ minimumPendingMs: MIN_DELETE_SPINNER_MS })
@@ -93,7 +82,23 @@ function EditAccountIdentityForm({
   const isRevolving = account.account_kind === 'revolving'
   const canLinkTaxAdvantagedCategory = account.account_kind === 'asset' && account.group_id === null && !account.is_archived
   const selectedCurrencySymbol = currencies.find((currency) => currency.id === account.currency)?.symbol ?? ''
-  const creditLimitExponent = getCurrencyExponent(currencies, account.currency)
+  const knownCreditLimitExponent = findCurrencyExponent(currencies, account.currency)
+  const isCreditLimitLocked = isRevolving && knownCreditLimitExponent === null
+
+  // The modal can open before the currency table arrives, which seeds the credit limit blank. Fill it in
+  // when the table lands so the field does not sit editable and empty over a stored limit, which a save
+  // would then clear. The field is disabled until this runs, so no typing can be overwritten
+  const seededWithoutExponentRef = useRef(knownCreditLimitExponent === null)
+
+  useEffect(() => {
+    if (knownCreditLimitExponent === null || !seededWithoutExponentRef.current) return
+
+    seededWithoutExponentRef.current = false
+    setForm((current) => ({
+      ...current,
+      credit_limit: fromMinorUnits(account.credit_limit, knownCreditLimitExponent),
+    }))
+  }, [account.credit_limit, knownCreditLimitExponent])
 
   const institutionOptions = useMemo<DropdownOption[]>(
     () => [
@@ -320,8 +325,9 @@ function EditAccountIdentityForm({
                         fieldErrors={fieldErrors}
                         canLinkTaxAdvantagedCategory={canLinkTaxAdvantagedCategory}
                         isRevolving={isRevolving}
+                        isCreditLimitLocked={isCreditLimitLocked}
                         selectedCurrencySymbol={selectedCurrencySymbol}
-                        creditLimitExponent={creditLimitExponent}
+                        creditLimitExponent={knownCreditLimitExponent ?? DEFAULT_MINOR_UNIT_EXPONENT}
                         taxAdvantagedCategoryOptions={taxAdvantagedCategoryOptions}
                         setField={setField}
                       />

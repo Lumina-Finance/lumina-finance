@@ -5,7 +5,7 @@ import type { Currency } from '@/api/currency'
 const CANONICAL_DECIMAL = '.'
 
 // Currencies missing from the table are treated as having two decimal places
-const DEFAULT_MINOR_UNIT_EXPONENT = 2
+export const DEFAULT_MINOR_UNIT_EXPONENT = 2
 
 // Whole digits, then at most one decimal point and its digits. Latin digits only, since a
 // character the field cannot read is a character it will not take
@@ -64,6 +64,17 @@ export function readMoneyInputChange(value: string, typed: string, exponent: num
  */
 export function getCurrencyExponent(currencies: Currency[], code: string): number {
   return currencies.find((currency) => currency.id === code)?.minor_unit_exponent ?? DEFAULT_MINOR_UNIT_EXPONENT
+}
+
+/**
+ * Returns the number of decimal places a currency uses, or null when the code is not in the table
+ *
+ * A form holding a stored amount needs the difference the fallback above hides: without the real
+ * exponent it can neither show that amount nor convert an edit to it, so the field has to stand down
+ * rather than display a number scaled by a guess
+ */
+export function findCurrencyExponent(currencies: Currency[], code: string): number | null {
+  return currencies.find((currency) => currency.id === code)?.minor_unit_exponent ?? null
 }
 
 /**
