@@ -312,7 +312,7 @@ export default function CreateTransactionModal({
             dateError={showError('date')}
             currencyOptions={currencyOptions}
             currencyValue={form.currency}
-            currencyPlaceholder={currencies.length === 0 ? 'Loading...' : 'Select...'}
+            currencyPlaceholder={isAmountLocked ? 'Unavailable' : 'Select...'}
             selectedCurrencySymbol={selectedCurrencySymbol}
             currencyExponent={selectedCurrencyExponent}
             isAmountLocked={isAmountLocked}

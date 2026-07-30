@@ -80,6 +80,11 @@ export default function TransactionDetailsSection({
             <IconTooltip label="Transaction currency limitation">
               Locked to the selected account's currency
             </IconTooltip>
+            {isAmountLocked && (
+              <IconTooltip label="Currency list unavailable" level="important" modalFieldTabStop>
+                {CURRENCY_LIST_FIELD_NOTICE}
+              </IconTooltip>
+            )}
           </div>
           <Dropdown
             options={currencyOptions}
