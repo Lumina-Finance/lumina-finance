@@ -5,22 +5,22 @@ import { useCreateCategory, type Category } from '@/api/categories'
 import Dropdown from '@/components/dropdown/Dropdown'
 import CategoryIconSelector from '@/components/category-icon-selector/Selector'
 import CreateModalSectionFrame from '@/components/create-modal/SectionFrame'
-import CreateReferenceModalShell, {
-  type CreateReferenceModalVariant,
-} from '@/components/create-modal/ReferenceModalShell'
+import { ModalTitledPanel } from '@/components/modal/TitledPanel'
+import { ModalFormFooter } from '@/components/modal/FormFooter'
+import type { ModalLevel } from '@/components/modal/Shell'
 import { CREATE_CATEGORY_FIELD_IDS } from '@/components/reference-modals/createCategoryConstants'
 import { waitForMilliseconds } from '@/utils/timing'
 
 type CategoryKind = Category['kind']
 type CreateCategoryField = 'icon' | 'name'
 type CreateCategoryFieldErrors = Partial<Record<CreateCategoryField, string>>
-type CreateCategoryModalVariant = CreateReferenceModalVariant
 
 interface CreateCategoryModalProps {
   open: boolean
   initialKind?: CategoryKind
   initialName?: string
-  variant?: CreateCategoryModalVariant
+  /** Set to stacked where this opens from inside another modal's picker */
+  level?: ModalLevel
   onClose: () => void
   onCreated: (category: Category) => void
 }
@@ -40,15 +40,15 @@ const KIND_OPTIONS = KIND_ORDER.map((kind) => ({ value: kind, label: KIND_LABELS
  * Modal for creating a new category, collecting its icon, name, and kind before handing the created
  * category back through `onCreated`
  *
- * The secondary variant renders as the compact inline form used when creating a category from inside
- * another reference picker, while the primary variant is the standalone modal. Submission enforces a
+ * At the stacked level it renders as the compact inline form used when creating a category from inside
+ * another reference picker, and at the page level as the standalone modal. Submission enforces a
  * minimum loading duration so the success state does not flash by unnoticed on fast responses
  */
 export default function CreateCategoryModal({
   open,
   initialKind = 'expense',
   initialName = '',
-  variant = 'primary',
+  level = 'page',
   onClose,
   onCreated,
 }: CreateCategoryModalProps) {
@@ -66,7 +66,7 @@ export default function CreateCategoryModal({
   const [formError, setFormError] = useState<string | null>(null)
   const [createInProgress, setCreateInProgress] = useState(false)
   const isCreating = createCategory.isPending || createInProgress
-  const isSecondary = variant === 'secondary'
+  const isSecondary = level === 'stacked'
 
   const showError = (field: CreateCategoryField) => touched[field] && fieldErrors[field]
   const setField = <K extends keyof typeof form>(field: K, value: (typeof form)[K]) => {
@@ -119,19 +119,25 @@ export default function CreateCategoryModal({
   const submitWidth = isSecondary ? 'w-full sm:w-32' : 'w-full sm:w-40'
 
   return (
-    <CreateReferenceModalShell
+    <ModalTitledPanel
       open={open}
-      variant={variant}
-      modalTitleId="create-category-title"
+      level={level}
+      titleId="create-category-title"
       eyebrow={eyebrow}
       title={title}
       railLabel={railLabel}
       RailIcon={Tag}
-      submitDisabled={isCreating}
-      submitLabel={submitLabel}
-      submitWidthClassName={submitWidth}
       onClose={onClose}
       onSubmit={handleSubmit}
+      footer={
+        <ModalFormFooter
+          submitLabel={submitLabel}
+          submitDisabled={isCreating}
+          submitWidthClassName={submitWidth}
+          level={level}
+          onCancel={onClose}
+        />
+      }
     >
       <div className="space-y-5">
         <CreateModalSectionFrame step="01">
@@ -233,6 +239,6 @@ export default function CreateCategoryModal({
           )}
         </AnimatePresence>
       </div>
-    </CreateReferenceModalShell>
+    </ModalTitledPanel>
   )
 }

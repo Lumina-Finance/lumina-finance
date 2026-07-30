@@ -5,7 +5,8 @@ import { useCreateInstitution, type Institution } from '@/api/institutions'
 import Dropdown from '@/components/dropdown/Dropdown'
 import CreateModalFieldLabelRow from '@/components/create-modal/FieldLabelRow'
 import CreateModalSectionFrame from '@/components/create-modal/SectionFrame'
-import CreateReferenceModalShell from '@/components/create-modal/ReferenceModalShell'
+import { ModalTitledPanel } from '@/components/modal/TitledPanel'
+import { ModalFormFooter } from '@/components/modal/FormFooter'
 import { CREATE_INSTITUTION_FIELD_IDS } from '@/components/reference-modals/createInstitutionConstants'
 import { COUNTRY_OPTIONS } from '@/constants/countries'
 import { waitForMilliseconds } from '@/utils/timing'
@@ -112,17 +113,23 @@ export default function CreateInstitutionModal({
   const showError = (field: CreateInstitutionField) => touched[field] && fieldErrors[field]
 
   return (
-    <CreateReferenceModalShell
+    <ModalTitledPanel
       open={open}
-      variant="secondary"
-      modalTitleId="create-institution-title"
+      level="stacked"
+      titleId="create-institution-title"
       eyebrow="Account setup"
       title="Add Institution"
-      submitDisabled={isCreating}
-      submitLabel="Create"
-      submitWidthClassName="w-full sm:w-32"
       onClose={onClose}
       onSubmit={handleSubmit}
+      footer={
+        <ModalFormFooter
+          submitLabel="Create"
+          submitDisabled={isCreating}
+          submitWidthClassName="w-full sm:w-32"
+          level="stacked"
+          onCancel={onClose}
+        />
+      }
     >
       <div className="space-y-5">
         <CreateModalSectionFrame step="01">
@@ -192,6 +199,6 @@ export default function CreateInstitutionModal({
           )}
         </AnimatePresence>
       </div>
-    </CreateReferenceModalShell>
+    </ModalTitledPanel>
   )
 }

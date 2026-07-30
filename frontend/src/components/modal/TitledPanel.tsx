@@ -41,8 +41,9 @@ interface ModalTitledPanelProps {
   eyebrow: string
   /** Note appended to the eyebrow in warning colour, for something to take in before saving */
   headerStatus?: string
-  RailIcon: LucideIcon
-  railLabel: string
+  /** Icon for the labelled edge of the panel. Left out together with railLabel by a panel with no rail */
+  RailIcon?: LucideIcon
+  railLabel?: string
   level?: ModalLevel
   /** Blocks dismissal while an action is in flight */
   closeDisabled?: boolean
@@ -129,15 +130,17 @@ export function ModalTitledPanel({
       onExitComplete={onExitComplete}
       animateHeight={animateHeight}
     >
-      <div className={chrome.railClassName} style={chrome.railStyle} aria-hidden>
-        <RailIcon size={chrome.railIconSize} strokeWidth={2} />
-        <span
-          className={`${chrome.railLabelClassName} rotate-180 font-semibold uppercase`}
-          style={{ writingMode: 'vertical-rl' }}
-        >
-          {railLabel}
-        </span>
-      </div>
+      {RailIcon && railLabel && (
+        <div className={chrome.railClassName} style={chrome.railStyle} aria-hidden>
+          <RailIcon size={chrome.railIconSize} strokeWidth={2} />
+          <span
+            className={`${chrome.railLabelClassName} rotate-180 font-semibold uppercase`}
+            style={{ writingMode: 'vertical-rl' }}
+          >
+            {railLabel}
+          </span>
+        </div>
+      )}
 
       {/* Fields go in a form so Enter submits them. A panel that only manages things through their own
           controls has nothing to submit, and a form there would announce one that does nothing */}

@@ -59,7 +59,7 @@ export default function TransactionReferenceCreationModals({
         key={merchantModalKey}
         open={parentOpen && merchantOpen}
         initialName={merchantInitialName}
-        variant="secondary"
+        level="stacked"
         categoryOptions={merchantCategoryOptions}
         onClose={onCloseMerchant}
         onCreated={onMerchantCreated}
@@ -69,7 +69,7 @@ export default function TransactionReferenceCreationModals({
         open={parentOpen && categoryOpen}
         initialName={categoryInitialName}
         initialKind={categoryInitialKind}
-        variant="secondary"
+        level="stacked"
         onClose={onCloseCategory}
         onCreated={onCategoryCreated}
       />
@@ -78,7 +78,7 @@ export default function TransactionReferenceCreationModals({
         open={parentOpen && tagOpen}
         initialName={tagInitialName}
         groupId={tagGroupId}
-        variant="secondary"
+        level="stacked"
         onClose={onCloseTag}
         onCreated={onTagCreated}
       />
