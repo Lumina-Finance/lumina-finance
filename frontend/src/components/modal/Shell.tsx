@@ -93,9 +93,13 @@ export function ModalShell({
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
 
     return () => {
-      // A trigger the modal's own work removed from the page, such as a row it archived, has nothing to go
-      // back to, so focus is left where it falls rather than sent somewhere arbitrary
-      if (opener?.isConnected) opener.focus({ preventScroll: true })
+      // Waits a frame rather than restoring straight away. Closing a stacked modal leaves the panel beneath
+      // it inert until React renders the stack change, and focus cannot land inside an inert subtree
+      window.requestAnimationFrame(() => {
+        // A trigger the modal's own work removed from the page, such as a row it archived, has nothing to go
+        // back to, so focus is left where it falls rather than sent somewhere arbitrary
+        if (opener?.isConnected) opener.focus({ preventScroll: true })
+      })
     }
   }, [open])
 
