@@ -10,6 +10,7 @@ import {
   CREATE_CATEGORY_VALUE,
   DEFAULT_CATEGORY_ICON,
   KIND_LABELS,
+  KIND_RANKS,
 } from '@/pages/imports/constants'
 import type { ColumnMap, ImportAccountSource, ImportFileDraft } from '@/pages/imports/types'
 import { getImportAccountName } from './accountMapping'
@@ -65,7 +66,7 @@ export function buildImportCategoryMatchOptions(categories: Category[] = []): Dr
     },
     ...categories
       .slice()
-      .sort((a, b) => a.kind.localeCompare(b.kind) || a.name.localeCompare(b.name))
+      .sort((a, b) => KIND_RANKS[a.kind] - KIND_RANKS[b.kind] || a.name.localeCompare(b.name))
       .map((category) => ({
         value: category.id,
         label: category.name,
