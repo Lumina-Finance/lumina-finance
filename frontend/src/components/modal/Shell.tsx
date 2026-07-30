@@ -133,8 +133,7 @@ export function ModalShell({
     if (!open) return
 
     const holdFocusInPanel = (event: KeyboardEvent) => {
-      // A control that handles Tab itself has already moved focus, such as one stepping between its own parts
-      if (event.key !== 'Tab' || event.defaultPrevented) return
+      if (event.key !== 'Tab') return
       if (!isTopMostModal(token)) return
 
       const panel = panelRef.current
@@ -156,8 +155,11 @@ export function ModalShell({
       getNextTabStop(focusable, from, event.shiftKey)?.focus()
     }
 
-    document.addEventListener('keydown', holdFocusInPanel)
-    return () => document.removeEventListener('keydown', holdFocusInPanel)
+    // Capture phase, so a control between the panel and the document cannot stop the event before this sees
+    // it. Nothing in the app handles Tab itself, and anything added later that wants to would have to be let
+    // through here rather than by stopping the event
+    document.addEventListener('keydown', holdFocusInPanel, true)
+    return () => document.removeEventListener('keydown', holdFocusInPanel, true)
   }, [open, token])
 
   return createPortal(
