@@ -9,7 +9,7 @@ import type {
   AccountSpendingBreakdown,
 } from '@/api/accounts'
 import type { Currency } from '@/api/currency'
-import { getNextModalFieldTabStop } from '@/components/modal/focus'
+import { getNextTabStop } from '@/components/modal/focus'
 import { EDIT_ACCOUNT_IDENTITY_FIELD_IDS } from '@/pages/accounts/detail/constants/accountDetail'
 import { calendarDateMs } from '@/pages/accounts/detail/utils/calendarDate'
 import {
@@ -181,11 +181,11 @@ describe('identity form helpers', () => {
       EDIT_ACCOUNT_IDENTITY_FIELD_IDS.deleteName,
     ]
 
-    expect(getNextModalFieldTabStop(fieldTabStops, null, false)).toBe(EDIT_ACCOUNT_IDENTITY_FIELD_IDS.name)
-    expect(getNextModalFieldTabStop(fieldTabStops, EDIT_ACCOUNT_IDENTITY_FIELD_IDS.name, false)).toBe(EDIT_ACCOUNT_IDENTITY_FIELD_IDS.institution)
-    expect(getNextModalFieldTabStop(fieldTabStops, EDIT_ACCOUNT_IDENTITY_FIELD_IDS.institution, false)).toBe(EDIT_ACCOUNT_IDENTITY_FIELD_IDS.taxAdvantagedCategory)
-    expect(getNextModalFieldTabStop(fieldTabStops, EDIT_ACCOUNT_IDENTITY_FIELD_IDS.deleteName, false)).toBe(EDIT_ACCOUNT_IDENTITY_FIELD_IDS.name)
-    expect(getNextModalFieldTabStop(fieldTabStops, EDIT_ACCOUNT_IDENTITY_FIELD_IDS.name, true)).toBe(EDIT_ACCOUNT_IDENTITY_FIELD_IDS.deleteName)
+    expect(getNextTabStop(fieldTabStops, null, false)).toBe(EDIT_ACCOUNT_IDENTITY_FIELD_IDS.name)
+    expect(getNextTabStop(fieldTabStops, EDIT_ACCOUNT_IDENTITY_FIELD_IDS.name, false)).toBe(EDIT_ACCOUNT_IDENTITY_FIELD_IDS.institution)
+    expect(getNextTabStop(fieldTabStops, EDIT_ACCOUNT_IDENTITY_FIELD_IDS.institution, false)).toBe(EDIT_ACCOUNT_IDENTITY_FIELD_IDS.taxAdvantagedCategory)
+    expect(getNextTabStop(fieldTabStops, EDIT_ACCOUNT_IDENTITY_FIELD_IDS.deleteName, false)).toBe(EDIT_ACCOUNT_IDENTITY_FIELD_IDS.name)
+    expect(getNextTabStop(fieldTabStops, EDIT_ACCOUNT_IDENTITY_FIELD_IDS.name, true)).toBe(EDIT_ACCOUNT_IDENTITY_FIELD_IDS.deleteName)
   })
 })
 

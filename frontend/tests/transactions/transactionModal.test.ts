@@ -20,7 +20,7 @@ import {
 } from '@/pages/transactions/components/transaction-modal/utils/payloads'
 import { validateTransactionForm } from '@/pages/transactions/components/transaction-modal/utils/validation'
 import {
-  getNextModalFieldTabStop,
+  getNextTabStop,
 } from '@/components/modal/focus'
 import { TRANSACTION_MODAL_FIELD_IDS } from '@/pages/transactions/components/transaction-modal/constants'
 
@@ -284,11 +284,11 @@ describe('transaction modal helpers', () => {
       'notes',
     ]
 
-    expect(getNextModalFieldTabStop(fieldTabStops, null, false)).toBe(TRANSACTION_MODAL_FIELD_IDS.account)
-    expect(getNextModalFieldTabStop(fieldTabStops, TRANSACTION_MODAL_FIELD_IDS.account, false)).toBe(TRANSACTION_MODAL_FIELD_IDS.merchant)
-    expect(getNextModalFieldTabStop(fieldTabStops, TRANSACTION_MODAL_FIELD_IDS.merchant, false)).toBe(TRANSACTION_MODAL_FIELD_IDS.category)
-    expect(getNextModalFieldTabStop(fieldTabStops, 'notes', false)).toBe(TRANSACTION_MODAL_FIELD_IDS.account)
-    expect(getNextModalFieldTabStop(fieldTabStops, TRANSACTION_MODAL_FIELD_IDS.account, true)).toBe('notes')
-    expect(getNextModalFieldTabStop([], null, false)).toBeNull()
+    expect(getNextTabStop(fieldTabStops, null, false)).toBe(TRANSACTION_MODAL_FIELD_IDS.account)
+    expect(getNextTabStop(fieldTabStops, TRANSACTION_MODAL_FIELD_IDS.account, false)).toBe(TRANSACTION_MODAL_FIELD_IDS.merchant)
+    expect(getNextTabStop(fieldTabStops, TRANSACTION_MODAL_FIELD_IDS.merchant, false)).toBe(TRANSACTION_MODAL_FIELD_IDS.category)
+    expect(getNextTabStop(fieldTabStops, 'notes', false)).toBe(TRANSACTION_MODAL_FIELD_IDS.account)
+    expect(getNextTabStop(fieldTabStops, TRANSACTION_MODAL_FIELD_IDS.account, true)).toBe('notes')
+    expect(getNextTabStop([], null, false)).toBeNull()
   })
 })

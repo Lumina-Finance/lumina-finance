@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
-import { getNextModalFieldTabStop } from '@/components/modal/focus'
+import { getNextTabStop } from '@/components/modal/focus'
 import type { BudgetFormState } from '@/pages/budgets/types'
 import { validateBudgetCreateForm } from '@/pages/budgets/utils/budgetCreateValidation'
 import { sameStringSet } from '@/pages/budgets/utils/form'
@@ -91,10 +91,10 @@ describe('budget form helpers', () => {
       'budget-category-search',
     ]
 
-    expect(getNextModalFieldTabStop(fieldTabStops, null, false)).toBe('budget-name')
-    expect(getNextModalFieldTabStop(fieldTabStops, 'budget-name', false)).toBe('budget-currency')
-    expect(getNextModalFieldTabStop(fieldTabStops, 'budget-currency', false)).toBe('budget-limit')
-    expect(getNextModalFieldTabStop(fieldTabStops, 'budget-category-search', false)).toBe('budget-name')
-    expect(getNextModalFieldTabStop(fieldTabStops, 'budget-name', true)).toBe('budget-category-search')
+    expect(getNextTabStop(fieldTabStops, null, false)).toBe('budget-name')
+    expect(getNextTabStop(fieldTabStops, 'budget-name', false)).toBe('budget-currency')
+    expect(getNextTabStop(fieldTabStops, 'budget-currency', false)).toBe('budget-limit')
+    expect(getNextTabStop(fieldTabStops, 'budget-category-search', false)).toBe('budget-name')
+    expect(getNextTabStop(fieldTabStops, 'budget-name', true)).toBe('budget-category-search')
   })
 })

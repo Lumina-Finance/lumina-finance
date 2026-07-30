@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import {
   getModalFieldTabStops,
-  getNextModalFieldTabStop,
+  getNextTabStop,
   requestFirstModalFieldFocus,
 } from '@/components/modal/focus'
 
@@ -33,7 +33,7 @@ export function useModalFieldFocus<T extends HTMLElement = HTMLDivElement>(open 
 
     const fieldTabStops = getModalFieldTabStops(panel)
     const activeElement = document.activeElement instanceof HTMLElement ? document.activeElement : null
-    const nextField = getNextModalFieldTabStop(fieldTabStops, activeElement, event.shiftKey)
+    const nextField = getNextTabStop(fieldTabStops, activeElement, event.shiftKey)
 
     if (!nextField) {
       event.preventDefault()

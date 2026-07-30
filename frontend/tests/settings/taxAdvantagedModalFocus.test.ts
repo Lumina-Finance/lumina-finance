@@ -2,7 +2,7 @@
  * Tests TAC modal helper behaviour so field-only keyboard focus stays aligned across create, details, and annual-limit dialogs
  */
 import { describe, expect, it } from 'vitest'
-import { getNextModalFieldTabStop } from '@/components/modal/focus'
+import { getNextTabStop } from '@/components/modal/focus'
 import { CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/modalFieldIds'
 
 describe('tax-advantaged category modal field focus', () => {
@@ -15,10 +15,10 @@ describe('tax-advantaged category modal field focus', () => {
       CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.accruedContributions,
     ]
 
-    expect(getNextModalFieldTabStop(fieldTabStops, null, false)).toBe(CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.name)
-    expect(getNextModalFieldTabStop(fieldTabStops, CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.name, false)).toBe(CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.taxTreatment)
-    expect(getNextModalFieldTabStop(fieldTabStops, CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.taxTreatment, false)).toBe(CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.currency)
-    expect(getNextModalFieldTabStop(fieldTabStops, CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.accruedContributions, false)).toBe(CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.name)
-    expect(getNextModalFieldTabStop(fieldTabStops, CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.name, true)).toBe(CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.accruedContributions)
+    expect(getNextTabStop(fieldTabStops, null, false)).toBe(CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.name)
+    expect(getNextTabStop(fieldTabStops, CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.name, false)).toBe(CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.taxTreatment)
+    expect(getNextTabStop(fieldTabStops, CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.taxTreatment, false)).toBe(CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.currency)
+    expect(getNextTabStop(fieldTabStops, CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.accruedContributions, false)).toBe(CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.name)
+    expect(getNextTabStop(fieldTabStops, CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.name, true)).toBe(CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.accruedContributions)
   })
 })
