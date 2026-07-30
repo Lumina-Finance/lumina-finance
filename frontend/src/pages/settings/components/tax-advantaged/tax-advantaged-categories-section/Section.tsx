@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { AnimatePresence } from 'motion/react'
 import { Plus } from 'lucide-react'
 import type { AccountsOverview } from '@/api/accounts'
 import { GlassSearchField } from '@/components/list-controls/GlassSearchField'
@@ -29,10 +28,20 @@ export default function TaxAdvantagedCategoriesSection({
   const { data: currencies = [] } = useCurrencies()
   const { data: plans = [], isLoading } = useTaxAdvantagedCategories()
   const [openCategoryId, setOpenCategoryId] = useState<string | null>(null)
+  // Held apart from the selection so the panel keeps its contents while it animates out
+  const [isCategoryOpen, setIsCategoryOpen] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const requireCurrencies = useCurrencyGuard()
   const [createModalKey, setCreateModalKey] = useState(0)
   const [search, setSearch] = useState('')
+
+  /**
+   * Opens a category's details, recording the selection and the open state together
+   */
+  const openCategoryDetails = (categoryId: string) => {
+    setOpenCategoryId(categoryId)
+    setIsCategoryOpen(true)
+  }
   const openCategory = plans.find((plan) => plan.id === openCategoryId) ?? null
   const { currentYear, filteredPlans, linkedAccountCounts } = useTaxAdvantagedCategoryList({
     accounts,
@@ -87,32 +96,34 @@ export default function TaxAdvantagedCategoriesSection({
             <TaxAdvantagedCategoriesTable
               currentYear={currentYear}
               linkedAccountCounts={linkedAccountCounts}
-              onSelect={setOpenCategoryId}
+              onSelect={openCategoryDetails}
               plans={filteredPlans}
             />
           )}
         </div>
       </SettingsCard>
 
-      <AnimatePresence>
-        {showCreateModal && (
-          <CreateTaxAdvantagedCategoryModal
-            key={createModalKey}
-            currencies={currencies}
-            onClose={() => setShowCreateModal(false)}
-            userBaseCurrency={userBaseCurrency}
-          />
-        )}
-        {openCategory && (
-          <TaxAdvantagedCategoryModal
-            key={openCategory.id}
-            accounts={accounts}
-            currencies={currencies}
-            plan={openCategory}
-            onClose={() => setOpenCategoryId(null)}
-          />
-        )}
-      </AnimatePresence>
+      <CreateTaxAdvantagedCategoryModal
+        key={createModalKey}
+        open={showCreateModal}
+        currencies={currencies}
+        onClose={() => setShowCreateModal(false)}
+        userBaseCurrency={userBaseCurrency}
+      />
+
+      {/* Held on its own state rather than derived from the selection, so the panel keeps its category while
+          it animates out after the selection has already gone */}
+      {openCategory && (
+        <TaxAdvantagedCategoryModal
+          key={openCategory.id}
+          open={isCategoryOpen}
+          accounts={accounts}
+          currencies={currencies}
+          plan={openCategory}
+          onClose={() => setIsCategoryOpen(false)}
+          onExitComplete={() => setOpenCategoryId(null)}
+        />
+      )}
     </section>
   )
 }

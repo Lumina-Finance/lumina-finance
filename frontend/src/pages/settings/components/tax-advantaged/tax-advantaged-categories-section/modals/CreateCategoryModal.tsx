@@ -1,4 +1,3 @@
-import { useEffect } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Landmark } from 'lucide-react'
 import type { Currency } from '@/api/currency'
@@ -18,10 +17,12 @@ import {
  * Renders the modal for creating a new tax-advantaged category
  */
 export default function CreateTaxAdvantagedCategoryModal({
+  open,
   currencies,
   onClose,
   userBaseCurrency,
 }: {
+  open: boolean
   currencies: Currency[]
   onClose: () => void
   userBaseCurrency?: string
@@ -36,20 +37,9 @@ export default function CreateTaxAdvantagedCategoryModal({
     setField,
   } = useCreateTaxAdvantagedCategoryForm({ currencies, onClose, userBaseCurrency })
 
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => {
-      window.removeEventListener('keydown', onKeyDown)
-    }
-  }, [onClose])
-
   return (
     <ModalTitledPanel
-      open
+      open={open}
       onClose={onClose}
       onSubmit={handleCreatePlan}
       titleId="create-tax-advantaged-category-title"

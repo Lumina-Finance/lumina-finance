@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import { ModalShell } from '@/components/modal/Shell'
 import { Check, Trash2, X } from 'lucide-react'
@@ -26,13 +27,18 @@ import { TaxAdvantagedCurrencyWarning } from '@/pages/settings/components/tax-ad
  * Renders the TAC management modal shell with details, limit, and account workflows
  */
 export default function TaxAdvantagedCategoryModal({
+  open,
   accounts,
   onClose,
+  onExitComplete,
   plan,
   currencies,
 }: {
+  open: boolean
   accounts: AccountsOverview[]
   onClose: () => void
+  /** Runs once the panel has finished leaving, which the section waits on before dropping the selection */
+  onExitComplete: () => void
   plan: TaxAdvantagedCategory
   currencies: Currency[]
 }) {
@@ -166,29 +172,33 @@ export default function TaxAdvantagedCategoryModal({
 
   return (
     <>
-      <AnimatePresence>
-        {autosaveNotice && (
-          <motion.div
-            role={autosaveNotice.status === 'error' ? 'alert' : 'status'}
-            aria-live={autosaveNotice.status === 'error' ? 'assertive' : 'polite'}
-            className="fixed bottom-5 right-5 z-[70] flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium shadow-lg"
-            style={{
-              background: 'var(--app-bg)',
-              border: '1px solid var(--app-border-strong)',
-              color: autosaveNoticeColor(autosaveNotice.status),
-            }}
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.16 }}
-          >
-            <TaxAdvantagedAutosaveStatusIcon status={autosaveNotice.status} />
-            <span>{autosaveNotice.message}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {createPortal(
+        <AnimatePresence>
+          {autosaveNotice && (
+            <motion.div
+              role={autosaveNotice.status === 'error' ? 'alert' : 'status'}
+              aria-live={autosaveNotice.status === 'error' ? 'assertive' : 'polite'}
+              className="fixed bottom-5 right-5 z-[70] flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium shadow-lg"
+              style={{
+                background: 'var(--app-bg)',
+                border: '1px solid var(--app-border-strong)',
+                color: autosaveNoticeColor(autosaveNotice.status),
+              }}
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.16 }}
+            >
+              <TaxAdvantagedAutosaveStatusIcon status={autosaveNotice.status} />
+              <span>{autosaveNotice.message}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body,
+      )}
       <ModalShell
-        open
+        open={open}
+        onExitComplete={onExitComplete}
         onClose={onClose}
         titleId="tax-advantaged-category-title"
         panelClassName="flex max-h-[86vh] w-full max-w-[64rem] overflow-hidden"
