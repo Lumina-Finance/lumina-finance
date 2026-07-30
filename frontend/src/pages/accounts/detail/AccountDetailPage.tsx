@@ -167,18 +167,15 @@ export default function AccountDetailPage() {
             readOnly={Boolean(editingTransaction && visibleAccount.is_archived)}
           />
 
-          <AnimatePresence onExitComplete={handleAccountEditModalExitComplete}>
-            {showAccountEditModal && (
-              <EditAccountIdentityModal
-                key="edit-account-modal"
-                account={visibleAccount}
-                onClose={() => setShowAccountEditModal(false)}
-                onDeleteStarted={handleAccountDeleteStarted}
-                onDeleted={handleAccountDeleted}
-                onDeleteFailed={handleAccountDeleteFailed}
-              />
-            )}
-          </AnimatePresence>
+          <EditAccountIdentityModal
+            open={showAccountEditModal}
+            account={visibleAccount}
+            onClose={() => setShowAccountEditModal(false)}
+            onExitComplete={handleAccountEditModalExitComplete}
+            onDeleteStarted={handleAccountDeleteStarted}
+            onDeleted={handleAccountDeleted}
+            onDeleteFailed={handleAccountDeleteFailed}
+          />
         </motion.div>
       )}
     </AnimatePresence>

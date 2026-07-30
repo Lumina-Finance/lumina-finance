@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
-import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import {
   useDeleteAccount,
@@ -12,7 +11,7 @@ import { useInstitutions } from '@/api/institutions'
 import { useTaxAdvantagedCategories } from '@/api/tax-advantaged-categories'
 import CreateInstitutionModal from '@/components/reference-modals/CreateInstitutionModal'
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
-import { useModalFieldFocus } from '@/components/modal/useModalFieldFocus'
+import { ModalShell } from '@/components/modal/Shell'
 import {
   DEFAULT_MINOR_UNIT_EXPONENT,
   findCurrencyExponent,
@@ -37,12 +36,18 @@ import { AccountIdentitySection } from './sections/IdentitySection'
 import type { DeleteStage } from './types'
 
 type EditAccountIdentityModalProps = {
+  open: boolean
   account: Account
   onClose: () => void
+  /** Runs once the modal has finished leaving, which the page's own delete exit waits on */
+  onExitComplete?: () => void
   onDeleteStarted: (account: Account) => void
   onDeleted: (account: Account) => void
   onDeleteFailed: () => void
 }
+
+// Set on the heading inside the header component, which the dialog is labelled by
+const EDIT_ACCOUNT_IDENTITY_TITLE_ID = 'edit-account-identity-title'
 
 const MIN_SAVE_SPINNER_MS = 800
 const MIN_DELETE_SPINNER_MS = 1000
@@ -55,15 +60,16 @@ const MIN_DELETE_SPINNER_MS = 1000
  * stored amount can only be read or written through that currency's decimal places
  */
 export default function EditAccountIdentityModal({
+  open,
   account,
   onClose,
+  onExitComplete,
   onDeleteStarted,
   onDeleted,
   onDeleteFailed,
 }: EditAccountIdentityModalProps) {
   const { data: currencies = [] } = useCurrencies()
   const currencyState = useCurrencyListState()
-  const { panelRef, handleModalFieldKeyDown } = useModalFieldFocus()
   const updateAccount = useUpdateAccount()
   const deleteAccount = useDeleteAccount({ minimumPendingMs: MIN_DELETE_SPINNER_MS })
   const { data: institutions = [] } = useInstitutions()
@@ -244,155 +250,111 @@ export default function EditAccountIdentityModal({
     onClose()
   }
 
-  // Modal side effects stay here so section components remain render-only
-  useEffect(() => {
-    document.body.style.overflow = 'hidden'
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !isBusy) onClose()
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => {
-      document.body.style.overflow = ''
-      window.removeEventListener('keydown', onKeyDown)
-    }
-  }, [isBusy, onClose])
-
   return (
     <>
-      {createPortal(
-        <>
-          <motion.div
-            className="fixed inset-0 z-[100]"
-            style={{ background: 'rgba(0, 0, 0, 0.22)', backdropFilter: 'blur(6px)' }}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-            onClick={requestClose}
-            aria-hidden
+      <ModalShell
+        open={open}
+        onClose={requestClose}
+        closeDisabled={isBusy}
+        onExitComplete={onExitComplete}
+        titleId={EDIT_ACCOUNT_IDENTITY_TITLE_ID}
+        panelClassName="flex max-h-[84vh] w-full max-w-2xl overflow-hidden"
+        level="stacked"
+        animateHeight
+      >
+        <EditModalSideRail />
+
+        <motion.form
+          layout
+          onSubmit={handleSubmit}
+          className="flex min-h-0 w-full flex-col"
+          noValidate
+          transition={{ layout: { duration: 0.28, ease: EASE } }}
+        >
+          <EditModalHeader
+            accountType={account.account_type}
+            isBusy={isBusy}
+            onClose={requestClose}
           />
 
-          <motion.div
-            className="fixed inset-0 z-[100] flex items-center justify-center p-4"
-            initial={{ opacity: 0, scale: 0.94, y: 16 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.94, y: 16 }}
-            transition={{ duration: 0.22, ease: EASE }}
-            onClick={requestClose}
-          >
-            <motion.div
-              ref={panelRef}
-              layout
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="edit-account-identity-title"
-              className="app-modal-panel flex max-h-[84vh] w-full max-w-2xl overflow-hidden rounded-2xl"
-              style={{
-                background: 'var(--app-bg)',
-                border: '1px solid var(--app-border-strong)',
-                boxShadow: 'var(--app-shadow-soft)',
-              }}
-              transition={{ layout: { duration: 0.28, ease: EASE } }}
-              onClick={(event) => event.stopPropagation()}
-              onKeyDown={handleModalFieldKeyDown}
-            >
-              <EditModalSideRail />
+          <div className="min-h-0 flex-1 overflow-y-auto pb-3 pl-4 pr-5 pt-4 min-[1050px]:px-7">
+            <div className="space-y-5">
+              <AccountIdentitySection
+                form={form}
+                fieldErrors={fieldErrors}
+                institutionOptions={institutionOptions}
+                setField={setField}
+                onCreateInstitution={handleCreateInstitution}
+              />
 
-              <motion.form
-                layout
-                onSubmit={handleSubmit}
-                className="flex min-h-0 w-full flex-col"
-                noValidate
-                transition={{ layout: { duration: 0.28, ease: EASE } }}
-              >
-                <EditModalHeader
-                  accountType={account.account_type}
-                  isBusy={isBusy}
-                  onClose={requestClose}
+              {hasEditableAccountContext && (
+                <AccountDetailsSection
+                  form={form}
+                  fieldErrors={fieldErrors}
+                  canLinkTaxAdvantagedCategory={canLinkTaxAdvantagedCategory}
+                  isRevolving={isRevolving}
+                  currencyState={currencyState}
+                  selectedCurrencySymbol={selectedCurrencySymbol}
+                  creditLimitExponent={knownCreditLimitExponent ?? DEFAULT_MINOR_UNIT_EXPONENT}
+                  taxAdvantagedCategoryOptions={taxAdvantagedCategoryOptions}
+                  setField={setField}
                 />
+              )}
 
-                <div className="min-h-0 flex-1 overflow-y-auto pb-3 pl-4 pr-5 pt-4 min-[1050px]:px-7">
-                  <div className="space-y-5">
-                    <AccountIdentitySection
-                      form={form}
-                      fieldErrors={fieldErrors}
-                      institutionOptions={institutionOptions}
-                      setField={setField}
-                      onCreateInstitution={handleCreateInstitution}
-                    />
+              <AccountArchiveSection
+                sectionNumber={visibilitySectionNumber}
+                isArchived={form.is_archived}
+                isArchiving={isArchiving}
+                currentBalance={account.current_balance}
+                currency={account.currency}
+                onToggle={handleArchiveToggle}
+              />
 
-                    {hasEditableAccountContext && (
-                      <AccountDetailsSection
-                        form={form}
-                        fieldErrors={fieldErrors}
-                        canLinkTaxAdvantagedCategory={canLinkTaxAdvantagedCategory}
-                        isRevolving={isRevolving}
-                        currencyState={currencyState}
-                        selectedCurrencySymbol={selectedCurrencySymbol}
-                        creditLimitExponent={knownCreditLimitExponent ?? DEFAULT_MINOR_UNIT_EXPONENT}
-                        taxAdvantagedCategoryOptions={taxAdvantagedCategoryOptions}
-                        setField={setField}
-                      />
-                    )}
+              <AnimatePresence>
+                {submitError && (
+                  <motion.p
+                    className="text-sm font-medium"
+                    style={{ color: 'var(--app-negative)' }}
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    {submitError}
+                  </motion.p>
+                )}
+              </AnimatePresence>
 
-                    <AccountArchiveSection
-                      sectionNumber={visibilitySectionNumber}
-                      isArchived={form.is_archived}
-                      isArchiving={isArchiving}
-                      currentBalance={account.current_balance}
-                      currency={account.currency}
-                      onToggle={handleArchiveToggle}
-                    />
+              <DeleteAccountPanel
+                account={account}
+                deleteStage={deleteStage}
+                deleteNameInput={deleteNameInput}
+                deleteError={deleteError}
+                deleteLoading={deleteLoading}
+                isBusy={isBusy}
+                canDelete={canDelete}
+                onArchiveInstead={handleArchiveInstead}
+                onContinue={() => {
+                  setDeleteStage('type-name')
+                }}
+                onDelete={handleDeleteAccount}
+                onNameChange={(value) => {
+                  setDeleteNameInput(value)
+                  setDeleteError(null)
+                }}
+              />
+            </div>
+          </div>
 
-                    <AnimatePresence>
-                      {submitError && (
-                        <motion.p
-                          className="text-sm font-medium"
-                          style={{ color: 'var(--app-negative)' }}
-                          initial={{ opacity: 0, y: -4 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -4 }}
-                          transition={{ duration: 0.15 }}
-                        >
-                          {submitError}
-                        </motion.p>
-                      )}
-                    </AnimatePresence>
-
-                    <DeleteAccountPanel
-                      account={account}
-                      deleteStage={deleteStage}
-                      deleteNameInput={deleteNameInput}
-                      deleteError={deleteError}
-                      deleteLoading={deleteLoading}
-                      isBusy={isBusy}
-                      canDelete={canDelete}
-                      onArchiveInstead={handleArchiveInstead}
-                      onContinue={() => {
-                        setDeleteStage('type-name')
-                      }}
-                      onDelete={handleDeleteAccount}
-                      onNameChange={(value) => {
-                        setDeleteNameInput(value)
-                        setDeleteError(null)
-                      }}
-                    />
-                  </div>
-                </div>
-
-                <EditModalFooter
-                  deleteStage={deleteStage}
-                  isBusy={isBusy}
-                  saveLoading={saveLoading}
-                  onCancel={requestClose}
-                  onStartDelete={handleStartDeleteAccount}
-                />
-              </motion.form>
-            </motion.div>
-          </motion.div>
-        </>,
-        document.body,
-      )}
+          <EditModalFooter
+            deleteStage={deleteStage}
+            isBusy={isBusy}
+            saveLoading={saveLoading}
+            onCancel={requestClose}
+            onStartDelete={handleStartDeleteAccount}
+          />
+        </motion.form>
+      </ModalShell>
       <CreateInstitutionModal
         key={institutionModalKey}
         open={showInstitutionModal}
