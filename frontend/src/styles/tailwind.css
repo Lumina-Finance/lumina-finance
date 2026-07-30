@@ -578,8 +578,9 @@
     margin-left: 0;
   }
 
-  /* The mobile control floats at the bottom, so it stacks the panel above the pill and grows
-     upward while the panel content keeps its normal top-to-bottom order */
+  /* Stacks the panel above the pill and grows upward while the panel content keeps its normal
+     top-to-bottom order, for the mobile control that floats at the bottom of the screen and for a
+     filter panel opening on a window with no room beneath its pill */
   .app-range-glass-up {
     flex-direction: column-reverse;
   }

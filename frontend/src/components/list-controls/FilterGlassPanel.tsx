@@ -3,6 +3,12 @@ import type { ReactNode } from 'react'
 import { motion, useReducedMotion } from 'motion/react'
 import { ChevronDown, SlidersHorizontal, X } from 'lucide-react'
 import { FILTER_GLASS_SPRING, FILTER_PANEL_BODY_TRANSITION, FILTER_PILL_HEAD_STYLE } from '@/components/list-controls/toolbarStyles'
+import {
+  DEFAULT_FILTER_PANEL_PLACEMENT,
+  getFilterPanelPlacement,
+  type FilterPanelDirection,
+} from '@/components/list-controls/filterPanelPlacement'
+import { joinClassNames } from '@/utils/classNames'
 import { isFloatingLayerOpen, isInsideFloatingLayer } from '@/utils/floatingLayer'
 
 // Collapsed footprint used before the head is measured, so the toolbar slot does not jump on mount
@@ -12,17 +18,6 @@ const COLLAPSED_FALLBACK = { width: 140, height: 34 }
 // chevron, the chevron itself, and the borders, plus a couple of pixels so sub-pixel rounding never
 // clips the label. Added to the content width to size the pill
 const COLLAPSED_HEAD_CHROME = 64
-
-// The open panel fills to a consistent height with its option list growing to take the space, rather
-// than hugging each facet. This caps that height
-const OPEN_CONTENT_MAX = 440
-
-// Kept clear below the open panel so it never runs to the bottom edge of the viewport on a short
-// window, where the fill height shrinks to whatever space is left
-const OPEN_CONTENT_VIEWPORT_MARGIN = 24
-
-// Floor so a very short window still leaves the list usable rather than collapsing the panel
-const OPEN_CONTENT_MIN = 220
 
 type FilterGlassPanelProps = {
   // Accessible name for the collapsed pill button, naming the domain being filtered
@@ -40,8 +35,8 @@ type FilterGlassPanelProps = {
 /**
  * Renders the collapsing glass filter pill shared by the account and transaction desktop toolbars:
  * a pill that measures its own collapsed size, opens into an overlay anchored to its right edge so
- * it never shifts the toolbar height or the list below it, and caps its open height to the viewport.
- * The facet body is supplied as children so this component owns only the chrome
+ * it never shifts the toolbar height or the list below it, and opens upward when the space below it
+ * cannot hold the panel. The body is supplied as children so this component owns only the pill
  */
 export function FilterGlassPanel({
   ariaLabel,
@@ -54,7 +49,7 @@ export function FilterGlassPanel({
   children,
 }: FilterGlassPanelProps) {
   const [collapsedSize, setCollapsedSize] = useState(COLLAPSED_FALLBACK)
-  const [openContentHeight, setOpenContentHeight] = useState(OPEN_CONTENT_MAX)
+  const [placement, setPlacement] = useState(DEFAULT_FILTER_PANEL_PLACEMENT)
   const wrapperRef = useRef<HTMLDivElement>(null)
   const headRef = useRef<HTMLButtonElement>(null)
   const headContentRef = useRef<HTMLSpanElement>(null)
@@ -94,22 +89,40 @@ export function FilterGlassPanel({
     })
   }, [open, activeFacetCount])
 
-  // The open panel fills to a fixed height so the option list takes the available space instead of
-  // the panel hugging each facet. The height is capped at the viewport less a bottom margin, so a
-  // short window still leaves the panel clear of the bottom edge, and is remeasured on resize
+  // The open panel is one height whichever window it opens in, growing upward when the space under
+  // the pill cannot hold it. The toolbar is sticky, so scrolling moves the pill and changes which
+  // side has the room, and the panel is re-placed on both scroll and resize while it is open
   useLayoutEffect(() => {
     if (!open) return undefined
 
-    function measureOpenHeight() {
+    // Scoped to this open cycle so reopening picks a direction fresh, while a scroll partway
+    // through keeps the direction the panel is already open in
+    let openDirection: FilterPanelDirection | null = null
+
+    function measurePlacement() {
       const head = headRef.current
       if (!head) return
-      const available = window.innerHeight - head.getBoundingClientRect().bottom - OPEN_CONTENT_VIEWPORT_MARGIN
-      setOpenContentHeight(Math.round(Math.max(OPEN_CONTENT_MIN, Math.min(OPEN_CONTENT_MAX, available))))
+      const rect = head.getBoundingClientRect()
+      const next = getFilterPanelPlacement({
+        anchorRect: { bottom: rect.bottom, top: rect.top },
+        currentDirection: openDirection,
+        viewportHeight: window.innerHeight,
+      })
+      openDirection = next.direction
+      // Scrolling calls this on every frame, so an unchanged placement keeps the object it already
+      // has rather than re-rendering the panel
+      setPlacement((current) => (
+        current.direction === next.direction && current.height === next.height ? current : next
+      ))
     }
 
-    measureOpenHeight()
-    window.addEventListener('resize', measureOpenHeight)
-    return () => window.removeEventListener('resize', measureOpenHeight)
+    measurePlacement()
+    window.addEventListener('resize', measurePlacement)
+    window.addEventListener('scroll', measurePlacement, { passive: true })
+    return () => {
+      window.removeEventListener('resize', measurePlacement)
+      window.removeEventListener('scroll', measurePlacement)
+    }
   }, [open])
 
   // An outside press or Escape dismisses the panel and discards the draft
@@ -145,6 +158,9 @@ export function FilterGlassPanel({
   // The collapsed pill swaps the chevron for a clear control once filters are applied, so the user
   // can reset without opening the panel while the rest of the pill still opens it
   const showClearButton = activeFacetCount > 0 && !open
+  // Opening upward pins the glass to the bottom of the collapsed footprint and reverses the stack,
+  // so the head stays exactly where the pill was while the body grows over the page above it
+  const openUpward = placement.direction === 'up'
 
   return (
     <div
@@ -152,8 +168,16 @@ export function FilterGlassPanel({
       style={{ position: 'relative', marginLeft: 'auto', width: collapsedSize.width, height: collapsedSize.height }}
     >
       <motion.div
-        className="app-range-glass"
-        style={{ position: 'absolute', top: 0, right: 0, maxWidth: '90vw', zIndex: 50, marginLeft: 0 }}
+        className={joinClassNames('app-range-glass', openUpward && 'app-range-glass-up')}
+        style={{
+          position: 'absolute',
+          top: openUpward ? undefined : 0,
+          bottom: openUpward ? 0 : undefined,
+          right: 0,
+          maxWidth: '90vw',
+          zIndex: 50,
+          marginLeft: 0,
+        }}
         initial={false}
         animate={{ width: open ? openWidth : collapsedSize.width }}
         transition={transition}
@@ -210,10 +234,15 @@ export function FilterGlassPanel({
         <motion.div
           style={{ overflow: 'hidden' }}
           initial={false}
-          animate={{ height: open ? openContentHeight : 0, opacity: open ? 1 : 0 }}
+          animate={{ height: open ? placement.height : 0, opacity: open ? 1 : 0 }}
           transition={shouldReduceMotion ? { duration: 0 } : FILTER_PANEL_BODY_TRANSITION}
         >
-          <div className="flex flex-col" style={{ height: openContentHeight, padding: '0 12px 12px' }}>
+          {/* Scrolls only on a window too short to hold the controls that sit outside the option
+              list, where the list has already given up all of its own height */}
+          <div
+            className="flex flex-col overflow-y-auto"
+            style={{ height: placement.height, padding: '0 12px 12px' }}
+          >
             {children}
           </div>
         </motion.div>
