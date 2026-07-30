@@ -20,6 +20,8 @@ dependencies = [
     "pyotp>=2.10.0",
     "python-dotenv>=1.2.2",
     "sqlalchemy>=2.0.51",
+    # DO NOT REMOVE: required for timezone (see app/__init__.py)
+    "tzdata>=2026.3",
     "uvicorn>=0.51.0",
     "webauthn>=3.0.0",
 ]
