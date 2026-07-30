@@ -98,6 +98,16 @@ export default function EditAccountIdentityModal({
   // would then clear. The field is disabled until this runs, so no typing can be overwritten
   const seededWithoutExponentRef = useRef(isCreditLimitLocked && account.credit_limit !== null)
 
+  // Re-armed on each opening, since the form is reseeded then and may again be seeded before the table lands
+  useEffect(() => {
+    if (!open) return
+
+    seededWithoutExponentRef.current = isCreditLimitLocked && account.credit_limit !== null
+    // Only the opening matters here. Re-running as the table lands would re-arm the flag the fill-in below
+    // has just cleared, and fill the field a second time over whatever was typed since
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
+
   useEffect(() => {
     if (knownCreditLimitExponent === null || !seededWithoutExponentRef.current) return
 
@@ -107,6 +117,25 @@ export default function EditAccountIdentityModal({
       credit_limit: fromMinorUnits(account.credit_limit, knownCreditLimitExponent),
     }))
   }, [account.credit_limit, knownCreditLimitExponent])
+
+  // The modal stays mounted between openings, so everything typed, failed or half-confirmed last time is
+  // cleared on the way in. Without this, cancelling an edit and reopening shows the discarded values back.
+  // Adjusting state during the render that opens it, rather than in an effect, keeps the reset in the same
+  // render the fields first appear in, so no stale value is ever painted
+  const [wasOpen, setWasOpen] = useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (open) {
+      setForm(createIdentityFormValues(account, currencies))
+      setSubmitError(null)
+      setDeleteError(null)
+      setFieldErrors({})
+      setDeleteStage('idle')
+      setDeleteNameInput('')
+      setShowInstitutionModal(false)
+      setInstitutionModalName('')
+    }
+  }
 
   const institutionOptions = useMemo<DropdownOption[]>(
     () => [
