@@ -18,6 +18,14 @@ export const FILTER_PANEL_BODY_TRANSITION: Transition = {
   opacity: { duration: 0.26, delay: 0.05 },
 }
 
+// One half of a direction flip, played as the body pulls back into the pill and again as it comes
+// out the other side. Faster than opening, since replaying that timing twice would leave the panel
+// off screen for most of a second while the scroll that forced the flip carries on
+export const FILTER_PANEL_FLIP_TRANSITION: Transition = {
+  height: { duration: 0.2, ease: [0.22, 1, 0.36, 1] },
+  opacity: { duration: 0.14 },
+}
+
 // Lightly damped spring shared by the account and transaction filter glass panels so both settle
 // with the same feel
 export const FILTER_GLASS_SPRING = { type: 'spring', stiffness: 420, damping: 34, mass: 0.9 } as const

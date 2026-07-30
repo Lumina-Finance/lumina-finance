@@ -2,7 +2,12 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import type { ReactNode } from 'react'
 import { motion, useReducedMotion } from 'motion/react'
 import { ChevronDown, SlidersHorizontal, X } from 'lucide-react'
-import { FILTER_GLASS_SPRING, FILTER_PANEL_BODY_TRANSITION, FILTER_PILL_HEAD_STYLE } from '@/components/list-controls/toolbarStyles'
+import {
+  FILTER_GLASS_SPRING,
+  FILTER_PANEL_BODY_TRANSITION,
+  FILTER_PANEL_FLIP_TRANSITION,
+  FILTER_PILL_HEAD_STYLE,
+} from '@/components/list-controls/toolbarStyles'
 import {
   DEFAULT_FILTER_PANEL_PLACEMENT,
   getFilterPanelPlacement,
@@ -50,6 +55,12 @@ export function FilterGlassPanel({
 }: FilterGlassPanelProps) {
   const [collapsedSize, setCollapsedSize] = useState(COLLAPSED_FALLBACK)
   const [placement, setPlacement] = useState(DEFAULT_FILTER_PANEL_PLACEMENT)
+  // The side the body is drawn on, which lags a measured change of direction until the body has
+  // pulled back into the pill, so the anchoring never switches under content that is on screen
+  const [renderedDirection, setRenderedDirection] = useState(DEFAULT_FILTER_PANEL_PLACEMENT.direction)
+  // True for the second half of a flip, so coming back out runs at the flip's pace rather than the
+  // slower pace of an ordinary open
+  const [isFlipOpening, setIsFlipOpening] = useState(false)
   const wrapperRef = useRef<HTMLDivElement>(null)
   const headRef = useRef<HTMLButtonElement>(null)
   const headContentRef = useRef<HTMLSpanElement>(null)
@@ -108,6 +119,9 @@ export function FilterGlassPanel({
         currentDirection: openDirection,
         viewportHeight: window.innerHeight,
       })
+      // The first measurement of an open cycle lands before the panel has painted, so opening on
+      // the other side from last time is applied whole rather than played as a flip
+      if (openDirection === null) setRenderedDirection(next.direction)
       openDirection = next.direction
       // Scrolling calls this on every frame, so an unchanged placement keeps the object it already
       // has rather than re-rendering the panel
@@ -160,7 +174,23 @@ export function FilterGlassPanel({
   const showClearButton = activeFacetCount > 0 && !open
   // Opening upward pins the glass to the bottom of the collapsed footprint and reverses the stack,
   // so the head stays exactly where the pill was while the body grows over the page above it
-  const openUpward = placement.direction === 'up'
+  const openUpward = renderedDirection === 'up'
+  // A measured change of direction retracts the body first, and the pill is the fixed point of both
+  // sides, so the flip reads as the panel closing into it and reopening the other way
+  const isRetracting = open && renderedDirection !== placement.direction
+
+  /**
+   * Carries a flip from one half to the next: the anchoring switches once the body is fully
+   * retracted, and the second half ends the flip so an ordinary close animates at its own pace
+   */
+  function handleBodyAnimationComplete() {
+    if (isRetracting) {
+      setRenderedDirection(placement.direction)
+      setIsFlipOpening(true)
+      return
+    }
+    if (isFlipOpening) setIsFlipOpening(false)
+  }
 
   return (
     <div
@@ -234,8 +264,16 @@ export function FilterGlassPanel({
         <motion.div
           style={{ overflow: 'hidden' }}
           initial={false}
-          animate={{ height: open ? placement.height : 0, opacity: open ? 1 : 0 }}
-          transition={shouldReduceMotion ? { duration: 0 } : FILTER_PANEL_BODY_TRANSITION}
+          animate={{
+            height: open && !isRetracting ? placement.height : 0,
+            opacity: open && !isRetracting ? 1 : 0,
+          }}
+          transition={
+            shouldReduceMotion
+              ? { duration: 0 }
+              : isRetracting || isFlipOpening ? FILTER_PANEL_FLIP_TRANSITION : FILTER_PANEL_BODY_TRANSITION
+          }
+          onAnimationComplete={handleBodyAnimationComplete}
         >
           {/* Scrolls only on a window too short to hold the controls that sit outside the option
               list, where the list has already given up all of its own height */}
