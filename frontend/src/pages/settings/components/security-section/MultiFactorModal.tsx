@@ -299,6 +299,7 @@ export function MultiFactorModal({ open, onClose }: MultiFactorModalProps) {
       </ModalTitledPanel>
 
       <TotpEnrollmentModal
+        level="stacked"
         open={totp.openModal === 'enable'}
         initialSetup={totpSetup ?? undefined}
         onClose={() => {
