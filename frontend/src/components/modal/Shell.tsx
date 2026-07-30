@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useSyncExternalStore, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import { getFocusableElements, getNextTabStop, requestInitialModalFocus } from '@/components/modal/focus'
@@ -125,30 +125,40 @@ export function ModalShell({
     return () => window.removeEventListener('keydown', closeOnEscape)
   }, [closeDisabled, onClose, open, token])
 
-  /**
-   * Wraps Tab at the panel's first and last controls. The page behind is inert while a modal is open, so
-   * this only stops focus stepping out to the browser's own toolbar and back
-   */
-  const holdFocusInPanel = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== 'Tab') return
+  // Takes every Tab press while this is the top-most modal and moves focus to the next control in the panel
+  // itself, rather than letting the browser move focus and only correcting at the edges. Deciding where the
+  // edges are means matching the browser's tab order exactly, and any control it reaches that the panel's own
+  // list misses would let focus straight out to the browser's toolbar
+  useEffect(() => {
+    if (!open) return
 
-    const panel = panelRef.current
-    if (!panel) return
+    const holdFocusInPanel = (event: KeyboardEvent) => {
+      // A control that handles Tab itself has already moved focus, such as one stepping between its own parts
+      if (event.key !== 'Tab' || event.defaultPrevented) return
+      if (!isTopMostModal(token)) return
 
-    const focusable = getFocusableElements(panel)
-    if (focusable.length === 0) {
+      const panel = panelRef.current
+      if (!panel) return
+
       event.preventDefault()
-      return
+
+      const focusable = getFocusableElements(panel)
+      if (focusable.length === 0) {
+        panel.focus({ preventScroll: true })
+        return
+      }
+
+      // Focus that has ended up outside the panel, in an overlay the panel opened or on the page behind, is
+      // pulled back to whichever end of the panel it was heading towards
+      const active = document.activeElement instanceof HTMLElement ? document.activeElement : null
+      const from = active && panel.contains(active) ? active : null
+
+      getNextTabStop(focusable, from, event.shiftKey)?.focus()
     }
 
-    const active = document.activeElement instanceof HTMLElement ? document.activeElement : null
-    const atFirst = active === focusable[0] || active === panel
-    const atLast = active === focusable[focusable.length - 1]
-    if (event.shiftKey ? !atFirst : !atLast) return
-
-    event.preventDefault()
-    getNextTabStop(focusable, active, event.shiftKey)?.focus()
-  }
+    document.addEventListener('keydown', holdFocusInPanel)
+    return () => document.removeEventListener('keydown', holdFocusInPanel)
+  }, [open, token])
 
   return createPortal(
     <AnimatePresence onExitComplete={onExitComplete}>
@@ -172,7 +182,6 @@ export function ModalShell({
             data-tooltip-bounds={boundsTooltips ? true : undefined}
             className={`app-modal-panel ${panelClassName}`}
             onClick={(event) => event.stopPropagation()}
-            onKeyDown={holdFocusInPanel}
             layout={animateHeight}
             initial={appearance.panelOffset}
             animate={{ opacity: 1, scale: 1, y: 0 }}
