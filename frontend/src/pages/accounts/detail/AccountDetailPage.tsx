@@ -14,6 +14,7 @@ import { TopMerchantsBySpendingCard } from '@/pages/accounts/detail/components/s
 import { EASE } from '@/pages/accounts/detail/constants/accountDetail'
 import TransactionListSection from '@/pages/transactions/components/ListSection'
 import CreateTransactionModal from '@/pages/transactions/components/transaction-modal/Modal'
+import { useCurrencyGuard } from '@/hooks/useCurrencyGuard'
 
 type DeleteExitPhase = 'idle' | 'pending' | 'modal' | 'page'
 
@@ -29,6 +30,7 @@ export default function AccountDetailPage() {
   const navigate = useNavigate()
   const { accountId } = useParams<{ accountId: string }>()
   const { data: account, error } = useAccount(accountId)
+  const requireCurrencies = useCurrencyGuard()
 
   const [showTxnModal, setShowTxnModal] = useState(false)
   const [txnModalKey, setTxnModalKey] = useState(0)
@@ -47,9 +49,11 @@ export default function AccountDetailPage() {
   const openCreateTransaction = () => {
     if (visibleAccount?.is_archived) return
 
-    setEditingTransaction(null)
-    setTxnModalKey((key) => key + 1)
-    setShowTxnModal(true)
+    requireCurrencies(() => {
+      setEditingTransaction(null)
+      setTxnModalKey((key) => key + 1)
+      setShowTxnModal(true)
+    })
   }
 
   const openEditTransaction = (transaction: Transaction) => {

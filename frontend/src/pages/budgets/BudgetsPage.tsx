@@ -12,6 +12,7 @@ import {
 import { useCategories } from '@/api/categories'
 import { useCurrencies } from '@/api/currency'
 import { useAuth } from '@/hooks/useAuth'
+import { useCurrencyGuard } from '@/hooks/useCurrencyGuard'
 import BudgetCardsSection from '@/pages/budgets/components/budget-cards/Section'
 import BudgetArchivedSection from '@/pages/budgets/components/budget-cards/ArchivedSection'
 import BudgetCreateModal from '@/pages/budgets/components/budget-editor-modal/CreateModal'
@@ -33,6 +34,7 @@ export default function BudgetsPage() {
   const budgetsQuery = useBudgets()
   const latestUtilizationsQuery = useLatestBudgetUtilizations()
   const createBackfillBudget = useCreateBudgetInstance()
+  const requireCurrencies = useCurrencyGuard()
   const [createOpen, setCreateOpen] = useState(false)
   const budgetParam = searchParams.get('budget')
   const [budgetDetailsSnapshot, setBudgetDetailsSnapshot] = useState<BudgetCardViewModel | null>(null)
@@ -123,7 +125,7 @@ export default function BudgetsPage() {
             Plan ahead and keep your spending in check.
           </p>
         </header>
-        <button type="button" className="app-primary-button w-full min-[750px]:w-auto" onClick={() => setCreateOpen(true)}>
+        <button type="button" className="app-primary-button w-full min-[750px]:w-auto" onClick={() => requireCurrencies(() => setCreateOpen(true))}>
           <Plus size={18} aria-hidden />
           New Budget
         </button>
@@ -148,8 +150,8 @@ export default function BudgetsPage() {
         )}
       </AnimatePresence>
 
-      {/* The create modal says why it cannot take a new budget when the currency table is missing, so it
-          is mounted whether or not the table arrived */}
+      {/* The New Budget button refuses the click while the currency table is missing, so this only ever
+          opens with the table in hand */}
       <BudgetCreateModal
         key={`${defaultCurrency}-${userTimeZone}`}
         open={createOpen}

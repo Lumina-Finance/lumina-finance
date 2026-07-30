@@ -9,6 +9,7 @@ import {
 } from '@/api/transactions'
 import TransactionListSection from '@/pages/transactions/components/ListSection'
 import CreateTransactionModal from '@/pages/transactions/components/transaction-modal/Modal'
+import { useCurrencyGuard } from '@/hooks/useCurrencyGuard'
 import TransactionsTopBand from '@/pages/transactions/components/TopBand'
 import type { TransactionListFilters } from '@/pages/transactions/types/transactionList'
 import {
@@ -29,6 +30,7 @@ export default function TransactionsPage() {
   const [filters, setFilters] = useState<TransactionListFilters>({})
   const [filterListLoading, setFilterListLoading] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const requireCurrencies = useCurrencyGuard()
   const [createModalKey, setCreateModalKey] = useState(0)
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
   const [openingOutlierId, setOpeningOutlierId] = useState<string | null>(null)
@@ -38,9 +40,11 @@ export default function TransactionsPage() {
    * Opens the transaction modal in create mode and resets any previous edit state
    */
   const openCreateModal = () => {
-    setEditingTransaction(null)
-    setCreateModalKey((key) => key + 1)
-    setShowCreateModal(true)
+    requireCurrencies(() => {
+      setEditingTransaction(null)
+      setCreateModalKey((key) => key + 1)
+      setShowCreateModal(true)
+    })
   }
 
   /**
