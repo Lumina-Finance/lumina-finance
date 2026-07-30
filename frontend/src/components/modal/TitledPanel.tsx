@@ -29,10 +29,12 @@ const CHROME = {
   },
 } as const
 
-interface ModalFormPanelProps {
+interface ModalTitledPanelProps {
   open: boolean
   onClose: () => void
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void
+  /** Submits the panel's fields, which also puts them in a form so Enter submits. Left out by a panel that
+   *  manages things through their own controls and has nothing of its own to save */
+  onSubmit?: (event: FormEvent<HTMLFormElement>) => void
   /** Id given to the heading, which is what the dialog is labelled by */
   titleId: string
   title: string
@@ -53,10 +55,10 @@ interface ModalFormPanelProps {
 }
 
 /**
- * A modal holding a form: labelled rail, header with the title and close button, scrolling body of fields,
- * and the actions along the bottom
+ * A modal with a labelled rail, a header carrying the title and close button, a scrolling body, and the
+ * actions along the bottom
  */
-export function ModalFormPanel({
+export function ModalTitledPanel({
   open,
   onClose,
   onSubmit,
@@ -72,8 +74,49 @@ export function ModalFormPanel({
   animateHeight = false,
   footer,
   children,
-}: ModalFormPanelProps) {
+}: ModalTitledPanelProps) {
   const chrome = CHROME[level]
+
+  const content = (
+    <>
+      <div className={chrome.headerClassName} style={{ borderBottom: '1px solid var(--app-border)' }}>
+        <div className="flex items-start justify-between gap-6">
+          <div className="min-w-0">
+            <p
+              className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold uppercase"
+              style={{ color: 'var(--app-accent)' }}
+            >
+              <span>{eyebrow}</span>
+              {headerStatus && (
+                <>
+                  <span aria-hidden style={{ color: 'var(--app-text-subtle)' }}>
+                    &middot;
+                  </span>
+                  <span style={{ color: 'var(--app-warning-text)' }}>{headerStatus}</span>
+                </>
+              )}
+            </p>
+            <h2 id={titleId} className="font-serif text-3xl font-normal">
+              {title}
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="app-icon-button shrink-0"
+            disabled={closeDisabled}
+            aria-label="Close"
+          >
+            <X size={20} aria-hidden />
+          </button>
+        </div>
+      </div>
+
+      <div className={chrome.bodyClassName}>{children}</div>
+
+      {footer}
+    </>
+  )
 
   return (
     <ModalShell
@@ -96,44 +139,15 @@ export function ModalFormPanel({
         </span>
       </div>
 
-      <form onSubmit={onSubmit} className="flex min-h-0 w-full flex-col" noValidate>
-        <div className={chrome.headerClassName} style={{ borderBottom: '1px solid var(--app-border)' }}>
-          <div className="flex items-start justify-between gap-6">
-            <div className="min-w-0">
-              <p
-                className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold uppercase"
-                style={{ color: 'var(--app-accent)' }}
-              >
-                <span>{eyebrow}</span>
-                {headerStatus && (
-                  <>
-                    <span aria-hidden style={{ color: 'var(--app-text-subtle)' }}>
-                      &middot;
-                    </span>
-                    <span style={{ color: 'var(--app-warning-text)' }}>{headerStatus}</span>
-                  </>
-                )}
-              </p>
-              <h2 id={titleId} className="font-serif text-3xl font-normal">
-                {title}
-              </h2>
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="app-icon-button shrink-0"
-              disabled={closeDisabled}
-              aria-label="Close"
-            >
-              <X size={20} aria-hidden />
-            </button>
-          </div>
-        </div>
-
-        <div className={chrome.bodyClassName}>{children}</div>
-
-        {footer}
-      </form>
+      {/* Fields go in a form so Enter submits them. A panel that only manages things through their own
+          controls has nothing to submit, and a form there would announce one that does nothing */}
+      {onSubmit ? (
+        <form onSubmit={onSubmit} className="flex min-h-0 w-full flex-col" noValidate>
+          {content}
+        </form>
+      ) : (
+        <div className="flex min-h-0 w-full flex-col">{content}</div>
+      )}
     </ModalShell>
   )
 }

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { setPassword } from '@/api/user'
 import { PasswordRequirements } from '@/components/PasswordRequirements'
-import { TwoFactorModalShell } from '@/components/two-factor/TwoFactorModalShell'
+import { ModalContentPanel } from '@/components/modal/ContentPanel'
 import { isNewPasswordValid } from '@/utils/passwordPolicy'
 import { withMinDelay } from '@/utils/timing'
 
@@ -51,10 +51,10 @@ export function SetPasswordModal({ open, onClose, onDone, onExitComplete }: SetP
   }
 
   return (
-    <TwoFactorModalShell open={open} onClose={onClose} closeDisabled={submitting} onExitComplete={onExitComplete}>
+    <ModalContentPanel open={open} onClose={onClose} closeDisabled={submitting} onExitComplete={onExitComplete} titleId="set-password-title">
       <form onSubmit={handleSubmit} className="space-y-5" noValidate>
         <div className="space-y-1">
-          <h3 className="text-base font-semibold">Set a password</h3>
+          <h3 id="set-password-title" className="text-base font-semibold">Set a password</h3>
           <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
             Choose a password to sign in with alongside your provider. Your other sessions will be
             signed out.
@@ -127,6 +127,6 @@ export function SetPasswordModal({ open, onClose, onDone, onExitComplete }: SetP
           </button>
         </div>
       </form>
-    </TwoFactorModalShell>
+    </ModalContentPanel>
   )
 }

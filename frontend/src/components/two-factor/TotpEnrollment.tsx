@@ -10,6 +10,10 @@ import {
   type TotpSetupResponse,
 } from '@/api/two-factor';
 import { OtpInput, OTP_LENGTH } from '@/components/OtpInput';
+
+// Every step of the enrolment flow titles itself with this, and only one step is mounted at a time,
+// so the modal's label follows whichever step is on screen
+export const TOTP_ENROLLMENT_TITLE_ID = 'totp-enrollment-title';
 import { RecoveryCodesPanel } from '@/components/two-factor/RecoveryCodesPanel';
 import { StepTransition } from '@/components/two-factor/StepTransition';
 import { copyText } from '@/utils/clipboard';
@@ -150,7 +154,7 @@ export function TotpEnrollment({ onComplete, onSkip, onSwitchToPasskey, initialS
       {enabledViaReuse ? (
         <div className="space-y-5">
           <div className="space-y-1">
-            <h3 className="text-base font-semibold">Two-factor is on</h3>
+            <h3 id={TOTP_ENROLLMENT_TITLE_ID} className="text-base font-semibold">Two-factor is on</h3>
             <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
               Your existing recovery codes also cover your authenticator, so there are no new codes to save.
             </p>
@@ -163,7 +167,7 @@ export function TotpEnrollment({ onComplete, onSkip, onSwitchToPasskey, initialS
       ) : recoveryCodes ? (
         <div className="space-y-5">
           <div className="space-y-1">
-            <h3 className="text-base font-semibold">Save your recovery codes</h3>
+            <h3 id={TOTP_ENROLLMENT_TITLE_ID} className="text-base font-semibold">Save your recovery codes</h3>
             <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
               Each code works once if you lose your authenticator. Store them somewhere safe, you won't see them again.
             </p>
@@ -212,7 +216,7 @@ export function TotpEnrollment({ onComplete, onSkip, onSwitchToPasskey, initialS
       ) : (
         <div className="space-y-5">
           <div className="space-y-1">
-            <h3 className="text-base font-semibold">Set up two-factor authentication</h3>
+            <h3 id={TOTP_ENROLLMENT_TITLE_ID} className="text-base font-semibold">Set up two-factor authentication</h3>
             <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
               Scan this with an authenticator app, then enter the 6-digit code to confirm.
             </p>

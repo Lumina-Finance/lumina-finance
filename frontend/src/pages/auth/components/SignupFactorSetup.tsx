@@ -3,7 +3,7 @@ import { motion } from 'motion/react';
 import type { StepUpPayload } from '@/api/two-factor';
 import { PasskeyEnrollment } from '@/components/passkeys/PasskeyEnrollment';
 import { TotpEnrollment } from '@/components/two-factor/TotpEnrollment';
-import { TwoFactorModalShell } from '@/components/two-factor/TwoFactorModalShell';
+import { ModalContentPanel } from '@/components/modal/ContentPanel';
 import { AUTH_VIEW_TRANSITION } from '@/pages/auth/constants/authAnimations';
 
 interface SignupFactorSetupProps {
@@ -59,9 +59,9 @@ export function SignupFactorSetup({ passkeysSupported, setupStepUp, onFinish }: 
         )}
       </motion.div>
 
-      <TwoFactorModalShell open={skipConfirmOpen} onClose={() => setSkipConfirmOpen(false)}>
+      <ModalContentPanel open={skipConfirmOpen} onClose={() => setSkipConfirmOpen(false)} titleId="skip-two-factor-title">
         <div className="space-y-1">
-          <h3 className="text-base font-semibold">Skip two-factor setup?</h3>
+          <h3 id="skip-two-factor-title" className="text-base font-semibold">Skip two-factor setup?</h3>
           <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
             Your password would be the only thing standing between your financial data and anyone who
             gets hold of it. A passkey or authenticator app keeps your account safe even if your
@@ -83,7 +83,7 @@ export function SignupFactorSetup({ passkeysSupported, setupStepUp, onFinish }: 
             I still want to skip
           </button>
         </div>
-      </TwoFactorModalShell>
+      </ModalContentPanel>
     </>
   );
 }

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { RecoveryCodesPanel } from '@/components/two-factor/RecoveryCodesPanel';
-import { TwoFactorModalShell } from '@/components/two-factor/TwoFactorModalShell';
+import { ModalContentPanel } from '@/components/modal/ContentPanel';
+import type { ModalLevel } from '@/components/modal/Shell';
 import { delayToMinimum } from '@/utils/timing';
 
 const DEFAULT_DESCRIPTION =
@@ -13,8 +14,10 @@ interface RecoveryCodesModalProps {
   onConfirm: () => Promise<void>;
   /** Dismisses without activating, leaving the current codes in force */
   onClose: () => void;
-  /** Overrides the body copy, since first-time issuance reads differently from a rotation */
+  /** Overrides the body text, since first-time issuance reads differently from a rotation */
   description?: string;
+  /** Set to stacked where this opens over the multi-factor modal rather than straight from a page */
+  level?: ModalLevel;
 }
 
 /**
@@ -27,6 +30,7 @@ export function RecoveryCodesModal({
   onConfirm,
   onClose,
   description = DEFAULT_DESCRIPTION,
+  level = 'page',
 }: RecoveryCodesModalProps) {
   const [acknowledged, setAcknowledged] = useState(false);
   const [lockoutAcknowledged, setLockoutAcknowledged] = useState(false);
@@ -72,9 +76,9 @@ export function RecoveryCodesModal({
   };
 
   return (
-    <TwoFactorModalShell open={open} onClose={handleClose} closeDisabled={confirming}>
+    <ModalContentPanel open={open} onClose={handleClose} closeDisabled={confirming} titleId="recovery-codes-title" level={level}>
       <div className="space-y-1">
-        <h3 className="text-base font-semibold">Your new recovery codes</h3>
+        <h3 id="recovery-codes-title" className="text-base font-semibold">Your new recovery codes</h3>
         <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
           {description}
         </p>
@@ -122,6 +126,6 @@ export function RecoveryCodesModal({
           {confirming ? <div className="app-spinner" /> : 'Done'}
         </button>
       </div>
-    </TwoFactorModalShell>
+    </ModalContentPanel>
   );
 }

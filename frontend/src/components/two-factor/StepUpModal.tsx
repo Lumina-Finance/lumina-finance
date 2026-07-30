@@ -5,7 +5,8 @@ import { requestPasskeyStepUpAssertion, usePasskeyConfig, usePasskeys } from '@/
 import { useTotpStatus } from '@/api/two-factor';
 import { OtpInput, OTP_LENGTH } from '@/components/OtpInput';
 import { StepTransition } from '@/components/two-factor/StepTransition';
-import { TwoFactorModalShell } from '@/components/two-factor/TwoFactorModalShell';
+import { ModalContentPanel } from '@/components/modal/ContentPanel';
+import type { ModalLevel } from '@/components/modal/Shell';
 import { WarningCallout } from '@/components/two-factor/WarningCallout';
 import { useAuth } from '@/hooks/useAuth';
 import { buildLockoutWarning, describeStepUpFailure, getAttemptsRemaining } from '@/utils/lockoutWarning';
@@ -37,6 +38,8 @@ interface StepUpModalProps {
   allowPasskey?: boolean;
   /** Show the recovery escape that signs out so a lost factor can be reset by a recovery sign-in */
   allowRecoveryReset?: boolean;
+  /** Set to stacked where this opens over the multi-factor modal rather than straight from a page */
+  level?: ModalLevel;
   onClose: () => void;
   /** Performs the action with the entered credentials, rejecting on a bad factor so the modal can retry */
   onVerify: (credentials: StepUpCredentials) => Promise<void>;
@@ -70,6 +73,7 @@ export function StepUpModal({
   danger = false,
   allowPasskey = false,
   allowRecoveryReset = false,
+  level = 'page',
   onClose,
   onVerify,
 }: StepUpModalProps) {
@@ -244,12 +248,12 @@ export function StepUpModal({
     ) : null;
 
   return (
-    <TwoFactorModalShell open={open} onClose={handleClose} closeDisabled={verifying || resetting}>
+    <ModalContentPanel open={open} onClose={handleClose} closeDisabled={verifying || resetting} titleId="step-up-title" level={level}>
       <StepTransition
         stepKey={confirmingReset ? 'reset' : step}
         header={
           <div className="space-y-1">
-            <h3 className="text-base font-semibold">{title}</h3>
+            <h3 id="step-up-title" className="text-base font-semibold">{title}</h3>
             <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
               {confirmingReset
                 ? "You'll be signed out everywhere and can set up a new factor after signing in with a recovery code."
@@ -399,6 +403,6 @@ export function StepUpModal({
           </div>
         )}
       </StepTransition>
-    </TwoFactorModalShell>
+    </ModalContentPanel>
   );
 }

@@ -1,5 +1,5 @@
-import { TotpEnrollment } from '@/components/two-factor/TotpEnrollment';
-import { TwoFactorModalShell } from '@/components/two-factor/TwoFactorModalShell';
+import { TotpEnrollment, TOTP_ENROLLMENT_TITLE_ID } from '@/components/two-factor/TotpEnrollment';
+import { ModalContentPanel } from '@/components/modal/ContentPanel';
 import type { TotpSetupResponse } from '@/api/two-factor';
 
 interface TotpEnrollmentModalProps {
@@ -16,8 +16,8 @@ interface TotpEnrollmentModalProps {
  */
 export function TotpEnrollmentModal({ open, onClose, initialSetup }: TotpEnrollmentModalProps) {
   return (
-    <TwoFactorModalShell open={open} onClose={onClose}>
+    <ModalContentPanel open={open} onClose={onClose} titleId={TOTP_ENROLLMENT_TITLE_ID}>
       <TotpEnrollment onComplete={onClose} initialSetup={initialSetup} />
-    </TwoFactorModalShell>
+    </ModalContentPanel>
   );
 }
