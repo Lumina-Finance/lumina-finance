@@ -3,7 +3,6 @@ import type React from 'react'
 import { useCreateBaseBudget } from '@/api/budgets'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
-import { useBodyScrollLock } from '@/hooks/useBodyScrollLock'
 import BudgetEditorModalCadenceSection from '@/pages/budgets/components/budget-editor-modal/sections/CadenceSection'
 import BudgetEditorModalCategorySection from '@/pages/budgets/components/budget-editor-modal/sections/CategorySection'
 import BudgetEditorModalFooter from '@/pages/budgets/components/budget-editor-modal/layout/Footer'
@@ -51,7 +50,6 @@ export default function BudgetCreateModal({
   onCreated: () => void
 }) {
   const createBaseBudget = useCreateBaseBudget()
-  useBodyScrollLock(open)
 
   const initialForm = useMemo<BudgetFormState>(() => ({
     name: '',
