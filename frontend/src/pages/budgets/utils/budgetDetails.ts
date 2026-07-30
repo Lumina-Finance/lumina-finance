@@ -4,7 +4,7 @@ import type { BudgetChartPoint } from '@/pages/budgets/components/budget-details
 import type { CalendarDate } from '@/pages/budgets/types'
 import { nextRecurringPeriodStart } from '@/pages/budgets/utils/budgetPeriods'
 import { formatCalendarDate, parseCalendarDate } from '@/pages/budgets/utils/date'
-import { DATE_FORMATS, formatDate } from '@/utils/date'
+import { DATE_FORMATS, formatDate, getYmdTime } from '@/utils/date'
 import { getBudgetUtilizationPercent } from '@/pages/budgets/utils/utilization'
 import { getCategoryColorMap } from '@/utils/chartColor'
 
@@ -40,7 +40,10 @@ export const BUDGET_CHART_LAYOUT = {
  * Sorts periods oldest-to-newest for chart rendering and newest-to-oldest derivations
  */
 export function getSortedBudgetPeriods(periods: Budget[]) {
-  return periods.slice().sort((a, b) => a.period_start.localeCompare(b.period_start))
+  return periods
+    .map((period) => ({ period, startTime: getYmdTime(period.period_start) }))
+    .sort((a, b) => a.startTime - b.startTime)
+    .map((entry) => entry.period)
 }
 
 /**

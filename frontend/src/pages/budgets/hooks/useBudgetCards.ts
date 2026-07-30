@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import type { BaseBudget, Budget } from '@/api/budgets'
 import type { BudgetCardViewModel } from '@/pages/budgets/types'
+import { getYmdTime } from '@/utils/date'
 
 /**
  * Builds stable budget card view models from base budgets and period instances
@@ -34,8 +35,9 @@ export function useBudgetCards({
       .sort((a, b) => a.name.localeCompare(b.name))
       .map((baseBudget) => {
         const budgetPeriods = (periodsByBase.get(baseBudget.id) ?? [])
-          .slice()
-          .sort((a, b) => b.period_start.localeCompare(a.period_start))
+          .map((period) => ({ period, startTime: getYmdTime(period.period_start) }))
+          .sort((a, b) => b.startTime - a.startTime)
+          .map((entry) => entry.period)
         return {
           baseBudget,
           periods: budgetPeriods,

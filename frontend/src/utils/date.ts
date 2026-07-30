@@ -169,6 +169,25 @@ export function parseYmd(ymd: string): Date | null {
 }
 
 /**
+ * Reads a "YYYY-MM-DD" string into a time value that can be ordered arithmetically
+ *
+ * Sorting reads each date once into a number rather than comparing the strings, which would follow
+ * the browser's language rules and could order the same dates differently on a user's other device
+ *
+ * A string that is not a real calendar day means whatever produced it broke the shape the API
+ * promises, so this stops rather than ordering an unreadable value to one end where it would go
+ * unnoticed
+ *
+ * @throws When the string is not a zero-padded ISO calendar date
+ */
+export function getYmdTime(ymd: string): number {
+  const parsed = parseYmd(ymd)
+  if (parsed === null) throw new Error(`Expected a YYYY-MM-DD date, received "${ymd}"`)
+
+  return parsed.getTime()
+}
+
+/**
  * Returns a new date the given number of days later, or earlier for a negative count, leaving the
  * date passed in unchanged
  */
