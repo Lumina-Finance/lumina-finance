@@ -1,3 +1,4 @@
+import { RunwayHelpTooltip } from '@/components/tooltips/RunwayHelpTooltip'
 import type { AccountsMetricsViewModel } from '@/pages/accounts/types/accounts'
 import {
   getCreditUsageDisplay,
@@ -82,6 +83,7 @@ export default function MetricsBand({
           progress={runway.progress}
           progressColor="linear-gradient(to right, var(--app-positive), var(--app-accent))"
           caption={runway.caption}
+          help={<RunwayHelpTooltip />}
           headerClassName="pr-20"
           badge={runway.style && (
             <span
