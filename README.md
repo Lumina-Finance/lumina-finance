@@ -32,7 +32,7 @@ THIS APPLICATION IS PROVIDED “AS IS” AND “AS AVAILABLE,” WITHOUT WARRANT
 
 <!-- markdownlint-disable MD033 -->
 
-https://github.com/user-attachments/assets/955058c5-ecb7-4c3b-b9d6-e076c4e270d7
+https://github.com/user-attachments/assets/84eda1e4-1b73-422b-be86-0b662add0949
 
 <!-- markdownlint-enable MD033 -->
 
