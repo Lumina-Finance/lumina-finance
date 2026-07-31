@@ -17,6 +17,7 @@ from app.services.transactions.validation import (
     validate_transaction_currency_exists,
     validate_transaction_fx_rate_for_account_currency,
     validate_transaction_merchant_access,
+    validate_transaction_other_account,
 )
 
 
@@ -54,7 +55,19 @@ async def create_transaction_and_get_response(
     validate_transaction_fx_rate_for_account_currency(data.currency, account.currency, data.fx_rate)
 
     # Confirm related records belong to the same accessible group as the account
-    await validate_transaction_category_access(db, data.category_id, user.id, account.group_id)
+    category = await validate_transaction_category_access(db, data.category_id, user.id, account.group_id)
+
+    # A transfer records where the money went as it is entered, since the receiving side is added
+    # days later and the two cannot be matched up afterwards
+    await validate_transaction_other_account(
+        db,
+        user.id,
+        category,
+        data.account_id,
+        data.other_account_id,
+        data.other_account_scope,
+        require_answer=True,
+    )
     if data.merchant_id:
         await validate_transaction_merchant_access(db, data.merchant_id, user.id, account.group_id)
     validated_tag_ids = []
@@ -72,6 +85,8 @@ async def create_transaction_and_get_response(
         currency=data.currency,
         fx_rate=data.fx_rate,
         notes=data.notes,
+        other_account_id=data.other_account_id,
+        other_account_scope=data.other_account_scope,
     )
     db.add(txn)
     await db.flush()

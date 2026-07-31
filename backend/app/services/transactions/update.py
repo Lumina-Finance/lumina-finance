@@ -1,9 +1,11 @@
 """Transaction update service"""
 import uuid
 
+from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.base import PermissionLevel
+from app.models.category import Category
 from app.models.user import User
 from app.permissions import check_account_access, check_transaction_access
 from app.schemas.transaction import TransactionResponse, UpdateTransactionRequest
@@ -16,10 +18,13 @@ from app.services.transactions.response_helpers import get_transaction_response
 from app.services.transactions.snapshots import recompute_snapshots_after_transaction_update
 from app.services.transactions.tags import replace_transaction_tag_assignments
 from app.services.transactions.validation import (
+    OTHER_ACCOUNT_NOT_ALLOWED_DETAIL,
+    does_category_record_other_account,
     get_valid_transaction_tag_ids,
     validate_transaction_category_access,
     validate_transaction_fx_rate_for_account_currency,
     validate_transaction_merchant_access,
+    validate_transaction_other_account,
 )
 
 
@@ -84,9 +89,37 @@ async def update_transaction_and_get_response(
 
     # Confirm changed category and merchant records belong to the selected account group
     if "category_id" in changed_fields:
-        await validate_transaction_category_access(db, changed_fields["category_id"], user.id, account_group_id)
+        category = await validate_transaction_category_access(
+            db, changed_fields["category_id"], user.id, account_group_id,
+        )
+    else:
+        # The other-account answer is judged against the category the transaction ends up with,
+        # so an unchanged category is still loaded
+        category = await db.get(Category, txn.category_id)
     if "merchant_id" in changed_fields and changed_fields["merchant_id"] is not None:
         await validate_transaction_merchant_access(db, changed_fields["merchant_id"], user.id, account_group_id)
+
+    if does_category_record_other_account(category):
+        # Unsent fields keep their stored values, so an old transaction with no answer stays editable
+        await validate_transaction_other_account(
+            db,
+            user.id,
+            category,
+            changed_fields.get("account_id", txn.account_id),
+            changed_fields.get("other_account_id", txn.other_account_id),
+            changed_fields.get("other_account_scope", txn.other_account_scope),
+            require_answer=False,
+        )
+    else:
+        if changed_fields.get("other_account_id") is not None or changed_fields.get("other_account_scope") is not None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=OTHER_ACCOUNT_NOT_ALLOWED_DETAIL,
+            )
+
+        # Moving to a category with no other side drops the answer recorded under the previous one
+        changed_fields["other_account_id"] = None
+        changed_fields["other_account_scope"] = None
 
     # Handle tags outside the model field loop because they live in a junction table
     new_tag_ids = changed_fields.pop("tag_ids", None)

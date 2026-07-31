@@ -5,6 +5,7 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, Field
 
+from app.models.base import TransferOtherAccountScope
 from app.schemas.fx import FxStatus
 
 
@@ -78,6 +79,10 @@ class TransactionResponse(BaseModel):
     currency: str
     fx_rate: float | None
     notes: str | None
+
+    # Where the other side of a transfer sits. Both null on anything recorded before the columns existed
+    other_account_id: uuid.UUID | None = None
+    other_account_scope: TransferOtherAccountScope | None = None
     created_at: datetime
     updated_at: datetime
     tag_ids: list[uuid.UUID] = []
@@ -98,6 +103,8 @@ class CreateTransactionRequest(BaseModel):
     fx_rate: float | None = Field(None, gt=0)
     notes: str | None = None
     tag_ids: list[uuid.UUID] = []
+    other_account_id: uuid.UUID | None = None
+    other_account_scope: TransferOtherAccountScope | None = None
 
 
 class UpdateTransactionRequest(BaseModel):
@@ -111,6 +118,8 @@ class UpdateTransactionRequest(BaseModel):
     fx_rate: float | None = Field(None, gt=0)
     notes: str | None = None
     tag_ids: list[uuid.UUID] | None = None
+    other_account_id: uuid.UUID | None = None
+    other_account_scope: TransferOtherAccountScope | None = None
 
 
 class TransactionImportCreateAccount(BaseModel):

@@ -36,12 +36,15 @@ async def test_patch_transaction_accepts_sign_changes_for_all_category_kinds(cli
 
     for kind in ("expense", "income", "transfer"):
         category_resp = await _create_category(client, headers, name=f"Patch Direction {kind}", kind=kind)
+        # A transfer records where the money went, and the other kinds reject the field
+        other_account = {"other_account_scope": "outside"} if kind == "transfer" else {}
         create_resp = await _create_transaction(
             client,
             headers,
             account_id,
             category_resp.json()["id"],
             amount=-1000,
+            **other_account,
         )
         txn_id = create_resp.json()["id"]
 

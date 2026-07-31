@@ -488,3 +488,62 @@ async def test_group_tax_advantaged_category_counts_transaction_created_by_non_o
     assert resp.json()["lifetime_contributions"] == 123_000
     assert resp.json()["ytd_withdrawals"] == 0
     assert resp.json()["lifetime_withdrawals"] == 0
+
+
+# --- Transfers between the category's own accounts ---
+
+
+async def test_create_tax_advantaged_category_defaults_internal_transfers_off(client):
+    """Leaving the setting out excludes internal transfers from the limits."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _create_tax_advantaged_category(client, headers)
+
+    assert resp.status_code == 201
+    assert resp.json()["counts_internal_transfers"] is False
+
+
+async def test_create_tax_advantaged_category_can_count_internal_transfers(client):
+    """A category whose accounts are one pot can count moves between them."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _create_tax_advantaged_category(client, headers, counts_internal_transfers=True)
+
+    assert resp.status_code == 201
+    assert resp.json()["counts_internal_transfers"] is True
+
+
+async def test_update_tax_advantaged_category_toggles_internal_transfers(client):
+    """The setting is editable after the category exists."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    category_id = (await _create_tax_advantaged_category(client, headers)).json()["id"]
+
+    resp = await client.patch(
+        f"/tax-advantaged-categories/{category_id}",
+        json={"counts_internal_transfers": True},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["counts_internal_transfers"] is True
+
+
+async def test_update_without_the_setting_leaves_it_alone(client):
+    """An unsent flag keeps the stored value rather than resetting it to the default."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    category_id = (
+        await _create_tax_advantaged_category(client, headers, counts_internal_transfers=True)
+    ).json()["id"]
+
+    resp = await client.patch(
+        f"/tax-advantaged-categories/{category_id}",
+        json={"name": "Renamed"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["counts_internal_transfers"] is True

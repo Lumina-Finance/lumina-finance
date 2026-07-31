@@ -8,6 +8,7 @@ from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
+from app.models.base import TransferOtherAccountScope
 from app.models.tag import TransactionTag
 from app.models.transaction import Transaction
 from app.models.user import User
@@ -203,6 +204,10 @@ async def _write_legs(
                 currency=leg.account.currency,
                 fx_rate=None,
                 notes=leg.notes,
+                other_account_id=leg.other_account.id if leg.other_account else None,
+                other_account_scope=(
+                    TransferOtherAccountScope.TRACKED if leg.other_account else None
+                ),
             )
             pending.append((transaction, tags))
 

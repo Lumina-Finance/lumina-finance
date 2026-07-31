@@ -102,6 +102,19 @@ class CategoryKind(enum.StrEnum):
     TRANSFER = "transfer"
 
 
+class TransferOtherAccountScope(enum.StrEnum):
+    """Where the other side of a transfer sits
+
+    Recorded on the transfer transaction itself rather than derived from a
+    partner row, because the two sides of one movement are entered days apart
+    as the money actually arrives. A null column means nothing was recorded,
+    which is every transaction predating the column
+    """
+
+    TRACKED = "tracked"  # An account in the app, held in other_account_id
+    OUTSIDE = "outside"  # Money that left the tracked accounts
+
+
 class RecurrenceFreq(enum.StrEnum):
     """Budget recurrence frequency values"""
 

@@ -148,6 +148,16 @@ async def test_firefly_import_converts_transfers_into_two_legs(client):
         transaction["category_id"] == transfer_category_id for transaction in transactions_resp.json()
     )
 
+    # The imported row states both endpoints, so each leg comes out recording the other account
+    recorded_by_account = {
+        transaction["account_id"]: (transaction["other_account_id"], transaction["other_account_scope"])
+        for transaction in transactions_resp.json()
+    }
+    assert recorded_by_account == {
+        chequing_id: (savings_id, "tracked"),
+        savings_id: (chequing_id, "tracked"),
+    }
+
 
 async def test_firefly_import_uses_foreign_amount_for_cross_currency_transfers(client):
     """Cross-currency transfer legs are written in each account's own currency."""

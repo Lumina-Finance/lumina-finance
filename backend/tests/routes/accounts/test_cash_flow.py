@@ -293,7 +293,7 @@ async def test_income_expense_and_non_adjustment_transfers_contribute_to_cash_fl
     )
     await _create_transaction(
         client, headers, account_id, custom_transfer_cat["id"],
-        dt=today, amount=-5000,
+        dt=today, amount=-5000, other_account_scope="outside",
     )
     await _create_transaction(
         client, headers, account_id, balance_adjustment_id,
@@ -326,15 +326,15 @@ async def test_transfer_transactions_contribute_to_cash_flow_by_sign(client):
     )).json()
 
     today = _today_utc().isoformat()
-    # Transfer out — money leaving the account → expenses
+    # Transfer out, money leaving the account, counted in expenses
     await _create_transaction(
         client, headers, account_id, transfer_cat["id"],
-        dt=today, amount=-5000,
+        dt=today, amount=-5000, other_account_scope="outside",
     )
-    # Transfer in — money arriving at the account → income
+    # Transfer in, money arriving at the account, counted in income
     await _create_transaction(
         client, headers, account_id, transfer_cat["id"],
-        dt=today, amount=3000,
+        dt=today, amount=3000, other_account_scope="outside",
     )
     # Ordinary expense — also in expenses
     await _create_transaction(
@@ -413,15 +413,15 @@ async def test_other_accounts_of_the_same_user_do_not_leak_into_the_series(clien
     category_id = await _get_category_id(client, headers, "Transfer")
 
     today = _today_utc().isoformat()
-    # Queried account — should appear
+    # Queried account, should appear
     await _create_transaction(
         client, headers, account_id, category_id,
-        dt=today, amount=-1000,
+        dt=today, amount=-1000, other_account_scope="outside",
     )
-    # Other account — same user, same category, must NOT appear
+    # Other account, same user, same category, must NOT appear
     await _create_transaction(
         client, headers, other_account_id, category_id,
-        dt=today, amount=-9999,
+        dt=today, amount=-9999, other_account_scope="outside",
     )
 
     resp = await client.get(
@@ -447,12 +447,12 @@ async def test_prior_month_transaction_lands_in_second_to_last_entry(client):
     # Seed an expense on the 15th of last month (safe across month-length boundaries)
     await _create_transaction(
         client, headers, account_id, category_id,
-        dt=_mid_of_prior_month(today).isoformat(), amount=-3000,
+        dt=_mid_of_prior_month(today).isoformat(), amount=-3000, other_account_scope="outside",
     )
     # And a different expense in the current month — confirms both buckets compute independently
     await _create_transaction(
         client, headers, account_id, category_id,
-        dt=today.isoformat(), amount=-700,
+        dt=today.isoformat(), amount=-700, other_account_scope="outside",
     )
 
     resp = await client.get(
@@ -484,7 +484,7 @@ async def test_transaction_outside_the_window_does_not_contribute(client):
     out_of_window = _first_of_month_n_back(today, 5).replace(day=15)
     await _create_transaction(
         client, headers, account_id, category_id,
-        dt=out_of_window.isoformat(), amount=-9999,
+        dt=out_of_window.isoformat(), amount=-9999, other_account_scope="outside",
     )
 
     resp = await client.get(
@@ -514,7 +514,7 @@ async def test_transaction_on_window_start_is_included(client):
     window_start = _first_of_month_n_back(today, 5)
     await _create_transaction(
         client, headers, account_id, category_id,
-        dt=window_start.isoformat(), amount=-1000,
+        dt=window_start.isoformat(), amount=-1000, other_account_scope="outside",
     )
 
     resp = await client.get(
@@ -542,7 +542,7 @@ async def test_transaction_on_day_before_window_start_is_excluded(client):
     day_before = window_start - timedelta(days=1)
     await _create_transaction(
         client, headers, account_id, category_id,
-        dt=day_before.isoformat(), amount=-9999,
+        dt=day_before.isoformat(), amount=-9999, other_account_scope="outside",
     )
 
     resp = await client.get(
@@ -712,7 +712,7 @@ async def test_closed_account_still_returns_cash_flow(client):
 
     await _create_transaction(
         client, headers, account_id, category_id,
-        dt=_today_utc().isoformat(), amount=-1000,
+        dt=_today_utc().isoformat(), amount=-1000, other_account_scope="outside",
     )
 
     close_resp = await client.patch(

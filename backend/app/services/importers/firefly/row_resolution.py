@@ -75,6 +75,7 @@ class FireflyLeg:
         merchant_name: Optional counterparty recorded as a merchant
         notes: Optional combined description and notes text
         tag_names: Tag names applied to the transaction
+        other_account: Account on the other side, set on transfer legs only
     """
 
     account: Account
@@ -84,6 +85,7 @@ class FireflyLeg:
     merchant_name: str | None
     notes: str | None
     tag_names: list[str]
+    other_account: Account | None = None
 
 
 def resolve_firefly_row(row: FireflyTransactionRow, context: FireflyResolutionContext) -> list[FireflyLeg]:
@@ -170,6 +172,8 @@ def _resolve_transfer_pair(
     Returns:
         Outgoing and incoming transfer legs
     """
+    # The imported row states both endpoints, so each leg records the opposite account and the
+    # pair comes out already answered rather than needing the question asked afterwards
     return [
         FireflyLeg(
             account=source_account,
@@ -179,6 +183,7 @@ def _resolve_transfer_pair(
             merchant_name=None,
             notes=notes,
             tag_names=row.tag_names,
+            other_account=destination_account,
         ),
         FireflyLeg(
             account=destination_account,
@@ -188,6 +193,7 @@ def _resolve_transfer_pair(
             merchant_name=None,
             notes=notes,
             tag_names=row.tag_names,
+            other_account=source_account,
         ),
     ]
 

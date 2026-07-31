@@ -67,3 +67,51 @@ async def test_double_delete_returns_404_on_second(client):
 
     assert resp1.status_code == 204
     assert resp2.status_code == 404
+
+
+# --- Accounts recorded as the other side of a transfer ---
+
+
+async def _setup_recorded_transfer(client):
+    """Record a transfer in one account that points at a second account.
+
+    Returns:
+        Tuple of (auth_headers, account holding the transfer, account it records)
+    """
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    holder_id = (await _create_account(client, headers)).json()["id"]
+    recorded_id = (await _create_account(client, headers, name="Savings")).json()["id"]
+
+    categories = await client.get("/categories", headers=headers)
+    transfer_id = next(cat["id"] for cat in categories.json() if cat["name"] == "Transfer")
+
+    created = await client.post("/transactions", json={
+        "account_id": holder_id,
+        "category_id": transfer_id,
+        "dt": "2026-03-15",
+        "amount": -5000,
+        "currency": "CAD",
+        "other_account_scope": "tracked",
+        "other_account_id": recorded_id,
+    }, headers=headers)
+    assert created.status_code == 201
+    return headers, holder_id, recorded_id
+
+
+async def test_delete_account_recorded_on_a_transfer_elsewhere_returns_409(client):
+    """Deleting it would strip what another account's transfer recorded, so it is refused."""
+    headers, _, recorded_id = await _setup_recorded_transfer(client)
+
+    resp = await client.delete(f"/accounts/{recorded_id}", headers=headers)
+
+    assert resp.status_code == 409
+
+
+async def test_delete_account_holding_the_transfer_returns_204(client):
+    """The transfer goes with the account it is recorded in, so that side is free to delete."""
+    headers, holder_id, _ = await _setup_recorded_transfer(client)
+
+    resp = await client.delete(f"/accounts/{holder_id}", headers=headers)
+
+    assert resp.status_code == 204
