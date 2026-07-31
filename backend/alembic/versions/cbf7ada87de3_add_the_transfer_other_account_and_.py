@@ -38,15 +38,19 @@ def upgrade() -> None:
     op.add_column("transactions", sa.Column("other_account_scope", other_account_scope, nullable=True))
     op.create_index(op.f("ix_transactions_other_account_id"), "transactions", ["other_account_id"], unique=False)
 
-    # Restricting rather than cascading, since a transfer in another account keeps its own row
-    # when the account it records is deleted
+    # Refusing rather than cascading, since a transfer in another account keeps its own row when
+    # the account it records is deleted. Deferred to the commit, because deleting a group cascades
+    # into its accounts and their transactions in one statement and an immediate check fires or
+    # not depending on which physical row it reaches first
     op.create_foreign_key(
         "fk_transactions_other_account_id_accounts",
         "transactions",
         "accounts",
         ["other_account_id"],
         ["id"],
-        ondelete="RESTRICT",
+        ondelete="NO ACTION",
+        deferrable=True,
+        initially="DEFERRED",
     )
 
     # Null-safe on both sides, so an account recorded without a scope is rejected rather than

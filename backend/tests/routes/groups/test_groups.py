@@ -889,3 +889,39 @@ async def test_delete_group_whose_account_a_transfer_records_returns_409(client)
     resp = await client.delete(f"/groups/{group_id}", headers=headers)
 
     assert resp.status_code == 409
+
+
+async def test_delete_group_with_a_transfer_between_its_own_accounts_returns_204(client):
+    """Both sides go with the group, so nothing outside it is left recording a deleted account."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    group_id = (await _create_group(client, headers)).json()["id"]
+
+    # The recorded account is created first, so the cascade can reach it before the transaction
+    # recording it has been removed. The other order passes whatever the foreign key does
+    recorded_id = (await client.post("/accounts", json={
+        "account_kind": "asset", "account_type": "savings", "name": "Shared Savings",
+        "currency": "CAD", "group_id": group_id,
+    }, headers=headers)).json()["id"]
+    holder_id = (await client.post("/accounts", json={
+        "account_kind": "asset", "account_type": "checking", "name": "Shared Chequing",
+        "currency": "CAD", "group_id": group_id,
+    }, headers=headers)).json()["id"]
+
+    categories = await client.get("/categories", headers=headers)
+    transfer_id = next(category["id"] for category in categories.json() if category["name"] == "Transfer")
+
+    created = await client.post("/transactions", json={
+        "account_id": holder_id,
+        "category_id": transfer_id,
+        "dt": "2026-03-15",
+        "amount": -5000,
+        "currency": "CAD",
+        "other_account_scope": "tracked",
+        "other_account_id": recorded_id,
+    }, headers=headers)
+    assert created.status_code == 201
+
+    resp = await client.delete(f"/groups/{group_id}", headers=headers)
+
+    assert resp.status_code == 204

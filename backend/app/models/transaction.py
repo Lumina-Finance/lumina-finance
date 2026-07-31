@@ -34,9 +34,16 @@ class Transaction(Base):
     notes: Mapped[str | None] = mapped_column(Text)
 
     # The account on the other side of a transfer. Recording it creates no transaction there and
-    # moves no balance, so deleting that account must leave this row alone rather than cascade
+    # moves no balance, so deleting that account has to be refused rather than cascade here.
+    #
+    # Deferred to the commit rather than checked per row, because deleting a group cascades into
+    # its accounts and their transactions in one statement, and an immediate check fires or not
+    # depending on which physical row the cascade reaches first. RESTRICT cannot be deferred at
+    # all, so the refusal comes from NO ACTION at the end of the transaction, by which point a
+    # cascade that removed both sides together leaves nothing to complain about
     other_account_id: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("accounts.id", ondelete="RESTRICT"), index=True,
+        ForeignKey("accounts.id", ondelete="NO ACTION", deferrable=True, initially="DEFERRED"),
+        index=True,
     )
     other_account_scope: Mapped[TransferOtherAccountScope | None] = mapped_column()
 
