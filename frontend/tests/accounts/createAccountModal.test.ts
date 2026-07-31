@@ -51,6 +51,7 @@ const taxAdvantagedCategories: TaxAdvantagedCategory[] = [
     ytd_withdrawals: 0,
     lifetime_contributions: 0,
     lifetime_withdrawals: 0,
+    counts_internal_transfers: false,
     created_at: '2026-01-01T00:00:00Z',
   },
   {
@@ -69,6 +70,7 @@ const taxAdvantagedCategories: TaxAdvantagedCategory[] = [
     ytd_withdrawals: 0,
     lifetime_contributions: 0,
     lifetime_withdrawals: 0,
+    counts_internal_transfers: false,
     created_at: '2026-01-01T00:00:00Z',
   },
 ]

@@ -4,4 +4,5 @@ export const CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS = {
   currency: 'create-tac-currency',
   lifetimeContributionLimit: 'create-tac-lifetime-contribution-limit',
   accruedContributions: 'create-tac-accrued-contributions',
+  countsInternalTransfers: 'create-tac-counts-internal-transfers',
 } as const
