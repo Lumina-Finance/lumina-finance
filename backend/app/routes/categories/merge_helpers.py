@@ -17,6 +17,7 @@ from app.routes.categories.access_helpers import (
 )
 from app.routes.categories.scope_filter_helpers import get_system_or_personal_category_filter
 from app.services.cache_state import mark_cache_changed_for_scope
+from app.services.transactions.validation import does_category_record_other_account
 
 
 async def get_merge_replacement_category(
@@ -72,15 +73,16 @@ async def get_merge_replacement_category(
 async def move_category_references(
     db: AsyncSession,
     source_category_id: uuid.UUID,
-    replacement_category_id: uuid.UUID,
+    replacement: Category,
 ) -> None:
     """Move category references from a source category to a replacement
 
     Args:
         db: Active database session
         source_category_id: Category being merged away
-        replacement_category_id: Category receiving the references
+        replacement: Category receiving the references
     """
+    replacement_category_id = replacement.id
     replacement_tracked_category = aliased(BudgetTrackedCategory)
 
     # Delete duplicate tracked-category rows before moving source references to the replacement
@@ -96,11 +98,18 @@ async def move_category_references(
         ),
     )
 
-    # Move source transactions to the replacement category
+    # Move source transactions to the replacement category. Merging into a category with no other
+    # side, which the matching-kind rule narrows to Balance Adjustment, drops the recorded account
+    # along the way, the same as editing one transaction onto that category does
+    transaction_values: dict[str, object] = {"category_id": replacement_category_id}
+    if not does_category_record_other_account(replacement):
+        transaction_values["other_account_id"] = None
+        transaction_values["other_account_scope"] = None
+
     await db.execute(
         sa.update(Transaction)
         .where(Transaction.category_id == source_category_id)
-        .values(category_id=replacement_category_id),
+        .values(**transaction_values),
     )
 
     # Move merchant default categories from the source category to the replacement
@@ -141,7 +150,7 @@ async def merge_category_into_replacement_for_user(
 
     await require_group_category_admin(db, category, user_id)
     replacement = await get_merge_replacement_category(db, category, replacement_category_id, user_id)
-    await move_category_references(db, category.id, replacement.id)
+    await move_category_references(db, category.id, replacement)
     await mark_cache_changed_for_scope(db, user_id=category.owner_id, group_id=category.group_id)
 
     # Delete the source category after all category references point to the replacement

@@ -856,3 +856,36 @@ async def test_remove_member_without_auth_returns_401(client):
     """DELETE /groups/{id}/members/{id} without auth returns 401."""
     resp = await client.delete(f"/groups/{NONEXISTENT_ID}/members/{NONEXISTENT_ID}")
     assert resp.status_code == 401
+
+
+async def test_delete_group_whose_account_a_transfer_records_returns_409(client):
+    """The group's accounts go with it, so a transfer recording one of them blocks the delete."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    group_id = (await _create_group(client, headers)).json()["id"]
+
+    group_account_id = (await client.post("/accounts", json={
+        "account_kind": "asset", "account_type": "savings", "name": "Shared Savings",
+        "currency": "CAD", "group_id": group_id,
+    }, headers=headers)).json()["id"]
+    personal_account_id = (await client.post("/accounts", json={
+        "account_kind": "asset", "account_type": "checking", "name": "Chequing", "currency": "CAD",
+    }, headers=headers)).json()["id"]
+
+    categories = await client.get("/categories", headers=headers)
+    transfer_id = next(category["id"] for category in categories.json() if category["name"] == "Transfer")
+
+    created = await client.post("/transactions", json={
+        "account_id": personal_account_id,
+        "category_id": transfer_id,
+        "dt": "2026-03-15",
+        "amount": -5000,
+        "currency": "CAD",
+        "other_account_scope": "tracked",
+        "other_account_id": group_account_id,
+    }, headers=headers)
+    assert created.status_code == 201
+
+    resp = await client.delete(f"/groups/{group_id}", headers=headers)
+
+    assert resp.status_code == 409

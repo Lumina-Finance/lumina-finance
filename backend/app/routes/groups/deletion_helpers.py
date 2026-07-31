@@ -4,6 +4,7 @@ import uuid
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.group import GroupMember
@@ -24,7 +25,7 @@ async def delete_group_for_owner(
         user_id: Authenticated user identifier
 
     Raises:
-        HTTPException: User is not a group member or group owner
+        HTTPException: User is not a group member or group owner, or a transfer records one of its accounts
     """
     await get_group_membership_or_404(db, group_id, user_id)
     group = await get_group_or_404(db, group_id)
@@ -42,4 +43,14 @@ async def delete_group_for_owner(
 
     # Delete the group after member cache invalidations are recorded
     await db.delete(group)
-    await db.commit()
+
+    # The group's accounts go with it, so a transfer elsewhere recording one of them reaches the
+    # same restricting foreign key that refuses deleting that account on its own
+    try:
+        await db.commit()
+    except IntegrityError as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="An account in this group is recorded as the other side of transfers elsewhere",
+        ) from e

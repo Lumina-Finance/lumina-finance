@@ -173,7 +173,18 @@ def _resolve_transfer_pair(
         Outgoing and incoming transfer legs
     """
     # The imported row states both endpoints, so each leg records the opposite account and the
-    # pair comes out already answered rather than needing the question asked afterwards
+    # pair comes out already answered rather than needing the question asked afterwards.
+    #
+    # Two imported names can be mapped onto one account, which would have each leg recording the
+    # account it already sits in. That is the one thing the field cannot mean, so those legs are
+    # left unanswered instead
+    if source_account.id == destination_account.id:
+        other_source_account = None
+        other_destination_account = None
+    else:
+        other_source_account = destination_account
+        other_destination_account = source_account
+
     return [
         FireflyLeg(
             account=source_account,
@@ -183,7 +194,7 @@ def _resolve_transfer_pair(
             merchant_name=None,
             notes=notes,
             tag_names=row.tag_names,
-            other_account=destination_account,
+            other_account=other_source_account,
         ),
         FireflyLeg(
             account=destination_account,
@@ -193,7 +204,7 @@ def _resolve_transfer_pair(
             merchant_name=None,
             notes=notes,
             tag_names=row.tag_names,
-            other_account=source_account,
+            other_account=other_destination_account,
         ),
     ]
 

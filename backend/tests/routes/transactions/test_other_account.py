@@ -1,5 +1,9 @@
 import uuid
 
+import pytest
+from sqlalchemy.exc import IntegrityError
+
+from app.models.base import TransferOtherAccountScope
 from app.models.transaction import Transaction
 from tests.conftest import TestSession
 from tests.routes.support import _create_user, _get_auth_header
@@ -100,6 +104,37 @@ async def test_create_transfer_with_a_tracked_answer_and_no_account_is_rejected(
     )
 
     assert resp.status_code == 422
+
+
+async def test_the_database_refuses_an_account_recorded_without_a_scope(client):
+    """The check constraint holds on writes that do not come through the API."""
+    headers, account_id, other_account_id, transfer_id = await _setup_transfer_user(client)
+    created = await _create_transaction(
+        client, headers, account_id, transfer_id, other_account_scope="outside",
+    )
+    txn_id = created.json()["id"]
+
+    with pytest.raises(IntegrityError):
+        async with TestSession() as session:
+            txn = await session.get(Transaction, uuid.UUID(txn_id))
+            txn.other_account_id = uuid.UUID(other_account_id)
+            txn.other_account_scope = None
+            await session.commit()
+
+
+async def test_the_database_refuses_a_tracked_scope_with_no_account(client):
+    """The other half of the same rule, which the API rejects before the database sees it."""
+    headers, account_id, _, transfer_id = await _setup_transfer_user(client)
+    created = await _create_transaction(
+        client, headers, account_id, transfer_id, other_account_scope="outside",
+    )
+    txn_id = created.json()["id"]
+
+    with pytest.raises(IntegrityError):
+        async with TestSession() as session:
+            txn = await session.get(Transaction, uuid.UUID(txn_id))
+            txn.other_account_scope = TransferOtherAccountScope.TRACKED
+            await session.commit()
 
 
 async def test_balance_adjustment_rejects_the_field(client):
