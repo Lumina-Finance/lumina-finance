@@ -16,6 +16,12 @@ type ApplyCursorTooltipPositionOptions = CursorTooltipPositionOptions & {
   yProperty: string
 }
 
+// Above every modal level the modal shell uses, which reaches 100 for a modal opened from another
+// modal. A tooltip belonging to a chart inside a modal is portalled into the body beside the modal
+// rather than into the panel, so at an equal level whichever of the two React appended last would
+// paint on top, and the tooltip could end up underneath the panel it belongs to
+export const CURSOR_TOOLTIP_Z_INDEX = 110
+
 const DEFAULT_CURSOR_TOOLTIP_OFFSET = 10
 const DEFAULT_CURSOR_TOOLTIP_MARGIN = 8
 const DEFAULT_CURSOR_TOOLTIP_STRATEGY: CursorTooltipPositionStrategy = 'fixed'
@@ -94,7 +100,7 @@ export function applyCursorTooltipPosition({
 }: ApplyCursorTooltipPositionOptions) {
   const position = getCursorTooltipPosition({ tooltip, ...options })
   tooltip.style.position = options.strategy ?? DEFAULT_CURSOR_TOOLTIP_STRATEGY
-  tooltip.style.zIndex = '60'
+  tooltip.style.zIndex = String(CURSOR_TOOLTIP_Z_INDEX)
   tooltip.style.setProperty('--app-cursor-tooltip-max-width', `${position.maxWidth}px`)
   tooltip.style.setProperty(xProperty, `${position.x}px`)
   tooltip.style.setProperty(yProperty, `${position.y}px`)
