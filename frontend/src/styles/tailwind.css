@@ -1613,8 +1613,9 @@
      its contents inside the visible area so anything centred lines up with the page behind it. The
      reserved width is the difference between the window and this element's containing block, which is
      zero wherever the scrollbar is drawn over the content instead of beside it. An overlay's horizontal
-     inset goes in --app-window-overlay-inset-x, not a padding utility, because a utility would override
-     the compensation on the right and put the bare strip back */
+     inset goes in --app-window-overlay-inset-x, not a padding utility: a utility overrides the right
+     padding on its own, which leaves the fill reaching the edge but shifts everything centred inside it
+     right by half the reserved width */
   .app-window-overlay {
     @apply fixed inset-0;
     --app-window-overlay-inset-x: 0px;
