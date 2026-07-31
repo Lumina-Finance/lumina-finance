@@ -166,7 +166,7 @@ export function ModalShell({
     <AnimatePresence onExitComplete={onExitComplete}>
       {open && (
         <motion.div
-          className={`app-modal-backdrop ${appearance.className}`}
+          className={`app-window-overlay app-modal-backdrop ${appearance.className}`}
           style={appearance.style}
           onClick={closeDisabled ? undefined : onClose}
           initial={{ opacity: 0 }}
