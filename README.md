@@ -32,7 +32,7 @@ THIS APPLICATION IS PROVIDED “AS IS” AND “AS AVAILABLE,” WITHOUT WARRANT
 
 <!-- markdownlint-disable MD033 -->
 
-https://github.com/user-attachments/assets/955058c5-ecb7-4c3b-b9d6-e076c4e270d7
+https://github.com/user-attachments/assets/84eda1e4-1b73-422b-be86-0b662add0949
 
 <!-- markdownlint-enable MD033 -->
 
@@ -94,46 +94,46 @@ Every page is fully optimized for desktop, tablet, and mobile.
 <!-- markdownlint-disable MD033 -->
 
 <p align="center">
-  <img src="docs/screenshots/dashboard_light.png" alt="Screenshot of dashboard in light mode" width="49%">
-  <img src="docs/screenshots/dashboard_dark.png" alt="Screenshot of dashboard in dark mode" width="49%">
+  <img src="docs/screenshots/desktop/dashboard_light.png" alt="Screenshot of dashboard in light mode" width="49%">
+  <img src="docs/screenshots/desktop/dashboard_dark.png" alt="Screenshot of dashboard in dark mode" width="49%">
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/accounts_light.png" alt="Screenshot of accounts page in light mode" width="49%">
-  <img src="docs/screenshots/accounts_dark.png" alt="Screenshot of accounts page in dark mode" width="49%">
+  <img src="docs/screenshots/desktop/accounts_light.png" alt="Screenshot of accounts page in light mode" width="49%">
+  <img src="docs/screenshots/desktop/accounts_dark.png" alt="Screenshot of accounts page in dark mode" width="49%">
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/insights_light.png" alt="Screenshot of insights page in light mode" width="49%">
-  <img src="docs/screenshots/insights_dark.png" alt="Screenshot of insights page in dark mode" width="49%">
+  <img src="docs/screenshots/desktop/insights_light.png" alt="Screenshot of insights page in light mode" width="49%">
+  <img src="docs/screenshots/desktop/insights_dark.png" alt="Screenshot of insights page in dark mode" width="49%">
 </p>
 
 <details>
 <summary>More screenshots</summary>
 
 <p align="center">
-  <img src="docs/screenshots/account_details_light.png" alt="Screenshot of account details in light mode" width="49%">
-  <img src="docs/screenshots/account_details_dark.png" alt="Screenshot of account details in dark mode" width="49%">
+  <img src="docs/screenshots/desktop/account_details_light.png" alt="Screenshot of account details in light mode" width="49%">
+  <img src="docs/screenshots/desktop/account_details_dark.png" alt="Screenshot of account details in dark mode" width="49%">
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/transactions_light.png" alt="Screenshot of transactions page in light mode" width="49%">
-  <img src="docs/screenshots/transactions_dark.png" alt="Screenshot of transactions page in dark mode" width="49%">
+  <img src="docs/screenshots/desktop/transactions_light.png" alt="Screenshot of transactions page in light mode" width="49%">
+  <img src="docs/screenshots/desktop/transactions_dark.png" alt="Screenshot of transactions page in dark mode" width="49%">
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/budgets_light.png" alt="Screenshot of budgets page in light mode" width="49%">
-  <img src="docs/screenshots/budgets_dark.png" alt="Screenshot of budgets page in dark mode" width="49%">
+  <img src="docs/screenshots/desktop/budgets_light.png" alt="Screenshot of budgets page in light mode" width="49%">
+  <img src="docs/screenshots/desktop/budgets_dark.png" alt="Screenshot of budgets page in dark mode" width="49%">
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/budget_details_light.png" alt="Screenshot of budget details in light mode" width="49%">
-  <img src="docs/screenshots/budget_details_dark.png" alt="Screenshot of budget details in dark mode" width="49%">
+  <img src="docs/screenshots/desktop/budget_details_light.png" alt="Screenshot of budget details in light mode" width="49%">
+  <img src="docs/screenshots/desktop/budget_details_dark.png" alt="Screenshot of budget details in dark mode" width="49%">
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/transaction_import_light.png" alt="Screenshot of transaction import in light mode" width="49%">
-  <img src="docs/screenshots/transaction_import_dark.png" alt="Screenshot of transaction import in dark mode" width="49%">
+  <img src="docs/screenshots/desktop/transaction_import_light.png" alt="Screenshot of transaction import in light mode" width="49%">
+  <img src="docs/screenshots/desktop/transaction_import_dark.png" alt="Screenshot of transaction import in dark mode" width="49%">
 </p>
 
 </details>
@@ -271,11 +271,11 @@ These are some advanced variables that you could also set. Lumina Finance provid
 
 <!-- markdownlint-disable MD033 -->
 <div align="center">
-  <a href="https://www.star-history.com/?repos=lumina-finance%2Flumina-finance&type=date&legend=top-left">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=lumina-finance/lumina-finance&type=date&theme=dark&legend=top-left&sealed_token=tewHeSkjbRzmKj5yVCRhv9HFsdYAoPaD2guj7cvXwSaSnlogD7bij0KS3Ur7upBsTO_LdBH_Rnq51wDU-6OtrYkkH81M_c-IXZjnBYrPCoHpCauQQOtf_a9qAVc06m3QyOC-4emgE5bn-_eiAQ57tStSnFKu7yPc77vcEz4GfdnjQwREIOgERtEcuDPv" />
-    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=lumina-finance/lumina-finance&type=date&legend=top-left&sealed_token=tewHeSkjbRzmKj5yVCRhv9HFsdYAoPaD2guj7cvXwSaSnlogD7bij0KS3Ur7upBsTO_LdBH_Rnq51wDU-6OtrYkkH81M_c-IXZjnBYrPCoHpCauQQOtf_a9qAVc06m3QyOC-4emgE5bn-_eiAQ57tStSnFKu7yPc77vcEz4GfdnjQwREIOgERtEcuDPv" />
-    <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=lumina-finance/lumina-finance&type=date&legend=top-left&sealed_token=tewHeSkjbRzmKj5yVCRhv9HFsdYAoPaD2guj7cvXwSaSnlogD7bij0KS3Ur7upBsTO_LdBH_Rnq51wDU-6OtrYkkH81M_c-IXZjnBYrPCoHpCauQQOtf_a9qAVc06m3QyOC-4emgE5bn-_eiAQ57tStSnFKu7yPc77vcEz4GfdnjQwREIOgERtEcuDPv" />
-  </picture>
+  <a href="https://www.star-history.com/?repos=Lumina-Finance%2Flumina-finance&type=date&legend=top-left">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=Lumina-Finance/lumina-finance&type=date&theme=dark&legend=top-left&sealed_token=G8nGy5XJj7OX0x2gmytcpCaPGZQzG3mN10PijRfiU3ck66mFy916ZMC2lk6RQzPTVuxuLKDb5ludxBinqLypUB_C9dtNwIbulbsIOlnn8SU0iySjcHLZrA" />
+      <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=Lumina-Finance/lumina-finance&type=date&legend=top-left&sealed_token=G8nGy5XJj7OX0x2gmytcpCaPGZQzG3mN10PijRfiU3ck66mFy916ZMC2lk6RQzPTVuxuLKDb5ludxBinqLypUB_C9dtNwIbulbsIOlnn8SU0iySjcHLZrA" />
+      <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=Lumina-Finance/lumina-finance&type=date&legend=top-left&sealed_token=G8nGy5XJj7OX0x2gmytcpCaPGZQzG3mN10PijRfiU3ck66mFy916ZMC2lk6RQzPTVuxuLKDb5ludxBinqLypUB_C9dtNwIbulbsIOlnn8SU0iySjcHLZrA" />
+    </picture>
   </a>
 </div>
