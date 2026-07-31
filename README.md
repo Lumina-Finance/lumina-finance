@@ -271,11 +271,11 @@ These are some advanced variables that you could also set. Lumina Finance provid
 
 <!-- markdownlint-disable MD033 -->
 <div align="center">
-  <a href="https://www.star-history.com/?repos=lumina-finance%2Flumina-finance&type=date&legend=top-left">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=lumina-finance/lumina-finance&type=date&theme=dark&legend=top-left&sealed_token=tewHeSkjbRzmKj5yVCRhv9HFsdYAoPaD2guj7cvXwSaSnlogD7bij0KS3Ur7upBsTO_LdBH_Rnq51wDU-6OtrYkkH81M_c-IXZjnBYrPCoHpCauQQOtf_a9qAVc06m3QyOC-4emgE5bn-_eiAQ57tStSnFKu7yPc77vcEz4GfdnjQwREIOgERtEcuDPv" />
-    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=lumina-finance/lumina-finance&type=date&legend=top-left&sealed_token=tewHeSkjbRzmKj5yVCRhv9HFsdYAoPaD2guj7cvXwSaSnlogD7bij0KS3Ur7upBsTO_LdBH_Rnq51wDU-6OtrYkkH81M_c-IXZjnBYrPCoHpCauQQOtf_a9qAVc06m3QyOC-4emgE5bn-_eiAQ57tStSnFKu7yPc77vcEz4GfdnjQwREIOgERtEcuDPv" />
-    <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=lumina-finance/lumina-finance&type=date&legend=top-left&sealed_token=tewHeSkjbRzmKj5yVCRhv9HFsdYAoPaD2guj7cvXwSaSnlogD7bij0KS3Ur7upBsTO_LdBH_Rnq51wDU-6OtrYkkH81M_c-IXZjnBYrPCoHpCauQQOtf_a9qAVc06m3QyOC-4emgE5bn-_eiAQ57tStSnFKu7yPc77vcEz4GfdnjQwREIOgERtEcuDPv" />
-  </picture>
+  <a href="https://www.star-history.com/?repos=Lumina-Finance%2Flumina-finance&type=date&legend=top-left">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=Lumina-Finance/lumina-finance&type=date&theme=dark&legend=top-left&sealed_token=G8nGy5XJj7OX0x2gmytcpCaPGZQzG3mN10PijRfiU3ck66mFy916ZMC2lk6RQzPTVuxuLKDb5ludxBinqLypUB_C9dtNwIbulbsIOlnn8SU0iySjcHLZrA" />
+      <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=Lumina-Finance/lumina-finance&type=date&legend=top-left&sealed_token=G8nGy5XJj7OX0x2gmytcpCaPGZQzG3mN10PijRfiU3ck66mFy916ZMC2lk6RQzPTVuxuLKDb5ludxBinqLypUB_C9dtNwIbulbsIOlnn8SU0iySjcHLZrA" />
+      <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=Lumina-Finance/lumina-finance&type=date&legend=top-left&sealed_token=G8nGy5XJj7OX0x2gmytcpCaPGZQzG3mN10PijRfiU3ck66mFy916ZMC2lk6RQzPTVuxuLKDb5ludxBinqLypUB_C9dtNwIbulbsIOlnn8SU0iySjcHLZrA" />
+    </picture>
   </a>
 </div>
