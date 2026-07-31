@@ -128,7 +128,12 @@ describe('budget details helpers', () => {
       ['groceries', createCategory({ id: 'groceries', name: 'Groceries' })],
     ])
 
-    expect(getBudgetChartCategories({ baseBudget, categoryById, categoryDetailsById: categories })).toMatchObject([
+    expect(getBudgetChartCategories({
+      baseBudget,
+      categoryById,
+      categoryDetailsById: categories,
+      latestUtilization: undefined,
+    })).toMatchObject([
       {
         id: 'groceries',
         name: 'Groceries',
@@ -142,6 +147,81 @@ describe('budget details helpers', () => {
         dataKey: 'categoryPct1',
       },
     ])
+  })
+
+  it('orders chart categories by the latest period spending, highest first', () => {
+    const baseBudget = createBaseBudget({ category_ids: ['water', 'electricity', 'gas'] })
+    const categories = new Map([
+      ['water', createCategory({ id: 'water', name: 'Water' })],
+      ['electricity', createCategory({ id: 'electricity', name: 'Electricity' })],
+      ['gas', createCategory({ id: 'gas', name: 'Gas' })],
+    ])
+    const latestUtilization = createUtilization({
+      categories: [
+        { category_id: 'water', spent: 6000 },
+        { category_id: 'electricity', spent: 20000 },
+      ],
+    })
+
+    const chartCategories = getBudgetChartCategories({
+      baseBudget,
+      categoryById: new Map(),
+      categoryDetailsById: categories,
+      latestUtilization,
+    })
+
+    // Gas has no spending row at all, so it ranks with the zero spenders rather than being dropped
+    expect(chartCategories.map((category) => category.id)).toEqual(['electricity', 'water', 'gas'])
+    expect(chartCategories.map((category) => category.dataKey)).toEqual(['categoryPct0', 'categoryPct1', 'categoryPct2'])
+  })
+
+  it('orders equally spending chart categories by name and then ID', () => {
+    const baseBudget = createBaseBudget({ category_ids: ['water-b', 'transit', 'water-a'] })
+    const categories = new Map([
+      ['water-b', createCategory({ id: 'water-b', name: 'Water' })],
+      ['transit', createCategory({ id: 'transit', name: 'Transit' })],
+      ['water-a', createCategory({ id: 'water-a', name: 'Water' })],
+    ])
+    const latestUtilization = createUtilization({
+      categories: [
+        { category_id: 'water-b', spent: 4000 },
+        { category_id: 'transit', spent: 4000 },
+        { category_id: 'water-a', spent: 4000 },
+      ],
+    })
+
+    const chartCategories = getBudgetChartCategories({
+      baseBudget,
+      categoryById: new Map(),
+      categoryDetailsById: categories,
+      latestUtilization,
+    })
+
+    expect(chartCategories.map((category) => category.id)).toEqual(['transit', 'water-a', 'water-b'])
+  })
+
+  it('keeps a budget with no spending in a stable order whatever order the API returns', () => {
+    const categories = new Map([
+      ['water', createCategory({ id: 'water', name: 'Water' })],
+      ['electricity', createCategory({ id: 'electricity', name: 'Electricity' })],
+    ])
+    const latestUtilization = createUtilization({ total_spent: 0, categories: [] })
+
+    const firstLoad = getBudgetChartCategories({
+      baseBudget: createBaseBudget({ category_ids: ['water', 'electricity'] }),
+      categoryById: new Map(),
+      categoryDetailsById: categories,
+      latestUtilization,
+    })
+    const secondLoad = getBudgetChartCategories({
+      baseBudget: createBaseBudget({ category_ids: ['electricity', 'water'] }),
+      categoryById: new Map(),
+      categoryDetailsById: categories,
+      latestUtilization,
+    })
+
+    expect(firstLoad.map((category) => category.id)).toEqual(['electricity', 'water'])
+    expect(secondLoad.map((category) => category.id)).toEqual(['electricity', 'water'])
   })
 
   it('seeds latest utilization before historical query results override by budget ID', () => {
