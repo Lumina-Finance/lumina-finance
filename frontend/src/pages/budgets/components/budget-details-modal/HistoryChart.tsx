@@ -99,6 +99,14 @@ export default function BudgetHistoryChart({
   const currentPeriodKey = chartData.find((point) => point.isCurrent)?.periodKey
   const [isMobile, setIsMobile] = useState(() => window.matchMedia(BUDGET_CHART_MOBILE_QUERY).matches)
 
+  // Recharts keys a bar's animation off the identity of the rectangles it computes, and that identity
+  // changes on every render, so an animated bar replays its entrance whenever anything re-renders the
+  // chart. Pointer movement re-renders it on every event, which leaves the plot repainting frame by
+  // frame for as long as the pointer keeps moving. Animation is therefore switched off as soon as the
+  // entrance has played, leaving the bars static for the rest of the chart's life
+  const [barsAnimating, setBarsAnimating] = useState(true)
+  const stopBarAnimation = () => setBarsAnimating(false)
+
   useEffect(() => {
     const mobileQuery = window.matchMedia(BUDGET_CHART_MOBILE_QUERY)
     const updateIsMobile = () => setIsMobile(mobileQuery.matches)
@@ -233,7 +241,9 @@ export default function BudgetHistoryChart({
                     />
                   )}
                   barSize={barSize}
+                  isAnimationActive={barsAnimating}
                   animationBegin={MODAL_SURFACE_TRANSITION_MS}
+                  onAnimationEnd={stopBarAnimation}
                 />
               )) : (
                 <Bar
@@ -249,7 +259,9 @@ export default function BudgetHistoryChart({
                     />
                   )}
                   barSize={barSize}
+                  isAnimationActive={barsAnimating}
                   animationBegin={MODAL_SURFACE_TRANSITION_MS}
+                  onAnimationEnd={stopBarAnimation}
                 />
               )}
               <ReferenceLine
