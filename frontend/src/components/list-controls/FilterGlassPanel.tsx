@@ -24,6 +24,10 @@ const COLLAPSED_FALLBACK = { width: 140, height: 34 }
 // clips the label. Added to the content width to size the pill
 const COLLAPSED_HEAD_CHROME = 64
 
+// Inner spacing of the open panel body. The top edge only takes it when the panel opens upward,
+// where the glass border sits directly above the content instead of the pill head
+const BODY_PADDING = 12
+
 type FilterGlassPanelProps = {
   // Accessible name for the collapsed pill button, naming the domain being filtered
   ariaLabel: string
@@ -271,7 +275,10 @@ export function FilterGlassPanel({
               list, where the list has already given up all of its own height */}
           <div
             className="flex flex-col overflow-y-auto"
-            style={{ height: placement.height, padding: '0 12px 12px' }}
+            style={{
+              height: placement.height,
+              padding: `${openUpward ? BODY_PADDING : 0}px ${BODY_PADDING}px ${BODY_PADDING}px`,
+            }}
           >
             {children}
           </div>
