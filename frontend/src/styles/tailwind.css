@@ -1609,24 +1609,8 @@
     border: 1px solid var(--app-border-strong);
   }
 
-  /* Covers the window edge to edge, including the width html reserves for the scrollbar, while keeping
-     its contents inside the visible area so anything centred lines up with the page behind it. The
-     reserved width is the difference between the window and this element's containing block, which is
-     zero wherever the scrollbar is drawn over the content instead of beside it. An overlay's horizontal
-     inset goes in --app-window-overlay-inset-x, not a padding utility: a utility overrides the right
-     padding on its own, which leaves the fill reaching the edge but shifts everything centred inside it
-     right by half the reserved width */
-  .app-window-overlay {
-    @apply fixed inset-0;
-    --app-window-overlay-inset-x: 0px;
-    margin-right: calc(100% - 100vw);
-    padding-left: var(--app-window-overlay-inset-x);
-    padding-right: calc(var(--app-window-overlay-inset-x) + 100vw - 100%);
-  }
-
   .app-modal-backdrop {
-    @apply flex items-center justify-center py-4;
-    --app-window-overlay-inset-x: 1rem;
+    @apply fixed inset-0 flex items-center justify-center p-4;
     background: #0f0e0c8f;
   }
 
