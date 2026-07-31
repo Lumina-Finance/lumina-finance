@@ -1,4 +1,5 @@
 import { motion } from 'motion/react';
+import type { CSSProperties } from 'react';
 
 type LoadingScreenProps = {
   variant?: 'screen' | 'main';
@@ -9,14 +10,18 @@ type LoadingScreenProps = {
 // time it is mounted, otherwise its exit fade keeps swallowing taps on the menu and
 // in-page buttons for the length of the fade after the content is already interactive
 const loadingScreenClassNames = {
-  screen: 'pointer-events-none fixed inset-0 z-50 flex flex-col items-center justify-center gap-5 px-6 text-center min-[730px]:gap-6',
-  main: 'pointer-events-none fixed inset-0 z-30 flex flex-col items-center justify-center gap-5 px-6 text-center min-[730px]:gap-6 min-[1050px]:left-[260px]',
+  screen: 'app-window-overlay pointer-events-none z-50 flex flex-col items-center justify-center gap-5 text-center min-[730px]:gap-6',
+  main: 'app-window-overlay pointer-events-none z-30 flex flex-col items-center justify-center gap-5 text-center min-[730px]:gap-6 min-[1050px]:left-[260px]',
 };
+
+// The overlay's own inset from the left and right window edges. It is set here rather than with a padding
+// utility, so app-window-overlay can add the width reserved for the scrollbar on top of it
+const OVERLAY_INSET_X = '1.5rem';
 
 const LoadingScreen = ({ variant = 'screen', message = 'Your financial future awaits' }: LoadingScreenProps) => (
   <motion.div
     className={loadingScreenClassNames[variant]}
-    style={{ backgroundColor: 'var(--app-bg)' }}
+    style={{ backgroundColor: 'var(--app-bg)', '--app-window-overlay-inset-x': OVERLAY_INSET_X } as CSSProperties}
     role="status"
     aria-live="polite"
     initial={{ opacity: 0 }}

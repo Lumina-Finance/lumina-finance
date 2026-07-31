@@ -168,7 +168,7 @@ function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase, 
           </AnimatePresence>
           <main
             id="app-page-content"
-            className={`min-w-0 flex-1 ${isFocusedPage ? 'fixed inset-0 z-[60] p-0' : `relative px-4 pb-8 pt-6 ${navOffsetClass} min-[1050px]:px-6 ${desktopBottomPadding} min-[1050px]:pt-10 transition-[margin] duration-[450ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none`}`}
+            className={`min-w-0 flex-1 ${isFocusedPage ? 'app-window-overlay z-[60]' : `relative px-4 pb-8 pt-6 ${navOffsetClass} min-[1050px]:px-6 ${desktopBottomPadding} min-[1050px]:pt-10 transition-[margin] duration-[450ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none`}`}
             aria-busy={pageTransitioning}
           >
             <motion.div
