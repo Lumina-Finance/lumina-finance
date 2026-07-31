@@ -103,11 +103,13 @@ export function useTransactionSubmit({
   // Resets the form after a create so a keep-open batch starts its next row from the same
   // account, category, merchant, currency, and date instead of blank fields
   //
-  // A symmetric transfer additionally keeps symmetric_transfer, to_account_id, and
-  // other_account_id, because a transfer's identity is the account pair and the other-account
-  // field is required on every create: dropping any of them would force re-arming the checkbox,
-  // the receiving account, and the answer before every row in the batch. The single-transaction
-  // path always clears them, which is a no-op since all three are off-screen outside a transfer
+  // The recorded other account is kept on every path, because it is required on every transfer
+  // create and a batch of them would otherwise have to answer it again on each row. Outside a
+  // transfer the field is off-screen and empty, so keeping it changes nothing
+  //
+  // A symmetric transfer additionally keeps symmetric_transfer and to_account_id, because a
+  // transfer's identity is the account pair and dropping either would force re-arming the
+  // checkbox and the receiving account before every row
   const resetFormAfterCreate = ({ keepTransferPair }: { keepTransferPair: boolean }) => {
     setForm({
       ...INITIAL_TRANSACTION_FORM,
@@ -118,11 +120,11 @@ export function useTransactionSubmit({
       merchant_id: form.merchant_id,
       currency: form.currency,
       date: form.date,
+      other_account_id: form.other_account_id,
       ...(keepTransferPair
         ? {
           symmetric_transfer: form.symmetric_transfer,
           to_account_id: form.to_account_id,
-          other_account_id: form.other_account_id,
         }
         : {}),
     })

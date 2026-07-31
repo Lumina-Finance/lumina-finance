@@ -49,7 +49,10 @@ export function useAccountField({
     () => buildAccountOptions(selectableAccounts, editing, form.currency),
     [selectableAccounts, editing, form.currency],
   )
-  const otherAccountOptions = useMemo(() => buildOtherAccountOptions(accounts), [accounts])
+  const otherAccountOptions = useMemo(
+    () => buildOtherAccountOptions(accounts, form.account_id, editing),
+    [accounts, form.account_id, editing],
+  )
   const selectedArchivedAccountOption = editing && selectedAccount?.is_archived
     ? { value: selectedAccount.id, label: selectedAccount.name }
     : undefined

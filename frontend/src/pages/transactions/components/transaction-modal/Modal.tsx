@@ -265,7 +265,10 @@ export default function CreateTransactionModal({
               ? { amount: runningBalance, currency: selectedAccount.currency }
               : undefined}
             kind={form.kind}
-            direction={form.direction}
+
+            // A pair always debits the account above and credits the receiving one, whatever the
+            // direction toggle was left on before the checkbox disabled it
+            direction={isSymmetricTransfer ? 'debit' : form.direction}
             isSymmetricTransfer={form.symmetric_transfer}
             toAccountValue={form.to_account_id}
             toAccountError={showError('to_account_id')}

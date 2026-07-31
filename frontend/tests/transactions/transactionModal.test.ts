@@ -8,6 +8,7 @@ import type { Currency } from '@/api/currency'
 import type { Transaction } from '@/api/transactions'
 import { OUTSIDE_ACCOUNT_VALUE } from '@/pages/transactions/components/transaction-modal/constants'
 import { buildCategoryOptions } from '@/pages/transactions/components/transaction-modal/utils/categories'
+import { buildOtherAccountOptions } from '@/pages/transactions/components/transaction-modal/utils/options'
 import { buildInitialTransactionForm } from '@/pages/transactions/components/transaction-modal/utils/initialForm'
 import {
   amountInputToMinorUnits,
@@ -439,4 +440,25 @@ describe('transaction modal helpers', () => {
     )).toEqual({ category_id: 'groceries' })
   })
 
+})
+
+describe('other-account options', () => {
+  const accounts = [
+    createAccount({ id: 'checking', name: 'Chequing' }),
+    createAccount({ id: 'savings', name: 'Savings' }),
+  ]
+
+  it('leaves out the account holding the transfer and offers the outside entry', () => {
+    const options = buildOtherAccountOptions(accounts, 'checking', false)
+
+    expect(options.map((option) => option.value)).toEqual(['savings', OUTSIDE_ACCOUNT_VALUE])
+  })
+
+  it('offers a way back to unanswered when editing, and none when creating', () => {
+    const editing = buildOtherAccountOptions(accounts, 'checking', true)
+    const creating = buildOtherAccountOptions(accounts, 'checking', false)
+
+    expect(editing[0]).toEqual({ value: '', label: 'Not recorded' })
+    expect(creating.some((option) => option.value === '')).toBe(false)
+  })
 })
