@@ -55,6 +55,9 @@ export function useTransactionFormState(initialForm: TransactionFormValues): Tra
     const kindChanged = nextKind !== form.kind
     setForm((f) => ({
       ...f,
+      // A non-transfer kind has no other side to record, so a pending answer from a previous
+      // transfer selection is dropped rather than lingering unseen
+      ...(nextKind === 'transfer' ? {} : { other_account_id: '' }),
       ...fields,
       kind: nextKind,
       direction: nextKind === f.kind ? f.direction : getDefaultDirectionForKind(nextKind),

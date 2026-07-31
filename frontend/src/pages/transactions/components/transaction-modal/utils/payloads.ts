@@ -1,13 +1,30 @@
 import type {
   CreateTransactionPayload,
   Transaction,
+  TransferOtherAccountScope,
   UpdateTransactionPayload,
 } from '@/api/transactions'
+import { OUTSIDE_ACCOUNT_VALUE } from '@/pages/transactions/components/transaction-modal/constants'
 import {
   amountInputToMinorUnits,
   applyTransactionDirection,
 } from '@/pages/transactions/components/transaction-modal/utils/money'
 import type { TransactionFormValues } from '@/pages/transactions/components/transaction-modal/types'
+
+/**
+ * Splits the form's single other-account selection into the API's id-and-scope pair
+ *
+ * Empty means unanswered, so both come back null. The outside sentinel means the money left the
+ * tracked accounts, sent as a scope with no id. Anything else is a tracked account id
+ */
+function splitOtherAccountSelection(otherAccountId: string): {
+  other_account_id: string | null
+  other_account_scope: TransferOtherAccountScope | null
+} {
+  if (!otherAccountId) return { other_account_id: null, other_account_scope: null }
+  if (otherAccountId === OUTSIDE_ACCOUNT_VALUE) return { other_account_id: null, other_account_scope: 'outside' }
+  return { other_account_id: otherAccountId, other_account_scope: 'tracked' }
+}
 
 /**
  * Builds the create payload after the form has passed validation
@@ -27,6 +44,8 @@ export function buildCreateTransactionPayload(
     notes: form.notes.trim() || null,
   }
   if (form.tag_ids.length > 0) payload.tag_ids = form.tag_ids
+  // Every other category rejects the pair outright, so it is only ever sent for a transfer
+  if (form.kind === 'transfer') Object.assign(payload, splitOtherAccountSelection(form.other_account_id))
   return payload
 }
 
@@ -49,8 +68,21 @@ export function buildSymmetricTransferPayloads(
     currency: form.currency,
     notes: form.notes.trim() || null,
   }
-  const fromPayload: CreateTransactionPayload = { account_id: form.account_id, amount: -magnitude, ...shared }
-  const toPayload: CreateTransactionPayload = { account_id: form.to_account_id, amount: magnitude, ...shared }
+  // Each leg is a tracked account in the app, so it records the other leg's account as its other side
+  const fromPayload: CreateTransactionPayload = {
+    account_id: form.account_id,
+    amount: -magnitude,
+    other_account_id: form.to_account_id,
+    other_account_scope: 'tracked',
+    ...shared,
+  }
+  const toPayload: CreateTransactionPayload = {
+    account_id: form.to_account_id,
+    amount: magnitude,
+    other_account_id: form.account_id,
+    other_account_scope: 'tracked',
+    ...shared,
+  }
   if (form.tag_ids.length > 0) {
     fromPayload.tag_ids = form.tag_ids
     toPayload.tag_ids = form.tag_ids
@@ -82,6 +114,18 @@ export function buildUpdateTransactionPatch(
   if (form.date !== transaction.dt) patch.dt = form.date
   if (notes !== (transaction.notes ?? null)) patch.notes = notes
   if (!sameStringSet(form.tag_ids, transaction.tag_ids)) patch.tag_ids = form.tag_ids
+
+  // Left out entirely once the category leaves transfer, since the backend clears the stored
+  // answer itself when the category it ends up with no longer records another account
+  if (form.kind === 'transfer') {
+    const { other_account_id, other_account_scope } = splitOtherAccountSelection(form.other_account_id)
+    const storedScope = transaction.other_account_scope ?? null
+    const storedId = transaction.other_account_id ?? null
+    if (other_account_id !== storedId || other_account_scope !== storedScope) {
+      patch.other_account_id = other_account_id
+      patch.other_account_scope = other_account_scope
+    }
+  }
 
   return Object.keys(patch).length > 0 ? patch : null
 }

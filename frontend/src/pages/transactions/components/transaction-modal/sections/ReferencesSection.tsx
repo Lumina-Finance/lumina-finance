@@ -8,7 +8,11 @@ import {
   TRANSACTION_MODAL_FIELD_IDS,
 } from '@/pages/transactions/components/transaction-modal/constants'
 import TransferCashFlowNotice from '@/pages/transactions/components/transaction-modal/controls/TransferCashFlowNotice'
-import type { TransactionModalKind } from '@/pages/transactions/components/transaction-modal/types'
+import { doesTransferRecordOtherAccount } from '@/pages/transactions/components/transaction-modal/utils/validation'
+import type {
+  TransactionDirection,
+  TransactionModalKind,
+} from '@/pages/transactions/components/transaction-modal/types'
 import { formatCurrency } from '@/utils/formatCurrency'
 
 type SelectedTransactionTag = {
@@ -25,9 +29,19 @@ interface TransactionReferencesSectionProps {
   runningBalance?: { amount: number; currency: string }
   kind: TransactionModalKind
 
+  // Whether the amount is leaving (debit) or entering (credit) the recorded account, used to
+  // label the other-account field as money going out or coming in
+  direction: TransactionDirection
+
   isSymmetricTransfer: boolean
   toAccountValue: string
   toAccountError?: string | false
+
+  // Every account plus the "outside this app" entry, for the field recording where a transfer's
+  // other side sits
+  otherAccountOptions: DropdownOption[]
+  otherAccountValue: string
+  otherAccountError?: string | false
   merchantOptions: DropdownOption[]
   selectedMerchantOption?: DropdownOption
   merchantValue: string
@@ -58,6 +72,7 @@ interface TransactionReferencesSectionProps {
   onAccountChange: (value: string) => void
   onSymmetricTransferChange: (value: boolean) => void
   onToAccountChange: (value: string) => void
+  onOtherAccountChange: (value: string) => void
   onMerchantChange: (value: string) => void
   onMerchantSearchChange: (value: string) => void
   onMerchantSearchCommit: (value: string) => void
@@ -85,9 +100,13 @@ export default function TransactionReferencesSection({
   accountPlaceholder,
   runningBalance,
   kind,
+  direction,
   isSymmetricTransfer,
   toAccountValue,
   toAccountError,
+  otherAccountOptions,
+  otherAccountValue,
+  otherAccountError,
   merchantOptions,
   selectedMerchantOption,
   merchantValue,
@@ -116,6 +135,7 @@ export default function TransactionReferencesSection({
   onAccountChange,
   onSymmetricTransferChange,
   onToAccountChange,
+  onOtherAccountChange,
   onMerchantChange,
   onMerchantSearchChange,
   onMerchantSearchCommit,
@@ -131,11 +151,20 @@ export default function TransactionReferencesSection({
   onCreateTag,
   onRemoveTag,
 }: TransactionReferencesSectionProps) {
+  // Every transfer-kind category except Balance Adjustment records which other account the money touched
+  const recordsOtherAccount = doesTransferRecordOtherAccount(kind, isBalanceAdjustmentCategory)
+
+  // Ticking the checkbox writes a transaction in both accounts, so neither one is the account it
+  // was recorded in and the pair keeps the from-and-to labels it has always had
+  const accountLabel = kind === 'transfer' && isSymmetricTransfer
+    ? 'From account'
+    : recordsOtherAccount ? 'Recorded in' : 'Account'
+
   return (
     <CreateModalSectionFrame step="02" title="Source/Destination">
       <div>
         <CreateModalFieldLabelRow
-          label={kind === 'transfer' && isSymmetricTransfer ? 'From account' : 'Account'}
+          label={accountLabel}
           error={accountError}
         />
         <Dropdown
@@ -177,7 +206,7 @@ export default function TransactionReferencesSection({
         </AnimatePresence>
 
         <AnimatePresence initial={false}>
-          {kind === 'transfer' && (
+          {recordsOtherAccount && (
             <motion.div
               key="symmetric-transfer"
               className="overflow-hidden"
@@ -186,6 +215,39 @@ export default function TransactionReferencesSection({
               exit={{ height: 0, opacity: 0 }}
               transition={{ height: { duration: 0.2, ease: EASE }, opacity: { duration: 0.14, ease: 'linear' } }}
             >
+              <div className="pt-3">
+                <AnimatePresence initial={false} mode="wait">
+                  {!isSymmetricTransfer && (
+                    <motion.div
+                      key="other-account"
+                      className="overflow-hidden"
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2, ease: EASE }}
+                    >
+                      <CreateModalFieldLabelRow
+                        label={direction === 'debit' ? 'Money went to' : 'Money came from'}
+                        error={otherAccountError}
+                      />
+                      <Dropdown
+                        options={otherAccountOptions}
+                        value={otherAccountValue}
+                        onChange={onOtherAccountChange}
+                        className={`app-input ${otherAccountError ? 'app-input-error' : ''}`}
+                        placeholder="Select account..."
+                        searchable
+                        searchPlaceholder="Search accounts..."
+                        disabled={readOnly}
+                      />
+                      <p className="mt-2 text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                        Records the fact only, creating no transaction in that account.
+                      </p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
               <div className="pt-3">
                 <label
                   htmlFor="txn-symmetric-transfer"

@@ -1,5 +1,11 @@
 import type { FxStatus } from '@/api/shared/fx';
 
+/**
+ * Where the other side of a transfer sits: a tracked account elsewhere in the app, or money
+ * that left the tracked accounts entirely
+ */
+export type TransferOtherAccountScope = 'tracked' | 'outside';
+
 export interface Transaction {
   id: string;
   created_by_user_id: string;
@@ -18,6 +24,13 @@ export interface Transaction {
   currency: string;
   fx_rate: number | null;
   notes: string | null;
+
+  /**
+   * Where the other side of a transfer sits. Both null on anything recorded before the columns
+   * existed, and on every non-transfer transaction
+   */
+  other_account_id: string | null;
+  other_account_scope: TransferOtherAccountScope | null;
   created_at: string;
   updated_at: string;
   tag_ids: string[];
@@ -106,6 +119,13 @@ export interface CreateTransactionPayload {
   fx_rate?: number | null;
   notes?: string | null;
   tag_ids?: string[];
+
+  /**
+   * Where the other side of a transfer sits. Required for a transfer-kind category other than
+   * Balance Adjustment, and rejected outright for every other category
+   */
+  other_account_id?: string | null;
+  other_account_scope?: TransferOtherAccountScope | null;
 }
 
 export interface UpdateTransactionPayload {
@@ -117,4 +137,6 @@ export interface UpdateTransactionPayload {
   fx_rate?: number | null;
   notes?: string | null;
   tag_ids?: string[];
+  other_account_id?: string | null;
+  other_account_scope?: TransferOtherAccountScope | null;
 }

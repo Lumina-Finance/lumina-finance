@@ -2,7 +2,10 @@ import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import type { Transaction } from '@/api/transactions'
-import { INITIAL_TRANSACTION_FORM } from '@/pages/transactions/components/transaction-modal/constants'
+import {
+  INITIAL_TRANSACTION_FORM,
+  OUTSIDE_ACCOUNT_VALUE,
+} from '@/pages/transactions/components/transaction-modal/constants'
 import { amountToInputString } from '@/pages/transactions/components/transaction-modal/utils/money'
 import { findCurrencyExponent } from '@/utils/moneyInput'
 import type {
@@ -66,5 +69,8 @@ export function buildInitialTransactionForm({
     tag_ids: transaction.tags?.map((tag) => tag.id) ?? transaction.tag_ids,
     symmetric_transfer: false,
     to_account_id: '',
+    other_account_id: transaction.other_account_scope === 'outside'
+      ? OUTSIDE_ACCOUNT_VALUE
+      : transaction.other_account_id ?? '',
   }
 }

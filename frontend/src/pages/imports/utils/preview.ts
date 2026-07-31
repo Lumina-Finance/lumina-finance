@@ -136,6 +136,10 @@ export function buildImportPreviewRows({
           currency,
           fx_rate: null,
           notes: notes || null,
+
+          // A CSV row carries one account, so there is no other side to show
+          other_account_id: null,
+          other_account_scope: null,
           created_at: timestamp,
           updated_at: timestamp,
           tag_ids: tagIds,

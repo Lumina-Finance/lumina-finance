@@ -21,6 +21,11 @@ export interface TransactionFormValues {
 
   // The receiving account for a symmetric transfer, debited from account_id and credited here
   to_account_id: string
+
+  // Where the other side of a transfer sits: an account id, the "outside this app" sentinel, or
+  // empty when not yet answered. Ignored for every category except a transfer that is not
+  // Balance Adjustment
+  other_account_id: string
 }
 
 export interface TransactionFormFieldErrors {
@@ -31,6 +36,7 @@ export interface TransactionFormFieldErrors {
   currency?: string
   date?: string
   to_account_id?: string
+  other_account_id?: string
 }
 
 export interface CreateTransactionModalProps {

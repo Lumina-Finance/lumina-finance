@@ -1,5 +1,6 @@
 import type { AccountsOverview } from '@/api/accounts'
 import type { Currency } from '@/api/currency'
+import { OUTSIDE_ACCOUNT_VALUE } from '@/pages/transactions/components/transaction-modal/constants'
 
 /**
  * Builds account dropdown options, restricted to the transaction's own currency once editing
@@ -16,6 +17,21 @@ export function buildAccountOptions(
     ? selectableAccounts.filter((account) => account.currency === currency)
     : selectableAccounts
   return eligibleAccounts.map((account) => ({ value: account.id, label: account.name }))
+}
+
+/**
+ * Builds dropdown options for the other-account-recording field: every account the user holds,
+ * plus a fixed entry for money that left the tracked accounts entirely
+ *
+ * Unfiltered by currency or archived status, unlike the main account field: recording an account
+ * is a fact about where the money went rather than a second leg that must share a currency, and an
+ * archived or closed account still stays recordable since archiving happens after the money moved
+ */
+export function buildOtherAccountOptions(accounts: AccountsOverview[]) {
+  return [
+    ...accounts.map((account) => ({ value: account.id, label: account.name })),
+    { value: OUTSIDE_ACCOUNT_VALUE, label: 'Outside this app' },
+  ]
 }
 
 /**

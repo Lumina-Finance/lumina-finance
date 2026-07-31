@@ -2,6 +2,7 @@ import type { AccountsOverview } from '@/api/accounts'
 import type {
   TransactionFormFieldErrors,
   TransactionFormValues,
+  TransactionModalKind,
 } from '@/pages/transactions/components/transaction-modal/types'
 
 /**
@@ -12,12 +13,35 @@ export function isSymmetricTransferForm(form: TransactionFormValues): boolean {
 }
 
 /**
+ * Reports whether a transfer in the given kind and category records which other account the
+ * money touched
+ *
+ * True for every transfer-kind category except Balance Adjustment, which has no other side.
+ * Mirrors the backend's does_category_record_other_account
+ */
+export function doesTransferRecordOtherAccount(
+  kind: TransactionModalKind,
+  isBalanceAdjustmentCategory: boolean,
+): boolean {
+  return kind === 'transfer' && !isBalanceAdjustmentCategory
+}
+
+interface ValidateTransactionFormOptions {
+  isAmountLocked?: boolean
+  isBalanceAdjustmentCategory?: boolean
+
+  // Only a create requires an other-account answer, so an old transaction can be corrected without answering it first
+  requireOtherAccount?: boolean
+}
+
+/**
  * Validates fields required before a transaction can be sent to the API
  */
 export function validateTransactionForm(
   form: TransactionFormValues,
-  isAmountLocked = false,
+  options: ValidateTransactionFormOptions = {},
 ): TransactionFormFieldErrors {
+  const { isAmountLocked = false, isBalanceAdjustmentCategory = false, requireOtherAccount = false } = options
   const errors: TransactionFormFieldErrors = {}
   if (!form.account_id) errors.account_id = 'Select an account'
   if (!form.category_id) errors.category_id = 'Select a category'
@@ -39,6 +63,17 @@ export function validateTransactionForm(
   if (isSymmetricTransferForm(form)) {
     if (!form.to_account_id) errors.to_account_id = 'Select a receiving account'
     else if (form.to_account_id === form.account_id) errors.to_account_id = 'Choose a different receiving account'
+  } else if (doesTransferRecordOtherAccount(form.kind, isBalanceAdjustmentCategory)) {
+    // A symmetric transfer already answers this by pairing the account above with the receiving account
+    if (!form.other_account_id) {
+      if (requireOtherAccount) {
+        errors.other_account_id = form.direction === 'debit'
+          ? 'Select where the money went'
+          : 'Select where the money came from'
+      }
+    } else if (form.other_account_id === form.account_id) {
+      errors.other_account_id = 'Choose a different account'
+    }
   }
   return errors
 }

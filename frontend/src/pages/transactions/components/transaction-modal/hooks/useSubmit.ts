@@ -42,6 +42,7 @@ interface UseTransactionSubmitOptions {
   selectedToAccount: AccountsOverview | undefined
   selectedCurrencyExponent: number
   isAmountLocked: boolean
+  isBalanceAdjustmentCategory: boolean
   deleteLoading: boolean
   openRef: MutableRefObject<boolean>
   recordCreatedAccountId: (accountId: string) => void
@@ -77,6 +78,7 @@ export function useTransactionSubmit({
   selectedToAccount,
   selectedCurrencyExponent,
   isAmountLocked,
+  isBalanceAdjustmentCategory,
   deleteLoading,
   openRef,
   recordCreatedAccountId,
@@ -128,14 +130,29 @@ export function useTransactionSubmit({
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     if (isPending || readOnly) return
-    const errors = validateTransactionForm(form, isAmountLocked)
+    const errors = validateTransactionForm(form, {
+      isAmountLocked,
+      isBalanceAdjustmentCategory,
+      // Only a create requires an other-account answer, since an existing transaction can be
+      // corrected without answering the question first
+      requireOtherAccount: !editing,
+    })
     // The receiving account needs both accounts loaded to compare currency and group
     if (!editing && isSymmetricTransferForm(form) && !errors.to_account_id) {
       const accountError = getSymmetricTransferAccountError(selectedAccount, selectedToAccount)
       if (accountError) errors.to_account_id = accountError
     }
     setFieldErrors(errors)
-    setTouched({ account_id: true, category_id: true, merchant_id: true, amount: true, currency: true, date: true, to_account_id: true })
+    setTouched({
+      account_id: true,
+      category_id: true,
+      merchant_id: true,
+      amount: true,
+      currency: true,
+      date: true,
+      to_account_id: true,
+      other_account_id: true,
+    })
     if (Object.keys(errors).length > 0) return
 
     if (editing && transaction) {

@@ -191,6 +191,7 @@ export default function CreateTransactionModal({
     selectedToAccount,
     selectedCurrencyExponent,
     isAmountLocked,
+    isBalanceAdjustmentCategory: categoryField.isBalanceAdjustmentCategory,
     deleteLoading,
     openRef,
     recordCreatedAccountId,
@@ -264,9 +265,13 @@ export default function CreateTransactionModal({
               ? { amount: runningBalance, currency: selectedAccount.currency }
               : undefined}
             kind={form.kind}
+            direction={form.direction}
             isSymmetricTransfer={form.symmetric_transfer}
             toAccountValue={form.to_account_id}
             toAccountError={showError('to_account_id')}
+            otherAccountOptions={accountField.otherAccountOptions}
+            otherAccountValue={form.other_account_id}
+            otherAccountError={showError('other_account_id')}
             merchantOptions={merchantField.merchantOptions}
             selectedMerchantOption={merchantField.selectedMerchantOption}
             merchantValue={form.merchant_id}
@@ -295,6 +300,7 @@ export default function CreateTransactionModal({
             onAccountChange={accountField.handleAccountChange}
             onSymmetricTransferChange={accountField.handleSymmetricTransferChange}
             onToAccountChange={accountField.handleToAccountChange}
+            onOtherAccountChange={accountField.handleOtherAccountChange}
             onMerchantChange={merchantField.handleMerchantChange}
             onMerchantSearchChange={merchantField.setSearch}
             onMerchantSearchCommit={merchantField.setActiveSearch}

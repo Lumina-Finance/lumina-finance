@@ -6,6 +6,7 @@ import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import type { Transaction } from '@/api/transactions'
+import { OUTSIDE_ACCOUNT_VALUE } from '@/pages/transactions/components/transaction-modal/constants'
 import { buildCategoryOptions } from '@/pages/transactions/components/transaction-modal/utils/categories'
 import { buildInitialTransactionForm } from '@/pages/transactions/components/transaction-modal/utils/initialForm'
 import {
@@ -16,6 +17,7 @@ import {
 } from '@/pages/transactions/components/transaction-modal/utils/money'
 import {
   buildCreateTransactionPayload,
+  buildSymmetricTransferPayloads,
   buildUpdateTransactionPatch,
 } from '@/pages/transactions/components/transaction-modal/utils/payloads'
 import { validateTransactionForm } from '@/pages/transactions/components/transaction-modal/utils/validation'
@@ -88,6 +90,8 @@ function createTransaction(overrides: Partial<Transaction> = {}): Transaction {
     currency: overrides.currency ?? 'CAD',
     fx_rate: null,
     notes: overrides.notes ?? null,
+    other_account_id: overrides.other_account_id ?? null,
+    other_account_scope: overrides.other_account_scope ?? null,
     created_at: '2026-06-11T12:00:00Z',
     updated_at: '2026-06-11T12:00:00Z',
     tag_ids: overrides.tag_ids ?? [],
@@ -185,6 +189,7 @@ describe('transaction modal helpers', () => {
       tag_ids: [],
       symmetric_transfer: false,
       to_account_id: '',
+      other_account_id: '',
     })).toEqual({
       account_id: 'Select an account',
       category_id: 'Select a category',
@@ -207,6 +212,7 @@ describe('transaction modal helpers', () => {
       tag_ids: ['tax'],
       symmetric_transfer: false,
       to_account_id: '',
+      other_account_id: '',
     }, 2)).toEqual({
       account_id: 'checking',
       dt: '2026-06-11',
@@ -238,7 +244,7 @@ describe('transaction modal helpers', () => {
       .toEqual({ notes: 'Checked' })
 
     // The rest of the form still has to pass, so the blank amount cannot block an edit to anything else
-    expect(validateTransactionForm(form, true)).toEqual({})
+    expect(validateTransactionForm(form, { isAmountLocked: true })).toEqual({})
     expect(validateTransactionForm(form)).toEqual({ amount: 'Enter an amount' })
   })
 
@@ -268,6 +274,143 @@ describe('transaction modal helpers', () => {
       amount: 20000,
       tag_ids: ['business'],
     })
+  })
+
+  it('requires an other-account answer only when creating a transfer that is not Balance Adjustment', () => {
+    const transferForm = {
+      kind: 'transfer' as const,
+      direction: 'debit' as const,
+      account_id: 'checking',
+      category_id: 'transfer-out',
+      merchant_id: 'store',
+      amount: '50.00',
+      currency: 'CAD',
+      notes: '',
+      date: '2026-06-11',
+      tag_ids: [],
+      symmetric_transfer: false,
+      to_account_id: '',
+      other_account_id: '',
+    }
+
+    // A transfer with no answer fails validation when creating
+    expect(validateTransactionForm(transferForm, { requireOtherAccount: true }).other_account_id)
+      .toBe('Select where the money went')
+
+    // An edit with the field left empty passes, since an old transaction can be corrected without answering first
+    expect(validateTransactionForm(transferForm, { requireOtherAccount: false }).other_account_id).toBeUndefined()
+
+    // Balance Adjustment has no other side, so it is never required even when creating
+    expect(validateTransactionForm(
+      transferForm,
+      { requireOtherAccount: true, isBalanceAdjustmentCategory: true },
+    ).other_account_id).toBeUndefined()
+
+    // A symmetric transfer already answers it by pairing the accounts, so the field itself is not required
+    expect(validateTransactionForm(
+      { ...transferForm, symmetric_transfer: true, to_account_id: 'savings' },
+      { requireOtherAccount: true },
+    ).other_account_id).toBeUndefined()
+
+    // Picking the transaction's own account as the other side is always rejected
+    expect(validateTransactionForm(
+      { ...transferForm, other_account_id: 'checking' },
+      { requireOtherAccount: true },
+    ).other_account_id).toBe('Choose a different account')
+  })
+
+  it('builds each leg of a symmetric transfer to record the other as a tracked account', () => {
+    const form = {
+      kind: 'transfer' as const,
+      direction: 'debit' as const,
+      account_id: 'checking',
+      category_id: 'transfer-out',
+      merchant_id: 'store',
+      amount: '50.00',
+      currency: 'CAD',
+      notes: '',
+      date: '2026-06-11',
+      tag_ids: [],
+      symmetric_transfer: true,
+      to_account_id: 'savings',
+      other_account_id: '',
+    }
+
+    const [fromPayload, toPayload] = buildSymmetricTransferPayloads(form, 2)
+    expect(fromPayload).toMatchObject({
+      account_id: 'checking',
+      other_account_id: 'savings',
+      other_account_scope: 'tracked',
+    })
+    expect(toPayload).toMatchObject({
+      account_id: 'savings',
+      other_account_id: 'checking',
+      other_account_scope: 'tracked',
+    })
+  })
+
+  it('splits the other-account selection into an id-and-scope pair for create and update payloads', () => {
+    const transferForm = {
+      kind: 'transfer' as const,
+      direction: 'debit' as const,
+      account_id: 'checking',
+      category_id: 'transfer-out',
+      merchant_id: 'store',
+      amount: '50.00',
+      currency: 'CAD',
+      notes: '',
+      date: '2026-06-11',
+      tag_ids: [],
+      symmetric_transfer: false,
+      to_account_id: '',
+      other_account_id: OUTSIDE_ACCOUNT_VALUE,
+    }
+
+    expect(buildCreateTransactionPayload(transferForm, 2)).toMatchObject({
+      other_account_id: null,
+      other_account_scope: 'outside',
+    })
+    expect(buildCreateTransactionPayload({ ...transferForm, other_account_id: 'savings' }, 2)).toMatchObject({
+      other_account_id: 'savings',
+      other_account_scope: 'tracked',
+    })
+
+    const transaction = createTransaction({
+      category_id: 'transfer-out',
+      other_account_id: 'savings',
+      other_account_scope: 'tracked',
+    })
+    const unchangedForm = buildInitialTransactionForm({
+      transaction,
+      categories: [createCategory({ id: 'transfer-out', kind: 'transfer' })],
+      currencies,
+      selectableAccounts: [createAccount({ id: 'checking' })],
+      timeZone: undefined,
+    })
+
+    // Untouched, so no patch at all
+    expect(buildUpdateTransactionPatch(unchangedForm, transaction, 2)).toBeNull()
+
+    // Recording a different account sends the new pair
+    expect(buildUpdateTransactionPatch(
+      { ...unchangedForm, other_account_id: 'joint-savings' },
+      transaction,
+      2,
+    )).toMatchObject({ other_account_id: 'joint-savings', other_account_scope: 'tracked' })
+
+    // Clearing the field back to unanswered sends nulls rather than omitting them
+    expect(buildUpdateTransactionPatch(
+      { ...unchangedForm, other_account_id: '' },
+      transaction,
+      2,
+    )).toMatchObject({ other_account_id: null, other_account_scope: null })
+
+    // Moving to a non-transfer category leaves the pair out entirely, since the backend clears it itself
+    expect(buildUpdateTransactionPatch(
+      { ...unchangedForm, kind: 'expense', category_id: 'groceries' },
+      transaction,
+      2,
+    )).toEqual({ category_id: 'groceries' })
   })
 
 })

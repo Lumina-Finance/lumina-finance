@@ -8,6 +8,7 @@ export type {
   TransactionFilters,
   TransactionTag,
   TransactionsOverview,
+  TransferOtherAccountScope,
   UpdateTransactionPayload,
 } from '@/api/transactions/types';
 
