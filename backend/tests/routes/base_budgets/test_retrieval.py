@@ -187,6 +187,25 @@ async def test_get_base_budget_excludes_soft_deleted_categories(client):
     assert resp.json()["category_ids"] == [cat_keep]
 
 
+async def test_get_base_budget_orders_categories_by_name(client):
+    """GET returns tracked categories ordered by category name, not by the order they were sent."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    cat_water = await _create_category(client, headers, name="Test Water")
+    cat_electricity = await _create_category(client, headers, name="Test Electricity")
+    cat_gas = await _create_category(client, headers, name="Test Gas")
+    create_resp = await _create_base_budget(
+        client, headers, category_ids=[cat_water, cat_gas, cat_electricity],
+    )
+    base_budget_id = create_resp.json()["id"]
+
+    resp = await client.get(f"/base-budgets/{base_budget_id}", headers=headers)
+
+    assert resp.status_code == 200
+    assert resp.json()["category_ids"] == [cat_electricity, cat_gas, cat_water]
+
+
 async def test_get_base_budget_unauthenticated_returns_401(client):
     """Getting a base budget without auth returns 401."""
     resp = await client.get(f"/base-budgets/{NONEXISTENT_ID}")

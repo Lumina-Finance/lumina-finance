@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.budget import BaseBudget, Budget, BudgetTrackedCategory
+from app.models.category import Category
 from app.schemas.budget import BaseBudgetResponse, BudgetResponse
 
 
@@ -19,18 +20,23 @@ async def load_tracked_categories(
         base_budget_ids: Base budget identifiers to inspect
 
     Returns:
-        Active tracked category identifiers keyed by base budget identifier
+        Active tracked category identifiers keyed by base budget identifier, each list ordered by
+        category name
     """
     if not base_budget_ids:
         return {}
 
-    # Fetch active tracked category links for the requested base budgets in one batch
+    # Fetch active tracked category links for the requested base budgets in one batch, ordered by
+    # category name so every consumer of the list reads the same order between requests
     rows = (
         await db.execute(
-            select(BudgetTrackedCategory.base_budget_id, BudgetTrackedCategory.category_id).where(
+            select(BudgetTrackedCategory.base_budget_id, BudgetTrackedCategory.category_id)
+            .join(Category, Category.id == BudgetTrackedCategory.category_id)
+            .where(
                 BudgetTrackedCategory.base_budget_id.in_(base_budget_ids),
                 BudgetTrackedCategory.removed_at.is_(None),
-            ),
+            )
+            .order_by(Category.name, BudgetTrackedCategory.category_id),
         )
     ).all()
     result: dict[uuid.UUID, list[uuid.UUID]] = {}
