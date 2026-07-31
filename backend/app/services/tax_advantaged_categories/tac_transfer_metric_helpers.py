@@ -6,14 +6,15 @@ from dataclasses import dataclass
 
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from app.models.account import Account, TaxAdvantagedCategory
-from app.models.base import CategoryKind
+from app.models.base import CategoryKind, TransferOtherAccountScope
 from app.models.category import Category
 from app.models.transaction import Transaction
 from app.services.tax_advantaged_categories.tac_limit_metric_helpers import TacLimitMetrics
 
-_TAC_TRANSFER_CATEGORY_NAME = "Transfer"
+_BALANCE_ADJUSTMENT_CATEGORY_NAME = "Balance Adjustment"
 
 
 @dataclass
@@ -52,6 +53,23 @@ async def get_tac_transfer_totals(
     )
     positive_amount_filter = Transaction.amount > 0
     negative_amount_filter = Transaction.amount < 0
+    other_account = aliased(Account)
+
+    # Categories that treat their own accounts as one pot, where money moving between them is
+    # neither a contribution nor a withdrawal
+    category_ids_excluding_internal_transfers = [
+        tax_advantaged_category.id
+        for tax_advantaged_category in tax_advantaged_categories
+        if not tax_advantaged_category.counts_internal_transfers
+    ]
+
+    # A transfer whose recorded other side is another account of the same category the row is
+    # being counted for
+    is_uncounted_internal_transfer = (
+        (Transaction.other_account_scope == TransferOtherAccountScope.TRACKED)
+        & (other_account.tax_advantaged_category_id == Account.tax_advantaged_category_id)
+        & Account.tax_advantaged_category_id.in_(category_ids_excluding_internal_transfers)
+    )
 
     # Sum transfer-category activity for linked accounts by TAC category and transaction year
     transfer_total_result = await db.execute(
@@ -69,12 +87,22 @@ async def get_tac_transfer_totals(
         )
         .join(Account, Transaction.account_id == Account.id)
         .join(Category, Transaction.category_id == Category.id)
+
+        # The other side is read from a second join against the accounts table, made outer because
+        # most transfers record no account there and those rows still count
+        .outerjoin(other_account, Transaction.other_account_id == other_account.id)
         .where(
             Account.tax_advantaged_category_id.in_(tax_advantaged_category_ids),
 
             # Archived accounts remain linked to their tax-advantaged category history
             Category.kind == CategoryKind.TRANSFER,
-            Category.name == _TAC_TRANSFER_CATEGORY_NAME,
+
+            # A balance adjustment corrects a stale balance rather than moving money in or out
+            Category.name != _BALANCE_ADJUSTMENT_CATEGORY_NAME,
+
+            # Compared against true rather than negated, because a transfer with no recorded other
+            # account leaves the comparison unknown and would otherwise drop out of both totals
+            is_uncounted_internal_transfer.is_not(True),
         )
         .group_by(Account.tax_advantaged_category_id, "year"),
     )
