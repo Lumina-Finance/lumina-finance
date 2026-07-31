@@ -82,16 +82,19 @@ export function useAccountField({
       to_account_id: accountId,
       // The receiving account wins, so empty the originating field when it held the same account
       account_id: accountId === f.account_id ? '' : f.account_id,
+      // Choosing a receiving account fills what this leg records too. The field stays editable
+      // afterward and is not forced back into agreement if it is then changed
+      other_account_id: accountId,
     }))
     clearError('to_account_id')
+    clearError('other_account_id')
   }
 
   const handleSymmetricTransferChange = (value: boolean) => {
     setForm((f) => ({ ...f, symmetric_transfer: value }))
-    // Ticking pairs the two accounts, which already answers the other-account question, and
-    // unticking brings the standalone field back rather than the receiving-account field
-    if (value) clearError('other_account_id')
-    else clearError('to_account_id')
+    // The receiving-account field disappears when unticked, so its error goes with it. The
+    // other-account field stays on screen either way, so ticking does not touch its error
+    if (!value) clearError('to_account_id')
   }
 
   const handleOtherAccountChange = (accountId: string) => {

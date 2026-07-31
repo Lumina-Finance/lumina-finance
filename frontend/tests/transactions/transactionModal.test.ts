@@ -306,9 +306,16 @@ describe('transaction modal helpers', () => {
       { requireOtherAccount: true, isBalanceAdjustmentCategory: true },
     ).other_account_id).toBeUndefined()
 
-    // A symmetric transfer already answers it by pairing the accounts, so the field itself is not required
+    // The field stays live once the checkbox is ticked, so a create requires it there too,
+    // independently of the receiving-account requirement the checkbox already carries
+    const symmetricForm = { ...transferForm, symmetric_transfer: true, to_account_id: 'savings' }
+    const symmetricErrors = validateTransactionForm(symmetricForm, { requireOtherAccount: true })
+    expect(symmetricErrors.other_account_id).toBe('Select where the money went')
+    expect(symmetricErrors.to_account_id).toBeUndefined()
+
+    // Answering it once the checkbox is ticked clears the requirement, same as the standalone case
     expect(validateTransactionForm(
-      { ...transferForm, symmetric_transfer: true, to_account_id: 'savings' },
+      { ...symmetricForm, other_account_id: 'savings' },
       { requireOtherAccount: true },
     ).other_account_id).toBeUndefined()
 
@@ -319,8 +326,8 @@ describe('transaction modal helpers', () => {
     ).other_account_id).toBe('Choose a different account')
   })
 
-  it('builds each leg of a symmetric transfer to record the other as a tracked account', () => {
-    const form = {
+  it('builds the receiving leg to record the originating account, and the first leg to record whatever the field holds', () => {
+    const baseForm = {
       kind: 'transfer' as const,
       direction: 'debit' as const,
       account_id: 'checking',
@@ -333,20 +340,39 @@ describe('transaction modal helpers', () => {
       tag_ids: [],
       symmetric_transfer: true,
       to_account_id: 'savings',
-      other_account_id: '',
+      other_account_id: 'savings',
     }
 
-    const [fromPayload, toPayload] = buildSymmetricTransferPayloads(form, 2)
-    expect(fromPayload).toMatchObject({
+    // Choosing the receiving account fills the field, so the common case matches it
+    const [matchingFrom, matchingTo] = buildSymmetricTransferPayloads(baseForm, 2)
+    expect(matchingFrom).toMatchObject({
       account_id: 'checking',
       other_account_id: 'savings',
       other_account_scope: 'tracked',
     })
-    expect(toPayload).toMatchObject({
+    expect(matchingTo).toMatchObject({
       account_id: 'savings',
       other_account_id: 'checking',
       other_account_scope: 'tracked',
     })
+
+    // The field stays editable afterward, so it can be changed to a different account than the
+    // one actually receiving the second transaction, and that pairing is let through
+    const [divergedFrom, divergedTo] = buildSymmetricTransferPayloads(
+      { ...baseForm, other_account_id: 'joint-savings' },
+      2,
+    )
+    expect(divergedFrom).toMatchObject({ account_id: 'checking', other_account_id: 'joint-savings', other_account_scope: 'tracked' })
+    // The receiving leg's other side is not in question: it is always the originating account
+    expect(divergedTo).toMatchObject({ account_id: 'savings', other_account_id: 'checking', other_account_scope: 'tracked' })
+
+    // The field can also hold the outside sentinel while the second leg still exists
+    const [outsideFrom, outsideTo] = buildSymmetricTransferPayloads(
+      { ...baseForm, other_account_id: OUTSIDE_ACCOUNT_VALUE },
+      2,
+    )
+    expect(outsideFrom).toMatchObject({ account_id: 'checking', other_account_id: null, other_account_scope: 'outside' })
+    expect(outsideTo).toMatchObject({ account_id: 'savings', other_account_id: 'checking', other_account_scope: 'tracked' })
   })
 
   it('splits the other-account selection into an id-and-scope pair for create and update payloads', () => {

@@ -216,36 +216,23 @@ export default function TransactionReferencesSection({
               transition={{ height: { duration: 0.2, ease: EASE }, opacity: { duration: 0.14, ease: 'linear' } }}
             >
               <div className="pt-3">
-                <AnimatePresence initial={false} mode="wait">
-                  {!isSymmetricTransfer && (
-                    <motion.div
-                      key="other-account"
-                      className="overflow-hidden"
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: 'auto', opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.2, ease: EASE }}
-                    >
-                      <CreateModalFieldLabelRow
-                        label={direction === 'debit' ? 'Money went to' : 'Money came from'}
-                        error={otherAccountError}
-                      />
-                      <Dropdown
-                        options={otherAccountOptions}
-                        value={otherAccountValue}
-                        onChange={onOtherAccountChange}
-                        className={`app-input ${otherAccountError ? 'app-input-error' : ''}`}
-                        placeholder="Select account..."
-                        searchable
-                        searchPlaceholder="Search accounts..."
-                        disabled={readOnly}
-                      />
-                      <p className="mt-2 text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                        Records the fact only, creating no transaction in that account.
-                      </p>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                <CreateModalFieldLabelRow
+                  label={direction === 'debit' ? 'Money went to' : 'Money came from'}
+                  error={otherAccountError}
+                />
+                <Dropdown
+                  options={otherAccountOptions}
+                  value={otherAccountValue}
+                  onChange={onOtherAccountChange}
+                  className={`app-input ${otherAccountError ? 'app-input-error' : ''}`}
+                  placeholder="Select account..."
+                  searchable
+                  searchPlaceholder="Search accounts..."
+                  disabled={readOnly}
+                />
+                <p className="mt-2 text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                  Records the fact only, creating no transaction in that account.
+                </p>
               </div>
 
               <div className="pt-3">

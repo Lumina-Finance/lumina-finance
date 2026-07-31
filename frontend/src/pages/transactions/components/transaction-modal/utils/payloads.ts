@@ -68,14 +68,16 @@ export function buildSymmetricTransferPayloads(
     currency: form.currency,
     notes: form.notes.trim() || null,
   }
-  // Each leg is a tracked account in the app, so it records the other leg's account as its other side
+  // The first leg records whatever the field holds rather than always the receiving account: it
+  // usually matches, since choosing a receiving account fills the field, but the field stays
+  // editable afterward and can be left pointed elsewhere, including at the outside sentinel
   const fromPayload: CreateTransactionPayload = {
     account_id: form.account_id,
     amount: -magnitude,
-    other_account_id: form.to_account_id,
-    other_account_scope: 'tracked',
     ...shared,
+    ...splitOtherAccountSelection(form.other_account_id),
   }
+  // The second leg's other side is not in question: it is always the originating account, a tracked account in the app
   const toPayload: CreateTransactionPayload = {
     account_id: form.to_account_id,
     amount: magnitude,

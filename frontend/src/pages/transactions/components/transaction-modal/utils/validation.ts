@@ -63,8 +63,11 @@ export function validateTransactionForm(
   if (isSymmetricTransferForm(form)) {
     if (!form.to_account_id) errors.to_account_id = 'Select a receiving account'
     else if (form.to_account_id === form.account_id) errors.to_account_id = 'Choose a different receiving account'
-  } else if (doesTransferRecordOtherAccount(form.kind, isBalanceAdjustmentCategory)) {
-    // A symmetric transfer already answers this by pairing the account above with the receiving account
+  }
+
+  // The other-account field stays live whether or not the checkbox is ticked, since ticking only
+  // creates the matching transaction and does not by itself answer what this leg records
+  if (doesTransferRecordOtherAccount(form.kind, isBalanceAdjustmentCategory)) {
     if (!form.other_account_id) {
       if (requireOtherAccount) {
         errors.other_account_id = form.direction === 'debit'
