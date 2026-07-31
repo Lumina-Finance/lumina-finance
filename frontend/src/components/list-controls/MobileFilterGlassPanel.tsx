@@ -61,7 +61,7 @@ export function MobileFilterGlassPanel({
           role="dialog"
           aria-modal="true"
           aria-label={ariaLabel}
-          className="app-window-overlay z-[100] flex flex-col min-[750px]:hidden"
+          className="fixed inset-x-0 top-0 z-[100] flex flex-col min-[750px]:hidden"
           style={{
             // 100dvh tracks the dynamic viewport so the modal covers the screen even as the mobile
             // browser chrome shows or hides, leaving no strip of the list peeking below it

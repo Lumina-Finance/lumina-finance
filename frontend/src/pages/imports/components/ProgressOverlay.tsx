@@ -1,6 +1,5 @@
 import { AlertCircle, CheckCircle2, LoaderCircle } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import type { CSSProperties } from 'react'
 import type { Variants } from 'motion/react'
 import type { ImportOverlayPhase, ImportProgressStep, ImportProgressStepStatus } from '@/pages/imports/types'
 
@@ -10,9 +9,6 @@ const OVERLAY_MUTED_TEXT = 'var(--app-text-muted)'
 const OVERLAY_ACCENT = 'var(--app-accent)'
 const OVERLAY_SUCCESS = 'var(--app-positive)'
 const OVERLAY_ERROR = 'var(--app-negative)'
-// The overlay's own inset from the left and right window edges. It is set here rather than with a padding
-// utility, so app-window-overlay can add the width reserved for the scrollbar on top of it
-const OVERLAY_INSET_X = '1.25rem'
 const OVERLAY_EASE: [number, number, number, number] = [0.25, 0.1, 0.25, 1]
 const OVERLAY_SPRING_EASE: [number, number, number, number] = [0.16, 1, 0.3, 1]
 const overlayButtonClass = 'h-10 w-full box-border whitespace-nowrap leading-none sm:w-auto'
@@ -168,8 +164,8 @@ export function ImportProgressOverlay({
       {open && (
         <motion.div
           key="import-progress-overlay"
-          className="app-window-overlay z-[90] flex items-center justify-center py-8"
-          style={{ background: OVERLAY_BACKGROUND, color: OVERLAY_TEXT, '--app-window-overlay-inset-x': OVERLAY_INSET_X } as CSSProperties}
+          className="fixed inset-0 z-[90] flex items-center justify-center px-5 py-8"
+          style={{ background: OVERLAY_BACKGROUND, color: OVERLAY_TEXT }}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
