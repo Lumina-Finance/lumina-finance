@@ -66,6 +66,7 @@ python -m app.db.provision apply-rls
 
 python -m scripts.seed_currencies
 python -m scripts.seed_categories
+python -m scripts.seed_merchants
 
 # Caddy serves the frontend and proxies /api to this local Uvicorn process
 uvicorn app.main:app --host 127.0.0.1 --port 8000 &

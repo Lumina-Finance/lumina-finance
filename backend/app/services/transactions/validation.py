@@ -127,10 +127,11 @@ async def validate_transaction_merchant_access(
 ) -> None:
     """Ensure a transaction can use the requested merchant
 
-    Personal-account transactions may use only the user's personal merchants
-    Group-account transactions may also use merchants owned by the account's
-    group. Merchants from another user's personal scope or an unrelated group
-    are rejected
+    Every transaction may use a system merchant, since those ship with the app.
+    Personal-account transactions may otherwise use only the user's personal
+    merchants. Group-account transactions may also use merchants owned by the
+    account's group. Merchants from another user's personal scope or an
+    unrelated group are rejected
 
     Args:
         db: Active database session
@@ -145,10 +146,15 @@ async def validate_transaction_merchant_access(
     query = select(Merchant).where(Merchant.id == merchant_id)
     if group_id is not None:
         query = query.where(
-            ((Merchant.owner_id == user_id) & (Merchant.group_id.is_(None))) | (Merchant.group_id == group_id),
+            Merchant.is_system.is_(True)
+            | ((Merchant.owner_id == user_id) & (Merchant.group_id.is_(None)))
+            | (Merchant.group_id == group_id),
         )
     else:
-        query = query.where(Merchant.owner_id == user_id, Merchant.group_id.is_(None))
+        query = query.where(
+            Merchant.is_system.is_(True)
+            | ((Merchant.owner_id == user_id) & (Merchant.group_id.is_(None))),
+        )
 
     # Confirm the merchant exists inside the transaction account scope
     if not (await db.execute(query)).scalar_one_or_none():

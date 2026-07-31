@@ -10,6 +10,7 @@ from app.models.merchant import Merchant
 from app.routes.merchants.access_helpers import (
     get_accessible_merchant_or_404,
     require_default_category_available,
+    require_editable_merchant,
     require_group_merchant_admin,
 )
 from app.schemas.merchant import UpdateMerchantRequest
@@ -39,6 +40,7 @@ async def update_merchant_for_user(
         HTTPException: Merchant is inaccessible, group admin access is missing, or merchant name already exists
     """
     merchant = await get_accessible_merchant_or_404(db, merchant_id, user_id)
+    require_editable_merchant(merchant)
     await require_group_merchant_admin(db, merchant, user_id)
 
     updates = data.model_dump(exclude_unset=True)

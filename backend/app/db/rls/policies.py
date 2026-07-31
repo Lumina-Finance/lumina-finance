@@ -50,8 +50,6 @@ SECURED_TABLES = (
      f"user_id = {CURRENT_USER_ID}() AND {CAN_ACCESS_ACCOUNT}(account_id)"),
     ("saved_insights_ranges", f"user_id = {CURRENT_USER_ID}()", f"user_id = {CURRENT_USER_ID}()"),
     ("users", f"id = {CURRENT_USER_ID}()", f"id = {CURRENT_USER_ID}()"),
-    ("merchants", f"owner_id = {CURRENT_USER_ID}() OR {CAN_ACCESS_GROUP}(group_id)",
-     f"owner_id = {CURRENT_USER_ID}() OR {CAN_ACCESS_GROUP}(group_id)"),
     ("tags", f"owner_id = {CURRENT_USER_ID}() OR {CAN_ACCESS_GROUP}(group_id)",
      f"owner_id = {CURRENT_USER_ID}() OR {CAN_ACCESS_GROUP}(group_id)"),
     ("tax_advantaged_categories",
@@ -100,6 +98,7 @@ def apply_policies(connection: Connection) -> None:
             continue
         _secure_table(connection, table, using_expr, check_expr)
     _secure_categories(connection)
+    _secure_merchants(connection)
     _secure_groups(connection)
 
     for table in GLOBAL_READ_TABLES:
@@ -122,6 +121,17 @@ def _table_exists(connection: Connection, table: str) -> bool:
     """Whether a public table is already present in the database"""
     return connection.execute(
         text("SELECT to_regclass(:qualified)"), {"qualified": f"public.{table}"}
+    ).scalar() is not None
+
+
+def _column_exists(connection: Connection, table: str, column: str) -> bool:
+    """Whether a column is already present on a public table"""
+    return connection.execute(
+        text(
+            "SELECT 1 FROM information_schema.columns "
+            "WHERE table_schema = 'public' AND table_name = :table AND column_name = :column"
+        ),
+        {"table": table, "column": column},
     ).scalar() is not None
 
 
@@ -186,6 +196,30 @@ def _secure_categories(connection: Connection) -> None:
     connection.execute(text(f"CREATE POLICY categories_update ON public.categories FOR UPDATE USING ({scoped}) WITH CHECK ({scoped})"))
     connection.execute(text(f"CREATE POLICY categories_delete ON public.categories FOR DELETE USING ({scoped})"))
     connection.execute(text(f'GRANT {APP_TABLE_PRIVILEGES} ON public.categories TO "{APP_DB_USER}"'))
+
+
+def _secure_merchants(connection: Connection) -> None:
+    """Enable RLS on merchants, keeping system rows readable but app-immutable"""
+    owned = f"owner_id = {CURRENT_USER_ID}() OR {CAN_ACCESS_GROUP}(group_id)"
+
+    # The bootstrap migration replays this against a database from before is_system existed, so
+    # the ownership-only rule stands in until the migration that adds the column re-applies these
+    if not _column_exists(connection, "merchants", "is_system"):
+        _secure_table(connection, "merchants", owned, owned)
+        return
+
+    connection.execute(text("ALTER TABLE public.merchants ENABLE ROW LEVEL SECURITY"))
+    connection.execute(text(
+        f"CREATE POLICY merchants_read ON public.merchants FOR SELECT USING (is_system OR {owned})"
+    ))
+
+    # System merchants are seeded by the migrator, so the app role can only write
+    # its own personal or group merchants
+    scoped = f"(owner_id = {CURRENT_USER_ID}() OR {CAN_ACCESS_GROUP}(group_id)) AND NOT is_system"
+    connection.execute(text(f"CREATE POLICY merchants_insert ON public.merchants FOR INSERT WITH CHECK ({scoped})"))
+    connection.execute(text(f"CREATE POLICY merchants_update ON public.merchants FOR UPDATE USING ({scoped}) WITH CHECK ({scoped})"))
+    connection.execute(text(f"CREATE POLICY merchants_delete ON public.merchants FOR DELETE USING ({scoped})"))
+    connection.execute(text(f'GRANT {APP_TABLE_PRIVILEGES} ON public.merchants TO "{APP_DB_USER}"'))
 
 
 def _secure_groups(connection: Connection) -> None:

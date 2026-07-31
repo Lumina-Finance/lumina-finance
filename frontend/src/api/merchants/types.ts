@@ -1,8 +1,13 @@
 export interface Merchant {
   id: string;
-  owner_id: string;
+
+  /** Null on a system merchant, which belongs to everyone rather than to one user */
+  owner_id: string | null;
   group_id: string | null;
   name: string;
+
+  /** Ships with the app: cannot be renamed, deleted, or given a default category */
+  is_system: boolean;
   default_category_id: string | null;
   created_at: string;
 }

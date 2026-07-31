@@ -59,13 +59,18 @@ def get_merchant_list_scope_filter(user_id: uuid.UUID, group_id: uuid.UUID | Non
         group_id: Optional group identifier for group merchants
 
     Returns:
-        SQLAlchemy filter matching personal merchants and optional group merchants
+        SQLAlchemy filter matching system merchants, personal merchants and optional group merchants
     """
+    # System merchants ship with the app, so every list includes them whatever scope is asked for
     if group_id is None:
-        merchant_filter = get_personal_merchant_filter(user_id)
+        merchant_filter = Merchant.is_system.is_(True) | get_personal_merchant_filter(user_id)
         return merchant_filter
 
-    merchant_filter = get_personal_merchant_filter(user_id) | (Merchant.group_id == group_id)
+    merchant_filter = (
+        Merchant.is_system.is_(True)
+        | get_personal_merchant_filter(user_id)
+        | (Merchant.group_id == group_id)
+    )
     return merchant_filter
 
 
@@ -76,11 +81,17 @@ def get_accessible_merchant_filter(user_id: uuid.UUID):
         user_id: User identifier used for personal and group access
 
     Returns:
-        SQLAlchemy filter matching personal and group merchants
+        SQLAlchemy filter matching system, personal and group merchants
     """
     membership_filter = GroupMember.user_id == user_id
 
     # Build a subquery of group memberships so merchant access can include group-scoped merchants
     group_ids = select(GroupMember.group_id).where(membership_filter).scalar_subquery()
-    merchant_filter = get_personal_merchant_filter(user_id) | (Merchant.group_id.in_(group_ids))
+
+    # System merchants ship with the app and belong to everyone, the same way system categories do
+    merchant_filter = (
+        Merchant.is_system.is_(True)
+        | get_personal_merchant_filter(user_id)
+        | (Merchant.group_id.in_(group_ids))
+    )
     return merchant_filter

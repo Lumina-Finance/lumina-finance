@@ -6,6 +6,21 @@ MERCHANT_PAYLOAD = {
     "name": "Costco",
 }
 
+
+def _own_merchant_names(response):
+    """Return the names of a merchant listing, without the ones that ship with the app
+
+    Every listing carries the system merchants, so a test about a user's own merchants filters
+    them out rather than repeating them in each expected list
+
+    Args:
+        response: API response from a merchant listing endpoint
+
+    Returns:
+        Names of the merchants the user or their group owns, in the order returned
+    """
+    return [merchant["name"] for merchant in response.json() if not merchant["is_system"]]
+
 async def _create_merchant(client, headers, **overrides):
     """Create a merchant via POST /merchants
 

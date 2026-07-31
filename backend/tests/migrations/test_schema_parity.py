@@ -26,6 +26,8 @@ _ALEMBIC_TEST_DB_NAME = f"{WORKER_DB_NAME}_alembic_schema"
 _ALEMBIC_ENUM_DB_NAME = f"{WORKER_DB_NAME}_alembic_enums"
 _ALEMBIC_AUTH_RESET_DB_NAME = f"{WORKER_DB_NAME}_alembic_auth_reset"
 _AUTH_SESSIONS_REVISION = "a4f8d1c2e7b3"
+_ALEMBIC_SYSTEM_MERCHANT_DB_NAME = f"{WORKER_DB_NAME}_alembic_system_merchant"
+_BEFORE_SYSTEM_MERCHANTS_REVISION = "cbf7ada87de3"
 
 
 async def test_alembic_schema_columns_match_model_metadata() -> None:
@@ -300,3 +302,104 @@ def _create_engine_for_database(database_name: str, *, isolation_level: str | No
     database_url = f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{database_name}"
     engine = create_async_engine(database_url, poolclass=NullPool, isolation_level=isolation_level)
     return engine
+
+
+async def test_system_merchant_migration_folds_everyones_own_myself() -> None:
+    """Verify the fold keeps transactions and removes the duplicates, whatever their capitalisation"""
+    await _recreate_database(_ALEMBIC_SYSTEM_MERCHANT_DB_NAME)
+    try:
+        _run_alembic_upgrade(_ALEMBIC_SYSTEM_MERCHANT_DB_NAME, revision=_BEFORE_SYSTEM_MERCHANTS_REVISION)
+        transaction_id = await _seed_own_myself_merchant(_ALEMBIC_SYSTEM_MERCHANT_DB_NAME)
+
+        _run_alembic_upgrade(_ALEMBIC_SYSTEM_MERCHANT_DB_NAME)
+
+        engine = _create_engine_for_database(_ALEMBIC_SYSTEM_MERCHANT_DB_NAME)
+        try:
+            async with engine.connect() as conn:
+                system_merchants = (await conn.execute(text(
+                    "SELECT id, name FROM merchants WHERE is_system = true",
+                ))).all()
+                remaining_own = (await conn.execute(text(
+                    "SELECT count(*) FROM merchants WHERE is_system = false",
+                ))).scalar_one()
+                merchant_on_transaction = (await conn.execute(
+                    text("SELECT merchant_id FROM transactions WHERE id = :id"),
+                    {"id": transaction_id},
+                )).scalar_one()
+        finally:
+            await engine.dispose()
+
+        assert [name for _, name in system_merchants] == ["Myself"]
+        assert remaining_own == 0
+        assert merchant_on_transaction == system_merchants[0][0]
+    finally:
+        await _drop_database(_ALEMBIC_SYSTEM_MERCHANT_DB_NAME)
+
+
+async def _seed_own_myself_merchant(database_name: str) -> UUID:
+    """Insert a user-owned merchant spelled MYSELF, carrying one transaction
+
+    Returns:
+        Identifier of the transaction that should survive the fold
+    """
+    user_id = UUID("44444444-4444-4444-8444-444444444444")
+    account_id = UUID("55555555-5555-4555-8555-555555555555")
+    category_id = UUID("66666666-6666-4666-8666-666666666666")
+    merchant_id = UUID("77777777-7777-4777-8777-777777777777")
+    transaction_id = UUID("88888888-8888-4888-8888-888888888888")
+
+    engine = _create_engine_for_database(database_name)
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text(
+                "INSERT INTO currencies (id, name, symbol, minor_unit_exponent)"
+                " VALUES ('CAD', 'Canadian Dollar', '$', 2)",
+            ))
+            await conn.execute(
+                text(
+                    "INSERT INTO users (id, email, first_name, tz, base_currency)"
+                    " VALUES (:user_id, 'migration-merchant@example.com', 'Migration', 'America/Toronto', 'CAD')",
+                ),
+                {"user_id": user_id},
+            )
+            await conn.execute(
+                text(
+                    "INSERT INTO accounts"
+                    " (id, owner_id, account_kind, account_type, name, currency, is_archived)"
+                    " VALUES (:account_id, :user_id, 'ASSET', 'CHECKING', 'Chequing', 'CAD', false)",
+                ),
+                {"account_id": account_id, "user_id": user_id},
+            )
+            await conn.execute(
+                text(
+                    "INSERT INTO categories (id, owner_id, name, kind, is_system)"
+                    " VALUES (:category_id, :user_id, 'Moving money', 'TRANSFER', false)",
+                ),
+                {"category_id": category_id, "user_id": user_id},
+            )
+
+            # Spelled in capitals, which the fold has to catch as the same intent
+            await conn.execute(
+                text(
+                    "INSERT INTO merchants (id, owner_id, name) VALUES (:merchant_id, :user_id, 'MYSELF')",
+                ),
+                {"merchant_id": merchant_id, "user_id": user_id},
+            )
+            await conn.execute(
+                text(
+                    "INSERT INTO transactions"
+                    " (id, created_by_user_id, account_id, dt, merchant_id, category_id, amount, currency)"
+                    " VALUES (:transaction_id, :user_id, :account_id, '2026-03-15', :merchant_id,"
+                    " :category_id, -5000, 'CAD')",
+                ),
+                {
+                    "transaction_id": transaction_id,
+                    "user_id": user_id,
+                    "account_id": account_id,
+                    "merchant_id": merchant_id,
+                    "category_id": category_id,
+                },
+            )
+    finally:
+        await engine.dispose()
+    return transaction_id

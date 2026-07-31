@@ -96,6 +96,22 @@ async def require_group_merchant_admin(db: AsyncSession, merchant: Merchant, use
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required")
 
 
+def require_editable_merchant(merchant: Merchant) -> None:
+    """Raise when a merchant ships with the app and so belongs to nobody to change
+
+    Args:
+        merchant: Merchant being renamed or deleted
+
+    Raises:
+        HTTPException: Merchant is a system merchant
+    """
+    if merchant.is_system:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="System merchants cannot be changed or deleted",
+        )
+
+
 async def require_merchant_name_available(
     db: AsyncSession,
     name: str,
@@ -113,11 +129,14 @@ async def require_merchant_name_available(
     Raises:
         HTTPException: Merchant name already exists in the target scope
     """
-    duplicate_query = select(Merchant).where(Merchant.name == name)
+    # A system merchant is visible to everyone, so its name is taken in every scope. Without this a
+    # user could create their own Myself beside the seeded one and see two identical entries
+    scope_filter = Merchant.is_system.is_(True)
     if group_id:
-        duplicate_query = duplicate_query.where(Merchant.group_id == group_id)
+        scope_filter = scope_filter | (Merchant.group_id == group_id)
     else:
-        duplicate_query = duplicate_query.where(Merchant.owner_id == user_id, Merchant.group_id.is_(None))
+        scope_filter = scope_filter | ((Merchant.owner_id == user_id) & Merchant.group_id.is_(None))
+    duplicate_query = select(Merchant).where(Merchant.name == name, scope_filter)
 
     # Check whether the target scope already has a merchant with the requested name
     has_duplicate = (await db.execute(duplicate_query)).scalar_one_or_none() is not None

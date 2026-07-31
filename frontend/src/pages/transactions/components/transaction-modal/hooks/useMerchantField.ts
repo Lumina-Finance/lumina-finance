@@ -122,8 +122,11 @@ export function useMerchantField({
     [categoryOptions],
   )
 
+  // A system merchant is shared by everyone, and its default category would be too, so it is not
+  // offered one rather than letting one person's choice change what auto-fills for the rest
   const showMerchantDefaultCategoryAction = !!(
     selectedMerchant &&
+    !selectedMerchant.is_system &&
     selectedCategory &&
     selectedMerchant.default_category_id !== selectedCategory.id
   )

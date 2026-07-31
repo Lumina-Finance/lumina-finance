@@ -1,5 +1,6 @@
 from tests.routes.merchants._helpers import (
     MERCHANT_PAYLOAD,
+    _own_merchant_names,
     NONEXISTENT_ID,
     _create_category,
     _create_merchant,
@@ -19,7 +20,7 @@ async def test_list_merchants_returns_empty_list(client):
     resp = await client.get("/merchants", headers=headers)
 
     assert resp.status_code == 200
-    assert resp.json() == []
+    assert _own_merchant_names(resp) == []
 
 
 async def test_list_merchants_returns_user_merchants(client):
@@ -36,10 +37,7 @@ async def test_list_merchants_returns_user_merchants(client):
     resp = await client.get("/merchants", headers=headers)
 
     assert resp.status_code == 200
-    data = resp.json()
-    assert len(data) == 2
-    names = {m["name"] for m in data}
-    assert names == {"Costco", "Walmart"}
+    assert set(_own_merchant_names(resp)) == {"Costco", "Walmart"}
 
 
 async def test_list_merchants_supports_limit_and_offset(client):
@@ -54,10 +52,12 @@ async def test_list_merchants_supports_limit_and_offset(client):
     first_page = await client.get("/merchants?limit=2", headers=headers)
     second_page = await client.get("/merchants?limit=2&offset=2", headers=headers)
 
+    # Paging counts the system merchants too, since a page is what the endpoint returns rather than
+    # what the user owns, and an unused one sorts by name among the rest
     assert first_page.status_code == 200
     assert [merchant["name"] for merchant in first_page.json()] == ["Alpha Market", "Bravo Market"]
     assert second_page.status_code == 200
-    assert [merchant["name"] for merchant in second_page.json()] == ["Charlie Market"]
+    assert [merchant["name"] for merchant in second_page.json()] == ["Charlie Market", "Myself"]
 
 
 async def test_list_merchants_searches_names_case_insensitively(client):
@@ -74,7 +74,7 @@ async def test_list_merchants_searches_names_case_insensitively(client):
     resp = await client.get("/merchants?q=COF", headers=headers)
 
     assert resp.status_code == 200
-    assert [merchant["name"] for merchant in resp.json()] == ["Coffee Bar"]
+    assert _own_merchant_names(resp) == ["Coffee Bar"]
 
 
 async def test_list_merchants_rejects_invalid_pagination_params(client):
@@ -444,3 +444,58 @@ async def test_delete_merchant_without_auth_returns_401(client):
     """DELETE /merchants/{id} without an Authorization header returns 401."""
     resp = await client.delete(f"/merchants/{NONEXISTENT_ID}")
     assert resp.status_code == 401
+
+
+# --- System merchants ---
+
+
+async def _system_merchant(client, headers, name="Myself"):
+    """Return the system merchant with the given name from the listing."""
+    resp = await client.get("/merchants", headers=headers)
+    return next(merchant for merchant in resp.json() if merchant["name"] == name)
+
+
+async def test_system_merchant_is_listed_for_every_user(client):
+    """A merchant that ships with the app belongs to everyone rather than to one user."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    other_headers = _get_auth_header(await _create_second_user(client))
+
+    for user_headers in (headers, other_headers):
+        merchant = await _system_merchant(client, user_headers)
+        assert merchant["is_system"] is True
+        assert merchant["owner_id"] is None
+        assert merchant["default_category_id"] is None
+
+
+async def test_creating_a_merchant_with_a_system_name_returns_409(client):
+    """The seeded name is taken everywhere, so a second Myself cannot appear beside it."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _create_merchant(client, headers, name="Myself")
+
+    assert resp.status_code == 409
+    assert "already exists" in resp.json()["detail"]
+
+
+async def test_renaming_a_system_merchant_returns_403(client):
+    """A merchant that ships with the app is not one user's to rename."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    merchant = await _system_merchant(client, headers)
+
+    resp = await client.patch(f"/merchants/{merchant['id']}", json={"name": "Me"}, headers=headers)
+
+    assert resp.status_code == 403
+
+
+async def test_deleting_a_system_merchant_returns_403(client):
+    """Nor is it one user's to delete out from under everyone else."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    merchant = await _system_merchant(client, headers)
+
+    resp = await client.delete(f"/merchants/{merchant['id']}", headers=headers)
+
+    assert resp.status_code == 403

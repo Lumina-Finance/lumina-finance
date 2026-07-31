@@ -4,6 +4,7 @@ from app.routes.merchants.listing_helpers import MERCHANT_FREQUENCY_WINDOW_DAYS
 from tests.routes.merchants._helpers import (
     _create_merchant,
     _get_system_category_id,
+    _own_merchant_names,
 )
 from tests.routes.support import _create_user, _get_auth_header
 
@@ -70,7 +71,7 @@ async def test_list_merchants_ranks_more_used_merchant_first(client):
     resp = await client.get("/merchants", headers=headers)
 
     assert resp.status_code == 200
-    assert [merchant["name"] for merchant in resp.json()] == ["Zulu Store", "Mike Store", "Alpha Store"]
+    assert _own_merchant_names(resp) == ["Zulu Store", "Mike Store", "Alpha Store"]
 
 
 async def test_list_merchants_breaks_frequency_ties_by_name(client):
@@ -91,7 +92,7 @@ async def test_list_merchants_breaks_frequency_ties_by_name(client):
     resp = await client.get("/merchants", headers=headers)
 
     assert resp.status_code == 200
-    assert [merchant["name"] for merchant in resp.json()] == ["Bravo Market", "Charlie Market", "Alpha Market"]
+    assert _own_merchant_names(resp) == ["Bravo Market", "Charlie Market", "Alpha Market"]
 
 
 async def test_list_merchants_ignores_usage_outside_window(client):
@@ -110,7 +111,7 @@ async def test_list_merchants_ignores_usage_outside_window(client):
     resp = await client.get("/merchants", headers=headers)
 
     assert resp.status_code == 200
-    assert [merchant["name"] for merchant in resp.json()] == ["Fresh Store", "Stale Store"]
+    assert _own_merchant_names(resp) == ["Fresh Store", "Stale Store"]
 
 
 async def test_list_merchants_ranks_by_all_history_when_shorter_than_window(client):
@@ -129,4 +130,4 @@ async def test_list_merchants_ranks_by_all_history_when_shorter_than_window(clie
     resp = await client.get("/merchants", headers=headers)
 
     assert resp.status_code == 200
-    assert [merchant["name"] for merchant in resp.json()] == ["Busy Store", "Quiet Store"]
+    assert _own_merchant_names(resp) == ["Busy Store", "Quiet Store"]
