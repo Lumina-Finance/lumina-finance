@@ -64,14 +64,6 @@ export default function BudgetDetailsModal({
     () => new Map(categories.map((category) => [category.id, category])),
     [categories],
   )
-  const chartCategories = useMemo(
-    () => getBudgetChartCategories({ baseBudget, categoryById, categoryDetailsById }),
-    [baseBudget, categoryById, categoryDetailsById],
-  )
-  const categoryColorById = useMemo(
-    () => new Map(chartCategories.map((category) => [category.id, category.color])),
-    [chartCategories],
-  )
   const sortedPeriods = useMemo(() => getSortedBudgetPeriods(periods), [periods])
   const latestPeriod = sortedPeriods[sortedPeriods.length - 1]
   const utilizationQuery = useBaseBudgetUtilizations(baseBudget.id)
@@ -82,6 +74,16 @@ export default function BudgetDetailsModal({
   const utilizationHistoryLoading = utilizationQuery.isLoading
   const utilizationHistoryError = utilizationQuery.isError
   const latestUtilization = latestPeriod ? utilizationByBudgetId.get(latestPeriod.id) : undefined
+
+  // Declared after the latest utilization because the chart's stack order ranks on that period's spending
+  const chartCategories = useMemo(
+    () => getBudgetChartCategories({ baseBudget, categoryById, categoryDetailsById, latestUtilization }),
+    [baseBudget, categoryById, categoryDetailsById, latestUtilization],
+  )
+  const categoryColorById = useMemo(
+    () => new Map(chartCategories.map((category) => [category.id, category.color])),
+    [chartCategories],
+  )
   const utilizationHistoryFxStatus = combineFxStatuses(
     sortedPeriods.map((period) => utilizationByBudgetId.get(period.id)?.fx_status),
   )

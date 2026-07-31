@@ -69,17 +69,32 @@ export function getBudgetUtilizationByBudgetId(
 }
 
 /**
- * Builds category metadata and deterministic colours for the budget details utilization chart
+ * Builds category metadata and deterministic colours for the budget details utilization chart,
+ * ordered by the latest period's spending from highest to lowest
+ *
+ * This one order serves the whole chart: recharts stacks the categories in the order they are
+ * declared, bottom first, so the biggest current spender sits at the base of every bar, and the
+ * tooltip walks the same array, so it lists that category first. A period whose ranking differs
+ * from the latest one still draws in this order, since a category cannot change stack position
+ * from bar to bar
+ *
+ * The tracked categories of a budget with no spending yet are all tied at zero, so name and then
+ * ID break ties and keep the order from drifting between loads
  */
 export function getBudgetChartCategories({
   baseBudget,
   categoryById,
   categoryDetailsById,
+  latestUtilization,
 }: {
   baseBudget: BaseBudget
   categoryById: Map<string, string>
   categoryDetailsById: Map<string, Category>
+  latestUtilization: BudgetUtilization | undefined
 }): BudgetChartCategory[] {
+  const latestSpentByCategoryId = new Map(
+    (latestUtilization?.categories ?? []).map((category) => [category.category_id, category.spent]),
+  )
   const trackedCategories = baseBudget.category_ids.map((categoryId) => {
     const category = categoryDetailsById.get(categoryId)
 
@@ -88,6 +103,12 @@ export function getBudgetChartCategories({
       name: category?.name ?? categoryById.get(categoryId) ?? 'Uncategorized',
       kind: category?.kind ?? 'expense',
     }
+  }).sort((a, b) => {
+    // A category the latest period never spent against ranks alongside one that spent nothing
+    const spendDifference = (latestSpentByCategoryId.get(b.id) ?? 0) - (latestSpentByCategoryId.get(a.id) ?? 0)
+    if (spendDifference !== 0) return spendDifference
+
+    return a.name.localeCompare(b.name) || a.id.localeCompare(b.id)
   })
   const categoryColors = getCategoryColorMap(trackedCategories)
 
