@@ -1614,6 +1614,20 @@
     background: #0f0e0c8f;
   }
 
+  /* The frosting behind a dialog. Both of these blur something that is inert and still for as long as the
+     dialog is open, so each is rasterized once, where a filter laid over them runs again for every frame in
+     which anything above it moves. The navigation and the page are filtered separately rather than through
+     a shared ancestor, because a filter on an ancestor would re-anchor the fixed navigation to it */
+  .app-behind-modal #app-page-content,
+  .app-behind-modal .app-desktop-nav,
+  .app-behind-modal #app-mobile-navigation-toggle {
+    filter: blur(4px);
+  }
+
+  .app-modal-panel-covered {
+    filter: blur(10px);
+  }
+
   .app-modal-panel {
     @apply rounded-2xl;
     background: var(--app-bg);

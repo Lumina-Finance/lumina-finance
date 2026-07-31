@@ -5,6 +5,7 @@ import {
   type TransitionEvent as ReactTransitionEvent,
 } from 'react'
 import { createPortal } from 'react-dom'
+import { CURSOR_TOOLTIP_Z_INDEX } from '@/utils/tooltipPosition'
 
 type CursorTooltipPortalProps = {
   children: ReactNode
@@ -14,6 +15,7 @@ type CursorTooltipPortalProps = {
 }
 
 const defaultTooltipStyle: CSSProperties = {
+  zIndex: CURSOR_TOOLTIP_Z_INDEX,
   transition: 'opacity 150ms ease-out, transform 160ms cubic-bezier(0.22, 1, 0.36, 1)',
   willChange: 'opacity, transform',
 }
@@ -27,7 +29,7 @@ const CursorTooltipPortal = forwardRef<HTMLDivElement, CursorTooltipPortalProps>
   const tooltip = (
     <div
       ref={ref}
-      className="pointer-events-none fixed left-0 top-0 z-[60]"
+      className="pointer-events-none fixed left-0 top-0"
       onTransitionEnd={onTransitionEnd}
       style={{
         ...defaultTooltipStyle,

@@ -3,6 +3,12 @@
 // from screen readers without touching the dialog itself
 const APP_ROOT_ID = 'root'
 
+// Marks the page while any modal is open, so the stylesheet can blur what sits behind the dialog. The
+// blur belongs on the page rather than on a filter laid over it: the page is inert and scroll locked
+// for as long as a modal is open, so the browser rasterizes it once, where a filter over it has to run
+// again for every frame in which anything above it moves
+const PAGE_BEHIND_MODAL_CLASS = 'app-behind-modal'
+
 // Tokens for the modals currently open, the top-most last. One stack drives everything that depends on
 // that order: which modal Escape closes, and which panels below it stop taking input
 const openModalTokens: string[] = []
@@ -14,7 +20,7 @@ const stackListeners = new Set<() => void>()
  */
 export function registerOpenModal(token: string) {
   openModalTokens.push(token)
-  syncAppRootInert()
+  syncPageBehindModals()
   notifyStackListeners()
 }
 
@@ -25,7 +31,7 @@ export function unregisterOpenModal(token: string) {
   const index = openModalTokens.indexOf(token)
   if (index !== -1) openModalTokens.splice(index, 1)
 
-  syncAppRootInert()
+  syncPageBehindModals()
   notifyStackListeners()
 }
 
@@ -58,14 +64,15 @@ export function subscribeToModalStack(listener: () => void) {
 }
 
 /**
- * Marks the app root inert while any modal is open
+ * Marks the app root inert and blurred while any modal is open
  */
-function syncAppRootInert() {
+function syncPageBehindModals() {
   const appRoot = document.getElementById(APP_ROOT_ID)
   if (!appRoot) return
 
-  if (openModalTokens.length > 0) appRoot.setAttribute('inert', '')
-  else appRoot.removeAttribute('inert')
+  const anyModalOpen = openModalTokens.length > 0
+  appRoot.toggleAttribute('inert', anyModalOpen)
+  appRoot.classList.toggle(PAGE_BEHIND_MODAL_CLASS, anyModalOpen)
 }
 
 /**
