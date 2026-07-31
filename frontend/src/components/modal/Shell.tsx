@@ -12,23 +12,21 @@ const EASE = [0.25, 0.1, 0.25, 1] as const
 const LAYOUT_TRANSITION = { duration: 0.22, ease: EASE } as const
 
 // A modal opened from the page and a modal opened from another modal. The stacked level sits above every
-// page-level modal, blurs harder so the two panels stay visually separate, and settles a little faster so
-// the second one never feels slower to arrive than the first
+// page-level modal and settles a little faster so the second one never feels slower to arrive than the first
 //
-// Both blurs are kept small deliberately. The backdrop covers the viewport, and a backdrop filter over that
-// area is recomputed for every frame in which anything above it moves, so the cost lands on whatever the
-// modal holds: a chart tracking the pointer took the GPU to saturation at 4px in every browser tried
+// Neither level filters its own backdrop. The frosting comes from blurring whatever the dialog covers, the
+// page in app-behind-modal and the panel underneath in app-modal-panel-covered, both of which are inert and
+// still while the modal is open. A filter laid over them instead has to run again for every frame in which
+// anything above it moves, which took the GPU to saturation whenever a chart in a modal tracked the pointer
 const LEVELS = {
   page: {
     className: 'z-[60]',
-    style: { backdropFilter: 'blur(2px)' },
     backdropDuration: 0.2,
     panelOffset: { opacity: 0, scale: 0.96, y: 12 },
     panelTransition: { duration: 0.25, ease: EASE },
   },
   stacked: {
     className: 'z-[100]',
-    style: { backdropFilter: 'blur(4px)' },
     backdropDuration: 0.15,
     panelOffset: { opacity: 0, scale: 0.94, y: 16 },
     panelTransition: { duration: 0.22, ease: EASE },
@@ -171,7 +169,6 @@ export function ModalShell({
       {open && (
         <motion.div
           className={`app-modal-backdrop ${appearance.className}`}
-          style={appearance.style}
           onClick={closeDisabled ? undefined : onClose}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -186,7 +183,7 @@ export function ModalShell({
             tabIndex={-1}
             inert={covered}
             data-tooltip-bounds={boundsTooltips ? true : undefined}
-            className={`app-modal-panel ${panelClassName}`}
+            className={`app-modal-panel ${covered ? 'app-modal-panel-covered' : ''} ${panelClassName}`}
             onClick={(event) => event.stopPropagation()}
             layout={animateHeight}
             initial={appearance.panelOffset}
