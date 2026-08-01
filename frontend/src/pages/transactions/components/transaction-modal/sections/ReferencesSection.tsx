@@ -235,9 +235,13 @@ export default function TransactionReferencesSection({
                   searchPlaceholder="Search accounts..."
                   disabled={readOnly}
                 />
-                <p className="mt-2 text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                  Records the fact only, creating no transaction in that account.
-                </p>
+                {/* Ticking the checkbox below does create one there, and its own description says
+                    so, so this would contradict it */}
+                {!isSymmetricTransfer && (
+                  <p className="mt-2 text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                    Records the fact only, creating no transaction in that account.
+                  </p>
+                )}
               </div>
 
               <div className="pt-3">
