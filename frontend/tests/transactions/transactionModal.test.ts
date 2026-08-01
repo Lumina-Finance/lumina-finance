@@ -22,6 +22,7 @@ import {
   buildUpdateTransactionPatch,
 } from '@/pages/transactions/components/transaction-modal/utils/payloads'
 import { validateTransactionForm } from '@/pages/transactions/components/transaction-modal/utils/validation'
+import { orderAccountFields } from '@/pages/transactions/components/transaction-modal/utils/accountFields'
 
 const currencies: Currency[] = [
   { id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 },
@@ -423,6 +424,38 @@ describe('transaction modal helpers', () => {
     )).toEqual({ category_id: 'groceries' })
   })
 
+})
+
+describe('account field ordering', () => {
+  const recorded = { name: 'recorded' }
+  const other = { name: 'other' }
+
+  it('keeps the recorded account on top for an ordinary transfer, whichever way the money goes', () => {
+    for (const direction of ['debit', 'credit'] as const) {
+      expect(orderAccountFields(recorded, other, { isSymmetricTransfer: false, direction }))
+        .toEqual([recorded, other])
+    }
+  })
+
+  it('keeps the recorded account on top for a pair going out of it', () => {
+    expect(orderAccountFields(recorded, other, { isSymmetricTransfer: true, direction: 'debit' }))
+      .toEqual([recorded, other])
+  })
+
+  it('puts the other account on top for a pair coming into the recorded one, since it is the source', () => {
+    expect(orderAccountFields(recorded, other, { isSymmetricTransfer: true, direction: 'credit' }))
+      .toEqual([other, recorded])
+  })
+
+  it('moves each field whole, so its value, error and options cannot land on opposite sides', () => {
+    const [top, second] = orderAccountFields(recorded, other, {
+      isSymmetricTransfer: true,
+      direction: 'credit',
+    })
+
+    expect(top).toBe(other)
+    expect(second).toBe(recorded)
+  })
 })
 
 describe('other-account options', () => {

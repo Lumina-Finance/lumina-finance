@@ -9,6 +9,7 @@ import { KIND_LABELS } from '@/pages/transactions/components/transaction-modal/c
 import { buildInitialTransactionForm } from '@/pages/transactions/components/transaction-modal/utils/initialForm'
 import { buildCurrencyOptions } from '@/pages/transactions/components/transaction-modal/utils/options'
 import { isSymmetricTransferForm } from '@/pages/transactions/components/transaction-modal/utils/validation'
+import { orderAccountFields } from '@/pages/transactions/components/transaction-modal/utils/accountFields'
 import type {
   CreateTransactionModalProps,
   TransactionFormValues,
@@ -202,11 +203,8 @@ export default function CreateTransactionModal({
   const showRunningBalance = !editing && keepOpenAfterCreate && !!selectedAccount
   const isSymmetricTransfer = isSymmetricTransferForm(form)
 
-  // A ticked pair reads source first, so a credit shows the two accounts the other way round from
-  // how the form stores them. Swapping the whole field, its value, its error and its option list
-  // together keeps them in agreement, and means the direction toggle moves the accounts between the
-  // fields without anything having to be written back to the form
-  const isPairShownReversed = isSymmetricTransfer && form.direction === 'credit'
+  // The direction toggle moves the accounts between the two fields without anything being written
+  // back to the form, because the ordering is worked out here on every render
   const recordedAccountField = {
     options: accountField.accountOptions,
     selectedOption: accountField.selectedArchivedAccountOption,
@@ -221,9 +219,11 @@ export default function CreateTransactionModal({
     error: showError('other_account_id'),
     onChange: accountField.handleOtherAccountChange,
   }
-  const [topAccountField, secondAccountField] = isPairShownReversed
-    ? [otherAccountField, recordedAccountField]
-    : [recordedAccountField, otherAccountField]
+  const [topAccountField, secondAccountField] = orderAccountFields(
+    recordedAccountField,
+    otherAccountField,
+    { isSymmetricTransfer, direction: form.direction },
+  )
 
   return (
     <>
