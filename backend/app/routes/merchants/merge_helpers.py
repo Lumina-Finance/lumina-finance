@@ -72,11 +72,15 @@ async def get_merge_replacement_merchant(
             detail="Replacement merchant must be different",
         )
 
-    replacement_filter = Merchant.id == replacement_merchant_id
+    # A merge restamps the source's transactions onto the replacement and deletes the source, so a
+    # merchant that ships with the app is a valid destination even though it is nobody's to edit
+    scope_filter = Merchant.is_system.is_(True)
     if source_merchant.group_id is None:
-        replacement_filter = replacement_filter & get_personal_merchant_filter(user_id)
+        scope_filter = scope_filter | get_personal_merchant_filter(user_id)
     else:
-        replacement_filter = replacement_filter & (Merchant.group_id == source_merchant.group_id)
+        scope_filter = scope_filter | (Merchant.group_id == source_merchant.group_id)
+
+    replacement_filter = (Merchant.id == replacement_merchant_id) & scope_filter
 
     # Fetch a replacement merchant from the same scope as the merchant being merged
     replacement_result = await db.execute(select(Merchant).where(replacement_filter))

@@ -4,9 +4,43 @@ from tests.routes.merchants._helpers import (
     _get_system_category_id,
     _setup_group_with_member,
 )
-from tests.routes.support import _create_user, _get_auth_header
+from tests.routes.support import _create_user, _get_auth_header, _get_system_merchant_id
 
 # --- POST /merchants/{merchant_id}/merge ---
+
+
+async def test_merge_merchant_into_a_system_merchant_restamps_its_transactions(client):
+    """Merging into Myself restamps the transactions onto it, which is what folding an own spelling means."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    category_id = await _get_system_category_id(client, headers)
+    source_id = (await _create_merchant(client, headers, name="Me")).json()["id"]
+    system_merchant_id = await _get_system_merchant_id(client, headers)
+
+    account_resp = await client.post("/accounts", json={
+        "account_kind": "asset", "account_type": "checking", "name": "Chequing", "currency": "CAD",
+    }, headers=headers)
+    await client.post("/transactions", json={
+        "account_id": account_resp.json()["id"],
+        "category_id": category_id,
+        "merchant_id": source_id,
+        "dt": "2026-03-15",
+        "amount": -5000,
+        "currency": "CAD",
+    }, headers=headers)
+
+    resp = await client.post(
+        f"/merchants/{source_id}/merge",
+        json={"replacement_merchant_id": system_merchant_id},
+        headers=headers,
+    )
+
+    assert resp.status_code == 204
+    assert (await client.get(f"/merchants/{source_id}", headers=headers)).status_code == 404
+
+    transactions_resp = await client.get("/transactions", headers=headers)
+    assert transactions_resp.json()[0]["merchant_id"] == system_merchant_id
 
 
 async def test_merge_merchant_reassigns_transactions_and_deletes_source(client):
