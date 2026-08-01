@@ -36,6 +36,10 @@ interface TransactionReferencesSectionProps {
 
   isSymmetricTransfer: boolean
 
+  // Whether to offer the checkbox at all. It asks for a second transaction to be created, which is
+  // only something a new transfer can do, so an existing one is not shown it
+  isTransferPairOffered: boolean
+
   // Every account plus the "outside this app" entry, for the field recording where a transfer's
   // other side sits
   otherAccountOptions: DropdownOption[]
@@ -100,6 +104,7 @@ export default function TransactionReferencesSection({
   kind,
   direction,
   isSymmetricTransfer,
+  isTransferPairOffered,
   otherAccountOptions,
   otherAccountValue,
   otherAccountError,
@@ -244,31 +249,32 @@ export default function TransactionReferencesSection({
                 )}
               </div>
 
-              <div className="pt-3">
-                <label
-                  htmlFor="txn-symmetric-transfer"
-                  className="flex cursor-pointer items-start gap-3 rounded-xl px-1 py-1"
-                >
-                  <input
-                    id="txn-symmetric-transfer"
-                    type="checkbox"
-                    checked={isSymmetricTransfer}
-                    onChange={(event) => onSymmetricTransferChange(event.target.checked)}
-                    disabled={readOnly}
-                    className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer disabled:cursor-not-allowed"
-                    style={{ accentColor: 'var(--app-accent)' }}
-                  />
-                  <span className="min-w-0">
-                    <span className="block text-sm font-medium" style={{ color: 'var(--app-text)' }}>
-                      Record in both accounts
+              {isTransferPairOffered && (
+                <div className="pt-3">
+                  <label
+                    htmlFor="txn-symmetric-transfer"
+                    className="flex cursor-pointer items-start gap-3 rounded-xl px-1 py-1"
+                  >
+                    <input
+                      id="txn-symmetric-transfer"
+                      type="checkbox"
+                      checked={isSymmetricTransfer}
+                      onChange={(event) => onSymmetricTransferChange(event.target.checked)}
+                      disabled={readOnly}
+                      className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer disabled:cursor-not-allowed"
+                      style={{ accentColor: 'var(--app-accent)' }}
+                    />
+                    <span className="min-w-0">
+                      <span className="block text-sm font-medium" style={{ color: 'var(--app-text)' }}>
+                        Record in both accounts
+                      </span>
+                      <span className="block text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                        Also create the matching entry in the receiving account
+                      </span>
                     </span>
-                    <span className="block text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                      Also create the matching entry in the receiving account
-                    </span>
-                  </span>
-                </label>
-
-              </div>
+                  </label>
+                </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>

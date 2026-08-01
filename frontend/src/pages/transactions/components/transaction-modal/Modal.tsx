@@ -294,6 +294,7 @@ export default function CreateTransactionModal({
             // direction toggle was left on before the checkbox disabled it
             direction={isSymmetricTransfer ? 'debit' : form.direction}
             isSymmetricTransfer={form.symmetric_transfer}
+            isTransferPairOffered={!editing}
             otherAccountOptions={accountField.otherAccountOptions}
             otherAccountValue={form.other_account_id}
             otherAccountError={showError('other_account_id')}
