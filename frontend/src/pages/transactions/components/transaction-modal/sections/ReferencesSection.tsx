@@ -28,6 +28,9 @@ interface TransactionReferencesSectionProps {
   accountError?: string | false
   accountPlaceholder: string
   runningBalance?: { amount: number; currency: string }
+
+  // Set instead of the one above when a paired transfer puts the recorded account in the second slot
+  otherAccountRunningBalance?: { amount: number; currency: string }
   kind: TransactionModalKind
 
   // Whether the amount is leaving (debit) or entering (credit) the recorded account, used to
@@ -95,6 +98,37 @@ interface TransactionReferencesSectionProps {
 }
 
 /**
+ * Shows what the account's balance becomes once the transaction is added, under whichever of the
+ * two account dropdowns is currently holding that account
+ */
+function RunningBalanceRow({ runningBalance }: { runningBalance?: { amount: number; currency: string } }) {
+  return (
+    <AnimatePresence initial={false}>
+      {runningBalance && (
+        <motion.div
+          key="running-balance"
+          className="overflow-hidden"
+          initial={{ height: 0, opacity: 0, y: -3 }}
+          animate={{ height: 'auto', opacity: 1, y: 0 }}
+          exit={{ height: 0, opacity: 0, y: -3 }}
+          transition={{ duration: 0.2, ease: EASE }}
+          aria-live="polite"
+        >
+          <div className="flex items-center justify-between gap-3 px-0.5 pt-2 text-xs">
+            <span className="font-medium" style={{ color: 'var(--app-text-muted)' }}>
+              Running balance
+            </span>
+            <span className="font-financial text-sm font-semibold" style={{ color: 'var(--app-text)' }}>
+              {formatCurrency(runningBalance.amount, runningBalance.currency)}
+            </span>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  )
+}
+
+/**
  * Renders account, merchant, category, and tag reference controls for the transaction form
  */
 export default function TransactionReferencesSection({
@@ -104,6 +138,7 @@ export default function TransactionReferencesSection({
   accountError,
   accountPlaceholder,
   runningBalance,
+  otherAccountRunningBalance,
   kind,
   direction,
   isSymmetricTransfer,
@@ -184,31 +219,7 @@ export default function TransactionReferencesSection({
           searchPlaceholder="Search accounts..."
           disabled={readOnly}
         />
-        <AnimatePresence initial={false}>
-          {runningBalance && (
-            <motion.div
-              key="running-balance"
-              className="overflow-hidden"
-              initial={{ height: 0, opacity: 0, y: -3 }}
-              animate={{ height: 'auto', opacity: 1, y: 0 }}
-              exit={{ height: 0, opacity: 0, y: -3 }}
-              transition={{ duration: 0.2, ease: EASE }}
-              aria-live="polite"
-            >
-              <div className="flex items-center justify-between gap-3 px-0.5 pt-2 text-xs">
-                <span className="font-medium" style={{ color: 'var(--app-text-muted)' }}>
-                  Running balance
-                </span>
-                <span
-                  className="font-financial text-sm font-semibold"
-                  style={{ color: 'var(--app-text)' }}
-                >
-                  {formatCurrency(runningBalance.amount, runningBalance.currency)}
-                </span>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <RunningBalanceRow runningBalance={runningBalance} />
 
         <AnimatePresence initial={false}>
           {recordsOtherAccount && (
@@ -249,6 +260,7 @@ export default function TransactionReferencesSection({
                   // answer somewhere it can never be put back
                   disabled={readOnly || Boolean(selectedArchivedOtherAccountOption)}
                 />
+                <RunningBalanceRow runningBalance={otherAccountRunningBalance} />
                 <AnimatePresence initial={false}>
                   {/* Ticking the checkbox below does create one there, and its own description says
                       so, so this would contradict it. The padding sits inside the collapsing element

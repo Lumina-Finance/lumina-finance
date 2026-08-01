@@ -211,6 +211,12 @@ export default function CreateTransactionModal({
     value: form.account_id,
     error: showError('account_id'),
     onChange: accountField.handleAccountChange,
+
+    // The balance belongs to the account the transaction is recorded in, so it travels with that
+    // field rather than staying under whichever dropdown happens to be on top
+    runningBalance: showRunningBalance && selectedAccount
+      ? { amount: runningBalance, currency: selectedAccount.currency }
+      : undefined,
   }
   const otherAccountField = {
     options: accountField.otherAccountOptions,
@@ -218,6 +224,7 @@ export default function CreateTransactionModal({
     value: form.other_account_id,
     error: showError('other_account_id'),
     onChange: accountField.handleOtherAccountChange,
+    runningBalance: undefined,
   }
   const [topAccountField, secondAccountField] = orderAccountFields(
     recordedAccountField,
@@ -270,9 +277,7 @@ export default function CreateTransactionModal({
             accountValue={topAccountField.value}
             accountError={topAccountField.error}
             accountPlaceholder={accounts.length === 0 ? 'No accounts yet' : 'Select account...'}
-            runningBalance={showRunningBalance && selectedAccount
-              ? { amount: runningBalance, currency: selectedAccount.currency }
-              : undefined}
+            runningBalance={topAccountField.runningBalance}
             kind={form.kind}
 
             direction={form.direction}
@@ -282,6 +287,7 @@ export default function CreateTransactionModal({
             selectedArchivedOtherAccountOption={secondAccountField.selectedOption}
             otherAccountValue={secondAccountField.value}
             otherAccountError={secondAccountField.error}
+            otherAccountRunningBalance={secondAccountField.runningBalance}
             merchantOptions={merchantField.merchantOptions}
             selectedMerchantOption={merchantField.selectedMerchantOption}
             merchantValue={form.merchant_id}
