@@ -1,6 +1,7 @@
 import { useMemo, type Dispatch, type SetStateAction } from 'react'
 import type { AccountsOverview } from '@/api/accounts'
 import type { Tag } from '@/api/tags'
+import { OUTSIDE_ACCOUNT_VALUE } from '@/pages/transactions/components/transaction-modal/constants'
 import {
   buildAccountOptions,
   buildOtherAccountOptions,
@@ -26,7 +27,6 @@ interface AccountFieldState {
   selectedArchivedAccountOption: { value: string; label: string } | undefined
   otherAccountOptions: { value: string; label: string }[]
   handleAccountChange: (accountId: string) => void
-  handleToAccountChange: (accountId: string) => void
   handleSymmetricTransferChange: (value: boolean) => void
   handleOtherAccountChange: (accountId: string) => void
 }
@@ -50,8 +50,8 @@ export function useAccountField({
     [selectableAccounts, editing, form.currency],
   )
   const otherAccountOptions = useMemo(
-    () => buildOtherAccountOptions(accounts, form.account_id),
-    [accounts, form.account_id],
+    () => buildOtherAccountOptions(accounts, form.account_id, form.symmetric_transfer),
+    [accounts, form.account_id, form.symmetric_transfer],
   )
   const selectedArchivedAccountOption = editing && selectedAccount?.is_archived
     ? { value: selectedAccount.id, label: selectedAccount.name }
@@ -64,9 +64,7 @@ export function useAccountField({
       ...f,
       account_id: accountId,
       currency: account?.currency || '',
-      // The originating account wins, so empty the receiving field when it held the same account
-      to_account_id: accountId === f.to_account_id ? '' : f.to_account_id,
-      // Same reasoning for the recorded-other-account field: it cannot point at its own transaction
+      // The originating account wins, so empty the other field when it held the same account
       other_account_id: accountId === f.other_account_id ? '' : f.other_account_id,
       tag_ids: f.tag_ids.filter((tagId) => {
         const tag = tagById.get(tagId)
@@ -75,29 +73,17 @@ export function useAccountField({
     }))
     clearError('account_id')
     clearError('currency')
-    clearError('to_account_id')
-    clearError('other_account_id')
-  }
-
-  const handleToAccountChange = (accountId: string) => {
-    setForm((f) => ({
-      ...f,
-      to_account_id: accountId,
-      // The receiving account wins, so empty the originating field when it held the same account
-      account_id: accountId === f.account_id ? '' : f.account_id,
-      // Choosing a receiving account fills what this leg records too. The field stays editable
-      // afterward and is not forced back into agreement if it is then changed
-      other_account_id: accountId,
-    }))
-    clearError('to_account_id')
     clearError('other_account_id')
   }
 
   const handleSymmetricTransferChange = (value: boolean) => {
-    setForm((f) => ({ ...f, symmetric_transfer: value }))
-    // The receiving-account field disappears when unticked, so its error goes with it. The
-    // other-account field stays on screen either way, so ticking does not touch its error
-    if (!value) clearError('to_account_id')
+    setForm((f) => ({
+      ...f,
+      symmetric_transfer: value,
+      // Outside the app is no longer offered once ticked, so an answer of that is dropped rather
+      // than left selected against an option the list no longer holds
+      other_account_id: value && f.other_account_id === OUTSIDE_ACCOUNT_VALUE ? '' : f.other_account_id,
+    }))
   }
 
   const handleOtherAccountChange = (accountId: string) => {
@@ -110,7 +96,6 @@ export function useAccountField({
     selectedArchivedAccountOption,
     otherAccountOptions,
     handleAccountChange,
-    handleToAccountChange,
     handleSymmetricTransferChange,
     handleOtherAccountChange,
   }

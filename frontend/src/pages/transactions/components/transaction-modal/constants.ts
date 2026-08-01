@@ -67,6 +67,5 @@ export const INITIAL_TRANSACTION_FORM: TransactionFormValues = {
   date: '',
   tag_ids: [],
   symmetric_transfer: false,
-  to_account_id: '',
   other_account_id: '',
 }

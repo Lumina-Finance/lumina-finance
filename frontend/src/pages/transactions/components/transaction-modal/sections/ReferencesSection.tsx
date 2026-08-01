@@ -3,6 +3,7 @@ import { Tag as TagIcon, X } from 'lucide-react'
 import CreateModalFieldLabelRow from '@/components/create-modal/FieldLabelRow'
 import CreateModalSectionFrame from '@/components/create-modal/SectionFrame'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
+import { AppSlotMachineText } from '@/components/display/SlotMachineText'
 import {
   EASE,
   TRANSACTION_MODAL_FIELD_IDS,
@@ -34,8 +35,6 @@ interface TransactionReferencesSectionProps {
   direction: TransactionDirection
 
   isSymmetricTransfer: boolean
-  toAccountValue: string
-  toAccountError?: string | false
 
   // Every account plus the "outside this app" entry, for the field recording where a transfer's
   // other side sits
@@ -71,7 +70,6 @@ interface TransactionReferencesSectionProps {
   readOnly: boolean
   onAccountChange: (value: string) => void
   onSymmetricTransferChange: (value: boolean) => void
-  onToAccountChange: (value: string) => void
   onOtherAccountChange: (value: string) => void
   onMerchantChange: (value: string) => void
   onMerchantSearchChange: (value: string) => void
@@ -102,8 +100,6 @@ export default function TransactionReferencesSection({
   kind,
   direction,
   isSymmetricTransfer,
-  toAccountValue,
-  toAccountError,
   otherAccountOptions,
   otherAccountValue,
   otherAccountError,
@@ -134,7 +130,6 @@ export default function TransactionReferencesSection({
   readOnly,
   onAccountChange,
   onSymmetricTransferChange,
-  onToAccountChange,
   onOtherAccountChange,
   onMerchantChange,
   onMerchantSearchChange,
@@ -154,8 +149,8 @@ export default function TransactionReferencesSection({
   // Every transfer-kind category except Balance Adjustment records which other account the money touched
   const recordsOtherAccount = doesTransferRecordOtherAccount(kind, isBalanceAdjustmentCategory)
 
-  // Ticking the checkbox writes a transaction in both accounts, so neither one is the account it
-  // was recorded in and the pair keeps the from-and-to labels it has always had
+  // Ticking the checkbox writes a transaction in both accounts, so neither one is the single
+  // account it was recorded in
   const accountLabel = kind === 'transfer' && isSymmetricTransfer
     ? 'From account'
     : recordsOtherAccount ? 'Recorded in' : 'Account'
@@ -217,7 +212,12 @@ export default function TransactionReferencesSection({
             >
               <div className="pt-3">
                 <CreateModalFieldLabelRow
-                  label={direction === 'debit' ? 'Money went to' : 'Money came from'}
+                  label={(
+                    <AppSlotMachineText
+                      text={direction === 'debit' ? 'Money went to' : 'Money came from'}
+                      reserveText="Money came from"
+                    />
+                  )}
                   error={otherAccountError}
                 />
                 <Dropdown
@@ -259,32 +259,6 @@ export default function TransactionReferencesSection({
                   </span>
                 </label>
 
-                <AnimatePresence initial={false}>
-                  {isSymmetricTransfer && (
-                    <motion.div
-                      key="to-account"
-                      className="overflow-hidden"
-                      initial={{ height: 0, opacity: 0, y: -3 }}
-                      animate={{ height: 'auto', opacity: 1, y: 0 }}
-                      exit={{ height: 0, opacity: 0, y: -3 }}
-                      transition={{ duration: 0.2, ease: EASE }}
-                    >
-                      <div className="pt-3">
-                        <CreateModalFieldLabelRow label="To account" error={toAccountError} />
-                        <Dropdown
-                          options={accountOptions}
-                          value={toAccountValue}
-                          onChange={onToAccountChange}
-                          className={`app-input ${toAccountError ? 'app-input-error' : ''}`}
-                          placeholder={accountPlaceholder}
-                          searchable
-                          searchPlaceholder="Search accounts..."
-                          disabled={readOnly}
-                        />
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
               </div>
             </motion.div>
           )}

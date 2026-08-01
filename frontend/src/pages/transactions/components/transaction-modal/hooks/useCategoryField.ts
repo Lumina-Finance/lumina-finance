@@ -66,7 +66,7 @@ export function useCategoryField({
       category_id: categoryId,
       ...(doesTransferRecordOtherAccount(nextKind, nextIsBalanceAdjustment)
         ? {}
-        : { other_account_id: '', symmetric_transfer: false, to_account_id: '' }),
+        : { other_account_id: '', symmetric_transfer: false }),
     })
     clearError('category_id')
   }

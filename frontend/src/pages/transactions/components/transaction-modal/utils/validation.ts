@@ -56,14 +56,8 @@ export function validateTransactionForm(
   if (!form.currency) errors.currency = 'Select a currency'
   if (!form.date) errors.date = 'Select a date'
 
-  // A symmetric transfer needs a second account that differs from the originating one
-  if (isSymmetricTransferForm(form)) {
-    if (!form.to_account_id) errors.to_account_id = 'Select a receiving account'
-    else if (form.to_account_id === form.account_id) errors.to_account_id = 'Choose a different receiving account'
-  }
-
-  // The other-account field stays live whether or not the checkbox is ticked, since ticking only
-  // creates the matching transaction and does not by itself answer what this leg records
+  // The recorded account doubles as the receiving one when the checkbox is ticked, so there is a
+  // single account field either way and nothing to keep in agreement
   if (doesTransferRecordOtherAccount(form.kind, isBalanceAdjustmentCategory)) {
     // Editing answers this too, so a transfer recorded before the field existed says where the
     // money went the next time it is touched at all

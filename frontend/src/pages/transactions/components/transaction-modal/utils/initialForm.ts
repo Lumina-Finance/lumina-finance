@@ -68,7 +68,6 @@ export function buildInitialTransactionForm({
     date: transaction.dt,
     tag_ids: transaction.tags?.map((tag) => tag.id) ?? transaction.tag_ids,
     symmetric_transfer: false,
-    to_account_id: '',
     other_account_id: transaction.other_account_scope === 'outside'
       ? OUTSIDE_ACCOUNT_VALUE
       : transaction.other_account_id ?? '',

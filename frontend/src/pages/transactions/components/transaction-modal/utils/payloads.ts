@@ -79,7 +79,7 @@ export function buildSymmetricTransferPayloads(
   }
   // The second leg's other side is not in question: it is always the originating account, a tracked account in the app
   const toPayload: CreateTransactionPayload = {
-    account_id: form.to_account_id,
+    account_id: form.other_account_id,
     amount: magnitude,
     other_account_id: form.account_id,
     other_account_scope: 'tracked',

@@ -255,6 +255,10 @@ export default function TaxAdvantagedCategoryModal({
               />
               <TaxAdvantagedInfoItem label="Scope" value={plan.group_id ? 'Group' : 'Personal'} />
               <TaxAdvantagedInfoItem label="Linked Accounts" value={linkedAccountsSummary} />
+              <TaxAdvantagedInfoItem
+                label="Internal Transfers"
+                value={plan.counts_internal_transfers ? 'Counted' : 'Not counted'}
+              />
             </div>
 
             {planError && (

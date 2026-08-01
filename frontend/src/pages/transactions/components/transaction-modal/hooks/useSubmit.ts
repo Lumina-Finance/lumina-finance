@@ -39,7 +39,7 @@ interface UseTransactionSubmitOptions {
   readOnly: boolean
   accounts: AccountsOverview[]
   selectedAccount: AccountsOverview | undefined
-  selectedToAccount: AccountsOverview | undefined
+  selectedOtherAccount: AccountsOverview | undefined
   selectedCurrencyExponent: number
   isAmountLocked: boolean
   isBalanceAdjustmentCategory: boolean
@@ -75,7 +75,7 @@ export function useTransactionSubmit({
   readOnly,
   accounts,
   selectedAccount,
-  selectedToAccount,
+  selectedOtherAccount,
   selectedCurrencyExponent,
   isAmountLocked,
   isBalanceAdjustmentCategory,
@@ -107,9 +107,8 @@ export function useTransactionSubmit({
   // create and a batch of them would otherwise have to answer it again on each row. Outside a
   // transfer the field is off-screen and empty, so keeping it changes nothing
   //
-  // A symmetric transfer additionally keeps symmetric_transfer and to_account_id, because a
-  // transfer's identity is the account pair and dropping either would force re-arming the
-  // checkbox and the receiving account before every row
+  // A symmetric transfer additionally keeps symmetric_transfer, because dropping it would force
+  // re-arming the checkbox before every row of a batch
   const resetFormAfterCreate = ({ keepTransferPair }: { keepTransferPair: boolean }) => {
     setForm({
       ...INITIAL_TRANSACTION_FORM,
@@ -121,12 +120,7 @@ export function useTransactionSubmit({
       currency: form.currency,
       date: form.date,
       other_account_id: form.other_account_id,
-      ...(keepTransferPair
-        ? {
-          symmetric_transfer: form.symmetric_transfer,
-          to_account_id: form.to_account_id,
-        }
-        : {}),
+      ...(keepTransferPair ? { symmetric_transfer: form.symmetric_transfer } : {}),
     })
     setFieldErrors({})
     setTouched({})
@@ -138,10 +132,11 @@ export function useTransactionSubmit({
     e.preventDefault()
     if (isPending || readOnly) return
     const errors = validateTransactionForm(form, { isAmountLocked, isBalanceAdjustmentCategory })
-    // The receiving account needs both accounts loaded to compare currency and group
-    if (!editing && isSymmetricTransferForm(form) && !errors.to_account_id) {
-      const accountError = getSymmetricTransferAccountError(selectedAccount, selectedToAccount)
-      if (accountError) errors.to_account_id = accountError
+    // Ticking the checkbox creates a real transaction in the recorded account, so that account has
+    // to be one the amount is valid in. Both accounts have to be loaded to compare them
+    if (!editing && isSymmetricTransferForm(form) && !errors.other_account_id) {
+      const accountError = getSymmetricTransferAccountError(selectedAccount, selectedOtherAccount)
+      if (accountError) errors.other_account_id = accountError
     }
     setFieldErrors(errors)
     setTouched({
@@ -151,7 +146,6 @@ export function useTransactionSubmit({
       amount: true,
       currency: true,
       date: true,
-      to_account_id: true,
       other_account_id: true,
     })
     if (Object.keys(errors).length > 0) return
@@ -184,7 +178,7 @@ export function useTransactionSubmit({
       const [fromPayload, toPayload] = buildSymmetricTransferPayloads(form, selectedCurrencyExponent)
       const legs = [
         { failedKind: 'debit', accountId: form.account_id, payload: fromPayload },
-        { failedKind: 'credit', accountId: form.to_account_id, payload: toPayload },
+        { failedKind: 'credit', accountId: form.other_account_id, payload: toPayload },
       ]
 
       setSubmitError('')

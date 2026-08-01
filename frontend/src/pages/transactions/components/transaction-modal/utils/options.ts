@@ -27,15 +27,23 @@ export function buildAccountOptions(
  * is a fact about where the money went rather than a second leg that must share a currency, and an
  * archived or closed account still stays recordable since archiving happens after the money moved
  */
-export function buildOtherAccountOptions(accounts: AccountsOverview[], recordedAccountId: string) {
-  return [
-    // Money cannot move from an account to itself, so the account holding the transfer is left out
-    // rather than offered and then refused
-    ...accounts
-      .filter((account) => account.id !== recordedAccountId)
-      .map((account) => ({ value: account.id, label: account.name })),
-    { value: OUTSIDE_ACCOUNT_VALUE, label: 'Outside this app' },
-  ]
+export function buildOtherAccountOptions(
+  accounts: AccountsOverview[],
+  recordedAccountId: string,
+  isSymmetricTransfer: boolean,
+) {
+  // Money cannot move from an account to itself, so the account holding the transfer is left out
+  // rather than offered and then refused
+  const accountOptions = accounts
+    .filter((account) => account.id !== recordedAccountId)
+    .map((account) => ({ value: account.id, label: account.name }))
+
+  // Ticking the checkbox makes this the account the matching transaction is written to, and there
+  // is nowhere outside the app to write one, so the entry is not offered there
+  if (isSymmetricTransfer) return accountOptions
+
+  // First, because it is the one answer that is not a search through the account list
+  return [{ value: OUTSIDE_ACCOUNT_VALUE, label: 'Outside this app' }, ...accountOptions]
 }
 
 /**

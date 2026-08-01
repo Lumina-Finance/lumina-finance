@@ -157,7 +157,7 @@ export function useMerchantField({
       category_id: defaultCategoryId,
       ...(doesTransferRecordOtherAccount(nextKind, nextIsBalanceAdjustment)
         ? {}
-        : { other_account_id: '', symmetric_transfer: false, to_account_id: '' }),
+        : { other_account_id: '', symmetric_transfer: false }),
     })
     clearError('merchant_id')
     clearError('category_id')

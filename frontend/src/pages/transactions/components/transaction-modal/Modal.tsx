@@ -95,9 +95,9 @@ export default function CreateTransactionModal({
     () => accounts.find((account) => account.id === form.account_id),
     [accounts, form.account_id],
   )
-  const selectedToAccount = useMemo(
-    () => accounts.find((account) => account.id === form.to_account_id),
-    [accounts, form.to_account_id],
+  const selectedOtherAccount = useMemo(
+    () => accounts.find((account) => account.id === form.other_account_id),
+    [accounts, form.other_account_id],
   )
   const readOnly = editing && (readOnlyProp || Boolean(selectedAccount?.is_archived))
 
@@ -188,7 +188,7 @@ export default function CreateTransactionModal({
     readOnly,
     accounts,
     selectedAccount,
-    selectedToAccount,
+    selectedOtherAccount,
     selectedCurrencyExponent,
     isAmountLocked,
     isBalanceAdjustmentCategory: categoryField.isBalanceAdjustmentCategory,
@@ -210,7 +210,7 @@ export default function CreateTransactionModal({
     ? ''
     : form.account_id === defaultAccountId
       ? 'debit'
-      : form.to_account_id === defaultAccountId
+      : form.other_account_id === defaultAccountId
         ? 'credit'
         : ''
   const directionValue = isSymmetricTransfer ? symmetricDisplayDirection : form.direction
@@ -270,8 +270,6 @@ export default function CreateTransactionModal({
             // direction toggle was left on before the checkbox disabled it
             direction={isSymmetricTransfer ? 'debit' : form.direction}
             isSymmetricTransfer={form.symmetric_transfer}
-            toAccountValue={form.to_account_id}
-            toAccountError={showError('to_account_id')}
             otherAccountOptions={accountField.otherAccountOptions}
             otherAccountValue={form.other_account_id}
             otherAccountError={showError('other_account_id')}
@@ -302,7 +300,6 @@ export default function CreateTransactionModal({
             readOnly={readOnly}
             onAccountChange={accountField.handleAccountChange}
             onSymmetricTransferChange={accountField.handleSymmetricTransferChange}
-            onToAccountChange={accountField.handleToAccountChange}
             onOtherAccountChange={accountField.handleOtherAccountChange}
             onMerchantChange={merchantField.handleMerchantChange}
             onMerchantSearchChange={merchantField.setSearch}

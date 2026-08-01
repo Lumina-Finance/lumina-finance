@@ -16,11 +16,9 @@ export interface TransactionFormValues {
   date: string
   tag_ids: string[]
 
-  // When set on a transfer, the same amount is recorded in both accounts as two independent rows
+  // When set on a transfer, the same amount is recorded in both accounts as two independent rows.
+  // The account it is recorded in is the one below, which doubles as the receiving account
   symmetric_transfer: boolean
-
-  // The receiving account for a symmetric transfer, debited from account_id and credited here
-  to_account_id: string
 
   // Where the other side of a transfer sits: an account id, the "outside this app" sentinel, or
   // empty when not yet answered. Ignored for every category except a transfer that is not
@@ -35,7 +33,6 @@ export interface TransactionFormFieldErrors {
   amount?: string
   currency?: string
   date?: string
-  to_account_id?: string
   other_account_id?: string
 }
 
