@@ -53,6 +53,31 @@ async def _record_merchant_transactions(client, headers, account_id, category_id
         }, headers=headers)
 
 
+async def test_list_merchants_ignores_the_balance_adjustments_the_app_writes(client):
+    """Opening accounts is not transacting, so the merchant those adjustments carry does not climb."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    # Each account written with a starting balance produces a balance adjustment carrying Myself
+    for name in ("Chequing", "Savings", "Vacation"):
+        await client.post("/accounts", json={
+            "account_kind": "asset",
+            "account_type": "checking",
+            "name": name,
+            "currency": "CAD",
+            "starting_balance": 100_00,
+        }, headers=headers)
+
+    account_id = await _create_checking_account(client, headers)
+    category_id = await _get_system_category_id(client, headers)
+    merchant_id = (await _create_merchant(client, headers, name="Corner Shop")).json()["id"]
+    await _record_merchant_transactions(client, headers, account_id, category_id, merchant_id, 1, date.today())
+
+    resp = await client.get("/merchants", headers=headers)
+
+    assert [merchant["name"] for merchant in resp.json()][0] == "Corner Shop"
+
+
 async def test_list_merchants_ranks_more_used_merchant_first(client):
     """Merchants with more recent transactions rank above less used ones regardless of name."""
     headers = _get_auth_header(await _create_user(client))
