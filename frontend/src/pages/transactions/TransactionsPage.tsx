@@ -11,6 +11,7 @@ import TransactionListSection from '@/pages/transactions/components/ListSection'
 import CreateTransactionModal from '@/pages/transactions/components/transaction-modal/Modal'
 import { useCurrencyGuard } from '@/hooks/useCurrencyGuard'
 import TransactionsTopBand from '@/pages/transactions/components/TopBand'
+import { toTransactionListAccount } from '@/pages/transactions/types/transactionList'
 import type { TransactionListFilters } from '@/pages/transactions/types/transactionList'
 import {
   formatOverviewRangeLabel,
@@ -108,13 +109,7 @@ export default function TransactionsPage() {
     overviewToDate,
   ].join('|')
   const transactionAccounts = useMemo(
-    () => (accounts ?? []).map((account) => ({
-      id: account.id,
-      name: account.name,
-      currency: account.currency,
-      institution: account.institution,
-      is_archived: account.is_archived,
-    })),
+    () => (accounts ?? []).map(toTransactionListAccount),
     [accounts],
   )
   const editingTransactionReadOnly = useMemo(() => {

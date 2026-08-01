@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useNavigate, useParams } from 'react-router'
-import { useAccount, type Account } from '@/api/accounts'
+import { useAccount, useAccounts, type Account } from '@/api/accounts'
 import { useTaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
 import type { Transaction } from '@/api/transactions'
 import AccountIdentityCard from '@/pages/accounts/detail/components/identity/Card'
@@ -13,6 +13,7 @@ import { TopCategoriesBySpendingCard } from '@/pages/accounts/detail/components/
 import { TopMerchantsBySpendingCard } from '@/pages/accounts/detail/components/spending-breakdown/TopMerchantsCard'
 import { EASE } from '@/pages/accounts/detail/constants/accountDetail'
 import TransactionListSection from '@/pages/transactions/components/ListSection'
+import { toTransactionListAccount } from '@/pages/transactions/types/transactionList'
 import CreateTransactionModal from '@/pages/transactions/components/transaction-modal/Modal'
 import { useCurrencyGuard } from '@/hooks/useCurrencyGuard'
 
@@ -30,6 +31,10 @@ export default function AccountDetailPage() {
   const navigate = useNavigate()
   const { accountId } = useParams<{ accountId: string }>()
   const { data: account, error } = useAccount(accountId)
+
+  // The whole list, not just the account in view, so a transfer's row can name the account on its
+  // other side. The transaction modal on this page loads it anyway, so it costs no extra request
+  const { data: accounts } = useAccounts()
   const requireCurrencies = useCurrencyGuard()
 
   const [showTxnModal, setShowTxnModal] = useState(false)
@@ -151,6 +156,7 @@ export default function AccountDetailPage() {
                 institution: visibleAccount.institution,
                 is_archived: visibleAccount.is_archived,
               }}
+              accounts={(accounts ?? []).map(toTransactionListAccount)}
               currency={visibleAccount.currency}
               onCreateTransaction={openCreateTransaction}
               onEditTransaction={openEditTransaction}
