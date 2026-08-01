@@ -50,11 +50,12 @@ export function buildCreateTransactionPayload(
 }
 
 /**
- * Builds the originating and receiving payloads for a symmetric transfer
+ * Builds the two payloads for a symmetric transfer
  *
- * The originating account is debited and the receiving account is credited the same magnitude
- * Both legs share every other field so they read as the same movement in two accounts. The two
- * rows stay independent on the backend, matching how the app already records transfers
+ * The direction decides which account loses the money and which gains it, and the magnitude is the
+ * same on both. Both legs share every other field so they read as the same movement in two
+ * accounts. The two rows stay independent on the backend, matching how the app already records
+ * transfers
  */
 export function buildSymmetricTransferPayloads(
   form: TransactionFormValues,
@@ -68,19 +69,23 @@ export function buildSymmetricTransferPayloads(
     currency: form.currency,
     notes: form.notes.trim() || null,
   }
+  // The direction says what happens to the account the transaction is recorded in, so it decides
+  // which of the two legs is the negative one rather than the recorded account always being it
+  const recordedAmount = form.direction === 'debit' ? -magnitude : magnitude
+
   // One field serves as both the receiving account and the recorded one, so the two always agree
   // here. Ticking the checkbox takes the outside entry off the list and clears it if it was chosen,
   // so the split below only ever produces a tracked account
   const fromPayload: CreateTransactionPayload = {
     account_id: form.account_id,
-    amount: -magnitude,
+    amount: recordedAmount,
     ...shared,
     ...splitOtherAccountSelection(form.other_account_id),
   }
   // The second leg's other side is not in question: it is always the originating account, a tracked account in the app
   const toPayload: CreateTransactionPayload = {
     account_id: form.other_account_id,
-    amount: magnitude,
+    amount: -recordedAmount,
     other_account_id: form.account_id,
     other_account_scope: 'tracked',
     ...shared,

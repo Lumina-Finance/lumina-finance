@@ -349,6 +349,15 @@ describe('transaction modal helpers', () => {
       other_account_id: 'checking',
       other_account_scope: 'tracked',
     })
+
+    // The direction says what happens to the account above, so on a credit the money arrives there
+    // and leaves the other, rather than the recorded account always being the one debited
+    const [creditFrom, creditTo] = buildSymmetricTransferPayloads(
+      { ...baseForm, direction: 'credit' as const },
+      2,
+    )
+    expect(creditFrom).toMatchObject({ account_id: 'checking', amount: 5000 })
+    expect(creditTo).toMatchObject({ account_id: 'savings', amount: -5000 })
   })
 
   it('splits the other-account selection into an id-and-scope pair for create and update payloads', () => {

@@ -18,9 +18,6 @@ interface TransactionTypeDirectionSectionProps {
   direction: TransactionDirection | ''
   editing: boolean
   readOnly: boolean
-
-  // A symmetric transfer derives its direction from the accounts, so the control is shown but not editable
-  directionDisabled: boolean
   directionHighlightKey: number
   onKindChange: (kind: TransactionModalKind) => void
   onDirectionChange: (direction: TransactionDirection) => void
@@ -34,7 +31,6 @@ export default function TransactionTypeDirectionSection({
   direction,
   editing,
   readOnly,
-  directionDisabled,
   directionHighlightKey,
   onKindChange,
   onDirectionChange,
@@ -68,7 +64,7 @@ export default function TransactionTypeDirectionSection({
             options={DIRECTION_OPTIONS}
             ariaLabel="Transaction direction"
             onChange={onDirectionChange}
-            disabled={readOnly || directionDisabled}
+            disabled={readOnly}
           />
         </div>
       </div>

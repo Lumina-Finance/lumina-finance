@@ -203,33 +203,18 @@ export default function CreateTransactionModal({
   const showRunningBalance = !editing && keepOpenAfterCreate && !!selectedAccount
   const isSymmetricTransfer = isSymmetricTransferForm(form)
 
-  // A symmetric transfer shows its direction relative to the account being viewed, so the toggle
-  // reflects whether that account is the source or destination instead of a user choice. It falls
-  // back to the unselected state when the viewed account is on neither leg or no account is in view
-  const symmetricDisplayDirection: TransactionDirection | '' = !defaultAccountId
-    ? ''
-    : form.account_id === defaultAccountId
-      ? 'debit'
-      : form.other_account_id === defaultAccountId
-        ? 'credit'
-        : ''
-  const directionValue = isSymmetricTransfer ? symmetricDisplayDirection : form.direction
-
-  // A pair always debits the account above and credits the recorded one, so its direction is
-  // really which side the account being viewed sits on. Flipping the toggle therefore swaps the
-  // two accounts rather than changing a sign. With no account in view there is nothing for the
-  // direction to be relative to, so the toggle stays disabled there as before
-  const canFlipSymmetricDirection = isSymmetricTransfer && symmetricDisplayDirection !== ''
-
   const handleDirectionChange = (value: TransactionDirection) => {
-    if (!isSymmetricTransfer) {
+    if (!isSymmetricTransfer || value === form.direction) {
       handleField('direction', value)
       return
     }
-    if (!canFlipSymmetricDirection || value === symmetricDisplayDirection) return
 
+    // The direction says what happens to the account above, so flipping it on a pair also exchanges
+    // the two accounts. The money keeps moving the same way and only the account shown first
+    // changes, which is what lets the form read correctly from either account's side
     setForm((previous) => ({
       ...previous,
+      direction: value,
       account_id: previous.other_account_id,
       other_account_id: previous.account_id,
       // The currency follows the account the transaction is recorded in, the same as choosing it
@@ -270,10 +255,9 @@ export default function CreateTransactionModal({
         <div className="space-y-5">
           <TransactionTypeDirectionSection
             kind={form.kind}
-            direction={directionValue}
+            direction={form.direction}
             editing={editing}
             readOnly={readOnly}
-            directionDisabled={isSymmetricTransfer && !canFlipSymmetricDirection}
             directionHighlightKey={directionHighlightKey}
             onKindChange={applyKindChange}
             onDirectionChange={handleDirectionChange}
