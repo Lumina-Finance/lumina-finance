@@ -1,5 +1,10 @@
 
 
+import uuid
+from datetime import date
+
+from app.models.transaction import Transaction
+from tests.conftest import TestSession
 from tests.routes.support import _create_user, _get_auth_header
 from tests.routes.transactions._helpers import (
     NONEXISTENT_ID,
@@ -228,6 +233,56 @@ async def test_patch_transaction_invalid_tag_returns_422(client):
 
     assert resp.status_code == 422
     assert resp.json()["detail"] == "Tag not found"
+
+
+async def _seed_transaction_without_a_merchant(client, headers, account_id, category_id):
+    """Insert a transaction with no merchant, which the route no longer creates
+
+    Returns:
+        Identifier of the seeded transaction
+    """
+    reference = (await _create_transaction(client, headers, account_id, category_id)).json()
+    async with TestSession() as session:
+        txn = Transaction(
+            created_by_user_id=uuid.UUID(reference["created_by_user_id"]),
+            account_id=uuid.UUID(account_id),
+            dt=date(2026, 3, 15),
+            category_id=uuid.UUID(category_id),
+            merchant_id=None,
+            amount=-5000,
+            currency="CAD",
+        )
+        session.add(txn)
+        await session.commit()
+        return str(txn.id)
+
+
+async def test_patch_transaction_recorded_without_a_merchant_is_refused(client):
+    """History predating the rule is what the rule is for, so any edit to it has to supply one."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    txn_id = await _seed_transaction_without_a_merchant(client, headers, account_id, category_id)
+
+    resp = await client.patch(f"/transactions/{txn_id}", json={"notes": "Corrected"}, headers=headers)
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "merchant_id is required"
+
+
+async def test_patch_transaction_recorded_without_a_merchant_succeeds_once_it_supplies_one(client):
+    """Supplying the merchant is what puts the transaction onto the current rule."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    txn_id = await _seed_transaction_without_a_merchant(client, headers, account_id, category_id)
+    merchant_id = (await _create_merchant(client, headers)).json()["id"]
+
+    resp = await client.patch(
+        f"/transactions/{txn_id}",
+        json={"notes": "Corrected", "merchant_id": merchant_id},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["merchant_id"] == merchant_id
+    assert resp.json()["notes"] == "Corrected"
 
 
 async def test_patch_transaction_cannot_clear_merchant(client):
