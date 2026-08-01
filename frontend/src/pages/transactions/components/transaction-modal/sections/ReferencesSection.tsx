@@ -246,13 +246,25 @@ export default function TransactionReferencesSection({
                   searchPlaceholder="Search accounts..."
                   disabled={readOnly}
                 />
-                {/* Ticking the checkbox below does create one there, and its own description says
-                    so, so this would contradict it */}
-                {!isSymmetricTransfer && (
-                  <p className="mt-2 text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                    Records the fact only, creating no transaction in that account.
-                  </p>
-                )}
+                <AnimatePresence initial={false}>
+                  {/* Ticking the checkbox below does create one there, and its own description says
+                      so, so this would contradict it. The padding sits inside the collapsing element
+                      so it goes with the text rather than holding the gap open after it leaves */}
+                  {!isSymmetricTransfer && (
+                    <motion.div
+                      key="other-account-note"
+                      className="overflow-hidden"
+                      initial={{ height: 0, opacity: 0, y: -3 }}
+                      animate={{ height: 'auto', opacity: 1, y: 0 }}
+                      exit={{ height: 0, opacity: 0, y: -3 }}
+                      transition={{ duration: 0.2, ease: EASE }}
+                    >
+                      <p className="pt-2 text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                        Records the fact only, creating no transaction in that account
+                      </p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
 
               {isTransferPairOffered && (
