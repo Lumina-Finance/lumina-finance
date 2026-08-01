@@ -158,8 +158,9 @@ export default function TransactionReferencesSection({
   // Every transfer-kind category except Balance Adjustment records which other account the money touched
   const recordsOtherAccount = doesTransferRecordOtherAccount(kind, isBalanceAdjustmentCategory)
 
-  // Ticking the checkbox writes a transaction in both accounts, so neither one is the single
-  // account it was recorded in
+  // Ticking the checkbox writes a transaction in both accounts, so neither one is the single account
+  // it was recorded in. The two fields then read source first, which is why the one below says the
+  // money went to it whatever the direction toggle is set to
   const accountLabel = kind === 'transfer' && isSymmetricTransfer
     ? 'From account'
     : recordsOtherAccount ? 'Recorded in' : 'Account'
@@ -227,7 +228,7 @@ export default function TransactionReferencesSection({
                           re-animating every character on a direction switch */}
                       Money{' '}
                       <AppSlotMachineText
-                        text={direction === 'debit' ? 'went to' : 'came from'}
+                        text={isSymmetricTransfer || direction === 'debit' ? 'went to' : 'came from'}
                         reserveText="came from"
                       />
                     </>

@@ -11,7 +11,6 @@ import { buildCurrencyOptions } from '@/pages/transactions/components/transactio
 import { isSymmetricTransferForm } from '@/pages/transactions/components/transaction-modal/utils/validation'
 import type {
   CreateTransactionModalProps,
-  TransactionDirection,
   TransactionFormValues,
 } from '@/pages/transactions/components/transaction-modal/types'
 import TransactionDetailsSection from '@/pages/transactions/components/transaction-modal/sections/DetailsSection'
@@ -203,26 +202,28 @@ export default function CreateTransactionModal({
   const showRunningBalance = !editing && keepOpenAfterCreate && !!selectedAccount
   const isSymmetricTransfer = isSymmetricTransferForm(form)
 
-  const handleDirectionChange = (value: TransactionDirection) => {
-    if (!isSymmetricTransfer || value === form.direction) {
-      handleField('direction', value)
-      return
-    }
-
-    // The direction says what happens to the account above, so flipping it on a pair also exchanges
-    // the two accounts. The money keeps moving the same way and only the account shown first
-    // changes, which is what lets the form read correctly from either account's side
-    setForm((previous) => ({
-      ...previous,
-      direction: value,
-      account_id: previous.other_account_id,
-      other_account_id: previous.account_id,
-      // The currency follows the account the transaction is recorded in, the same as choosing it
-      // from the dropdown does
-      currency: accounts.find((account) => account.id === previous.other_account_id)?.currency
-        ?? previous.currency,
-    }))
+  // A ticked pair reads source first, so a credit shows the two accounts the other way round from
+  // how the form stores them. Swapping the whole field, its value, its error and its option list
+  // together keeps them in agreement, and means the direction toggle moves the accounts between the
+  // fields without anything having to be written back to the form
+  const isPairShownReversed = isSymmetricTransfer && form.direction === 'credit'
+  const recordedAccountField = {
+    options: accountField.accountOptions,
+    selectedOption: accountField.selectedArchivedAccountOption,
+    value: form.account_id,
+    error: showError('account_id'),
+    onChange: accountField.handleAccountChange,
   }
+  const otherAccountField = {
+    options: accountField.otherAccountOptions,
+    selectedOption: accountField.selectedArchivedOtherAccountOption,
+    value: form.other_account_id,
+    error: showError('other_account_id'),
+    onChange: accountField.handleOtherAccountChange,
+  }
+  const [topAccountField, secondAccountField] = isPairShownReversed
+    ? [otherAccountField, recordedAccountField]
+    : [recordedAccountField, otherAccountField]
 
   return (
     <>
@@ -260,29 +261,27 @@ export default function CreateTransactionModal({
             readOnly={readOnly}
             directionHighlightKey={directionHighlightKey}
             onKindChange={applyKindChange}
-            onDirectionChange={handleDirectionChange}
+            onDirectionChange={(value) => handleField('direction', value)}
           />
 
           <TransactionReferencesSection
-            accountOptions={accountField.accountOptions}
-            selectedArchivedAccountOption={accountField.selectedArchivedAccountOption}
-            accountValue={form.account_id}
-            accountError={showError('account_id')}
+            accountOptions={topAccountField.options}
+            selectedArchivedAccountOption={topAccountField.selectedOption}
+            accountValue={topAccountField.value}
+            accountError={topAccountField.error}
             accountPlaceholder={accounts.length === 0 ? 'No accounts yet' : 'Select account...'}
             runningBalance={showRunningBalance && selectedAccount
               ? { amount: runningBalance, currency: selectedAccount.currency }
               : undefined}
             kind={form.kind}
 
-            // A pair always debits the account above and credits the receiving one, whatever the
-            // direction toggle was left on before the checkbox disabled it
-            direction={isSymmetricTransfer ? 'debit' : form.direction}
+            direction={form.direction}
             isSymmetricTransfer={form.symmetric_transfer}
             isTransferPairOffered={!editing}
-            otherAccountOptions={accountField.otherAccountOptions}
-            selectedArchivedOtherAccountOption={accountField.selectedArchivedOtherAccountOption}
-            otherAccountValue={form.other_account_id}
-            otherAccountError={showError('other_account_id')}
+            otherAccountOptions={secondAccountField.options}
+            selectedArchivedOtherAccountOption={secondAccountField.selectedOption}
+            otherAccountValue={secondAccountField.value}
+            otherAccountError={secondAccountField.error}
             merchantOptions={merchantField.merchantOptions}
             selectedMerchantOption={merchantField.selectedMerchantOption}
             merchantValue={form.merchant_id}
@@ -308,9 +307,9 @@ export default function CreateTransactionModal({
             tagHasMore={tagField.hasMore}
             selectedTags={tagField.selectedTags}
             readOnly={readOnly}
-            onAccountChange={accountField.handleAccountChange}
+            onAccountChange={topAccountField.onChange}
             onSymmetricTransferChange={accountField.handleSymmetricTransferChange}
-            onOtherAccountChange={accountField.handleOtherAccountChange}
+            onOtherAccountChange={secondAccountField.onChange}
             onMerchantChange={merchantField.handleMerchantChange}
             onMerchantSearchChange={merchantField.setSearch}
             onMerchantSearchCommit={merchantField.setActiveSearch}
