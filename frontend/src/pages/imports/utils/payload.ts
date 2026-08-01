@@ -105,8 +105,12 @@ export function buildTransactionImportPayload({
         continue
       }
 
-      // A category created by the import is never the system Balance Adjustment
-      recordsOtherAccountBySource[source] = doesTransferRecordOtherAccount(kind, false)
+      // A create mapping reuses a category of the same name where one exists, so a source called
+      // Balance Adjustment lands on the system category that records no other account
+      recordsOtherAccountBySource[source] = doesTransferRecordOtherAccount(
+        kind,
+        source === BALANCE_ADJUSTMENT_CATEGORY_NAME,
+      )
       categories.push({
         source,
         create: {

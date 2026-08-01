@@ -296,7 +296,7 @@ describe('CSV import other account', () => {
     expect(rows[0].transaction.other_account_scope).toBeNull()
   })
 
-  it('shows a transfer into an account queued for creation as unanswered', () => {
+  it('shows a transfer into an account queued for creation under the source it came from', () => {
     const rows = buildImportPreviewRows({
       files: [createFile([
         { Account: 'Chequing', Date: '2026-04-11', Amount: '-500.00', Category: 'Transfer', 'Other account': 'Savings' },
@@ -316,8 +316,10 @@ describe('CSV import other account', () => {
       resolvedCategoryMappings: { Transfer: TRANSFER.id },
     })
 
-    // The account has no id until the import runs, so the preview cannot point at it
-    expect(rows[0].transaction.other_account_id).toBeNull()
-    expect(rows[0].transaction.other_account_scope).toBeNull()
+    // The import writes the new account's id, which does not exist yet, so the preview stands in
+    // with the same sentinel it already uses for the row's own account
+    expect(rows[0].transaction.other_account_scope).toBe('tracked')
+    expect(rows[0].transaction.other_account_id).toBe(CREATE_ACCOUNT_VALUE)
+    expect(rows[0].otherAccountName).toBe('Savings')
   })
 })

@@ -160,6 +160,43 @@ async def test_firefly_import_converts_transfers_into_two_legs(client):
     assert transactions_by_account[savings_id]["other_account_scope"] == "tracked"
 
 
+async def test_firefly_import_records_accounts_it_creates_as_each_other_s_other_side(client):
+    """A first import creates both endpoints, and each leg still records the other one."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await client.post("/transactions/import/firefly", json={
+        "accounts": [
+            _chequing_mapping(),
+            {
+                "source": "High Interest Savings",
+                "create": {"name": "High Interest Savings", "account_type": "savings", "currency": "CAD"},
+            },
+        ],
+        "categories": [],
+        "rows": [_firefly_row(
+            type="Transfer",
+            amount="500.00",
+            description="Automatic savings contribution",
+            destination_name="High Interest Savings",
+            destination_type="Asset account",
+            category=None,
+        )],
+    }, headers=headers)
+
+    assert resp.status_code == 201
+    data = resp.json()
+    chequing_id = data["account_source_ids"]["Everyday Chequing"]
+    savings_id = data["account_source_ids"]["High Interest Savings"]
+
+    transactions_by_account = {
+        transaction["account_id"]: transaction
+        for transaction in (await client.get("/transactions", headers=headers)).json()
+    }
+    assert transactions_by_account[chequing_id]["other_account_id"] == savings_id
+    assert transactions_by_account[savings_id]["other_account_id"] == chequing_id
+
+
 async def test_firefly_import_rejects_an_account_source_marked_outside(client):
     """Every Firefly source is an account rows are written to, so the outside answer has no meaning."""
     signup_resp = await _create_user(client)

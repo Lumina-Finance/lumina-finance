@@ -1,4 +1,3 @@
-import { CREATE_ACCOUNT_VALUE } from '@/pages/imports/constants'
 import type { CsvRow, PreviewTransactionRow } from '@/pages/imports/types'
 import { getPreviewDateLabel } from '@/pages/imports/utils'
 import { getFireflyRowDate, isFireflyRowImportable, splitFireflyTags } from './derivation'
@@ -55,10 +54,6 @@ function buildFireflyPreviewRow(
     .filter(Boolean)
     .join('\n')
 
-  // An account queued for creation has no id until the import runs, so a transfer into one shows as
-  // unanswered rather than pointing at the create sentinel
-  const otherAccount = leg.otherAccount?.id === CREATE_ACCOUNT_VALUE ? null : leg.otherAccount
-
   return {
     id,
     accountInstitution: leg.account.institution,
@@ -66,7 +61,7 @@ function buildFireflyPreviewRow(
     category: leg.category,
     currency: leg.account.currency,
     dateLabel: getPreviewDateLabel(dt),
-    otherAccountName: otherAccount?.name,
+    otherAccountName: leg.otherAccount?.name,
     transaction: {
       id,
       created_by_user_id: 'import-preview',
@@ -82,8 +77,10 @@ function buildFireflyPreviewRow(
       fx_rate: null,
       notes: notes || null,
 
-      other_account_id: otherAccount?.id ?? null,
-      other_account_scope: otherAccount ? 'tracked' : null,
+      // An account queued for creation carries the create sentinel until the import mints its id,
+      // the same stand-in the leg's own account uses above
+      other_account_id: leg.otherAccount?.id ?? null,
+      other_account_scope: leg.otherAccount ? 'tracked' : null,
       created_at: timestamp,
       updated_at: timestamp,
       tag_ids: tagIds,

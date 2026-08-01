@@ -128,6 +128,12 @@ export function buildImportPreviewRows({
         ? undefined
         : accountById.get(otherAccountChoice)
 
+      // An account queued for creation has no id or row of its own yet, so it stands in with the
+      // same sentinel the row's own account uses and shows under the source it came from
+      const otherAccountName = otherAccountChoice === CREATE_ACCOUNT_VALUE
+        ? otherAccountSource
+        : otherAccount?.name
+
       rows.push({
         id: `${file.id}-${rowIndex}`,
         accountInstitution: account?.institution ?? createAccountInstitution ?? null,
@@ -135,7 +141,7 @@ export function buildImportPreviewRows({
         category,
         currency,
         dateLabel: getPreviewDateLabel(dt),
-        otherAccountName: otherAccount?.name,
+        otherAccountName,
         transaction: {
           id: `import-preview-${file.id}-${rowIndex}`,
           created_by_user_id: 'import-preview',
@@ -151,8 +157,8 @@ export function buildImportPreviewRows({
           fx_rate: null,
           notes: notes || null,
 
-          other_account_id: otherAccount?.id ?? null,
-          other_account_scope: getPreviewOtherAccountScope(otherAccountChoice, otherAccount?.id),
+          other_account_id: otherAccount?.id ?? (otherAccountChoice === CREATE_ACCOUNT_VALUE ? CREATE_ACCOUNT_VALUE : null),
+          other_account_scope: getPreviewOtherAccountScope(otherAccountChoice),
           created_at: timestamp,
           updated_at: timestamp,
           tag_ids: tagIds,
@@ -185,12 +191,11 @@ function doesPreviewCategoryRecordOtherAccount(category: Category | undefined) {
 /**
  * Resolves what a previewed transfer will record about where the money went
  *
- * An account queued to be created has no id until the import runs, so the preview shows that row
- * as unanswered rather than pointing at an account that does not exist yet
+ * An unmapped source leaves the row unanswered, which is what the import writes for it
  */
-function getPreviewOtherAccountScope(otherAccountChoice: string, otherAccountId: string | undefined) {
+function getPreviewOtherAccountScope(otherAccountChoice: string) {
   if (otherAccountChoice === OUTSIDE_ACCOUNT_VALUE) return 'outside'
-  return otherAccountId ? 'tracked' : null
+  return otherAccountChoice ? 'tracked' : null
 }
 
 /**
