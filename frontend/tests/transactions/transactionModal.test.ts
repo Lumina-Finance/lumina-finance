@@ -20,6 +20,7 @@ import {
   buildCreateTransactionPayload,
   buildSymmetricTransferPayloads,
   buildUpdateTransactionPatch,
+  getSymmetricTransferLegKinds,
 } from '@/pages/transactions/components/transaction-modal/utils/payloads'
 import { validateTransactionForm } from '@/pages/transactions/components/transaction-modal/utils/validation'
 import { orderAccountFields } from '@/pages/transactions/components/transaction-modal/utils/accountFields'
@@ -424,6 +425,36 @@ describe('transaction modal helpers', () => {
     )).toEqual({ category_id: 'groceries' })
   })
 
+})
+
+describe('symmetric transfer leg kinds', () => {
+  it('gives the recorded account the direction and the other leg its opposite', () => {
+    expect(getSymmetricTransferLegKinds('debit')).toEqual(['debit', 'credit'])
+    expect(getSymmetricTransferLegKinds('credit')).toEqual(['credit', 'debit'])
+  })
+
+  it('agrees with the signs the payloads carry, so a failed leg is described as it was built', () => {
+    const form = {
+      kind: 'transfer' as const,
+      direction: 'credit' as const,
+      account_id: 'checking',
+      category_id: 'transfer-out',
+      merchant_id: 'store',
+      amount: '50.00',
+      currency: 'CAD',
+      notes: '',
+      date: '2026-06-11',
+      tag_ids: [],
+      symmetric_transfer: true,
+      other_account_id: 'savings',
+    }
+
+    const [recordedKind, otherKind] = getSymmetricTransferLegKinds(form.direction)
+    const [recordedPayload, otherPayload] = buildSymmetricTransferPayloads(form, 2)
+
+    expect(recordedKind === 'debit').toBe(recordedPayload.amount < 0)
+    expect(otherKind === 'debit').toBe(otherPayload.amount < 0)
+  })
 })
 
 describe('account field ordering', () => {

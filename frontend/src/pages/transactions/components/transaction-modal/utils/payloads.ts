@@ -9,7 +9,10 @@ import {
   amountInputToMinorUnits,
   applyTransactionDirection,
 } from '@/pages/transactions/components/transaction-modal/utils/money'
-import type { TransactionFormValues } from '@/pages/transactions/components/transaction-modal/types'
+import type {
+  TransactionDirection,
+  TransactionFormValues,
+} from '@/pages/transactions/components/transaction-modal/types'
 
 /**
  * Splits the form's single other-account selection into the API's id-and-scope pair
@@ -47,6 +50,19 @@ export function buildCreateTransactionPayload(
   // Every other category rejects the pair outright, so it is only ever sent for a transfer
   if (form.kind === 'transfer') Object.assign(payload, splitOtherAccountSelection(form.other_account_id))
   return payload
+}
+
+/**
+ * Returns what each leg of a symmetric transfer does, the recorded account's first
+ *
+ * The direction says what happens to the recorded account, so the other leg is always its opposite.
+ * A failed leg is reported to the user by this wording and they re-enter it by hand, so having the
+ * two the wrong way round would tell them to enter it backwards
+ */
+export function getSymmetricTransferLegKinds(
+  direction: TransactionDirection,
+): [TransactionDirection, TransactionDirection] {
+  return direction === 'debit' ? ['debit', 'credit'] : ['credit', 'debit']
 }
 
 /**

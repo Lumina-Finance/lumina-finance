@@ -15,6 +15,7 @@ import {
 import {
   buildCreateTransactionPayload,
   buildSymmetricTransferPayloads,
+  getSymmetricTransferLegKinds,
   buildUpdateTransactionPatch,
 } from '@/pages/transactions/components/transaction-modal/utils/payloads'
 import {
@@ -176,16 +177,10 @@ export function useTransactionSubmit({
 
     if (isSymmetricTransferForm(form)) {
       const [fromPayload, toPayload] = buildSymmetricTransferPayloads(form, selectedCurrencyExponent)
-      // The direction says what happens to the recorded account, so it is that leg's kind and the
-      // other leg is the opposite. Naming them the wrong way round would tell someone re-entering a
-      // failed leg by hand to enter it backwards
+      const [recordedLegKind, otherLegKind] = getSymmetricTransferLegKinds(form.direction)
       const legs = [
-        { failedKind: form.direction, accountId: form.account_id, payload: fromPayload },
-        {
-          failedKind: form.direction === 'debit' ? 'credit' : 'debit',
-          accountId: form.other_account_id,
-          payload: toPayload,
-        },
+        { failedKind: recordedLegKind, accountId: form.account_id, payload: fromPayload },
+        { failedKind: otherLegKind, accountId: form.other_account_id, payload: toPayload },
       ]
 
       setSubmitError('')
