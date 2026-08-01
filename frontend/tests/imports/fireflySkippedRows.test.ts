@@ -180,6 +180,25 @@ describe('forecastFireflyImport', () => {
     expect(skipped[0].reason).toBe('Invalid amount "twelve"')
   })
 
+  // Mapping the old and new names of one account onto it is how a rename is
+  // carried across, and a transfer between those names has nowhere to go
+  it('reports a transfer whose two names map onto one account', () => {
+    const { skippedRows: skipped } = forecastFireflyImport(
+      [createFireflyRow({
+        type: 'Transfer',
+        amount: '-500.00',
+        source_name: 'Chequing (old)',
+        destination_name: 'Chequing',
+        destination_type: 'Asset account',
+        category: '',
+      })],
+      createOptions({ accountMappings: { Chequing: 'checking', 'Chequing (old)': 'checking' } }),
+    )
+
+    expect(skipped).toHaveLength(1)
+    expect(skipped[0].reason).toBe('Transfer source and destination resolve to the same account')
+  })
+
   it('reports a withdrawal without an imported source account', () => {
     const { skippedRows: skipped } = forecastFireflyImport(
       [createFireflyRow({ source_name: 'Employer', source_type: 'Revenue account' })],

@@ -1,7 +1,7 @@
 
 
 from tests.routes.support import _create_user, _get_auth_header
-from tests.routes.transactions._helpers import _seed_usd_currency
+from tests.routes.transactions._helpers import _create_account, _seed_usd_currency
 
 # --- POST /transactions/import/firefly ---
 
@@ -138,15 +138,61 @@ async def test_firefly_import_converts_transfers_into_two_legs(client):
 
     transfer_category_id = await _get_system_category_id(client, headers, "Transfer")
     transactions_resp = await client.get("/transactions", headers=headers)
-    amounts_by_account = {
-        transaction["account_id"]: transaction["amount"] for transaction in transactions_resp.json()
+    transactions_by_account = {
+        transaction["account_id"]: transaction for transaction in transactions_resp.json()
     }
     chequing_id = data["account_source_ids"]["Everyday Chequing"]
     savings_id = data["account_source_ids"]["High Interest Savings"]
-    assert amounts_by_account == {chequing_id: -50000, savings_id: 50000}
+    assert {
+        account_id: transaction["amount"] for account_id, transaction in transactions_by_account.items()
+    } == {chequing_id: -50000, savings_id: 50000}
     assert all(
         transaction["category_id"] == transfer_category_id for transaction in transactions_resp.json()
     )
+
+    # Each leg records the account at the other end, so the pair is left out of a tax-advantaged
+    # category's totals without anyone opening the rows to answer for them
+    assert transactions_by_account[chequing_id]["other_account_id"] == savings_id
+    assert transactions_by_account[chequing_id]["other_account_scope"] == "tracked"
+    assert transactions_by_account[savings_id]["other_account_id"] == chequing_id
+    assert transactions_by_account[savings_id]["other_account_scope"] == "tracked"
+
+
+async def test_firefly_import_skips_a_transfer_between_two_names_for_one_account(client):
+    """Two source names mapped onto one account skip the row instead of writing two cancelling legs."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    account_resp = await _create_account(client, headers, name="Everyday Chequing")
+    account_id = account_resp.json()["id"]
+
+    resp = await client.post("/transactions/import/firefly", json={
+        "accounts": [
+            {"source": "Everyday Chequing", "account_id": account_id},
+            {"source": "Chequing (old)", "account_id": account_id},
+        ],
+        "categories": [],
+        "rows": [_firefly_row(
+            type="Transfer",
+            amount="500.00",
+            description="Carried across from the renamed account",
+            source_name="Chequing (old)",
+            destination_name="Everyday Chequing",
+            destination_type="Asset account",
+            category=None,
+        )],
+    }, headers=headers)
+
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["rows_imported"] == 0
+    assert data["transactions_created"] == 0
+    assert data["rows_skipped"] == 1
+    assert data["skipped"] == [
+        {"journal_id": "1", "reason": "Transfer source and destination resolve to the same account"},
+    ]
+
+    transactions_resp = await client.get("/transactions", headers=headers)
+    assert transactions_resp.json() == []
 
 
 async def test_firefly_import_uses_foreign_amount_for_cross_currency_transfers(client):

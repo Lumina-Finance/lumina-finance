@@ -49,6 +49,9 @@ export interface FireflyResolvedLeg {
   amount: number
   category: Category | undefined
   merchantName: string | null
+
+  /** Account the money moved to or from, held only by the two legs of a transfer */
+  otherAccount: FireflyResolvedAccount | null
 }
 
 /**
@@ -111,6 +114,7 @@ function buildFireflyRowLegs(row: CsvRow, options: FireflyRowResolutionOptions):
       amount: destination ? amount : -amount,
       category: options.balanceAdjustmentCategory,
       merchantName: null,
+      otherAccount: null,
     }]
   }
 
@@ -118,18 +122,27 @@ function buildFireflyRowLegs(row: CsvRow, options: FireflyRowResolutionOptions):
   // the Firefly III type, which covers loan payments recorded as withdrawals
   // into a liability account
   if (source && destination) {
+    // Two names in the file can be mapped onto one account, which is how a
+    // renamed account is carried across. The pair would then be two cancelling
+    // rows in that account, a shape the API refuses when entered by hand
+    if (source.id === destination.id) {
+      throw new FireflyRowSkipError('Transfer source and destination resolve to the same account')
+    }
+
     return [
       {
         account: source,
         amount: -getFireflyAmountInAccountCurrency(row, source.currency),
         category: options.transferCategory,
         merchantName: null,
+        otherAccount: destination,
       },
       {
         account: destination,
         amount: getFireflyAmountInAccountCurrency(row, destination.currency),
         category: options.transferCategory,
         merchantName: null,
+        otherAccount: source,
       },
     ]
   }
@@ -142,6 +155,7 @@ function buildFireflyRowLegs(row: CsvRow, options: FireflyRowResolutionOptions):
       amount: -getFireflyAmountInAccountCurrency(row, source.currency),
       category: getFireflyMappedCategory(row, options),
       merchantName: row.destination_name?.trim() || null,
+      otherAccount: null,
     }]
   }
 
@@ -153,6 +167,7 @@ function buildFireflyRowLegs(row: CsvRow, options: FireflyRowResolutionOptions):
       amount: getFireflyAmountInAccountCurrency(row, destination.currency),
       category: getFireflyMappedCategory(row, options),
       merchantName: row.source_name?.trim() || null,
+      otherAccount: null,
     }]
   }
 

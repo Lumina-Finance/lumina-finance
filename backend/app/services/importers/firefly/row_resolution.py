@@ -75,6 +75,7 @@ class FireflyLeg:
         merchant_name: Optional counterparty recorded as a merchant
         notes: Optional combined description and notes text
         tag_names: Tag names applied to the transaction
+        other_account: Account the money moved to or from, set only on transfer legs
     """
 
     account: Account
@@ -84,6 +85,10 @@ class FireflyLeg:
     merchant_name: str | None
     notes: str | None
     tag_names: list[str]
+
+    # Only a transfer pair knows the opposite endpoint, and every other category is forbidden from
+    # recording one, so a leg built anywhere else leaves this unset
+    other_account: Account | None = None
 
 
 def resolve_firefly_row(row: FireflyTransactionRow, context: FireflyResolutionContext) -> list[FireflyLeg]:
@@ -168,8 +173,17 @@ def _resolve_transfer_pair(
         context: Lookups needed to resolve the row
 
     Returns:
-        Outgoing and incoming transfer legs
+        Outgoing and incoming transfer legs, each recording the other endpoint
+
+    Raises:
+        FireflyRowSkipError: Raised when both endpoints resolve to one account
     """
+    # Two names in the file can be mapped onto one account, which is how a renamed account is
+    # carried across. The pair would then be two cancelling rows in that account, a shape the API
+    # refuses when a person enters it by hand
+    if source_account.id == destination_account.id:
+        raise FireflyRowSkipError("Transfer source and destination resolve to the same account")
+
     return [
         FireflyLeg(
             account=source_account,
@@ -179,6 +193,7 @@ def _resolve_transfer_pair(
             merchant_name=None,
             notes=notes,
             tag_names=row.tag_names,
+            other_account=destination_account,
         ),
         FireflyLeg(
             account=destination_account,
@@ -188,6 +203,7 @@ def _resolve_transfer_pair(
             merchant_name=None,
             notes=notes,
             tag_names=row.tag_names,
+            other_account=source_account,
         ),
     ]
 

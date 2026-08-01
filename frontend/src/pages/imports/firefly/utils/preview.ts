@@ -76,10 +76,8 @@ function buildFireflyPreviewRow(
       fx_rate: null,
       notes: notes || null,
 
-      // The preview shows what the import will write, and neither importer answers this yet, so an
-      // imported transfer arrives unanswered and counts against a tax-advantaged limit until edited
-      other_account_id: null,
-      other_account_scope: null,
+      other_account_id: leg.otherAccount?.id ?? null,
+      other_account_scope: leg.otherAccount ? 'tracked' : null,
       created_at: timestamp,
       updated_at: timestamp,
       tag_ids: tagIds,
