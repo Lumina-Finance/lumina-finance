@@ -124,8 +124,10 @@ function buildFireflyRowLegs(row: CsvRow, options: FireflyRowResolutionOptions):
   if (source && destination) {
     // Two names in the file can be mapped onto one account, which is how a
     // renamed account is carried across. The pair would then be two cancelling
-    // rows in that account, a shape the API refuses when entered by hand
-    if (source.id === destination.id) {
+    // rows in that account, a shape the API refuses when entered by hand.
+    // Two names both queued for creation share the create sentinel as their id
+    // and still become two separate accounts, so they are not that case
+    if (source.id === destination.id && source.id !== CREATE_ACCOUNT_VALUE) {
       throw new FireflyRowSkipError('Transfer source and destination resolve to the same account')
     }
 

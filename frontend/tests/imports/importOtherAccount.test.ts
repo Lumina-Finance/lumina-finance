@@ -5,7 +5,8 @@ import { describe, expect, it } from 'vitest'
 import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
-import { CREATE_ACCOUNT_VALUE, EMPTY_COLUMN_MAP, OUTSIDE_ACCOUNT_VALUE } from '@/pages/imports/constants'
+import { CREATE_ACCOUNT_VALUE, EMPTY_COLUMN_MAP } from '@/pages/imports/constants'
+import { OUTSIDE_ACCOUNT_VALUE } from '@/pages/transactions/components/transaction-modal/constants'
 import type { ColumnMap, ImportAccountSource, ImportFileDraft } from '@/pages/imports/types'
 import { buildImportAccountMappingSources, buildImportPreviewRows, buildTransactionImportPayload } from '@/pages/imports/utils'
 
@@ -184,7 +185,7 @@ describe('CSV import other account', () => {
     })
 
     expect(payload).toBeNull()
-    expect(errors).toContain('Rows are imported into this account, so it cannot be outside this app: Chequing')
+    expect(errors).toContain('Rows cannot be written to an account source that is outside the tracked accounts: Chequing')
   })
 
   it('refuses an other account on a row that is not a transfer', () => {
@@ -222,6 +223,19 @@ describe('CSV import other account', () => {
     expect(errors).toContain('A transfer cannot record its own account as the other side: Chequing (old)')
   })
 
+  // One name in both columns is one source and one account, whichever way it is mapped, so the
+  // account queued for creation is no escape from the rule
+  it('refuses a transfer whose other side is its own source, even for an account queued for creation', () => {
+    const { errors, payload } = buildPayload({
+      accountMappings: { Chequing: CREATE_ACCOUNT_VALUE },
+      otherAccountSource: 'Chequing',
+      accountSources: [{ id: 'Chequing', label: 'Chequing', matchText: 'Chequing', isOtherSideOnly: false }],
+    })
+
+    expect(payload).toBeNull()
+    expect(errors).toContain('A transfer cannot record its own account as the other side: Chequing')
+  })
+
   it('shows what each answer writes in the preview', () => {
     const rows = buildImportPreviewRows({
       files: [createFile([
@@ -253,6 +267,33 @@ describe('CSV import other account', () => {
       [null, 'outside'],
       [null, null],
     ])
+
+    // The row renders the name, which the preview has to carry itself because it reads no account list
+    expect(rows[0].otherAccountName).toBe('Savings')
+  })
+
+  it('previews a row whose category cannot record an other account as unanswered', () => {
+    const rows = buildImportPreviewRows({
+      files: [createFile([
+        { Account: 'Chequing', Date: '2026-04-11', Amount: '-12.00', Category: 'Groceries', 'Other account': 'Savings' },
+      ])],
+      columnMap: COLUMN_MAP,
+      dateFormat: 'yearFirst',
+      missingRequiredColumnLabels: [],
+      currencies,
+      accountById: new Map([[CHEQUING.id, CHEQUING], [SAVINGS.id, SAVINGS]]),
+      accountCreateCurrencies: {},
+      accountCreateInstitutions: {},
+      categoryById: new Map([[GROCERIES.id, GROCERIES]]),
+      categoryCreateKinds: {},
+      categoryTypesBySource: {},
+      institutionById: new Map(),
+      resolvedAccountMappings: { Chequing: CHEQUING.id, Savings: SAVINGS.id },
+      resolvedCategoryMappings: { Groceries: GROCERIES.id },
+    })
+
+    expect(rows[0].transaction.other_account_id).toBeNull()
+    expect(rows[0].transaction.other_account_scope).toBeNull()
   })
 
   it('shows a transfer into an account queued for creation as unanswered', () => {

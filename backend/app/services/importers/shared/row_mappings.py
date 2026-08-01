@@ -66,7 +66,13 @@ def get_import_row_other_account(
     if other_account_source in outside_sources:
         return None, TransferOtherAccountScope.OUTSIDE
 
-    other_account = get_import_row_account(accounts_by_source, other_account_source)
+    other_account = accounts_by_source.get(other_account_source)
+    if other_account is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"Other account source is not mapped: {other_account_source}",
+        )
+
     if other_account.id == account.id:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,

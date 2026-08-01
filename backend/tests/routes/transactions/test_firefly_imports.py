@@ -1,5 +1,7 @@
 
 
+from datetime import UTC, datetime
+
 from tests.routes.support import _create_user, _get_auth_header
 from tests.routes.transactions._helpers import _create_account, _seed_usd_currency
 
@@ -156,6 +158,69 @@ async def test_firefly_import_converts_transfers_into_two_legs(client):
     assert transactions_by_account[chequing_id]["other_account_scope"] == "tracked"
     assert transactions_by_account[savings_id]["other_account_id"] == chequing_id
     assert transactions_by_account[savings_id]["other_account_scope"] == "tracked"
+
+
+async def test_firefly_import_rejects_an_account_source_marked_outside(client):
+    """Every Firefly source is an account rows are written to, so the outside answer has no meaning."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await client.post("/transactions/import/firefly", json={
+        "accounts": [_chequing_mapping(), {"source": "Brokerage elsewhere", "outside": True}],
+        "categories": [{"source": "Groceries", "create": {"name": "Groceries", "kind": "expense"}}],
+        "rows": [_firefly_row()],
+    }, headers=headers)
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "Account source cannot be outside the tracked accounts: Brokerage elsewhere"
+
+
+async def test_firefly_imported_internal_transfer_is_left_out_of_the_limit_totals(client):
+    """The point of recording the other account: an imported internal move stops counting."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    tax_advantaged_category_resp = await client.post("/tax-advantaged-categories", json={
+        "name": "TFSA",
+        "tax_treatment": "tax_free",
+        "currency": "CAD",
+    }, headers=headers)
+    tax_advantaged_category_id = tax_advantaged_category_resp.json()["id"]
+
+    cash_resp = await _create_account(
+        client, headers, name="TFSA Cash", tax_advantaged_category_id=tax_advantaged_category_id,
+    )
+    investing_resp = await _create_account(
+        client, headers, name="TFSA Investing", account_type="investment",
+        tax_advantaged_category_id=tax_advantaged_category_id,
+    )
+    current_year = datetime.now(UTC).year
+
+    resp = await client.post("/transactions/import/firefly", json={
+        "accounts": [
+            {"source": "TFSA Cash", "account_id": cash_resp.json()["id"]},
+            {"source": "TFSA Investing", "account_id": investing_resp.json()["id"]},
+        ],
+        "categories": [],
+        "rows": [_firefly_row(
+            type="Transfer",
+            dt=f"{current_year}-04-10",
+            amount="5000.00",
+            description="Moved into investments",
+            source_name="TFSA Cash",
+            destination_name="TFSA Investing",
+            destination_type="Asset account",
+            category=None,
+        )],
+    }, headers=headers)
+
+    assert resp.status_code == 201
+    assert resp.json()["transactions_created"] == 2
+
+    # The category treats its own accounts as one pot by default, and both legs now say the money
+    # stayed inside it, so neither is a contribution or a withdrawal
+    totals_resp = await client.get(f"/tax-advantaged-categories/{tax_advantaged_category_id}", headers=headers)
+    assert totals_resp.json()["ytd_contributions"] == 0
+    assert totals_resp.json()["ytd_withdrawals"] == 0
 
 
 async def test_firefly_import_skips_a_transfer_between_two_names_for_one_account(client):

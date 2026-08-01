@@ -24,6 +24,14 @@ export const COLUMN_TARGETS: Array<{
   required?: boolean
 }> = [
   { id: 'account_id', label: 'Account', hint: 'Resolved from the source account when the file contains one.' },
+
+  // Straight after the account it belongs beside, and before every target that scores on values
+  // alone, since those would otherwise claim a column of account names first
+  {
+    id: 'other_account_id',
+    label: 'Other account',
+    hint: 'Account a transfer moved money to or from. Used only on transfer rows.',
+  },
   { id: 'dt', label: 'Date', hint: 'Transaction date.', required: true },
   { id: 'category_id', label: 'Category', hint: 'Resolved from imported category text.', required: true },
   { id: 'amount', label: 'Amount', hint: 'Raw signed amount.', required: true },
@@ -31,17 +39,7 @@ export const COLUMN_TARGETS: Array<{
   { id: 'merchant_id', label: 'Merchant', hint: 'Resolved from imported merchant text.' },
   { id: 'notes', label: 'Notes', hint: 'Optional transaction notes.' },
   { id: 'tag_ids', label: 'Tags', hint: 'Resolved from imported tag text.' },
-  {
-    id: 'other_account_id',
-    label: 'Other account',
-    hint: 'Account a transfer moved money to or from. Only transfer rows may name one.',
-  },
 ]
-
-// Mapping choice for a source that is not an account you keep, offered only where a source is
-// never a row's own account. It records that the money left the tracked accounts
-export const OUTSIDE_ACCOUNT_VALUE = '__outside_accounts__'
-export const OUTSIDE_ACCOUNT_LABEL = 'Outside this app'
 
 // Each format is named by an example of its shape rather than by a standard, because the year-first
 // option deliberately takes a slash and an unpadded part, which ISO 8601 does not. Keyed by format

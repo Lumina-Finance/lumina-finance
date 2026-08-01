@@ -1,7 +1,7 @@
 import type { Category } from '@/api/categories'
 import type { TransactionImportPayload, TransactionImportResponse } from '@/api/transaction-imports'
-import { COLUMN_TARGETS, CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, DEFAULT_CATEGORY_ICON, OUTSIDE_ACCOUNT_VALUE } from '@/pages/imports/constants'
-import { BALANCE_ADJUSTMENT_CATEGORY_NAME } from '@/pages/transactions/components/transaction-modal/constants'
+import { COLUMN_TARGETS, CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, DEFAULT_CATEGORY_ICON } from '@/pages/imports/constants'
+import { BALANCE_ADJUSTMENT_CATEGORY_NAME, OUTSIDE_ACCOUNT_VALUE } from '@/pages/transactions/components/transaction-modal/constants'
 import { doesTransferRecordOtherAccount } from '@/pages/transactions/components/transaction-modal/utils/validation'
 import type { ColumnMap, ColumnValidationErrors, ImportAccountSource, ImportBuildResult, ImportCategoryKind, ImportFileDraft } from '@/pages/imports/types'
 import { isImportAccountType } from '@/pages/imports/accountTypeGuard'
@@ -118,12 +118,11 @@ export function buildTransactionImportPayload({
       continue
     }
 
+    // The backend matches Balance Adjustment by name alone, so a personal category sharing that
+    // name is refused there too and has to be refused here
     const category = categoryById.get(choice)
     recordsOtherAccountBySource[source] = category
-      ? doesTransferRecordOtherAccount(
-        category.kind,
-        Boolean(category.is_system && category.name === BALANCE_ADJUSTMENT_CATEGORY_NAME),
-      )
+      ? doesTransferRecordOtherAccount(category.kind, category.name === BALANCE_ADJUSTMENT_CATEGORY_NAME)
       : false
     categories.push({ source, category_id: choice })
   }
@@ -192,10 +191,10 @@ function appendAccountMapping(
   }
 
   if (choice === OUTSIDE_ACCOUNT_VALUE) {
-    // Reachable when the answer was chosen and the other-account column was then unmapped, which
-    // turns the source into one that rows are written to
+    // The dropdown only offers this answer where no row is written to the source, so it survives
+    // here when a file added later carries rows for a name that was answered this way
     if (!accountSource.isOtherSideOnly) {
-      addError(`Rows are imported into this account, so it cannot be outside this app: ${createName}`)
+      addError(`Rows cannot be written to an account source that is outside the tracked accounts: ${createName}`)
       return
     }
 
@@ -234,16 +233,20 @@ function cleanOptional(value: string) {
 }
 
 /**
- * Reports whether two account sources were mapped onto the same existing account, which is how a
- * renamed account is carried across and would leave a transfer recording the account it sits in
+ * Reports whether the two sides of a transfer row end up in the same account, either through one
+ * source being used on both sides or through two sources mapped onto one existing account, which is
+ * how a renamed account is carried across
  *
- * Two sources both set to create a new account produce two separate accounts, so they never match
+ * Two different sources both set to create an account produce two separate accounts, so they match
+ * only when the source itself is the same name
  */
 function isSameMappedAccount(
   accountMappings: Record<string, string>,
   accountSource: string,
   otherAccountSource: string,
 ) {
+  if (accountSource === otherAccountSource) return true
+
   const accountChoice = accountMappings[accountSource]
   if (!accountChoice || accountChoice === CREATE_ACCOUNT_VALUE) return false
   return accountChoice === accountMappings[otherAccountSource]

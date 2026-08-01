@@ -61,6 +61,9 @@ export interface PreviewTransactionRow {
   currency: string
   dateLabel: string
   transaction: Transaction
+
+  /** Name behind the transaction's other account, since the preview has no account list to read */
+  otherAccountName?: string
 }
 
 export interface ImportBuildResult {

@@ -2,7 +2,9 @@ import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import type { Institution } from '@/api/institutions'
-import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, DEFAULT_CATEGORY_ICON, OUTSIDE_ACCOUNT_VALUE } from '@/pages/imports/constants'
+import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, DEFAULT_CATEGORY_ICON } from '@/pages/imports/constants'
+import { BALANCE_ADJUSTMENT_CATEGORY_NAME, OUTSIDE_ACCOUNT_VALUE } from '@/pages/transactions/components/transaction-modal/constants'
+import { doesTransferRecordOtherAccount } from '@/pages/transactions/components/transaction-modal/utils/validation'
 import type { ColumnMap, ImportCategoryKind, ImportFileDraft, PreviewTransactionRow } from '@/pages/imports/types'
 import { getImportAccountName } from './accountMapping'
 import { splitImportedValues } from './categoryMatching'
@@ -115,9 +117,10 @@ export function buildImportPreviewRows({
       )
       const tagIds = importedTagValues.map((tag, tagIndex) => `${file.id}-${rowIndex}-tag-${tagIndex}-${tag}`)
 
-      // A row states the other side only where the file has a column for it, and the answer is
-      // whatever that source was mapped to, which can be an account or money leaving the app
-      const otherAccountSource = columnMap.other_account_id
+      // A row states the other side only where the file has a column for it and the row's category
+      // can hold one, and the answer is whatever that source was mapped to, which can be an account
+      // or money leaving the app
+      const otherAccountSource = columnMap.other_account_id && doesPreviewCategoryRecordOtherAccount(category)
         ? getMappedValue(row, columnMap.other_account_id).trim()
         : ''
       const otherAccountChoice = otherAccountSource ? resolvedAccountMappings[otherAccountSource] ?? '' : ''
@@ -132,6 +135,7 @@ export function buildImportPreviewRows({
         category,
         currency,
         dateLabel: getPreviewDateLabel(dt),
+        otherAccountName: otherAccount?.name,
         transaction: {
           id: `import-preview-${file.id}-${rowIndex}`,
           created_by_user_id: 'import-preview',
@@ -165,6 +169,17 @@ export function buildImportPreviewRows({
   }
 
   return rows
+}
+
+/**
+ * Reports whether a previewed row's category can record where the money went
+ *
+ * The backend matches Balance Adjustment by name alone, so this does too, and a row the API would
+ * refuse an other account for is previewed without one
+ */
+function doesPreviewCategoryRecordOtherAccount(category: Category | undefined) {
+  if (!category) return false
+  return doesTransferRecordOtherAccount(category.kind, category.name === BALANCE_ADJUSTMENT_CATEGORY_NAME)
 }
 
 /**
