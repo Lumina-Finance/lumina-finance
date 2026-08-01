@@ -244,7 +244,10 @@ export default function TransactionReferencesSection({
                   placeholder="Select account..."
                   searchable
                   searchPlaceholder="Search accounts..."
-                  disabled={readOnly}
+                  // An account archived since this transfer was recorded is off the list, so the
+                  // field is held at what it already says rather than letting one change strand the
+                  // answer somewhere it can never be put back
+                  disabled={readOnly || Boolean(selectedArchivedOtherAccountOption)}
                 />
                 <AnimatePresence initial={false}>
                   {/* Ticking the checkbox below does create one there, and its own description says
