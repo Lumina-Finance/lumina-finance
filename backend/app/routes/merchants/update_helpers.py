@@ -49,9 +49,12 @@ async def update_merchant_for_user(
         return merchant
 
     # Renaming goes through the same rule as creating, so nothing can be renamed onto a name that
-    # ships with the app, or onto one already used in the same scope
+    # ships with the app, or onto one already used in the same scope. The merchant itself is left
+    # out of that comparison, so recapitalising its own name is still a rename it can make
     if "name" in updates and updates["name"] != merchant.name:
-        await require_merchant_name_available(db, updates["name"], user_id, merchant.group_id)
+        await require_merchant_name_available(
+            db, updates["name"], user_id, merchant.group_id, exclude_merchant_id=merchant.id,
+        )
 
     if "default_category_id" in updates and updates["default_category_id"] is not None:
         await require_default_category_available(db, user_id, merchant.group_id, updates["default_category_id"])

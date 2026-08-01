@@ -1,3 +1,7 @@
+import uuid
+
+from app.models.merchant import Merchant
+from tests.conftest import TestSession
 from tests.routes.merchants._helpers import (
     MERCHANT_PAYLOAD,
     _own_merchant_names,
@@ -390,6 +394,36 @@ async def test_patch_merchant_rename_to_duplicate_returns_409(client):
     # Verify the merchant was not mutated
     get_resp = await client.get(f"/merchants/{merchant_id}", headers=headers)
     assert get_resp.json()["name"] == "Walmart"
+
+
+async def test_patch_merchant_recapitalises_its_own_name(client):
+    """The duplicate check leaves the merchant itself out, so correcting its capitalisation is a rename it can make."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    merchant_id = (await _create_merchant(client, headers, name="corner shop")).json()["id"]
+
+    resp = await client.patch(f"/merchants/{merchant_id}", json={"name": "Corner Shop"}, headers=headers)
+
+    assert resp.status_code == 200
+    assert resp.json()["name"] == "Corner Shop"
+
+
+async def test_creating_a_merchant_beside_two_stored_case_variants_returns_409(client):
+    """A database written before capitalisation stopped counting can hold both, and the check still answers cleanly."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    created = (await _create_merchant(client, headers, name="Corner Shop")).json()
+
+    # Inserted past the route, which now refuses the second variant, to stand in for the pair a
+    # database from before this rule already holds
+    async with TestSession() as session:
+        session.add(Merchant(owner_id=uuid.UUID(created["owner_id"]), name="corner shop"))
+        await session.commit()
+
+    resp = await _create_merchant(client, headers, name="CORNER SHOP")
+
+    assert resp.status_code == 409
+    assert "already exists" in resp.json()["detail"]
 
 
 async def test_patch_merchant_without_auth_returns_401(client):

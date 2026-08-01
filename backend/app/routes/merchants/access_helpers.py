@@ -117,6 +117,7 @@ async def require_merchant_name_available(
     name: str,
     user_id: uuid.UUID,
     group_id: uuid.UUID | None,
+    exclude_merchant_id: uuid.UUID | None = None,
 ) -> None:
     """Raise a conflict response when a merchant name is already used
 
@@ -125,6 +126,7 @@ async def require_merchant_name_available(
         name: Requested merchant name
         user_id: User identifier for personal merchant scope
         group_id: Optional group identifier for group merchant scope
+        exclude_merchant_id: Merchant being renamed, left out so it cannot clash with itself
 
     Raises:
         HTTPException: Merchant name already exists in the target scope
@@ -139,10 +141,17 @@ async def require_merchant_name_available(
 
     # Compared without regard to capitalisation, so "myself" cannot sit beside the seeded "Myself"
     # and read as a second merchant. Matches how the migration folded the existing ones
-    duplicate_query = select(Merchant).where(func.lower(Merchant.name) == name.lower(), scope_filter)
+    duplicate_query = select(Merchant.id).where(func.lower(Merchant.name) == name.lower(), scope_filter)
 
-    # Check whether the target scope already has a merchant with the requested name
-    has_duplicate = (await db.execute(duplicate_query)).scalar_one_or_none() is not None
+    # A rename measures the new name against everyone else, so changing only the capitalisation of a
+    # merchant's own name does not read as a clash with itself
+    if exclude_merchant_id is not None:
+        duplicate_query = duplicate_query.where(Merchant.id != exclude_merchant_id)
+
+    # Check whether the target scope already has a merchant with the requested name. A database
+    # written before capitalisation stopped counting here can hold several merchants that differ
+    # only in capitalisation, so one match settles it rather than being the only result allowed
+    has_duplicate = (await db.execute(duplicate_query.limit(1))).first() is not None
     if has_duplicate:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Merchant with this name already exists")
 
