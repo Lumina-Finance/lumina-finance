@@ -213,10 +213,15 @@ export default function TransactionReferencesSection({
               <div className="pt-3">
                 <CreateModalFieldLabelRow
                   label={(
-                    <AppSlotMachineText
-                      text={direction === 'debit' ? 'Money went to' : 'Money came from'}
-                      reserveText="Money came from"
-                    />
+                    <>
+                      {/* Only the part that changes rolls, so "Money" stays put rather than
+                          re-animating every character on a direction switch */}
+                      Money{' '}
+                      <AppSlotMachineText
+                        text={direction === 'debit' ? 'went to' : 'came from'}
+                        reserveText="came from"
+                      />
+                    </>
                   )}
                   error={otherAccountError}
                 />

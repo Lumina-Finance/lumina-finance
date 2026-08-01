@@ -215,6 +215,30 @@ export default function CreateTransactionModal({
         : ''
   const directionValue = isSymmetricTransfer ? symmetricDisplayDirection : form.direction
 
+  // A pair always debits the account above and credits the recorded one, so its direction is
+  // really which side the account being viewed sits on. Flipping the toggle therefore swaps the
+  // two accounts rather than changing a sign. With no account in view there is nothing for the
+  // direction to be relative to, so the toggle stays disabled there as before
+  const canFlipSymmetricDirection = isSymmetricTransfer && symmetricDisplayDirection !== ''
+
+  const handleDirectionChange = (value: TransactionDirection) => {
+    if (!isSymmetricTransfer) {
+      handleField('direction', value)
+      return
+    }
+    if (!canFlipSymmetricDirection || value === symmetricDisplayDirection) return
+
+    setForm((previous) => ({
+      ...previous,
+      account_id: previous.other_account_id,
+      other_account_id: previous.account_id,
+      // The currency follows the account the transaction is recorded in, the same as choosing it
+      // from the dropdown does
+      currency: accounts.find((account) => account.id === previous.other_account_id)?.currency
+        ?? previous.currency,
+    }))
+  }
+
   return (
     <>
       <ModalTitledPanel
@@ -249,10 +273,10 @@ export default function CreateTransactionModal({
             direction={directionValue}
             editing={editing}
             readOnly={readOnly}
-            directionDisabled={isSymmetricTransfer}
+            directionDisabled={isSymmetricTransfer && !canFlipSymmetricDirection}
             directionHighlightKey={directionHighlightKey}
             onKindChange={applyKindChange}
-            onDirectionChange={(value) => handleField('direction', value)}
+            onDirectionChange={handleDirectionChange}
           />
 
           <TransactionReferencesSection
