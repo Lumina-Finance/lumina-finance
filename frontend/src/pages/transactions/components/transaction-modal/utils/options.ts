@@ -1,6 +1,6 @@
 import type { AccountsOverview } from '@/api/accounts'
 import type { Currency } from '@/api/currency'
-import { OUTSIDE_ACCOUNT_LABEL, OUTSIDE_ACCOUNT_VALUE } from '@/pages/transactions/components/transaction-modal/constants'
+import { OUTSIDE_ACCOUNT_LABEL, OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 
 /**
  * Builds account dropdown options, restricted to the transaction's own currency once editing

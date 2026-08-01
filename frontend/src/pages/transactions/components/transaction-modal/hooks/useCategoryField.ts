@@ -1,8 +1,7 @@
 import { useMemo } from 'react'
 import type { Category } from '@/api/categories'
-import { BALANCE_ADJUSTMENT_CATEGORY_NAME } from '@/pages/transactions/components/transaction-modal/constants'
+import { BALANCE_ADJUSTMENT_CATEGORY_NAME, doesTransferRecordOtherAccount } from '@/utils/transfers'
 import { buildCategoryOptions } from '@/pages/transactions/components/transaction-modal/utils/categories'
-import { doesTransferRecordOtherAccount } from '@/pages/transactions/components/transaction-modal/utils/validation'
 import type {
   TransactionFormFieldErrors,
   TransactionFormValues,

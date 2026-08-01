@@ -46,6 +46,9 @@ async def create_imported_transactions(
 
     Returns:
         Earliest imported transaction date by affected account ID
+
+    Raises:
+        HTTPException: Raised with 422 when a row cannot be written as the payload states it
     """
     first_import_date_by_account_id: dict[uuid.UUID, date] = {}
 

@@ -162,6 +162,38 @@ async def test_import_transactions_records_the_other_account_on_a_transfer(clien
     assert transactions_by_amount[50000]["other_account_scope"] is None
 
 
+async def test_import_transactions_records_an_account_it_creates_as_the_other_side(client):
+    """An other-account source can be a new account, which holds no rows of its own."""
+    headers, account_id, _ = await _setup_user_with_deps(client)
+    transfer_category_id = await _get_system_category_id(client, headers, "Transfer")
+
+    resp = await client.post("/transactions/import", json={
+        "accounts": [
+            {"source": "Chequing", "account_id": account_id},
+            {
+                "source": "Savings",
+                "create": {"name": "Savings", "account_type": "savings", "currency": "CAD"},
+            },
+        ],
+        "categories": [{"source": "Transfer", "category_id": transfer_category_id}],
+        "rows": [{
+            "account_source": "Chequing",
+            "category_source": "Transfer",
+            "dt": "2026-04-11",
+            "amount": "-500.00",
+            "other_account_source": "Savings",
+        }],
+    }, headers=headers)
+
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["accounts_created"] == 1
+
+    transaction = (await client.get("/transactions", headers=headers)).json()[0]
+    assert transaction["other_account_id"] == data["account_source_ids"]["Savings"]
+    assert transaction["other_account_scope"] == "tracked"
+
+
 async def test_import_transactions_records_a_transfer_leaving_the_tracked_accounts(client):
     """A source mapped as outside records that the money left, without pointing at an account."""
     headers, account_id, _ = await _setup_user_with_deps(client)

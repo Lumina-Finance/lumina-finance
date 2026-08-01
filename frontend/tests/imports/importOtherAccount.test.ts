@@ -6,7 +6,7 @@ import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import { CREATE_ACCOUNT_VALUE, EMPTY_COLUMN_MAP } from '@/pages/imports/constants'
-import { OUTSIDE_ACCOUNT_VALUE } from '@/pages/transactions/components/transaction-modal/constants'
+import { OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 import type { ColumnMap, ImportAccountSource, ImportFileDraft } from '@/pages/imports/types'
 import { buildImportAccountMappingSources, buildImportPreviewRows, buildTransactionImportPayload } from '@/pages/imports/utils'
 
@@ -197,7 +197,7 @@ describe('CSV import other account', () => {
     })
 
     expect(payload).toBeNull()
-    expect(errors).toContain('Only a transfer records the other account: Savings')
+    expect(errors).toContain('Only a transfer records an other account, so the mapped Other account column cannot be used by category: Groceries')
   })
 
   it('refuses an other account on a balance adjustment, which has no other side', () => {
@@ -209,7 +209,7 @@ describe('CSV import other account', () => {
     })
 
     expect(payload).toBeNull()
-    expect(errors).toContain('Only a transfer records the other account: Savings')
+    expect(errors).toContain('Only a transfer records an other account, so the mapped Other account column cannot be used by category: Balance Adjustment')
   })
 
   it('refuses a transfer whose two sources were mapped onto one account', () => {

@@ -4,7 +4,7 @@ import type {
   TransferOtherAccountScope,
   UpdateTransactionPayload,
 } from '@/api/transactions'
-import { OUTSIDE_ACCOUNT_VALUE } from '@/pages/transactions/components/transaction-modal/constants'
+import { OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 import {
   amountInputToMinorUnits,
   applyTransactionDirection,

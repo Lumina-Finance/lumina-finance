@@ -1,8 +1,7 @@
 import type { Category } from '@/api/categories'
 import type { TransactionImportPayload, TransactionImportResponse } from '@/api/transaction-imports'
 import { COLUMN_TARGETS, CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, DEFAULT_CATEGORY_ICON } from '@/pages/imports/constants'
-import { BALANCE_ADJUSTMENT_CATEGORY_NAME, OUTSIDE_ACCOUNT_VALUE } from '@/pages/transactions/components/transaction-modal/constants'
-import { doesTransferRecordOtherAccount } from '@/pages/transactions/components/transaction-modal/utils/validation'
+import { BALANCE_ADJUSTMENT_CATEGORY_NAME, doesTransferRecordOtherAccount, OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 import type { ColumnMap, ColumnValidationErrors, ImportAccountSource, ImportBuildResult, ImportCategoryKind, ImportFileDraft } from '@/pages/imports/types'
 import { isImportAccountType } from '@/pages/imports/accountTypeGuard'
 import { getCategoryMatchKind, splitImportedValues } from './categoryMatching'
@@ -150,7 +149,9 @@ export function buildTransactionImportPayload({
 
       if (otherAccountSource) {
         if (!recordsOtherAccountBySource[categorySource]) {
-          addError(`Only a transfer records the other account: ${otherAccountSource}`)
+          // The category is what the user can act on: the column has to be left unmapped, or the
+          // rows using it mapped to a transfer category
+          addError(`Only a transfer records an other account, so the mapped Other account column cannot be used by category: ${categorySource}`)
         } else if (isSameMappedAccount(accountMappings, accountSource, otherAccountSource)) {
           addError(`A transfer cannot record its own account as the other side: ${otherAccountSource}`)
         }

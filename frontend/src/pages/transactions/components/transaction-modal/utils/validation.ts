@@ -1,8 +1,8 @@
 import type { AccountsOverview } from '@/api/accounts'
+import { doesTransferRecordOtherAccount } from '@/utils/transfers'
 import type {
   TransactionFormFieldErrors,
   TransactionFormValues,
-  TransactionModalKind,
 } from '@/pages/transactions/components/transaction-modal/types'
 
 /**
@@ -10,20 +10,6 @@ import type {
  */
 export function isSymmetricTransferForm(form: TransactionFormValues): boolean {
   return form.kind === 'transfer' && form.symmetric_transfer
-}
-
-/**
- * Reports whether a transfer in the given kind and category records which other account the
- * money touched
- *
- * True for every transfer-kind category except Balance Adjustment, which has no other side.
- * Mirrors the backend's does_category_record_other_account
- */
-export function doesTransferRecordOtherAccount(
-  kind: TransactionModalKind,
-  isBalanceAdjustmentCategory: boolean,
-): boolean {
-  return kind === 'transfer' && !isBalanceAdjustmentCategory
 }
 
 interface ValidateTransactionFormOptions {

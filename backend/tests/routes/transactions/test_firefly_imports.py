@@ -431,6 +431,13 @@ async def test_firefly_import_applies_opening_balance_direction(client):
         transaction["category_id"] == adjustment_category_id for transaction in transactions_resp.json()
     )
 
+    # Balance Adjustment has no other side, and the API refuses one on it, so the importer leaves
+    # both columns unset here as it does for every category that cannot record one
+    assert all(
+        transaction["other_account_id"] is None and transaction["other_account_scope"] is None
+        for transaction in transactions_resp.json()
+    )
+
 
 async def test_firefly_import_skips_unconvertible_rows(client):
     """Unsupported types and unavailable currencies are skipped and reported."""
