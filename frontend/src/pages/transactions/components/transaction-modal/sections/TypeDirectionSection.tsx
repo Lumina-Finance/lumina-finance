@@ -14,8 +14,7 @@ import TransactionModalPillSelector from '@/pages/transactions/components/transa
 interface TransactionTypeDirectionSectionProps {
   kind: TransactionModalKind
 
-  // An empty direction renders the unselected state, used when a symmetric transfer does not involve the viewed account
-  direction: TransactionDirection | ''
+  direction: TransactionDirection
   editing: boolean
   readOnly: boolean
   directionHighlightKey: number

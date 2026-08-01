@@ -207,8 +207,6 @@ async def validate_transaction_other_account(
     account_id: uuid.UUID,
     other_account_id: uuid.UUID | None,
     other_account_scope: TransferOtherAccountScope | None,
-    *,
-    require_answer: bool,
 ) -> None:
     """Ensure the recorded other side of a transfer agrees with its category
 
@@ -219,7 +217,6 @@ async def validate_transaction_other_account(
         account_id: Account the transaction is recorded in
         other_account_id: Account recorded as the other side, set only when the scope is tracked
         other_account_scope: Where the other side sits, or None when nothing is recorded
-        require_answer: Whether a missing answer is rejected, true on create and false on update
 
     Raises:
         HTTPException: The answer is missing, contradicts itself, or points at an unusable account
@@ -232,19 +229,13 @@ async def validate_transaction_other_account(
             )
         return
 
+    # Editing answers the question as much as creating does, so a transfer recorded before the field
+    # existed has to say where the money went before any other change to it is accepted
     if other_account_scope is None:
-        # An old transaction can be corrected without answering the account question first
-        if require_answer:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail="A transfer must record where the money went",
-            )
-        if other_account_id is not None:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail="other_account_scope is required when other_account_id is set",
-            )
-        return
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="A transfer must record where the money went",
+        )
 
     if other_account_scope == TransferOtherAccountScope.OUTSIDE:
         if other_account_id is not None:

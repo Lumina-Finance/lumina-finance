@@ -66,7 +66,6 @@ async def create_transaction_and_get_response(
         data.account_id,
         data.other_account_id,
         data.other_account_scope,
-        require_answer=True,
     )
     await validate_transaction_merchant_access(db, data.merchant_id, user.id, account.group_id)
     validated_tag_ids = []

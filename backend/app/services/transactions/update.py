@@ -122,7 +122,6 @@ async def update_transaction_and_get_response(
             changed_fields.get("account_id", txn.account_id),
             changed_fields.get("other_account_id", txn.other_account_id),
             changed_fields.get("other_account_scope", txn.other_account_scope),
-            require_answer=True,
         )
     else:
         if changed_fields.get("other_account_id") is not None or changed_fields.get("other_account_scope") is not None:
