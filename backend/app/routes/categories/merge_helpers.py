@@ -17,7 +17,7 @@ from app.routes.categories.access_helpers import (
 )
 from app.routes.categories.scope_filter_helpers import get_system_or_personal_category_filter
 from app.services.cache_state import mark_cache_changed_for_scope
-from app.services.transactions.validation import does_category_record_other_account
+from app.services.categories.transfer_rules import does_category_record_other_account
 
 
 async def get_merge_replacement_category(
