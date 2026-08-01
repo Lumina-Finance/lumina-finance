@@ -38,7 +38,7 @@ async def add_account_starting_balance_adjustment(
         adjustment_date: Date used for the adjustment transaction
 
     Raises:
-        HTTPException: Balance adjustment category is not configured
+        HTTPException: Balance adjustment category or the Myself merchant is not configured
     """
     db.add(Transaction(
         created_by_user_id=user_id,
@@ -70,7 +70,7 @@ async def zero_account_balance_for_archive(
         archive_date: Date used for the archive adjustment transaction
 
     Raises:
-        HTTPException: Balance adjustment category is not configured
+        HTTPException: Balance adjustment category or the Myself merchant is not configured
     """
     current_balance = (await get_current_balances(db, [account.id])).get(account.id, 0)
     if current_balance == 0:
