@@ -51,6 +51,10 @@ const COLUMN_VALIDATION_RULES: Record<ColumnTarget, {
     expected: 'tag names separated by commas, semicolons, or pipes',
     accepts: isPlainTextValue,
   },
+  other_account_id: {
+    expected: 'account names for the other side of a transfer, blank on every other row',
+    accepts: isPlainTextValue,
+  },
 }
 
 /**

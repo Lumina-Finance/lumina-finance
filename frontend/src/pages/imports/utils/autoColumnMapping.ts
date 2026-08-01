@@ -73,6 +73,15 @@ const HEADER_ALIAS_SCORES: Record<ColumnTarget, Record<string, number>> = {
     labels: 90,
     label: 90,
   },
+  other_account_id: {
+    otheraccount: 100,
+    otheraccountname: 100,
+    destinationaccount: 95,
+    destinationaccountname: 95,
+    toaccount: 95,
+    transferaccount: 90,
+    counteraccount: 85,
+  },
 }
 
 const HEADER_CONTAINS_SCORES: Record<ColumnTarget, Array<{ value: string; score: number }>> = {
@@ -117,10 +126,19 @@ const HEADER_CONTAINS_SCORES: Record<ColumnTarget, Array<{ value: string; score:
     { value: 'tags', score: 85 },
     { value: 'labels', score: 80 },
   ],
+  other_account_id: [
+    { value: 'other account', score: 90 },
+    { value: 'destination account', score: 85 },
+    { value: 'transfer account', score: 80 },
+    { value: 'counter account', score: 80 },
+  ],
 }
 
+// Targets are matched in order and each header can only be claimed once, so the account column has
+// to skip the headers describing the other side of a transfer or it takes them first on the weaker
+// "account" match. A file whose own account column is called "Destination account" is mapped by hand
 const EXCLUDED_HEADER_PARTS: Partial<Record<ColumnTarget, string[]>> = {
-  account_id: ['number', 'no', 'iban', 'routing'],
+  account_id: ['number', 'no', 'iban', 'routing', 'other', 'destination', 'counter'],
   amount: ['balance', 'available', 'limit', 'rate'],
 }
 

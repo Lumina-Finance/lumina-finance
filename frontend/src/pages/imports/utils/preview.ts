@@ -2,7 +2,7 @@ import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import type { Institution } from '@/api/institutions'
-import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, DEFAULT_CATEGORY_ICON } from '@/pages/imports/constants'
+import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, DEFAULT_CATEGORY_ICON, OUTSIDE_ACCOUNT_VALUE } from '@/pages/imports/constants'
 import type { ColumnMap, ImportCategoryKind, ImportFileDraft, PreviewTransactionRow } from '@/pages/imports/types'
 import { getImportAccountName } from './accountMapping'
 import { splitImportedValues } from './categoryMatching'
@@ -115,6 +115,16 @@ export function buildImportPreviewRows({
       )
       const tagIds = importedTagValues.map((tag, tagIndex) => `${file.id}-${rowIndex}-tag-${tagIndex}-${tag}`)
 
+      // A row states the other side only where the file has a column for it, and the answer is
+      // whatever that source was mapped to, which can be an account or money leaving the app
+      const otherAccountSource = columnMap.other_account_id
+        ? getMappedValue(row, columnMap.other_account_id).trim()
+        : ''
+      const otherAccountChoice = otherAccountSource ? resolvedAccountMappings[otherAccountSource] ?? '' : ''
+      const otherAccount = otherAccountChoice === CREATE_ACCOUNT_VALUE || otherAccountChoice === OUTSIDE_ACCOUNT_VALUE
+        ? undefined
+        : accountById.get(otherAccountChoice)
+
       rows.push({
         id: `${file.id}-${rowIndex}`,
         accountInstitution: account?.institution ?? createAccountInstitution ?? null,
@@ -137,9 +147,8 @@ export function buildImportPreviewRows({
           fx_rate: null,
           notes: notes || null,
 
-          // A CSV row carries one account, so there is no other side to show
-          other_account_id: null,
-          other_account_scope: null,
+          other_account_id: otherAccount?.id ?? null,
+          other_account_scope: getPreviewOtherAccountScope(otherAccountChoice, otherAccount?.id),
           created_at: timestamp,
           updated_at: timestamp,
           tag_ids: tagIds,
@@ -156,6 +165,17 @@ export function buildImportPreviewRows({
   }
 
   return rows
+}
+
+/**
+ * Resolves what a previewed transfer will record about where the money went
+ *
+ * An account queued to be created has no id until the import runs, so the preview shows that row
+ * as unanswered rather than pointing at an account that does not exist yet
+ */
+function getPreviewOtherAccountScope(otherAccountChoice: string, otherAccountId: string | undefined) {
+  if (otherAccountChoice === OUTSIDE_ACCOUNT_VALUE) return 'outside'
+  return otherAccountId ? 'tracked' : null
 }
 
 /**

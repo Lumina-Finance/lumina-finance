@@ -40,6 +40,10 @@ export function ImportAccountMappingTable({
     createType: string
     createCurrency: string
     createInstitution: string
+
+    // A source that no row is written to can also answer that the money left the tracked accounts,
+    // so its dropdown carries one more choice than the rest
+    options?: DropdownOption[]
     onChange: (value: string) => void
     onCreateTypeChange: (value: string) => void
     onCreateCurrencyChange: (value: string) => void
@@ -217,7 +221,7 @@ export function ImportAccountMappingTable({
                   </td>
                   <td className="px-4 py-3 align-middle">
                     <Dropdown
-                      options={options}
+                      options={row.options ?? options}
                       value={row.value}
                       onChange={row.onChange}
                       searchable

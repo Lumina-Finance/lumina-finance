@@ -1,6 +1,8 @@
 import type { Category } from '@/api/categories'
 import type { TransactionImportPayload, TransactionImportResponse } from '@/api/transaction-imports'
-import { COLUMN_TARGETS, CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, DEFAULT_CATEGORY_ICON } from '@/pages/imports/constants'
+import { COLUMN_TARGETS, CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, DEFAULT_CATEGORY_ICON, OUTSIDE_ACCOUNT_VALUE } from '@/pages/imports/constants'
+import { BALANCE_ADJUSTMENT_CATEGORY_NAME } from '@/pages/transactions/components/transaction-modal/constants'
+import { doesTransferRecordOtherAccount } from '@/pages/transactions/components/transaction-modal/utils/validation'
 import type { ColumnMap, ColumnValidationErrors, ImportAccountSource, ImportBuildResult, ImportCategoryKind, ImportFileDraft } from '@/pages/imports/types'
 import { isImportAccountType } from '@/pages/imports/accountTypeGuard'
 import { getCategoryMatchKind, splitImportedValues } from './categoryMatching'
@@ -76,8 +78,7 @@ export function buildTransactionImportPayload({
     appendAccountMapping(
       accounts,
       errors,
-      source.id,
-      source.label,
+      source,
       choice,
       accountCreateTypes[source.id],
       accountCreateCurrencies[source.id],
@@ -86,6 +87,10 @@ export function buildTransactionImportPayload({
   }
 
   const categories: TransactionImportPayload['categories'] = []
+
+  // Only a transfer category records where the money went, so the rule is settled per category
+  // source once and read back for every row using it
+  const recordsOtherAccountBySource: Record<string, boolean> = {}
   for (const source of importedCategories) {
     const choice = categoryMappings[source] ?? ''
     if (!choice) {
@@ -100,6 +105,8 @@ export function buildTransactionImportPayload({
         continue
       }
 
+      // A category created by the import is never the system Balance Adjustment
+      recordsOtherAccountBySource[source] = doesTransferRecordOtherAccount(kind, false)
       categories.push({
         source,
         create: {
@@ -111,6 +118,13 @@ export function buildTransactionImportPayload({
       continue
     }
 
+    const category = categoryById.get(choice)
+    recordsOtherAccountBySource[source] = category
+      ? doesTransferRecordOtherAccount(
+        category.kind,
+        Boolean(category.is_system && category.name === BALANCE_ADJUSTMENT_CATEGORY_NAME),
+      )
+      : false
     categories.push({ source, category_id: choice })
   }
 
@@ -122,10 +136,22 @@ export function buildTransactionImportPayload({
       const dt = dateFormat ? readImportDate(getMappedValue(row, columnMap.dt), dateFormat) : ''
       const amount = getMappedValue(row, columnMap.amount)
 
+      const otherAccountSource = columnMap.other_account_id
+        ? cleanOptional(getMappedValue(row, columnMap.other_account_id))
+        : null
+
       if (!accountSource) addError('Account source cannot be blank.')
       if (!categorySource) addError('Category source cannot be blank.')
       if (!dt) addError('Every imported row needs a valid date.')
       if (parseImportNumber(amount) === null) addError('Every imported row needs a valid raw amount.')
+
+      if (otherAccountSource) {
+        if (!recordsOtherAccountBySource[categorySource]) {
+          addError(`Only a transfer records the other account: ${otherAccountSource}`)
+        } else if (isSameMappedAccount(accountMappings, accountSource, otherAccountSource)) {
+          addError(`A transfer cannot record its own account as the other side: ${otherAccountSource}`)
+        }
+      }
 
       rows.push({
         account_source: accountSource,
@@ -135,6 +161,7 @@ export function buildTransactionImportPayload({
         merchant_name: cleanOptional(getMappedValue(row, columnMap.merchant_id)),
         notes: cleanOptional(getMappedValue(row, columnMap.notes)),
         tag_names: splitImportedValues(getMappedValue(row, columnMap.tag_ids)),
+        other_account_source: otherAccountSource,
       })
     }
   }
@@ -147,19 +174,32 @@ export function buildTransactionImportPayload({
 function appendAccountMapping(
   accounts: TransactionImportPayload['accounts'],
   errors: string[],
-  source: string,
-  createName: string,
+  accountSource: ImportAccountSource,
   choice: string,
   createType: string | undefined,
   createCurrency: string | undefined,
   createInstitution: string | undefined,
 ) {
+  const source = accountSource.id
+  const createName = accountSource.label
   const addError = (message: string) => {
     if (!errors.includes(message)) errors.push(message)
   }
 
   if (!choice) {
     addError(`Map account: ${createName}`)
+    return
+  }
+
+  if (choice === OUTSIDE_ACCOUNT_VALUE) {
+    // Reachable when the answer was chosen and the other-account column was then unmapped, which
+    // turns the source into one that rows are written to
+    if (!accountSource.isOtherSideOnly) {
+      addError(`Rows are imported into this account, so it cannot be outside this app: ${createName}`)
+      return
+    }
+
+    accounts.push({ source, outside: true })
     return
   }
 
@@ -191,6 +231,22 @@ function appendAccountMapping(
 function cleanOptional(value: string) {
   const trimmed = value.trim()
   return trimmed || null
+}
+
+/**
+ * Reports whether two account sources were mapped onto the same existing account, which is how a
+ * renamed account is carried across and would leave a transfer recording the account it sits in
+ *
+ * Two sources both set to create a new account produce two separate accounts, so they never match
+ */
+function isSameMappedAccount(
+  accountMappings: Record<string, string>,
+  accountSource: string,
+  otherAccountSource: string,
+) {
+  const accountChoice = accountMappings[accountSource]
+  if (!accountChoice || accountChoice === CREATE_ACCOUNT_VALUE) return false
+  return accountChoice === accountMappings[otherAccountSource]
 }
 
 /**

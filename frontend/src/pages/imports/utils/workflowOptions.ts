@@ -112,20 +112,38 @@ export function getMissingRequiredColumnLabels(columnMap: ColumnMap): string[] {
 export function buildImportAccountMappingSources(
   files: ImportFileDraft[],
   accountHeader: string,
+  otherAccountHeader: string,
 ): ImportAccountSource[] {
-  if (accountHeader) {
-    return getUniqueColumnValues(files, accountHeader).map((source) => ({
+  const rowSources: ImportAccountSource[] = accountHeader
+    ? getUniqueColumnValues(files, accountHeader).map((source) => ({
       id: source,
       label: source,
       matchText: source,
+      isOtherSideOnly: false,
     }))
-  }
+    : files.map((file) => ({
+      id: file.id,
+      label: getImportAccountName(file.name),
+      matchText: file.name,
+      isOtherSideOnly: false,
+    }))
 
-  return files.map((file) => ({
-    id: file.id,
-    label: getImportAccountName(file.name),
-    matchText: file.name,
-  }))
+  if (!otherAccountHeader) return rowSources
+
+  // A name appearing only as the other side of a transfer still has to be mapped, and it is the
+  // only kind that can be answered as money outside the tracked accounts, since no row is written
+  // to it
+  const rowSourceIds = new Set(rowSources.map((source) => source.id))
+  const otherSideSources: ImportAccountSource[] = getUniqueColumnValues(files, otherAccountHeader)
+    .filter((source) => !rowSourceIds.has(source))
+    .map((source) => ({
+      id: source,
+      label: source,
+      matchText: source,
+      isOtherSideOnly: true,
+    }))
+
+  return [...rowSources, ...otherSideSources]
 }
 
 /**

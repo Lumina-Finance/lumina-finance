@@ -14,6 +14,7 @@ export const EMPTY_COLUMN_MAP: ColumnMap = {
   merchant_id: '',
   notes: '',
   tag_ids: '',
+  other_account_id: '',
 }
 
 export const COLUMN_TARGETS: Array<{
@@ -30,7 +31,17 @@ export const COLUMN_TARGETS: Array<{
   { id: 'merchant_id', label: 'Merchant', hint: 'Resolved from imported merchant text.' },
   { id: 'notes', label: 'Notes', hint: 'Optional transaction notes.' },
   { id: 'tag_ids', label: 'Tags', hint: 'Resolved from imported tag text.' },
+  {
+    id: 'other_account_id',
+    label: 'Other account',
+    hint: 'Account a transfer moved money to or from. Only transfer rows may name one.',
+  },
 ]
+
+// Mapping choice for a source that is not an account you keep, offered only where a source is
+// never a row's own account. It records that the money left the tracked accounts
+export const OUTSIDE_ACCOUNT_VALUE = '__outside_accounts__'
+export const OUTSIDE_ACCOUNT_LABEL = 'Outside this app'
 
 // Each format is named by an example of its shape rather than by a standard, because the year-first
 // option deliberately takes a slash and an unpadded part, which ISO 8601 does not. Keyed by format

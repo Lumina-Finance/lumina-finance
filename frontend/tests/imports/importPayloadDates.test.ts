@@ -51,7 +51,7 @@ function build(dates: string[], dateFormat: ImportDateFormat | null) {
     accountCreateInstitutions: {},
     accountCreateTypes: {},
     accountMappings: { 'file-1': 'account-1' },
-    accountSources: [{ id: 'file-1', label: 'Checking.csv', matchText: 'Checking.csv' }],
+    accountSources: [{ id: 'file-1', label: 'Checking.csv', matchText: 'Checking.csv', isOtherSideOnly: false }],
     categoryById: new Map([[CATEGORY.id, CATEGORY]]),
     categoryCreateKinds: {},
     categoryMappings: { Groceries: CATEGORY.id },

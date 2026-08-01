@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { useImportTransactions, type TransactionImportResponse } from '@/api/transaction-imports'
-import { EMPTY_COLUMN_MAP } from '@/pages/imports/constants'
+import { EMPTY_COLUMN_MAP, OUTSIDE_ACCOUNT_LABEL, OUTSIDE_ACCOUNT_VALUE } from '@/pages/imports/constants'
 import type { ColumnMap, ColumnTarget, ColumnValidationErrors, ImportCategoryKind, ImportFileDraft, ImportOverlayPhase, PreviewTransactionRow } from '@/pages/imports/types'
 import {
   buildColumnTargetOptions,
@@ -161,8 +161,18 @@ export function useTransactionImportWorkflow() {
   }
 
   const accountMappingSources = useMemo(
-    () => buildImportAccountMappingSources(files, columnMap.account_id),
-    [columnMap.account_id, files],
+    () => buildImportAccountMappingSources(files, columnMap.account_id, columnMap.other_account_id),
+    [columnMap.account_id, columnMap.other_account_id, files],
+  )
+
+  // Only a source no row is written to can answer that the money left the tracked accounts, so the
+  // extra choice is kept off every other row's dropdown
+  const otherSideAccountOptions = useMemo(
+    () => [
+      { value: OUTSIDE_ACCOUNT_VALUE, label: OUTSIDE_ACCOUNT_LABEL, group: 'Import Action' },
+      ...accountOptions,
+    ],
+    [accountOptions],
   )
 
   const canInferAccountMappings = Boolean(accountAutoMatchKey)
@@ -476,6 +486,7 @@ export function useTransactionImportWorkflow() {
     institutionsLoading,
     categoriesLoading,
     accountOptions,
+    otherSideAccountOptions,
     currencyOptions,
     institutionOptions,
     categoryMatchOptions,

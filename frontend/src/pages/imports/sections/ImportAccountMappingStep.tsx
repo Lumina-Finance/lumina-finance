@@ -18,6 +18,7 @@ type ImportAccountMappingStepProps = Pick<
   | 'setAccountCreateCurrencies'
   | 'setAccountCreateInstitutions'
   | 'accountOptions'
+  | 'otherSideAccountOptions'
   | 'currencyOptions'
   | 'institutionOptions'
   | 'accountsLoading'
@@ -50,6 +51,7 @@ export function ImportAccountMappingStep({
   setAccountCreateCurrencies,
   setAccountCreateInstitutions,
   accountOptions,
+  otherSideAccountOptions,
   currencyOptions,
   institutionOptions,
   accountsLoading,
@@ -111,6 +113,7 @@ export function ImportAccountMappingStep({
               createType: accountCreateTypes[sourceAccount.id] ?? '',
               createCurrency: accountCreateCurrencies[sourceAccount.id] ?? '',
               createInstitution: accountCreateInstitutions[sourceAccount.id] ?? '',
+              options: sourceAccount.isOtherSideOnly ? otherSideAccountOptions : undefined,
               onChange: (nextValue: string) => updateSourceAccount(sourceAccount.id, nextValue),
               onCreateTypeChange: (nextValue: string) => setAccountCreateTypes((current) => ({ ...current, [sourceAccount.id]: nextValue })),
               onCreateCurrencyChange: (nextValue: string) => setAccountCreateCurrencies((current) => ({ ...current, [sourceAccount.id]: nextValue })),

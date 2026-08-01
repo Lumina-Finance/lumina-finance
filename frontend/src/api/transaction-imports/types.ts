@@ -11,6 +11,9 @@ export interface TransactionImportAccountMapping {
   source: string;
   account_id?: string | null;
   create?: TransactionImportCreateAccount | null;
+
+  /** True for a source that is money outside the tracked accounts, which no row may be written to */
+  outside?: boolean;
 }
 
 export interface TransactionImportCreateCategory {
@@ -33,6 +36,9 @@ export interface TransactionImportRow {
   merchant_name?: string | null;
   notes?: string | null;
   tag_names: string[];
+
+  /** Account source the transfer moved money to or from, null when the file leaves it unanswered */
+  other_account_source?: string | null;
 }
 
 export interface TransactionImportPayload {
