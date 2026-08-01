@@ -176,9 +176,16 @@ export function useTransactionSubmit({
 
     if (isSymmetricTransferForm(form)) {
       const [fromPayload, toPayload] = buildSymmetricTransferPayloads(form, selectedCurrencyExponent)
+      // The direction says what happens to the recorded account, so it is that leg's kind and the
+      // other leg is the opposite. Naming them the wrong way round would tell someone re-entering a
+      // failed leg by hand to enter it backwards
       const legs = [
-        { failedKind: 'debit', accountId: form.account_id, payload: fromPayload },
-        { failedKind: 'credit', accountId: form.other_account_id, payload: toPayload },
+        { failedKind: form.direction, accountId: form.account_id, payload: fromPayload },
+        {
+          failedKind: form.direction === 'debit' ? 'credit' : 'debit',
+          accountId: form.other_account_id,
+          payload: toPayload,
+        },
       ]
 
       setSubmitError('')
