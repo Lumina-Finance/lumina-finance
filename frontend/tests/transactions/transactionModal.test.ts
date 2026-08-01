@@ -277,7 +277,7 @@ describe('transaction modal helpers', () => {
     })
   })
 
-  it('requires an other-account answer only when creating a transfer that is not Balance Adjustment', () => {
+  it('requires an other-account answer on every transfer that is not Balance Adjustment', () => {
     const transferForm = {
       kind: 'transfer' as const,
       direction: 'debit' as const,
@@ -294,36 +294,32 @@ describe('transaction modal helpers', () => {
       other_account_id: '',
     }
 
-    // A transfer with no answer fails validation when creating
-    expect(validateTransactionForm(transferForm, { requireOtherAccount: true }).other_account_id)
+    // A transfer with no answer fails validation, on an edit as much as on a create, which is what
+    // brings transactions recorded before the field existed onto the new footing
+    expect(validateTransactionForm(transferForm).other_account_id)
       .toBe('Select where the money went')
 
-    // An edit with the field left empty passes, since an old transaction can be corrected without answering first
-    expect(validateTransactionForm(transferForm, { requireOtherAccount: false }).other_account_id).toBeUndefined()
-
-    // Balance Adjustment has no other side, so it is never required even when creating
+    // Balance Adjustment has no other side, so it is never required
     expect(validateTransactionForm(
       transferForm,
-      { requireOtherAccount: true, isBalanceAdjustmentCategory: true },
+      { isBalanceAdjustmentCategory: true },
     ).other_account_id).toBeUndefined()
 
     // The field stays live once the checkbox is ticked, so a create requires it there too,
     // independently of the receiving-account requirement the checkbox already carries
     const symmetricForm = { ...transferForm, symmetric_transfer: true, to_account_id: 'savings' }
-    const symmetricErrors = validateTransactionForm(symmetricForm, { requireOtherAccount: true })
+    const symmetricErrors = validateTransactionForm(symmetricForm)
     expect(symmetricErrors.other_account_id).toBe('Select where the money went')
     expect(symmetricErrors.to_account_id).toBeUndefined()
 
     // Answering it once the checkbox is ticked clears the requirement, same as the standalone case
     expect(validateTransactionForm(
       { ...symmetricForm, other_account_id: 'savings' },
-      { requireOtherAccount: true },
     ).other_account_id).toBeUndefined()
 
     // Picking the transaction's own account as the other side is always rejected
     expect(validateTransactionForm(
       { ...transferForm, other_account_id: 'checking' },
-      { requireOtherAccount: true },
     ).other_account_id).toBe('Choose a different account')
   })
 
@@ -449,16 +445,14 @@ describe('other-account options', () => {
   ]
 
   it('leaves out the account holding the transfer and offers the outside entry', () => {
-    const options = buildOtherAccountOptions(accounts, 'checking', false)
+    const options = buildOtherAccountOptions(accounts, 'checking')
 
     expect(options.map((option) => option.value)).toEqual(['savings', OUTSIDE_ACCOUNT_VALUE])
   })
 
-  it('offers a way back to unanswered when editing, and none when creating', () => {
-    const editing = buildOtherAccountOptions(accounts, 'checking', true)
-    const creating = buildOtherAccountOptions(accounts, 'checking', false)
+  it('offers no way back to unanswered, since every edit has to answer', () => {
+    const options = buildOtherAccountOptions(accounts, 'checking')
 
-    expect(editing[0]).toEqual({ value: '', label: 'Not recorded' })
-    expect(creating.some((option) => option.value === '')).toBe(false)
+    expect(options.some((option) => option.value === '')).toBe(false)
   })
 })

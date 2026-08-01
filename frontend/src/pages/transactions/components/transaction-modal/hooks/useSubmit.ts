@@ -137,13 +137,7 @@ export function useTransactionSubmit({
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     if (isPending || readOnly) return
-    const errors = validateTransactionForm(form, {
-      isAmountLocked,
-      isBalanceAdjustmentCategory,
-      // Only a create requires an other-account answer, since an existing transaction can be
-      // corrected without answering the question first
-      requireOtherAccount: !editing,
-    })
+    const errors = validateTransactionForm(form, { isAmountLocked, isBalanceAdjustmentCategory })
     // The receiving account needs both accounts loaded to compare currency and group
     if (!editing && isSymmetricTransferForm(form) && !errors.to_account_id) {
       const accountError = getSymmetricTransferAccountError(selectedAccount, selectedToAccount)

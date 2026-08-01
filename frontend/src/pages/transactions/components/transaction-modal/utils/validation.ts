@@ -29,9 +29,6 @@ export function doesTransferRecordOtherAccount(
 interface ValidateTransactionFormOptions {
   isAmountLocked?: boolean
   isBalanceAdjustmentCategory?: boolean
-
-  // Only a create requires an other-account answer, so an old transaction can be corrected without answering it first
-  requireOtherAccount?: boolean
 }
 
 /**
@@ -41,7 +38,7 @@ export function validateTransactionForm(
   form: TransactionFormValues,
   options: ValidateTransactionFormOptions = {},
 ): TransactionFormFieldErrors {
-  const { isAmountLocked = false, isBalanceAdjustmentCategory = false, requireOtherAccount = false } = options
+  const { isAmountLocked = false, isBalanceAdjustmentCategory = false } = options
   const errors: TransactionFormFieldErrors = {}
   if (!form.account_id) errors.account_id = 'Select an account'
   if (!form.category_id) errors.category_id = 'Select a category'
@@ -68,12 +65,12 @@ export function validateTransactionForm(
   // The other-account field stays live whether or not the checkbox is ticked, since ticking only
   // creates the matching transaction and does not by itself answer what this leg records
   if (doesTransferRecordOtherAccount(form.kind, isBalanceAdjustmentCategory)) {
+    // Editing answers this too, so a transfer recorded before the field existed says where the
+    // money went the next time it is touched at all
     if (!form.other_account_id) {
-      if (requireOtherAccount) {
-        errors.other_account_id = form.direction === 'debit'
-          ? 'Select where the money went'
-          : 'Select where the money came from'
-      }
+      errors.other_account_id = form.direction === 'debit'
+        ? 'Select where the money went'
+        : 'Select where the money came from'
     } else if (form.other_account_id === form.account_id) {
       errors.other_account_id = 'Choose a different account'
     }

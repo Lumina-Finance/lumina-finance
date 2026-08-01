@@ -27,12 +27,8 @@ export function buildAccountOptions(
  * is a fact about where the money went rather than a second leg that must share a currency, and an
  * archived or closed account still stays recordable since archiving happens after the money moved
  */
-export function buildOtherAccountOptions(
-  accounts: AccountsOverview[],
-  recordedAccountId: string,
-  editing: boolean,
-) {
-  const options = [
+export function buildOtherAccountOptions(accounts: AccountsOverview[], recordedAccountId: string) {
+  return [
     // Money cannot move from an account to itself, so the account holding the transfer is left out
     // rather than offered and then refused
     ...accounts
@@ -40,11 +36,6 @@ export function buildOtherAccountOptions(
       .map((account) => ({ value: account.id, label: account.name })),
     { value: OUTSIDE_ACCOUNT_VALUE, label: 'Outside this app' },
   ]
-
-  // Creating a transfer has to answer this, so the way back to unanswered is offered on an edit
-  // alone, which is also the only place a transaction can already be in that state
-  if (editing) options.unshift({ value: '', label: 'Not recorded' })
-  return options
 }
 
 /**

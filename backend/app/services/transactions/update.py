@@ -88,28 +88,23 @@ async def update_transaction_and_get_response(
         )
 
     # Confirm changed category and merchant records belong to the selected account group
-    # Both the category the transaction had and the one it ends up with matter: the answer is judged
-    # against the new one, and whether it is newly a transfer is judged against the old one
-    previous_category = await db.get(Category, txn.category_id)
     if "category_id" in changed_fields:
         category = await validate_transaction_category_access(
             db, changed_fields["category_id"], user.id, account_group_id,
         )
     else:
-        category = previous_category
+        # The answer is judged against the category the transaction ends up with, so an unchanged
+        # category is still loaded
+        category = await db.get(Category, txn.category_id)
     if "merchant_id" in changed_fields and changed_fields["merchant_id"] is not None:
         await validate_transaction_merchant_access(db, changed_fields["merchant_id"], user.id, account_group_id)
 
     if does_category_record_other_account(category):
-        # An edit that turns a transaction into a transfer is forming a new one, so it answers the
-        # question the same way creating one does. A transaction that was already a transfer keeps
-        # its exemption, which is what lets an old unanswered row have its notes or amount corrected
-        became_transfer = (
-            "category_id" in changed_fields
-            and not does_category_record_other_account(previous_category)
-        )
-
-        # Unsent fields keep their stored values, so an old transaction with no answer stays editable
+        # Editing a transfer answers the question, whatever else the edit changes. Transactions
+        # predating the field are the ones this reaches, and refusing the edit until they say where
+        # the money went is what moves that history onto the new footing rather than leaving it
+        # counting wrongly forever. Unsent fields keep their stored values, so a transfer that has
+        # already answered is untouched by this
         await validate_transaction_other_account(
             db,
             user.id,
@@ -117,7 +112,7 @@ async def update_transaction_and_get_response(
             changed_fields.get("account_id", txn.account_id),
             changed_fields.get("other_account_id", txn.other_account_id),
             changed_fields.get("other_account_scope", txn.other_account_scope),
-            require_answer=became_transfer,
+            require_answer=True,
         )
     else:
         if changed_fields.get("other_account_id") is not None or changed_fields.get("other_account_scope") is not None:

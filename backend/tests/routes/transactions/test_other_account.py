@@ -171,8 +171,8 @@ async def test_expense_rejects_the_field(client):
     assert resp.status_code == 422
 
 
-async def test_update_leaves_an_unanswered_transfer_editable(client):
-    """Transactions recorded before the columns existed stay correctable."""
+async def test_editing_an_unanswered_transfer_is_refused_until_it_answers(client):
+    """Touching a transfer recorded before the field existed is what brings it onto the new footing."""
     headers, account_id, _, transfer_id = await _setup_transfer_user(client)
     created = await _create_transaction(
         client, headers, account_id, transfer_id, other_account_scope="outside",
@@ -188,9 +188,16 @@ async def test_update_leaves_an_unanswered_transfer_editable(client):
 
     resp = await client.patch(f"/transactions/{txn_id}", json={"notes": "corrected"}, headers=headers)
 
-    assert resp.status_code == 200
-    assert resp.json()["notes"] == "corrected"
-    assert resp.json()["other_account_scope"] is None
+    assert resp.status_code == 422
+
+    # Answering it in the same edit is what lets the correction through
+    answered = await client.patch(
+        f"/transactions/{txn_id}",
+        json={"notes": "corrected", "other_account_scope": "outside"},
+        headers=headers,
+    )
+    assert answered.status_code == 200
+    assert answered.json()["notes"] == "corrected"
 
 
 async def test_update_can_record_the_answer_later(client):
@@ -287,21 +294,15 @@ async def test_editing_a_transaction_into_a_transfer_succeeds_with_an_answer(cli
     assert resp.json()["other_account_id"] == other_account_id
 
 
-async def test_editing_an_unanswered_transfer_still_needs_no_answer(client):
-    """History stays correctable, which is why the requirement is on becoming a transfer only."""
+async def test_editing_an_answered_transfer_needs_nothing_resent(client):
+    """A transfer that already says where the money went is untouched by the requirement."""
     headers, account_id, _, transfer_id = await _setup_transfer_user(client)
     created = await _create_transaction(
         client, headers, account_id, transfer_id, other_account_scope="outside",
     )
     txn_id = created.json()["id"]
 
-    async with TestSession() as session:
-        txn = await session.get(Transaction, uuid.UUID(txn_id))
-        txn.other_account_scope = None
-        txn.other_account_id = None
-        await session.commit()
-
     resp = await client.patch(f"/transactions/{txn_id}", json={"amount": -777}, headers=headers)
 
     assert resp.status_code == 200
-    assert resp.json()["other_account_scope"] is None
+    assert resp.json()["other_account_scope"] == "outside"
