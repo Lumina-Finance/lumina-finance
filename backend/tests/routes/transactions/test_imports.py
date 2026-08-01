@@ -3,8 +3,10 @@
 from tests.routes.support import _create_user, _get_auth_header
 from tests.routes.transactions._helpers import (
     NONEXISTENT_ID,
+    _create_account,
     _create_merchant,
     _create_tag,
+    _get_system_category_id,
     _seed_institution,
     _setup_user_with_deps,
 )
@@ -117,6 +119,143 @@ async def test_import_transactions_reuses_existing_records(client):
     assert transaction["amount"] == 123456
     assert transaction["merchant_name"] == "Costco"
     assert [tag["name"] for tag in transaction["tags"]] == ["bulk"]
+
+
+async def test_import_transactions_records_the_other_account_on_a_transfer(client):
+    """A transfer row naming another mapped source records it, and a row naming none stays unanswered."""
+    headers, account_id, _ = await _setup_user_with_deps(client)
+    savings_resp = await _create_account(client, headers, name="Main Savings", account_type="savings")
+    savings_id = savings_resp.json()["id"]
+    transfer_category_id = await _get_system_category_id(client, headers, "Transfer")
+
+    resp = await client.post("/transactions/import", json={
+        "accounts": [
+            {"source": "Chequing", "account_id": account_id},
+            {"source": "Savings", "account_id": savings_id},
+        ],
+        "categories": [{"source": "Transfer", "category_id": transfer_category_id}],
+        "rows": [
+            {
+                "account_source": "Chequing",
+                "category_source": "Transfer",
+                "dt": "2026-04-11",
+                "amount": "-500.00",
+                "other_account_source": "Savings",
+            },
+            {
+                "account_source": "Savings",
+                "category_source": "Transfer",
+                "dt": "2026-04-13",
+                "amount": "500.00",
+            },
+        ],
+    }, headers=headers)
+
+    assert resp.status_code == 201
+    transactions_resp = await client.get("/transactions", headers=headers)
+    transactions_by_amount = {transaction["amount"]: transaction for transaction in transactions_resp.json()}
+    assert transactions_by_amount[-50000]["other_account_id"] == savings_id
+    assert transactions_by_amount[-50000]["other_account_scope"] == "tracked"
+
+    # A file that says nothing about the other side leaves the question open rather than guessing
+    assert transactions_by_amount[50000]["other_account_id"] is None
+    assert transactions_by_amount[50000]["other_account_scope"] is None
+
+
+async def test_import_transactions_records_a_transfer_leaving_the_tracked_accounts(client):
+    """A source mapped as outside records that the money left, without naming an account."""
+    headers, account_id, _ = await _setup_user_with_deps(client)
+    transfer_category_id = await _get_system_category_id(client, headers, "Transfer")
+
+    resp = await client.post("/transactions/import", json={
+        "accounts": [
+            {"source": "Chequing", "account_id": account_id},
+            {"source": "Brokerage elsewhere", "outside": True},
+        ],
+        "categories": [{"source": "Transfer", "category_id": transfer_category_id}],
+        "rows": [{
+            "account_source": "Chequing",
+            "category_source": "Transfer",
+            "dt": "2026-04-11",
+            "amount": "-500.00",
+            "other_account_source": "Brokerage elsewhere",
+        }],
+    }, headers=headers)
+
+    assert resp.status_code == 201
+    assert resp.json()["accounts_created"] == 0
+    transaction = (await client.get("/transactions", headers=headers)).json()[0]
+    assert transaction["other_account_id"] is None
+    assert transaction["other_account_scope"] == "outside"
+
+
+async def test_import_transactions_rejects_an_other_account_on_a_non_transfer_row(client):
+    """Only a transfer records where the money went, so an expense row naming one is refused."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    savings_resp = await _create_account(client, headers, name="Main Savings", account_type="savings")
+
+    resp = await client.post("/transactions/import", json={
+        "accounts": [
+            {"source": "Chequing", "account_id": account_id},
+            {"source": "Savings", "account_id": savings_resp.json()["id"]},
+        ],
+        "categories": [{"source": "Groceries", "category_id": category_id}],
+        "rows": [{
+            "account_source": "Chequing",
+            "category_source": "Groceries",
+            "dt": "2026-04-11",
+            "amount": "-10.00",
+            "other_account_source": "Savings",
+        }],
+    }, headers=headers)
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "Only a transfer records the other account: Savings"
+
+
+async def test_import_transactions_rejects_a_transfer_naming_its_own_account(client):
+    """Two sources mapped onto one account cannot record that account as its own other side."""
+    headers, account_id, _ = await _setup_user_with_deps(client)
+    transfer_category_id = await _get_system_category_id(client, headers, "Transfer")
+
+    resp = await client.post("/transactions/import", json={
+        "accounts": [
+            {"source": "Chequing", "account_id": account_id},
+            {"source": "Chequing (old)", "account_id": account_id},
+        ],
+        "categories": [{"source": "Transfer", "category_id": transfer_category_id}],
+        "rows": [{
+            "account_source": "Chequing",
+            "category_source": "Transfer",
+            "dt": "2026-04-11",
+            "amount": "-500.00",
+            "other_account_source": "Chequing (old)",
+        }],
+    }, headers=headers)
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "A transfer cannot record its own account as the other side: Chequing (old)"
+
+
+async def test_import_transactions_rejects_rows_written_to_an_outside_source(client):
+    """An outside source answers where money went and holds no rows of its own."""
+    headers, _, category_id = await _setup_user_with_deps(client)
+
+    resp = await client.post("/transactions/import", json={
+        "accounts": [{"source": "Brokerage elsewhere", "outside": True}],
+        "categories": [{"source": "Groceries", "category_id": category_id}],
+        "rows": [{
+            "account_source": "Brokerage elsewhere",
+            "category_source": "Groceries",
+            "dt": "2026-04-11",
+            "amount": "-10.00",
+        }],
+    }, headers=headers)
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == (
+        "Rows cannot be written to an account source that is outside the tracked accounts: Brokerage elsewhere"
+    )
 
 
 async def test_import_transactions_rejects_unmapped_account_source(client):

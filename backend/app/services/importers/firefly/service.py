@@ -4,7 +4,7 @@ import logging
 import uuid
 from datetime import date
 
-from fastapi import HTTPException
+from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
@@ -28,7 +28,7 @@ from app.services.importers.firefly.row_resolution import (
     resolve_firefly_row,
 )
 from app.services.importers.firefly.system_categories import get_firefly_system_categories
-from app.services.importers.shared.accounts import get_or_create_import_accounts_by_source
+from app.services.importers.shared.accounts import resolve_import_account_sources
 from app.services.importers.shared.categories import get_or_create_import_categories_by_source
 from app.services.importers.shared.currencies import get_import_currencies_by_code
 from app.services.importers.shared.merchants import (
@@ -67,7 +67,17 @@ async def import_firefly_transactions(
         Import summary with converted, skipped, and created record counts
     """
     stats = ImportStats()
-    accounts_by_source = await get_or_create_import_accounts_by_source(db, user, data.accounts, stats)
+    account_sources = await resolve_import_account_sources(db, user, data.accounts, stats)
+
+    # Every Firefly source is an endpoint rows are written to, and the export states both sides of a
+    # transfer itself, so there is nothing here an outside answer could describe
+    if account_sources.outside_sources:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"Account source cannot be outside the tracked accounts: {sorted(account_sources.outside_sources)[0]}",
+        )
+
+    accounts_by_source = account_sources.accounts_by_source
     categories_by_source = await get_or_create_import_categories_by_source(db, user, data.categories, stats)
 
     # Load currencies after account mappings because new accounts can introduce new currency codes

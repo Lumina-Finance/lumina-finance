@@ -1,5 +1,6 @@
 """Transaction import account mapping"""
 import uuid
+from dataclasses import dataclass
 
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,13 +15,26 @@ from app.services.importers.shared.stats import ImportStats
 from app.services.importers.shared.validation_helpers import strip_import_text_or_raise
 
 
-async def get_or_create_import_accounts_by_source(
+@dataclass
+class ImportAccountSources:
+    """Store what every declared account source resolves to
+
+    Attributes:
+        accounts_by_source: Account rows keyed by trimmed account source
+        outside_sources: Trimmed sources answered as money outside the tracked accounts
+    """
+
+    accounts_by_source: dict[str, Account]
+    outside_sources: set[str]
+
+
+async def resolve_import_account_sources(
     db: AsyncSession,
     user: User,
     mappings: list[TransactionImportAccountMapping],
     stats: ImportStats,
-) -> dict[str, Account]:
-    """Return account rows keyed by import source
+) -> ImportAccountSources:
+    """Resolve every declared account source to an account or to the outside answer
 
     Existing account mappings are checked for write access, while create
     mappings insert a new personal account and opening balance snapshot
@@ -32,18 +46,31 @@ async def get_or_create_import_accounts_by_source(
         stats: Import summary counters updated while accounts are matched or created
 
     Returns:
-        Account rows keyed by trimmed account source
+        Accounts keyed by source, and the sources answered as outside the tracked accounts
+
+    Raises:
+        HTTPException: Raised with 422 when a source is declared twice or maps to no single answer
     """
     accounts_by_source: dict[str, Account] = {}
+    outside_sources: set[str] = set()
 
     # Build each declared account source once so import rows can use a stable lookup map
     for mapping in mappings:
         source = strip_import_text_or_raise(mapping.source, "Account source")
-        if source in accounts_by_source:
+        if source in accounts_by_source or source in outside_sources:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f"Duplicate account source: {source}")
 
+        if mapping.outside:
+            if mapping.account_id is not None or mapping.create is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail=f"Account source must map to exactly one account action: {source}",
+                )
+            outside_sources.add(source)
+            continue
+
         accounts_by_source[source] = await _get_or_create_import_account_for_mapping(db, user, mapping, source, stats)
-    return accounts_by_source
+    return ImportAccountSources(accounts_by_source=accounts_by_source, outside_sources=outside_sources)
 
 
 async def _get_or_create_import_account_for_mapping(

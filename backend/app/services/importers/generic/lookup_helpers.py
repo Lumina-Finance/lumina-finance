@@ -11,7 +11,7 @@ from app.models.merchant import Merchant
 from app.models.tag import Tag
 from app.models.user import User
 from app.schemas.transaction import TransactionImportRequest
-from app.services.importers.shared.accounts import get_or_create_import_accounts_by_source
+from app.services.importers.shared.accounts import resolve_import_account_sources
 from app.services.importers.shared.categories import get_or_create_import_categories_by_source
 from app.services.importers.shared.currencies import get_import_currencies_by_code
 from app.services.importers.shared.merchants import get_personal_import_merchants_by_name
@@ -25,6 +25,7 @@ class TransactionImportLookups:
 
     Attributes:
         accounts_by_source: Account rows keyed by import source
+        outside_account_sources: Sources answered as money outside the tracked accounts
         categories_by_source: Category rows keyed by import source
         currencies_by_code: Currency rows keyed by currency code
         merchants_by_name: Request-local merchant lookup keyed by merchant name
@@ -32,6 +33,7 @@ class TransactionImportLookups:
     """
 
     accounts_by_source: dict[str, Account]
+    outside_account_sources: set[str]
     categories_by_source: dict[str, Category]
     currencies_by_code: dict[str, Currency]
     merchants_by_name: dict[str, Merchant]
@@ -55,7 +57,8 @@ async def load_transaction_import_lookups(
     Returns:
         Lookup maps used by the transaction import row creation helper
     """
-    accounts_by_source = await get_or_create_import_accounts_by_source(db, user, data.accounts, stats)
+    account_sources = await resolve_import_account_sources(db, user, data.accounts, stats)
+    accounts_by_source = account_sources.accounts_by_source
     categories_by_source = await get_or_create_import_categories_by_source(db, user, data.categories, stats)
 
     # Load currencies after account mappings because new accounts can introduce new currency codes
@@ -66,6 +69,7 @@ async def load_transaction_import_lookups(
 
     transaction_import_lookups = TransactionImportLookups(
         accounts_by_source=accounts_by_source,
+        outside_account_sources=account_sources.outside_sources,
         categories_by_source=categories_by_source,
         currencies_by_code=currencies_by_code,
         merchants_by_name=merchants_by_name,

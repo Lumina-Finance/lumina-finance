@@ -135,11 +135,15 @@ class TransactionImportCreateAccount(BaseModel):
 
 
 class TransactionImportAccountMapping(BaseModel):
-    """Resolve one imported account source to an existing or new account."""
+    """Resolve one imported account source to an account, or to the accounts this app does not keep."""
 
     source: str = Field(min_length=1, max_length=256)
     account_id: uuid.UUID | None = None
     create: TransactionImportCreateAccount | None = None
+
+    # A source appearing only as the other side of a transfer can be answered as money that left
+    # the tracked accounts, which no account row expresses. Rows are never written to such a source
+    outside: bool = False
 
 
 class TransactionImportCreateCategory(BaseModel):
@@ -168,6 +172,10 @@ class TransactionImportRow(BaseModel):
     merchant_name: str | None = Field(None, max_length=256)
     notes: str | None = None
     tag_names: list[str] = []
+
+    # Account source the money moved to or from, left unset by a file that does not state it. Only
+    # a transfer row may carry one, and the row is then answered without anyone editing it later
+    other_account_source: str | None = Field(None, min_length=1, max_length=256)
 
 
 class TransactionImportRequest(BaseModel):
