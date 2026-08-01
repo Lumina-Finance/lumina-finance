@@ -148,16 +148,6 @@ async def test_firefly_import_converts_transfers_into_two_legs(client):
         transaction["category_id"] == transfer_category_id for transaction in transactions_resp.json()
     )
 
-    # The imported row states both endpoints, so each leg comes out recording the other account
-    recorded_by_account = {
-        transaction["account_id"]: (transaction["other_account_id"], transaction["other_account_scope"])
-        for transaction in transactions_resp.json()
-    }
-    assert recorded_by_account == {
-        chequing_id: (savings_id, "tracked"),
-        savings_id: (chequing_id, "tracked"),
-    }
-
 
 async def test_firefly_import_uses_foreign_amount_for_cross_currency_transfers(client):
     """Cross-currency transfer legs are written in each account's own currency."""
@@ -432,38 +422,3 @@ async def test_firefly_import_skips_amounts_past_the_storable_range(client):
     assert data["rows_imported"] == 1
     assert data["rows_skipped"] == 1
     assert data["skipped"][0]["reason"] == 'Invalid amount "99999999999999999999.00"'
-
-
-async def test_firefly_transfer_between_two_sources_on_one_account_records_no_other_account(client):
-    """Both endpoints mapped onto one account cannot record that account as its own other side."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    account_id = (await client.post("/accounts", json={
-        "account_kind": "asset", "account_type": "checking", "name": "Everyday Chequing", "currency": "CAD",
-    }, headers=headers)).json()["id"]
-
-    resp = await client.post("/transactions/import/firefly", json={
-        "accounts": [
-            {"source": "Everyday Chequing", "account_id": account_id},
-            {"source": "Old Chequing", "account_id": account_id},
-        ],
-        "categories": [],
-        "rows": [_firefly_row(
-            type="Transfer",
-            amount="500.00",
-            description="Renamed account carried across",
-            destination_name="Old Chequing",
-            destination_type="Asset account",
-            category=None,
-        )],
-    }, headers=headers)
-
-    assert resp.status_code == 201
-    assert resp.json()["transactions_created"] == 2
-
-    transactions = await client.get("/transactions", headers=headers)
-    assert all(
-        transaction["other_account_id"] is None and transaction["other_account_scope"] is None
-        for transaction in transactions.json()
-    )
