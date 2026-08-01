@@ -93,4 +93,17 @@ def downgrade() -> None:
     op.drop_index("uq_merchant_system_name", table_name="merchants", postgresql_where=sa.text("is_system = true"))
     op.drop_constraint("ck_merchants_scope", "merchants", type_="check")
     op.alter_column("merchants", "owner_id", existing_type=sa.UUID(), nullable=False)
+
+    # PostgreSQL records a dependency from a policy to every column its expression reads, and
+    # refuses to drop one of those columns. A deployed database has the four is_system-aware
+    # policies, so they are replaced with the single ownership rule that preceded them before the
+    # column goes. The IF EXISTS covers a database still on that older rule
+    for policy in ("merchants_read", "merchants_insert", "merchants_update", "merchants_delete", "merchants_access"):
+        op.execute(sa.text(f"DROP POLICY IF EXISTS {policy} ON public.merchants"))
+    op.execute(sa.text(
+        "CREATE POLICY merchants_access ON public.merchants"
+        " USING (owner_id = public.current_user_id() OR public.can_access_group(group_id))"
+        " WITH CHECK (owner_id = public.current_user_id() OR public.can_access_group(group_id))",
+    ))
+
     op.drop_column("merchants", "is_system")
