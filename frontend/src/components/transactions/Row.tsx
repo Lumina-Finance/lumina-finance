@@ -15,7 +15,7 @@ const ROW_EXIT_EASE = [0.25, 0.1, 0.25, 1] as const
  * Describes the other side of a transfer for the line that shows a merchant on other kinds
  *
  * Returns null when nothing was recorded, which is every transfer predating the field, so the row
- * falls back to its plain transfer label rather than claiming an answer it does not have
+ * falls back to the merchant rather than claiming an answer it does not have
  */
 function describeTransferOtherSide(
   transaction: Transaction,
@@ -154,11 +154,13 @@ export default function TransactionRow({
   const categoryIcon = category?.icon ?? DEFAULT_CATEGORY_ICON
   const fallbackTitle = category?.kind === 'transfer' ? 'Transfer' : 'Transaction'
 
-  // A transfer carries no merchant, so the line showing one on other kinds says where the money went
+  // A transfer's merchant is almost always the same stand-in, so where the money went takes the line
+  // that shows a merchant on other kinds, and the merchant fills in only for a transfer that
+  // recorded no other side
   const transferOtherSide = category?.kind === 'transfer'
     ? describeTransferOtherSide(transaction, otherAccountName)
     : null
-  const title = transaction.merchant_name ?? transferOtherSide ?? fallbackTitle
+  const title = transferOtherSide ?? transaction.merchant_name ?? fallbackTitle
   const hasNotes = Boolean(transaction.notes?.trim())
   const tags = [...(transaction.tags ?? [])].sort((a, b) => a.name.localeCompare(b.name))
   const visibleTags = tags.slice(0, MAX_VISIBLE_TAGS)
