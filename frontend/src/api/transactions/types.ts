@@ -115,7 +115,9 @@ export interface CreateTransactionPayload {
   category_id: string;
   amount: number;
   currency: string;
-  merchant_id?: string | null;
+
+  // Required, unlike on an update, where leaving it out keeps whatever the transaction already has
+  merchant_id: string;
   fx_rate?: number | null;
   notes?: string | null;
   tag_ids?: string[];
