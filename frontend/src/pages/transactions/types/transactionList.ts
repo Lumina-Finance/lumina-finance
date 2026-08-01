@@ -27,6 +27,22 @@ export interface TransactionListAccount {
   is_archived?: boolean
 }
 
+/**
+ * Narrows a loaded account to the fields the transaction list reads
+ *
+ * Both pages showing the list need the whole set, not only the accounts on screen, because a
+ * transfer's other side is often an account the current view is not showing
+ */
+export function toTransactionListAccount(account: AccountsOverview): TransactionListAccount {
+  return {
+    id: account.id,
+    name: account.name,
+    currency: account.currency,
+    institution: account.institution,
+    is_archived: account.is_archived,
+  }
+}
+
 export interface TransactionDateGroup {
   dateLabel: string
   transactions: Transaction[]

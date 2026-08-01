@@ -40,6 +40,7 @@ export function useTaxAdvantagedCategoryDetailsForm({
     currency: plan.currency,
     lifetime_contribution_limit: fromMinorUnits(plan.lifetime_contribution_limit, currencies, plan.currency),
     accrued_contributions: fromMinorUnits(plan.accrued_contributions, currencies, plan.currency),
+    counts_internal_transfers: plan.counts_internal_transfers,
   }
   const [planOverrides, setPlanOverrides] = useState<Partial<TaxPlanFormState>>({})
   const planForm: TaxPlanFormState = { ...planBase, ...planOverrides }
@@ -95,6 +96,7 @@ export function useTaxAdvantagedCategoryDetailsForm({
           tax_treatment: planForm.tax_treatment,
           lifetime_contribution_limit: nextLifetimeLimit,
           accrued_contributions: nextAccruedContributions,
+          counts_internal_transfers: planForm.counts_internal_transfers,
         })
         setPlanOverrides({})
         setPlanError(null)
@@ -156,6 +158,7 @@ function getPlanUpdateState(
     || form.tax_treatment !== plan.tax_treatment
     || nextLifetimeLimit !== plan.lifetime_contribution_limit
     || nextAccruedContributions !== plan.accrued_contributions
+    || form.counts_internal_transfers !== plan.counts_internal_transfers
 
   return { dirty, nextAccruedContributions, nextLifetimeLimit }
 }

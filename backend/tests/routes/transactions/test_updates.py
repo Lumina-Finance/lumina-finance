@@ -1,5 +1,10 @@
 
 
+import uuid
+from datetime import date
+
+from app.models.transaction import Transaction
+from tests.conftest import TestSession
 from tests.routes.support import _create_user, _get_auth_header
 from tests.routes.transactions._helpers import (
     NONEXISTENT_ID,
@@ -36,12 +41,15 @@ async def test_patch_transaction_accepts_sign_changes_for_all_category_kinds(cli
 
     for kind in ("expense", "income", "transfer"):
         category_resp = await _create_category(client, headers, name=f"Patch Direction {kind}", kind=kind)
+        # A transfer records where the money went, and the other kinds reject the field
+        other_account = {"other_account_scope": "outside"} if kind == "transfer" else {}
         create_resp = await _create_transaction(
             client,
             headers,
             account_id,
             category_resp.json()["id"],
             amount=-1000,
+            **other_account,
         )
         txn_id = create_resp.json()["id"]
 
@@ -227,8 +235,58 @@ async def test_patch_transaction_invalid_tag_returns_422(client):
     assert resp.json()["detail"] == "Tag not found"
 
 
-async def test_patch_transaction_clears_merchant(client):
-    """PATCH with merchant_id=null clears the merchant."""
+async def _seed_transaction_without_a_merchant(client, headers, account_id, category_id):
+    """Insert a transaction with no merchant, which the route no longer creates
+
+    Returns:
+        Identifier of the seeded transaction
+    """
+    reference = (await _create_transaction(client, headers, account_id, category_id)).json()
+    async with TestSession() as session:
+        txn = Transaction(
+            created_by_user_id=uuid.UUID(reference["created_by_user_id"]),
+            account_id=uuid.UUID(account_id),
+            dt=date(2026, 3, 15),
+            category_id=uuid.UUID(category_id),
+            merchant_id=None,
+            amount=-5000,
+            currency="CAD",
+        )
+        session.add(txn)
+        await session.commit()
+        return str(txn.id)
+
+
+async def test_patch_transaction_recorded_without_a_merchant_is_refused(client):
+    """History predating the rule is what the rule is for, so any edit to it has to supply one."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    txn_id = await _seed_transaction_without_a_merchant(client, headers, account_id, category_id)
+
+    resp = await client.patch(f"/transactions/{txn_id}", json={"notes": "Corrected"}, headers=headers)
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "merchant_id is required"
+
+
+async def test_patch_transaction_recorded_without_a_merchant_succeeds_once_it_supplies_one(client):
+    """Supplying the merchant is what puts the transaction onto the current rule."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    txn_id = await _seed_transaction_without_a_merchant(client, headers, account_id, category_id)
+    merchant_id = (await _create_merchant(client, headers)).json()["id"]
+
+    resp = await client.patch(
+        f"/transactions/{txn_id}",
+        json={"notes": "Corrected", "merchant_id": merchant_id},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["merchant_id"] == merchant_id
+    assert resp.json()["notes"] == "Corrected"
+
+
+async def test_patch_transaction_cannot_clear_merchant(client):
+    """Every edited transaction keeps a merchant, so sending null takes one away rather than correcting it."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
     merchant_resp = await _create_merchant(client, headers)
 
@@ -237,9 +295,8 @@ async def test_patch_transaction_clears_merchant(client):
 
     resp = await client.patch(f"/transactions/{txn_id}", json={"merchant_id": None}, headers=headers)
 
-    assert resp.status_code == 200
-    assert resp.json()["merchant_id"] is None
-    assert resp.json()["merchant_name"] is None
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "merchant_id is required"
 
 
 async def test_patch_transaction_clears_notes(client):

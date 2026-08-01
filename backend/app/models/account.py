@@ -105,6 +105,15 @@ class TaxAdvantagedCategory(Base):
         default=0,
         server_default="0",
     )
+
+    # Whether a transfer with both sides on accounts linked to this category counts toward its
+    # contribution and withdrawal limits. False leaves it out of both totals
+    counts_internal_transfers: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default="false",
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
 

@@ -44,8 +44,12 @@ async def test_transactions_overview_net_flow_excludes_balance_adjustments(clien
 
     await _create_transaction(client, headers, account_id, category_id, amount=10_000)
     await _create_transaction(client, headers, account_id, category_id, amount=-4_000)
-    await _create_transaction(client, headers, account_id, transfer_id, amount=2_500)
-    await _create_transaction(client, headers, account_id, transfer_id, amount=-1_500)
+    await _create_transaction(
+        client, headers, account_id, transfer_id, amount=2_500, other_account_scope="outside",
+    )
+    await _create_transaction(
+        client, headers, account_id, transfer_id, amount=-1_500, other_account_scope="outside",
+    )
     await _create_transaction(client, headers, account_id, balance_adjustment_id, amount=99_999)
     await _create_transaction(client, headers, account_id, balance_adjustment_id, amount=-88_888)
 

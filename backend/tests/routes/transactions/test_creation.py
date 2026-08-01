@@ -4,7 +4,7 @@ from decimal import Decimal
 
 from app.models.transaction import Transaction
 from tests.conftest import TestSession
-from tests.routes.support import _create_user, _get_auth_header
+from tests.routes.support import _create_user, _get_auth_header, _get_system_merchant_id
 from tests.routes.transactions._helpers import (
     NONEXISTENT_ID,
     _create_account,
@@ -39,7 +39,7 @@ async def test_create_transaction_returns_201(client):
     assert data["category_id"] == category_id
     assert data["amount"] == -5000
     assert data["currency"] == "CAD"
-    assert data["merchant_id"] is None
+    assert data["merchant_id"] == await _get_system_merchant_id(client, headers)
     assert data["fx_rate"] is None
     assert data["notes"] is None
     assert data["tag_ids"] == []
@@ -60,9 +60,13 @@ async def test_create_transaction_accepts_debit_and_credit_for_all_category_kind
         category_resp = await _create_category(client, headers, name=f"Direction {kind}", kind=kind)
         categories[kind] = category_resp.json()["id"]
 
-    for category_id in categories.values():
+    for kind, category_id in categories.items():
+        # A transfer records where the money went, and the other kinds reject the field
+        other_account = {"other_account_scope": "outside"} if kind == "transfer" else {}
         for amount in (-1234, 5678):
-            resp = await _create_transaction(client, headers, account_id, category_id, amount=amount)
+            resp = await _create_transaction(
+                client, headers, account_id, category_id, amount=amount, **other_account,
+            )
 
             assert resp.status_code == 201
             data = resp.json()
@@ -142,6 +146,21 @@ async def test_create_transaction_invalid_merchant_returns_422(client):
 
     assert resp.status_code == 422
     assert resp.json()["detail"] == "Merchant not found"
+
+
+async def test_create_transaction_without_a_merchant_returns_422(client):
+    """Every transaction created through the route has to carry a merchant."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+
+    resp = await client.post("/transactions", json={
+        "account_id": account_id,
+        "category_id": category_id,
+        "dt": "2026-03-15",
+        "amount": -5000,
+        "currency": "CAD",
+    }, headers=headers)
+
+    assert resp.status_code == 422
 
 
 async def test_create_transaction_invalid_tag_returns_422(client):

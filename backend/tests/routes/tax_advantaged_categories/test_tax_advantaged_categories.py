@@ -3,7 +3,7 @@ from datetime import UTC, date, datetime
 from sqlalchemy import select
 
 import app.services.tax_advantaged_categories as tax_advantaged_category_services
-from app.models.base import CategoryKind
+from app.models.base import CategoryKind, TransferOtherAccountScope
 from app.models.category import Category
 from app.models.transaction import Transaction
 from tests.conftest import TestSession
@@ -68,7 +68,15 @@ async def _get_system_category_id(name: str):
         return category_id
 
 
-async def _seed_transaction(account_id, category_id, created_by_user_id, amount: int, dt: date) -> None:
+async def _seed_transaction(
+    account_id,
+    category_id,
+    created_by_user_id,
+    amount: int,
+    dt: date,
+    other_account_id=None,
+    other_account_scope: TransferOtherAccountScope | None = None,
+) -> None:
     """Insert a transaction directly via DB
 
     Args:
@@ -77,6 +85,8 @@ async def _seed_transaction(account_id, category_id, created_by_user_id, amount:
         created_by_user_id: User that created the transaction
         amount: Signed transaction amount in minor units
         dt: Transaction date
+        other_account_id: Account recorded on the other side of a transfer, set only with a tracked scope
+        other_account_scope: Where the other side sits, or None for a transfer that recorded no answer
     """
     async with TestSession() as session:
         session.add(Transaction(
@@ -86,6 +96,8 @@ async def _seed_transaction(account_id, category_id, created_by_user_id, amount:
             dt=dt,
             amount=amount,
             currency="CAD",
+            other_account_id=other_account_id,
+            other_account_scope=other_account_scope,
         ))
         await session.commit()
 
@@ -433,8 +445,8 @@ async def test_tax_advantaged_category_detail_includes_archived_linked_account_a
     assert resp.json()["lifetime_withdrawals"] == 5_000
 
 
-async def test_tax_advantaged_category_metrics_only_count_transfer_category(client):
-    """Only the seeded Transfer category counts as TAC activity."""
+async def test_tax_advantaged_category_metrics_count_every_transfer_category_but_balance_adjustment(client):
+    """Credit card payments and user-made transfer categories count, balance adjustments do not."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     user_id = signup_resp.json()["user"]["id"]
@@ -443,20 +455,22 @@ async def test_tax_advantaged_category_metrics_only_count_transfer_category(clie
     transfer_id = await _get_system_category_id("Transfer")
     balance_adjustment_id = await _get_system_category_id("Balance Adjustment")
     credit_card_payment_id = await _get_system_category_id("Credit Card Payment")
+    user_transfer_id = await _seed_category(user_id, CategoryKind.TRANSFER, "Plan Rebalance")
     current_year = datetime.now(UTC).year
 
     await _seed_transaction(account_id, transfer_id, user_id, 50_000, date(current_year, 2, 1))
     await _seed_transaction(account_id, transfer_id, user_id, -10_000, date(current_year, 3, 1))
-    await _seed_transaction(account_id, balance_adjustment_id, user_id, 999_000, date(current_year, 4, 1))
-    await _seed_transaction(account_id, balance_adjustment_id, user_id, -888_000, date(current_year, 5, 1))
-    await _seed_transaction(account_id, credit_card_payment_id, user_id, 777_000, date(current_year - 1, 6, 1))
+    await _seed_transaction(account_id, user_transfer_id, user_id, 15_000, date(current_year, 4, 1))
+    await _seed_transaction(account_id, balance_adjustment_id, user_id, 999_000, date(current_year, 5, 1))
+    await _seed_transaction(account_id, balance_adjustment_id, user_id, -888_000, date(current_year, 6, 1))
+    await _seed_transaction(account_id, credit_card_payment_id, user_id, 777_000, date(current_year - 1, 7, 1))
 
     resp = await client.get(f"/tax-advantaged-categories/{tax_advantaged_category_id}", headers=headers)
 
     assert resp.status_code == 200
-    assert resp.json()["ytd_contributions"] == 50_000
+    assert resp.json()["ytd_contributions"] == 65_000
     assert resp.json()["ytd_withdrawals"] == 10_000
-    assert resp.json()["lifetime_contributions"] == 50_000
+    assert resp.json()["lifetime_contributions"] == 842_000
     assert resp.json()["lifetime_withdrawals"] == 10_000
 
 
@@ -488,3 +502,234 @@ async def test_group_tax_advantaged_category_counts_transaction_created_by_non_o
     assert resp.json()["lifetime_contributions"] == 123_000
     assert resp.json()["ytd_withdrawals"] == 0
     assert resp.json()["lifetime_withdrawals"] == 0
+
+
+# --- Transfers between the category's own accounts ---
+
+
+async def test_create_tax_advantaged_category_defaults_internal_transfers_off(client):
+    """Leaving the setting out excludes internal transfers from the limits."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _create_tax_advantaged_category(client, headers)
+
+    assert resp.status_code == 201
+    assert resp.json()["counts_internal_transfers"] is False
+
+
+async def test_create_tax_advantaged_category_can_count_internal_transfers(client):
+    """A category whose accounts are one pot can count moves between them."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _create_tax_advantaged_category(client, headers, counts_internal_transfers=True)
+
+    assert resp.status_code == 201
+    assert resp.json()["counts_internal_transfers"] is True
+
+
+async def test_update_tax_advantaged_category_toggles_internal_transfers(client):
+    """The setting is editable after the category exists."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    category_id = (await _create_tax_advantaged_category(client, headers)).json()["id"]
+
+    resp = await client.patch(
+        f"/tax-advantaged-categories/{category_id}",
+        json={"counts_internal_transfers": True},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["counts_internal_transfers"] is True
+
+
+async def test_update_without_the_setting_leaves_it_alone(client):
+    """An unsent flag keeps the stored value rather than resetting it to the default."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    category_id = (
+        await _create_tax_advantaged_category(client, headers, counts_internal_transfers=True)
+    ).json()["id"]
+
+    resp = await client.patch(
+        f"/tax-advantaged-categories/{category_id}",
+        json={"name": "Renamed"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["counts_internal_transfers"] is True
+
+
+async def _setup_category_with_two_accounts(client, headers, **overrides):
+    """Create a tax-advantaged category and two accounts linked to it
+
+    Args:
+        client: Async test client
+        headers: Auth headers for the requesting user
+        **overrides: Fields to override on the tax-advantaged category
+
+    Returns:
+        Tuple of category ID, first account ID and second account ID
+    """
+    category_id = (await _create_tax_advantaged_category(client, headers, **overrides)).json()["id"]
+    first_account_id = (
+        await _create_account(client, headers, name="TFSA Cash", tax_advantaged_category_id=category_id)
+    ).json()["id"]
+    second_account_id = (
+        await _create_account(client, headers, name="TFSA Investing", tax_advantaged_category_id=category_id)
+    ).json()["id"]
+    return category_id, first_account_id, second_account_id
+
+
+async def test_internal_transfer_is_left_out_of_both_totals(client):
+    """With the setting off, a move between the category's own accounts is neither side of the limits."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    user_id = signup_resp.json()["user"]["id"]
+    category_id, first_account_id, second_account_id = await _setup_category_with_two_accounts(client, headers)
+    transfer_id = await _get_system_category_id("Transfer")
+    current_year = datetime.now(UTC).year
+
+    await _seed_transaction(
+        first_account_id, transfer_id, user_id, -20_000, date(current_year, 2, 1),
+        other_account_id=second_account_id, other_account_scope=TransferOtherAccountScope.TRACKED,
+    )
+    await _seed_transaction(
+        second_account_id, transfer_id, user_id, 20_000, date(current_year, 2, 2),
+        other_account_id=first_account_id, other_account_scope=TransferOtherAccountScope.TRACKED,
+    )
+    await _seed_transaction(
+        first_account_id, transfer_id, user_id, 50_000, date(current_year, 3, 1),
+        other_account_scope=TransferOtherAccountScope.OUTSIDE,
+    )
+
+    resp = await client.get(f"/tax-advantaged-categories/{category_id}", headers=headers)
+
+    assert resp.status_code == 200
+    assert resp.json()["ytd_contributions"] == 50_000
+    assert resp.json()["ytd_withdrawals"] == 0
+    assert resp.json()["lifetime_contributions"] == 50_000
+    assert resp.json()["lifetime_withdrawals"] == 0
+
+
+async def test_internal_transfer_counts_when_the_category_counts_them(client):
+    """With the setting on, both legs of an internal move count as they are recorded."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    user_id = signup_resp.json()["user"]["id"]
+    category_id, first_account_id, second_account_id = await _setup_category_with_two_accounts(
+        client, headers, counts_internal_transfers=True,
+    )
+    transfer_id = await _get_system_category_id("Transfer")
+    current_year = datetime.now(UTC).year
+
+    await _seed_transaction(
+        first_account_id, transfer_id, user_id, -20_000, date(current_year, 2, 1),
+        other_account_id=second_account_id, other_account_scope=TransferOtherAccountScope.TRACKED,
+    )
+    await _seed_transaction(
+        second_account_id, transfer_id, user_id, 20_000, date(current_year, 2, 2),
+        other_account_id=first_account_id, other_account_scope=TransferOtherAccountScope.TRACKED,
+    )
+    await _seed_transaction(
+        first_account_id, transfer_id, user_id, 50_000, date(current_year, 3, 1),
+        other_account_scope=TransferOtherAccountScope.OUTSIDE,
+    )
+
+    resp = await client.get(f"/tax-advantaged-categories/{category_id}", headers=headers)
+
+    assert resp.status_code == 200
+    assert resp.json()["ytd_contributions"] == 70_000
+    assert resp.json()["ytd_withdrawals"] == 20_000
+    assert resp.json()["lifetime_contributions"] == 70_000
+    assert resp.json()["lifetime_withdrawals"] == 20_000
+
+
+async def test_transfer_between_two_tax_advantaged_categories_counts_on_both_sides(client):
+    """Money really does leave one category and enter the other, whatever either setting says."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    user_id = signup_resp.json()["user"]["id"]
+    excluding_category_id = (
+        await _create_tax_advantaged_category(client, headers, name="TFSA")
+    ).json()["id"]
+    counting_category_id = (
+        await _create_tax_advantaged_category(
+            client, headers, name="RRSP", tax_treatment="tax_deferred", counts_internal_transfers=True,
+        )
+    ).json()["id"]
+    excluding_account_id = (
+        await _create_account(client, headers, name="TFSA Cash", tax_advantaged_category_id=excluding_category_id)
+    ).json()["id"]
+    counting_account_id = (
+        await _create_account(client, headers, name="RRSP Cash", tax_advantaged_category_id=counting_category_id)
+    ).json()["id"]
+    transfer_id = await _get_system_category_id("Transfer")
+    current_year = datetime.now(UTC).year
+
+    await _seed_transaction(
+        excluding_account_id, transfer_id, user_id, -20_000, date(current_year, 2, 1),
+        other_account_id=counting_account_id, other_account_scope=TransferOtherAccountScope.TRACKED,
+    )
+    await _seed_transaction(
+        counting_account_id, transfer_id, user_id, 20_000, date(current_year, 2, 2),
+        other_account_id=excluding_account_id, other_account_scope=TransferOtherAccountScope.TRACKED,
+    )
+
+    resp = await client.get("/tax-advantaged-categories", headers=headers)
+
+    assert resp.status_code == 200
+    metrics_by_name = {row["name"]: row for row in resp.json()}
+    assert metrics_by_name["TFSA"]["ytd_withdrawals"] == 20_000
+    assert metrics_by_name["TFSA"]["ytd_contributions"] == 0
+    assert metrics_by_name["RRSP"]["ytd_contributions"] == 20_000
+    assert metrics_by_name["RRSP"]["ytd_withdrawals"] == 0
+
+
+async def test_transfer_recorded_as_leaving_the_tracked_accounts_counts(client):
+    """An answer of outside is money genuinely leaving the category."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    user_id = signup_resp.json()["user"]["id"]
+    category_id = (await _create_tax_advantaged_category(client, headers)).json()["id"]
+    account_id = (
+        await _create_account(client, headers, tax_advantaged_category_id=category_id)
+    ).json()["id"]
+    transfer_id = await _get_system_category_id("Transfer")
+    current_year = datetime.now(UTC).year
+
+    await _seed_transaction(
+        account_id, transfer_id, user_id, -20_000, date(current_year, 2, 1),
+        other_account_scope=TransferOtherAccountScope.OUTSIDE,
+    )
+
+    resp = await client.get(f"/tax-advantaged-categories/{category_id}", headers=headers)
+
+    assert resp.status_code == 200
+    assert resp.json()["ytd_withdrawals"] == 20_000
+    assert resp.json()["lifetime_withdrawals"] == 20_000
+
+
+async def test_transfer_with_no_recorded_other_account_counts(client):
+    """A transfer predating the recorded answer keeps counting on both sides."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    user_id = signup_resp.json()["user"]["id"]
+    category_id = (await _create_tax_advantaged_category(client, headers)).json()["id"]
+    account_id = (
+        await _create_account(client, headers, tax_advantaged_category_id=category_id)
+    ).json()["id"]
+    transfer_id = await _get_system_category_id("Transfer")
+    current_year = datetime.now(UTC).year
+
+    await _seed_transaction(account_id, transfer_id, user_id, 30_000, date(current_year, 2, 1))
+    await _seed_transaction(account_id, transfer_id, user_id, -5_000, date(current_year, 3, 1))
+
+    resp = await client.get(f"/tax-advantaged-categories/{category_id}", headers=headers)
+
+    assert resp.status_code == 200
+    assert resp.json()["ytd_contributions"] == 30_000
+    assert resp.json()["ytd_withdrawals"] == 5_000

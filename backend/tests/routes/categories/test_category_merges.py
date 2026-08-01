@@ -2,7 +2,7 @@ from tests.routes.categories._helpers import (
     _create_category,
     _setup_group_with_member,
 )
-from tests.routes.support import _create_user, _get_auth_header
+from tests.routes.support import _create_user, _get_auth_header, _get_system_merchant_id
 
 # --- POST /categories/{category_id}/merge ---
 
@@ -28,6 +28,7 @@ async def test_merge_category_reassigns_references_and_deletes_source(client):
         "dt": "2026-03-15",
         "amount": -5000,
         "currency": "CAD",
+        "merchant_id": await _get_system_merchant_id(client, headers),
     }, headers=headers)
     merchant_resp = await client.post("/merchants", json={
         "name": "Costco",
@@ -135,3 +136,47 @@ async def test_merge_group_category_as_non_admin_returns_403(client):
 
     assert resp.status_code == 403
     assert resp.json()["detail"] == "Admin role required"
+
+
+async def test_merge_into_balance_adjustment_clears_the_recorded_other_account(client):
+    """Balance Adjustment has no other side, so a recorded account cannot survive the move."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    source_id = (await _create_category(client, headers, name="Account Move", kind="transfer")).json()["id"]
+    categories = await client.get("/categories", headers=headers)
+    balance_adjustment_id = next(
+        category["id"] for category in categories.json() if category["name"] == "Balance Adjustment"
+    )
+
+    holder_id = (await client.post("/accounts", json={
+        "account_kind": "asset", "account_type": "checking", "name": "Chequing", "currency": "CAD",
+    }, headers=headers)).json()["id"]
+    recorded_id = (await client.post("/accounts", json={
+        "account_kind": "asset", "account_type": "savings", "name": "Savings", "currency": "CAD",
+    }, headers=headers)).json()["id"]
+
+    created = await client.post("/transactions", json={
+        "account_id": holder_id,
+        "category_id": source_id,
+        "dt": "2026-03-15",
+        "amount": -5000,
+        "currency": "CAD",
+        "other_account_scope": "tracked",
+        "other_account_id": recorded_id,
+        "merchant_id": await _get_system_merchant_id(client, headers),
+    }, headers=headers)
+    assert created.status_code == 201
+    txn_id = created.json()["id"]
+
+    merge_resp = await client.post(
+        f"/categories/{source_id}/merge",
+        json={"replacement_category_id": balance_adjustment_id},
+        headers=headers,
+    )
+
+    assert merge_resp.status_code == 204
+    moved = await client.get(f"/transactions/{txn_id}", headers=headers)
+    assert moved.json()["category_id"] == balance_adjustment_id
+    assert moved.json()["other_account_id"] is None
+    assert moved.json()["other_account_scope"] is None

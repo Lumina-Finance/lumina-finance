@@ -49,6 +49,9 @@ class TaxAdvantagedCategoryResponse(BaseModel):
     currency: str
     lifetime_contribution_limit: int | None
     accrued_contributions: int
+
+    # Whether transfers with both sides inside this category count toward its limits
+    counts_internal_transfers: bool
     accrued_lifetime_contribution_limit: int | None
     current_year_contribution_limit: int | None
     current_year_withdrawal_limit: int | None
@@ -69,6 +72,7 @@ class CreateTaxAdvantagedCategoryRequest(BaseModel):
     currency: str = Field(min_length=3, max_length=3)
     lifetime_contribution_limit: int | None = Field(default=None, ge=0)
     accrued_contributions: int = Field(default=0, ge=0)
+    counts_internal_transfers: bool = False
     group_id: uuid.UUID | None = None
 
 
@@ -79,4 +83,5 @@ class UpdateTaxAdvantagedCategoryRequest(BaseModel):
     tax_treatment: str | None = None
     lifetime_contribution_limit: int | None = Field(default=None, ge=0)
     accrued_contributions: int = Field(default=0, ge=0)
+    counts_internal_transfers: bool = False
     group_id: uuid.UUID | None = None

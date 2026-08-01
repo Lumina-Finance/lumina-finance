@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react'
-import { Landmark } from 'lucide-react'
+import { ArrowLeftRight, Landmark } from 'lucide-react'
 import type { Currency } from '@/api/currency'
 import type { TaxTreatment } from '@/api/tax-advantaged-categories'
 import Dropdown from '@/components/dropdown/Dropdown'
@@ -151,6 +151,61 @@ export default function CreateTaxAdvantagedCategoryModal({
                 />
               </div>
             </div>
+          </div>
+        </section>
+
+        <section className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-2 min-[1050px]:gap-x-3">
+          <div className="flex min-h-0 flex-col items-center">
+            <span className="flex h-4 shrink-0 items-center text-xs font-semibold leading-none" style={{ color: 'var(--app-accent)' }} aria-hidden>
+              03
+            </span>
+            <span
+              className="mt-1 w-px flex-1"
+              style={{ backgroundColor: 'var(--app-border-strong)' }}
+              aria-hidden
+            />
+          </div>
+
+          <div className="min-w-0 space-y-3">
+            <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Transfers</p>
+            <label
+              htmlFor={CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.countsInternalTransfers}
+              className="flex cursor-pointer items-center justify-between gap-4 rounded-xl p-4"
+              style={{
+                background: 'var(--app-input-bg)',
+                border: '1px solid var(--app-input-border)',
+              }}
+            >
+              <span className="min-w-0">
+                <span className="flex items-center gap-2 font-medium">
+                  <ArrowLeftRight size={16} style={{ color: 'var(--app-text-muted)' }} aria-hidden />
+                  Count transfers between this category's accounts
+                </span>
+                <span className="mt-0.5 block text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                  Money moved between two accounts in the category counts toward its contribution and withdrawal limits.
+                </span>
+              </span>
+              <span className="relative inline-flex h-6 w-11 shrink-0 items-center rounded-full p-0.5 transition-colors">
+                <input
+                  id={CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.countsInternalTransfers}
+                  type="checkbox"
+                  role="switch"
+                  checked={form.counts_internal_transfers}
+                  onChange={(event) => setField('counts_internal_transfers', event.target.checked)}
+                  className="peer sr-only"
+                />
+                <span
+                  className="absolute inset-0 rounded-full transition-colors peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2"
+                  style={{ background: form.counts_internal_transfers ? 'var(--app-accent)' : 'var(--app-border-strong)' }}
+                  aria-hidden
+                />
+                <span
+                  className="relative h-5 w-5 rounded-full bg-white shadow-sm transition-transform"
+                  style={{ transform: form.counts_internal_transfers ? 'translateX(1.25rem)' : 'translateX(0)' }}
+                  aria-hidden
+                />
+              </span>
+            </label>
           </div>
         </section>
 

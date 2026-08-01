@@ -31,6 +31,7 @@ export function useCreateTaxAdvantagedCategoryForm({
     currency: userBaseCurrency ?? '',
     lifetime_contribution_limit: '',
     accrued_contributions: '',
+    counts_internal_transfers: false,
   })
   const [createError, setCreateError] = useState<string | null>(null)
   const [createInProgress, setCreateInProgress] = useState(false)
@@ -69,6 +70,7 @@ export function useCreateTaxAdvantagedCategoryForm({
         currency: selectedCurrency,
         lifetime_contribution_limit: toMinorUnits(form.lifetime_contribution_limit, currencies, selectedCurrency),
         accrued_contributions: toMinorUnits(form.accrued_contributions, currencies, selectedCurrency) ?? 0,
+        counts_internal_transfers: form.counts_internal_transfers,
         group_id: null,
       },
     ).then(async () => {

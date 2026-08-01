@@ -81,11 +81,13 @@ export function AppSlotMachineText({
           {text.split('').map((char, i) => (
             <motion.span
               key={`${text}-${i}`}
-              className={char === ' ' ? 'inline-block w-1.5' : 'inline-block'}
+              className="inline-block"
               variants={charVariants}
               transition={shouldReduceMotion ? { duration: 0 } : slotTransition}
             >
-              {char}
+              {/* A space collapses inside an inline-block, so it is rendered as a non-breaking one
+                  to keep the font's own width rather than a fixed box that reads too wide */}
+              {char === ' ' ? ' ' : char}
             </motion.span>
           ))}
         </motion.span>

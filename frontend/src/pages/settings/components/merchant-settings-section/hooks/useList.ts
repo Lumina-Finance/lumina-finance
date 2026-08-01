@@ -56,6 +56,11 @@ export function useMerchantSettingsList(locallyDeletedMerchantIds: string[]) {
     showMerchantListEnd: showListEnd,
     showMerchantListMoreIndicator: showListMoreIndicator,
     merchantListRef: listRef,
-    visibleMerchants: visibleItems,
+
+    // Merchants that ship with the app cannot be renamed, deleted or merged, so settings leaves
+    // them out rather than showing rows whose every control is refused. They are still offered
+    // when picking one on a transaction, which is the only place they are meant to be used.
+    // Filtered here rather than in the query, so a page holding one comes back a row short
+    visibleMerchants: visibleItems.filter((merchant: Merchant) => !merchant.is_system),
   }
 }

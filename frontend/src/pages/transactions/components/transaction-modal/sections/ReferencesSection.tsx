@@ -3,12 +3,17 @@ import { Tag as TagIcon, X } from 'lucide-react'
 import CreateModalFieldLabelRow from '@/components/create-modal/FieldLabelRow'
 import CreateModalSectionFrame from '@/components/create-modal/SectionFrame'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
+import { AppSlotMachineText } from '@/components/display/SlotMachineText'
 import {
   EASE,
   TRANSACTION_MODAL_FIELD_IDS,
 } from '@/pages/transactions/components/transaction-modal/constants'
 import TransferCashFlowNotice from '@/pages/transactions/components/transaction-modal/controls/TransferCashFlowNotice'
-import type { TransactionModalKind } from '@/pages/transactions/components/transaction-modal/types'
+import { doesTransferRecordOtherAccount } from '@/pages/transactions/components/transaction-modal/utils/validation'
+import type {
+  TransactionDirection,
+  TransactionModalKind,
+} from '@/pages/transactions/components/transaction-modal/types'
 import { formatCurrency } from '@/utils/formatCurrency'
 
 type SelectedTransactionTag = {
@@ -23,11 +28,29 @@ interface TransactionReferencesSectionProps {
   accountError?: string | false
   accountPlaceholder: string
   runningBalance?: { amount: number; currency: string }
+
+  // Set instead of the one above when a paired transfer puts the recorded account in the second slot
+  otherAccountRunningBalance?: { amount: number; currency: string }
   kind: TransactionModalKind
 
+  // Whether the amount is leaving (debit) or entering (credit) the recorded account, used to
+  // label the other-account field as money going out or coming in
+  direction: TransactionDirection
+
   isSymmetricTransfer: boolean
-  toAccountValue: string
-  toAccountError?: string | false
+
+  // Whether to offer the checkbox at all. It asks for a second transaction to be created, which is
+  // only something a new transfer can do, so an existing one is not shown it
+  isTransferPairOffered: boolean
+
+  // Every account plus the "outside this app" entry, for the field recording where a transfer's
+  // other side sits
+  otherAccountOptions: DropdownOption[]
+
+  // The recorded account when it has since been archived, which keeps it off the list above
+  selectedArchivedOtherAccountOption?: DropdownOption
+  otherAccountValue: string
+  otherAccountError?: string | false
   merchantOptions: DropdownOption[]
   selectedMerchantOption?: DropdownOption
   merchantValue: string
@@ -57,7 +80,7 @@ interface TransactionReferencesSectionProps {
   readOnly: boolean
   onAccountChange: (value: string) => void
   onSymmetricTransferChange: (value: boolean) => void
-  onToAccountChange: (value: string) => void
+  onOtherAccountChange: (value: string) => void
   onMerchantChange: (value: string) => void
   onMerchantSearchChange: (value: string) => void
   onMerchantSearchCommit: (value: string) => void
@@ -75,6 +98,37 @@ interface TransactionReferencesSectionProps {
 }
 
 /**
+ * Shows what the account's balance becomes once the transaction is added, under whichever of the
+ * two account dropdowns is currently holding that account
+ */
+function RunningBalanceRow({ runningBalance }: { runningBalance?: { amount: number; currency: string } }) {
+  return (
+    <AnimatePresence initial={false}>
+      {runningBalance && (
+        <motion.div
+          key="running-balance"
+          className="overflow-hidden"
+          initial={{ height: 0, opacity: 0, y: -3 }}
+          animate={{ height: 'auto', opacity: 1, y: 0 }}
+          exit={{ height: 0, opacity: 0, y: -3 }}
+          transition={{ duration: 0.2, ease: EASE }}
+          aria-live="polite"
+        >
+          <div className="flex items-center justify-between gap-3 px-0.5 pt-2 text-xs">
+            <span className="font-medium" style={{ color: 'var(--app-text-muted)' }}>
+              Running balance
+            </span>
+            <span className="font-financial text-sm font-semibold" style={{ color: 'var(--app-text)' }}>
+              {formatCurrency(runningBalance.amount, runningBalance.currency)}
+            </span>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  )
+}
+
+/**
  * Renders account, merchant, category, and tag reference controls for the transaction form
  */
 export default function TransactionReferencesSection({
@@ -84,10 +138,15 @@ export default function TransactionReferencesSection({
   accountError,
   accountPlaceholder,
   runningBalance,
+  otherAccountRunningBalance,
   kind,
+  direction,
   isSymmetricTransfer,
-  toAccountValue,
-  toAccountError,
+  isTransferPairOffered,
+  otherAccountOptions,
+  selectedArchivedOtherAccountOption,
+  otherAccountValue,
+  otherAccountError,
   merchantOptions,
   selectedMerchantOption,
   merchantValue,
@@ -115,7 +174,7 @@ export default function TransactionReferencesSection({
   readOnly,
   onAccountChange,
   onSymmetricTransferChange,
-  onToAccountChange,
+  onOtherAccountChange,
   onMerchantChange,
   onMerchantSearchChange,
   onMerchantSearchCommit,
@@ -131,11 +190,21 @@ export default function TransactionReferencesSection({
   onCreateTag,
   onRemoveTag,
 }: TransactionReferencesSectionProps) {
+  // Every transfer-kind category except Balance Adjustment records which other account the money touched
+  const recordsOtherAccount = doesTransferRecordOtherAccount(kind, isBalanceAdjustmentCategory)
+
+  // Ticking the checkbox writes a transaction in both accounts, so neither one is the single account
+  // it was recorded in. The two fields then read source first, which is why the one below says the
+  // money went to it whatever the direction toggle is set to
+  const accountLabel = kind === 'transfer' && isSymmetricTransfer
+    ? 'From account'
+    : recordsOtherAccount ? 'Recorded in' : 'Account'
+
   return (
     <CreateModalSectionFrame step="02" title="Source/Destination">
       <div>
         <CreateModalFieldLabelRow
-          label={kind === 'transfer' && isSymmetricTransfer ? 'From account' : 'Account'}
+          label={accountLabel}
           error={accountError}
         />
         <Dropdown
@@ -150,34 +219,10 @@ export default function TransactionReferencesSection({
           searchPlaceholder="Search accounts..."
           disabled={readOnly}
         />
-        <AnimatePresence initial={false}>
-          {runningBalance && (
-            <motion.div
-              key="running-balance"
-              className="overflow-hidden"
-              initial={{ height: 0, opacity: 0, y: -3 }}
-              animate={{ height: 'auto', opacity: 1, y: 0 }}
-              exit={{ height: 0, opacity: 0, y: -3 }}
-              transition={{ duration: 0.2, ease: EASE }}
-              aria-live="polite"
-            >
-              <div className="flex items-center justify-between gap-3 px-0.5 pt-2 text-xs">
-                <span className="font-medium" style={{ color: 'var(--app-text-muted)' }}>
-                  Running balance
-                </span>
-                <span
-                  className="font-financial text-sm font-semibold"
-                  style={{ color: 'var(--app-text)' }}
-                >
-                  {formatCurrency(runningBalance.amount, runningBalance.currency)}
-                </span>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <RunningBalanceRow runningBalance={runningBalance} />
 
         <AnimatePresence initial={false}>
-          {kind === 'transfer' && (
+          {recordsOtherAccount && (
             <motion.div
               key="symmetric-transfer"
               className="overflow-hidden"
@@ -187,56 +232,82 @@ export default function TransactionReferencesSection({
               transition={{ height: { duration: 0.2, ease: EASE }, opacity: { duration: 0.14, ease: 'linear' } }}
             >
               <div className="pt-3">
-                <label
-                  htmlFor="txn-symmetric-transfer"
-                  className="flex cursor-pointer items-start gap-3 rounded-xl px-1 py-1"
-                >
-                  <input
-                    id="txn-symmetric-transfer"
-                    type="checkbox"
-                    checked={isSymmetricTransfer}
-                    onChange={(event) => onSymmetricTransferChange(event.target.checked)}
-                    disabled={readOnly}
-                    className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer disabled:cursor-not-allowed"
-                    style={{ accentColor: 'var(--app-accent)' }}
-                  />
-                  <span className="min-w-0">
-                    <span className="block text-sm font-medium" style={{ color: 'var(--app-text)' }}>
-                      Record in both accounts
-                    </span>
-                    <span className="block text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                      Also create the matching entry in the receiving account
-                    </span>
-                  </span>
-                </label>
-
+                <CreateModalFieldLabelRow
+                  label={(
+                    <>
+                      {/* Only the part that changes rolls, so "Money" stays put rather than
+                          re-animating every character on a direction switch */}
+                      Money{' '}
+                      <AppSlotMachineText
+                        text={isSymmetricTransfer || direction === 'debit' ? 'went to' : 'came from'}
+                        reserveText="came from"
+                      />
+                    </>
+                  )}
+                  error={otherAccountError}
+                />
+                <Dropdown
+                  options={otherAccountOptions}
+                  selectedOption={selectedArchivedOtherAccountOption}
+                  value={otherAccountValue}
+                  onChange={onOtherAccountChange}
+                  className={`app-input ${otherAccountError ? 'app-input-error' : ''}`}
+                  placeholder="Select account..."
+                  searchable
+                  searchPlaceholder="Search accounts..."
+                  // An account archived since this transfer was recorded is off the list, so the
+                  // field is held at what it already says rather than letting one change strand the
+                  // answer somewhere it can never be put back
+                  disabled={readOnly || Boolean(selectedArchivedOtherAccountOption)}
+                />
+                <RunningBalanceRow runningBalance={otherAccountRunningBalance} />
                 <AnimatePresence initial={false}>
-                  {isSymmetricTransfer && (
+                  {/* Ticking the checkbox below does create one there, and its own description says
+                      so, so this would contradict it. The padding sits inside the collapsing element
+                      so it goes with the text rather than holding the gap open after it leaves */}
+                  {!isSymmetricTransfer && (
                     <motion.div
-                      key="to-account"
+                      key="other-account-note"
                       className="overflow-hidden"
                       initial={{ height: 0, opacity: 0, y: -3 }}
                       animate={{ height: 'auto', opacity: 1, y: 0 }}
                       exit={{ height: 0, opacity: 0, y: -3 }}
                       transition={{ duration: 0.2, ease: EASE }}
                     >
-                      <div className="pt-3">
-                        <CreateModalFieldLabelRow label="To account" error={toAccountError} />
-                        <Dropdown
-                          options={accountOptions}
-                          value={toAccountValue}
-                          onChange={onToAccountChange}
-                          className={`app-input ${toAccountError ? 'app-input-error' : ''}`}
-                          placeholder={accountPlaceholder}
-                          searchable
-                          searchPlaceholder="Search accounts..."
-                          disabled={readOnly}
-                        />
-                      </div>
+                      <p className="pt-2 text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                        Records the fact only, creating no transaction in that account
+                      </p>
                     </motion.div>
                   )}
                 </AnimatePresence>
               </div>
+
+              {isTransferPairOffered && (
+                <div className="pt-3">
+                  <label
+                    htmlFor="txn-symmetric-transfer"
+                    className="flex cursor-pointer items-start gap-3 rounded-xl px-1 py-1"
+                  >
+                    <input
+                      id="txn-symmetric-transfer"
+                      type="checkbox"
+                      checked={isSymmetricTransfer}
+                      onChange={(event) => onSymmetricTransferChange(event.target.checked)}
+                      disabled={readOnly}
+                      className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer disabled:cursor-not-allowed"
+                      style={{ accentColor: 'var(--app-accent)' }}
+                    />
+                    <span className="min-w-0">
+                      <span className="block text-sm font-medium" style={{ color: 'var(--app-text)' }}>
+                        Record in both accounts
+                      </span>
+                      <span className="block text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                        Also create the matching entry in the receiving account
+                      </span>
+                    </span>
+                  </label>
+                </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>

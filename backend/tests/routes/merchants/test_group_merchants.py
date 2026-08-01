@@ -4,6 +4,7 @@ from tests.routes.merchants._helpers import (
     _create_group,
     _create_merchant,
     _get_system_category_id,
+    _own_merchant_names,
     _setup_group_with_member,
 )
 from tests.routes.support import _create_user, _get_auth_header
@@ -228,12 +229,7 @@ async def test_list_merchants_with_group_filter_excludes_other_groups(client):
     resp = await client.get(f"/merchants?group_id={group_b}", headers=headers)
 
     assert resp.status_code == 200
-    data = resp.json()
-    names = {m["name"] for m in data}
-    assert len(data) == 2
-    assert "Personal Store" in names
-    assert "Group B Store" in names
-    assert "Group A Store" not in names
+    assert set(_own_merchant_names(resp)) == {"Personal Store", "Group B Store"}
 
 
 async def test_list_merchants_group_filter_supports_search_and_pagination(client):

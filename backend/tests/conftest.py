@@ -31,6 +31,7 @@ from app.models import (  # noqa: F401
 )
 from app.models.base import Base
 from app.services.categories.defaults import seed_system_categories
+from app.services.merchants.defaults import seed_system_merchants
 
 # Database credentials come from .env.test, which points at the isolated test database
 DB_HOST = require("DB_HOST")
@@ -112,5 +113,6 @@ async def clean_tables():
         ))
     async with TestSession() as session:
         await seed_system_categories(session)
+        await seed_system_merchants(session)
         await session.commit()
     yield

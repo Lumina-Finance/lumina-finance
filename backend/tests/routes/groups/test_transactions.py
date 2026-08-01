@@ -4,7 +4,7 @@ Verifies cross-user isolation holds even when users share a group,
 and documents current limitations around group account transactions
 """
 
-from tests.routes.support import _create_user, _get_auth_header
+from tests.routes.support import _create_user, _get_auth_header, _get_system_merchant_id
 
 # --- Helpers ---
 
@@ -72,6 +72,10 @@ async def _create_transaction(client, headers, account_id, category_id, **overri
         "currency": "CAD",
         **overrides,
     }
+
+    # The route requires a merchant, so a test that does not care which one gets the shared Myself
+    if "merchant_id" not in payload:
+        payload["merchant_id"] = await _get_system_merchant_id(client, headers)
     return await client.post("/transactions", json=payload, headers=headers)
 
 

@@ -6,6 +6,7 @@ export interface TaxPlanFormState {
   currency: string
   lifetime_contribution_limit: string
   accrued_contributions: string
+  counts_internal_transfers: boolean
 }
 
 export interface TaxPlanLimitFormState {

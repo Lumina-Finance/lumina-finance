@@ -5,12 +5,17 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.base import PermissionLevel, TransferOtherAccountScope
 from app.models.category import Category
 from app.models.currency import Currency
 from app.models.merchant import Merchant
 from app.models.tag import Tag
+from app.permissions import check_account_access
+from app.services.categories.transfer_rules import does_category_record_other_account
 
 _FX_RATE_REQUIRED_DETAIL = "fx_rate is required when transaction currency differs from account currency"
+
+OTHER_ACCOUNT_NOT_ALLOWED_DETAIL = "This category does not record another account"
 
 
 async def validate_transaction_currency_exists(db: AsyncSession, currency: str) -> None:
@@ -71,7 +76,7 @@ async def validate_transaction_category_access(
     category_id: uuid.UUID,
     user_id: uuid.UUID,
     group_id: uuid.UUID | None = None,
-) -> None:
+) -> Category:
     """Ensure a transaction can use the requested category
 
     Personal-account transactions may use system categories and the user's own
@@ -84,6 +89,9 @@ async def validate_transaction_category_access(
         category_id: Category identifier submitted on the transaction
         user_id: User identifier creating or updating the transaction
         group_id: Optional group identifier from the transaction account
+
+    Returns:
+        Category row the transaction may use, so callers can read its kind without a second lookup
 
     Raises:
         HTTPException: Category is missing or outside the transaction account scope
@@ -103,8 +111,10 @@ async def validate_transaction_category_access(
         )
 
     # Confirm the category exists inside the transaction account scope
-    if not (await db.execute(query)).scalar_one_or_none():
+    category = (await db.execute(query)).scalar_one_or_none()
+    if not category:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Category not found")
+    return category
 
 
 async def validate_transaction_merchant_access(
@@ -115,10 +125,11 @@ async def validate_transaction_merchant_access(
 ) -> None:
     """Ensure a transaction can use the requested merchant
 
-    Personal-account transactions may use only the user's personal merchants
-    Group-account transactions may also use merchants owned by the account's
-    group. Merchants from another user's personal scope or an unrelated group
-    are rejected
+    Every transaction may use a system merchant, since those ship with the app.
+    Personal-account transactions may otherwise use only the user's personal
+    merchants. Group-account transactions may also use merchants owned by the
+    account's group. Merchants from another user's personal scope or an
+    unrelated group are rejected
 
     Args:
         db: Active database session
@@ -133,10 +144,15 @@ async def validate_transaction_merchant_access(
     query = select(Merchant).where(Merchant.id == merchant_id)
     if group_id is not None:
         query = query.where(
-            ((Merchant.owner_id == user_id) & (Merchant.group_id.is_(None))) | (Merchant.group_id == group_id),
+            Merchant.is_system.is_(True)
+            | ((Merchant.owner_id == user_id) & (Merchant.group_id.is_(None)))
+            | (Merchant.group_id == group_id),
         )
     else:
-        query = query.where(Merchant.owner_id == user_id, Merchant.group_id.is_(None))
+        query = query.where(
+            Merchant.is_system.is_(True)
+            | ((Merchant.owner_id == user_id) & (Merchant.group_id.is_(None))),
+        )
 
     # Confirm the merchant exists inside the transaction account scope
     if not (await db.execute(query)).scalar_one_or_none():
@@ -182,3 +198,64 @@ async def get_valid_transaction_tag_ids(
     if found_tag_ids != set(unique_tag_ids):
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Tag not found")
     return unique_tag_ids
+
+
+async def validate_transaction_other_account(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    category: Category,
+    account_id: uuid.UUID,
+    other_account_id: uuid.UUID | None,
+    other_account_scope: TransferOtherAccountScope | None,
+) -> None:
+    """Ensure the recorded other side of a transfer agrees with its category
+
+    Args:
+        db: Active database session
+        user_id: User identifier creating or updating the transaction
+        category: Category the transaction ends up using
+        account_id: Account the transaction is recorded in
+        other_account_id: Account recorded as the other side, set only when the scope is tracked
+        other_account_scope: Where the other side sits, or None when nothing is recorded
+
+    Raises:
+        HTTPException: The answer is missing, contradicts itself, or points at an unusable account
+    """
+    if not does_category_record_other_account(category):
+        if other_account_scope is not None or other_account_id is not None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=OTHER_ACCOUNT_NOT_ALLOWED_DETAIL,
+            )
+        return
+
+    # Editing answers the question as much as creating does, so a transfer recorded before the field
+    # existed has to say where the money went before any other change to it is accepted
+    if other_account_scope is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="A transfer must record where the money went",
+        )
+
+    if other_account_scope == TransferOtherAccountScope.OUTSIDE:
+        if other_account_id is not None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="other_account_id is not allowed when the money left the tracked accounts",
+            )
+        return
+
+    if other_account_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="other_account_id is required when the other side is a tracked account",
+        )
+    if other_account_id == account_id:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="A transfer cannot record its own account as the other side",
+        )
+
+    # Read access is enough, since recording an account writes nothing to it. Archived and closed
+    # accounts stay recordable, because archiving happens after the money moved
+    await check_account_access(db, other_account_id, user_id, PermissionLevel.READ)

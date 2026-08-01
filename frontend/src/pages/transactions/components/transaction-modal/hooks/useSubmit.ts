@@ -15,6 +15,7 @@ import {
 import {
   buildCreateTransactionPayload,
   buildSymmetricTransferPayloads,
+  getSymmetricTransferLegKinds,
   buildUpdateTransactionPatch,
 } from '@/pages/transactions/components/transaction-modal/utils/payloads'
 import {
@@ -39,9 +40,10 @@ interface UseTransactionSubmitOptions {
   readOnly: boolean
   accounts: AccountsOverview[]
   selectedAccount: AccountsOverview | undefined
-  selectedToAccount: AccountsOverview | undefined
+  selectedOtherAccount: AccountsOverview | undefined
   selectedCurrencyExponent: number
   isAmountLocked: boolean
+  isBalanceAdjustmentCategory: boolean
   deleteLoading: boolean
   openRef: MutableRefObject<boolean>
   recordCreatedAccountId: (accountId: string) => void
@@ -74,9 +76,10 @@ export function useTransactionSubmit({
   readOnly,
   accounts,
   selectedAccount,
-  selectedToAccount,
+  selectedOtherAccount,
   selectedCurrencyExponent,
   isAmountLocked,
+  isBalanceAdjustmentCategory,
   deleteLoading,
   openRef,
   recordCreatedAccountId,
@@ -101,10 +104,12 @@ export function useTransactionSubmit({
   // Resets the form after a create so a keep-open batch starts its next row from the same
   // account, category, merchant, currency, and date instead of blank fields
   //
-  // A symmetric transfer additionally keeps symmetric_transfer and to_account_id, because a
-  // transfer's identity is the account pair: dropping them would force re-arming the checkbox
-  // and receiving account before every row in the batch. The single-transaction path always
-  // clears them, which is a no-op since both are off-screen outside a transfer
+  // The recorded other account is kept on every path, because it is required on every transfer
+  // create and a batch of them would otherwise have to answer it again on each row. Outside a
+  // transfer the field is off-screen and empty, so keeping it changes nothing
+  //
+  // A symmetric transfer additionally keeps symmetric_transfer, because dropping it would force
+  // re-arming the checkbox before every row of a batch
   const resetFormAfterCreate = ({ keepTransferPair }: { keepTransferPair: boolean }) => {
     setForm({
       ...INITIAL_TRANSACTION_FORM,
@@ -115,9 +120,8 @@ export function useTransactionSubmit({
       merchant_id: form.merchant_id,
       currency: form.currency,
       date: form.date,
-      ...(keepTransferPair
-        ? { symmetric_transfer: form.symmetric_transfer, to_account_id: form.to_account_id }
-        : {}),
+      other_account_id: form.other_account_id,
+      ...(keepTransferPair ? { symmetric_transfer: form.symmetric_transfer } : {}),
     })
     setFieldErrors({})
     setTouched({})
@@ -128,14 +132,23 @@ export function useTransactionSubmit({
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     if (isPending || readOnly) return
-    const errors = validateTransactionForm(form, isAmountLocked)
-    // The receiving account needs both accounts loaded to compare currency and group
-    if (!editing && isSymmetricTransferForm(form) && !errors.to_account_id) {
-      const accountError = getSymmetricTransferAccountError(selectedAccount, selectedToAccount)
-      if (accountError) errors.to_account_id = accountError
+    const errors = validateTransactionForm(form, { isAmountLocked, isBalanceAdjustmentCategory })
+    // Ticking the checkbox creates a real transaction in the recorded account, so that account has
+    // to be one the amount is valid in. Both accounts have to be loaded to compare them
+    if (!editing && isSymmetricTransferForm(form) && !errors.other_account_id) {
+      const accountError = getSymmetricTransferAccountError(selectedAccount, selectedOtherAccount)
+      if (accountError) errors.other_account_id = accountError
     }
     setFieldErrors(errors)
-    setTouched({ account_id: true, category_id: true, merchant_id: true, amount: true, currency: true, date: true, to_account_id: true })
+    setTouched({
+      account_id: true,
+      category_id: true,
+      merchant_id: true,
+      amount: true,
+      currency: true,
+      date: true,
+      other_account_id: true,
+    })
     if (Object.keys(errors).length > 0) return
 
     if (editing && transaction) {
@@ -164,9 +177,10 @@ export function useTransactionSubmit({
 
     if (isSymmetricTransferForm(form)) {
       const [fromPayload, toPayload] = buildSymmetricTransferPayloads(form, selectedCurrencyExponent)
+      const [recordedLegKind, otherLegKind] = getSymmetricTransferLegKinds(form.direction)
       const legs = [
-        { failedKind: 'debit', accountId: form.account_id, payload: fromPayload },
-        { failedKind: 'credit', accountId: form.to_account_id, payload: toPayload },
+        { failedKind: recordedLegKind, accountId: form.account_id, payload: fromPayload },
+        { failedKind: otherLegKind, accountId: form.other_account_id, payload: toPayload },
       ]
 
       setSubmitError('')

@@ -60,12 +60,14 @@ python -m app.db.provision transfer-ownership
 alembic upgrade head
 
 # A restored backup arrives at migration head with its ACLs stripped so the bootstrap RLS
-# migration never re-runs, this re-applies the policies and app role grants from the app
-# source and is a no-op on a freshly migrated database
+# migration never re-runs, this re-applies the policies and app role grants from the app source.
+# It is also what installs any policy that reads a column added after the bootstrap, since the
+# bootstrap replays against a schema without it, so a freshly migrated database needs this too
 python -m app.db.provision apply-rls
 
 python -m scripts.seed_currencies
 python -m scripts.seed_categories
+python -m scripts.seed_merchants
 
 # Caddy serves the frontend and proxies /api to this local Uvicorn process
 uvicorn app.main:app --host 127.0.0.1 --port 8000 &

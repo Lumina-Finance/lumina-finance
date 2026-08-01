@@ -7,10 +7,12 @@ from datetime import date, timedelta
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.category import Category
 from app.models.merchant import Merchant
 from app.models.transaction import Transaction
 from app.routes.merchants.access_helpers import require_group_member
 from app.routes.merchants.scope_filter_helpers import get_merchant_list_scope_filter
+from app.services.categories.transfer_rules import BALANCE_ADJUSTMENT_CATEGORY_NAME
 from app.utils.sql_search_helpers import escape_like_search_text
 
 # Recent-usage window that ranks the merchant dropdown so the merchants a user
@@ -46,13 +48,23 @@ async def get_merchants_for_user(
     recent_usage_cutoff = date.today() - timedelta(days=MERCHANT_FREQUENCY_WINDOW_DAYS)
     recent_usage_count = func.count(Transaction.id)
 
+    # Balance adjustments are written by the app rather than the user, and they carry the shared
+    # Myself merchant, so counting them would let opening a few accounts push that merchant to the
+    # top of a ranking meant to reflect who the user actually transacts with
+    balance_adjustment_category_ids = select(Category.id).where(
+        Category.is_system.is_(True),
+        Category.name == BALANCE_ADJUSTMENT_CATEGORY_NAME,
+    )
+
     # Count each merchant's transactions inside the recency window, the date lives
     # in the join condition so merchants with no recent activity are kept and ranked last
     merchant_query = (
         select(Merchant)
         .outerjoin(
             Transaction,
-            (Transaction.merchant_id == Merchant.id) & (Transaction.dt >= recent_usage_cutoff),
+            (Transaction.merchant_id == Merchant.id)
+            & (Transaction.dt >= recent_usage_cutoff)
+            & Transaction.category_id.notin_(balance_adjustment_category_ids),
         )
         .where(get_merchant_list_scope_filter(user_id, group_id))
         .group_by(Merchant.id)

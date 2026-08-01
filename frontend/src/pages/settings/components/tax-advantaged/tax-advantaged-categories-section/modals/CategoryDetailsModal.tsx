@@ -1,4 +1,4 @@
-import { Pencil, X } from 'lucide-react'
+import { ArrowLeftRight, Pencil, X } from 'lucide-react'
 import { ModalShell } from '@/components/modal/Shell'
 import type { Currency } from '@/api/currency'
 import type { TaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
@@ -11,6 +11,8 @@ import {
   TaxAdvantagedCurrencyWarning,
 } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/controls/FormControls'
 import TaxAdvantagedOpeningUsageLabel from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/controls/OpeningUsageLabel'
+
+const COUNTS_INTERNAL_TRANSFERS_FIELD_ID = 'tac-details-counts-internal-transfers'
 
 interface TaxAdvantagedCategoryDetailsModalProps {
   currencies: Currency[]
@@ -149,6 +151,45 @@ export default function TaxAdvantagedCategoryDetailsModal({
               </div>
             </div>
           </div>
+
+          <label
+            htmlFor={COUNTS_INTERNAL_TRANSFERS_FIELD_ID}
+            className="flex cursor-pointer items-center justify-between gap-4 rounded-xl p-4"
+            style={{
+              background: 'var(--app-input-bg)',
+              border: '1px solid var(--app-input-border)',
+            }}
+          >
+            <span className="min-w-0">
+              <span className="flex items-center gap-2 font-medium">
+                <ArrowLeftRight size={16} style={{ color: 'var(--app-text-muted)' }} aria-hidden />
+                Count transfers between this category's accounts
+              </span>
+              <span className="mt-0.5 block text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                Money moved between two accounts in the category counts toward its contribution and withdrawal limits.
+              </span>
+            </span>
+            <span className="relative inline-flex h-6 w-11 shrink-0 items-center rounded-full p-0.5 transition-colors">
+              <input
+                id={COUNTS_INTERNAL_TRANSFERS_FIELD_ID}
+                type="checkbox"
+                role="switch"
+                checked={planForm.counts_internal_transfers}
+                onChange={(event) => onPlanFieldChange('counts_internal_transfers', event.target.checked)}
+                className="peer sr-only"
+              />
+              <span
+                className="absolute inset-0 rounded-full transition-colors peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2"
+                style={{ background: planForm.counts_internal_transfers ? 'var(--app-accent)' : 'var(--app-border-strong)' }}
+                aria-hidden
+              />
+              <span
+                className="relative h-5 w-5 rounded-full bg-white shadow-sm transition-transform"
+                style={{ transform: planForm.counts_internal_transfers ? 'translateX(1.25rem)' : 'translateX(0)' }}
+                aria-hidden
+              />
+            </span>
+          </label>
 
           {planError && (
             <p className="text-sm" style={{ color: 'var(--app-negative)' }}>

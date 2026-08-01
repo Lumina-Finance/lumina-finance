@@ -30,6 +30,8 @@ const TRANSACTION_LIST_FIELDS = new Set<keyof UpdateTransactionPayload>([
   'merchant_id',
   'notes',
   'tag_ids',
+  'other_account_id',
+  'other_account_scope',
 ]);
 
 const TRANSACTION_OVERVIEW_FIELDS = new Set<keyof UpdateTransactionPayload>([
@@ -67,6 +69,18 @@ const INCOME_EXPENSE_FIELDS = new Set<keyof UpdateTransactionPayload>([
   'dt',
   'category_id',
   'amount',
+]);
+
+// Wider than the income and expense set, because a transfer between two accounts of one
+// tax-advantaged category counts toward its limits or not depending on the account recorded on it,
+// so editing only that account moves the contribution and withdrawal totals
+const TAX_ADVANTAGED_FIELDS = new Set<keyof UpdateTransactionPayload>([
+  'account_id',
+  'dt',
+  'category_id',
+  'amount',
+  'other_account_id',
+  'other_account_scope',
 ]);
 
 const CREDIT_ACTIVITY_FIELDS = new Set<keyof UpdateTransactionPayload>([
@@ -297,8 +311,8 @@ export function invalidatePatchedTransactionData(
     invalidateBudgets(queryClient);
     invalidateDashboardBudgets(queryClient);
     invalidateRunway(queryClient);
-    invalidateTaxAdvantagedActivity(queryClient, accountIds);
   }
+  if (patchTouches(patch, TAX_ADVANTAGED_FIELDS)) invalidateTaxAdvantagedActivity(queryClient, accountIds);
   if (patchTouches(patch, CREDIT_ACTIVITY_FIELDS)) invalidateCreditActivity(queryClient, accountIds);
   if (patchTouches(patch, MERCHANT_ACTIVITY_FIELDS)) invalidateInsightsMerchants(queryClient);
 }

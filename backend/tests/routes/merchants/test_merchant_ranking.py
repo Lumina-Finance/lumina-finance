@@ -4,6 +4,7 @@ from app.routes.merchants.listing_helpers import MERCHANT_FREQUENCY_WINDOW_DAYS
 from tests.routes.merchants._helpers import (
     _create_merchant,
     _get_system_category_id,
+    _own_merchant_names,
 )
 from tests.routes.support import _create_user, _get_auth_header
 
@@ -52,6 +53,31 @@ async def _record_merchant_transactions(client, headers, account_id, category_id
         }, headers=headers)
 
 
+async def test_list_merchants_ignores_the_balance_adjustments_the_app_writes(client):
+    """Opening accounts is not transacting, so the merchant those adjustments carry does not climb."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    # Each account written with a starting balance produces a balance adjustment carrying Myself
+    for name in ("Chequing", "Savings", "Vacation"):
+        await client.post("/accounts", json={
+            "account_kind": "asset",
+            "account_type": "checking",
+            "name": name,
+            "currency": "CAD",
+            "starting_balance": 100_00,
+        }, headers=headers)
+
+    account_id = await _create_checking_account(client, headers)
+    category_id = await _get_system_category_id(client, headers)
+    merchant_id = (await _create_merchant(client, headers, name="Corner Shop")).json()["id"]
+    await _record_merchant_transactions(client, headers, account_id, category_id, merchant_id, 1, date.today())
+
+    resp = await client.get("/merchants", headers=headers)
+
+    assert next(merchant["name"] for merchant in resp.json()) == "Corner Shop"
+
+
 async def test_list_merchants_ranks_more_used_merchant_first(client):
     """Merchants with more recent transactions rank above less used ones regardless of name."""
     headers = _get_auth_header(await _create_user(client))
@@ -70,7 +96,7 @@ async def test_list_merchants_ranks_more_used_merchant_first(client):
     resp = await client.get("/merchants", headers=headers)
 
     assert resp.status_code == 200
-    assert [merchant["name"] for merchant in resp.json()] == ["Zulu Store", "Mike Store", "Alpha Store"]
+    assert _own_merchant_names(resp) == ["Zulu Store", "Mike Store", "Alpha Store"]
 
 
 async def test_list_merchants_breaks_frequency_ties_by_name(client):
@@ -91,7 +117,7 @@ async def test_list_merchants_breaks_frequency_ties_by_name(client):
     resp = await client.get("/merchants", headers=headers)
 
     assert resp.status_code == 200
-    assert [merchant["name"] for merchant in resp.json()] == ["Bravo Market", "Charlie Market", "Alpha Market"]
+    assert _own_merchant_names(resp) == ["Bravo Market", "Charlie Market", "Alpha Market"]
 
 
 async def test_list_merchants_ignores_usage_outside_window(client):
@@ -110,7 +136,7 @@ async def test_list_merchants_ignores_usage_outside_window(client):
     resp = await client.get("/merchants", headers=headers)
 
     assert resp.status_code == 200
-    assert [merchant["name"] for merchant in resp.json()] == ["Fresh Store", "Stale Store"]
+    assert _own_merchant_names(resp) == ["Fresh Store", "Stale Store"]
 
 
 async def test_list_merchants_ranks_by_all_history_when_shorter_than_window(client):
@@ -129,4 +155,4 @@ async def test_list_merchants_ranks_by_all_history_when_shorter_than_window(clie
     resp = await client.get("/merchants", headers=headers)
 
     assert resp.status_code == 200
-    assert [merchant["name"] for merchant in resp.json()] == ["Busy Store", "Quiet Store"]
+    assert _own_merchant_names(resp) == ["Busy Store", "Quiet Store"]

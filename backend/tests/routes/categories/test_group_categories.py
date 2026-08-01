@@ -4,7 +4,7 @@ from tests.routes.categories._helpers import (
     _create_group,
     _setup_group_with_member,
 )
-from tests.routes.support import _create_user, _get_auth_header
+from tests.routes.support import _create_user, _get_auth_header, _get_system_merchant_id
 
 # --- Group categories: POST /categories ---
 
@@ -343,6 +343,7 @@ async def test_delete_category_referenced_by_transaction_returns_409(client):
         "dt": "2026-03-15",
         "amount": -5000,
         "currency": "CAD",
+        "merchant_id": await _get_system_merchant_id(client, headers),
     }, headers=headers)
 
     resp = await client.delete(f"/categories/{category_id}", headers=headers)

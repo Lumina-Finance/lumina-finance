@@ -11,8 +11,32 @@ const MAX_VISIBLE_TAGS = 1
 const DEFAULT_CATEGORY_ICON = '🏷️'
 const ROW_EXIT_EASE = [0.25, 0.1, 0.25, 1] as const
 
+/**
+ * Describes the other side of a transfer for the line that shows a merchant on other kinds
+ *
+ * Returns null when nothing was recorded, which is every transfer predating the field, so the row
+ * falls back to the merchant rather than claiming an answer it does not have
+ */
+function describeTransferOtherSide(
+  transaction: Transaction,
+  otherAccountName: string | undefined,
+): string | null {
+  const otherSide = transaction.other_account_scope === 'outside'
+    ? 'outside this app'
+    : transaction.other_account_scope === 'tracked' ? otherAccountName : undefined
+  if (!otherSide) return null
+
+  // Which way the money went reads the same whether the other side is an account or not, so money
+  // leaving the tracked accounts gets the same wording rather than standing on its own
+  return transaction.amount < 0 ? `To ${otherSide}` : `From ${otherSide}`
+}
+
 interface TransactionRowProps {
   accountName?: string
+
+  // The account a transfer recorded as its other side, looked up by the caller. Absent on every
+  // other kind, and on a transfer whose recorded account is not in the caller's list
+  otherAccountName?: string
   accountInstitution?: Institution | null
   category: Category | undefined
   currency: string
@@ -118,6 +142,7 @@ function TagTooltip({ tags }: { tags: Transaction['tags'] }) {
  */
 export default function TransactionRow({
   accountName,
+  otherAccountName,
   accountInstitution,
   category,
   currency,
@@ -133,7 +158,14 @@ export default function TransactionRow({
   const categoryName = category?.name ?? 'Uncategorized'
   const categoryIcon = category?.icon ?? DEFAULT_CATEGORY_ICON
   const fallbackTitle = category?.kind === 'transfer' ? 'Transfer' : 'Transaction'
-  const title = transaction.merchant_name ?? fallbackTitle
+
+  // A transfer's merchant is almost always the same stand-in, so where the money went takes the line
+  // that shows a merchant on other kinds, and the merchant fills in only for a transfer that
+  // recorded no other side
+  const transferOtherSide = category?.kind === 'transfer'
+    ? describeTransferOtherSide(transaction, otherAccountName)
+    : null
+  const title = transferOtherSide ?? transaction.merchant_name ?? fallbackTitle
   const hasNotes = Boolean(transaction.notes?.trim())
   const tags = [...(transaction.tags ?? [])].sort((a, b) => a.name.localeCompare(b.name))
   const visibleTags = tags.slice(0, MAX_VISIBLE_TAGS)

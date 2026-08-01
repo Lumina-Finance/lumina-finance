@@ -2,6 +2,7 @@ import type { AccountsOverview } from '@/api/accounts'
 import type {
   TransactionFormFieldErrors,
   TransactionFormValues,
+  TransactionModalKind,
 } from '@/pages/transactions/components/transaction-modal/types'
 
 /**
@@ -12,12 +13,32 @@ export function isSymmetricTransferForm(form: TransactionFormValues): boolean {
 }
 
 /**
+ * Reports whether a transfer in the given kind and category records which other account the
+ * money touched
+ *
+ * True for every transfer-kind category except Balance Adjustment, which has no other side.
+ * Mirrors the backend's does_category_record_other_account
+ */
+export function doesTransferRecordOtherAccount(
+  kind: TransactionModalKind,
+  isBalanceAdjustmentCategory: boolean,
+): boolean {
+  return kind === 'transfer' && !isBalanceAdjustmentCategory
+}
+
+interface ValidateTransactionFormOptions {
+  isAmountLocked?: boolean
+  isBalanceAdjustmentCategory?: boolean
+}
+
+/**
  * Validates fields required before a transaction can be sent to the API
  */
 export function validateTransactionForm(
   form: TransactionFormValues,
-  isAmountLocked = false,
+  options: ValidateTransactionFormOptions = {},
 ): TransactionFormFieldErrors {
+  const { isAmountLocked = false, isBalanceAdjustmentCategory = false } = options
   const errors: TransactionFormFieldErrors = {}
   if (!form.account_id) errors.account_id = 'Select an account'
   if (!form.category_id) errors.category_id = 'Select a category'
@@ -35,10 +56,18 @@ export function validateTransactionForm(
   if (!form.currency) errors.currency = 'Select a currency'
   if (!form.date) errors.date = 'Select a date'
 
-  // A symmetric transfer needs a second account that differs from the originating one
-  if (isSymmetricTransferForm(form)) {
-    if (!form.to_account_id) errors.to_account_id = 'Select a receiving account'
-    else if (form.to_account_id === form.account_id) errors.to_account_id = 'Choose a different receiving account'
+  // The recorded account doubles as the receiving one when the checkbox is ticked, so there is a
+  // single account field either way and nothing to keep in agreement
+  if (doesTransferRecordOtherAccount(form.kind, isBalanceAdjustmentCategory)) {
+    // Editing answers this too, so a transfer recorded before the field existed says where the
+    // money went the next time it is touched at all
+    if (!form.other_account_id) {
+      errors.other_account_id = form.direction === 'debit'
+        ? 'Select where the money went'
+        : 'Select where the money came from'
+    } else if (form.other_account_id === form.account_id) {
+      errors.other_account_id = 'Choose a different account'
+    }
   }
   return errors
 }

@@ -154,6 +154,7 @@ def build_tac_category(
         currency=data.currency,
         lifetime_contribution_limit=data.lifetime_contribution_limit,
         accrued_contributions=data.accrued_contributions,
+        counts_internal_transfers=data.counts_internal_transfers,
     )
     return tax_advantaged_category
 

@@ -9,9 +9,9 @@ import { KIND_LABELS } from '@/pages/transactions/components/transaction-modal/c
 import { buildInitialTransactionForm } from '@/pages/transactions/components/transaction-modal/utils/initialForm'
 import { buildCurrencyOptions } from '@/pages/transactions/components/transaction-modal/utils/options'
 import { isSymmetricTransferForm } from '@/pages/transactions/components/transaction-modal/utils/validation'
+import { orderAccountFields } from '@/pages/transactions/components/transaction-modal/utils/accountFields'
 import type {
   CreateTransactionModalProps,
-  TransactionDirection,
   TransactionFormValues,
 } from '@/pages/transactions/components/transaction-modal/types'
 import TransactionDetailsSection from '@/pages/transactions/components/transaction-modal/sections/DetailsSection'
@@ -95,9 +95,9 @@ export default function CreateTransactionModal({
     () => accounts.find((account) => account.id === form.account_id),
     [accounts, form.account_id],
   )
-  const selectedToAccount = useMemo(
-    () => accounts.find((account) => account.id === form.to_account_id),
-    [accounts, form.to_account_id],
+  const selectedOtherAccount = useMemo(
+    () => accounts.find((account) => account.id === form.other_account_id),
+    [accounts, form.other_account_id],
   )
   const readOnly = editing && (readOnlyProp || Boolean(selectedAccount?.is_archived))
 
@@ -188,9 +188,10 @@ export default function CreateTransactionModal({
     readOnly,
     accounts,
     selectedAccount,
-    selectedToAccount,
+    selectedOtherAccount,
     selectedCurrencyExponent,
     isAmountLocked,
+    isBalanceAdjustmentCategory: categoryField.isBalanceAdjustmentCategory,
     deleteLoading,
     openRef,
     recordCreatedAccountId,
@@ -202,17 +203,34 @@ export default function CreateTransactionModal({
   const showRunningBalance = !editing && keepOpenAfterCreate && !!selectedAccount
   const isSymmetricTransfer = isSymmetricTransferForm(form)
 
-  // A symmetric transfer shows its direction relative to the account being viewed, so the toggle
-  // reflects whether that account is the source or destination instead of a user choice. It falls
-  // back to the unselected state when the viewed account is on neither leg or no account is in view
-  const symmetricDisplayDirection: TransactionDirection | '' = !defaultAccountId
-    ? ''
-    : form.account_id === defaultAccountId
-      ? 'debit'
-      : form.to_account_id === defaultAccountId
-        ? 'credit'
-        : ''
-  const directionValue = isSymmetricTransfer ? symmetricDisplayDirection : form.direction
+  // The direction toggle moves the accounts between the two fields without anything being written
+  // back to the form, because the ordering is worked out here on every render
+  const recordedAccountField = {
+    options: accountField.accountOptions,
+    selectedOption: accountField.selectedArchivedAccountOption,
+    value: form.account_id,
+    error: showError('account_id'),
+    onChange: accountField.handleAccountChange,
+
+    // The balance belongs to the account the transaction is recorded in, so it travels with that
+    // field rather than staying under whichever dropdown happens to be on top
+    runningBalance: showRunningBalance && selectedAccount
+      ? { amount: runningBalance, currency: selectedAccount.currency }
+      : undefined,
+  }
+  const otherAccountField = {
+    options: accountField.otherAccountOptions,
+    selectedOption: accountField.selectedArchivedOtherAccountOption,
+    value: form.other_account_id,
+    error: showError('other_account_id'),
+    onChange: accountField.handleOtherAccountChange,
+    runningBalance: undefined,
+  }
+  const [topAccountField, secondAccountField] = orderAccountFields(
+    recordedAccountField,
+    otherAccountField,
+    { isSymmetricTransfer, direction: form.direction },
+  )
 
   return (
     <>
@@ -245,28 +263,31 @@ export default function CreateTransactionModal({
         <div className="space-y-5">
           <TransactionTypeDirectionSection
             kind={form.kind}
-            direction={directionValue}
+            direction={form.direction}
             editing={editing}
             readOnly={readOnly}
-            directionDisabled={isSymmetricTransfer}
             directionHighlightKey={directionHighlightKey}
             onKindChange={applyKindChange}
             onDirectionChange={(value) => handleField('direction', value)}
           />
 
           <TransactionReferencesSection
-            accountOptions={accountField.accountOptions}
-            selectedArchivedAccountOption={accountField.selectedArchivedAccountOption}
-            accountValue={form.account_id}
-            accountError={showError('account_id')}
+            accountOptions={topAccountField.options}
+            selectedArchivedAccountOption={topAccountField.selectedOption}
+            accountValue={topAccountField.value}
+            accountError={topAccountField.error}
             accountPlaceholder={accounts.length === 0 ? 'No accounts yet' : 'Select account...'}
-            runningBalance={showRunningBalance && selectedAccount
-              ? { amount: runningBalance, currency: selectedAccount.currency }
-              : undefined}
+            runningBalance={topAccountField.runningBalance}
             kind={form.kind}
+
+            direction={form.direction}
             isSymmetricTransfer={form.symmetric_transfer}
-            toAccountValue={form.to_account_id}
-            toAccountError={showError('to_account_id')}
+            isTransferPairOffered={!editing}
+            otherAccountOptions={secondAccountField.options}
+            selectedArchivedOtherAccountOption={secondAccountField.selectedOption}
+            otherAccountValue={secondAccountField.value}
+            otherAccountError={secondAccountField.error}
+            otherAccountRunningBalance={secondAccountField.runningBalance}
             merchantOptions={merchantField.merchantOptions}
             selectedMerchantOption={merchantField.selectedMerchantOption}
             merchantValue={form.merchant_id}
@@ -292,9 +313,9 @@ export default function CreateTransactionModal({
             tagHasMore={tagField.hasMore}
             selectedTags={tagField.selectedTags}
             readOnly={readOnly}
-            onAccountChange={accountField.handleAccountChange}
+            onAccountChange={topAccountField.onChange}
             onSymmetricTransferChange={accountField.handleSymmetricTransferChange}
-            onToAccountChange={accountField.handleToAccountChange}
+            onOtherAccountChange={secondAccountField.onChange}
             onMerchantChange={merchantField.handleMerchantChange}
             onMerchantSearchChange={merchantField.setSearch}
             onMerchantSearchCommit={merchantField.setActiveSearch}

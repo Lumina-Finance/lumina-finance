@@ -10,6 +10,7 @@ from app.models.merchant import Merchant
 from app.models.transaction import Transaction
 from app.routes.merchants.access_helpers import (
     get_accessible_merchant_or_404,
+    require_editable_merchant,
     require_group_merchant_admin,
 )
 from app.routes.merchants.scope_filter_helpers import get_personal_merchant_filter
@@ -34,6 +35,7 @@ async def merge_merchant_into_replacement_for_user(
         HTTPException: Merchant is inaccessible, replacement is invalid, or group admin access is missing
     """
     merchant = await get_accessible_merchant_or_404(db, merchant_id, user_id)
+    require_editable_merchant(merchant)
     await require_group_merchant_admin(db, merchant, user_id)
     replacement = await get_merge_replacement_merchant(db, merchant, replacement_merchant_id, user_id)
     await move_merchant_references(db, merchant.id, replacement.id)
@@ -70,11 +72,15 @@ async def get_merge_replacement_merchant(
             detail="Replacement merchant must be different",
         )
 
-    replacement_filter = Merchant.id == replacement_merchant_id
+    # A merge restamps the source's transactions onto the replacement and deletes the source, so a
+    # merchant that ships with the app is a valid destination even though it is nobody's to edit
+    scope_filter = Merchant.is_system.is_(True)
     if source_merchant.group_id is None:
-        replacement_filter = replacement_filter & get_personal_merchant_filter(user_id)
+        scope_filter = scope_filter | get_personal_merchant_filter(user_id)
     else:
-        replacement_filter = replacement_filter & (Merchant.group_id == source_merchant.group_id)
+        scope_filter = scope_filter | (Merchant.group_id == source_merchant.group_id)
+
+    replacement_filter = (Merchant.id == replacement_merchant_id) & scope_filter
 
     # Fetch a replacement merchant from the same scope as the merchant being merged
     replacement_result = await db.execute(select(Merchant).where(replacement_filter))

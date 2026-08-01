@@ -9,6 +9,7 @@ from tests.routes.support.auth_helpers import (
     _seed_currency,
     _seed_reset_token,
 )
+from tests.routes.support.merchant_helpers import _get_system_merchant_id
 
 __all__ = [
     "ACCOUNT_PAYLOAD",
@@ -17,6 +18,7 @@ __all__ = [
     "_create_user",
     "_fresh_totp_code",
     "_get_auth_header",
+    "_get_system_merchant_id",
     "_seed_currency",
     "_seed_reset_token",
 ]

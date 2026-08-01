@@ -10,9 +10,12 @@ class MerchantResponse(BaseModel):
     """Merchant returned by list and detail endpoints."""
 
     id: uuid.UUID
-    owner_id: uuid.UUID
+    owner_id: uuid.UUID | None  # Null on a system merchant, which belongs to everyone
     group_id: uuid.UUID | None
     name: str
+
+    # System merchants ship with the app: they cannot be renamed, deleted, or given a default category
+    is_system: bool
     default_category_id: uuid.UUID | None
     created_at: datetime
 

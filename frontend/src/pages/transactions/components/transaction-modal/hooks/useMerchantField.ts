@@ -5,12 +5,14 @@ import { ApiError } from '@/api/auth'
 import type { Category } from '@/api/categories'
 import { useInfiniteMerchants, useMerchant, useUpdateMerchant, type Merchant } from '@/api/merchants'
 import {
+  BALANCE_ADJUSTMENT_CATEGORY_NAME,
   MERCHANT_DROPDOWN_PAGE_SIZE,
   MERCHANT_FETCHING_MORE_TEXT_MIN_MS,
   MERCHANT_SEARCH_DEBOUNCE_MS,
   MERCHANT_SEARCH_LOADING_TEXT_MIN_MS,
 } from '@/pages/transactions/components/transaction-modal/constants'
 import { buildCategoryOptions } from '@/pages/transactions/components/transaction-modal/utils/categories'
+import { doesTransferRecordOtherAccount } from '@/pages/transactions/components/transaction-modal/utils/validation'
 import type {
   TransactionFormFieldErrors,
   TransactionFormValues,
@@ -120,8 +122,11 @@ export function useMerchantField({
     [categoryOptions],
   )
 
+  // A system merchant is shared by everyone, and its default category would be too, so it is not
+  // offered one rather than letting one person's choice change what auto-fills for the rest
   const showMerchantDefaultCategoryAction = !!(
     selectedMerchant &&
+    !selectedMerchant.is_system &&
     selectedCategory &&
     selectedMerchant.default_category_id !== selectedCategory.id
   )
@@ -142,7 +147,18 @@ export function useMerchantField({
 
     const defaultCategory = categoryById.get(defaultCategoryId)
     const nextKind = (defaultCategory?.kind as TransactionModalKind | undefined) ?? form.kind
-    applyKindChange(nextKind, { merchant_id: merchantId, category_id: defaultCategoryId })
+    const nextIsBalanceAdjustment = !!(
+      defaultCategory?.is_system && defaultCategory.name === BALANCE_ADJUSTMENT_CATEGORY_NAME
+    )
+    // Balance Adjustment has no other side, so a pending other-account answer or a symmetric pair
+    // set up under a real transfer category no longer applies once the default category lands on it
+    applyKindChange(nextKind, {
+      merchant_id: merchantId,
+      category_id: defaultCategoryId,
+      ...(doesTransferRecordOtherAccount(nextKind, nextIsBalanceAdjustment)
+        ? {}
+        : { other_account_id: '', symmetric_transfer: false }),
+    })
     clearError('merchant_id')
     clearError('category_id')
   }

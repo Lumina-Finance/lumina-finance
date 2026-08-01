@@ -12,7 +12,7 @@ from app.models.category import Category
 from app.models.currency import Currency
 from app.models.transaction import Transaction
 from tests.conftest import TestSession
-from tests.routes.support import _create_account, _create_user, _get_auth_header
+from tests.routes.support import _create_account, _create_user, _get_auth_header, _get_system_merchant_id
 
 
 def _category(user_id: UUID, name: str, kind: CategoryKind) -> tuple[UUID, Category]:
@@ -59,6 +59,10 @@ async def _create_transaction_api(client, headers, account_id, category_id, **ov
         "currency": "CAD",
         **overrides,
     }
+
+    # The route requires a merchant, so a test that does not care which one gets the shared Myself
+    if "merchant_id" not in payload:
+        payload["merchant_id"] = await _get_system_merchant_id(client, headers)
     return await client.post("/transactions", json=payload, headers=headers)
 
 

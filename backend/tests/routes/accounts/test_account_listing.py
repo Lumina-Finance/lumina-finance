@@ -17,7 +17,13 @@ from tests.routes.accounts._account_helpers import (
     _FixedClock,
     _signup_user,
 )
-from tests.routes.support import _create_account, _create_user, _get_auth_header, _seed_currency
+from tests.routes.support import (
+    _create_account,
+    _create_user,
+    _get_auth_header,
+    _get_system_merchant_id,
+    _seed_currency,
+)
 
 # --- GET /accounts ---
 
@@ -282,7 +288,8 @@ async def test_create_account_with_starting_balance_creates_adjustment(client):
     assert txn.created_by_user_id == user_id
     assert txn.account_id == account_id
     assert txn.dt == expected_dt
-    assert txn.merchant_id is None
+    # The app writes this transaction rather than the user, so it is attributed to the shared Myself
+    assert txn.merchant_id == UUID(await _get_system_merchant_id(client, headers))
     assert txn.fx_rate is None
     assert txn.amount == 123_45
     assert txn.currency == data["currency"]

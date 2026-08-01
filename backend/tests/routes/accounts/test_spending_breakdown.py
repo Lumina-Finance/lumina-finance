@@ -1,9 +1,12 @@
 """Route tests for GET /accounts/{account_id}/spending-breakdown."""
 import importlib
+import uuid
 from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from tests.routes.support import _create_account, _create_user, _get_auth_header
+from app.models.transaction import Transaction
+from tests.conftest import TestSession
+from tests.routes.support import _create_account, _create_user, _get_auth_header, _get_system_merchant_id
 
 # --- Helpers ---
 
@@ -59,6 +62,10 @@ async def _create_transaction(client, headers, account_id, category_id, **overri
         "currency": "CAD",
         **overrides,
     }
+
+    # The route requires a merchant, so a test that does not care which one gets the shared Myself
+    if "merchant_id" not in payload:
+        payload["merchant_id"] = await _get_system_merchant_id(client, headers)
     return await client.post("/transactions", json=payload, headers=headers)
 
 
@@ -324,16 +331,26 @@ async def test_expense_without_merchant_contributes_to_categories_and_total_only
     category = (await _create_category(client, headers)).json()
     merchant = (await _create_merchant(client, headers)).json()
 
-    today = _today_utc().isoformat()
+    today = _today_utc()
     # One expense with a merchant, one without
-    await _create_transaction(
+    with_merchant = await _create_transaction(
         client, headers, account_id, category["id"],
-        dt=today, amount=-1000, merchant_id=merchant["id"],
+        dt=today.isoformat(), amount=-1000, merchant_id=merchant["id"],
     )
-    await _create_transaction(
-        client, headers, account_id, category["id"],
-        dt=today, amount=-400,  # merchant_id omitted → None
-    )
+
+    # Inserted past the route, which now requires a merchant, since what is under test is how the
+    # breakdown reports the transactions recorded before that rule
+    async with TestSession() as session:
+        session.add(Transaction(
+            created_by_user_id=uuid.UUID(with_merchant.json()["created_by_user_id"]),
+            account_id=uuid.UUID(account_id),
+            dt=today,
+            category_id=uuid.UUID(category["id"]),
+            merchant_id=None,
+            amount=-400,
+            currency="CAD",
+        ))
+        await session.commit()
 
     resp = await client.get(
         f"/accounts/{account_id}/spending-breakdown",
@@ -358,15 +375,19 @@ async def test_expense_without_merchant_contributes_to_categories_and_total_only
 # --- Top-5 cap and other counts ---
 
 
-async def test_top_five_cap_with_seven_categories_and_eight_merchants(client):
-    """Top-5 cap: with 7 distinct categories and 8 distinct merchants, response has 5 of each plus other counts."""
+async def test_top_five_cap_with_seven_categories_and_nine_merchants(client):
+    """Top-5 cap: with 7 distinct categories and 9 distinct merchants, response has 5 of each plus other counts."""
     headers, account_id = await _setup_account(client)
 
     today = _today_utc().isoformat()
 
-    # 7 categories. Category 0 gets a large base spend so it remains the biggest
-    # category even after we pile the 8 merchant transactions onto one other
-    # category below — this keeps the category ordering deterministic
+    # Every transaction carries a merchant, so the base spends share one of their own rather than
+    # landing on whichever merchant the helper would otherwise pick
+    base_merchant = (await _create_merchant(client, headers, name="Base Spend")).json()
+
+    # 7 categories. Category 0 gets a large base spend so it remains the biggest category even
+    # after the 8 merchant transactions below pile onto another one, which keeps the category
+    # ordering deterministic
     categories = []
     for i in range(7):
         cat = (await _create_category(client, headers, name=f"Test Cat {i}")).json()
@@ -375,7 +396,7 @@ async def test_top_five_cap_with_seven_categories_and_eight_merchants(client):
         base = 100_000 if i == 0 else (70_000 - i * 10_000)
         await _create_transaction(
             client, headers, account_id, cat["id"],
-            dt=today, amount=-base,
+            dt=today, amount=-base, merchant_id=base_merchant["id"],
         )
 
     # 8 distinct merchants attached to the LAST of the 7 categories — that way
@@ -402,19 +423,20 @@ async def test_top_five_cap_with_seven_categories_and_eight_merchants(client):
     # Top-5 cap applied on both
     assert len(data["top_categories"]) == 5
     assert len(data["top_merchants"]) == 5
-    # 7 categories → 2 beyond the top 5; 8 merchants → 3 beyond
+    # 7 categories → 2 beyond the top 5; 9 merchants → 4 beyond
     assert data["other_categories_count"] == 2
-    assert data["other_merchants_count"] == 3
+    assert data["other_merchants_count"] == 4
 
     # Category 0 remains the largest category (-100_000 base, no merchant pile)
     assert data["top_categories"][0]["category_id"] == categories[0]["id"]
     assert data["top_categories"][0]["total"] == 100_000
 
-    # Top merchants: the five with the largest spend (i=0..4) in descending order
+    # The base merchant carries every category's base spend, so it leads, followed by the four
+    # largest of the eight
     merchant_ids_returned = [m["merchant_id"] for m in data["top_merchants"]]
-    assert merchant_ids_returned == [merchants[i]["id"] for i in range(5)]
+    assert merchant_ids_returned == [base_merchant["id"], *[merchants[i]["id"] for i in range(4)]]
     merchant_totals = [m["total"] for m in data["top_merchants"]]
-    assert merchant_totals == [8000 - i * 100 for i in range(5)]
+    assert merchant_totals == [310_000, *[8000 - i * 100 for i in range(4)]]
 
 
 async def test_exactly_five_entries_yields_zero_other_counts(client):
