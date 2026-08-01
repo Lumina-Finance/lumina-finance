@@ -21,9 +21,14 @@ function describeTransferOtherSide(
   transaction: Transaction,
   otherAccountName: string | undefined,
 ): string | null {
-  if (transaction.other_account_scope === 'outside') return 'Outside this app'
-  if (transaction.other_account_scope !== 'tracked' || !otherAccountName) return null
-  return transaction.amount < 0 ? `To ${otherAccountName}` : `From ${otherAccountName}`
+  const otherSide = transaction.other_account_scope === 'outside'
+    ? 'outside this app'
+    : transaction.other_account_scope === 'tracked' ? otherAccountName : undefined
+  if (!otherSide) return null
+
+  // Which way the money went reads the same whether the other side is an account or not, so money
+  // leaving the tracked accounts gets the same wording rather than standing on its own
+  return transaction.amount < 0 ? `To ${otherSide}` : `From ${otherSide}`
 }
 
 interface TransactionRowProps {
