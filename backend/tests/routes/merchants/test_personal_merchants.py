@@ -499,3 +499,40 @@ async def test_deleting_a_system_merchant_returns_403(client):
     resp = await client.delete(f"/merchants/{merchant['id']}", headers=headers)
 
     assert resp.status_code == 403
+
+
+async def test_creating_a_merchant_with_a_system_name_in_any_case_returns_409(client):
+    """A different capitalisation would read as a second copy of the same merchant."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _create_merchant(client, headers, name="mYsElF")
+
+    assert resp.status_code == 409
+
+
+async def test_renaming_a_merchant_onto_a_system_name_returns_409(client):
+    """The reserved name holds on rename, not only on create."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    merchant_id = (await _create_merchant(client, headers, name="Corner Shop")).json()["id"]
+
+    resp = await client.patch(f"/merchants/{merchant_id}", json={"name": "Myself"}, headers=headers)
+
+    assert resp.status_code == 409
+
+
+async def test_merging_a_system_merchant_away_returns_403(client):
+    """Merging deletes the source, so it is refused for the merchant everyone shares."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    replacement_id = (await _create_merchant(client, headers, name="Corner Shop")).json()["id"]
+    system_merchant = await _system_merchant(client, headers)
+
+    resp = await client.post(
+        f"/merchants/{system_merchant['id']}/merge",
+        json={"replacement_merchant_id": replacement_id},
+        headers=headers,
+    )
+
+    assert resp.status_code == 403

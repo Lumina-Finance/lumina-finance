@@ -9,12 +9,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from app.models.account import Account, TaxAdvantagedCategory
-from app.models.base import CategoryKind, TransferOtherAccountScope
+from app.models.base import TransferOtherAccountScope
 from app.models.category import Category
 from app.models.transaction import Transaction
+from app.services.categories.transfer_rules import get_records_other_account_filter
 from app.services.tax_advantaged_categories.tac_limit_metric_helpers import TacLimitMetrics
-
-_BALANCE_ADJUSTMENT_CATEGORY_NAME = "Balance Adjustment"
 
 
 @dataclass
@@ -95,10 +94,8 @@ async def get_tac_transfer_totals(
             Account.tax_advantaged_category_id.in_(tax_advantaged_category_ids),
 
             # Archived accounts remain linked to their tax-advantaged category history
-            Category.kind == CategoryKind.TRANSFER,
-
-            # A balance adjustment corrects a stale balance rather than moving money in or out
-            Category.name != _BALANCE_ADJUSTMENT_CATEGORY_NAME,
+            # The same rule the write path enforces, so a row that had to answer is a row that counts
+            get_records_other_account_filter(),
 
             # Compared against true rather than negated, because a transfer with no recorded other
             # account leaves the comparison unknown and would otherwise drop out of both totals

@@ -202,8 +202,9 @@ def _secure_merchants(connection: Connection) -> None:
     """Enable RLS on merchants, keeping system rows readable but app-immutable"""
     owned = f"owner_id = {CURRENT_USER_ID}() OR {CAN_ACCESS_GROUP}(group_id)"
 
-    # The bootstrap migration replays this against a database from before is_system existed, so
-    # the ownership-only rule stands in until the migration that adds the column re-applies these
+    # The bootstrap migration replays this against a database from before is_system existed, so the
+    # ownership-only rule stands in there. Nothing in the migration chain corrects it: the deploy
+    # re-applies these policies after migrating, which is when the system rows become readable
     if not _column_exists(connection, "merchants", "is_system"):
         _secure_table(connection, "merchants", owned, owned)
         return

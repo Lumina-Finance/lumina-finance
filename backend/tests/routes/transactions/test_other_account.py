@@ -250,3 +250,58 @@ async def test_setting_the_field_alongside_a_category_that_rejects_it_fails(clie
     )
 
     assert resp.status_code == 422
+
+
+async def test_editing_a_transaction_into_a_transfer_requires_an_answer(client):
+    """An edit that forms a new transfer answers the question the same way creating one does."""
+    headers, account_id, _, transfer_id = await _setup_transfer_user(client)
+    expense_id = (await _create_category(client, headers, name="Corner shop", kind="expense")).json()["id"]
+    created = await _create_transaction(client, headers, account_id, expense_id)
+    txn_id = created.json()["id"]
+
+    resp = await client.patch(
+        f"/transactions/{txn_id}", json={"category_id": transfer_id}, headers=headers,
+    )
+
+    assert resp.status_code == 422
+
+
+async def test_editing_a_transaction_into_a_transfer_succeeds_with_an_answer(client):
+    """The same edit goes through once it says where the money went."""
+    headers, account_id, other_account_id, transfer_id = await _setup_transfer_user(client)
+    expense_id = (await _create_category(client, headers, name="Corner store", kind="expense")).json()["id"]
+    created = await _create_transaction(client, headers, account_id, expense_id)
+    txn_id = created.json()["id"]
+
+    resp = await client.patch(
+        f"/transactions/{txn_id}",
+        json={
+            "category_id": transfer_id,
+            "other_account_scope": "tracked",
+            "other_account_id": other_account_id,
+        },
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["other_account_id"] == other_account_id
+
+
+async def test_editing_an_unanswered_transfer_still_needs_no_answer(client):
+    """History stays correctable, which is why the requirement is on becoming a transfer only."""
+    headers, account_id, _, transfer_id = await _setup_transfer_user(client)
+    created = await _create_transaction(
+        client, headers, account_id, transfer_id, other_account_scope="outside",
+    )
+    txn_id = created.json()["id"]
+
+    async with TestSession() as session:
+        txn = await session.get(Transaction, uuid.UUID(txn_id))
+        txn.other_account_scope = None
+        txn.other_account_id = None
+        await session.commit()
+
+    resp = await client.patch(f"/transactions/{txn_id}", json={"amount": -777}, headers=headers)
+
+    assert resp.status_code == 200
+    assert resp.json()["other_account_scope"] is None

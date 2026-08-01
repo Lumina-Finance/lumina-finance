@@ -2,7 +2,7 @@
 import uuid
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.category import Category
@@ -136,7 +136,10 @@ async def require_merchant_name_available(
         scope_filter = scope_filter | (Merchant.group_id == group_id)
     else:
         scope_filter = scope_filter | ((Merchant.owner_id == user_id) & Merchant.group_id.is_(None))
-    duplicate_query = select(Merchant).where(Merchant.name == name, scope_filter)
+
+    # Compared without regard to capitalisation, so "myself" cannot sit beside the seeded "Myself"
+    # and read as a second merchant. Matches how the migration folded the existing ones
+    duplicate_query = select(Merchant).where(func.lower(Merchant.name) == name.lower(), scope_filter)
 
     # Check whether the target scope already has a merchant with the requested name
     has_duplicate = (await db.execute(duplicate_query)).scalar_one_or_none() is not None

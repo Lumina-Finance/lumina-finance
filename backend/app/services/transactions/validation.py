@@ -5,17 +5,15 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.base import CategoryKind, PermissionLevel, TransferOtherAccountScope
+from app.models.base import PermissionLevel, TransferOtherAccountScope
 from app.models.category import Category
 from app.models.currency import Currency
 from app.models.merchant import Merchant
 from app.models.tag import Tag
 from app.permissions import check_account_access
+from app.services.categories.transfer_rules import does_category_record_other_account
 
 _FX_RATE_REQUIRED_DETAIL = "fx_rate is required when transaction currency differs from account currency"
-
-# The one transfer-kind category with no other side, so it carries no other-account answer
-_BALANCE_ADJUSTMENT_CATEGORY_NAME = "Balance Adjustment"
 
 OTHER_ACCOUNT_NOT_ALLOWED_DETAIL = "This category does not record another account"
 
@@ -200,18 +198,6 @@ async def get_valid_transaction_tag_ids(
     if found_tag_ids != set(unique_tag_ids):
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Tag not found")
     return unique_tag_ids
-
-
-def does_category_record_other_account(category: Category) -> bool:
-    """Return whether transactions in a category record the account on the other side
-
-    Args:
-        category: Category the transaction uses
-
-    Returns:
-        True for every transfer-kind category except Balance Adjustment, which has no other side
-    """
-    return category.kind == CategoryKind.TRANSFER and category.name != _BALANCE_ADJUSTMENT_CATEGORY_NAME
 
 
 async def validate_transaction_other_account(

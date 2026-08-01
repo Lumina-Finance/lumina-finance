@@ -17,9 +17,9 @@ from app.services.transactions.accounts import (
 from app.services.transactions.response_helpers import get_transaction_response
 from app.services.transactions.snapshots import recompute_snapshots_after_transaction_update
 from app.services.transactions.tags import replace_transaction_tag_assignments
+from app.services.categories.transfer_rules import does_category_record_other_account
 from app.services.transactions.validation import (
     OTHER_ACCOUNT_NOT_ALLOWED_DETAIL,
-    does_category_record_other_account,
     get_valid_transaction_tag_ids,
     validate_transaction_category_access,
     validate_transaction_fx_rate_for_account_currency,
@@ -88,18 +88,27 @@ async def update_transaction_and_get_response(
         )
 
     # Confirm changed category and merchant records belong to the selected account group
+    # Both the category the transaction had and the one it ends up with matter: the answer is judged
+    # against the new one, and whether it is newly a transfer is judged against the old one
+    previous_category = await db.get(Category, txn.category_id)
     if "category_id" in changed_fields:
         category = await validate_transaction_category_access(
             db, changed_fields["category_id"], user.id, account_group_id,
         )
     else:
-        # The other-account answer is judged against the category the transaction ends up with,
-        # so an unchanged category is still loaded
-        category = await db.get(Category, txn.category_id)
+        category = previous_category
     if "merchant_id" in changed_fields and changed_fields["merchant_id"] is not None:
         await validate_transaction_merchant_access(db, changed_fields["merchant_id"], user.id, account_group_id)
 
     if does_category_record_other_account(category):
+        # An edit that turns a transaction into a transfer is forming a new one, so it answers the
+        # question the same way creating one does. A transaction that was already a transfer keeps
+        # its exemption, which is what lets an old unanswered row have its notes or amount corrected
+        became_transfer = (
+            "category_id" in changed_fields
+            and not does_category_record_other_account(previous_category)
+        )
+
         # Unsent fields keep their stored values, so an old transaction with no answer stays editable
         await validate_transaction_other_account(
             db,
@@ -108,7 +117,7 @@ async def update_transaction_and_get_response(
             changed_fields.get("account_id", txn.account_id),
             changed_fields.get("other_account_id", txn.other_account_id),
             changed_fields.get("other_account_scope", txn.other_account_scope),
-            require_answer=False,
+            require_answer=became_transfer,
         )
     else:
         if changed_fields.get("other_account_id") is not None or changed_fields.get("other_account_scope") is not None:

@@ -12,6 +12,7 @@ from app.routes.merchants.access_helpers import (
     require_default_category_available,
     require_editable_merchant,
     require_group_merchant_admin,
+    require_merchant_name_available,
 )
 from app.schemas.merchant import UpdateMerchantRequest
 from app.services.cache_state import mark_cache_changed_for_scope
@@ -46,6 +47,11 @@ async def update_merchant_for_user(
     updates = data.model_dump(exclude_unset=True)
     if not updates:
         return merchant
+
+    # Renaming goes through the same rule as creating, so nothing can be renamed onto a name that
+    # ships with the app, or onto one already used in the same scope
+    if "name" in updates and updates["name"] != merchant.name:
+        await require_merchant_name_available(db, updates["name"], user_id, merchant.group_id)
 
     if "default_category_id" in updates and updates["default_category_id"] is not None:
         await require_default_category_available(db, user_id, merchant.group_id, updates["default_category_id"])
