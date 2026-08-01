@@ -10,6 +10,7 @@ from app.models.user import User
 from app.permissions import check_account_access, check_transaction_access
 from app.schemas.transaction import TransactionResponse, UpdateTransactionRequest
 from app.services.cache_state import mark_cache_changed_for_scope
+from app.services.categories.transfer_rules import does_category_record_other_account
 from app.services.transactions.accounts import (
     get_parent_account_for_transaction,
     validate_transaction_account_is_not_archived,
@@ -17,7 +18,6 @@ from app.services.transactions.accounts import (
 from app.services.transactions.response_helpers import get_transaction_response
 from app.services.transactions.snapshots import recompute_snapshots_after_transaction_update
 from app.services.transactions.tags import replace_transaction_tag_assignments
-from app.services.categories.transfer_rules import does_category_record_other_account
 from app.services.transactions.validation import (
     OTHER_ACCOUNT_NOT_ALLOWED_DETAIL,
     get_valid_transaction_tag_ids,

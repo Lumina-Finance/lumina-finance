@@ -75,7 +75,7 @@ async def test_list_merchants_ignores_the_balance_adjustments_the_app_writes(cli
 
     resp = await client.get("/merchants", headers=headers)
 
-    assert [merchant["name"] for merchant in resp.json()][0] == "Corner Shop"
+    assert next(merchant["name"] for merchant in resp.json()) == "Corner Shop"
 
 
 async def test_list_merchants_ranks_more_used_merchant_first(client):

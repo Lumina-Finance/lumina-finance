@@ -4,12 +4,12 @@ from app.models.merchant import Merchant
 from tests.conftest import TestSession
 from tests.routes.merchants._helpers import (
     MERCHANT_PAYLOAD,
-    _own_merchant_names,
     NONEXISTENT_ID,
     _create_category,
     _create_merchant,
     _create_second_user,
     _get_system_category_id,
+    _own_merchant_names,
 )
 from tests.routes.support import _create_user, _get_auth_header
 
