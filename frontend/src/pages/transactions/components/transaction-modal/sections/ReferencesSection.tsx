@@ -43,6 +43,9 @@ interface TransactionReferencesSectionProps {
   // Every account plus the "outside this app" entry, for the field recording where a transfer's
   // other side sits
   otherAccountOptions: DropdownOption[]
+
+  // The recorded account when it has since been archived, which keeps it off the list above
+  selectedArchivedOtherAccountOption?: DropdownOption
   otherAccountValue: string
   otherAccountError?: string | false
   merchantOptions: DropdownOption[]
@@ -106,6 +109,7 @@ export default function TransactionReferencesSection({
   isSymmetricTransfer,
   isTransferPairOffered,
   otherAccountOptions,
+  selectedArchivedOtherAccountOption,
   otherAccountValue,
   otherAccountError,
   merchantOptions,
@@ -232,6 +236,7 @@ export default function TransactionReferencesSection({
                 />
                 <Dropdown
                   options={otherAccountOptions}
+                  selectedOption={selectedArchivedOtherAccountOption}
                   value={otherAccountValue}
                   onChange={onOtherAccountChange}
                   className={`app-input ${otherAccountError ? 'app-input-error' : ''}`}

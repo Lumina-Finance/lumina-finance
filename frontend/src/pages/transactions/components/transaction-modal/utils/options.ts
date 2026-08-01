@@ -24,9 +24,9 @@ export function buildAccountOptions(
  * a fixed entry for money that left the tracked accounts entirely
  *
  * Unfiltered by currency, unlike the main account field, since recording an account is a fact about
- * where the money went rather than a second leg that must share a currency. Archived accounts stay
- * on the list for the same reason, until the checkbox turns the answer into a real transaction they
- * can no longer accept
+ * where the money went rather than a second leg that must share a currency. Archived accounts are
+ * left out, matching the main account field: an archived account takes no new transactions and its
+ * existing ones are read-only, so offering it here would be the one place it still accepted work
  */
 export function buildOtherAccountOptions(
   accounts: AccountsOverview[],
@@ -35,18 +35,16 @@ export function buildOtherAccountOptions(
 ) {
   // Money cannot move from an account to itself, so the account holding the transfer is left out
   // rather than offered and then refused
-  const eligibleAccounts = accounts.filter((account) => account.id !== recordedAccountId)
-  const toOption = (account: AccountsOverview) => ({ value: account.id, label: account.name })
+  const eligibleAccounts = accounts
+    .filter((account) => account.id !== recordedAccountId && !account.is_archived)
+    .map((account) => ({ value: account.id, label: account.name }))
 
-  // Ticking the checkbox writes the matching transaction to this account, which an archived account
-  // refuses, so the list narrows to the accounts that can take one. There is also nowhere outside
-  // the app to write to, so that entry goes with them
-  if (isSymmetricTransfer) {
-    return eligibleAccounts.filter((account) => !account.is_archived).map(toOption)
-  }
+  // Ticking the checkbox makes this the account the matching transaction is written to, and there
+  // is nowhere outside the app to write one, so the entry is not offered there
+  if (isSymmetricTransfer) return eligibleAccounts
 
   // First, because it is the one answer that is not a search through the account list
-  return [{ value: OUTSIDE_ACCOUNT_VALUE, label: 'Outside this app' }, ...eligibleAccounts.map(toOption)]
+  return [{ value: OUTSIDE_ACCOUNT_VALUE, label: 'Outside this app' }, ...eligibleAccounts]
 }
 
 /**

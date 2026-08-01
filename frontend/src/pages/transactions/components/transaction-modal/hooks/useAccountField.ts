@@ -24,6 +24,7 @@ interface UseAccountFieldOptions {
 interface AccountFieldState {
   accountOptions: { value: string; label: string }[]
   selectedArchivedAccountOption: { value: string; label: string } | undefined
+  selectedArchivedOtherAccountOption: { value: string; label: string } | undefined
   otherAccountOptions: { value: string; label: string }[]
   handleAccountChange: (accountId: string) => void
   handleSymmetricTransferChange: (value: boolean) => void
@@ -54,6 +55,15 @@ export function useAccountField({
   )
   const selectedArchivedAccountOption = editing && selectedAccount?.is_archived
     ? { value: selectedAccount.id, label: selectedAccount.name }
+    : undefined
+
+  // An account archived after the transfer was recorded is off the list above, so the stored answer
+  // is supplied as its own option. Without it the field would read as unanswered, and every edit
+  // now has to answer, so correcting anything else on the transaction would force the account to be
+  // changed to one that is not where the money went
+  const recordedOtherAccount = accounts.find((account) => account.id === form.other_account_id)
+  const selectedArchivedOtherAccountOption = editing && recordedOtherAccount?.is_archived
+    ? { value: recordedOtherAccount.id, label: recordedOtherAccount.name }
     : undefined
 
   const handleAccountChange = (accountId: string) => {
@@ -98,6 +108,7 @@ export function useAccountField({
   return {
     accountOptions,
     selectedArchivedAccountOption,
+    selectedArchivedOtherAccountOption,
     otherAccountOptions,
     handleAccountChange,
     handleSymmetricTransferChange,

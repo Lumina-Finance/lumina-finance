@@ -296,6 +296,7 @@ export default function CreateTransactionModal({
             isSymmetricTransfer={form.symmetric_transfer}
             isTransferPairOffered={!editing}
             otherAccountOptions={accountField.otherAccountOptions}
+            selectedArchivedOtherAccountOption={accountField.selectedArchivedOtherAccountOption}
             otherAccountValue={form.other_account_id}
             otherAccountError={showError('other_account_id')}
             merchantOptions={merchantField.merchantOptions}
