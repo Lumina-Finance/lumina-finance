@@ -1,7 +1,6 @@
 import { useMemo, type Dispatch, type SetStateAction } from 'react'
 import type { AccountsOverview } from '@/api/accounts'
 import type { Tag } from '@/api/tags'
-import { OUTSIDE_ACCOUNT_VALUE } from '@/pages/transactions/components/transaction-modal/constants'
 import {
   buildAccountOptions,
   buildOtherAccountOptions,
@@ -76,13 +75,18 @@ export function useAccountField({
     clearError('other_account_id')
   }
 
+  /** Reports whether an account can hold the matching transaction the ticked checkbox writes */
+  const canReceivePairedTransaction = (accountId: string) =>
+    accounts.some((account) => account.id === accountId && !account.is_archived)
+
   const handleSymmetricTransferChange = (value: boolean) => {
     setForm((f) => ({
       ...f,
       symmetric_transfer: value,
-      // Outside the app is no longer offered once ticked, so an answer of that is dropped rather
-      // than left selected against an option the list no longer holds
-      other_account_id: value && f.other_account_id === OUTSIDE_ACCOUNT_VALUE ? '' : f.other_account_id,
+      // Ticking narrows the list to accounts that can take a real transaction, dropping both
+      // outside the app and the archived ones, so an answer that is no longer on the list is
+      // cleared rather than left selected against a missing option
+      other_account_id: value && !canReceivePairedTransaction(f.other_account_id) ? '' : f.other_account_id,
     }))
   }
 

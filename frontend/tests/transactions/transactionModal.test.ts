@@ -439,4 +439,20 @@ describe('other-account options', () => {
 
     expect(options.some((option) => option.value === '')).toBe(false)
   })
+
+  it('still records an archived account, which is a fact about money that already moved', () => {
+    const withArchived = [...accounts, createAccount({ id: 'old-tfsa', name: 'Old TFSA', is_archived: true })]
+
+    const options = buildOtherAccountOptions(withArchived, 'checking', false)
+
+    expect(options.map((option) => option.value)).toContain('old-tfsa')
+  })
+
+  it('drops an archived account once the pair checkbox is ticked, since it refuses a transaction', () => {
+    const withArchived = [...accounts, createAccount({ id: 'old-tfsa', name: 'Old TFSA', is_archived: true })]
+
+    const options = buildOtherAccountOptions(withArchived, 'checking', true)
+
+    expect(options.map((option) => option.value)).toEqual(['savings'])
+  })
 })

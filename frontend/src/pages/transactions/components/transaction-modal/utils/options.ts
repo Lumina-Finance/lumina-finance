@@ -20,12 +20,13 @@ export function buildAccountOptions(
 }
 
 /**
- * Builds dropdown options for the other-account-recording field: every account the user holds,
- * plus a fixed entry for money that left the tracked accounts entirely
+ * Builds dropdown options for the other-account-recording field: the accounts the user holds, plus
+ * a fixed entry for money that left the tracked accounts entirely
  *
- * Unfiltered by currency or archived status, unlike the main account field: recording an account
- * is a fact about where the money went rather than a second leg that must share a currency, and an
- * archived or closed account still stays recordable since archiving happens after the money moved
+ * Unfiltered by currency, unlike the main account field, since recording an account is a fact about
+ * where the money went rather than a second leg that must share a currency. Archived accounts stay
+ * on the list for the same reason, until the checkbox turns the answer into a real transaction they
+ * can no longer accept
  */
 export function buildOtherAccountOptions(
   accounts: AccountsOverview[],
@@ -34,16 +35,18 @@ export function buildOtherAccountOptions(
 ) {
   // Money cannot move from an account to itself, so the account holding the transfer is left out
   // rather than offered and then refused
-  const accountOptions = accounts
-    .filter((account) => account.id !== recordedAccountId)
-    .map((account) => ({ value: account.id, label: account.name }))
+  const eligibleAccounts = accounts.filter((account) => account.id !== recordedAccountId)
+  const toOption = (account: AccountsOverview) => ({ value: account.id, label: account.name })
 
-  // Ticking the checkbox makes this the account the matching transaction is written to, and there
-  // is nowhere outside the app to write one, so the entry is not offered there
-  if (isSymmetricTransfer) return accountOptions
+  // Ticking the checkbox writes the matching transaction to this account, which an archived account
+  // refuses, so the list narrows to the accounts that can take one. There is also nowhere outside
+  // the app to write to, so that entry goes with them
+  if (isSymmetricTransfer) {
+    return eligibleAccounts.filter((account) => !account.is_archived).map(toOption)
+  }
 
   // First, because it is the one answer that is not a search through the account list
-  return [{ value: OUTSIDE_ACCOUNT_VALUE, label: 'Outside this app' }, ...accountOptions]
+  return [{ value: OUTSIDE_ACCOUNT_VALUE, label: 'Outside this app' }, ...eligibleAccounts.map(toOption)]
 }
 
 /**
