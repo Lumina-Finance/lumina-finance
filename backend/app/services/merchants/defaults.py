@@ -5,9 +5,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.merchant import Merchant
 
-# Merchants that ship with the app and belong to every user. "Myself" is what a transfer between
-# your own accounts is paid to, which otherwise leaves everyone typing their own spelling of it
-SYSTEM_MERCHANT_NAMES = ("Myself",)
+# What a transfer between your own accounts is paid to, which otherwise leaves everyone typing
+# their own spelling of it. Also carried by the balance adjustments the app writes for itself,
+# since those are nobody's transaction but still have to name a merchant
+SELF_MERCHANT_NAME = "Myself"
+
+# Merchants that ship with the app and belong to every user
+SYSTEM_MERCHANT_NAMES = (SELF_MERCHANT_NAME,)
 
 
 async def seed_system_merchants(db: AsyncSession) -> None:

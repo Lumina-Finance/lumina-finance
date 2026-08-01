@@ -26,7 +26,8 @@ class Transaction(Base):
     created_by_user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)  # Audit trail
     account_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False)
     dt: Mapped[date] = mapped_column(Date, nullable=False)
-    # Null only on a transfer recorded before every transaction was required to carry a merchant
+    # The create and edit routes require one, so this is null only on a transaction recorded before
+    # that rule or brought in by an import whose file named no payee
     merchant_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("merchants.id"), index=True)
     category_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("categories.id"), nullable=False)
     amount: Mapped[int] = mapped_column(BigInteger, nullable=False)  # In currency base units

@@ -1,4 +1,4 @@
-from tests.routes.support import _create_user, _get_auth_header
+from tests.routes.support import _create_user, _get_auth_header, _get_system_merchant_id
 
 # --- Helpers ---
 
@@ -883,6 +883,7 @@ async def test_delete_group_whose_account_a_transfer_records_returns_409(client)
         "currency": "CAD",
         "other_account_scope": "tracked",
         "other_account_id": group_account_id,
+        "merchant_id": await _get_system_merchant_id(client, headers),
     }, headers=headers)
     assert created.status_code == 201
 
@@ -919,6 +920,7 @@ async def test_delete_group_with_a_transfer_between_its_own_accounts_returns_204
         "currency": "CAD",
         "other_account_scope": "tracked",
         "other_account_id": recorded_id,
+        "merchant_id": await _get_system_merchant_id(client, headers),
     }, headers=headers)
     assert created.status_code == 201
 

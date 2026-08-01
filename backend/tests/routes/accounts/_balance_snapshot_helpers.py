@@ -7,7 +7,7 @@ from sqlalchemy import select
 from app.models.account import AccountBalanceSnapshot
 from app.models.currency import Currency
 from tests.conftest import TestSession
-from tests.routes.support import _get_auth_header
+from tests.routes.support import _get_auth_header, _get_system_merchant_id
 
 
 def _creation_day(account_resp):
@@ -49,6 +49,10 @@ async def _create_transaction(client, headers, account_id, category_id, **overri
         "currency": "CAD",
         **overrides,
     }
+
+    # The route requires a merchant, so a test that does not care which one gets the shared Myself
+    if "merchant_id" not in payload:
+        payload["merchant_id"] = await _get_system_merchant_id(client, headers)
     return await client.post("/transactions", json=payload, headers=headers)
 
 NONEXISTENT_ID = "00000000-0000-0000-0000-000000000000"

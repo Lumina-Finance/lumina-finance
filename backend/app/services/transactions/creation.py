@@ -68,8 +68,7 @@ async def create_transaction_and_get_response(
         data.other_account_scope,
         require_answer=True,
     )
-    if data.merchant_id:
-        await validate_transaction_merchant_access(db, data.merchant_id, user.id, account.group_id)
+    await validate_transaction_merchant_access(db, data.merchant_id, user.id, account.group_id)
     validated_tag_ids = []
     if data.tag_ids:
         validated_tag_ids = await get_valid_transaction_tag_ids(db, user.id, data.tag_ids, account.group_id)

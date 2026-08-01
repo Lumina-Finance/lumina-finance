@@ -99,7 +99,10 @@ class CreateTransactionRequest(BaseModel):
     category_id: uuid.UUID
     amount: int
     currency: str = Field(min_length=3, max_length=3)
-    merchant_id: uuid.UUID | None = None
+
+    # Required, unlike the stored column, which stays nullable for the transactions written before
+    # this rule and for the ones an import brings in without a payee
+    merchant_id: uuid.UUID
     fx_rate: float | None = Field(None, gt=0)
     notes: str | None = None
     tag_ids: list[uuid.UUID] = []

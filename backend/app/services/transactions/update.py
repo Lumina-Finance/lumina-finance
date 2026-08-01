@@ -96,8 +96,18 @@ async def update_transaction_and_get_response(
         # The answer is judged against the category the transaction ends up with, so an unchanged
         # category is still loaded
         category = await db.get(Category, txn.category_id)
-    if "merchant_id" in changed_fields and changed_fields["merchant_id"] is not None:
-        await validate_transaction_merchant_access(db, changed_fields["merchant_id"], user.id, account_group_id)
+    # Editing brings the transaction onto the current rule, so one recorded before a merchant was
+    # required has to name one before any other change to it is accepted, and one that already has
+    # a merchant cannot have it taken away. Unsent fields keep their stored values, so an edit that
+    # leaves the merchant alone is untouched by this
+    resulting_merchant_id = changed_fields.get("merchant_id", txn.merchant_id)
+    if resulting_merchant_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="merchant_id is required",
+        )
+    if "merchant_id" in changed_fields:
+        await validate_transaction_merchant_access(db, resulting_merchant_id, user.id, account_group_id)
 
     if does_category_record_other_account(category):
         # Editing a transfer answers the question, whatever else the edit changes. Transactions

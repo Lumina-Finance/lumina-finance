@@ -230,8 +230,8 @@ async def test_patch_transaction_invalid_tag_returns_422(client):
     assert resp.json()["detail"] == "Tag not found"
 
 
-async def test_patch_transaction_clears_merchant(client):
-    """PATCH with merchant_id=null clears the merchant."""
+async def test_patch_transaction_cannot_clear_merchant(client):
+    """Every edited transaction keeps a merchant, so sending null takes one away rather than correcting it."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
     merchant_resp = await _create_merchant(client, headers)
 
@@ -240,9 +240,8 @@ async def test_patch_transaction_clears_merchant(client):
 
     resp = await client.patch(f"/transactions/{txn_id}", json={"merchant_id": None}, headers=headers)
 
-    assert resp.status_code == 200
-    assert resp.json()["merchant_id"] is None
-    assert resp.json()["merchant_name"] is None
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "merchant_id is required"
 
 
 async def test_patch_transaction_clears_notes(client):

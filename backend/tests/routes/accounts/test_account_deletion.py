@@ -4,7 +4,7 @@ from tests.routes.accounts._account_helpers import (
     NONEXISTENT_ID,
     _create_second_user,
 )
-from tests.routes.support import _create_account, _create_user, _get_auth_header
+from tests.routes.support import _create_account, _create_user, _get_auth_header, _get_system_merchant_id
 
 # --- DELETE /accounts/{account_id} ---
 
@@ -94,6 +94,7 @@ async def _setup_recorded_transfer(client):
         "currency": "CAD",
         "other_account_scope": "tracked",
         "other_account_id": recorded_id,
+        "merchant_id": await _get_system_merchant_id(client, headers),
     }, headers=headers)
     assert created.status_code == 201
     return headers, holder_id, recorded_id

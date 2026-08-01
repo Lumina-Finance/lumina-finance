@@ -1,4 +1,4 @@
-from tests.routes.support import _create_account, _create_user, _get_auth_header
+from tests.routes.support import _create_account, _create_user, _get_auth_header, _get_system_merchant_id
 from tests.routes.tags._helpers import (
     NONEXISTENT_ID,
     TAG_PAYLOAD,
@@ -351,6 +351,7 @@ async def test_delete_tag_referenced_by_transaction_returns_409(client):
         "amount": -5000,
         "currency": "CAD",
         "tag_ids": [tag_id],
+        "merchant_id": await _get_system_merchant_id(client, headers),
     }, headers=headers)
     assert txn_resp.status_code == 201
 
@@ -384,6 +385,7 @@ async def test_merge_tag_moves_transaction_references_and_deletes_source(client)
         "amount": -5000,
         "currency": "CAD",
         "tag_ids": [source_id],
+        "merchant_id": await _get_system_merchant_id(client, headers),
     }, headers=headers)
     transaction_id = transaction_resp.json()["id"]
 
@@ -424,6 +426,7 @@ async def test_merge_tag_deduplicates_existing_replacement_reference(client):
         "amount": -5000,
         "currency": "CAD",
         "tag_ids": [source_id, replacement_id],
+        "merchant_id": await _get_system_merchant_id(client, headers),
     }, headers=headers)
     transaction_id = transaction_resp.json()["id"]
 
