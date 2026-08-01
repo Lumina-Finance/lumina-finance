@@ -364,7 +364,6 @@ describe('transaction modal helpers', () => {
       date: '2026-06-11',
       tag_ids: [],
       symmetric_transfer: false,
-      to_account_id: '',
       other_account_id: OUTSIDE_ACCOUNT_VALUE,
     }
 
