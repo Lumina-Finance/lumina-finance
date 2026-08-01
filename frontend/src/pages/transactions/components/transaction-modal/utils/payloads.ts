@@ -68,9 +68,9 @@ export function buildSymmetricTransferPayloads(
     currency: form.currency,
     notes: form.notes.trim() || null,
   }
-  // The first leg records whatever the field holds rather than always the receiving account: it
-  // usually matches, since choosing a receiving account fills the field, but the field stays
-  // editable afterward and can be left pointed elsewhere, including at the outside sentinel
+  // One field serves as both the receiving account and the recorded one, so the two always agree
+  // here. Ticking the checkbox takes the outside entry off the list and clears it if it was chosen,
+  // so the split below only ever produces a tracked account
   const fromPayload: CreateTransactionPayload = {
     account_id: form.account_id,
     amount: -magnitude,
