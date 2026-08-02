@@ -4,10 +4,11 @@ import logging
 import uuid
 from datetime import date
 
-from fastapi import HTTPException
+from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
+from app.models.base import TransferOtherAccountScope
 from app.models.tag import TransactionTag
 from app.models.transaction import Transaction
 from app.models.user import User
@@ -19,6 +20,7 @@ from app.schemas.firefly_import import (
 )
 from app.services.accounts.snapshots import recompute_snapshots_from
 from app.services.cache_state import mark_cache_changed_for_scope, mark_user_cache_changed
+from app.services.categories.transfer_rules import does_category_record_other_account
 from app.services.importers.firefly.constants import FIREFLY_GENERIC_SKIP_REASON
 from app.services.importers.firefly.row_resolution import (
     FireflyLeg,
@@ -27,7 +29,7 @@ from app.services.importers.firefly.row_resolution import (
     resolve_firefly_row,
 )
 from app.services.importers.firefly.system_categories import get_firefly_system_categories
-from app.services.importers.shared.accounts import get_or_create_import_accounts_by_source
+from app.services.importers.shared.accounts import resolve_import_account_sources
 from app.services.importers.shared.categories import get_or_create_import_categories_by_source
 from app.services.importers.shared.currencies import get_import_currencies_by_code
 from app.services.importers.shared.merchants import (
@@ -66,7 +68,17 @@ async def import_firefly_transactions(
         Import summary with converted, skipped, and created record counts
     """
     stats = ImportStats()
-    accounts_by_source = await get_or_create_import_accounts_by_source(db, user, data.accounts, stats)
+    account_sources = await resolve_import_account_sources(db, user, data.accounts, stats)
+
+    # Every Firefly source is an endpoint rows are written to, and the export states both sides of a
+    # transfer itself, so there is nothing here an outside answer could describe
+    if account_sources.outside_sources:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"Account source cannot be outside the tracked accounts: {sorted(account_sources.outside_sources)[0]}",
+        )
+
+    accounts_by_source = account_sources.accounts_by_source
     categories_by_source = await get_or_create_import_categories_by_source(db, user, data.categories, stats)
 
     # Load currencies after account mappings because new accounts can introduce new currency codes
@@ -203,6 +215,8 @@ async def _write_legs(
                 currency=leg.account.currency,
                 fx_rate=None,
                 notes=leg.notes,
+                other_account_id=leg.other_account.id if leg.other_account else None,
+                other_account_scope=_get_leg_other_account_scope(leg),
             )
             pending.append((transaction, tags))
 
@@ -220,6 +234,26 @@ async def _write_legs(
                 db.add(TransactionTag(transaction_id=transaction.id, tag_id=tag.id))
 
     return first_import_date_by_account_id
+
+
+def _get_leg_other_account_scope(leg: FireflyLeg) -> TransferOtherAccountScope | None:
+    """Return what a leg records about where its money went
+
+    A pair states both ends, so each leg points at the other. Every other leg of a category that
+    records an other account had no second endpoint in the export, which is what money leaving the
+    tracked accounts means
+
+    Args:
+        leg: Transaction leg resolved from the import payload
+
+    Returns:
+        Scope for the leg, or None for a category that records neither
+    """
+    if leg.other_account is not None:
+        return TransferOtherAccountScope.TRACKED
+    if does_category_record_other_account(leg.category):
+        return TransferOtherAccountScope.OUTSIDE
+    return None
 
 
 async def _mark_caches_changed_for_imported_accounts(

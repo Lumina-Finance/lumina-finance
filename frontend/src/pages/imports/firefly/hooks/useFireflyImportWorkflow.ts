@@ -5,6 +5,7 @@ import {
   type FireflyTransactionImportResponse,
 } from '@/api/firefly-imports'
 import { waitForMilliseconds } from '@/utils/timing'
+import { BALANCE_ADJUSTMENT_CATEGORY_NAME } from '@/utils/transfers'
 import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
 import { useImportAccountCreateState, useImportReferenceData } from '@/pages/imports/hooks'
 import type {
@@ -19,7 +20,6 @@ import {
   inferAccountMappings,
 } from '@/pages/imports/utils'
 import {
-  FIREFLY_BALANCE_ADJUSTMENT_CATEGORY_NAME,
   FIREFLY_CSV_PROCESSING_MIN_MS,
   FIREFLY_IMPORT_OVERLAY_MIN_MS,
   FIREFLY_IMPORT_STAGES,
@@ -122,7 +122,7 @@ export function useFireflyImportWorkflow() {
   )
 
   const balanceAdjustmentCategory = useMemo(
-    () => (categories ?? []).find((category) => category.is_system && category.name === FIREFLY_BALANCE_ADJUSTMENT_CATEGORY_NAME),
+    () => (categories ?? []).find((category) => category.is_system && category.name === BALANCE_ADJUSTMENT_CATEGORY_NAME),
     [categories],
   )
 
@@ -148,8 +148,10 @@ export function useFireflyImportWorkflow() {
     [fireflyRows, trackedAccountNames],
   )
 
+  // Every Firefly source is an account the import writes rows into, so none of them can be
+  // answered as money outside the tracked accounts
   const accountMappingSources = useMemo(
-    () => trackedAccountNames.map((name) => ({ id: name, label: name, matchText: name })),
+    () => trackedAccountNames.map((name) => ({ id: name, label: name, matchText: name, isCounterpartyOnly: false })),
     [trackedAccountNames],
   )
 

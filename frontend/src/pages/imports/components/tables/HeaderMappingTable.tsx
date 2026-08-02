@@ -1,6 +1,7 @@
-import { TriangleAlert } from 'lucide-react'
+import { CircleHelp } from 'lucide-react'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
-import { IMPORT_DATE_FORMAT_LABELS } from '@/pages/imports/constants'
+import IconTooltip from '@/components/tooltips/IconTooltip'
+import { IMPORT_DATE_FORMAT_LABELS, COUNTERPARTY_EXPLANATION } from '@/pages/imports/constants'
 import type { ColumnMap, ColumnValidationErrors, ImportFileDraft } from '@/pages/imports/types'
 import {
   IMPORT_DATE_FORMATS,
@@ -51,10 +52,10 @@ export function ImportHeaderMappingTable({
   }))
 
   // The wrapper scrolls sideways only while the table is wider than the viewport. Past that it stops
-  // clipping entirely, because overflow-x cannot be auto while overflow-y stays visible, and a
-  // clipped y axis cuts off a row's tooltip where it reaches above the top of the table
+  // clipping entirely, because overflow-x cannot be auto while overflow-y stays visible, and
+  // clipping vertically cuts off a row's tooltip where it reaches past the edge of the table
   return (
-    <div className="overflow-x-auto lg:overflow-visible">
+    <div className="overflow-x-auto lg:overflow-visible" data-tooltip-bounds>
       <table className="w-full table-fixed min-w-[48rem] text-left text-[0.9375rem]">
         <colgroup>
           <col className="w-[26%]" />
@@ -125,23 +126,26 @@ export function ImportHeaderMappingTable({
                         />
                       </div>
                     )}
+                    {selectedTarget === 'other_account_id' && (
+                      <IconTooltip
+                        label="What a counterparty account records"
+                        icon={CircleHelp}
+                        placement="bottom"
+                        widthClassName="w-72"
+                      >
+                        {COUNTERPARTY_EXPLANATION}
+                      </IconTooltip>
+                    )}
                     <span className="flex w-4 shrink-0 items-center justify-center">
                       {validationError && (
-                        <span className="group relative inline-flex">
-                          <TriangleAlert
-                            size={15}
-                            strokeWidth={2.75}
-                            aria-label={validationError}
-                            className="cursor-help"
-                            style={{ color: 'var(--app-negative)' }}
-                          />
-                          {/* Anchored to its right edge, overriding the shared class's centring, so
-                              a tooltip on the last thing in the row does not hang past the table and
-                              give the whole section a horizontal scrollbar */}
-                          <span className="app-tooltip-panel app-hover-tooltip left-auto right-0 w-64 translate-x-0">
-                            {validationError}
-                          </span>
-                        </span>
+                        <IconTooltip
+                          label={validationError}
+                          level="important"
+                          placement="bottom"
+                          widthClassName="w-64"
+                        >
+                          {validationError}
+                        </IconTooltip>
                       )}
                     </span>
                   </div>

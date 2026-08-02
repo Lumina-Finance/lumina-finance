@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest'
 import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
+import { CREATE_ACCOUNT_VALUE } from '@/pages/imports/constants'
 import type { CsvRow } from '@/pages/imports/types'
 import {
   forecastFireflyImport,
@@ -178,6 +179,47 @@ describe('forecastFireflyImport', () => {
 
     expect(skipped).toHaveLength(1)
     expect(skipped[0].reason).toBe('Invalid amount "twelve"')
+  })
+
+  // Mapping the old and new names of one account onto it is how a rename is
+  // carried across, and a transfer between those names has nowhere to go
+  it('reports a transfer whose two names map onto one account', () => {
+    const { skippedRows: skipped } = forecastFireflyImport(
+      [createFireflyRow({
+        type: 'Transfer',
+        amount: '-500.00',
+        source_name: 'Chequing (old)',
+        destination_name: 'Chequing',
+        destination_type: 'Asset account',
+        category: '',
+      })],
+      createOptions({ accountMappings: { Chequing: 'checking', 'Chequing (old)': 'checking' } }),
+    )
+
+    expect(skipped).toHaveLength(1)
+    expect(skipped[0].reason).toBe('Transfer source and destination resolve to the same account')
+  })
+
+  // Every account is new on a first import, and two accounts queued for creation share one
+  // sentinel as their id, which must not read as one account
+  it('keeps a transfer between two accounts queued for creation', () => {
+    const createDetails = { accountType: 'checking', currency: 'CAD', institutionId: '' }
+    const { skippedRows: skipped } = forecastFireflyImport(
+      [createFireflyRow({
+        type: 'Transfer',
+        amount: '-500.00',
+        source_name: 'Chequing',
+        destination_name: 'Savings',
+        destination_type: 'Asset account',
+        category: '',
+      })],
+      createOptions({
+        accountMappings: { Chequing: CREATE_ACCOUNT_VALUE, Savings: CREATE_ACCOUNT_VALUE },
+        accountCreateDetails: { Chequing: createDetails, Savings: createDetails },
+      }),
+    )
+
+    expect(skipped).toEqual([])
   })
 
   it('reports a withdrawal without an imported source account', () => {

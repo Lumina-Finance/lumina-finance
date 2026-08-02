@@ -9,7 +9,7 @@ import {
   TRANSACTION_MODAL_FIELD_IDS,
 } from '@/pages/transactions/components/transaction-modal/constants'
 import TransferCashFlowNotice from '@/pages/transactions/components/transaction-modal/controls/TransferCashFlowNotice'
-import { doesTransferRecordOtherAccount } from '@/pages/transactions/components/transaction-modal/utils/validation'
+import { doesTransferRecordOtherAccount } from '@/utils/transfers'
 import type {
   TransactionDirection,
   TransactionModalKind,

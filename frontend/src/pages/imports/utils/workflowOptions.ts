@@ -78,11 +78,16 @@ export function buildImportCategoryMatchOptions(categories: Category[] = []): Dr
 
 /**
  * Builds import column target options grouped by required and optional fields
+ *
+ * The list starts a new heading every time the group changes down the options, so the required ones
+ * are gathered ahead of the optional ones rather than following the order the fields are declared in
  */
 export function buildColumnTargetOptions(): DropdownOption[] {
+  const targetsByGroup = [...COLUMN_TARGETS].sort((a, b) => Number(Boolean(b.required)) - Number(Boolean(a.required)))
+
   return [
     { value: '', label: 'Do not import' },
-    ...COLUMN_TARGETS.map((target) => ({
+    ...targetsByGroup.map((target) => ({
       value: target.id,
       label: target.label,
       group: target.required ? 'Required fields' : 'Optional fields',
@@ -112,20 +117,38 @@ export function getMissingRequiredColumnLabels(columnMap: ColumnMap): string[] {
 export function buildImportAccountMappingSources(
   files: ImportFileDraft[],
   accountHeader: string,
+  otherAccountHeader: string,
 ): ImportAccountSource[] {
-  if (accountHeader) {
-    return getUniqueColumnValues(files, accountHeader).map((source) => ({
+  const rowSources: ImportAccountSource[] = accountHeader
+    ? getUniqueColumnValues(files, accountHeader).map((source) => ({
       id: source,
       label: source,
       matchText: source,
+      isCounterpartyOnly: false,
     }))
-  }
+    : files.map((file) => ({
+      id: file.id,
+      label: getImportAccountName(file.name),
+      matchText: file.name,
+      isCounterpartyOnly: false,
+    }))
 
-  return files.map((file) => ({
-    id: file.id,
-    label: getImportAccountName(file.name),
-    matchText: file.name,
-  }))
+  if (!otherAccountHeader) return rowSources
+
+  // A name appearing only as the other side of a transfer still has to be mapped, and it is the
+  // only kind that can be answered as money outside the tracked accounts, since no row is written
+  // to it
+  const rowSourceIds = new Set(rowSources.map((source) => source.id))
+  const counterpartySources: ImportAccountSource[] = getUniqueColumnValues(files, otherAccountHeader)
+    .filter((source) => !rowSourceIds.has(source))
+    .map((source) => ({
+      id: source,
+      label: source,
+      matchText: source,
+      isCounterpartyOnly: true,
+    }))
+
+  return [...rowSources, ...counterpartySources]
 }
 
 /**

@@ -1,6 +1,7 @@
 import type { Category } from '@/api/categories'
 import type { TransactionImportPayload, TransactionImportResponse } from '@/api/transaction-imports'
 import { COLUMN_TARGETS, CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, DEFAULT_CATEGORY_ICON } from '@/pages/imports/constants'
+import { BALANCE_ADJUSTMENT_CATEGORY_NAME, doesTransferRecordOtherAccount, OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 import type { ColumnMap, ColumnValidationErrors, ImportAccountSource, ImportBuildResult, ImportCategoryKind, ImportFileDraft } from '@/pages/imports/types'
 import { isImportAccountType } from '@/pages/imports/accountTypeGuard'
 import { getCategoryMatchKind, splitImportedValues } from './categoryMatching'
@@ -76,8 +77,7 @@ export function buildTransactionImportPayload({
     appendAccountMapping(
       accounts,
       errors,
-      source.id,
-      source.label,
+      source,
       choice,
       accountCreateTypes[source.id],
       accountCreateCurrencies[source.id],
@@ -86,6 +86,10 @@ export function buildTransactionImportPayload({
   }
 
   const categories: TransactionImportPayload['categories'] = []
+
+  // Only a transfer category records where the money went, so the rule is settled per category
+  // source once and read back for every row using it
+  const recordsCounterpartyBySource: Record<string, boolean> = {}
   for (const source of importedCategories) {
     const choice = categoryMappings[source] ?? ''
     if (!choice) {
@@ -100,6 +104,12 @@ export function buildTransactionImportPayload({
         continue
       }
 
+      // A create mapping reuses a category of the same name where one exists, so a source called
+      // Balance Adjustment lands on the system category that records no other account
+      recordsCounterpartyBySource[source] = doesTransferRecordOtherAccount(
+        kind,
+        source === BALANCE_ADJUSTMENT_CATEGORY_NAME,
+      )
       categories.push({
         source,
         create: {
@@ -111,6 +121,12 @@ export function buildTransactionImportPayload({
       continue
     }
 
+    // The backend matches Balance Adjustment by name alone, so a personal category sharing that
+    // name is refused there too and has to be refused here
+    const category = categoryById.get(choice)
+    recordsCounterpartyBySource[source] = category
+      ? doesTransferRecordOtherAccount(category.kind, category.name === BALANCE_ADJUSTMENT_CATEGORY_NAME)
+      : false
     categories.push({ source, category_id: choice })
   }
 
@@ -122,10 +138,24 @@ export function buildTransactionImportPayload({
       const dt = dateFormat ? readImportDate(getMappedValue(row, columnMap.dt), dateFormat) : ''
       const amount = getMappedValue(row, columnMap.amount)
 
+      const counterpartySource = columnMap.other_account_id
+        ? cleanOptional(getMappedValue(row, columnMap.other_account_id))
+        : null
+
       if (!accountSource) addError('Account source cannot be blank.')
       if (!categorySource) addError('Category source cannot be blank.')
       if (!dt) addError('Every imported row needs a valid date.')
       if (parseImportNumber(amount) === null) addError('Every imported row needs a valid raw amount.')
+
+      if (counterpartySource) {
+        if (!recordsCounterpartyBySource[categorySource]) {
+          // The category is what the user can act on: the column has to be left unmapped, or the
+          // rows using it mapped to a transfer category
+          addError(`Only a transfer records a counterparty account, so the mapped Counterparty account column cannot be used by category: ${categorySource}`)
+        } else if (isSameMappedAccount(accountMappings, accountSource, counterpartySource)) {
+          addError(`A transfer cannot record its own account as its counterparty: ${counterpartySource}`)
+        }
+      }
 
       rows.push({
         account_source: accountSource,
@@ -135,6 +165,7 @@ export function buildTransactionImportPayload({
         merchant_name: cleanOptional(getMappedValue(row, columnMap.merchant_id)),
         notes: cleanOptional(getMappedValue(row, columnMap.notes)),
         tag_names: splitImportedValues(getMappedValue(row, columnMap.tag_ids)),
+        counterparty_account_source: counterpartySource,
       })
     }
   }
@@ -147,19 +178,32 @@ export function buildTransactionImportPayload({
 function appendAccountMapping(
   accounts: TransactionImportPayload['accounts'],
   errors: string[],
-  source: string,
-  createName: string,
+  accountSource: ImportAccountSource,
   choice: string,
   createType: string | undefined,
   createCurrency: string | undefined,
   createInstitution: string | undefined,
 ) {
+  const source = accountSource.id
+  const createName = accountSource.label
   const addError = (message: string) => {
     if (!errors.includes(message)) errors.push(message)
   }
 
   if (!choice) {
     addError(`Map account: ${createName}`)
+    return
+  }
+
+  if (choice === OUTSIDE_ACCOUNT_VALUE) {
+    // The dropdown only offers this answer where no row is written to the source, so it survives
+    // here when a file added later carries rows for a name that was answered this way
+    if (!accountSource.isCounterpartyOnly) {
+      addError(`Rows cannot be written to an account source that is outside the tracked accounts: ${createName}`)
+      return
+    }
+
+    accounts.push({ source, outside: true })
     return
   }
 
@@ -191,6 +235,26 @@ function appendAccountMapping(
 function cleanOptional(value: string) {
   const trimmed = value.trim()
   return trimmed || null
+}
+
+/**
+ * Reports whether the two sides of a transfer row end up in the same account, either through one
+ * source being used on both sides or through two sources mapped onto one existing account, which is
+ * how a renamed account is carried across
+ *
+ * Two different sources both set to create an account produce two separate accounts, so they match
+ * only when the source itself is the same name
+ */
+function isSameMappedAccount(
+  accountMappings: Record<string, string>,
+  accountSource: string,
+  counterpartySource: string,
+) {
+  if (accountSource === counterpartySource) return true
+
+  const accountChoice = accountMappings[accountSource]
+  if (!accountChoice || accountChoice === CREATE_ACCOUNT_VALUE) return false
+  return accountChoice === accountMappings[counterpartySource]
 }
 
 /**

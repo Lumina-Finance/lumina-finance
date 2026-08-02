@@ -1,8 +1,18 @@
 import { useState } from 'react'
 import CreateInstitutionModal from '@/components/reference-modals/CreateInstitutionModal'
-import { ACCOUNT_TYPE_OPTIONS } from '@/pages/imports/constants'
+import {
+  ACCOUNT_TYPE_OPTIONS,
+  COUNTERPARTY_ONLY_EXPLANATION,
+  COUNTERPARTY_ONLY_TABLE_TITLE,
+} from '@/pages/imports/constants'
+import type { ImportAccountSource } from '@/pages/imports/types'
 import { ImportAccountMappingTable, EmptyState, ImportNotice, ImportStep } from '@/pages/imports/components'
 import type { TransactionImportWorkflow } from '@/pages/imports/hooks'
+
+// Which batch bar asked for a new institution, since each table has one and a row id can be neither
+const IMPORTED_BATCH_TARGET = '__imported_batch__'
+const COUNTERPARTY_BATCH_TARGET = '__counterparty_batch__'
+type BatchTarget = typeof IMPORTED_BATCH_TARGET | typeof COUNTERPARTY_BATCH_TARGET
 
 type ImportAccountMappingStepProps = Pick<
   TransactionImportWorkflow,
@@ -18,6 +28,7 @@ type ImportAccountMappingStepProps = Pick<
   | 'setAccountCreateCurrencies'
   | 'setAccountCreateInstitutions'
   | 'accountOptions'
+  | 'counterpartyAccountOptions'
   | 'currencyOptions'
   | 'institutionOptions'
   | 'accountsLoading'
@@ -50,6 +61,7 @@ export function ImportAccountMappingStep({
   setAccountCreateCurrencies,
   setAccountCreateInstitutions,
   accountOptions,
+  counterpartyAccountOptions,
   currencyOptions,
   institutionOptions,
   accountsLoading,
@@ -65,24 +77,72 @@ export function ImportAccountMappingStep({
   setSelectedAccountRows,
 }: ImportAccountMappingStepProps) {
   const [institutionModalName, setInstitutionModalName] = useState('')
-  const [institutionModalTarget, setInstitutionModalTarget] = useState<'batch' | string>('')
+  const [institutionModalTarget, setInstitutionModalTarget] = useState<BatchTarget | string>('')
   const [institutionModalKey, setInstitutionModalKey] = useState(0)
   const institutionModalOpen = Boolean(institutionModalTarget)
 
-  const openInstitutionModal = (query: string, target: 'batch' | string) => {
+  // The counterparty table carries its own batch bar, so typing into one bar leaves the other alone
+  const [counterpartyBatchType, setCounterpartyBatchType] = useState('')
+  const [counterpartyBatchCurrency, setCounterpartyBatchCurrency] = useState('')
+  const [counterpartyBatchInstitution, setCounterpartyBatchInstitution] = useState('')
+
+  const openInstitutionModal = (query: string, target: BatchTarget | string) => {
     setInstitutionModalName(query)
     setInstitutionModalTarget(target)
     setInstitutionModalKey((current) => current + 1)
   }
 
   const handleInstitutionCreated = (institution: { id: string }) => {
-    if (institutionModalTarget === 'batch') {
+    if (institutionModalTarget === IMPORTED_BATCH_TARGET) {
       setBatchAccountInstitution(institution.id)
+    } else if (institutionModalTarget === COUNTERPARTY_BATCH_TARGET) {
+      setCounterpartyBatchInstitution(institution.id)
     } else if (institutionModalTarget) {
       setAccountCreateInstitutions((current) => ({ ...current, [institutionModalTarget]: institution.id }))
     }
     setInstitutionModalTarget('')
   }
+
+  /**
+   * Builds the table rows for a set of sources, keeping both tables identical apart from the
+   * outside answer that only a counterparty source is offered
+   */
+  const buildRows = (sources: ImportAccountSource[]) => sources.map((sourceAccount) => {
+    const value = accountMappings[sourceAccount.id] ?? ''
+    const account = accountById.get(value)
+
+    return {
+      id: sourceAccount.id,
+      source: sourceAccount.label,
+      value,
+      autoFilled: autoFilledAccountSources.has(sourceAccount.id),
+      accountType: account?.account_type ?? '',
+      accountCurrency: account?.currency ?? '',
+      accountInstitution: account?.institution?.id ?? '',
+      createType: accountCreateTypes[sourceAccount.id] ?? '',
+      createCurrency: accountCreateCurrencies[sourceAccount.id] ?? '',
+      createInstitution: accountCreateInstitutions[sourceAccount.id] ?? '',
+      onChange: (nextValue: string) => updateSourceAccount(sourceAccount.id, nextValue),
+      onCreateTypeChange: (nextValue: string) => setAccountCreateTypes((current) => ({ ...current, [sourceAccount.id]: nextValue })),
+      onCreateCurrencyChange: (nextValue: string) => setAccountCreateCurrencies((current) => ({ ...current, [sourceAccount.id]: nextValue })),
+      onCreateInstitutionChange: (nextValue: string) => setAccountCreateInstitutions((current) => ({ ...current, [sourceAccount.id]: nextValue })),
+    }
+  })
+
+  const sharedTableProps = {
+    accountTypeOptions: ACCOUNT_TYPE_OPTIONS,
+    currencyOptions,
+    institutionOptions,
+    disabled: accountsLoading,
+    currenciesDisabled: currenciesLoading,
+    institutionsDisabled: institutionsLoading,
+    selectedRowIds: selectedAccountRows,
+    onSelectedRowsChange: setSelectedAccountRows,
+    onCreateInstitution: (query: string, rowId: string) => openInstitutionModal(query, rowId),
+  }
+
+  const importedSources = accountMappingSources.filter((source) => !source.isCounterpartyOnly)
+  const counterpartySources = accountMappingSources.filter((source) => source.isCounterpartyOnly)
 
   return (
     <ImportStep index="03" title="Account Mapping">
@@ -95,46 +155,42 @@ export function ImportAccountMappingStep({
           description="Upload a file or check the mapped account column."
         />
       ) : (
-        <ImportAccountMappingTable
-          rows={accountMappingSources.map((sourceAccount) => {
-            const value = accountMappings[sourceAccount.id] ?? ''
-            const account = accountById.get(value)
-
-            return {
-              id: sourceAccount.id,
-              source: sourceAccount.label,
-              value,
-              autoFilled: autoFilledAccountSources.has(sourceAccount.id),
-              accountType: account?.account_type ?? '',
-              accountCurrency: account?.currency ?? '',
-              accountInstitution: account?.institution?.id ?? '',
-              createType: accountCreateTypes[sourceAccount.id] ?? '',
-              createCurrency: accountCreateCurrencies[sourceAccount.id] ?? '',
-              createInstitution: accountCreateInstitutions[sourceAccount.id] ?? '',
-              onChange: (nextValue: string) => updateSourceAccount(sourceAccount.id, nextValue),
-              onCreateTypeChange: (nextValue: string) => setAccountCreateTypes((current) => ({ ...current, [sourceAccount.id]: nextValue })),
-              onCreateCurrencyChange: (nextValue: string) => setAccountCreateCurrencies((current) => ({ ...current, [sourceAccount.id]: nextValue })),
-              onCreateInstitutionChange: (nextValue: string) => setAccountCreateInstitutions((current) => ({ ...current, [sourceAccount.id]: nextValue })),
-            }
-          })}
-          options={accountOptions}
-          accountTypeOptions={ACCOUNT_TYPE_OPTIONS}
-          currencyOptions={currencyOptions}
-          institutionOptions={institutionOptions}
-          disabled={accountsLoading}
-          currenciesDisabled={currenciesLoading}
-          institutionsDisabled={institutionsLoading}
-          selectedRowIds={selectedAccountRows}
-          batchAccountType={batchAccountType}
-          batchAccountCurrency={batchAccountCurrency}
-          batchAccountInstitution={batchAccountInstitution}
-          onBatchAccountTypeChange={setBatchAccountType}
-          onBatchAccountCurrencyChange={setBatchAccountCurrency}
-          onBatchAccountInstitutionChange={setBatchAccountInstitution}
-          onSelectedRowsChange={setSelectedAccountRows}
-          onCreateInstitution={(query, rowId) => openInstitutionModal(query, rowId)}
-          onBatchCreateInstitution={(query) => openInstitutionModal(query, 'batch')}
-        />
+        <>
+          <ImportAccountMappingTable
+            rows={buildRows(importedSources)}
+            options={accountOptions}
+            batchAccountType={batchAccountType}
+            batchAccountCurrency={batchAccountCurrency}
+            batchAccountInstitution={batchAccountInstitution}
+            onBatchAccountTypeChange={setBatchAccountType}
+            onBatchAccountCurrencyChange={setBatchAccountCurrency}
+            onBatchAccountInstitutionChange={setBatchAccountInstitution}
+            onBatchCreateInstitution={(query) => openInstitutionModal(query, IMPORTED_BATCH_TARGET)}
+            {...sharedTableProps}
+          />
+          {counterpartySources.length > 0 && (
+            <div className="space-y-3 pt-8">
+              <div className="space-y-1">
+                <p className="text-sm font-semibold">{COUNTERPARTY_ONLY_TABLE_TITLE}</p>
+                <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                  {COUNTERPARTY_ONLY_EXPLANATION}
+                </p>
+              </div>
+              <ImportAccountMappingTable
+                rows={buildRows(counterpartySources)}
+                options={counterpartyAccountOptions}
+                batchAccountType={counterpartyBatchType}
+                batchAccountCurrency={counterpartyBatchCurrency}
+                batchAccountInstitution={counterpartyBatchInstitution}
+                onBatchAccountTypeChange={setCounterpartyBatchType}
+                onBatchAccountCurrencyChange={setCounterpartyBatchCurrency}
+                onBatchAccountInstitutionChange={setCounterpartyBatchInstitution}
+                onBatchCreateInstitution={(query) => openInstitutionModal(query, COUNTERPARTY_BATCH_TARGET)}
+                {...sharedTableProps}
+              />
+            </div>
+          )}
+        </>
       )}
       <CreateInstitutionModal
         key={institutionModalKey}

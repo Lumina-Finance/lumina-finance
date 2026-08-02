@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { useImportTransactions, type TransactionImportResponse } from '@/api/transaction-imports'
 import { EMPTY_COLUMN_MAP } from '@/pages/imports/constants'
+import { OUTSIDE_ACCOUNT_LABEL, OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 import type { ColumnMap, ColumnTarget, ColumnValidationErrors, ImportCategoryKind, ImportFileDraft, ImportOverlayPhase, PreviewTransactionRow } from '@/pages/imports/types'
 import {
   buildColumnTargetOptions,
@@ -161,26 +162,50 @@ export function useTransactionImportWorkflow() {
   }
 
   const accountMappingSources = useMemo(
-    () => buildImportAccountMappingSources(files, columnMap.account_id),
-    [columnMap.account_id, files],
+    () => buildImportAccountMappingSources(files, columnMap.account_id, columnMap.other_account_id),
+    [columnMap.account_id, columnMap.other_account_id, files],
+  )
+
+  // Only a source no row is written to can answer that the money left the tracked accounts, so the
+  // extra choice is kept off every other row's dropdown
+  const counterpartyAccountOptions = useMemo(
+    () => [
+      { value: OUTSIDE_ACCOUNT_VALUE, label: OUTSIDE_ACCOUNT_LABEL, group: 'Import Action' },
+      ...accountOptions,
+    ],
+    [accountOptions],
   )
 
   const canInferAccountMappings = Boolean(accountAutoMatchKey)
     && accountAutoMatchKey === (columnMap.account_id || FILE_ACCOUNT_MATCH_KEY)
 
   const resolvedAccountMappings = useMemo(
-    () => (
-      canInferAccountMappings
+    () => {
+      const resolved = canInferAccountMappings
         ? inferAccountMappings(accountMappingSources, accountMappings, selectableAccounts)
-        : accountMappings
-    ),
+        : { ...accountMappings }
+
+      // No row is written to these, so the import creates nothing for them unless the user asks for
+      // an account by hand, and the transfers pointing at them say the money left the app
+      for (const source of accountMappingSources) {
+        if (source.isCounterpartyOnly && !resolved[source.id]) resolved[source.id] = OUTSIDE_ACCOUNT_VALUE
+      }
+      return resolved
+    },
     [accountMappingSources, accountMappings, canInferAccountMappings, selectableAccounts],
   )
 
+  // The highlight says a choice was matched from the file. The outside answer on a counterparty
+  // source is a default rather than a match, so it is left plain
   const autoFilledAccountSources = useMemo(
     () => new Set(
       accountMappingSources
-        .filter((source) => !accountMappings[source.id] && Boolean(resolvedAccountMappings[source.id]))
+        .filter((source) => {
+          if (accountMappings[source.id]) return false
+          const resolved = resolvedAccountMappings[source.id]
+          if (!resolved) return false
+          return !(source.isCounterpartyOnly && resolved === OUTSIDE_ACCOUNT_VALUE)
+        })
         .map((source) => source.id),
     ),
     [accountMappingSources, accountMappings, resolvedAccountMappings],
@@ -476,6 +501,7 @@ export function useTransactionImportWorkflow() {
     institutionsLoading,
     categoriesLoading,
     accountOptions,
+    counterpartyAccountOptions,
     currencyOptions,
     institutionOptions,
     categoryMatchOptions,

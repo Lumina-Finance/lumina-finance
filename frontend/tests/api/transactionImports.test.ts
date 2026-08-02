@@ -166,4 +166,21 @@ describe('transaction import batching', () => {
       { source: 'Groceries', category_id: 'cat_created' },
     ]);
   });
+
+  // A batch only carries the mappings for the sources its rows use, and a counterparty belongs to
+  // no row's own account, so it has to be collected from the transfer itself
+  it('carries the mapping for a counterparty no row is written to', async () => {
+    const payload = buildImportPayload([
+      { ...buildImportRow(), category_source: 'Transfer', counterparty_account_source: 'Brokerage elsewhere' },
+    ]);
+    payload.categories = [{ source: 'Transfer', category_id: 'cat_transfer' }];
+    payload.accounts = [...payload.accounts, { source: 'Brokerage elsewhere', outside: true }];
+
+    authenticatedFetchMock.mockResolvedValueOnce(buildImportResponse({ transactions_created: 1 }));
+
+    await importTransactionsInBatches(payload);
+    const batchPayload = JSON.parse(authenticatedFetchMock.mock.calls[0][1].body);
+
+    expect(batchPayload.accounts).toContainEqual({ source: 'Brokerage elsewhere', outside: true });
+  });
 });

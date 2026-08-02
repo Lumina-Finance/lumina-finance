@@ -5,14 +5,13 @@ import { ApiError } from '@/api/auth'
 import type { Category } from '@/api/categories'
 import { useInfiniteMerchants, useMerchant, useUpdateMerchant, type Merchant } from '@/api/merchants'
 import {
-  BALANCE_ADJUSTMENT_CATEGORY_NAME,
   MERCHANT_DROPDOWN_PAGE_SIZE,
   MERCHANT_FETCHING_MORE_TEXT_MIN_MS,
   MERCHANT_SEARCH_DEBOUNCE_MS,
   MERCHANT_SEARCH_LOADING_TEXT_MIN_MS,
 } from '@/pages/transactions/components/transaction-modal/constants'
 import { buildCategoryOptions } from '@/pages/transactions/components/transaction-modal/utils/categories'
-import { doesTransferRecordOtherAccount } from '@/pages/transactions/components/transaction-modal/utils/validation'
+import { BALANCE_ADJUSTMENT_CATEGORY_NAME, doesTransferRecordOtherAccount } from '@/utils/transfers'
 import type {
   TransactionFormFieldErrors,
   TransactionFormValues,

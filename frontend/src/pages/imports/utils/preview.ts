@@ -3,6 +3,7 @@ import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import type { Institution } from '@/api/institutions'
 import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, DEFAULT_CATEGORY_ICON } from '@/pages/imports/constants'
+import { BALANCE_ADJUSTMENT_CATEGORY_NAME, doesTransferRecordOtherAccount, OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 import type { ColumnMap, ImportCategoryKind, ImportFileDraft, PreviewTransactionRow } from '@/pages/imports/types'
 import { getImportAccountName } from './accountMapping'
 import { splitImportedValues } from './categoryMatching'
@@ -115,6 +116,24 @@ export function buildImportPreviewRows({
       )
       const tagIds = importedTagValues.map((tag, tagIndex) => `${file.id}-${rowIndex}-tag-${tagIndex}-${tag}`)
 
+      // A row states its counterparty only where the file has a column for it and the row's category
+      // can hold one, and the answer is whatever that source was mapped to, which can be an account
+      // or money leaving the app
+      const recordsCounterparty = doesPreviewCategoryRecordCounterparty(category)
+      const counterpartySource = recordsCounterparty && columnMap.other_account_id
+        ? getMappedValue(row, columnMap.other_account_id).trim()
+        : ''
+      const counterpartyChoice = counterpartySource ? resolvedAccountMappings[counterpartySource] ?? '' : ''
+      const counterpartyAccount = counterpartyChoice === CREATE_ACCOUNT_VALUE || counterpartyChoice === OUTSIDE_ACCOUNT_VALUE
+        ? undefined
+        : accountById.get(counterpartyChoice)
+
+      // An account queued for creation has no id or row of its own yet, so it stands in with the
+      // same sentinel the row's own account uses and shows under the source it came from
+      const counterpartyName = counterpartyChoice === CREATE_ACCOUNT_VALUE
+        ? counterpartySource
+        : counterpartyAccount?.name
+
       rows.push({
         id: `${file.id}-${rowIndex}`,
         accountInstitution: account?.institution ?? createAccountInstitution ?? null,
@@ -122,6 +141,7 @@ export function buildImportPreviewRows({
         category,
         currency,
         dateLabel: getPreviewDateLabel(dt),
+        otherAccountName: counterpartyName,
         transaction: {
           id: `import-preview-${file.id}-${rowIndex}`,
           created_by_user_id: 'import-preview',
@@ -137,9 +157,8 @@ export function buildImportPreviewRows({
           fx_rate: null,
           notes: notes || null,
 
-          // A CSV row carries one account, so there is no other side to show
-          other_account_id: null,
-          other_account_scope: null,
+          other_account_id: counterpartyAccount?.id ?? (counterpartyChoice === CREATE_ACCOUNT_VALUE ? CREATE_ACCOUNT_VALUE : null),
+          other_account_scope: getPreviewCounterpartyScope(recordsCounterparty, counterpartyChoice),
           created_at: timestamp,
           updated_at: timestamp,
           tag_ids: tagIds,
@@ -156,6 +175,28 @@ export function buildImportPreviewRows({
   }
 
   return rows
+}
+
+/**
+ * Reports whether a previewed row's category can record where the money went
+ *
+ * The backend matches Balance Adjustment by name alone, so this does too, and a row the API would
+ * refuse an other account for is previewed without one
+ */
+function doesPreviewCategoryRecordCounterparty(category: Category | undefined) {
+  if (!category) return false
+  return doesTransferRecordOtherAccount(category.kind, category.name === BALANCE_ADJUSTMENT_CATEGORY_NAME)
+}
+
+/**
+ * Resolves what a previewed transfer will record about where the money went
+ *
+ * A transfer that states no counterparty records that the money left the app, which is what the
+ * import writes for it, and a category that records neither leaves both fields empty
+ */
+function getPreviewCounterpartyScope(recordsCounterparty: boolean, counterpartyChoice: string) {
+  if (!recordsCounterparty) return null
+  return counterpartyChoice && counterpartyChoice !== OUTSIDE_ACCOUNT_VALUE ? 'tracked' : 'outside'
 }
 
 /**

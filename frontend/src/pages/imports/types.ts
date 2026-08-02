@@ -12,6 +12,7 @@ export type ColumnTarget =
   | 'merchant_id'
   | 'notes'
   | 'tag_ids'
+  | 'other_account_id'
 
 export type ColumnMap = Record<ColumnTarget, string>
 export type ColumnValidationErrors = Record<string, string>
@@ -37,6 +38,9 @@ export interface ImportAccountSource {
   id: string
   label: string
   matchText: string
+
+  /** True when no row is written to this source, which is the only case that can answer "outside" */
+  isCounterpartyOnly: boolean
 }
 
 export interface ImportFileDraft {
@@ -57,6 +61,9 @@ export interface PreviewTransactionRow {
   currency: string
   dateLabel: string
   transaction: Transaction
+
+  /** Name behind the transaction's other account, since the preview has no account list to read */
+  otherAccountName?: string
 }
 
 export interface ImportBuildResult {

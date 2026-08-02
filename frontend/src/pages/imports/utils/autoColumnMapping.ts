@@ -73,6 +73,17 @@ const HEADER_ALIAS_SCORES: Record<ColumnTarget, Record<string, number>> = {
     labels: 90,
     label: 90,
   },
+  other_account_id: {
+    counterpartyaccount: 100,
+    counterpartyaccountname: 95,
+    otheraccount: 100,
+    otheraccountname: 100,
+    destinationaccount: 95,
+    destinationaccountname: 95,
+    toaccount: 95,
+    transferaccount: 90,
+    counteraccount: 85,
+  },
 }
 
 const HEADER_CONTAINS_SCORES: Record<ColumnTarget, Array<{ value: string; score: number }>> = {
@@ -117,10 +128,20 @@ const HEADER_CONTAINS_SCORES: Record<ColumnTarget, Array<{ value: string; score:
     { value: 'tags', score: 85 },
     { value: 'labels', score: 80 },
   ],
+  other_account_id: [
+    { value: 'counterparty account', score: 90 },
+    { value: 'other account', score: 90 },
+    { value: 'destination account', score: 85 },
+    { value: 'transfer account', score: 80 },
+    { value: 'counter account', score: 80 },
+  ],
 }
 
+// Targets are matched in order and each header can only be claimed once, so the account column is
+// barred from the headers describing the other side of a transfer, which it would otherwise take
+// first. A file whose own account column is called "Destination account" is mapped by hand
 const EXCLUDED_HEADER_PARTS: Partial<Record<ColumnTarget, string[]>> = {
-  account_id: ['number', 'no', 'iban', 'routing'],
+  account_id: ['number', 'no', 'iban', 'routing', 'other', 'destination', 'counter'],
   amount: ['balance', 'available', 'limit', 'rate'],
 }
 
@@ -166,6 +187,10 @@ function getBestHeaderMatch(
   for (const header of headers) {
     if (usedHeaders.has(header)) continue
 
+    // A header the target is not allowed to take is skipped outright, since what its values look
+    // like would otherwise claim it anyway
+    if (isHeaderExcludedForTarget(header, target)) continue
+
     const score = Math.max(
       scoreHeaderForTarget(header, target),
       scoreValuesForTarget(files, header, target),
@@ -183,12 +208,14 @@ function getBestHeaderMatch(
   return bestMatch?.header ?? ''
 }
 
+function isHeaderExcludedForTarget(header: string, target: ColumnTarget) {
+  const parts = normalizeHeader(header).split(' ')
+  return (EXCLUDED_HEADER_PARTS[target] ?? []).some((excluded) => parts.includes(excluded))
+}
+
 function scoreHeaderForTarget(header: string, target: ColumnTarget) {
   const normalized = normalizeHeader(header)
   if (!normalized) return 0
-
-  const excludedParts = EXCLUDED_HEADER_PARTS[target] ?? []
-  if (excludedParts.some((part) => normalized.split(' ').includes(part))) return 0
 
   const compact = normalized.replace(/\s/g, '')
   const aliasScore = HEADER_ALIAS_SCORES[target][compact]

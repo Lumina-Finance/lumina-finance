@@ -199,6 +199,61 @@ describe('firefly preview rows', () => {
       currency: 'USD',
       transaction: { amount: 7350, merchant_name: null },
     })
+
+    // Each leg records the other end, which is what keeps the pair out of a tax-advantaged
+    // category's totals once it is imported
+    expect(rows[0]).toMatchObject({
+      otherAccountName: 'US Savings',
+      transaction: { other_account_id: 'us-savings', other_account_scope: 'tracked' },
+    })
+    expect(rows[1]).toMatchObject({
+      otherAccountName: 'Chequing',
+      transaction: { other_account_id: 'checking', other_account_scope: 'tracked' },
+    })
+  })
+
+  // Every account is new on a first import, so this is the ordinary case rather than an edge one
+  it('shows a transfer between two accounts queued for creation under their imported names', () => {
+    const rows = buildFireflyPreviewRows(createOptions({
+      rows: [createFireflyRow({
+        type: 'Transfer',
+        amount: '-100.00',
+        destination_name: 'Savings',
+        destination_type: 'Asset account',
+        category: '',
+      })],
+      accountById: new Map(),
+      accountMappings: { Chequing: CREATE_ACCOUNT_VALUE, Savings: CREATE_ACCOUNT_VALUE },
+      accountCreateDetails: {
+        Chequing: { accountType: 'checking', currency: 'CAD', institutionId: '' },
+        Savings: { accountType: 'savings', currency: 'CAD', institutionId: '' },
+      },
+    }))
+
+    expect(rows).toHaveLength(2)
+    expect(rows[0]).toMatchObject({
+      otherAccountName: 'Savings',
+      transaction: { other_account_scope: 'tracked' },
+    })
+    expect(rows[1]).toMatchObject({
+      otherAccountName: 'Chequing',
+      transaction: { other_account_scope: 'tracked' },
+    })
+  })
+
+  // A journal row with one imported endpoint has no second account to record, which is what money
+  // leaving the app means, and the commit writes the same
+  it('shows a transfer-category row with one imported endpoint as leaving the app', () => {
+    const transfer = createCategory({ id: 'transfer', name: 'Transfer', kind: 'transfer', is_system: true })
+    const rows = buildFireflyPreviewRows(createOptions({
+      rows: [createFireflyRow({ category: 'Moving money out' })],
+      categoryById: new Map([[transfer.id, transfer]]),
+      categoryMappings: { 'Moving money out': transfer.id },
+    }))
+
+    expect(rows).toHaveLength(1)
+    expect(rows[0].transaction.other_account_id).toBeNull()
+    expect(rows[0].transaction.other_account_scope).toBe('outside')
   })
 
   it('maps balance rows to one adjustment leg signed by the tracked side', () => {

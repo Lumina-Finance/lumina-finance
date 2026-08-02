@@ -1,5 +1,6 @@
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
 import { CREATE_ACCOUNT_VALUE, IMPORT_INSET_STYLE } from '@/pages/imports/constants'
+import { OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 import { ImportCheckbox } from '@/pages/imports/components/Primitives'
 
 /**
@@ -81,13 +82,15 @@ export function ImportAccountMappingTable({
     onSelectedRowsChange(next)
   }
 
+  // Both tables in the mapping step share one selection, so each one only ever adds or removes its
+  // own rows rather than replacing the whole set
   const toggleAllRows = () => {
-    if (allRowsSelected) {
-      onSelectedRowsChange(new Set())
-      return
+    const next = new Set(selectedRowIds)
+    for (const row of rows) {
+      if (allRowsSelected) next.delete(row.id)
+      else next.add(row.id)
     }
-
-    onSelectedRowsChange(new Set(rows.map((row) => row.id)))
+    onSelectedRowsChange(next)
   }
 
   const applyBatchType = () => {
@@ -101,7 +104,90 @@ export function ImportAccountMappingTable({
     onBatchAccountTypeChange('')
     onBatchAccountCurrencyChange('')
     onBatchAccountInstitutionChange('')
-    onSelectedRowsChange(new Set())
+
+    // Only the rows this table just edited leave the selection, which the other table shares
+    const next = new Set(selectedRowIds)
+    for (const row of rows) next.delete(row.id)
+    onSelectedRowsChange(next)
+  }
+
+  /**
+   * Renders one source's mapping row, with the account, type, currency and institution choices
+   */
+  const renderMappingRow = (row: (typeof rows)[number]) => {
+    const creating = row.value === CREATE_ACCOUNT_VALUE
+
+    return (
+      <tr key={row.id} className={row.autoFilled ? 'import-auto-fill-row' : undefined}>
+        <td className="px-4 py-3 align-middle">
+          <ImportCheckbox
+            checked={selectedRowIds.has(row.id)}
+            onChange={() => toggleRow(row)}
+            label={`Select ${row.source}`}
+          />
+        </td>
+        <td className="px-4 py-3 align-middle">
+          <div className="flex min-w-0 items-center gap-2">
+            <p
+              className={`truncate font-medium ${row.value === OUTSIDE_ACCOUNT_VALUE ? 'line-through' : ''}`}
+              style={{ color: row.value === OUTSIDE_ACCOUNT_VALUE ? 'var(--app-text-muted)' : undefined }}
+            >
+              {row.source}
+            </p>
+            {creating && (
+              <span className="shrink-0 text-[0.6875rem] font-semibold uppercase" style={{ color: 'var(--app-accent)' }}>
+                New
+              </span>
+            )}
+          </div>
+        </td>
+        <td className="px-4 py-3 align-middle">
+          <Dropdown
+            options={options}
+            value={row.value}
+            onChange={row.onChange}
+            searchable
+            blankWhenEmpty
+            className={`app-input ${row.autoFilled ? 'import-auto-fill-field' : ''}`}
+            disabled={disabled}
+          />
+        </td>
+        <td className="px-4 py-3 align-middle">
+          <Dropdown
+            options={accountTypeOptions}
+            value={creating ? row.createType : row.accountType}
+            onChange={row.onCreateTypeChange}
+            searchable
+            blankWhenEmpty
+            className={`app-input ${row.autoFilled && !creating ? 'import-auto-fill-field' : ''}`}
+            disabled={!creating}
+          />
+        </td>
+        <td className="px-2 py-3 align-middle">
+          <Dropdown
+            options={currencyOptions}
+            value={creating ? row.createCurrency : row.accountCurrency}
+            onChange={row.onCreateCurrencyChange}
+            searchable
+            blankWhenEmpty
+            className={`app-input px-2 ${row.autoFilled && !creating ? 'import-auto-fill-field' : ''}`}
+            disabled={!creating || currenciesDisabled}
+          />
+        </td>
+        <td className="px-4 py-3 align-middle">
+          <Dropdown
+            options={institutionOptions}
+            value={creating ? row.createInstitution : row.accountInstitution}
+            onChange={row.onCreateInstitutionChange}
+            searchable
+            className={`app-input ${row.autoFilled && !creating ? 'import-auto-fill-field' : ''}`}
+            disabled={!creating || institutionsDisabled}
+            onCreateNew={(query) => onCreateInstitution(query, row.id)}
+            createNewLabel={(query) => query ? `Create institution "${query}"` : 'Create institution'}
+          />
+        </td>
+      </tr>
+    )
   }
 
   return (
@@ -193,76 +279,7 @@ export function ImportAccountMappingTable({
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => {
-              const creating = row.value === CREATE_ACCOUNT_VALUE
-
-              return (
-                <tr key={row.id} className={row.autoFilled ? 'import-auto-fill-row' : undefined}>
-                  <td className="px-4 py-3 align-middle">
-                    <ImportCheckbox
-                      checked={selectedRowIds.has(row.id)}
-                      onChange={() => toggleRow(row)}
-                      label={`Select ${row.source}`}
-                    />
-                  </td>
-                  <td className="px-4 py-3 align-middle">
-                    <div className="flex min-w-0 items-center gap-2">
-                      <p className="truncate font-medium">{row.source}</p>
-                      {creating && (
-                        <span className="shrink-0 text-[0.6875rem] font-semibold uppercase" style={{ color: 'var(--app-accent)' }}>
-                          New
-                        </span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 align-middle">
-                    <Dropdown
-                      options={options}
-                      value={row.value}
-                      onChange={row.onChange}
-                      searchable
-                      blankWhenEmpty
-                      className={`app-input ${row.autoFilled ? 'import-auto-fill-field' : ''}`}
-                      disabled={disabled}
-                    />
-                  </td>
-                  <td className="px-4 py-3 align-middle">
-                    <Dropdown
-                      options={accountTypeOptions}
-                      value={creating ? row.createType : row.accountType}
-                      onChange={row.onCreateTypeChange}
-                      searchable
-                      blankWhenEmpty
-                      className={`app-input ${row.autoFilled && !creating ? 'import-auto-fill-field' : ''}`}
-                      disabled={!creating}
-                    />
-                  </td>
-                  <td className="px-2 py-3 align-middle">
-                    <Dropdown
-                      options={currencyOptions}
-                      value={creating ? row.createCurrency : row.accountCurrency}
-                      onChange={row.onCreateCurrencyChange}
-                      searchable
-                      blankWhenEmpty
-                      className={`app-input px-2 ${row.autoFilled && !creating ? 'import-auto-fill-field' : ''}`}
-                      disabled={!creating || currenciesDisabled}
-                    />
-                  </td>
-                  <td className="px-4 py-3 align-middle">
-                    <Dropdown
-                      options={institutionOptions}
-                      value={creating ? row.createInstitution : row.accountInstitution}
-                      onChange={row.onCreateInstitutionChange}
-                      searchable
-                      className={`app-input ${row.autoFilled && !creating ? 'import-auto-fill-field' : ''}`}
-                      disabled={!creating || institutionsDisabled}
-                      onCreateNew={(query) => onCreateInstitution(query, row.id)}
-                      createNewLabel={(query) => query ? `Create institution "${query}"` : 'Create institution'}
-                    />
-                  </td>
-                </tr>
-              )
-            })}
+            {rows.map(renderMappingRow)}
           </tbody>
         </table>
       </div>

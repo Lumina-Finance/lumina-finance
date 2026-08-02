@@ -3,9 +3,11 @@
 import uuid
 from datetime import date
 
+from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
+from app.models.base import TransferOtherAccountScope
 from app.models.category import Category
 from app.models.merchant import Merchant
 from app.models.tag import Tag, TransactionTag
@@ -17,10 +19,12 @@ from app.services.importers.shared.merchants import get_or_create_import_merchan
 from app.services.importers.shared.row_mappings import (
     get_import_row_account,
     get_import_row_category,
+    get_import_row_counterparty_account,
     validate_import_category_can_be_used_for_account,
 )
 from app.services.importers.shared.stats import ImportStats
 from app.services.importers.shared.tags import get_or_create_import_tags
+from app.services.importers.shared.validation_helpers import strip_import_text_or_raise
 
 
 async def create_imported_transactions(
@@ -42,14 +46,31 @@ async def create_imported_transactions(
 
     Returns:
         Earliest imported transaction date by affected account ID
+
+    Raises:
+        HTTPException: Raised with 422 when a row cannot be written as the payload states it
     """
     first_import_date_by_account_id: dict[uuid.UUID, date] = {}
 
     # Convert each frontend-compiled row into a transaction and track affected account dates
     for row in rows:
+        account_source = strip_import_text_or_raise(row.account_source, "Account source")
+        if account_source in import_lookups.outside_account_sources:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=f"Rows cannot be written to an account source that is outside the tracked accounts: {account_source}",
+            )
+
         account = get_import_row_account(import_lookups.accounts_by_source, row.account_source)
         category = get_import_row_category(import_lookups.categories_by_source, row.category_source)
         validate_import_category_can_be_used_for_account(category, account, user_id)
+        other_account_id, other_account_scope = get_import_row_counterparty_account(
+            import_lookups.accounts_by_source,
+            import_lookups.outside_account_sources,
+            row.counterparty_account_source,
+            category,
+            account,
+        )
 
         currency = import_lookups.currencies_by_code[account.currency]
         amount = parse_import_amount_to_minor_units(row.amount, currency)
@@ -71,6 +92,8 @@ async def create_imported_transactions(
             amount=amount,
             merchant=merchant,
             tags=tags,
+            other_account_id=other_account_id,
+            other_account_scope=other_account_scope,
         )
 
         current_first_import_date = first_import_date_by_account_id.get(account.id)
@@ -91,6 +114,8 @@ async def _insert_imported_transaction_and_tags(
     amount: int,
     merchant: Merchant | None,
     tags: list[Tag],
+    other_account_id: uuid.UUID | None,
+    other_account_scope: TransferOtherAccountScope | None,
 ) -> None:
     """Insert an imported transaction and its transaction-tag rows into the session
 
@@ -103,6 +128,8 @@ async def _insert_imported_transaction_and_tags(
         amount: Parsed transaction amount in account-currency minor units
         merchant: Optional merchant selected for the import row
         tags: Tag rows selected for the import row
+        other_account_id: Counterparty account recorded on a transfer, if any
+        other_account_scope: Where the counterparty sits, or None for a category that records neither
 
     Returns:
         None
@@ -117,6 +144,8 @@ async def _insert_imported_transaction_and_tags(
         currency=account.currency,
         fx_rate=None,
         notes=row.notes,
+        other_account_id=other_account_id,
+        other_account_scope=other_account_scope,
     )
     db.add(transaction)
     await db.flush()

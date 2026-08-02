@@ -14,6 +14,7 @@ export const EMPTY_COLUMN_MAP: ColumnMap = {
   merchant_id: '',
   notes: '',
   tag_ids: '',
+  other_account_id: '',
 }
 
 export const COLUMN_TARGETS: Array<{
@@ -23,6 +24,14 @@ export const COLUMN_TARGETS: Array<{
   required?: boolean
 }> = [
   { id: 'account_id', label: 'Account', hint: 'Resolved from the source account when the file contains one.' },
+
+  // Straight after the account it belongs beside, and before every target that scores on values
+  // alone, since those would otherwise claim a column of account names first
+  {
+    id: 'other_account_id',
+    label: 'Counterparty account',
+    hint: 'Account a transfer moved money to or from. Used only on transfer rows.',
+  },
   { id: 'dt', label: 'Date', hint: 'Transaction date.', required: true },
   { id: 'category_id', label: 'Category', hint: 'Resolved from imported category text.', required: true },
   { id: 'amount', label: 'Amount', hint: 'Raw signed amount.', required: true },
@@ -31,6 +40,13 @@ export const COLUMN_TARGETS: Array<{
   { id: 'notes', label: 'Notes', hint: 'Optional transaction notes.' },
   { id: 'tag_ids', label: 'Tags', hint: 'Resolved from imported tag text.' },
 ]
+
+// Shown against the counterparty column while it is being mapped
+export const COUNTERPARTY_EXPLANATION = 'Says which account a transfer\'s money went to, or came from. Only transfer rows can use it, and a blank cell records the transfer as going outside this app.'
+
+// Shown over the accounts that appear only as a counterparty, which the import writes nothing to
+export const COUNTERPARTY_ONLY_TABLE_TITLE = 'Counterparty accounts'
+export const COUNTERPARTY_ONLY_EXPLANATION = 'These accounts only ever appeared as the counterparty of a transfer, so no imported row is written to them and the importer creates nothing for them. To keep one as an account of your own, select Create New Account in its Existing Account column.'
 
 // Each format is named by an example of its shape rather than by a standard, because the year-first
 // option deliberately takes a slash and an unpadded part, which ISO 8601 does not. Keyed by format

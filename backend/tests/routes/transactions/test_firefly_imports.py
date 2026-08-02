@@ -1,7 +1,9 @@
 
 
+from datetime import UTC, datetime
+
 from tests.routes.support import _create_user, _get_auth_header
-from tests.routes.transactions._helpers import _seed_usd_currency
+from tests.routes.transactions._helpers import _create_account, _seed_usd_currency
 
 # --- POST /transactions/import/firefly ---
 
@@ -138,15 +140,181 @@ async def test_firefly_import_converts_transfers_into_two_legs(client):
 
     transfer_category_id = await _get_system_category_id(client, headers, "Transfer")
     transactions_resp = await client.get("/transactions", headers=headers)
-    amounts_by_account = {
-        transaction["account_id"]: transaction["amount"] for transaction in transactions_resp.json()
+    transactions_by_account = {
+        transaction["account_id"]: transaction for transaction in transactions_resp.json()
     }
     chequing_id = data["account_source_ids"]["Everyday Chequing"]
     savings_id = data["account_source_ids"]["High Interest Savings"]
-    assert amounts_by_account == {chequing_id: -50000, savings_id: 50000}
+    assert {
+        account_id: transaction["amount"] for account_id, transaction in transactions_by_account.items()
+    } == {chequing_id: -50000, savings_id: 50000}
     assert all(
         transaction["category_id"] == transfer_category_id for transaction in transactions_resp.json()
     )
+
+    # Each leg records the account at the other end, so the pair is left out of a tax-advantaged
+    # category's totals without anyone opening the rows to answer for them
+    assert transactions_by_account[chequing_id]["other_account_id"] == savings_id
+    assert transactions_by_account[chequing_id]["other_account_scope"] == "tracked"
+    assert transactions_by_account[savings_id]["other_account_id"] == chequing_id
+    assert transactions_by_account[savings_id]["other_account_scope"] == "tracked"
+
+
+async def test_firefly_import_records_accounts_it_creates_as_each_other_s_other_side(client):
+    """A first import creates both endpoints, and each leg still records the other one."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await client.post("/transactions/import/firefly", json={
+        "accounts": [
+            _chequing_mapping(),
+            {
+                "source": "High Interest Savings",
+                "create": {"name": "High Interest Savings", "account_type": "savings", "currency": "CAD"},
+            },
+        ],
+        "categories": [],
+        "rows": [_firefly_row(
+            type="Transfer",
+            amount="500.00",
+            description="Automatic savings contribution",
+            destination_name="High Interest Savings",
+            destination_type="Asset account",
+            category=None,
+        )],
+    }, headers=headers)
+
+    assert resp.status_code == 201
+    data = resp.json()
+    chequing_id = data["account_source_ids"]["Everyday Chequing"]
+    savings_id = data["account_source_ids"]["High Interest Savings"]
+
+    transactions_by_account = {
+        transaction["account_id"]: transaction
+        for transaction in (await client.get("/transactions", headers=headers)).json()
+    }
+    assert transactions_by_account[chequing_id]["other_account_id"] == savings_id
+    assert transactions_by_account[savings_id]["other_account_id"] == chequing_id
+
+
+async def test_firefly_import_records_a_one_sided_transfer_row_as_leaving_the_accounts(client):
+    """A row with one imported endpoint whose category is a transfer says the money left."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    transfer_category_id = await _get_system_category_id(client, headers, "Transfer")
+
+    resp = await client.post("/transactions/import/firefly", json={
+        "accounts": [_chequing_mapping()],
+        "categories": [{"source": "Moving money out", "category_id": transfer_category_id}],
+        "rows": [_firefly_row(category="Moving money out")],
+    }, headers=headers)
+
+    assert resp.status_code == 201
+    assert resp.json()["transactions_created"] == 1
+
+    transaction = (await client.get("/transactions", headers=headers)).json()[0]
+    assert transaction["other_account_id"] is None
+    assert transaction["other_account_scope"] == "outside"
+
+
+async def test_firefly_import_rejects_an_account_source_marked_outside(client):
+    """Every Firefly source is an account rows are written to, so the outside answer has no meaning."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await client.post("/transactions/import/firefly", json={
+        "accounts": [_chequing_mapping(), {"source": "Brokerage elsewhere", "outside": True}],
+        "categories": [{"source": "Groceries", "create": {"name": "Groceries", "kind": "expense"}}],
+        "rows": [_firefly_row()],
+    }, headers=headers)
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "Account source cannot be outside the tracked accounts: Brokerage elsewhere"
+
+
+async def test_firefly_imported_internal_transfer_is_left_out_of_the_limit_totals(client):
+    """The point of recording the other account: an imported internal move stops counting."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    tax_advantaged_category_resp = await client.post("/tax-advantaged-categories", json={
+        "name": "TFSA",
+        "tax_treatment": "tax_free",
+        "currency": "CAD",
+    }, headers=headers)
+    tax_advantaged_category_id = tax_advantaged_category_resp.json()["id"]
+
+    cash_resp = await _create_account(
+        client, headers, name="TFSA Cash", tax_advantaged_category_id=tax_advantaged_category_id,
+    )
+    investing_resp = await _create_account(
+        client, headers, name="TFSA Investing", account_type="investment",
+        tax_advantaged_category_id=tax_advantaged_category_id,
+    )
+    current_year = datetime.now(UTC).year
+
+    resp = await client.post("/transactions/import/firefly", json={
+        "accounts": [
+            {"source": "TFSA Cash", "account_id": cash_resp.json()["id"]},
+            {"source": "TFSA Investing", "account_id": investing_resp.json()["id"]},
+        ],
+        "categories": [],
+        "rows": [_firefly_row(
+            type="Transfer",
+            dt=f"{current_year}-04-10",
+            amount="5000.00",
+            description="Moved into investments",
+            source_name="TFSA Cash",
+            destination_name="TFSA Investing",
+            destination_type="Asset account",
+            category=None,
+        )],
+    }, headers=headers)
+
+    assert resp.status_code == 201
+    assert resp.json()["transactions_created"] == 2
+
+    # The category treats its own accounts as one pot by default, and both legs now say the money
+    # stayed inside it, so neither is a contribution or a withdrawal
+    totals_resp = await client.get(f"/tax-advantaged-categories/{tax_advantaged_category_id}", headers=headers)
+    assert totals_resp.json()["ytd_contributions"] == 0
+    assert totals_resp.json()["ytd_withdrawals"] == 0
+
+
+async def test_firefly_import_skips_a_transfer_between_two_names_for_one_account(client):
+    """Two source names mapped onto one account skip the row instead of writing two cancelling legs."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    account_resp = await _create_account(client, headers, name="Everyday Chequing")
+    account_id = account_resp.json()["id"]
+
+    resp = await client.post("/transactions/import/firefly", json={
+        "accounts": [
+            {"source": "Everyday Chequing", "account_id": account_id},
+            {"source": "Chequing (old)", "account_id": account_id},
+        ],
+        "categories": [],
+        "rows": [_firefly_row(
+            type="Transfer",
+            amount="500.00",
+            description="Carried across from the renamed account",
+            source_name="Chequing (old)",
+            destination_name="Everyday Chequing",
+            destination_type="Asset account",
+            category=None,
+        )],
+    }, headers=headers)
+
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["rows_imported"] == 0
+    assert data["transactions_created"] == 0
+    assert data["rows_skipped"] == 1
+    assert data["skipped"] == [
+        {"journal_id": "1", "reason": "Transfer source and destination resolve to the same account"},
+    ]
+
+    transactions_resp = await client.get("/transactions", headers=headers)
+    assert transactions_resp.json() == []
 
 
 async def test_firefly_import_uses_foreign_amount_for_cross_currency_transfers(client):
@@ -281,6 +449,13 @@ async def test_firefly_import_applies_opening_balance_direction(client):
     }
     assert all(
         transaction["category_id"] == adjustment_category_id for transaction in transactions_resp.json()
+    )
+
+    # Balance Adjustment has no other side, and the API refuses one on it, so the importer leaves
+    # both columns unset rather than saying the money left the tracked accounts
+    assert all(
+        transaction["other_account_id"] is None and transaction["other_account_scope"] is None
+        for transaction in transactions_resp.json()
     )
 
 
