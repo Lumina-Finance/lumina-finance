@@ -195,10 +195,17 @@ export function useTransactionImportWorkflow() {
     [accountMappingSources, accountMappings, canInferAccountMappings, selectableAccounts],
   )
 
+  // The highlight says a choice was matched from the file. The outside answer on a counterparty
+  // source is a default rather than a match, so it is left plain
   const autoFilledAccountSources = useMemo(
     () => new Set(
       accountMappingSources
-        .filter((source) => !accountMappings[source.id] && Boolean(resolvedAccountMappings[source.id]))
+        .filter((source) => {
+          if (accountMappings[source.id]) return false
+          const resolved = resolvedAccountMappings[source.id]
+          if (!resolved) return false
+          return !(source.isCounterpartyOnly && resolved === OUTSIDE_ACCOUNT_VALUE)
+        })
         .map((source) => source.id),
     ),
     [accountMappingSources, accountMappings, resolvedAccountMappings],

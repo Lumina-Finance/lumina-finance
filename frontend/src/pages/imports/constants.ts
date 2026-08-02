@@ -46,7 +46,7 @@ export const COUNTERPARTY_EXPLANATION = 'Says which account a transfer\'s money 
 
 // Shown over the accounts that appear only as a counterparty, which the import writes nothing to
 export const COUNTERPARTY_ONLY_TABLE_TITLE = 'Counterparty accounts'
-export const COUNTERPARTY_ONLY_EXPLANATION = 'These accounts only appeared as a counterparty account, meaning no transaction other than a transfer refers to them, so the importer creates nothing for them. To keep one as an account of your own, select Create New Account in its Existing Account column.'
+export const COUNTERPARTY_ONLY_EXPLANATION = 'These accounts only ever appeared as the counterparty of a transfer, so no imported row is written to them and the importer creates nothing for them. To keep one as an account of your own, select Create New Account in its Existing Account column.'
 
 // Each format is named by an example of its shape rather than by a standard, because the year-first
 // option deliberately takes a slash and an unpadded part, which ISO 8601 does not. Keyed by format

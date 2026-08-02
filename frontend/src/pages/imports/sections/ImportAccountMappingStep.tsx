@@ -9,6 +9,11 @@ import type { ImportAccountSource } from '@/pages/imports/types'
 import { ImportAccountMappingTable, EmptyState, ImportNotice, ImportStep } from '@/pages/imports/components'
 import type { TransactionImportWorkflow } from '@/pages/imports/hooks'
 
+// Which batch bar asked for a new institution, since each table has one and a row id can be neither
+const IMPORTED_BATCH_TARGET = '__imported_batch__'
+const COUNTERPARTY_BATCH_TARGET = '__counterparty_batch__'
+type BatchTarget = typeof IMPORTED_BATCH_TARGET | typeof COUNTERPARTY_BATCH_TARGET
+
 type ImportAccountMappingStepProps = Pick<
   TransactionImportWorkflow,
   | 'accountMappingSources'
@@ -72,19 +77,26 @@ export function ImportAccountMappingStep({
   setSelectedAccountRows,
 }: ImportAccountMappingStepProps) {
   const [institutionModalName, setInstitutionModalName] = useState('')
-  const [institutionModalTarget, setInstitutionModalTarget] = useState<'batch' | string>('')
+  const [institutionModalTarget, setInstitutionModalTarget] = useState<BatchTarget | string>('')
   const [institutionModalKey, setInstitutionModalKey] = useState(0)
   const institutionModalOpen = Boolean(institutionModalTarget)
 
-  const openInstitutionModal = (query: string, target: 'batch' | string) => {
+  // The counterparty table carries its own batch bar, so typing into one bar leaves the other alone
+  const [counterpartyBatchType, setCounterpartyBatchType] = useState('')
+  const [counterpartyBatchCurrency, setCounterpartyBatchCurrency] = useState('')
+  const [counterpartyBatchInstitution, setCounterpartyBatchInstitution] = useState('')
+
+  const openInstitutionModal = (query: string, target: BatchTarget | string) => {
     setInstitutionModalName(query)
     setInstitutionModalTarget(target)
     setInstitutionModalKey((current) => current + 1)
   }
 
   const handleInstitutionCreated = (institution: { id: string }) => {
-    if (institutionModalTarget === 'batch') {
+    if (institutionModalTarget === IMPORTED_BATCH_TARGET) {
       setBatchAccountInstitution(institution.id)
+    } else if (institutionModalTarget === COUNTERPARTY_BATCH_TARGET) {
+      setCounterpartyBatchInstitution(institution.id)
     } else if (institutionModalTarget) {
       setAccountCreateInstitutions((current) => ({ ...current, [institutionModalTarget]: institution.id }))
     }
@@ -110,7 +122,6 @@ export function ImportAccountMappingStep({
       createType: accountCreateTypes[sourceAccount.id] ?? '',
       createCurrency: accountCreateCurrencies[sourceAccount.id] ?? '',
       createInstitution: accountCreateInstitutions[sourceAccount.id] ?? '',
-      options: sourceAccount.isCounterpartyOnly ? counterpartyAccountOptions : undefined,
       onChange: (nextValue: string) => updateSourceAccount(sourceAccount.id, nextValue),
       onCreateTypeChange: (nextValue: string) => setAccountCreateTypes((current) => ({ ...current, [sourceAccount.id]: nextValue })),
       onCreateCurrencyChange: (nextValue: string) => setAccountCreateCurrencies((current) => ({ ...current, [sourceAccount.id]: nextValue })),
@@ -126,15 +137,8 @@ export function ImportAccountMappingStep({
     currenciesDisabled: currenciesLoading,
     institutionsDisabled: institutionsLoading,
     selectedRowIds: selectedAccountRows,
-    batchAccountType,
-    batchAccountCurrency,
-    batchAccountInstitution,
-    onBatchAccountTypeChange: setBatchAccountType,
-    onBatchAccountCurrencyChange: setBatchAccountCurrency,
-    onBatchAccountInstitutionChange: setBatchAccountInstitution,
     onSelectedRowsChange: setSelectedAccountRows,
     onCreateInstitution: (query: string, rowId: string) => openInstitutionModal(query, rowId),
-    onBatchCreateInstitution: (query: string) => openInstitutionModal(query, 'batch'),
   }
 
   const importedSources = accountMappingSources.filter((source) => !source.isCounterpartyOnly)
@@ -155,6 +159,13 @@ export function ImportAccountMappingStep({
           <ImportAccountMappingTable
             rows={buildRows(importedSources)}
             options={accountOptions}
+            batchAccountType={batchAccountType}
+            batchAccountCurrency={batchAccountCurrency}
+            batchAccountInstitution={batchAccountInstitution}
+            onBatchAccountTypeChange={setBatchAccountType}
+            onBatchAccountCurrencyChange={setBatchAccountCurrency}
+            onBatchAccountInstitutionChange={setBatchAccountInstitution}
+            onBatchCreateInstitution={(query) => openInstitutionModal(query, IMPORTED_BATCH_TARGET)}
             {...sharedTableProps}
           />
           {counterpartySources.length > 0 && (
@@ -168,6 +179,13 @@ export function ImportAccountMappingStep({
               <ImportAccountMappingTable
                 rows={buildRows(counterpartySources)}
                 options={counterpartyAccountOptions}
+                batchAccountType={counterpartyBatchType}
+                batchAccountCurrency={counterpartyBatchCurrency}
+                batchAccountInstitution={counterpartyBatchInstitution}
+                onBatchAccountTypeChange={setCounterpartyBatchType}
+                onBatchAccountCurrencyChange={setCounterpartyBatchCurrency}
+                onBatchAccountInstitutionChange={setCounterpartyBatchInstitution}
+                onBatchCreateInstitution={(query) => openInstitutionModal(query, COUNTERPARTY_BATCH_TARGET)}
                 {...sharedTableProps}
               />
             </div>

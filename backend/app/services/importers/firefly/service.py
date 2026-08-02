@@ -236,7 +236,6 @@ async def _write_legs(
     return first_import_date_by_account_id
 
 
-
 def _get_leg_other_account_scope(leg: FireflyLeg) -> TransferOtherAccountScope | None:
     """Return what a leg records about where its money went
 

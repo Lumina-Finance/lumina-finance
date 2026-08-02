@@ -241,6 +241,21 @@ describe('firefly preview rows', () => {
     })
   })
 
+  // A journal row with one imported endpoint has no second account to record, which is what money
+  // leaving the app means, and the commit writes the same
+  it('shows a transfer-category row with one imported endpoint as leaving the app', () => {
+    const transfer = createCategory({ id: 'transfer', name: 'Transfer', kind: 'transfer', is_system: true })
+    const rows = buildFireflyPreviewRows(createOptions({
+      rows: [createFireflyRow({ category: 'Moving money out' })],
+      categoryById: new Map([[transfer.id, transfer]]),
+      categoryMappings: { 'Moving money out': transfer.id },
+    }))
+
+    expect(rows).toHaveLength(1)
+    expect(rows[0].transaction.other_account_id).toBeNull()
+    expect(rows[0].transaction.other_account_scope).toBe('outside')
+  })
+
   it('maps balance rows to one adjustment leg signed by the tracked side', () => {
     const rows = buildFireflyPreviewRows(createOptions({
       rows: [

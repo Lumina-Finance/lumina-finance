@@ -37,7 +37,24 @@ describe('import column inference', () => {
     expect(map.other_account_id).toBe('To account')
   })
 
-  it('reads a column called counterparty as the counterparty account', () => {
+  // A bank export calls the payee the counterparty, so the bare word belongs to the merchant and
+  // only the compound form reaches the transfer field
+  it('reads a bare counterparty column as the merchant', () => {
+    const files = [createFile(
+      ['Account', 'Date', 'Amount', 'Category', 'Counterparty'],
+      [
+        { Account: 'Chequing', Date: '2026-04-11', Amount: '-12.00', Category: 'Groceries', Counterparty: 'Corner Grocer' },
+        { Account: 'Chequing', Date: '2026-04-12', Amount: '-8.00', Category: 'Groceries', Counterparty: 'Corner Bakery' },
+      ],
+    )]
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files)
+
+    expect(map.merchant_id).toBe('Counterparty')
+    expect(map.other_account_id).toBe('')
+  })
+
+  it('reads a column called counterparty account as the counterparty account', () => {
     const files = [createFile(
       ['Account', 'Date', 'Amount', 'Category', 'Counterparty account'],
       [
