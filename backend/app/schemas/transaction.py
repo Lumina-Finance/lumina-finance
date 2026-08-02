@@ -173,9 +173,9 @@ class TransactionImportRow(BaseModel):
     notes: str | None = None
     tag_names: list[str] = []
 
-    # Account source the money moved to or from, left unset by a file that does not state it. Only
-    # a transfer row may carry one, and the row is then answered without anyone editing it later
-    other_account_source: str | None = Field(None, min_length=1, max_length=256)
+    # Counterparty account source, meaning the account the money moved to or from. A transfer row
+    # that leaves it unset records that the money left the tracked accounts
+    counterparty_account_source: str | None = Field(None, min_length=1, max_length=256)
 
 
 class TransactionImportRequest(BaseModel):

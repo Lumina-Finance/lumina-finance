@@ -29,7 +29,7 @@ export const COLUMN_TARGETS: Array<{
   // alone, since those would otherwise claim a column of account names first
   {
     id: 'other_account_id',
-    label: 'Other account',
+    label: 'Counterparty account',
     hint: 'Account a transfer moved money to or from. Used only on transfer rows.',
   },
   { id: 'dt', label: 'Date', hint: 'Transaction date.', required: true },
@@ -41,10 +41,12 @@ export const COLUMN_TARGETS: Array<{
   { id: 'tag_ids', label: 'Tags', hint: 'Resolved from imported tag text.' },
 ]
 
-// One wording for the other-account column, shown against the column while it is being mapped and
-// again over the accounts that only appear in it, so the two cannot drift apart
-export const OTHER_ACCOUNT_EXPLANATION = 'Where a transfer\'s money went. Nothing is imported into an account that only appears as the other side, and recording it keeps moves inside one tax-advantaged category out of its limit totals.'
-export const OTHER_ACCOUNT_ONLY_GROUP_TITLE = 'Only used as the other side of a transfer'
+// Shown against the counterparty column while it is being mapped
+export const COUNTERPARTY_EXPLANATION = 'Says which account a transfer\'s money went to, or came from. Only transfer rows can use it, and a blank cell records the transfer as going outside this app.'
+
+// Shown over the accounts that appear only as a counterparty, which the import writes nothing to
+export const COUNTERPARTY_ONLY_TABLE_TITLE = 'Counterparty accounts'
+export const COUNTERPARTY_ONLY_EXPLANATION = 'These accounts only appeared as a counterparty account, meaning no transaction other than a transfer refers to them, so the importer creates nothing for them. To keep one as an account of your own, select Create New Account in its Existing Account column.'
 
 // Each format is named by an example of its shape rather than by a standard, because the year-first
 // option deliberately takes a slash and an unpadded part, which ISO 8601 does not. Keyed by format

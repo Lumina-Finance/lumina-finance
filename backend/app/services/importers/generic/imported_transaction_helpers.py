@@ -19,7 +19,7 @@ from app.services.importers.shared.merchants import get_or_create_import_merchan
 from app.services.importers.shared.row_mappings import (
     get_import_row_account,
     get_import_row_category,
-    get_import_row_other_account,
+    get_import_row_counterparty_account,
     validate_import_category_can_be_used_for_account,
 )
 from app.services.importers.shared.stats import ImportStats
@@ -64,10 +64,10 @@ async def create_imported_transactions(
         account = get_import_row_account(import_lookups.accounts_by_source, row.account_source)
         category = get_import_row_category(import_lookups.categories_by_source, row.category_source)
         validate_import_category_can_be_used_for_account(category, account, user_id)
-        other_account_id, other_account_scope = get_import_row_other_account(
+        other_account_id, other_account_scope = get_import_row_counterparty_account(
             import_lookups.accounts_by_source,
             import_lookups.outside_account_sources,
-            row.other_account_source,
+            row.counterparty_account_source,
             category,
             account,
         )
@@ -128,8 +128,8 @@ async def _insert_imported_transaction_and_tags(
         amount: Parsed transaction amount in account-currency minor units
         merchant: Optional merchant selected for the import row
         tags: Tag rows selected for the import row
-        other_account_id: Account recorded as the other side of a transfer, if any
-        other_account_scope: Where the other side sits, or None when the file left it unanswered
+        other_account_id: Counterparty account recorded on a transfer, if any
+        other_account_scope: Where the counterparty sits, or None for a category that records neither
 
     Returns:
         None

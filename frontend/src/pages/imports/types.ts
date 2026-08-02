@@ -40,7 +40,7 @@ export interface ImportAccountSource {
   matchText: string
 
   /** True when no row is written to this source, which is the only case that can answer "outside" */
-  isOtherSideOnly: boolean
+  isCounterpartyOnly: boolean
 }
 
 export interface ImportFileDraft {

@@ -116,22 +116,23 @@ export function buildImportPreviewRows({
       )
       const tagIds = importedTagValues.map((tag, tagIndex) => `${file.id}-${rowIndex}-tag-${tagIndex}-${tag}`)
 
-      // A row states the other side only where the file has a column for it and the row's category
+      // A row states its counterparty only where the file has a column for it and the row's category
       // can hold one, and the answer is whatever that source was mapped to, which can be an account
       // or money leaving the app
-      const otherAccountSource = columnMap.other_account_id && doesPreviewCategoryRecordOtherAccount(category)
+      const recordsCounterparty = doesPreviewCategoryRecordCounterparty(category)
+      const counterpartySource = recordsCounterparty && columnMap.other_account_id
         ? getMappedValue(row, columnMap.other_account_id).trim()
         : ''
-      const otherAccountChoice = otherAccountSource ? resolvedAccountMappings[otherAccountSource] ?? '' : ''
-      const otherAccount = otherAccountChoice === CREATE_ACCOUNT_VALUE || otherAccountChoice === OUTSIDE_ACCOUNT_VALUE
+      const counterpartyChoice = counterpartySource ? resolvedAccountMappings[counterpartySource] ?? '' : ''
+      const counterpartyAccount = counterpartyChoice === CREATE_ACCOUNT_VALUE || counterpartyChoice === OUTSIDE_ACCOUNT_VALUE
         ? undefined
-        : accountById.get(otherAccountChoice)
+        : accountById.get(counterpartyChoice)
 
       // An account queued for creation has no id or row of its own yet, so it stands in with the
       // same sentinel the row's own account uses and shows under the source it came from
-      const otherAccountName = otherAccountChoice === CREATE_ACCOUNT_VALUE
-        ? otherAccountSource
-        : otherAccount?.name
+      const counterpartyName = counterpartyChoice === CREATE_ACCOUNT_VALUE
+        ? counterpartySource
+        : counterpartyAccount?.name
 
       rows.push({
         id: `${file.id}-${rowIndex}`,
@@ -140,7 +141,7 @@ export function buildImportPreviewRows({
         category,
         currency,
         dateLabel: getPreviewDateLabel(dt),
-        otherAccountName,
+        otherAccountName: counterpartyName,
         transaction: {
           id: `import-preview-${file.id}-${rowIndex}`,
           created_by_user_id: 'import-preview',
@@ -156,8 +157,8 @@ export function buildImportPreviewRows({
           fx_rate: null,
           notes: notes || null,
 
-          other_account_id: otherAccount?.id ?? (otherAccountChoice === CREATE_ACCOUNT_VALUE ? CREATE_ACCOUNT_VALUE : null),
-          other_account_scope: getPreviewOtherAccountScope(otherAccountChoice),
+          other_account_id: counterpartyAccount?.id ?? (counterpartyChoice === CREATE_ACCOUNT_VALUE ? CREATE_ACCOUNT_VALUE : null),
+          other_account_scope: getPreviewCounterpartyScope(recordsCounterparty, counterpartyChoice),
           created_at: timestamp,
           updated_at: timestamp,
           tag_ids: tagIds,
@@ -182,7 +183,7 @@ export function buildImportPreviewRows({
  * The backend matches Balance Adjustment by name alone, so this does too, and a row the API would
  * refuse an other account for is previewed without one
  */
-function doesPreviewCategoryRecordOtherAccount(category: Category | undefined) {
+function doesPreviewCategoryRecordCounterparty(category: Category | undefined) {
   if (!category) return false
   return doesTransferRecordOtherAccount(category.kind, category.name === BALANCE_ADJUSTMENT_CATEGORY_NAME)
 }
@@ -190,11 +191,12 @@ function doesPreviewCategoryRecordOtherAccount(category: Category | undefined) {
 /**
  * Resolves what a previewed transfer will record about where the money went
  *
- * An unmapped source leaves the row unanswered, which is what the import writes for it
+ * A transfer that states no counterparty records that the money left the app, which is what the
+ * import writes for it, and a category that records neither leaves both fields empty
  */
-function getPreviewOtherAccountScope(otherAccountChoice: string) {
-  if (otherAccountChoice === OUTSIDE_ACCOUNT_VALUE) return 'outside'
-  return otherAccountChoice ? 'tracked' : null
+function getPreviewCounterpartyScope(recordsCounterparty: boolean, counterpartyChoice: string) {
+  if (!recordsCounterparty) return null
+  return counterpartyChoice && counterpartyChoice !== OUTSIDE_ACCOUNT_VALUE ? 'tracked' : 'outside'
 }
 
 /**

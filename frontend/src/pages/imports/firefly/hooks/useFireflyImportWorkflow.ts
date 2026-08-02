@@ -151,7 +151,7 @@ export function useFireflyImportWorkflow() {
   // Every Firefly source is an account the import writes rows into, so none of them can be
   // answered as money outside the tracked accounts
   const accountMappingSources = useMemo(
-    () => trackedAccountNames.map((name) => ({ id: name, label: name, matchText: name, isOtherSideOnly: false })),
+    () => trackedAccountNames.map((name) => ({ id: name, label: name, matchText: name, isCounterpartyOnly: false })),
     [trackedAccountNames],
   )
 

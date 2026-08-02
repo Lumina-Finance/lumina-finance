@@ -197,6 +197,26 @@ async def test_firefly_import_records_accounts_it_creates_as_each_other_s_other_
     assert transactions_by_account[savings_id]["other_account_id"] == chequing_id
 
 
+async def test_firefly_import_records_a_one_sided_transfer_row_as_leaving_the_accounts(client):
+    """A row with one imported endpoint whose category is a transfer says the money left."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    transfer_category_id = await _get_system_category_id(client, headers, "Transfer")
+
+    resp = await client.post("/transactions/import/firefly", json={
+        "accounts": [_chequing_mapping()],
+        "categories": [{"source": "Moving money out", "category_id": transfer_category_id}],
+        "rows": [_firefly_row(category="Moving money out")],
+    }, headers=headers)
+
+    assert resp.status_code == 201
+    assert resp.json()["transactions_created"] == 1
+
+    transaction = (await client.get("/transactions", headers=headers)).json()[0]
+    assert transaction["other_account_id"] is None
+    assert transaction["other_account_scope"] == "outside"
+
+
 async def test_firefly_import_rejects_an_account_source_marked_outside(client):
     """Every Firefly source is an account rows are written to, so the outside answer has no meaning."""
     signup_resp = await _create_user(client)
@@ -432,7 +452,7 @@ async def test_firefly_import_applies_opening_balance_direction(client):
     )
 
     # Balance Adjustment has no other side, and the API refuses one on it, so the importer leaves
-    # both columns unset here as it does for every category that cannot record one
+    # both columns unset rather than saying the money left the tracked accounts
     assert all(
         transaction["other_account_id"] is None and transaction["other_account_scope"] is None
         for transaction in transactions_resp.json()

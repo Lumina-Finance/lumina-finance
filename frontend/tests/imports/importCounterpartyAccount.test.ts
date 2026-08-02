@@ -84,8 +84,8 @@ function createFile(rows: ImportFileDraft['rows']): ImportFileDraft {
  */
 function createSources(otherSideLabel: string): ImportAccountSource[] {
   return [
-    { id: 'Chequing', label: 'Chequing', matchText: 'Chequing', isOtherSideOnly: false },
-    { id: otherSideLabel, label: otherSideLabel, matchText: otherSideLabel, isOtherSideOnly: true },
+    { id: 'Chequing', label: 'Chequing', matchText: 'Chequing', isCounterpartyOnly: false },
+    { id: otherSideLabel, label: otherSideLabel, matchText: otherSideLabel, isCounterpartyOnly: true },
   ]
 }
 
@@ -141,8 +141,8 @@ describe('CSV import other account', () => {
     // Savings is written to by the second row, so it stays an ordinary source despite also being
     // named as the other side of the first
     expect(buildImportAccountMappingSources(files, 'Account', 'Other account')).toEqual([
-      { id: 'Chequing', label: 'Chequing', matchText: 'Chequing', isOtherSideOnly: false },
-      { id: 'Savings', label: 'Savings', matchText: 'Savings', isOtherSideOnly: false },
+      { id: 'Chequing', label: 'Chequing', matchText: 'Chequing', isCounterpartyOnly: false },
+      { id: 'Savings', label: 'Savings', matchText: 'Savings', isCounterpartyOnly: false },
     ])
   })
 
@@ -152,8 +152,8 @@ describe('CSV import other account', () => {
     ])]
 
     expect(buildImportAccountMappingSources(files, 'Account', 'Other account')).toEqual([
-      { id: 'Chequing', label: 'Chequing', matchText: 'Chequing', isOtherSideOnly: false },
-      { id: 'Brokerage elsewhere', label: 'Brokerage elsewhere', matchText: 'Brokerage elsewhere', isOtherSideOnly: true },
+      { id: 'Chequing', label: 'Chequing', matchText: 'Chequing', isCounterpartyOnly: false },
+      { id: 'Brokerage elsewhere', label: 'Brokerage elsewhere', matchText: 'Brokerage elsewhere', isCounterpartyOnly: true },
     ])
   })
 
@@ -163,7 +163,7 @@ describe('CSV import other account', () => {
     })
 
     expect(errors).toEqual([])
-    expect(payload?.rows[0].other_account_source).toBe('Savings')
+    expect(payload?.rows[0].counterparty_account_source).toBe('Savings')
     expect(payload?.accounts).toContainEqual({ source: 'Savings', account_id: SAVINGS.id })
   })
 
@@ -176,7 +176,7 @@ describe('CSV import other account', () => {
 
     expect(errors).toEqual([])
     expect(payload?.accounts).toContainEqual({ source: 'Brokerage elsewhere', outside: true })
-    expect(payload?.rows[0].other_account_source).toBe('Brokerage elsewhere')
+    expect(payload?.rows[0].counterparty_account_source).toBe('Brokerage elsewhere')
   })
 
   it('refuses the outside answer for a source rows are written to', () => {
@@ -197,7 +197,7 @@ describe('CSV import other account', () => {
     })
 
     expect(payload).toBeNull()
-    expect(errors).toContain('Only a transfer records an other account, so the mapped Other account column cannot be used by category: Groceries')
+    expect(errors).toContain('Only a transfer records a counterparty account, so the mapped Counterparty account column cannot be used by category: Groceries')
   })
 
   it('refuses an other account on a balance adjustment, which has no other side', () => {
@@ -209,7 +209,7 @@ describe('CSV import other account', () => {
     })
 
     expect(payload).toBeNull()
-    expect(errors).toContain('Only a transfer records an other account, so the mapped Other account column cannot be used by category: Balance Adjustment')
+    expect(errors).toContain('Only a transfer records a counterparty account, so the mapped Counterparty account column cannot be used by category: Balance Adjustment')
   })
 
   it('refuses a transfer whose two sources were mapped onto one account', () => {
@@ -220,7 +220,7 @@ describe('CSV import other account', () => {
     })
 
     expect(payload).toBeNull()
-    expect(errors).toContain('A transfer cannot record its own account as the other side: Chequing (old)')
+    expect(errors).toContain('A transfer cannot record its own account as its counterparty: Chequing (old)')
   })
 
   // One name in both columns is one source and one account, whichever way it is mapped, so the
@@ -229,11 +229,11 @@ describe('CSV import other account', () => {
     const { errors, payload } = buildPayload({
       accountMappings: { Chequing: CREATE_ACCOUNT_VALUE },
       otherAccountSource: 'Chequing',
-      accountSources: [{ id: 'Chequing', label: 'Chequing', matchText: 'Chequing', isOtherSideOnly: false }],
+      accountSources: [{ id: 'Chequing', label: 'Chequing', matchText: 'Chequing', isCounterpartyOnly: false }],
     })
 
     expect(payload).toBeNull()
-    expect(errors).toContain('A transfer cannot record its own account as the other side: Chequing')
+    expect(errors).toContain('A transfer cannot record its own account as its counterparty: Chequing')
   })
 
   it('shows what each answer writes in the preview', () => {
@@ -265,7 +265,9 @@ describe('CSV import other account', () => {
     expect(rows.map((row) => [row.transaction.other_account_id, row.transaction.other_account_scope])).toEqual([
       [SAVINGS.id, 'tracked'],
       [null, 'outside'],
-      [null, null],
+
+      // Nothing in the file points this transfer at an account, so it records the money as leaving
+      [null, 'outside'],
     ])
 
     // The row renders the name, which the preview has to carry itself because it reads no account list

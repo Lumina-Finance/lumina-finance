@@ -122,7 +122,7 @@ async def test_import_transactions_reuses_existing_records(client):
 
 
 async def test_import_transactions_records_the_other_account_on_a_transfer(client):
-    """A transfer row that states another mapped source records it, and a row that states none stays unanswered."""
+    """A transfer row that states a counterparty records it, and a row that states none says the money left."""
     headers, account_id, _ = await _setup_user_with_deps(client)
     savings_resp = await _create_account(client, headers, name="Main Savings", account_type="savings")
     savings_id = savings_resp.json()["id"]
@@ -140,7 +140,7 @@ async def test_import_transactions_records_the_other_account_on_a_transfer(clien
                 "category_source": "Transfer",
                 "dt": "2026-04-11",
                 "amount": "-500.00",
-                "other_account_source": "Savings",
+                "counterparty_account_source": "Savings",
             },
             {
                 "account_source": "Savings",
@@ -157,9 +157,10 @@ async def test_import_transactions_records_the_other_account_on_a_transfer(clien
     assert transactions_by_amount[-50000]["other_account_id"] == savings_id
     assert transactions_by_amount[-50000]["other_account_scope"] == "tracked"
 
-    # A file that says nothing about the other side leaves the question open rather than guessing
+    # Nothing in the file points this leg at an account, so it records that the money left the
+    # tracked accounts rather than arriving unanswered and blocking every later edit
     assert transactions_by_amount[50000]["other_account_id"] is None
-    assert transactions_by_amount[50000]["other_account_scope"] is None
+    assert transactions_by_amount[50000]["other_account_scope"] == "outside"
 
 
 async def test_import_transactions_records_an_account_it_creates_as_the_other_side(client):
@@ -181,7 +182,7 @@ async def test_import_transactions_records_an_account_it_creates_as_the_other_si
             "category_source": "Transfer",
             "dt": "2026-04-11",
             "amount": "-500.00",
-            "other_account_source": "Savings",
+            "counterparty_account_source": "Savings",
         }],
     }, headers=headers)
 
@@ -210,7 +211,7 @@ async def test_import_transactions_records_a_transfer_leaving_the_tracked_accoun
             "category_source": "Transfer",
             "dt": "2026-04-11",
             "amount": "-500.00",
-            "other_account_source": "Brokerage elsewhere",
+            "counterparty_account_source": "Brokerage elsewhere",
         }],
     }, headers=headers)
 
@@ -222,7 +223,7 @@ async def test_import_transactions_records_a_transfer_leaving_the_tracked_accoun
 
 
 async def test_import_transactions_rejects_an_other_account_on_a_non_transfer_row(client):
-    """Only a transfer records where the money went, so an expense row that states one is refused."""
+    """Only a transfer records a counterparty, so an expense row that states one is refused."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
     savings_resp = await _create_account(client, headers, name="Main Savings", account_type="savings")
 
@@ -237,12 +238,12 @@ async def test_import_transactions_rejects_an_other_account_on_a_non_transfer_ro
             "category_source": "Groceries",
             "dt": "2026-04-11",
             "amount": "-10.00",
-            "other_account_source": "Savings",
+            "counterparty_account_source": "Savings",
         }],
     }, headers=headers)
 
     assert resp.status_code == 422
-    assert resp.json()["detail"] == "Only a transfer records the other account: Savings"
+    assert resp.json()["detail"] == "Only a transfer records a counterparty account: Savings"
 
 
 async def test_import_transactions_rejects_a_transfer_recording_its_own_account(client):
@@ -261,16 +262,16 @@ async def test_import_transactions_rejects_a_transfer_recording_its_own_account(
             "category_source": "Transfer",
             "dt": "2026-04-11",
             "amount": "-500.00",
-            "other_account_source": "Chequing (old)",
+            "counterparty_account_source": "Chequing (old)",
         }],
     }, headers=headers)
 
     assert resp.status_code == 422
-    assert resp.json()["detail"] == "A transfer cannot record its own account as the other side: Chequing (old)"
+    assert resp.json()["detail"] == "A transfer cannot record its own account as its counterparty: Chequing (old)"
 
 
-async def test_import_transactions_rejects_an_unmapped_other_account_source(client):
-    """An undeclared value in the other-account column is refused, saying which column it came from."""
+async def test_import_transactions_rejects_an_unmapped_counterparty_source(client):
+    """An undeclared value in the counterparty column is refused, saying which column it came from."""
     headers, account_id, _ = await _setup_user_with_deps(client)
     transfer_category_id = await _get_system_category_id(client, headers, "Transfer")
 
@@ -282,12 +283,12 @@ async def test_import_transactions_rejects_an_unmapped_other_account_source(clie
             "category_source": "Transfer",
             "dt": "2026-04-11",
             "amount": "-500.00",
-            "other_account_source": "Savings",
+            "counterparty_account_source": "Savings",
         }],
     }, headers=headers)
 
     assert resp.status_code == 422
-    assert resp.json()["detail"] == "Other account source is not mapped: Savings"
+    assert resp.json()["detail"] == "Counterparty account source is not mapped: Savings"
 
 
 async def test_import_transactions_rejects_an_outside_source_that_also_names_an_account(client):

@@ -37,8 +37,8 @@ export interface TransactionImportRow {
   notes?: string | null;
   tag_names: string[];
 
-  /** Account source the transfer moved money to or from, null when the file leaves it unanswered */
-  other_account_source?: string | null;
+  /** Counterparty account source, null when the file does not state one and the money left the app */
+  counterparty_account_source?: string | null;
 }
 
 export interface TransactionImportPayload {

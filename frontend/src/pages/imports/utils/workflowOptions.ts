@@ -119,13 +119,13 @@ export function buildImportAccountMappingSources(
       id: source,
       label: source,
       matchText: source,
-      isOtherSideOnly: false,
+      isCounterpartyOnly: false,
     }))
     : files.map((file) => ({
       id: file.id,
       label: getImportAccountName(file.name),
       matchText: file.name,
-      isOtherSideOnly: false,
+      isCounterpartyOnly: false,
     }))
 
   if (!otherAccountHeader) return rowSources
@@ -134,16 +134,16 @@ export function buildImportAccountMappingSources(
   // only kind that can be answered as money outside the tracked accounts, since no row is written
   // to it
   const rowSourceIds = new Set(rowSources.map((source) => source.id))
-  const otherSideSources: ImportAccountSource[] = getUniqueColumnValues(files, otherAccountHeader)
+  const counterpartySources: ImportAccountSource[] = getUniqueColumnValues(files, otherAccountHeader)
     .filter((source) => !rowSourceIds.has(source))
     .map((source) => ({
       id: source,
       label: source,
       matchText: source,
-      isOtherSideOnly: true,
+      isCounterpartyOnly: true,
     }))
 
-  return [...rowSources, ...otherSideSources]
+  return [...rowSources, ...counterpartySources]
 }
 
 /**

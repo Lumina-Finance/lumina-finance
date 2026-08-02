@@ -167,11 +167,11 @@ describe('transaction import batching', () => {
     ]);
   });
 
-  // A batch only carries the mappings for the sources its rows name, and the other side of a
-  // transfer is named by no row's account, so it has to be collected from the transfer itself
-  it('carries the mapping for a transfer other account no row is written to', async () => {
+  // A batch only carries the mappings for the sources its rows use, and a counterparty belongs to
+  // no row's own account, so it has to be collected from the transfer itself
+  it('carries the mapping for a counterparty no row is written to', async () => {
     const payload = buildImportPayload([
-      { ...buildImportRow(), category_source: 'Transfer', other_account_source: 'Brokerage elsewhere' },
+      { ...buildImportRow(), category_source: 'Transfer', counterparty_account_source: 'Brokerage elsewhere' },
     ]);
     payload.categories = [{ source: 'Transfer', category_id: 'cat_transfer' }];
     payload.accounts = [...payload.accounts, { source: 'Brokerage elsewhere', outside: true }];

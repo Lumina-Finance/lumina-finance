@@ -89,7 +89,7 @@ export function buildTransactionImportPayload({
 
   // Only a transfer category records where the money went, so the rule is settled per category
   // source once and read back for every row using it
-  const recordsOtherAccountBySource: Record<string, boolean> = {}
+  const recordsCounterpartyBySource: Record<string, boolean> = {}
   for (const source of importedCategories) {
     const choice = categoryMappings[source] ?? ''
     if (!choice) {
@@ -106,7 +106,7 @@ export function buildTransactionImportPayload({
 
       // A create mapping reuses a category of the same name where one exists, so a source called
       // Balance Adjustment lands on the system category that records no other account
-      recordsOtherAccountBySource[source] = doesTransferRecordOtherAccount(
+      recordsCounterpartyBySource[source] = doesTransferRecordOtherAccount(
         kind,
         source === BALANCE_ADJUSTMENT_CATEGORY_NAME,
       )
@@ -124,7 +124,7 @@ export function buildTransactionImportPayload({
     // The backend matches Balance Adjustment by name alone, so a personal category sharing that
     // name is refused there too and has to be refused here
     const category = categoryById.get(choice)
-    recordsOtherAccountBySource[source] = category
+    recordsCounterpartyBySource[source] = category
       ? doesTransferRecordOtherAccount(category.kind, category.name === BALANCE_ADJUSTMENT_CATEGORY_NAME)
       : false
     categories.push({ source, category_id: choice })
@@ -138,7 +138,7 @@ export function buildTransactionImportPayload({
       const dt = dateFormat ? readImportDate(getMappedValue(row, columnMap.dt), dateFormat) : ''
       const amount = getMappedValue(row, columnMap.amount)
 
-      const otherAccountSource = columnMap.other_account_id
+      const counterpartySource = columnMap.other_account_id
         ? cleanOptional(getMappedValue(row, columnMap.other_account_id))
         : null
 
@@ -147,13 +147,13 @@ export function buildTransactionImportPayload({
       if (!dt) addError('Every imported row needs a valid date.')
       if (parseImportNumber(amount) === null) addError('Every imported row needs a valid raw amount.')
 
-      if (otherAccountSource) {
-        if (!recordsOtherAccountBySource[categorySource]) {
+      if (counterpartySource) {
+        if (!recordsCounterpartyBySource[categorySource]) {
           // The category is what the user can act on: the column has to be left unmapped, or the
           // rows using it mapped to a transfer category
-          addError(`Only a transfer records an other account, so the mapped Other account column cannot be used by category: ${categorySource}`)
-        } else if (isSameMappedAccount(accountMappings, accountSource, otherAccountSource)) {
-          addError(`A transfer cannot record its own account as the other side: ${otherAccountSource}`)
+          addError(`Only a transfer records a counterparty account, so the mapped Counterparty account column cannot be used by category: ${categorySource}`)
+        } else if (isSameMappedAccount(accountMappings, accountSource, counterpartySource)) {
+          addError(`A transfer cannot record its own account as its counterparty: ${counterpartySource}`)
         }
       }
 
@@ -165,7 +165,7 @@ export function buildTransactionImportPayload({
         merchant_name: cleanOptional(getMappedValue(row, columnMap.merchant_id)),
         notes: cleanOptional(getMappedValue(row, columnMap.notes)),
         tag_names: splitImportedValues(getMappedValue(row, columnMap.tag_ids)),
-        other_account_source: otherAccountSource,
+        counterparty_account_source: counterpartySource,
       })
     }
   }
@@ -198,7 +198,7 @@ function appendAccountMapping(
   if (choice === OUTSIDE_ACCOUNT_VALUE) {
     // The dropdown only offers this answer where no row is written to the source, so it survives
     // here when a file added later carries rows for a name that was answered this way
-    if (!accountSource.isOtherSideOnly) {
+    if (!accountSource.isCounterpartyOnly) {
       addError(`Rows cannot be written to an account source that is outside the tracked accounts: ${createName}`)
       return
     }
@@ -248,13 +248,13 @@ function cleanOptional(value: string) {
 function isSameMappedAccount(
   accountMappings: Record<string, string>,
   accountSource: string,
-  otherAccountSource: string,
+  counterpartySource: string,
 ) {
-  if (accountSource === otherAccountSource) return true
+  if (accountSource === counterpartySource) return true
 
   const accountChoice = accountMappings[accountSource]
   if (!accountChoice || accountChoice === CREATE_ACCOUNT_VALUE) return false
-  return accountChoice === accountMappings[otherAccountSource]
+  return accountChoice === accountMappings[counterpartySource]
 }
 
 /**

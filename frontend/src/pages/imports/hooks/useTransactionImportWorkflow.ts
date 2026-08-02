@@ -168,7 +168,7 @@ export function useTransactionImportWorkflow() {
 
   // Only a source no row is written to can answer that the money left the tracked accounts, so the
   // extra choice is kept off every other row's dropdown
-  const otherSideAccountOptions = useMemo(
+  const counterpartyAccountOptions = useMemo(
     () => [
       { value: OUTSIDE_ACCOUNT_VALUE, label: OUTSIDE_ACCOUNT_LABEL, group: 'Import Action' },
       ...accountOptions,
@@ -180,11 +180,18 @@ export function useTransactionImportWorkflow() {
     && accountAutoMatchKey === (columnMap.account_id || FILE_ACCOUNT_MATCH_KEY)
 
   const resolvedAccountMappings = useMemo(
-    () => (
-      canInferAccountMappings
+    () => {
+      const resolved = canInferAccountMappings
         ? inferAccountMappings(accountMappingSources, accountMappings, selectableAccounts)
-        : accountMappings
-    ),
+        : { ...accountMappings }
+
+      // No row is written to these, so the import creates nothing for them unless the user asks for
+      // an account by hand, and the transfers pointing at them say the money left the app
+      for (const source of accountMappingSources) {
+        if (source.isCounterpartyOnly && !resolved[source.id]) resolved[source.id] = OUTSIDE_ACCOUNT_VALUE
+      }
+      return resolved
+    },
     [accountMappingSources, accountMappings, canInferAccountMappings, selectableAccounts],
   )
 
@@ -487,7 +494,7 @@ export function useTransactionImportWorkflow() {
     institutionsLoading,
     categoriesLoading,
     accountOptions,
-    otherSideAccountOptions,
+    counterpartyAccountOptions,
     currencyOptions,
     institutionOptions,
     categoryMatchOptions,
