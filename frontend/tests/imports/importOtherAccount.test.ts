@@ -132,7 +132,7 @@ function buildPayload({
 }
 
 describe('CSV import other account', () => {
-  it('collects the other-account column values as sources no row is written to', () => {
+  it('keeps a source with rows of its own out of the other-side group', () => {
     const files = [createFile([
       { Account: 'Chequing', Date: '2026-04-11', Amount: '-500.00', Category: 'Transfer', 'Other account': 'Savings' },
       { Account: 'Savings', Date: '2026-04-13', Amount: '500.00', Category: 'Transfer', 'Other account': '' },

@@ -118,8 +118,7 @@ export const FIREFLY_TYPE_RECONCILIATION = 'reconciliation'
 export const FIREFLY_MISCELLANEOUS_CATEGORY_NAME = 'Miscellaneous'
 
 /**
- * Seeded system category names the import assigns to transfer legs and
- * balance adjustment rows
+ * Seeded system category the import assigns to transfer legs
  */
 export const FIREFLY_TRANSFER_CATEGORY_NAME = 'Transfer'
 
