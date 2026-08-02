@@ -161,7 +161,7 @@ export function ImportAccountMappingStep({
             <div className="space-y-3 pt-8">
               <div className="space-y-1">
                 <p className="text-sm font-semibold">{COUNTERPARTY_ONLY_TABLE_TITLE}</p>
-                <p className="max-w-[60rem] text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
                   {COUNTERPARTY_ONLY_EXPLANATION}
                 </p>
               </div>

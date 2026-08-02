@@ -97,16 +97,6 @@ export function ImportHeaderMappingTable({
                         Ignored
                       </span>
                     )}
-                    {selectedTarget === 'other_account_id' && (
-                      <IconTooltip
-                        label="What a counterparty account records"
-                        icon={CircleHelp}
-                        placement="bottom"
-                        widthClassName="w-72"
-                      >
-                        {COUNTERPARTY_EXPLANATION}
-                      </IconTooltip>
-                    )}
                   </div>
                 </td>
                 <td className="max-w-[24rem] px-4 py-2.5 align-middle">
@@ -135,6 +125,16 @@ export function ImportHeaderMappingTable({
                           className="app-input"
                         />
                       </div>
+                    )}
+                    {selectedTarget === 'other_account_id' && (
+                      <IconTooltip
+                        label="What a counterparty account records"
+                        icon={CircleHelp}
+                        placement="bottom"
+                        widthClassName="w-72"
+                      >
+                        {COUNTERPARTY_EXPLANATION}
+                      </IconTooltip>
                     )}
                     <span className="flex w-4 shrink-0 items-center justify-center">
                       {validationError && (

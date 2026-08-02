@@ -78,11 +78,16 @@ export function buildImportCategoryMatchOptions(categories: Category[] = []): Dr
 
 /**
  * Builds import column target options grouped by required and optional fields
+ *
+ * The list starts a new heading every time the group changes down the options, so the required ones
+ * are gathered ahead of the optional ones rather than following the order the fields are declared in
  */
 export function buildColumnTargetOptions(): DropdownOption[] {
+  const targetsByGroup = [...COLUMN_TARGETS].sort((a, b) => Number(Boolean(b.required)) - Number(Boolean(a.required)))
+
   return [
     { value: '', label: 'Do not import' },
-    ...COLUMN_TARGETS.map((target) => ({
+    ...targetsByGroup.map((target) => ({
       value: target.id,
       label: target.label,
       group: target.required ? 'Required fields' : 'Optional fields',
