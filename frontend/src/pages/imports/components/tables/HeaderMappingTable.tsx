@@ -96,6 +96,22 @@ export function ImportHeaderMappingTable({
                         Ignored
                       </span>
                     )}
+                    {selectedTarget === 'other_account_id' && (
+                      <span className="group relative inline-flex">
+                        <CircleHelp
+                          size={15}
+                          strokeWidth={2.5}
+                          aria-label={OTHER_ACCOUNT_EXPLANATION}
+                          className="cursor-help"
+                          style={{ color: 'var(--app-text-subtle)' }}
+                        />
+                        {/* Anchored to its left edge, overriding the shared class's centring, so the
+                            panel does not hang past the left of the table on the first column */}
+                        <span className="app-tooltip-panel app-hover-tooltip left-0 w-72 translate-x-0">
+                          {OTHER_ACCOUNT_EXPLANATION}
+                        </span>
+                      </span>
+                    )}
                   </div>
                 </td>
                 <td className="max-w-[24rem] px-4 py-2.5 align-middle">
@@ -126,20 +142,6 @@ export function ImportHeaderMappingTable({
                       </div>
                     )}
                     <span className="flex w-4 shrink-0 items-center justify-center">
-                      {!validationError && selectedTarget === 'other_account_id' && (
-                        <span className="group relative inline-flex">
-                          <CircleHelp
-                            size={15}
-                            strokeWidth={2.5}
-                            aria-label={OTHER_ACCOUNT_EXPLANATION}
-                            className="cursor-help"
-                            style={{ color: 'var(--app-text-subtle)' }}
-                          />
-                          <span className="app-tooltip-panel app-hover-tooltip left-auto right-0 w-72 translate-x-0">
-                            {OTHER_ACCOUNT_EXPLANATION}
-                          </span>
-                        </span>
-                      )}
                       {validationError && (
                         <span className="group relative inline-flex">
                           <TriangleAlert
