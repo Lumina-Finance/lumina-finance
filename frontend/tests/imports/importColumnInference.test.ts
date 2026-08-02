@@ -37,9 +37,24 @@ describe('import column inference', () => {
     expect(map.other_account_id).toBe('To account')
   })
 
+  it('reads a column called counterparty as the counterparty account', () => {
+    const files = [createFile(
+      ['Account', 'Date', 'Amount', 'Category', 'Counterparty account'],
+      [
+        { Account: 'Chequing', Date: '2026-04-11', Amount: '-500.00', Category: 'Transfer', 'Counterparty account': 'Savings' },
+        { Account: 'Chequing', Date: '2026-04-12', Amount: '-12.00', Category: 'Groceries', 'Counterparty account': '' },
+      ],
+    )]
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files)
+
+    expect(map.account_id).toBe('Account')
+    expect(map.other_account_id).toBe('Counterparty account')
+  })
+
   // The account column is barred from these headers, so it leaves them rather than taking one on
-  // the weaker match and leaving the transfer column unmapped
-  it('leaves a destination-account column to the other side even with no plain account column', () => {
+  // the weaker match and leaving the counterparty column unmapped
+  it('leaves a destination-account column to the counterparty even with no plain account column', () => {
     const files = [createFile(
       ['Date', 'Amount', 'Category', 'Destination account'],
       [
