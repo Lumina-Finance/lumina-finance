@@ -1,3 +1,4 @@
+import { Fragment } from 'react'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
 import { CREATE_ACCOUNT_VALUE, IMPORT_INSET_STYLE } from '@/pages/imports/constants'
 import { ImportCheckbox } from '@/pages/imports/components/Primitives'
@@ -12,6 +13,7 @@ import { ImportCheckbox } from '@/pages/imports/components/Primitives'
 export function ImportAccountMappingTable({
   rows,
   options,
+  otherSideGroup,
   accountTypeOptions,
   currencyOptions,
   institutionOptions,
@@ -44,12 +46,17 @@ export function ImportAccountMappingTable({
     // A source that no row is written to can also answer that the money left the tracked accounts,
     // so its dropdown carries one more choice than the rest
     options?: DropdownOption[]
+    isOtherSideOnly?: boolean
     onChange: (value: string) => void
     onCreateTypeChange: (value: string) => void
     onCreateCurrencyChange: (value: string) => void
     onCreateInstitutionChange: (value: string) => void
   }>
   options: DropdownOption[]
+
+  // Heading and explanation opening the run of rows no import row is written to. Left out by a flow
+  // that has no such rows, which is every Firefly import
+  otherSideGroup?: { title: string; description: string }
   accountTypeOptions: DropdownOption[]
   currencyOptions: DropdownOption[]
   institutionOptions: DropdownOption[]
@@ -197,11 +204,30 @@ export function ImportAccountMappingTable({
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => {
+            {rows.map((row, rowIndex) => {
               const creating = row.value === CREATE_ACCOUNT_VALUE
 
+              // The sources arrive with the ones rows are written to first, so the heading goes in
+              // front of the first row of the other run rather than being repeated down it
+              const opensOtherSideGroup = Boolean(otherSideGroup)
+                && row.isOtherSideOnly
+                && !rows[rowIndex - 1]?.isOtherSideOnly
+
               return (
-                <tr key={row.id} className={row.autoFilled ? 'import-auto-fill-row' : undefined}>
+                <Fragment key={row.id}>
+                {opensOtherSideGroup && otherSideGroup && (
+                  <tr>
+                    <td colSpan={6} className="px-4 pb-2 pt-5">
+                      <p className="text-[0.8125rem] font-semibold uppercase tracking-wide" style={{ color: 'var(--app-text-subtle)' }}>
+                        {otherSideGroup.title}
+                      </p>
+                      <p className="mt-1 max-w-[60rem] text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                        {otherSideGroup.description}
+                      </p>
+                    </td>
+                  </tr>
+                )}
+                <tr className={row.autoFilled ? 'import-auto-fill-row' : undefined}>
                   <td className="px-4 py-3 align-middle">
                     <ImportCheckbox
                       checked={selectedRowIds.has(row.id)}
@@ -265,6 +291,7 @@ export function ImportAccountMappingTable({
                     />
                   </td>
                 </tr>
+                </Fragment>
               )
             })}
           </tbody>

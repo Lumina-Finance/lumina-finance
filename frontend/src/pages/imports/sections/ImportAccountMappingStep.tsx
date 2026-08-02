@@ -1,6 +1,10 @@
 import { useState } from 'react'
 import CreateInstitutionModal from '@/components/reference-modals/CreateInstitutionModal'
-import { ACCOUNT_TYPE_OPTIONS } from '@/pages/imports/constants'
+import {
+  ACCOUNT_TYPE_OPTIONS,
+  OTHER_ACCOUNT_EXPLANATION,
+  OTHER_ACCOUNT_ONLY_GROUP_TITLE,
+} from '@/pages/imports/constants'
 import { ImportAccountMappingTable, EmptyState, ImportNotice, ImportStep } from '@/pages/imports/components'
 import type { TransactionImportWorkflow } from '@/pages/imports/hooks'
 
@@ -114,6 +118,7 @@ export function ImportAccountMappingStep({
               createCurrency: accountCreateCurrencies[sourceAccount.id] ?? '',
               createInstitution: accountCreateInstitutions[sourceAccount.id] ?? '',
               options: sourceAccount.isOtherSideOnly ? otherSideAccountOptions : undefined,
+              isOtherSideOnly: sourceAccount.isOtherSideOnly,
               onChange: (nextValue: string) => updateSourceAccount(sourceAccount.id, nextValue),
               onCreateTypeChange: (nextValue: string) => setAccountCreateTypes((current) => ({ ...current, [sourceAccount.id]: nextValue })),
               onCreateCurrencyChange: (nextValue: string) => setAccountCreateCurrencies((current) => ({ ...current, [sourceAccount.id]: nextValue })),
@@ -121,6 +126,10 @@ export function ImportAccountMappingStep({
             }
           })}
           options={accountOptions}
+          otherSideGroup={{
+            title: OTHER_ACCOUNT_ONLY_GROUP_TITLE,
+            description: OTHER_ACCOUNT_EXPLANATION,
+          }}
           accountTypeOptions={ACCOUNT_TYPE_OPTIONS}
           currencyOptions={currencyOptions}
           institutionOptions={institutionOptions}

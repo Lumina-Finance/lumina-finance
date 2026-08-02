@@ -41,6 +41,11 @@ export const COLUMN_TARGETS: Array<{
   { id: 'tag_ids', label: 'Tags', hint: 'Resolved from imported tag text.' },
 ]
 
+// One wording for the other-account column, shown against the column while it is being mapped and
+// again over the accounts that only appear in it, so the two cannot drift apart
+export const OTHER_ACCOUNT_EXPLANATION = 'Says where a transfer\'s money went. An account that only ever appears in this column has nothing imported into it: recording it is what stops a move between two accounts inside one tax-advantaged category counting as a contribution and a withdrawal. Leave the cell blank where the file does not say.'
+export const OTHER_ACCOUNT_ONLY_GROUP_TITLE = 'Only used as the other side of a transfer'
+
 // Each format is named by an example of its shape rather than by a standard, because the year-first
 // option deliberately takes a slash and an unpadded part, which ISO 8601 does not. Keyed by format
 // rather than listed, so every format is guaranteed a label and the picker takes its order from

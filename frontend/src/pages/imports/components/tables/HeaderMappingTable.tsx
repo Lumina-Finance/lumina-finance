@@ -1,6 +1,6 @@
-import { TriangleAlert } from 'lucide-react'
+import { CircleHelp, TriangleAlert } from 'lucide-react'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
-import { IMPORT_DATE_FORMAT_LABELS } from '@/pages/imports/constants'
+import { IMPORT_DATE_FORMAT_LABELS, OTHER_ACCOUNT_EXPLANATION } from '@/pages/imports/constants'
 import type { ColumnMap, ColumnValidationErrors, ImportFileDraft } from '@/pages/imports/types'
 import {
   IMPORT_DATE_FORMATS,
@@ -126,6 +126,20 @@ export function ImportHeaderMappingTable({
                       </div>
                     )}
                     <span className="flex w-4 shrink-0 items-center justify-center">
+                      {!validationError && selectedTarget === 'other_account_id' && (
+                        <span className="group relative inline-flex">
+                          <CircleHelp
+                            size={15}
+                            strokeWidth={2.5}
+                            aria-label={OTHER_ACCOUNT_EXPLANATION}
+                            className="cursor-help"
+                            style={{ color: 'var(--app-text-subtle)' }}
+                          />
+                          <span className="app-tooltip-panel app-hover-tooltip left-auto right-0 w-72 translate-x-0">
+                            {OTHER_ACCOUNT_EXPLANATION}
+                          </span>
+                        </span>
+                      )}
                       {validationError && (
                         <span className="group relative inline-flex">
                           <TriangleAlert
