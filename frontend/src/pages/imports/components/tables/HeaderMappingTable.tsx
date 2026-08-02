@@ -1,5 +1,6 @@
 import { CircleHelp, TriangleAlert } from 'lucide-react'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
+import IconTooltip from '@/components/tooltips/IconTooltip'
 import { IMPORT_DATE_FORMAT_LABELS, OTHER_ACCOUNT_EXPLANATION } from '@/pages/imports/constants'
 import type { ColumnMap, ColumnValidationErrors, ImportFileDraft } from '@/pages/imports/types'
 import {
@@ -97,20 +98,14 @@ export function ImportHeaderMappingTable({
                       </span>
                     )}
                     {selectedTarget === 'other_account_id' && (
-                      <span className="group relative inline-flex">
-                        <CircleHelp
-                          size={15}
-                          strokeWidth={2.5}
-                          aria-label={OTHER_ACCOUNT_EXPLANATION}
-                          className="cursor-help"
-                          style={{ color: 'var(--app-text-subtle)' }}
-                        />
-                        {/* Anchored to its left edge, overriding the shared class's centring, so the
-                            panel does not hang past the left of the table on the first column */}
-                        <span className="app-tooltip-panel app-hover-tooltip left-0 w-72 translate-x-0">
-                          {OTHER_ACCOUNT_EXPLANATION}
-                        </span>
-                      </span>
+                      <IconTooltip
+                        label="What the other account records"
+                        icon={CircleHelp}
+                        placement="bottom"
+                        widthClassName="w-72"
+                      >
+                        {OTHER_ACCOUNT_EXPLANATION}
+                      </IconTooltip>
                     )}
                   </div>
                 </td>
