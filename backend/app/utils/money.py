@@ -1,13 +1,16 @@
 """Money amount utilities"""
 import re
-from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation, localcontext
 
 _RAW_DECIMAL_AMOUNT_RE = re.compile(r"^[+-]?(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d+)?$")
 
-# Amounts are stored as signed 64-bit integers, so a parsed value past this
-# magnitude would only fail later at database flush instead of being rejected
-# where the string is validated
-MAX_MINOR_UNITS_MAGNITUDE = 2**63 - 1
+# Amounts are stored as signed 64-bit integers, so a parsed value outside this
+# range would only fail later at database flush instead of being rejected where
+# the string is validated. The range is not symmetric: two's complement gives one
+# more value below zero than above it, so a caller that negates a parsed amount
+# has to bound its own result rather than trusting this one
+MIN_MINOR_UNITS = -(2**63)
+MAX_MINOR_UNITS = 2**63 - 1
 
 
 class DecimalAmountParseError(ValueError):
@@ -35,7 +38,8 @@ def parse_decimal_amount_to_minor_units(
         Parsed amount in the currency's minor units
 
     Raises:
-        DecimalAmountParseError: Raised when the amount string is malformed
+        DecimalAmountParseError: Raised when the amount string is malformed, or when the
+            amount falls outside the signed 64-bit range the column holds
         DecimalAmountPrecisionError: Raised when the amount has too many decimal places
     """
     normalized_amount = raw_amount.strip()
@@ -47,12 +51,17 @@ def parse_decimal_amount_to_minor_units(
     except InvalidOperation as exc:
         raise DecimalAmountParseError(f"Invalid amount: {raw_amount}") from exc
 
-    multiplier = Decimal(10) ** minor_unit_exponent
-    minor_units = decimal_amount * multiplier
-    if minor_units != minor_units.to_integral_value():
-        raise DecimalAmountPrecisionError(f"Amount has too many decimal places for {currency_code}: {raw_amount}")
+    # Shifting the decimal point keeps the operand's own digits, so the context has to be
+    # wide enough to hold all of them. Under the default 28 the value is rounded to fit
+    # first, and an amount carrying more precision than the currency holds then passes the
+    # integral check below instead of failing it
+    with localcontext() as context:
+        context.prec = len(decimal_amount.as_tuple().digits) + minor_unit_exponent + 1
+        minor_units = decimal_amount.scaleb(minor_unit_exponent)
+        if minor_units != minor_units.to_integral_value():
+            raise DecimalAmountPrecisionError(f"Amount has too many decimal places for {currency_code}: {raw_amount}")
 
-    if abs(minor_units) > MAX_MINOR_UNITS_MAGNITUDE:
+    if not MIN_MINOR_UNITS <= minor_units <= MAX_MINOR_UNITS:
         raise DecimalAmountParseError(f"Amount is too large: {raw_amount}")
 
     return int(minor_units)

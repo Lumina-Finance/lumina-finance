@@ -597,3 +597,28 @@ async def test_firefly_import_skips_amounts_past_the_storable_range(client):
     assert data["rows_imported"] == 1
     assert data["rows_skipped"] == 1
     assert data["skipped"][0]["reason"] == 'Invalid amount "99999999999999999999.00"'
+
+
+async def test_firefly_import_skips_the_amount_whose_magnitude_cannot_be_stored(client):
+    """The one amount that parses but cannot be stored once negated skips the row
+
+    This path writes the magnitude rather than the parsed value, and the signed range holds
+    one more value below zero than above it, so this amount parses and its magnitude does not
+    """
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await client.post("/transactions/import/firefly", json={
+        "accounts": [_chequing_mapping()],
+        "categories": [{"source": "Groceries", "create": {"name": "Groceries", "kind": "expense"}}],
+        "rows": [
+            _firefly_row(),
+            _firefly_row(journal_id="2", amount="-92233720368547758.08"),
+        ],
+    }, headers=headers)
+
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["rows_imported"] == 1
+    assert data["rows_skipped"] == 1
+    assert data["skipped"][0]["reason"] == 'Amount is too large: "-92233720368547758.08"'
