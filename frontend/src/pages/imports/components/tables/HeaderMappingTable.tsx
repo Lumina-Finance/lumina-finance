@@ -1,7 +1,6 @@
-import { CircleHelp } from 'lucide-react'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
 import IconTooltip from '@/components/tooltips/IconTooltip'
-import { IMPORT_DATE_FORMAT_LABELS, COUNTERPARTY_EXPLANATION } from '@/pages/imports/constants'
+import { IMPORT_DATE_FORMAT_LABELS } from '@/pages/imports/constants'
 import type { ColumnMap, ColumnValidationErrors, ImportFileDraft } from '@/pages/imports/types'
 import {
   IMPORT_DATE_FORMATS,
@@ -125,16 +124,6 @@ export function ImportHeaderMappingTable({
                           className="app-input"
                         />
                       </div>
-                    )}
-                    {selectedTarget === 'counterparty_account_id' && (
-                      <IconTooltip
-                        label="What a counterparty account records"
-                        icon={CircleHelp}
-                        placement="bottom"
-                        widthClassName="w-72"
-                      >
-                        {COUNTERPARTY_EXPLANATION}
-                      </IconTooltip>
                     )}
                     <span className="flex w-4 shrink-0 items-center justify-center">
                       {validationError && (

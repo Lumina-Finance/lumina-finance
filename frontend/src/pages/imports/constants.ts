@@ -30,7 +30,7 @@ export const COLUMN_TARGETS: Array<{
   {
     id: 'counterparty_account_id',
     label: 'Counterparty account',
-    hint: 'Account a transfer moved money to or from. Used only on transfer rows.',
+    hint: 'Says which account a transfer\'s money went to, or came from. Only transfer rows can use it, and a blank cell records the transfer as going outside this app.',
   },
   { id: 'dt', label: 'Date', hint: 'Transaction date.', required: true },
   { id: 'category_id', label: 'Category', hint: 'Resolved from imported category text.', required: true },
@@ -40,9 +40,6 @@ export const COLUMN_TARGETS: Array<{
   { id: 'notes', label: 'Notes', hint: 'Optional transaction notes.' },
   { id: 'tag_ids', label: 'Tags', hint: 'Resolved from imported tag text.' },
 ]
-
-// Shown against the counterparty column while it is being mapped
-export const COUNTERPARTY_EXPLANATION = 'Says which account a transfer\'s money went to, or came from. Only transfer rows can use it, and a blank cell records the transfer as going outside this app.'
 
 // How many refused rows the skipped table lists before summarizing the remainder, which both
 // import flows share

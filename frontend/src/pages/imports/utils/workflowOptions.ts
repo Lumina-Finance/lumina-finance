@@ -87,6 +87,9 @@ export function buildImportCategoryMatchOptions(categories: Category[] = []): Dr
  *
  * The list starts a new heading every time the group changes down the options, so the required ones
  * are gathered ahead of the optional ones rather than following the order the fields are declared in
+ *
+ * Each field's hint rides along as the option's description, which is where a user decides what a
+ * column means. Ignoring a column needs no explanation, so that entry carries none
  */
 export function buildColumnTargetOptions(): DropdownOption[] {
   const targetsByGroup = [...COLUMN_TARGETS].sort((a, b) => Number(Boolean(b.required)) - Number(Boolean(a.required)))
@@ -97,6 +100,7 @@ export function buildColumnTargetOptions(): DropdownOption[] {
       value: target.id,
       label: target.label,
       group: target.required ? 'Required fields' : 'Optional fields',
+      description: target.hint,
     })),
   ]
 }

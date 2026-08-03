@@ -55,8 +55,19 @@ function DropdownOptionRow({
           {option.icon}
         </span>
       )}
-      <span className="min-w-0 truncate">{option.label}</span>
-      {option.badge && <DropdownBadge label={option.badge} />}
+      {/* The label and its description stack, so a badge stays beside the label rather than
+          floating against a two-line block */}
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className="flex min-w-0 items-center gap-2">
+          <span className="min-w-0 truncate">{option.label}</span>
+          {option.badge && <DropdownBadge label={option.badge} />}
+        </span>
+        {option.description && (
+          <span className="text-xs leading-snug" style={{ color: 'var(--app-text-subtle)' }}>
+            {option.description}
+          </span>
+        )}
+      </span>
     </li>
   )
 }

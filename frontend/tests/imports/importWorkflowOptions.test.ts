@@ -6,9 +6,10 @@ import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import type { Institution } from '@/api/institutions'
-import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, EMPTY_COLUMN_MAP } from '@/pages/imports/constants'
+import { COLUMN_TARGETS, CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, EMPTY_COLUMN_MAP } from '@/pages/imports/constants'
 import type { ImportFileDraft } from '@/pages/imports/types'
 import {
+  buildColumnTargetOptions,
   buildImportAccountMappingSources,
   buildImportAccountOptions,
   buildImportCategoryMatchOptions,
@@ -151,6 +152,21 @@ describe('import workflow option helpers', () => {
     expect(getImportedCategories(files, 'Category')).toEqual(['Groceries', 'Rent'])
     expect(getImportedMerchants(files, 'Merchant')).toEqual(['Landlord', 'Market'])
     expect(getImportedTags(files, 'Tags')).toEqual(['essentials', 'food', 'housing'])
+  })
+
+  it('carries every field explanation into the column target options', () => {
+    const options = buildColumnTargetOptions()
+
+    // Ignoring a column explains itself, and it is the only entry outside the two groups
+    expect(options[0]).toEqual({ value: '', label: 'Do not import' })
+    expect(options.slice(1).every((option) => Boolean(option.description))).toBe(true)
+    expect(options.find((option) => option.value === 'merchant_id')?.description).toBe(
+      COLUMN_TARGETS.find((target) => target.id === 'merchant_id')?.hint,
+    )
+
+    // Required fields are gathered ahead of the optional ones rather than following declaration order
+    const groups = options.slice(1).map((option) => option.group)
+    expect(groups.indexOf('Optional fields')).toBeGreaterThan(groups.lastIndexOf('Required fields'))
   })
 
   it('marks an archived account wherever it is offered', () => {
