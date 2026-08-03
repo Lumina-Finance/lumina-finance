@@ -9,10 +9,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from app.models.account import Account, TaxAdvantagedCategory
-from app.models.base import TransferOtherAccountScope
+from app.models.base import TransferCounterpartyScope
 from app.models.category import Category
 from app.models.transaction import Transaction
-from app.services.categories.transfer_rules import get_records_other_account_filter
+from app.services.categories.transfer_rules import get_records_counterparty_account_filter
 from app.services.tax_advantaged_categories.tac_limit_metric_helpers import TacLimitMetrics
 
 
@@ -52,7 +52,7 @@ async def get_tac_transfer_totals(
     )
     positive_amount_filter = Transaction.amount > 0
     negative_amount_filter = Transaction.amount < 0
-    other_account = aliased(Account)
+    counterparty_account = aliased(Account)
 
     # Categories that treat their own accounts as one pot, where money moving between them is
     # neither a contribution nor a withdrawal
@@ -62,11 +62,11 @@ async def get_tac_transfer_totals(
         if not tax_advantaged_category.counts_internal_transfers
     ]
 
-    # A transfer whose recorded other side is another account of the same category the row is
+    # A transfer whose recorded counterparty is another account of the same category the row is
     # being counted for
     is_uncounted_internal_transfer = (
-        (Transaction.other_account_scope == TransferOtherAccountScope.TRACKED)
-        & (other_account.tax_advantaged_category_id == Account.tax_advantaged_category_id)
+        (Transaction.counterparty_account_scope == TransferCounterpartyScope.TRACKED)
+        & (counterparty_account.tax_advantaged_category_id == Account.tax_advantaged_category_id)
         & Account.tax_advantaged_category_id.in_(category_ids_excluding_internal_transfers)
     )
 
@@ -87,18 +87,18 @@ async def get_tac_transfer_totals(
         .join(Account, Transaction.account_id == Account.id)
         .join(Category, Transaction.category_id == Category.id)
 
-        # The other side is read from a second join against the accounts table, made outer because
+        # The counterparty is read from a second join against the accounts table, made outer because
         # most transfers record no account there and those rows still count
-        .outerjoin(other_account, Transaction.other_account_id == other_account.id)
+        .outerjoin(counterparty_account, Transaction.counterparty_account_id == counterparty_account.id)
         .where(
             Account.tax_advantaged_category_id.in_(tax_advantaged_category_ids),
 
             # Archived accounts remain linked to their tax-advantaged category history
             # The same rule the write path enforces, so a row that had to answer is a row that counts
-            get_records_other_account_filter(),
+            get_records_counterparty_account_filter(),
 
-            # Compared against true rather than negated, because a transfer with no recorded other
-            # account leaves the comparison unknown and would otherwise drop out of both totals
+            # Compared against true rather than negated, because a transfer with no recorded
+            # counterparty account leaves the comparison unknown and would otherwise drop out of both totals
             is_uncounted_internal_transfer.is_not(True),
         )
         .group_by(Account.tax_advantaged_category_id, "year"),

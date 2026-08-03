@@ -102,8 +102,8 @@ class CategoryKind(enum.StrEnum):
     TRANSFER = "transfer"
 
 
-class TransferOtherAccountScope(enum.StrEnum):
-    """Where the other side of a transfer sits
+class TransferCounterpartyScope(enum.StrEnum):
+    """Where the counterparty of a transfer sits
 
     Recorded on the transfer transaction itself rather than derived from a
     partner row, because the two sides of one movement are entered days apart
@@ -111,7 +111,7 @@ class TransferOtherAccountScope(enum.StrEnum):
     which is every transaction predating the column
     """
 
-    TRACKED = "tracked"  # An account in the app, held in other_account_id
+    TRACKED = "tracked"  # An account in the app, held in counterparty_account_id
     OUTSIDE = "outside"  # Money that left the tracked accounts
 
 

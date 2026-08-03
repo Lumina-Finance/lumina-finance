@@ -88,10 +88,10 @@ export default function TransactionDateGroupList({
                 const category = categoryMap.get(transaction.category_id)
                 const rowAccount = fixedAccount ?? accountMap.get(transaction.account_id)
 
-                // Always from the full account list, since the other side of a transfer is often
-                // an account the current view is not showing
-                const otherAccount = transaction.other_account_id
-                  ? accountMap.get(transaction.other_account_id)
+                // Always from the full account list, since the counterparty account of a transfer is
+                // often an account the current view is not showing
+                const counterpartyAccount = transaction.counterparty_account_id
+                  ? accountMap.get(transaction.counterparty_account_id)
                   : undefined
                 const readOnlyReason = rowAccount?.is_archived ? 'Archived · Read-only' : undefined
                 return (
@@ -99,7 +99,7 @@ export default function TransactionDateGroupList({
                     key={transaction.id}
                     accountInstitution={rowAccount?.institution}
                     accountName={rowAccount?.name}
-                    otherAccountName={otherAccount?.name}
+                    counterpartyAccountName={counterpartyAccount?.name}
                     category={category}
                     currency={transaction.currency}
                     readOnlyReason={readOnlyReason}

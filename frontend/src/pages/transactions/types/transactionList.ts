@@ -31,7 +31,7 @@ export interface TransactionListAccount {
  * Narrows a loaded account to the fields the transaction list reads
  *
  * Both pages showing the list need the whole set, not only the accounts on screen, because a
- * transfer's other side is often an account the current view is not showing
+ * transfer's counterparty account is often one the current view is not showing
  */
 export function toTransactionListAccount(account: AccountsOverview): TransactionListAccount {
   return {

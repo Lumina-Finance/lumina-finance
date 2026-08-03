@@ -32,14 +32,14 @@ async def delete_account_for_user(
     await mark_cache_changed_for_scope(db, user_id=account.owner_id, group_id=account.group_id)
     await db.delete(account)
 
-    # Transfers in other accounts record this one as the other side, and the restricting foreign key
-    # rejects the delete rather than letting those rows lose what they recorded. Transactions inside
-    # this account cascade away with it and never reach here
+    # Transfers in other accounts record this one as their counterparty, and the restricting foreign
+    # key rejects the delete rather than letting those rows lose what they recorded. Transactions
+    # inside this account cascade away with it and never reach here
     try:
         await db.commit()
     except IntegrityError as e:
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="This account is recorded as the other side of transfers in other accounts",
+            detail="This account is recorded as the counterparty of transfers in other accounts",
         ) from e

@@ -1,5 +1,5 @@
 import type { CsvRow, PreviewTransactionRow } from '@/pages/imports/types'
-import { BALANCE_ADJUSTMENT_CATEGORY_NAME, doesTransferRecordOtherAccount } from '@/utils/transfers'
+import { BALANCE_ADJUSTMENT_CATEGORY_NAME, doesTransferRecordCounterpartyAccount } from '@/utils/transfers'
 import { getPreviewDateLabel } from '@/pages/imports/utils'
 import { getFireflyRowDate, isFireflyRowImportable, splitFireflyTags } from './derivation'
 import { resolveFireflyRowLegs, type FireflyResolvedLeg, type FireflyRowResolutionOptions } from './rowResolution'
@@ -39,9 +39,9 @@ export function buildFireflyPreviewRows(options: BuildFireflyPreviewRowsOptions)
  * Resolves what a previewed leg records about where its money went, mirroring the commit
  */
 function getFireflyLegCounterpartyScope(leg: FireflyResolvedLeg) {
-  if (leg.otherAccount) return 'tracked'
+  if (leg.counterpartyAccount) return 'tracked'
   if (!leg.category) return null
-  return doesTransferRecordOtherAccount(leg.category.kind, leg.category.name === BALANCE_ADJUSTMENT_CATEGORY_NAME)
+  return doesTransferRecordCounterpartyAccount(leg.category.kind, leg.category.name === BALANCE_ADJUSTMENT_CATEGORY_NAME)
     ? 'outside'
     : null
 }
@@ -73,7 +73,7 @@ function buildFireflyPreviewRow(
     category: leg.category,
     currency: leg.account.currency,
     dateLabel: getPreviewDateLabel(dt),
-    otherAccountName: leg.otherAccount?.name,
+    counterpartyAccountName: leg.counterpartyAccount?.name,
     transaction: {
       id,
       created_by_user_id: 'import-preview',
@@ -92,8 +92,8 @@ function buildFireflyPreviewRow(
       // An account queued for creation carries the create sentinel until the import mints its id,
       // the same stand-in the leg's own account uses above. A transfer leg with no second endpoint
       // in the export records that the money left the app, as the commit does
-      other_account_id: leg.otherAccount?.id ?? null,
-      other_account_scope: getFireflyLegCounterpartyScope(leg),
+      counterparty_account_id: leg.counterpartyAccount?.id ?? null,
+      counterparty_account_scope: getFireflyLegCounterpartyScope(leg),
       created_at: timestamp,
       updated_at: timestamp,
       tag_ids: tagIds,

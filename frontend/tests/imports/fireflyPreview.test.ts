@@ -200,15 +200,15 @@ describe('firefly preview rows', () => {
       transaction: { amount: 7350, merchant_name: null },
     })
 
-    // Each leg records the other end, which is what keeps the pair out of a tax-advantaged
+    // Each leg records the counterparty end, which is what keeps the pair out of a tax-advantaged
     // category's totals once it is imported
     expect(rows[0]).toMatchObject({
-      otherAccountName: 'US Savings',
-      transaction: { other_account_id: 'us-savings', other_account_scope: 'tracked' },
+      counterpartyAccountName: 'US Savings',
+      transaction: { counterparty_account_id: 'us-savings', counterparty_account_scope: 'tracked' },
     })
     expect(rows[1]).toMatchObject({
-      otherAccountName: 'Chequing',
-      transaction: { other_account_id: 'checking', other_account_scope: 'tracked' },
+      counterpartyAccountName: 'Chequing',
+      transaction: { counterparty_account_id: 'checking', counterparty_account_scope: 'tracked' },
     })
   })
 
@@ -232,12 +232,12 @@ describe('firefly preview rows', () => {
 
     expect(rows).toHaveLength(2)
     expect(rows[0]).toMatchObject({
-      otherAccountName: 'Savings',
-      transaction: { other_account_scope: 'tracked' },
+      counterpartyAccountName: 'Savings',
+      transaction: { counterparty_account_scope: 'tracked' },
     })
     expect(rows[1]).toMatchObject({
-      otherAccountName: 'Chequing',
-      transaction: { other_account_scope: 'tracked' },
+      counterpartyAccountName: 'Chequing',
+      transaction: { counterparty_account_scope: 'tracked' },
     })
   })
 
@@ -252,8 +252,8 @@ describe('firefly preview rows', () => {
     }))
 
     expect(rows).toHaveLength(1)
-    expect(rows[0].transaction.other_account_id).toBeNull()
-    expect(rows[0].transaction.other_account_scope).toBe('outside')
+    expect(rows[0].transaction.counterparty_account_id).toBeNull()
+    expect(rows[0].transaction.counterparty_account_scope).toBe('outside')
   })
 
   it('maps balance rows to one adjustment leg signed by the tracked side', () => {

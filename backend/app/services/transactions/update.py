@@ -10,7 +10,7 @@ from app.models.user import User
 from app.permissions import check_account_access, check_transaction_access
 from app.schemas.transaction import TransactionResponse, UpdateTransactionRequest
 from app.services.cache_state import mark_cache_changed_for_scope
-from app.services.categories.transfer_rules import does_category_record_other_account
+from app.services.categories.transfer_rules import does_category_record_counterparty_account
 from app.services.transactions.accounts import (
     get_parent_account_for_transaction,
     validate_transaction_account_is_not_archived,
@@ -19,12 +19,12 @@ from app.services.transactions.response_helpers import get_transaction_response
 from app.services.transactions.snapshots import recompute_snapshots_after_transaction_update
 from app.services.transactions.tags import replace_transaction_tag_assignments
 from app.services.transactions.validation import (
-    OTHER_ACCOUNT_NOT_ALLOWED_DETAIL,
+    COUNTERPARTY_NOT_ALLOWED_DETAIL,
     get_valid_transaction_tag_ids,
     validate_transaction_category_access,
+    validate_transaction_counterparty_account,
     validate_transaction_fx_rate_for_account_currency,
     validate_transaction_merchant_access,
-    validate_transaction_other_account,
 )
 
 
@@ -109,30 +109,34 @@ async def update_transaction_and_get_response(
     if "merchant_id" in changed_fields:
         await validate_transaction_merchant_access(db, resulting_merchant_id, user.id, account_group_id)
 
-    if does_category_record_other_account(category):
+    if does_category_record_counterparty_account(category):
         # Editing a transfer answers the question, whatever else the edit changes. Transactions
-        # predating the field are the ones this reaches, and refusing the edit until they say where
-        # the money went is what moves that history onto the new footing rather than leaving it
-        # counting wrongly forever. Unsent fields keep their stored values, so a transfer that has
-        # already answered is untouched by this
-        await validate_transaction_other_account(
+        # predating the field are the ones this reaches, and refusing the edit until they record
+        # their counterparty account is what moves that history onto the new footing rather than
+        # leaving it counting wrongly forever. Unsent fields keep their stored values, so a transfer
+        # that has already answered is untouched by this
+        await validate_transaction_counterparty_account(
             db,
             user.id,
             category,
             changed_fields.get("account_id", txn.account_id),
-            changed_fields.get("other_account_id", txn.other_account_id),
-            changed_fields.get("other_account_scope", txn.other_account_scope),
+            changed_fields.get("counterparty_account_id", txn.counterparty_account_id),
+            changed_fields.get("counterparty_account_scope", txn.counterparty_account_scope),
         )
     else:
-        if changed_fields.get("other_account_id") is not None or changed_fields.get("other_account_scope") is not None:
+        if (
+            changed_fields.get("counterparty_account_id") is not None
+            or changed_fields.get("counterparty_account_scope") is not None
+        ):
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=OTHER_ACCOUNT_NOT_ALLOWED_DETAIL,
+                detail=COUNTERPARTY_NOT_ALLOWED_DETAIL,
             )
 
-        # Moving to a category with no other side drops the answer recorded under the previous one
-        changed_fields["other_account_id"] = None
-        changed_fields["other_account_scope"] = None
+        # Moving to a category with no counterparty account drops the answer recorded under the
+        # previous one
+        changed_fields["counterparty_account_id"] = None
+        changed_fields["counterparty_account_scope"] = None
 
     # Handle tags outside the model field loop because they live in a junction table
     new_tag_ids = changed_fields.pop("tag_ids", None)

@@ -1,5 +1,5 @@
 import type { FireflySkippedRowDetail } from '@/pages/imports/firefly/utils'
-import { FireflySkippedTable, SkippedLeadPlaceholder, type FireflySkippedTableRow } from './FireflySkippedTable'
+import { ImportSkippedTable, SkippedLeadPlaceholder, type ImportSkippedTableRow } from '@/pages/imports/components/tables/SkippedTable'
 
 /**
  * Collapsible panel listing journal rows the import will not or did not
@@ -17,7 +17,7 @@ export function FireflySkippedRowsTable({
   totalCount: number
   headers: string[]
 }) {
-  const tableRows: FireflySkippedTableRow[] = rows.map((row, index) => ({
+  const tableRows: ImportSkippedTableRow[] = rows.map((row, index) => ({
     key: `${row.journalId}-${index}`,
     lead: row.rowNumber ?? <SkippedLeadPlaceholder />,
     reason: row.reason,
@@ -25,7 +25,7 @@ export function FireflySkippedRowsTable({
   }))
 
   return (
-    <FireflySkippedTable
+    <ImportSkippedTable
       title={title}
       toggleLabel="skipped rows"
       leadHeader="Row"

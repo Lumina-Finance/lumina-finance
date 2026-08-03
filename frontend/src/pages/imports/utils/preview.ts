@@ -3,9 +3,10 @@ import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import type { Institution } from '@/api/institutions'
 import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, DEFAULT_CATEGORY_ICON } from '@/pages/imports/constants'
-import { BALANCE_ADJUSTMENT_CATEGORY_NAME, doesTransferRecordOtherAccount, OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
-import type { ColumnMap, ImportCategoryKind, ImportFileDraft, PreviewTransactionRow } from '@/pages/imports/types'
+import { BALANCE_ADJUSTMENT_CATEGORY_NAME, doesTransferRecordCounterpartyAccount, OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
+import type { ColumnMap, ImportCategoryKind, ImportFileDraft, ImportRowProblem, PreviewTransactionRow } from '@/pages/imports/types'
 import { getImportAccountName } from './accountMapping'
+import { getImportRowId } from './common'
 import { splitImportedValues } from './categoryMatching'
 import { getMappedValue } from './columnMapping'
 import {
@@ -32,6 +33,7 @@ interface BuildImportPreviewRowsOptions {
   institutionById: Map<string, Institution>
   resolvedAccountMappings: Record<string, string>
   resolvedCategoryMappings: Record<string, string>
+  rowProblems: ImportRowProblem[]
 }
 
 /**
@@ -71,9 +73,13 @@ export function buildImportPreviewRows({
   institutionById,
   resolvedAccountMappings,
   resolvedCategoryMappings,
+  rowProblems,
 }: BuildImportPreviewRowsOptions): PreviewTransactionRow[] {
   if (missingRequiredColumnLabels.length > 0) return []
 
+  // A row that cannot be converted is listed with its reason instead, so previewing it as well
+  // would show an amount of zero or a blank date beside the entry saying why it was refused
+  const problemRowIds = new Set(rowProblems.map((problem) => problem.id))
   const rows: PreviewTransactionRow[] = []
   const fallbackCurrency = currencies.some((currency) => currency.id === 'CAD') ? 'CAD' : currencies[0]?.id ?? 'CAD'
   const timestamp = new Date().toISOString()
@@ -81,6 +87,8 @@ export function buildImportPreviewRows({
   // Preview generation walks files in row order and stops early because the UI only renders a small sample
   for (const file of files) {
     for (let rowIndex = 0; rowIndex < file.rows.length; rowIndex += 1) {
+      if (problemRowIds.has(getImportRowId(file.id, rowIndex))) continue
+
       const row = file.rows[rowIndex]
       const accountSource = columnMap.account_id ? getMappedValue(row, columnMap.account_id) : file.id
       const accountLabel = columnMap.account_id ? accountSource : getImportAccountName(file.name)
@@ -120,8 +128,8 @@ export function buildImportPreviewRows({
       // can hold one, and the answer is whatever that source was mapped to, which can be an account
       // or money leaving the app
       const recordsCounterparty = doesPreviewCategoryRecordCounterparty(category)
-      const counterpartySource = recordsCounterparty && columnMap.other_account_id
-        ? getMappedValue(row, columnMap.other_account_id).trim()
+      const counterpartySource = recordsCounterparty && columnMap.counterparty_account_id
+        ? getMappedValue(row, columnMap.counterparty_account_id).trim()
         : ''
       const counterpartyChoice = counterpartySource ? resolvedAccountMappings[counterpartySource] ?? '' : ''
       const counterpartyAccount = counterpartyChoice === CREATE_ACCOUNT_VALUE || counterpartyChoice === OUTSIDE_ACCOUNT_VALUE
@@ -135,13 +143,13 @@ export function buildImportPreviewRows({
         : counterpartyAccount?.name
 
       rows.push({
-        id: `${file.id}-${rowIndex}`,
+        id: getImportRowId(file.id, rowIndex),
         accountInstitution: account?.institution ?? createAccountInstitution ?? null,
         accountName: account?.name ?? (accountLabel || 'Unmapped account'),
         category,
         currency,
         dateLabel: getPreviewDateLabel(dt),
-        otherAccountName: counterpartyName,
+        counterpartyAccountName: counterpartyName,
         transaction: {
           id: `import-preview-${file.id}-${rowIndex}`,
           created_by_user_id: 'import-preview',
@@ -157,8 +165,8 @@ export function buildImportPreviewRows({
           fx_rate: null,
           notes: notes || null,
 
-          other_account_id: counterpartyAccount?.id ?? (counterpartyChoice === CREATE_ACCOUNT_VALUE ? CREATE_ACCOUNT_VALUE : null),
-          other_account_scope: getPreviewCounterpartyScope(recordsCounterparty, counterpartyChoice),
+          counterparty_account_id: counterpartyAccount?.id ?? (counterpartyChoice === CREATE_ACCOUNT_VALUE ? CREATE_ACCOUNT_VALUE : null),
+          counterparty_account_scope: getPreviewCounterpartyScope(recordsCounterparty, counterpartyChoice),
           created_at: timestamp,
           updated_at: timestamp,
           tag_ids: tagIds,
@@ -181,11 +189,11 @@ export function buildImportPreviewRows({
  * Reports whether a previewed row's category can record where the money went
  *
  * The backend matches Balance Adjustment by name alone, so this does too, and a row the API would
- * refuse an other account for is previewed without one
+ * refuse a counterparty account for is previewed without one
  */
 function doesPreviewCategoryRecordCounterparty(category: Category | undefined) {
   if (!category) return false
-  return doesTransferRecordOtherAccount(category.kind, category.name === BALANCE_ADJUSTMENT_CATEGORY_NAME)
+  return doesTransferRecordCounterpartyAccount(category.kind, category.name === BALANCE_ADJUSTMENT_CATEGORY_NAME)
 }
 
 /**

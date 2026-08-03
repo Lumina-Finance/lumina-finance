@@ -12,7 +12,7 @@ export type ColumnTarget =
   | 'merchant_id'
   | 'notes'
   | 'tag_ids'
-  | 'other_account_id'
+  | 'counterparty_account_id'
 
 export type ColumnMap = Record<ColumnTarget, string>
 export type ColumnValidationErrors = Record<string, string>
@@ -62,11 +62,25 @@ export interface PreviewTransactionRow {
   dateLabel: string
   transaction: Transaction
 
-  /** Name behind the transaction's other account, since the preview has no account list to read */
-  otherAccountName?: string
+  /** Name behind the transaction's counterparty account, since the preview has no account list to read */
+  counterpartyAccountName?: string
+}
+
+/**
+ * One row the import cannot convert, against its position among the file's data rows
+ *
+ * The cells are the row as it was read, so the table can show it under the file's own headers
+ */
+export interface ImportRowProblem {
+  /** Identity of the row within the staged file, which the preview reads to leave it out */
+  id: string
+  rowNumber: number
+  cells: CsvRow
+  reason: string
 }
 
 export interface ImportBuildResult {
   errors: string[]
+  rowProblems: ImportRowProblem[]
   payload: TransactionImportPayload | null
 }

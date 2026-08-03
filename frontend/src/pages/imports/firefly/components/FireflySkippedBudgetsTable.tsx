@@ -1,5 +1,5 @@
 import type { FireflyBudgetDraft } from '@/pages/imports/firefly/types'
-import { FireflySkippedTable, type FireflySkippedTableRow } from './FireflySkippedTable'
+import { ImportSkippedTable, type ImportSkippedTableRow } from '@/pages/imports/components/tables/SkippedTable'
 
 const SKIPPED_BUDGET_HEADERS = [
   'Status',
@@ -17,7 +17,7 @@ const SKIPPED_BUDGET_HEADERS = [
  * export scroll horizontally beside them
  */
 export function FireflySkippedBudgetsTable({ drafts }: { drafts: FireflyBudgetDraft[] }) {
-  const rows: FireflySkippedTableRow[] = drafts.map((draft) => ({
+  const rows: ImportSkippedTableRow[] = drafts.map((draft) => ({
     key: draft.name,
     lead: draft.name,
     reason: draft.disabledReason ?? '',
@@ -33,7 +33,7 @@ export function FireflySkippedBudgetsTable({ drafts }: { drafts: FireflyBudgetDr
   }))
 
   return (
-    <FireflySkippedTable
+    <ImportSkippedTable
       title={`${drafts.length} budget${drafts.length === 1 ? '' : 's'} skipped`}
       toggleLabel="skipped budgets"
       leadHeader="Budget"

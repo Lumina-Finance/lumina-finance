@@ -881,8 +881,8 @@ async def test_delete_group_whose_account_a_transfer_records_returns_409(client)
         "dt": "2026-03-15",
         "amount": -5000,
         "currency": "CAD",
-        "other_account_scope": "tracked",
-        "other_account_id": group_account_id,
+        "counterparty_account_scope": "tracked",
+        "counterparty_account_id": group_account_id,
         "merchant_id": await _get_system_merchant_id(client, headers),
     }, headers=headers)
     assert created.status_code == 201
@@ -918,8 +918,8 @@ async def test_delete_group_with_a_transfer_between_its_own_accounts_returns_204
         "dt": "2026-03-15",
         "amount": -5000,
         "currency": "CAD",
-        "other_account_scope": "tracked",
-        "other_account_id": recorded_id,
+        "counterparty_account_scope": "tracked",
+        "counterparty_account_id": recorded_id,
         "merchant_id": await _get_system_merchant_id(client, headers),
     }, headers=headers)
     assert created.status_code == 201

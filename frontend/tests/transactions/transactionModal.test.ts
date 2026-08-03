@@ -8,7 +8,7 @@ import type { Currency } from '@/api/currency'
 import type { Transaction } from '@/api/transactions'
 import { OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 import { buildCategoryOptions } from '@/pages/transactions/components/transaction-modal/utils/categories'
-import { buildOtherAccountOptions } from '@/pages/transactions/components/transaction-modal/utils/options'
+import { buildCounterpartyAccountOptions } from '@/pages/transactions/components/transaction-modal/utils/options'
 import { buildInitialTransactionForm } from '@/pages/transactions/components/transaction-modal/utils/initialForm'
 import {
   amountInputToMinorUnits,
@@ -93,8 +93,8 @@ function createTransaction(overrides: Partial<Transaction> = {}): Transaction {
     currency: overrides.currency ?? 'CAD',
     fx_rate: null,
     notes: overrides.notes ?? null,
-    other_account_id: overrides.other_account_id ?? null,
-    other_account_scope: overrides.other_account_scope ?? null,
+    counterparty_account_id: overrides.counterparty_account_id ?? null,
+    counterparty_account_scope: overrides.counterparty_account_scope ?? null,
     created_at: '2026-06-11T12:00:00Z',
     updated_at: '2026-06-11T12:00:00Z',
     tag_ids: overrides.tag_ids ?? [],
@@ -191,7 +191,7 @@ describe('transaction modal helpers', () => {
       date: '',
       tag_ids: [],
       symmetric_transfer: false,
-      other_account_id: '',
+      counterparty_account_id: '',
     })).toEqual({
       account_id: 'Select an account',
       category_id: 'Select a category',
@@ -213,7 +213,7 @@ describe('transaction modal helpers', () => {
       date: '2026-06-11',
       tag_ids: ['tax'],
       symmetric_transfer: false,
-      other_account_id: '',
+      counterparty_account_id: '',
     }, 2)).toEqual({
       account_id: 'checking',
       dt: '2026-06-11',
@@ -277,7 +277,7 @@ describe('transaction modal helpers', () => {
     })
   })
 
-  it('requires an other-account answer on every transfer that is not Balance Adjustment', () => {
+  it('requires a counterparty-account answer on every transfer that is not Balance Adjustment', () => {
     const transferForm = {
       kind: 'transfer' as const,
       direction: 'debit' as const,
@@ -290,34 +290,34 @@ describe('transaction modal helpers', () => {
       date: '2026-06-11',
       tag_ids: [],
       symmetric_transfer: false,
-      other_account_id: '',
+      counterparty_account_id: '',
     }
 
     // A transfer with no answer fails validation, on an edit as much as on a create, which is what
     // brings transactions recorded before the field existed onto the new footing
-    expect(validateTransactionForm(transferForm).other_account_id)
+    expect(validateTransactionForm(transferForm).counterparty_account_id)
       .toBe('Select where the money went')
 
-    // Balance Adjustment has no other side, so it is never required
+    // Balance Adjustment has no counterparty, so it is never required
     expect(validateTransactionForm(
       transferForm,
       { isBalanceAdjustmentCategory: true },
-    ).other_account_id).toBeUndefined()
+    ).counterparty_account_id).toBeUndefined()
 
     // Ticking the checkbox makes this field the receiving account, so it is the one field asked
     // for either way rather than a second one appearing beside it
     const symmetricForm = { ...transferForm, symmetric_transfer: true }
-    expect(validateTransactionForm(symmetricForm).other_account_id).toBe('Select where the money went')
+    expect(validateTransactionForm(symmetricForm).counterparty_account_id).toBe('Select where the money went')
 
     // Answering it once the checkbox is ticked clears the requirement, same as the standalone case
     expect(validateTransactionForm(
-      { ...symmetricForm, other_account_id: 'savings' },
-    ).other_account_id).toBeUndefined()
+      { ...symmetricForm, counterparty_account_id: 'savings' },
+    ).counterparty_account_id).toBeUndefined()
 
-    // Picking the transaction's own account as the other side is always rejected
+    // Picking the transaction's own account as the counterparty is always rejected
     expect(validateTransactionForm(
-      { ...transferForm, other_account_id: 'checking' },
-    ).other_account_id).toBe('Choose a different account')
+      { ...transferForm, counterparty_account_id: 'checking' },
+    ).counterparty_account_id).toBe('Choose a different account')
   })
 
   it('writes the pair into the one chosen account, each leg recording the other', () => {
@@ -333,7 +333,7 @@ describe('transaction modal helpers', () => {
       date: '2026-06-11',
       tag_ids: [],
       symmetric_transfer: true,
-      other_account_id: 'savings',
+      counterparty_account_id: 'savings',
     }
 
     // The one account field is both what the pair is written to and what each leg records, so the
@@ -342,14 +342,14 @@ describe('transaction modal helpers', () => {
     expect(fromPayload).toMatchObject({
       account_id: 'checking',
       amount: -5000,
-      other_account_id: 'savings',
-      other_account_scope: 'tracked',
+      counterparty_account_id: 'savings',
+      counterparty_account_scope: 'tracked',
     })
     expect(toPayload).toMatchObject({
       account_id: 'savings',
       amount: 5000,
-      other_account_id: 'checking',
-      other_account_scope: 'tracked',
+      counterparty_account_id: 'checking',
+      counterparty_account_scope: 'tracked',
     })
 
     // The direction says what happens to the account above, so on a credit the money arrives there
@@ -362,7 +362,7 @@ describe('transaction modal helpers', () => {
     expect(creditTo).toMatchObject({ account_id: 'savings', amount: -5000 })
   })
 
-  it('splits the other-account selection into an id-and-scope pair for create and update payloads', () => {
+  it('splits the counterparty-account selection into an id-and-scope pair for create and update payloads', () => {
     const transferForm = {
       kind: 'transfer' as const,
       direction: 'debit' as const,
@@ -375,22 +375,22 @@ describe('transaction modal helpers', () => {
       date: '2026-06-11',
       tag_ids: [],
       symmetric_transfer: false,
-      other_account_id: OUTSIDE_ACCOUNT_VALUE,
+      counterparty_account_id: OUTSIDE_ACCOUNT_VALUE,
     }
 
     expect(buildCreateTransactionPayload(transferForm, 2)).toMatchObject({
-      other_account_id: null,
-      other_account_scope: 'outside',
+      counterparty_account_id: null,
+      counterparty_account_scope: 'outside',
     })
-    expect(buildCreateTransactionPayload({ ...transferForm, other_account_id: 'savings' }, 2)).toMatchObject({
-      other_account_id: 'savings',
-      other_account_scope: 'tracked',
+    expect(buildCreateTransactionPayload({ ...transferForm, counterparty_account_id: 'savings' }, 2)).toMatchObject({
+      counterparty_account_id: 'savings',
+      counterparty_account_scope: 'tracked',
     })
 
     const transaction = createTransaction({
       category_id: 'transfer-out',
-      other_account_id: 'savings',
-      other_account_scope: 'tracked',
+      counterparty_account_id: 'savings',
+      counterparty_account_scope: 'tracked',
     })
     const unchangedForm = buildInitialTransactionForm({
       transaction,
@@ -405,17 +405,17 @@ describe('transaction modal helpers', () => {
 
     // Recording a different account sends the new pair
     expect(buildUpdateTransactionPatch(
-      { ...unchangedForm, other_account_id: 'joint-savings' },
+      { ...unchangedForm, counterparty_account_id: 'joint-savings' },
       transaction,
       2,
-    )).toMatchObject({ other_account_id: 'joint-savings', other_account_scope: 'tracked' })
+    )).toMatchObject({ counterparty_account_id: 'joint-savings', counterparty_account_scope: 'tracked' })
 
     // Clearing the field back to unanswered sends nulls rather than omitting them
     expect(buildUpdateTransactionPatch(
-      { ...unchangedForm, other_account_id: '' },
+      { ...unchangedForm, counterparty_account_id: '' },
       transaction,
       2,
-    )).toMatchObject({ other_account_id: null, other_account_scope: null })
+    )).toMatchObject({ counterparty_account_id: null, counterparty_account_scope: null })
 
     // Moving to a non-transfer category leaves the pair out entirely, since the backend clears it itself
     expect(buildUpdateTransactionPatch(
@@ -446,7 +446,7 @@ describe('symmetric transfer leg kinds', () => {
       date: '2026-06-11',
       tag_ids: [],
       symmetric_transfer: true,
-      other_account_id: 'savings',
+      counterparty_account_id: 'savings',
     }
 
     const [recordedKind, otherKind] = getSymmetricTransferLegKinds(form.direction)
@@ -459,56 +459,56 @@ describe('symmetric transfer leg kinds', () => {
 
 describe('account field ordering', () => {
   const recorded = { name: 'recorded' }
-  const other = { name: 'other' }
+  const counterparty = { name: 'counterparty' }
 
   it('keeps the recorded account on top for an ordinary transfer, whichever way the money goes', () => {
     for (const direction of ['debit', 'credit'] as const) {
-      expect(orderAccountFields(recorded, other, { isSymmetricTransfer: false, direction }))
-        .toEqual([recorded, other])
+      expect(orderAccountFields(recorded, counterparty, { isSymmetricTransfer: false, direction }))
+        .toEqual([recorded, counterparty])
     }
   })
 
   it('keeps the recorded account on top for a pair going out of it', () => {
-    expect(orderAccountFields(recorded, other, { isSymmetricTransfer: true, direction: 'debit' }))
-      .toEqual([recorded, other])
+    expect(orderAccountFields(recorded, counterparty, { isSymmetricTransfer: true, direction: 'debit' }))
+      .toEqual([recorded, counterparty])
   })
 
-  it('puts the other account on top for a pair coming into the recorded one, since it is the source', () => {
-    expect(orderAccountFields(recorded, other, { isSymmetricTransfer: true, direction: 'credit' }))
-      .toEqual([other, recorded])
+  it('puts the counterparty account on top for a pair coming into the recorded one, since it is the source', () => {
+    expect(orderAccountFields(recorded, counterparty, { isSymmetricTransfer: true, direction: 'credit' }))
+      .toEqual([counterparty, recorded])
   })
 
   it('moves each field whole, so its value, error and options cannot land on opposite sides', () => {
-    const [top, second] = orderAccountFields(recorded, other, {
+    const [top, second] = orderAccountFields(recorded, counterparty, {
       isSymmetricTransfer: true,
       direction: 'credit',
     })
 
-    expect(top).toBe(other)
+    expect(top).toBe(counterparty)
     expect(second).toBe(recorded)
   })
 })
 
-describe('other-account options', () => {
+describe('counterparty-account options', () => {
   const accounts = [
     createAccount({ id: 'checking', name: 'Chequing' }),
     createAccount({ id: 'savings', name: 'Savings' }),
   ]
 
   it('offers the outside entry first and leaves out the account holding the transfer', () => {
-    const options = buildOtherAccountOptions(accounts, 'checking', false)
+    const options = buildCounterpartyAccountOptions(accounts, 'checking', false)
 
     expect(options.map((option) => option.value)).toEqual([OUTSIDE_ACCOUNT_VALUE, 'savings'])
   })
 
   it('drops the outside entry once the pair checkbox is ticked, since a transaction is written there', () => {
-    const options = buildOtherAccountOptions(accounts, 'checking', true)
+    const options = buildCounterpartyAccountOptions(accounts, 'checking', true)
 
     expect(options.map((option) => option.value)).toEqual(['savings'])
   })
 
   it('offers no way back to unanswered, since every edit has to answer', () => {
-    const options = buildOtherAccountOptions(accounts, 'checking', false)
+    const options = buildCounterpartyAccountOptions(accounts, 'checking', false)
 
     expect(options.some((option) => option.value === '')).toBe(false)
   })
@@ -516,7 +516,7 @@ describe('other-account options', () => {
   it('leaves out an archived account, which takes no new transactions anywhere else either', () => {
     const withArchived = [...accounts, createAccount({ id: 'old-tfsa', name: 'Old TFSA', is_archived: true })]
 
-    const options = buildOtherAccountOptions(withArchived, 'checking', false)
+    const options = buildCounterpartyAccountOptions(withArchived, 'checking', false)
 
     expect(options.map((option) => option.value)).toEqual([OUTSIDE_ACCOUNT_VALUE, 'savings'])
   })
@@ -524,7 +524,7 @@ describe('other-account options', () => {
   it('leaves it out with the pair checkbox ticked as well', () => {
     const withArchived = [...accounts, createAccount({ id: 'old-tfsa', name: 'Old TFSA', is_archived: true })]
 
-    const options = buildOtherAccountOptions(withArchived, 'checking', true)
+    const options = buildCounterpartyAccountOptions(withArchived, 'checking', true)
 
     expect(options.map((option) => option.value)).toEqual(['savings'])
   })

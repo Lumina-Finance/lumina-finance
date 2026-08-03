@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import type { Category } from '@/api/categories'
-import { BALANCE_ADJUSTMENT_CATEGORY_NAME, doesTransferRecordOtherAccount } from '@/utils/transfers'
+import { BALANCE_ADJUSTMENT_CATEGORY_NAME, doesTransferRecordCounterpartyAccount } from '@/utils/transfers'
 import { buildCategoryOptions } from '@/pages/transactions/components/transaction-modal/utils/categories'
 import type {
   TransactionFormFieldErrors,
@@ -58,14 +58,14 @@ export function useCategoryField({
     const category = categoryById.get(categoryId)
     const nextKind = (category?.kind as TransactionModalKind | undefined) ?? form.kind
     const nextIsBalanceAdjustment = !!(category?.is_system && category.name === BALANCE_ADJUSTMENT_CATEGORY_NAME)
-    // Auto-switch the kind toggle to match the chosen category. Balance Adjustment has no other
-    // side, so a pending other-account answer or a symmetric pair set up under a real transfer
-    // category no longer applies once the category switches to it
+    // Auto-switch the kind toggle to match the chosen category. Balance Adjustment has no
+    // counterparty, so a pending counterparty-account answer or a symmetric pair set up under a
+    // real transfer category no longer applies once the category switches to it
     applyKindChange(nextKind, {
       category_id: categoryId,
-      ...(doesTransferRecordOtherAccount(nextKind, nextIsBalanceAdjustment)
+      ...(doesTransferRecordCounterpartyAccount(nextKind, nextIsBalanceAdjustment)
         ? {}
-        : { other_account_id: '', symmetric_transfer: false }),
+        : { counterparty_account_id: '', symmetric_transfer: false }),
     })
     clearError('category_id')
   }

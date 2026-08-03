@@ -6,19 +6,22 @@ import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import type { Institution } from '@/api/institutions'
-import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, EMPTY_COLUMN_MAP } from '@/pages/imports/constants'
+import { COLUMN_TARGETS, CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, EMPTY_COLUMN_MAP } from '@/pages/imports/constants'
 import type { ImportFileDraft } from '@/pages/imports/types'
 import {
+  buildColumnTargetOptions,
   buildImportAccountMappingSources,
   buildImportAccountOptions,
   buildImportCategoryMatchOptions,
   buildImportCurrencyOptions,
   buildImportInstitutionOptions,
+  getArchivedAccountMatches,
   getImportedCategories,
   getImportedMerchants,
   getImportedTags,
   getImportHeaders,
   getMissingRequiredColumnLabels,
+  inferAccountMappings,
 } from '@/pages/imports/utils'
 
 /**
@@ -149,5 +152,82 @@ describe('import workflow option helpers', () => {
     expect(getImportedCategories(files, 'Category')).toEqual(['Groceries', 'Rent'])
     expect(getImportedMerchants(files, 'Merchant')).toEqual(['Landlord', 'Market'])
     expect(getImportedTags(files, 'Tags')).toEqual(['essentials', 'food', 'housing'])
+  })
+
+  it('carries every field explanation into the column target options', () => {
+    const options = buildColumnTargetOptions()
+
+    // Ignoring a column explains itself, and it is the only entry outside the two groups
+    expect(options[0]).toEqual({ value: '', label: 'Do not import' })
+    expect(options.slice(1).every((option) => Boolean(option.description))).toBe(true)
+    expect(options.find((option) => option.value === 'merchant_id')?.description).toBe(
+      COLUMN_TARGETS.find((target) => target.id === 'merchant_id')?.hint,
+    )
+
+    // Required fields are gathered ahead of the optional ones rather than following declaration order
+    const groups = options.slice(1).map((option) => option.group)
+    expect(groups.indexOf('Optional fields')).toBeGreaterThan(groups.lastIndexOf('Required fields'))
+  })
+
+  it('marks an archived account wherever it is offered', () => {
+    const options = buildImportAccountOptions([
+      createAccount({ id: 'savings', name: 'Old Savings', is_archived: true }),
+      createAccount({ id: 'checking', name: 'Chequing' }),
+    ])
+
+    expect(options.find((option) => option.value === 'savings')?.badge).toBe('Archived')
+    expect(options.find((option) => option.value === 'checking')?.badge).toBeUndefined()
+  })
+
+  it('gathers accounts by kind, so no heading is reached twice', () => {
+    const options = buildImportAccountOptions([
+      createAccount({ id: 'visa', name: 'Visa', account_kind: 'revolving' }),
+      createAccount({ id: 'savings', name: 'Savings' }),
+      createAccount({ id: 'mortgage', name: 'Mortgage', account_kind: 'amortizing' }),
+      createAccount({ id: 'chequing', name: 'Chequing' }),
+    ])
+
+    // Creation order interleaves the kinds, and the dropdown heads a group every time the group
+    // changes going down the list
+    expect(options.map((option) => option.group)).toEqual([
+      'Import Action',
+      'Assets',
+      'Assets',
+      'Revolving Credit',
+      'Amortizing Debt',
+    ])
+    expect(options.map((option) => option.label)).toEqual([
+      'Create New Account',
+      'Chequing',
+      'Savings',
+      'Visa',
+      'Mortgage',
+    ])
+  })
+})
+
+describe('archived accounts in account mapping', () => {
+  const archivedSavings = createAccount({ id: 'savings', name: 'Old Savings', is_archived: true })
+  const chequing = createAccount({ id: 'checking', name: 'Chequing' })
+  const rowSource = { id: 'Old Savings', label: 'Old Savings', matchText: 'Old Savings', isCounterpartyOnly: false }
+  const counterpartySource = { ...rowSource, isCounterpartyOnly: true }
+
+  it('matches a counterparty source to an archived account and leaves a row source unmapped', () => {
+    const lists = { rowAccounts: [chequing], counterpartyAccounts: [chequing, archivedSavings] }
+
+    expect(inferAccountMappings([counterpartySource], {}, lists)).toEqual({ 'Old Savings': 'savings' })
+    expect(inferAccountMappings([rowSource], {}, lists)).toEqual({})
+  })
+
+  it('reports the archived account a row source was left unmapped by', () => {
+    const accounts = [chequing, archivedSavings]
+
+    expect(getArchivedAccountMatches([rowSource], {}, accounts)).toEqual(['Old Savings'])
+
+    // Nothing to say once the source is answered, and nothing to say about a counterparty source,
+    // which is offered the archived account in the first place
+    expect(getArchivedAccountMatches([rowSource], { 'Old Savings': 'checking' }, accounts)).toEqual([])
+    expect(getArchivedAccountMatches([counterpartySource], {}, accounts)).toEqual([])
+    expect(getArchivedAccountMatches([rowSource], {}, [chequing])).toEqual([])
   })
 })

@@ -159,7 +159,12 @@ export function useFireflyImportWorkflow() {
   // match and default to create-new so every tracked account stays mapped
   const resolvedAccountMappings = useMemo(
     () => {
-      const inferred = inferAccountMappings(accountMappingSources, accountMappings, selectableAccounts)
+      // Both sides of a Firefly transfer take rows, so no source here can record an archived
+      // account and both lists are the same one
+      const inferred = inferAccountMappings(accountMappingSources, accountMappings, {
+        rowAccounts: selectableAccounts,
+        counterpartyAccounts: selectableAccounts,
+      })
       for (const name of trackedAccountNames) {
         if (!inferred[name]) inferred[name] = CREATE_ACCOUNT_VALUE
       }

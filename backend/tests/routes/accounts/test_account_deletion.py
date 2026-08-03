@@ -69,7 +69,7 @@ async def test_double_delete_returns_404_on_second(client):
     assert resp2.status_code == 404
 
 
-# --- Accounts recorded as the other side of a transfer ---
+# --- Accounts recorded as the counterparty of a transfer ---
 
 
 async def _setup_recorded_transfer(client):
@@ -92,8 +92,8 @@ async def _setup_recorded_transfer(client):
         "dt": "2026-03-15",
         "amount": -5000,
         "currency": "CAD",
-        "other_account_scope": "tracked",
-        "other_account_id": recorded_id,
+        "counterparty_account_scope": "tracked",
+        "counterparty_account_id": recorded_id,
         "merchant_id": await _get_system_merchant_id(client, headers),
     }, headers=headers)
     assert created.status_code == 201

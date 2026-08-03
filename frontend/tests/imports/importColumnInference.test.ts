@@ -1,5 +1,6 @@
 /**
- * Tests which CSV header the importer guesses for each field, so a column describing the other side of a transfer is not taken by the account or amount columns first
+ * Tests which CSV header the importer guesses for each field, so a column describing a transfer's
+ * counterparty account is not taken by the account or amount columns first
  */
 import { describe, expect, it } from 'vitest'
 import { EMPTY_COLUMN_MAP } from '@/pages/imports/constants'
@@ -22,7 +23,7 @@ function createFile(headers: string[], rows: ImportFileDraft['rows']): ImportFil
 }
 
 describe('import column inference', () => {
-  it('keeps the account column and the other side of a transfer apart', () => {
+  it('keeps the account column and a transfer\'s counterparty account apart', () => {
     const files = [createFile(
       ['Account', 'Date', 'Amount', 'Category', 'To account'],
       [
@@ -34,7 +35,7 @@ describe('import column inference', () => {
     const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files)
 
     expect(map.account_id).toBe('Account')
-    expect(map.other_account_id).toBe('To account')
+    expect(map.counterparty_account_id).toBe('To account')
   })
 
   // A bank export calls the payee the counterparty, so the bare word belongs to the merchant and
@@ -51,7 +52,7 @@ describe('import column inference', () => {
     const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files)
 
     expect(map.merchant_id).toBe('Counterparty')
-    expect(map.other_account_id).toBe('')
+    expect(map.counterparty_account_id).toBe('')
   })
 
   it('reads a column called counterparty account as the counterparty account', () => {
@@ -66,7 +67,7 @@ describe('import column inference', () => {
     const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files)
 
     expect(map.account_id).toBe('Account')
-    expect(map.other_account_id).toBe('Counterparty account')
+    expect(map.counterparty_account_id).toBe('Counterparty account')
   })
 
   // The account column is barred from these headers, so it leaves them rather than taking one on
@@ -82,7 +83,7 @@ describe('import column inference', () => {
     const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files)
 
     expect(map.account_id).toBe('')
-    expect(map.other_account_id).toBe('Destination account')
+    expect(map.counterparty_account_id).toBe('Destination account')
   })
 
   it('leaves a balance column alone rather than reading it as the amount', () => {

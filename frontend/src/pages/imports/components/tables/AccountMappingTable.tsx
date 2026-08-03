@@ -34,6 +34,15 @@ export function ImportAccountMappingTable({
     id: string
     source: string
     value: string
+
+    /**
+     * Stands in for an answer the dropdown no longer offers, so the row shows what it holds
+     *
+     * A source can carry a choice this list has since stopped offering, such as an archived account
+     * answered while the source was only a transfer's counterparty. Without this the row reads as
+     * unanswered while the commit panel refuses it by name
+     */
+    selectedOption?: DropdownOption
     autoFilled?: boolean
     accountType: string
     accountCurrency: string
@@ -145,6 +154,7 @@ export function ImportAccountMappingTable({
           <Dropdown
             options={options}
             value={row.value}
+            selectedOption={row.selectedOption}
             onChange={row.onChange}
             searchable
             blankWhenEmpty

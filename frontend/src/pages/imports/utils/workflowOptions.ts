@@ -5,6 +5,7 @@ import type { Institution } from '@/api/institutions'
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
 import {
   ACCOUNT_KIND_LABELS,
+  ACCOUNT_KIND_RANKS,
   COLUMN_TARGETS,
   CREATE_ACCOUNT_VALUE,
   CREATE_CATEGORY_VALUE,
@@ -17,17 +18,27 @@ import { getImportAccountName } from './accountMapping'
 import { splitImportedValues } from './categoryMatching'
 import { unique } from './common'
 
+// Marks an account that is hidden everywhere else in the app, kept short because it renders as a
+// pill beside the account name. Only the counterparty list offers one, since nothing is written to
+// the account it records
+const ARCHIVED_ACCOUNT_BADGE = 'Archived'
+
 /**
- * Builds account dropdown options with the create-account action pinned first
+ * Builds account dropdown options with the create-account action pinned first, sorted by kind and
+ * then by name
  */
 export function buildImportAccountOptions(accounts: AccountsOverview[]): DropdownOption[] {
   return [
     { value: CREATE_ACCOUNT_VALUE, label: 'Create New Account', group: 'Import Action' },
-    ...accounts.map((account) => ({
-      value: account.id,
-      label: account.name,
-      group: ACCOUNT_KIND_LABELS[account.account_kind],
-    })),
+    ...accounts
+      .slice()
+      .sort((a, b) => ACCOUNT_KIND_RANKS[a.account_kind] - ACCOUNT_KIND_RANKS[b.account_kind] || a.name.localeCompare(b.name))
+      .map((account) => ({
+        value: account.id,
+        label: account.name,
+        group: ACCOUNT_KIND_LABELS[account.account_kind],
+        badge: account.is_archived ? ARCHIVED_ACCOUNT_BADGE : undefined,
+      })),
   ]
 }
 
@@ -81,6 +92,9 @@ export function buildImportCategoryMatchOptions(categories: Category[] = []): Dr
  *
  * The list starts a new heading every time the group changes down the options, so the required ones
  * are gathered ahead of the optional ones rather than following the order the fields are declared in
+ *
+ * Each field's hint rides along as the option's description, which is where a user decides what a
+ * column means. Ignoring a column needs no explanation, so that entry carries none
  */
 export function buildColumnTargetOptions(): DropdownOption[] {
   const targetsByGroup = [...COLUMN_TARGETS].sort((a, b) => Number(Boolean(b.required)) - Number(Boolean(a.required)))
@@ -91,6 +105,7 @@ export function buildColumnTargetOptions(): DropdownOption[] {
       value: target.id,
       label: target.label,
       group: target.required ? 'Required fields' : 'Optional fields',
+      description: target.hint,
     })),
   ]
 }
@@ -117,7 +132,7 @@ export function getMissingRequiredColumnLabels(columnMap: ColumnMap): string[] {
 export function buildImportAccountMappingSources(
   files: ImportFileDraft[],
   accountHeader: string,
-  otherAccountHeader: string,
+  counterpartyAccountHeader: string,
 ): ImportAccountSource[] {
   const rowSources: ImportAccountSource[] = accountHeader
     ? getUniqueColumnValues(files, accountHeader).map((source) => ({
@@ -133,13 +148,13 @@ export function buildImportAccountMappingSources(
       isCounterpartyOnly: false,
     }))
 
-  if (!otherAccountHeader) return rowSources
+  if (!counterpartyAccountHeader) return rowSources
 
-  // A name appearing only as the other side of a transfer still has to be mapped, and it is the
-  // only kind that can be answered as money outside the tracked accounts, since no row is written
-  // to it
+  // A name appearing only as the counterparty account of a transfer still has to be mapped, and it
+  // is the only kind that can be answered as money outside the tracked accounts, since no row is
+  // written to it
   const rowSourceIds = new Set(rowSources.map((source) => source.id))
-  const counterpartySources: ImportAccountSource[] = getUniqueColumnValues(files, otherAccountHeader)
+  const counterpartySources: ImportAccountSource[] = getUniqueColumnValues(files, counterpartyAccountHeader)
     .filter((source) => !rowSourceIds.has(source))
     .map((source) => ({
       id: source,

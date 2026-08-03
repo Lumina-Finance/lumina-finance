@@ -15,8 +15,8 @@ import type {
  */
 export function importTransactionsInBatches(payload: TransactionImportPayload) {
   return importInBatches<TransactionImportRow, TransactionImportResponse>(payload, {
-    // A batch carries the mappings for every source its rows name, and the other side of a transfer
-    // is one of them even though no row in the batch is written to it
+    // A batch carries the mappings for every source its rows name, and the counterparty account of
+    // a transfer is one of them even though no row in the batch is written to it
     getRowAccountSources: (row) => (row.counterparty_account_source
       ? [row.account_source, row.counterparty_account_source]
       : [row.account_source]),

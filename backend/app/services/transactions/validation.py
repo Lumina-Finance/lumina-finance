@@ -5,17 +5,17 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.base import PermissionLevel, TransferOtherAccountScope
+from app.models.base import PermissionLevel, TransferCounterpartyScope
 from app.models.category import Category
 from app.models.currency import Currency
 from app.models.merchant import Merchant
 from app.models.tag import Tag
 from app.permissions import check_account_access
-from app.services.categories.transfer_rules import does_category_record_other_account
+from app.services.categories.transfer_rules import does_category_record_counterparty_account
 
 _FX_RATE_REQUIRED_DETAIL = "fx_rate is required when transaction currency differs from account currency"
 
-OTHER_ACCOUNT_NOT_ALLOWED_DETAIL = "This category does not record another account"
+COUNTERPARTY_NOT_ALLOWED_DETAIL = "This category does not record a counterparty account"
 
 
 async def validate_transaction_currency_exists(db: AsyncSession, currency: str) -> None:
@@ -200,62 +200,62 @@ async def get_valid_transaction_tag_ids(
     return unique_tag_ids
 
 
-async def validate_transaction_other_account(
+async def validate_transaction_counterparty_account(
     db: AsyncSession,
     user_id: uuid.UUID,
     category: Category,
     account_id: uuid.UUID,
-    other_account_id: uuid.UUID | None,
-    other_account_scope: TransferOtherAccountScope | None,
+    counterparty_account_id: uuid.UUID | None,
+    counterparty_account_scope: TransferCounterpartyScope | None,
 ) -> None:
-    """Ensure the recorded other side of a transfer agrees with its category
+    """Ensure the recorded counterparty account of a transfer agrees with its category
 
     Args:
         db: Active database session
         user_id: User identifier creating or updating the transaction
         category: Category the transaction ends up using
         account_id: Account the transaction is recorded in
-        other_account_id: Account recorded as the other side, set only when the scope is tracked
-        other_account_scope: Where the other side sits, or None when nothing is recorded
+        counterparty_account_id: Counterparty account, set only when the scope is tracked
+        counterparty_account_scope: Where the counterparty sits, or None when nothing is recorded
 
     Raises:
         HTTPException: The answer is missing, contradicts itself, or points at an unusable account
     """
-    if not does_category_record_other_account(category):
-        if other_account_scope is not None or other_account_id is not None:
+    if not does_category_record_counterparty_account(category):
+        if counterparty_account_scope is not None or counterparty_account_id is not None:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=OTHER_ACCOUNT_NOT_ALLOWED_DETAIL,
+                detail=COUNTERPARTY_NOT_ALLOWED_DETAIL,
             )
         return
 
     # Editing answers the question as much as creating does, so a transfer recorded before the field
-    # existed has to say where the money went before any other change to it is accepted
-    if other_account_scope is None:
+    # existed has to say who its counterparty is before any other change to it is accepted
+    if counterparty_account_scope is None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="A transfer must record where the money went",
+            detail="A transfer must record its counterparty account",
         )
 
-    if other_account_scope == TransferOtherAccountScope.OUTSIDE:
-        if other_account_id is not None:
+    if counterparty_account_scope == TransferCounterpartyScope.OUTSIDE:
+        if counterparty_account_id is not None:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail="other_account_id is not allowed when the money left the tracked accounts",
+                detail="counterparty_account_id is not allowed when the money left the tracked accounts",
             )
         return
 
-    if other_account_id is None:
+    if counterparty_account_id is None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="other_account_id is required when the other side is a tracked account",
+            detail="counterparty_account_id is required when the counterparty is a tracked account",
         )
-    if other_account_id == account_id:
+    if counterparty_account_id == account_id:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="A transfer cannot record its own account as the other side",
+            detail="A transfer cannot record its own account as its counterparty",
         )
 
     # Read access is enough, since recording an account writes nothing to it. Archived and closed
     # accounts stay recordable, because archiving happens after the money moved
-    await check_account_access(db, other_account_id, user_id, PermissionLevel.READ)
+    await check_account_access(db, counterparty_account_id, user_id, PermissionLevel.READ)

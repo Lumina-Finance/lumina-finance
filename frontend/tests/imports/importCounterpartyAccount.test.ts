@@ -1,11 +1,18 @@
 /**
- * Tests the CSV import's answer to where a transfer's money went, so a mapped other-account column reaches the payload and the preview, and a row that cannot record one is refused before upload
+ * Tests the CSV import's answer to where a transfer's money went, so a mapped counterparty-account
+ * column reaches the payload and the preview, and a row that cannot record one is refused before
+ * upload
  */
 import { describe, expect, it } from 'vitest'
 import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
-import { CREATE_ACCOUNT_VALUE, EMPTY_COLUMN_MAP } from '@/pages/imports/constants'
+import {
+  CREATE_ACCOUNT_VALUE,
+  EMPTY_COLUMN_MAP,
+  ROW_COUNTERPARTY_IS_OWN_ACCOUNT_REASON,
+  ROW_COUNTERPARTY_NOT_A_TRANSFER_REASON,
+} from '@/pages/imports/constants'
 import { OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 import type { ColumnMap, ImportAccountSource, ImportFileDraft } from '@/pages/imports/types'
 import { buildImportAccountMappingSources, buildImportPreviewRows, buildTransactionImportPayload } from '@/pages/imports/utils'
@@ -20,7 +27,7 @@ const COLUMN_MAP: ColumnMap = {
   dt: 'Date',
   amount: 'Amount',
   category_id: 'Category',
-  other_account_id: 'Other account',
+  counterparty_account_id: 'Other account',
 }
 
 const TRANSFER: Category = {
@@ -62,6 +69,12 @@ function createAccount(id: string, name: string): AccountsOverview {
 
 const CHEQUING = createAccount('chequing', 'Chequing')
 const SAVINGS = createAccount('savings', 'Savings')
+const ARCHIVED_SAVINGS = { ...createAccount('archived-savings', 'Old Savings'), is_archived: true }
+const ACCOUNTS_BY_ID = new Map([
+  [CHEQUING.id, CHEQUING],
+  [SAVINGS.id, SAVINGS],
+  [ARCHIVED_SAVINGS.id, ARCHIVED_SAVINGS],
+])
 
 /**
  * Creates a one-file draft whose rows carry the mapped headers
@@ -79,13 +92,13 @@ function createFile(rows: ImportFileDraft['rows']): ImportFileDraft {
 }
 
 /**
- * Creates the account sources a mapped other-account column produces, with the row's own account
- * first and the other side after it
+ * Creates the account sources a mapped counterparty-account column produces, with the row's own
+ * account first and the counterparty after it
  */
-function createSources(otherSideLabel: string): ImportAccountSource[] {
+function createSources(counterpartyLabel: string): ImportAccountSource[] {
   return [
     { id: 'Chequing', label: 'Chequing', matchText: 'Chequing', isCounterpartyOnly: false },
-    { id: otherSideLabel, label: otherSideLabel, matchText: otherSideLabel, isCounterpartyOnly: true },
+    { id: counterpartyLabel, label: counterpartyLabel, matchText: counterpartyLabel, isCounterpartyOnly: true },
   ]
 }
 
@@ -94,23 +107,28 @@ function createSources(otherSideLabel: string): ImportAccountSource[] {
  */
 function buildPayload({
   accountMappings,
+  accountCreateTypes = {},
+  accountCreateCurrencies = {},
   categoryById = new Map([[TRANSFER.id, TRANSFER]]),
   categoryMappings = { Transfer: TRANSFER.id },
   categorySource = 'Transfer',
-  otherAccountSource = 'Savings',
+  counterpartyAccountSource = 'Savings',
   accountSources = createSources('Savings'),
 }: {
   accountMappings: Record<string, string>
+  accountCreateTypes?: Record<string, string>
+  accountCreateCurrencies?: Record<string, string>
   categoryById?: Map<string, Category>
   categoryMappings?: Record<string, string>
   categorySource?: string
-  otherAccountSource?: string
+  counterpartyAccountSource?: string
   accountSources?: ImportAccountSource[]
 }) {
   return buildTransactionImportPayload({
-    accountCreateCurrencies: {},
+    accountById: ACCOUNTS_BY_ID,
+    accountCreateCurrencies,
     accountCreateInstitutions: {},
-    accountCreateTypes: {},
+    accountCreateTypes,
     accountMappings,
     accountSources,
     categoryById,
@@ -125,28 +143,28 @@ function buildPayload({
       Date: '2026-04-11',
       Amount: '-500.00',
       Category: categorySource,
-      'Other account': otherAccountSource,
+      'Other account': counterpartyAccountSource,
     }])],
     importedCategories: [categorySource],
   })
 }
 
-describe('CSV import other account', () => {
-  it('keeps a source with rows of its own out of the other-side group', () => {
+describe('CSV import counterparty account', () => {
+  it('keeps a source with rows of its own out of the counterparty group', () => {
     const files = [createFile([
       { Account: 'Chequing', Date: '2026-04-11', Amount: '-500.00', Category: 'Transfer', 'Other account': 'Savings' },
       { Account: 'Savings', Date: '2026-04-13', Amount: '500.00', Category: 'Transfer', 'Other account': '' },
     ])]
 
     // Savings is written to by the second row, so it stays an ordinary source despite also being
-    // named as the other side of the first
+    // named as the counterparty of the first
     expect(buildImportAccountMappingSources(files, 'Account', 'Other account')).toEqual([
       { id: 'Chequing', label: 'Chequing', matchText: 'Chequing', isCounterpartyOnly: false },
       { id: 'Savings', label: 'Savings', matchText: 'Savings', isCounterpartyOnly: false },
     ])
   })
 
-  it('marks a name appearing only as the other side', () => {
+  it('marks a name appearing only as the counterparty', () => {
     const files = [createFile([
       { Account: 'Chequing', Date: '2026-04-11', Amount: '-500.00', Category: 'Transfer', 'Other account': 'Brokerage elsewhere' },
     ])]
@@ -157,7 +175,7 @@ describe('CSV import other account', () => {
     ])
   })
 
-  it('carries the other account source onto the row', () => {
+  it('carries the counterparty account source onto the row', () => {
     const { errors, payload } = buildPayload({
       accountMappings: { Chequing: CHEQUING.id, Savings: SAVINGS.id },
     })
@@ -170,13 +188,31 @@ describe('CSV import other account', () => {
   it('sends the outside answer as a mapping rather than an account', () => {
     const { errors, payload } = buildPayload({
       accountMappings: { Chequing: CHEQUING.id, 'Brokerage elsewhere': OUTSIDE_ACCOUNT_VALUE },
-      otherAccountSource: 'Brokerage elsewhere',
+      counterpartyAccountSource: 'Brokerage elsewhere',
       accountSources: createSources('Brokerage elsewhere'),
     })
 
     expect(errors).toEqual([])
     expect(payload?.accounts).toContainEqual({ source: 'Brokerage elsewhere', outside: true })
     expect(payload?.rows[0].counterparty_account_source).toBe('Brokerage elsewhere')
+  })
+
+  it('records an archived account as a counterparty, and refuses one for a source rows are written to', () => {
+    const counterparty = buildPayload({
+      accountMappings: { Chequing: CHEQUING.id, Savings: ARCHIVED_SAVINGS.id },
+    })
+
+    expect(counterparty.errors).toEqual([])
+    expect(counterparty.payload?.accounts).toContainEqual({ source: 'Savings', account_id: ARCHIVED_SAVINGS.id })
+
+    // The same answer on a source rows are written to is what mapping the account column at that
+    // column afterwards leaves behind, and the API refuses it
+    const rowAccount = buildPayload({
+      accountMappings: { Chequing: ARCHIVED_SAVINGS.id, Savings: SAVINGS.id },
+    })
+
+    expect(rowAccount.payload).toBeNull()
+    expect(rowAccount.errors).toContain('Rows cannot be written to an archived account: Chequing')
   })
 
   it('refuses the outside answer for a source rows are written to', () => {
@@ -188,8 +224,8 @@ describe('CSV import other account', () => {
     expect(errors).toContain('Rows cannot be written to an account source that is outside the tracked accounts: Chequing')
   })
 
-  it('refuses an other account on a row that is not a transfer', () => {
-    const { errors, payload } = buildPayload({
+  it('refuses a counterparty account on a row that is not a transfer', () => {
+    const { payload, rowProblems } = buildPayload({
       accountMappings: { Chequing: CHEQUING.id, Savings: SAVINGS.id },
       categoryById: new Map([[GROCERIES.id, GROCERIES]]),
       categoryMappings: { Groceries: GROCERIES.id },
@@ -197,11 +233,11 @@ describe('CSV import other account', () => {
     })
 
     expect(payload).toBeNull()
-    expect(errors).toContain('Only a transfer records a counterparty account, so the mapped Counterparty account column cannot be used by category: Groceries')
+    expect(rowProblems.map((problem) => problem.reason)).toEqual([ROW_COUNTERPARTY_NOT_A_TRANSFER_REASON])
   })
 
-  it('refuses an other account on a balance adjustment, which has no other side', () => {
-    const { errors, payload } = buildPayload({
+  it('refuses a counterparty account on a balance adjustment, which has no counterparty', () => {
+    const { payload, rowProblems } = buildPayload({
       accountMappings: { Chequing: CHEQUING.id, Savings: SAVINGS.id },
       categoryById: new Map([[BALANCE_ADJUSTMENT.id, BALANCE_ADJUSTMENT]]),
       categoryMappings: { 'Balance Adjustment': BALANCE_ADJUSTMENT.id },
@@ -209,31 +245,46 @@ describe('CSV import other account', () => {
     })
 
     expect(payload).toBeNull()
-    expect(errors).toContain('Only a transfer records a counterparty account, so the mapped Counterparty account column cannot be used by category: Balance Adjustment')
+    expect(rowProblems.map((problem) => problem.reason)).toEqual([ROW_COUNTERPARTY_NOT_A_TRANSFER_REASON])
   })
 
   it('refuses a transfer whose two sources were mapped onto one account', () => {
-    const { errors, payload } = buildPayload({
+    const { payload, rowProblems } = buildPayload({
       accountMappings: { Chequing: CHEQUING.id, 'Chequing (old)': CHEQUING.id },
-      otherAccountSource: 'Chequing (old)',
+      counterpartyAccountSource: 'Chequing (old)',
       accountSources: createSources('Chequing (old)'),
     })
 
     expect(payload).toBeNull()
-    expect(errors).toContain('A transfer cannot record its own account as its counterparty: Chequing (old)')
+
+    // The entry carries which row it was, so a file of thousands says which one to go and correct
+    expect(rowProblems).toEqual([{
+      id: 'file-1-0',
+      rowNumber: 1,
+      cells: {
+        Account: 'Chequing',
+        Date: '2026-04-11',
+        Amount: '-500.00',
+        Category: 'Transfer',
+        'Other account': 'Chequing (old)',
+      },
+      reason: ROW_COUNTERPARTY_IS_OWN_ACCOUNT_REASON,
+    }])
   })
 
   // One name in both columns is one source and one account, whichever way it is mapped, so the
   // account queued for creation is no escape from the rule
-  it('refuses a transfer whose other side is its own source, even for an account queued for creation', () => {
-    const { errors, payload } = buildPayload({
+  it('refuses a transfer whose counterparty is its own source, even for an account queued for creation', () => {
+    const { payload, rowProblems } = buildPayload({
       accountMappings: { Chequing: CREATE_ACCOUNT_VALUE },
-      otherAccountSource: 'Chequing',
+      accountCreateTypes: { Chequing: 'checking' },
+      accountCreateCurrencies: { Chequing: 'CAD' },
+      counterpartyAccountSource: 'Chequing',
       accountSources: [{ id: 'Chequing', label: 'Chequing', matchText: 'Chequing', isCounterpartyOnly: false }],
     })
 
     expect(payload).toBeNull()
-    expect(errors).toContain('A transfer cannot record its own account as its counterparty: Chequing')
+    expect(rowProblems.map((problem) => problem.reason)).toEqual([ROW_COUNTERPARTY_IS_OWN_ACCOUNT_REASON])
   })
 
   it('shows what each answer writes in the preview', () => {
@@ -260,9 +311,10 @@ describe('CSV import other account', () => {
         'Brokerage elsewhere': OUTSIDE_ACCOUNT_VALUE,
       },
       resolvedCategoryMappings: { Transfer: TRANSFER.id },
+      rowProblems: [],
     })
 
-    expect(rows.map((row) => [row.transaction.other_account_id, row.transaction.other_account_scope])).toEqual([
+    expect(rows.map((row) => [row.transaction.counterparty_account_id, row.transaction.counterparty_account_scope])).toEqual([
       [SAVINGS.id, 'tracked'],
       [null, 'outside'],
 
@@ -271,10 +323,10 @@ describe('CSV import other account', () => {
     ])
 
     // The row renders the name, which the preview has to carry itself because it reads no account list
-    expect(rows[0].otherAccountName).toBe('Savings')
+    expect(rows[0].counterpartyAccountName).toBe('Savings')
   })
 
-  it('previews a row whose category cannot record an other account as unanswered', () => {
+  it('previews a row whose category cannot record a counterparty account as unanswered', () => {
     const rows = buildImportPreviewRows({
       files: [createFile([
         { Account: 'Chequing', Date: '2026-04-11', Amount: '-12.00', Category: 'Groceries', 'Other account': 'Savings' },
@@ -292,10 +344,11 @@ describe('CSV import other account', () => {
       institutionById: new Map(),
       resolvedAccountMappings: { Chequing: CHEQUING.id, Savings: SAVINGS.id },
       resolvedCategoryMappings: { Groceries: GROCERIES.id },
+      rowProblems: [],
     })
 
-    expect(rows[0].transaction.other_account_id).toBeNull()
-    expect(rows[0].transaction.other_account_scope).toBeNull()
+    expect(rows[0].transaction.counterparty_account_id).toBeNull()
+    expect(rows[0].transaction.counterparty_account_scope).toBeNull()
   })
 
   it('shows a transfer into an account queued for creation under the source it came from', () => {
@@ -316,12 +369,13 @@ describe('CSV import other account', () => {
       institutionById: new Map(),
       resolvedAccountMappings: { Chequing: CHEQUING.id, Savings: CREATE_ACCOUNT_VALUE },
       resolvedCategoryMappings: { Transfer: TRANSFER.id },
+      rowProblems: [],
     })
 
     // The import writes the new account's id, which does not exist yet, so the preview stands in
     // with the same sentinel it already uses for the row's own account
-    expect(rows[0].transaction.other_account_scope).toBe('tracked')
-    expect(rows[0].transaction.other_account_id).toBe(CREATE_ACCOUNT_VALUE)
-    expect(rows[0].otherAccountName).toBe('Savings')
+    expect(rows[0].transaction.counterparty_account_scope).toBe('tracked')
+    expect(rows[0].transaction.counterparty_account_id).toBe(CREATE_ACCOUNT_VALUE)
+    expect(rows[0].counterpartyAccountName).toBe('Savings')
   })
 })

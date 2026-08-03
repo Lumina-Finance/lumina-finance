@@ -20,10 +20,10 @@ export interface TransactionFormValues {
   // The account it is recorded in is the one below, which doubles as the receiving account
   symmetric_transfer: boolean
 
-  // Where the other side of a transfer sits: an account id, the "outside this app" sentinel, or
-  // empty when not yet answered. Ignored for every category except a transfer that is not
-  // Balance Adjustment
-  other_account_id: string
+  // Where the counterparty account of a transfer sits: an account id, the "outside this app"
+  // sentinel, or empty when not yet answered. Ignored for every category except a transfer that
+  // is not Balance Adjustment
+  counterparty_account_id: string
 }
 
 export interface TransactionFormFieldErrors {
@@ -33,7 +33,7 @@ export interface TransactionFormFieldErrors {
   amount?: string
   currency?: string
   date?: string
-  other_account_id?: string
+  counterparty_account_id?: string
 }
 
 export interface CreateTransactionModalProps {

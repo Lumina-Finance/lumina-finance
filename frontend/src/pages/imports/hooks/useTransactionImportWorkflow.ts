@@ -6,10 +6,12 @@ import type { ColumnMap, ColumnTarget, ColumnValidationErrors, ImportCategoryKin
 import {
   buildColumnTargetOptions,
   buildImportAccountMappingSources,
+  buildImportAccountOptions,
   buildTransactionImportPayload,
   buildImportPreviewRows,
   formatImportSummary,
   getErrorMessage,
+  getArchivedAccountMatches,
   getImportedCategoryTypes,
   getImportedCategories,
   getImportedMerchants,
@@ -100,6 +102,7 @@ export function useTransactionImportWorkflow() {
     institutionsLoading,
     categoriesLoading,
     selectableAccounts,
+    allAccounts,
     accountOptions,
     currencyOptions,
     institutionOptions,
@@ -162,18 +165,19 @@ export function useTransactionImportWorkflow() {
   }
 
   const accountMappingSources = useMemo(
-    () => buildImportAccountMappingSources(files, columnMap.account_id, columnMap.other_account_id),
-    [columnMap.account_id, columnMap.other_account_id, files],
+    () => buildImportAccountMappingSources(files, columnMap.account_id, columnMap.counterparty_account_id),
+    [columnMap.account_id, columnMap.counterparty_account_id, files],
   )
 
   // Only a source no row is written to can answer that the money left the tracked accounts, so the
-  // extra choice is kept off every other row's dropdown
+  // extra choice is kept off every other row's dropdown, and the same reason is why an archived
+  // account is offered here and nowhere else in the flow
   const counterpartyAccountOptions = useMemo(
     () => [
       { value: OUTSIDE_ACCOUNT_VALUE, label: OUTSIDE_ACCOUNT_LABEL, group: 'Import Action' },
-      ...accountOptions,
+      ...buildImportAccountOptions(allAccounts),
     ],
-    [accountOptions],
+    [allAccounts],
   )
 
   const canInferAccountMappings = Boolean(accountAutoMatchKey)
@@ -182,7 +186,10 @@ export function useTransactionImportWorkflow() {
   const resolvedAccountMappings = useMemo(
     () => {
       const resolved = canInferAccountMappings
-        ? inferAccountMappings(accountMappingSources, accountMappings, selectableAccounts)
+        ? inferAccountMappings(accountMappingSources, accountMappings, {
+          rowAccounts: selectableAccounts,
+          counterpartyAccounts: allAccounts,
+        })
         : { ...accountMappings }
 
       // No row is written to these, so the import creates nothing for them unless the user asks for
@@ -192,7 +199,12 @@ export function useTransactionImportWorkflow() {
       }
       return resolved
     },
-    [accountMappingSources, accountMappings, canInferAccountMappings, selectableAccounts],
+    [accountMappingSources, accountMappings, allAccounts, canInferAccountMappings, selectableAccounts],
+  )
+
+  const archivedAccountMatches = useMemo(
+    () => getArchivedAccountMatches(accountMappingSources, resolvedAccountMappings, allAccounts),
+    [accountMappingSources, allAccounts, resolvedAccountMappings],
   )
 
   // The highlight says a choice was matched from the file. The outside answer on a counterparty
@@ -250,32 +262,9 @@ export function useTransactionImportWorkflow() {
     [categoryMappings, importedCategories, resolvedCategoryMappings],
   )
 
-  const previewRows = useMemo<PreviewTransactionRow[]>(
-    () => buildImportPreviewRows({
-      files,
-      columnMap,
-      dateFormat,
-      missingRequiredColumnLabels,
-      currencies,
-      accountById,
-      accountCreateCurrencies,
-      accountCreateInstitutions,
-      categoryById,
-      categoryCreateKinds,
-      categoryTypesBySource,
-      institutionById,
-      resolvedAccountMappings,
-      resolvedCategoryMappings,
-    }),
-    [accountById, accountCreateCurrencies, accountCreateInstitutions, categoryById, categoryCreateKinds, categoryTypesBySource, columnMap, currencies, dateFormat, files, institutionById, missingRequiredColumnLabels, resolvedAccountMappings, resolvedCategoryMappings],
-  )
-
-  const previewGroups = useMemo(
-    () => groupPreviewRowsByDate(previewRows),
-    [previewRows],
-  )
   const importBuild = useMemo(
     () => buildTransactionImportPayload({
+      accountById,
       accountCreateCurrencies,
       accountCreateInstitutions,
       accountCreateTypes,
@@ -292,6 +281,7 @@ export function useTransactionImportWorkflow() {
       importedCategories,
     }),
     [
+      accountById,
       accountCreateCurrencies,
       accountCreateInstitutions,
       accountCreateTypes,
@@ -308,6 +298,35 @@ export function useTransactionImportWorkflow() {
       resolvedColumnValidationErrors,
     ],
   )
+
+  // Built after the payload so both read one decision about which rows can be converted, rather
+  // than the preview coercing an unreadable amount to zero beside the entry refusing that row
+  const previewRows = useMemo<PreviewTransactionRow[]>(
+    () => buildImportPreviewRows({
+      files,
+      columnMap,
+      dateFormat,
+      missingRequiredColumnLabels,
+      currencies,
+      accountById,
+      accountCreateCurrencies,
+      accountCreateInstitutions,
+      categoryById,
+      categoryCreateKinds,
+      categoryTypesBySource,
+      institutionById,
+      resolvedAccountMappings,
+      resolvedCategoryMappings,
+      rowProblems: importBuild.rowProblems,
+    }),
+    [accountById, accountCreateCurrencies, accountCreateInstitutions, categoryById, categoryCreateKinds, categoryTypesBySource, columnMap, currencies, dateFormat, files, importBuild.rowProblems, institutionById, missingRequiredColumnLabels, resolvedAccountMappings, resolvedCategoryMappings],
+  )
+
+  const previewGroups = useMemo(
+    () => groupPreviewRowsByDate(previewRows),
+    [previewRows],
+  )
+
   const totalRows = files.reduce((sum, file) => sum + file.rows.length, 0)
   const mappedFieldCount = headers.length === 0 ? 0 : Object.values(columnMap).filter(Boolean).length
   const importSummary = importResult ? formatImportSummary(importResult) : ''
@@ -476,6 +495,7 @@ export function useTransactionImportWorkflow() {
     autoFilledColumnHeaders,
     columnMap,
     accountMappings: resolvedAccountMappings,
+    archivedAccountMatches,
     autoFilledAccountSources,
     accountCreateTypes,
     accountCreateCurrencies,

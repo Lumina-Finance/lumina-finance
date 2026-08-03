@@ -32,8 +32,8 @@ export default function AccountDetailPage() {
   const { accountId } = useParams<{ accountId: string }>()
   const { data: account, error } = useAccount(accountId)
 
-  // The whole list, not just the account in view, so a transfer's row can name the account on its
-  // other side. The transaction modal on this page loads it anyway, so it costs no extra request
+  // The whole list, not just the account in view, so a transfer's row can name its counterparty
+  // account. The transaction modal on this page loads it anyway, so it costs no extra request
   const { data: accounts } = useAccounts()
   const requireCurrencies = useCurrencyGuard()
 

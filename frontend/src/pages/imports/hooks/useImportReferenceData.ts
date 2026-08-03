@@ -23,6 +23,7 @@ export interface ImportReferenceData {
   institutionsLoading: boolean
   categoriesLoading: boolean
   selectableAccounts: AccountsOverview[]
+  allAccounts: AccountsOverview[]
   accountOptions: DropdownOption[]
   currencyOptions: DropdownOption[]
   institutionOptions: DropdownOption[]
@@ -42,6 +43,9 @@ export function useImportReferenceData(): ImportReferenceData {
   const { data: institutions = [], isLoading: institutionsLoading } = useInstitutions()
   const { data: categories, isLoading: categoriesLoading } = useCategories()
 
+  // An archived account takes no new transactions, so it is left out of every source rows are
+  // written to. A transfer's counterparty is the one place it stays offerable, since recording it
+  // writes nothing to the account and the transfer usually predates the archiving
   const selectableAccounts = useMemo(
     () => accounts.filter((account) => !account.is_archived),
     [accounts],
@@ -67,9 +71,11 @@ export function useImportReferenceData(): ImportReferenceData {
     [categories],
   )
 
+  // Every account, not only the selectable ones, or a transfer recording an archived counterparty
+  // would preview with no name against it
   const accountById = useMemo(
-    () => new Map(selectableAccounts.map((account) => [account.id, account])),
-    [selectableAccounts],
+    () => new Map(accounts.map((account) => [account.id, account])),
+    [accounts],
   )
 
   const categoryById = useMemo(
@@ -90,6 +96,7 @@ export function useImportReferenceData(): ImportReferenceData {
     institutionsLoading,
     categoriesLoading,
     selectableAccounts,
+    allAccounts: accounts,
     accountOptions,
     currencyOptions,
     institutionOptions,

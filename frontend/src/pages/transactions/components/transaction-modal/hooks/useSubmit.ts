@@ -40,7 +40,7 @@ interface UseTransactionSubmitOptions {
   readOnly: boolean
   accounts: AccountsOverview[]
   selectedAccount: AccountsOverview | undefined
-  selectedOtherAccount: AccountsOverview | undefined
+  selectedCounterpartyAccount: AccountsOverview | undefined
   selectedCurrencyExponent: number
   isAmountLocked: boolean
   isBalanceAdjustmentCategory: boolean
@@ -76,7 +76,7 @@ export function useTransactionSubmit({
   readOnly,
   accounts,
   selectedAccount,
-  selectedOtherAccount,
+  selectedCounterpartyAccount,
   selectedCurrencyExponent,
   isAmountLocked,
   isBalanceAdjustmentCategory,
@@ -104,9 +104,9 @@ export function useTransactionSubmit({
   // Resets the form after a create so a keep-open batch starts its next row from the same
   // account, category, merchant, currency, and date instead of blank fields
   //
-  // The recorded other account is kept on every path, because it is required on every transfer
-  // create and a batch of them would otherwise have to answer it again on each row. Outside a
-  // transfer the field is off-screen and empty, so keeping it changes nothing
+  // The recorded counterparty account is kept on every path, because it is required on every
+  // transfer create and a batch of them would otherwise have to answer it again on each row.
+  // Outside a transfer the field is off-screen and empty, so keeping it changes nothing
   //
   // A symmetric transfer additionally keeps symmetric_transfer, because dropping it would force
   // re-arming the checkbox before every row of a batch
@@ -120,7 +120,7 @@ export function useTransactionSubmit({
       merchant_id: form.merchant_id,
       currency: form.currency,
       date: form.date,
-      other_account_id: form.other_account_id,
+      counterparty_account_id: form.counterparty_account_id,
       ...(keepTransferPair ? { symmetric_transfer: form.symmetric_transfer } : {}),
     })
     setFieldErrors({})
@@ -135,9 +135,9 @@ export function useTransactionSubmit({
     const errors = validateTransactionForm(form, { isAmountLocked, isBalanceAdjustmentCategory })
     // Ticking the checkbox creates a real transaction in the recorded account, so that account has
     // to be one the amount is valid in. Both accounts have to be loaded to compare them
-    if (!editing && isSymmetricTransferForm(form) && !errors.other_account_id) {
-      const accountError = getSymmetricTransferAccountError(selectedAccount, selectedOtherAccount)
-      if (accountError) errors.other_account_id = accountError
+    if (!editing && isSymmetricTransferForm(form) && !errors.counterparty_account_id) {
+      const accountError = getSymmetricTransferAccountError(selectedAccount, selectedCounterpartyAccount)
+      if (accountError) errors.counterparty_account_id = accountError
     }
     setFieldErrors(errors)
     setTouched({
@@ -147,7 +147,7 @@ export function useTransactionSubmit({
       amount: true,
       currency: true,
       date: true,
-      other_account_id: true,
+      counterparty_account_id: true,
     })
     if (Object.keys(errors).length > 0) return
 
@@ -180,7 +180,7 @@ export function useTransactionSubmit({
       const [recordedLegKind, otherLegKind] = getSymmetricTransferLegKinds(form.direction)
       const legs = [
         { failedKind: recordedLegKind, accountId: form.account_id, payload: fromPayload },
-        { failedKind: otherLegKind, accountId: form.other_account_id, payload: toPayload },
+        { failedKind: otherLegKind, accountId: form.counterparty_account_id, payload: toPayload },
       ]
 
       setSubmitError('')
@@ -225,7 +225,7 @@ export function useTransactionSubmit({
 
       if (failedLegs.length === 1) {
         const failedLeg = failedLegs[0]
-        const accountName = accounts.find((account) => account.id === failedLeg.accountId)?.name ?? 'the other account'
+        const accountName = accounts.find((account) => account.id === failedLeg.accountId)?.name ?? 'the counterparty account'
         setSubmitErrorTitle('One of the pair of transactions failed.')
         setSubmitError(`There was a problem creating a ${failedLeg.failedKind} transfer in ${accountName}. Please add that leg manually.`)
         return

@@ -51,8 +51,10 @@ const COLUMN_VALIDATION_RULES: Record<ColumnTarget, {
     expected: 'tag names separated by commas, semicolons, or pipes',
     accepts: isPlainTextValue,
   },
-  other_account_id: {
-    expected: 'the account name a transfer moved money to or from, blank on every other row',
+  counterparty_account_id: {
+    // Only the shape of a value is checked here. Whether a row may state one at all depends on the
+    // category and account mappings chosen later, and is reported against the row itself
+    expected: 'the account name a transfer moved money to or from',
     accepts: isPlainTextValue,
   },
 }

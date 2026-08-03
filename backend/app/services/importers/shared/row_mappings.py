@@ -4,9 +4,9 @@ import uuid
 from fastapi import HTTPException, status
 
 from app.models.account import Account
-from app.models.base import TransferOtherAccountScope
+from app.models.base import TransferCounterpartyScope
 from app.models.category import Category
-from app.services.categories.transfer_rules import does_category_record_other_account
+from app.services.categories.transfer_rules import does_category_record_counterparty_account
 from app.services.importers.shared.validation_helpers import strip_import_text_or_raise
 
 
@@ -36,7 +36,7 @@ def get_import_row_counterparty_account(
     raw_counterparty_source: str | None,
     category: Category,
     account: Account,
-) -> tuple[uuid.UUID | None, TransferOtherAccountScope | None]:
+) -> tuple[uuid.UUID | None, TransferCounterpartyScope | None]:
     """Resolve a transfer row's counterparty into the columns the transaction records
 
     Args:
@@ -57,19 +57,19 @@ def get_import_row_counterparty_account(
         # An import that states no counterparty records that the money left the tracked accounts.
         # Leaving it unanswered would count the same against a limit while also blocking every later
         # edit of the transaction until someone answers it by hand
-        if does_category_record_other_account(category):
-            return None, TransferOtherAccountScope.OUTSIDE
+        if does_category_record_counterparty_account(category):
+            return None, TransferCounterpartyScope.OUTSIDE
         return None, None
 
     counterparty_source = strip_import_text_or_raise(raw_counterparty_source, "Counterparty account source")
-    if not does_category_record_other_account(category):
+    if not does_category_record_counterparty_account(category):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Only a transfer records a counterparty account: {counterparty_source}",
         )
 
     if counterparty_source in outside_sources:
-        return None, TransferOtherAccountScope.OUTSIDE
+        return None, TransferCounterpartyScope.OUTSIDE
 
     counterparty_account = accounts_by_source.get(counterparty_source)
     if counterparty_account is None:
@@ -83,7 +83,7 @@ def get_import_row_counterparty_account(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"A transfer cannot record its own account as its counterparty: {counterparty_source}",
         )
-    return counterparty_account.id, TransferOtherAccountScope.TRACKED
+    return counterparty_account.id, TransferCounterpartyScope.TRACKED
 
 
 def get_import_row_category(categories_by_source: dict[str, Category], raw_category_source: str) -> Category:

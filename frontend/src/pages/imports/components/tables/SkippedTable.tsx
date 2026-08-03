@@ -1,11 +1,14 @@
 import { useState, type CSSProperties, type ReactNode } from 'react'
 import { ChevronDown, TriangleAlert } from 'lucide-react'
-import { IMPORT_INSET_STYLE } from '@/pages/imports/constants'
-import { FIREFLY_SKIPPED_TABLE_VISIBLE_LIMIT } from '@/pages/imports/firefly/constants'
+import { IMPORT_INSET_STYLE, SKIPPED_TABLE_VISIBLE_LIMIT } from '@/pages/imports/constants'
 
-// Share of the visible panel the frozen pair holds, measured with container
-// units against the horizontal scroller
-const FROZEN_GROUP_WIDTH = '30cqw'
+// The widest the frozen pair may grow to, measured with container units
+// against the horizontal scroller. It takes less where the reasons are short
+const FROZEN_GROUP_MAX_WIDTH = '30cqw'
+
+// Floor for the reason column on a narrow panel, where its share of the width
+// would leave too little to read a sentence in
+const REASON_COLUMN_MIN_WIDTH = '10rem'
 
 // Shown in place of blank values so empty cells still read as present
 const EMPTY_CELL_PLACEHOLDER = '–'
@@ -62,14 +65,21 @@ const HEADER_CELL_STYLE: CSSProperties = {
 const FROZEN_HEADER_Z_INDEX = 3
 
 /**
- * Sizes the reason content so the frozen pair holds its share of the panel
- * exactly, since table auto-layout would otherwise squeeze the wrapping
- * column to its minimum while the nowrap raw columns take the rest
+ * Sizes the reason content, asking for the longest reason on one line and
+ * stopping at the frozen pair's cap, so short reasons leave no empty column
+ * beside them and long ones wrap within the cap
+ *
+ * The sizing sits on this block rather than on the cell because the table lays
+ * itself out from its content, and CSS leaves a minimum or a cap on a cell
+ * undefined there, so the column could take the width of the longest reason on
+ * one line. Without a width here at all, that layout squeezes the one column
+ * that wraps down to its narrowest while the nowrap file columns take the rest
  */
 function buildReasonContentStyle(leadColumnWidth: string): CSSProperties {
   return {
-    width: `calc(${FROZEN_GROUP_WIDTH} - ${leadColumnWidth})`,
-    minWidth: '10rem',
+    width: 'max-content',
+    minWidth: REASON_COLUMN_MIN_WIDTH,
+    maxWidth: `calc(${FROZEN_GROUP_MAX_WIDTH} - ${leadColumnWidth})`,
   }
 }
 
@@ -83,7 +93,7 @@ const BODY_CELL_BORDER_STYLE: CSSProperties = {
  * One skipped item shaped for the table: the frozen lead cell, the skip
  * reason beside it, and the scrolling values keyed by column header
  */
-export interface FireflySkippedTableRow {
+export interface ImportSkippedTableRow {
   key: string
   lead: ReactNode
   reason: string
@@ -106,7 +116,7 @@ function RawCellValue({ value }: { value: string }) {
  * horizontally beside them, capped to a visible sample with the hidden
  * remainder summarized underneath
  */
-export function FireflySkippedTable({
+export function ImportSkippedTable({
   title,
   toggleLabel,
   leadHeader,
@@ -126,16 +136,16 @@ export function FireflySkippedTable({
   leadColumnWidth: string
   leadCellClassName: string
   headers: string[]
-  rows: FireflySkippedTableRow[]
+  rows: ImportSkippedTableRow[]
   totalCount: number
 }) {
   // Expanded by default so skipped items are in view before the commit
   const [expanded, setExpanded] = useState(true)
 
-  const visibleRows = rows.slice(0, FIREFLY_SKIPPED_TABLE_VISIBLE_LIMIT)
+  const visibleRows = rows.slice(0, SKIPPED_TABLE_VISIBLE_LIMIT)
 
-  // The backend caps the detailed entries it returns, so the remainder is
-  // measured against the exact total rather than the rows on hand
+  // Measured against the total the caller states rather than the rows it passed, so a caller
+  // holding more entries than it shapes for the table still summarizes all of them
   const hiddenCount = totalCount - visibleRows.length
 
   const frozenLeadCellStyle = buildFrozenLeadCellStyle(leadColumnWidth)

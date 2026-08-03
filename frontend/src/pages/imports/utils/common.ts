@@ -29,6 +29,16 @@ export function unique(values: string[]) {
 }
 
 /**
+ * Identifies one parsed row within the staged files
+ *
+ * The payload builder and the preview both work out which rows to leave out, and they have to agree
+ * exactly, so the identity is built here rather than written out at each of them
+ */
+export function getImportRowId(fileId: string, rowIndex: number) {
+  return `${fileId}-${rowIndex}`
+}
+
+/**
  * Renders a file size for display, stepping up from bytes to kilobytes to megabytes in units of 1024
  * and keeping one decimal place above the byte range
  */

@@ -20,15 +20,15 @@ export function buildAccountOptions(
 }
 
 /**
- * Builds dropdown options for the other-account-recording field: the accounts the user holds, plus
- * a fixed entry for money that left the tracked accounts entirely
+ * Builds dropdown options for the counterparty-account-recording field: the accounts the user
+ * holds, plus a fixed entry for money that left the tracked accounts entirely
  *
  * Unfiltered by currency, unlike the main account field, since recording an account is a fact about
  * where the money went rather than a second leg that must share a currency. Archived accounts are
  * left out, matching the main account field: an archived account takes no new transactions and its
  * existing ones are read-only, so offering it here would be the one place it still accepted work
  */
-export function buildOtherAccountOptions(
+export function buildCounterpartyAccountOptions(
   accounts: AccountsOverview[],
   recordedAccountId: string,
   isSymmetricTransfer: boolean,

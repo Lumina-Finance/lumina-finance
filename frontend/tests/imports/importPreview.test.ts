@@ -97,6 +97,7 @@ describe('import preview rows', () => {
       institutionById: new Map(),
       resolvedAccountMappings: {},
       resolvedCategoryMappings: {},
+      rowProblems: [],
     })).toEqual([])
   })
 
@@ -133,6 +134,7 @@ describe('import preview rows', () => {
       institutionById: new Map([[institution.id, institution]]),
       resolvedAccountMappings: { 'file-1': CREATE_ACCOUNT_VALUE },
       resolvedCategoryMappings: { Groceries: CREATE_CATEGORY_VALUE },
+      rowProblems: [],
     })
 
     expect(rows).toHaveLength(1)
@@ -190,9 +192,57 @@ describe('import preview rows', () => {
       institutionById: new Map(),
       resolvedAccountMappings: { 'file-1': 'checking' },
       resolvedCategoryMappings: { Groceries: category.id },
+      rowProblems: [],
     })
 
     expect(rows).toHaveLength(5)
     expect(rows.at(-1)?.transaction.dt).toBe('2026-06-05')
+  })
+
+  it('leaves out a row that is listed as one to fix, and takes the next one instead', () => {
+    const category = createCategory()
+    const file = createFile(Array.from({ length: 6 }, (_, index) => ({
+      Date: `2026-06-${String(index + 1).padStart(2, '0')}`,
+      Amount: '1.00',
+      Category: 'Groceries',
+      Merchant: '',
+      Notes: '',
+      Tags: '',
+      Currency: '',
+    })))
+
+    const rows = buildImportPreviewRows({
+      files: [file],
+      columnMap: {
+        ...EMPTY_COLUMN_MAP,
+        dt: 'Date',
+        amount: 'Amount',
+        category_id: 'Category',
+      },
+      dateFormat: 'yearFirst',
+      missingRequiredColumnLabels: [],
+      currencies,
+      accountById: new Map([['checking', createAccount()]]),
+      accountCreateCurrencies: {},
+      accountCreateInstitutions: {},
+      categoryById: new Map([[category.id, category]]),
+      categoryCreateKinds: {},
+      categoryTypesBySource: {},
+      institutionById: new Map(),
+      resolvedAccountMappings: { 'file-1': 'checking' },
+      resolvedCategoryMappings: { Groceries: category.id },
+      rowProblems: [{
+        id: 'file-1-0',
+        rowNumber: 1,
+        cells: file.rows[0],
+        reason: 'The amount is not a number.',
+      }],
+    })
+
+    // Still five, because the sample fills from what is left rather than leaving a gap where the
+    // refused row was
+    expect(rows).toHaveLength(5)
+    expect(rows[0].transaction.dt).toBe('2026-06-02')
+    expect(rows.at(-1)?.transaction.dt).toBe('2026-06-06')
   })
 })

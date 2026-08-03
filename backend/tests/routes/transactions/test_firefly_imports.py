@@ -154,10 +154,10 @@ async def test_firefly_import_converts_transfers_into_two_legs(client):
 
     # Each leg records the account at the other end, so the pair is left out of a tax-advantaged
     # category's totals without anyone opening the rows to answer for them
-    assert transactions_by_account[chequing_id]["other_account_id"] == savings_id
-    assert transactions_by_account[chequing_id]["other_account_scope"] == "tracked"
-    assert transactions_by_account[savings_id]["other_account_id"] == chequing_id
-    assert transactions_by_account[savings_id]["other_account_scope"] == "tracked"
+    assert transactions_by_account[chequing_id]["counterparty_account_id"] == savings_id
+    assert transactions_by_account[chequing_id]["counterparty_account_scope"] == "tracked"
+    assert transactions_by_account[savings_id]["counterparty_account_id"] == chequing_id
+    assert transactions_by_account[savings_id]["counterparty_account_scope"] == "tracked"
 
 
 async def test_firefly_import_records_accounts_it_creates_as_each_other_s_other_side(client):
@@ -193,8 +193,8 @@ async def test_firefly_import_records_accounts_it_creates_as_each_other_s_other_
         transaction["account_id"]: transaction
         for transaction in (await client.get("/transactions", headers=headers)).json()
     }
-    assert transactions_by_account[chequing_id]["other_account_id"] == savings_id
-    assert transactions_by_account[savings_id]["other_account_id"] == chequing_id
+    assert transactions_by_account[chequing_id]["counterparty_account_id"] == savings_id
+    assert transactions_by_account[savings_id]["counterparty_account_id"] == chequing_id
 
 
 async def test_firefly_import_records_a_one_sided_transfer_row_as_leaving_the_accounts(client):
@@ -213,8 +213,8 @@ async def test_firefly_import_records_a_one_sided_transfer_row_as_leaving_the_ac
     assert resp.json()["transactions_created"] == 1
 
     transaction = (await client.get("/transactions", headers=headers)).json()[0]
-    assert transaction["other_account_id"] is None
-    assert transaction["other_account_scope"] == "outside"
+    assert transaction["counterparty_account_id"] is None
+    assert transaction["counterparty_account_scope"] == "outside"
 
 
 async def test_firefly_import_rejects_an_account_source_marked_outside(client):
@@ -233,7 +233,7 @@ async def test_firefly_import_rejects_an_account_source_marked_outside(client):
 
 
 async def test_firefly_imported_internal_transfer_is_left_out_of_the_limit_totals(client):
-    """The point of recording the other account: an imported internal move stops counting."""
+    """The point of recording the counterparty account: an imported internal move stops counting."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     tax_advantaged_category_resp = await client.post("/tax-advantaged-categories", json={
@@ -454,7 +454,7 @@ async def test_firefly_import_applies_opening_balance_direction(client):
     # Balance Adjustment has no other side, and the API refuses one on it, so the importer leaves
     # both columns unset rather than saying the money left the tracked accounts
     assert all(
-        transaction["other_account_id"] is None and transaction["other_account_scope"] is None
+        transaction["counterparty_account_id"] is None and transaction["counterparty_account_scope"] is None
         for transaction in transactions_resp.json()
     )
 

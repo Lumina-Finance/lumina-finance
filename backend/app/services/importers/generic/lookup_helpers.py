@@ -40,6 +40,26 @@ class TransactionImportLookups:
     tags_by_name: dict[str, Tag]
 
 
+def get_counterparty_only_sources(data: TransactionImportRequest) -> set[str]:
+    """Return the declared account sources no row in this request is written to
+
+    Worked out from the rows rather than read off the payload, because these resolve under a
+    weaker rule than an account rows are written to, and a client that could declare one would be
+    choosing its own permission check. A source used both ways keeps the strict rule, since the
+    rows using it are still written. A large import arrives as several requests, so a source can
+    be counterparty-only in one and written to in another, and the request that writes the rows is
+    the one that has to pass
+
+    Args:
+        data: Prepared import payload from the frontend compiler
+
+    Returns:
+        Trimmed sources that appear as no row's account source
+    """
+    row_account_sources = {row.account_source.strip() for row in data.rows}
+    return {mapping.source.strip() for mapping in data.accounts} - row_account_sources
+
+
 async def load_transaction_import_lookups(
     db: AsyncSession,
     user: User,
@@ -57,7 +77,13 @@ async def load_transaction_import_lookups(
     Returns:
         Lookup maps used by the transaction import row creation helper
     """
-    account_sources = await resolve_import_account_sources(db, user, data.accounts, stats)
+    account_sources = await resolve_import_account_sources(
+        db,
+        user,
+        data.accounts,
+        stats,
+        get_counterparty_only_sources(data),
+    )
     accounts_by_source = account_sources.accounts_by_source
     categories_by_source = await get_or_create_import_categories_by_source(db, user, data.categories, stats)
 

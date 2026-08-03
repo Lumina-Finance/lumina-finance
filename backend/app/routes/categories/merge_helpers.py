@@ -17,7 +17,7 @@ from app.routes.categories.access_helpers import (
 )
 from app.routes.categories.scope_filter_helpers import get_system_or_personal_category_filter
 from app.services.cache_state import mark_cache_changed_for_scope
-from app.services.categories.transfer_rules import does_category_record_other_account
+from app.services.categories.transfer_rules import does_category_record_counterparty_account
 
 
 async def get_merge_replacement_category(
@@ -98,13 +98,13 @@ async def move_category_references(
         ),
     )
 
-    # Move source transactions to the replacement category. Merging into a category with no other
-    # side, which the matching-kind rule narrows to Balance Adjustment, drops the recorded account
-    # along the way, the same as editing one transaction onto that category does
+    # Move source transactions to the replacement category. Merging into a category with no
+    # counterparty account, which the matching-kind rule narrows to Balance Adjustment, drops the
+    # recorded account along the way, the same as editing one transaction onto that category does
     transaction_values: dict[str, object] = {"category_id": replacement_category_id}
-    if not does_category_record_other_account(replacement):
-        transaction_values["other_account_id"] = None
-        transaction_values["other_account_scope"] = None
+    if not does_category_record_counterparty_account(replacement):
+        transaction_values["counterparty_account_id"] = None
+        transaction_values["counterparty_account_scope"] = None
 
     await db.execute(
         sa.update(Transaction)

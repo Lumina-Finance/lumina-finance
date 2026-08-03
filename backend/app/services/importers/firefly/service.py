@@ -8,7 +8,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
-from app.models.base import TransferOtherAccountScope
+from app.models.base import TransferCounterpartyScope
 from app.models.tag import TransactionTag
 from app.models.transaction import Transaction
 from app.models.user import User
@@ -20,7 +20,7 @@ from app.schemas.firefly_import import (
 )
 from app.services.accounts.snapshots import recompute_snapshots_from
 from app.services.cache_state import mark_cache_changed_for_scope, mark_user_cache_changed
-from app.services.categories.transfer_rules import does_category_record_other_account
+from app.services.categories.transfer_rules import does_category_record_counterparty_account
 from app.services.importers.firefly.constants import FIREFLY_GENERIC_SKIP_REASON
 from app.services.importers.firefly.row_resolution import (
     FireflyLeg,
@@ -68,7 +68,9 @@ async def import_firefly_transactions(
         Import summary with converted, skipped, and created record counts
     """
     stats = ImportStats()
-    account_sources = await resolve_import_account_sources(db, user, data.accounts, stats)
+    # Both legs of a Firefly transfer get a row written, so every source here is an account the
+    # import writes to and none of them takes the weaker counterparty rule
+    account_sources = await resolve_import_account_sources(db, user, data.accounts, stats, set())
 
     # Every Firefly source is an endpoint rows are written to, and the export states both sides of a
     # transfer itself, so there is nothing here an outside answer could describe
@@ -215,8 +217,8 @@ async def _write_legs(
                 currency=leg.account.currency,
                 fx_rate=None,
                 notes=leg.notes,
-                other_account_id=leg.other_account.id if leg.other_account else None,
-                other_account_scope=_get_leg_other_account_scope(leg),
+                counterparty_account_id=leg.counterparty_account.id if leg.counterparty_account else None,
+                counterparty_account_scope=_get_leg_counterparty_scope(leg),
             )
             pending.append((transaction, tags))
 
@@ -236,12 +238,12 @@ async def _write_legs(
     return first_import_date_by_account_id
 
 
-def _get_leg_other_account_scope(leg: FireflyLeg) -> TransferOtherAccountScope | None:
+def _get_leg_counterparty_scope(leg: FireflyLeg) -> TransferCounterpartyScope | None:
     """Return what a leg records about where its money went
 
     A pair states both ends, so each leg points at the other. Every other leg of a category that
-    records an other account had no second endpoint in the export, which is what money leaving the
-    tracked accounts means
+    records a counterparty account had no second endpoint in the export, which is what money
+    leaving the tracked accounts means
 
     Args:
         leg: Transaction leg resolved from the import payload
@@ -249,10 +251,10 @@ def _get_leg_other_account_scope(leg: FireflyLeg) -> TransferOtherAccountScope |
     Returns:
         Scope for the leg, or None for a category that records neither
     """
-    if leg.other_account is not None:
-        return TransferOtherAccountScope.TRACKED
-    if does_category_record_other_account(leg.category):
-        return TransferOtherAccountScope.OUTSIDE
+    if leg.counterparty_account is not None:
+        return TransferCounterpartyScope.TRACKED
+    if does_category_record_counterparty_account(leg.category):
+        return TransferCounterpartyScope.OUTSIDE
     return None
 
 

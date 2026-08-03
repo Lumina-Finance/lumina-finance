@@ -55,11 +55,11 @@ export function useTransactionFormState(initialForm: TransactionFormValues): Tra
     const kindChanged = nextKind !== form.kind
     setForm((f) => ({
       ...f,
-      // A non-transfer kind has no other side to record, so a pending answer from a previous
+      // A non-transfer kind has no counterparty to record, so a pending answer from a previous
       // transfer selection is dropped rather than lingering unseen. The checkbox goes with it,
       // since leaving it set would arm a second transaction on the next transfer without the user
       // ticking it again
-      ...(nextKind === 'transfer' ? {} : { other_account_id: '', symmetric_transfer: false }),
+      ...(nextKind === 'transfer' ? {} : { counterparty_account_id: '', symmetric_transfer: false }),
       ...fields,
       kind: nextKind,
       direction: nextKind === f.kind ? f.direction : getDefaultDirectionForKind(nextKind),

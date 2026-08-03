@@ -2,6 +2,7 @@ import { useState } from 'react'
 import CreateInstitutionModal from '@/components/reference-modals/CreateInstitutionModal'
 import {
   ACCOUNT_TYPE_OPTIONS,
+  ARCHIVED_ACCOUNT_MATCH_EXPLANATION,
   COUNTERPARTY_ONLY_EXPLANATION,
   COUNTERPARTY_ONLY_TABLE_TITLE,
 } from '@/pages/imports/constants'
@@ -18,6 +19,7 @@ type ImportAccountMappingStepProps = Pick<
   TransactionImportWorkflow,
   | 'accountMappingSources'
   | 'accountMappings'
+  | 'archivedAccountMatches'
   | 'autoFilledAccountSources'
   | 'accountById'
   | 'accountCreateTypes'
@@ -51,6 +53,7 @@ type ImportAccountMappingStepProps = Pick<
 export function ImportAccountMappingStep({
   accountMappingSources,
   accountMappings,
+  archivedAccountMatches,
   autoFilledAccountSources,
   accountById,
   accountCreateTypes,
@@ -115,6 +118,7 @@ export function ImportAccountMappingStep({
       id: sourceAccount.id,
       source: sourceAccount.label,
       value,
+      selectedOption: account ? { value, label: account.name } : undefined,
       autoFilled: autoFilledAccountSources.has(sourceAccount.id),
       accountType: account?.account_type ?? '',
       accountCurrency: account?.currency ?? '',
@@ -156,6 +160,11 @@ export function ImportAccountMappingStep({
         />
       ) : (
         <>
+          {archivedAccountMatches.length > 0 && (
+            <ImportNotice>
+              {`${ARCHIVED_ACCOUNT_MATCH_EXPLANATION} ${archivedAccountMatches.join(', ')}`}
+            </ImportNotice>
+          )}
           <ImportAccountMappingTable
             rows={buildRows(importedSources)}
             options={accountOptions}
