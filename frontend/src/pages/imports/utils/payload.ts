@@ -10,6 +10,7 @@ import {
   ROW_AMOUNT_BLANK_REASON,
   ROW_AMOUNT_UNREADABLE_REASON,
   ROW_CATEGORY_BLANK_REASON,
+  ROW_COUNTERPARTY_CURRENCY_MISMATCH_REASON,
   ROW_COUNTERPARTY_IS_OWN_ACCOUNT_REASON,
   ROW_COUNTERPARTY_NOT_A_TRANSFER_REASON,
   ROW_DATE_BLANK_REASON,
@@ -166,6 +167,13 @@ export function buildTransactionImportPayload({
   // no date format settled, every row reads as one whose date does not fit
   if (errors.length > 0) return { errors: [...errors, ...columnErrors], rowProblems: [], payload: null }
 
+  // A source no row is written to records only where money went, so the two ends of that transfer
+  // are free to hold different currencies. Where the file carries both sides, the import writes a
+  // transaction into each and one movement of money cannot be in two currencies at once
+  const counterpartyOnlySources = new Set(
+    accountSources.filter((source) => source.isCounterpartyOnly).map((source) => source.id),
+  )
+
   const rows: TransactionImportPayload['rows'] = []
   const rowProblems: ImportRowProblem[] = []
   for (const file of files) {
@@ -188,6 +196,8 @@ export function buildTransactionImportPayload({
         counterpartySource,
         dt,
         importedDate,
+        isCounterpartyWrittenTo: counterpartySource !== null && !counterpartyOnlySources.has(counterpartySource),
+        getSourceCurrency: (source: string) => getImportSourceCurrency(source, accountMappings, accountById, accountCreateCurrencies),
         recordsCounterpartyBySource,
       })
       if (problem) {
@@ -237,7 +247,9 @@ function getImportRowProblem({
   categorySource,
   counterpartySource,
   dt,
+  getSourceCurrency,
   importedDate,
+  isCounterpartyWrittenTo,
   recordsCounterpartyBySource,
 }: {
   accountMappings: Record<string, string>
@@ -246,7 +258,9 @@ function getImportRowProblem({
   categorySource: string
   counterpartySource: string | null
   dt: string
+  getSourceCurrency: (source: string) => string | null
   importedDate: string
+  isCounterpartyWrittenTo: boolean
   recordsCounterpartyBySource: Record<string, boolean>
 }) {
   if (!accountSource) return ROW_ACCOUNT_BLANK_REASON
@@ -262,7 +276,36 @@ function getImportRowProblem({
 
   if (!recordsCounterpartyBySource[categorySource]) return ROW_COUNTERPARTY_NOT_A_TRANSFER_REASON
   if (isSameMappedAccount(accountMappings, accountSource, counterpartySource)) return ROW_COUNTERPARTY_IS_OWN_ACCOUNT_REASON
+  if (!isCounterpartyWrittenTo) return null
+
+  // Both currencies are known only once both sources are mapped to an account, and an unmapped
+  // source is already refused as its own error rather than through the row
+  const accountCurrency = getSourceCurrency(accountSource)
+  const counterpartyCurrency = getSourceCurrency(counterpartySource)
+  if (accountCurrency && counterpartyCurrency && accountCurrency !== counterpartyCurrency) {
+    return ROW_COUNTERPARTY_CURRENCY_MISMATCH_REASON
+  }
+
   return null
+}
+
+/**
+ * Resolves the currency the account behind an import source holds, or null where the source has no
+ * account of its own
+ *
+ * A source set to create an account holds the currency chosen for it, which is the same value the
+ * created account will be given
+ */
+function getImportSourceCurrency(
+  source: string,
+  accountMappings: Record<string, string>,
+  accountById: Map<string, AccountsOverview>,
+  accountCreateCurrencies: Record<string, string>,
+) {
+  const choice = accountMappings[source]
+  if (!choice || choice === OUTSIDE_ACCOUNT_VALUE) return null
+  if (choice === CREATE_ACCOUNT_VALUE) return accountCreateCurrencies[source]?.trim().toUpperCase() || null
+  return accountById.get(choice)?.currency ?? null
 }
 
 function appendAccountMapping(
