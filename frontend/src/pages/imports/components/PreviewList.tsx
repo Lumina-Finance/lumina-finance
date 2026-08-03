@@ -13,8 +13,11 @@ export function ImportPreviewList({
 }: {
   groups: Array<{ dateLabel: string; rows: PreviewTransactionRow[] }>
 }) {
+  // The wrapper scrolls sideways only below the width the row layout is built for. Past that it
+  // stops clipping entirely, because overflow-x cannot be auto while overflow-y stays visible, and
+  // clipping vertically cuts off the tag stack that opens above a row
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto min-[1300px]:overflow-visible">
       <div className="min-w-[58rem] min-[1300px]:grid min-[1300px]:grid-cols-[2.5rem_fit-content(24rem)_fit-content(18rem)_minmax(0,1fr)_max-content_max-content] min-[1300px]:gap-x-3">
         {groups.map((group, groupIndex) => (
           <div
