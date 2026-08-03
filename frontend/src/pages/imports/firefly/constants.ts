@@ -135,7 +135,6 @@ export const FIREFLY_MISSING_REQUIRED_VALUES_REASON = 'Missing required values'
 export const FIREFLY_GENERIC_SKIP_REASON = 'Row could not be converted'
 
 export const FIREFLY_SAMPLE_PREVIEW_LIMIT = 5
-
 export const FIREFLY_CSV_PROCESSING_MIN_MS = 1500
 export const FIREFLY_IMPORT_OVERLAY_MIN_MS = 2000
 

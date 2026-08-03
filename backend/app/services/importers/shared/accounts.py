@@ -172,5 +172,9 @@ async def _get_counterparty_import_account(db: AsyncSession, user: User, account
 
     Returns:
         Readable account row for the import source
+
+    Raises:
+        HTTPException: Raised with 404 when the account does not exist, or when the user holds no
+            read access to it, which is reported the same way rather than as a refusal
     """
     return await check_account_access(db, account_id, user.id, PermissionLevel.READ)

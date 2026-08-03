@@ -59,8 +59,8 @@ export const ROW_COUNTERPARTY_NOT_A_TRANSFER_REASON = 'Only a transfer records a
 export const ROW_COUNTERPARTY_IS_OWN_ACCOUNT_REASON = 'A transfer cannot record its own account as its counterparty.'
 
 // Shown where a source rows are written to matches an account the user has archived, which is the
-// one account the dropdown above does not offer. The matched account names follow it
-export const ARCHIVED_ACCOUNT_MATCH_EXPLANATION = 'An archived account takes no new transactions, so it is not offered above. Unarchive one of these to import rows into it:'
+// one account that source is not offered. The matched account names follow it
+export const ARCHIVED_ACCOUNT_MATCH_EXPLANATION = 'An archived account takes no new transactions, so it is not offered as a choice here. Unarchive one of these to import rows into it:'
 
 // Shown over the accounts that appear only as a counterparty, which the import writes nothing to
 export const COUNTERPARTY_ONLY_TABLE_TITLE = 'Counterparty accounts'
