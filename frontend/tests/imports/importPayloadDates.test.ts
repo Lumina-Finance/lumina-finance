@@ -85,12 +85,12 @@ describe('import payload dates', () => {
     expect(result.rowProblems).toEqual([])
   })
 
-  it('refuses a row the chosen format cannot read, listing the line it is on', () => {
+  it('refuses a row the chosen format cannot read, listing which row it is', () => {
     const result = build(['15/03/2024', '2024-03-16'], 'dayFirst')
 
     expect(result.payload).toBeNull()
-    expect(result.rowProblems.map((problem) => ({ line: problem.line, reason: problem.reason }))).toEqual([
-      { line: 3, reason: ROW_DATE_UNREADABLE_REASON },
+    expect(result.rowProblems.map((problem) => ({ rowNumber: problem.rowNumber, reason: problem.reason }))).toEqual([
+      { rowNumber: 2, reason: ROW_DATE_UNREADABLE_REASON },
     ])
   })
 

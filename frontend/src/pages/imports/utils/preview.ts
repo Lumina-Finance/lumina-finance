@@ -6,6 +6,7 @@ import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, DEFAULT_CATEGORY_ICON } fr
 import { BALANCE_ADJUSTMENT_CATEGORY_NAME, doesTransferRecordCounterpartyAccount, OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 import type { ColumnMap, ImportCategoryKind, ImportFileDraft, ImportRowProblem, PreviewTransactionRow } from '@/pages/imports/types'
 import { getImportAccountName } from './accountMapping'
+import { getImportRowId } from './common'
 import { splitImportedValues } from './categoryMatching'
 import { getMappedValue } from './columnMapping'
 import {
@@ -86,7 +87,7 @@ export function buildImportPreviewRows({
   // Preview generation walks files in row order and stops early because the UI only renders a small sample
   for (const file of files) {
     for (let rowIndex = 0; rowIndex < file.rows.length; rowIndex += 1) {
-      if (problemRowIds.has(`${file.id}-${rowIndex}`)) continue
+      if (problemRowIds.has(getImportRowId(file.id, rowIndex))) continue
 
       const row = file.rows[rowIndex]
       const accountSource = columnMap.account_id ? getMappedValue(row, columnMap.account_id) : file.id
@@ -142,7 +143,7 @@ export function buildImportPreviewRows({
         : counterpartyAccount?.name
 
       rows.push({
-        id: `${file.id}-${rowIndex}`,
+        id: getImportRowId(file.id, rowIndex),
         accountInstitution: account?.institution ?? createAccountInstitution ?? null,
         accountName: account?.name ?? (accountLabel || 'Unmapped account'),
         category,

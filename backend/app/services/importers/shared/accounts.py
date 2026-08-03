@@ -37,8 +37,9 @@ async def resolve_import_account_sources(
 ) -> ImportAccountSources:
     """Resolve every declared account source to an account or to the outside answer
 
-    Existing account mappings are checked for write access, while create
-    mappings insert a new personal account and opening balance snapshot
+    A source rows are written to is checked for write access to an open, unarchived account, while a
+    source only ever used as a transfer's counterparty needs read access alone, and create mappings
+    insert a new personal account and opening balance snapshot
 
     Args:
         db: Active database session

@@ -257,11 +257,10 @@ describe('CSV import counterparty account', () => {
 
     expect(payload).toBeNull()
 
-    // The entry carries where the row came from, so a file of thousands says which line to open.
-    // The first row of a file with a header line is line 2
+    // The entry carries which row it was, so a file of thousands says which one to go and correct
     expect(rowProblems).toEqual([{
       id: 'file-1-0',
-      line: 2,
+      rowNumber: 1,
       cells: {
         Account: 'Chequing',
         Date: '2026-04-11',

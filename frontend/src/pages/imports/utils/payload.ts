@@ -25,6 +25,7 @@ import type {
 } from '@/pages/imports/types'
 import { isImportAccountType } from '@/pages/imports/accountTypeGuard'
 import { getCategoryMatchKind, splitImportedValues } from './categoryMatching'
+import { getImportRowId, getImportRowNumber } from './common'
 import { getMappedValue } from './columnMapping'
 import { type ImportDateFormat, parseImportNumber, readImportDate } from './valueParsers'
 
@@ -69,7 +70,12 @@ export function buildTransactionImportPayload({
   files: ImportFileDraft[]
   importedCategories: string[]
 }): ImportBuildResult {
+  // Two kinds of problem, kept apart because only one of them makes judging a row meaningless. An
+  // unanswered mapping question leaves every row looking broken for want of the answer, while a
+  // column whose values do not fit the field is a statement about the rows themselves, and those
+  // rows are exactly what the caller lists
   const errors: string[] = []
+  const columnErrors: string[] = []
   const addError = (message: string) => {
     if (!errors.includes(message)) errors.push(message)
   }
@@ -90,7 +96,7 @@ export function buildTransactionImportPayload({
 
   const mappedHeaders = new Set(Object.values(columnMap).filter(Boolean))
   for (const [header, message] of Object.entries(columnValidationErrors)) {
-    if (mappedHeaders.has(header)) addError(message)
+    if (mappedHeaders.has(header) && !columnErrors.includes(message)) columnErrors.push(message)
   }
 
   const accounts: TransactionImportPayload['accounts'] = []
@@ -156,7 +162,7 @@ export function buildTransactionImportPayload({
   // Judging rows before every mapping they depend on is answered blames them for the answer being
   // missing: with no category column mapped, every row reads as one with a blank category, and with
   // no date format settled, every row reads as one whose date does not fit
-  if (errors.length > 0) return { errors, rowProblems: [], payload: null }
+  if (errors.length > 0) return { errors: [...errors, ...columnErrors], rowProblems: [], payload: null }
 
   const rows: TransactionImportPayload['rows'] = []
   const rowProblems: ImportRowProblem[] = []
@@ -182,8 +188,8 @@ export function buildTransactionImportPayload({
       })
       if (problem) {
         rowProblems.push({
-          id: `${file.id}-${rowIndex}`,
-          line: getImportRowLine(file, rowIndex),
+          id: getImportRowId(file.id, rowIndex),
+          rowNumber: getImportRowNumber(rowIndex),
           cells: row,
           reason: problem,
         })
@@ -206,15 +212,10 @@ export function buildTransactionImportPayload({
   // A file whose every row has a problem is described by the list of problems, so the empty-file
   // message is kept for the case it was written for
   if (rows.length === 0 && rowProblems.length === 0) addError('No transaction rows are available to import.')
-  if (errors.length > 0 || rowProblems.length > 0) return { errors, rowProblems, payload: null }
-  return { errors: [], rowProblems: [], payload: { accounts, categories, rows } }
-}
 
-/**
- * Numbers a row as it appears in the file it came from, counting the header line where there is one
- */
-function getImportRowLine(file: ImportFileDraft, rowIndex: number) {
-  return file.hasHeaderRow ? rowIndex + 2 : rowIndex + 1
+  const allErrors = [...errors, ...columnErrors]
+  if (allErrors.length > 0 || rowProblems.length > 0) return { errors: allErrors, rowProblems, payload: null }
+  return { errors: [], rowProblems: [], payload: { accounts, categories, rows } }
 }
 
 /**
