@@ -133,8 +133,8 @@ export function ImportSkippedTable({
 
   const visibleRows = rows.slice(0, SKIPPED_TABLE_VISIBLE_LIMIT)
 
-  // The backend caps the detailed entries it returns, so the remainder is
-  // measured against the exact total rather than the rows on hand
+  // Measured against the total the caller states rather than the rows on hand, because a caller
+  // whose entries come from the backend is given a capped sample of a larger count
   const hiddenCount = totalCount - visibleRows.length
 
   const frozenLeadCellStyle = buildFrozenLeadCellStyle(leadColumnWidth)

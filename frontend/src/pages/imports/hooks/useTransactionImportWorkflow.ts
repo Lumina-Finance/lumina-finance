@@ -264,6 +264,7 @@ export function useTransactionImportWorkflow() {
 
   const importBuild = useMemo(
     () => buildTransactionImportPayload({
+      accountById,
       accountCreateCurrencies,
       accountCreateInstitutions,
       accountCreateTypes,
@@ -280,6 +281,7 @@ export function useTransactionImportWorkflow() {
       importedCategories,
     }),
     [
+      accountById,
       accountCreateCurrencies,
       accountCreateInstitutions,
       accountCreateTypes,

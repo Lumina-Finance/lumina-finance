@@ -69,6 +69,12 @@ function createAccount(id: string, name: string): AccountsOverview {
 
 const CHEQUING = createAccount('chequing', 'Chequing')
 const SAVINGS = createAccount('savings', 'Savings')
+const ARCHIVED_SAVINGS = { ...createAccount('archived-savings', 'Old Savings'), is_archived: true }
+const ACCOUNTS_BY_ID = new Map([
+  [CHEQUING.id, CHEQUING],
+  [SAVINGS.id, SAVINGS],
+  [ARCHIVED_SAVINGS.id, ARCHIVED_SAVINGS],
+])
 
 /**
  * Creates a one-file draft whose rows carry the mapped headers
@@ -101,6 +107,8 @@ function createSources(counterpartyLabel: string): ImportAccountSource[] {
  */
 function buildPayload({
   accountMappings,
+  accountCreateTypes = {},
+  accountCreateCurrencies = {},
   categoryById = new Map([[TRANSFER.id, TRANSFER]]),
   categoryMappings = { Transfer: TRANSFER.id },
   categorySource = 'Transfer',
@@ -108,6 +116,8 @@ function buildPayload({
   accountSources = createSources('Savings'),
 }: {
   accountMappings: Record<string, string>
+  accountCreateTypes?: Record<string, string>
+  accountCreateCurrencies?: Record<string, string>
   categoryById?: Map<string, Category>
   categoryMappings?: Record<string, string>
   categorySource?: string
@@ -115,9 +125,10 @@ function buildPayload({
   accountSources?: ImportAccountSource[]
 }) {
   return buildTransactionImportPayload({
-    accountCreateCurrencies: {},
+    accountById: ACCOUNTS_BY_ID,
+    accountCreateCurrencies,
     accountCreateInstitutions: {},
-    accountCreateTypes: {},
+    accountCreateTypes,
     accountMappings,
     accountSources,
     categoryById,
@@ -186,6 +197,24 @@ describe('CSV import counterparty account', () => {
     expect(payload?.rows[0].counterparty_account_source).toBe('Brokerage elsewhere')
   })
 
+  it('records an archived account as a counterparty, and refuses one for a source rows are written to', () => {
+    const counterparty = buildPayload({
+      accountMappings: { Chequing: CHEQUING.id, Savings: ARCHIVED_SAVINGS.id },
+    })
+
+    expect(counterparty.errors).toEqual([])
+    expect(counterparty.payload?.accounts).toContainEqual({ source: 'Savings', account_id: ARCHIVED_SAVINGS.id })
+
+    // The same answer on a source rows are written to is what mapping the account column at that
+    // column afterwards leaves behind, and the API refuses it
+    const rowAccount = buildPayload({
+      accountMappings: { Chequing: ARCHIVED_SAVINGS.id, Savings: SAVINGS.id },
+    })
+
+    expect(rowAccount.payload).toBeNull()
+    expect(rowAccount.errors).toContain('Rows cannot be written to an archived account: Chequing')
+  })
+
   it('refuses the outside answer for a source rows are written to', () => {
     const { errors, payload } = buildPayload({
       accountMappings: { Chequing: OUTSIDE_ACCOUNT_VALUE, Savings: SAVINGS.id },
@@ -232,7 +261,6 @@ describe('CSV import counterparty account', () => {
     // The first row of a file with a header line is line 2
     expect(rowProblems).toEqual([{
       id: 'file-1-0',
-      fileName: 'Chequing.csv',
       line: 2,
       cells: {
         Account: 'Chequing',
@@ -250,6 +278,8 @@ describe('CSV import counterparty account', () => {
   it('refuses a transfer whose counterparty is its own source, even for an account queued for creation', () => {
     const { payload, rowProblems } = buildPayload({
       accountMappings: { Chequing: CREATE_ACCOUNT_VALUE },
+      accountCreateTypes: { Chequing: 'checking' },
+      accountCreateCurrencies: { Chequing: 'CAD' },
       counterpartyAccountSource: 'Chequing',
       accountSources: [{ id: 'Chequing', label: 'Chequing', matchText: 'Chequing', isCounterpartyOnly: false }],
     })

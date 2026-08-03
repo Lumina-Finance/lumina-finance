@@ -1,3 +1,4 @@
+import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { TransactionImportPayload, TransactionImportResponse } from '@/api/transaction-imports'
 import {
@@ -36,6 +37,7 @@ import { type ImportDateFormat, parseImportNumber, readImportDate } from './valu
  * returns every accumulated error with a null payload, so the caller can show them all at once
  */
 export function buildTransactionImportPayload({
+  accountById,
   accountCreateCurrencies,
   accountCreateInstitutions,
   accountCreateTypes,
@@ -51,6 +53,7 @@ export function buildTransactionImportPayload({
   files,
   importedCategories,
 }: {
+  accountById: Map<string, AccountsOverview>
   accountCreateCurrencies: Record<string, string>
   accountCreateInstitutions: Record<string, string>
   accountCreateTypes: Record<string, string>
@@ -101,6 +104,7 @@ export function buildTransactionImportPayload({
       accountCreateTypes[source.id],
       accountCreateCurrencies[source.id],
       accountCreateInstitutions[source.id],
+      accountById,
     )
   }
 
@@ -149,6 +153,11 @@ export function buildTransactionImportPayload({
     categories.push({ source, category_id: choice })
   }
 
+  // Judging rows before every mapping they depend on is answered blames them for the answer being
+  // missing: with no category column mapped, every row reads as one with a blank category, and with
+  // no date format settled, every row reads as one whose date does not fit
+  if (errors.length > 0) return { errors, rowProblems: [], payload: null }
+
   const rows: TransactionImportPayload['rows'] = []
   const rowProblems: ImportRowProblem[] = []
   for (const file of files) {
@@ -174,7 +183,6 @@ export function buildTransactionImportPayload({
       if (problem) {
         rowProblems.push({
           id: `${file.id}-${rowIndex}`,
-          fileName: file.name,
           line: getImportRowLine(file, rowIndex),
           cells: row,
           reason: problem,
@@ -251,6 +259,7 @@ function appendAccountMapping(
   createType: string | undefined,
   createCurrency: string | undefined,
   createInstitution: string | undefined,
+  accountById: Map<string, AccountsOverview>,
 ) {
   const source = accountSource.id
   const createName = accountSource.label
@@ -276,6 +285,14 @@ function appendAccountMapping(
   }
 
   if (choice !== CREATE_ACCOUNT_VALUE) {
+    // Only a counterparty source is offered an archived account, and pointing the account column at
+    // that same column afterwards turns it into a source rows are written to while its answer
+    // stands, which the dropdown no longer offers and the API refuses
+    if (!accountSource.isCounterpartyOnly && accountById.get(choice)?.is_archived) {
+      addError(`Rows cannot be written to an archived account: ${createName}`)
+      return
+    }
+
     accounts.push({ source, account_id: choice })
     return
   }

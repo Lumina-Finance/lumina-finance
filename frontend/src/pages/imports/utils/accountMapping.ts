@@ -30,7 +30,7 @@ export function inferAccountMappings(
 }
 
 /**
- * Lists the archived accounts that unmapped sources rows are written to appear to belong to
+ * Lists the archived accounts that an unmapped row source appears to point at
  *
  * Those sources are offered every account except an archived one, so a file pointing at one
  * matches nothing and the reason never reaches the user. A source that is only ever a transfer's

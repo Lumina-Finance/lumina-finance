@@ -233,7 +233,6 @@ describe('import preview rows', () => {
       resolvedCategoryMappings: { Groceries: category.id },
       rowProblems: [{
         id: 'file-1-0',
-        fileName: 'Checking.csv',
         line: 2,
         cells: file.rows[0],
         reason: 'The amount is not a number.',

@@ -47,6 +47,7 @@ function createFile(dates: string[]): ImportFileDraft {
  */
 function build(dates: string[], dateFormat: ImportDateFormat | null) {
   return buildTransactionImportPayload({
+    accountById: new Map(),
     accountCreateCurrencies: {},
     accountCreateInstitutions: {},
     accountCreateTypes: {},
@@ -79,6 +80,9 @@ describe('import payload dates', () => {
 
     expect(result.payload).toBeNull()
     expect(result.errors).toContain('Choose the date format this file is written in.')
+
+    // Not one entry per row saying its date does not fit a format nobody has chosen yet
+    expect(result.rowProblems).toEqual([])
   })
 
   it('refuses a row the chosen format cannot read, listing the line it is on', () => {

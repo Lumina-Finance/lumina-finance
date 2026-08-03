@@ -67,14 +67,13 @@ export interface PreviewTransactionRow {
 }
 
 /**
- * One row the import cannot convert, against the file and line it came from
+ * One row the import cannot convert, against the line it sits on in the uploaded file
  *
  * The cells are the row as it was read, so the table can show it under the file's own headers
  */
 export interface ImportRowProblem {
-  /** Identity of the row within the staged files, which the preview reads to leave it out */
+  /** Identity of the row within the staged file, which the preview reads to leave it out */
   id: string
-  fileName: string
   line: number
   cells: CsvRow
   reason: string
