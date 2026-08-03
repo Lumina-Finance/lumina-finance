@@ -75,7 +75,9 @@ export function buildTransactionImportPayload({
   // Two kinds of problem, kept apart because only one of them makes judging a row meaningless. An
   // unanswered mapping question leaves every row looking broken for want of the answer, while a
   // column whose values do not fit the field is a statement about the rows themselves, and those
-  // rows are exactly what the caller lists
+  // rows are exactly what the caller lists. A column problem also leads the returned list, since it
+  // quotes a value the user has to go and find, where an unanswered question is a blank the step it
+  // belongs to already shows
   const errors: string[] = []
   const columnErrors: string[] = []
   const addError = (message: string) => {
@@ -164,7 +166,7 @@ export function buildTransactionImportPayload({
   // Judging rows before every mapping they depend on is answered blames them for the answer being
   // missing: with no category column mapped, every row reads as one with a blank category, and with
   // no date format settled, every row reads as one whose date does not fit
-  if (errors.length > 0) return { errors: [...errors, ...columnErrors], rowProblems: [], payload: null }
+  if (errors.length > 0) return { errors: [...columnErrors, ...errors], rowProblems: [], payload: null }
 
   const rows: TransactionImportPayload['rows'] = []
   const rowProblems: ImportRowProblem[] = []
@@ -219,7 +221,7 @@ export function buildTransactionImportPayload({
   // message is kept for the case it was written for
   if (rows.length === 0 && rowProblems.length === 0) addError('No transaction rows are available to import.')
 
-  const allErrors = [...errors, ...columnErrors]
+  const allErrors = [...columnErrors, ...errors]
   if (allErrors.length > 0 || rowProblems.length > 0) return { errors: allErrors, rowProblems, payload: null }
   return { errors: [], rowProblems: [], payload: { accounts, categories, rows } }
 }

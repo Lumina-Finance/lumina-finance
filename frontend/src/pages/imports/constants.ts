@@ -30,7 +30,7 @@ export const COLUMN_TARGETS: Array<{
   {
     id: 'counterparty_account_id',
     label: 'Counterparty account',
-    hint: 'Says which account a transfer\'s money went to, or came from, without writing a transaction into that account. Only transfer rows can use it, and a blank cell records the transfer as going outside this app.',
+    hint: 'Says which account a transfer\'s money went to, or came from, without writing a transaction into that account. Only rows whose category records one can use it, and a blank cell records the transfer as going outside this app.',
   },
   { id: 'dt', label: 'Date', hint: 'Transaction date.', required: true },
   { id: 'category_id', label: 'Category', hint: 'Resolved from imported category text.', required: true },
@@ -41,8 +41,8 @@ export const COLUMN_TARGETS: Array<{
   { id: 'tag_ids', label: 'Tags', hint: 'Resolved from imported tag text.' },
 ]
 
-// How many refused rows the skipped table lists before summarizing the remainder, which both
-// import flows share
+// How many entries the skipped table lists before summarizing the remainder, shared by every table
+// built on it: refused rows in both import flows, and the Firefly budgets it cannot bring in
 export const SKIPPED_TABLE_VISIBLE_LIMIT = 20
 
 // Why one row cannot be converted, listed against that row in the preview step. Each says what is
@@ -55,7 +55,7 @@ export const ROW_DATE_BLANK_REASON = 'The date cell is blank.'
 export const ROW_DATE_UNREADABLE_REASON = 'The date does not match the chosen format.'
 export const ROW_AMOUNT_BLANK_REASON = 'The amount cell is blank.'
 export const ROW_AMOUNT_UNREADABLE_REASON = 'The amount is not a number.'
-export const ROW_COUNTERPARTY_NOT_A_TRANSFER_REASON = 'Only a transfer records a counterparty account, and this row\'s category is not one.'
+export const ROW_COUNTERPARTY_NOT_A_TRANSFER_REASON = 'This row\'s category does not record a counterparty account.'
 export const ROW_COUNTERPARTY_IS_OWN_ACCOUNT_REASON = 'A transfer cannot record its own account as its counterparty.'
 
 // Shown where a source rows are written to matches an account the user has archived, which is the

@@ -118,6 +118,7 @@ export function ImportAccountMappingStep({
       id: sourceAccount.id,
       source: sourceAccount.label,
       value,
+      selectedOption: account ? { value, label: account.name } : undefined,
       autoFilled: autoFilledAccountSources.has(sourceAccount.id),
       accountType: account?.account_type ?? '',
       accountCurrency: account?.currency ?? '',

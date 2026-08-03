@@ -69,11 +69,11 @@ const FROZEN_HEADER_Z_INDEX = 3
  * stopping at the frozen pair's cap, so short reasons leave no empty column
  * beside them and long ones wrap within the cap
  *
- * The width sits on this block rather than on the cell because the table lays
- * itself out from its content, where a width or a cap on a cell is left
- * undefined and a browser may size the column to the text regardless. Without
- * a width here at all, that layout squeezes the one column that wraps down to
- * its narrowest while the nowrap file columns take the rest
+ * The sizing sits on this block rather than on the cell because the table lays
+ * itself out from its content, and CSS leaves a minimum or a cap on a cell
+ * undefined there, so the column could take the width of the longest reason on
+ * one line. Without a width here at all, that layout squeezes the one column
+ * that wraps down to its narrowest while the nowrap file columns take the rest
  */
 function buildReasonContentStyle(leadColumnWidth: string): CSSProperties {
   return {
