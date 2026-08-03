@@ -6,6 +6,10 @@ import { IMPORT_INSET_STYLE, SKIPPED_TABLE_VISIBLE_LIMIT } from '@/pages/imports
 // units against the horizontal scroller
 const FROZEN_GROUP_WIDTH = '30cqw'
 
+// Floor for the reason column on a narrow panel, where its share of the width
+// would leave too little to read a sentence in
+const REASON_COLUMN_MIN_WIDTH = '10rem'
+
 // Shown in place of blank values so empty cells still read as present
 const EMPTY_CELL_PLACEHOLDER = '–'
 
@@ -37,11 +41,20 @@ function buildFrozenLeadCellStyle(leadColumnWidth: string): CSSProperties {
 /**
  * Builds the frozen reason cell style, whose right border marks the edge of
  * the frozen group so scrolling columns visibly slide beneath it
+ *
+ * The column carries the width, leaving it to hold the frozen pair's share of
+ * the panel exactly. Table auto-layout would otherwise squeeze the one column
+ * that wraps down to its narrowest while the nowrap file columns take the rest
  */
 function buildFrozenReasonCellStyle(leadColumnWidth: string): CSSProperties {
+  const width = `calc(${FROZEN_GROUP_WIDTH} - ${leadColumnWidth})`
+
   return {
     position: 'sticky',
     left: leadColumnWidth,
+    width,
+    minWidth: REASON_COLUMN_MIN_WIDTH,
+    maxWidth: width,
     background: FROZEN_COLUMN_BACKGROUND,
     borderRight: '1px solid var(--app-border)',
     zIndex: 1,
@@ -59,18 +72,6 @@ const HEADER_CELL_STYLE: CSSProperties = {
 }
 
 const FROZEN_HEADER_Z_INDEX = 3
-
-/**
- * Sizes the reason content so the frozen pair holds its share of the panel
- * exactly, since table auto-layout would otherwise squeeze the wrapping
- * column to its minimum while the nowrap raw columns take the rest
- */
-function buildReasonContentStyle(leadColumnWidth: string): CSSProperties {
-  return {
-    width: `calc(${FROZEN_GROUP_WIDTH} - ${leadColumnWidth})`,
-    minWidth: '10rem',
-  }
-}
 
 // The table uses separate borders because collapsed borders do not travel
 // with sticky cells, so each body cell draws its own divider
@@ -139,7 +140,6 @@ export function ImportSkippedTable({
 
   const frozenLeadCellStyle = buildFrozenLeadCellStyle(leadColumnWidth)
   const frozenReasonCellStyle = buildFrozenReasonCellStyle(leadColumnWidth)
-  const reasonContentStyle = buildReasonContentStyle(leadColumnWidth)
 
   return (
     <div className="rounded-lg px-4 py-3" style={IMPORT_INSET_STYLE}>
@@ -214,7 +214,7 @@ export function ImportSkippedTable({
                       className="py-1.5 pr-4 align-top"
                       style={{ ...frozenReasonCellStyle, ...BODY_CELL_BORDER_STYLE, color: 'var(--app-accent)' }}
                     >
-                      <div className="whitespace-normal break-words" style={reasonContentStyle}>
+                      <div className="h-full w-full whitespace-normal break-words">
                         {row.reason}
                       </div>
                     </td>
