@@ -1,3 +1,4 @@
+import { SKIPPED_TABLE_VISIBLE_LIMIT } from '@/pages/imports/constants'
 import type { ImportRowProblem } from '@/pages/imports/types'
 import { ImportSkippedTable, type ImportSkippedTableRow } from './SkippedTable'
 
@@ -18,7 +19,10 @@ export function ImportRowProblemsTable({
   rowProblems: ImportRowProblem[]
   headers: string[]
 }) {
-  const tableRows: ImportSkippedTableRow[] = rowProblems.map((problem) => ({
+  // Only the rows the table will show are shaped for it, and the count it summarizes the rest
+  // against comes from the full list. A file whose every row is refused would otherwise rebuild a
+  // table row per imported row on each render of the page
+  const tableRows: ImportSkippedTableRow[] = rowProblems.slice(0, SKIPPED_TABLE_VISIBLE_LIMIT).map((problem) => ({
     key: problem.id,
     lead: problem.rowNumber,
     reason: problem.reason,

@@ -7,10 +7,12 @@ import {
   CREATE_CATEGORY_VALUE,
   DEFAULT_CATEGORY_ICON,
   ROW_ACCOUNT_BLANK_REASON,
+  ROW_AMOUNT_BLANK_REASON,
   ROW_AMOUNT_UNREADABLE_REASON,
   ROW_CATEGORY_BLANK_REASON,
   ROW_COUNTERPARTY_IS_OWN_ACCOUNT_REASON,
   ROW_COUNTERPARTY_NOT_A_TRANSFER_REASON,
+  ROW_DATE_BLANK_REASON,
   ROW_DATE_UNREADABLE_REASON,
 } from '@/pages/imports/constants'
 import { BALANCE_ADJUSTMENT_CATEGORY_NAME, doesTransferRecordCounterpartyAccount, OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
@@ -25,7 +27,7 @@ import type {
 } from '@/pages/imports/types'
 import { isImportAccountType } from '@/pages/imports/accountTypeGuard'
 import { getCategoryMatchKind, splitImportedValues } from './categoryMatching'
-import { getImportRowId, getImportRowNumber } from './common'
+import { getImportRowId } from './common'
 import { getMappedValue } from './columnMapping'
 import { type ImportDateFormat, parseImportNumber, readImportDate } from './valueParsers'
 
@@ -170,7 +172,8 @@ export function buildTransactionImportPayload({
     for (const [rowIndex, row] of file.rows.entries()) {
       const accountSource = columnMap.account_id ? getMappedValue(row, columnMap.account_id) : file.id
       const categorySource = getMappedValue(row, columnMap.category_id)
-      const dt = dateFormat ? readImportDate(getMappedValue(row, columnMap.dt), dateFormat) : ''
+      const importedDate = getMappedValue(row, columnMap.dt)
+      const dt = dateFormat ? readImportDate(importedDate, dateFormat) : ''
       const amount = getMappedValue(row, columnMap.amount)
 
       const counterpartySource = columnMap.counterparty_account_id
@@ -184,12 +187,15 @@ export function buildTransactionImportPayload({
         categorySource,
         counterpartySource,
         dt,
+        importedDate,
         recordsCounterpartyBySource,
       })
       if (problem) {
         rowProblems.push({
           id: getImportRowId(file.id, rowIndex),
-          rowNumber: getImportRowNumber(rowIndex),
+          // Its position among the file's data rows, which is not the line it sits on: parsing
+          // drops blank lines and folds a quoted value carrying a newline into one row
+          rowNumber: rowIndex + 1,
           cells: row,
           reason: problem,
         })
@@ -231,6 +237,7 @@ function getImportRowProblem({
   categorySource,
   counterpartySource,
   dt,
+  importedDate,
   recordsCounterpartyBySource,
 }: {
   accountMappings: Record<string, string>
@@ -239,11 +246,17 @@ function getImportRowProblem({
   categorySource: string
   counterpartySource: string | null
   dt: string
+  importedDate: string
   recordsCounterpartyBySource: Record<string, boolean>
 }) {
   if (!accountSource) return ROW_ACCOUNT_BLANK_REASON
   if (!categorySource) return ROW_CATEGORY_BLANK_REASON
+
+  // A cell nobody filled in and a cell the chosen format cannot read send the user to different
+  // jobs, and both parsers answer the same way for an empty string, so the raw cell is asked first
+  if (!importedDate) return ROW_DATE_BLANK_REASON
   if (!dt) return ROW_DATE_UNREADABLE_REASON
+  if (!amount) return ROW_AMOUNT_BLANK_REASON
   if (parseImportNumber(amount) === null) return ROW_AMOUNT_UNREADABLE_REASON
   if (!counterpartySource) return null
 

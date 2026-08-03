@@ -39,16 +39,6 @@ export function getImportRowId(fileId: string, rowIndex: number) {
 }
 
 /**
- * Numbers a parsed row as its position among the file's data rows
- *
- * Not the line it sits on in the file: parsing drops blank lines and folds a quoted value carrying
- * a newline into one row, so the two only agree for a file with neither
- */
-export function getImportRowNumber(rowIndex: number) {
-  return rowIndex + 1
-}
-
-/**
  * Renders a file size for display, stepping up from bytes to kilobytes to megabytes in units of 1024
  * and keeping one decimal place above the byte range
  */

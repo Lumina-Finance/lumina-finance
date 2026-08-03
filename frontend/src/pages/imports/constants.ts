@@ -46,10 +46,14 @@ export const COLUMN_TARGETS: Array<{
 export const SKIPPED_TABLE_VISIBLE_LIMIT = 20
 
 // Why one row cannot be converted, listed against that row in the preview step. Each says what is
-// wrong with the row itself, since the entry carries the file, the line and the row's own cells
+// wrong with the row itself, since the entry carries the row number and the row's own cells. A
+// blank cell is told apart from an unreadable one, because filling it in and correcting the whole
+// column's format are different jobs
 export const ROW_ACCOUNT_BLANK_REASON = 'The account source is blank.'
 export const ROW_CATEGORY_BLANK_REASON = 'The category source is blank.'
+export const ROW_DATE_BLANK_REASON = 'The date cell is blank.'
 export const ROW_DATE_UNREADABLE_REASON = 'The date does not match the chosen format.'
+export const ROW_AMOUNT_BLANK_REASON = 'The amount cell is blank.'
 export const ROW_AMOUNT_UNREADABLE_REASON = 'The amount is not a number.'
 export const ROW_COUNTERPARTY_NOT_A_TRANSFER_REASON = 'Only a transfer records a counterparty account, and this row\'s category is not one.'
 export const ROW_COUNTERPARTY_IS_OWN_ACCOUNT_REASON = 'A transfer cannot record its own account as its counterparty.'

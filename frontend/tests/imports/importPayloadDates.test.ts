@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { Category } from '@/api/categories'
-import { EMPTY_COLUMN_MAP, ROW_DATE_UNREADABLE_REASON } from '@/pages/imports/constants'
+import { EMPTY_COLUMN_MAP, ROW_DATE_BLANK_REASON, ROW_DATE_UNREADABLE_REASON } from '@/pages/imports/constants'
 import type { ColumnMap, ImportFileDraft } from '@/pages/imports/types'
 import { buildTransactionImportPayload } from '@/pages/imports/utils'
 import type { ImportDateFormat } from '@/pages/imports/utils/valueParsers'
@@ -45,7 +45,7 @@ function createFile(dates: string[]): ImportFileDraft {
 /**
  * Builds a payload for one file, with every mapping other than the date format already settled
  */
-function build(dates: string[], dateFormat: ImportDateFormat | null) {
+function build(dates: string[], dateFormat: ImportDateFormat | null, columnValidationErrors: Record<string, string> = {}) {
   return buildTransactionImportPayload({
     accountById: new Map(),
     accountCreateCurrencies: {},
@@ -58,7 +58,7 @@ function build(dates: string[], dateFormat: ImportDateFormat | null) {
     categoryMappings: { Groceries: CATEGORY.id },
     categoryTypesBySource: {},
     columnMap: COLUMN_MAP,
-    columnValidationErrors: {},
+    columnValidationErrors,
     dateFormat,
     files: [createFile(dates)],
     importedCategories: ['Groceries'],
@@ -92,6 +92,21 @@ describe('import payload dates', () => {
     expect(result.rowProblems.map((problem) => ({ rowNumber: problem.rowNumber, reason: problem.reason }))).toEqual([
       { rowNumber: 2, reason: ROW_DATE_UNREADABLE_REASON },
     ])
+  })
+
+  it('lists the rows behind a column the values do not fit, alongside the column error', () => {
+    const columnError = 'Expected valid dates in the day-first format, such as 15/03/2024; every row must have a value. "2024-03-16" is not a valid date.'
+    const result = build(['15/03/2024', '2024-03-16'], 'dayFirst', { Date: columnError })
+
+    // A column whose values do not fit is a statement about rows, so it reports the column and the
+    // rows behind it, unlike a mapping question nobody has answered yet
+    expect(result.errors).toEqual([columnError])
+    expect(result.rowProblems.map((problem) => problem.rowNumber)).toEqual([2])
+  })
+
+  it('tells a blank cell apart from one the chosen format cannot read', () => {
+    expect(build(['15/03/2024', ''], 'dayFirst').rowProblems.map((problem) => problem.reason))
+      .toEqual([ROW_DATE_BLANK_REASON])
   })
 
   it('refuses a day the calendar does not have, whatever format states it', () => {
