@@ -30,7 +30,7 @@ export const COLUMN_TARGETS: Array<{
   {
     id: 'counterparty_account_id',
     label: 'Counterparty account',
-    hint: 'Says which account a transfer\'s money went to, or came from. Only transfer rows can use it, and a blank cell records the transfer as going outside this app.',
+    hint: 'Says which account a transfer\'s money went to, or came from, without writing a transaction into that account. Only transfer rows can use it, and a blank cell records the transfer as going outside this app.',
   },
   { id: 'dt', label: 'Date', hint: 'Transaction date.', required: true },
   { id: 'category_id', label: 'Category', hint: 'Resolved from imported category text.', required: true },
@@ -64,7 +64,7 @@ export const ARCHIVED_ACCOUNT_MATCH_EXPLANATION = 'An archived account takes no 
 
 // Shown over the accounts that appear only as a counterparty, which the import writes nothing to
 export const COUNTERPARTY_ONLY_TABLE_TITLE = 'Counterparty accounts'
-export const COUNTERPARTY_ONLY_EXPLANATION = 'These accounts only ever appeared as the counterparty of a transfer, so no imported row is written to them and the importer creates nothing for them. Choosing one records where the transfer\'s money came from or went to, which is why an archived account is offered here and stays archived. To keep a source as an account of your own, select Create New Account in its Existing Account column.'
+export const COUNTERPARTY_ONLY_EXPLANATION = 'These accounts only ever appeared as the counterparty of a transfer. Matching one to an account of your own records where the money came from or went to and writes no transaction into that account, which is why an account you have archived can be chosen here and stays archived. Leaving one unmatched records the transfer as going outside this app. To bring a name in as an account of your own instead, select Create New Account in its Existing Account column.'
 
 // Each format is named by an example of its shape rather than by a standard, because the year-first
 // option deliberately takes a slash and an unpadded part, which ISO 8601 does not. Keyed by format
