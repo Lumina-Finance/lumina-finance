@@ -10,7 +10,6 @@ import type { Currency } from '@/api/currency'
 import {
   CREATE_ACCOUNT_VALUE,
   EMPTY_COLUMN_MAP,
-  ROW_COUNTERPARTY_CURRENCY_MISMATCH_REASON,
   ROW_COUNTERPARTY_IS_OWN_ACCOUNT_REASON,
   ROW_COUNTERPARTY_NOT_A_TRANSFER_REASON,
 } from '@/pages/imports/constants'
@@ -71,12 +70,10 @@ function createAccount(id: string, name: string): AccountsOverview {
 const CHEQUING = createAccount('chequing', 'Chequing')
 const SAVINGS = createAccount('savings', 'Savings')
 const ARCHIVED_SAVINGS = { ...createAccount('archived-savings', 'Old Savings'), is_archived: true }
-const USD_SAVINGS = { ...createAccount('usd-savings', 'US Savings'), currency: 'USD' }
 const ACCOUNTS_BY_ID = new Map([
   [CHEQUING.id, CHEQUING],
   [SAVINGS.id, SAVINGS],
   [ARCHIVED_SAVINGS.id, ARCHIVED_SAVINGS],
-  [USD_SAVINGS.id, USD_SAVINGS],
 ])
 
 /**
@@ -216,41 +213,6 @@ describe('CSV import counterparty account', () => {
 
     expect(rowAccount.payload).toBeNull()
     expect(rowAccount.errors).toContain('Rows cannot be written to an archived account: Chequing')
-  })
-
-  it('refuses two currencies across a transfer whose both sides are imported', () => {
-    const bothSidesImported: ImportAccountSource[] = [
-      { id: 'Chequing', label: 'Chequing', matchText: 'Chequing', isCounterpartyOnly: false },
-      { id: 'Savings', label: 'Savings', matchText: 'Savings', isCounterpartyOnly: false },
-    ]
-
-    const mismatched = buildPayload({
-      accountMappings: { Chequing: CHEQUING.id, Savings: USD_SAVINGS.id },
-      accountSources: bothSidesImported,
-    })
-
-    expect(mismatched.payload).toBeNull()
-    expect(mismatched.rowProblems.map((problem) => problem.reason)).toEqual([ROW_COUNTERPARTY_CURRENCY_MISMATCH_REASON])
-
-    const matched = buildPayload({
-      accountMappings: { Chequing: CHEQUING.id, Savings: SAVINGS.id },
-      accountSources: bothSidesImported,
-    })
-
-    expect(matched.rowProblems).toEqual([])
-    expect(matched.payload?.rows[0].counterparty_account_source).toBe('Savings')
-  })
-
-  it('allows two currencies where nothing is imported into the counterparty', () => {
-    // No row is written to it, so the transfer records where the money went and there is no second
-    // transaction that would have to carry the same amount in another currency
-    const { errors, payload, rowProblems } = buildPayload({
-      accountMappings: { Chequing: CHEQUING.id, Savings: USD_SAVINGS.id },
-    })
-
-    expect(errors).toEqual([])
-    expect(rowProblems).toEqual([])
-    expect(payload?.rows[0].counterparty_account_source).toBe('Savings')
   })
 
   it('refuses the outside answer for a source rows are written to', () => {

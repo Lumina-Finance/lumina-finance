@@ -57,7 +57,6 @@ export const ROW_AMOUNT_BLANK_REASON = 'The amount cell is blank.'
 export const ROW_AMOUNT_UNREADABLE_REASON = 'The amount is not a number.'
 export const ROW_COUNTERPARTY_NOT_A_TRANSFER_REASON = 'Only a transfer records a counterparty account, and this row\'s category is not one.'
 export const ROW_COUNTERPARTY_IS_OWN_ACCOUNT_REASON = 'A transfer cannot record its own account as its counterparty.'
-export const ROW_COUNTERPARTY_CURRENCY_MISMATCH_REASON = 'Both sides of this transfer are imported, so the two accounts must hold the same currency.'
 
 // Shown where a source rows are written to matches an account the user has archived, which is the
 // one account the dropdown above does not offer. The matched account names follow it
