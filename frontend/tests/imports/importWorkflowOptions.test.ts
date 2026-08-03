@@ -178,6 +178,32 @@ describe('import workflow option helpers', () => {
     expect(options.find((option) => option.value === 'savings')?.badge).toBe('Archived')
     expect(options.find((option) => option.value === 'checking')?.badge).toBeUndefined()
   })
+
+  it('gathers accounts by kind, so no heading is reached twice', () => {
+    const options = buildImportAccountOptions([
+      createAccount({ id: 'visa', name: 'Visa', account_kind: 'revolving' }),
+      createAccount({ id: 'savings', name: 'Savings' }),
+      createAccount({ id: 'mortgage', name: 'Mortgage', account_kind: 'amortizing' }),
+      createAccount({ id: 'chequing', name: 'Chequing' }),
+    ])
+
+    // Creation order interleaves the kinds, and the dropdown heads a group every time the group
+    // changes going down the list
+    expect(options.map((option) => option.group)).toEqual([
+      'Import Action',
+      'Assets',
+      'Assets',
+      'Revolving Credit',
+      'Amortizing Debt',
+    ])
+    expect(options.map((option) => option.label)).toEqual([
+      'Create New Account',
+      'Chequing',
+      'Savings',
+      'Visa',
+      'Mortgage',
+    ])
+  })
 })
 
 describe('archived accounts in account mapping', () => {

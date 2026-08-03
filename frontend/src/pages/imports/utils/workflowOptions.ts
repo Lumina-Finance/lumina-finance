@@ -5,6 +5,7 @@ import type { Institution } from '@/api/institutions'
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
 import {
   ACCOUNT_KIND_LABELS,
+  ACCOUNT_KIND_RANKS,
   COLUMN_TARGETS,
   CREATE_ACCOUNT_VALUE,
   CREATE_CATEGORY_VALUE,
@@ -24,16 +25,23 @@ const ARCHIVED_ACCOUNT_BADGE = 'Archived'
 
 /**
  * Builds account dropdown options with the create-account action pinned first
+ *
+ * Sorted by kind and then by name, because accounts arrive in the order they were created and the
+ * dropdown heads a group every time the group changes going down the list, so an unsorted list
+ * repeats a heading for every run of accounts sharing a kind
  */
 export function buildImportAccountOptions(accounts: AccountsOverview[]): DropdownOption[] {
   return [
     { value: CREATE_ACCOUNT_VALUE, label: 'Create New Account', group: 'Import Action' },
-    ...accounts.map((account) => ({
-      value: account.id,
-      label: account.name,
-      group: ACCOUNT_KIND_LABELS[account.account_kind],
-      badge: account.is_archived ? ARCHIVED_ACCOUNT_BADGE : undefined,
-    })),
+    ...accounts
+      .slice()
+      .sort((a, b) => ACCOUNT_KIND_RANKS[a.account_kind] - ACCOUNT_KIND_RANKS[b.account_kind] || a.name.localeCompare(b.name))
+      .map((account) => ({
+        value: account.id,
+        label: account.name,
+        group: ACCOUNT_KIND_LABELS[account.account_kind],
+        badge: account.is_archived ? ARCHIVED_ACCOUNT_BADGE : undefined,
+      })),
   ]
 }
 

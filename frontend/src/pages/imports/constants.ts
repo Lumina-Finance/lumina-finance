@@ -108,6 +108,15 @@ export const ACCOUNT_KIND_LABELS: Record<AccountsOverview['account_kind'], strin
   amortizing: 'Amortizing Debt',
 }
 
+// Kind decides which group an account falls under, and the dropdown heads a group every time the
+// group changes going down the list, so accounts have to arrive gathered by kind or a kind reached
+// twice is headed twice. The order is the one the account type list already uses
+export const ACCOUNT_KIND_RANKS: Record<AccountsOverview['account_kind'], number> = {
+  asset: 0,
+  revolving: 1,
+  amortizing: 2,
+}
+
 export const ACCOUNT_TYPE_OPTIONS: DropdownOption[] = [
   { value: 'checking', label: 'Checking', group: 'Assets' },
   { value: 'savings', label: 'Savings', group: 'Assets' },
