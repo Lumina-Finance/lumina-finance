@@ -55,7 +55,7 @@ export const ROW_DATE_BLANK_REASON = 'The date cell is blank.'
 export const ROW_DATE_UNREADABLE_REASON = 'The date does not match the chosen format.'
 export const ROW_AMOUNT_BLANK_REASON = 'The amount cell is blank.'
 export const ROW_AMOUNT_UNREADABLE_REASON = 'The amount is not a number.'
-export const ROW_COUNTERPARTY_NOT_A_TRANSFER_REASON = 'This row\'s category does not record a counterparty account.'
+export const ROW_COUNTERPARTY_NOT_A_TRANSFER_REASON = 'A non-transfer transaction should not have a counterparty account recorded.'
 export const ROW_COUNTERPARTY_IS_OWN_ACCOUNT_REASON = 'A transfer cannot record its own account as its counterparty.'
 
 // Shown where a source rows are written to matches an account the user has archived, which is the
