@@ -418,3 +418,95 @@ async def test_import_transactions_rejects_archived_account_mapping(client):
 
     assert resp.status_code == 422
     assert resp.json()["detail"] == "Account is archived"
+
+
+async def test_import_transactions_records_an_archived_account_as_the_counterparty(client):
+    """A transfer can point at an archived account, because no row is written to it."""
+    headers, account_id, _ = await _setup_user_with_deps(client)
+    savings_resp = await _create_account(client, headers, name="Old Savings", account_type="savings")
+    savings_id = savings_resp.json()["id"]
+    archive_resp = await client.patch(f"/accounts/{savings_id}", json={"is_archived": True}, headers=headers)
+    assert archive_resp.status_code == 200
+    transfer_category_id = await _get_system_category_id(client, headers, "Transfer")
+
+    resp = await client.post("/transactions/import", json={
+        "accounts": [
+            {"source": "Chequing", "account_id": account_id},
+            {"source": "Old Savings", "account_id": savings_id},
+        ],
+        "categories": [{"source": "Transfer", "category_id": transfer_category_id}],
+        "rows": [{
+            "account_source": "Chequing",
+            "category_source": "Transfer",
+            "dt": "2026-04-11",
+            "amount": "-500.00",
+            "counterparty_account_source": "Old Savings",
+        }],
+    }, headers=headers)
+
+    assert resp.status_code == 201
+    transactions_resp = await client.get("/transactions", headers=headers)
+    transaction = transactions_resp.json()[0]
+    assert transaction["counterparty_account_id"] == savings_id
+    assert transaction["counterparty_account_scope"] == "tracked"
+
+
+async def test_import_transactions_rejects_an_archived_counterparty_that_also_takes_rows(client):
+    """A source only resolves as a counterparty while no row in the same request is written to it."""
+    headers, account_id, _ = await _setup_user_with_deps(client)
+    savings_resp = await _create_account(client, headers, name="Old Savings", account_type="savings")
+    savings_id = savings_resp.json()["id"]
+    archive_resp = await client.patch(f"/accounts/{savings_id}", json={"is_archived": True}, headers=headers)
+    assert archive_resp.status_code == 200
+    transfer_category_id = await _get_system_category_id(client, headers, "Transfer")
+
+    resp = await client.post("/transactions/import", json={
+        "accounts": [
+            {"source": "Chequing", "account_id": account_id},
+            {"source": "Old Savings", "account_id": savings_id},
+        ],
+        "categories": [{"source": "Transfer", "category_id": transfer_category_id}],
+        "rows": [
+            {
+                "account_source": "Chequing",
+                "category_source": "Transfer",
+                "dt": "2026-04-11",
+                "amount": "-500.00",
+                "counterparty_account_source": "Old Savings",
+            },
+            {
+                "account_source": "Old Savings",
+                "category_source": "Transfer",
+                "dt": "2026-04-13",
+                "amount": "500.00",
+            },
+        ],
+    }, headers=headers)
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "Account is archived"
+
+
+async def test_import_transactions_rejects_a_counterparty_in_another_users_account(client):
+    """Resolving a counterparty still needs read access, so another user's account is unreachable."""
+    headers, account_id, _ = await _setup_user_with_deps(client)
+    _, other_account_id, _ = await _setup_user_with_deps(client, email="other@example.com", name_prefix="Other")
+    transfer_category_id = await _get_system_category_id(client, headers, "Transfer")
+
+    resp = await client.post("/transactions/import", json={
+        "accounts": [
+            {"source": "Chequing", "account_id": account_id},
+            {"source": "Theirs", "account_id": other_account_id},
+        ],
+        "categories": [{"source": "Transfer", "category_id": transfer_category_id}],
+        "rows": [{
+            "account_source": "Chequing",
+            "category_source": "Transfer",
+            "dt": "2026-04-11",
+            "amount": "-500.00",
+            "counterparty_account_source": "Theirs",
+        }],
+    }, headers=headers)
+
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Account not found"

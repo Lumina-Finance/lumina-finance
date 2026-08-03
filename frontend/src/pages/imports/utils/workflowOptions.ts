@@ -17,6 +17,11 @@ import { getImportAccountName } from './accountMapping'
 import { splitImportedValues } from './categoryMatching'
 import { unique } from './common'
 
+// Marks an account that is hidden everywhere else in the app, kept short because it renders as a
+// pill beside the account name. Only the counterparty list offers one, since nothing is written to
+// the account it records
+const ARCHIVED_ACCOUNT_BADGE = 'Archived'
+
 /**
  * Builds account dropdown options with the create-account action pinned first
  */
@@ -27,6 +32,7 @@ export function buildImportAccountOptions(accounts: AccountsOverview[]): Dropdow
       value: account.id,
       label: account.name,
       group: ACCOUNT_KIND_LABELS[account.account_kind],
+      badge: account.is_archived ? ARCHIVED_ACCOUNT_BADGE : undefined,
     })),
   ]
 }

@@ -6,10 +6,12 @@ import type { ColumnMap, ColumnTarget, ColumnValidationErrors, ImportCategoryKin
 import {
   buildColumnTargetOptions,
   buildImportAccountMappingSources,
+  buildImportAccountOptions,
   buildTransactionImportPayload,
   buildImportPreviewRows,
   formatImportSummary,
   getErrorMessage,
+  getArchivedAccountMatches,
   getImportedCategoryTypes,
   getImportedCategories,
   getImportedMerchants,
@@ -100,6 +102,7 @@ export function useTransactionImportWorkflow() {
     institutionsLoading,
     categoriesLoading,
     selectableAccounts,
+    allAccounts,
     accountOptions,
     currencyOptions,
     institutionOptions,
@@ -167,13 +170,14 @@ export function useTransactionImportWorkflow() {
   )
 
   // Only a source no row is written to can answer that the money left the tracked accounts, so the
-  // extra choice is kept off every other row's dropdown
+  // extra choice is kept off every other row's dropdown, and the same reason is why an archived
+  // account is offered here and nowhere else in the flow
   const counterpartyAccountOptions = useMemo(
     () => [
       { value: OUTSIDE_ACCOUNT_VALUE, label: OUTSIDE_ACCOUNT_LABEL, group: 'Import Action' },
-      ...accountOptions,
+      ...buildImportAccountOptions(allAccounts),
     ],
-    [accountOptions],
+    [allAccounts],
   )
 
   const canInferAccountMappings = Boolean(accountAutoMatchKey)
@@ -182,7 +186,10 @@ export function useTransactionImportWorkflow() {
   const resolvedAccountMappings = useMemo(
     () => {
       const resolved = canInferAccountMappings
-        ? inferAccountMappings(accountMappingSources, accountMappings, selectableAccounts)
+        ? inferAccountMappings(accountMappingSources, accountMappings, {
+          rowAccounts: selectableAccounts,
+          counterpartyAccounts: allAccounts,
+        })
         : { ...accountMappings }
 
       // No row is written to these, so the import creates nothing for them unless the user asks for
@@ -192,7 +199,12 @@ export function useTransactionImportWorkflow() {
       }
       return resolved
     },
-    [accountMappingSources, accountMappings, canInferAccountMappings, selectableAccounts],
+    [accountMappingSources, accountMappings, allAccounts, canInferAccountMappings, selectableAccounts],
+  )
+
+  const archivedAccountMatches = useMemo(
+    () => getArchivedAccountMatches(accountMappingSources, resolvedAccountMappings, allAccounts),
+    [accountMappingSources, allAccounts, resolvedAccountMappings],
   )
 
   // The highlight says a choice was matched from the file. The outside answer on a counterparty
@@ -476,6 +488,7 @@ export function useTransactionImportWorkflow() {
     autoFilledColumnHeaders,
     columnMap,
     accountMappings: resolvedAccountMappings,
+    archivedAccountMatches,
     autoFilledAccountSources,
     accountCreateTypes,
     accountCreateCurrencies,

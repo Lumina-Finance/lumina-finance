@@ -44,9 +44,13 @@ export const COLUMN_TARGETS: Array<{
 // Shown against the counterparty column while it is being mapped
 export const COUNTERPARTY_EXPLANATION = 'Says which account a transfer\'s money went to, or came from. Only transfer rows can use it, and a blank cell records the transfer as going outside this app.'
 
+// Shown where a source rows are written to matches an account the user has archived, which is the
+// one account the dropdown above does not offer. The matched account names follow it
+export const ARCHIVED_ACCOUNT_MATCH_EXPLANATION = 'An archived account takes no new transactions, so it is not offered above. Unarchive one of these to import rows into it:'
+
 // Shown over the accounts that appear only as a counterparty, which the import writes nothing to
 export const COUNTERPARTY_ONLY_TABLE_TITLE = 'Counterparty accounts'
-export const COUNTERPARTY_ONLY_EXPLANATION = 'These accounts only ever appeared as the counterparty of a transfer, so no imported row is written to them and the importer creates nothing for them. To keep one as an account of your own, select Create New Account in its Existing Account column.'
+export const COUNTERPARTY_ONLY_EXPLANATION = 'These accounts only ever appeared as the counterparty of a transfer, so no imported row is written to them and the importer creates nothing for them. Choosing one records where the transfer\'s money came from or went to, which is why an archived account is offered here and stays archived. To keep a source as an account of your own, select Create New Account in its Existing Account column.'
 
 // Each format is named by an example of its shape rather than by a standard, because the year-first
 // option deliberately takes a slash and an unpadded part, which ISO 8601 does not. Keyed by format

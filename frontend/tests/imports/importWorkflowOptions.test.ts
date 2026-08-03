@@ -14,11 +14,13 @@ import {
   buildImportCategoryMatchOptions,
   buildImportCurrencyOptions,
   buildImportInstitutionOptions,
+  getArchivedAccountMatches,
   getImportedCategories,
   getImportedMerchants,
   getImportedTags,
   getImportHeaders,
   getMissingRequiredColumnLabels,
+  inferAccountMappings,
 } from '@/pages/imports/utils'
 
 /**
@@ -149,5 +151,41 @@ describe('import workflow option helpers', () => {
     expect(getImportedCategories(files, 'Category')).toEqual(['Groceries', 'Rent'])
     expect(getImportedMerchants(files, 'Merchant')).toEqual(['Landlord', 'Market'])
     expect(getImportedTags(files, 'Tags')).toEqual(['essentials', 'food', 'housing'])
+  })
+
+  it('marks an archived account wherever it is offered', () => {
+    const options = buildImportAccountOptions([
+      createAccount({ id: 'savings', name: 'Old Savings', is_archived: true }),
+      createAccount({ id: 'checking', name: 'Chequing' }),
+    ])
+
+    expect(options.find((option) => option.value === 'savings')?.badge).toBe('Archived')
+    expect(options.find((option) => option.value === 'checking')?.badge).toBeUndefined()
+  })
+})
+
+describe('archived accounts in account mapping', () => {
+  const archivedSavings = createAccount({ id: 'savings', name: 'Old Savings', is_archived: true })
+  const chequing = createAccount({ id: 'checking', name: 'Chequing' })
+  const rowSource = { id: 'Old Savings', label: 'Old Savings', matchText: 'Old Savings', isCounterpartyOnly: false }
+  const counterpartySource = { ...rowSource, isCounterpartyOnly: true }
+
+  it('matches a counterparty source to an archived account and leaves a row source unmapped', () => {
+    const lists = { rowAccounts: [chequing], counterpartyAccounts: [chequing, archivedSavings] }
+
+    expect(inferAccountMappings([counterpartySource], {}, lists)).toEqual({ 'Old Savings': 'savings' })
+    expect(inferAccountMappings([rowSource], {}, lists)).toEqual({})
+  })
+
+  it('reports the archived account a row source was left unmapped by', () => {
+    const accounts = [chequing, archivedSavings]
+
+    expect(getArchivedAccountMatches([rowSource], {}, accounts)).toEqual(['Old Savings'])
+
+    // Nothing to say once the source is answered, and nothing to say about a counterparty source,
+    // which is offered the archived account in the first place
+    expect(getArchivedAccountMatches([rowSource], { 'Old Savings': 'checking' }, accounts)).toEqual([])
+    expect(getArchivedAccountMatches([counterpartySource], {}, accounts)).toEqual([])
+    expect(getArchivedAccountMatches([rowSource], {}, [chequing])).toEqual([])
   })
 })

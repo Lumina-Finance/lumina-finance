@@ -68,7 +68,9 @@ async def import_firefly_transactions(
         Import summary with converted, skipped, and created record counts
     """
     stats = ImportStats()
-    account_sources = await resolve_import_account_sources(db, user, data.accounts, stats)
+    # Both legs of a Firefly transfer get a row written, so every source here is an account the
+    # import writes to and none of them takes the weaker counterparty rule
+    account_sources = await resolve_import_account_sources(db, user, data.accounts, stats, set())
 
     # Every Firefly source is an endpoint rows are written to, and the export states both sides of a
     # transfer itself, so there is nothing here an outside answer could describe

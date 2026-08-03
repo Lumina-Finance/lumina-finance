@@ -33,6 +33,7 @@ async def resolve_import_account_sources(
     user: User,
     mappings: list[TransactionImportAccountMapping],
     stats: ImportStats,
+    counterparty_only_sources: set[str],
 ) -> ImportAccountSources:
     """Resolve every declared account source to an account or to the outside answer
 
@@ -44,6 +45,9 @@ async def resolve_import_account_sources(
         user: Authenticated user running the import
         mappings: Account source mappings from the import payload
         stats: Import summary counters updated while accounts are matched or created
+        counterparty_only_sources: Trimmed sources no row is written to, which the caller works out
+            from its own rows rather than taking from the payload, since resolving one of these
+            asks less of the account than writing to it does
 
     Returns:
         Accounts keyed by source, and the sources answered as outside the tracked accounts
@@ -69,7 +73,14 @@ async def resolve_import_account_sources(
             outside_sources.add(source)
             continue
 
-        accounts_by_source[source] = await _get_or_create_import_account_for_mapping(db, user, mapping, source, stats)
+        accounts_by_source[source] = await _get_or_create_import_account_for_mapping(
+            db,
+            user,
+            mapping,
+            source,
+            stats,
+            is_counterparty_only=source in counterparty_only_sources,
+        )
     return ImportAccountSources(accounts_by_source=accounts_by_source, outside_sources=outside_sources)
 
 
@@ -79,6 +90,7 @@ async def _get_or_create_import_account_for_mapping(
     mapping: TransactionImportAccountMapping,
     source: str,
     stats: ImportStats,
+    is_counterparty_only: bool,
 ) -> Account:
     """Return the account selected by one import account source mapping
 
@@ -88,6 +100,8 @@ async def _get_or_create_import_account_for_mapping(
         mapping: Account source mapping from the import payload
         source: Trimmed account source used in validation messages
         stats: Import summary counters updated when an account is reused or created
+        is_counterparty_only: True when no row is written to this source, which resolves it under
+            the weaker rule a transfer's counterparty needs
 
     Returns:
         Existing or newly created account row for the import source
@@ -102,7 +116,11 @@ async def _get_or_create_import_account_for_mapping(
         )
 
     if mapping.account_id is not None:
-        account = await _get_existing_import_account(db, user, mapping.account_id)
+        account = (
+            await _get_counterparty_import_account(db, user, mapping.account_id)
+            if is_counterparty_only
+            else await _get_existing_import_account(db, user, mapping.account_id)
+        )
         stats.accounts_reused += 1
         return account
 
@@ -136,3 +154,22 @@ async def _get_existing_import_account(db: AsyncSession, user: User, account_id:
     if account.is_archived:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Account is archived")
     return account
+
+
+async def _get_counterparty_import_account(db: AsyncSession, user: User, account_id: uuid.UUID) -> Account:
+    """Return an existing account that only ever appears as a transfer's counterparty
+
+    Read access is enough, and the account may be closed or archived, because no row is written to
+    it: the transfer records where its money came from or went to. This is the rule a transfer
+    entered by hand already resolves its counterparty under, and the whole reason for it is that
+    archiving happens after the money moved
+
+    Args:
+        db: Active database session
+        user: Authenticated user running the import
+        account_id: Existing account ID selected for a counterparty-only import source
+
+    Returns:
+        Readable account row for the import source
+    """
+    return await check_account_access(db, account_id, user.id, PermissionLevel.READ)

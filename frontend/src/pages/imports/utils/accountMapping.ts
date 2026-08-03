@@ -7,22 +7,52 @@ import type { ImportAccountSource } from '@/pages/imports/types'
  *
  * A source is left unmapped when two accounts score equally well, since guessing between them would
  * silently file transactions against the wrong account
+ *
+ * The two lists differ by which accounts each kind of source can be offered: a source no row is
+ * written to can record an archived account, so matching it against the list the dropdown does not
+ * offer would fill in a choice the user cannot see or change
  */
 export function inferAccountMappings(
   sources: ImportAccountSource[],
   explicitMappings: Record<string, string>,
-  accounts: AccountsOverview[],
+  { rowAccounts, counterpartyAccounts }: { rowAccounts: AccountsOverview[]; counterpartyAccounts: AccountsOverview[] },
 ) {
   const next = { ...explicitMappings }
 
   for (const source of sources) {
     if (next[source.id]) continue
 
-    const match = findBestAccountNameMatch(source.matchText, accounts)
+    const match = findBestAccountNameMatch(source.matchText, source.isCounterpartyOnly ? counterpartyAccounts : rowAccounts)
     if (match) next[source.id] = match.id
   }
 
   return next
+}
+
+/**
+ * Lists the archived accounts that unmapped sources rows are written to appear to belong to
+ *
+ * Those sources are offered every account except an archived one, so a file pointing at one
+ * matches nothing and the reason never reaches the user. A source that is only ever a transfer's
+ * counterparty is left out, since it can record an archived account as it is
+ */
+export function getArchivedAccountMatches(
+  sources: ImportAccountSource[],
+  resolvedMappings: Record<string, string>,
+  accounts: AccountsOverview[],
+): string[] {
+  const archivedAccounts = accounts.filter((account) => account.is_archived)
+  if (archivedAccounts.length === 0) return []
+
+  const matchedNames: string[] = []
+  for (const source of sources) {
+    if (source.isCounterpartyOnly || resolvedMappings[source.id]) continue
+
+    const match = findBestAccountNameMatch(source.matchText, archivedAccounts)
+    if (match && !matchedNames.includes(match.name)) matchedNames.push(match.name)
+  }
+
+  return matchedNames
 }
 
 /**
@@ -33,7 +63,11 @@ export function getImportAccountName(fileName: string) {
   return fileName.replace(/\.csv$/i, '').trim() || fileName
 }
 
-function findBestAccountNameMatch(source: string, accounts: AccountsOverview[]) {
+/**
+ * Returns the one account whose name best matches an import source, or null where nothing scores or
+ * two accounts tie
+ */
+export function findBestAccountNameMatch(source: string, accounts: AccountsOverview[]) {
   let bestMatch: { account: AccountsOverview; score: number } | null = null
   let tied = false
 
