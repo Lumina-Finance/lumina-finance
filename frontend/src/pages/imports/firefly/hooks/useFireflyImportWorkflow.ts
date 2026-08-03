@@ -16,6 +16,8 @@ import type {
 } from '@/pages/imports/types'
 import {
   getErrorMessage,
+  getImportUploadBlockReason,
+  getSupportedCurrencyCodes,
   groupPreviewRowsByDate,
   inferAccountMappings,
 } from '@/pages/imports/utils'
@@ -100,8 +102,10 @@ export function useFireflyImportWorkflow() {
   const importFireflyBudgets = useImportFireflyBudgets()
   const {
     categories,
+    currencies,
     accountsLoading,
     currenciesLoading,
+    currenciesError,
     institutionsLoading,
     categoriesLoading,
     selectableAccounts,
@@ -247,11 +251,13 @@ export function useFireflyImportWorkflow() {
       categoryCreateKinds: resolvedCategoryKinds,
       transferCategory,
       balanceAdjustmentCategory,
+      currencies,
     }),
     [
       accountById,
       balanceAdjustmentCategory,
       categoryById,
+      currencies,
       fireflyRows,
       institutionById,
       resolvedAccountCreateDetails,
@@ -281,11 +287,13 @@ export function useFireflyImportWorkflow() {
       categoryCreateKinds: resolvedCategoryKinds,
       transferCategory,
       balanceAdjustmentCategory,
+      currencies,
     }),
     [
       accountById,
       balanceAdjustmentCategory,
       categoryById,
+      currencies,
       fireflyRows,
       institutionById,
       resolvedAccountCreateDetails,
@@ -444,7 +452,7 @@ export function useFireflyImportWorkflow() {
 
     try {
       const [draft] = await Promise.all([
-        readFireflyCsvFile(selected, kind),
+        readFireflyCsvFile(selected, kind, getSupportedCurrencyCodes(currencies)),
         waitForMilliseconds(FIREFLY_CSV_PROCESSING_MIN_MS),
       ])
       assignFireflyFile(kind, draft)
@@ -654,6 +662,7 @@ export function useFireflyImportWorkflow() {
     isImportingBudgets,
     accountsLoading,
     currenciesLoading,
+    uploadBlockReason: getImportUploadBlockReason(currenciesLoading, currenciesError),
     institutionsLoading,
     categoriesLoading,
     accountOptions,

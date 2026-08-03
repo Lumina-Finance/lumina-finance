@@ -55,12 +55,16 @@ const HEADER_ALIASES = new Set([
 /**
  * Parses an uploaded CSV file into a staged import draft, detecting whether the first row is a
  * header row and recording a readable error on the draft instead of throwing when parsing fails
+ *
+ * @param file - The uploaded file
+ * @param supportedCurrencyCodes - Upper-case codes from the currency list the API served, used to
+ * tell a cell holding a currency from a header word that merely looks like one
  */
-export async function readCsvFile(file: File): Promise<ImportFileDraft> {
+export async function readCsvFile(file: File, supportedCurrencyCodes: Set<string>): Promise<ImportFileDraft> {
   const id = createFileId(file)
 
   try {
-    const { headers, hasHeaderRow, rows } = await parseCsvFile(file)
+    const { headers, hasHeaderRow, rows } = await parseCsvFile(file, supportedCurrencyCodes)
     return {
       id,
       name: file.name,
@@ -87,7 +91,10 @@ function createFileId(file: File) {
   return `${file.name}-${file.lastModified}-${file.size}-${Math.random().toString(36).slice(2)}`
 }
 
-async function parseCsvFile(file: File): Promise<{ headers: string[]; hasHeaderRow: boolean; rows: CsvRow[] }> {
+async function parseCsvFile(
+  file: File,
+  supportedCurrencyCodes: Set<string>,
+): Promise<{ headers: string[]; hasHeaderRow: boolean; rows: CsvRow[] }> {
   // Pull the CSV parser on demand so papaparse only ships with the import flow
   const { parse } = await import('papaparse')
 
@@ -106,7 +113,7 @@ async function parseCsvFile(file: File): Promise<{ headers: string[]; hasHeaderR
         }
       },
       complete: () => {
-        resolve(buildParsedCsv(records))
+        resolve(buildParsedCsv(records, supportedCurrencyCodes))
       },
       error: (error) => {
         reject(error)
@@ -115,10 +122,19 @@ async function parseCsvFile(file: File): Promise<{ headers: string[]; hasHeaderR
   })
 }
 
-function buildParsedCsv(records: string[][]) {
+/**
+ * Turns parsed CSV records into the headers and rows a staged file carries, deciding whether the
+ * first record holds headings or is itself a transaction
+ *
+ * Kept apart from reading the file so the decision can be exercised without one
+ *
+ * @param records - Every non-blank record, in file order
+ * @param supportedCurrencyCodes - Upper-case codes from the currency list the API served
+ */
+export function buildParsedCsv(records: string[][], supportedCurrencyCodes: Set<string>) {
   if (records.length === 0) return { headers: [], hasHeaderRow: false, rows: [] }
 
-  const hasHeaderRow = detectHeaderRow(records)
+  const hasHeaderRow = detectHeaderRow(records, supportedCurrencyCodes)
   const headers = dedupeHeaders(hasHeaderRow ? records[0] : makeGeneratedHeaders(getMaxColumnCount(records)))
   const rows = (hasHeaderRow ? records.slice(1) : records).map((record) => {
     const row: CsvRow = {}
@@ -151,13 +167,13 @@ function dedupeHeaders(rawHeaders: string[]) {
   })
 }
 
-function detectHeaderRow(records: string[][]) {
+function detectHeaderRow(records: string[][], supportedCurrencyCodes: Set<string>) {
   const first = records[0] ?? []
   const nonBlank = first.filter(Boolean)
   if (nonBlank.length === 0) return false
 
   const headerAliasCount = nonBlank.filter(isKnownHeaderCell).length
-  const dataLikeCount = nonBlank.filter(isDataLikeCell).length
+  const dataLikeCount = nonBlank.filter((cell) => isDataLikeCell(cell, supportedCurrencyCodes)).length
   if (dataLikeCount > 0 && dataLikeCount >= headerAliasCount) return false
   if (headerAliasCount >= 2) return true
   if (headerAliasCount === nonBlank.length) return true
@@ -175,7 +191,8 @@ function detectHeaderRow(records: string[][]) {
   if (headerAliasCount > 0 && knownHeaderShiftCount === headerAliasCount) return true
 
   const dataShiftCount = first.filter((cell, index) => (
-    isHeaderTextCell(cell) && following.some((record) => isDataLikeCell(record[index] ?? ''))
+    isHeaderTextCell(cell, supportedCurrencyCodes)
+    && following.some((record) => isDataLikeCell(record[index] ?? '', supportedCurrencyCodes))
   )).length
 
   return dataShiftCount >= 2
@@ -196,16 +213,18 @@ function isKnownHeaderCell(value: string) {
   return HEADER_ALIASES.has(compact)
 }
 
-function isHeaderTextCell(value: string) {
+function isHeaderTextCell(value: string, supportedCurrencyCodes: Set<string>) {
   const trimmed = value.trim()
   return Boolean(trimmed)
     && /[a-z]/i.test(trimmed)
-    && !isDataLikeCell(trimmed)
+    && !isDataLikeCell(trimmed, supportedCurrencyCodes)
     && trimmed.length <= 48
 }
 
-function isDataLikeCell(value: string) {
-  return isValidDateValue(value) || isValidAmountValue(value) || isSupportedCurrency(value)
+function isDataLikeCell(value: string, supportedCurrencyCodes: Set<string>) {
+  return isValidDateValue(value)
+    || isValidAmountValue(value)
+    || isSupportedCurrency(value, supportedCurrencyCodes)
 }
 
 function normalizeHeaderCell(value: string) {

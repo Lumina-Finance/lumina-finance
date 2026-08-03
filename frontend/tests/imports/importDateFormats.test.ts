@@ -15,6 +15,9 @@ import {
 
 const ALL_FORMATS: ImportDateFormat[] = ['yearFirst', 'dayFirst', 'monthFirst', 'written']
 
+// The date column never consults it, so its contents do not matter here
+const SUPPORTED_CURRENCY_CODES = new Set(['CAD', 'USD'])
+
 /**
  * Creates a one-column file whose every row holds the given date
  */
@@ -192,13 +195,13 @@ describe('validating a date column', () => {
   it('accepts a column that could be read some way when no format is settled yet', () => {
     const files = [createDateFile(['15/03/2024', '2024-03-15'])]
 
-    expect(validateColumnValues(files, 'Date', 'dt').valid).toBe(true)
+    expect(validateColumnValues(files, 'Date', 'dt', SUPPORTED_CURRENCY_CODES).valid).toBe(true)
   })
 
   it('refuses the same column once a format is chosen, naming the value that broke it', () => {
     const files = [createDateFile(['15/03/2024', '2024-03-15'])]
 
-    const result = validateColumnValues(files, 'Date', 'dt', 'dayFirst')
+    const result = validateColumnValues(files, 'Date', 'dt', SUPPORTED_CURRENCY_CODES, 'dayFirst')
 
     expect(result.valid).toBe(false)
     expect(result.message).toContain('2024-03-15')
@@ -208,25 +211,25 @@ describe('validating a date column', () => {
   it('accepts a column that reads all the way through in the chosen format', () => {
     const files = [createDateFile(['15/03/2024', '02/04/2024'])]
 
-    expect(validateColumnValues(files, 'Date', 'dt', 'dayFirst').valid).toBe(true)
+    expect(validateColumnValues(files, 'Date', 'dt', SUPPORTED_CURRENCY_CODES, 'dayFirst').valid).toBe(true)
   })
 
   it('refuses a two-digit year that used to import as this century', () => {
     const files = [createDateFile(['15/03/24'])]
 
-    expect(validateColumnValues(files, 'Date', 'dt', 'dayFirst').valid).toBe(false)
+    expect(validateColumnValues(files, 'Date', 'dt', SUPPORTED_CURRENCY_CODES, 'dayFirst').valid).toBe(false)
   })
 
   it('names the written format in sentence case, without repeating the word', () => {
     const files = [createDateFile(['July 4th, 2024'])]
 
-    expect(validateColumnValues(files, 'Date', 'dt', 'written').message)
+    expect(validateColumnValues(files, 'Date', 'dt', SUPPORTED_CURRENCY_CODES, 'written').message)
       .toBe('Expected valid dates in the written format, such as April 30, 2026; every row must have a value. "July 4th, 2024" is not a valid date.')
   })
 
   it('names every format in sentence case', () => {
     const files = [createDateFile(['nonsense'])]
-    const named = (format: ImportDateFormat) => validateColumnValues(files, 'Date', 'dt', format).message
+    const named = (format: ImportDateFormat) => validateColumnValues(files, 'Date', 'dt', SUPPORTED_CURRENCY_CODES, format).message
 
     expect(named('yearFirst')).toContain('in the year first format, such as 2026-04-30')
     expect(named('dayFirst')).toContain('in the day first format, such as 30/04/2026')
@@ -237,13 +240,13 @@ describe('validating a date column', () => {
   it('accepts a real date whatever century it falls in', () => {
     const files = [createDateFile(['1899-12-31'])]
 
-    expect(validateColumnValues(files, 'Date', 'dt', 'yearFirst').valid).toBe(true)
+    expect(validateColumnValues(files, 'Date', 'dt', SUPPORTED_CURRENCY_CODES, 'yearFirst').valid).toBe(true)
   })
 
   it('does not blame the shape when the value is that shape but names no real day', () => {
     const files = [createDateFile(['2024-02-31'])]
 
-    const result = validateColumnValues(files, 'Date', 'dt', 'yearFirst')
+    const result = validateColumnValues(files, 'Date', 'dt', SUPPORTED_CURRENCY_CODES, 'yearFirst')
 
     expect(result.valid).toBe(false)
     expect(result.message).toContain('"2024-02-31" is not a valid date')

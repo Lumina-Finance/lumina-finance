@@ -22,6 +22,15 @@ export interface ImportReferenceData {
   currenciesLoading: boolean
   institutionsLoading: boolean
   categoriesLoading: boolean
+
+  /**
+   * Whether the currency list could not be fetched
+   *
+   * Told apart from an empty list, because reading a file needs the real list: which codes are
+   * currencies and how many decimal places each has are both answered from it, and a failed fetch
+   * would otherwise read as every code being unsupported
+   */
+  currenciesError: boolean
   selectableAccounts: AccountsOverview[]
   allAccounts: AccountsOverview[]
   accountOptions: DropdownOption[]
@@ -39,7 +48,7 @@ export interface ImportReferenceData {
  */
 export function useImportReferenceData(): ImportReferenceData {
   const { data: accounts = [], isLoading: accountsLoading } = useAccounts()
-  const { data: currencies = [], isLoading: currenciesLoading } = useCurrencies()
+  const { data: currencies = [], isLoading: currenciesLoading, isError: currenciesError } = useCurrencies()
   const { data: institutions = [], isLoading: institutionsLoading } = useInstitutions()
   const { data: categories, isLoading: categoriesLoading } = useCategories()
 
@@ -93,6 +102,7 @@ export function useImportReferenceData(): ImportReferenceData {
     categories,
     accountsLoading,
     currenciesLoading,
+    currenciesError,
     institutionsLoading,
     categoriesLoading,
     selectableAccounts,

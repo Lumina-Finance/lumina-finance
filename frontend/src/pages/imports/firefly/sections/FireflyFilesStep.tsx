@@ -22,6 +22,7 @@ type FireflyFilesStepProps = Pick<
   | 'importedCategories'
   | 'handleFireflyFileChange'
   | 'removeFireflyFile'
+  | 'uploadBlockReason'
 >
 
 // Matches the ease the transaction list uses for row growth and collapse
@@ -46,6 +47,7 @@ export function FireflyFilesStep({
   importedCategories,
   handleFireflyFileChange,
   removeFireflyFile,
+  uploadBlockReason,
 }: FireflyFilesStepProps) {
   const filesByKind: Record<FireflyFileKind, ImportFileDraft | null> = {
     transactions: transactionsFile,
@@ -70,6 +72,7 @@ export function FireflyFilesStep({
           file={filesByKind[slot.kind]}
           processing={processingFileKind === slot.kind}
           disabled={processingFileKind !== null}
+          blockReason={uploadBlockReason}
           onFileChange={handleFireflyFileChange}
           onRemove={removeFireflyFile}
           note={slot.kind === 'budgets' ? (
@@ -101,6 +104,7 @@ function FireflyFileSlot({
   file,
   processing,
   disabled,
+  blockReason,
   onFileChange,
   onRemove,
   note,
@@ -112,6 +116,7 @@ function FireflyFileSlot({
   file: ImportFileDraft | null
   processing: boolean
   disabled: boolean
+  blockReason: string | null
   onFileChange: (kind: FireflyFileKind, event: ChangeEvent<HTMLInputElement>) => void
   onRemove: (kind: FireflyFileKind) => void
   note?: ReactNode
@@ -119,9 +124,11 @@ function FireflyFileSlot({
   const inputRef = useRef<HTMLInputElement>(null)
 
   // A rejected file never becomes a staged file, so the slot keeps its upload
-  // card and any guidance beside it and reports the refusal in place
+  // card and any guidance beside it and reports the refusal in place. A reason
+  // no file can be taken at all leads, since it is the one to act on first
   const stagedFile = file && !file.error ? file : null
-  const rejection = file?.error ?? null
+  const rejection = blockReason ?? file?.error ?? null
+  const isUploadBlocked = disabled || blockReason !== null
 
   return (
     <div className="space-y-2">
@@ -137,7 +144,7 @@ function FireflyFileSlot({
         className="hidden"
         accept=".csv,text/csv"
         onChange={(event) => onFileChange(kind, event)}
-        disabled={disabled}
+        disabled={isUploadBlocked}
       />
 
       {/* Each slot takes exactly one file, so the upload card and its note
@@ -167,7 +174,7 @@ function FireflyFileSlot({
               title={`Upload ${label.toLowerCase()}`}
               hint={hint}
               processing={processing}
-              disabled={disabled}
+              disabled={isUploadBlocked}
               rejection={rejection}
               onClick={() => inputRef.current?.click()}
             />

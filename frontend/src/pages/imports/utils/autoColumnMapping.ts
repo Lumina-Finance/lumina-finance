@@ -155,8 +155,12 @@ const EXCLUDED_HEADER_PARTS: Partial<Record<ColumnTarget, string[]>> = {
  * can only be claimed by the single best-scoring target so two fields never end up pointing at the
  * same header
  */
-export function inferColumnMap(columnMap: ColumnMap, files: ImportFileDraft[]) {
-  const result = validateColumnMap(columnMap, files)
+export function inferColumnMap(
+  columnMap: ColumnMap,
+  files: ImportFileDraft[],
+  supportedCurrencyCodes: Set<string>,
+) {
+  const result = validateColumnMap(columnMap, files, supportedCurrencyCodes)
   if (files.length === 0) return result
 
   const headers = unique(files.flatMap((file) => file.headers))
@@ -167,14 +171,14 @@ export function inferColumnMap(columnMap: ColumnMap, files: ImportFileDraft[]) {
   for (const target of COLUMN_TARGETS) {
     if (inferredMap[target.id]) continue
 
-    const header = getBestHeaderMatch(files, headers, usedHeaders, target.id)
+    const header = getBestHeaderMatch(files, headers, usedHeaders, target.id, supportedCurrencyCodes)
     if (!header) continue
 
     inferredMap[target.id] = header
     usedHeaders.add(header)
   }
 
-  return validateColumnMap(inferredMap, files)
+  return validateColumnMap(inferredMap, files, supportedCurrencyCodes)
 }
 
 function getBestHeaderMatch(
@@ -182,6 +186,7 @@ function getBestHeaderMatch(
   headers: string[],
   usedHeaders: Set<string>,
   target: ColumnTarget,
+  supportedCurrencyCodes: Set<string>,
 ) {
   let bestMatch: { header: string; score: number } | null = null
 
@@ -194,11 +199,11 @@ function getBestHeaderMatch(
 
     const score = Math.max(
       scoreHeaderForTarget(header, target),
-      scoreValuesForTarget(files, header, target),
+      scoreValuesForTarget(files, header, target, supportedCurrencyCodes),
     )
     if (score <= 0) continue
 
-    const validation = validateColumnValues(files, header, target)
+    const validation = validateColumnValues(files, header, target, supportedCurrencyCodes)
     if (!validation.valid) continue
 
     if (!bestMatch || score > bestMatch.score) {
@@ -226,14 +231,19 @@ function scoreHeaderForTarget(header: string, target: ColumnTarget) {
   return containsScore ?? 0
 }
 
-function scoreValuesForTarget(files: ImportFileDraft[], header: string, target: ColumnTarget) {
+function scoreValuesForTarget(
+  files: ImportFileDraft[],
+  header: string,
+  target: ColumnTarget,
+  supportedCurrencyCodes: Set<string>,
+) {
   const values = getColumnValues(files, header).filter(Boolean)
   if (values.length === 0) return 0
 
   const validDateRatio = getRatio(values, isValidDateValue)
   const validAmountRatio = getRatio(values, isValidAmountValue)
-  const validCurrencyRatio = getRatio(values, isSupportedCurrency)
-  const textValues = values.filter(isPlainTextData)
+  const validCurrencyRatio = getRatio(values, (value) => isSupportedCurrency(value, supportedCurrencyCodes))
+  const textValues = values.filter((value) => isPlainTextData(value, supportedCurrencyCodes))
   const textRatio = textValues.length / values.length
   const uniqueRatio = unique(textValues.map(normalizeValue)).length / Math.max(textValues.length, 1)
   const dominantRatio = getDominantRatio(textValues)
@@ -292,11 +302,11 @@ function getAverageLength(values: string[]) {
   return values.reduce((sum, value) => sum + value.length, 0) / values.length
 }
 
-function isPlainTextData(value: string) {
+function isPlainTextData(value: string, supportedCurrencyCodes: Set<string>) {
   return Boolean(value.trim())
     && !isValidDateValue(value)
     && !isValidAmountValue(value)
-    && !isSupportedCurrency(value)
+    && !isSupportedCurrency(value, supportedCurrencyCodes)
 }
 
 function isAccountLikeValue(value: string) {

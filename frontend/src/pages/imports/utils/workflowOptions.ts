@@ -9,6 +9,8 @@ import {
   COLUMN_TARGETS,
   CREATE_ACCOUNT_VALUE,
   CREATE_CATEGORY_VALUE,
+  CURRENCIES_FAILED_UPLOAD_BLOCK,
+  CURRENCIES_LOADING_UPLOAD_BLOCK,
   DEFAULT_CATEGORY_ICON,
   KIND_LABELS,
   KIND_RANKS,
@@ -40,6 +42,31 @@ export function buildImportAccountOptions(accounts: AccountsOverview[]): Dropdow
         badge: account.is_archived ? ARCHIVED_ACCOUNT_BADGE : undefined,
       })),
   ]
+}
+
+/**
+ * Collects the currency codes the app supports, for the checks that only ask whether a cell holds
+ * one of them
+ *
+ * Built once from the loaded list and passed down, rather than each check scanning the list, since
+ * header detection asks the question for every cell of a file's first row
+ */
+export function getSupportedCurrencyCodes(currencies: Currency[]) {
+  return new Set(currencies.map((currency) => currency.id))
+}
+
+/**
+ * Says why a file cannot be uploaded yet, or null when it can
+ *
+ * Both flows read a file against the currency list, so staging one before that list is in hand
+ * would detect its header row and judge its amounts against nothing
+ *
+ * @param currenciesLoading - Whether the currency list is still being fetched
+ * @param currenciesError - Whether fetching the currency list failed
+ */
+export function getImportUploadBlockReason(currenciesLoading: boolean, currenciesError: boolean) {
+  if (currenciesError) return CURRENCIES_FAILED_UPLOAD_BLOCK
+  return currenciesLoading ? CURRENCIES_LOADING_UPLOAD_BLOCK : null
 }
 
 /**
