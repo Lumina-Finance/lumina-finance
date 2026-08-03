@@ -2,7 +2,7 @@ import { useState, type CSSProperties, type ReactNode } from 'react'
 import { ChevronDown, TriangleAlert } from 'lucide-react'
 import { IMPORT_INSET_STYLE, SKIPPED_TABLE_VISIBLE_LIMIT } from '@/pages/imports/constants'
 
-// Share of the visible panel the frozen pair holds, measured with container
+// Most of the visible panel the frozen pair may hold, measured with container
 // units against the horizontal scroller
 const FROZEN_GROUP_WIDTH = '30cqw'
 
@@ -42,19 +42,19 @@ function buildFrozenLeadCellStyle(leadColumnWidth: string): CSSProperties {
  * Builds the frozen reason cell style, whose right border marks the edge of
  * the frozen group so scrolling columns visibly slide beneath it
  *
- * The column carries the width, leaving it to hold the frozen pair's share of
- * the panel exactly. Table auto-layout would otherwise squeeze the one column
- * that wraps down to its narrowest while the nowrap file columns take the rest
+ * The column carries the width and asks for the longest reason it holds,
+ * capped at the frozen pair's share of the panel, so short reasons leave no
+ * empty column beside them and long ones wrap inside the cap. Without the
+ * request, auto-layout squeezes the one column that wraps down to its
+ * narrowest while the nowrap file columns take the rest
  */
 function buildFrozenReasonCellStyle(leadColumnWidth: string): CSSProperties {
-  const width = `calc(${FROZEN_GROUP_WIDTH} - ${leadColumnWidth})`
-
   return {
     position: 'sticky',
     left: leadColumnWidth,
-    width,
+    width: 'max-content',
     minWidth: REASON_COLUMN_MIN_WIDTH,
-    maxWidth: width,
+    maxWidth: `calc(${FROZEN_GROUP_WIDTH} - ${leadColumnWidth})`,
     background: FROZEN_COLUMN_BACKGROUND,
     borderRight: '1px solid var(--app-border)',
     zIndex: 1,
