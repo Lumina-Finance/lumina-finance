@@ -9,10 +9,10 @@ type ImportCommitPanelProps = Pick<
 // belongs to and this panel would otherwise repeat all of it
 const ROWS_TO_FIX_MESSAGE = 'Some rows cannot be imported. The preview step lists them with the reason for each.'
 
-// How many unanswered questions the panel spells out before counting the rest. A file of unmatched
-// categories produces one for each, and every one of them is a blank dropdown already visible in
-// the step it belongs to, so a full list would push the button off the page to say what the steps
-// above already show
+// How many problems the panel spells out before counting the rest. A file of unmatched categories
+// produces one per category, each of them a blank dropdown already visible in the step it belongs
+// to, so a full list would push the button off the page to repeat what those steps show. The build
+// puts column problems first, which is what the cap keeps
 const VISIBLE_ERROR_LIMIT = 5
 
 /**

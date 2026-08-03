@@ -17,8 +17,8 @@ down_revision: str | Sequence[str] | None = "316916eab402"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
-# The scope type under its old name, which is what both columns are typed with until the type
-# itself is renamed at the end of the upgrade
+# The scope column's type under its old name, which is what that column is typed with until the
+# type itself is renamed at the end of the upgrade
 OTHER_ACCOUNT_SCOPE_TYPE = postgresql.ENUM("TRACKED", "OUTSIDE", name="transferotheraccountscope", create_type=False)
 
 
