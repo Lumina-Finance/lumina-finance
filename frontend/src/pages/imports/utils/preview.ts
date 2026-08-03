@@ -4,7 +4,7 @@ import type { Currency } from '@/api/currency'
 import type { Institution } from '@/api/institutions'
 import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, DEFAULT_CATEGORY_ICON } from '@/pages/imports/constants'
 import { BALANCE_ADJUSTMENT_CATEGORY_NAME, doesTransferRecordCounterpartyAccount, OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
-import type { ColumnMap, ImportCategoryKind, ImportFileDraft, PreviewTransactionRow } from '@/pages/imports/types'
+import type { ColumnMap, ImportCategoryKind, ImportFileDraft, ImportRowProblem, PreviewTransactionRow } from '@/pages/imports/types'
 import { getImportAccountName } from './accountMapping'
 import { splitImportedValues } from './categoryMatching'
 import { getMappedValue } from './columnMapping'
@@ -32,6 +32,7 @@ interface BuildImportPreviewRowsOptions {
   institutionById: Map<string, Institution>
   resolvedAccountMappings: Record<string, string>
   resolvedCategoryMappings: Record<string, string>
+  rowProblems: ImportRowProblem[]
 }
 
 /**
@@ -71,9 +72,13 @@ export function buildImportPreviewRows({
   institutionById,
   resolvedAccountMappings,
   resolvedCategoryMappings,
+  rowProblems,
 }: BuildImportPreviewRowsOptions): PreviewTransactionRow[] {
   if (missingRequiredColumnLabels.length > 0) return []
 
+  // A row that cannot be converted is listed with its reason instead, so previewing it as well
+  // would show an amount of zero or a blank date beside the entry saying why it was refused
+  const problemRowIds = new Set(rowProblems.map((problem) => problem.id))
   const rows: PreviewTransactionRow[] = []
   const fallbackCurrency = currencies.some((currency) => currency.id === 'CAD') ? 'CAD' : currencies[0]?.id ?? 'CAD'
   const timestamp = new Date().toISOString()
@@ -81,6 +86,8 @@ export function buildImportPreviewRows({
   // Preview generation walks files in row order and stops early because the UI only renders a small sample
   for (const file of files) {
     for (let rowIndex = 0; rowIndex < file.rows.length; rowIndex += 1) {
+      if (problemRowIds.has(`${file.id}-${rowIndex}`)) continue
+
       const row = file.rows[rowIndex]
       const accountSource = columnMap.account_id ? getMappedValue(row, columnMap.account_id) : file.id
       const accountLabel = columnMap.account_id ? accountSource : getImportAccountName(file.name)

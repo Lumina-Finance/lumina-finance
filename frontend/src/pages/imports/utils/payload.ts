@@ -1,8 +1,27 @@
 import type { Category } from '@/api/categories'
 import type { TransactionImportPayload, TransactionImportResponse } from '@/api/transaction-imports'
-import { COLUMN_TARGETS, CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, DEFAULT_CATEGORY_ICON } from '@/pages/imports/constants'
+import {
+  COLUMN_TARGETS,
+  CREATE_ACCOUNT_VALUE,
+  CREATE_CATEGORY_VALUE,
+  DEFAULT_CATEGORY_ICON,
+  ROW_ACCOUNT_BLANK_REASON,
+  ROW_AMOUNT_UNREADABLE_REASON,
+  ROW_CATEGORY_BLANK_REASON,
+  ROW_COUNTERPARTY_IS_OWN_ACCOUNT_REASON,
+  ROW_COUNTERPARTY_NOT_A_TRANSFER_REASON,
+  ROW_DATE_UNREADABLE_REASON,
+} from '@/pages/imports/constants'
 import { BALANCE_ADJUSTMENT_CATEGORY_NAME, doesTransferRecordCounterpartyAccount, OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
-import type { ColumnMap, ColumnValidationErrors, ImportAccountSource, ImportBuildResult, ImportCategoryKind, ImportFileDraft } from '@/pages/imports/types'
+import type {
+  ColumnMap,
+  ColumnValidationErrors,
+  ImportAccountSource,
+  ImportBuildResult,
+  ImportCategoryKind,
+  ImportFileDraft,
+  ImportRowProblem,
+} from '@/pages/imports/types'
 import { isImportAccountType } from '@/pages/imports/accountTypeGuard'
 import { getCategoryMatchKind, splitImportedValues } from './categoryMatching'
 import { getMappedValue } from './columnMapping'
@@ -131,8 +150,9 @@ export function buildTransactionImportPayload({
   }
 
   const rows: TransactionImportPayload['rows'] = []
+  const rowProblems: ImportRowProblem[] = []
   for (const file of files) {
-    for (const row of file.rows) {
+    for (const [rowIndex, row] of file.rows.entries()) {
       const accountSource = columnMap.account_id ? getMappedValue(row, columnMap.account_id) : file.id
       const categorySource = getMappedValue(row, columnMap.category_id)
       const dt = dateFormat ? readImportDate(getMappedValue(row, columnMap.dt), dateFormat) : ''
@@ -142,19 +162,24 @@ export function buildTransactionImportPayload({
         ? cleanOptional(getMappedValue(row, columnMap.counterparty_account_id))
         : null
 
-      if (!accountSource) addError('Account source cannot be blank.')
-      if (!categorySource) addError('Category source cannot be blank.')
-      if (!dt) addError('Every imported row needs a valid date.')
-      if (parseImportNumber(amount) === null) addError('Every imported row needs a valid raw amount.')
-
-      if (counterpartySource) {
-        if (!recordsCounterpartyBySource[categorySource]) {
-          // The category is what the user can act on: the column has to be left unmapped, or the
-          // rows using it mapped to a transfer category
-          addError(`Only a transfer records a counterparty account, so the mapped Counterparty account column cannot be used by category: ${categorySource}`)
-        } else if (isSameMappedAccount(accountMappings, accountSource, counterpartySource)) {
-          addError(`A transfer cannot record its own account as its counterparty: ${counterpartySource}`)
-        }
+      const problem = getImportRowProblem({
+        accountMappings,
+        accountSource,
+        amount,
+        categorySource,
+        counterpartySource,
+        dt,
+        recordsCounterpartyBySource,
+      })
+      if (problem) {
+        rowProblems.push({
+          id: `${file.id}-${rowIndex}`,
+          fileName: file.name,
+          line: getImportRowLine(file, rowIndex),
+          cells: row,
+          reason: problem,
+        })
+        continue
       }
 
       rows.push({
@@ -170,9 +195,52 @@ export function buildTransactionImportPayload({
     }
   }
 
-  if (rows.length === 0) addError('No transaction rows are available to import.')
-  if (errors.length > 0) return { errors, payload: null }
-  return { errors: [], payload: { accounts, categories, rows } }
+  // A file whose every row has a problem is described by the list of problems, so the empty-file
+  // message is kept for the case it was written for
+  if (rows.length === 0 && rowProblems.length === 0) addError('No transaction rows are available to import.')
+  if (errors.length > 0 || rowProblems.length > 0) return { errors, rowProblems, payload: null }
+  return { errors: [], rowProblems: [], payload: { accounts, categories, rows } }
+}
+
+/**
+ * Numbers a row as it appears in the file it came from, counting the header line where there is one
+ */
+function getImportRowLine(file: ImportFileDraft, rowIndex: number) {
+  return file.hasHeaderRow ? rowIndex + 2 : rowIndex + 1
+}
+
+/**
+ * Reports why one row cannot be converted, or null when it can
+ *
+ * The first failing check is what the row is listed under, since a row missing both its date and
+ * its amount is one row to go and correct either way
+ */
+function getImportRowProblem({
+  accountMappings,
+  accountSource,
+  amount,
+  categorySource,
+  counterpartySource,
+  dt,
+  recordsCounterpartyBySource,
+}: {
+  accountMappings: Record<string, string>
+  accountSource: string
+  amount: string
+  categorySource: string
+  counterpartySource: string | null
+  dt: string
+  recordsCounterpartyBySource: Record<string, boolean>
+}) {
+  if (!accountSource) return ROW_ACCOUNT_BLANK_REASON
+  if (!categorySource) return ROW_CATEGORY_BLANK_REASON
+  if (!dt) return ROW_DATE_UNREADABLE_REASON
+  if (parseImportNumber(amount) === null) return ROW_AMOUNT_UNREADABLE_REASON
+  if (!counterpartySource) return null
+
+  if (!recordsCounterpartyBySource[categorySource]) return ROW_COUNTERPARTY_NOT_A_TRANSFER_REASON
+  if (isSameMappedAccount(accountMappings, accountSource, counterpartySource)) return ROW_COUNTERPARTY_IS_OWN_ACCOUNT_REASON
+  return null
 }
 
 function appendAccountMapping(

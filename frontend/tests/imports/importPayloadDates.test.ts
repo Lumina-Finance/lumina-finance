@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { Category } from '@/api/categories'
-import { EMPTY_COLUMN_MAP } from '@/pages/imports/constants'
+import { EMPTY_COLUMN_MAP, ROW_DATE_UNREADABLE_REASON } from '@/pages/imports/constants'
 import type { ColumnMap, ImportFileDraft } from '@/pages/imports/types'
 import { buildTransactionImportPayload } from '@/pages/imports/utils'
 import type { ImportDateFormat } from '@/pages/imports/utils/valueParsers'
@@ -81,14 +81,16 @@ describe('import payload dates', () => {
     expect(result.errors).toContain('Choose the date format this file is written in.')
   })
 
-  it('refuses a row the chosen format cannot read', () => {
+  it('refuses a row the chosen format cannot read, listing the line it is on', () => {
     const result = build(['15/03/2024', '2024-03-16'], 'dayFirst')
 
     expect(result.payload).toBeNull()
-    expect(result.errors).toContain('Every imported row needs a valid date.')
+    expect(result.rowProblems.map((problem) => ({ line: problem.line, reason: problem.reason }))).toEqual([
+      { line: 3, reason: ROW_DATE_UNREADABLE_REASON },
+    ])
   })
 
-  it('refuses a day the calendar does not have, whatever format names it', () => {
+  it('refuses a day the calendar does not have, whatever format states it', () => {
     expect(build(['31/02/2024'], 'dayFirst').payload).toBeNull()
     expect(build(['2024-02-31'], 'yearFirst').payload).toBeNull()
   })

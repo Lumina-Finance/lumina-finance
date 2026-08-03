@@ -1,7 +1,6 @@
 import { useState, type CSSProperties, type ReactNode } from 'react'
 import { ChevronDown, TriangleAlert } from 'lucide-react'
-import { IMPORT_INSET_STYLE } from '@/pages/imports/constants'
-import { FIREFLY_SKIPPED_TABLE_VISIBLE_LIMIT } from '@/pages/imports/firefly/constants'
+import { IMPORT_INSET_STYLE, SKIPPED_TABLE_VISIBLE_LIMIT } from '@/pages/imports/constants'
 
 // Share of the visible panel the frozen pair holds, measured with container
 // units against the horizontal scroller
@@ -83,7 +82,7 @@ const BODY_CELL_BORDER_STYLE: CSSProperties = {
  * One skipped item shaped for the table: the frozen lead cell, the skip
  * reason beside it, and the scrolling values keyed by column header
  */
-export interface FireflySkippedTableRow {
+export interface ImportSkippedTableRow {
   key: string
   lead: ReactNode
   reason: string
@@ -106,7 +105,7 @@ function RawCellValue({ value }: { value: string }) {
  * horizontally beside them, capped to a visible sample with the hidden
  * remainder summarized underneath
  */
-export function FireflySkippedTable({
+export function ImportSkippedTable({
   title,
   toggleLabel,
   leadHeader,
@@ -126,13 +125,13 @@ export function FireflySkippedTable({
   leadColumnWidth: string
   leadCellClassName: string
   headers: string[]
-  rows: FireflySkippedTableRow[]
+  rows: ImportSkippedTableRow[]
   totalCount: number
 }) {
   // Expanded by default so skipped items are in view before the commit
   const [expanded, setExpanded] = useState(true)
 
-  const visibleRows = rows.slice(0, FIREFLY_SKIPPED_TABLE_VISIBLE_LIMIT)
+  const visibleRows = rows.slice(0, SKIPPED_TABLE_VISIBLE_LIMIT)
 
   // The backend caps the detailed entries it returns, so the remainder is
   // measured against the exact total rather than the rows on hand

@@ -52,7 +52,9 @@ const COLUMN_VALIDATION_RULES: Record<ColumnTarget, {
     accepts: isPlainTextValue,
   },
   counterparty_account_id: {
-    expected: 'the account name a transfer moved money to or from, blank on every other row',
+    // Only the shape of a value is checked here. Whether a row may state one at all depends on the
+    // category and account mappings chosen later, and is reported against the row itself
+    expected: 'the account name a transfer moved money to or from',
     accepts: isPlainTextValue,
   },
 }

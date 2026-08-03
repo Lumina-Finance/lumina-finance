@@ -262,30 +262,6 @@ export function useTransactionImportWorkflow() {
     [categoryMappings, importedCategories, resolvedCategoryMappings],
   )
 
-  const previewRows = useMemo<PreviewTransactionRow[]>(
-    () => buildImportPreviewRows({
-      files,
-      columnMap,
-      dateFormat,
-      missingRequiredColumnLabels,
-      currencies,
-      accountById,
-      accountCreateCurrencies,
-      accountCreateInstitutions,
-      categoryById,
-      categoryCreateKinds,
-      categoryTypesBySource,
-      institutionById,
-      resolvedAccountMappings,
-      resolvedCategoryMappings,
-    }),
-    [accountById, accountCreateCurrencies, accountCreateInstitutions, categoryById, categoryCreateKinds, categoryTypesBySource, columnMap, currencies, dateFormat, files, institutionById, missingRequiredColumnLabels, resolvedAccountMappings, resolvedCategoryMappings],
-  )
-
-  const previewGroups = useMemo(
-    () => groupPreviewRowsByDate(previewRows),
-    [previewRows],
-  )
   const importBuild = useMemo(
     () => buildTransactionImportPayload({
       accountCreateCurrencies,
@@ -320,6 +296,35 @@ export function useTransactionImportWorkflow() {
       resolvedColumnValidationErrors,
     ],
   )
+
+  // Built after the payload so both read one decision about which rows can be converted, rather
+  // than the preview coercing an unreadable amount to zero beside the entry refusing that row
+  const previewRows = useMemo<PreviewTransactionRow[]>(
+    () => buildImportPreviewRows({
+      files,
+      columnMap,
+      dateFormat,
+      missingRequiredColumnLabels,
+      currencies,
+      accountById,
+      accountCreateCurrencies,
+      accountCreateInstitutions,
+      categoryById,
+      categoryCreateKinds,
+      categoryTypesBySource,
+      institutionById,
+      resolvedAccountMappings,
+      resolvedCategoryMappings,
+      rowProblems: importBuild.rowProblems,
+    }),
+    [accountById, accountCreateCurrencies, accountCreateInstitutions, categoryById, categoryCreateKinds, categoryTypesBySource, columnMap, currencies, dateFormat, files, importBuild.rowProblems, institutionById, missingRequiredColumnLabels, resolvedAccountMappings, resolvedCategoryMappings],
+  )
+
+  const previewGroups = useMemo(
+    () => groupPreviewRowsByDate(previewRows),
+    [previewRows],
+  )
+
   const totalRows = files.reduce((sum, file) => sum + file.rows.length, 0)
   const mappedFieldCount = headers.length === 0 ? 0 : Object.values(columnMap).filter(Boolean).length
   const importSummary = importResult ? formatImportSummary(importResult) : ''

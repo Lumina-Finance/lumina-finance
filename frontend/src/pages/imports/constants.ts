@@ -44,6 +44,19 @@ export const COLUMN_TARGETS: Array<{
 // Shown against the counterparty column while it is being mapped
 export const COUNTERPARTY_EXPLANATION = 'Says which account a transfer\'s money went to, or came from. Only transfer rows can use it, and a blank cell records the transfer as going outside this app.'
 
+// How many refused rows the skipped table lists before summarizing the remainder, which both
+// import flows share
+export const SKIPPED_TABLE_VISIBLE_LIMIT = 20
+
+// Why one row cannot be converted, listed against that row in the preview step. Each says what is
+// wrong with the row itself, since the entry carries the file, the line and the row's own cells
+export const ROW_ACCOUNT_BLANK_REASON = 'The account source is blank.'
+export const ROW_CATEGORY_BLANK_REASON = 'The category source is blank.'
+export const ROW_DATE_UNREADABLE_REASON = 'The date does not match the chosen format.'
+export const ROW_AMOUNT_UNREADABLE_REASON = 'The amount is not a number.'
+export const ROW_COUNTERPARTY_NOT_A_TRANSFER_REASON = 'Only a transfer records a counterparty account, and this row\'s category is not one.'
+export const ROW_COUNTERPARTY_IS_OWN_ACCOUNT_REASON = 'A transfer cannot record its own account as its counterparty.'
+
 // Shown where a source rows are written to matches an account the user has archived, which is the
 // one account the dropdown above does not offer. The matched account names follow it
 export const ARCHIVED_ACCOUNT_MATCH_EXPLANATION = 'An archived account takes no new transactions, so it is not offered above. Unarchive one of these to import rows into it:'

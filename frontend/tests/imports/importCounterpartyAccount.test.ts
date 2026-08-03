@@ -7,7 +7,12 @@ import { describe, expect, it } from 'vitest'
 import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
-import { CREATE_ACCOUNT_VALUE, EMPTY_COLUMN_MAP } from '@/pages/imports/constants'
+import {
+  CREATE_ACCOUNT_VALUE,
+  EMPTY_COLUMN_MAP,
+  ROW_COUNTERPARTY_IS_OWN_ACCOUNT_REASON,
+  ROW_COUNTERPARTY_NOT_A_TRANSFER_REASON,
+} from '@/pages/imports/constants'
 import { OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 import type { ColumnMap, ImportAccountSource, ImportFileDraft } from '@/pages/imports/types'
 import { buildImportAccountMappingSources, buildImportPreviewRows, buildTransactionImportPayload } from '@/pages/imports/utils'
@@ -191,7 +196,7 @@ describe('CSV import counterparty account', () => {
   })
 
   it('refuses a counterparty account on a row that is not a transfer', () => {
-    const { errors, payload } = buildPayload({
+    const { payload, rowProblems } = buildPayload({
       accountMappings: { Chequing: CHEQUING.id, Savings: SAVINGS.id },
       categoryById: new Map([[GROCERIES.id, GROCERIES]]),
       categoryMappings: { Groceries: GROCERIES.id },
@@ -199,11 +204,11 @@ describe('CSV import counterparty account', () => {
     })
 
     expect(payload).toBeNull()
-    expect(errors).toContain('Only a transfer records a counterparty account, so the mapped Counterparty account column cannot be used by category: Groceries')
+    expect(rowProblems.map((problem) => problem.reason)).toEqual([ROW_COUNTERPARTY_NOT_A_TRANSFER_REASON])
   })
 
   it('refuses a counterparty account on a balance adjustment, which has no counterparty', () => {
-    const { errors, payload } = buildPayload({
+    const { payload, rowProblems } = buildPayload({
       accountMappings: { Chequing: CHEQUING.id, Savings: SAVINGS.id },
       categoryById: new Map([[BALANCE_ADJUSTMENT.id, BALANCE_ADJUSTMENT]]),
       categoryMappings: { 'Balance Adjustment': BALANCE_ADJUSTMENT.id },
@@ -211,31 +216,46 @@ describe('CSV import counterparty account', () => {
     })
 
     expect(payload).toBeNull()
-    expect(errors).toContain('Only a transfer records a counterparty account, so the mapped Counterparty account column cannot be used by category: Balance Adjustment')
+    expect(rowProblems.map((problem) => problem.reason)).toEqual([ROW_COUNTERPARTY_NOT_A_TRANSFER_REASON])
   })
 
   it('refuses a transfer whose two sources were mapped onto one account', () => {
-    const { errors, payload } = buildPayload({
+    const { payload, rowProblems } = buildPayload({
       accountMappings: { Chequing: CHEQUING.id, 'Chequing (old)': CHEQUING.id },
       counterpartyAccountSource: 'Chequing (old)',
       accountSources: createSources('Chequing (old)'),
     })
 
     expect(payload).toBeNull()
-    expect(errors).toContain('A transfer cannot record its own account as its counterparty: Chequing (old)')
+
+    // The entry carries where the row came from, so a file of thousands says which line to open.
+    // The first row of a file with a header line is line 2
+    expect(rowProblems).toEqual([{
+      id: 'file-1-0',
+      fileName: 'Chequing.csv',
+      line: 2,
+      cells: {
+        Account: 'Chequing',
+        Date: '2026-04-11',
+        Amount: '-500.00',
+        Category: 'Transfer',
+        'Other account': 'Chequing (old)',
+      },
+      reason: ROW_COUNTERPARTY_IS_OWN_ACCOUNT_REASON,
+    }])
   })
 
   // One name in both columns is one source and one account, whichever way it is mapped, so the
   // account queued for creation is no escape from the rule
   it('refuses a transfer whose counterparty is its own source, even for an account queued for creation', () => {
-    const { errors, payload } = buildPayload({
+    const { payload, rowProblems } = buildPayload({
       accountMappings: { Chequing: CREATE_ACCOUNT_VALUE },
       counterpartyAccountSource: 'Chequing',
       accountSources: [{ id: 'Chequing', label: 'Chequing', matchText: 'Chequing', isCounterpartyOnly: false }],
     })
 
     expect(payload).toBeNull()
-    expect(errors).toContain('A transfer cannot record its own account as its counterparty: Chequing')
+    expect(rowProblems.map((problem) => problem.reason)).toEqual([ROW_COUNTERPARTY_IS_OWN_ACCOUNT_REASON])
   })
 
   it('shows what each answer writes in the preview', () => {
@@ -262,6 +282,7 @@ describe('CSV import counterparty account', () => {
         'Brokerage elsewhere': OUTSIDE_ACCOUNT_VALUE,
       },
       resolvedCategoryMappings: { Transfer: TRANSFER.id },
+      rowProblems: [],
     })
 
     expect(rows.map((row) => [row.transaction.counterparty_account_id, row.transaction.counterparty_account_scope])).toEqual([
@@ -294,6 +315,7 @@ describe('CSV import counterparty account', () => {
       institutionById: new Map(),
       resolvedAccountMappings: { Chequing: CHEQUING.id, Savings: SAVINGS.id },
       resolvedCategoryMappings: { Groceries: GROCERIES.id },
+      rowProblems: [],
     })
 
     expect(rows[0].transaction.counterparty_account_id).toBeNull()
@@ -318,6 +340,7 @@ describe('CSV import counterparty account', () => {
       institutionById: new Map(),
       resolvedAccountMappings: { Chequing: CHEQUING.id, Savings: CREATE_ACCOUNT_VALUE },
       resolvedCategoryMappings: { Transfer: TRANSFER.id },
+      rowProblems: [],
     })
 
     // The import writes the new account's id, which does not exist yet, so the preview stands in
