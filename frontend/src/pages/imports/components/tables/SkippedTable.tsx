@@ -41,20 +41,11 @@ function buildFrozenLeadCellStyle(leadColumnWidth: string): CSSProperties {
 /**
  * Builds the frozen reason cell style, whose right border marks the edge of
  * the frozen group so scrolling columns visibly slide beneath it
- *
- * The column carries the width and asks for the longest reason it holds,
- * capped at the frozen pair's share of the panel, so short reasons leave no
- * empty column beside them and long ones wrap inside the cap. Without the
- * request, auto-layout squeezes the one column that wraps down to its
- * narrowest while the nowrap file columns take the rest
  */
 function buildFrozenReasonCellStyle(leadColumnWidth: string): CSSProperties {
   return {
     position: 'sticky',
     left: leadColumnWidth,
-    width: 'max-content',
-    minWidth: REASON_COLUMN_MIN_WIDTH,
-    maxWidth: `calc(${FROZEN_GROUP_MAX_WIDTH} - ${leadColumnWidth})`,
     background: FROZEN_COLUMN_BACKGROUND,
     borderRight: '1px solid var(--app-border)',
     zIndex: 1,
@@ -72,6 +63,25 @@ const HEADER_CELL_STYLE: CSSProperties = {
 }
 
 const FROZEN_HEADER_Z_INDEX = 3
+
+/**
+ * Sizes the reason content, asking for the longest reason on one line and
+ * stopping at the frozen pair's cap, so short reasons leave no empty column
+ * beside them and long ones wrap within the cap
+ *
+ * The width sits on this block rather than on the cell because the table lays
+ * itself out from its content, where a width or a cap on a cell is left
+ * undefined and a browser may size the column to the text regardless. Without
+ * a width here at all, that layout squeezes the one column that wraps down to
+ * its narrowest while the nowrap file columns take the rest
+ */
+function buildReasonContentStyle(leadColumnWidth: string): CSSProperties {
+  return {
+    width: 'max-content',
+    minWidth: REASON_COLUMN_MIN_WIDTH,
+    maxWidth: `calc(${FROZEN_GROUP_MAX_WIDTH} - ${leadColumnWidth})`,
+  }
+}
 
 // The table uses separate borders because collapsed borders do not travel
 // with sticky cells, so each body cell draws its own divider
@@ -140,6 +150,7 @@ export function ImportSkippedTable({
 
   const frozenLeadCellStyle = buildFrozenLeadCellStyle(leadColumnWidth)
   const frozenReasonCellStyle = buildFrozenReasonCellStyle(leadColumnWidth)
+  const reasonContentStyle = buildReasonContentStyle(leadColumnWidth)
 
   return (
     <div className="rounded-lg px-4 py-3" style={IMPORT_INSET_STYLE}>
@@ -214,7 +225,7 @@ export function ImportSkippedTable({
                       className="py-1.5 pr-4 align-top"
                       style={{ ...frozenReasonCellStyle, ...BODY_CELL_BORDER_STYLE, color: 'var(--app-accent)' }}
                     >
-                      <div className="h-full w-full whitespace-normal break-words">
+                      <div className="whitespace-normal break-words" style={reasonContentStyle}>
                         {row.reason}
                       </div>
                     </td>
