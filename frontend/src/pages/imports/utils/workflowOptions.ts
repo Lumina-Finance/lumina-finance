@@ -24,11 +24,8 @@ import { unique } from './common'
 const ARCHIVED_ACCOUNT_BADGE = 'Archived'
 
 /**
- * Builds account dropdown options with the create-account action pinned first
- *
- * Sorted by kind and then by name, because accounts arrive in the order they were created and the
- * dropdown heads a group every time the group changes going down the list, so an unsorted list
- * repeats a heading for every run of accounts sharing a kind
+ * Builds account dropdown options with the create-account action pinned first, sorted by kind and
+ * then by name
  */
 export function buildImportAccountOptions(accounts: AccountsOverview[]): DropdownOption[] {
   return [

@@ -2,9 +2,9 @@ import { useState, type CSSProperties, type ReactNode } from 'react'
 import { ChevronDown, TriangleAlert } from 'lucide-react'
 import { IMPORT_INSET_STYLE, SKIPPED_TABLE_VISIBLE_LIMIT } from '@/pages/imports/constants'
 
-// Most of the visible panel the frozen pair may hold, measured with container
-// units against the horizontal scroller
-const FROZEN_GROUP_WIDTH = '30cqw'
+// The widest the frozen pair may grow to, measured with container units
+// against the horizontal scroller. It takes less where the reasons are short
+const FROZEN_GROUP_MAX_WIDTH = '30cqw'
 
 // Floor for the reason column on a narrow panel, where its share of the width
 // would leave too little to read a sentence in
@@ -54,7 +54,7 @@ function buildFrozenReasonCellStyle(leadColumnWidth: string): CSSProperties {
     left: leadColumnWidth,
     width: 'max-content',
     minWidth: REASON_COLUMN_MIN_WIDTH,
-    maxWidth: `calc(${FROZEN_GROUP_WIDTH} - ${leadColumnWidth})`,
+    maxWidth: `calc(${FROZEN_GROUP_MAX_WIDTH} - ${leadColumnWidth})`,
     background: FROZEN_COLUMN_BACKGROUND,
     borderRight: '1px solid var(--app-border)',
     zIndex: 1,
