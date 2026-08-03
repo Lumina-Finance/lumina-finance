@@ -121,7 +121,7 @@ async def test_import_transactions_reuses_existing_records(client):
     assert [tag["name"] for tag in transaction["tags"]] == ["bulk"]
 
 
-async def test_import_transactions_records_the_other_account_on_a_transfer(client):
+async def test_import_transactions_records_the_counterparty_account_on_a_transfer(client):
     """A transfer row that states a counterparty records it, and a row that states none says the money left."""
     headers, account_id, _ = await _setup_user_with_deps(client)
     savings_resp = await _create_account(client, headers, name="Main Savings", account_type="savings")
@@ -154,17 +154,17 @@ async def test_import_transactions_records_the_other_account_on_a_transfer(clien
     assert resp.status_code == 201
     transactions_resp = await client.get("/transactions", headers=headers)
     transactions_by_amount = {transaction["amount"]: transaction for transaction in transactions_resp.json()}
-    assert transactions_by_amount[-50000]["other_account_id"] == savings_id
-    assert transactions_by_amount[-50000]["other_account_scope"] == "tracked"
+    assert transactions_by_amount[-50000]["counterparty_account_id"] == savings_id
+    assert transactions_by_amount[-50000]["counterparty_account_scope"] == "tracked"
 
     # Nothing in the file points this leg at an account, so it records that the money left the
     # tracked accounts rather than arriving unanswered and blocking every later edit
-    assert transactions_by_amount[50000]["other_account_id"] is None
-    assert transactions_by_amount[50000]["other_account_scope"] == "outside"
+    assert transactions_by_amount[50000]["counterparty_account_id"] is None
+    assert transactions_by_amount[50000]["counterparty_account_scope"] == "outside"
 
 
-async def test_import_transactions_records_an_account_it_creates_as_the_other_side(client):
-    """An other-account source can be a new account, which holds no rows of its own."""
+async def test_import_transactions_records_an_account_it_creates_as_the_counterparty(client):
+    """A counterparty account source can be a new account, which holds no rows of its own."""
     headers, account_id, _ = await _setup_user_with_deps(client)
     transfer_category_id = await _get_system_category_id(client, headers, "Transfer")
 
@@ -191,8 +191,8 @@ async def test_import_transactions_records_an_account_it_creates_as_the_other_si
     assert data["accounts_created"] == 1
 
     transaction = (await client.get("/transactions", headers=headers)).json()[0]
-    assert transaction["other_account_id"] == data["account_source_ids"]["Savings"]
-    assert transaction["other_account_scope"] == "tracked"
+    assert transaction["counterparty_account_id"] == data["account_source_ids"]["Savings"]
+    assert transaction["counterparty_account_scope"] == "tracked"
 
 
 async def test_import_transactions_records_a_transfer_leaving_the_tracked_accounts(client):
@@ -218,11 +218,11 @@ async def test_import_transactions_records_a_transfer_leaving_the_tracked_accoun
     assert resp.status_code == 201
     assert resp.json()["accounts_created"] == 0
     transaction = (await client.get("/transactions", headers=headers)).json()[0]
-    assert transaction["other_account_id"] is None
-    assert transaction["other_account_scope"] == "outside"
+    assert transaction["counterparty_account_id"] is None
+    assert transaction["counterparty_account_scope"] == "outside"
 
 
-async def test_import_transactions_rejects_an_other_account_on_a_non_transfer_row(client):
+async def test_import_transactions_rejects_a_counterparty_account_on_a_non_transfer_row(client):
     """Only a transfer records a counterparty, so an expense row that states one is refused."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
     savings_resp = await _create_account(client, headers, name="Main Savings", account_type="savings")
@@ -247,7 +247,7 @@ async def test_import_transactions_rejects_an_other_account_on_a_non_transfer_ro
 
 
 async def test_import_transactions_rejects_a_transfer_recording_its_own_account(client):
-    """Two sources mapped onto one account cannot record that account as its own other side."""
+    """Two sources mapped onto one account cannot record that account as its own counterparty."""
     headers, account_id, _ = await _setup_user_with_deps(client)
     transfer_category_id = await _get_system_category_id(client, headers, "Transfer")
 

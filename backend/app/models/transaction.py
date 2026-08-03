@@ -6,7 +6,7 @@ from datetime import date, datetime
 from sqlalchemy import VARCHAR, BigInteger, CheckConstraint, Date, DateTime, ForeignKey, Numeric, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import Base, TransferOtherAccountScope
+from app.models.base import Base, TransferCounterpartyScope
 
 
 class Transaction(Base):
@@ -17,8 +17,8 @@ class Transaction(Base):
         # Null-safe on both sides, so an account recorded without a scope is rejected rather
         # than passing on an unknown comparison
         CheckConstraint(
-            "(other_account_id IS NOT NULL) = (other_account_scope IS NOT DISTINCT FROM 'TRACKED')",
-            name="ck_transactions_other_account_scope_matches_id",
+            "(counterparty_account_id IS NOT NULL) = (counterparty_account_scope IS NOT DISTINCT FROM 'TRACKED')",
+            name="ck_transactions_counterparty_account_scope_matches_id",
         ),
     )
 
@@ -35,7 +35,7 @@ class Transaction(Base):
     fx_rate: Mapped[float | None] = mapped_column(Numeric)  # Exchange rate to account currency
     notes: Mapped[str | None] = mapped_column(Text)
 
-    # The account on the other side of a transfer. Recording it creates no transaction there and
+    # The counterparty account of a transfer. Recording it creates no transaction there and
     # moves no balance, so deleting that account has to be refused rather than cascade here.
     #
     # Deferred to the commit rather than checked per row, because deleting a group cascades into
@@ -43,11 +43,11 @@ class Transaction(Base):
     # depending on which physical row the cascade reaches first. RESTRICT cannot be deferred at
     # all, so the refusal comes from NO ACTION at the end of the transaction, by which point a
     # cascade that removed both sides together leaves nothing to complain about
-    other_account_id: Mapped[uuid.UUID | None] = mapped_column(
+    counterparty_account_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("accounts.id", ondelete="NO ACTION", deferrable=True, initially="DEFERRED"),
         index=True,
     )
-    other_account_scope: Mapped[TransferOtherAccountScope | None] = mapped_column()
+    counterparty_account_scope: Mapped[TransferCounterpartyScope | None] = mapped_column()
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())

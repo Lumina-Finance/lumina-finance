@@ -1,7 +1,7 @@
 import type { Category } from '@/api/categories'
 import type { TransactionImportPayload, TransactionImportResponse } from '@/api/transaction-imports'
 import { COLUMN_TARGETS, CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, DEFAULT_CATEGORY_ICON } from '@/pages/imports/constants'
-import { BALANCE_ADJUSTMENT_CATEGORY_NAME, doesTransferRecordOtherAccount, OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
+import { BALANCE_ADJUSTMENT_CATEGORY_NAME, doesTransferRecordCounterpartyAccount, OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 import type { ColumnMap, ColumnValidationErrors, ImportAccountSource, ImportBuildResult, ImportCategoryKind, ImportFileDraft } from '@/pages/imports/types'
 import { isImportAccountType } from '@/pages/imports/accountTypeGuard'
 import { getCategoryMatchKind, splitImportedValues } from './categoryMatching'
@@ -105,8 +105,8 @@ export function buildTransactionImportPayload({
       }
 
       // A create mapping reuses a category of the same name where one exists, so a source called
-      // Balance Adjustment lands on the system category that records no other account
-      recordsCounterpartyBySource[source] = doesTransferRecordOtherAccount(
+      // Balance Adjustment lands on the system category that records no counterparty account
+      recordsCounterpartyBySource[source] = doesTransferRecordCounterpartyAccount(
         kind,
         source === BALANCE_ADJUSTMENT_CATEGORY_NAME,
       )
@@ -125,7 +125,7 @@ export function buildTransactionImportPayload({
     // name is refused there too and has to be refused here
     const category = categoryById.get(choice)
     recordsCounterpartyBySource[source] = category
-      ? doesTransferRecordOtherAccount(category.kind, category.name === BALANCE_ADJUSTMENT_CATEGORY_NAME)
+      ? doesTransferRecordCounterpartyAccount(category.kind, category.name === BALANCE_ADJUSTMENT_CATEGORY_NAME)
       : false
     categories.push({ source, category_id: choice })
   }
@@ -138,8 +138,8 @@ export function buildTransactionImportPayload({
       const dt = dateFormat ? readImportDate(getMappedValue(row, columnMap.dt), dateFormat) : ''
       const amount = getMappedValue(row, columnMap.amount)
 
-      const counterpartySource = columnMap.other_account_id
-        ? cleanOptional(getMappedValue(row, columnMap.other_account_id))
+      const counterpartySource = columnMap.counterparty_account_id
+        ? cleanOptional(getMappedValue(row, columnMap.counterparty_account_id))
         : null
 
       if (!accountSource) addError('Account source cannot be blank.')

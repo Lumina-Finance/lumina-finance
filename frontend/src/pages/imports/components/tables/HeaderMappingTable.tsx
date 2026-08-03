@@ -126,7 +126,7 @@ export function ImportHeaderMappingTable({
                         />
                       </div>
                     )}
-                    {selectedTarget === 'other_account_id' && (
+                    {selectedTarget === 'counterparty_account_id' && (
                       <IconTooltip
                         label="What a counterparty account records"
                         icon={CircleHelp}

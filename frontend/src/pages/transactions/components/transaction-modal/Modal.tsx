@@ -95,9 +95,9 @@ export default function CreateTransactionModal({
     () => accounts.find((account) => account.id === form.account_id),
     [accounts, form.account_id],
   )
-  const selectedOtherAccount = useMemo(
-    () => accounts.find((account) => account.id === form.other_account_id),
-    [accounts, form.other_account_id],
+  const selectedCounterpartyAccount = useMemo(
+    () => accounts.find((account) => account.id === form.counterparty_account_id),
+    [accounts, form.counterparty_account_id],
   )
   const readOnly = editing && (readOnlyProp || Boolean(selectedAccount?.is_archived))
 
@@ -188,7 +188,7 @@ export default function CreateTransactionModal({
     readOnly,
     accounts,
     selectedAccount,
-    selectedOtherAccount,
+    selectedCounterpartyAccount,
     selectedCurrencyExponent,
     isAmountLocked,
     isBalanceAdjustmentCategory: categoryField.isBalanceAdjustmentCategory,
@@ -218,17 +218,17 @@ export default function CreateTransactionModal({
       ? { amount: runningBalance, currency: selectedAccount.currency }
       : undefined,
   }
-  const otherAccountField = {
-    options: accountField.otherAccountOptions,
-    selectedOption: accountField.selectedArchivedOtherAccountOption,
-    value: form.other_account_id,
-    error: showError('other_account_id'),
-    onChange: accountField.handleOtherAccountChange,
+  const counterpartyAccountField = {
+    options: accountField.counterpartyAccountOptions,
+    selectedOption: accountField.selectedArchivedCounterpartyAccountOption,
+    value: form.counterparty_account_id,
+    error: showError('counterparty_account_id'),
+    onChange: accountField.handleCounterpartyAccountChange,
     runningBalance: undefined,
   }
   const [topAccountField, secondAccountField] = orderAccountFields(
     recordedAccountField,
-    otherAccountField,
+    counterpartyAccountField,
     { isSymmetricTransfer, direction: form.direction },
   )
 
@@ -283,11 +283,11 @@ export default function CreateTransactionModal({
             direction={form.direction}
             isSymmetricTransfer={form.symmetric_transfer}
             isTransferPairOffered={!editing}
-            otherAccountOptions={secondAccountField.options}
-            selectedArchivedOtherAccountOption={secondAccountField.selectedOption}
-            otherAccountValue={secondAccountField.value}
-            otherAccountError={secondAccountField.error}
-            otherAccountRunningBalance={secondAccountField.runningBalance}
+            counterpartyAccountOptions={secondAccountField.options}
+            selectedArchivedCounterpartyAccountOption={secondAccountField.selectedOption}
+            counterpartyAccountValue={secondAccountField.value}
+            counterpartyAccountError={secondAccountField.error}
+            counterpartyAccountRunningBalance={secondAccountField.runningBalance}
             merchantOptions={merchantField.merchantOptions}
             selectedMerchantOption={merchantField.selectedMerchantOption}
             merchantValue={form.merchant_id}
@@ -315,7 +315,7 @@ export default function CreateTransactionModal({
             readOnly={readOnly}
             onAccountChange={topAccountField.onChange}
             onSymmetricTransferChange={accountField.handleSymmetricTransferChange}
-            onOtherAccountChange={secondAccountField.onChange}
+            onCounterpartyAccountChange={secondAccountField.onChange}
             onMerchantChange={merchantField.handleMerchantChange}
             onMerchantSearchChange={merchantField.setSearch}
             onMerchantSearchCommit={merchantField.setActiveSearch}

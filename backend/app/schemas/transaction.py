@@ -5,7 +5,7 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, Field
 
-from app.models.base import TransferOtherAccountScope
+from app.models.base import TransferCounterpartyScope
 from app.schemas.fx import FxStatus
 
 
@@ -80,9 +80,9 @@ class TransactionResponse(BaseModel):
     fx_rate: float | None
     notes: str | None
 
-    # Where the other side of a transfer sits. Both null on anything recorded before the columns existed
-    other_account_id: uuid.UUID | None = None
-    other_account_scope: TransferOtherAccountScope | None = None
+    # Where the counterparty of a transfer sits. Both null on anything recorded before the columns existed
+    counterparty_account_id: uuid.UUID | None = None
+    counterparty_account_scope: TransferCounterpartyScope | None = None
     created_at: datetime
     updated_at: datetime
     tag_ids: list[uuid.UUID] = []
@@ -106,8 +106,8 @@ class CreateTransactionRequest(BaseModel):
     fx_rate: float | None = Field(None, gt=0)
     notes: str | None = None
     tag_ids: list[uuid.UUID] = []
-    other_account_id: uuid.UUID | None = None
-    other_account_scope: TransferOtherAccountScope | None = None
+    counterparty_account_id: uuid.UUID | None = None
+    counterparty_account_scope: TransferCounterpartyScope | None = None
 
 
 class UpdateTransactionRequest(BaseModel):
@@ -121,8 +121,8 @@ class UpdateTransactionRequest(BaseModel):
     fx_rate: float | None = Field(None, gt=0)
     notes: str | None = None
     tag_ids: list[uuid.UUID] | None = None
-    other_account_id: uuid.UUID | None = None
-    other_account_scope: TransferOtherAccountScope | None = None
+    counterparty_account_id: uuid.UUID | None = None
+    counterparty_account_scope: TransferCounterpartyScope | None = None
 
 
 class TransactionImportCreateAccount(BaseModel):
@@ -141,7 +141,7 @@ class TransactionImportAccountMapping(BaseModel):
     account_id: uuid.UUID | None = None
     create: TransactionImportCreateAccount | None = None
 
-    # A source appearing only as the other side of a transfer can be answered as money that left
+    # A source appearing only as a transfer counterparty can be answered as money that left
     # the tracked accounts, which no account row expresses. Rows are never written to such a source
     outside: bool = False
 

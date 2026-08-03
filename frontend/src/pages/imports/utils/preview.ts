@@ -3,7 +3,7 @@ import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import type { Institution } from '@/api/institutions'
 import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, DEFAULT_CATEGORY_ICON } from '@/pages/imports/constants'
-import { BALANCE_ADJUSTMENT_CATEGORY_NAME, doesTransferRecordOtherAccount, OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
+import { BALANCE_ADJUSTMENT_CATEGORY_NAME, doesTransferRecordCounterpartyAccount, OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 import type { ColumnMap, ImportCategoryKind, ImportFileDraft, PreviewTransactionRow } from '@/pages/imports/types'
 import { getImportAccountName } from './accountMapping'
 import { splitImportedValues } from './categoryMatching'
@@ -120,8 +120,8 @@ export function buildImportPreviewRows({
       // can hold one, and the answer is whatever that source was mapped to, which can be an account
       // or money leaving the app
       const recordsCounterparty = doesPreviewCategoryRecordCounterparty(category)
-      const counterpartySource = recordsCounterparty && columnMap.other_account_id
-        ? getMappedValue(row, columnMap.other_account_id).trim()
+      const counterpartySource = recordsCounterparty && columnMap.counterparty_account_id
+        ? getMappedValue(row, columnMap.counterparty_account_id).trim()
         : ''
       const counterpartyChoice = counterpartySource ? resolvedAccountMappings[counterpartySource] ?? '' : ''
       const counterpartyAccount = counterpartyChoice === CREATE_ACCOUNT_VALUE || counterpartyChoice === OUTSIDE_ACCOUNT_VALUE
@@ -141,7 +141,7 @@ export function buildImportPreviewRows({
         category,
         currency,
         dateLabel: getPreviewDateLabel(dt),
-        otherAccountName: counterpartyName,
+        counterpartyAccountName: counterpartyName,
         transaction: {
           id: `import-preview-${file.id}-${rowIndex}`,
           created_by_user_id: 'import-preview',
@@ -157,8 +157,8 @@ export function buildImportPreviewRows({
           fx_rate: null,
           notes: notes || null,
 
-          other_account_id: counterpartyAccount?.id ?? (counterpartyChoice === CREATE_ACCOUNT_VALUE ? CREATE_ACCOUNT_VALUE : null),
-          other_account_scope: getPreviewCounterpartyScope(recordsCounterparty, counterpartyChoice),
+          counterparty_account_id: counterpartyAccount?.id ?? (counterpartyChoice === CREATE_ACCOUNT_VALUE ? CREATE_ACCOUNT_VALUE : null),
+          counterparty_account_scope: getPreviewCounterpartyScope(recordsCounterparty, counterpartyChoice),
           created_at: timestamp,
           updated_at: timestamp,
           tag_ids: tagIds,
@@ -181,11 +181,11 @@ export function buildImportPreviewRows({
  * Reports whether a previewed row's category can record where the money went
  *
  * The backend matches Balance Adjustment by name alone, so this does too, and a row the API would
- * refuse an other account for is previewed without one
+ * refuse a counterparty account for is previewed without one
  */
 function doesPreviewCategoryRecordCounterparty(category: Category | undefined) {
   if (!category) return false
-  return doesTransferRecordOtherAccount(category.kind, category.name === BALANCE_ADJUSTMENT_CATEGORY_NAME)
+  return doesTransferRecordCounterpartyAccount(category.kind, category.name === BALANCE_ADJUSTMENT_CATEGORY_NAME)
 }
 
 /**

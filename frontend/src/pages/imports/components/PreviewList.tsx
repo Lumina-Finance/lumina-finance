@@ -44,7 +44,7 @@ export function ImportPreviewList({
                 category={row.category}
                 currency={row.currency}
                 transaction={row.transaction}
-                otherAccountName={row.otherAccountName}
+                counterpartyAccountName={row.counterpartyAccountName}
                 skipEnterAnimation
                 onOpen={() => undefined}
               />

@@ -138,8 +138,8 @@ async def test_merge_group_category_as_non_admin_returns_403(client):
     assert resp.json()["detail"] == "Admin role required"
 
 
-async def test_merge_into_balance_adjustment_clears_the_recorded_other_account(client):
-    """Balance Adjustment has no other side, so a recorded account cannot survive the move."""
+async def test_merge_into_balance_adjustment_clears_the_recorded_counterparty_account(client):
+    """Balance Adjustment has no counterparty account, so a recorded account cannot survive the move."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
@@ -162,8 +162,8 @@ async def test_merge_into_balance_adjustment_clears_the_recorded_other_account(c
         "dt": "2026-03-15",
         "amount": -5000,
         "currency": "CAD",
-        "other_account_scope": "tracked",
-        "other_account_id": recorded_id,
+        "counterparty_account_scope": "tracked",
+        "counterparty_account_id": recorded_id,
         "merchant_id": await _get_system_merchant_id(client, headers),
     }, headers=headers)
     assert created.status_code == 201
@@ -178,5 +178,5 @@ async def test_merge_into_balance_adjustment_clears_the_recorded_other_account(c
     assert merge_resp.status_code == 204
     moved = await client.get(f"/transactions/{txn_id}", headers=headers)
     assert moved.json()["category_id"] == balance_adjustment_id
-    assert moved.json()["other_account_id"] is None
-    assert moved.json()["other_account_scope"] is None
+    assert moved.json()["counterparty_account_id"] is None
+    assert moved.json()["counterparty_account_scope"] is None

@@ -75,7 +75,7 @@ class FireflyLeg:
         merchant_name: Optional counterparty recorded as a merchant
         notes: Optional combined description and notes text
         tag_names: Tag names applied to the transaction
-        other_account: Account the money moved to or from, set only on transfer legs
+        counterparty_account: Account the money moved to or from, set only on transfer legs
     """
 
     account: Account
@@ -88,7 +88,7 @@ class FireflyLeg:
 
     # Only a transfer pair knows the opposite endpoint, and every other category is forbidden from
     # recording one, so a leg built anywhere else leaves this unset
-    other_account: Account | None = None
+    counterparty_account: Account | None = None
 
 
 def resolve_firefly_row(row: FireflyTransactionRow, context: FireflyResolutionContext) -> list[FireflyLeg]:
@@ -193,7 +193,7 @@ def _resolve_transfer_pair(
             merchant_name=None,
             notes=notes,
             tag_names=row.tag_names,
-            other_account=destination_account,
+            counterparty_account=destination_account,
         ),
         FireflyLeg(
             account=destination_account,
@@ -203,7 +203,7 @@ def _resolve_transfer_pair(
             merchant_name=None,
             notes=notes,
             tag_names=row.tag_names,
-            other_account=source_account,
+            counterparty_account=source_account,
         ),
     ]
 

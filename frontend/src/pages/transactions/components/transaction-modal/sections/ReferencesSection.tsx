@@ -9,7 +9,7 @@ import {
   TRANSACTION_MODAL_FIELD_IDS,
 } from '@/pages/transactions/components/transaction-modal/constants'
 import TransferCashFlowNotice from '@/pages/transactions/components/transaction-modal/controls/TransferCashFlowNotice'
-import { doesTransferRecordOtherAccount } from '@/utils/transfers'
+import { doesTransferRecordCounterpartyAccount } from '@/utils/transfers'
 import type {
   TransactionDirection,
   TransactionModalKind,
@@ -30,11 +30,11 @@ interface TransactionReferencesSectionProps {
   runningBalance?: { amount: number; currency: string }
 
   // Set instead of the one above when a paired transfer puts the recorded account in the second slot
-  otherAccountRunningBalance?: { amount: number; currency: string }
+  counterpartyAccountRunningBalance?: { amount: number; currency: string }
   kind: TransactionModalKind
 
   // Whether the amount is leaving (debit) or entering (credit) the recorded account, used to
-  // label the other-account field as money going out or coming in
+  // label the counterparty-account field as money going out or coming in
   direction: TransactionDirection
 
   isSymmetricTransfer: boolean
@@ -44,13 +44,13 @@ interface TransactionReferencesSectionProps {
   isTransferPairOffered: boolean
 
   // Every account plus the "outside this app" entry, for the field recording where a transfer's
-  // other side sits
-  otherAccountOptions: DropdownOption[]
+  // counterparty account sits
+  counterpartyAccountOptions: DropdownOption[]
 
   // The recorded account when it has since been archived, which keeps it off the list above
-  selectedArchivedOtherAccountOption?: DropdownOption
-  otherAccountValue: string
-  otherAccountError?: string | false
+  selectedArchivedCounterpartyAccountOption?: DropdownOption
+  counterpartyAccountValue: string
+  counterpartyAccountError?: string | false
   merchantOptions: DropdownOption[]
   selectedMerchantOption?: DropdownOption
   merchantValue: string
@@ -80,7 +80,7 @@ interface TransactionReferencesSectionProps {
   readOnly: boolean
   onAccountChange: (value: string) => void
   onSymmetricTransferChange: (value: boolean) => void
-  onOtherAccountChange: (value: string) => void
+  onCounterpartyAccountChange: (value: string) => void
   onMerchantChange: (value: string) => void
   onMerchantSearchChange: (value: string) => void
   onMerchantSearchCommit: (value: string) => void
@@ -138,15 +138,15 @@ export default function TransactionReferencesSection({
   accountError,
   accountPlaceholder,
   runningBalance,
-  otherAccountRunningBalance,
+  counterpartyAccountRunningBalance,
   kind,
   direction,
   isSymmetricTransfer,
   isTransferPairOffered,
-  otherAccountOptions,
-  selectedArchivedOtherAccountOption,
-  otherAccountValue,
-  otherAccountError,
+  counterpartyAccountOptions,
+  selectedArchivedCounterpartyAccountOption,
+  counterpartyAccountValue,
+  counterpartyAccountError,
   merchantOptions,
   selectedMerchantOption,
   merchantValue,
@@ -174,7 +174,7 @@ export default function TransactionReferencesSection({
   readOnly,
   onAccountChange,
   onSymmetricTransferChange,
-  onOtherAccountChange,
+  onCounterpartyAccountChange,
   onMerchantChange,
   onMerchantSearchChange,
   onMerchantSearchCommit,
@@ -190,15 +190,16 @@ export default function TransactionReferencesSection({
   onCreateTag,
   onRemoveTag,
 }: TransactionReferencesSectionProps) {
-  // Every transfer-kind category except Balance Adjustment records which other account the money touched
-  const recordsOtherAccount = doesTransferRecordOtherAccount(kind, isBalanceAdjustmentCategory)
+  // Every transfer-kind category except Balance Adjustment records which counterparty account the
+  // money touched
+  const recordsCounterpartyAccount = doesTransferRecordCounterpartyAccount(kind, isBalanceAdjustmentCategory)
 
   // Ticking the checkbox writes a transaction in both accounts, so neither one is the single account
   // it was recorded in. The two fields then read source first, which is why the one below says the
   // money went to it whatever the direction toggle is set to
   const accountLabel = kind === 'transfer' && isSymmetricTransfer
     ? 'From account'
-    : recordsOtherAccount ? 'Recorded in' : 'Account'
+    : recordsCounterpartyAccount ? 'Recorded in' : 'Account'
 
   return (
     <CreateModalSectionFrame step="02" title="Source/Destination">
@@ -222,7 +223,7 @@ export default function TransactionReferencesSection({
         <RunningBalanceRow runningBalance={runningBalance} />
 
         <AnimatePresence initial={false}>
-          {recordsOtherAccount && (
+          {recordsCounterpartyAccount && (
             <motion.div
               key="symmetric-transfer"
               className="overflow-hidden"
@@ -244,30 +245,30 @@ export default function TransactionReferencesSection({
                       />
                     </>
                   )}
-                  error={otherAccountError}
+                  error={counterpartyAccountError}
                 />
                 <Dropdown
-                  options={otherAccountOptions}
-                  selectedOption={selectedArchivedOtherAccountOption}
-                  value={otherAccountValue}
-                  onChange={onOtherAccountChange}
-                  className={`app-input ${otherAccountError ? 'app-input-error' : ''}`}
+                  options={counterpartyAccountOptions}
+                  selectedOption={selectedArchivedCounterpartyAccountOption}
+                  value={counterpartyAccountValue}
+                  onChange={onCounterpartyAccountChange}
+                  className={`app-input ${counterpartyAccountError ? 'app-input-error' : ''}`}
                   placeholder="Select account..."
                   searchable
                   searchPlaceholder="Search accounts..."
                   // An account archived since this transfer was recorded is off the list, so the
                   // field is held at what it already says rather than letting one change strand the
                   // answer somewhere it can never be put back
-                  disabled={readOnly || Boolean(selectedArchivedOtherAccountOption)}
+                  disabled={readOnly || Boolean(selectedArchivedCounterpartyAccountOption)}
                 />
-                <RunningBalanceRow runningBalance={otherAccountRunningBalance} />
+                <RunningBalanceRow runningBalance={counterpartyAccountRunningBalance} />
                 <AnimatePresence initial={false}>
                   {/* Ticking the checkbox below does create one there, and its own description says
                       so, so this would contradict it. The padding sits inside the collapsing element
                       so it goes with the text rather than holding the gap open after it leaves */}
                   {!isSymmetricTransfer && (
                     <motion.div
-                      key="other-account-note"
+                      key="counterparty-account-note"
                       className="overflow-hidden"
                       initial={{ height: 0, opacity: 0, y: -3 }}
                       animate={{ height: 'auto', opacity: 1, y: 0 }}

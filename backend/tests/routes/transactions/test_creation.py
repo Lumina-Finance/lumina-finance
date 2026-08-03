@@ -61,11 +61,11 @@ async def test_create_transaction_accepts_debit_and_credit_for_all_category_kind
         categories[kind] = category_resp.json()["id"]
 
     for kind, category_id in categories.items():
-        # A transfer records where the money went, and the other kinds reject the field
-        other_account = {"other_account_scope": "outside"} if kind == "transfer" else {}
+        # A transfer records its counterparty account, and the other kinds reject the field
+        counterparty_kwargs = {"counterparty_account_scope": "outside"} if kind == "transfer" else {}
         for amount in (-1234, 5678):
             resp = await _create_transaction(
-                client, headers, account_id, category_id, amount=amount, **other_account,
+                client, headers, account_id, category_id, amount=amount, **counterparty_kwargs,
             )
 
             assert resp.status_code == 201

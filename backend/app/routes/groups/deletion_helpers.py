@@ -52,5 +52,5 @@ async def delete_group_for_owner(
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="An account in this group is recorded as the other side of transfers elsewhere",
+            detail="An account in this group is recorded as the counterparty of transfers elsewhere",
         ) from e

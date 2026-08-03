@@ -30,8 +30,8 @@ const TRANSACTION_LIST_FIELDS = new Set<keyof UpdateTransactionPayload>([
   'merchant_id',
   'notes',
   'tag_ids',
-  'other_account_id',
-  'other_account_scope',
+  'counterparty_account_id',
+  'counterparty_account_scope',
 ]);
 
 const TRANSACTION_OVERVIEW_FIELDS = new Set<keyof UpdateTransactionPayload>([
@@ -79,8 +79,8 @@ const TAX_ADVANTAGED_FIELDS = new Set<keyof UpdateTransactionPayload>([
   'dt',
   'category_id',
   'amount',
-  'other_account_id',
-  'other_account_scope',
+  'counterparty_account_id',
+  'counterparty_account_scope',
 ]);
 
 const CREDIT_ACTIVITY_FIELDS = new Set<keyof UpdateTransactionPayload>([

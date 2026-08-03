@@ -12,31 +12,31 @@ const DEFAULT_CATEGORY_ICON = '🏷️'
 const ROW_EXIT_EASE = [0.25, 0.1, 0.25, 1] as const
 
 /**
- * Describes the other side of a transfer for the line that shows a merchant on other kinds
+ * Describes the counterparty of a transfer for the line that shows a merchant on other kinds
  *
  * Returns null when nothing was recorded, which is every transfer predating the field, so the row
  * falls back to the merchant rather than claiming an answer it does not have
  */
-function describeTransferOtherSide(
+function describeTransferCounterparty(
   transaction: Transaction,
-  otherAccountName: string | undefined,
+  counterpartyAccountName: string | undefined,
 ): string | null {
-  const otherSide = transaction.other_account_scope === 'outside'
+  const counterparty = transaction.counterparty_account_scope === 'outside'
     ? 'outside this app'
-    : transaction.other_account_scope === 'tracked' ? otherAccountName : undefined
-  if (!otherSide) return null
+    : transaction.counterparty_account_scope === 'tracked' ? counterpartyAccountName : undefined
+  if (!counterparty) return null
 
-  // Which way the money went reads the same whether the other side is an account or not, so money
+  // Which way the money went reads the same whether the counterparty is an account or not, so money
   // leaving the tracked accounts gets the same wording rather than standing on its own
-  return transaction.amount < 0 ? `To ${otherSide}` : `From ${otherSide}`
+  return transaction.amount < 0 ? `To ${counterparty}` : `From ${counterparty}`
 }
 
 interface TransactionRowProps {
   accountName?: string
 
-  // The account a transfer recorded as its other side, looked up by the caller. Absent on every
+  // The account a transfer recorded as its counterparty, looked up by the caller. Absent on every
   // other kind, and on a transfer whose recorded account is not in the caller's list
-  otherAccountName?: string
+  counterpartyAccountName?: string
   accountInstitution?: Institution | null
   category: Category | undefined
   currency: string
@@ -142,7 +142,7 @@ function TagTooltip({ tags }: { tags: Transaction['tags'] }) {
  */
 export default function TransactionRow({
   accountName,
-  otherAccountName,
+  counterpartyAccountName,
   accountInstitution,
   category,
   currency,
@@ -161,11 +161,11 @@ export default function TransactionRow({
 
   // A transfer's merchant is almost always the same stand-in, so where the money went takes the line
   // that shows a merchant on other kinds, and the merchant fills in only for a transfer that
-  // recorded no other side
-  const transferOtherSide = category?.kind === 'transfer'
-    ? describeTransferOtherSide(transaction, otherAccountName)
+  // recorded no counterparty
+  const transferCounterparty = category?.kind === 'transfer'
+    ? describeTransferCounterparty(transaction, counterpartyAccountName)
     : null
-  const title = transferOtherSide ?? transaction.merchant_name ?? fallbackTitle
+  const title = transferCounterparty ?? transaction.merchant_name ?? fallbackTitle
   const hasNotes = Boolean(transaction.notes?.trim())
   const tags = [...(transaction.tags ?? [])].sort((a, b) => a.name.localeCompare(b.name))
   const visibleTags = tags.slice(0, MAX_VISIBLE_TAGS)

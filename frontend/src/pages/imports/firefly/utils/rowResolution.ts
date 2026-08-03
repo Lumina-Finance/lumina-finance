@@ -51,7 +51,7 @@ export interface FireflyResolvedLeg {
   merchantName: string | null
 
   /** Account the money moved to or from, held only by the two legs of a transfer */
-  otherAccount: FireflyResolvedAccount | null
+  counterpartyAccount: FireflyResolvedAccount | null
 }
 
 /**
@@ -114,7 +114,7 @@ function buildFireflyRowLegs(row: CsvRow, options: FireflyRowResolutionOptions):
       amount: destination ? amount : -amount,
       category: options.balanceAdjustmentCategory,
       merchantName: null,
-      otherAccount: null,
+      counterpartyAccount: null,
     }]
   }
 
@@ -137,14 +137,14 @@ function buildFireflyRowLegs(row: CsvRow, options: FireflyRowResolutionOptions):
         amount: -getFireflyAmountInAccountCurrency(row, source.currency),
         category: options.transferCategory,
         merchantName: null,
-        otherAccount: destination,
+        counterpartyAccount: destination,
       },
       {
         account: destination,
         amount: getFireflyAmountInAccountCurrency(row, destination.currency),
         category: options.transferCategory,
         merchantName: null,
-        otherAccount: source,
+        counterpartyAccount: source,
       },
     ]
   }
@@ -157,7 +157,7 @@ function buildFireflyRowLegs(row: CsvRow, options: FireflyRowResolutionOptions):
       amount: -getFireflyAmountInAccountCurrency(row, source.currency),
       category: getFireflyMappedCategory(row, options),
       merchantName: row.destination_name?.trim() || null,
-      otherAccount: null,
+      counterpartyAccount: null,
     }]
   }
 
@@ -169,7 +169,7 @@ function buildFireflyRowLegs(row: CsvRow, options: FireflyRowResolutionOptions):
       amount: getFireflyAmountInAccountCurrency(row, destination.currency),
       category: getFireflyMappedCategory(row, options),
       merchantName: row.source_name?.trim() || null,
-      otherAccount: null,
+      counterpartyAccount: null,
     }]
   }
 

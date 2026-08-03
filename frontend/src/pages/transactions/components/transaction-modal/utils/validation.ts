@@ -1,5 +1,5 @@
 import type { AccountsOverview } from '@/api/accounts'
-import { doesTransferRecordOtherAccount } from '@/utils/transfers'
+import { doesTransferRecordCounterpartyAccount } from '@/utils/transfers'
 import type {
   TransactionFormFieldErrors,
   TransactionFormValues,
@@ -44,15 +44,15 @@ export function validateTransactionForm(
 
   // The recorded account doubles as the receiving one when the checkbox is ticked, so there is a
   // single account field either way and nothing to keep in agreement
-  if (doesTransferRecordOtherAccount(form.kind, isBalanceAdjustmentCategory)) {
+  if (doesTransferRecordCounterpartyAccount(form.kind, isBalanceAdjustmentCategory)) {
     // Editing answers this too, so a transfer recorded before the field existed says where the
     // money went the next time it is touched at all
-    if (!form.other_account_id) {
-      errors.other_account_id = form.direction === 'debit'
+    if (!form.counterparty_account_id) {
+      errors.counterparty_account_id = form.direction === 'debit'
         ? 'Select where the money went'
         : 'Select where the money came from'
-    } else if (form.other_account_id === form.account_id) {
-      errors.other_account_id = 'Choose a different account'
+    } else if (form.counterparty_account_id === form.account_id) {
+      errors.counterparty_account_id = 'Choose a different account'
     }
   }
   return errors

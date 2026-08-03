@@ -162,8 +162,8 @@ export function useTransactionImportWorkflow() {
   }
 
   const accountMappingSources = useMemo(
-    () => buildImportAccountMappingSources(files, columnMap.account_id, columnMap.other_account_id),
-    [columnMap.account_id, columnMap.other_account_id, files],
+    () => buildImportAccountMappingSources(files, columnMap.account_id, columnMap.counterparty_account_id),
+    [columnMap.account_id, columnMap.counterparty_account_id, files],
   )
 
   // Only a source no row is written to can answer that the money left the tracked accounts, so the

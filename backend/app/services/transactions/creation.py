@@ -14,10 +14,10 @@ from app.services.transactions.tags import replace_transaction_tag_assignments
 from app.services.transactions.validation import (
     get_valid_transaction_tag_ids,
     validate_transaction_category_access,
+    validate_transaction_counterparty_account,
     validate_transaction_currency_exists,
     validate_transaction_fx_rate_for_account_currency,
     validate_transaction_merchant_access,
-    validate_transaction_other_account,
 )
 
 
@@ -57,15 +57,15 @@ async def create_transaction_and_get_response(
     # Confirm related records belong to the same accessible group as the account
     category = await validate_transaction_category_access(db, data.category_id, user.id, account.group_id)
 
-    # A transfer records where the money went as it is entered, since the receiving side is added
-    # days later and the two cannot be matched up afterwards
-    await validate_transaction_other_account(
+    # A transfer records its counterparty account as it is entered, since the receiving side is
+    # added days later and the two cannot be matched up afterwards
+    await validate_transaction_counterparty_account(
         db,
         user.id,
         category,
         data.account_id,
-        data.other_account_id,
-        data.other_account_scope,
+        data.counterparty_account_id,
+        data.counterparty_account_scope,
     )
     await validate_transaction_merchant_access(db, data.merchant_id, user.id, account.group_id)
     validated_tag_ids = []
@@ -83,8 +83,8 @@ async def create_transaction_and_get_response(
         currency=data.currency,
         fx_rate=data.fx_rate,
         notes=data.notes,
-        other_account_id=data.other_account_id,
-        other_account_scope=data.other_account_scope,
+        counterparty_account_id=data.counterparty_account_id,
+        counterparty_account_scope=data.counterparty_account_scope,
     )
     db.add(txn)
     await db.flush()

@@ -10,13 +10,13 @@ export const OUTSIDE_ACCOUNT_VALUE = '__outside__'
 export const OUTSIDE_ACCOUNT_LABEL = 'Outside this app'
 
 /**
- * Reports whether a transfer in the given kind and category records which other account the money
- * touched
+ * Reports whether a transfer in the given kind and category records which counterparty account
+ * the money touched
  *
- * True for every transfer-kind category except Balance Adjustment, which has no other side.
- * Mirrors the backend's does_category_record_other_account, which matches the name alone
+ * True for every transfer-kind category except Balance Adjustment, which has no counterparty.
+ * Mirrors the backend's does_category_record_counterparty_account, which matches the name alone
  */
-export function doesTransferRecordOtherAccount(
+export function doesTransferRecordCounterpartyAccount(
   kind: Category['kind'],
   isBalanceAdjustmentCategory: boolean,
 ): boolean {

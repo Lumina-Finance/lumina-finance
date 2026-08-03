@@ -14,7 +14,7 @@ export const EMPTY_COLUMN_MAP: ColumnMap = {
   merchant_id: '',
   notes: '',
   tag_ids: '',
-  other_account_id: '',
+  counterparty_account_id: '',
 }
 
 export const COLUMN_TARGETS: Array<{
@@ -28,7 +28,7 @@ export const COLUMN_TARGETS: Array<{
   // Straight after the account it belongs beside, and before every target that scores on values
   // alone, since those would otherwise claim a column of account names first
   {
-    id: 'other_account_id',
+    id: 'counterparty_account_id',
     label: 'Counterparty account',
     hint: 'Account a transfer moved money to or from. Used only on transfer rows.',
   },

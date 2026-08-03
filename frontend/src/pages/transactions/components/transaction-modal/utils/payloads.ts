@@ -1,7 +1,7 @@
 import type {
   CreateTransactionPayload,
   Transaction,
-  TransferOtherAccountScope,
+  TransferCounterpartyScope,
   UpdateTransactionPayload,
 } from '@/api/transactions'
 import { OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
@@ -15,18 +15,18 @@ import type {
 } from '@/pages/transactions/components/transaction-modal/types'
 
 /**
- * Splits the form's single other-account selection into the API's id-and-scope pair
+ * Splits the form's single counterparty-account selection into the API's id-and-scope pair
  *
  * Empty means unanswered, so both come back null. The outside sentinel means the money left the
  * tracked accounts, sent as a scope with no id. Anything else is a tracked account id
  */
-function splitOtherAccountSelection(otherAccountId: string): {
-  other_account_id: string | null
-  other_account_scope: TransferOtherAccountScope | null
+function splitCounterpartyAccountSelection(counterpartyAccountId: string): {
+  counterparty_account_id: string | null
+  counterparty_account_scope: TransferCounterpartyScope | null
 } {
-  if (!otherAccountId) return { other_account_id: null, other_account_scope: null }
-  if (otherAccountId === OUTSIDE_ACCOUNT_VALUE) return { other_account_id: null, other_account_scope: 'outside' }
-  return { other_account_id: otherAccountId, other_account_scope: 'tracked' }
+  if (!counterpartyAccountId) return { counterparty_account_id: null, counterparty_account_scope: null }
+  if (counterpartyAccountId === OUTSIDE_ACCOUNT_VALUE) return { counterparty_account_id: null, counterparty_account_scope: 'outside' }
+  return { counterparty_account_id: counterpartyAccountId, counterparty_account_scope: 'tracked' }
 }
 
 /**
@@ -48,7 +48,7 @@ export function buildCreateTransactionPayload(
   }
   if (form.tag_ids.length > 0) payload.tag_ids = form.tag_ids
   // Every other category rejects the pair outright, so it is only ever sent for a transfer
-  if (form.kind === 'transfer') Object.assign(payload, splitOtherAccountSelection(form.other_account_id))
+  if (form.kind === 'transfer') Object.assign(payload, splitCounterpartyAccountSelection(form.counterparty_account_id))
   return payload
 }
 
@@ -96,14 +96,14 @@ export function buildSymmetricTransferPayloads(
     account_id: form.account_id,
     amount: recordedAmount,
     ...shared,
-    ...splitOtherAccountSelection(form.other_account_id),
+    ...splitCounterpartyAccountSelection(form.counterparty_account_id),
   }
-  // The second leg's other side is not in question: it is always the originating account, a tracked account in the app
+  // The second leg's counterparty is not in question: it is always the originating account, a tracked account in the app
   const toPayload: CreateTransactionPayload = {
-    account_id: form.other_account_id,
+    account_id: form.counterparty_account_id,
     amount: -recordedAmount,
-    other_account_id: form.account_id,
-    other_account_scope: 'tracked',
+    counterparty_account_id: form.account_id,
+    counterparty_account_scope: 'tracked',
     ...shared,
   }
   if (form.tag_ids.length > 0) {
@@ -139,14 +139,14 @@ export function buildUpdateTransactionPatch(
   if (!sameStringSet(form.tag_ids, transaction.tag_ids)) patch.tag_ids = form.tag_ids
 
   // Left out entirely once the category leaves transfer, since the backend clears the stored
-  // answer itself when the category it ends up with no longer records another account
+  // answer itself when the category it ends up with no longer records a counterparty account
   if (form.kind === 'transfer') {
-    const { other_account_id, other_account_scope } = splitOtherAccountSelection(form.other_account_id)
-    const storedScope = transaction.other_account_scope ?? null
-    const storedId = transaction.other_account_id ?? null
-    if (other_account_id !== storedId || other_account_scope !== storedScope) {
-      patch.other_account_id = other_account_id
-      patch.other_account_scope = other_account_scope
+    const { counterparty_account_id, counterparty_account_scope } = splitCounterpartyAccountSelection(form.counterparty_account_id)
+    const storedScope = transaction.counterparty_account_scope ?? null
+    const storedId = transaction.counterparty_account_id ?? null
+    if (counterparty_account_id !== storedId || counterparty_account_scope !== storedScope) {
+      patch.counterparty_account_id = counterparty_account_id
+      patch.counterparty_account_scope = counterparty_account_scope
     }
   }
 

@@ -117,7 +117,7 @@ export function getMissingRequiredColumnLabels(columnMap: ColumnMap): string[] {
 export function buildImportAccountMappingSources(
   files: ImportFileDraft[],
   accountHeader: string,
-  otherAccountHeader: string,
+  counterpartyAccountHeader: string,
 ): ImportAccountSource[] {
   const rowSources: ImportAccountSource[] = accountHeader
     ? getUniqueColumnValues(files, accountHeader).map((source) => ({
@@ -133,13 +133,13 @@ export function buildImportAccountMappingSources(
       isCounterpartyOnly: false,
     }))
 
-  if (!otherAccountHeader) return rowSources
+  if (!counterpartyAccountHeader) return rowSources
 
-  // A name appearing only as the other side of a transfer still has to be mapped, and it is the
-  // only kind that can be answered as money outside the tracked accounts, since no row is written
-  // to it
+  // A name appearing only as the counterparty account of a transfer still has to be mapped, and it
+  // is the only kind that can be answered as money outside the tracked accounts, since no row is
+  // written to it
   const rowSourceIds = new Set(rowSources.map((source) => source.id))
-  const counterpartySources: ImportAccountSource[] = getUniqueColumnValues(files, otherAccountHeader)
+  const counterpartySources: ImportAccountSource[] = getUniqueColumnValues(files, counterpartyAccountHeader)
     .filter((source) => !rowSourceIds.has(source))
     .map((source) => ({
       id: source,

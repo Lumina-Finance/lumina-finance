@@ -3,7 +3,7 @@ from datetime import UTC, date, datetime
 from sqlalchemy import select
 
 import app.services.tax_advantaged_categories as tax_advantaged_category_services
-from app.models.base import CategoryKind, TransferOtherAccountScope
+from app.models.base import CategoryKind, TransferCounterpartyScope
 from app.models.category import Category
 from app.models.transaction import Transaction
 from tests.conftest import TestSession
@@ -74,8 +74,8 @@ async def _seed_transaction(
     created_by_user_id,
     amount: int,
     dt: date,
-    other_account_id=None,
-    other_account_scope: TransferOtherAccountScope | None = None,
+    counterparty_account_id=None,
+    counterparty_account_scope: TransferCounterpartyScope | None = None,
 ) -> None:
     """Insert a transaction directly via DB
 
@@ -85,8 +85,8 @@ async def _seed_transaction(
         created_by_user_id: User that created the transaction
         amount: Signed transaction amount in minor units
         dt: Transaction date
-        other_account_id: Account recorded on the other side of a transfer, set only with a tracked scope
-        other_account_scope: Where the other side sits, or None for a transfer that recorded no answer
+        counterparty_account_id: Counterparty account, set only with a tracked scope
+        counterparty_account_scope: Where the counterparty sits, or None for a transfer that recorded no answer
     """
     async with TestSession() as session:
         session.add(Transaction(
@@ -96,8 +96,8 @@ async def _seed_transaction(
             dt=dt,
             amount=amount,
             currency="CAD",
-            other_account_id=other_account_id,
-            other_account_scope=other_account_scope,
+            counterparty_account_id=counterparty_account_id,
+            counterparty_account_scope=counterparty_account_scope,
         ))
         await session.commit()
 
@@ -595,15 +595,15 @@ async def test_internal_transfer_is_left_out_of_both_totals(client):
 
     await _seed_transaction(
         first_account_id, transfer_id, user_id, -20_000, date(current_year, 2, 1),
-        other_account_id=second_account_id, other_account_scope=TransferOtherAccountScope.TRACKED,
+        counterparty_account_id=second_account_id, counterparty_account_scope=TransferCounterpartyScope.TRACKED,
     )
     await _seed_transaction(
         second_account_id, transfer_id, user_id, 20_000, date(current_year, 2, 2),
-        other_account_id=first_account_id, other_account_scope=TransferOtherAccountScope.TRACKED,
+        counterparty_account_id=first_account_id, counterparty_account_scope=TransferCounterpartyScope.TRACKED,
     )
     await _seed_transaction(
         first_account_id, transfer_id, user_id, 50_000, date(current_year, 3, 1),
-        other_account_scope=TransferOtherAccountScope.OUTSIDE,
+        counterparty_account_scope=TransferCounterpartyScope.OUTSIDE,
     )
 
     resp = await client.get(f"/tax-advantaged-categories/{category_id}", headers=headers)
@@ -628,15 +628,15 @@ async def test_internal_transfer_counts_when_the_category_counts_them(client):
 
     await _seed_transaction(
         first_account_id, transfer_id, user_id, -20_000, date(current_year, 2, 1),
-        other_account_id=second_account_id, other_account_scope=TransferOtherAccountScope.TRACKED,
+        counterparty_account_id=second_account_id, counterparty_account_scope=TransferCounterpartyScope.TRACKED,
     )
     await _seed_transaction(
         second_account_id, transfer_id, user_id, 20_000, date(current_year, 2, 2),
-        other_account_id=first_account_id, other_account_scope=TransferOtherAccountScope.TRACKED,
+        counterparty_account_id=first_account_id, counterparty_account_scope=TransferCounterpartyScope.TRACKED,
     )
     await _seed_transaction(
         first_account_id, transfer_id, user_id, 50_000, date(current_year, 3, 1),
-        other_account_scope=TransferOtherAccountScope.OUTSIDE,
+        counterparty_account_scope=TransferCounterpartyScope.OUTSIDE,
     )
 
     resp = await client.get(f"/tax-advantaged-categories/{category_id}", headers=headers)
@@ -672,11 +672,11 @@ async def test_transfer_between_two_tax_advantaged_categories_counts_on_both_sid
 
     await _seed_transaction(
         excluding_account_id, transfer_id, user_id, -20_000, date(current_year, 2, 1),
-        other_account_id=counting_account_id, other_account_scope=TransferOtherAccountScope.TRACKED,
+        counterparty_account_id=counting_account_id, counterparty_account_scope=TransferCounterpartyScope.TRACKED,
     )
     await _seed_transaction(
         counting_account_id, transfer_id, user_id, 20_000, date(current_year, 2, 2),
-        other_account_id=excluding_account_id, other_account_scope=TransferOtherAccountScope.TRACKED,
+        counterparty_account_id=excluding_account_id, counterparty_account_scope=TransferCounterpartyScope.TRACKED,
     )
 
     resp = await client.get("/tax-advantaged-categories", headers=headers)
@@ -703,7 +703,7 @@ async def test_transfer_recorded_as_leaving_the_tracked_accounts_counts(client):
 
     await _seed_transaction(
         account_id, transfer_id, user_id, -20_000, date(current_year, 2, 1),
-        other_account_scope=TransferOtherAccountScope.OUTSIDE,
+        counterparty_account_scope=TransferCounterpartyScope.OUTSIDE,
     )
 
     resp = await client.get(f"/tax-advantaged-categories/{category_id}", headers=headers)
@@ -713,7 +713,7 @@ async def test_transfer_recorded_as_leaving_the_tracked_accounts_counts(client):
     assert resp.json()["lifetime_withdrawals"] == 20_000
 
 
-async def test_transfer_with_no_recorded_other_account_counts(client):
+async def test_transfer_with_no_recorded_counterparty_account_counts(client):
     """A transfer predating the recorded answer keeps counting on both sides."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
