@@ -1,5 +1,12 @@
 
+import asyncio
+import uuid
 
+from sqlalchemy import text
+
+from app.services.importers.generic import run_locking
+from app.services.importers.generic.run_locking import load_locked_run
+from tests.conftest import TestSession
 from tests.routes.support import _create_user, _get_auth_header
 from tests.routes.transactions._helpers import (
     NONEXISTENT_ID,
@@ -721,20 +728,31 @@ async def test_reuse_counts_leave_out_records_the_import_created(client):
 
 async def test_a_run_another_request_holds_is_refused(client, monkeypatch):
     """A request that cannot get the run within the wait is refused rather than queued behind it."""
-    from sqlalchemy import text
-
-    from app.services.importers.generic import run_locking
-    from tests.conftest import TestSession
-
     monkeypatch.setattr(run_locking, "RUN_LOCK_WAIT", "100ms")
     headers, _, _ = await _setup_user_with_deps(client)
     run_id = await _open_run(client, headers, 1)
 
-    # Held open for the length of the request below, which is what the request has to wait on
+    # Held open for the length of the request below, which is what the request has to wait on. The
+    # request is bounded so that a wait that never gives up fails this test rather than hanging it
     async with TestSession() as holder:
         await holder.execute(text("SELECT id FROM import_runs WHERE id = :id FOR UPDATE"), {"id": run_id})
-        resp = await client.delete(f"/transactions/import/runs/{run_id}", headers=headers)
+        async with asyncio.timeout(5):
+            resp = await client.delete(f"/transactions/import/runs/{run_id}", headers=headers)
         await holder.rollback()
 
     assert resp.status_code == 409
     assert resp.json()["detail"] == "This import is already being worked on"
+
+
+async def test_holding_a_run_does_not_bound_the_locks_taken_after_it(client):
+    """The wait for the run is the only lock it bounds, so a later one is not cut short."""
+    headers, _, _ = await _setup_user_with_deps(client)
+    run_id = await _open_run(client, headers, 1)
+
+    async with TestSession() as session:
+        await load_locked_run(session, uuid.UUID(run_id))
+        lock_timeout = (await session.execute(text("SELECT current_setting('lock_timeout')"))).scalar_one()
+
+    # Left in place, this bound would cancel any later lock the same transaction waited on, which
+    # for a commit is every account snapshot and cache row the import touches
+    assert lock_timeout == "0"
