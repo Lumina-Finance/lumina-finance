@@ -1,5 +1,5 @@
 import type { OptionItem } from '@/components/filters/OptionList'
-import { MobileFilterGlassPanel } from '@/components/list-controls/MobileFilterGlassPanel'
+import { MobileFilterSheet } from '@/components/list-controls/MobileFilterSheet'
 import { useSeedDraftOnOpen } from '@/components/list-controls/useSeedDraftOnOpen'
 import { FilterPanelBody } from '@/pages/transactions/components/toolbar/FilterPanelBody'
 import { useTransactionFilterDraft } from '@/pages/transactions/components/toolbar/useTransactionFilterDraft'
@@ -41,7 +41,7 @@ export function MobileFilterPanel({
   useSeedDraftOnOpen(isOpen, draft.seedDraftFromFilters)
 
   return (
-    <MobileFilterGlassPanel
+    <MobileFilterSheet
       isOpen={isOpen}
       onClose={onClose}
       onExitComplete={onExitComplete}
@@ -52,6 +52,6 @@ export function MobileFilterPanel({
       isApplyDisabled={draft.isApplyBlocked}
     >
       <FilterPanelBody draft={draft} showFooter={false} mobile fillHeight showAccountFilter={showAccountFilter} />
-    </MobileFilterGlassPanel>
+    </MobileFilterSheet>
   )
 }
