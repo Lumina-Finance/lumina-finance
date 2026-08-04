@@ -13,7 +13,7 @@ _DECLINE_COMPRESSION = {"accept-encoding": "identity"}
 
 # The rebuilt response holds exactly the bytes that came off the wire, so it keeps the header
 # describing their encoding and drops the two describing how the transfer was framed
-_RETRANSFERRED_HEADERS = (b"content-length", b"transfer-encoding")
+_DROPPED_TRANSFER_HEADERS = (b"content-length", b"transfer-encoding")
 
 
 class ResponseTooLargeError(httpx.RequestError):
@@ -63,12 +63,12 @@ class _CappedResponseClient(httpx.AsyncClient):
         finally:
             await response.aclose()
 
-        # A response to HEAD comes back reporting a length of zero rather than the size the
-        # origin declared, since the rebuild takes its length from the body actually read
+        # A response to HEAD comes back with no Content-Length at all, rather than the size
+        # the origin declared, since the rebuild takes its length from the body actually read
         return httpx.Response(
             status_code=response.status_code,
             headers=[(name, value) for name, value in response.headers.raw
-                     if name.lower() not in _RETRANSFERRED_HEADERS],
+                     if name.lower() not in _DROPPED_TRANSFER_HEADERS],
             content=bytes(body),
             request=request,
             history=response.history,

@@ -128,6 +128,65 @@ async def test_request_without_a_body_is_passed_straight_through():
     assert kept_the_original == [True]
 
 
+async def test_the_app_keeps_reading_from_the_server_after_the_body():
+    """Once the buffered body is spent the app reads on from the server, not from a stand-in
+
+    Answering with a disconnect of its own would tell a streaming response the client had
+    gone the moment its body was read
+    """
+    server_messages = [
+        {"type": "http.request", "body": b"payload", "more_body": False},
+        {"type": "http.disconnect"},
+    ]
+    read_after_the_body: list[dict] = []
+
+    async def receive():
+        """Deliver the next message the server has"""
+        return server_messages.pop(0)
+
+    async def app(scope, app_receive, send):
+        """Read the body, then keep listening as a streaming response would"""
+        await app_receive()
+        read_after_the_body.append(await app_receive())
+
+    async def send(message):
+        """Ignore the response"""
+
+    middleware = RequestBodySizeLimitMiddleware(app, max_body_bytes=_CAP_BYTES)
+    await middleware(_scope([(b"content-length", b"7")]), receive, send)
+
+    # The server's own disconnect, reached because the replay fell through to it
+    assert read_after_the_body == [{"type": "http.disconnect"}]
+    assert server_messages == []
+
+
+async def test_a_client_vanishing_mid_body_leaves_the_app_to_handle_it():
+    """A disconnect part way through a body is passed on with the bytes read so far"""
+    server_messages = [
+        {"type": "http.request", "body": b"half", "more_body": True},
+        {"type": "http.disconnect"},
+    ]
+    seen: list[dict] = []
+
+    async def receive():
+        """Deliver the next message the server has"""
+        return server_messages.pop(0)
+
+    async def app(scope, app_receive, send):
+        """Read until the client is reported gone"""
+        seen.append(await app_receive())
+        seen.append(await app_receive())
+
+    async def send(message):
+        """Ignore the response"""
+
+    middleware = RequestBodySizeLimitMiddleware(app, max_body_bytes=_CAP_BYTES)
+    await middleware(_scope([(b"transfer-encoding", b"chunked")]), receive, send)
+
+    assert seen[0]["body"] == b"half"
+    assert seen[1] == {"type": "http.disconnect"}
+
+
 @pytest.mark.parametrize("scope_type", ["lifespan", "websocket"])
 async def test_non_http_traffic_is_untouched(scope_type):
     """Startup and websocket connections carry no body and go straight to the app"""

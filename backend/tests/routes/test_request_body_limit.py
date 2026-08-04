@@ -63,3 +63,20 @@ async def test_refusal_carries_cors_headers(client):
 
     assert response.status_code == 413
     assert response.headers["access-control-allow-origin"] == origin
+
+
+async def test_a_refusal_does_not_inherit_an_earlier_requests_origin(client):
+    """One rejection's CORS headers must not survive onto the next
+
+    The CORS layer writes its headers into the response message it is handed, so a shared
+    message would carry the first caller's origin onto every later rejection, including one
+    the CORS layer never looked at
+    """
+    origin = "http://localhost:5173" if ALLOWED_ORIGINS[0] == "*" else ALLOWED_ORIGINS[0]
+    await client.post(_TARGET_PATH, content=_oversized_payload(), headers={"Origin": origin})
+
+    without_origin = await client.post(_TARGET_PATH, content=_oversized_payload())
+
+    assert without_origin.status_code == 413
+    assert "access-control-allow-origin" not in without_origin.headers
+    assert "vary" not in without_origin.headers
