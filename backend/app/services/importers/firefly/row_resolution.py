@@ -23,6 +23,7 @@ from app.services.importers.shared.row_mappings import (
     validate_import_category_can_be_used_for_account,
 )
 from app.utils.money import (
+    MAX_MINOR_UNITS,
     DecimalAmountParseError,
     DecimalAmountPrecisionError,
     parse_decimal_amount_to_minor_units,
@@ -323,7 +324,8 @@ def _get_amount_in_account_currency(
         Absolute amount in account-currency minor units
 
     Raises:
-        FireflyRowSkipError: Raised when no amount is available in the account currency
+        FireflyRowSkipError: Raised when no amount is available in the account currency,
+            when the raw amount cannot be parsed, or when its magnitude cannot be stored
     """
     if row.currency_code.upper() == account.currency:
         raw_amount = row.amount
@@ -343,7 +345,14 @@ def _get_amount_in_account_currency(
         )
     except (DecimalAmountParseError, DecimalAmountPrecisionError) as exc:
         raise FireflyRowSkipError(f'Invalid amount "{raw_amount}"') from exc
-    return abs(amount)
+
+    # This path stores the magnitude rather than the parsed value, and the signed range
+    # holds one more value below zero than above it, so negating the smallest amount the
+    # parser accepts produces one the column cannot take
+    absolute_amount = abs(amount)
+    if absolute_amount > MAX_MINOR_UNITS:
+        raise FireflyRowSkipError(f'Amount is too large: "{raw_amount}"')
+    return absolute_amount
 
 
 def _build_leg_notes(row: FireflyTransactionRow) -> str | None:

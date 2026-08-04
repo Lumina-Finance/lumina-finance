@@ -9,11 +9,13 @@ import {
   COLUMN_TARGETS,
   CREATE_ACCOUNT_VALUE,
   CREATE_CATEGORY_VALUE,
+  CURRENCIES_FAILED_UPLOAD_BLOCK,
+  CURRENCIES_LOADING_UPLOAD_BLOCK,
   DEFAULT_CATEGORY_ICON,
   KIND_LABELS,
   KIND_RANKS,
 } from '@/pages/imports/constants'
-import type { ColumnMap, ImportAccountSource, ImportFileDraft } from '@/pages/imports/types'
+import type { ColumnMap, ImportAccountSource, ImportFileDraft, ImportUploadBlock } from '@/pages/imports/types'
 import { getImportAccountName } from './accountMapping'
 import { splitImportedValues } from './categoryMatching'
 import { unique } from './common'
@@ -40,6 +42,44 @@ export function buildImportAccountOptions(accounts: AccountsOverview[]): Dropdow
         badge: account.is_archived ? ARCHIVED_ACCOUNT_BADGE : undefined,
       })),
   ]
+}
+
+/**
+ * Collects the currency codes the app supports, for the checks that only ask whether a cell holds
+ * one of them
+ *
+ * Built once from the loaded list and passed down, rather than each check scanning the list, since
+ * header detection asks the question for every cell of a file's first row
+ */
+export function getSupportedCurrencyCodes(currencies: Currency[]) {
+  return new Set(currencies.map((currency) => currency.id))
+}
+
+/**
+ * Says why a file cannot be uploaded yet, or null when it can
+ *
+ * Both flows read a file against the currency list, and which cells hold a currency is decided
+ * once and kept on the staged file, so a file read before that list arrives stays wrong afterwards
+ *
+ * The list being empty is what actually blocks, rather than the two query flags: a request the
+ * browser has not started, which is what an offline page has, reports neither loading nor failed
+ * while still having no list to read against
+ *
+ * `isFailure` separates the two, because waiting a moment on an ordinary page load should not be
+ * dressed as an error while something the user has to act on should
+ *
+ * @param currencies - The currency list as it stands
+ * @param currenciesError - Whether fetching the currency list failed
+ */
+export function getImportUploadBlockReason(
+  currencies: Currency[],
+  currenciesError: boolean,
+): ImportUploadBlock | null {
+  if (currencies.length > 0) return null
+
+  return currenciesError
+    ? { message: CURRENCIES_FAILED_UPLOAD_BLOCK, isFailure: true }
+    : { message: CURRENCIES_LOADING_UPLOAD_BLOCK, isFailure: false }
 }
 
 /**

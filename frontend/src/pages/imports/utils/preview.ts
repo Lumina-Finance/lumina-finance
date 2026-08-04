@@ -9,13 +9,15 @@ import { getImportAccountName } from './accountMapping'
 import { getImportRowId } from './common'
 import { splitImportedValues } from './categoryMatching'
 import { getMappedValue } from './columnMapping'
+import { findCurrencyExponent } from '@/utils/moneyInput'
+import { getSupportedCurrencyCodes } from './workflowOptions'
 import {
   type ImportDateFormat,
   getPreviewDateLabel,
   isSupportedCurrency,
   parseImportNumber,
   readImportDate,
-  toMinorUnits,
+  toImportMinorUnits,
 } from './valueParsers'
 
 interface BuildImportPreviewRowsOptions {
@@ -82,6 +84,7 @@ export function buildImportPreviewRows({
   const problemRowIds = new Set(rowProblems.map((problem) => problem.id))
   const rows: PreviewTransactionRow[] = []
   const fallbackCurrency = currencies.some((currency) => currency.id === 'CAD') ? 'CAD' : currencies[0]?.id ?? 'CAD'
+  const supportedCurrencyCodes = getSupportedCurrencyCodes(currencies)
   const timestamp = new Date().toISOString()
 
   // Preview generation walks files in row order and stops early because the UI only renders a small sample
@@ -105,13 +108,26 @@ export function buildImportPreviewRows({
       const merchant = getMappedValue(row, columnMap.merchant_id)
       const notes = getMappedValue(row, columnMap.notes)
       const currency = getPreviewCurrency(
-        getMappedValue(row, columnMap.currency),
         account?.currency,
         createAccountCurrency,
         fallbackCurrency,
+        supportedCurrencyCodes,
       )
-      const amountValue = parseImportNumber(getMappedValue(row, columnMap.amount)) ?? 0
-      const amount = toMinorUnits(amountValue, currency)
+      const rawAmount = getMappedValue(row, columnMap.amount)
+      const amountValue = parseImportNumber(rawAmount) ?? 0
+      const exponent = findCurrencyExponent(currencies, currency)
+      const minorUnits = exponent === null ? 'unreadable' : toImportMinorUnits(rawAmount, exponent)
+
+      // A row whose amount this currency cannot hold is one the commit will refuse, so it is left
+      // out rather than previewed with a rounded number. It is usually already excluded as a
+      // problem row, and reaches here either where an unanswered mapping question stopped the
+      // payload build before it judged any row, or where the currency is missing from the loaded
+      // table and there are no decimal places to convert against
+      if (typeof minorUnits !== 'bigint') continue
+
+      // Past the range a number holds exactly this loses digits, which is a display artifact on an
+      // amount around ninety trillion in a two-decimal currency. The commit sends the cell's text
+      const amount = Number(minorUnits)
       const importedCategory = getMappedValue(row, columnMap.category_id)
       const importedTagValues = splitImportedValues(getMappedValue(row, columnMap.tag_ids))
       const category = getPreviewCategory(
@@ -208,19 +224,23 @@ function getPreviewCounterpartyScope(recordsCounterparty: boolean, counterpartyC
 }
 
 /**
- * Picks the currency a previewed transaction will use, preferring the imported value over the
- * mapped account's currency, the currency chosen for a new account, and finally the caller's
- * fallback, and falling back to CAD when none of those is a supported currency
+ * Picks the currency a previewed transaction will use, preferring the mapped account's currency
+ * over the currency chosen for a new account and then the caller's fallback, and falling back to
+ * CAD when none of those is a supported currency
+ *
+ * The row's own currency column is deliberately not consulted. A row is stored in its account's
+ * currency, so previewing it in the imported one would show an amount scaled by decimal places
+ * the import will not use
  */
 export function getPreviewCurrency(
-  importedCurrency: string,
   accountCurrency: string | undefined,
   createAccountCurrency: string,
   fallbackCurrency: string,
+  supportedCurrencyCodes: Set<string>,
 ) {
-  for (const currency of [importedCurrency, accountCurrency, createAccountCurrency, fallbackCurrency]) {
+  for (const currency of [accountCurrency, createAccountCurrency, fallbackCurrency]) {
     const normalized = currency?.trim().toUpperCase()
-    if (normalized && isSupportedCurrency(normalized)) return normalized
+    if (normalized && isSupportedCurrency(normalized, supportedCurrencyCodes)) return normalized
   }
 
   return 'CAD'

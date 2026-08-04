@@ -8,7 +8,7 @@ import {
   ImportStep,
   ImportUploadCard,
 } from '@/pages/imports/components'
-import type { ImportFileDraft } from '@/pages/imports/types'
+import type { ImportFileDraft, ImportUploadBlock } from '@/pages/imports/types'
 import type { FireflyImportWorkflow } from '@/pages/imports/firefly/hooks'
 import type { FireflyFileKind } from '@/pages/imports/firefly/types'
 
@@ -22,6 +22,7 @@ type FireflyFilesStepProps = Pick<
   | 'importedCategories'
   | 'handleFireflyFileChange'
   | 'removeFireflyFile'
+  | 'uploadBlockReason'
 >
 
 // Matches the ease the transaction list uses for row growth and collapse
@@ -46,6 +47,7 @@ export function FireflyFilesStep({
   importedCategories,
   handleFireflyFileChange,
   removeFireflyFile,
+  uploadBlockReason,
 }: FireflyFilesStepProps) {
   const filesByKind: Record<FireflyFileKind, ImportFileDraft | null> = {
     transactions: transactionsFile,
@@ -60,7 +62,7 @@ export function FireflyFilesStep({
       className="xl:h-full"
       contentClassName="flex min-h-0 flex-col gap-3"
     >
-      {FILE_SLOTS.map((slot) => (
+      {FILE_SLOTS.map((slot, slotIndex) => (
         <FireflyFileSlot
           key={slot.kind}
           kind={slot.kind}
@@ -70,6 +72,11 @@ export function FireflyFilesStep({
           file={filesByKind[slot.kind]}
           processing={processingFileKind === slot.kind}
           disabled={processingFileKind !== null}
+          // A block is about the step rather than any one slot, so it is stated on the slot the
+          // user reaches first and the other is only disabled. Repeating it would read as two
+          // separate problems, and each slot's message is a live region a screen reader announces
+          blockReason={slotIndex === 0 ? uploadBlockReason : null}
+          isBlocked={uploadBlockReason !== null}
           onFileChange={handleFireflyFileChange}
           onRemove={removeFireflyFile}
           note={slot.kind === 'budgets' ? (
@@ -101,6 +108,8 @@ function FireflyFileSlot({
   file,
   processing,
   disabled,
+  blockReason,
+  isBlocked,
   onFileChange,
   onRemove,
   note,
@@ -112,6 +121,10 @@ function FireflyFileSlot({
   file: ImportFileDraft | null
   processing: boolean
   disabled: boolean
+  blockReason: ImportUploadBlock | null
+
+  /** Whether no file can be staged, which every slot answers to even where only one states why */
+  isBlocked: boolean
   onFileChange: (kind: FireflyFileKind, event: ChangeEvent<HTMLInputElement>) => void
   onRemove: (kind: FireflyFileKind) => void
   note?: ReactNode
@@ -122,6 +135,7 @@ function FireflyFileSlot({
   // card and any guidance beside it and reports the refusal in place
   const stagedFile = file && !file.error ? file : null
   const rejection = file?.error ?? null
+  const isUploadBlocked = disabled || isBlocked
 
   return (
     <div className="space-y-2">
@@ -137,7 +151,7 @@ function FireflyFileSlot({
         className="hidden"
         accept=".csv,text/csv"
         onChange={(event) => onFileChange(kind, event)}
-        disabled={disabled}
+        disabled={isUploadBlocked}
       />
 
       {/* Each slot takes exactly one file, so the upload card and its note
@@ -167,8 +181,9 @@ function FireflyFileSlot({
               title={`Upload ${label.toLowerCase()}`}
               hint={hint}
               processing={processing}
-              disabled={disabled}
+              disabled={isUploadBlocked}
               rejection={rejection}
+              blockReason={blockReason}
               onClick={() => inputRef.current?.click()}
             />
             <EmptyState

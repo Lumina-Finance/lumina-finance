@@ -84,3 +84,14 @@ export interface ImportBuildResult {
   rowProblems: ImportRowProblem[]
   payload: TransactionImportPayload | null
 }
+
+/**
+ * Why no file can be staged yet, shown over the upload control
+ *
+ * A block the user has to act on is told apart from one that clears itself, so waiting on an
+ * ordinary page load is not dressed as an error
+ */
+export interface ImportUploadBlock {
+  message: string
+  isFailure: boolean
+}

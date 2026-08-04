@@ -22,6 +22,15 @@ export interface ImportReferenceData {
   currenciesLoading: boolean
   institutionsLoading: boolean
   categoriesLoading: boolean
+
+  /**
+   * Whether the currency list could not be fetched
+   *
+   * Reading a file needs the real list, since a code absent from it counts as no currency at all,
+   * so both flows block their upload until the list arrives. This says which of the two things
+   * happened, so the user is told to reload rather than to wait
+   */
+  currenciesError: boolean
   selectableAccounts: AccountsOverview[]
   allAccounts: AccountsOverview[]
   accountOptions: DropdownOption[]
@@ -39,7 +48,7 @@ export interface ImportReferenceData {
  */
 export function useImportReferenceData(): ImportReferenceData {
   const { data: accounts = [], isLoading: accountsLoading } = useAccounts()
-  const { data: currencies = [], isLoading: currenciesLoading } = useCurrencies()
+  const { data: currencies = [], isLoading: currenciesLoading, isError: currenciesError } = useCurrencies()
   const { data: institutions = [], isLoading: institutionsLoading } = useInstitutions()
   const { data: categories, isLoading: categoriesLoading } = useCategories()
 
@@ -93,6 +102,7 @@ export function useImportReferenceData(): ImportReferenceData {
     categories,
     accountsLoading,
     currenciesLoading,
+    currenciesError,
     institutionsLoading,
     categoriesLoading,
     selectableAccounts,

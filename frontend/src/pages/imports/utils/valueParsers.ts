@@ -145,36 +145,65 @@ function getMonthNumber(name: string) {
   return index === -1 ? null : index + 1
 }
 
-/**
- * Converts an amount into the whole minor units the backend stores, using the number of decimal
- * places the currency itself uses so a zero-decimal currency is not scaled by a hundred
- */
-export function toMinorUnits(value: number, currency: string) {
-  return Math.round(value * 10 ** getCurrencyExponent(currency))
-}
+// An optional sign, then either plain digits or digits grouped in threes by commas, then an
+// optional decimal part. Currency symbols, spaces between digits and brackets around negatives
+// are all refused rather than cleaned up, because guessing at them risks importing an amount the
+// file never stated. The groups are the sign, the whole part and the decimal digits
+const IMPORT_NUMBER_PATTERN = /^([+-]?)(\d+|\d{1,3}(?:,\d{3})+)(?:\.(\d+))?$/
 
-function getCurrencyExponent(currency: string) {
-  try {
-    const formatter = new Intl.NumberFormat(undefined, { style: 'currency', currency })
-    return formatter.resolvedOptions().maximumFractionDigits ?? 2
-  } catch {
-    return 2
-  }
-}
+// The bounds of the signed 64-bit column the backend stores an amount in. The negative side
+// reaches one further than the positive, which is what two's complement holds, so a caller that
+// negates an amount has to bound its own result. The same two values are written out again in
+// backend/app/utils/money.py, and the two have to agree
+const MIN_IMPORT_MINOR_UNITS = -(2n ** 63n)
+export const MAX_IMPORT_MINOR_UNITS = 2n ** 63n - 1n
 
 /**
- * Reports whether a currency code can actually be formatted by the browser, which rules out
- * three-letter values that look like codes but name no currency
+ * Why an amount cell could not be converted, so the caller can say which rule it broke rather
+ * than only that it failed
  */
-export function isSupportedCurrency(currency: string) {
-  if (!isValidCurrencyCode(currency)) return false
+export type ImportAmountRefusal = 'unreadable' | 'tooPrecise' | 'tooLarge'
 
-  try {
-    new Intl.NumberFormat(undefined, { style: 'currency', currency })
-    return true
-  } catch {
-    return false
-  }
+/**
+ * Converts an amount cell into the whole minor units the backend stores
+ *
+ * The decimal point is moved through the digits rather than the value being multiplied, so an
+ * amount binary floating point cannot hold exactly still converts to the digits the file states.
+ * The result is a bigint because the largest storable amount is past the range a number holds
+ * exactly, and agreeing with the backend at that boundary is the point of the conversion
+ *
+ * @param rawValue - The raw cell value, which may carry a sign and commas grouping the thousands
+ * @param exponent - Decimal places of the currency the row will be stored in
+ * @returns The amount in minor units, or which of the three rules the cell broke
+ */
+export function toImportMinorUnits(rawValue: string, exponent: number): bigint | ImportAmountRefusal {
+  const match = IMPORT_NUMBER_PATTERN.exec(rawValue.trim())
+  if (!match) return 'unreadable'
+
+  const [, sign, whole, fraction = ''] = match
+
+  // Digits past the currency's places can only be dropped when they are zeros, since anything
+  // else is a value the currency cannot express, which the backend refuses outright
+  const kept = fraction.slice(0, exponent)
+  if (/[^0]/.test(fraction.slice(exponent))) return 'tooPrecise'
+
+  const scaled = BigInt(`${whole.replace(/,/g, '')}${kept.padEnd(exponent, '0')}`)
+  const minorUnits = sign === '-' ? -scaled : scaled
+
+  return minorUnits >= MIN_IMPORT_MINOR_UNITS && minorUnits <= MAX_IMPORT_MINOR_UNITS ? minorUnits : 'tooLarge'
+}
+
+/**
+ * Reports whether a code is a currency the app supports, meaning one the API served
+ *
+ * The browser cannot answer this. Its number formatter checks that a code is three letters and
+ * accepts any that are, so ZZZ, CUR and AMT all pass it
+ *
+ * @param currency - The raw cell value
+ * @param supportedCodes - Upper-case codes taken from the currency list the API served
+ */
+export function isSupportedCurrency(currency: string, supportedCodes: Set<string>) {
+  return supportedCodes.has(currency.trim().toUpperCase())
 }
 
 /**
@@ -196,28 +225,18 @@ export function isValidAmountValue(value: string) {
 }
 
 /**
- * Reads an amount from an imported cell, accepting an optional sign, commas grouping the thousands
- * and a decimal part, and returning null for anything else
+ * Reads an amount from an imported cell as a plain number, or null when the cell is not one
  *
- * Currency symbols, spaces between digits and brackets around negatives are all refused rather than
- * cleaned up, because guessing at them risks importing an amount the file never stated
+ * This answers whether a cell is an amount at all, and its sign, which is all the callers that
+ * classify a column or guess a category kind need. Converting an amount for storage is
+ * toImportMinorUnits above, which is exact where this is not
  */
 export function parseImportNumber(value: string) {
   const normalized = value.trim()
-  if (!normalized) return null
-
-  if (!/^[+-]?(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d+)?$/.test(normalized)) return null
+  if (!IMPORT_NUMBER_PATTERN.test(normalized)) return null
 
   const parsed = Number(normalized.replace(/,/g, ''))
   return Number.isFinite(parsed) ? parsed : null
-}
-
-/**
- * Reports whether a value has the shape of a currency code, meaning exactly three letters in either
- * case, without checking that the code names a real currency
- */
-export function isValidCurrencyCode(value: string) {
-  return /^[A-Z]{3}$/i.test(value.trim())
 }
 
 /**

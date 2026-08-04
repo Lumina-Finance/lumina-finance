@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest'
 import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
+import type { Currency } from '@/api/currency'
 import type { Institution } from '@/api/institutions'
 import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
 import type { CsvRow } from '@/pages/imports/types'
@@ -22,6 +23,13 @@ const institution: Institution = {
   website: 'https://bank.example',
   logo_url: null,
 }
+
+const CURRENCIES: Currency[] = [
+  { id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 },
+  { id: 'USD', name: 'US Dollar', symbol: '$', minor_unit_exponent: 2 },
+  { id: 'EUR', name: 'Euro', symbol: '€', minor_unit_exponent: 2 },
+  { id: 'JPY', name: 'Japanese Yen', symbol: '¥', minor_unit_exponent: 0 },
+]
 
 /**
  * Creates an account overview fixture for preview account mapping
@@ -113,6 +121,7 @@ function createOptions(overrides: Partial<Parameters<typeof buildFireflyPreviewR
     categoryCreateKinds: {},
     transferCategory,
     balanceAdjustmentCategory,
+    currencies: CURRENCIES,
     ...overrides,
   }
 }

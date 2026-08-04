@@ -21,7 +21,8 @@ def parse_import_amount_to_minor_units(raw_amount: str, currency: Currency) -> i
         Parsed amount in the currency's minor units
 
     Raises:
-        HTTPException: Raised with 422 when the amount is malformed or too precise
+        HTTPException: Raised with 422 when the amount is malformed, when it carries more decimal
+            places than the currency holds, or when it falls outside the range the column holds
     """
     try:
         return parse_decimal_amount_to_minor_units(

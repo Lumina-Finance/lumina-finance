@@ -21,7 +21,9 @@ import {
   getMissingRequiredColumnLabels,
   getNextAutoFilledColumnHeaders,
   getNextColumnMap,
+  getImportUploadBlockReason,
   getNextColumnValidationErrors,
+  getSupportedCurrencyCodes,
   inferAccountMappings,
   inferCategoryMappings,
   isColumnMappingComplete,
@@ -99,6 +101,7 @@ export function useTransactionImportWorkflow() {
     categories,
     accountsLoading,
     currenciesLoading,
+    currenciesError,
     institutionsLoading,
     categoriesLoading,
     selectableAccounts,
@@ -111,6 +114,11 @@ export function useTransactionImportWorkflow() {
     categoryById,
     institutionById,
   } = useImportReferenceData()
+
+  const supportedCurrencyCodes = useMemo(
+    () => getSupportedCurrencyCodes(currencies),
+    [currencies],
+  )
 
   const headers = useMemo(
     () => getImportHeaders(files),
@@ -146,8 +154,8 @@ export function useTransactionImportWorkflow() {
   // The date column answers to a choice made outside the mapping table, so its error is worked out
   // on every render rather than kept in the stored map, which only refreshes when a mapping changes
   const dateColumnValidation = useMemo(
-    () => (columnMap.dt ? validateColumnValues(files, columnMap.dt, 'dt', dateFormat) : null),
-    [columnMap.dt, dateFormat, files],
+    () => (columnMap.dt ? validateColumnValues(files, columnMap.dt, 'dt', supportedCurrencyCodes, dateFormat) : null),
+    [columnMap.dt, dateFormat, files, supportedCurrencyCodes],
   )
 
   const resolvedColumnValidationErrors = useMemo(() => {
@@ -276,6 +284,7 @@ export function useTransactionImportWorkflow() {
       categoryTypesBySource,
       columnMap,
       columnValidationErrors: resolvedColumnValidationErrors,
+      currencies,
       dateFormat,
       files,
       importedCategories,
@@ -289,6 +298,7 @@ export function useTransactionImportWorkflow() {
       categoryById,
       categoryCreateKinds,
       categoryTypesBySource,
+      currencies,
       columnMap,
       dateFormat,
       files,
@@ -357,14 +367,14 @@ export function useTransactionImportWorkflow() {
 
     try {
       const [drafts] = await Promise.all([
-        Promise.all(selectedFiles.map(readCsvFile)),
+        Promise.all(selectedFiles.map((selectedFile) => readCsvFile(selectedFile, supportedCurrencyCodes))),
         waitForMilliseconds(CSV_PROCESSING_MIN_MS),
       ])
       const next = drafts.slice(0, 1)
 
       setFiles(next)
       setColumnMap((previous) => {
-        const result = inferColumnMap(previous, next)
+        const result = inferColumnMap(previous, next, supportedCurrencyCodes)
         setColumnValidationErrors(result.errors)
         setAutoFilledColumnHeaders((current) => getNextAutoFilledColumnHeaders(current, previous, result.map))
         syncAutoMatchKeys(result.map, result.errors, next)
@@ -380,7 +390,7 @@ export function useTransactionImportWorkflow() {
     setFiles((current) => {
       const next = current.filter((file) => file.id !== fileId)
       setColumnMap((previous) => {
-        const result = inferColumnMap(previous, next)
+        const result = inferColumnMap(previous, next, supportedCurrencyCodes)
         setColumnValidationErrors(result.errors)
         setAutoFilledColumnHeaders((current) => getNextAutoFilledColumnHeaders(current, previous, result.map))
         syncAutoMatchKeys(result.map, result.errors, next)
@@ -392,7 +402,7 @@ export function useTransactionImportWorkflow() {
 
   const updateColumnTarget = (header: string, targetValue: string) => {
     const validation = targetValue
-      ? validateColumnValues(files, header, targetValue as ColumnTarget)
+      ? validateColumnValues(files, header, targetValue as ColumnTarget, supportedCurrencyCodes)
       : { valid: true, message: '' }
     const previousAccountHeader = columnMap.account_id
     const previousCategoryHeader = columnMap.category_id
@@ -518,6 +528,7 @@ export function useTransactionImportWorkflow() {
     importOverlayOpen,
     accountsLoading,
     currenciesLoading,
+    uploadBlockReason: getImportUploadBlockReason(currencies, currenciesError),
     institutionsLoading,
     categoriesLoading,
     accountOptions,

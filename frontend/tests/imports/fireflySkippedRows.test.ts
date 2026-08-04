@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest'
 import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
+import type { Currency } from '@/api/currency'
 import { CREATE_ACCOUNT_VALUE } from '@/pages/imports/constants'
 import type { CsvRow } from '@/pages/imports/types'
 import {
@@ -14,6 +15,13 @@ import {
   FIREFLY_GENERIC_SKIP_REASON,
   FIREFLY_MISSING_REQUIRED_VALUES_REASON,
 } from '@/pages/imports/firefly/constants'
+
+const CURRENCIES: Currency[] = [
+  { id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 },
+  { id: 'USD', name: 'US Dollar', symbol: '$', minor_unit_exponent: 2 },
+  { id: 'EUR', name: 'Euro', symbol: '€', minor_unit_exponent: 2 },
+  { id: 'JPY', name: 'Japanese Yen', symbol: '¥', minor_unit_exponent: 0 },
+]
 
 /**
  * Creates an account overview fixture for row resolution mapping
@@ -93,6 +101,7 @@ function createOptions(overrides: Partial<FireflyRowResolutionOptions> = {}): Fi
     categoryById: new Map([[groceries.id, groceries]]),
     categoryMappings: { Groceries: groceries.id },
     categoryCreateKinds: {},
+    currencies: CURRENCIES,
     transferCategory: createCategory({ id: 'transfer', name: 'Transfer', kind: 'transfer', is_system: true }),
     balanceAdjustmentCategory: createCategory({
       id: 'balance-adjustment',
@@ -179,6 +188,41 @@ describe('forecastFireflyImport', () => {
 
     expect(skipped).toHaveLength(1)
     expect(skipped[0].reason).toBe('Invalid amount "twelve"')
+  })
+
+  it('reports an amount carrying more decimal places than the account currency holds', () => {
+    const { skippedRows: skipped } = forecastFireflyImport(
+      [createFireflyRow({ amount: '-12.345' })],
+      createOptions(),
+    )
+
+    expect(skipped).toHaveLength(1)
+    expect(skipped[0].reason).toBe('Invalid amount "-12.345"')
+  })
+
+  it('reports an amount past the storable range the way the backend does', () => {
+    // The backend catches its parser's malformed, over-precise and out-of-range errors in one
+    // clause and reports all three as an invalid amount, so a different wording here would name
+    // the same skipped row two ways between the preview and the result
+    const { skippedRows: skipped } = forecastFireflyImport(
+      [createFireflyRow({ amount: '99999999999999999999.00' })],
+      createOptions(),
+    )
+
+    expect(skipped).toHaveLength(1)
+    expect(skipped[0].reason).toBe('Invalid amount "99999999999999999999.00"')
+  })
+
+  it('reports the one amount that parses but cannot be stored once its sign is dropped', () => {
+    // This import writes the magnitude, and the signed range holds one more value below zero than
+    // above it, so this amount parses and its magnitude does not fit
+    const { skippedRows: skipped } = forecastFireflyImport(
+      [createFireflyRow({ amount: '-92233720368547758.08' })],
+      createOptions(),
+    )
+
+    expect(skipped).toHaveLength(1)
+    expect(skipped[0].reason).toBe('Amount is too large: "-92233720368547758.08"')
   })
 
   // Mapping the old and new names of one account onto it is how a rename is

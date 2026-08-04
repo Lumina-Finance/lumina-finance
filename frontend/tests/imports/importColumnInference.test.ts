@@ -22,6 +22,10 @@ function createFile(headers: string[], rows: ImportFileDraft['rows']): ImportFil
   }
 }
 
+// The codes a real currency column would hold, so a cell reading CAD is data and one reading
+// Amt is a header word
+const SUPPORTED_CURRENCY_CODES = new Set(['CAD', 'USD', 'EUR'])
+
 describe('import column inference', () => {
   it('keeps the account column and a transfer\'s counterparty account apart', () => {
     const files = [createFile(
@@ -32,7 +36,7 @@ describe('import column inference', () => {
       ],
     )]
 
-    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files)
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
 
     expect(map.account_id).toBe('Account')
     expect(map.counterparty_account_id).toBe('To account')
@@ -49,7 +53,7 @@ describe('import column inference', () => {
       ],
     )]
 
-    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files)
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
 
     expect(map.merchant_id).toBe('Counterparty')
     expect(map.counterparty_account_id).toBe('')
@@ -64,7 +68,7 @@ describe('import column inference', () => {
       ],
     )]
 
-    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files)
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
 
     expect(map.account_id).toBe('Account')
     expect(map.counterparty_account_id).toBe('Counterparty account')
@@ -80,7 +84,7 @@ describe('import column inference', () => {
       ],
     )]
 
-    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files)
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
 
     expect(map.account_id).toBe('')
     expect(map.counterparty_account_id).toBe('Destination account')
@@ -94,7 +98,7 @@ describe('import column inference', () => {
       ],
     )]
 
-    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files)
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
 
     expect(map.amount).toBe('Amount')
     expect(Object.values(map)).not.toContain('Balance')

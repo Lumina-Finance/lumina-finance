@@ -4,10 +4,17 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { Category } from '@/api/categories'
+import type { Currency } from '@/api/currency'
 import { EMPTY_COLUMN_MAP, ROW_DATE_BLANK_REASON, ROW_DATE_UNREADABLE_REASON } from '@/pages/imports/constants'
 import type { ColumnMap, ImportFileDraft } from '@/pages/imports/types'
 import { buildTransactionImportPayload } from '@/pages/imports/utils'
 import type { ImportDateFormat } from '@/pages/imports/utils/valueParsers'
+
+// The account these rows are written to has no currency of its own in this file's fixtures, so the
+// list only has to hold whatever the amount checks would read
+const CURRENCIES: Currency[] = [
+  { id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 },
+]
 
 const CATEGORY: Category = {
   id: 'category-1',
@@ -52,6 +59,7 @@ function build(dates: string[], dateFormat: ImportDateFormat | null, columnValid
     accountCreateInstitutions: {},
     accountCreateTypes: {},
     accountMappings: { 'file-1': 'account-1' },
+    currencies: CURRENCIES,
     accountSources: [{ id: 'file-1', label: 'Checking.csv', matchText: 'Checking.csv', isCounterpartyOnly: false }],
     categoryById: new Map([[CATEGORY.id, CATEGORY]]),
     categoryCreateKinds: {},

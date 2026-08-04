@@ -131,6 +131,7 @@ function buildPayload({
     accountCreateTypes,
     accountMappings,
     accountSources,
+    currencies,
     categoryById,
     categoryCreateKinds: {},
     categoryMappings,

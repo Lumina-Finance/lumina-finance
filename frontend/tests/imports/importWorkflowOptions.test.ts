@@ -6,7 +6,14 @@ import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import type { Institution } from '@/api/institutions'
-import { COLUMN_TARGETS, CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, EMPTY_COLUMN_MAP } from '@/pages/imports/constants'
+import {
+  COLUMN_TARGETS,
+  CREATE_ACCOUNT_VALUE,
+  CREATE_CATEGORY_VALUE,
+  CURRENCIES_FAILED_UPLOAD_BLOCK,
+  CURRENCIES_LOADING_UPLOAD_BLOCK,
+  EMPTY_COLUMN_MAP,
+} from '@/pages/imports/constants'
 import type { ImportFileDraft } from '@/pages/imports/types'
 import {
   buildColumnTargetOptions,
@@ -20,7 +27,9 @@ import {
   getImportedMerchants,
   getImportedTags,
   getImportHeaders,
+  getImportUploadBlockReason,
   getMissingRequiredColumnLabels,
+  getSupportedCurrencyCodes,
   inferAccountMappings,
 } from '@/pages/imports/utils'
 
@@ -229,5 +238,45 @@ describe('archived accounts in account mapping', () => {
     expect(getArchivedAccountMatches([rowSource], { 'Old Savings': 'checking' }, accounts)).toEqual([])
     expect(getArchivedAccountMatches([counterpartySource], {}, accounts)).toEqual([])
     expect(getArchivedAccountMatches([rowSource], {}, [chequing])).toEqual([])
+  })
+})
+
+describe('blocking the upload until the currency list is in hand', () => {
+  const currencies: Currency[] = [
+    { id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 },
+  ]
+
+  it('lets a file be uploaded once the list has arrived', () => {
+    expect(getImportUploadBlockReason(currencies, false)).toBeNull()
+  })
+
+  it('blocks on an empty list, whether it failed or has simply not arrived', () => {
+    // A request the browser has not started, which is what an offline page has, reports neither
+    // loading nor failed, so the list itself is what decides rather than the request's state
+    expect(getImportUploadBlockReason([], false)).toEqual({ message: CURRENCIES_LOADING_UPLOAD_BLOCK, isFailure: false })
+    expect(getImportUploadBlockReason([], true)).toEqual({ message: CURRENCIES_FAILED_UPLOAD_BLOCK, isFailure: true })
+  })
+
+  it('marks only the failed case as one the user has to act on', () => {
+    // Waiting a moment on an ordinary page load should not be dressed as an error, so only the
+    // failure gets the error treatment and the instruction to reload
+    expect(getImportUploadBlockReason([], true)?.isFailure).toBe(true)
+    expect(getImportUploadBlockReason([], true)?.message).toContain('Reload the page')
+    expect(getImportUploadBlockReason([], false)?.isFailure).toBe(false)
+    expect(getImportUploadBlockReason([], false)?.message).not.toContain('Reload the page')
+  })
+})
+
+describe('collecting the supported currency codes', () => {
+  it('holds every code the list carries and nothing else', () => {
+    const codes = getSupportedCurrencyCodes([
+      { id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 },
+      { id: 'JPY', name: 'Japanese Yen', symbol: '\u00a5', minor_unit_exponent: 0 },
+    ])
+
+    expect(codes.has('CAD')).toBe(true)
+    expect(codes.has('JPY')).toBe(true)
+    expect(codes.has('ZZZ')).toBe(false)
+    expect(codes.size).toBe(2)
   })
 })

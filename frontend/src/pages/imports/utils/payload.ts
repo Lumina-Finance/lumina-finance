@@ -6,8 +6,10 @@ import {
   CREATE_ACCOUNT_VALUE,
   CREATE_CATEGORY_VALUE,
   DEFAULT_CATEGORY_ICON,
+  getRowAmountTooPreciseReason,
   ROW_ACCOUNT_BLANK_REASON,
   ROW_AMOUNT_BLANK_REASON,
+  ROW_AMOUNT_TOO_LARGE_REASON,
   ROW_AMOUNT_UNREADABLE_REASON,
   ROW_CATEGORY_BLANK_REASON,
   ROW_COUNTERPARTY_IS_OWN_ACCOUNT_REASON,
@@ -26,10 +28,12 @@ import type {
   ImportRowProblem,
 } from '@/pages/imports/types'
 import { isImportAccountType } from '@/pages/imports/accountTypeGuard'
+import { findCurrencyExponent } from '@/utils/moneyInput'
+import type { Currency } from '@/api/currency'
 import { getCategoryMatchKind, splitImportedValues } from './categoryMatching'
 import { getImportRowId } from './common'
 import { getMappedValue } from './columnMapping'
-import { type ImportDateFormat, parseImportNumber, readImportDate } from './valueParsers'
+import { type ImportDateFormat, parseImportNumber, readImportDate, toImportMinorUnits } from './valueParsers'
 
 /**
  * Builds the commit payload for the generic CSV import flow from the staged files and every mapping
@@ -52,6 +56,7 @@ export function buildTransactionImportPayload({
   categoryTypesBySource,
   columnMap,
   columnValidationErrors,
+  currencies,
   dateFormat,
   files,
   importedCategories,
@@ -68,6 +73,7 @@ export function buildTransactionImportPayload({
   categoryTypesBySource: Record<string, string>
   columnMap: ColumnMap
   columnValidationErrors: ColumnValidationErrors
+  currencies: Currency[]
   dateFormat: ImportDateFormat | null
   files: ImportFileDraft[]
   importedCategories: string[]
@@ -168,6 +174,22 @@ export function buildTransactionImportPayload({
   // no date format settled, every row reads as one whose date does not fit
   if (errors.length > 0) return { errors: [...columnErrors, ...errors], rowProblems: [], payload: null }
 
+  // A row is stored in the currency of the account it is written to, which is what decides how
+  // many decimal places its amount may carry, so the answer each source resolved to is settled
+  // once here and read back per row. A source answered as money outside the tracked accounts has
+  // no currency of its own and is left out, and no row is written to such a source anyway
+  //
+  // The code is upper-cased to match what the payload sends for a new account, so the exponent is
+  // looked up under the same spelling the API will be given
+  const currencyByAccountSource: Record<string, string> = {}
+  for (const source of accountSources) {
+    const choice = accountMappings[source.id] ?? ''
+    const code = choice === CREATE_ACCOUNT_VALUE
+      ? accountCreateCurrencies[source.id] ?? ''
+      : accountById.get(choice)?.currency ?? ''
+    if (code) currencyByAccountSource[source.id] = code.trim().toUpperCase()
+  }
+
   const rows: TransactionImportPayload['rows'] = []
   const rowProblems: ImportRowProblem[] = []
   for (const file of files) {
@@ -188,6 +210,8 @@ export function buildTransactionImportPayload({
         amount,
         categorySource,
         counterpartySource,
+        currencies,
+        currencyByAccountSource,
         dt,
         importedDate,
         recordsCounterpartyBySource,
@@ -238,6 +262,8 @@ function getImportRowProblem({
   amount,
   categorySource,
   counterpartySource,
+  currencies,
+  currencyByAccountSource,
   dt,
   importedDate,
   recordsCounterpartyBySource,
@@ -247,6 +273,8 @@ function getImportRowProblem({
   amount: string
   categorySource: string
   counterpartySource: string | null
+  currencies: Currency[]
+  currencyByAccountSource: Record<string, string>
   dt: string
   importedDate: string
   recordsCounterpartyBySource: Record<string, boolean>
@@ -260,11 +288,34 @@ function getImportRowProblem({
   if (!dt) return ROW_DATE_UNREADABLE_REASON
   if (!amount) return ROW_AMOUNT_BLANK_REASON
   if (parseImportNumber(amount) === null) return ROW_AMOUNT_UNREADABLE_REASON
+
+  const amountProblem = getImportRowAmountProblem(amount, currencyByAccountSource[accountSource], currencies)
+  if (amountProblem) return amountProblem
+
   if (!counterpartySource) return null
 
   if (!recordsCounterpartyBySource[categorySource]) return ROW_COUNTERPARTY_NOT_A_TRANSFER_REASON
   if (isSameMappedAccount(accountMappings, accountSource, counterpartySource)) return ROW_COUNTERPARTY_IS_OWN_ACCOUNT_REASON
   return null
+}
+
+/**
+ * Reports why an amount cannot be stored in its row's currency, or null when it can
+ *
+ * This is the same judgement the API makes when it converts the cell, made here so an over-precise
+ * or oversized amount is named against its row before the commit rather than failing the request
+ */
+function getImportRowAmountProblem(amount: string, currencyCode: string | undefined, currencies: Currency[]) {
+  const exponent = currencyCode ? findCurrencyExponent(currencies, currencyCode) : null
+  if (exponent === null || currencyCode === undefined) return null
+
+  const minorUnits = toImportMinorUnits(amount, exponent)
+  if (typeof minorUnits === 'bigint') return null
+  if (minorUnits === 'tooPrecise') return getRowAmountTooPreciseReason(currencyCode)
+
+  // An unreadable cell was already refused above, so the only reading left is a magnitude the
+  // storage cannot take
+  return ROW_AMOUNT_TOO_LARGE_REASON
 }
 
 function appendAccountMapping(

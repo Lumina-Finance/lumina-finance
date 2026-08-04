@@ -3,8 +3,10 @@ import type { Category } from '@/api/categories'
 import { FIREFLY_NO_CATEGORY_SOURCE, isFireflyTrackedAccountType } from '@/api/firefly-imports'
 import type { Institution } from '@/api/institutions'
 import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, DEFAULT_CATEGORY_ICON } from '@/pages/imports/constants'
+import type { Currency } from '@/api/currency'
 import type { CsvRow, ImportCategoryKind } from '@/pages/imports/types'
-import { parseImportNumber, toMinorUnits } from '@/pages/imports/utils'
+import { MAX_IMPORT_MINOR_UNITS, toImportMinorUnits } from '@/pages/imports/utils'
+import { findCurrencyExponent } from '@/utils/moneyInput'
 import {
   FIREFLY_GENERIC_SKIP_REASON,
   FIREFLY_TYPE_DEPOSIT,
@@ -28,6 +30,9 @@ export interface FireflyRowResolutionOptions {
   categoryCreateKinds: Record<string, ImportCategoryKind>
   transferCategory: Category | undefined
   balanceAdjustmentCategory: Category | undefined
+
+  /** Currency metadata, read for the decimal places each account's currency holds */
+  currencies: Currency[]
 }
 
 /**
@@ -108,7 +113,7 @@ function buildFireflyRowLegs(row: CsvRow, options: FireflyRowResolutionOptions):
     const account = destination ?? source
     if (!account) throw new FireflyRowSkipError('Opening balance or reconciliation row is not attached to an imported account')
 
-    const amount = getFireflyAmountInAccountCurrency(row, account.currency)
+    const amount = getFireflyAmountInAccountCurrency(row, account.currency, options.currencies)
     return [{
       account,
       amount: destination ? amount : -amount,
@@ -134,14 +139,14 @@ function buildFireflyRowLegs(row: CsvRow, options: FireflyRowResolutionOptions):
     return [
       {
         account: source,
-        amount: -getFireflyAmountInAccountCurrency(row, source.currency),
+        amount: -getFireflyAmountInAccountCurrency(row, source.currency, options.currencies),
         category: options.transferCategory,
         merchantName: null,
         counterpartyAccount: destination,
       },
       {
         account: destination,
-        amount: getFireflyAmountInAccountCurrency(row, destination.currency),
+        amount: getFireflyAmountInAccountCurrency(row, destination.currency, options.currencies),
         category: options.transferCategory,
         merchantName: null,
         counterpartyAccount: source,
@@ -154,7 +159,7 @@ function buildFireflyRowLegs(row: CsvRow, options: FireflyRowResolutionOptions):
 
     return [{
       account: source,
-      amount: -getFireflyAmountInAccountCurrency(row, source.currency),
+      amount: -getFireflyAmountInAccountCurrency(row, source.currency, options.currencies),
       category: getFireflyMappedCategory(row, options),
       merchantName: row.destination_name?.trim() || null,
       counterpartyAccount: null,
@@ -166,7 +171,7 @@ function buildFireflyRowLegs(row: CsvRow, options: FireflyRowResolutionOptions):
 
     return [{
       account: destination,
-      amount: getFireflyAmountInAccountCurrency(row, destination.currency),
+      amount: getFireflyAmountInAccountCurrency(row, destination.currency, options.currencies),
       category: getFireflyMappedCategory(row, options),
       merchantName: row.source_name?.trim() || null,
       counterpartyAccount: null,
@@ -213,10 +218,10 @@ function resolveFireflyMappedAccount(
 
 /**
  * Gets the row's absolute amount in account-currency minor units, throwing
- * the backend-worded skip error when no amount exists in that currency or
- * the matching raw amount is unparseable
+ * the backend-worded skip error when no amount exists in that currency, the
+ * matching raw amount is unparseable, or its magnitude cannot be stored
  */
-function getFireflyAmountInAccountCurrency(row: CsvRow, accountCurrency: string): number {
+function getFireflyAmountInAccountCurrency(row: CsvRow, accountCurrency: string, currencies: Currency[]): number {
   // Firefly III writes the journal amount in the transaction currency and
   // carries a foreign amount when a second currency is involved, so the
   // account-side value is whichever of the two matches the account currency
@@ -233,9 +238,23 @@ function getFireflyAmountInAccountCurrency(row: CsvRow, accountCurrency: string)
     throw new FireflyRowSkipError(`Neither the amount nor the foreign amount is in the account's currency (${accountCurrency})`)
   }
 
-  const parsed = parseImportNumber(rawAmount)
-  if (parsed === null) throw new FireflyRowSkipError(`Invalid amount "${rawAmount}"`)
-  return Math.abs(toMinorUnits(parsed, accountCurrency))
+  // Every account's currency is one the API served, so a missing exponent is unreachable. An
+  // unanticipated failure is reported with the generic reason rather than a skip rule of its own
+  const exponent = findCurrencyExponent(currencies, accountCurrency)
+  if (exponent === null) throw new Error(`No currency metadata for ${accountCurrency}`)
+
+  // The backend catches its parser's malformed, over-precise and out-of-range errors together and
+  // reports all three as an invalid amount, so all three read the same way here
+  const minorUnits = toImportMinorUnits(rawAmount, exponent)
+  if (typeof minorUnits !== 'bigint') throw new FireflyRowSkipError(`Invalid amount "${rawAmount}"`)
+
+  // The import writes the magnitude rather than the parsed value, and the signed range holds one
+  // more value below zero than above it, so the smallest amount the parser accepts negates into
+  // one the column cannot take. The backend bounds its own result the same way
+  const absoluteMinorUnits = minorUnits < 0n ? -minorUnits : minorUnits
+  if (absoluteMinorUnits > MAX_IMPORT_MINOR_UNITS) throw new FireflyRowSkipError(`Amount is too large: "${rawAmount}"`)
+
+  return Number(absoluteMinorUnits)
 }
 
 /**

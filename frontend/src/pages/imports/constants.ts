@@ -30,7 +30,7 @@ export const COLUMN_TARGETS: Array<{
   {
     id: 'counterparty_account_id',
     label: 'Counterparty account',
-    hint: 'Says which account a transfer\'s money went to, or came from, without writing a transaction into that account. Only rows whose category records one can use it, and a blank cell records the transfer as going outside this app.',
+    hint: 'Says which account a transfer\'s money went to, or came from, without writing a transaction into that account. Only transfer rows can use it, and a blank cell records the transfer as going outside this app.',
   },
   { id: 'dt', label: 'Date', hint: 'Transaction date.', required: true },
   { id: 'category_id', label: 'Category', hint: 'Resolved from imported category text.', required: true },
@@ -40,6 +40,12 @@ export const COLUMN_TARGETS: Array<{
   { id: 'notes', label: 'Notes', hint: 'Optional transaction notes.' },
   { id: 'tag_ids', label: 'Tags', hint: 'Resolved from imported tag text.' },
 ]
+
+// Shown over the upload control while the currency list is not in hand. Reading a file uses it to
+// tell a cell holding a currency from a header word shaped like one, and that decision is kept on
+// the staged file, so a file read without the list stays wrongly read once it arrives
+export const CURRENCIES_LOADING_UPLOAD_BLOCK = 'Loading currencies...'
+export const CURRENCIES_FAILED_UPLOAD_BLOCK = 'Currencies could not be loaded, and a file cannot be read without them. Reload the page to try again.'
 
 // How many entries the skipped table lists before summarizing the remainder, shared by every table
 // built on it: refused rows in both import flows, and the Firefly budgets it cannot bring in
@@ -55,6 +61,19 @@ export const ROW_DATE_BLANK_REASON = 'The date cell is blank.'
 export const ROW_DATE_UNREADABLE_REASON = 'The date does not match the chosen format.'
 export const ROW_AMOUNT_BLANK_REASON = 'The amount cell is blank.'
 export const ROW_AMOUNT_UNREADABLE_REASON = 'The amount is not a number.'
+export const ROW_AMOUNT_TOO_LARGE_REASON = 'The amount is larger than this app can store.'
+
+/**
+ * Says an amount carries decimal places its currency does not have
+ *
+ * How many are allowed is the currency's answer rather than the importer's, so the message states
+ * it. It also says how a period is read, because an amount like 1.234 written with a period
+ * grouping the thousands fails here, and without that sentence the reason reads as a complaint
+ * about a number the user considers whole
+ */
+export function getRowAmountTooPreciseReason(currency: string) {
+  return `The amount has more decimal places than ${currency} has. A period is read as a decimal point, never as a separator between thousands.`
+}
 export const ROW_COUNTERPARTY_NOT_A_TRANSFER_REASON = 'A non-transfer transaction should not have a counterparty account recorded.'
 export const ROW_COUNTERPARTY_IS_OWN_ACCOUNT_REASON = 'A transfer cannot record its own account as its counterparty.'
 

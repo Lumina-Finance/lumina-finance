@@ -13,9 +13,17 @@ const REQUIRED_HEADERS_BY_KIND: Record<FireflyFileKind, string[]> = {
 
 /**
  * Reads one Firefly III export file and flags missing required columns
+ *
+ * @param file - The uploaded file
+ * @param kind - Which Firefly III export this file is meant to be
+ * @param supportedCurrencyCodes - Upper-case codes from the currency list the API served
  */
-export async function readFireflyCsvFile(file: File, kind: FireflyFileKind): Promise<ImportFileDraft> {
-  const draft = await readCsvFile(file)
+export async function readFireflyCsvFile(
+  file: File,
+  kind: FireflyFileKind,
+  supportedCurrencyCodes: Set<string>,
+): Promise<ImportFileDraft> {
+  const draft = await readCsvFile(file, supportedCurrencyCodes)
   if (draft.error) return draft
 
   const headers = new Set(draft.headers)

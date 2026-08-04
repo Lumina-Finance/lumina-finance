@@ -3,8 +3,8 @@ import type { ColumnMap, ColumnTarget, ColumnValidationErrors, CsvRow, ImportFil
 import { unique } from './common'
 import {
   type ImportDateFormat,
+  isSupportedCurrency,
   isValidAmountValue,
-  isValidCurrencyCode,
   isValidDateValue,
   readImportDate,
   truncateValue,
@@ -13,7 +13,7 @@ import {
 const COLUMN_VALIDATION_RULES: Record<ColumnTarget, {
   expected: string
   requiredValues?: boolean
-  accepts: (value: string) => boolean
+  accepts: (value: string, supportedCurrencyCodes: Set<string>) => boolean
 }> = {
   account_id: {
     expected: 'account names or source account labels; every row must have a value',
@@ -36,8 +36,8 @@ const COLUMN_VALIDATION_RULES: Record<ColumnTarget, {
     accepts: isValidAmountValue,
   },
   currency: {
-    expected: '3-letter ISO currency codes such as CAD or USD',
-    accepts: isValidCurrencyCode,
+    expected: 'ISO currency codes this app supports, such as CAD or USD',
+    accepts: isSupportedCurrency,
   },
   merchant_id: {
     expected: 'merchant or payee names as plain text',
@@ -64,7 +64,11 @@ const COLUMN_VALIDATION_RULES: Record<ColumnTarget, {
  * records a validation error for any mapped column whose values do not match what the target field
  * expects
  */
-export function validateColumnMap(columnMap: ColumnMap, files: ImportFileDraft[]) {
+export function validateColumnMap(
+  columnMap: ColumnMap,
+  files: ImportFileDraft[],
+  supportedCurrencyCodes: Set<string>,
+) {
   if (files.length === 0) return { map: EMPTY_COLUMN_MAP, errors: {} }
 
   const availableHeaders = new Set(files.flatMap((file) => file.headers))
@@ -77,7 +81,7 @@ export function validateColumnMap(columnMap: ColumnMap, files: ImportFileDraft[]
 
     // No format is passed, because this runs while inferring which column is which, before anyone
     // has chosen one. The hook holds the date column to the chosen format on its own path
-    const validation = validateColumnValues(files, header, target.id)
+    const validation = validateColumnValues(files, header, target.id, supportedCurrencyCodes)
     map[target.id] = header
     if (!validation.valid) errors[header] = validation.message
   }
@@ -94,6 +98,7 @@ export function validateColumnValues(
   files: ImportFileDraft[],
   header: string,
   target: ColumnTarget,
+  supportedCurrencyCodes: Set<string>,
   dateFormat: ImportDateFormat | null = null,
 ) {
   const rule = COLUMN_VALIDATION_RULES[target]
@@ -104,7 +109,7 @@ export function validateColumnValues(
   const expected = isDateColumnInChosenFormat ? getDateFormatExpectation(dateFormat) : rule.expected
   const accepts = isDateColumnInChosenFormat
     ? (value: string) => Boolean(readImportDate(value, dateFormat))
-    : rule.accepts
+    : (value: string) => rule.accepts(value, supportedCurrencyCodes)
 
   if (values.length === 0) {
     return {

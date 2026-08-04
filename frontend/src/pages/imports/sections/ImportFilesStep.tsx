@@ -10,6 +10,7 @@ type ImportFilesStepProps = Pick<
   | 'mappedFieldCount'
   | 'handleFileChange'
   | 'removeFile'
+  | 'uploadBlockReason'
 >
 
 /**
@@ -24,7 +25,12 @@ export function ImportFilesStep({
   mappedFieldCount,
   handleFileChange,
   removeFile,
+  uploadBlockReason,
 }: ImportFilesStepProps) {
+  // A file is read against the currency list, so uploading one before it is in hand would read the
+  // file wrongly rather than merely leave a later step waiting
+  const isUploadBlocked = isProcessingFiles || uploadBlockReason !== null
+
   return (
     <ImportStep
       index="01"
@@ -39,13 +45,14 @@ export function ImportFilesStep({
         className="hidden"
         accept=".csv,text/csv"
         onChange={handleFileChange}
-        disabled={isProcessingFiles}
+        disabled={isUploadBlocked}
       />
       <ImportUploadCard
         title="Upload CSV file"
         hint="One file accepted."
         processing={isProcessingFiles}
-        disabled={isProcessingFiles}
+        disabled={isUploadBlocked}
+        blockReason={uploadBlockReason}
         onClick={() => inputRef.current?.click()}
       />
 
