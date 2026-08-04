@@ -155,7 +155,7 @@ const IMPORT_NUMBER_PATTERN = /^([+-]?)(\d+|\d{1,3}(?:,\d{3})+)(?:\.(\d+))?$/
 // reaches one further than the positive, which is what two's complement holds, so a caller that
 // negates an amount has to bound its own result. The same two values are written out again in
 // backend/app/utils/money.py, and the two have to agree
-export const MIN_IMPORT_MINOR_UNITS = -(2n ** 63n)
+const MIN_IMPORT_MINOR_UNITS = -(2n ** 63n)
 export const MAX_IMPORT_MINOR_UNITS = 2n ** 63n - 1n
 
 /**
