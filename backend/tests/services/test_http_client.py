@@ -106,56 +106,47 @@ async def test_response_one_byte_over_the_cap_is_refused():
         await client.get(_URL)
 
 
-async def test_compression_is_declined():
-    """The client asks for no compression, so the bytes it counts are the bytes that arrived
-
-    Counting after decoding would let a few hundred compressed KB expand into gigabytes
-    inside the process before the cap was ever consulted
-    """
-    sent_headers = {}
-
-    def record(request: httpx.Request) -> httpx.Response:
-        """Record the request headers and answer with an empty body"""
-        sent_headers.update(request.headers)
-        return _streamed(b"{}")
-
-    client = _CappedResponseClient(
-        timeout=1.0,
-        headers={"accept-encoding": "identity"},
-        transport=httpx.MockTransport(record),
+def _gzipped(payload: bytes) -> httpx.Response:
+    """Return a streaming gzip response carrying the given payload"""
+    return _streamed(
+        gzip.compress(payload),
+        headers={"content-encoding": "gzip", "content-type": "application/json"},
     )
 
-    async with client:
+
+async def test_a_compressed_body_is_counted_after_it_expands():
+    """The cap measures the memory a body takes, not the bytes that carried it
+
+    A payload that compresses well is small on the wire and large in memory, and the memory
+    is what the cap exists to bound, so this one is refused despite arriving under the cap
+    """
+    payload = b"x" * (_SMALL_CAP_BYTES * 100)
+    assert len(gzip.compress(payload)) < _SMALL_CAP_BYTES
+
+    client = _client_returning(lambda: _gzipped(payload), max_response_bytes=_SMALL_CAP_BYTES)
+
+    async with client, pytest.raises(ResponseTooLargeError):
         await client.get(_URL)
 
-    assert sent_headers["accept-encoding"] == "identity"
 
+async def test_a_compressed_body_within_the_cap_decodes_once():
+    """A compressed body under the cap is decoded as it is counted and not decoded again
 
-async def test_a_compressed_body_is_counted_compressed_and_still_decodes():
-    """A provider compressing anyway is counted on its compressed size and still reads correctly
-
-    The rebuilt response holds the bytes that arrived, so it keeps the header saying how they
-    are encoded and the caller decodes them exactly once
+    The rebuilt response holds decoded bytes, so keeping the header saying they were gzipped
+    would have the caller try to decode them a second time
     """
-    payload = b'{"rate": "1.35"}'
-    compressed = gzip.compress(payload)
-    client = _client_returning(
-        lambda: _streamed(compressed, headers={"content-encoding": "gzip", "content-type": "application/json"}),
-        max_response_bytes=len(compressed),
-    )
+    client = _client_returning(lambda: _gzipped(b'{"rate": "1.35"}'))
 
     async with client:
         response = await client.get(_URL)
 
     assert response.json() == {"rate": "1.35"}
+    assert "content-encoding" not in response.headers
 
 
 def test_the_application_factory_carries_the_cap():
-    """The builder the application calls returns a client holding the cap and declining compression"""
-    client = build_http_client(timeout=1.0)
-
-    assert client.max_response_bytes == MAX_RESPONSE_BYTES
-    assert client.headers["accept-encoding"] == "identity"
+    """The builder the application calls returns a client holding the cap"""
+    assert build_http_client(timeout=1.0).max_response_bytes == MAX_RESPONSE_BYTES
 
 
 async def test_streaming_is_refused():

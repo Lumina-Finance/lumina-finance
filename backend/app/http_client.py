@@ -6,14 +6,9 @@ import httpx
 # hundred KB, so this bounds a hostile or compromised endpoint without constraining real use
 MAX_RESPONSE_BYTES = 5 * 1024 * 1024
 
-# Compression is declined so the counted bytes are the real ones. Counting after decoding
-# would let a hostile endpoint spend a few hundred compressed KB to allocate gigabytes, which
-# is the case the cap exists for, and bounding that any other way means decoding by hand
-_DECLINE_COMPRESSION = {"accept-encoding": "identity"}
-
-# The rebuilt response holds exactly the bytes that came off the wire, so it keeps the header
-# describing their encoding and drops the two describing how the transfer was framed
-_DROPPED_TRANSFER_HEADERS = (b"content-length", b"transfer-encoding")
+# The rebuilt response holds decoded bytes, so none of the headers describing how the
+# original arrived still apply to it
+_DROPPED_TRANSFER_HEADERS = (b"content-encoding", b"content-length", b"transfer-encoding")
 
 
 class ResponseTooLargeError(httpx.RequestError):
@@ -41,7 +36,7 @@ class _CappedResponseClient(httpx.AsyncClient):
             **kwargs: Remaining httpx send arguments
 
         Returns:
-            The response, already read, carrying the bytes that arrived on the wire
+            The response, already read and decoded
 
         Raises:
             ResponseTooLargeError: The body went past the cap
@@ -53,8 +48,11 @@ class _CappedResponseClient(httpx.AsyncClient):
         response = await super().send(request, stream=True, **kwargs)
         body = bytearray()
         try:
-            # Raw rather than decoded, so the count is of bytes actually received
-            async for chunk in response.aiter_raw():
+            # Decoded rather than raw, so the count is of memory held rather than bytes
+            # received. A compressed chunk expands before the count sees it, so the peak is
+            # the cap plus one chunk's expansion, which these few low-concurrency calls can
+            # absorb. Bounding it exactly would mean decompressing by hand
+            async for chunk in response.aiter_bytes():
                 body += chunk
                 if len(body) > self.max_response_bytes:
                     raise ResponseTooLargeError(
@@ -85,4 +83,4 @@ def build_http_client(timeout: float) -> httpx.AsyncClient:
     Returns:
         An async client enforcing the response size cap
     """
-    return _CappedResponseClient(timeout=timeout, headers=_DECLINE_COMPRESSION)
+    return _CappedResponseClient(timeout=timeout)
