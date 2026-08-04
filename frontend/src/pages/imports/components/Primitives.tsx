@@ -126,10 +126,13 @@ export function EmptyState({ title, description }: { title: string; description:
 }
 
 /**
- * Warning panel for currency handling guidance beside an import step, always titled "Currency
- * Handling" with a warning icon rather than taking its own title prop
+ * Warning panel beside an import step, saying what the import will do with something rather than
+ * asking anything
+ *
+ * The title says which of those it is about, since a step can carry more than one and they would
+ * otherwise be told apart only by reading them
  */
-export function ImportNotice({ children }: { children: ReactNode }) {
+export function ImportNotice({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div
       className="flex items-start gap-3 rounded-lg px-4 py-3"
@@ -147,7 +150,7 @@ export function ImportNotice({ children }: { children: ReactNode }) {
       </span>
       <div className="min-w-0">
         <p className="text-[0.9375rem] font-semibold leading-5" style={{ color: 'var(--app-text)' }}>
-          Currency Handling
+          {title}
         </p>
         <p className="mt-1 text-sm leading-5">
           {children}

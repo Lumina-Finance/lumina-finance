@@ -43,7 +43,7 @@ export function ImportColumnMappingStep({
       title="Column Mapping"
       description="Map each file column to an app field."
     >
-      <ImportNotice>
+      <ImportNotice title="Amount Handling">
         {AMOUNT_CONVENTION_NOTE}
       </ImportNotice>
       {headers.length === 0 ? (
