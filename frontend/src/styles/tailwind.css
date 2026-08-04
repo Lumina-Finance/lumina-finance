@@ -604,6 +604,14 @@
     appearance: none;
   }
 
+  /* The slot the control keeps in the page while the box grows out of it. It carries the same corner
+     so that anything drawn around the control, such as the importer's highlight on a row it filled in
+     by itself, traces the control rather than a rectangle around it */
+  .app-dropdown-slot {
+    position: relative;
+    border-radius: var(--app-dropdown-radius);
+  }
+
   /* One box holding the head and the list, which grows open around them rather than opening a second
      box underneath. Its own clipping is what hides the list while closed, so the list can grow out of
      the head instead of appearing beside it */
@@ -630,24 +638,13 @@
     flex-direction: column-reverse;
   }
 
-  /* Only while open, since that is the only time the box floats over the page rather than sitting in
-     a form or a table row.
-
-     It carries no backdrop filter. One over this box would be redrawn on every frame of the opening,
-     because the box's own height is what is moving, which is the cost the frosting behind a dialog
-     avoids by blurring something inert and still instead. The tint is plain alpha compositing, so it
-     keeps some of the depth for none of that */
-  .app-dropdown-glass-open {
-    border-color: var(--app-border-strong);
-    background: color-mix(in srgb, var(--app-input-bg) var(--app-dropdown-tint), transparent);
-    box-shadow: var(--app-shadow-soft);
-  }
-
   /* Every state below is the box class plus exactly one more simple selector, so they all weigh the
      same and the later rule wins. That settles which state shows once, in this order: touched, then
-     open, then focused, then rejected, then unavailable. Each one names every property the others
+     focused, then open, then rejected, then unavailable. Each one names every property the others
      set, since equal weight settles a property at a time and one left out is one an earlier state
-     still wins. A new state goes in this order rather than out-weighing what came before */
+     still wins. Open is written as two classes for that reason alone, since a lone class would weigh
+     less than a hover and lose to it. A new state goes in this order rather than out-weighing what
+     came before */
   .app-dropdown-glass:hover {
     border-color: var(--app-border-strong);
   }
@@ -657,6 +654,20 @@
     box-shadow: 0 0 0 2px var(--app-accent-soft);
   }
 
+  /* Open comes after focused on purpose. An open box is always focused, since opening it puts focus
+     on the head or in the search field, so a ring there would be permanent and would replace the
+     shadow that lifts the open box off the page.
+
+     It carries no backdrop filter. One over this box would be redrawn on every frame of the opening,
+     because the box's own height is what is moving, which is the cost the frosting behind a dialog
+     avoids by blurring something inert and still instead. The tint is plain alpha compositing, so it
+     keeps some of the depth for none of that */
+  .app-dropdown-glass.app-dropdown-glass-open {
+    border-color: var(--app-border-strong);
+    background: color-mix(in srgb, var(--app-input-bg) var(--app-dropdown-tint), transparent);
+    box-shadow: var(--app-shadow-soft);
+  }
+
   .app-dropdown-glass.app-dropdown-glass-error {
     border-color: var(--app-negative-border);
     background: var(--app-negative-soft);
@@ -664,6 +675,13 @@
 
   .app-dropdown-glass.app-dropdown-glass-error:focus-within {
     box-shadow: 0 0 0 2px var(--app-negative-soft);
+  }
+
+  /* A rejected field that is open still has to be readable, so the red is mixed into the open
+     background rather than replacing it with a ten percent wash the page shows straight through */
+  .app-dropdown-glass.app-dropdown-glass-open.app-dropdown-glass-error {
+    background: color-mix(in srgb, var(--app-negative-soft) 40%, var(--app-input-bg));
+    box-shadow: var(--app-shadow-soft);
   }
 
   .app-dropdown-glass.app-dropdown-glass-disabled {
@@ -694,17 +712,20 @@
     cursor: not-allowed;
   }
 
+  /* The height tokens are the whole control's outer height, which is what a caller thinks in and what
+     has to match the text input beside it. The box's own border sits outside the head, so each of
+     these takes it off first */
   .app-dropdown-head-compact {
-    height: var(--app-dropdown-height-compact);
+    height: calc(var(--app-dropdown-height-compact) - 2px);
     padding: 0 var(--app-dropdown-padding-x-compact);
   }
 
   .app-dropdown-head-field {
-    height: var(--app-dropdown-height-field);
+    height: calc(var(--app-dropdown-height-field) - 2px);
   }
 
   .app-dropdown-head-toolbar {
-    height: var(--app-dropdown-height-toolbar);
+    height: calc(var(--app-dropdown-height-toolbar) - 2px);
   }
 
   .app-dropdown-chevron {

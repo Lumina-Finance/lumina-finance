@@ -10,6 +10,7 @@ import {
   type UIEvent,
 } from 'react';
 import { joinClassNames } from '@/utils/classNames';
+import { useReducedMotion } from 'motion/react';
 import { useMinimumVisibleFlag } from '@/hooks/useMinimumVisibleFlag';
 import { DropdownBox } from './Box';
 import { DropdownOptionList } from './OptionList';
@@ -114,6 +115,8 @@ const Dropdown = ({
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const [search, setSearch] = useState('');
   const [collapsedHeight, setCollapsedHeight] = useState<number>();
+  const [collapsing, setCollapsing] = useState(false);
+  const shouldReduceMotion = useReducedMotion();
   const listId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
   const boxRef = useRef<HTMLDivElement>(null);
@@ -169,21 +172,39 @@ const Dropdown = ({
   }, [onSearchChange, searchValue]);
 
   /**
-   * Resets transient menu state whenever the floating list closes
+   * Resets transient menu state whenever the list closes
    */
   const close = useCallback(() => {
     setOpen(false);
     setSearchText('');
     setHighlightedIndex(-1);
-  }, [setSearchText]);
 
-  // The wrapper holds the collapsed height so the box can grow over what is below it rather than
-  // pushing it down. Remeasured when the shown label changes, since that can reflow the head
+    // The box holds its open placement until the collapse finishes. Dropping back to its slot on the
+    // closing frame would move a box that grew upward to the other side of the head, and snap its
+    // width back, while the list is still visibly collapsing. Nothing to wait for when the collapse
+    // is instant, and no transition to end either, so the wait is skipped entirely
+    if (!shouldReduceMotion) setCollapsing(true);
+  }, [setSearchText, shouldReduceMotion]);
+
+  // The slot holds the collapsed height so the box can grow over what is below it rather than pushing
+  // it down. Measured from the box rather than the head inside it, since the box's own border is part
+  // of what the slot has to hold, and watched rather than measured once: a control that mounts inside
+  // a hidden branch, which the settings list does for whichever of its two layouts is not showing,
+  // measures nothing until that branch is shown
   useLayoutEffect(() => {
-    const head = triggerRef.current;
-    if (open || !head) return;
-    setCollapsedHeight(head.offsetHeight);
-  }, [open, selected?.label, size]);
+    const box = boxRef.current;
+    if (open || !box) return;
+
+    const measure = () => {
+      const height = box.offsetHeight;
+      if (height > 0) setCollapsedHeight(height);
+    };
+
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(box);
+    return () => observer.disconnect();
+  }, [open, size]);
 
   // The dropdown closes on outside mouse interactions so stale menus do not remain open. The box is
   // a descendant of this container even while positioned against the viewport, so a press inside it
@@ -345,7 +366,7 @@ const Dropdown = ({
   return (
     <div
       ref={containerRef}
-      className={joinClassNames('relative', className)}
+      className={joinClassNames('app-dropdown-slot', className)}
       style={{ height: collapsedHeight }}
     >
       <DropdownBox
@@ -353,6 +374,7 @@ const Dropdown = ({
         disabled={disabled}
         hasError={hasError}
         open={open}
+        placed={open || collapsing}
         position={boxPosition}
       >
         <DropdownHead
@@ -370,36 +392,52 @@ const Dropdown = ({
           onKeyDown={handleKeyDown}
         />
 
-        <div className="app-dropdown-bodywrap">
+        {/* Held out of reach while the box is shut, and gone entirely once it has finished shutting.
+            A clipped list is still a list: its options stay in the accessibility tree and its search
+            field and create action stay in the page's tab order, so a modal holding four closed
+            drop-downs would put eight invisible stops between its first field and its save button */}
+        <div
+          className="app-dropdown-bodywrap"
+          inert={open ? undefined : true}
+          onTransitionEnd={(event) => {
+            // Only the height, since the contents inside it finish their own rise separately
+            if (event.propertyName === 'grid-template-rows') setCollapsing(false);
+          }}
+        >
           <div className="app-dropdown-body">
-            <div className="app-dropdown-glass-inner">
-              {searchable && (
-                <DropdownSearchControls
-                  createNewLabel={resolvedCreateNewLabel}
-                  searchPlaceholder={searchPlaceholder}
-                  searchRef={searchRef}
-                  searchText={searchText}
-                  showCreateAction={Boolean(onCreateNew)}
-                  onCreateNew={handleCreateNew}
-                  onKeyDown={handleSearchKeyDown}
-                  onSearchChange={setSearchText}
+            {/* Built only while it is being looked at, and kept through the collapse so the box has
+                something to shrink around. An import table renders four of these per row, so holding
+                every currency in the page for every row costs a great deal for nothing */}
+            {(open || collapsing) && (
+              <div className="app-dropdown-glass-inner">
+                {searchable && (
+                  <DropdownSearchControls
+                    createNewLabel={resolvedCreateNewLabel}
+                    searchPlaceholder={searchPlaceholder}
+                    searchRef={searchRef}
+                    searchText={searchText}
+                    showCreateAction={Boolean(onCreateNew)}
+                    onCreateNew={handleCreateNew}
+                    onKeyDown={handleSearchKeyDown}
+                    onSearchChange={setSearchText}
+                  />
+                )}
+                <DropdownOptionList
+                  effectiveHighlightedIndex={effectiveHighlightedIndex}
+                  groupedOptions={groupedFiltered}
+                  listId={listId}
+                  listMaxHeight={boxPosition.listMaxHeight}
+                  listRef={listRef}
+                  loadingText={loadingText}
+                  options={visibleFiltered}
+                  selectedValue={value}
+                  showLoading={showLoading}
+                  onHighlight={setHighlightedIndex}
+                  onScroll={handleListScroll}
+                  onSelect={handleSelect}
                 />
-              )}
-              <DropdownOptionList
-                effectiveHighlightedIndex={effectiveHighlightedIndex}
-                groupedOptions={groupedFiltered}
-                listId={listId}
-                listMaxHeight={boxPosition.listMaxHeight}
-                listRef={listRef}
-                loadingText={loadingText}
-                options={visibleFiltered}
-                selectedValue={value}
-                showLoading={showLoading}
-                onHighlight={setHighlightedIndex}
-                onScroll={handleListScroll}
-                onSelect={handleSelect}
-              />
-            </div>
+              </div>
+            )}
           </div>
         </div>
       </DropdownBox>

@@ -10,6 +10,15 @@ interface DropdownBoxProps {
   disabled: boolean
   hasError: boolean
   open: boolean
+
+  /**
+   * Whether the box holds the placement it opened with
+   *
+   * Stays true through the collapse, so a box that grew upward does not drop back to its slot on the
+   * closing frame and play the rest of the collapse on the other side of the head.
+   */
+  placed: boolean
+
   position: DropdownBoxPosition
 }
 
@@ -36,6 +45,7 @@ export function DropdownBox({
   disabled,
   hasError,
   open,
+  placed,
   position,
 }: DropdownBoxProps) {
   const shouldReduceMotion = useReducedMotion()
@@ -46,11 +56,11 @@ export function DropdownBox({
       className={joinClassNames(
         'app-dropdown-glass',
         open && 'app-dropdown-glass-open',
-        open && position.openAbove && 'app-dropdown-glass-up',
+        placed && position.openAbove && 'app-dropdown-glass-up',
         hasError && 'app-dropdown-glass-error',
         disabled && 'app-dropdown-glass-disabled',
       )}
-      style={open
+      style={placed
         ? {
           position: 'fixed',
           // Pinned by whichever of the head's own edges the list grows away from, so the head does

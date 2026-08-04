@@ -319,7 +319,7 @@ function EmojiMartIconPicker({
         // dense enough that anything showing through it would cost legibility
         background: isDark ? 'rgb(15, 14, 12)' : 'rgb(242, 237, 228)',
         border: '1px solid var(--app-border-strong)',
-        borderRadius: 'var(--app-dropdown-panel-radius)',
+        borderRadius: 'var(--app-dropdown-radius)',
         boxShadow: 'var(--app-shadow-soft)',
         left: position.left,
         maxHeight: position.maxHeight,

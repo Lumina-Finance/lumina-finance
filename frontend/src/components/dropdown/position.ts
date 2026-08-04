@@ -72,9 +72,6 @@ export const DEFAULT_DROPDOWN_BOX_POSITION: DropdownBoxPosition = {
 const DROPDOWN_MAX_HEIGHT = 400
 const DROPDOWN_MIN_HEIGHT = 160
 
-// A pill in a narrow import table cell would otherwise open a list too narrow to read its options
-const DROPDOWN_MIN_WIDTH = 208
-
 const DROPDOWN_SEARCH_HEIGHT = 56
 
 // The box's own border and the padding around its contents. Mirrors the 1px border of
@@ -97,13 +94,17 @@ export function getDropdownBoxPosition({
 }: DropdownBoxPositionParams): DropdownBoxPosition {
   const viewportBottom = viewport.offsetTop + viewport.height
   const viewportRight = viewport.offsetLeft + viewport.width
-  const width = Math.max(anchorRect.width, DROPDOWN_MIN_WIDTH)
 
-  // Clamped on the box's own width rather than the head's, so widening it over a narrow head pushes
-  // it back inside the viewport instead of off the edge
+  // Exactly the width of the slot it came from. The head and the list are one box now, so widening
+  // the box to give a narrow list more room would widen the head with it and slide it sideways in
+  // front of the user at the moment they opened it
+  const width = anchorRect.width
+
+  // Only moves the box when the slot itself is partly off the screen, which is the one case where
+  // leaving it where it is would put the list somewhere nobody can read it
   const left = Math.min(
     Math.max(anchorRect.left, viewport.offsetLeft + DROPDOWN_VIEWPORT_PADDING),
-    viewportRight - width - DROPDOWN_VIEWPORT_PADDING,
+    Math.max(viewport.offsetLeft, viewportRight - width - DROPDOWN_VIEWPORT_PADDING),
   )
 
   // The box starts at the head and grows one way or the other, so the head's own height counts as

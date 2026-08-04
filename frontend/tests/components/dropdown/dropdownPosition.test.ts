@@ -28,7 +28,7 @@ describe('drop-down box placement', () => {
       listMaxHeight: 346,
       openAbove: false,
       top: 100,
-      width: 208,
+      width: 200,
     })
   })
 
@@ -105,16 +105,26 @@ describe('drop-down box placement', () => {
     }).left).toBe(12)
   })
 
-  it('widens a box over a narrow head and clamps on the widened box', () => {
+  it('keeps the box exactly as wide as the slot it came from', () => {
+    const position = getDropdownBoxPosition({
+      ...head,
+      anchorRect: { bottom: 140, left: 150, top: 100, width: 100 },
+      viewport: { ...viewport, width: 300 },
+    })
+
+    // The head and the list are one box, so giving the list more room would widen the head with it
+    // and slide it sideways at the moment the user opened it
+    expect(position.width).toBe(100)
+    expect(position.left).toBe(150)
+  })
+
+  it('pulls the box back on screen only when its slot is hanging off the edge', () => {
     const position = getDropdownBoxPosition({
       ...head,
       anchorRect: { bottom: 140, left: 250, top: 100, width: 100 },
       viewport: { ...viewport, width: 300 },
     })
 
-    // A 100px head in a table cell would open a list too narrow to read, so it widens to the
-    // minimum and is pushed back inside the viewport instead of hanging off the right edge
-    expect(position.width).toBe(208)
-    expect(position.left).toBe(80)
+    expect(position.left).toBe(188)
   })
 })
