@@ -16,6 +16,7 @@ import { ApiError } from '@/api/auth';
 import { useAuth } from '@/hooks/useAuth';
 import { useMoneyInput } from '@/hooks/useMoneyInput';
 import { getCurrencyExponent } from '@/utils/moneyInput';
+import { getFieldLabelId } from '@/utils/fieldLabel';
 import {
   ALL_CREATE_ACCOUNT_FIELDS_TOUCHED,
   CREATE_ACCOUNT_EASE,
@@ -175,13 +176,18 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
               <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Identity</p>
 
               <div>
-                <CreateModalFieldLabelRow label="Account Type" error={showError('account_type') || undefined} />
+                <CreateModalFieldLabelRow
+                  htmlFor={CREATE_ACCOUNT_MODAL_FIELD_IDS.accountType}
+                  label="Account Type"
+                  error={showError('account_type') || undefined}
+                />
                 <Dropdown
                   id={CREATE_ACCOUNT_MODAL_FIELD_IDS.accountType}
                   options={CREATE_ACCOUNT_TYPE_OPTIONS}
                   value={form.account_type}
                   onChange={(v) => handleChange('account_type', v)}
-                  className={`app-input ${showError('account_type') ? 'app-input-error' : ''}`}
+                  hasError={!!showError('account_type')}
+                  labelledBy={getFieldLabelId(CREATE_ACCOUNT_MODAL_FIELD_IDS.accountType)}
                   placeholder="Select type..."
                   searchable
                   searchPlaceholder="Search types..."
@@ -206,13 +212,18 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
               </div>
 
               <div>
-                <CreateModalFieldLabelRow label="Currency" error={showError('currency') || undefined} />
+                <CreateModalFieldLabelRow
+                  htmlFor={CREATE_ACCOUNT_MODAL_FIELD_IDS.currency}
+                  label="Currency"
+                  error={showError('currency') || undefined}
+                />
                 <Dropdown
                   id={CREATE_ACCOUNT_MODAL_FIELD_IDS.currency}
                   options={currencyOptions}
                   value={form.currency}
                   onChange={(v) => handleChange('currency', v)}
-                  className={`app-input ${showError('currency') ? 'app-input-error' : ''}`}
+                  hasError={!!showError('currency')}
+                  labelledBy={getFieldLabelId(CREATE_ACCOUNT_MODAL_FIELD_IDS.currency)}
                   placeholder={currencies.length === 0 ? 'Loading currencies...' : 'Select currency...'}
                   searchable
                   searchPlaceholder="Search currencies..."
@@ -229,12 +240,19 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
               <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Details</p>
 
               <div>
-                <label className="app-label mb-1.5 block text-[0.9375rem] leading-5">Institution</label>
+                <label
+                  id={getFieldLabelId(CREATE_ACCOUNT_MODAL_FIELD_IDS.institution)}
+                  htmlFor={CREATE_ACCOUNT_MODAL_FIELD_IDS.institution}
+                  className="app-label mb-1.5 block text-[0.9375rem] leading-5"
+                >
+                  Institution
+                </label>
                 <Dropdown
                   id={CREATE_ACCOUNT_MODAL_FIELD_IDS.institution}
                   options={institutionOptions}
                   value={form.institution_id}
                   onChange={(v) => handleChange('institution_id', v)}
+                  labelledBy={getFieldLabelId(CREATE_ACCOUNT_MODAL_FIELD_IDS.institution)}
                   placeholder="Select institution..."
                   searchable
                   searchPlaceholder="Search institutions..."
@@ -287,12 +305,19 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                   >
                     {conditionalAccountField === 'tax-plan' ? (
                       <div>
-                        <label className="app-label mb-1.5 block text-[0.9375rem] leading-5">Tax-Advantaged Category</label>
+                        <label
+                          id={getFieldLabelId(CREATE_ACCOUNT_MODAL_FIELD_IDS.taxAdvantagedCategory)}
+                          htmlFor={CREATE_ACCOUNT_MODAL_FIELD_IDS.taxAdvantagedCategory}
+                          className="app-label mb-1.5 block text-[0.9375rem] leading-5"
+                        >
+                          Tax-Advantaged Category
+                        </label>
                         <Dropdown
                           id={CREATE_ACCOUNT_MODAL_FIELD_IDS.taxAdvantagedCategory}
                           options={taxPlanOptions}
                           value={form.tax_advantaged_category_id}
                           onChange={(v) => handleChange('tax_advantaged_category_id', v)}
+                          labelledBy={getFieldLabelId(CREATE_ACCOUNT_MODAL_FIELD_IDS.taxAdvantagedCategory)}
                           placeholder="Select category..."
                           searchable
                           searchPlaceholder="Search categories..."

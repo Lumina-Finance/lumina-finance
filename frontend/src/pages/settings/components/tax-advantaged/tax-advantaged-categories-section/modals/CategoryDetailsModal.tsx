@@ -122,7 +122,8 @@ export default function TaxAdvantagedCategoryDetailsModal({
             <div className="min-w-0">
               <span className="app-label mb-1 block text-xs">Type</span>
               <Dropdown
-                className="h-9 w-full rounded-md border border-transparent bg-[color-mix(in_srgb,var(--app-input-bg)_55%,var(--app-bg))] px-2 py-0 text-[0.9375rem] font-medium outline-none transition-colors duration-150 hover:border-[var(--app-border)] focus:border-[var(--app-accent-border)]"
+                className="w-full"
+                size="compact"
                 options={TAX_TREATMENT_OPTIONS}
                 value={planForm.tax_treatment}
                 onChange={(value) => onPlanFieldChange('tax_treatment', value as TaxPlanFormState['tax_treatment'])}

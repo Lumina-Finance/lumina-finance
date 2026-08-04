@@ -156,7 +156,7 @@ export default function CreateInstitutionModal({
                 options={COUNTRY_OPTIONS}
                 value={form.country_code}
                 onChange={(value) => handleChange('country_code', value)}
-                className={`app-input ${showError('country_code') ? 'app-input-error' : ''}`}
+                hasError={Boolean(showError('country_code'))}
                 placeholder="Select country..."
                 searchable
                 searchPlaceholder="Search countries..."

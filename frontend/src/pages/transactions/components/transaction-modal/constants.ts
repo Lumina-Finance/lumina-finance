@@ -22,8 +22,10 @@ export const SEGMENTED_OPTION_GAP_REM = 0.35
 
 export const TRANSACTION_MODAL_FIELD_IDS = {
   account: 'txn-account',
+  counterpartyAccount: 'txn-counterparty-account',
   merchant: 'txn-merchant',
   category: 'txn-category',
+  tags: 'txn-tags',
 } as const
 
 export const KIND_OPTIONS: { value: TransactionModalKind; label: string }[] = [

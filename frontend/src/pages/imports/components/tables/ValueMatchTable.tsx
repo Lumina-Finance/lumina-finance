@@ -89,7 +89,8 @@ export function ImportValueMatchTable({
                     onChange={row.onChange}
                     searchable
                     blankWhenEmpty
-                    className={`app-input h-9 px-3 ${row.autoFilled ? 'import-auto-fill-field' : ''}`}
+                    size="compact"
+                    className={`px-3 ${row.autoFilled ? 'import-auto-fill-field' : ''}`}
                     disabled={disabled}
                   />
                 </td>
