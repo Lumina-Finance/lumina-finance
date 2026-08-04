@@ -39,8 +39,14 @@ export default function ImportsPage() {
   const isFirefly = dataSource === 'firefly'
   const importOverlayOpen = isFirefly ? fireflyWorkflow.importOverlayOpen : workflow.importOverlayOpen
 
+  // Switching source resets the flow being left, so a file still being read or an import still
+  // being written would finish into a flow the user has already discarded
+  const isImportBusy = isFirefly
+    ? fireflyWorkflow.importOverlayOpen
+    : workflow.importOverlayOpen || workflow.isProcessingFiles || workflow.isImportInFlight
+
   const handleDataSourceChange = (next: ImportDataSource) => {
-    if (next === dataSource) return
+    if (next === dataSource || isImportBusy) return
 
     // The flow being switched away from resets so its staged state cannot
     // leak into a later import run
@@ -62,9 +68,12 @@ export default function ImportsPage() {
       style={{ background: 'var(--app-bg)', color: 'var(--app-text)' }}
       aria-busy={importOverlayOpen}
     >
+      {/* Inert rather than aria-hidden: dimming alone leaves every control behind the overlay
+          reachable by keyboard, which is how a second commit could be started on top of one that
+          was still writing. It also takes the subtree out of the accessibility tree on its own */}
       <div
-        className={`flex h-full min-h-full transition duration-200 ${importOverlayOpen ? 'pointer-events-none select-none opacity-40 grayscale' : 'opacity-100'}`}
-        aria-hidden={importOverlayOpen}
+        className={`flex h-full min-h-full transition duration-200 ${importOverlayOpen ? 'select-none opacity-40 grayscale' : 'opacity-100'}`}
+        inert={importOverlayOpen}
       >
         <button
           type="button"
@@ -185,6 +194,8 @@ export default function ImportsPage() {
           error={workflow.importError}
           onDone={handleDone}
           onReturnToImport={workflow.dismissImportOverlay}
+          onCancel={workflow.cancelImport}
+          onRetry={workflow.canRetryImportCommit ? workflow.retryImportCommit : undefined}
         />
       )}
     </div>

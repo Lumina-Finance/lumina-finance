@@ -54,6 +54,11 @@ import {
   type FireflyAccountCreateDetails,
 } from '@/pages/imports/firefly/utils'
 
+// This flow reads its account sources from the staged export rather than from a column the user
+// picks, and staging a different export resets everything, so its answers are never carried onto a
+// set of sources they were not given for and one fixed scope holds for the whole flow
+const FIREFLY_ACCOUNT_ANSWER_SCOPE = 'firefly'
+
 /**
  * Drives the whole Firefly III import flow: staging the transactions and budgets exports, resolving
  * their accounts and categories against the user's existing ones, building the commit payload, and
@@ -85,7 +90,7 @@ export function useFireflyImportWorkflow() {
     setBatchAccountCurrency,
     setBatchAccountInstitution,
     updateAccountMapping: updateFireflyAccountMapping,
-  } = useImportAccountCreateState(setAccountMappings)
+  } = useImportAccountCreateState(setAccountMappings, FIREFLY_ACCOUNT_ANSWER_SCOPE)
   const [categoryMappings, setCategoryMappings] = useState<Record<string, string>>({})
   const [categoryCreateKinds, setCategoryCreateKinds] = useState<Record<string, ImportCategoryKind>>({})
   const [importError, setImportError] = useState<string | null>(null)

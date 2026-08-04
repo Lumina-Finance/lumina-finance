@@ -1,11 +1,13 @@
 /**
- * Covers transaction import API batching that splits large uploads before the hook uses it
+ * Covers how a prepared import is staged and committed, before the hook uses it
  *
- * These tests catch regressions where import batches exceed the size budget,
- * or later batches fail to reuse account and category IDs created by earlier batches
+ * These tests catch regressions where staged batches exceed the request-size budget, where a batch
+ * loses the mappings its rows reference, and where an upload that stopped part way leaves a staged
+ * run behind instead of dropping it
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { ApiError } from '@/api/auth/errors';
 import type {
   TransactionImportPayload,
   TransactionImportResponse,
@@ -20,10 +22,16 @@ vi.mock('@/api/client', () => ({
   authenticatedFetch: authenticatedFetchMock,
 }));
 
-import { importTransactionsInBatches } from '@/api/transaction-imports';
+import {
+  TransactionImportRunError,
+  isImportCommitWorthRepeating,
+  runTransactionImport,
+} from '@/api/transaction-imports';
+
+const RUN_ID = 'run_1';
 
 /**
- * Builds a representative parsed import row used across batching scenarios
+ * Builds a representative parsed import row used across staging scenarios
  */
 function buildImportRow(notes = ''): TransactionImportRow {
   return {
@@ -38,7 +46,7 @@ function buildImportRow(notes = ''): TransactionImportRow {
 }
 
 /**
- * Builds a valid import payload around the requested rows so tests can focus on batching behaviour
+ * Builds a valid import payload around the requested rows so tests can focus on staging behaviour
  */
 function buildImportPayload(rows: TransactionImportRow[]): TransactionImportPayload {
   return {
@@ -92,79 +100,77 @@ function buildImportResponse(
   };
 }
 
+/**
+ * Answers the run-opening call, then every staging call, then the commit
+ */
+function mockRunCalls(commitResult: TransactionImportResponse | Error, stagedBatchCount = 1) {
+  authenticatedFetchMock.mockResolvedValueOnce({ id: RUN_ID });
+  for (let index = 0; index < stagedBatchCount; index += 1) {
+    authenticatedFetchMock.mockResolvedValueOnce(undefined);
+  }
+  if (commitResult instanceof Error) {
+    authenticatedFetchMock.mockRejectedValueOnce(commitResult);
+  } else {
+    authenticatedFetchMock.mockResolvedValueOnce(commitResult);
+  }
+}
+
+/**
+ * Returns the paths every call was made against, in order
+ */
+function calledPaths() {
+  return authenticatedFetchMock.mock.calls.map((call) => call[0]);
+}
+
+/**
+ * Returns the body of the call at one position, parsed back into the object that was sent
+ */
+function sentBody(callIndex: number) {
+  return JSON.parse(authenticatedFetchMock.mock.calls[callIndex][1].body);
+}
+
 beforeEach(() => {
   authenticatedFetchMock.mockReset();
 });
 
-describe('transaction import batching', () => {
-  it('uploads small imports in one batch', async () => {
+describe('staging a transaction import', () => {
+  it('opens a run, stages a small import in one batch and commits it', async () => {
     const payload = buildImportPayload([buildImportRow()]);
-    const response = buildImportResponse({
+    mockRunCalls(buildImportResponse({ transactions_created: 1, affected_account_ids: ['acc_123'] }));
+
+    await expect(runTransactionImport(payload)).resolves.toMatchObject({
       transactions_created: 1,
       affected_account_ids: ['acc_123'],
     });
-
-    authenticatedFetchMock.mockResolvedValueOnce(response);
-
-    await expect(importTransactionsInBatches(payload)).resolves.toMatchObject({
-      transactions_created: 1,
-      affected_account_ids: ['acc_123'],
-    });
-    expect(authenticatedFetchMock).toHaveBeenCalledWith('/transactions/import', {
-      method: 'POST',
-      body: JSON.stringify(payload),
+    expect(calledPaths()).toEqual([
+      '/transactions/import/runs',
+      `/transactions/import/runs/${RUN_ID}/rows`,
+      `/transactions/import/runs/${RUN_ID}/commit`,
+    ]);
+    expect(sentBody(0)).toEqual({ expected_transaction_count: 1 });
+    expect(sentBody(1)).toMatchObject({
+      accounts: payload.accounts,
+      categories: payload.categories,
+      rows: payload.rows,
+      start_row_index: 0,
     });
   });
 
-  it('reuses source IDs created by earlier batches', async () => {
+  it('carries each batch its own mappings and its place in the file', async () => {
     const largeNotes = 'x'.repeat(400 * 1024);
-    const payload = buildImportPayload([
-      buildImportRow(largeNotes),
-      buildImportRow(largeNotes),
-    ]);
-    const firstResponse = buildImportResponse({
-      transactions_created: 1,
-      accounts_created: 1,
-      categories_created: 1,
-      affected_account_ids: ['acc_created'],
-      account_source_ids: { Checking: 'acc_created' },
-      category_source_ids: { Groceries: 'cat_created' },
-      created_account_ids: ['acc_created'],
-      created_category_ids: ['cat_created'],
-    });
-    const secondResponse = buildImportResponse({
-      transactions_created: 1,
-      accounts_reused: 1,
-      categories_reused: 1,
-      affected_account_ids: ['acc_created'],
-    });
+    const payload = buildImportPayload([buildImportRow(largeNotes), buildImportRow(largeNotes)]);
+    mockRunCalls(buildImportResponse({ transactions_created: 2 }), 2);
 
-    authenticatedFetchMock
-      .mockResolvedValueOnce(firstResponse)
-      .mockResolvedValueOnce(secondResponse);
+    await runTransactionImport(payload);
 
-    const result = await importTransactionsInBatches(payload);
-    const firstBatchPayload = JSON.parse(authenticatedFetchMock.mock.calls[0][1].body);
-    const secondBatchPayload = JSON.parse(authenticatedFetchMock.mock.calls[1][1].body);
+    expect(calledPaths()).toHaveLength(4);
+    expect(sentBody(1)).toMatchObject({ accounts: payload.accounts, start_row_index: 0 });
+    expect(sentBody(1).rows).toHaveLength(1);
 
-    expect(result).toMatchObject({
-      transactions_created: 2,
-      accounts_created: 1,
-      accounts_reused: 1,
-      categories_created: 1,
-      categories_reused: 1,
-      affected_account_ids: ['acc_created'],
-      created_account_ids: ['acc_created'],
-      created_category_ids: ['cat_created'],
-    });
-    expect(firstBatchPayload.accounts).toEqual(payload.accounts);
-    expect(firstBatchPayload.categories).toEqual(payload.categories);
-    expect(secondBatchPayload.accounts).toEqual([
-      { source: 'Checking', account_id: 'acc_created' },
-    ]);
-    expect(secondBatchPayload.categories).toEqual([
-      { source: 'Groceries', category_id: 'cat_created' },
-    ]);
+    // Nothing is created while a file is staged, so the second batch repeats the create mapping
+    // rather than quoting an id the first batch came back with
+    expect(sentBody(2)).toMatchObject({ accounts: payload.accounts, start_row_index: 1 });
+    expect(sentBody(2).rows).toHaveLength(1);
   });
 
   // A batch only carries the mappings for the sources its rows use, and a counterparty belongs to
@@ -175,12 +181,49 @@ describe('transaction import batching', () => {
     ]);
     payload.categories = [{ source: 'Transfer', category_id: 'cat_transfer' }];
     payload.accounts = [...payload.accounts, { source: 'Brokerage elsewhere', outside: true }];
+    mockRunCalls(buildImportResponse({ transactions_created: 1 }));
 
-    authenticatedFetchMock.mockResolvedValueOnce(buildImportResponse({ transactions_created: 1 }));
+    await runTransactionImport(payload);
 
-    await importTransactionsInBatches(payload);
-    const batchPayload = JSON.parse(authenticatedFetchMock.mock.calls[0][1].body);
+    expect(sentBody(1).accounts).toContainEqual({ source: 'Brokerage elsewhere', outside: true });
+  });
 
-    expect(batchPayload.accounts).toContainEqual({ source: 'Brokerage elsewhere', outside: true });
+  it('drops the run when a batch fails, so nothing is left staged', async () => {
+    const payload = buildImportPayload([buildImportRow()]);
+    authenticatedFetchMock
+      .mockResolvedValueOnce({ id: RUN_ID })
+      .mockRejectedValueOnce(new ApiError('Account is archived', 422))
+      .mockResolvedValueOnce(undefined);
+
+    await expect(runTransactionImport(payload)).rejects.toBeInstanceOf(TransactionImportRunError);
+
+    expect(calledPaths()).toEqual([
+      '/transactions/import/runs',
+      `/transactions/import/runs/${RUN_ID}/rows`,
+      `/transactions/import/runs/${RUN_ID}`,
+    ]);
+    expect(authenticatedFetchMock.mock.calls[2][1].method).toBe('DELETE');
+  });
+
+  it('keeps the run when the commit fails, so it can be committed again', async () => {
+    const payload = buildImportPayload([buildImportRow()]);
+    mockRunCalls(new ApiError('Request failed (503)', 503));
+
+    const error = await runTransactionImport(payload).catch((thrown: unknown) => thrown);
+
+    expect(error).toBeInstanceOf(TransactionImportRunError);
+    expect((error as TransactionImportRunError).phase).toBe('commit');
+    expect((error as TransactionImportRunError).runId).toBe(RUN_ID);
+    expect(isImportCommitWorthRepeating(error)).toBe(true);
+    expect(calledPaths()).not.toContain(`/transactions/import/runs/${RUN_ID}`);
+  });
+
+  it('does not offer to commit again when the file itself was refused', async () => {
+    const payload = buildImportPayload([buildImportRow()]);
+    mockRunCalls(new ApiError('Invalid amount: $2.00', 422));
+
+    const error = await runTransactionImport(payload).catch((thrown: unknown) => thrown);
+
+    expect(isImportCommitWorthRepeating(error)).toBe(false);
   });
 });

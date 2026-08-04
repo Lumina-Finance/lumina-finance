@@ -106,6 +106,12 @@ interface ImportProgressOverlayProps {
   error: string | null
   onDone: () => void
   onReturnToImport: () => void
+
+  /** Stops an import in progress; a flow that cannot be stopped part way leaves this unset */
+  onCancel?: () => void
+
+  /** Runs a failed import again without re-uploading it, offered only when that could work */
+  onRetry?: () => void
   phase: ImportOverlayPhase
 
   /** Stages of a multi-stage import, listed while it runs; single-stage flows leave this unset */
@@ -124,6 +130,8 @@ export function ImportProgressOverlay({
   error,
   onDone,
   onReturnToImport,
+  onCancel,
+  onRetry,
   phase,
   steps,
   summary,
@@ -236,6 +244,20 @@ export function ImportProgressOverlay({
                   </motion.div>
                 )}
 
+                {/* An import with no way out leaves this overlay up until the connection gives out,
+                    so a flow that can stop one offers it here. Escape is deliberately not wired to
+                    it, since stopping an import is not something to do by brushing a key */}
+                {!complete && !failed && onCancel && (
+                  <motion.button
+                    type="button"
+                    className={`app-secondary-button ${overlayButtonClass} mt-8 sm:min-w-[8.5rem]`}
+                    variants={itemVariants}
+                    onClick={onCancel}
+                  >
+                    Stop import
+                  </motion.button>
+                )}
+
                 {complete && (
                   <motion.div
                     className="mt-8 flex w-full flex-col gap-3 sm:flex-row sm:justify-center"
@@ -252,14 +274,29 @@ export function ImportProgressOverlay({
                 )}
 
                 {failed && (
-                  <motion.button
-                    type="button"
-                    className={`app-secondary-button ${overlayButtonClass} mt-8 sm:min-w-[8.5rem]`}
+                  <motion.div
+                    className="mt-8 flex w-full flex-col gap-3 sm:flex-row sm:justify-center"
                     variants={itemVariants}
-                    onClick={onReturnToImport}
                   >
-                    Back to import
-                  </motion.button>
+                    {/* Offered only where the file is still staged and sending it again could
+                        land, so a refusal of the file itself does not invite a pointless repeat */}
+                    {onRetry && (
+                      <button
+                        type="button"
+                        className={`app-primary-button ${overlayButtonClass} sm:min-w-[7rem]`}
+                        onClick={onRetry}
+                      >
+                        Try again
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className={`app-secondary-button ${overlayButtonClass} sm:min-w-[8.5rem]`}
+                      onClick={onReturnToImport}
+                    >
+                      Back to import
+                    </button>
+                  </motion.div>
                 )}
               </motion.div>
             </AnimatePresence>
