@@ -7,9 +7,11 @@ import type { ImportFileDraft } from '@/pages/imports/types'
 import {
   buildImportAnswerScope,
   emptyScopedImportAnswers,
-  keepScopedSelection,
+  emptyScopedSelection,
   readScopedImportAnswers,
+  readScopedSelection,
   writeScopedImportAnswers,
+  writeScopedSelection,
 } from '@/pages/imports/utils'
 
 /**
@@ -69,19 +71,25 @@ describe('scoped import answers', () => {
 })
 
 describe('scoped row selection', () => {
-  it('keeps only the rows still in front of the user', () => {
-    const selection = new Set(['Savings', 'Chequing'])
+  it('reads the ticks back while the column they were made under still holds', () => {
+    const scope = buildImportAnswerScope(['Account', ''], [createFile('file_1')])
+    const stored = writeScopedSelection(scope, new Set(['Savings', 'Chequing']))
 
-    expect(keepScopedSelection(selection, ['Savings'])).toEqual(new Set(['Savings']))
+    expect(readScopedSelection(stored, scope)).toEqual(new Set(['Savings', 'Chequing']))
   })
 
-  it('returns the same set when every selected row is still there', () => {
-    const selection = new Set(['Savings'])
+  it('leaves the table unticked when the column is unmapped and mapped back', () => {
+    const scope = buildImportAnswerScope(['Account', ''], [createFile('file_1')])
+    const stored = writeScopedSelection(scope, new Set(['Savings']))
+    const unmapped = buildImportAnswerScope(['', ''], [createFile('file_1')])
 
-    expect(keepScopedSelection(selection, ['Savings', 'Chequing'])).toBe(selection)
+    expect(readScopedSelection(stored, unmapped)).toEqual(new Set())
+    expect(readScopedSelection(writeScopedSelection(unmapped, new Set()), scope)).toEqual(new Set())
   })
 
-  it('empties the selection when the sources it was made against are gone', () => {
-    expect(keepScopedSelection(new Set(['Savings']), [])).toEqual(new Set())
+  it('starts with nothing ticked', () => {
+    const scope = buildImportAnswerScope(['Account', ''], [createFile('file_1')])
+
+    expect(readScopedSelection(emptyScopedSelection(), scope)).toEqual(new Set())
   })
 })

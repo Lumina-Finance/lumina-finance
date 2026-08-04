@@ -45,8 +45,8 @@ class ImportRun(Base):
 class ImportStagedRow(Base):
     """One row of a staged file, parked until its run is committed
 
-    Nothing in the app reads these, so a run abandoned part way leaves rows that are invisible
-    rather than transactions in the ledger
+    Nothing outside the commit reads these, so a run abandoned before it commits leaves rows that
+    are invisible rather than transactions in the ledger
     """
 
     __tablename__ = "import_staged_rows"

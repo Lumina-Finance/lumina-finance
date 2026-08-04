@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type Dispatch, type SetStateAction } from 'react'
 import {
-  TransactionImportRunError,
   discardStagedRun,
-  isImportCommitWorthRepeating,
   useCommitStagedImport,
   useImportTransactions,
   type TransactionImportResponse,
@@ -18,7 +16,6 @@ import {
   buildTransactionImportPayload,
   buildImportPreviewRows,
   formatImportSummary,
-  getErrorMessage,
   getArchivedAccountMatches,
   getImportedCategoryTypes,
   getImportedCategories,
@@ -29,6 +26,7 @@ import {
   getMissingRequiredColumnLabels,
   getNextAutoFilledColumnHeaders,
   getNextColumnMap,
+  getImportCommitFailure,
   getImportUploadBlockReason,
   getNextColumnValidationErrors,
   getSupportedCurrencyCodes,
@@ -39,7 +37,6 @@ import {
   inferColumnMap,
   type ImportDateFormat,
   keepCurrentMatchMap,
-  keepScopedSelection,
   readCsvFile,
   readScopedImportAnswers,
   scanImportDateFormats,
@@ -63,11 +60,6 @@ interface DateFormatChoice {
 const FILE_ACCOUNT_MATCH_KEY = '__file_account__'
 const CSV_PROCESSING_MIN_MS = 1500
 const IMPORT_OVERLAY_MIN_MS = 2000
-
-// What the user is told after stopping an import themselves, which reads differently either side of
-// the commit: before it nothing has been written, and during it the write may already have finished
-const IMPORT_CANCELLED_WHILE_STAGING_MESSAGE = 'Import cancelled, and nothing was added to your ledger.'
-const IMPORT_CANCELLED_WHILE_COMMITTING_MESSAGE = 'Import stopped while it was being written. Check your transactions before importing this file again.'
 
 /**
  * Drives the generic CSV import flow: staging one file, mapping its columns to app fields, resolving
@@ -404,13 +396,6 @@ export function useTransactionImportWorkflow() {
     [previewRows],
   )
 
-  // The batch bar acts on what is ticked, so a tick left over from sources that are gone would
-  // apply an answer to rows the user never selected
-  const visibleSelectedAccountRows = useMemo(
-    () => keepScopedSelection(selectedAccountRows, accountMappingSources.map((source) => source.id)),
-    [accountMappingSources, selectedAccountRows],
-  )
-
   const totalRows = files.reduce((sum, file) => sum + file.rows.length, 0)
   const mappedFieldCount = headers.length === 0 ? 0 : Object.values(columnMap).filter(Boolean).length
   const importSummary = importResult ? formatImportSummary(importResult) : ''
@@ -550,21 +535,11 @@ export function useTransactionImportWorkflow() {
    * Reports a commit that stopped, keeping the run when committing it again could still work
    */
   const reportFailedCommit = (error: unknown, cancelled: boolean) => {
-    const stoppedDuringCommit = error instanceof TransactionImportRunError && error.phase === 'commit'
-    const repeatableRunId = error instanceof TransactionImportRunError && isImportCommitWorthRepeating(error)
-      ? error.runId
-      : null
+    const failure = getImportCommitFailure(error, cancelled)
 
-    if (!repeatableRunId && error instanceof TransactionImportRunError && error.runId) {
-      void discardStagedRun(error.runId)
-    }
-
-    setStagedRunId(repeatableRunId)
-    setImportError(
-      cancelled
-        ? (stoppedDuringCommit ? IMPORT_CANCELLED_WHILE_COMMITTING_MESSAGE : IMPORT_CANCELLED_WHILE_STAGING_MESSAGE)
-        : getErrorMessage(error),
-    )
+    if (failure.discardableRunId) void discardStagedRun(failure.discardableRunId)
+    setStagedRunId(failure.retryableRunId)
+    setImportError(failure.message)
     setImportOverlayPhase('error')
   }
 
@@ -678,7 +653,7 @@ export function useTransactionImportWorkflow() {
     accountCreateTypes,
     accountCreateCurrencies,
     accountCreateInstitutions,
-    selectedAccountRows: visibleSelectedAccountRows,
+    selectedAccountRows,
     batchAccountType,
     batchAccountCurrency,
     batchAccountInstitution,

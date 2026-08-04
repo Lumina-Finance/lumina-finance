@@ -2,10 +2,13 @@ import { useState, type Dispatch, type SetStateAction } from 'react'
 import { CREATE_ACCOUNT_VALUE } from '@/pages/imports/constants'
 import {
   emptyScopedImportAnswers,
+  emptyScopedSelection,
   readScopedImportAnswers,
+  readScopedSelection,
   removeRecordKey,
   removeSetValue,
   writeScopedImportAnswers,
+  writeScopedSelection,
   type ScopedImportAnswers,
 } from '@/pages/imports/utils'
 
@@ -50,7 +53,7 @@ export function useImportAccountCreateState(
   const [accountCreateTypes, setScopedAccountCreateTypes] = useState<ScopedImportAnswers<string>>(emptyScopedImportAnswers)
   const [accountCreateCurrencies, setScopedAccountCreateCurrencies] = useState<ScopedImportAnswers<string>>(emptyScopedImportAnswers)
   const [accountCreateInstitutions, setScopedAccountCreateInstitutions] = useState<ScopedImportAnswers<string>>(emptyScopedImportAnswers)
-  const [selectedAccountRows, setSelectedAccountRows] = useState<Set<string>>(() => new Set())
+  const [scopedSelectedAccountRows, setScopedSelectedAccountRows] = useState<ScopedImportAnswers<true>>(emptyScopedSelection)
   const [batchAccountType, setBatchAccountType] = useState('')
   const [batchAccountCurrency, setBatchAccountCurrency] = useState('')
   const [batchAccountInstitution, setBatchAccountInstitution] = useState('')
@@ -70,6 +73,15 @@ export function useImportAccountCreateState(
   const setAccountCreateTypes = scopedSetter(setScopedAccountCreateTypes)
   const setAccountCreateCurrencies = scopedSetter(setScopedAccountCreateCurrencies)
   const setAccountCreateInstitutions = scopedSetter(setScopedAccountCreateInstitutions)
+
+  const selectedAccountRows = readScopedSelection(scopedSelectedAccountRows, scope)
+
+  const setSelectedAccountRows: Dispatch<SetStateAction<Set<string>>> = (update) => {
+    setScopedSelectedAccountRows((current) => {
+      const selection = readScopedSelection(current, scope)
+      return writeScopedSelection(scope, typeof update === 'function' ? update(selection) : update)
+    })
+  }
 
   const updateAccountMapping = (sourceAccount: string, accountId: string) => {
     setAccountMappings((current) => ({ ...current, [sourceAccount]: accountId }))

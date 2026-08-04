@@ -70,8 +70,8 @@ async def stage_import_batch(
 
     Raises:
         HTTPException: Raised with 404 for a run that is not the caller's, 409 for one already
-            committed, and 422 for a batch reaching past the file's row count or re-declaring a
-            source differently
+            committed, and 422 for a batch reaching past the file's row count, re-declaring a
+            source differently, or declaring a mapping staging can already tell is unusable
     """
     run = await _load_uncommitted_run(db, run_id, for_update=True)
 
@@ -111,7 +111,10 @@ async def delete_import_run(db: AsyncSession, user: User, run_id: uuid.UUID) -> 
         HTTPException: Raised with 404 for a run that is not the caller's, and 409 for one already
             committed, whose rows are in the ledger and are not this endpoint's to remove
     """
-    run = await _load_uncommitted_run(db, run_id, for_update=False)
+    # Held for the same reason the commit holds it: read without the lock, a delete arriving while
+    # a commit is running reads the run before it was stamped, waits for the delete itself, and
+    # then removes a run whose rows have just landed
+    run = await _load_uncommitted_run(db, run_id, for_update=True)
     await db.delete(run)
     await db.commit()
 

@@ -19,6 +19,10 @@ export function buildImportAnswerScope(columnHeaders: string[], files: ImportFil
   return `${columnHeaders.join('|')}:${files.map((file) => file.id).join(',')}`
 }
 
+// One object stands for every set of answers that no longer applies, so the payload and preview
+// only rebuild when an answer actually changed rather than on every render
+const NO_ANSWERS: Record<string, never> = Object.freeze({})
+
 /**
  * Reads the answers back while they still apply, and nothing once they do not
  */
@@ -26,7 +30,7 @@ export function readScopedImportAnswers<T>(
   stored: ScopedImportAnswers<T>,
   scope: string,
 ): Record<string, T> {
-  return stored.scope === scope ? stored.answers : {}
+  return stored.scope === scope ? stored.answers : NO_ANSWERS
 }
 
 /**
@@ -47,14 +51,25 @@ export function emptyScopedImportAnswers<T>(): ScopedImportAnswers<T> {
 }
 
 /**
- * Keeps only the rows still in front of the user
- *
- * A selection is made against the sources on screen, so remapping a column away and back must not
- * bring rows back already ticked
+ * Starts an empty selection, before any row has been ticked
  */
-export function keepScopedSelection(selection: Set<string>, sourceIds: string[]): Set<string> {
-  const current = new Set(sourceIds)
-  const next = new Set([...selection].filter((id) => current.has(id)))
+export function emptyScopedSelection(): ScopedImportAnswers<true> {
+  return { scope: '', answers: {} }
+}
 
-  return next.size === selection.size ? selection : next
+/**
+ * Reads a row selection back while it still applies, and an empty one once it does not
+ *
+ * A tick is made against the sources on screen, so unmapping the column those sources came from
+ * and mapping it back leaves the table unticked rather than bringing the old ticks with it
+ */
+export function readScopedSelection(stored: ScopedImportAnswers<true>, scope: string): Set<string> {
+  return new Set(Object.keys(readScopedImportAnswers(stored, scope)))
+}
+
+/**
+ * Writes a row selection back under the scope its ticks were made in
+ */
+export function writeScopedSelection(scope: string, selection: Set<string>): ScopedImportAnswers<true> {
+  return { scope, answers: Object.fromEntries([...selection].map((id) => [id, true])) }
 }

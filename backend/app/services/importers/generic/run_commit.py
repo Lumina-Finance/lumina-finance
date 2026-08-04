@@ -41,8 +41,9 @@ async def commit_import_run(db: AsyncSession, user: User, run_id: uuid.UUID) -> 
         account counts
 
     Raises:
-        HTTPException: Raised with 404 for a run that is not the caller's, and 409 when another
-            commit holds it or when the staged rows do not add up to the file the run declared
+        HTTPException: Raised with 404 for a run that is not the caller's, 409 when another commit
+            holds it or when the staged rows do not add up to the file the run declared, and 422
+            when a staged row cannot be written as it stands
     """
     run = await _lock_run_for_commit(db, run_id)
     if run.committed_at is not None:

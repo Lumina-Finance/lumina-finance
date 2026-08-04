@@ -14,11 +14,16 @@ import type {
 /** Which half of the upload an import stopped in, which decides what can be done about it */
 export type TransactionImportPhase = 'staging' | 'commit';
 
+// What the server answers when the file itself cannot be written, or when the run is gone. Every
+// other refusal, a commit already running included, can answer differently on a second attempt
+const PERMANENT_COMMIT_FAILURE_STATUSES = new Set([404, 422]);
+
 /**
  * An import that stopped, and what is left of it
  *
- * A failure while staging leaves nothing: the run is dropped before this is thrown. A failure
- * while committing leaves the file staged, so the same run can be committed again
+ * A failure while staging leaves nothing to act on: dropping the run is attempted before this is
+ * thrown, and a drop that fails itself leaves staged rows nothing reads. A failure while
+ * committing leaves the file staged, so the same run can be committed again
  */
 export class TransactionImportRunError extends Error {
   readonly phase: TransactionImportPhase;
@@ -103,16 +108,16 @@ export async function discardStagedRun(runId: string): Promise<void> {
 /**
  * Whether committing the same run again could give a different answer
  *
- * A refusal of the file itself repeats however many times it is sent, while a dropped connection
- * or a server fault does not. An abort counts as worth repeating, since the commit it stopped
- * waiting for may have landed, and a second commit answers with what the first one wrote
+ * A refusal of the file itself repeats however many times it is sent, and a run that is gone stays
+ * gone. Everything else is worth another attempt, including a commit already running, which
+ * answers with what it wrote once it finishes, and an abort, for the same reason
  *
  * @param error - The error a commit threw
  */
 export function isImportCommitWorthRepeating(error: unknown): boolean {
   const cause = error instanceof TransactionImportRunError ? error.cause : error;
   if (!(cause instanceof ApiError)) return true;
-  return cause.status < 400 || cause.status >= 500;
+  return !PERMANENT_COMMIT_FAILURE_STATUSES.has(cause.status);
 }
 
 function getImportErrorMessage(error: unknown) {
