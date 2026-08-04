@@ -15,8 +15,8 @@ import type {
 export type TransactionImportPhase = 'staging' | 'commit';
 
 // What the server answers when the file itself cannot be written, or when the run or an account it
-// maps is out of reach. A refusal outside these can answer differently on a second attempt, which
-// covers a commit already running, and the run short of its rows, which the upload cannot produce
+// maps is out of reach. A refusal outside these is offered another attempt, which is what a commit
+// already running needs, since committing again answers with what that one wrote
 const PERMANENT_COMMIT_FAILURE_STATUSES = new Set([404, 422]);
 
 /**

@@ -717,3 +717,24 @@ async def test_reuse_counts_leave_out_records_the_import_created(client):
     # once per row that referenced them
     assert (data["accounts_created"], data["accounts_reused"]) == (0, 1)
     assert (data["categories_created"], data["categories_reused"]) == (0, 1)
+
+
+async def test_a_run_another_request_holds_is_refused(client, monkeypatch):
+    """A request that cannot get the run within the wait is refused rather than queued behind it."""
+    from sqlalchemy import text
+
+    from app.services.importers.generic import run_locking
+    from tests.conftest import TestSession
+
+    monkeypatch.setattr(run_locking, "RUN_LOCK_WAIT", "100ms")
+    headers, _, _ = await _setup_user_with_deps(client)
+    run_id = await _open_run(client, headers, 1)
+
+    # Held open for the length of the request below, which is what the request has to wait on
+    async with TestSession() as holder:
+        await holder.execute(text("SELECT id FROM import_runs WHERE id = :id FOR UPDATE"), {"id": run_id})
+        resp = await client.delete(f"/transactions/import/runs/{run_id}", headers=headers)
+        await holder.rollback()
+
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "This import is already being worked on"

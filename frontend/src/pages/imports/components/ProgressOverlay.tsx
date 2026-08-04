@@ -153,7 +153,7 @@ export function ImportProgressOverlay({
     ? error ?? 'Import failed.'
     : complete
       ? summary || 'Your import is complete.'
-      : 'Your staged import is being written to the ledger.'
+      : 'Your import is being uploaded and added to your ledger.'
   const messageStyle = complete
     ? {
         color: OVERLAY_SUCCESS,
