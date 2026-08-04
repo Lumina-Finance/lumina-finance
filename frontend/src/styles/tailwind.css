@@ -59,11 +59,10 @@
     --app-dropdown-gap: 8px;
     --app-dropdown-font-size: 0.9375rem;
 
-    /* How much of the input colour survives over what is behind the open box */
-    --app-dropdown-tint: 66%;
-
-    --app-dropdown-blur: 20px;
-    --app-dropdown-saturate: 160%;
+    /* How much of the input colour survives over what is behind the open box. Depth comes from this,
+       the border and the shadow rather than from a blur, so it has to stay high enough for the option
+       text to hold up over whatever the box is covering */
+    --app-dropdown-tint: 92%;
     --app-dropdown-inner-padding: 6px;
     --app-dropdown-row-radius: 6px;
     --app-dropdown-row-padding-x: 12px;
@@ -629,6 +628,7 @@
     border-radius: var(--app-dropdown-radius);
     background: var(--app-input-bg);
     color: var(--app-text);
+
     transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
   }
 
@@ -668,18 +668,16 @@
     box-shadow: var(--app-shadow-soft);
   }
 
-  /* The blur waits until the box has finished opening, and is dropped again before it starts closing,
-     so it is only ever applied to a box that is standing still.
+  /* There is no blur behind the open box, and adding one back is a decision rather than a tweak.
 
-     What a backdrop filter costs is not its own size but its visible region: the browser resamples
-     everything behind it whenever that region changes, so a filter on a box whose height is animating
-     is recomputed on every frame of the animation, and so is one merely being uncovered by a parent
-     that is. This is the same rule as the frosting behind a dialog, which blurs a page that is inert
-     and still for as long as the dialog is up */
-  .app-dropdown-glass-settled {
-    -webkit-backdrop-filter: blur(var(--app-dropdown-blur)) saturate(var(--app-dropdown-saturate));
-    backdrop-filter: blur(var(--app-dropdown-blur)) saturate(var(--app-dropdown-saturate));
-  }
+     A backdrop filter is the only way to blur just the region behind a small floating element, and it
+     is resampled whenever that region changes: while the box opens, while anything behind it moves,
+     and while the page scrolls under it. The frosting behind a dialog gets away with a blur because it
+     does the opposite thing, putting a plain filter on the page itself, which is one element that then
+     holds still. That does not transfer to a control covering a small part of the page.
+
+     Depth here comes from the tint, the border and the shadow instead, which is the same trade the
+     mobile filter sheet and the import progress overlay already make */
 
   .app-dropdown-glass.app-dropdown-glass-error {
     border-color: var(--app-negative-border);

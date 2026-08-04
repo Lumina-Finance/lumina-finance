@@ -116,7 +116,6 @@ const Dropdown = ({
   const [search, setSearch] = useState('');
   const [collapsedHeight, setCollapsedHeight] = useState<number>();
   const [collapsing, setCollapsing] = useState(false);
-  const [settled, setSettled] = useState(false);
   const shouldReduceMotion = useReducedMotion();
   const listId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -180,19 +179,12 @@ const Dropdown = ({
     setSearchText('');
     setHighlightedIndex(-1);
 
-    // The blur goes before the collapse starts, so it is never recomputed against a box that is moving
-    setSettled(false);
-
     // The box holds its open placement until the collapse finishes. Dropping back to its slot on the
     // closing frame would move a box that grew upward to the other side of the head, and snap its
     // width back, while the list is still visibly collapsing. Nothing to wait for when the collapse
     // is instant, and no transition to end either, so the wait is skipped entirely
     if (!shouldReduceMotion) setCollapsing(true);
   }, [setSearchText, shouldReduceMotion]);
-
-  // With motion turned off there is no transition to end, so an open box is standing still already
-  // and can take its blur without waiting to be told
-  const isSettled = settled || (open && Boolean(shouldReduceMotion));
 
   // The slot holds the collapsed height so the box can grow over what is below it rather than pushing
   // it down. Measured from the box rather than the head inside it, since the box's own border is part
@@ -388,7 +380,6 @@ const Dropdown = ({
         open={open}
         placed={open || collapsing}
         position={boxPosition}
-        settled={isSettled}
       >
         <DropdownHead
           headRef={triggerRef}
@@ -414,9 +405,7 @@ const Dropdown = ({
           inert={open ? undefined : true}
           onTransitionEnd={(event) => {
             // Only the height, since the contents inside it finish their own rise separately
-            if (event.propertyName !== 'grid-template-rows') return;
-            setCollapsing(false);
-            setSettled(open);
+            if (event.propertyName === 'grid-template-rows') setCollapsing(false);
           }}
         >
           <div className="app-dropdown-body">
