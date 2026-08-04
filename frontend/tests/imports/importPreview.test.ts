@@ -199,6 +199,79 @@ describe('import preview rows', () => {
     expect(rows.at(-1)?.transaction.dt).toBe('2026-06-05')
   })
 
+  // The preview used to fall back to the row's own sign, so a refund inside a source going both ways
+  // previewed as income while the commit refused the whole import until a direction was chosen
+  it('previews no category where the source has no settled direction yet', () => {
+    const rows = buildImportPreviewRows({
+      files: [createFile([{
+        Date: '2026-06-01',
+        Amount: '45.00',
+        Category: 'Groceries',
+        Merchant: '',
+        Notes: '',
+        Tags: '',
+        Currency: '',
+      }])],
+      columnMap: {
+        ...EMPTY_COLUMN_MAP,
+        dt: 'Date',
+        amount: 'Amount',
+        category_id: 'Category',
+      },
+      dateFormat: 'yearFirst',
+      missingRequiredColumnLabels: [],
+      currencies,
+      accountById: new Map([['checking', createAccount()]]),
+      accountCreateCurrencies: {},
+      accountCreateInstitutions: {},
+      categoryById: new Map(),
+      categoryCreateKinds: {},
+      categoryTypesBySource: { Groceries: 'Mixed' },
+      institutionById: new Map(),
+      resolvedAccountMappings: { 'file-1': 'checking' },
+      resolvedCategoryMappings: { Groceries: CREATE_CATEGORY_VALUE },
+      rowProblems: [],
+    })
+
+    expect(rows).toHaveLength(1)
+    expect(rows[0].category).toBeUndefined()
+  })
+
+  it('takes the kind from the direction read off the source, not the row', () => {
+    const rows = buildImportPreviewRows({
+      files: [createFile([{
+        Date: '2026-06-01',
+        Amount: '45.00',
+        Category: 'Groceries',
+        Merchant: '',
+        Notes: '',
+        Tags: '',
+        Currency: '',
+      }])],
+      columnMap: {
+        ...EMPTY_COLUMN_MAP,
+        dt: 'Date',
+        amount: 'Amount',
+        category_id: 'Category',
+      },
+      dateFormat: 'yearFirst',
+      missingRequiredColumnLabels: [],
+      currencies,
+      accountById: new Map([['checking', createAccount()]]),
+      accountCreateCurrencies: {},
+      accountCreateInstitutions: {},
+      categoryById: new Map(),
+      categoryCreateKinds: {},
+      categoryTypesBySource: { Groceries: 'Expense' },
+      institutionById: new Map(),
+      resolvedAccountMappings: { 'file-1': 'checking' },
+      resolvedCategoryMappings: { Groceries: CREATE_CATEGORY_VALUE },
+      rowProblems: [],
+    })
+
+    expect(rows[0].category).toMatchObject({ name: 'Groceries', kind: 'expense' })
+  })
+
   it('leaves out a row that is listed as one to fix, and takes the next one instead', () => {
     const category = createCategory()
     const file = createFile(Array.from({ length: 6 }, (_, index) => ({

@@ -6,16 +6,6 @@ import {
   CREATE_ACCOUNT_VALUE,
   CREATE_CATEGORY_VALUE,
   DEFAULT_CATEGORY_ICON,
-  getRowAmountTooPreciseReason,
-  ROW_ACCOUNT_BLANK_REASON,
-  ROW_AMOUNT_BLANK_REASON,
-  ROW_AMOUNT_TOO_LARGE_REASON,
-  ROW_AMOUNT_UNREADABLE_REASON,
-  ROW_CATEGORY_BLANK_REASON,
-  ROW_COUNTERPARTY_IS_OWN_ACCOUNT_REASON,
-  ROW_COUNTERPARTY_NOT_A_TRANSFER_REASON,
-  ROW_DATE_BLANK_REASON,
-  ROW_DATE_UNREADABLE_REASON,
 } from '@/pages/imports/constants'
 import { BALANCE_ADJUSTMENT_CATEGORY_NAME, doesTransferRecordCounterpartyAccount, OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 import type {
@@ -28,12 +18,17 @@ import type {
   ImportRowProblem,
 } from '@/pages/imports/types'
 import { isImportAccountType } from '@/pages/imports/accountTypeGuard'
-import { findCurrencyExponent } from '@/utils/moneyInput'
 import type { Currency } from '@/api/currency'
-import { getCategoryMatchKind, splitImportedValues } from './categoryMatching'
+import { getCategoryMatchKind } from './categoryMatching'
 import { getImportRowId } from './common'
-import { getMappedValue } from './columnMapping'
-import { type ImportDateFormat, parseImportNumber, readImportDate, toImportMinorUnits } from './valueParsers'
+import {
+  getCurrencyByAccountSource,
+  getImportRowProblem,
+  type ImportRowContext,
+  type ImportRowJudgement,
+  resolveImportRow,
+} from './rowResolution'
+import type { ImportDateFormat } from './valueParsers'
 
 /**
  * Builds the commit payload for the generic CSV import flow from the staged files and every mapping
@@ -174,48 +169,19 @@ export function buildTransactionImportPayload({
   // no date format settled, every row reads as one whose date does not fit
   if (errors.length > 0) return { errors: [...columnErrors, ...errors], rowProblems: [], payload: null }
 
-  // A row is stored in the currency of the account it is written to, which is what decides how
-  // many decimal places its amount may carry, so the answer each source resolved to is settled
-  // once here and read back per row. A source answered as money outside the tracked accounts has
-  // no currency of its own and is left out, and no row is written to such a source anyway
-  //
-  // The code is upper-cased to match what the payload sends for a new account, so the exponent is
-  // looked up under the same spelling the API will be given
-  const currencyByAccountSource: Record<string, string> = {}
-  for (const source of accountSources) {
-    const choice = accountMappings[source.id] ?? ''
-    const code = choice === CREATE_ACCOUNT_VALUE
-      ? accountCreateCurrencies[source.id] ?? ''
-      : accountById.get(choice)?.currency ?? ''
-    if (code) currencyByAccountSource[source.id] = code.trim().toUpperCase()
+  const rowContext: ImportRowContext = {
+    columnMap,
+    dateFormat,
+    currencyByAccountSource: getCurrencyByAccountSource(accountMappings, accountById, accountCreateCurrencies),
   }
+  const rowJudgement: ImportRowJudgement = { currencies, accountMappings, recordsCounterpartyBySource }
 
   const rows: TransactionImportPayload['rows'] = []
   const rowProblems: ImportRowProblem[] = []
   for (const file of files) {
     for (const [rowIndex, row] of file.rows.entries()) {
-      const accountSource = columnMap.account_id ? getMappedValue(row, columnMap.account_id) : file.id
-      const categorySource = getMappedValue(row, columnMap.category_id)
-      const importedDate = getMappedValue(row, columnMap.dt)
-      const dt = dateFormat ? readImportDate(importedDate, dateFormat) : ''
-      const amount = getMappedValue(row, columnMap.amount)
-
-      const counterpartySource = columnMap.counterparty_account_id
-        ? cleanOptional(getMappedValue(row, columnMap.counterparty_account_id))
-        : null
-
-      const problem = getImportRowProblem({
-        accountMappings,
-        accountSource,
-        amount,
-        categorySource,
-        counterpartySource,
-        currencies,
-        currencyByAccountSource,
-        dt,
-        importedDate,
-        recordsCounterpartyBySource,
-      })
+      const resolved = resolveImportRow(row, file.id, rowContext)
+      const problem = getImportRowProblem(resolved, rowJudgement)
       if (problem) {
         rowProblems.push({
           id: getImportRowId(file.id, rowIndex),
@@ -229,14 +195,14 @@ export function buildTransactionImportPayload({
       }
 
       rows.push({
-        account_source: accountSource,
-        category_source: categorySource,
-        dt,
-        amount,
-        merchant_name: cleanOptional(getMappedValue(row, columnMap.merchant_id)),
-        notes: cleanOptional(getMappedValue(row, columnMap.notes)),
-        tag_names: splitImportedValues(getMappedValue(row, columnMap.tag_ids)),
-        counterparty_account_source: counterpartySource,
+        account_source: resolved.accountSource,
+        category_source: resolved.categorySource,
+        dt: resolved.dt,
+        amount: resolved.amount,
+        merchant_name: resolved.merchantName,
+        notes: resolved.notes,
+        tag_names: resolved.tagNames,
+        counterparty_account_source: resolved.counterpartySource,
       })
     }
   }
@@ -248,74 +214,6 @@ export function buildTransactionImportPayload({
   const allErrors = [...columnErrors, ...errors]
   if (allErrors.length > 0 || rowProblems.length > 0) return { errors: allErrors, rowProblems, payload: null }
   return { errors: [], rowProblems: [], payload: { accounts, categories, rows } }
-}
-
-/**
- * Reports why one row cannot be converted, or null when it can
- *
- * The first failing check is what the row is listed under, since a row missing both its date and
- * its amount is one row to go and correct either way
- */
-function getImportRowProblem({
-  accountMappings,
-  accountSource,
-  amount,
-  categorySource,
-  counterpartySource,
-  currencies,
-  currencyByAccountSource,
-  dt,
-  importedDate,
-  recordsCounterpartyBySource,
-}: {
-  accountMappings: Record<string, string>
-  accountSource: string
-  amount: string
-  categorySource: string
-  counterpartySource: string | null
-  currencies: Currency[]
-  currencyByAccountSource: Record<string, string>
-  dt: string
-  importedDate: string
-  recordsCounterpartyBySource: Record<string, boolean>
-}) {
-  if (!accountSource) return ROW_ACCOUNT_BLANK_REASON
-  if (!categorySource) return ROW_CATEGORY_BLANK_REASON
-
-  // A cell nobody filled in and a cell the chosen format cannot read send the user to different
-  // jobs, and both parsers answer the same way for an empty string, so the raw cell is asked first
-  if (!importedDate) return ROW_DATE_BLANK_REASON
-  if (!dt) return ROW_DATE_UNREADABLE_REASON
-  if (!amount) return ROW_AMOUNT_BLANK_REASON
-  if (parseImportNumber(amount) === null) return ROW_AMOUNT_UNREADABLE_REASON
-
-  const amountProblem = getImportRowAmountProblem(amount, currencyByAccountSource[accountSource], currencies)
-  if (amountProblem) return amountProblem
-
-  if (!counterpartySource) return null
-
-  if (!recordsCounterpartyBySource[categorySource]) return ROW_COUNTERPARTY_NOT_A_TRANSFER_REASON
-  if (isSameMappedAccount(accountMappings, accountSource, counterpartySource)) return ROW_COUNTERPARTY_IS_OWN_ACCOUNT_REASON
-  return null
-}
-
-/**
- * Reports why an amount cannot be stored in its row's currency, or null when it can
- *
- * This is the same judgement the API makes when it converts the cell, made here so an over-precise
- * or oversized amount is named against its row before the commit rather than failing the request
- */
-function getImportRowAmountProblem(amount: string, currencyCode: string | undefined, currencies: Currency[]) {
-  const exponent = currencyCode ? findCurrencyExponent(currencies, currencyCode) : null
-  if (exponent === null || currencyCode === undefined) return null
-
-  const minorUnits = toImportMinorUnits(amount, exponent)
-  if (typeof minorUnits === 'bigint') return null
-  if (minorUnits === 'tooPrecise') return getRowAmountTooPreciseReason(currencyCode)
-
-  // An unreadable cell was already refused above, so the only reading left is a magnitude the
-  // storage cannot take
-  return ROW_AMOUNT_TOO_LARGE_REASON
 }
 
 function appendAccountMapping(
@@ -382,31 +280,6 @@ function appendAccountMapping(
       institution_id: createInstitution || null,
     },
   })
-}
-
-function cleanOptional(value: string) {
-  const trimmed = value.trim()
-  return trimmed || null
-}
-
-/**
- * Reports whether the two sides of a transfer row end up in the same account, either through one
- * source being used on both sides or through two sources mapped onto one existing account, which is
- * how a renamed account is carried across
- *
- * Two different sources both set to create an account produce two separate accounts, so they match
- * only when the source itself is the same name
- */
-function isSameMappedAccount(
-  accountMappings: Record<string, string>,
-  accountSource: string,
-  counterpartySource: string,
-) {
-  if (accountSource === counterpartySource) return true
-
-  const accountChoice = accountMappings[accountSource]
-  if (!accountChoice || accountChoice === CREATE_ACCOUNT_VALUE) return false
-  return accountChoice === accountMappings[counterpartySource]
 }
 
 /**
