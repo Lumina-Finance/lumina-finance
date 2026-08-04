@@ -44,7 +44,7 @@ export const COLUMN_TARGETS: Array<{
 // Shown over the upload control while the currency list is not in hand. Reading a file uses it to
 // tell a cell holding a currency from a header word shaped like one, and that decision is kept on
 // the staged file, so a file read without the list stays wrongly read once it arrives
-export const CURRENCIES_LOADING_UPLOAD_BLOCK = 'Loading currencies, which the file is read against.'
+export const CURRENCIES_LOADING_UPLOAD_BLOCK = 'Loading currencies...'
 export const CURRENCIES_FAILED_UPLOAD_BLOCK = 'Currencies could not be loaded, and a file cannot be read without them. Reload the page to try again.'
 
 // How many entries the skipped table lists before summarizing the remainder, shared by every table
