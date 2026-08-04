@@ -18,8 +18,9 @@ export default function TransactionFilterLoadingOverlay({
         placement === 'center' ? 'justify-center' : 'justify-start pt-24'
       }`}
       style={{
-        background: 'color-mix(in srgb, var(--app-bg) 72%, transparent)',
-        backdropFilter: 'blur(3px)',
+        // Solid rather than translucent, so nothing behind shows through and nothing has to be
+        // blurred. A backdrop-filter here would be recomputed for every frame the spinner turns
+        background: 'var(--app-bg)',
         touchAction: 'none',
       }}
       role="status"

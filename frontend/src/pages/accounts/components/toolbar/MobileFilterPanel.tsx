@@ -1,5 +1,5 @@
 import type { OptionItem } from '@/components/filters/OptionList'
-import { MobileFilterGlassPanel } from '@/components/list-controls/MobileFilterGlassPanel'
+import { MobileFilterSheet } from '@/components/list-controls/MobileFilterSheet'
 import { useSeedDraftOnOpen } from '@/components/list-controls/useSeedDraftOnOpen'
 import { FilterPanelBody } from '@/pages/accounts/components/toolbar/FilterPanelBody'
 import { useAccountFilterDraft } from '@/pages/accounts/components/toolbar/useAccountFilterDraft'
@@ -20,7 +20,7 @@ type MobileFilterPanelProps = {
 
 /**
  * Renders the mobile account filter: the account filter draft plumbed into the shared full-screen
- * glass modal, reusing the same draft and body as the desktop pill
+ * sheet, reusing the same draft and body as the desktop pill
  */
 export function MobileFilterPanel({
   isOpen,
@@ -37,7 +37,7 @@ export function MobileFilterPanel({
   useSeedDraftOnOpen(isOpen, draft.seedDraftFromFilters)
 
   return (
-    <MobileFilterGlassPanel
+    <MobileFilterSheet
       isOpen={isOpen}
       onClose={onClose}
       onExitComplete={onExitComplete}
@@ -47,6 +47,6 @@ export function MobileFilterPanel({
       applyFilters={draft.applyFilters}
     >
       <FilterPanelBody draft={draft} showFooter={false} mobile fillHeight />
-    </MobileFilterGlassPanel>
+    </MobileFilterSheet>
   )
 }

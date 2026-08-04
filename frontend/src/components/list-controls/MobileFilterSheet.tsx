@@ -5,7 +5,7 @@ import { X } from 'lucide-react'
 import { useMobileFilterSheetEffects } from '@/components/filters/hooks/useMobileSheetEffects'
 import { useModalScrollGuard } from '@/components/filters/hooks/useModalScrollGuard'
 
-type MobileFilterGlassPanelProps = {
+type MobileFilterSheetProps = {
   isOpen: boolean
   onClose: () => void
   // Fires once the close animation finishes so the parent can unmount and release the scroll lock
@@ -23,13 +23,13 @@ type MobileFilterGlassPanelProps = {
 }
 
 /**
- * Renders the full-screen mobile filter modal shared by the account and transaction toolbars: the
+ * Renders the full-screen mobile filter sheet shared by the account and transaction toolbars: the
  * header with the active-count summary, the scrollable body slot, and the clear and apply footer.
  * The facet body is supplied as children so this component owns only the chrome. Full screen keeps
  * the body in a fixed scroll area, so resizing a facet's content never animates the container and
  * the layout stays stable
  */
-export function MobileFilterGlassPanel({
+export function MobileFilterSheet({
   isOpen,
   onClose,
   onExitComplete,
@@ -39,13 +39,11 @@ export function MobileFilterGlassPanel({
   applyFilters,
   isApplyDisabled = false,
   children,
-}: MobileFilterGlassPanelProps) {
-  // The full-screen modal covers the page, so the page-content dim is left off to keep the glass
-  // toolbar from breaking and because nothing behind the modal is visible anyway
-  const panelRef = useMobileFilterSheetEffects({ isOpen, onClose, dimPageContent: false, lockScroll: false })
+}: MobileFilterSheetProps) {
+  const panelRef = useMobileFilterSheetEffects({ isOpen, onClose, lockScroll: false })
   const shouldReduceMotion = useReducedMotion()
 
-  // Hold the page still behind the full-screen modal without overflow: hidden, which would strip the
+  // Hold the page still behind the full-screen sheet without overflow: hidden, which would strip the
   // sticky toolbar back to its in-flow position
   useModalScrollGuard(panelRef, isOpen)
 
@@ -63,12 +61,12 @@ export function MobileFilterGlassPanel({
           aria-label={ariaLabel}
           className="fixed inset-x-0 top-0 z-[100] flex flex-col min-[750px]:hidden"
           style={{
-            // 100dvh tracks the dynamic viewport so the modal covers the screen even as the mobile
+            // 100dvh tracks the dynamic viewport so the sheet covers the screen even as the mobile
             // browser chrome shows or hides, leaving no strip of the list peeking below it
             height: '100dvh',
-            background: 'color-mix(in srgb, var(--app-input-bg) 88%, transparent)',
-            backdropFilter: 'blur(24px) saturate(160%)',
-            WebkitBackdropFilter: 'blur(24px) saturate(160%)',
+            // Solid rather than translucent, so nothing behind shows through and nothing behind has
+            // to be blurred. A backdrop-filter here would be recomputed for every frame of a scroll
+            background: 'var(--app-input-bg)',
             paddingTop: 'env(safe-area-inset-top)',
             paddingBottom: 'env(safe-area-inset-bottom)',
           }}
@@ -96,8 +94,7 @@ export function MobileFilterGlassPanel({
           <div className="flex items-center justify-between gap-3 border-t px-5 py-4" style={{ borderColor: 'var(--app-border)' }}>
             <button
               type="button"
-              className="text-sm"
-              style={{ color: 'var(--app-text-muted)' }}
+              className="app-secondary-button"
               disabled={activeFacetCount === 0}
               onClick={clearAll}
             >

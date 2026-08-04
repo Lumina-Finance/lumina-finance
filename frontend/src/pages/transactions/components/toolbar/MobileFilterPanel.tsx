@@ -1,5 +1,5 @@
 import type { OptionItem } from '@/components/filters/OptionList'
-import { MobileFilterGlassPanel } from '@/components/list-controls/MobileFilterGlassPanel'
+import { MobileFilterSheet } from '@/components/list-controls/MobileFilterSheet'
 import { useSeedDraftOnOpen } from '@/components/list-controls/useSeedDraftOnOpen'
 import { FilterPanelBody } from '@/pages/transactions/components/toolbar/FilterPanelBody'
 import { useTransactionFilterDraft } from '@/pages/transactions/components/toolbar/useTransactionFilterDraft'
@@ -23,7 +23,7 @@ type MobileFilterPanelProps = {
 
 /**
  * Renders the mobile transaction filter: the transaction filter draft plumbed into the shared
- * full-screen glass modal, reusing the same draft and body as the desktop pill
+ * full-screen sheet, reusing the same draft and body as the desktop pill
  */
 export function MobileFilterPanel({
   isOpen,
@@ -41,7 +41,7 @@ export function MobileFilterPanel({
   useSeedDraftOnOpen(isOpen, draft.seedDraftFromFilters)
 
   return (
-    <MobileFilterGlassPanel
+    <MobileFilterSheet
       isOpen={isOpen}
       onClose={onClose}
       onExitComplete={onExitComplete}
@@ -52,6 +52,6 @@ export function MobileFilterPanel({
       isApplyDisabled={draft.isApplyBlocked}
     >
       <FilterPanelBody draft={draft} showFooter={false} mobile fillHeight showAccountFilter={showAccountFilter} />
-    </MobileFilterGlassPanel>
+    </MobileFilterSheet>
   )
 }
