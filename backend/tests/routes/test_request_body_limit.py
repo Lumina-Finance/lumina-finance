@@ -2,8 +2,11 @@ from collections.abc import AsyncIterator
 
 from app.config.runtime import ALLOWED_ORIGINS
 from app.request_security import MAX_REQUEST_BODY_BYTES
+from tests.routes.support import _create_user, _get_auth_header
 
-# Any authenticated route works, since the body is counted before routing decides anything
+# Any route works for the declared-length refusal, which happens before routing decides
+# anything. The counted refusal needs one that reads a body, and an authenticated caller,
+# since the route has to get far enough to read it
 _TARGET_PATH = "/transactions/import"
 
 
@@ -28,10 +31,17 @@ async def test_declared_oversized_body_is_refused(client):
 
 
 async def test_undeclared_oversized_body_is_refused(client):
-    """A chunked body with no declared length is counted and refused once it passes the cap"""
-    response = await client.post(_TARGET_PATH, content=_stream_oversized_payload())
+    """A chunked body with no declared length is counted as the route reads it and refused
+
+    Authenticated, because the count only happens once the route reaches its body, and an
+    unauthenticated caller is turned away before that
+    """
+    headers = _get_auth_header(await _create_user(client))
+
+    response = await client.post(_TARGET_PATH, content=_stream_oversized_payload(), headers=headers)
 
     assert response.status_code == 413
+    assert response.json() == {"detail": "Request body is too large"}
 
 
 async def test_body_under_the_cap_reaches_the_route(client):

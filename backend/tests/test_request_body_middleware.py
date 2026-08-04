@@ -1,19 +1,20 @@
 """Request body size guard tests driving the middleware as a plain ASGI app
 
 The route-level tests cover the wiring inside the application. These drive the middleware
-directly with a small cap, which is what makes the boundary and the replayed body cheap
-enough to assert exactly
+directly with a small cap, which is what makes the boundary and the counting cheap enough
+to assert exactly
 """
 
 import pytest
+from fastapi import HTTPException
 
 from app.request_security import RequestBodySizeLimitMiddleware
 
 _CAP_BYTES = 64
 
 
-async def _echo_app(scope, receive, send) -> None:
-    """Minimal ASGI app answering with whatever body it was handed"""
+async def _reading_app(scope, receive, send) -> None:
+    """Minimal ASGI app answering with whatever body it reads"""
     body = bytearray()
     more_body = True
     while more_body:
@@ -32,15 +33,15 @@ def _scope(headers: list[tuple[bytes, bytes]]) -> dict:
     return {"type": "http", "method": "POST", "path": "/", "headers": headers}
 
 
-async def _send_body(body: bytes, *, chunked: bool = False) -> tuple[int, bytes]:
-    """Run the guarded echo app over a request body and return its answer
+def _delivery(body: bytes, *, chunked: bool):
+    """Return the request messages and headers for delivering a body
 
     Args:
         body: Request body to deliver
-        chunked: Deliver in chunks with no declared length, as a chunked request does
+        chunked: Deliver in pieces with no declared length, as a chunked request does
 
     Returns:
-        The response status paired with the body the app answered with
+        The headers paired with the messages the server would send
     """
     if chunked:
         headers = [(b"transfer-encoding", b"chunked")]
@@ -53,6 +54,20 @@ async def _send_body(body: bytes, *, chunked: bool = False) -> tuple[int, bytes]
         {"type": "http.request", "body": piece, "more_body": index < len(pieces) - 1}
         for index, piece in enumerate(pieces)
     ]
+    return headers, messages
+
+
+async def _send_body(body: bytes, *, chunked: bool = False) -> tuple[int, bytes]:
+    """Run the guarded app over a request body and return its answer
+
+    Args:
+        body: Request body to deliver
+        chunked: Deliver in pieces with no declared length
+
+    Returns:
+        The response status paired with the body the app answered with
+    """
+    headers, messages = _delivery(body, chunked=chunked)
     answered: list[dict] = []
 
     async def receive():
@@ -63,7 +78,7 @@ async def _send_body(body: bytes, *, chunked: bool = False) -> tuple[int, bytes]
         """Record one response message"""
         answered.append(message)
 
-    middleware = RequestBodySizeLimitMiddleware(_echo_app, max_body_bytes=_CAP_BYTES)
+    middleware = RequestBodySizeLimitMiddleware(_reading_app, max_body_bytes=_CAP_BYTES)
     await middleware(_scope(headers), receive, send)
 
     return answered[0]["status"], answered[1]["body"]
@@ -79,11 +94,29 @@ async def test_body_at_the_cap_reaches_the_app_unchanged():
     assert echoed == payload
 
 
-async def test_body_one_byte_over_the_cap_is_refused():
-    """One byte past the cap is refused, so the limit is not off by one"""
-    status, _ = await _send_body(b"x" * (_CAP_BYTES + 1))
+async def test_declared_body_over_the_cap_is_refused_before_the_app_runs():
+    """A declared length past the cap is answered directly, with the app never reached"""
+    reached: list[str] = []
 
-    assert status == 413
+    async def app(scope, receive, send):
+        """Record that the app ran, which it should not"""
+        reached.append(scope["path"])
+
+    answered: list[dict] = []
+
+    async def receive():
+        """Never called, since an oversized declared length is refused unread"""
+        raise AssertionError("an oversized declared length must not be read")
+
+    async def send(message):
+        """Record one response message"""
+        answered.append(message)
+
+    middleware = RequestBodySizeLimitMiddleware(app, max_body_bytes=_CAP_BYTES)
+    await middleware(_scope([(b"content-length", str(_CAP_BYTES + 1).encode())]), receive, send)
+
+    assert answered[0]["status"] == 413
+    assert reached == []
 
 
 async def test_chunked_body_at_the_cap_reaches_the_app_unchanged():
@@ -96,99 +129,59 @@ async def test_chunked_body_at_the_cap_reaches_the_app_unchanged():
     assert echoed == payload
 
 
-async def test_chunked_body_over_the_cap_is_refused_without_a_declared_length():
-    """A chunked body is counted as it arrives, so no declared length is needed to refuse it"""
-    status, _ = await _send_body(b"x" * (_CAP_BYTES + 1), chunked=True)
+async def test_chunked_body_over_the_cap_is_refused_as_it_arrives():
+    """A body with no declared length is counted while the route reads it and cut off at the cap"""
+    with pytest.raises(HTTPException) as refusal:
+        await _send_body(b"x" * (_CAP_BYTES + 1), chunked=True)
 
-    assert status == 413
+    assert refusal.value.status_code == 413
 
 
-async def test_request_without_a_body_is_passed_straight_through():
-    """A request declaring no body keeps the server's own receive rather than a buffered replay
+async def test_a_lying_declared_length_is_still_caught():
+    """A body larger than the length it declares is refused on the running count"""
+    headers = [(b"content-length", b"1")]
+    messages = [{"type": "http.request", "body": b"x" * (_CAP_BYTES + 1), "more_body": False}]
 
-    Nothing is read, which matters because a server that only sends a request message once
-    the app asks for one would otherwise be waited on for a body that never arrives
+    async def receive():
+        """Deliver the oversized body the header understated"""
+        return messages.pop(0)
+
+    async def send(message):
+        """Ignore the response"""
+
+    middleware = RequestBodySizeLimitMiddleware(_reading_app, max_body_bytes=_CAP_BYTES)
+
+    with pytest.raises(HTTPException) as refusal:
+        await middleware(_scope(headers), receive, send)
+
+    assert refusal.value.status_code == 413
+
+
+async def test_a_route_that_ignores_its_body_is_never_counted():
+    """Nothing is read on the guard's own initiative, which is what keeps a connection cheap
+
+    An unread body is bounded by the server pausing the socket once nothing consumes it, so
+    counting here would cost memory rather than save it
     """
-    kept_the_original: list[bool] = []
+    async def app(scope, receive, send):
+        """Answer without ever reading the body, as a cookie-only route does"""
+        await send({"type": "http.response.start", "status": 204, "headers": []})
+        await send({"type": "http.response.body", "body": b""})
+
+    answered: list[dict] = []
 
     async def receive():
-        """Never reached, since neither the guard nor the stub app below reads"""
-        raise AssertionError("a request with no body must not be read")
-
-    async def app(scope, app_receive, send):
-        """Record whether the app was handed the original receive or a replay"""
-        kept_the_original.append(app_receive is receive)
+        """Never called, since neither the guard nor the app above reads"""
+        raise AssertionError("the guard must not read a body the route ignores")
 
     async def send(message):
-        """Ignore the response"""
-
-    middleware = RequestBodySizeLimitMiddleware(app, max_body_bytes=_CAP_BYTES)
-    await middleware(_scope([(b"accept", b"application/json")]), receive, send)
-
-    assert kept_the_original == [True]
-
-
-async def test_the_app_keeps_reading_from_the_server_after_the_body():
-    """Once the buffered body is spent the app reads on from the server, not from a stand-in
-
-    Answering with a disconnect of its own would tell a streaming response the client had
-    gone the moment its body was read
-    """
-    server_messages = [
-        {"type": "http.request", "body": b"payload", "more_body": False},
-        {"type": "http.disconnect"},
-    ]
-    read_after_the_body: list[dict] = []
-
-    async def receive():
-        """Deliver the next message the server has"""
-        return server_messages.pop(0)
-
-    async def app(scope, app_receive, send):
-        """Read the body, then keep listening as a streaming response would"""
-        await app_receive()
-        read_after_the_body.append(await app_receive())
-
-    async def send(message):
-        """Ignore the response"""
-
-    middleware = RequestBodySizeLimitMiddleware(app, max_body_bytes=_CAP_BYTES)
-    await middleware(_scope([(b"content-length", b"7")]), receive, send)
-
-    # The server's own disconnect, reached because the replay fell through to it
-    assert read_after_the_body == [{"type": "http.disconnect"}]
-    assert server_messages == []
-
-
-async def test_a_client_vanishing_mid_body_leaves_the_app_to_handle_it():
-    """A disconnect part way through a body is passed on with the bytes read so far"""
-    server_messages = [
-        {"type": "http.request", "body": b"half", "more_body": True},
-        {"type": "http.disconnect"},
-    ]
-    seen: list[dict] = []
-
-    async def receive():
-        """Deliver the next message the server has"""
-        return server_messages.pop(0)
-
-    async def app(scope, app_receive, send):
-        """Read until the client is reported gone"""
-        seen.append(await app_receive())
-        seen.append(await app_receive())
-
-    async def send(message):
-        """Ignore the response"""
+        """Record one response message"""
+        answered.append(message)
 
     middleware = RequestBodySizeLimitMiddleware(app, max_body_bytes=_CAP_BYTES)
     await middleware(_scope([(b"transfer-encoding", b"chunked")]), receive, send)
 
-    assert seen[0]["body"] == b"half"
-
-    # more_body is what keeps the app reading. False here would have a route treat a
-    # truncated upload as a whole one and never reach the disconnect below
-    assert seen[0]["more_body"] is True
-    assert seen[1] == {"type": "http.disconnect"}
+    assert answered[0]["status"] == 204
 
 
 @pytest.mark.parametrize("scope_type", ["lifespan", "websocket"])

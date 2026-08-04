@@ -2,11 +2,14 @@
 
 import json
 
+from fastapi import HTTPException
+
 # 10 MB. The frontend batches a transaction import into 750 KB requests, and the one
 # request it cannot split, a Firefly III budget import, is a few MB at its largest
 MAX_REQUEST_BODY_BYTES = 10 * 1024 * 1024
 
-_TOO_LARGE_BODY = json.dumps({"detail": "Request body is too large"}).encode()
+_TOO_LARGE_DETAIL = "Request body is too large"
+_TOO_LARGE_BODY = json.dumps({"detail": _TOO_LARGE_DETAIL}).encode()
 
 
 def _too_large_response_start() -> dict:
@@ -27,11 +30,13 @@ def _too_large_response_start() -> dict:
 
 
 class RequestBodySizeLimitMiddleware:
-    """Reject a request whose body is larger than the cap before any route runs
+    """Refuse a request body larger than the cap
 
-    The body is read and counted here rather than as the route pulls it, because a route
-    that never reads its body, such as one working only from cookies, would otherwise let
-    an unbounded stream through uncounted
+    A declared length over the cap is refused before the route runs and before a byte is
+    read. Anything else is counted as the route pulls it, rather than being read here, so
+    an unauthenticated connection costs no more than the server already holds for it. A
+    route that never reads its body is never counted, which the server bounds on its own
+    by pausing the socket once nothing is consuming
     """
 
     def __init__(self, app, max_body_bytes: int = MAX_REQUEST_BODY_BYTES) -> None:
@@ -45,93 +50,67 @@ class RequestBodySizeLimitMiddleware:
         self.max_body_bytes = max_body_bytes
 
     async def __call__(self, scope, receive, send) -> None:
-        """Count the request body, rejecting it past the cap, then run the app over it"""
+        """Refuse an oversized body, otherwise run the app over a counted one"""
         # Lifespan and websocket traffic carry no request body to count
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
 
-        declared_length, carries_body = _read_body_headers(scope)
-
-        # A request declaring neither a length nor a chunked encoding carries no body, so it
-        # is handed straight on and keeps reading from the server rather than from a replay
-        if not carries_body:
-            await self.app(scope, receive, send)
-            return
-
-        # A declared length refuses an oversized body without reading any of it
+        declared_length = _declared_body_length(scope)
         if declared_length is not None and declared_length > self.max_body_bytes:
             await self._reject(send)
             return
 
-        body = bytearray()
-        more_body = True
-        while more_body:
-            message = await receive()
-
-            # A client that disconnects mid-body leaves the app to handle the disconnect
-            if message["type"] != "http.request":
-                await self.app(scope, _replay(bytes(body), receive, message), send)
-                return
-
-            body += message.get("body", b"")
-            if len(body) > self.max_body_bytes:
-                await self._reject(send)
-                return
-            more_body = message.get("more_body", False)
-
-        await self.app(scope, _replay(bytes(body), receive), send)
+        await self.app(scope, _counting_receive(receive, self.max_body_bytes), send)
 
     async def _reject(self, send) -> None:
-        """Send the 413 the app would otherwise have to produce after reading the body"""
+        """Answer the 413 directly, which is available because no route has started yet"""
         await send(_too_large_response_start())
         await send({"type": "http.response.body", "body": _TOO_LARGE_BODY})
 
 
-def _read_body_headers(scope) -> tuple[int | None, bool]:
-    """Return the declared body length and whether the request carries a body at all
+def _declared_body_length(scope) -> int | None:
+    """Return the body length the request declares, or None when it declares none
 
-    A declared length that will not parse still counts as carrying one, leaving the running
-    count to decide it rather than letting a malformed header skip the guard
+    A length that will not parse reads as undeclared, leaving the running count to decide
+    rather than letting a malformed header skip the guard
 
     Args:
         scope: ASGI connection scope
 
     Returns:
-        The declared length or None, paired with whether a body is expected
+        The declared length, or None
     """
-    declared_length = None
-    carries_body = False
     for name, value in scope["headers"]:
         if name == b"content-length":
-            declared_length = int(value) if value.isdigit() else None
-            carries_body = carries_body or value != b"0"
-        elif name == b"transfer-encoding":
-            carries_body = carries_body or b"chunked" in value.lower()
-    return declared_length, carries_body
+            return int(value) if value.isdigit() else None
+    return None
 
 
-def _replay(body: bytes, receive, trailing_message: dict | None = None):
-    """Return a receive callable handing the buffered body to the app
+def _counting_receive(receive, max_body_bytes: int):
+    """Return a receive callable refusing the body once it passes the cap
 
-    Once the buffer runs out it falls back to the server's own receive, so an app waiting
-    on a disconnect waits for the real one. Answering with a disconnect of its own would
-    tell a streaming response the client had gone the moment the body was read
+    The refusal is raised rather than written, because the route is already running and
+    waiting on this call. FastAPI re-raises an HTTPException out of its body parsing, so it
+    is rendered as the same 413 by the handler every other one goes through
 
     Args:
-        body: Request body already read and counted
-        receive: The server's receive, used once the buffer is spent
-        trailing_message: Message that ended the read early, such as a disconnect
+        receive: The server's receive
+        max_body_bytes: Largest request body accepted
 
     Returns:
         An ASGI receive callable
     """
-    messages = [{"type": "http.request", "body": bytes(body), "more_body": trailing_message is not None}]
-    if trailing_message is not None:
-        messages.append(trailing_message)
+    counted = 0
 
-    async def replay_receive():
-        """Return the next buffered message, then whatever the server sends next"""
-        return messages.pop(0) if messages else await receive()
+    async def counting_receive():
+        """Pass the next message through, counting the body as it goes"""
+        nonlocal counted
+        message = await receive()
+        if message["type"] == "http.request":
+            counted += len(message.get("body", b""))
+            if counted > max_body_bytes:
+                raise HTTPException(status_code=413, detail=_TOO_LARGE_DETAIL)
+        return message
 
-    return replay_receive
+    return counting_receive
