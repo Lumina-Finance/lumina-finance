@@ -1,9 +1,11 @@
-import { useState, useRef, useEffect, useMemo, useCallback, type KeyboardEvent, type UIEvent } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { useState, useRef, useEffect, useId, useMemo, useCallback, type KeyboardEvent, type UIEvent } from 'react';
+import { AnimatePresence } from 'motion/react';
 import { useMinimumVisibleFlag } from '@/hooks/useMinimumVisibleFlag';
 import { DropdownOptionList } from './OptionList';
+import { DropdownPanel } from './Panel';
 import { DropdownSearchControls } from './SearchControls';
 import { DropdownTrigger } from './Trigger';
+import { getDropdownKeyAction } from './keyboard';
 import {
   getCreateNewLabel,
   getEffectiveHighlightedIndex,
@@ -11,7 +13,7 @@ import {
   getSelectedDropdownOption,
   getVisibleDropdownOptions,
 } from './options';
-import type { DropdownCreateLabel, DropdownOption } from './types';
+import type { DropdownCreateLabel, DropdownOption, DropdownSize } from './types';
 import { useDropdownPosition } from './hooks/usePosition';
 
 export type { DropdownOption } from './types';
@@ -22,7 +24,19 @@ interface DropdownProps {
   selectedOption?: DropdownOption;
   value: string;
   onChange: (value: string) => void;
+
+  /** Layout classes only, since the pill carries its own look */
   className?: string;
+
+  /** How tall the pill sits, which depends on what surrounds it rather than on what it holds */
+  size?: DropdownSize;
+
+  /** Draws the pill in the error state, for a field the form has rejected */
+  hasError?: boolean;
+
+  /** Id of the visible label naming this field, since a label element cannot name a button on its own */
+  labelledBy?: string;
+
   placeholder?: string;
   searchable?: boolean;
   searchPlaceholder?: string;
@@ -56,7 +70,10 @@ const Dropdown = ({
   selectedOption,
   value,
   onChange,
-  className = 'app-input',
+  className,
+  size = 'field',
+  hasError = false,
+  labelledBy,
   placeholder = 'Select...',
   searchable = false,
   searchPlaceholder = 'Search...',
@@ -80,6 +97,7 @@ const Dropdown = ({
   const [open, setOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const [search, setSearch] = useState('');
+  const listId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
@@ -114,6 +132,10 @@ const Dropdown = ({
     () => getGroupedDropdownOptions(visibleFiltered),
     [visibleFiltered],
   );
+  const optionDisabled = useMemo(
+    () => visibleFiltered.map((option) => Boolean(option.disabled)),
+    [visibleFiltered],
+  );
 
   /**
    * Updates controlled or local search text and resets keyboard focus to the first option
@@ -133,7 +155,9 @@ const Dropdown = ({
     setHighlightedIndex(-1);
   }, [setSearchText]);
 
-  // The dropdown closes on outside mouse interactions so stale menus do not remain open
+  // The dropdown closes on outside mouse interactions so stale menus do not remain open. The menu is
+  // a descendant of this container even while positioned against the viewport, so a press inside it
+  // is not an outside press
   useEffect(() => {
     if (!open) return;
 
@@ -180,46 +204,37 @@ const Dropdown = ({
   };
 
   /**
-   * Handles shared keyboard navigation from the trigger and search field
+   * Applies the shared keyboard policy to an event from the trigger or the search field
    */
   const handleKeyDown = (e: KeyboardEvent<HTMLElement>) => {
-    const eventStartedOnTrigger = e.currentTarget === triggerRef.current;
+    const action = getDropdownKeyAction({
+      fromTrigger: e.currentTarget === triggerRef.current,
+      highlightedIndex: effectiveHighlightedIndex,
+      key: e.key,
+      open,
+      optionDisabled,
+      selectedIndex: visibleFiltered.findIndex((option) => option.value === value),
+    });
 
-    switch (e.key) {
-      case ' ':
-        if (!eventStartedOnTrigger) break;
+    switch (action.kind) {
+      case 'open':
         e.preventDefault();
-        if (!open) {
-          updateListPosition();
-          setOpen(true);
-          setHighlightedIndex(visibleFiltered.findIndex((o) => o.value === value));
-        }
+        updateListPosition();
+        setOpen(true);
+        setHighlightedIndex(action.highlightedIndex);
         break;
-      case 'ArrowDown':
+      case 'move':
         e.preventDefault();
-        if (!open) {
-          updateListPosition();
-          setOpen(true);
-          setHighlightedIndex(0);
-        } else {
-          setHighlightedIndex((i) => Math.min(i + 1, visibleFiltered.length - 1));
-        }
+        setHighlightedIndex(action.highlightedIndex);
         break;
-      case 'ArrowUp':
+      case 'select':
         e.preventDefault();
-        setHighlightedIndex((i) => Math.max(i - 1, 0));
+        handleSelect(visibleFiltered[action.index].value);
         break;
-      case 'Enter':
-        e.preventDefault();
-        if (open && effectiveHighlightedIndex >= 0 && effectiveHighlightedIndex < visibleFiltered.length) {
-          handleSelect(visibleFiltered[effectiveHighlightedIndex].value);
-        } else if (!open) {
-          updateListPosition();
-          setOpen(true);
-          setHighlightedIndex(visibleFiltered.findIndex((o) => o.value === value));
-        }
-        break;
-      case 'Escape':
+      case 'close':
+        // Held here rather than allowed to bubble, so closing a menu inside a modal does not also
+        // close the modal behind it, which listens for the same key on the window
+        e.stopPropagation();
         close();
         triggerRef.current?.focus({ preventScroll: true });
         break;
@@ -277,32 +292,20 @@ const Dropdown = ({
         className={className}
         disabled={disabled}
         emptySelectionIsBlank={emptySelectionIsBlank}
+        hasError={hasError}
+        labelledBy={labelledBy}
+        listId={listId}
         open={open}
         placeholder={placeholder}
         selected={selected}
+        size={size}
         onClick={handleTriggerClick}
         onKeyDown={handleKeyDown}
       />
 
       <AnimatePresence>
         {open && (
-          <motion.div
-            className="fixed z-50 rounded-xl"
-            style={{
-              top: listPosition.top,
-              left: listPosition.left,
-              width: listPosition.width,
-              maxHeight: listPosition.menuMaxHeight,
-              background: 'var(--app-input-bg)',
-              border: '1px solid var(--app-border-strong)',
-              boxShadow: 'var(--app-shadow-soft)',
-              backdropFilter: 'blur(16px)',
-            }}
-            initial={{ opacity: 0, y: -4 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -4 }}
-            transition={{ duration: 0.15 }}
-          >
+          <DropdownPanel position={listPosition}>
             {searchable && (
               <DropdownSearchControls
                 createNewLabel={resolvedCreateNewLabel}
@@ -318,6 +321,7 @@ const Dropdown = ({
             <DropdownOptionList
               effectiveHighlightedIndex={effectiveHighlightedIndex}
               groupedOptions={groupedFiltered}
+              listId={listId}
               listMaxHeight={listPosition.listMaxHeight}
               listRef={listRef}
               loadingText={loadingText}
@@ -328,7 +332,7 @@ const Dropdown = ({
               onScroll={handleListScroll}
               onSelect={handleSelect}
             />
-          </motion.div>
+          </DropdownPanel>
         )}
       </AnimatePresence>
     </div>

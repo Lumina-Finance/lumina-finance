@@ -554,6 +554,180 @@
     appearance: none;
   }
 
+  /* Every value the shared drop-down's look depends on, gathered here so it can be tuned by editing
+     numbers. Two things deliberately live elsewhere: the geometry placing the open panel is in
+     components/dropdown/position.ts, because it is computed in JavaScript, and the open and close
+     timing is in components/dropdown/motion.ts, because it drives a motion transition */
+  :root {
+    --app-dropdown-height-compact: 36px;
+    --app-dropdown-height-field: 40px;
+    --app-dropdown-height-toolbar: 44px;
+    --app-dropdown-radius: 20px;
+    --app-dropdown-padding-x: 16px;
+    --app-dropdown-gap: 8px;
+    --app-dropdown-font-size: 0.9375rem;
+
+    /* How much of the input colour survives over what is behind the control */
+    --app-dropdown-tint: 62%;
+
+    --app-dropdown-blur: 20px;
+    --app-dropdown-saturate: 160%;
+    --app-dropdown-panel-radius: 18px;
+    --app-dropdown-panel-padding: 6px;
+    --app-dropdown-row-radius: 10px;
+    --app-dropdown-row-padding-x: 12px;
+    --app-dropdown-row-padding-y: 8px;
+    --app-dropdown-row-gap: 8px;
+    --app-dropdown-chevron-rotation: 180deg;
+    --app-dropdown-disabled-opacity: 0.4;
+  }
+
+  /* The head of every drop-down. Solid by default because the import tables render one per row, and
+     a backdrop filter on each would put hundreds of composited layers on one screen. Over the flat
+     background of a modal or a table there is nothing for the blur to reveal anyway, so the glass
+     variant below is for the few places the control sits over varied content */
+  .app-dropdown-pill {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--app-dropdown-gap);
+    width: 100%;
+    min-width: 0;
+    padding: 0 var(--app-dropdown-padding-x);
+    border: 1px solid var(--app-input-border);
+    border-radius: var(--app-dropdown-radius);
+    background: var(--app-input-bg);
+    color: var(--app-text);
+    font-size: var(--app-dropdown-font-size);
+    text-align: left;
+    outline: none;
+    transition: border-color 0.2s, background 0.2s;
+  }
+
+  .app-dropdown-pill-glass {
+    background: color-mix(in srgb, var(--app-input-bg) var(--app-dropdown-tint), transparent);
+    border-color: var(--app-border-strong);
+    -webkit-backdrop-filter: blur(var(--app-dropdown-blur)) saturate(var(--app-dropdown-saturate));
+    backdrop-filter: blur(var(--app-dropdown-blur)) saturate(var(--app-dropdown-saturate));
+  }
+
+  .app-dropdown-pill-compact {
+    height: var(--app-dropdown-height-compact);
+  }
+
+  .app-dropdown-pill-field {
+    height: var(--app-dropdown-height-field);
+  }
+
+  .app-dropdown-pill-toolbar {
+    height: var(--app-dropdown-height-toolbar);
+  }
+
+  .app-dropdown-pill:hover {
+    border-color: var(--app-border-strong);
+  }
+
+  .app-dropdown-pill:focus-visible {
+    border-color: var(--app-accent-border);
+    box-shadow: 0 0 0 2px var(--app-accent-soft);
+  }
+
+  .app-dropdown-pill:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+
+  .app-dropdown-pill-error,
+  .app-dropdown-pill-error:hover {
+    border-color: var(--app-negative-border);
+    background: var(--app-negative-soft);
+  }
+
+  .app-dropdown-chevron {
+    flex-shrink: 0;
+    color: var(--app-text-subtle);
+    transition: transform 0.2s;
+  }
+
+  .app-dropdown-pill[aria-expanded="true"] .app-dropdown-chevron {
+    transform: rotate(var(--app-dropdown-chevron-rotation));
+  }
+
+  /* The open list. This one is always glass: only ever one is open, so the cost is bounded, and it
+     is the part that floats over the page rather than sitting flush against it */
+  .app-dropdown-panel {
+    overflow: hidden;
+    border: 1px solid var(--app-border-strong);
+    border-radius: var(--app-dropdown-panel-radius);
+    background: color-mix(in srgb, var(--app-input-bg) var(--app-dropdown-tint), transparent);
+    box-shadow: var(--app-shadow-soft);
+    -webkit-backdrop-filter: blur(var(--app-dropdown-blur)) saturate(var(--app-dropdown-saturate));
+    backdrop-filter: blur(var(--app-dropdown-blur)) saturate(var(--app-dropdown-saturate));
+  }
+
+  /* Carries the padding so collapsing the panel's height to zero closes it completely, rather than
+     leaving the padding behind as a sliver */
+  .app-dropdown-panel-inner {
+    padding: var(--app-dropdown-panel-padding);
+  }
+
+  .app-dropdown-row {
+    display: flex;
+    align-items: center;
+    gap: var(--app-dropdown-row-gap);
+    width: 100%;
+    padding: var(--app-dropdown-row-padding-y) var(--app-dropdown-row-padding-x);
+    border-radius: var(--app-dropdown-row-radius);
+    color: var(--app-text);
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.1s;
+  }
+
+  .app-dropdown-row-highlighted {
+    background: var(--app-accent-soft);
+  }
+
+  .app-dropdown-row-selected {
+    color: var(--app-accent);
+  }
+
+  .app-dropdown-row-disabled {
+    cursor: default;
+    opacity: var(--app-dropdown-disabled-opacity);
+  }
+
+  /* Sits above the rows it heads while the list scrolls under it, so it needs to hide them rather
+     than let them show through its own translucency */
+  .app-dropdown-group {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    padding: 6px var(--app-dropdown-row-padding-x);
+    background: var(--app-input-bg);
+    border-bottom: 1px solid var(--app-border);
+    color: var(--app-text-subtle);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+  }
+
+  /* The line standing in for options while the list is loading or has nothing to show */
+  .app-dropdown-note {
+    padding: var(--app-dropdown-row-padding-y) var(--app-dropdown-row-padding-x);
+    color: var(--app-text-subtle);
+    font-size: 0.875rem;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .app-dropdown-pill,
+    .app-dropdown-chevron,
+    .app-dropdown-row {
+      transition-duration: 0s;
+    }
+  }
+
   /* Translucent collapsing date-range control on the insights page. The pill widens with a
      soft overshoot and the panel height settles smoothly, so it blooms open with a bounce */
   .app-range-glass {
