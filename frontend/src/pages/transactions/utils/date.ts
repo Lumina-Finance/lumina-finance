@@ -3,7 +3,7 @@ import { DATE_FORMATS, formatDate, parseYmd, getTodayYmd } from '@/utils/date'
 /**
  * Formats the full overview range label while treating YYYY-MM-DD inputs as calendar dates
  *
- * An end of the range that names no real day keeps its raw string, so the label states what it was
+ * An end of the range that is not a real date keeps its raw string, so the label states what it was
  * given rather than the day the date constructor would have rolled it forward to
  */
 export function formatOverviewRangeLabel(from: string, to: string): string {

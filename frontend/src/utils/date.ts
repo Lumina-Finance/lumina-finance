@@ -143,8 +143,8 @@ export function formatYmd(date: Date): string {
 }
 
 /**
- * Reads a "YYYY-MM-DD" string back into a date at local midnight, returning null when the string
- * does not name a real calendar day
+ * Reads a "YYYY-MM-DD" string back into a date at local midnight, returning null when it is not a
+ * real date
  *
  * Building the date from its parts rather than letting the browser parse the string keeps it on
  * the local calendar, since a bare date string is otherwise read as UTC and can land on the

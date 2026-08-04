@@ -184,7 +184,7 @@ function buildLimitSchedule(limitRows: FireflyLimitRow[]): {
   for (const row of limitRows) {
     if (!row.start || !row.end || !row.amount || !row.currencyCode) continue
 
-    // A present date that names no real day marks the file as corrupted, so
+    // A present value that is not a real date marks the file as corrupted, so
     // the budget is refused loudly rather than the row quietly vanishing or
     // the backend failing the whole batch
     const start = parseYmd(row.start)
