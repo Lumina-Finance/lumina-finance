@@ -7,14 +7,23 @@ import json
 MAX_REQUEST_BODY_BYTES = 10 * 1024 * 1024
 
 _TOO_LARGE_BODY = json.dumps({"detail": "Request body is too large"}).encode()
-_TOO_LARGE_RESPONSE_START = {
-    "type": "http.response.start",
-    "status": 413,
-    "headers": [
-        (b"content-type", b"application/json"),
-        (b"content-length", str(len(_TOO_LARGE_BODY)).encode()),
-    ],
-}
+
+
+def _too_large_response_start() -> dict:
+    """Return a fresh 413 response-start message
+
+    Rebuilt per rejection rather than shared, because the CORS layer wrapping this one
+    appends its headers into the message it is handed, and a shared one would carry one
+    request's origin onto the next
+    """
+    return {
+        "type": "http.response.start",
+        "status": 413,
+        "headers": [
+            (b"content-type", b"application/json"),
+            (b"content-length", str(len(_TOO_LARGE_BODY)).encode()),
+        ],
+    }
 
 
 class RequestBodySizeLimitMiddleware:
@@ -26,6 +35,12 @@ class RequestBodySizeLimitMiddleware:
     """
 
     def __init__(self, app, max_body_bytes: int = MAX_REQUEST_BODY_BYTES) -> None:
+        """Wrap an ASGI app, refusing a request body larger than the given cap
+
+        Args:
+            app: ASGI application this wraps
+            max_body_bytes: Largest request body accepted
+        """
         self.app = app
         self.max_body_bytes = max_body_bytes
 
@@ -69,7 +84,7 @@ class RequestBodySizeLimitMiddleware:
 
     async def _reject(self, send) -> None:
         """Send the 413 the app would otherwise have to produce after reading the body"""
-        await send(_TOO_LARGE_RESPONSE_START)
+        await send(_too_large_response_start())
         await send({"type": "http.response.body", "body": _TOO_LARGE_BODY})
 
 
