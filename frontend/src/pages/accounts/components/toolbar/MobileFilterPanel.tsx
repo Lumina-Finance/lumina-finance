@@ -20,7 +20,7 @@ type MobileFilterPanelProps = {
 
 /**
  * Renders the mobile account filter: the account filter draft plumbed into the shared full-screen
- * glass modal, reusing the same draft and body as the desktop pill
+ * sheet, reusing the same draft and body as the desktop pill
  */
 export function MobileFilterPanel({
   isOpen,

@@ -23,7 +23,7 @@ type MobileFilterPanelProps = {
 
 /**
  * Renders the mobile transaction filter: the transaction filter draft plumbed into the shared
- * full-screen glass modal, reusing the same draft and body as the desktop pill
+ * full-screen sheet, reusing the same draft and body as the desktop pill
  */
 export function MobileFilterPanel({
   isOpen,
