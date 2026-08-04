@@ -65,6 +65,11 @@ export function useTransactionImportWorkflow() {
   const [files, setFiles] = useState<ImportFileDraft[]>([])
   const [isProcessingFiles, setIsProcessingFiles] = useState(false)
   const [autoFilledColumnHeaders, setAutoFilledColumnHeaders] = useState<Set<string>>(() => new Set())
+
+  // Columns the user has answered for, so replacing the file with one carrying the same headings
+  // leaves their answers alone instead of guessing over them. A column set to Do not import counts
+  // as answered, which is the case an empty mapping cannot tell apart on its own
+  const [decidedColumnHeaders, setDecidedColumnHeaders] = useState<Set<string>>(() => new Set())
   const [columnMap, setColumnMap] = useState<ColumnMap>(EMPTY_COLUMN_MAP)
   const [accountMappings, setAccountMappings] = useState<Record<string, string>>({})
   const [accountAutoMatchKey, setAccountAutoMatchKey] = useState('')
@@ -376,7 +381,7 @@ export function useTransactionImportWorkflow() {
 
       setFiles(next)
       setColumnMap((previous) => {
-        const result = inferColumnMap(previous, next, supportedCurrencyCodes)
+        const result = inferColumnMap(previous, next, supportedCurrencyCodes, decidedColumnHeaders)
         setColumnValidationErrors(result.errors)
         setAutoFilledColumnHeaders((current) => getNextAutoFilledColumnHeaders(current, previous, result.map))
         syncAutoMatchKeys(result.map, result.errors, next)
@@ -392,7 +397,7 @@ export function useTransactionImportWorkflow() {
     setFiles((current) => {
       const next = current.filter((file) => file.id !== fileId)
       setColumnMap((previous) => {
-        const result = inferColumnMap(previous, next, supportedCurrencyCodes)
+        const result = inferColumnMap(previous, next, supportedCurrencyCodes, decidedColumnHeaders)
         setColumnValidationErrors(result.errors)
         setAutoFilledColumnHeaders((current) => getNextAutoFilledColumnHeaders(current, previous, result.map))
         syncAutoMatchKeys(result.map, result.errors, next)
@@ -423,6 +428,13 @@ export function useTransactionImportWorkflow() {
       const next = new Set(current)
       next.delete(header)
       if (displacedHeader) next.delete(displacedHeader)
+      return next
+    })
+
+    // The column the answer was about, and the one it took the field from, are both answered now
+    setDecidedColumnHeaders((current) => {
+      const next = new Set(current).add(header)
+      if (displacedHeader) next.add(displacedHeader)
       return next
     })
 
@@ -476,6 +488,7 @@ export function useTransactionImportWorkflow() {
     setFiles([])
     setIsProcessingFiles(false)
     setAutoFilledColumnHeaders(new Set())
+    setDecidedColumnHeaders(new Set())
     setColumnMap(EMPTY_COLUMN_MAP)
     setAccountMappings({})
     setAccountAutoMatchKey('')
