@@ -51,17 +51,10 @@ export function emptyScopedImportAnswers<T>(): ScopedImportAnswers<T> {
 }
 
 /**
- * Starts an empty selection, before any row has been ticked
- */
-export function emptyScopedSelection(): ScopedImportAnswers<true> {
-  return { scope: '', answers: {} }
-}
-
-/**
  * Reads a row selection back while it still applies, and an empty one once it does not
  *
- * A tick is made against the sources on screen, so unmapping the column those sources came from
- * and mapping it back leaves the table unticked rather than bringing the old ticks with it
+ * This covers a different file or column producing the sources. Unmapping a column and mapping it
+ * back arrives at the scope it started from, so the caller clears the ticks on that itself
  */
 export function readScopedSelection(stored: ScopedImportAnswers<true>, scope: string): Set<string> {
   return new Set(Object.keys(readScopedImportAnswers(stored, scope)))

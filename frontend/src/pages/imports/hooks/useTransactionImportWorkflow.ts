@@ -494,6 +494,12 @@ export function useTransactionImportWorkflow() {
     const nextColumnMap = getNextColumnMap(columnMap, header, targetValue)
     const nextColumnMappingComplete = isColumnMappingComplete(nextColumnMap, nextColumnValidationErrors, files)
 
+    // Ticks are made against the rows one pair of columns produced, and a scope alone cannot tell
+    // that a column was unmapped and mapped back, since it ends up the string it started as
+    const accountColumnsChanged = nextColumnMap.account_id !== columnMap.account_id
+      || nextColumnMap.counterparty_account_id !== columnMap.counterparty_account_id
+    if (accountColumnsChanged) setSelectedAccountRows(new Set())
+
     setAutoFilledColumnHeaders((current) => {
       const next = new Set(current)
       next.delete(header)

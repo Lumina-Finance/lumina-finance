@@ -4,7 +4,6 @@ import uuid
 from typing import Any
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,6 +16,7 @@ from app.schemas.transaction import (
     TransactionImportCategoryMapping,
     TransactionImportStageRequest,
 )
+from app.services.importers.generic.run_locking import load_locked_run
 from app.services.importers.shared.account_creation_helpers import (
     parse_import_account_type,
     validate_import_account_currency,
@@ -69,11 +69,12 @@ async def stage_import_batch(
         None
 
     Raises:
-        HTTPException: Raised with 404 for a run that is not the caller's, 409 for one already
-            committed, and 422 for a batch reaching past the file's row count, re-declaring a
-            source differently, or declaring a mapping staging can already tell is unusable
+        HTTPException: Raised with 404 for a run that is not the caller's or a mapped account they
+            cannot reach, 409 for a run already committed or one another request is working on, and
+            422 for a batch reaching past the file's row count, re-declaring a source differently,
+            or declaring a mapping staging can already tell is unusable
     """
-    run = await _load_uncommitted_run(db, run_id, for_update=True)
+    run = await _load_uncommitted_run(db, run_id)
 
     last_row_index = data.start_row_index + len(data.rows)
     if last_row_index > run.expected_transaction_count:
@@ -111,16 +112,15 @@ async def delete_import_run(db: AsyncSession, user: User, run_id: uuid.UUID) -> 
         HTTPException: Raised with 404 for a run that is not the caller's, and 409 for one already
             committed, whose rows are in the ledger and are not this endpoint's to remove
     """
-    # Held for the same reason the commit holds it: read without the lock, a delete arriving while
-    # a commit is running reads the run before it was stamped, waits for the delete itself, and
-    # then removes a run whose rows have just landed
-    run = await _load_uncommitted_run(db, run_id, for_update=True)
+    # Read without holding the run, a delete arriving while a commit is running reads it before it
+    # was stamped and then removes one whose rows have just landed
+    run = await _load_uncommitted_run(db, run_id)
     await db.delete(run)
     await db.commit()
 
 
-async def _load_uncommitted_run(db: AsyncSession, run_id: uuid.UUID, for_update: bool) -> ImportRun:
-    """Return the caller's run when it is still open
+async def _load_uncommitted_run(db: AsyncSession, run_id: uuid.UUID) -> ImportRun:
+    """Return the caller's run, held for the rest of the transaction, when it is still open
 
     The row-level security policy is what scopes this to the caller, so another user's run is
     absent rather than refused
@@ -128,20 +128,15 @@ async def _load_uncommitted_run(db: AsyncSession, run_id: uuid.UUID, for_update:
     Args:
         db: Active database session
         run_id: Run to load
-        for_update: Whether to hold the row until the transaction ends
 
     Returns:
         The open run
 
     Raises:
-        HTTPException: Raised with 404 when the run is not the caller's, and 409 when it has
-            already been committed
+        HTTPException: Raised with 404 when the run is not the caller's, 409 when it has already
+            been committed, and 409 when another request is working on it
     """
-    query = select(ImportRun).where(ImportRun.id == run_id)
-    if for_update:
-        query = query.with_for_update()
-
-    run = (await db.execute(query)).scalar_one_or_none()
+    run = await load_locked_run(db, run_id)
     if run is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Import run not found")
     if run.committed_at is not None:

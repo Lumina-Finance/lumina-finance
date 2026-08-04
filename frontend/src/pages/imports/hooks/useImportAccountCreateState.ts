@@ -2,7 +2,6 @@ import { useState, type Dispatch, type SetStateAction } from 'react'
 import { CREATE_ACCOUNT_VALUE } from '@/pages/imports/constants'
 import {
   emptyScopedImportAnswers,
-  emptyScopedSelection,
   readScopedImportAnswers,
   readScopedSelection,
   removeRecordKey,
@@ -53,7 +52,7 @@ export function useImportAccountCreateState(
   const [accountCreateTypes, setScopedAccountCreateTypes] = useState<ScopedImportAnswers<string>>(emptyScopedImportAnswers)
   const [accountCreateCurrencies, setScopedAccountCreateCurrencies] = useState<ScopedImportAnswers<string>>(emptyScopedImportAnswers)
   const [accountCreateInstitutions, setScopedAccountCreateInstitutions] = useState<ScopedImportAnswers<string>>(emptyScopedImportAnswers)
-  const [scopedSelectedAccountRows, setScopedSelectedAccountRows] = useState<ScopedImportAnswers<true>>(emptyScopedSelection)
+  const [scopedSelectedAccountRows, setScopedSelectedAccountRows] = useState<ScopedImportAnswers<true>>(emptyScopedImportAnswers)
   const [batchAccountType, setBatchAccountType] = useState('')
   const [batchAccountCurrency, setBatchAccountCurrency] = useState('')
   const [batchAccountInstitution, setBatchAccountInstitution] = useState('')

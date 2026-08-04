@@ -14,8 +14,9 @@ import type {
 /** Which half of the upload an import stopped in, which decides what can be done about it */
 export type TransactionImportPhase = 'staging' | 'commit';
 
-// What the server answers when the file itself cannot be written, or when the run is gone. Every
-// other refusal, a commit already running included, can answer differently on a second attempt
+// What the server answers when the file itself cannot be written, or when the run or an account it
+// maps is out of reach. A refusal outside these can answer differently on a second attempt, which
+// covers a commit already running, and the run short of its rows, which the upload cannot produce
 const PERMANENT_COMMIT_FAILURE_STATUSES = new Set([404, 422]);
 
 /**
@@ -108,9 +109,10 @@ export async function discardStagedRun(runId: string): Promise<void> {
 /**
  * Whether committing the same run again could give a different answer
  *
- * A refusal of the file itself repeats however many times it is sent, and a run that is gone stays
- * gone. Everything else is worth another attempt, including a commit already running, which
- * answers with what it wrote once it finishes, and an abort, for the same reason
+ * A refusal of the file itself repeats however many times it is sent, and a run or an account that
+ * is out of reach stays that way. Everything else is worth another attempt, including a commit
+ * already running, which answers with what it wrote once it finishes, and an abort, for the same
+ * reason
  *
  * @param error - The error a commit threw
  */

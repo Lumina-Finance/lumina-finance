@@ -679,3 +679,41 @@ async def test_another_users_run_is_out_of_reach(client):
     deleted = await client.delete(f"/transactions/import/runs/{run_id}", headers=other_headers)
 
     assert (staged.status_code, committed.status_code, deleted.status_code) == (404, 404, 404)
+
+
+async def test_reuse_counts_leave_out_records_the_import_created(client):
+    """A merchant one row creates and the next row meets again is created once and reused none."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+
+    resp = await _import_transactions(client, headers, {
+        "accounts": [{"source": "Main Chequing", "account_id": account_id}],
+        "categories": [{"source": "Groceries", "category_id": category_id}],
+        "rows": [
+            {
+                "account_source": "Main Chequing",
+                "category_source": "Groceries",
+                "dt": "2026-04-10",
+                "amount": "-1.00",
+                "merchant_name": "Corner Cafe",
+                "tag_names": ["Lunch"],
+            },
+            {
+                "account_source": "Main Chequing",
+                "category_source": "Groceries",
+                "dt": "2026-04-11",
+                "amount": "-2.00",
+                "merchant_name": "Corner Cafe",
+                "tag_names": ["Lunch"],
+            },
+        ],
+    })
+
+    assert resp.status_code == 201
+    data = resp.json()
+    assert (data["merchants_created"], data["merchants_reused"]) == (1, 0)
+    assert (data["tags_created"], data["tags_reused"]) == (1, 0)
+
+    # The account and category existed before the import, so both count as reused once rather than
+    # once per row that referenced them
+    assert (data["accounts_created"], data["accounts_reused"]) == (0, 1)
+    assert (data["categories_created"], data["categories_reused"]) == (0, 1)

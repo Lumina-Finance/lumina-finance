@@ -7,7 +7,6 @@ import type { ImportFileDraft } from '@/pages/imports/types'
 import {
   buildImportAnswerScope,
   emptyScopedImportAnswers,
-  emptyScopedSelection,
   readScopedImportAnswers,
   readScopedSelection,
   writeScopedImportAnswers,
@@ -78,18 +77,17 @@ describe('scoped row selection', () => {
     expect(readScopedSelection(stored, scope)).toEqual(new Set(['Savings', 'Chequing']))
   })
 
-  it('leaves the table unticked when the column is unmapped and mapped back', () => {
+  it('leaves the table unticked when a different file supplies the sources', () => {
     const scope = buildImportAnswerScope(['Account', ''], [createFile('file_1')])
     const stored = writeScopedSelection(scope, new Set(['Savings']))
-    const unmapped = buildImportAnswerScope(['', ''], [createFile('file_1')])
+    const nextFile = buildImportAnswerScope(['Account', ''], [createFile('file_2')])
 
-    expect(readScopedSelection(stored, unmapped)).toEqual(new Set())
-    expect(readScopedSelection(writeScopedSelection(unmapped, new Set()), scope)).toEqual(new Set())
+    expect(readScopedSelection(stored, nextFile)).toEqual(new Set())
   })
 
   it('starts with nothing ticked', () => {
     const scope = buildImportAnswerScope(['Account', ''], [createFile('file_1')])
 
-    expect(readScopedSelection(emptyScopedSelection(), scope)).toEqual(new Set())
+    expect(readScopedSelection(emptyScopedImportAnswers<true>(), scope)).toEqual(new Set())
   })
 })
