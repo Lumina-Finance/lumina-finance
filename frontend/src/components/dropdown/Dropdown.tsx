@@ -37,18 +37,18 @@ interface DropdownProps {
   onChange: (value: string) => void;
 
   /**
-   * Classes for how the pill sits among the things around it, and for anything drawn over it, such
-   * as the highlight the importer puts on a row it filled in by itself
+   * Classes for how the control sits among the things around it, and for anything drawn over it,
+   * such as the highlight the importer puts on a row it filled in by itself
    *
-   * The pill's own height, border, background, radius and padding come from `size`, so a class
-   * setting any of those fights it rather than configuring it
+   * Its own height, border, background, radius and padding come from `size`, so a class setting any
+   * of those fights it rather than configuring it
    */
   className?: string;
 
-  /** How tall the pill sits, which depends on what surrounds it rather than on what it holds */
+  /** How tall the control sits, which depends on what surrounds it rather than on what it holds */
   size?: DropdownSize;
 
-  /** Draws the pill in the error state, for a field the form has rejected */
+  /** Draws the control in the error state, for a field the form has rejected */
   hasError?: boolean;
 
   /** Id of the visible label naming this field, since a label element cannot name a button on its own */
@@ -79,7 +79,7 @@ interface DropdownProps {
 const LOADING_TEXT_MIN_MS = 300;
 
 /**
- * Coordinates dropdown selection, search, keyboard navigation, and floating menu state
+ * Coordinates dropdown selection, search, keyboard navigation, and whether the box is open
  */
 const Dropdown = ({
   id,
@@ -243,7 +243,7 @@ const Dropdown = ({
     }
   }, [effectiveHighlightedIndex, open]);
 
-  // The search input receives focus only after the floating menu mounts
+  // The search input receives focus only once the box has opened around it
   useEffect(() => {
     if (open && searchable) {
       requestAnimationFrame(() => searchRef.current?.focus());
@@ -284,7 +284,7 @@ const Dropdown = ({
     switch (action.kind) {
       case 'none':
         // A key the drop-down ignores still has to be held when letting it through would scroll the
-        // page or activate the pill under the open menu
+        // page or activate the head under the open list
         if (action.swallow) e.preventDefault();
         break;
       case 'open':

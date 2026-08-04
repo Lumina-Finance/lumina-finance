@@ -53,7 +53,7 @@
 
     --app-dropdown-padding-x: 16px;
 
-    /* A pill in a table cell spends most of its width on chrome at the full padding */
+    /* A control in a table cell spends most of its width on chrome at the full padding */
     --app-dropdown-padding-x-compact: 8px;
 
     --app-dropdown-gap: 8px;
@@ -63,12 +63,11 @@
        open box carries no blur to hide what shows through it */
     --app-dropdown-tint: 92%;
 
-    --app-dropdown-panel-padding: 6px;
-    --app-dropdown-row-radius: 10px;
+    --app-dropdown-inner-padding: 6px;
+    --app-dropdown-row-radius: 6px;
     --app-dropdown-row-padding-x: 12px;
     --app-dropdown-row-padding-y: 8px;
     --app-dropdown-row-gap: 8px;
-    --app-dropdown-chevron-rotation: 180deg;
     --app-dropdown-disabled-opacity: 0.4;
 
     /* Overshoots and settles back, which is what gives the box its bounce as it blooms open */
@@ -753,7 +752,7 @@
   /* Rises into place on the overshoot curve as the box opens around it, so the contents arrive with
      the same bounce the box does rather than being revealed by it */
   .app-dropdown-glass-inner {
-    padding: var(--app-dropdown-panel-padding);
+    padding: var(--app-dropdown-inner-padding);
     opacity: 0;
     transform: translateY(var(--app-dropdown-rise-distance));
     transition:
@@ -767,6 +766,8 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
+    .app-dropdown-glass,
+    .app-dropdown-row,
     .app-dropdown-bodywrap,
     .app-dropdown-glass-inner {
       transition-duration: 0s;

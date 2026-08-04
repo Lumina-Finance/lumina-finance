@@ -13,7 +13,7 @@ interface DropdownSearchControlsProps {
 }
 
 /**
- * Renders the searchable dropdown input and optional create action inside the floating menu
+ * Renders the searchable dropdown input and optional create action inside the open box
  */
 export function DropdownSearchControls({
   createNewLabel,

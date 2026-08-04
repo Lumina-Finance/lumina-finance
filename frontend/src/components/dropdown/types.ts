@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 
-/** How tall the pill sits, which is the one thing that changes between the places it is used */
+/** How tall the control sits, which is the one thing that changes between the places it is used */
 export type DropdownSize =
   /** 36px, for a dense table row or an inline editor */
   | 'compact'
