@@ -5,7 +5,7 @@ import { DropdownOptionList } from './OptionList';
 import { DropdownPanel } from './Panel';
 import { DropdownSearchControls } from './SearchControls';
 import { DropdownTrigger } from './Trigger';
-import { getDropdownKeyAction } from './keyboard';
+import { canCommitOption, getDropdownKeyAction, getOpeningHighlight } from './keyboard';
 import {
   getCreateNewLabel,
   getEffectiveHighlightedIndex,
@@ -25,7 +25,13 @@ interface DropdownProps {
   value: string;
   onChange: (value: string) => void;
 
-  /** Layout classes only, since the pill carries its own look */
+  /**
+   * Classes for how the pill sits among the things around it, and for anything drawn over it, such
+   * as the highlight the importer puts on a row it filled in by itself
+   *
+   * The pill's own height, border, background, radius and padding come from `size`, so a class
+   * setting any of those fights it rather than configuring it
+   */
   className?: string;
 
   /** How tall the pill sits, which depends on what surrounds it rather than on what it holds */
@@ -217,6 +223,11 @@ const Dropdown = ({
     });
 
     switch (action.kind) {
+      case 'none':
+        // A key the drop-down ignores still has to be held when letting it through would scroll the
+        // page or activate the pill under the open menu
+        if (action.swallow) e.preventDefault();
+        break;
       case 'open':
         e.preventDefault();
         updateListPosition();
@@ -245,7 +256,7 @@ const Dropdown = ({
    * Gives search-specific Enter behaviour priority before falling back to menu navigation
    */
   const handleSearchKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    const canSelectHighlighted = effectiveHighlightedIndex >= 0 && effectiveHighlightedIndex < visibleFiltered.length;
+    const canSelectHighlighted = canCommitOption(optionDisabled, effectiveHighlightedIndex);
     if (e.key === 'Enter' && selectHighlightedOnSearchEnter && canSelectHighlighted) {
       e.preventDefault();
       handleSelect(visibleFiltered[effectiveHighlightedIndex].value);
@@ -267,8 +278,17 @@ const Dropdown = ({
     if (disabled) return;
     if (!open) {
       updateListPosition();
-      setHighlightedIndex(options.findIndex((o) => o.value === value));
+      // Opened by mouse, the highlight is seeded exactly as the keyboard seeds it, so a menu opened
+      // either way starts on the same option
+      setHighlightedIndex(getOpeningHighlight(
+        optionDisabled,
+        visibleFiltered.findIndex((option) => option.value === value),
+      ));
       setOpen(true);
+
+      // Some browsers do not focus a button when it is clicked, which would leave Escape landing on
+      // the page instead of on this field, where the modal behind would answer it and close
+      triggerRef.current?.focus({ preventScroll: true });
       return;
     }
     close();

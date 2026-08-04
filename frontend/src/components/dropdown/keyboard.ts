@@ -1,8 +1,12 @@
 /**
  * What a key press asks the drop-down to do, with the state it lands on already worked out
+ *
+ * `none` still has to say whether the key is swallowed. A key the drop-down ignores but does not
+ * swallow reaches the browser, which scrolls the page on an arrow and activates the focused pill on
+ * Space or Enter, so ignoring a key and letting it through are different answers.
  */
 export type DropdownKeyAction =
-  | { kind: 'none' }
+  | { kind: 'none'; swallow: boolean }
   | { kind: 'open'; highlightedIndex: number }
   | { kind: 'move'; highlightedIndex: number }
   | { kind: 'select'; index: number }
@@ -41,19 +45,29 @@ function stepToEnabledOption(
     if (!optionDisabled[index]) return index
   }
 
-  return from
+  // Nothing selectable lies that way, so the highlight holds where it is, unless where it is cannot
+  // be chosen either, which leaves it on nothing rather than on a row Enter would refuse
+  return canCommitOption(optionDisabled, from) ? from : -1
+}
+
+/**
+ * Reports whether an option exists at this index and can be chosen
+ *
+ * @param index - Position among the visible options, which is -1 when nothing is highlighted
+ */
+export function canCommitOption(optionDisabled: readonly boolean[], index: number): boolean {
+  return index >= 0 && index < optionDisabled.length && !optionDisabled[index]
 }
 
 /**
  * Picks the option to highlight as the menu opens, preferring the current value and falling back to
  * the first one that can be chosen
+ *
+ * Both the keyboard and a click on the pill open through here, so a menu opened either way starts on
+ * the same option.
  */
-function getOpeningHighlight(optionDisabled: readonly boolean[], selectedIndex: number): number {
-  const selectable = selectedIndex >= 0
-    && selectedIndex < optionDisabled.length
-    && !optionDisabled[selectedIndex]
-
-  if (selectable) return selectedIndex
+export function getOpeningHighlight(optionDisabled: readonly boolean[], selectedIndex: number): number {
+  if (canCommitOption(optionDisabled, selectedIndex)) return selectedIndex
 
   return stepToEnabledOption(optionDisabled, -1, 1)
 }
@@ -72,13 +86,12 @@ export function getDropdownKeyAction({
   optionDisabled,
   selectedIndex,
 }: DropdownKeyParams): DropdownKeyAction {
-  const canSelect = highlightedIndex >= 0
-    && highlightedIndex < optionDisabled.length
-    && !optionDisabled[highlightedIndex]
-
   switch (key) {
     case ' ':
-      if (!fromTrigger || open) return { kind: 'none' }
+      // Space typed into the search field is a space. From the pill it opens the menu, and while the
+      // menu is open it is swallowed rather than left to activate the pill and close it again
+      if (!fromTrigger) return { kind: 'none', swallow: false }
+      if (open) return { kind: 'none', swallow: true }
       return { kind: 'open', highlightedIndex: getOpeningHighlight(optionDisabled, selectedIndex) }
 
     case 'ArrowDown':
@@ -88,7 +101,9 @@ export function getDropdownKeyAction({
       return { kind: 'move', highlightedIndex: stepToEnabledOption(optionDisabled, highlightedIndex, 1) }
 
     case 'ArrowUp':
-      if (!open) return { kind: 'none' }
+      // Swallowed even with the menu closed, so an arrow press on a focused pill does not scroll the
+      // page under it
+      if (!open) return { kind: 'none', swallow: true }
 
       // Moving up before anything is highlighted lands on the first option rather than nowhere,
       // which is where the list already puts it today
@@ -101,12 +116,18 @@ export function getDropdownKeyAction({
       if (!open) {
         return { kind: 'open', highlightedIndex: getOpeningHighlight(optionDisabled, selectedIndex) }
       }
-      return canSelect ? { kind: 'select', index: highlightedIndex } : { kind: 'none' }
+      if (canCommitOption(optionDisabled, highlightedIndex)) {
+        return { kind: 'select', index: highlightedIndex }
+      }
+      // Swallowed, so Enter on a row that cannot be chosen does nothing at all rather than
+      // activating the pill underneath and closing the menu
+      return { kind: 'none', swallow: true }
 
     case 'Escape':
-      return open ? { kind: 'close' } : { kind: 'none' }
+      // Left to carry on when the menu is closed, so the modal holding this field still answers it
+      return open ? { kind: 'close' } : { kind: 'none', swallow: false }
 
     default:
-      return { kind: 'none' }
+      return { kind: 'none', swallow: false }
   }
 }

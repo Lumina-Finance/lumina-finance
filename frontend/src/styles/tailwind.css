@@ -70,6 +70,40 @@
     --app-shadow-soft: 0 2px 20px #00000061, 0 1px 4px #0000003d;
   }
 
+  /* Every value the shared drop-down's look depends on, gathered here so it can be tuned by editing
+     numbers. It sits in this layer beside the other tokens so a theme block can override any of them,
+     which it could not do from the components layer. Two things deliberately live elsewhere: the
+     geometry placing the open panel is in components/dropdown/position.ts, because it is computed in
+     JavaScript, and the open and close timing is in components/dropdown/motion.ts, because it drives
+     a motion transition */
+  :root {
+    --app-dropdown-height-compact: 36px;
+    --app-dropdown-height-field: 40px;
+    --app-dropdown-height-toolbar: 44px;
+    --app-dropdown-radius: 20px;
+    --app-dropdown-padding-x: 16px;
+
+    /* A pill in a table cell spends most of its width on chrome at the full padding */
+    --app-dropdown-padding-x-compact: 8px;
+
+    --app-dropdown-gap: 8px;
+    --app-dropdown-font-size: 0.9375rem;
+
+    /* How much of the input colour survives over what is behind the control */
+    --app-dropdown-tint: 62%;
+
+    --app-dropdown-blur: 20px;
+    --app-dropdown-saturate: 160%;
+    --app-dropdown-panel-radius: 18px;
+    --app-dropdown-panel-padding: 6px;
+    --app-dropdown-row-radius: 10px;
+    --app-dropdown-row-padding-x: 12px;
+    --app-dropdown-row-padding-y: 8px;
+    --app-dropdown-row-gap: 8px;
+    --app-dropdown-chevron-rotation: 180deg;
+    --app-dropdown-disabled-opacity: 0.4;
+  }
+
   @media (max-width: 750px) {
     :root {
       --app-page-title-size: 3.06rem;
@@ -554,34 +588,6 @@
     appearance: none;
   }
 
-  /* Every value the shared drop-down's look depends on, gathered here so it can be tuned by editing
-     numbers. Two things deliberately live elsewhere: the geometry placing the open panel is in
-     components/dropdown/position.ts, because it is computed in JavaScript, and the open and close
-     timing is in components/dropdown/motion.ts, because it drives a motion transition */
-  :root {
-    --app-dropdown-height-compact: 36px;
-    --app-dropdown-height-field: 40px;
-    --app-dropdown-height-toolbar: 44px;
-    --app-dropdown-radius: 20px;
-    --app-dropdown-padding-x: 16px;
-    --app-dropdown-gap: 8px;
-    --app-dropdown-font-size: 0.9375rem;
-
-    /* How much of the input colour survives over what is behind the control */
-    --app-dropdown-tint: 62%;
-
-    --app-dropdown-blur: 20px;
-    --app-dropdown-saturate: 160%;
-    --app-dropdown-panel-radius: 18px;
-    --app-dropdown-panel-padding: 6px;
-    --app-dropdown-row-radius: 10px;
-    --app-dropdown-row-padding-x: 12px;
-    --app-dropdown-row-padding-y: 8px;
-    --app-dropdown-row-gap: 8px;
-    --app-dropdown-chevron-rotation: 180deg;
-    --app-dropdown-disabled-opacity: 0.4;
-  }
-
   /* The head of every drop-down. Solid by default because the import tables render one per row, and
      a backdrop filter on each would put hundreds of composited layers on one screen. Over the flat
      background of a modal or a table there is nothing for the blur to reveal anyway, so the glass
@@ -613,6 +619,7 @@
 
   .app-dropdown-pill-compact {
     height: var(--app-dropdown-height-compact);
+    padding: 0 var(--app-dropdown-padding-x-compact);
   }
 
   .app-dropdown-pill-field {
@@ -623,7 +630,7 @@
     height: var(--app-dropdown-height-toolbar);
   }
 
-  .app-dropdown-pill:hover {
+  .app-dropdown-pill:hover:not(:disabled) {
     border-color: var(--app-border-strong);
   }
 
@@ -632,13 +639,23 @@
     box-shadow: 0 0 0 2px var(--app-accent-soft);
   }
 
+  /* Opening by mouse leaves no focus ring in some browsers, so the pill takes the same edge from
+     being open. Without it an open panel floats beside a pill that looks untouched */
+  .app-dropdown-pill[aria-expanded="true"] {
+    border-color: var(--app-accent-border);
+  }
+
   .app-dropdown-pill:disabled {
     cursor: not-allowed;
     opacity: 0.6;
   }
 
+  /* Holds the error edge through focus and through being open, both of which set a border of their
+     own at a specificity the plain error class cannot beat */
   .app-dropdown-pill-error,
-  .app-dropdown-pill-error:hover {
+  .app-dropdown-pill-error:hover:not(:disabled),
+  .app-dropdown-pill-error:focus-visible,
+  .app-dropdown-pill-error[aria-expanded="true"] {
     border-color: var(--app-negative-border);
     background: var(--app-negative-soft);
   }
@@ -694,6 +711,12 @@
     background: var(--app-accent-soft);
     color: var(--app-accent);
     font-weight: 500;
+  }
+
+  /* The chosen row is also where the keyboard starts, so it needs to show both at once. Without this
+     the cursor is invisible until it moves off the chosen row */
+  .app-dropdown-row-selected.app-dropdown-row-highlighted {
+    background: color-mix(in srgb, var(--app-accent) 18%, transparent);
   }
 
   .app-dropdown-row-disabled {

@@ -22,6 +22,11 @@ const DROPDOWN_PANEL_Z_INDEX = 110
  * Positioned `fixed` but left inside the trigger's own wrapper rather than portalled, because a
  * modal decides whether focus is still inside it, and this drop-down decides whether a press was
  * outside it, by asking whether the element is a descendant.
+ *
+ * That costs one constraint: no ancestor of a drop-down may carry a backdrop filter, a filter or a
+ * transform once it has settled. Any of those makes the ancestor the box these viewport coordinates
+ * are measured from, which moves the panel and clips it. The glass filter panel on the transactions
+ * toolbar is such an ancestor, so a drop-down cannot be placed inside it as things stand.
  */
 export function DropdownPanel({ children, position }: DropdownPanelProps) {
   const shouldReduceMotion = useReducedMotion()

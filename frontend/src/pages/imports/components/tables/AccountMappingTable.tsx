@@ -183,7 +183,7 @@ export function ImportAccountMappingTable({
             searchable
             blankWhenEmpty
             size="compact"
-            className={`px-2 ${row.autoFilled && !creating ? 'import-auto-fill-field' : ''}`}
+            className={row.autoFilled && !creating ? 'import-auto-fill-field' : undefined}
             disabled={!creating || currenciesDisabled}
           />
         </td>
@@ -224,7 +224,7 @@ export function ImportAccountMappingTable({
               onChange={onBatchAccountTypeChange}
               searchable
               placeholder="Type"
-              size="toolbar"
+              size="field"
             />
           </div>
           <div className="min-w-0 px-2">
@@ -234,8 +234,7 @@ export function ImportAccountMappingTable({
               onChange={onBatchAccountCurrencyChange}
               searchable
               placeholder="Currency"
-              size="toolbar"
-              className="px-2"
+              size="field"
               disabled={currenciesDisabled}
             />
           </div>
@@ -247,7 +246,7 @@ export function ImportAccountMappingTable({
                 onChange={onBatchAccountInstitutionChange}
                 searchable
                 placeholder="Institution"
-                size="toolbar"
+                size="field"
                 disabled={institutionsDisabled}
                 onCreateNew={onBatchCreateInstitution}
                 createNewLabel={(query) => query ? `Create institution "${query}"` : 'Create institution'}

@@ -105,7 +105,9 @@ export function ImportHeaderMappingTable({
                 </td>
                 <td className="px-4 py-2.5 align-middle">
                   <div className="flex items-center gap-2">
-                    <div className={`min-w-0 flex-1 rounded-lg ${autoFilled ? 'import-auto-fill-field' : ''}`}>
+                    {/* Rounded like the pill inside it, so the auto-fill glow traces the control
+                        rather than a rectangle around it */}
+                    <div className={`min-w-0 flex-1 rounded-full ${autoFilled ? 'import-auto-fill-field' : ''}`}>
                       <Dropdown
                         options={options}
                         value={selectedTarget}

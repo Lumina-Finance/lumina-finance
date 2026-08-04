@@ -51,12 +51,17 @@ export function FacetSelectDropdown<Facet extends FacetSelectOption>({
     }
   }), [countFacet, disabledFacetIds, facets])
 
+  // An id the caller no longer offers falls back to the first entry, so the head keeps showing a real
+  // choice with its icon and count rather than dropping to placeholder text
+  const resolvedValue = facets.some((facet) => facet.id === activeFacetId)
+    ? activeFacetId
+    : facets[0]?.id ?? ''
+
   return (
     <Dropdown
       options={options}
-      value={activeFacetId}
+      value={resolvedValue}
       onChange={onSelect}
-      placeholder={facets[0]?.label ?? ''}
     />
   )
 }

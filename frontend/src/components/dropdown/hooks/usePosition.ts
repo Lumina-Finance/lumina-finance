@@ -3,6 +3,7 @@ import {
   DEFAULT_DROPDOWN_LIST_POSITION,
   getDropdownListPosition,
   type DropdownListPosition,
+  type DropdownViewport,
 } from '@/components/dropdown/position'
 
 interface UseDropdownPositionParams {
@@ -19,16 +20,12 @@ interface UseDropdownPositionResult {
 /**
  * Reads the visual viewport when available so mobile browser chrome does not push the menu off-screen
  */
-function getViewport(): {
-  height: number
-  offsetLeft: number
-  offsetTop: number
-  width: number
-} {
+function getViewport(): DropdownViewport {
   const visualViewport = window.visualViewport
 
   return {
     height: visualViewport?.height ?? window.innerHeight,
+    layoutHeight: window.innerHeight,
     offsetLeft: visualViewport?.offsetLeft ?? 0,
     offsetTop: visualViewport?.offsetTop ?? 0,
     width: visualViewport?.width ?? window.innerWidth,
