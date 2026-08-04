@@ -2,8 +2,11 @@ import type { CSSProperties } from 'react'
 
 /**
  * Returns the accent fill, text colour, and weight that mark a selected filter option, keeping the
- * checklist rows and facet dropdowns aligned with the theme switcher and segmented control selection
- * colours
+ * checklist rows and the reference filter rows aligned with the theme switcher and segmented control
+ * selection colours
+ *
+ * The control that chooses which filter tab is showing no longer takes its selected look from here,
+ * since it is drawn by the shared drop-down, which carries the same colours in its own styles
  */
 export function getFilterOptionStyle(selected: boolean): CSSProperties {
   return {

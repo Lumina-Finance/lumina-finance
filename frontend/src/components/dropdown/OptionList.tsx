@@ -1,7 +1,7 @@
 import { Fragment, type RefObject, type UIEvent } from 'react'
 import { Check } from 'lucide-react'
 import { joinClassNames } from '@/utils/classNames'
-import { DropdownBadge } from './Badge'
+import { DropdownBadge, DropdownCount } from './Badge'
 import type { DropdownOption, DropdownOptionGroup } from './types'
 
 interface DropdownOptionListProps {
@@ -75,11 +75,7 @@ function DropdownOptionRow({
           </span>
         )}
       </span>
-      {option.count !== undefined && (
-        <span className="shrink-0 text-xs font-semibold" style={{ color: 'var(--app-text-muted)' }}>
-          {option.count}
-        </span>
-      )}
+      {option.count !== undefined && <DropdownCount count={option.count} />}
       {selected && <Check size={16} className="shrink-0" aria-hidden />}
     </li>
   )

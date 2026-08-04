@@ -684,12 +684,16 @@
     transition: background 0.1s;
   }
 
+  /* The row the pointer or the arrow keys are resting on, tinted rather than accented so it stays
+     distinct from the row that is actually chosen */
   .app-dropdown-row-highlighted {
-    background: var(--app-accent-soft);
+    background: color-mix(in srgb, var(--app-text) 6%, transparent);
   }
 
   .app-dropdown-row-selected {
+    background: var(--app-accent-soft);
     color: var(--app-accent);
+    font-weight: 500;
   }
 
   .app-dropdown-row-disabled {
@@ -926,9 +930,9 @@
     border: 1px solid var(--app-border);
   }
 
-  /* The segmented toggles adopt the accent colours of the theme switcher and the facet dropdown
-     options so the insights range presets, the This/Last/Past qualifier, and the filter facet tabs
-     all read as the same control */
+  /* The segmented toggles adopt the accent colours of the theme switcher and of a chosen drop-down
+     option, so the insights range presets, the This/Last/Past qualifier and the filter tabs all read
+     as the same control */
   .app-range-seg-option {
     position: relative;
     appearance: none;
@@ -1063,8 +1067,9 @@
     animation: import-auto-fill-row 900ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
   }
 
+  /* Sets no radius of its own, so the glow follows the corners of whatever it marks. A drop-down
+     carries the pill's radius and a plain wrapper sets its own */
   .import-auto-fill-field {
-    border-radius: 0.5rem;
     animation: import-auto-fill-field 900ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
   }
 

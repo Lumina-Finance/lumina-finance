@@ -1,7 +1,7 @@
 import type { KeyboardEvent, RefObject } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { joinClassNames } from '@/utils/classNames'
-import { DropdownBadge } from './Badge'
+import { DropdownBadge, DropdownCount } from './Badge'
 import type { DropdownOption, DropdownSize } from './types'
 
 interface DropdownTriggerProps {
@@ -89,6 +89,7 @@ export function DropdownTrigger({
           {emptySelectionIsBlank ? '' : selected?.label ?? placeholder}
         </span>
         {hasVisibleSelection && selected?.badge && <DropdownBadge label={selected.badge} />}
+        {hasVisibleSelection && selected?.count !== undefined && <DropdownCount count={selected.count} />}
       </span>
       <ChevronDown size={16} className="app-dropdown-chevron" aria-hidden />
     </button>
