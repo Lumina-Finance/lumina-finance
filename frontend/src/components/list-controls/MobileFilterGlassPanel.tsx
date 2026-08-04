@@ -101,8 +101,7 @@ export function MobileFilterGlassPanel({
           <div className="flex items-center justify-between gap-3 border-t px-5 py-4" style={{ borderColor: 'var(--app-border)' }}>
             <button
               type="button"
-              className="text-sm"
-              style={{ color: 'var(--app-text-muted)' }}
+              className="app-secondary-button"
               disabled={activeFacetCount === 0}
               onClick={clearAll}
             >

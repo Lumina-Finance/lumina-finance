@@ -206,8 +206,7 @@ export function FilterPanelBody({
         <motion.div layout={blockLayout} transition={transition} className="mt-3 flex items-center justify-between">
           <button
             type="button"
-            className="text-xs"
-            style={{ color: 'var(--app-text-muted)' }}
+            className="app-secondary-button"
             disabled={draft.activeFacetCount === 0}
             onClick={draft.clearAll}
           >
