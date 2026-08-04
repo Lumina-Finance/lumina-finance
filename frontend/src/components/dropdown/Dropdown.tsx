@@ -1,10 +1,20 @@
-import { useState, useRef, useEffect, useId, useMemo, useCallback, type KeyboardEvent, type UIEvent } from 'react';
-import { AnimatePresence } from 'motion/react';
+import {
+  useState,
+  useRef,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useCallback,
+  type KeyboardEvent,
+  type UIEvent,
+} from 'react';
+import { joinClassNames } from '@/utils/classNames';
 import { useMinimumVisibleFlag } from '@/hooks/useMinimumVisibleFlag';
+import { DropdownBox } from './Box';
 import { DropdownOptionList } from './OptionList';
-import { DropdownPanel } from './Panel';
 import { DropdownSearchControls } from './SearchControls';
-import { DropdownTrigger } from './Trigger';
+import { DropdownHead } from './Trigger';
 import { canCommitOption, getDropdownKeyAction, getOpeningHighlight } from './keyboard';
 import {
   getCreateNewLabel,
@@ -103,12 +113,18 @@ const Dropdown = ({
   const [open, setOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const [search, setSearch] = useState('');
+  const [collapsedHeight, setCollapsedHeight] = useState<number>();
   const listId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
-  const { listPosition, updateListPosition } = useDropdownPosition({ open, searchable, triggerRef });
+  const { boxPosition, updateBoxPosition } = useDropdownPosition({
+    open,
+    searchable,
+    wrapperRef: containerRef,
+  });
 
   const selected = useMemo(
     () => getSelectedDropdownOption(options, selectedOption, value),
@@ -161,7 +177,15 @@ const Dropdown = ({
     setHighlightedIndex(-1);
   }, [setSearchText]);
 
-  // The dropdown closes on outside mouse interactions so stale menus do not remain open. The menu is
+  // The wrapper holds the collapsed height so the box can grow over what is below it rather than
+  // pushing it down. Remeasured when the shown label changes, since that can reflow the head
+  useLayoutEffect(() => {
+    const head = triggerRef.current;
+    if (open || !head) return;
+    setCollapsedHeight(head.offsetHeight);
+  }, [open, selected?.label, size]);
+
+  // The dropdown closes on outside mouse interactions so stale menus do not remain open. The box is
   // a descendant of this container even while positioned against the viewport, so a press inside it
   // is not an outside press
   useEffect(() => {
@@ -230,7 +254,7 @@ const Dropdown = ({
         break;
       case 'open':
         e.preventDefault();
-        updateListPosition();
+        updateBoxPosition();
         setOpen(true);
         setHighlightedIndex(action.highlightedIndex);
         break;
@@ -277,7 +301,7 @@ const Dropdown = ({
   const handleTriggerClick = () => {
     if (disabled) return;
     if (!open) {
-      updateListPosition();
+      updateBoxPosition();
       // Opened by mouse, the highlight is seeded exactly as the keyboard seeds it, so a menu opened
       // either way starts on the same option
       setHighlightedIndex(getOpeningHighlight(
@@ -305,56 +329,66 @@ const Dropdown = ({
   };
 
   return (
-    <div ref={containerRef} className="relative">
-      <DropdownTrigger
-        triggerRef={triggerRef}
-        id={id}
-        className={className}
+    <div
+      ref={containerRef}
+      className={joinClassNames('relative', className)}
+      style={{ height: collapsedHeight }}
+    >
+      <DropdownBox
+        boxRef={boxRef}
         disabled={disabled}
-        emptySelectionIsBlank={emptySelectionIsBlank}
         hasError={hasError}
-        labelledBy={labelledBy}
-        listId={listId}
         open={open}
-        placeholder={placeholder}
-        selected={selected}
-        size={size}
-        onClick={handleTriggerClick}
-        onKeyDown={handleKeyDown}
-      />
+        position={boxPosition}
+      >
+        <DropdownHead
+          headRef={triggerRef}
+          id={id}
+          disabled={disabled}
+          emptySelectionIsBlank={emptySelectionIsBlank}
+          labelledBy={labelledBy}
+          listId={listId}
+          open={open}
+          placeholder={placeholder}
+          selected={selected}
+          size={size}
+          onClick={handleTriggerClick}
+          onKeyDown={handleKeyDown}
+        />
 
-      <AnimatePresence>
-        {open && (
-          <DropdownPanel position={listPosition}>
-            {searchable && (
-              <DropdownSearchControls
-                createNewLabel={resolvedCreateNewLabel}
-                searchPlaceholder={searchPlaceholder}
-                searchRef={searchRef}
-                searchText={searchText}
-                showCreateAction={Boolean(onCreateNew)}
-                onCreateNew={handleCreateNew}
-                onKeyDown={handleSearchKeyDown}
-                onSearchChange={setSearchText}
+        <div className="app-dropdown-bodywrap">
+          <div className="app-dropdown-body">
+            <div className="app-dropdown-glass-inner">
+              {searchable && (
+                <DropdownSearchControls
+                  createNewLabel={resolvedCreateNewLabel}
+                  searchPlaceholder={searchPlaceholder}
+                  searchRef={searchRef}
+                  searchText={searchText}
+                  showCreateAction={Boolean(onCreateNew)}
+                  onCreateNew={handleCreateNew}
+                  onKeyDown={handleSearchKeyDown}
+                  onSearchChange={setSearchText}
+                />
+              )}
+              <DropdownOptionList
+                effectiveHighlightedIndex={effectiveHighlightedIndex}
+                groupedOptions={groupedFiltered}
+                listId={listId}
+                listMaxHeight={boxPosition.listMaxHeight}
+                listRef={listRef}
+                loadingText={loadingText}
+                options={visibleFiltered}
+                selectedValue={value}
+                showLoading={showLoading}
+                onHighlight={setHighlightedIndex}
+                onScroll={handleListScroll}
+                onSelect={handleSelect}
               />
-            )}
-            <DropdownOptionList
-              effectiveHighlightedIndex={effectiveHighlightedIndex}
-              groupedOptions={groupedFiltered}
-              listId={listId}
-              listMaxHeight={listPosition.listMaxHeight}
-              listRef={listRef}
-              loadingText={loadingText}
-              options={visibleFiltered}
-              selectedValue={value}
-              showLoading={showLoading}
-              onHighlight={setHighlightedIndex}
-              onScroll={handleListScroll}
-              onSelect={handleSelect}
-            />
-          </DropdownPanel>
-        )}
-      </AnimatePresence>
+            </div>
+          </div>
+        </div>
+      </DropdownBox>
     </div>
   );
 };

@@ -1,24 +1,26 @@
 import { useCallback, useEffect, useState, type RefObject } from 'react'
 import {
-  DEFAULT_DROPDOWN_LIST_POSITION,
-  getDropdownListPosition,
-  type DropdownListPosition,
+  DEFAULT_DROPDOWN_BOX_POSITION,
+  getDropdownBoxPosition,
+  type DropdownBoxPosition,
   type DropdownViewport,
 } from '@/components/dropdown/position'
 
 interface UseDropdownPositionParams {
   open: boolean
   searchable: boolean
-  triggerRef: RefObject<HTMLButtonElement | null>
+
+  /** The slot the control occupies in the page, held at the collapsed height while the box is open */
+  wrapperRef: RefObject<HTMLDivElement | null>
 }
 
 interface UseDropdownPositionResult {
-  listPosition: DropdownListPosition
-  updateListPosition: () => void
+  boxPosition: DropdownBoxPosition
+  updateBoxPosition: () => void
 }
 
 /**
- * Reads the visual viewport when available so mobile browser chrome does not push the menu off-screen
+ * Reads the visual viewport when available so mobile browser chrome does not push the box off-screen
  */
 function getViewport(): DropdownViewport {
   const visualViewport = window.visualViewport
@@ -33,25 +35,31 @@ function getViewport(): DropdownViewport {
 }
 
 /**
- * Tracks the floating dropdown menu position against the trigger and visual viewport
+ * Tracks where the open box sits against the slot it came from and the visible viewport
+ *
+ * Measured from the wrapper rather than from the box or the head inside it. Both of those move with
+ * the box once it is open, so the box would be chasing its own position and would sit still while
+ * the page scrolled underneath. The wrapper stays in the page and moves with it.
  */
 export function useDropdownPosition({
   open,
   searchable,
-  triggerRef,
+  wrapperRef,
 }: UseDropdownPositionParams): UseDropdownPositionResult {
-  const [listPosition, setListPosition] = useState(DEFAULT_DROPDOWN_LIST_POSITION)
+  const [boxPosition, setBoxPosition] = useState(DEFAULT_DROPDOWN_BOX_POSITION)
 
-  const updateListPosition = useCallback(() => {
-    if (!triggerRef.current) return
+  const updateBoxPosition = useCallback(() => {
+    const wrapper = wrapperRef.current
+    if (!wrapper) return
 
-    const rect = triggerRef.current.getBoundingClientRect()
-    setListPosition(getDropdownListPosition({
+    const rect = wrapper.getBoundingClientRect()
+    setBoxPosition(getDropdownBoxPosition({
       anchorRect: rect,
+      headHeight: rect.height,
       searchable,
       viewport: getViewport(),
     }))
-  }, [searchable, triggerRef])
+  }, [searchable, wrapperRef])
 
   useEffect(() => {
     if (!open) return
@@ -59,7 +67,7 @@ export function useDropdownPosition({
     let frame = 0
     const updateOnFrame = () => {
       window.cancelAnimationFrame(frame)
-      frame = window.requestAnimationFrame(updateListPosition)
+      frame = window.requestAnimationFrame(updateBoxPosition)
     }
 
     updateOnFrame()
@@ -74,7 +82,7 @@ export function useDropdownPosition({
       window.visualViewport?.removeEventListener('resize', updateOnFrame)
       window.visualViewport?.removeEventListener('scroll', updateOnFrame)
     }
-  }, [open, updateListPosition])
+  }, [open, updateBoxPosition])
 
-  return { listPosition, updateListPosition }
+  return { boxPosition, updateBoxPosition }
 }

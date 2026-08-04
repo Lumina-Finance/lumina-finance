@@ -48,7 +48,9 @@
     --app-dropdown-height-compact: 36px;
     --app-dropdown-height-field: 40px;
     --app-dropdown-height-toolbar: 44px;
-    --app-dropdown-radius: 20px;
+    /* The same corner the text inputs carry, so a drop-down and the field beside it match */
+    --app-dropdown-radius: 0.5rem;
+
     --app-dropdown-padding-x: 16px;
 
     /* A pill in a table cell spends most of its width on chrome at the full padding */
@@ -62,7 +64,6 @@
 
     --app-dropdown-blur: 20px;
     --app-dropdown-saturate: 160%;
-    --app-dropdown-panel-radius: 18px;
     --app-dropdown-panel-padding: 6px;
     --app-dropdown-row-radius: 10px;
     --app-dropdown-row-padding-x: 12px;
@@ -70,6 +71,19 @@
     --app-dropdown-row-gap: 8px;
     --app-dropdown-chevron-rotation: 180deg;
     --app-dropdown-disabled-opacity: 0.4;
+
+    /* Overshoots and settles back, which is what gives the box its bounce as it blooms open */
+    --app-dropdown-bounce: cubic-bezier(0.34, 1.6, 0.5, 1);
+
+    /* Fast at the start and flat at the end, for the height, which should not overshoot */
+    --app-dropdown-ease: cubic-bezier(0.22, 1, 0.36, 1);
+
+    --app-dropdown-open-duration: 0.45s;
+    --app-dropdown-fade-duration: 0.26s;
+    --app-dropdown-rise-duration: 0.55s;
+
+    /* How far the contents start below where they settle, so they rise into the opening box */
+    --app-dropdown-rise-distance: 14px;
   }
 
   .dark {
@@ -588,117 +602,150 @@
     appearance: none;
   }
 
-  /* The head of every drop-down. Solid by default because the import tables render one per row, and
-     a backdrop filter on each would put hundreds of composited layers on one screen. Over the flat
-     background of a modal or a table there is nothing for the blur to reveal anyway, so the glass
-     variant below is for the few places the control sits over varied content */
-  .app-dropdown-pill {
+  /* One box holding the head and the list, which grows open around them rather than opening a second
+     box underneath. Its own clipping is what hides the list while closed, so the list can grow out of
+     the head instead of appearing beside it */
+  .app-dropdown-glass {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--app-dropdown-gap);
+    flex-direction: column;
+    overflow: hidden;
     width: 100%;
     min-width: 0;
-    padding: 0 var(--app-dropdown-padding-x);
     border: 1px solid var(--app-input-border);
     border-radius: var(--app-dropdown-radius);
     background: var(--app-input-bg);
     color: var(--app-text);
-    font-size: var(--app-dropdown-font-size);
-    text-align: left;
-    outline: none;
-    transition: border-color 0.2s, background 0.2s;
+    transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
   }
 
-  .app-dropdown-pill-glass {
-    background: color-mix(in srgb, var(--app-input-bg) var(--app-dropdown-tint), transparent);
+  /* Opening upward stacks the contents in reverse, so the list appears above the head while the head
+     itself stays exactly where it sits closed */
+  .app-dropdown-glass-up {
+    flex-direction: column-reverse;
+  }
+
+  /* Only while open, since that is the only time the box floats over the page rather than sitting in
+     a form or a table row where hundreds of composited blurs would be drawn at once */
+  .app-dropdown-glass-open {
     border-color: var(--app-border-strong);
-    -webkit-backdrop-filter: blur(var(--app-dropdown-blur)) saturate(var(--app-dropdown-saturate));
-    backdrop-filter: blur(var(--app-dropdown-blur)) saturate(var(--app-dropdown-saturate));
-  }
-
-  .app-dropdown-pill-compact {
-    height: var(--app-dropdown-height-compact);
-    padding: 0 var(--app-dropdown-padding-x-compact);
-  }
-
-  .app-dropdown-pill-field {
-    height: var(--app-dropdown-height-field);
-  }
-
-  .app-dropdown-pill-toolbar {
-    height: var(--app-dropdown-height-toolbar);
-  }
-
-  /* Every state below is written as the pill class plus exactly one more simple selector, so they all
-     weigh the same and the later rule wins. That settles which state shows once, in this order:
-     touched, then open, then focused, then rejected, then unavailable. The error state is written as
-     two classes rather than one for that reason alone, since a lone class would weigh less than a
-     hover and lose to it. A new state goes in this order rather than out-weighing what came before */
-  .app-dropdown-pill:hover {
-    border-color: var(--app-border-strong);
-  }
-
-  /* Opening by mouse leaves no focus ring in some browsers, so the pill takes its edge from being
-     open instead. Without it an open panel floats beside a pill that looks untouched */
-  .app-dropdown-pill[aria-expanded="true"] {
-    border-color: var(--app-accent-border);
-  }
-
-  .app-dropdown-pill:focus-visible {
-    border-color: var(--app-accent-border);
-    box-shadow: 0 0 0 2px var(--app-accent-soft);
-  }
-
-  .app-dropdown-pill.app-dropdown-pill-error {
-    border-color: var(--app-negative-border);
-    background: var(--app-negative-soft);
-  }
-
-  /* The ring turns red with the border, or a rejected field reads as fine the moment it takes focus.
-     A disabled pill never reaches this, because a disabled button cannot take focus */
-  .app-dropdown-pill.app-dropdown-pill-error:focus-visible {
-    box-shadow: 0 0 0 2px var(--app-negative-soft);
-  }
-
-  /* Last, so a pill nobody can use answers to none of the above, whichever of them it also carries.
-     It has to name every property those states set, not only the border: equal weight and later
-     placement settle a property at a time, so one left out is one the earlier state still wins. A
-     rejected field that is also disabled showed a plain border around a red fill until this said so */
-  .app-dropdown-pill:disabled {
-    border-color: var(--app-input-border);
-    background: var(--app-input-bg);
-    box-shadow: none;
-    cursor: not-allowed;
-    opacity: 0.6;
-  }
-
-  .app-dropdown-chevron {
-    flex-shrink: 0;
-    color: var(--app-text-subtle);
-    transition: transform 0.2s;
-  }
-
-  .app-dropdown-pill[aria-expanded="true"] .app-dropdown-chevron {
-    transform: rotate(var(--app-dropdown-chevron-rotation));
-  }
-
-  /* The open list. This one is always glass: only ever one is open, so the cost is bounded, and it
-     is the part that floats over the page rather than sitting flush against it */
-  .app-dropdown-panel {
-    overflow: hidden;
-    border: 1px solid var(--app-border-strong);
-    border-radius: var(--app-dropdown-panel-radius);
     background: color-mix(in srgb, var(--app-input-bg) var(--app-dropdown-tint), transparent);
     box-shadow: var(--app-shadow-soft);
     -webkit-backdrop-filter: blur(var(--app-dropdown-blur)) saturate(var(--app-dropdown-saturate));
     backdrop-filter: blur(var(--app-dropdown-blur)) saturate(var(--app-dropdown-saturate));
   }
 
-  /* Carries the padding so collapsing the panel's height to zero closes it completely, rather than
-     leaving the padding behind as a sliver */
-  .app-dropdown-panel-inner {
+  /* Every state below is the box class plus exactly one more simple selector, so they all weigh the
+     same and the later rule wins. That settles which state shows once, in this order: touched, then
+     open, then focused, then rejected, then unavailable. Each one names every property the others
+     set, since equal weight settles a property at a time and one left out is one an earlier state
+     still wins. A new state goes in this order rather than out-weighing what came before */
+  .app-dropdown-glass:hover {
+    border-color: var(--app-border-strong);
+  }
+
+  .app-dropdown-glass:focus-within {
+    border-color: var(--app-accent-border);
+    box-shadow: 0 0 0 2px var(--app-accent-soft);
+  }
+
+  .app-dropdown-glass.app-dropdown-glass-error {
+    border-color: var(--app-negative-border);
+    background: var(--app-negative-soft);
+  }
+
+  .app-dropdown-glass.app-dropdown-glass-error:focus-within {
+    box-shadow: 0 0 0 2px var(--app-negative-soft);
+  }
+
+  .app-dropdown-glass.app-dropdown-glass-disabled {
+    border-color: var(--app-input-border);
+    background: var(--app-input-bg);
+    box-shadow: none;
+    opacity: 0.6;
+  }
+
+  .app-dropdown-head {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--app-dropdown-gap);
+    width: 100%;
+    min-width: 0;
+    padding: 0 var(--app-dropdown-padding-x);
+    background: none;
+    border: 0;
+    color: inherit;
+    font-size: var(--app-dropdown-font-size);
+    text-align: left;
+    outline: none;
+  }
+
+  .app-dropdown-head:disabled {
+    cursor: not-allowed;
+  }
+
+  .app-dropdown-head-compact {
+    height: var(--app-dropdown-height-compact);
+    padding: 0 var(--app-dropdown-padding-x-compact);
+  }
+
+  .app-dropdown-head-field {
+    height: var(--app-dropdown-height-field);
+  }
+
+  .app-dropdown-head-toolbar {
+    height: var(--app-dropdown-height-toolbar);
+  }
+
+  .app-dropdown-chevron {
+    flex-shrink: 0;
+    color: var(--app-text-subtle);
+  }
+
+  /* The list's own height animates from nothing to whatever it needs, which is what makes the box
+     bloom rather than appear. A grid row is the only way to animate to a height nobody measured */
+  .app-dropdown-bodywrap {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows var(--app-dropdown-open-duration) var(--app-dropdown-ease);
+  }
+
+  .app-dropdown-glass-open .app-dropdown-bodywrap {
+    grid-template-rows: 1fr;
+  }
+
+  .app-dropdown-body {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  /* Rises into place on the overshoot curve as the box opens around it, so the contents arrive with
+     the same bounce the box does rather than being revealed by it */
+  .app-dropdown-glass-inner {
     padding: var(--app-dropdown-panel-padding);
+    opacity: 0;
+    transform: translateY(var(--app-dropdown-rise-distance));
+    transition:
+      opacity var(--app-dropdown-fade-duration) ease,
+      transform var(--app-dropdown-rise-duration) var(--app-dropdown-bounce);
+  }
+
+  .app-dropdown-glass-open .app-dropdown-glass-inner {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .app-dropdown-bodywrap,
+    .app-dropdown-glass-inner {
+      transition-duration: 0s;
+    }
+
+    /* Flattened rather than shortened, or the overshoot lands as a jerk instead of a bounce */
+    .app-dropdown-glass-inner {
+      transform: none;
+    }
   }
 
   .app-dropdown-row {
@@ -758,14 +805,6 @@
     padding: var(--app-dropdown-row-padding-y) var(--app-dropdown-row-padding-x);
     color: var(--app-text-subtle);
     font-size: 0.875rem;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .app-dropdown-pill,
-    .app-dropdown-chevron,
-    .app-dropdown-row {
-      transition-duration: 0s;
-    }
   }
 
   /* Translucent collapsing date-range control on the insights page. The pill widens with a

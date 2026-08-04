@@ -1,45 +1,47 @@
 import type { KeyboardEvent, RefObject } from 'react'
+import { motion, useReducedMotion } from 'motion/react'
 import { ChevronDown } from 'lucide-react'
 import { joinClassNames } from '@/utils/classNames'
 import { DropdownBadge, DropdownCount } from './Badge'
+import { DROPDOWN_INSTANT_TRANSITION, DROPDOWN_SPRING } from './motion'
 import type { DropdownOption, DropdownSize } from './types'
 
-interface DropdownTriggerProps {
-  className?: string
+interface DropdownHeadProps {
   disabled: boolean
   emptySelectionIsBlank: boolean
-  hasError: boolean
+  headRef: RefObject<HTMLButtonElement | null>
   id?: string
 
   /** Id of the element naming this control, for a field whose label sits above it */
   labelledBy?: string
 
-  /** Id of the open list, so assistive software can follow the pill to the options it controls */
+  /** Id of the open list, so assistive software can follow the head to the options it controls */
   listId?: string
 
   open: boolean
   placeholder: string
   selected: DropdownOption | undefined
   size: DropdownSize
-  triggerRef: RefObject<HTMLButtonElement | null>
   onClick: () => void
   onKeyDown: (event: KeyboardEvent<HTMLButtonElement>) => void
 }
 
 const SIZE_CLASS: Record<DropdownSize, string> = {
-  compact: 'app-dropdown-pill-compact',
-  field: 'app-dropdown-pill-field',
-  toolbar: 'app-dropdown-pill-toolbar',
+  compact: 'app-dropdown-head-compact',
+  field: 'app-dropdown-head-field',
+  toolbar: 'app-dropdown-head-toolbar',
 }
 
 /**
- * Renders the pill that opens the drop-down while the parent owns its state and keyboard policy
+ * Renders the head of the drop-down, which shows the current value and opens the list
+ *
+ * It sits inside the box rather than being the box, so the border, background and corner belong to
+ * the box and grow with it while this stays the same height throughout.
  */
-export function DropdownTrigger({
-  className,
+export function DropdownHead({
   disabled,
   emptySelectionIsBlank,
-  hasError,
+  headRef,
   id,
   labelledBy,
   listId,
@@ -47,15 +49,15 @@ export function DropdownTrigger({
   placeholder,
   selected,
   size,
-  triggerRef,
   onClick,
   onKeyDown,
-}: DropdownTriggerProps) {
+}: DropdownHeadProps) {
+  const shouldReduceMotion = useReducedMotion()
   const hasVisibleSelection = Boolean(selected && !emptySelectionIsBlank)
 
   return (
     <button
-      ref={triggerRef}
+      ref={headRef}
       id={id}
       type="button"
       role="combobox"
@@ -64,15 +66,7 @@ export function DropdownTrigger({
       aria-controls={open ? listId : undefined}
       aria-labelledby={labelledBy}
       disabled={disabled}
-      className={joinClassNames(
-        'app-dropdown-pill',
-        SIZE_CLASS[size],
-        // Only the toolbar size takes the blur. A pill in a form or a table row sits against a flat
-        // background with nothing behind it to reveal, and those are the places that render many at once
-        size === 'toolbar' && 'app-dropdown-pill-glass',
-        hasError && 'app-dropdown-pill-error',
-        className,
-      )}
+      className={joinClassNames('app-dropdown-head', SIZE_CLASS[size])}
       onClick={onClick}
       onKeyDown={onKeyDown}
     >
@@ -91,7 +85,14 @@ export function DropdownTrigger({
         {hasVisibleSelection && selected?.badge && <DropdownBadge label={selected.badge} />}
         {hasVisibleSelection && selected?.count !== undefined && <DropdownCount count={selected.count} />}
       </span>
-      <ChevronDown size={16} className="app-dropdown-chevron" aria-hidden />
+      <motion.span
+        className="app-dropdown-chevron"
+        style={{ display: 'inline-flex' }}
+        animate={{ rotate: open ? 180 : 0 }}
+        transition={shouldReduceMotion ? DROPDOWN_INSTANT_TRANSITION : DROPDOWN_SPRING}
+      >
+        <ChevronDown size={16} aria-hidden />
+      </motion.span>
     </button>
   )
 }
