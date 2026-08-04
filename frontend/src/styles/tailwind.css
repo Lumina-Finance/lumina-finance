@@ -61,8 +61,9 @@
 
     /* How much of the input colour survives over what is behind the open box. Depth comes from this,
        the border and the shadow rather than from a blur, so it has to stay high enough for the option
-       text to hold up over whatever the box is covering */
-    --app-dropdown-tint: 92%;
+       text to hold up over whatever the box is covering, and low enough to see that there is
+       something behind it. Plain alpha, so it costs nothing whatever it is set to */
+    --app-dropdown-tint: 80%;
     --app-dropdown-inner-padding: 6px;
     --app-dropdown-row-radius: 6px;
     --app-dropdown-row-padding-x: 12px;
