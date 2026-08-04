@@ -178,6 +178,7 @@ describe('import workflow option helpers', () => {
     expect(groups.indexOf('Optional fields')).toBeGreaterThan(groups.lastIndexOf('Required fields'))
   })
 
+
   it('marks an archived account wherever it is offered', () => {
     const options = buildImportAccountOptions([
       createAccount({ id: 'savings', name: 'Old Savings', is_archived: true }),

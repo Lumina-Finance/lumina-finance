@@ -1,5 +1,6 @@
 import { COLUMN_TARGETS } from '@/pages/imports/constants'
 import type { ColumnMap, ColumnTarget, ColumnValidationErrors, ImportFileDraft } from '@/pages/imports/types'
+import { getMissingRequiredColumnLabels } from './workflowOptions'
 import { removeRecordKey } from './common'
 
 /**
@@ -73,10 +74,7 @@ export function isColumnMappingComplete(
 ): boolean {
   if (files.length === 0) return false
 
-  const missingRequired = COLUMN_TARGETS.some(
-    (target) => target.required && !columnMap[target.id],
-  )
-  if (missingRequired) return false
+  if (getMissingRequiredColumnLabels(columnMap).length > 0) return false
 
   const mappedHeaders = new Set(Object.values(columnMap).filter(Boolean))
   return !Object.keys(columnValidationErrors).some((header) => mappedHeaders.has(header))

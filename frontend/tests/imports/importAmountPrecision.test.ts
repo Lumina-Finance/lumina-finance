@@ -11,6 +11,7 @@ import {
   CREATE_ACCOUNT_VALUE,
   EMPTY_COLUMN_MAP,
   getRowAmountTooPreciseReason,
+  getRowCurrencyMismatchReason,
   ROW_AMOUNT_TOO_LARGE_REASON,
   ROW_AMOUNT_UNREADABLE_REASON,
 } from '@/pages/imports/constants'
@@ -120,7 +121,7 @@ function buildPayload(amount: string, accountCurrency: string, importedCurrency 
  * Builds the commit payload for one row whose account is queued for creation in the given currency,
  * which is where the row's decimal places come from when no account exists yet
  */
-function buildCreateAccountPayload(amount: string, createCurrency: string) {
+function buildCreateAccountPayload(amount: string, createCurrency: string, importedCurrency = '') {
   return buildTransactionImportPayload({
     accountById: new Map(),
     accountCreateCurrencies: { 'file-1': createCurrency },
@@ -136,7 +137,7 @@ function buildCreateAccountPayload(amount: string, createCurrency: string) {
     columnValidationErrors: {},
     currencies: CURRENCIES,
     dateFormat: 'yearFirst',
-    files: [createFile(amount)],
+    files: [createFile(amount, importedCurrency)],
     importedCategories: ['Groceries'],
   })
 }
@@ -249,11 +250,12 @@ describe('refusing a row whose amount its currency cannot hold', () => {
     expect(firstProblem(buildPayload('$12.34', 'CAD'))).toBe(ROW_AMOUNT_UNREADABLE_REASON)
   })
 
-  it('judges the amount against the account currency, not the row currency column', () => {
-    // The commit stores the row in its account's currency and discards this column, so reading the
-    // column would refuse rows the API accepts and accept rows it refuses. Both directions here
-    expect(buildPayload('12.34', 'CAD', 'JPY').rowProblems).toHaveLength(0)
-    expect(firstProblem(buildPayload('12.34', 'JPY', 'CAD'))).toBe(getRowAmountTooPreciseReason('JPY'))
+  it('judges the amount against the account currency, whatever the row states', () => {
+    // The row is stored in its account's currency, so that is what decides its decimal places. The
+    // currency the file states is a separate question, asked before this one
+    expect(buildPayload('12.34', 'CAD', 'CAD').rowProblems).toHaveLength(0)
+    expect(firstProblem(buildPayload('12.34', 'JPY'))).toBe(getRowAmountTooPreciseReason('JPY'))
+    expect(firstProblem(buildPayload('12.34', 'JPY', 'JPY'))).toBe(getRowAmountTooPreciseReason('JPY'))
   })
 
   it('takes the currency chosen for an account queued for creation', () => {
@@ -293,6 +295,8 @@ describe('previewing an amount', () => {
     expect(rows[0].transaction.amount).toBe(1234)
   })
 
+  // The commit refuses this row outright, so it only reaches the preview while the account step is
+  // still unanswered. What it shows then is the account's currency rather than the file's
   it('takes its currency from the account rather than the row currency column', () => {
     const rows = buildPreview('12.34', 'CAD', 'JPY')
 
@@ -303,5 +307,42 @@ describe('previewing an amount', () => {
   it('leaves out a row whose amount the currency cannot hold instead of rounding it', () => {
     // The commit refuses this row, and previewing it would show $1.00 for a cell reading 1.005
     expect(buildPreview('1.005', 'CAD')).toHaveLength(0)
+  })
+})
+
+describe('checking a row against the currency its account is kept in', () => {
+  // The column was offered and then ignored, so a US statement imported into a Canadian account
+  // stored every amount at face value and overstated the balance by the exchange rate
+  it('refuses a row stating a currency the account is not kept in', () => {
+    const result = buildPayload('12.34', 'CAD', 'USD')
+
+    expect(result.payload).toBeNull()
+    expect(result.rowProblems).toHaveLength(1)
+    expect(result.rowProblems[0].rowNumber).toBe(1)
+    expect(result.rowProblems[0].reason).toBe(getRowCurrencyMismatchReason('USD', 'CAD'))
+  })
+
+  it('imports a row stating the currency its account is kept in', () => {
+    expect(buildPayload('12.34', 'CAD', 'CAD').payload?.rows).toHaveLength(1)
+  })
+
+  it('reads the stated currency whatever case the file wrote it in', () => {
+    expect(buildPayload('12.34', 'CAD', 'cad').payload?.rows).toHaveLength(1)
+    expect(buildPayload('12.34', 'CAD', 'usd').rowProblems).toHaveLength(1)
+  })
+
+  it('leaves a row alone where the currency cell is blank', () => {
+    expect(buildPayload('12.34', 'CAD', '').payload?.rows).toHaveLength(1)
+  })
+
+  it('checks the currency chosen for an account queued for creation', () => {
+    expect(buildCreateAccountPayload('1234', 'JPY', 'JPY').rowProblems).toHaveLength(0)
+    expect(firstProblem(buildCreateAccountPayload('1234', 'JPY', 'CAD')))
+      .toBe(getRowCurrencyMismatchReason('CAD', 'JPY'))
+  })
+
+  it('refuses the mismatch before judging the decimals', () => {
+    // Both are wrong about this row, and the currency is the one worth acting on first
+    expect(firstProblem(buildPayload('12.34', 'JPY', 'CAD'))).toBe(getRowCurrencyMismatchReason('CAD', 'JPY'))
   })
 })

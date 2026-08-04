@@ -51,6 +51,15 @@ export interface ImportFileDraft {
   hasHeaderRow: boolean
   rows: CsvRow[]
   error: string | null
+
+  /**
+   * Something worth saying about a file that still staged, such as characters the decoder could not
+   * read, told apart from `error` because the file is usable and the import can go ahead
+   *
+   * Optional rather than nullable, since only the reader sets it and every other way a draft is
+   * built has nothing to say
+   */
+  notice?: string
 }
 
 export interface PreviewTransactionRow {
@@ -82,6 +91,20 @@ export interface ImportRowProblem {
 export interface ImportBuildResult {
   errors: string[]
   rowProblems: ImportRowProblem[]
+
+  /**
+   * Things worth saying about the import that do not stop it
+   *
+   * Kept apart from `errors`, which the commit button waits on. A warning describes data that is
+   * probably wrong but might be exactly what the user meant, so refusing it would be worse
+   */
+  warnings: string[]
+
+  /**
+   * Rows the import will take but that are probably not what the user meant, listed the same way a
+   * refused row is. The commit does not wait on these
+   */
+  rowWarnings: ImportRowProblem[]
   payload: TransactionImportPayload | null
 }
 

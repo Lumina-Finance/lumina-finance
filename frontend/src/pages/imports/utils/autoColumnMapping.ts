@@ -146,6 +146,17 @@ const EXCLUDED_HEADER_PARTS: Partial<Record<ColumnTarget, string[]>> = {
   amount: ['balance', 'available', 'limit', 'rate'],
 }
 
+// How long an excluded part has to be before it is also looked for inside a run-together heading.
+// A heading written without separators has no words to check, so `accountnumber` would otherwise
+// escape the list that blocks `Account Number`. Only the longer parts are safe to look for this way,
+// because a short one appears inside ordinary words: `no` sits inside `nominee`
+const MIN_COMPACT_EXCLUSION_LENGTH = 5
+
+// How many distinct values a column needs before repetition alone reads it as a category. Two or
+// three distinct words is a flag column, which is what let a Type column of Debit and Credit take
+// the category field, while a real category column names more things than that
+const MIN_CATEGORY_DISTINCT_VALUES = 4
+
 /**
  * Infers which app field each unmapped column corresponds to, scoring both the header text and a
  * sample of its values against known patterns for each target field, then validates the resulting
@@ -154,11 +165,18 @@ const EXCLUDED_HEADER_PARTS: Partial<Record<ColumnTarget, string[]>> = {
  * A column already mapped, explicitly or from a previous inference, is left alone, and each column
  * can only be claimed by the single best-scoring target so two fields never end up pointing at the
  * same header
+ *
+ * @param decidedHeaders - Columns the user has answered for, including the ones they set to Do not
+ * import. These are left exactly as they are, so replacing the file with one carrying the same
+ * headings does not undo the answer. The decision is remembered about the column rather than about
+ * the field, so ignoring a column keeps it ignored while a different column can still fill the field
+ * it used to hold
  */
 export function inferColumnMap(
   columnMap: ColumnMap,
   files: ImportFileDraft[],
   supportedCurrencyCodes: Set<string>,
+  decidedHeaders: Set<string> = new Set(),
 ) {
   const result = validateColumnMap(columnMap, files, supportedCurrencyCodes)
   if (files.length === 0) return result
@@ -166,27 +184,38 @@ export function inferColumnMap(
   const headers = unique(files.flatMap((file) => file.headers))
   const inferredMap = { ...result.map }
 
-  const usedHeaders = new Set(Object.values(inferredMap).filter(Boolean))
+  const usedHeaders = new Set([...Object.values(inferredMap).filter(Boolean), ...decidedHeaders])
 
-  for (const target of COLUMN_TARGETS) {
-    if (inferredMap[target.id]) continue
+  // What a heading says beats what the values look like, whichever field asks first. Taking every
+  // heading match before any value match is what stops a column of short text being claimed as a
+  // merchant on its shape while the field its heading actually names is still waiting for it
+  for (const byHeadingOnly of [true, false]) {
+    for (const target of COLUMN_TARGETS) {
+      if (inferredMap[target.id]) continue
 
-    const header = getBestHeaderMatch(files, headers, usedHeaders, target.id, supportedCurrencyCodes)
-    if (!header) continue
+      const header = getBestHeaderMatch(files, headers, usedHeaders, target.id, supportedCurrencyCodes, byHeadingOnly)
+      if (!header) continue
 
-    inferredMap[target.id] = header
-    usedHeaders.add(header)
+      inferredMap[target.id] = header
+      usedHeaders.add(header)
+    }
   }
 
   return validateColumnMap(inferredMap, files, supportedCurrencyCodes)
 }
 
+/**
+ * Picks the column a field should take, or an empty string where none is good enough
+ *
+ * @param byHeadingOnly - Whether to judge on the heading alone, ignoring what the values look like
+ */
 function getBestHeaderMatch(
   files: ImportFileDraft[],
   headers: string[],
   usedHeaders: Set<string>,
   target: ColumnTarget,
   supportedCurrencyCodes: Set<string>,
+  byHeadingOnly = false,
 ) {
   let bestMatch: { header: string; score: number } | null = null
 
@@ -197,10 +226,10 @@ function getBestHeaderMatch(
     // like would otherwise claim it anyway
     if (isHeaderExcludedForTarget(header, target)) continue
 
-    const score = Math.max(
-      scoreHeaderForTarget(header, target),
-      scoreValuesForTarget(files, header, target, supportedCurrencyCodes),
-    )
+    const headerScore = scoreHeaderForTarget(header, target)
+    const score = byHeadingOnly
+      ? headerScore
+      : Math.max(headerScore, scoreValuesForTarget(files, header, target, supportedCurrencyCodes))
     if (score <= 0) continue
 
     const validation = validateColumnValues(files, header, target, supportedCurrencyCodes)
@@ -215,8 +244,14 @@ function getBestHeaderMatch(
 }
 
 function isHeaderExcludedForTarget(header: string, target: ColumnTarget) {
-  const parts = normalizeHeader(header).split(' ')
-  return (EXCLUDED_HEADER_PARTS[target] ?? []).some((excluded) => parts.includes(excluded))
+  const normalized = normalizeHeader(header)
+  const parts = normalized.split(' ')
+  const compact = normalized.replace(/\s/g, '')
+
+  return (EXCLUDED_HEADER_PARTS[target] ?? []).some((excluded) => (
+    parts.includes(excluded)
+    || (excluded.length >= MIN_COMPACT_EXCLUSION_LENGTH && compact.includes(excluded))
+  ))
 }
 
 function scoreHeaderForTarget(header: string, target: ColumnTarget) {
@@ -224,7 +259,12 @@ function scoreHeaderForTarget(header: string, target: ColumnTarget) {
   if (!normalized) return 0
 
   const compact = normalized.replace(/\s/g, '')
-  const aliasScore = HEADER_ALIAS_SCORES[target][compact]
+
+  // Asked of the table's own keys rather than by reading the property, because a column named
+  // constructor would otherwise return the function every object inherits, which is truthy and
+  // turns the comparison against it into a value nothing can beat
+  const aliases = HEADER_ALIAS_SCORES[target]
+  const aliasScore = Object.hasOwn(aliases, compact) ? aliases[compact] : 0
   if (aliasScore) return aliasScore
 
   const containsScore = HEADER_CONTAINS_SCORES[target].find((match) => normalized.includes(match.value))?.score
@@ -259,6 +299,11 @@ function scoreValuesForTarget(
   if (target === 'category_id') {
     if (textRatio < 0.8 || averageTextLength > 42) return 0
     if (getRatio(textValues, isCategoryLikeValue) >= 0.4) return 58
+
+    // Repetition on its own only reads as a category once the column names enough different things
+    const distinctCount = unique(textValues.map(normalizeValue)).length
+    if (distinctCount < MIN_CATEGORY_DISTINCT_VALUES) return 0
+
     return uniqueRatio <= 0.35 && dominantRatio < 0.75 ? 40 : 0
   }
   if (target === 'merchant_id') {
@@ -321,8 +366,16 @@ function normalizeValue(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
 }
 
+/**
+ * Reduces a heading to lower-case words separated by single spaces
+ *
+ * A name written in camel case is split first, so `AccountNumber` reads as the two words
+ * `Account Number` already does and the checks that work on words see both of them. Squeezing the
+ * spaces back out afterwards gives the same key either spelling, so the alias table is unaffected
+ */
 function normalizeHeader(header: string) {
   return header
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
     .toLowerCase()
     .replace(/&/g, ' and ')
     .replace(/[^a-z0-9]+/g, ' ')

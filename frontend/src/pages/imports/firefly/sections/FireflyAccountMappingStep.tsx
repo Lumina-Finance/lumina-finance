@@ -86,7 +86,7 @@ export function FireflyAccountMappingStep({
       title="Account Mapping"
       description="Asset and liability accounts from the export must map to an existing account or a new one."
     >
-      <ImportNotice>
+      <ImportNotice title="Currency Handling">
         Amounts are written in each mapped account&apos;s currency. Rows without an amount in that currency are skipped and reported after the import.
       </ImportNotice>
       {trackedAccountNames.length === 0 ? (

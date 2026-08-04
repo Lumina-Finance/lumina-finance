@@ -15,11 +15,20 @@ function getRowProblemsTitle(count: number) {
 }
 
 /**
+ * Builds the heading over the rows that will import but are worth a look, which says they are not
+ * blocking so the two tables are not read as the same thing
+ */
+function getRowWarningsTitle(count: number) {
+  return `${count} row${count === 1 ? '' : 's'} will import but may not be what you meant`
+}
+
+/**
  * Preview step of the generic CSV import flow, showing a sample of the compiled transactions or,
  * when required columns are still unmapped, which ones are missing instead
  *
  * Rows that cannot be converted are listed above the sample with the reason each was refused, and
- * the import stays refused until every one of them is gone
+ * the import stays refused until every one of them is gone. Rows that will import but are probably
+ * not what the user meant are listed under them, and hold nothing up
  */
 export function ImportPreviewStep({
   missingRequiredColumnLabels,
@@ -39,6 +48,15 @@ export function ImportPreviewStep({
           <ImportRowProblemsTable
             title={getRowProblemsTitle(importBuild.rowProblems.length)}
             rowProblems={importBuild.rowProblems}
+            headers={headers}
+          />
+        </div>
+      )}
+      {importBuild.rowWarnings.length > 0 && (
+        <div className="mb-4">
+          <ImportRowProblemsTable
+            title={getRowWarningsTitle(importBuild.rowWarnings.length)}
+            rowProblems={importBuild.rowWarnings}
             headers={headers}
           />
         </div>

@@ -224,7 +224,7 @@ describe('validating a date column', () => {
     const files = [createDateFile(['July 4th, 2024'])]
 
     expect(validateColumnValues(files, 'Date', 'dt', SUPPORTED_CURRENCY_CODES, 'written').message)
-      .toBe('Expected valid dates in the written format, such as April 30, 2026; every row must have a value. "July 4th, 2024" is not a valid date.')
+      .toBe('Expected valid dates in the written format, such as April 30, 2026; every row must have a value. Row 1 has "July 4th, 2024", which is not a valid date.')
   })
 
   it('names every format in sentence case', () => {
@@ -249,7 +249,7 @@ describe('validating a date column', () => {
     const result = validateColumnValues(files, 'Date', 'dt', SUPPORTED_CURRENCY_CODES, 'yearFirst')
 
     expect(result.valid).toBe(false)
-    expect(result.message).toContain('"2024-02-31" is not a valid date')
+    expect(result.message).toContain('Row 1 has "2024-02-31", which is not a valid date')
     expect(result.message).not.toContain('does not match')
   })
 })

@@ -103,4 +103,136 @@ describe('import column inference', () => {
     expect(map.amount).toBe('Amount')
     expect(Object.values(map)).not.toContain('Balance')
   })
+
+  // The list barring the account field from an account-number column matched whole words only, so a
+  // heading written without a separator walked straight past it and account resolution then ran on
+  // the numbers
+  it('bars the account field from an account-number column written without a separator', () => {
+    const files = [createFile(
+      ['Date', 'AccountNumber', 'Amount', 'Category'],
+      [
+        { Date: '2026-04-11', AccountNumber: '1234567890', Amount: '-12.00', Category: 'Groceries' },
+        { Date: '2026-04-12', AccountNumber: '1234567890', Amount: '-8.00', Category: 'Groceries' },
+      ],
+    )]
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(map.account_id).toBe('')
+    expect(map.amount).toBe('Amount')
+    expect(Object.values(map)).not.toContain('AccountNumber')
+  })
+
+  it('bars the account field from an account-number column written all in one word', () => {
+    const files = [createFile(
+      ['Date', 'accountnumber', 'Amount', 'Category'],
+      [
+        { Date: '2026-04-11', accountnumber: '1234567890', Amount: '-12.00', Category: 'Groceries' },
+        { Date: '2026-04-12', accountnumber: '1234567890', Amount: '-8.00', Category: 'Groceries' },
+      ],
+    )]
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(map.account_id).toBe('')
+    expect(map.amount).toBe('Amount')
+  })
+
+  // A column of short text reads as a merchant on its values alone, which used to let it take a
+  // column whose heading named the field still waiting for it
+  it('gives a column to the field its heading names, not the one its values resemble', () => {
+    const files = [createFile(
+      ['Date', 'Amount', 'Category', 'Notes'],
+      [
+        { Date: '2026-04-11', Amount: '-12.00', Category: 'Groceries', Notes: 'weekly shop' },
+        { Date: '2026-04-12', Amount: '-8.00', Category: 'Groceries', Notes: 'bread' },
+      ],
+    )]
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(map.notes).toBe('Notes')
+    expect(map.merchant_id).toBe('')
+  })
+
+  // Repetitive short text scored for the category field on the values alone, so a direction column
+  // was pre-filled as the category and the user had to notice and undo it
+  it('leaves a direction column alone rather than reading it as the category', () => {
+    const files = [createFile(
+      ['Date', 'Amount', 'Type'],
+      [
+        { Date: '2026-04-11', Amount: '-12.00', Type: 'Debit' },
+        { Date: '2026-04-12', Amount: '-8.00', Type: 'Debit' },
+        { Date: '2026-04-13', Amount: '20.00', Type: 'Credit' },
+        { Date: '2026-04-14', Amount: '-5.00', Type: 'Debit' },
+        { Date: '2026-04-15', Amount: '30.00', Type: 'Credit' },
+        { Date: '2026-04-16', Amount: '40.00', Type: 'Credit' },
+      ],
+    )]
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(map.category_id).toBe('')
+    expect(Object.values(map)).not.toContain('Type')
+  })
+
+  // Reading the alias table by property returned the function every object inherits for this one
+  // name, which is truthy, and comparing scores against it left a value nothing could beat: the
+  // column claimed whichever field reached it first, and no later column could displace it
+  it('scores a column named after an inherited property as any other unknown word', () => {
+    const files = [createFile(
+      ['Date', 'constructor', 'Amount', 'Category'],
+      [
+        { Date: '2026-04-11', ['constructor']: 'alpha', Amount: '-12.00', Category: 'Groceries' },
+        { Date: '2026-04-12', ['constructor']: 'beta', Amount: '-8.00', Category: 'Groceries' },
+      ],
+    )]
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+    // Every other column still lands where its heading says, which the unbeatable score prevented
+    expect(map.dt).toBe('Date')
+    expect(map.amount).toBe('Amount')
+    expect(map.category_id).toBe('Category')
+
+    // The name buys it nothing. It is now read on its values like any other column of short text,
+    // which is a merchant rather than the account it used to claim
+    expect(map.account_id).toBe('')
+  })
+})
+
+describe('remembering which columns the user answered for', () => {
+  const files = [createFile(
+    ['Date', 'Amount', 'Category', 'Notes'],
+    [
+      { Date: '2026-04-11', Amount: '-12.00', Category: 'Groceries', Notes: 'weekly shop' },
+      { Date: '2026-04-12', Amount: '-8.00', Category: 'Groceries', Notes: 'bread' },
+    ],
+  )]
+
+  it('refills a field the user never answered for when the file is read again', () => {
+    const cleared = { ...inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES).map, notes: '' }
+
+    const { map } = inferColumnMap(cleared, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(map.notes).toBe('Notes')
+  })
+
+  it('leaves a column the user set to Do not import alone when the file is replaced', () => {
+    const cleared = { ...inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES).map, notes: '' }
+
+    const { map } = inferColumnMap(cleared, files, SUPPORTED_CURRENCY_CODES, new Set(['Notes']))
+
+    expect(map.notes).toBe('')
+    expect(Object.values(map)).not.toContain('Notes')
+  })
+
+  it('still fills the other fields around an answered column', () => {
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES, new Set(['Notes']))
+
+    expect(map.dt).toBe('Date')
+    expect(map.amount).toBe('Amount')
+    expect(map.category_id).toBe('Category')
+    expect(map.notes).toBe('')
+  })
 })

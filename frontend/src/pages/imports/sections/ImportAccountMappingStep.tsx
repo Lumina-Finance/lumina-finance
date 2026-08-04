@@ -150,7 +150,7 @@ export function ImportAccountMappingStep({
 
   return (
     <ImportStep index="03" title="Account Mapping">
-      <ImportNotice>
+      <ImportNotice title="Currency Handling">
         Imported amounts are treated as raw values. During import, each amount will be assigned the base currency of the mapped account or the currency selected for a new account.
       </ImportNotice>
       {accountMappingSources.length === 0 ? (
@@ -161,7 +161,7 @@ export function ImportAccountMappingStep({
       ) : (
         <>
           {archivedAccountMatches.length > 0 && (
-            <ImportNotice>
+            <ImportNotice title="Archived Accounts">
               {`${ARCHIVED_ACCOUNT_MATCH_EXPLANATION} ${archivedAccountMatches.join(', ')}`}
             </ImportNotice>
           )}

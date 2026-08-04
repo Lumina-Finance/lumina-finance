@@ -23,7 +23,9 @@ export async function readFireflyCsvFile(
   kind: FireflyFileKind,
   supportedCurrencyCodes: Set<string>,
 ): Promise<ImportFileDraft> {
-  const draft = await readCsvFile(file, supportedCurrencyCodes)
+  // A budgets export listing no budgets is an ordinary thing to have, and the flow takes the file as
+  // optional, so headings with nothing under them are only refused for the transactions export
+  const draft = await readCsvFile(file, supportedCurrencyCodes, { requireDataRows: kind === 'transactions' })
   if (draft.error) return draft
 
   const headers = new Set(draft.headers)

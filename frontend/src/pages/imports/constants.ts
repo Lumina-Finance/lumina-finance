@@ -34,8 +34,8 @@ export const COLUMN_TARGETS: Array<{
   },
   { id: 'dt', label: 'Date', hint: 'Transaction date.', required: true },
   { id: 'category_id', label: 'Category', hint: 'Resolved from imported category text.', required: true },
-  { id: 'amount', label: 'Amount', hint: 'Raw signed amount.', required: true },
-  { id: 'currency', label: 'Currency', hint: 'ISO currency code.' },
+  { id: 'amount', label: 'Amount', hint: 'The transaction amount, negative for money out and positive for money in.', required: true },
+  { id: 'currency', label: 'Currency', hint: 'ISO currency code. Checked against the account each row is written to.' },
   { id: 'merchant_id', label: 'Merchant', hint: 'Resolved from imported merchant text.' },
   { id: 'notes', label: 'Notes', hint: 'Optional transaction notes.' },
   { id: 'tag_ids', label: 'Tags', hint: 'Resolved from imported tag text.' },
@@ -76,6 +76,32 @@ export function getRowAmountTooPreciseReason(currency: string) {
 }
 export const ROW_COUNTERPARTY_NOT_A_TRANSFER_REASON = 'A non-transfer transaction should not have a counterparty account recorded.'
 export const ROW_COUNTERPARTY_IS_OWN_ACCOUNT_REASON = 'A transfer cannot record its own account as its counterparty.'
+
+/**
+ * Says a row states a currency its account is not kept in
+ *
+ * Both codes are given because the fix is a choice between them: either the row belongs in a
+ * different account, or the column mapped as the currency is not what it looked like
+ */
+export function getRowCurrencyMismatchReason(rowCurrency: string, accountCurrency: string) {
+  return `This row is in ${rowCurrency} but the account it would be written to is kept in ${accountCurrency}. Amounts are stored in the account's currency and are not converted, so write these rows to a ${rowCurrency} account, or set the Currency column to Do not import to bring them in as ${accountCurrency}.`
+}
+// Said against a row whose amount runs the opposite way to the kind of the category it is filed
+// under. It imports, because a refund inside an expense category is real, but the app counts such a
+// row two ways: cash flow reads the sign while the category total reads the kind
+export const ROW_SIGN_DISAGREES_WITH_CATEGORY_REASON = 'The amount runs the opposite way to the kind of category this row is filed under.'
+
+// Shown once for the whole file where every amount reads as money coming in, which almost always
+// means the file states direction somewhere this reading is not looking
+export const NO_OUTFLOWS_WARNING = 'Every row in this file reads as money coming in. If this file writes money out without a minus sign, or states the direction in a separate column, the amounts have to be corrected in the file before importing.'
+
+/**
+ * Shown above the column mapping table, saying how the importer reads an amount
+ *
+ * The rule is stated because the file is read one way and one way only, so a statement written to a
+ * different convention has to be corrected before it is uploaded rather than mapped around
+ */
+export const AMOUNT_CONVENTION_NOTE = 'Imported amounts carry their own direction: money out is negative and money in is positive. An expense category normally holds negative amounts and an income category positive ones. The other way round is accepted for a refund or a loss, and those rows are listed for you to check before the import runs.'
 
 // Shown where a source rows are written to matches an account the user has archived, which is the
 // one account that source is not offered. The matched account names follow it

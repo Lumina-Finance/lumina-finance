@@ -4,19 +4,23 @@ import type { Currency } from '@/api/currency'
 import type { Institution } from '@/api/institutions'
 import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, DEFAULT_CATEGORY_ICON } from '@/pages/imports/constants'
 import { BALANCE_ADJUSTMENT_CATEGORY_NAME, doesTransferRecordCounterpartyAccount, OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
-import type { ColumnMap, ImportCategoryKind, ImportFileDraft, ImportRowProblem, PreviewTransactionRow } from '@/pages/imports/types'
+import type {
+  ColumnMap,
+  ImportCategoryKind,
+  ImportFileDraft,
+  ImportRowProblem,
+  PreviewTransactionRow,
+} from '@/pages/imports/types'
 import { getImportAccountName } from './accountMapping'
 import { getImportRowId } from './common'
-import { splitImportedValues } from './categoryMatching'
-import { getMappedValue } from './columnMapping'
+import { getCategoryMatchKind } from './categoryMatching'
 import { findCurrencyExponent } from '@/utils/moneyInput'
+import { getCurrencyByAccountSource, type ImportRowContext, resolveImportRow } from './rowResolution'
 import { getSupportedCurrencyCodes } from './workflowOptions'
 import {
   type ImportDateFormat,
   getPreviewDateLabel,
   isSupportedCurrency,
-  parseImportNumber,
-  readImportDate,
   toImportMinorUnits,
 } from './valueParsers'
 
@@ -87,36 +91,44 @@ export function buildImportPreviewRows({
   const supportedCurrencyCodes = getSupportedCurrencyCodes(currencies)
   const timestamp = new Date().toISOString()
 
+  // Every row is read the same way the commit reads it, so the preview cannot show one thing and
+  // send another
+  const rowContext: ImportRowContext = {
+    columnMap,
+    dateFormat,
+    currencyByAccountSource: getCurrencyByAccountSource(resolvedAccountMappings, accountById, accountCreateCurrencies),
+  }
+
   // Preview generation walks files in row order and stops early because the UI only renders a small sample
   for (const file of files) {
     for (let rowIndex = 0; rowIndex < file.rows.length; rowIndex += 1) {
       if (problemRowIds.has(getImportRowId(file.id, rowIndex))) continue
 
       const row = file.rows[rowIndex]
-      const accountSource = columnMap.account_id ? getMappedValue(row, columnMap.account_id) : file.id
-      const accountLabel = columnMap.account_id ? accountSource : getImportAccountName(file.name)
-      const accountChoice = resolvedAccountMappings[accountSource] ?? ''
+      const resolved = resolveImportRow(row, file.id, rowContext)
+      const accountLabel = columnMap.account_id ? resolved.accountSource : getImportAccountName(file.name)
+      const accountChoice = resolvedAccountMappings[resolved.accountSource] ?? ''
       const account = accountChoice === CREATE_ACCOUNT_VALUE ? undefined : accountById.get(accountChoice)
       const createAccountCurrency = accountChoice === CREATE_ACCOUNT_VALUE
-        ? accountCreateCurrencies[accountSource] ?? ''
+        ? accountCreateCurrencies[resolved.accountSource] ?? ''
         : ''
       const createAccountInstitution = accountChoice === CREATE_ACCOUNT_VALUE
-        ? institutionById.get(accountCreateInstitutions[accountSource] ?? '')
+        ? institutionById.get(accountCreateInstitutions[resolved.accountSource] ?? '')
         : undefined
-      const importedDate = getMappedValue(row, columnMap.dt)
-      const dt = dateFormat ? readImportDate(importedDate, dateFormat) : ''
-      const merchant = getMappedValue(row, columnMap.merchant_id)
-      const notes = getMappedValue(row, columnMap.notes)
+      const dt = resolved.dt
+
+      // The currency the commit will store the row in, and the display fallback only where the
+      // account step has not been answered yet, which is a state the preview runs in and the
+      // commit does not
       const currency = getPreviewCurrency(
+        resolved.currency,
         account?.currency,
         createAccountCurrency,
         fallbackCurrency,
         supportedCurrencyCodes,
       )
-      const rawAmount = getMappedValue(row, columnMap.amount)
-      const amountValue = parseImportNumber(rawAmount) ?? 0
       const exponent = findCurrencyExponent(currencies, currency)
-      const minorUnits = exponent === null ? 'unreadable' : toImportMinorUnits(rawAmount, exponent)
+      const minorUnits = exponent === null ? 'unreadable' : toImportMinorUnits(resolved.amount, exponent)
 
       // A row whose amount this currency cannot hold is one the commit will refuse, so it is left
       // out rather than previewed with a rounded number. It is usually already excluded as a
@@ -128,15 +140,13 @@ export function buildImportPreviewRows({
       // Past the range a number holds exactly this loses digits, which is a display artifact on an
       // amount around ninety trillion in a two-decimal currency. The commit sends the cell's text
       const amount = Number(minorUnits)
-      const importedCategory = getMappedValue(row, columnMap.category_id)
-      const importedTagValues = splitImportedValues(getMappedValue(row, columnMap.tag_ids))
+      const importedTagValues = resolved.tagNames
       const category = getPreviewCategory(
-        importedCategory,
+        resolved.categorySource,
         resolvedCategoryMappings,
         categoryById,
         categoryCreateKinds,
         categoryTypesBySource,
-        amountValue,
       )
       const tagIds = importedTagValues.map((tag, tagIndex) => `${file.id}-${rowIndex}-tag-${tagIndex}-${tag}`)
 
@@ -144,9 +154,7 @@ export function buildImportPreviewRows({
       // can hold one, and the answer is whatever that source was mapped to, which can be an account
       // or money leaving the app
       const recordsCounterparty = doesPreviewCategoryRecordCounterparty(category)
-      const counterpartySource = recordsCounterparty && columnMap.counterparty_account_id
-        ? getMappedValue(row, columnMap.counterparty_account_id).trim()
-        : ''
+      const counterpartySource = recordsCounterparty ? resolved.counterpartySource ?? '' : ''
       const counterpartyChoice = counterpartySource ? resolvedAccountMappings[counterpartySource] ?? '' : ''
       const counterpartyAccount = counterpartyChoice === CREATE_ACCOUNT_VALUE || counterpartyChoice === OUTSIDE_ACCOUNT_VALUE
         ? undefined
@@ -171,15 +179,15 @@ export function buildImportPreviewRows({
           created_by_user_id: 'import-preview',
           account_id: account?.id ?? accountChoice,
           dt,
-          merchant_id: merchant ? `import-preview-merchant-${file.id}-${rowIndex}` : null,
-          merchant_name: merchant || null,
+          merchant_id: resolved.merchantName ? `import-preview-merchant-${file.id}-${rowIndex}` : null,
+          merchant_name: resolved.merchantName,
           category_id: category?.id ?? '',
           amount,
           account_amount: amount,
           base_currency_amount: amount,
           currency,
           fx_rate: null,
-          notes: notes || null,
+          notes: resolved.notes,
 
           counterparty_account_id: counterpartyAccount?.id ?? (counterpartyChoice === CREATE_ACCOUNT_VALUE ? CREATE_ACCOUNT_VALUE : null),
           counterparty_account_scope: getPreviewCounterpartyScope(recordsCounterparty, counterpartyChoice),
@@ -224,21 +232,25 @@ function getPreviewCounterpartyScope(recordsCounterparty: boolean, counterpartyC
 }
 
 /**
- * Picks the currency a previewed transaction will use, preferring the mapped account's currency
- * over the currency chosen for a new account and then the caller's fallback, and falling back to
- * CAD when none of those is a supported currency
+ * Picks the currency a previewed transaction is shown in, taking the first of the candidates the
+ * loaded currency list actually holds and falling back to CAD when none of them is
  *
- * The row's own currency column is deliberately not consulted. A row is stored in its account's
- * currency, so previewing it in the imported one would show an amount scaled by decimal places
- * the import will not use
+ * The row's settled currency leads, which is the one the commit will store it in. The rest are only
+ * reached before the account step has been answered, or where an account is kept in a currency the
+ * API did not serve, and they exist so the preview shows the row rather than dropping it
+ *
+ * The row's own currency column is deliberately not among them. A row is stored in its account's
+ * currency, so previewing it in the imported one would show an amount scaled by decimal places the
+ * import will not use, and a row whose two currencies disagree is refused before it reaches here
  */
 export function getPreviewCurrency(
+  rowCurrency: string,
   accountCurrency: string | undefined,
   createAccountCurrency: string,
   fallbackCurrency: string,
   supportedCurrencyCodes: Set<string>,
 ) {
-  for (const currency of [accountCurrency, createAccountCurrency, fallbackCurrency]) {
+  for (const currency of [rowCurrency, accountCurrency, createAccountCurrency, fallbackCurrency]) {
     const normalized = currency?.trim().toUpperCase()
     if (normalized && isSupportedCurrency(normalized, supportedCurrencyCodes)) return normalized
   }
@@ -249,6 +261,11 @@ export function getPreviewCurrency(
 /**
  * Resolves the category a previewed transaction will use, building a placeholder record for a
  * category queued to be created and looking up an existing one otherwise
+ *
+ * The kind comes from the same reading the commit uses, so the two cannot disagree. Where that
+ * reading has no answer yet, which is a source whose amounts run both ways or one with no readable
+ * amounts, the row previews without a category rather than being shown a kind guessed from its own
+ * sign that the commit would then refuse
  */
 export function getPreviewCategory(
   importedCategory: string,
@@ -256,18 +273,25 @@ export function getPreviewCategory(
   categoryById: Map<string, Category>,
   categoryCreateKinds: Record<string, ImportCategoryKind>,
   categoryTypesBySource: Record<string, string>,
-  amount: number,
 ) {
   if (!importedCategory) return undefined
 
   const mapped = categoryMappings[importedCategory]
   if (mapped === CREATE_CATEGORY_VALUE) {
+    const kind = getCategoryMatchKind(
+      '',
+      categoryCreateKinds[importedCategory],
+      categoryTypesBySource[importedCategory],
+      categoryById,
+    )
+    if (!kind) return undefined
+
     return {
       id: `import-preview-category-${importedCategory}`,
       group_id: null,
       owner_id: null,
       name: importedCategory,
-      kind: getPreviewCategoryKind(categoryCreateKinds[importedCategory], categoryTypesBySource[importedCategory], amount),
+      kind,
       icon: DEFAULT_CATEGORY_ICON,
       is_system: false,
       created_at: '',
@@ -276,21 +300,4 @@ export function getPreviewCategory(
 
   if (mapped) return categoryById.get(mapped)
   return undefined
-}
-
-/**
- * Determines the kind a previewed category will be created with, preferring an explicit choice over
- * a kind implied by the imported data, and falling back to the transaction amount's sign
- */
-export function getPreviewCategoryKind(
-  categoryKind: ImportCategoryKind | undefined,
-  categoryType: string | undefined,
-  amount: number,
-): Category['kind'] {
-  if (categoryKind) return categoryKind
-  if (categoryType === 'Transfer') return 'transfer'
-  if (categoryType === 'Income') return 'income'
-  if (categoryType === 'Expense') return 'expense'
-  if (amount > 0) return 'income'
-  return 'expense'
 }
