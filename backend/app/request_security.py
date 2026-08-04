@@ -36,7 +36,16 @@ class RequestBodySizeLimitMiddleware:
             await self.app(scope, receive, send)
             return
 
-        if self._is_declared_length_over_cap(scope):
+        declared_length, carries_body = _read_body_headers(scope)
+
+        # A request declaring neither a length nor a chunked encoding carries no body, so it
+        # is handed straight on and keeps reading from the server rather than from a replay
+        if not carries_body:
+            await self.app(scope, receive, send)
+            return
+
+        # A declared length refuses an oversized body without reading any of it
+        if declared_length is not None and declared_length > self.max_body_bytes:
             await self._reject(send)
             return
 
@@ -58,21 +67,33 @@ class RequestBodySizeLimitMiddleware:
 
         await self.app(scope, _replay(bytes(body)), send)
 
-    def _is_declared_length_over_cap(self, scope) -> bool:
-        """Whether the request declares a Content-Length larger than the cap
-
-        A declared length lets an oversized body be refused without reading it. A missing
-        or unparseable one is not trusted either way, since the counter above decides
-        """
-        for name, value in scope["headers"]:
-            if name == b"content-length":
-                return value.isdigit() and int(value) > self.max_body_bytes
-        return False
-
     async def _reject(self, send) -> None:
         """Send the 413 the app would otherwise have to produce after reading the body"""
         await send(_TOO_LARGE_RESPONSE_START)
         await send({"type": "http.response.body", "body": _TOO_LARGE_BODY})
+
+
+def _read_body_headers(scope) -> tuple[int | None, bool]:
+    """Return the declared body length and whether the request carries a body at all
+
+    A declared length that will not parse still counts as carrying one, leaving the running
+    count to decide it rather than letting a malformed header skip the guard
+
+    Args:
+        scope: ASGI connection scope
+
+    Returns:
+        The declared length or None, paired with whether a body is expected
+    """
+    declared_length = None
+    carries_body = False
+    for name, value in scope["headers"]:
+        if name == b"content-length":
+            declared_length = int(value) if value.isdigit() else None
+            carries_body = carries_body or value != b"0"
+        elif name == b"transfer-encoding":
+            carries_body = carries_body or b"chunked" in value.lower()
+    return declared_length, carries_body
 
 
 def _replay(body: bytes, trailing_message: dict | None = None):
