@@ -26,9 +26,9 @@ export interface ImportReferenceData {
   /**
    * Whether the currency list could not be fetched
    *
-   * Told apart from an empty list, because reading a file needs the real list: which codes are
-   * currencies and how many decimal places each has are both answered from it, and a failed fetch
-   * would otherwise read as every code being unsupported
+   * Reading a file needs the real list, since a code absent from it counts as no currency at all,
+   * so both flows block their upload until the list arrives. This says which of the two things
+   * happened, so the user is told to reload rather than to wait
    */
   currenciesError: boolean
   selectableAccounts: AccountsOverview[]

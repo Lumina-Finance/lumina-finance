@@ -8,7 +8,8 @@ import { buildParsedCsv } from '@/pages/imports/utils'
 const SUPPORTED_CURRENCY_CODES = new Set(['CAD', 'USD', 'EUR', 'JPY'])
 
 /**
- * Splits CSV text into the records the parser hands over, dropping blank lines the way it does
+ * Splits CSV text into the records the parser hands over, which for these fixtures is a split on
+ * lines and commas with each cell trimmed
  */
 function toRecords(csv: string) {
   return csv
@@ -39,8 +40,8 @@ describe('detecting a header row', () => {
   })
 
   it('reads a heading row mixing a known alias with terse words as headings', () => {
-    // One recognized alias was not enough to save this row, because the data-like count only had
-    // to match the alias count rather than beat it
+    // Amt and Ref both counted as currencies under the browser check, so two data-like cells
+    // outweighed the one recognized alias and the row was staged as a transaction
     const parsed = stage('Date,Amt,Ref\n2026-04-11,-12.34,INV-1\n2026-04-12,-8.00,INV-2')
 
     expect(parsed.hasHeaderRow).toBe(true)
@@ -50,7 +51,7 @@ describe('detecting a header row', () => {
 
   it('reads a currency code the app does not support as an ordinary word', () => {
     // A single data-like cell in the first row was enough to rule the whole row out as headings,
-    // and ZZZ counted as one because the browser accepts any three letters
+    // and all three of these counted as one because the browser accepts any three letters
     const parsed = stage('Day,Ref,ZZZ\n2026-04-11,-12.34,x\n2026-04-12,-8.00,y')
 
     expect(parsed.hasHeaderRow).toBe(true)

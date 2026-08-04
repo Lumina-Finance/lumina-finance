@@ -662,7 +662,7 @@ export function useFireflyImportWorkflow() {
     isImportingBudgets,
     accountsLoading,
     currenciesLoading,
-    uploadBlockReason: getImportUploadBlockReason(currenciesLoading, currenciesError),
+    uploadBlockReason: getImportUploadBlockReason(currencies, currenciesError),
     institutionsLoading,
     categoriesLoading,
     accountOptions,

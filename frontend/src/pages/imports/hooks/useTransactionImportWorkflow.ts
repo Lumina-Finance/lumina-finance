@@ -528,7 +528,7 @@ export function useTransactionImportWorkflow() {
     importOverlayOpen,
     accountsLoading,
     currenciesLoading,
-    uploadBlockReason: getImportUploadBlockReason(currenciesLoading, currenciesError),
+    uploadBlockReason: getImportUploadBlockReason(currencies, currenciesError),
     institutionsLoading,
     categoriesLoading,
     accountOptions,

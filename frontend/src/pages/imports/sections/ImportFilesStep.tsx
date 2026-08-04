@@ -52,7 +52,7 @@ export function ImportFilesStep({
         hint="One file accepted."
         processing={isProcessingFiles}
         disabled={isUploadBlocked}
-        rejection={uploadBlockReason}
+        blockReason={uploadBlockReason}
         onClick={() => inputRef.current?.click()}
       />
 

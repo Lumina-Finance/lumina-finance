@@ -11,6 +11,10 @@ import { formatBytes } from '@/pages/imports/utils'
  * A rejection keeps the card in place and reports why the file was refused,
  * so the user can pick another one without losing the prompt or any guidance
  * sitting beside it
+ *
+ * A block reason is the other kind of refusal: no file can be taken at all yet,
+ * so it is shown without telling the user to choose a different one, and it
+ * leads when both are set
  */
 export function ImportUploadCard({
   title,
@@ -18,6 +22,7 @@ export function ImportUploadCard({
   processing,
   disabled,
   rejection,
+  blockReason,
   onClick,
 }: {
   title: string
@@ -25,6 +30,7 @@ export function ImportUploadCard({
   processing: boolean
   disabled: boolean
   rejection?: string | null
+  blockReason?: string | null
   onClick: () => void
 }) {
   const shouldReduceMotion = useReducedMotion()
@@ -78,7 +84,7 @@ export function ImportUploadCard({
                 <span className="h-1.5 w-6 animate-pulse [animation-delay:240ms]" style={{ background: 'var(--app-accent)' }} />
               </span>
             </motion.span>
-          ) : rejection ? (
+          ) : (blockReason ?? rejection) ? (
             <motion.span
               key="rejected"
               className="flex flex-col items-center"
@@ -92,11 +98,13 @@ export function ImportUploadCard({
                 <TriangleAlert size={20} strokeWidth={2.25} aria-hidden />
               </span>
               <span className="block text-sm font-semibold" style={{ color: 'var(--app-negative)' }}>
-                {rejection}
+                {blockReason ?? rejection}
               </span>
-              <span className="mt-1 block text-xs" style={{ color: 'var(--app-text-subtle)' }}>
-                Choose another file to try again.
-              </span>
+              {!blockReason && (
+                <span className="mt-1 block text-xs" style={{ color: 'var(--app-text-subtle)' }}>
+                  Choose another file to try again.
+                </span>
+              )}
             </motion.span>
           ) : (
             <motion.span

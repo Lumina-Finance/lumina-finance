@@ -200,6 +200,19 @@ describe('forecastFireflyImport', () => {
     expect(skipped[0].reason).toBe('Invalid amount "-12.345"')
   })
 
+  it('reports an amount past the storable range the way the backend does', () => {
+    // The backend catches its parser's malformed, over-precise and out-of-range errors in one
+    // clause and reports all three as an invalid amount, so a different wording here would name
+    // the same skipped row two ways between the preview and the result
+    const { skippedRows: skipped } = forecastFireflyImport(
+      [createFireflyRow({ amount: '99999999999999999999.00' })],
+      createOptions(),
+    )
+
+    expect(skipped).toHaveLength(1)
+    expect(skipped[0].reason).toBe('Invalid amount "99999999999999999999.00"')
+  })
+
   it('reports the one amount that parses but cannot be stored once its sign is dropped', () => {
     // This import writes the magnitude, and the signed range holds one more value below zero than
     // above it, so this amount parses and its magnitude does not fit

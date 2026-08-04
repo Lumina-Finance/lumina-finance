@@ -124,10 +124,9 @@ function FireflyFileSlot({
   const inputRef = useRef<HTMLInputElement>(null)
 
   // A rejected file never becomes a staged file, so the slot keeps its upload
-  // card and any guidance beside it and reports the refusal in place. A reason
-  // no file can be taken at all leads, since it is the one to act on first
+  // card and any guidance beside it and reports the refusal in place
   const stagedFile = file && !file.error ? file : null
-  const rejection = blockReason ?? file?.error ?? null
+  const rejection = file?.error ?? null
   const isUploadBlocked = disabled || blockReason !== null
 
   return (
@@ -176,6 +175,7 @@ function FireflyFileSlot({
               processing={processing}
               disabled={isUploadBlocked}
               rejection={rejection}
+              blockReason={blockReason}
               onClick={() => inputRef.current?.click()}
             />
             <EmptyState

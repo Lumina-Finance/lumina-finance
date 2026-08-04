@@ -176,15 +176,18 @@ export function buildTransactionImportPayload({
 
   // A row is stored in the currency of the account it is written to, which is what decides how
   // many decimal places its amount may carry, so the answer each source resolved to is settled
-  // once here and read back per row. Every source reaching this point has an answer, because an
-  // unmapped or unanswered one added an error above and returned before any row was judged
+  // once here and read back per row. A source answered as money outside the tracked accounts has
+  // no currency of its own and is left out, and no row is written to such a source anyway
+  //
+  // The code is upper-cased to match what the payload sends for a new account, so the exponent is
+  // looked up under the same spelling the API will be given
   const currencyByAccountSource: Record<string, string> = {}
   for (const source of accountSources) {
     const choice = accountMappings[source.id] ?? ''
     const code = choice === CREATE_ACCOUNT_VALUE
       ? accountCreateCurrencies[source.id] ?? ''
       : accountById.get(choice)?.currency ?? ''
-    if (code) currencyByAccountSource[source.id] = code
+    if (code) currencyByAccountSource[source.id] = code.trim().toUpperCase()
   }
 
   const rows: TransactionImportPayload['rows'] = []

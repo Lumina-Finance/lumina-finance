@@ -41,9 +41,9 @@ export const COLUMN_TARGETS: Array<{
   { id: 'tag_ids', label: 'Tags', hint: 'Resolved from imported tag text.' },
 ]
 
-// Shown over the upload control while the currency list is not in hand. Reading a file needs it
-// twice over, to tell a cell holding a currency from a header word shaped like one, and to know how
-// many decimal places an amount may carry, so a file read without it would be read wrongly
+// Shown over the upload control while the currency list is not in hand. Reading a file uses it to
+// tell a cell holding a currency from a header word shaped like one, and that decision is kept on
+// the staged file, so a file read without the list stays wrongly read once it arrives
 export const CURRENCIES_LOADING_UPLOAD_BLOCK = 'Loading currencies, which the file is read against.'
 export const CURRENCIES_FAILED_UPLOAD_BLOCK = 'Currencies could not be loaded, and a file cannot be read without them. Reload the page to try again.'
 
@@ -66,10 +66,10 @@ export const ROW_AMOUNT_TOO_LARGE_REASON = 'The amount is larger than this app c
 /**
  * Says an amount carries decimal places its currency does not have
  *
- * How many are allowed is the currency's answer rather than the importer's, so the message names
- * it. It also says how a period is read, because a file written with periods grouping the
- * thousands fails here, and without that sentence the reason reads as a complaint about a number
- * the user considers whole
+ * How many are allowed is the currency's answer rather than the importer's, so the message states
+ * it. It also says how a period is read, because an amount like 1.234 written with a period
+ * grouping the thousands fails here, and without that sentence the reason reads as a complaint
+ * about a number the user considers whole
  */
 export function getRowAmountTooPreciseReason(currency: string) {
   return `The amount has more decimal places than ${currency} has. A period is read as a decimal point, never as a separator between thousands.`

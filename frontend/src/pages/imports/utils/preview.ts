@@ -120,12 +120,13 @@ export function buildImportPreviewRows({
 
       // A row whose amount this currency cannot hold is one the commit will refuse, so it is left
       // out rather than previewed with a rounded number. It is usually already excluded as a
-      // problem row, and reaches here only where an unanswered mapping question stopped the
-      // payload build before it judged any row
+      // problem row, and reaches here either where an unanswered mapping question stopped the
+      // payload build before it judged any row, or where the currency is missing from the loaded
+      // table and there are no decimal places to convert against
       if (typeof minorUnits !== 'bigint') continue
 
-      // Past the range a number holds exactly this loses digits, which is a display artifact on
-      // an amount of about ninety trillion units. The commit sends the cell's own text
+      // Past the range a number holds exactly this loses digits, which is a display artifact on an
+      // amount around ninety trillion in a two-decimal currency. The commit sends the cell's text
       const amount = Number(minorUnits)
       const importedCategory = getMappedValue(row, columnMap.category_id)
       const importedTagValues = splitImportedValues(getMappedValue(row, columnMap.tag_ids))

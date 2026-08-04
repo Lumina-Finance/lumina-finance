@@ -8,6 +8,7 @@ import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import {
+  CREATE_ACCOUNT_VALUE,
   EMPTY_COLUMN_MAP,
   getRowAmountTooPreciseReason,
   ROW_AMOUNT_TOO_LARGE_REASON,
@@ -116,6 +117,54 @@ function buildPayload(amount: string, accountCurrency: string, importedCurrency 
 }
 
 /**
+ * Builds the commit payload for one row whose account is queued for creation in the given currency,
+ * which is where the row's decimal places come from when no account exists yet
+ */
+function buildCreateAccountPayload(amount: string, createCurrency: string) {
+  return buildTransactionImportPayload({
+    accountById: new Map(),
+    accountCreateCurrencies: { 'file-1': createCurrency },
+    accountCreateInstitutions: {},
+    accountCreateTypes: { 'file-1': 'checking' },
+    accountMappings: { 'file-1': CREATE_ACCOUNT_VALUE },
+    accountSources: [{ id: 'file-1', label: 'Everyday.csv', matchText: 'Everyday.csv', isCounterpartyOnly: false }],
+    categoryById: new Map([[GROCERIES.id, GROCERIES]]),
+    categoryCreateKinds: {},
+    categoryMappings: { Groceries: GROCERIES.id },
+    categoryTypesBySource: {},
+    columnMap: COLUMN_MAP,
+    columnValidationErrors: {},
+    currencies: CURRENCIES,
+    dateFormat: 'yearFirst',
+    files: [createFile(amount)],
+    importedCategories: ['Groceries'],
+  })
+}
+
+/**
+ * Builds preview rows for one row of the given amount against an account of the given currency
+ */
+function buildPreview(amount: string, accountCurrency: string, importedCurrency = '') {
+  return buildImportPreviewRows({
+    files: [createFile(amount, importedCurrency)],
+    columnMap: COLUMN_MAP,
+    dateFormat: 'yearFirst',
+    missingRequiredColumnLabels: [],
+    currencies: CURRENCIES,
+    accountById: new Map([['account-1', createAccount(accountCurrency)]]),
+    accountCreateCurrencies: {},
+    accountCreateInstitutions: {},
+    categoryById: new Map([[GROCERIES.id, GROCERIES]]),
+    categoryCreateKinds: {},
+    categoryTypesBySource: {},
+    institutionById: new Map(),
+    resolvedAccountMappings: { 'file-1': 'account-1' },
+    resolvedCategoryMappings: { Groceries: GROCERIES.id },
+    rowProblems: [],
+  })
+}
+
+/**
  * Reads the single row problem a build produced, or null when it produced none
  */
 function firstProblem(build: ReturnType<typeof buildPayload>) {
@@ -201,11 +250,15 @@ describe('refusing a row whose amount its currency cannot hold', () => {
   })
 
   it('judges the amount against the account currency, not the row currency column', () => {
-    // The commit stores the row in its account's currency and discards this column, so judging by
-    // the column would refuse rows the API accepts
-    const build = buildPayload('12.34', 'CAD', 'JPY')
+    // The commit stores the row in its account's currency and discards this column, so reading the
+    // column would refuse rows the API accepts and accept rows it refuses. Both directions here
+    expect(buildPayload('12.34', 'CAD', 'JPY').rowProblems).toHaveLength(0)
+    expect(firstProblem(buildPayload('12.34', 'JPY', 'CAD'))).toBe(getRowAmountTooPreciseReason('JPY'))
+  })
 
-    expect(build.rowProblems).toHaveLength(0)
+  it('takes the currency chosen for an account queued for creation', () => {
+    expect(firstProblem(buildCreateAccountPayload('12.34', 'JPY'))).toBe(getRowAmountTooPreciseReason('JPY'))
+    expect(buildCreateAccountPayload('1234', 'JPY').rowProblems).toHaveLength(0)
   })
 })
 
@@ -224,27 +277,31 @@ describe('validating a mapped currency column', () => {
 
 describe('previewing an amount', () => {
   it('scales by the table\'s exponent for a currency the browser reports differently', () => {
-    // A browser resolving PKR to zero fraction digits previewed 1234.56 as 123456 whole rupees
-    const rows = buildImportPreviewRows({
-      files: [createFile('1234.56')],
-      columnMap: COLUMN_MAP,
-      dateFormat: 'yearFirst',
-      missingRequiredColumnLabels: [],
-      currencies: CURRENCIES,
-      accountById: new Map([['account-1', createAccount('PKR')]]),
-      accountCreateCurrencies: {},
-      accountCreateInstitutions: {},
-      categoryById: new Map([[GROCERIES.id, GROCERIES]]),
-      categoryCreateKinds: {},
-      categoryTypesBySource: {},
-      institutionById: new Map(),
-      resolvedAccountMappings: { 'file-1': 'account-1' },
-      resolvedCategoryMappings: { Groceries: GROCERIES.id },
-      rowProblems: [],
-    })
+    // A browser resolving PKR to zero fraction digits scaled 1234.56 down to 1235 minor units,
+    // losing the decimals the file stated
+    const rows = buildPreview('1234.56', 'PKR')
 
     expect(rows).toHaveLength(1)
     expect(rows[0].currency).toBe('PKR')
     expect(rows[0].transaction.amount).toBe(123456)
+  })
+
+  it('does not scale a zero-decimal currency by a hundred', () => {
+    const rows = buildPreview('1234', 'JPY')
+
+    expect(rows[0].currency).toBe('JPY')
+    expect(rows[0].transaction.amount).toBe(1234)
+  })
+
+  it('takes its currency from the account rather than the row currency column', () => {
+    const rows = buildPreview('12.34', 'CAD', 'JPY')
+
+    expect(rows[0].currency).toBe('CAD')
+    expect(rows[0].transaction.amount).toBe(1234)
+  })
+
+  it('leaves out a row whose amount the currency cannot hold instead of rounding it', () => {
+    // The commit refuses this row, and previewing it would show $1.00 for a cell reading 1.005
+    expect(buildPreview('1.005', 'CAD')).toHaveLength(0)
   })
 })

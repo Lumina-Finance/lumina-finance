@@ -58,15 +58,19 @@ export function getSupportedCurrencyCodes(currencies: Currency[]) {
 /**
  * Says why a file cannot be uploaded yet, or null when it can
  *
- * Both flows read a file against the currency list, so staging one before that list is in hand
- * would detect its header row and judge its amounts against nothing
+ * Both flows read a file against the currency list, and which cells hold a currency is decided
+ * once and kept on the staged file, so a file read before that list arrives stays wrong afterwards
  *
- * @param currenciesLoading - Whether the currency list is still being fetched
+ * The list being empty is what actually blocks, rather than the two query flags: a request the
+ * browser has not started, which is what an offline page has, reports neither loading nor failed
+ * while still having no list to read against
+ *
+ * @param currencies - The currency list as it stands
  * @param currenciesError - Whether fetching the currency list failed
  */
-export function getImportUploadBlockReason(currenciesLoading: boolean, currenciesError: boolean) {
-  if (currenciesError) return CURRENCIES_FAILED_UPLOAD_BLOCK
-  return currenciesLoading ? CURRENCIES_LOADING_UPLOAD_BLOCK : null
+export function getImportUploadBlockReason(currencies: Currency[], currenciesError: boolean) {
+  if (currencies.length > 0) return null
+  return currenciesError ? CURRENCIES_FAILED_UPLOAD_BLOCK : CURRENCIES_LOADING_UPLOAD_BLOCK
 }
 
 /**
