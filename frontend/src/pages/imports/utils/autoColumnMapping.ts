@@ -152,11 +152,10 @@ const EXCLUDED_HEADER_PARTS: Partial<Record<ColumnTarget, string[]>> = {
 // because a short one appears inside ordinary words: `no` sits inside `nominee`
 const MIN_COMPACT_EXCLUSION_LENGTH = 5
 
-// How strong a value score has to be to claim a target with no agreement from the heading at all.
-// A column of readable dates or amounts really is one, so those claim on their own. The weaker
-// scores are hints rather than evidence, and a hint alone once mapped a Type column of Debit and
-// Credit to the category field
-const MIN_VALUE_SCORE_TO_CLAIM_ALONE = 80
+// How many distinct values a column needs before repetition alone reads it as a category. Two or
+// three distinct words is a flag column, which is what let a Type column of Debit and Credit take
+// the category field, while a real category column names more things than that
+const MIN_CATEGORY_DISTINCT_VALUES = 4
 
 /**
  * Infers which app field each unmapped column corresponds to, scoring both the header text and a
@@ -187,25 +186,36 @@ export function inferColumnMap(
 
   const usedHeaders = new Set([...Object.values(inferredMap).filter(Boolean), ...decidedHeaders])
 
-  for (const target of COLUMN_TARGETS) {
-    if (inferredMap[target.id]) continue
+  // What a heading says beats what the values look like, whichever field asks first. Taking every
+  // heading match before any value match is what stops a column of short text being claimed as a
+  // merchant on its shape while the field its heading actually names is still waiting for it
+  for (const byHeadingOnly of [true, false]) {
+    for (const target of COLUMN_TARGETS) {
+      if (inferredMap[target.id]) continue
 
-    const header = getBestHeaderMatch(files, headers, usedHeaders, target.id, supportedCurrencyCodes)
-    if (!header) continue
+      const header = getBestHeaderMatch(files, headers, usedHeaders, target.id, supportedCurrencyCodes, byHeadingOnly)
+      if (!header) continue
 
-    inferredMap[target.id] = header
-    usedHeaders.add(header)
+      inferredMap[target.id] = header
+      usedHeaders.add(header)
+    }
   }
 
   return validateColumnMap(inferredMap, files, supportedCurrencyCodes)
 }
 
+/**
+ * Picks the column a field should take, or an empty string where none is good enough
+ *
+ * @param byHeadingOnly - Whether to judge on the heading alone, ignoring what the values look like
+ */
 function getBestHeaderMatch(
   files: ImportFileDraft[],
   headers: string[],
   usedHeaders: Set<string>,
   target: ColumnTarget,
   supportedCurrencyCodes: Set<string>,
+  byHeadingOnly = false,
 ) {
   let bestMatch: { header: string; score: number } | null = null
 
@@ -217,13 +227,9 @@ function getBestHeaderMatch(
     if (isHeaderExcludedForTarget(header, target)) continue
 
     const headerScore = scoreHeaderForTarget(header, target)
-    const valueScore = scoreValuesForTarget(files, header, target, supportedCurrencyCodes)
-
-    // A weak reading of the values needs the heading to agree before it can claim the column, so a
-    // field is left for the user rather than pre-filled from a resemblance
-    if (headerScore === 0 && valueScore < MIN_VALUE_SCORE_TO_CLAIM_ALONE) continue
-
-    const score = Math.max(headerScore, valueScore)
+    const score = byHeadingOnly
+      ? headerScore
+      : Math.max(headerScore, scoreValuesForTarget(files, header, target, supportedCurrencyCodes))
     if (score <= 0) continue
 
     const validation = validateColumnValues(files, header, target, supportedCurrencyCodes)
@@ -293,6 +299,11 @@ function scoreValuesForTarget(
   if (target === 'category_id') {
     if (textRatio < 0.8 || averageTextLength > 42) return 0
     if (getRatio(textValues, isCategoryLikeValue) >= 0.4) return 58
+
+    // Repetition on its own only reads as a category once the column names enough different things
+    const distinctCount = unique(textValues.map(normalizeValue)).length
+    if (distinctCount < MIN_CATEGORY_DISTINCT_VALUES) return 0
+
     return uniqueRatio <= 0.35 && dominantRatio < 0.75 ? 40 : 0
   }
   if (target === 'merchant_id') {

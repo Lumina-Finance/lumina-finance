@@ -48,11 +48,21 @@ describe('refusing a column of numbers mapped to a field of names', () => {
     expect(validateColumnValues(files, 'Date', 'account_id', SUPPORTED_CURRENCY_CODES).valid).toBe(false)
   })
 
-  it('refuses an account-number column mapped to the counterparty account field', () => {
+  it('refuses a money column mapped to the counterparty account field', () => {
+    const files = createColumn('Amount', ['-1,234.56', '9.99'])
+
+    expect(validateColumnValues(files, 'Amount', 'counterparty_account_id', SUPPORTED_CURRENCY_CODES).valid)
+      .toBe(false)
+  })
+
+  // An account, a counterparty or a category can legitimately be known by a number, and a bare run
+  // of digits is an identifier as often as it is money, so only money's own shape rules a column out
+  it('accepts a column of bare identifiers, which are not money', () => {
     const files = createColumn('AccountNumber', ['1234567890', '9876543210'])
 
-    expect(validateColumnValues(files, 'AccountNumber', 'counterparty_account_id', SUPPORTED_CURRENCY_CODES).valid)
-      .toBe(false)
+    for (const target of ['account_id', 'counterparty_account_id', 'category_id'] as const) {
+      expect(validateColumnValues(files, 'AccountNumber', target, SUPPORTED_CURRENCY_CODES).valid).toBe(true)
+    }
   })
 
   // The judgement is about the column as a whole, so a shop known by its store number does not

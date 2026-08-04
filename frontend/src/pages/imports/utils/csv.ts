@@ -38,11 +38,11 @@ const MAX_REPLACEMENT_CHARACTER_SHARE = 0.05
 // guessed wrongly or the file is not a table at all
 const MIN_IMPORT_COLUMNS = 2
 
-// The parser complaint that means the file cannot be read: a quote left open, or junk after a
-// closing quote, swallows everything after it into one cell. Its other complaint,
-// UndetectableDelimiter, is deliberately not treated this way, because it fires on every
-// single-column file
-const FATAL_PARSE_ERROR_TYPE = 'Quotes'
+// The one parser complaint that means the file cannot be read. A quote left open makes the parser
+// stop where it is, so everything after that point lands in a single cell and is lost. Its other
+// complaints recover and carry on: the parser steps past a stray quote mid-field and keeps the row,
+// and it reports an undetectable delimiter for every single-column file
+const FATAL_PARSE_ERROR_CODE = 'MissingQuotes'
 
 const HEADER_ALIASES = new Set([
   'account',
@@ -196,7 +196,7 @@ async function parseCsvText(
     transform: (value) => String(value ?? '').trim(),
   })
 
-  const malformed = result.errors.find((error) => error.type === FATAL_PARSE_ERROR_TYPE)
+  const malformed = result.errors.find((error) => error.code === FATAL_PARSE_ERROR_CODE)
   if (malformed) return refuseParsedCsv(getMalformedQuoteError(malformed.row))
 
   const records: string[][] = []

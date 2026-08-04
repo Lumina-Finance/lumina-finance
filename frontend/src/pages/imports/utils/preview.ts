@@ -4,7 +4,13 @@ import type { Currency } from '@/api/currency'
 import type { Institution } from '@/api/institutions'
 import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, DEFAULT_CATEGORY_ICON } from '@/pages/imports/constants'
 import { BALANCE_ADJUSTMENT_CATEGORY_NAME, doesTransferRecordCounterpartyAccount, OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
-import type { ColumnMap, ImportCategoryKind, ImportFileDraft, ImportRowProblem, PreviewTransactionRow } from '@/pages/imports/types'
+import type {
+  ColumnMap,
+  ImportCategoryKind,
+  ImportFileDraft,
+  ImportRowProblem,
+  PreviewTransactionRow,
+} from '@/pages/imports/types'
 import { getImportAccountName } from './accountMapping'
 import { getImportRowId } from './common'
 import { getCategoryMatchKind } from './categoryMatching'
@@ -114,7 +120,8 @@ export function buildImportPreviewRows({
       // The currency the commit will store the row in, and the display fallback only where the
       // account step has not been answered yet, which is a state the preview runs in and the
       // commit does not
-      const currency = resolved.currency || getPreviewCurrency(
+      const currency = getPreviewCurrency(
+        resolved.currency,
         account?.currency,
         createAccountCurrency,
         fallbackCurrency,
@@ -225,21 +232,25 @@ function getPreviewCounterpartyScope(recordsCounterparty: boolean, counterpartyC
 }
 
 /**
- * Picks the currency a previewed transaction will use, preferring the mapped account's currency
- * over the currency chosen for a new account and then the caller's fallback, and falling back to
- * CAD when none of those is a supported currency
+ * Picks the currency a previewed transaction is shown in, taking the first of the candidates the
+ * loaded currency list actually holds and falling back to CAD when none of them is
  *
- * The row's own currency column is deliberately not consulted. A row is stored in its account's
- * currency, so previewing it in the imported one would show an amount scaled by decimal places
- * the import will not use
+ * The row's settled currency leads, which is the one the commit will store it in. The rest are only
+ * reached before the account step has been answered, or where an account is kept in a currency the
+ * API did not serve, and they exist so the preview shows the row rather than dropping it
+ *
+ * The row's own currency column is deliberately not among them. A row is stored in its account's
+ * currency, so previewing it in the imported one would show an amount scaled by decimal places the
+ * import will not use, and a row whose two currencies disagree is refused before it reaches here
  */
 export function getPreviewCurrency(
+  rowCurrency: string,
   accountCurrency: string | undefined,
   createAccountCurrency: string,
   fallbackCurrency: string,
   supportedCurrencyCodes: Set<string>,
 ) {
-  for (const currency of [accountCurrency, createAccountCurrency, fallbackCurrency]) {
+  for (const currency of [rowCurrency, accountCurrency, createAccountCurrency, fallbackCurrency]) {
     const normalized = currency?.trim().toUpperCase()
     if (normalized && isSupportedCurrency(normalized, supportedCurrencyCodes)) return normalized
   }

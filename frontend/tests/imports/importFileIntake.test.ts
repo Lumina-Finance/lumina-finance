@@ -46,6 +46,16 @@ describe('reading a file whose rows would otherwise merge or vanish', () => {
     expect(draft.rows).toHaveLength(0)
   })
 
+  // The parser steps past a stray quote inside a field and keeps the row, so the file is whole and
+  // refusing it would cost an import that loses nothing
+  it('keeps a file whose stray quote the parser read through', async () => {
+    const draft = await stage('Date,Merchant,Amount\n2026-01-01,ACME"S,-5.00\n2026-01-02,Beta,-6.00\n')
+
+    expect(draft.error).toBeNull()
+    expect(draft.rows).toHaveLength(2)
+    expect(draft.rows[0].Merchant).toBe('ACME"S')
+  })
+
   it('refuses a file with junk after a closing quote', async () => {
     const draft = await stage('Date,Amount\n"2026-01-01"x,5.00\n2026-01-02,6.00\n')
 

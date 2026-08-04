@@ -123,6 +123,38 @@ describe('import column inference', () => {
     expect(Object.values(map)).not.toContain('AccountNumber')
   })
 
+  it('bars the account field from an account-number column written all in one word', () => {
+    const files = [createFile(
+      ['Date', 'accountnumber', 'Amount', 'Category'],
+      [
+        { Date: '2026-04-11', accountnumber: '1234567890', Amount: '-12.00', Category: 'Groceries' },
+        { Date: '2026-04-12', accountnumber: '1234567890', Amount: '-8.00', Category: 'Groceries' },
+      ],
+    )]
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(map.account_id).toBe('')
+    expect(map.amount).toBe('Amount')
+  })
+
+  // A column of short text reads as a merchant on its values alone, which used to let it take a
+  // column whose heading named the field still waiting for it
+  it('gives a column to the field its heading names, not the one its values resemble', () => {
+    const files = [createFile(
+      ['Date', 'Amount', 'Category', 'Notes'],
+      [
+        { Date: '2026-04-11', Amount: '-12.00', Category: 'Groceries', Notes: 'weekly shop' },
+        { Date: '2026-04-12', Amount: '-8.00', Category: 'Groceries', Notes: 'bread' },
+      ],
+    )]
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(map.notes).toBe('Notes')
+    expect(map.merchant_id).toBe('')
+  })
+
   // Repetitive short text scored for the category field on the values alone, so a direction column
   // was pre-filled as the category and the user had to notice and undo it
   it('leaves a direction column alone rather than reading it as the category', () => {
@@ -145,7 +177,8 @@ describe('import column inference', () => {
   })
 
   // Reading the alias table by property returned the function every object inherits for this one
-  // name, which is truthy, and comparing scores against it left a value nothing could beat
+  // name, which is truthy, and comparing scores against it left a value nothing could beat: the
+  // column claimed whichever field reached it first, and no later column could displace it
   it('scores a column named after an inherited property as any other unknown word', () => {
     const files = [createFile(
       ['Date', 'constructor', 'Amount', 'Category'],
@@ -157,10 +190,14 @@ describe('import column inference', () => {
 
     const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
 
-    expect(map.account_id).toBe('')
+    // Every other column still lands where its heading says, which the unbeatable score prevented
     expect(map.dt).toBe('Date')
     expect(map.amount).toBe('Amount')
-    expect(Object.values(map)).not.toContain('constructor')
+    expect(map.category_id).toBe('Category')
+
+    // The name buys it nothing. It is now read on its values like any other column of short text,
+    // which is a merchant rather than the account it used to claim
+    expect(map.account_id).toBe('')
   })
 })
 

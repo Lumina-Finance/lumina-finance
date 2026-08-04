@@ -164,17 +164,28 @@ export function validateColumnValues(
 /**
  * Refuses a column of names whose every filled value reads as an amount or a date
  *
- * Pointing a name field at a column of numbers is a mapping mistake rather than an intent: the
- * Amount column mapped to Category used to import, creating categories called -12.34. Judging the
- * column as a whole rather than each value is what lets a merchant called by a store number through,
+ * Pointing a name field at a column of money is a mapping mistake rather than an intent: the Amount
+ * column mapped to Category used to import, creating categories called -12.34. Judging the column as
+ * a whole rather than each value is what lets an account known by a number sit among named ones,
  * since one number among names says nothing about what the column holds
  */
 function refuseColumnOfOnlyNumbersOrDates(values: string[]) {
   const filled = values.filter(Boolean)
   if (filled.length === 0) return null
-  if (!filled.every((value) => isValidAmountValue(value) || isValidDateValue(value))) return null
+  if (!filled.every((value) => isMoneyShapedValue(value) || isValidDateValue(value))) return null
 
   return 'Every value in this column reads as an amount or a date.'
+}
+
+/**
+ * Reports whether a value is written the way money is written, rather than merely being digits
+ *
+ * A run of bare digits is an identifier as often as it is an amount, and an account, a counterparty
+ * or a category can legitimately be known by a number. What money carries and an identifier does not
+ * is a sign, a decimal point, or commas grouping the thousands, so that is what rules a column out
+ */
+function isMoneyShapedValue(value: string) {
+  return isValidAmountValue(value) && /[-+.,]/.test(value.trim())
 }
 
 /**
@@ -210,9 +221,12 @@ export function getColumnValues(files: ImportFileDraft[], header: string) {
 /**
  * Reads every row's value for one header, each against the row it came from
  *
- * The row number is the position among the file's data rows, which is what a refused row is reported
- * under elsewhere, so the two agree. It is not the line in the file, because parsing drops blank
- * lines and folds a quoted value carrying a newline into one row
+ * The row number is the position among that file's data rows, which is what a refused row is
+ * reported under elsewhere, so the two agree. It is not the line in the file, because parsing drops
+ * blank lines and folds a quoted value carrying a newline into one row
+ *
+ * Numbering restarts per file, so it only reads as one number because the transaction flow stages a
+ * single file. Staging several would need the file named alongside it
  */
 function getNumberedColumnValues(files: ImportFileDraft[], header: string) {
   return files.flatMap((file) => {
