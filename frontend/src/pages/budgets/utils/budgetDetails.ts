@@ -195,6 +195,10 @@ function buildBudgetPeriodPoint(
     return values
   }, {})
   const periodStart = parseCalendarDate(period.period_start)
+  // Sorting reads the same value through getYmdTime and stops on one it cannot read, so this states
+  // the same refusal rather than labelling the column with a day the calendar rolled forward
+  if (periodStart === null) throw new Error(`Expected a YYYY-MM-DD date, received "${period.period_start}"`)
+
   const { axisLabel, hasYearLabel } = getBudgetChartAxisLabel(periodStart, recurrenceFreq)
 
   return {
@@ -254,7 +258,9 @@ function getBudgetChartTimeline(baseBudget: BaseBudget, firstPeriodStart: string
   let cursor = firstPeriodStart
   let next = nextRecurringPeriodStart(baseBudget, cursor)
 
-  while (next <= endBoundYmd) {
+  // Only the first start can fail to read, since every later one is written by formatYmd. The
+  // column builder below refuses it either way, so this guards the type rather than the outcome
+  while (next !== null && next <= endBoundYmd) {
     timeline.push(next)
     cursor = next
     next = nextRecurringPeriodStart(baseBudget, cursor)

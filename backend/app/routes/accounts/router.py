@@ -2,7 +2,6 @@
 import uuid
 from datetime import datetime
 from typing import Annotated
-from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,6 +26,7 @@ from app.schemas.account import (
     UpdateAccountRequest,
 )
 from app.schemas.dashboard import MonthlyIncomeExpense, RangeKind
+from app.utils.dates import resolve_timezone
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
 router.include_router(permissions_router)
@@ -46,8 +46,11 @@ async def list_accounts(
 
     Returns:
         Accounts the user can access
+
+    Raises:
+        HTTPException: The stored timezone does not resolve
     """
-    response_date = datetime.now(ZoneInfo(user.tz)).date()
+    response_date = datetime.now(resolve_timezone(user.tz)).date()
     accounts = await get_account_overviews_for_user(db, user, response_date)
     return accounts
 
@@ -69,9 +72,9 @@ async def get_account(
         Account with derived balance fields
 
     Raises:
-        HTTPException: User does not have read access
+        HTTPException: User does not have read access, or the stored timezone does not resolve
     """
-    response_date = datetime.now(ZoneInfo(user.tz)).date()
+    response_date = datetime.now(resolve_timezone(user.tz)).date()
     account = await get_account_response_for_user(db, account_id, user, response_date)
     return account
 
@@ -99,9 +102,9 @@ async def get_account_spending_breakdown_route(
         Spending breakdown for the account and range
 
     Raises:
-        HTTPException: User does not have read access
+        HTTPException: User does not have read access, or the stored timezone does not resolve
     """
-    as_of_dt = datetime.now(ZoneInfo(user.tz))
+    as_of_dt = datetime.now(resolve_timezone(user.tz))
     breakdown = await get_account_spending_breakdown_for_user(db, account_id, user.id, range_, as_of_dt)
     return breakdown
 
@@ -130,9 +133,9 @@ async def get_account_cash_flow_route(
         Oldest-first monthly income and expense totals
 
     Raises:
-        HTTPException: User does not have read access
+        HTTPException: User does not have read access, or the stored timezone does not resolve
     """
-    as_of_dt = datetime.now(ZoneInfo(user.tz))
+    as_of_dt = datetime.now(resolve_timezone(user.tz))
     cash_flow = await get_account_cash_flow_for_user(db, account_id, user.id, months, as_of_dt)
     return cash_flow
 
@@ -154,7 +157,7 @@ async def create_account(
         Created account with derived balance fields
 
     Raises:
-        HTTPException: Account details, ownership, or linked tax-advantaged category are invalid
+        HTTPException: Account details, ownership, or linked tax-advantaged category are invalid, or the stored timezone does not resolve
     """
     account = await create_account_for_user(db, user, data)
     return account
@@ -179,9 +182,9 @@ async def update_account(
         Updated account with derived balance fields
 
     Raises:
-        HTTPException: User lacks admin access or update fields are invalid
+        HTTPException: User lacks admin access or update fields are invalid, or the stored timezone does not resolve
     """
-    response_date = datetime.now(ZoneInfo(user.tz)).date()
+    response_date = datetime.now(resolve_timezone(user.tz)).date()
     account = await update_account_for_user(db, account_id, data, user, response_date)
     return account
 

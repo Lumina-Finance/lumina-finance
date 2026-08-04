@@ -1,8 +1,8 @@
 """User date helpers"""
 from datetime import date, datetime
-from zoneinfo import ZoneInfo
 
 from app.models.user import User
+from app.utils.dates import resolve_timezone
 
 
 def get_current_user_date(user: User) -> date:
@@ -13,6 +13,9 @@ def get_current_user_date(user: User) -> date:
 
     Returns:
         Current date in the user's timezone
+
+    Raises:
+        HTTPException: Stored timezone is not a zone the app recognizes
     """
-    current_date = datetime.now(ZoneInfo(user.tz)).date()
+    current_date = datetime.now(resolve_timezone(user.tz)).date()
     return current_date

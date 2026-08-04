@@ -18,7 +18,7 @@ import { parseYmd } from '@/utils/date'
 /**
  * Extracts the date part of a Firefly III timestamp, empty when unparseable
  *
- * A well-shaped date that names no real day, like the 31st of February, is
+ * A well-shaped value that is not a real date, like the 31st of February, is
  * unparseable too, so such rows fail here instead of failing the whole
  * upload batch on the backend
  */

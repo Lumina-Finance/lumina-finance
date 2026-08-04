@@ -1,12 +1,12 @@
-import { DATE_FORMATS, formatDate } from '@/utils/date'
+import { DATE_FORMATS, formatDate, parseYmd } from '@/utils/date'
 
 /**
- * Formats backend YYYY-MM-DD or ISO date strings for compact dashboard labels
+ * Formats a backend YYYY-MM-DD value for compact dashboard labels, falling back to the value itself
+ * when it is not a real date, so the row keeps its amount rather than disappearing
  */
 export function formatDashboardShortDate(value: string) {
-  const [datePart] = value.split('T')
-  const [year, month, day] = datePart.split('-').map(Number)
-  if (!year || !month || !day) return 'Unknown'
+  const parsed = parseYmd(value)
+  if (!parsed) return value
 
-  return formatDate(new Date(year, month - 1, day), DATE_FORMATS.monthDay)
+  return formatDate(parsed, DATE_FORMATS.monthDay)
 }

@@ -1,12 +1,19 @@
 import type { CalendarDate } from '@/pages/budgets/types'
-import { DATE_FORMATS, formatDate } from '@/utils/date'
+import { DATE_FORMATS, formatDate, parseYmd } from '@/utils/date'
 
 /**
- * Parses a backend YYYY-MM-DD value into a plain calendar date
+ * Parses a backend YYYY-MM-DD value into a plain calendar date, returning null when it is not a
+ * real date
+ *
+ * The check runs through the shared parse so there is one definition of a day the calendar has, and
+ * so an impossible stored value cannot reach the period arithmetic below and step forward from a day
+ * that was silently rolled into the next month
  */
-export function parseCalendarDate(ymd: string): CalendarDate {
-  const [year, month, day] = ymd.split('-').map(Number)
-  return { year, month, day }
+export function parseCalendarDate(ymd: string): CalendarDate | null {
+  const parsed = parseYmd(ymd)
+  if (!parsed) return null
+
+  return { year: parsed.getFullYear(), month: parsed.getMonth() + 1, day: parsed.getDate() }
 }
 
 /**

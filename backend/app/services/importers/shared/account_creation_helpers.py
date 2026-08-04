@@ -1,7 +1,6 @@
 """Transaction import account creation helpers"""
 
 import uuid
-from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
@@ -14,6 +13,7 @@ from app.models.institution import Institution
 from app.models.user import User
 from app.schemas.transaction import TransactionImportCreateAccount
 from app.services.importers.shared.validation_helpers import strip_import_text_or_raise
+from app.utils.dates import resolve_timezone
 
 
 async def create_import_account(
@@ -65,10 +65,13 @@ def _add_import_account_opening_snapshot(db: AsyncSession, account: Account, use
 
     Returns:
         None
+
+    Raises:
+        HTTPException: Stored timezone is not a zone the app recognizes
     """
     opening_snapshot = AccountBalanceSnapshot(
         account_id=account.id,
-        dt=account.created_at.astimezone(ZoneInfo(user_timezone)).date(),
+        dt=account.created_at.astimezone(resolve_timezone(user_timezone)).date(),
         balance=0,
     )
 

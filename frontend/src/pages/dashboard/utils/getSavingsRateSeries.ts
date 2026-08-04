@@ -1,6 +1,6 @@
 import type { SavingsRateWidgetResponse } from '@/api/dashboard'
 import type { SavingsRateSeriesPoint } from '@/pages/dashboard/types/dashboard'
-import { DATE_FORMATS, formatDate } from '@/utils/date'
+import { DATE_FORMATS, formatDate, parseYmd } from '@/utils/date'
 
 /**
  * Converts monthly income/expense rows into chart-ready savings-rate bars
@@ -24,14 +24,14 @@ export function getSavingsRateSeries(
       rate = null
     }
 
-    const monthDate = new Date(`${row.month}T00:00:00`)
-    const monthLabel = formatDate(monthDate, DATE_FORMATS.month)
+    const monthDate = parseYmd(row.month)
+    const monthLabel = monthDate ? formatDate(monthDate, DATE_FORMATS.month) : row.month
     const year = row.month.slice(0, 4)
     const previousYear = rows[index - 1]?.month.slice(0, 4)
 
     return {
-      monthLabel: previousYear && previousYear !== year ? `${monthLabel} '${year.slice(2)}` : monthLabel,
-      fullLabel: formatDate(monthDate, DATE_FORMATS.longMonthYear),
+      monthLabel: monthDate && previousYear && previousYear !== year ? `${monthLabel} '${year.slice(2)}` : monthLabel,
+      fullLabel: monthDate ? formatDate(monthDate, DATE_FORMATS.longMonthYear) : row.month,
       rate,
       income: row.income,
       expenses: row.expenses,

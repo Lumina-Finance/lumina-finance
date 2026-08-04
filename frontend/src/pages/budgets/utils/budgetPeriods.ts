@@ -6,7 +6,13 @@ import { addDays, addMonths, anchorDay, formatCalendarDate, parseCalendarDate } 
  * Converts a period start date into the backend recurrence anchor fields
  */
 export function recurrenceAnchorsFromStart(freq: RecurrenceFreq, periodStart: string) {
-  const { year, month, day } = parseCalendarDate(periodStart)
+  const parsed = parseCalendarDate(periodStart)
+  // A period start comes from a date column or a field that clamps to a real day, so this guards the
+  // type rather than a case seen in practice. The backend refuses an unreadable period_start
+  // whatever anchors accompany it, so leaving them unset adds no second failure
+  if (!parsed) return { recurrence_weekday: null, recurrence_dom: null, recurrence_month: null }
+
+  const { year, month, day } = parsed
   const start = new Date(year, month - 1, day)
 
   // Backend stores Monday as 0 for weekly recurrence anchors
@@ -24,10 +30,12 @@ export function recurrenceAnchorsFromStart(freq: RecurrenceFreq, periodStart: st
 }
 
 /**
- * Derives the inclusive end date for one-off budgets from the selected cadence
+ * Derives the inclusive end date for one-off budgets from the selected cadence, or null when the
+ * start is not a real date
  */
-export function oneOffPeriodEnd(form: BudgetFormState): CalendarDate {
+export function oneOffPeriodEnd(form: BudgetFormState): CalendarDate | null {
   const start = parseCalendarDate(form.periodStart)
+  if (!start) return null
 
   if (form.recurrenceFreq === 'weekly') {
     return addDays(start, 6)
@@ -48,9 +56,15 @@ export function cadenceSummary(form: BudgetFormState) {
   const safeLength = Number.isFinite(length) && length > 0 ? length : 1
   const name = form.name.trim() || 'Untitled'
 
+  const start = parseCalendarDate(form.periodStart)
+
   if (!form.recurs) {
     if (!form.periodStart) return `"${name}" is one-off`
-    return `"${name}" is one-off starting ${formatCalendarDate(parseCalendarDate(form.periodStart))} and ending ${formatCalendarDate(oneOffPeriodEnd(form))}`
+
+    const end = oneOffPeriodEnd(form)
+    if (!start || !end) return `"${name}" is one-off starting ${form.periodStart}`
+
+    return `"${name}" is one-off starting ${formatCalendarDate(start)} and ending ${formatCalendarDate(end)}`
   }
 
   let cadence: string
@@ -62,7 +76,9 @@ export function cadenceSummary(form: BudgetFormState) {
     cadence = safeLength === 1 ? 'yearly' : `every ${safeLength} years`
   }
 
-  return `"${name}" will repeat ${cadence} starting ${form.periodStart ? formatCalendarDate(parseCalendarDate(form.periodStart)) : 'the selected start date'}`
+  const startLabel = start ? formatCalendarDate(start) : (form.periodStart || 'the selected start date')
+
+  return `"${name}" will repeat ${cadence} starting ${startLabel}`
 }
 
 /**
@@ -81,7 +97,15 @@ export function budgetCadenceLabel(baseBudget: BaseBudget) {
  */
 export function formatBudgetPeriod(period: Budget | undefined) {
   if (!period) return 'No period yet'
-  return `${formatCalendarDate(parseCalendarDate(period.period_start))} - ${formatCalendarDate(parseCalendarDate(period.period_end))}`
+  return `${formatPeriodBound(period.period_start)} - ${formatPeriodBound(period.period_end)}`
+}
+
+/**
+ * Formats one end of a stored period, falling back to the value itself when it is not a real date
+ */
+function formatPeriodBound(ymd: string) {
+  const parsed = parseCalendarDate(ymd)
+  return parsed ? formatCalendarDate(parsed) : ymd
 }
 
 /**
@@ -135,10 +159,14 @@ function formatPeriodRange(start: CalendarDate, baseBudget: BaseBudget) {
 }
 
 /**
- * Returns the period start that immediately follows the supplied start after one recurrence cycle
+ * Returns the period start that immediately follows the supplied start after one recurrence cycle,
+ * or null when the supplied start is not a real date
  */
 export function nextRecurringPeriodStart(baseBudget: BaseBudget, periodStart: string) {
-  return formatYmd(addBudgetPeriod(parseCalendarDate(periodStart), baseBudget))
+  const start = parseCalendarDate(periodStart)
+  if (!start) return null
+
+  return formatYmd(addBudgetPeriod(start, baseBudget))
 }
 
 /**
@@ -148,7 +176,12 @@ export function nextBudgetPeriods(baseBudget: BaseBudget, latestPeriod: Budget |
   // Archived budgets stop generating periods, so there is nothing upcoming to preview
   if (!baseBudget.recurs || !latestPeriod || baseBudget.is_archived) return []
 
-  const nextStart = addBudgetPeriod(parseCalendarDate(latestPeriod.period_start), baseBudget)
+  // A stored start that is not a real date previews nothing, rather than previewing dates stepped
+  // from a day the calendar rolled forward
+  const latestStart = parseCalendarDate(latestPeriod.period_start)
+  if (!latestStart) return []
+
+  const nextStart = addBudgetPeriod(latestStart, baseBudget)
   const followingStart = addBudgetPeriod(nextStart, baseBudget)
 
   return [
@@ -164,8 +197,14 @@ export function missingRecurringPeriodStarts(baseBudget: BaseBudget, latestPerio
   if (!baseBudget.recurs || !latestPeriod) return []
 
   const todayDate = parseCalendarDate(today)
+  const latestStart = parseCalendarDate(latestPeriod.period_start)
+
+  // Creating periods from a start that is not a real date would write the rolled-forward day to the
+  // backend, so nothing is created until the stored value is fixed
+  if (!todayDate || !latestStart) return []
+
   const starts: string[] = []
-  let nextStart = addBudgetPeriod(parseCalendarDate(latestPeriod.period_start), baseBudget)
+  let nextStart = addBudgetPeriod(latestStart, baseBudget)
 
   // Create every elapsed start so stale budgets catch up after multiple missed cycles
   while (compareCalendarDates(nextStart, todayDate) <= 0) {

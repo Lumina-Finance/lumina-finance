@@ -93,7 +93,7 @@ export function getPreviewDateLabel(ymd: string) {
 }
 
 /**
- * Splits a value into calendar parts under one format, without judging whether they name a real day
+ * Splits a value into calendar parts under one format, without judging whether they are a real date
  */
 function readCalendarDateParts(value: string, format: ImportDateFormat): CalendarDateParts | null {
   if (format === 'written') return readWrittenDateParts(value)

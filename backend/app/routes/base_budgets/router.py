@@ -2,7 +2,6 @@
 import uuid
 from datetime import datetime
 from typing import Annotated
-from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -28,6 +27,7 @@ from app.schemas.budget import (
     CreateBudgetRequest,
     UpdateBaseBudgetRequest,
 )
+from app.utils.dates import resolve_timezone
 
 router = APIRouter(prefix="/base-budgets", tags=["base-budgets"])
 router.include_router(permissions_router)
@@ -52,9 +52,9 @@ async def update_base_budget(
         Updated base budget response
 
     Raises:
-        HTTPException: User lacks admin access or update fields are invalid
+        HTTPException: User lacks admin access or update fields are invalid, or the stored timezone does not resolve
     """
-    today = datetime.now(ZoneInfo(user.tz)).date()
+    today = datetime.now(resolve_timezone(user.tz)).date()
     return await update_base_budget_and_get_response(db, user, base_budget_id, data, today)
 
 
@@ -162,9 +162,9 @@ async def create_base_budget(
         Created base budget response
 
     Raises:
-        HTTPException: Currency, ownership, categories, or period cadence are invalid
+        HTTPException: Currency, ownership, categories, or period cadence are invalid, or the stored timezone does not resolve
     """
-    today = datetime.now(ZoneInfo(user.tz)).date()
+    today = datetime.now(resolve_timezone(user.tz)).date()
     return await create_base_budget_and_get_response(db, user, data, today)
 
 

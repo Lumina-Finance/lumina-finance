@@ -6,7 +6,6 @@ live in service modules, while this file wires the results together
 """
 from datetime import datetime as DateTime
 from typing import Annotated
-from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -31,6 +30,7 @@ from app.schemas.dashboard import (
     SpendingBreakdownResponse,
     SpendingComparisonResponse,
 )
+from app.utils.dates import resolve_timezone
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -43,10 +43,13 @@ def _get_viewer_local_now(user: User) -> DateTime:
 
     Returns:
         Viewer-local datetime for the user's timezone
+
+    Raises:
+        HTTPException: The stored timezone does not resolve
     """
     from app.routes import dashboard as dashboard_routes
 
-    now = dashboard_routes.datetime.now(ZoneInfo(user.tz))
+    now = dashboard_routes.datetime.now(resolve_timezone(user.tz))
     return now
 
 
@@ -69,6 +72,9 @@ async def get_recent_activity_widget_route(
 
     Returns:
         Recent activity widget response
+
+    Raises:
+        HTTPException: The stored timezone does not resolve
     """
     now = _get_viewer_local_now(user)
     response = await get_recent_activity_widget_for_user(db, user, window_days, now)
@@ -92,6 +98,9 @@ async def get_savings_rate_widget_route(
 
     Returns:
         Savings-rate widget response
+
+    Raises:
+        HTTPException: The stored timezone does not resolve
     """
     now = _get_viewer_local_now(user)
     response = await get_savings_rate_widget_for_user(db, user, now)
@@ -117,6 +126,9 @@ async def get_net_worth_widget_route(
 
     Returns:
         Net-worth widget response
+
+    Raises:
+        HTTPException: The stored timezone does not resolve
     """
     now = _get_viewer_local_now(user)
     response = await get_net_worth_widget_for_user(db, user, window_days, now)
@@ -139,6 +151,9 @@ async def get_credit_widget_route(
 
     Returns:
         Credit widget response
+
+    Raises:
+        HTTPException: The stored timezone does not resolve
     """
     now = _get_viewer_local_now(user)
     response = await get_credit_widget_for_user(db, user, now)
@@ -165,6 +180,9 @@ async def get_spending_comparison_route(
 
     Returns:
         Spending comparison widget response
+
+    Raises:
+        HTTPException: The stored timezone does not resolve
     """
     now = _get_viewer_local_now(user)
     response = await get_spending_comparison_for_user(db, user, range_, now)
@@ -191,6 +209,9 @@ async def get_spending_breakdown_route(
 
     Returns:
         Spending breakdown widget response
+
+    Raises:
+        HTTPException: The stored timezone does not resolve
     """
     now = _get_viewer_local_now(user)
     response = await get_spending_breakdown_for_user(db, user, range_, now)

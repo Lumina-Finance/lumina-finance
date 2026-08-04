@@ -1,6 +1,6 @@
 import { formatCurrency } from '@/utils/formatCurrency'
 import { formatCompactMoney, type CompactMoneyRule } from '@/utils/formatCompactMoney'
-import { DATE_FORMATS, formatDate } from '@/utils/date'
+import { DATE_FORMATS, formatDate, parseYmd } from '@/utils/date'
 
 export type NetWorthViewMode = 'overview' | 'composition'
 
@@ -236,10 +236,20 @@ function getGroupColor(group: NetWorthGroup) {
   )
 }
 
+/**
+ * Reads a YYYY-MM-DD date into the position the chart plots it at
+ *
+ * The position is UTC midnight built from the calendar parts rather than the browser's own midnight,
+ * because the tick spacing steps by a fixed day length and a daylight saving change inside the range
+ * would otherwise move a point off its day
+ *
+ * @throws When the string is not a real date. The series is built from a date column, so a
+ * value that shape means the response is broken rather than the data being unusual, and there is no
+ * position on a number line to fall back to the way a label can fall back to its raw string
+ */
 function dateStringToUtcMs(date: string) {
-  const [year, month, day] = date.split('-').map(Number)
-  if (year && month && day) return Date.UTC(year, month - 1, day)
+  const parsed = parseYmd(date)
+  if (parsed === null) throw new Error(`Expected a YYYY-MM-DD date, received "${date}"`)
 
-  const parsed = new Date(date)
-  return Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate())
+  return Date.UTC(parsed.getFullYear(), parsed.getMonth(), parsed.getDate())
 }

@@ -464,6 +464,22 @@ describe('budget details helpers', () => {
     expect(chartData.every((point) => !point.archived)).toBe(true)
   })
 
+  it('refuses to build a chart column for a period start that is not a real date', () => {
+    const baseBudget = createBaseBudget({ recurs: false })
+
+    // Passed straight to the chart builder rather than through getSortedBudgetPeriods, which reads
+    // the same value and stops on it first in the modal
+    const periods = [createBudget({ id: 'february', period_start: '2026-02-31' })]
+
+    expect(() => getBudgetDetailsChartData({
+      sortedPeriods: periods,
+      utilizationByBudgetId: new Map(),
+      chartCategories: [],
+      baseBudget,
+      today: ymd(2026, 3, 1),
+    })).toThrow('2026-02-31')
+  })
+
   it('labels weekly budget periods with their ISO week number', () => {
     const weeklyBudget = createBaseBudget({
       recurrence_freq: 'weekly',

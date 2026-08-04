@@ -25,6 +25,7 @@ import { getNetWorthSeries } from '@/pages/dashboard/utils/getNetWorthSeries'
 import { getRecentActivityRows } from '@/pages/dashboard/utils/getRecentActivityRows'
 import { getRunwayCaption } from '@/pages/dashboard/utils/getRunwayCaption'
 import { getRunwaySegments } from '@/pages/dashboard/utils/getRunwaySegments'
+import { getSavingsRateSeries } from '@/pages/dashboard/utils/getSavingsRateSeries'
 import {
   getSavingsRateChartData,
   getSavingsRateDisplay,
@@ -294,7 +295,26 @@ describe('dashboard logic helpers', () => {
 
   it('formats compact dashboard dates from backend date strings', () => {
     expect(formatDashboardShortDate('2026-01-05')).toBe('Jan 5')
-    expect(formatDashboardShortDate('bad-date')).toBe('Unknown')
+    expect(formatDashboardShortDate('bad-date')).toBe('bad-date')
+  })
+
+  it('keeps a dashboard date the calendar does not have instead of rolling it forward', () => {
+    expect(formatDashboardShortDate('2026-02-31')).toBe('2026-02-31')
+  })
+
+  it('refuses a dashboard date carrying a time, which the API never sends', () => {
+    expect(formatDashboardShortDate('2026-01-05T00:00:00')).toBe('2026-01-05T00:00:00')
+  })
+
+  it('keeps a savings-rate month the calendar does not have as its own label', () => {
+    const [point] = getSavingsRateSeries({
+      savings_rate_history: [{ month: '2026-02-31', income: 100, expenses: 50 }],
+      fx_status: fxStatus,
+    })
+
+    expect(point.monthLabel).toBe('2026-02-31')
+    expect(point.fullLabel).toBe('2026-02-31')
+    expect(point.rate).toBe(50)
   })
 
   it('builds spending comparison series and summary gaps without inventing values', () => {

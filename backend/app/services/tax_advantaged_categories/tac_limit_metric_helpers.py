@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.rls.functions import USER_TZ
 from app.models.account import TaxAdvantagedCategory, TaxAdvantagedCategoryLimit
+from app.utils.dates import CATEGORY_OWNER_PROFILE, resolve_timezone
 
 
 @dataclass(frozen=True)
@@ -36,6 +37,9 @@ async def get_tac_category_current_years(
 
     Returns:
         Current calendar year keyed by tax-advantaged category identifier
+
+    Raises:
+        HTTPException: An owner's stored timezone is not a zone the app recognizes
     """
     owner_ids = {tax_advantaged_category.category_owner_user_id for tax_advantaged_category in tax_advantaged_categories}
 
@@ -46,7 +50,10 @@ async def get_tac_category_current_years(
         owner_timezones[owner_id] = await db.scalar(text(f"SELECT {USER_TZ}(:owner_id)"), {"owner_id": owner_id})
     current_years_by_tax_advantaged_category_id = {
         tax_advantaged_category.id: current_datetime_for_timezone(
-            ZoneInfo(owner_timezones[tax_advantaged_category.category_owner_user_id]),
+            resolve_timezone(
+                owner_timezones[tax_advantaged_category.category_owner_user_id],
+                stored_on=CATEGORY_OWNER_PROFILE,
+            ),
         ).year
         for tax_advantaged_category in tax_advantaged_categories
     }

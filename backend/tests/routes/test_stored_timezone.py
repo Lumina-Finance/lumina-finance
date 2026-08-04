@@ -1,0 +1,94 @@
+"""Route behaviour when a stored timezone no longer resolves"""
+
+from fastapi import status
+from sqlalchemy import func, select, update
+
+from app.models.account import Account
+from app.models.user import User
+from app.utils.dates import ACCOUNT_OWNER_PROFILE, OWN_PROFILE
+from tests.conftest import TestSession
+from tests.routes.support import SIGNUP_PAYLOAD, _create_account, _create_user, _get_auth_header, _seed_currency
+
+# An identifier no release of the IANA database carries. Signup validates against the zone database,
+# so a row only holds one of these when the value arrived another way, such as a restore from an
+# instance whose database carried identifiers this one does not
+UNRESOLVABLE_IDENTIFIER = "Mars/Olympus_Mons"
+
+
+async def _store_unresolvable_timezone(email: str = SIGNUP_PAYLOAD["email"]):
+    """Write an unresolvable timezone straight to the row, past the schema guarding every write
+
+    Args:
+        email: Address of the user whose stored timezone is replaced
+
+    Returns:
+        None
+    """
+    async with TestSession() as session:
+
+        # Replace the user's timezone with one no zone database resolves
+        await session.execute(update(User).where(User.email == email).values(tz=UNRESOLVABLE_IDENTIFIER))
+        await session.commit()
+
+
+async def _signup(client, *, email: str):
+    """Sign up a second user, so a group has an owner and a member
+
+    Args:
+        client: Async test client
+        email: Address for the new user
+
+    Returns:
+        API response from signing up the user
+    """
+    return await client.post("/auth/signup", json={**SIGNUP_PAYLOAD, "email": email})
+
+
+async def test_dashboard_refuses_an_unresolvable_stored_timezone(client):
+    """The reader is told which setting is at fault instead of getting a server error"""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    await _store_unresolvable_timezone()
+
+    resp = await client.get("/dashboard/credit", headers=headers)
+
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+    assert UNRESOLVABLE_IDENTIFIER in resp.json()["detail"]
+
+
+async def test_account_creation_writes_nothing_when_the_stored_timezone_is_unresolvable(client):
+    """The refusal lands before the commit, so a failed request leaves no account behind"""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    await _store_unresolvable_timezone()
+
+    create_resp = await _create_account(client, headers)
+
+    assert create_resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+    assert OWN_PROFILE in create_resp.json()["detail"]
+    async with TestSession() as session:
+
+        # Count every account row, since a refusal after the commit would leave one behind
+        account_count = await session.scalar(select(func.count()).select_from(Account))
+    assert account_count == 0
+
+
+async def test_a_group_account_refusal_says_the_owner_setting_is_at_fault(client):
+    """A group account is dated on its owner's day, which the member creating it cannot fix"""
+    await _seed_currency()
+    owner_resp = await _signup(client, email="owner@example.com")
+    member_resp = await _signup(client, email="member@example.com")
+    owner_headers = _get_auth_header(owner_resp)
+    member_headers = _get_auth_header(member_resp)
+    member_user_id = member_resp.json()["user"]["id"]
+
+    group_id = (await client.post("/groups", json={"name": "Household"}, headers=owner_headers)).json()["id"]
+    await client.post(f"/groups/{group_id}/members", json={"user_id": member_user_id}, headers=owner_headers)
+    await client.patch(f"/groups/{group_id}/members/{member_user_id}", json={"is_admin": True}, headers=owner_headers)
+    await _store_unresolvable_timezone("owner@example.com")
+
+    create_resp = await _create_account(client, member_headers, group_id=group_id)
+
+    assert create_resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+    assert ACCOUNT_OWNER_PROFILE in create_resp.json()["detail"]
+    assert OWN_PROFILE not in create_resp.json()["detail"]
