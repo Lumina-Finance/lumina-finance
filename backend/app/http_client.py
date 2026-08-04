@@ -14,8 +14,9 @@ _STALE_TRANSFER_HEADERS = (b"content-encoding", b"content-length")
 class ResponseTooLargeError(httpx.RequestError):
     """A response body went past the cap and was abandoned part-read
 
-    Subclasses the httpx error for an unreachable host so callers already handling a dead
-    provider treat an oversized one the same way, rather than raising through to a 500
+    Subclasses httpx's base error for a failed request so callers already handling a
+    timeout or an unreachable provider treat an oversized one the same way, rather than
+    letting it raise through to a 500
     """
 
 

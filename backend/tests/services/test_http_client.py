@@ -4,9 +4,12 @@ from collections.abc import AsyncIterator
 import httpx
 import pytest
 
-from app.http_client import MAX_RESPONSE_BYTES, ResponseTooLargeError, _CappedResponseClient
+from app.http_client import MAX_RESPONSE_BYTES, ResponseTooLargeError, _CappedResponseClient, build_http_client
 
 _URL = "https://provider.example/data"
+
+# Small enough to exercise the boundary without building megabytes of test data
+_SMALL_CAP_BYTES = 64
 
 
 def _client_returning(response: httpx.Response) -> httpx.AsyncClient:
@@ -82,6 +85,33 @@ async def test_compressed_response_decodes_once():
         response = await client.get(_URL)
 
     assert response.json() == {"rate": "1.35"}
+
+
+async def test_response_exactly_at_the_cap_is_returned():
+    """A body the same size as the cap is accepted, so the limit is not off by one"""
+    payload = b"x" * _SMALL_CAP_BYTES
+    client = _CappedResponseClient(
+        timeout=1.0,
+        max_response_bytes=_SMALL_CAP_BYTES,
+        transport=httpx.MockTransport(lambda request: httpx.Response(200, content=payload)),
+    )
+
+    async with client:
+        response = await client.get(_URL)
+
+    assert response.content == payload
+
+
+async def test_response_one_byte_over_the_cap_is_refused():
+    """One byte more than the cap is refused, so the limit is not off by one the other way"""
+    client = _CappedResponseClient(
+        timeout=1.0,
+        max_response_bytes=_SMALL_CAP_BYTES,
+        transport=httpx.MockTransport(lambda request: httpx.Response(200, content=b"x" * (_SMALL_CAP_BYTES + 1))),
+    )
+
+    async with client, pytest.raises(ResponseTooLargeError):
+        await client.get(_URL)
 
 
 def test_the_application_factory_carries_the_cap():

@@ -11,6 +11,7 @@ class RecordingConnection:
     """Stand-in for a database connection that records what it was asked to run"""
 
     def __init__(self) -> None:
+        """Start with nothing recorded"""
         self.statements: list[tuple[str, tuple]] = []
 
     def exec_driver_sql(self, statement: str, parameters: tuple) -> None:
