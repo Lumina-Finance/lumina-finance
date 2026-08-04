@@ -17,16 +17,21 @@ from app.schemas.firefly_import import (
 )
 from app.schemas.transaction import (
     CreateTransactionRequest,
-    TransactionImportRequest,
     TransactionImportResponse,
+    TransactionImportRunRequest,
+    TransactionImportRunResponse,
+    TransactionImportStageRequest,
     TransactionResponse,
     TransactionsOverview,
     UpdateTransactionRequest,
 )
 from app.services.importers import (
+    commit_import_run,
+    delete_import_run,
     import_firefly_budgets,
     import_firefly_transactions,
-    import_transactions,
+    open_import_run,
+    stage_import_batch,
 )
 from app.services.transactions.creation import create_transaction_and_get_response
 from app.services.transactions.deletion import delete_transaction_for_user
@@ -164,26 +169,86 @@ async def get_transaction(
     return await get_transaction_response_for_user(db, user, transaction_id)
 
 
-@router.post("/import", response_model=TransactionImportResponse, status_code=status.HTTP_201_CREATED)
-async def import_transaction_batch(
-    data: TransactionImportRequest,
+@router.post("/import/runs", response_model=TransactionImportRunResponse, status_code=status.HTTP_201_CREATED)
+async def open_transaction_import_run(
+    data: TransactionImportRunRequest,
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Import a prepared transaction batch for the authenticated user
+    """Open an import run for a file about to be staged
 
-    The route delegates transaction validation, creation, cache invalidation,
-    and affected snapshot recomputation to the import service
+    A file too large for one request is staged over several, and none of it reaches
+    the ledger until the run is committed
 
     Args:
-        data: Prepared import payload from the frontend compiler
+        data: Rows the whole file will write
         user: Authenticated user running the import
         db: Active database session
 
     Returns:
-        Import summary containing created and skipped transaction counts
+        The opened run, which every later call for this file quotes
     """
-    return await import_transactions(db, user, data)
+    run = await open_import_run(db, user, data.expected_transaction_count)
+    return TransactionImportRunResponse(id=run.id)
+
+
+@router.post("/import/runs/{run_id}/rows", status_code=status.HTTP_204_NO_CONTENT)
+async def stage_transaction_import_rows(
+    run_id: uuid.UUID,
+    data: TransactionImportStageRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Park one batch of a file against its run
+
+    Nothing is created here, so the route has no ids to return. The mappings the batch
+    declares are checked as far as they can be without resolving a row
+
+    Args:
+        run_id: Run the batch belongs to
+        data: Mappings this batch's rows reference, and the rows themselves
+        user: Authenticated user running the import
+        db: Active database session
+    """
+    await stage_import_batch(db, user, run_id, data)
+
+
+@router.post("/import/runs/{run_id}/commit", response_model=TransactionImportResponse, status_code=status.HTTP_201_CREATED)
+async def commit_transaction_import_run(
+    run_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Write a staged run into the ledger
+
+    The route delegates row resolution, creation, cache invalidation and affected
+    snapshot recomputation to the import service, all inside one transaction
+
+    Args:
+        run_id: Run to commit
+        user: Authenticated user running the import
+        db: Active database session
+
+    Returns:
+        Import summary containing created and reused record counts
+    """
+    return await commit_import_run(db, user, run_id)
+
+
+@router.delete("/import/runs/{run_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_transaction_import_run(
+    run_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Drop a staged run and everything staged under it
+
+    Args:
+        run_id: Run to drop
+        user: Authenticated user running the import
+        db: Active database session
+    """
+    await delete_import_run(db, user, run_id)
 
 
 @router.post(

@@ -169,3 +169,37 @@ async def _setup_user_with_deps(client, email="test@example.com", name_prefix="M
     account_resp = await _create_account(client, headers, name=f"{name_prefix} Chequing")
     category_resp = await _create_category(client, headers, name=f"{name_prefix} Groceries")
     return headers, account_resp.json()["id"], category_resp.json()["id"]
+
+async def _import_transactions(client, headers, payload):
+    """Stage a whole payload as one batch and commit it
+
+    The importer stages a file over as many batches as its size needs, and only the commit
+    writes anything, so a test importing a handful of rows opens a run, stages them all at
+    once and commits
+
+    Args:
+        client: The async test client
+        headers: Auth headers for the importing user
+        payload: Account mappings, category mappings and rows, as the flow builds them
+
+    Returns:
+        The commit response, or the first of the three calls that refused the import
+    """
+    run_resp = await client.post(
+        "/transactions/import/runs",
+        json={"expected_transaction_count": len(payload["rows"])},
+        headers=headers,
+    )
+    if run_resp.status_code != 201:
+        return run_resp
+
+    run_id = run_resp.json()["id"]
+    stage_resp = await client.post(
+        f"/transactions/import/runs/{run_id}/rows",
+        json={**payload, "start_row_index": 0},
+        headers=headers,
+    )
+    if stage_resp.status_code != 204:
+        return stage_resp
+
+    return await client.post(f"/transactions/import/runs/{run_id}/commit", headers=headers)

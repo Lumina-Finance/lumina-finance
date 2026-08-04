@@ -76,14 +76,14 @@ async def _get_or_create_import_category_for_mapping(
         )
 
     if mapping.category_id is not None:
-        category = await _get_import_category_by_id(db, mapping.category_id, user_id)
+        category = await get_visible_import_category(db, mapping.category_id, user_id)
         stats.categories_reused += 1
         return category
 
     return await _get_or_create_personal_import_category(db, user_id, mapping.create, stats)
 
 
-async def _get_import_category_by_id(db: AsyncSession, category_id: uuid.UUID, user_id: uuid.UUID) -> Category:
+async def get_visible_import_category(db: AsyncSession, category_id: uuid.UUID, user_id: uuid.UUID) -> Category:
     """Return an existing category visible to the importing user
 
     Args:
@@ -131,7 +131,7 @@ async def _get_or_create_personal_import_category(
     Returns:
         Existing or newly created category row
     """
-    kind = _parse_import_category_kind(create.kind)
+    kind = parse_import_category_kind(create.kind)
     name = strip_import_text_or_raise(create.name, "Category name")
 
     # Reuse a same-named system or personal category before inserting a new personal category
@@ -168,7 +168,7 @@ async def _get_or_create_personal_import_category(
     return category
 
 
-def _parse_import_category_kind(value: str) -> CategoryKind:
+def parse_import_category_kind(value: str) -> CategoryKind:
     """Return a category kind enum for an import-created category
 
     Args:

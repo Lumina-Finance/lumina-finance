@@ -22,12 +22,15 @@ async def import_transactions(
     user: User,
     data: TransactionImportRequest,
 ) -> TransactionImportResponse:
-    """Create transactions from a frontend-compiled import payload
+    """Create transactions from a whole staged import file
+
+    The caller owns the transaction, so nothing here is durable until it commits. That is what lets
+    the rows, the clearing of what was staged and the run's own stamp land together or not at all
 
     Args:
         db: Active database session
         user: Authenticated user running the import
-        data: Prepared import payload from the frontend compiler
+        data: The whole file, rebuilt from its run
 
     Returns:
         Import summary containing transaction, account, category, merchant, tag, and affected account counts
@@ -50,7 +53,6 @@ async def import_transactions(
         import_lookups.accounts_by_source,
         first_import_date_by_account_id,
     )
-    await db.commit()
 
     transaction_import_response = build_transaction_import_response(
         data,

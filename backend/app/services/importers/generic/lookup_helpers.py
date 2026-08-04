@@ -28,8 +28,8 @@ class TransactionImportLookups:
         outside_account_sources: Sources answered as money outside the tracked accounts
         categories_by_source: Category rows keyed by import source
         currencies_by_code: Currency rows keyed by currency code
-        merchants_by_name: Request-local merchant lookup keyed by merchant name
-        tags_by_name: Request-local tag lookup keyed by tag name
+        merchants_by_name: Merchant lookup for this import, keyed by merchant name
+        tags_by_name: Tag lookup for this import, keyed by tag name
     """
 
     accounts_by_source: dict[str, Account]
@@ -41,17 +41,16 @@ class TransactionImportLookups:
 
 
 def get_counterparty_only_sources(data: TransactionImportRequest) -> set[str]:
-    """Return the declared account sources no row in this request is written to
+    """Return the declared account sources no row in the file is written to
 
     Worked out from the rows rather than read off the payload, because these resolve under a
     weaker rule than an account rows are written to, and a client that could declare one would be
     choosing its own permission check. A source used both ways keeps the strict rule, since the
-    rows using it are still written. A large import arrives as several requests, so a source can
-    be counterparty-only in one and written to in another, and the request that writes the rows is
-    the one that has to pass
+    rows using it are still written, and the whole file is resolved at once, so that holds across
+    every row rather than within a part of it
 
     Args:
-        data: Prepared import payload from the frontend compiler
+        data: The whole file, rebuilt from its run
 
     Returns:
         Trimmed sources that appear as no row's account source
@@ -71,7 +70,7 @@ async def load_transaction_import_lookups(
     Args:
         db: Active database session
         user: Authenticated user running the import
-        data: Prepared import payload from the frontend compiler
+        data: The whole file, rebuilt from its run
         stats: Import summary counters updated while mappings are matched or created
 
     Returns:

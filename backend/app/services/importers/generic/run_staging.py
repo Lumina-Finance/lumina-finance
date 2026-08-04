@@ -1,0 +1,301 @@
+"""Staging a transaction import run before it is committed"""
+
+import uuid
+from typing import Any
+
+from fastapi import HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.base import PermissionLevel
+from app.models.import_run import ImportRun, ImportStagedRow
+from app.models.user import User
+from app.permissions import check_account_access
+from app.schemas.transaction import (
+    TransactionImportAccountMapping,
+    TransactionImportCategoryMapping,
+    TransactionImportStageRequest,
+)
+from app.services.importers.shared.account_creation_helpers import (
+    parse_import_account_type,
+    validate_import_account_currency,
+    validate_import_account_institution,
+)
+from app.services.importers.shared.categories import (
+    get_visible_import_category,
+    parse_import_category_kind,
+)
+from app.services.importers.shared.validation_helpers import strip_import_text_or_raise
+
+
+async def open_import_run(db: AsyncSession, user: User, expected_transaction_count: int) -> ImportRun:
+    """Open a run for a file about to be staged
+
+    Args:
+        db: Active database session
+        user: Authenticated user running the import
+        expected_transaction_count: Rows the whole file will write
+
+    Returns:
+        The opened run
+    """
+    run = ImportRun(
+        owner_id=user.id,
+        expected_transaction_count=expected_transaction_count,
+        account_mappings={},
+        category_mappings={},
+    )
+    db.add(run)
+    await db.commit()
+    return run
+
+
+async def stage_import_batch(
+    db: AsyncSession,
+    user: User,
+    run_id: uuid.UUID,
+    data: TransactionImportStageRequest,
+) -> None:
+    """Park one batch of a file against its run, after checking the mappings it declares
+
+    Args:
+        db: Active database session
+        user: Authenticated user running the import
+        run_id: Run the batch belongs to
+        data: Mappings this batch's rows reference, and the rows themselves
+
+    Returns:
+        None
+
+    Raises:
+        HTTPException: Raised with 404 for a run that is not the caller's, 409 for one already
+            committed, and 422 for a batch reaching past the file's row count or re-declaring a
+            source differently
+    """
+    run = await _load_uncommitted_run(db, run_id, for_update=True)
+
+    last_row_index = data.start_row_index + len(data.rows)
+    if last_row_index > run.expected_transaction_count:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"This batch reaches row {last_row_index} of an import declaring {run.expected_transaction_count}",
+        )
+
+    for account_mapping in data.accounts:
+        await _validate_account_mapping(db, user, account_mapping)
+    for category_mapping in data.categories:
+        await _validate_category_mapping(db, user, category_mapping)
+
+    # Reassigned rather than mutated, since SQLAlchemy tracks a JSONB column by identity and would
+    # not see a change made inside the dictionary it already holds
+    run.account_mappings = _merge_import_mappings(run.account_mappings, data.accounts, "Account source")
+    run.category_mappings = _merge_import_mappings(run.category_mappings, data.categories, "Category source")
+
+    await _insert_staged_rows(db, run, user.id, data)
+    await db.commit()
+
+
+async def delete_import_run(db: AsyncSession, user: User, run_id: uuid.UUID) -> None:
+    """Drop a staged run and everything staged under it
+
+    Args:
+        db: Active database session
+        user: Authenticated user running the import
+        run_id: Run to drop
+
+    Returns:
+        None
+
+    Raises:
+        HTTPException: Raised with 404 for a run that is not the caller's, and 409 for one already
+            committed, whose rows are in the ledger and are not this endpoint's to remove
+    """
+    run = await _load_uncommitted_run(db, run_id, for_update=False)
+    await db.delete(run)
+    await db.commit()
+
+
+async def _load_uncommitted_run(db: AsyncSession, run_id: uuid.UUID, for_update: bool) -> ImportRun:
+    """Return the caller's run when it is still open
+
+    The row-level security policy is what scopes this to the caller, so another user's run is
+    absent rather than refused
+
+    Args:
+        db: Active database session
+        run_id: Run to load
+        for_update: Whether to hold the row until the transaction ends
+
+    Returns:
+        The open run
+
+    Raises:
+        HTTPException: Raised with 404 when the run is not the caller's, and 409 when it has
+            already been committed
+    """
+    query = select(ImportRun).where(ImportRun.id == run_id)
+    if for_update:
+        query = query.with_for_update()
+
+    run = (await db.execute(query)).scalar_one_or_none()
+    if run is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Import run not found")
+    if run.committed_at is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="This import has already been committed")
+    return run
+
+
+def _merge_import_mappings(
+    stored: dict[str, Any],
+    mappings: list[TransactionImportAccountMapping] | list[TransactionImportCategoryMapping],
+    label: str,
+) -> dict[str, Any]:
+    """Merge one batch's mappings into what the run already holds, keyed by trimmed source
+
+    Re-sending a batch merges the same answers again, which is why an identical re-declaration is
+    accepted while a different one is refused
+
+    Args:
+        stored: Mappings the run already holds
+        mappings: Mappings this batch declares
+        label: What a source is called in a refusal
+
+    Returns:
+        The merged mappings
+
+    Raises:
+        HTTPException: Raised with 422 when a source is declared differently from before
+    """
+    merged = dict(stored)
+
+    for mapping in mappings:
+        source = strip_import_text_or_raise(mapping.source, label)
+        declared = mapping.model_dump(mode="json") | {"source": source}
+        existing = merged.get(source)
+        if existing is not None and existing != declared:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=f"{label} is declared twice with different answers: {source}",
+            )
+        merged[source] = declared
+    return merged
+
+
+async def _insert_staged_rows(
+    db: AsyncSession,
+    run: ImportRun,
+    owner_id: uuid.UUID,
+    data: TransactionImportStageRequest,
+) -> None:
+    """Park one batch's rows at their positions in the file
+
+    A batch whose response was lost is sent again at the same positions, so the insert leaves the
+    copies already staged alone rather than failing on them
+
+    Args:
+        db: Active database session
+        run: Run the rows belong to
+        owner_id: Identifier for the user running the import
+        data: The batch being staged
+
+    Returns:
+        None
+    """
+    values = [
+        {
+            "id": uuid.uuid4(),
+            "import_run_id": run.id,
+            "owner_id": owner_id,
+            "row_index": data.start_row_index + offset,
+            "payload": row.model_dump(mode="json"),
+        }
+        for offset, row in enumerate(data.rows)
+    ]
+    await db.execute(
+        insert(ImportStagedRow)
+        .values(values)
+        .on_conflict_do_nothing(constraint="uq_import_staged_row_run_index"),
+    )
+
+
+async def _validate_account_mapping(
+    db: AsyncSession,
+    user: User,
+    mapping: TransactionImportAccountMapping,
+) -> None:
+    """Check one account mapping as far as staging can, without creating anything
+
+    An existing account is only checked for read access here. Whether rows are written to it, which
+    is what asks for write access to an open account, depends on the rows of the whole file, so the
+    commit is the first point that can tell
+
+    Args:
+        db: Active database session
+        user: Authenticated user running the import
+        mapping: Account source mapping from the batch
+
+    Returns:
+        None
+
+    Raises:
+        HTTPException: Raised with 422 when the mapping states no single account action, or states
+            a currency, institution or account type that does not exist
+    """
+    source = strip_import_text_or_raise(mapping.source, "Account source")
+
+    if mapping.outside:
+        if mapping.account_id is not None or mapping.create is not None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=f"Account source must map to exactly one account action: {source}",
+            )
+        return
+
+    if (mapping.account_id is None) == (mapping.create is None):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"Account source must map to exactly one account action: {source}",
+        )
+
+    if mapping.account_id is not None:
+        await check_account_access(db, mapping.account_id, user.id, PermissionLevel.READ)
+        return
+
+    parse_import_account_type(mapping.create.account_type)
+    await validate_import_account_currency(db, mapping.create.currency.upper())
+    await validate_import_account_institution(db, mapping.create.institution_id)
+
+
+async def _validate_category_mapping(
+    db: AsyncSession,
+    user: User,
+    mapping: TransactionImportCategoryMapping,
+) -> None:
+    """Check one category mapping as far as staging can, without creating anything
+
+    Args:
+        db: Active database session
+        user: Authenticated user running the import
+        mapping: Category source mapping from the batch
+
+    Returns:
+        None
+
+    Raises:
+        HTTPException: Raised with 422 when the mapping states no single category action, states a
+            category the user cannot see, or states a kind that does not exist
+    """
+    source = strip_import_text_or_raise(mapping.source, "Category source")
+
+    if (mapping.category_id is None) == (mapping.create is None):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"Category source must map to exactly one category action: {source}",
+        )
+
+    if mapping.category_id is not None:
+        await get_visible_import_category(db, mapping.category_id, user.id)
+        return
+
+    parse_import_category_kind(mapping.create.kind)
