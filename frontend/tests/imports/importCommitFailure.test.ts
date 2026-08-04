@@ -30,7 +30,7 @@ describe('what is left after an import stops', () => {
   // The run is held for the length of the write, so a second commit arriving during the first is
   // refused. Committing again once it finishes answers with what that first commit wrote
   it('keeps the staged file when a commit is already running', () => {
-    const failure = getImportCommitFailure(commitError(409, 'This import is already being committed'), false)
+    const failure = getImportCommitFailure(commitError(409, 'This import is already being worked on'), false)
 
     expect(failure.retryableRunId).toBe(RUN_ID)
     expect(failure.discardableRunId).toBeNull()

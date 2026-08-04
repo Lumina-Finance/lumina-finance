@@ -109,11 +109,13 @@ async def delete_import_run(db: AsyncSession, user: User, run_id: uuid.UUID) -> 
         None
 
     Raises:
-        HTTPException: Raised with 404 for a run that is not the caller's, and 409 for one already
-            committed, whose rows are in the ledger and are not this endpoint's to remove
+        HTTPException: Raised with 404 for a run that is not the caller's, 409 for one already
+            committed, whose rows are in the ledger and are not this endpoint's to remove, and 409
+            for one another request is working on
     """
-    # Read without holding the run, a delete arriving while a commit is running reads it before it
-    # was stamped and then removes one whose rows have just landed
+    # Held for the same reason every other request holds it: read without the lock, a delete
+    # arriving while a commit is running reads the run before it was stamped and then removes one
+    # whose rows have just landed
     run = await _load_uncommitted_run(db, run_id)
     await db.delete(run)
     await db.commit()
@@ -237,8 +239,9 @@ async def _validate_account_mapping(
         None
 
     Raises:
-        HTTPException: Raised with 422 when the mapping states no single account action, or states
-            a currency, institution or account type that does not exist
+        HTTPException: Raised with 404 when the account it states is one the user cannot reach, and
+            with 422 when the mapping states no single account action, or states a currency,
+            institution or account type that does not exist
     """
     source = strip_import_text_or_raise(mapping.source, "Account source")
 
