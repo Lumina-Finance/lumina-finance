@@ -78,6 +78,19 @@ export function DropdownBox({
       whileTap={open || disabled || shouldReduceMotion ? undefined : { scale: DROPDOWN_PRESS_SCALE }}
       transition={DROPDOWN_SPRING}
     >
+      {placed && (
+        <div
+          aria-hidden
+          className="app-dropdown-backdrop"
+          // Given the box's full height straight away and anchored to the edge the box grows away
+          // from, so it holds still while the box opens around it
+          style={{
+            height: position.boxMaxHeight,
+            bottom: position.openAbove ? 0 : undefined,
+            top: position.openAbove ? undefined : 0,
+          }}
+        />
+      )}
       {children}
     </motion.div>
   )

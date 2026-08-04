@@ -59,10 +59,11 @@
     --app-dropdown-gap: 8px;
     --app-dropdown-font-size: 0.9375rem;
 
-    /* How much of the input colour survives over what is behind the control. Kept high because the
-       open box carries no blur to hide what shows through it */
-    --app-dropdown-tint: 92%;
+    /* How much of the input colour survives over what is behind the open box */
+    --app-dropdown-tint: 66%;
 
+    --app-dropdown-blur: 20px;
+    --app-dropdown-saturate: 160%;
     --app-dropdown-inner-padding: 6px;
     --app-dropdown-row-radius: 6px;
     --app-dropdown-row-padding-x: 12px;
@@ -663,8 +664,31 @@
      keeps some of the depth for none of that */
   .app-dropdown-glass.app-dropdown-glass-open {
     border-color: var(--app-border-strong);
-    background: color-mix(in srgb, var(--app-input-bg) var(--app-dropdown-tint), transparent);
+    background: transparent;
     box-shadow: var(--app-shadow-soft);
+  }
+
+  /* The tint and the blur, on a layer of their own that is already at its full height the moment the
+     box opens and never changes size after that. Putting them on the box instead would resample
+     everything behind it on every frame of the opening, because the box's own height is what is
+     moving. Here the box only reveals more of a layer that was rasterized once.
+
+     It sits behind the head and the list, both of which are lifted above it, and takes no presses */
+  .app-dropdown-backdrop {
+    position: absolute;
+    left: 0;
+    right: 0;
+    z-index: 0;
+    background: color-mix(in srgb, var(--app-input-bg) var(--app-dropdown-tint), transparent);
+    pointer-events: none;
+    -webkit-backdrop-filter: blur(var(--app-dropdown-blur)) saturate(var(--app-dropdown-saturate));
+    backdrop-filter: blur(var(--app-dropdown-blur)) saturate(var(--app-dropdown-saturate));
+  }
+
+  .app-dropdown-glass-open .app-dropdown-head,
+  .app-dropdown-glass-open .app-dropdown-bodywrap {
+    position: relative;
+    z-index: 1;
   }
 
   .app-dropdown-glass.app-dropdown-glass-error {
@@ -679,8 +703,14 @@
   /* A rejected field that is open still has to be readable, so the red is mixed into the open
      background rather than replacing it with a ten percent wash the page shows straight through */
   .app-dropdown-glass.app-dropdown-glass-open.app-dropdown-glass-error {
-    background: color-mix(in srgb, var(--app-negative-soft) 40%, var(--app-input-bg));
+    background: transparent;
     box-shadow: var(--app-shadow-soft);
+  }
+
+  /* A rejected field that is open still has to be readable, so the red is mixed into the layer's own
+     colour rather than laid over it as a wash the page shows straight through */
+  .app-dropdown-glass-error .app-dropdown-backdrop {
+    background: color-mix(in srgb, var(--app-negative-soft) 40%, var(--app-input-bg));
   }
 
   .app-dropdown-glass.app-dropdown-glass-disabled {

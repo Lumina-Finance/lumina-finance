@@ -193,7 +193,11 @@ const Dropdown = ({
   // measures nothing until that branch is shown
   useLayoutEffect(() => {
     const box = boxRef.current;
-    if (open || !box) return;
+
+    // Only while the box is back in its slot. Through the collapse it is still floating and still
+    // most of the way open, so measuring it then would pin the slot to the open height and push
+    // everything below it down, which a modal that animates its own height follows by growing
+    if (open || collapsing || !box) return;
 
     const measure = () => {
       const height = box.offsetHeight;
@@ -204,7 +208,7 @@ const Dropdown = ({
     const observer = new ResizeObserver(measure);
     observer.observe(box);
     return () => observer.disconnect();
-  }, [open, size]);
+  }, [collapsing, open, size]);
 
   // The dropdown closes on outside mouse interactions so stale menus do not remain open. The box is
   // a descendant of this container even while positioned against the viewport, so a press inside it
