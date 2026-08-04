@@ -155,21 +155,23 @@ _HELPERS: tuple[_Helper, ...] = (
     # cache writes to the caller. Both halves are needed: administering the named group alone
     # would let anyone stamp any user, since creating a group makes the creator its admin, so
     # the target has to be a member of that same group. The caller must therefore stamp before
-    # deleting the membership. plpgsql rather than sql so a denied call raises instead of
-    # quietly inserting nothing, and IS DISTINCT FROM so a connection carrying no identity is
-    # refused rather than comparing to NULL and falling through
+    # deleting the membership. This narrows the reachable set rather than closing it, because
+    # an admin can add a user to their own group without that user agreeing, so the caller
+    # still gets there with the target's id and one extra call. plpgsql rather than sql so a
+    # denied call raises instead of quietly inserting nothing, and a null target or a
+    # connection carrying no identity is refused outright rather than compared to NULL
     _Helper(
         f"""
     CREATE OR REPLACE FUNCTION {BUMP_GROUP_MEMBER_CACHE}(p_user_id uuid, p_group_id uuid) RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
     BEGIN
-        IF p_user_id IS DISTINCT FROM {CURRENT_USER_ID}() AND NOT (
+        IF p_user_id IS NULL OR (p_user_id IS DISTINCT FROM {CURRENT_USER_ID}() AND NOT (
             {IS_GROUP_ADMIN}(p_group_id)
             AND EXISTS (
                 SELECT 1 FROM public.group_members gm
                 WHERE gm.group_id = p_group_id AND gm.user_id = p_user_id
             )
-        ) THEN
+        )) THEN
             RAISE EXCEPTION 'Not authorized to invalidate the cache for this user'
                 USING ERRCODE = 'insufficient_privilege';
         END IF;

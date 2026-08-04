@@ -366,3 +366,10 @@ async def test_cache_bump_is_refused_without_a_request_identity():
     async with _act_as(None) as session:
         with pytest.raises(ProgrammingError, match="Not authorized"):
             await session.execute(_BUMP_MEMBER_CACHE, {"user_id": uuid.uuid4(), "group_id": uuid.uuid4()})
+
+
+async def test_cache_bump_is_refused_for_a_null_target():
+    """A null target is refused rather than matching a null identity and skipping the check"""
+    async with _act_as(None) as session:
+        with pytest.raises(ProgrammingError, match="Not authorized"):
+            await session.execute(_BUMP_MEMBER_CACHE, {"user_id": None, "group_id": uuid.uuid4()})
