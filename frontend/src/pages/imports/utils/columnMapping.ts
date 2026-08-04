@@ -14,11 +14,20 @@ const COLUMN_VALIDATION_RULES: Record<ColumnTarget, {
   expected: string
   requiredValues?: boolean
   accepts: (value: string, supportedCurrencyCodes: Set<string>) => boolean
+
+  /**
+   * Refuses the column on what all of its values are together, where no single value is wrong
+   *
+   * Kept apart from `accepts` because the two say different things: one points at the value that
+   * broke the column, and this one describes a shape the whole column has
+   */
+  refusesColumn?: (values: string[]) => string | null
 }> = {
   account_id: {
     expected: 'account names or source account labels; every row must have a value',
     requiredValues: true,
-    accepts: isPlainTextValue,
+    accepts: acceptsAnyValue,
+    refusesColumn: refuseColumnOfOnlyNumbersOrDates,
   },
   dt: {
     expected: 'valid dates in one format across the whole file; every row must have a value',
@@ -26,9 +35,10 @@ const COLUMN_VALIDATION_RULES: Record<ColumnTarget, {
     accepts: isValidDateValue,
   },
   category_id: {
-    expected: 'category names as plain text; every row must have a value',
+    expected: 'category names; every row must have a value',
     requiredValues: true,
-    accepts: isPlainTextValue,
+    accepts: acceptsAnyValue,
+    refusesColumn: refuseColumnOfOnlyNumbersOrDates,
   },
   amount: {
     expected: 'a raw signed number such as -12.34 or 1,234.56; every row must have a value',
@@ -39,23 +49,28 @@ const COLUMN_VALIDATION_RULES: Record<ColumnTarget, {
     expected: 'ISO currency codes this app supports, such as CAD or USD',
     accepts: isSupportedCurrency,
   },
+
+  // The three below take a value as it comes. A merchant, a note or a tag can legitimately be
+  // written as a number, so there is nothing here worth refusing, and the wording says only what
+  // the field is for rather than claiming a check that does not run
   merchant_id: {
-    expected: 'merchant or payee names as plain text',
-    accepts: isPlainTextValue,
+    expected: 'merchant or payee names',
+    accepts: acceptsAnyValue,
   },
   notes: {
-    expected: 'plain text notes',
-    accepts: isPlainTextValue,
+    expected: 'transaction notes',
+    accepts: acceptsAnyValue,
   },
   tag_ids: {
     expected: 'tag names separated by commas, semicolons, or pipes',
-    accepts: isPlainTextValue,
+    accepts: acceptsAnyValue,
   },
   counterparty_account_id: {
     // Only the shape of a value is checked here. Whether a row may state one at all depends on the
     // category and account mappings chosen later, and is reported against the row itself
     expected: 'the account name a transfer moved money to or from',
-    accepts: isPlainTextValue,
+    accepts: acceptsAnyValue,
+    refusesColumn: refuseColumnOfOnlyNumbersOrDates,
   },
 }
 
@@ -102,7 +117,8 @@ export function validateColumnValues(
   dateFormat: ImportDateFormat | null = null,
 ) {
   const rule = COLUMN_VALIDATION_RULES[target]
-  const values = getColumnValues(files, header)
+  const numberedValues = getNumberedColumnValues(files, header)
+  const values = numberedValues.map((entry) => entry.value)
   // Until a format is settled the date column is only asked whether its values could be dates at
   // all, and it is held to the chosen format from the moment there is one
   const isDateColumnInChosenFormat = target === 'dt' && dateFormat !== null
@@ -122,19 +138,43 @@ export function validateColumnValues(
   if (rule.requiredValues && blankCount > 0) {
     return {
       valid: false,
-      message: `Expected ${expected}. ${blankCount} row${blankCount === 1 ? '' : 's'} are blank.`,
+      message: `Expected ${expected}. ${blankCount} row${blankCount === 1 ? ' is' : 's are'} blank.`,
     }
   }
 
-  const invalidValue = values.filter(Boolean).find((value) => !accepts(value))
-  if (invalidValue) {
+  const columnRefusal = rule.refusesColumn?.(values)
+  if (columnRefusal) {
     return {
       valid: false,
-      message: `Expected ${expected}. "${truncateValue(invalidValue)}" ${getMismatchReason(target)}.`,
+      message: `Expected ${expected}. ${columnRefusal}`,
+    }
+  }
+
+  const invalid = numberedValues.find((entry) => entry.value && !accepts(entry.value))
+  if (invalid) {
+    return {
+      valid: false,
+      message: `Expected ${expected}. Row ${invalid.rowNumber} has "${truncateValue(invalid.value)}", which ${getMismatchReason(target)}.`,
     }
   }
 
   return { valid: true, message: '' }
+}
+
+/**
+ * Refuses a column of names whose every filled value reads as an amount or a date
+ *
+ * Pointing a name field at a column of numbers is a mapping mistake rather than an intent: the
+ * Amount column mapped to Category used to import, creating categories called -12.34. Judging the
+ * column as a whole rather than each value is what lets a merchant called by a store number through,
+ * since one number among names says nothing about what the column holds
+ */
+function refuseColumnOfOnlyNumbersOrDates(values: string[]) {
+  const filled = values.filter(Boolean)
+  if (filled.length === 0) return null
+  if (!filled.every((value) => isValidAmountValue(value) || isValidDateValue(value))) return null
+
+  return 'Every value in this column reads as an amount or a date.'
 }
 
 /**
@@ -164,9 +204,20 @@ function getMismatchReason(target: ColumnTarget) {
  * Reads every row's value for one header across all uploaded files, blanks included
  */
 export function getColumnValues(files: ImportFileDraft[], header: string) {
+  return getNumberedColumnValues(files, header).map((entry) => entry.value)
+}
+
+/**
+ * Reads every row's value for one header, each against the row it came from
+ *
+ * The row number is the position among the file's data rows, which is what a refused row is reported
+ * under elsewhere, so the two agree. It is not the line in the file, because parsing drops blank
+ * lines and folds a quoted value carrying a newline into one row
+ */
+function getNumberedColumnValues(files: ImportFileDraft[], header: string) {
   return files.flatMap((file) => {
     if (!file.headers.includes(header)) return []
-    return file.rows.map((row) => row[header]?.trim() ?? '')
+    return file.rows.map((row, index) => ({ value: row[header]?.trim() ?? '', rowNumber: index + 1 }))
   })
 }
 
@@ -195,6 +246,12 @@ export function getColumnSamples(files: ImportFileDraft[], header: string) {
   ).slice(0, 3)
 }
 
-function isPlainTextValue() {
+/**
+ * Takes a value as it comes
+ *
+ * Used by the fields where no single value can be wrong. Three of them are still refused as a whole
+ * column by `refusesColumn`, which is where the judgement about those actually lives
+ */
+function acceptsAnyValue() {
   return true
 }
