@@ -71,7 +71,7 @@ class RequestBodySizeLimitMiddleware:
 
             # A client that disconnects mid-body leaves the app to handle the disconnect
             if message["type"] != "http.request":
-                await self.app(scope, _replay(body, message), send)
+                await self.app(scope, _replay(body, receive, message), send)
                 return
 
             body += message.get("body", b"")
@@ -80,7 +80,7 @@ class RequestBodySizeLimitMiddleware:
                 return
             more_body = message.get("more_body", False)
 
-        await self.app(scope, _replay(bytes(body)), send)
+        await self.app(scope, _replay(bytes(body), receive), send)
 
     async def _reject(self, send) -> None:
         """Send the 413 the app would otherwise have to produce after reading the body"""
@@ -111,11 +111,16 @@ def _read_body_headers(scope) -> tuple[int | None, bool]:
     return declared_length, carries_body
 
 
-def _replay(body: bytes, trailing_message: dict | None = None):
+def _replay(body: bytes, receive, trailing_message: dict | None = None):
     """Return a receive callable handing the buffered body to the app
+
+    Once the buffer runs out it falls back to the server's own receive, so an app waiting
+    on a disconnect waits for the real one. Answering with a disconnect of its own would
+    tell a streaming response the client had gone the moment the body was read
 
     Args:
         body: Request body already read and counted
+        receive: The server's receive, used once the buffer is spent
         trailing_message: Message that ended the read early, such as a disconnect
 
     Returns:
@@ -125,8 +130,8 @@ def _replay(body: bytes, trailing_message: dict | None = None):
     if trailing_message is not None:
         messages.append(trailing_message)
 
-    async def receive():
-        """Return the next buffered message, then behave as a client that has gone away"""
-        return messages.pop(0) if messages else {"type": "http.disconnect"}
+    async def replay_receive():
+        """Return the next buffered message, then whatever the server sends next"""
+        return messages.pop(0) if messages else await receive()
 
-    return receive
+    return replay_receive
