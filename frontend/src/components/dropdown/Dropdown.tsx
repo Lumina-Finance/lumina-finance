@@ -173,8 +173,13 @@ const Dropdown = ({
 
   /**
    * Resets transient menu state whenever the list closes
+   *
+   * @param instant - Skips the collapse, for a close the user did not aim at this control. Something
+   *   else is taking their attention, and a list still folding itself away half a second later can
+   *   outlive whatever was holding it: dismissing a modal takes it off the screen in less time than
+   *   the collapse runs for, leaving the list hanging over the page it belonged to
    */
-  const close = useCallback(() => {
+  const close = useCallback((instant = false) => {
     setOpen(false);
     setSearchText('');
     setHighlightedIndex(-1);
@@ -183,7 +188,7 @@ const Dropdown = ({
     // closing frame would move a box that grew upward to the other side of the head, and snap its
     // width back, while the list is still visibly collapsing. Nothing to wait for when the collapse
     // is instant, and no transition to end either, so the wait is skipped entirely
-    if (!shouldReduceMotion) setCollapsing(true);
+    if (!instant && !shouldReduceMotion) setCollapsing(true);
   }, [setSearchText, shouldReduceMotion]);
 
   // The slot holds the collapsed height so the box can grow over what is below it rather than pushing
@@ -218,7 +223,9 @@ const Dropdown = ({
 
     const handleClick = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        close();
+        // Instantly, since a press outside this control is the user aiming at something else, and
+        // that something else may be the button or the backdrop that dismisses the whole modal
+        close(true);
       }
     };
 
@@ -269,7 +276,10 @@ const Dropdown = ({
   const handleCreateNew = () => {
     if (!onCreateNew) return;
     onCreateNew(createQuery);
-    close();
+
+    // The create action opens a modal over this one, so the list goes at once rather than folding
+    // away underneath it
+    close(true);
   };
 
   /**
