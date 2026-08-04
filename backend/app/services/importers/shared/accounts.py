@@ -122,7 +122,7 @@ async def _get_or_create_import_account_for_mapping(
             if is_counterparty_only
             else await _get_existing_import_account(db, user, mapping.account_id)
         )
-        stats.accounts_reused += 1
+        stats.reused_account_ids.add(account.id)
         return account
 
     account = await create_import_account(db, user, mapping.create)

@@ -120,6 +120,9 @@ def validate_import_category_can_be_used_for_account(category: Category, account
     Raises:
         HTTPException: Raised with 422 when the category cannot be used by the account
     """
-    if category.is_system or (category.owner_id == user_id and category.group_id is None) or category.group_id == account.group_id:
+    # The group clause requires a group, since two personal records both carry no group and would
+    # otherwise match each other, admitting another user's personal category
+    shares_a_group = category.group_id is not None and category.group_id == account.group_id
+    if category.is_system or (category.owner_id == user_id and category.group_id is None) or shares_a_group:
         return
     raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Category not found")

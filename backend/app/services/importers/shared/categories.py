@@ -77,7 +77,7 @@ async def _get_or_create_import_category_for_mapping(
 
     if mapping.category_id is not None:
         category = await get_visible_import_category(db, mapping.category_id, user_id)
-        stats.categories_reused += 1
+        stats.reused_category_ids.add(category.id)
         return category
 
     return await _get_or_create_personal_import_category(db, user_id, mapping.create, stats)
@@ -151,7 +151,7 @@ async def _get_or_create_personal_import_category(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=f"Category with this name already exists with a different type: {name}",
             )
-        stats.categories_reused += 1
+        stats.reused_category_ids.add(existing.id)
         return existing
 
     category = Category(

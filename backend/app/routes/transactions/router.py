@@ -230,7 +230,8 @@ async def commit_transaction_import_run(
         db: Active database session
 
     Returns:
-        Import summary containing created and reused record counts
+        Import summary containing the transactions written and the accounts, categories, merchants
+        and tags the import created or reused
     """
     return await commit_import_run(db, user, run_id)
 

@@ -84,7 +84,7 @@ async def _get_or_create_import_tag(
     """
     existing_tag = tags_by_name.get(name)
     if existing_tag is not None:
-        stats.tags_reused += 1
+        stats.reused_tag_ids.add(existing_tag.id)
         return existing_tag
 
     tag = Tag(owner_id=user_id, group_id=None, name=name)
