@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config.oidc import OIDC_PROVIDER_CONFIGS
 from app.config.runtime import ALLOWED_ORIGINS, RUNTIME
 from app.database import async_session, verify_app_role_is_unprivileged
+from app.request_security import RequestBodySizeLimitMiddleware
 from app.routes.accounts import router as account_router
 from app.routes.app_version import router as app_version_router
 from app.routes.auth import router as auth_router
@@ -56,7 +57,12 @@ app = FastAPI(title="Lumina Finance API", lifespan=_lifespan)
 set_email_sender(build_email_sender())
 
 
-# CORS — origins from env
+# Added before CORS so CORS ends up the outer layer, since middleware wraps in reverse order
+# of addition and a rejected oversized body still has to carry its CORS headers
+app.add_middleware(RequestBodySizeLimitMiddleware)
+
+
+# CORS origins from env
 _allowed_origins = list(ALLOWED_ORIGINS)
 
 app.add_middleware(
