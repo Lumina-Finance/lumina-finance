@@ -72,8 +72,9 @@ async def test_oversized_response_is_refused():
     """A response body past the cap raises rather than being read into memory"""
     client = _client_returning(lambda: _streamed(b"x" * (MAX_RESPONSE_BYTES + 1)))
 
-    async with client, pytest.raises(ResponseTooLargeError):
-        await client.get(_URL)
+    async with client:
+        with pytest.raises(ResponseTooLargeError):
+            await client.get(_URL)
 
 
 async def test_oversized_response_is_caught_as_a_transport_failure():
@@ -86,8 +87,9 @@ async def test_oversized_response_is_caught_as_a_transport_failure():
     client = _client_returning(lambda: _streamed(b"x" * (_SMALL_CAP_BYTES + 1), chunk_size=16),
                                max_response_bytes=_SMALL_CAP_BYTES)
 
-    async with client, pytest.raises(httpx.RequestError):
-        await client.get(_URL)
+    async with client:
+        with pytest.raises(httpx.RequestError):
+            await client.get(_URL)
 
 
 async def test_response_exactly_at_the_cap_is_returned():
@@ -108,8 +110,9 @@ async def test_response_one_byte_over_the_cap_is_refused():
         max_response_bytes=_SMALL_CAP_BYTES,
     )
 
-    async with client, pytest.raises(ResponseTooLargeError):
-        await client.get(_URL)
+    async with client:
+        with pytest.raises(ResponseTooLargeError):
+            await client.get(_URL)
 
 
 def _gzipped(payload: bytes) -> httpx.Response:
@@ -131,8 +134,9 @@ async def test_a_compressed_body_is_counted_after_it_expands():
 
     client = _client_returning(lambda: _gzipped(payload), max_response_bytes=_SMALL_CAP_BYTES)
 
-    async with client, pytest.raises(ResponseTooLargeError):
-        await client.get(_URL)
+    async with client:
+        with pytest.raises(ResponseTooLargeError):
+            await client.get(_URL)
 
 
 async def test_a_compressed_body_within_the_cap_decodes_once():
@@ -159,7 +163,9 @@ async def test_streaming_is_refused():
     """Asking this client to stream raises, since a caller-read body would go uncounted"""
     client = _client_returning(lambda: _streamed(b'{"rate": "1.35"}'))
 
-    # Matched on the message, since httpx's own streaming errors are RuntimeError too
-    async with client, pytest.raises(RuntimeError, match="cannot stream"):
-        async with client.stream("GET", _URL):
-            pass
+    async with client:
+
+        # Matched on the message, since httpx's own streaming errors are RuntimeError too
+        with pytest.raises(RuntimeError, match="cannot stream"):
+            async with client.stream("GET", _URL):
+                pass

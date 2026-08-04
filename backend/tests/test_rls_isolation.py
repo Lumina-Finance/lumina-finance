@@ -19,6 +19,7 @@ from app.database import current_user_id_ctx
 from app.models.account import Account
 from app.models.base import AccountKind, AccountType, CategoryKind, RecurrenceFreq
 from app.models.budget import BaseBudget, Budget, BudgetTrackedCategory
+from app.models.cache_state import UserCacheState
 from app.models.category import Category
 from app.models.currency import Currency
 from app.models.group import Group, GroupMember
@@ -281,6 +282,21 @@ async def test_cache_bump_is_refused_for_a_stranger(users):
             await session.execute(_BUMP_MEMBER_CACHE, {"user_id": user_a.id, "group_id": uuid.uuid4()})
 
 
+async def _read_cache_changed_at(user_id):
+    """Return a user's cache timestamp, read as the owner so the per-user policy does not hide it
+
+    Args:
+        user_id: User whose cache row is read
+
+    Returns:
+        The recorded change time, or None when no row exists
+    """
+    async with TestSession() as session:
+        return await session.scalar(
+            select(UserCacheState.changed_at).where(UserCacheState.user_id == user_id)
+        )
+
+
 async def test_group_admin_can_bump_a_member_just_removed(group_with_admin_and_member):
     """An admin can invalidate the cache of a member whose membership they have already deleted
 
@@ -293,6 +309,12 @@ async def test_group_admin_can_bump_a_member_just_removed(group_with_admin_and_m
             delete(GroupMember).where(GroupMember.group_id == group.id, GroupMember.user_id == user_b.id)
         )
         await session.execute(_BUMP_MEMBER_CACHE, {"user_id": user_b.id, "group_id": group.id})
+
+        # Committed so the row can be read back as the owner, since the removed member's
+        # cache row is exactly what the caller's own policy would hide from them
+        await session.commit()
+
+    assert await _read_cache_changed_at(user_b.id) is not None
 
 
 async def test_user_can_bump_their_own_cache_leaving_a_group(group_with_admin_and_member):
@@ -307,6 +329,9 @@ async def test_user_can_bump_their_own_cache_leaving_a_group(group_with_admin_an
             delete(GroupMember).where(GroupMember.group_id == group.id, GroupMember.user_id == user_b.id)
         )
         await session.execute(_BUMP_MEMBER_CACHE, {"user_id": user_b.id, "group_id": group.id})
+        await session.commit()
+
+    assert await _read_cache_changed_at(user_b.id) is not None
 
 
 async def test_cache_bump_is_refused_without_a_request_identity():
