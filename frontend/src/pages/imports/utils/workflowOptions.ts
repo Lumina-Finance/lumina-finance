@@ -15,7 +15,7 @@ import {
   KIND_LABELS,
   KIND_RANKS,
 } from '@/pages/imports/constants'
-import type { ColumnMap, ImportAccountSource, ImportFileDraft } from '@/pages/imports/types'
+import type { ColumnMap, ImportAccountSource, ImportFileDraft, ImportUploadBlock } from '@/pages/imports/types'
 import { getImportAccountName } from './accountMapping'
 import { splitImportedValues } from './categoryMatching'
 import { unique } from './common'
@@ -74,7 +74,7 @@ export function getSupportedCurrencyCodes(currencies: Currency[]) {
 export function getImportUploadBlockReason(
   currencies: Currency[],
   currenciesError: boolean,
-): { message: string; isFailure: boolean } | null {
+): ImportUploadBlock | null {
   if (currencies.length > 0) return null
 
   return currenciesError

@@ -1,7 +1,7 @@
 import { FileText, LoaderCircle, TriangleAlert, Upload, X } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { IMPORT_INSET_STYLE } from '@/pages/imports/constants'
-import type { ImportFileDraft } from '@/pages/imports/types'
+import type { ImportFileDraft, ImportUploadBlock } from '@/pages/imports/types'
 import { formatBytes } from '@/pages/imports/utils'
 
 /**
@@ -31,11 +31,13 @@ export function ImportUploadCard({
   processing: boolean
   disabled: boolean
   rejection?: string | null
-  blockReason?: { message: string; isFailure: boolean } | null
+  blockReason?: ImportUploadBlock | null
   onClick: () => void
 }) {
-  const isBlockedWithoutFailure = blockReason !== null && blockReason !== undefined && !blockReason.isFailure
+  // A block leads over a file's own refusal, since nothing can be uploaded while one stands
+  const isBlockedWithoutFailure = Boolean(blockReason) && !blockReason?.isFailure
   const message = blockReason?.message ?? rejection ?? null
+  const isRefusal = message !== null && !isBlockedWithoutFailure
   const shouldReduceMotion = useReducedMotion()
   const uploadStateMotion = shouldReduceMotion
     ? {
@@ -58,7 +60,7 @@ export function ImportUploadCard({
       style={{
         ...IMPORT_INSET_STYLE,
         color: 'var(--app-text-muted)',
-        border: (rejection ?? blockReason?.isFailure) ? '1px solid var(--app-negative-border)' : undefined,
+        border: isRefusal ? '1px solid var(--app-negative-border)' : undefined,
       }}
       onClick={onClick}
       disabled={disabled}
@@ -89,7 +91,11 @@ export function ImportUploadCard({
             </motion.span>
           ) : message ? (
             <motion.span
-              key="rejected"
+              // Waiting and refusing are separate keys so a fetch that fails after the waiting
+              // message is on screen animates between the two rather than swapping the icon in
+              // place, and so the polite live region is replaced by an assertive one rather than
+              // having its politeness changed under a screen reader, which is not reliably honoured
+              key={isBlockedWithoutFailure ? 'waiting' : 'rejected'}
               className="flex flex-col items-center"
               role={isBlockedWithoutFailure ? 'status' : 'alert'}
               {...uploadStateMotion}
