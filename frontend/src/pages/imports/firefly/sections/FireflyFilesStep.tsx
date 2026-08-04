@@ -116,7 +116,7 @@ function FireflyFileSlot({
   file: ImportFileDraft | null
   processing: boolean
   disabled: boolean
-  blockReason: string | null
+  blockReason: { message: string; isFailure: boolean } | null
   onFileChange: (kind: FireflyFileKind, event: ChangeEvent<HTMLInputElement>) => void
   onRemove: (kind: FireflyFileKind) => void
   note?: ReactNode

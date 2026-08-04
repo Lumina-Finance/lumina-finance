@@ -65,12 +65,21 @@ export function getSupportedCurrencyCodes(currencies: Currency[]) {
  * browser has not started, which is what an offline page has, reports neither loading nor failed
  * while still having no list to read against
  *
+ * `isFailure` separates the two, because waiting a moment on an ordinary page load should not be
+ * dressed as an error while something the user has to act on should
+ *
  * @param currencies - The currency list as it stands
  * @param currenciesError - Whether fetching the currency list failed
  */
-export function getImportUploadBlockReason(currencies: Currency[], currenciesError: boolean) {
+export function getImportUploadBlockReason(
+  currencies: Currency[],
+  currenciesError: boolean,
+): { message: string; isFailure: boolean } | null {
   if (currencies.length > 0) return null
-  return currenciesError ? CURRENCIES_FAILED_UPLOAD_BLOCK : CURRENCIES_LOADING_UPLOAD_BLOCK
+
+  return currenciesError
+    ? { message: CURRENCIES_FAILED_UPLOAD_BLOCK, isFailure: true }
+    : { message: CURRENCIES_LOADING_UPLOAD_BLOCK, isFailure: false }
 }
 
 /**

@@ -253,13 +253,17 @@ describe('blocking the upload until the currency list is in hand', () => {
   it('blocks on an empty list, whether it failed or has simply not arrived', () => {
     // A request the browser has not started, which is what an offline page has, reports neither
     // loading nor failed, so the list itself is what decides rather than the request's state
-    expect(getImportUploadBlockReason([], false)).toBe(CURRENCIES_LOADING_UPLOAD_BLOCK)
-    expect(getImportUploadBlockReason([], true)).toBe(CURRENCIES_FAILED_UPLOAD_BLOCK)
+    expect(getImportUploadBlockReason([], false)).toEqual({ message: CURRENCIES_LOADING_UPLOAD_BLOCK, isFailure: false })
+    expect(getImportUploadBlockReason([], true)).toEqual({ message: CURRENCIES_FAILED_UPLOAD_BLOCK, isFailure: true })
   })
 
-  it('says to reload only where the fetch actually failed', () => {
-    expect(getImportUploadBlockReason([], true)).toContain('Reload the page')
-    expect(getImportUploadBlockReason([], false)).not.toContain('Reload the page')
+  it('marks only the failed case as one the user has to act on', () => {
+    // Waiting a moment on an ordinary page load should not be dressed as an error, so only the
+    // failure gets the error treatment and the instruction to reload
+    expect(getImportUploadBlockReason([], true)?.isFailure).toBe(true)
+    expect(getImportUploadBlockReason([], true)?.message).toContain('Reload the page')
+    expect(getImportUploadBlockReason([], false)?.isFailure).toBe(false)
+    expect(getImportUploadBlockReason([], false)?.message).not.toContain('Reload the page')
   })
 })
 

@@ -14,7 +14,8 @@ import { formatBytes } from '@/pages/imports/utils'
  *
  * A block reason is the other kind of refusal: no file can be taken at all yet,
  * so it is shown without telling the user to choose a different one, and it
- * leads when both are set
+ * leads when both are set. Only a block the user has to act on is dressed as an
+ * error, since a page that is still loading its reference data is not one
  */
 export function ImportUploadCard({
   title,
@@ -30,9 +31,11 @@ export function ImportUploadCard({
   processing: boolean
   disabled: boolean
   rejection?: string | null
-  blockReason?: string | null
+  blockReason?: { message: string; isFailure: boolean } | null
   onClick: () => void
 }) {
+  const isBlockedWithoutFailure = blockReason !== null && blockReason !== undefined && !blockReason.isFailure
+  const message = blockReason?.message ?? rejection ?? null
   const shouldReduceMotion = useReducedMotion()
   const uploadStateMotion = shouldReduceMotion
     ? {
@@ -51,11 +54,11 @@ export function ImportUploadCard({
   return (
     <button
       type="button"
-      className="group grid min-h-32 w-full place-items-center px-5 py-6 text-center transition-colors duration-150 hover:bg-[var(--app-surface-soft)] disabled:cursor-wait disabled:opacity-100"
+      className={`group grid min-h-32 w-full place-items-center px-5 py-6 text-center transition-colors duration-150 hover:bg-[var(--app-surface-soft)] disabled:opacity-100 ${blockReason?.isFailure ? 'disabled:cursor-not-allowed' : 'disabled:cursor-wait'}`}
       style={{
         ...IMPORT_INSET_STYLE,
         color: 'var(--app-text-muted)',
-        border: rejection ? '1px solid var(--app-negative-border)' : undefined,
+        border: (rejection ?? blockReason?.isFailure) ? '1px solid var(--app-negative-border)' : undefined,
       }}
       onClick={onClick}
       disabled={disabled}
@@ -84,21 +87,28 @@ export function ImportUploadCard({
                 <span className="h-1.5 w-6 animate-pulse [animation-delay:240ms]" style={{ background: 'var(--app-accent)' }} />
               </span>
             </motion.span>
-          ) : (blockReason ?? rejection) ? (
+          ) : message ? (
             <motion.span
               key="rejected"
               className="flex flex-col items-center"
-              role="alert"
+              role={isBlockedWithoutFailure ? 'status' : 'alert'}
               {...uploadStateMotion}
             >
               <span
                 className="mb-3 flex h-11 w-11 items-center justify-center"
-                style={{ background: 'var(--app-negative-soft)', color: 'var(--app-negative)' }}
+                style={isBlockedWithoutFailure
+                  ? { background: 'var(--app-surface-soft)', color: 'var(--app-accent)' }
+                  : { background: 'var(--app-negative-soft)', color: 'var(--app-negative)' }}
               >
-                <TriangleAlert size={20} strokeWidth={2.25} aria-hidden />
+                {isBlockedWithoutFailure
+                  ? <LoaderCircle size={21} strokeWidth={2.4} className="animate-spin motion-reduce:animate-none" aria-hidden />
+                  : <TriangleAlert size={20} strokeWidth={2.25} aria-hidden />}
               </span>
-              <span className="block text-sm font-semibold" style={{ color: 'var(--app-negative)' }}>
-                {blockReason ?? rejection}
+              <span
+                className="block text-sm font-semibold"
+                style={{ color: isBlockedWithoutFailure ? 'var(--app-text-muted)' : 'var(--app-negative)' }}
+              >
+                {message}
               </span>
               {!blockReason && (
                 <span className="mt-1 block text-xs" style={{ color: 'var(--app-text-subtle)' }}>
