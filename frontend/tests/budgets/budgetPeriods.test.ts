@@ -127,6 +127,27 @@ describe('budget period helpers', () => {
     ])
   })
 
+  it('backfills nothing from a stored start the calendar does not have', () => {
+    const baseBudget = createBaseBudget()
+    const latestPeriod = createBudget(baseBudget, { period_start: '2026-02-31' })
+
+    expect(missingRecurringPeriodStarts(baseBudget, latestPeriod, '2026-08-15')).toEqual([])
+  })
+
+  it('previews nothing from a stored start the calendar does not have', () => {
+    const baseBudget = createBaseBudget()
+    const latestPeriod = createBudget(baseBudget, { period_start: '2026-02-31' })
+
+    expect(nextBudgetPeriods(baseBudget, latestPeriod)).toEqual([])
+    expect(nextRecurringPeriodStart(baseBudget, '2026-02-31')).toBeNull()
+  })
+
+  it('keeps a period start the calendar does not have as its own label', () => {
+    expect(cadenceSummary(createForm({ recurs: false, periodStart: '2026-02-31' }))).toBe('"Groceries" is one-off starting 2026-02-31')
+    expect(cadenceSummary(createForm({ periodStart: '2026-02-31' }))).toBe('"Groceries" will repeat monthly starting 2026-02-31')
+    expect(oneOffPeriodEnd(createForm({ recurs: false, periodStart: '2026-02-31' }))).toBeNull()
+  })
+
   it('advances a monthly period start by exactly one recurrence cycle', () => {
     const baseBudget = createBaseBudget()
 

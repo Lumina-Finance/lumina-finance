@@ -1,6 +1,6 @@
 import type { InsightsSavingsRateTrendResponse } from '@/api/insights'
 import type { SavingsRateHistoryPoint } from '@/pages/insights/types/savingsRate'
-import { DATE_FORMATS, formatDate } from '@/utils/date'
+import { DATE_FORMATS, formatDate, parseYmd } from '@/utils/date'
 import { getSavingsRate } from './money'
 
 /**
@@ -16,19 +16,19 @@ export function getSavingsRateHistory(
   const rows = response?.points ?? []
 
   return rows.map(([monthKey, income, expenses], index) => {
-    const month = new Date(`${monthKey}T00:00:00`)
+    const month = parseYmd(monthKey)
     const rate = income > 0
       ? getSavingsRate(income, expenses)
       : expenses > 0
         ? Number.NEGATIVE_INFINITY
         : null
-    const monthLabel = formatDate(month, DATE_FORMATS.month)
+    const monthLabel = month ? formatDate(month, DATE_FORMATS.month) : monthKey
 
     return {
       monthKey,
       monthLabel,
-      tickLabel: month.getMonth() === 0 ? `${monthLabel} '${String(month.getFullYear()).slice(2)}` : monthLabel,
-      fullLabel: formatDate(month, DATE_FORMATS.longMonthYear),
+      tickLabel: month?.getMonth() === 0 ? `${monthLabel} '${String(month.getFullYear()).slice(2)}` : monthLabel,
+      fullLabel: month ? formatDate(month, DATE_FORMATS.longMonthYear) : monthKey,
       rate,
       income,
       expenses,
