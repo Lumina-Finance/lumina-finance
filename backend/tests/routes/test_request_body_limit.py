@@ -37,12 +37,13 @@ async def test_undeclared_oversized_body_is_refused(client):
 async def test_body_under_the_cap_reaches_the_route(client):
     """A body within the cap is passed through, so the route decides the outcome
 
-    Unauthenticated here, so the route answers 401 rather than 413, which is what shows the
-    middleware handed the request on rather than rejecting it
+    Unauthenticated here, so the answer is the route's own rejection rather than the guard's,
+    which is what shows the request was handed on. A 404 would mean the path below has been
+    renamed and this stopped testing anything
     """
     response = await client.post(_TARGET_PATH, json={"rows": []})
 
-    assert response.status_code != 413
+    assert response.status_code not in (413, 404)
 
 
 async def test_refusal_carries_cors_headers(client):

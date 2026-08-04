@@ -71,7 +71,7 @@ class RequestBodySizeLimitMiddleware:
 
             # A client that disconnects mid-body leaves the app to handle the disconnect
             if message["type"] != "http.request":
-                await self.app(scope, _replay(body, receive, message), send)
+                await self.app(scope, _replay(bytes(body), receive, message), send)
                 return
 
             body += message.get("body", b"")

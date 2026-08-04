@@ -184,6 +184,10 @@ async def test_a_client_vanishing_mid_body_leaves_the_app_to_handle_it():
     await middleware(_scope([(b"transfer-encoding", b"chunked")]), receive, send)
 
     assert seen[0]["body"] == b"half"
+
+    # more_body is what keeps the app reading. False here would have a route treat a
+    # truncated upload as a whole one and never reach the disconnect below
+    assert seen[0]["more_body"] is True
     assert seen[1] == {"type": "http.disconnect"}
 
 

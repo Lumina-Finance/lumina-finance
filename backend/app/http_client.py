@@ -1,4 +1,4 @@
-"""Outbound HTTP client that bounds how much of a response it will read"""
+"""Outbound HTTP client that bounds the memory a response body can take"""
 
 import httpx
 
@@ -21,9 +21,16 @@ class ResponseTooLargeError(httpx.RequestError):
 
 
 class _CappedResponseClient(httpx.AsyncClient):
-    """Async client that stops reading a response body once it passes the cap"""
+    """Async client that abandons a response body once it takes more than the cap"""
 
     def __init__(self, *args, max_response_bytes: int = MAX_RESPONSE_BYTES, **kwargs) -> None:
+        """Build a client refusing a response body larger than the given cap
+
+        Args:
+            *args: httpx client arguments
+            max_response_bytes: Largest decoded response body accepted
+            **kwargs: Remaining httpx client arguments
+        """
         super().__init__(*args, **kwargs)
         self.max_response_bytes = max_response_bytes
 
@@ -68,7 +75,10 @@ class _CappedResponseClient(httpx.AsyncClient):
             headers=[(name, value) for name, value in response.headers.raw
                      if name.lower() not in _DROPPED_TRANSFER_HEADERS],
             content=bytes(body),
-            request=request,
+
+            # The response's own request rather than the one passed in, so a followed
+            # redirect reports the URL that actually answered
+            request=response.request,
             history=response.history,
             extensions=response.extensions,
         )

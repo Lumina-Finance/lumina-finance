@@ -77,8 +77,14 @@ async def test_oversized_response_is_refused():
 
 
 async def test_oversized_response_is_caught_as_a_transport_failure():
-    """The error reaches callers that only handle httpx transport failures"""
-    client = _client_returning(lambda: _streamed(b"x" * (MAX_RESPONSE_BYTES + 1)))
+    """The error reaches callers that only handle httpx transport failures
+
+    The FX helpers catch httpx.RequestError and the OIDC client catches httpx.HTTPError, so
+    an error outside that hierarchy would reach a route as a 500 rather than the provider
+    failure each of them already reports
+    """
+    client = _client_returning(lambda: _streamed(b"x" * (_SMALL_CAP_BYTES + 1), chunk_size=16),
+                               max_response_bytes=_SMALL_CAP_BYTES)
 
     async with client, pytest.raises(httpx.RequestError):
         await client.get(_URL)
@@ -153,6 +159,7 @@ async def test_streaming_is_refused():
     """Asking this client to stream raises, since a caller-read body would go uncounted"""
     client = _client_returning(lambda: _streamed(b'{"rate": "1.35"}'))
 
-    async with client, pytest.raises(RuntimeError):
+    # Matched on the message, since httpx's own streaming errors are RuntimeError too
+    async with client, pytest.raises(RuntimeError, match="cannot stream"):
         async with client.stream("GET", _URL):
             pass
