@@ -38,6 +38,40 @@
     --app-label-compact-size: 0.75rem;
   }
 
+  /* Every value the shared drop-down's look depends on, gathered here so it can be tuned by editing
+     numbers. It sits here, in this layer and above the dark block, so a theme can override any of
+     them: from a later layer, or from below, the override would lose. Two things live elsewhere: the
+     geometry placing the open panel is in components/dropdown/position.ts, because it is computed in
+     JavaScript, and the open and close timing is in components/dropdown/motion.ts, because it drives
+     a motion transition */
+  :root {
+    --app-dropdown-height-compact: 36px;
+    --app-dropdown-height-field: 40px;
+    --app-dropdown-height-toolbar: 44px;
+    --app-dropdown-radius: 20px;
+    --app-dropdown-padding-x: 16px;
+
+    /* A pill in a table cell spends most of its width on chrome at the full padding */
+    --app-dropdown-padding-x-compact: 8px;
+
+    --app-dropdown-gap: 8px;
+    --app-dropdown-font-size: 0.9375rem;
+
+    /* How much of the input colour survives over what is behind the control */
+    --app-dropdown-tint: 62%;
+
+    --app-dropdown-blur: 20px;
+    --app-dropdown-saturate: 160%;
+    --app-dropdown-panel-radius: 18px;
+    --app-dropdown-panel-padding: 6px;
+    --app-dropdown-row-radius: 10px;
+    --app-dropdown-row-padding-x: 12px;
+    --app-dropdown-row-padding-y: 8px;
+    --app-dropdown-row-gap: 8px;
+    --app-dropdown-chevron-rotation: 180deg;
+    --app-dropdown-disabled-opacity: 0.4;
+  }
+
   .dark {
     /* Dark — warm charcoal */
     --app-bg: #0F0E0C;
@@ -68,40 +102,6 @@
     --app-button-primary-text: #100F0E;
     --app-nav-bg: #12100D;
     --app-shadow-soft: 0 2px 20px #00000061, 0 1px 4px #0000003d;
-  }
-
-  /* Every value the shared drop-down's look depends on, gathered here so it can be tuned by editing
-     numbers. It sits in this layer beside the other tokens so a theme block can override any of them,
-     which it could not do from the components layer. Two things deliberately live elsewhere: the
-     geometry placing the open panel is in components/dropdown/position.ts, because it is computed in
-     JavaScript, and the open and close timing is in components/dropdown/motion.ts, because it drives
-     a motion transition */
-  :root {
-    --app-dropdown-height-compact: 36px;
-    --app-dropdown-height-field: 40px;
-    --app-dropdown-height-toolbar: 44px;
-    --app-dropdown-radius: 20px;
-    --app-dropdown-padding-x: 16px;
-
-    /* A pill in a table cell spends most of its width on chrome at the full padding */
-    --app-dropdown-padding-x-compact: 8px;
-
-    --app-dropdown-gap: 8px;
-    --app-dropdown-font-size: 0.9375rem;
-
-    /* How much of the input colour survives over what is behind the control */
-    --app-dropdown-tint: 62%;
-
-    --app-dropdown-blur: 20px;
-    --app-dropdown-saturate: 160%;
-    --app-dropdown-panel-radius: 18px;
-    --app-dropdown-panel-padding: 6px;
-    --app-dropdown-row-radius: 10px;
-    --app-dropdown-row-padding-x: 12px;
-    --app-dropdown-row-padding-y: 8px;
-    --app-dropdown-row-gap: 8px;
-    --app-dropdown-chevron-rotation: 180deg;
-    --app-dropdown-disabled-opacity: 0.4;
   }
 
   @media (max-width: 750px) {
@@ -630,8 +630,19 @@
     height: var(--app-dropdown-height-toolbar);
   }
 
-  .app-dropdown-pill:hover:not(:disabled) {
+  /* Every state below is written as the pill class plus exactly one more simple selector, so they all
+     weigh the same and the later rule wins. That settles which state shows once, in this order:
+     touched, then open, then focused, then rejected, then unavailable. The error state is written as
+     two classes rather than one for that reason alone, since a lone class would weigh less than a
+     hover and lose to it. A new state goes in this order rather than out-weighing what came before */
+  .app-dropdown-pill:hover {
     border-color: var(--app-border-strong);
+  }
+
+  /* Opening by mouse leaves no focus ring in some browsers, so the pill takes its edge from being
+     open instead. Without it an open panel floats beside a pill that looks untouched */
+  .app-dropdown-pill[aria-expanded="true"] {
+    border-color: var(--app-accent-border);
   }
 
   .app-dropdown-pill:focus-visible {
@@ -639,25 +650,27 @@
     box-shadow: 0 0 0 2px var(--app-accent-soft);
   }
 
-  /* Opening by mouse leaves no focus ring in some browsers, so the pill takes the same edge from
-     being open. Without it an open panel floats beside a pill that looks untouched */
-  .app-dropdown-pill[aria-expanded="true"] {
-    border-color: var(--app-accent-border);
-  }
-
-  .app-dropdown-pill:disabled {
-    cursor: not-allowed;
-    opacity: 0.6;
-  }
-
-  /* Holds the error edge through focus and through being open, both of which set a border of their
-     own at a specificity the plain error class cannot beat */
-  .app-dropdown-pill-error,
-  .app-dropdown-pill-error:hover:not(:disabled),
-  .app-dropdown-pill-error:focus-visible,
-  .app-dropdown-pill-error[aria-expanded="true"] {
+  .app-dropdown-pill.app-dropdown-pill-error {
     border-color: var(--app-negative-border);
     background: var(--app-negative-soft);
+  }
+
+  /* The ring turns red with the border, or a rejected field reads as fine the moment it takes focus.
+     A disabled pill never reaches this, because a disabled button cannot take focus */
+  .app-dropdown-pill.app-dropdown-pill-error:focus-visible {
+    box-shadow: 0 0 0 2px var(--app-negative-soft);
+  }
+
+  /* Last, so a pill nobody can use answers to none of the above, whichever of them it also carries.
+     It has to name every property those states set, not only the border: equal weight and later
+     placement settle a property at a time, so one left out is one the earlier state still wins. A
+     rejected field that is also disabled showed a plain border around a red fill until this said so */
+  .app-dropdown-pill:disabled {
+    border-color: var(--app-input-border);
+    background: var(--app-input-bg);
+    box-shadow: none;
+    cursor: not-allowed;
+    opacity: 0.6;
   }
 
   .app-dropdown-chevron {
