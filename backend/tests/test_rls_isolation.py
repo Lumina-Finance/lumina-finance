@@ -6,12 +6,13 @@ runtime app role, which is subject to the policies, to prove they actually keep
 one user's data out of another user's reach at the database level
 """
 
+import uuid
 from contextlib import asynccontextmanager
 from datetime import UTC, date, datetime
 from decimal import Decimal
 
 import pytest
-from sqlalchemy import select, text
+from sqlalchemy import delete, select, text
 from sqlalchemy.exc import ProgrammingError
 
 from app.database import current_user_id_ctx
@@ -243,3 +244,73 @@ async def test_budget_spend_rows_returns_nothing_to_unauthorized_readers(users):
     async with _act_as(user_b.id) as session:
         other_rows = (await session.execute(spend_query, {"budget_ids": [budget.id]})).all()
         assert other_rows == []
+
+
+_BUMP_MEMBER_CACHE = text("SELECT public.bump_group_member_cache(:user_id, :group_id)")
+
+
+@pytest.fixture
+async def group_with_admin_and_member(users):
+    """Seed a group whose owner is an admin and whose second user is a plain member"""
+    user_a, user_b = users
+    group = Group(owner_id=user_a.id, name="A Family")
+    async with TestSession() as session:
+        session.add(group)
+        await session.flush()
+        session.add_all([
+            GroupMember(group_id=group.id, user_id=user_a.id, is_admin=True),
+            GroupMember(group_id=group.id, user_id=user_b.id),
+        ])
+        await session.commit()
+    return group, user_a, user_b
+
+
+async def test_cache_bump_is_refused_for_a_group_the_caller_does_not_administer(group_with_admin_and_member):
+    """A plain member cannot invalidate another member's cache through the privileged helper"""
+    group, user_a, user_b = group_with_admin_and_member
+    async with _act_as(user_b.id) as session:
+        with pytest.raises(ProgrammingError, match="Not authorized"):
+            await session.execute(_BUMP_MEMBER_CACHE, {"user_id": user_a.id, "group_id": group.id})
+
+
+async def test_cache_bump_is_refused_for_a_stranger(users):
+    """A user outside every group of the target cannot invalidate the target's cache"""
+    user_a, user_b = users
+    async with _act_as(user_b.id) as session:
+        with pytest.raises(ProgrammingError, match="Not authorized"):
+            await session.execute(_BUMP_MEMBER_CACHE, {"user_id": user_a.id, "group_id": uuid.uuid4()})
+
+
+async def test_group_admin_can_bump_a_member_just_removed(group_with_admin_and_member):
+    """An admin can invalidate the cache of a member whose membership they have already deleted
+
+    The removal route deletes the membership before bumping, so the helper has to authorize
+    against the caller's own admin membership rather than the target's
+    """
+    group, user_a, user_b = group_with_admin_and_member
+    async with _act_as(user_a.id) as session:
+        await session.execute(
+            delete(GroupMember).where(GroupMember.group_id == group.id, GroupMember.user_id == user_b.id)
+        )
+        await session.execute(_BUMP_MEMBER_CACHE, {"user_id": user_b.id, "group_id": group.id})
+
+
+async def test_user_can_bump_their_own_cache_leaving_a_group(group_with_admin_and_member):
+    """A member leaving a group invalidates their own cache through the same call
+
+    Their own membership is gone by then, so the group branch is false and the self branch
+    is what carries it
+    """
+    group, _, user_b = group_with_admin_and_member
+    async with _act_as(user_b.id) as session:
+        await session.execute(
+            delete(GroupMember).where(GroupMember.group_id == group.id, GroupMember.user_id == user_b.id)
+        )
+        await session.execute(_BUMP_MEMBER_CACHE, {"user_id": user_b.id, "group_id": group.id})
+
+
+async def test_cache_bump_is_refused_without_a_request_identity():
+    """A connection carrying no identity is refused rather than treated as a match"""
+    async with _act_as(None) as session:
+        with pytest.raises(ProgrammingError, match="Not authorized"):
+            await session.execute(_BUMP_MEMBER_CACHE, {"user_id": uuid.uuid4(), "group_id": uuid.uuid4()})

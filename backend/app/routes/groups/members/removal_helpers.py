@@ -10,7 +10,7 @@ from app.routes.groups.membership_helpers import (
     get_group_membership_or_404,
     get_group_owner_id,
 )
-from app.services.cache_state import mark_group_cache_changed, mark_user_cache_changed_privileged
+from app.services.cache_state import mark_group_cache_changed, mark_group_member_cache_changed
 
 
 async def remove_group_member(
@@ -57,6 +57,8 @@ async def remove_group_member(
     await db.delete(target_membership)
 
     # The removed member may not be the caller, so invalidate their cache through the
-    # privileged helper that the per-user write policy would otherwise block
-    await mark_user_cache_changed_privileged(db, member_id)
+    # privileged helper that the per-user write policy would otherwise block. The group
+    # is passed because the helper authorizes the call against the caller's admin
+    # membership, the target's having just been deleted
+    await mark_group_member_cache_changed(db, member_id, group_id)
     await db.commit()
