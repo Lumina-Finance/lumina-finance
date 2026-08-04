@@ -17,17 +17,26 @@ current_user_id_ctx: ContextVar[uuid.UUID | None] = ContextVar("current_user_id"
 # expire_on_commit=False keeps objects usable after commit without re-fetching
 async_session = async_sessionmaker(engine, expire_on_commit=False)
 
+# Written with the asyncpg placeholder style, since exec_driver_sql passes the statement
+# to the driver without the translation a SQLAlchemy text() construct would get
+_SET_IDENTITY_SQL = "SELECT set_config('app.current_user_id', $1, true)"
+
 
 def stamp_request_identity(connection) -> None:
-    """Stamp the request user onto a new transaction for row-level security"""
+    """Stamp the request user onto a new transaction for row-level security
+
+    Raises:
+        ValueError: The context variable holds a value that is not a UUID
+    """
     # Transaction-local so the value resets on commit and never leaks onto the
     # pooled connection, and re-stamped here whenever a request opens a new one
     user_id = current_user_id_ctx.get()
 
-    # The value is always a validated UUID or empty, so it is safe to inline, and a
-    # bound parameter is not available inside this connection-begin event
-    identity = str(user_id) if user_id is not None else ""
-    connection.exec_driver_sql(f"SELECT set_config('app.current_user_id', '{identity}', true)")
+    # Cast rather than trust the caller, so a value reaching the context variable from a
+    # job payload or a database column fails here instead of at policy evaluation. An
+    # absent identity stamps empty, which is what makes the policies match no rows
+    identity = "" if user_id is None else str(uuid.UUID(str(user_id)))
+    connection.exec_driver_sql(_SET_IDENTITY_SQL, (identity,))
 
 
 # The test suite registers this same listener on its own app-role engine so route

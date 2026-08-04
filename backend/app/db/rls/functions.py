@@ -5,6 +5,10 @@ bypasses RLS, which both lets the policies see real membership and stops a polic
 queries a table from recursing into that table's own policy. Every helper is paired
 with the signature needed to drop it, so adding one is a single edit and revoking can
 never leave a function behind
+
+A helper whose argument list changes is a new function rather than a replacement, so the
+signature it used to have is retired through the obsolete list below and dropped by both
+the apply and the revoke path
 """
 
 from typing import NamedTuple
@@ -20,8 +24,14 @@ CAN_ACCESS_GROUP = "public.can_access_group"
 CAN_ACCESS_BASE_BUDGET = "public.can_access_base_budget"
 FIND_LOGIN_USER = "public.find_login_user"
 USER_TZ = "public.user_tz"
-BUMP_USER_CACHE = "public.bump_user_cache"
+BUMP_GROUP_MEMBER_CACHE = "public.bump_group_member_cache"
 BUDGET_SPEND_ROWS = "public.budget_spend_rows"
+
+# Signatures the app no longer creates, dropped wherever the helpers are applied or revoked.
+# bump_user_cache stamped whatever user id it was given, and the app role can execute every
+# function in the schema, so leaving it on an already-provisioned database would keep any
+# authenticated user able to invalidate any other user's cache
+_OBSOLETE_SIGNATURES: tuple[str, ...] = ("public.bump_user_cache(uuid)",)
 
 
 class _Helper(NamedTuple):
@@ -140,19 +150,39 @@ _HELPERS: tuple[_Helper, ...] = (
     """,
         f"{USER_TZ}(uuid)",
     ),
-    # Touch a user's personal cache timestamp on their behalf, used when an authorized
-    # action by another user, such as removing them from a group, must invalidate their
-    # cache even though the per-user write policy scopes cache writes to the caller
+    # Touch a group member's personal cache timestamp on their behalf, used when an admin
+    # removing them must invalidate their cache even though the per-user write policy scopes
+    # cache writes to the caller. Both halves are needed: administering the named group alone
+    # would let anyone stamp any user, since creating a group makes the creator its admin, so
+    # the target has to be a member of that same group. The caller must therefore stamp before
+    # deleting the membership. This narrows the reachable set rather than closing it, because
+    # an admin can add a user to their own group without that user agreeing, so the caller
+    # still gets there with the target's id and one extra call. plpgsql rather than sql so a
+    # denied call raises instead of quietly inserting nothing, and a null target or a
+    # connection carrying no identity is refused outright rather than compared to NULL
     _Helper(
         f"""
-    CREATE OR REPLACE FUNCTION {BUMP_USER_CACHE}(p_user_id uuid) RETURNS void
-    LANGUAGE sql SECURITY DEFINER SET search_path = '' AS $$
+    CREATE OR REPLACE FUNCTION {BUMP_GROUP_MEMBER_CACHE}(p_user_id uuid, p_group_id uuid) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+    BEGIN
+        IF p_user_id IS NULL OR (p_user_id IS DISTINCT FROM {CURRENT_USER_ID}() AND NOT (
+            {IS_GROUP_ADMIN}(p_group_id)
+            AND EXISTS (
+                SELECT 1 FROM public.group_members gm
+                WHERE gm.group_id = p_group_id AND gm.user_id = p_user_id
+            )
+        )) THEN
+            RAISE EXCEPTION 'Not authorized to invalidate the cache for this user'
+                USING ERRCODE = 'insufficient_privilege';
+        END IF;
+
         INSERT INTO public.user_cache_states (user_id, changed_at, last_changed_session_id)
         VALUES (p_user_id, clock_timestamp(), NULL)
-        ON CONFLICT (user_id) DO UPDATE SET changed_at = clock_timestamp(), last_changed_session_id = NULL
+        ON CONFLICT (user_id) DO UPDATE SET changed_at = clock_timestamp(), last_changed_session_id = NULL;
+    END
     $$
     """,
-        f"{BUMP_USER_CACHE}(uuid)",
+        f"{BUMP_GROUP_MEMBER_CACHE}(uuid, uuid)",
     ),
     # Aggregate spend per tracked category for budgets the current user can access
     # The visibility check makes the function self-authorizing rather than trusting its
@@ -199,11 +229,19 @@ _HELPERS: tuple[_Helper, ...] = (
 
 def create_helper_functions(connection: Connection) -> None:
     """Create every SECURITY DEFINER helper the policies and the app rely on"""
+    _drop_obsolete_helper_functions(connection)
     for helper in _HELPERS:
         connection.execute(text(helper.create_sql))
 
 
 def drop_helper_functions(connection: Connection) -> None:
     """Drop every helper function when row-level security is removed"""
+    _drop_obsolete_helper_functions(connection)
     for helper in _HELPERS:
         connection.execute(text(f"DROP FUNCTION IF EXISTS {helper.drop_signature}"))
+
+
+def _drop_obsolete_helper_functions(connection: Connection) -> None:
+    """Drop retired helper signatures the app no longer creates"""
+    for signature in _OBSOLETE_SIGNATURES:
+        connection.execute(text(f"DROP FUNCTION IF EXISTS {signature}"))

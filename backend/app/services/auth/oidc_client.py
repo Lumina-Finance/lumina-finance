@@ -11,6 +11,8 @@ import httpx
 import jwt
 from fastapi import HTTPException, status
 
+from app.http_client import build_http_client
+
 _DISCOVERY_PATH = "/.well-known/openid-configuration"
 _HTTP_TIMEOUT_SECONDS = 10.0
 
@@ -29,8 +31,8 @@ _jwks_cache: dict[str, tuple[float, jwt.PyJWKSet]] = {}
 
 
 def _http_client() -> httpx.AsyncClient:
-    """Return a short-lived HTTP client with the shared timeout"""
-    return httpx.AsyncClient(timeout=_HTTP_TIMEOUT_SECONDS)
+    """Return a short-lived HTTP client with the shared timeout and response size cap"""
+    return build_http_client(timeout=_HTTP_TIMEOUT_SECONDS)
 
 
 async def _fetch_json(url: str) -> dict[str, Any]:

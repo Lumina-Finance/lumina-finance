@@ -7,7 +7,7 @@ from sqlalchemy import text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.rls.functions import BUMP_USER_CACHE
+from app.db.rls.functions import BUMP_GROUP_MEMBER_CACHE
 from app.dependencies import get_current_session_id
 from app.models.cache_state import GroupCacheState, UserCacheState
 
@@ -25,21 +25,35 @@ async def mark_user_cache_changed(db: AsyncSession, user_id: uuid.UUID) -> None:
     await _upsert_cache_state(db, UserCacheState, "user_id", user_id)
 
 
-async def mark_user_cache_changed_privileged(db: AsyncSession, user_id: uuid.UUID) -> None:
-    """Record a personal-scope change for a user who may not be the caller
+async def mark_group_member_cache_changed(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    group_id: uuid.UUID,
+) -> None:
+    """Record a personal-scope change for a member of a group the caller administers
 
     Removing a member from a group must invalidate that member's cache, which the
     per-user write policy blocks when an admin removes someone else, so this routes
-    through a security-definer helper that bypasses the per-user scoping
+    through a security-definer helper that bypasses the per-user scoping. The helper
+    refuses unless the caller is the member, or administers the given group and the
+    member belongs to it, so it has to be called before the membership is deleted
 
     Args:
         db: Active database session
         user_id: User scope that changed
+        group_id: Group the user belongs to and the caller administers
 
     Returns:
         None
+
+    Raises:
+        ProgrammingError: The caller is not the member, or does not administer a group
+            the member belongs to
     """
-    await db.execute(text(f"SELECT {BUMP_USER_CACHE}(:user_id)"), {"user_id": user_id})
+    await db.execute(
+        text(f"SELECT {BUMP_GROUP_MEMBER_CACHE}(:user_id, :group_id)"),
+        {"user_id": user_id, "group_id": group_id},
+    )
 
 
 async def mark_group_cache_changed(db: AsyncSession, group_id: uuid.UUID) -> None:

@@ -10,6 +10,7 @@ from typing import TypeVar
 import httpx
 
 from app.config.fx import FRANKFURTER_URL
+from app.http_client import build_http_client
 from app.services.fx.errors import FxRateError
 from app.services.fx.frankfurter_request_helpers import (
     request_frankfurter_rate_response,
@@ -65,7 +66,7 @@ class FrankfurterProvider:
         if self.client is not None:
             return await self._get_rate(self.client, normalized_base, normalized_quote, rate_date)
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
+        async with build_http_client(timeout=self.timeout) as client:
             return await self._get_rate(client, normalized_base, normalized_quote, rate_date)
 
     async def _get_rate(
@@ -107,7 +108,7 @@ class FrankfurterProvider:
         if self.client is not None:
             return await self._get_rates(self.client, normalized_base, normalized_quote, start_date, end_date)
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
+        async with build_http_client(timeout=self.timeout) as client:
             return await self._get_rates(client, normalized_base, normalized_quote, start_date, end_date)
 
     async def _get_rates(

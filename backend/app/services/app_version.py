@@ -6,10 +6,12 @@ import time
 import httpx
 
 from app.config.runtime import APP_VERSION, UPDATE_CHECKS_ENABLED
+from app.http_client import build_http_client
 
 GITHUB_LATEST_RELEASE_URL = "https://api.github.com/repos/Lumina-Finance/lumina-finance/releases/latest"
 DOCKER_TAG_URL_TEMPLATE = "https://hub.docker.com/v2/repositories/luminahq/lumina-finance/tags/{tag}"
 UPDATE_CHECK_CACHE_SECONDS = 6 * 60 * 60
+_HTTP_TIMEOUT_SECONDS = 5.0
 
 _VERSION_PATTERN = re.compile(r"^v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
 _update_check_cache: tuple[str, float, dict[str, str] | None] | None = None
@@ -82,7 +84,7 @@ async def _fetch_latest_github_release(client: httpx.AsyncClient | None) -> dict
         Latest GitHub release payload, or None when it cannot be fetched
     """
     should_close_client = client is None
-    http_client = client or httpx.AsyncClient(timeout=5.0)
+    http_client = client or build_http_client(timeout=_HTTP_TIMEOUT_SECONDS)
 
     try:
         # GitHub is the source for the latest release candidate
@@ -108,7 +110,7 @@ async def _docker_tag_exists(docker_tag: str, client: httpx.AsyncClient | None) 
         Whether the exact Docker Hub image tag exists
     """
     should_close_client = client is None
-    http_client = client or httpx.AsyncClient(timeout=5.0)
+    http_client = client or build_http_client(timeout=_HTTP_TIMEOUT_SECONDS)
 
     try:
         # Docker Hub must have the exact normalised version tag before users see an update

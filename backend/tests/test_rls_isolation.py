@@ -6,18 +6,20 @@ runtime app role, which is subject to the policies, to prove they actually keep
 one user's data out of another user's reach at the database level
 """
 
+import uuid
 from contextlib import asynccontextmanager
 from datetime import UTC, date, datetime
 from decimal import Decimal
 
 import pytest
-from sqlalchemy import select, text
+from sqlalchemy import delete, select, text
 from sqlalchemy.exc import ProgrammingError
 
 from app.database import current_user_id_ctx
 from app.models.account import Account
 from app.models.base import AccountKind, AccountType, CategoryKind, RecurrenceFreq
 from app.models.budget import BaseBudget, Budget, BudgetTrackedCategory
+from app.models.cache_state import UserCacheState
 from app.models.category import Category
 from app.models.currency import Currency
 from app.models.group import Group, GroupMember
@@ -32,7 +34,8 @@ async def _act_as(user_id):
 
     The identity is set on the same context variable the app uses, so the session's
     begin listener stamps it for the policies, mirroring a real request. Nothing is
-    committed, so writes attempted inside the block never persist
+    committed here, so a write inside the block is discarded unless the test commits it
+    deliberately, and the per-test truncation clears whatever a test does commit
     """
     token = current_user_id_ctx.set(user_id)
     try:
@@ -243,3 +246,130 @@ async def test_budget_spend_rows_returns_nothing_to_unauthorized_readers(users):
     async with _act_as(user_b.id) as session:
         other_rows = (await session.execute(spend_query, {"budget_ids": [budget.id]})).all()
         assert other_rows == []
+
+
+_BUMP_MEMBER_CACHE = text("SELECT public.bump_group_member_cache(:user_id, :group_id)")
+
+
+@pytest.fixture
+async def group_with_admin_and_member(users):
+    """Seed a group whose owner is an admin and whose second user is a plain member"""
+    user_a, user_b = users
+    group = Group(owner_id=user_a.id, name="A Family")
+    async with TestSession() as session:
+        session.add(group)
+        await session.flush()
+        session.add_all([
+            GroupMember(group_id=group.id, user_id=user_a.id, is_admin=True),
+            GroupMember(group_id=group.id, user_id=user_b.id),
+        ])
+        await session.commit()
+    return group, user_a, user_b
+
+
+async def test_cache_bump_is_refused_for_a_group_the_caller_does_not_administer(group_with_admin_and_member):
+    """A plain member cannot invalidate another member's cache through the privileged helper"""
+    group, user_a, user_b = group_with_admin_and_member
+    async with _act_as(user_b.id) as session:
+        with pytest.raises(ProgrammingError, match="Not authorized"):
+            await session.execute(_BUMP_MEMBER_CACHE, {"user_id": user_a.id, "group_id": group.id})
+
+
+async def test_cache_bump_is_refused_for_a_stranger(users):
+    """A user outside every group of the target cannot invalidate the target's cache"""
+    user_a, user_b = users
+    async with _act_as(user_b.id) as session:
+        with pytest.raises(ProgrammingError, match="Not authorized"):
+            await session.execute(_BUMP_MEMBER_CACHE, {"user_id": user_a.id, "group_id": uuid.uuid4()})
+
+
+async def _read_cache_changed_at(user_id):
+    """Return a user's cache timestamp, read as the owner so the per-user policy does not hide it
+
+    Args:
+        user_id: User whose cache row is read
+
+    Returns:
+        The recorded change time, or None when no row exists
+    """
+    async with TestSession() as session:
+        return await session.scalar(
+            select(UserCacheState.changed_at).where(UserCacheState.user_id == user_id)
+        )
+
+
+async def test_group_admin_can_bump_a_member_of_that_group(group_with_admin_and_member):
+    """An admin can invalidate the cache of someone who belongs to the group they administer"""
+    group, user_a, user_b = group_with_admin_and_member
+    async with _act_as(user_a.id) as session:
+        await session.execute(_BUMP_MEMBER_CACHE, {"user_id": user_b.id, "group_id": group.id})
+
+        # Committed so the row can be read back as the owner, since another user's cache
+        # row is exactly what the caller's own policy would hide from them
+        await session.commit()
+
+    assert await _read_cache_changed_at(user_b.id) is not None
+
+
+async def test_cache_bump_is_refused_for_a_group_the_target_does_not_belong_to(users):
+    """Administering a group is not enough on its own, since anyone can create one
+
+    A user who creates a group is made its admin, so a check resting on that alone would let
+    anyone invalidate anyone's cache by naming a group of their own
+    """
+    user_a, user_b = users
+    own_group = Group(owner_id=user_b.id, name="B Only")
+    async with TestSession() as session:
+        session.add(own_group)
+        await session.flush()
+        session.add(GroupMember(group_id=own_group.id, user_id=user_b.id, is_admin=True))
+        await session.commit()
+
+    async with _act_as(user_b.id) as session:
+        with pytest.raises(ProgrammingError, match="Not authorized"):
+            await session.execute(_BUMP_MEMBER_CACHE, {"user_id": user_a.id, "group_id": own_group.id})
+
+
+async def test_cache_bump_is_refused_once_the_member_is_gone(group_with_admin_and_member):
+    """The membership has to still be there, which is what forces the bump before the removal
+
+    Swapping those two lines in the removal route fails here rather than passing silently
+    """
+    group, user_a, user_b = group_with_admin_and_member
+    async with _act_as(user_a.id) as session:
+        await session.execute(
+            delete(GroupMember).where(GroupMember.group_id == group.id, GroupMember.user_id == user_b.id)
+        )
+        with pytest.raises(ProgrammingError, match="Not authorized"):
+            await session.execute(_BUMP_MEMBER_CACHE, {"user_id": user_b.id, "group_id": group.id})
+
+
+async def test_user_can_bump_their_own_cache_leaving_a_group(group_with_admin_and_member):
+    """A member leaving a group invalidates their own cache through the same call
+
+    Their own membership is gone by then, so the group branch is false and the self branch
+    is what carries it
+    """
+    group, _, user_b = group_with_admin_and_member
+    async with _act_as(user_b.id) as session:
+        await session.execute(
+            delete(GroupMember).where(GroupMember.group_id == group.id, GroupMember.user_id == user_b.id)
+        )
+        await session.execute(_BUMP_MEMBER_CACHE, {"user_id": user_b.id, "group_id": group.id})
+        await session.commit()
+
+    assert await _read_cache_changed_at(user_b.id) is not None
+
+
+async def test_cache_bump_is_refused_without_a_request_identity():
+    """A connection carrying no identity is refused rather than treated as a match"""
+    async with _act_as(None) as session:
+        with pytest.raises(ProgrammingError, match="Not authorized"):
+            await session.execute(_BUMP_MEMBER_CACHE, {"user_id": uuid.uuid4(), "group_id": uuid.uuid4()})
+
+
+async def test_cache_bump_is_refused_for_a_null_target():
+    """A null target is refused rather than matching a null identity and skipping the check"""
+    async with _act_as(None) as session:
+        with pytest.raises(ProgrammingError, match="Not authorized"):
+            await session.execute(_BUMP_MEMBER_CACHE, {"user_id": None, "group_id": uuid.uuid4()})

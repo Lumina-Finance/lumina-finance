@@ -7,7 +7,6 @@ from app.config.oidc import (
     OIDC_AUTHORIZATION_REQUEST_EXPIRE_SECONDS,
     OIDC_REAUTH_STEPUP_TOKEN_EXPIRE_SECONDS,
 )
-from app.request_security import request_is_https
 
 _COOKIE_KEY = "refresh_token"
 _COOKIE_PATH = "/"
@@ -24,6 +23,18 @@ _OIDC_BINDING_COOKIE_MAX_AGE = OIDC_AUTHORIZATION_REQUEST_EXPIRE_SECONDS
 OIDC_REAUTH_STEPUP_COOKIE_KEY = "oidc_reauth_stepup"
 _OIDC_REAUTH_STEPUP_COOKIE_PATH = "/"
 _OIDC_REAUTH_STEPUP_COOKIE_MAX_AGE = OIDC_REAUTH_STEPUP_TOKEN_EXPIRE_SECONDS
+
+
+def request_is_https(request: Request) -> bool:
+    """Return whether the original client request used HTTPS
+
+    The proxy header is what the deployed app sees, since it terminates TLS in front of
+    the application and forwards over plain HTTP
+    """
+    forwarded_proto = request.headers.get("x-forwarded-proto")
+    if forwarded_proto:
+        return forwarded_proto.split(",", 1)[0].strip().lower() == "https"
+    return request.url.scheme == "https"
 
 
 def set_refresh_cookie(request: Request, response: Response, token: str) -> None:
