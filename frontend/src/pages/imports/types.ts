@@ -51,6 +51,15 @@ export interface ImportFileDraft {
   hasHeaderRow: boolean
   rows: CsvRow[]
   error: string | null
+
+  /**
+   * Something worth saying about a file that still staged, such as characters the decoder could not
+   * read, told apart from `error` because the file is usable and the import can go ahead
+   *
+   * Optional rather than nullable, since only the reader sets it and every other way a draft is
+   * built has nothing to say
+   */
+  notice?: string
 }
 
 export interface PreviewTransactionRow {

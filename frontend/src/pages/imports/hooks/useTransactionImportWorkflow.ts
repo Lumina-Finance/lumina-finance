@@ -367,7 +367,9 @@ export function useTransactionImportWorkflow() {
 
     try {
       const [drafts] = await Promise.all([
-        Promise.all(selectedFiles.map((selectedFile) => readCsvFile(selectedFile, supportedCurrencyCodes))),
+        Promise.all(selectedFiles.map((selectedFile) => (
+          readCsvFile(selectedFile, supportedCurrencyCodes, { requireDataRows: true })
+        ))),
         waitForMilliseconds(CSV_PROCESSING_MIN_MS),
       ])
       const next = drafts.slice(0, 1)

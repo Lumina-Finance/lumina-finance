@@ -179,7 +179,7 @@ export function ImportStagedFileList({
               <FileText size={17} className="shrink-0" style={{ color: 'var(--app-text-muted)' }} aria-hidden />
               <div className="min-w-0">
                 <p className="truncate text-[0.9375rem] font-medium">{file.name}</p>
-                <p className="truncate text-xs" style={{ color: file.error ? 'var(--app-negative)' : 'var(--app-text-subtle)' }}>
+                <p className="truncate text-xs" style={{ color: getFileMetaColor(file) }}>
                   {getFileMeta(file)}
                 </p>
               </div>
@@ -201,9 +201,21 @@ export function ImportStagedFileList({
 }
 
 /**
- * Formats one staged file's size and column details, or surfaces its error
+ * Formats one staged file's size and column details, surfacing its error in their place, and adding
+ * anything the reader had to say about a file that staged anyway
  */
 function getFileMeta(file: ImportFileDraft) {
   if (file.error) return file.error
-  return `${formatBytes(file.size)} · ${file.headers.length} columns${file.hasHeaderRow ? '' : ' · no header row'}`
+
+  const meta = `${formatBytes(file.size)} · ${file.headers.length} columns${file.hasHeaderRow ? '' : ' · no header row'}`
+  return file.notice ? `${meta} · ${file.notice}` : meta
+}
+
+/**
+ * Colours the detail line by what it is saying, so a file that cannot be used is told apart from one
+ * that staged with something worth knowing about it
+ */
+function getFileMetaColor(file: ImportFileDraft) {
+  if (file.error) return 'var(--app-negative)'
+  return file.notice ? 'var(--app-warning-text)' : 'var(--app-text-subtle)'
 }
