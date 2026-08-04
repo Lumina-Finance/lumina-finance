@@ -60,7 +60,7 @@ export default function TaxAdvantagedLimitDetailsModal({
     <ModalShell
       open={showAddTaxYear || Boolean(selectedLimit && selectedDraft)}
       onClose={onClose}
-      titleId="tax-limit-details-title"
+      titleId="tax-year-limit-title"
       panelClassName="flex max-h-[100dvh] min-h-[100dvh] w-full flex-col overflow-hidden rounded-none min-[620px]:min-h-0 min-[620px]:max-h-[calc(100dvh-2rem)] min-[620px]:max-w-[38rem] min-[620px]:rounded-2xl"
       level="stacked"
       boundsTooltips

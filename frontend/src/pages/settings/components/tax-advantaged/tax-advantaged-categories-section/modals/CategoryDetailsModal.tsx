@@ -47,7 +47,7 @@ export default function TaxAdvantagedCategoryDetailsModal({
       open={open}
       onClose={onClose}
       titleId="tax-category-details-title"
-      panelClassName="flex max-h-[100dvh] min-h-[100dvh] w-full flex-col overflow-hidden rounded-none min-[620px]:min-h-0 min-[620px]:max-h-[calc(100dvh-2rem)] min-[620px]:max-w-[38rem] min-[620px]:overflow-visible min-[620px]:rounded-2xl"
+      panelClassName="flex max-h-[100dvh] min-h-[100dvh] w-full flex-col overflow-hidden rounded-none min-[620px]:min-h-0 min-[620px]:max-h-[calc(100dvh-2rem)] min-[620px]:max-w-[38rem] min-[620px]:rounded-2xl min-[1050px]:overflow-visible"
       level="stacked"
       boundsTooltips
     >
@@ -71,7 +71,10 @@ export default function TaxAdvantagedCategoryDetailsModal({
         </button>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-5 min-[620px]:overflow-visible">
+      {/* The stylesheet pins every modal panel to the full viewport height below 1050px, so the body
+          has to keep scrolling until that rule stops applying. Letting it overflow visible any earlier
+          puts content past the bottom of a fixed-height panel with no way to reach it */}
+      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-5 min-[1050px]:overflow-visible">
         <div className="space-y-4">
           <div className="grid grid-cols-1 gap-3 min-[620px]:grid-cols-[minmax(0,3fr)_minmax(0,7fr)]">
             <div className="grid min-w-0 grid-cols-2 gap-2">
