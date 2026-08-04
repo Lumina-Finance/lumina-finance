@@ -70,7 +70,7 @@ async def create_account_with_initial_balance_history(
         Created account row pending commit
 
     Raises:
-        HTTPException: Anchor timezone does not refer to a zone this build carries
+        HTTPException: Anchor timezone is not a zone the app recognizes
     """
     account = Account(
         owner_id=creation_scope.owner_id,

@@ -39,7 +39,7 @@ async def get_tac_category_current_years(
         Current calendar year keyed by tax-advantaged category identifier
 
     Raises:
-        HTTPException: An owner's stored timezone does not refer to a zone this build carries
+        HTTPException: An owner's stored timezone is not a zone the app recognizes
     """
     owner_ids = {tax_advantaged_category.category_owner_user_id for tax_advantaged_category in tax_advantaged_categories}
 

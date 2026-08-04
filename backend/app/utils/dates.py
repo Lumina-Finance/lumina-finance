@@ -27,7 +27,7 @@ def resolve_timezone(tz: str, *, stored_on: str = OWN_PROFILE) -> ZoneInfo:
         Zone the identifier refers to
 
     Raises:
-        HTTPException: The identifier does not refer to a zone this build carries
+        HTTPException: The identifier is not a zone the app recognizes
     """
     try:
         return ZoneInfo(tz)

@@ -140,7 +140,7 @@ async def restore_zero_anchor_if_empty(db: AsyncSession, account_id: uuid.UUID) 
         None
 
     Raises:
-        HTTPException: Owner's stored timezone does not refer to a zone this build carries
+        HTTPException: Owner's stored timezone is not a zone the app recognizes
     """
     # Check whether any snapshot remains before rebuilding the account's zero anchor
     existing = await db.execute(

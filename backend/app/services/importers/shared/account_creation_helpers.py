@@ -67,7 +67,7 @@ def _add_import_account_opening_snapshot(db: AsyncSession, account: Account, use
         None
 
     Raises:
-        HTTPException: Stored timezone does not refer to a zone this build carries
+        HTTPException: Stored timezone is not a zone the app recognizes
     """
     opening_snapshot = AccountBalanceSnapshot(
         account_id=account.id,

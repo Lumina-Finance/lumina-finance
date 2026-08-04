@@ -15,7 +15,7 @@ def get_current_user_date(user: User) -> date:
         Current date in the user's timezone
 
     Raises:
-        HTTPException: Stored timezone does not refer to a zone this build carries
+        HTTPException: Stored timezone is not a zone the app recognizes
     """
     current_date = datetime.now(resolve_timezone(user.tz)).date()
     return current_date
