@@ -5,6 +5,13 @@ import { X } from 'lucide-react'
 import { useMobileFilterSheetEffects } from '@/components/filters/hooks/useMobileSheetEffects'
 import { useModalScrollGuard } from '@/components/filters/hooks/useModalScrollGuard'
 
+// How much of the panel's own colour covers the page behind it. The sheet does not filter its own
+// backdrop: a backdrop-filter is recomputed for every frame in which anything above or inside it
+// repaints, and this one holds the whole scrollable filter list, so a single drag re-blurred the
+// screen on every frame. Nothing blurs the page instead, because the sheet covers it, so the mix has
+// to stay high enough that sharp page content does not read through
+const PANEL_OPACITY_PERCENT = 97
+
 type MobileFilterGlassPanelProps = {
   isOpen: boolean
   onClose: () => void
@@ -66,9 +73,7 @@ export function MobileFilterGlassPanel({
             // 100dvh tracks the dynamic viewport so the modal covers the screen even as the mobile
             // browser chrome shows or hides, leaving no strip of the list peeking below it
             height: '100dvh',
-            background: 'color-mix(in srgb, var(--app-input-bg) 88%, transparent)',
-            backdropFilter: 'blur(24px) saturate(160%)',
-            WebkitBackdropFilter: 'blur(24px) saturate(160%)',
+            background: `color-mix(in srgb, var(--app-input-bg) ${PANEL_OPACITY_PERCENT}%, transparent)`,
             paddingTop: 'env(safe-area-inset-top)',
             paddingBottom: 'env(safe-area-inset-bottom)',
           }}

@@ -1,5 +1,11 @@
 import { motion } from 'motion/react'
 
+// How much of the page colour covers the content while a filter reloads. The overlay does not filter
+// its own backdrop: it holds a turning spinner, so the filter ran again for every frame of the load.
+// Blurring what it covers is not an option either, because the overlay renders inside that region and
+// would blur its own spinner and label, so the cover has to carry the separation on its own
+const OVERLAY_OPACITY_PERCENT = 92
+
 /**
  * Renders the blocking loading overlay used while transaction filters refresh data
  */
@@ -18,8 +24,7 @@ export default function TransactionFilterLoadingOverlay({
         placement === 'center' ? 'justify-center' : 'justify-start pt-24'
       }`}
       style={{
-        background: 'color-mix(in srgb, var(--app-bg) 72%, transparent)',
-        backdropFilter: 'blur(3px)',
+        background: `color-mix(in srgb, var(--app-bg) ${OVERLAY_OPACITY_PERCENT}%, transparent)`,
         touchAction: 'none',
       }}
       role="status"
