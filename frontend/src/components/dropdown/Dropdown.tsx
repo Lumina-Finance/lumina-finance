@@ -201,11 +201,25 @@ const Dropdown = ({
     return () => document.removeEventListener('mousedown', handleClick);
   }, [open, close]);
 
-  // The highlighted option scrolls into view after keyboard movement so focus stays visible
+  // The highlighted option scrolls into view after keyboard movement so focus stays visible. The list
+  // is scrolled by hand rather than through scrollIntoView, which walks up and scrolls every ancestor
+  // it can, including the box's own clipped body. That would carry the search field up out of sight
+  // and leave it to be found by scrolling back
   useEffect(() => {
-    if (!open || effectiveHighlightedIndex < 0 || !listRef.current) return;
-    const item = listRef.current.querySelector(`[data-option-index="${effectiveHighlightedIndex}"]`) as HTMLElement;
-    item?.scrollIntoView({ block: 'nearest' });
+    const list = listRef.current;
+    if (!open || effectiveHighlightedIndex < 0 || !list) return;
+
+    const item = list.querySelector(`[data-option-index="${effectiveHighlightedIndex}"]`);
+    if (!item) return;
+
+    const listBounds = list.getBoundingClientRect();
+    const itemBounds = item.getBoundingClientRect();
+
+    if (itemBounds.top < listBounds.top) {
+      list.scrollTop += itemBounds.top - listBounds.top;
+    } else if (itemBounds.bottom > listBounds.bottom) {
+      list.scrollTop += itemBounds.bottom - listBounds.bottom;
+    }
   }, [effectiveHighlightedIndex, open]);
 
   // The search input receives focus only after the floating menu mounts

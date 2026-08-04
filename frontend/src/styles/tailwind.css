@@ -59,11 +59,10 @@
     --app-dropdown-gap: 8px;
     --app-dropdown-font-size: 0.9375rem;
 
-    /* How much of the input colour survives over what is behind the control */
-    --app-dropdown-tint: 62%;
+    /* How much of the input colour survives over what is behind the control. Kept high because the
+       open box carries no blur to hide what shows through it */
+    --app-dropdown-tint: 92%;
 
-    --app-dropdown-blur: 20px;
-    --app-dropdown-saturate: 160%;
     --app-dropdown-panel-padding: 6px;
     --app-dropdown-row-radius: 10px;
     --app-dropdown-row-padding-x: 12px;
@@ -80,10 +79,13 @@
 
     --app-dropdown-open-duration: 0.45s;
     --app-dropdown-fade-duration: 0.26s;
-    --app-dropdown-rise-duration: 0.55s;
+
+    /* Matches the opening, so the box and everything in it settle together. Running longer leaves the
+       contents still rising after the box has stopped, which reads as a second animation */
+    --app-dropdown-rise-duration: 0.45s;
 
     /* How far the contents start below where they settle, so they rise into the opening box */
-    --app-dropdown-rise-distance: 14px;
+    --app-dropdown-rise-distance: 8px;
   }
 
   .dark {
@@ -608,7 +610,11 @@
   .app-dropdown-glass {
     display: flex;
     flex-direction: column;
-    overflow: hidden;
+
+    /* Clipped rather than hidden, which is the same picture but not a thing anything can scroll.
+       Hidden boxes can still be scrolled by script, and one that scrolls carries the head or the
+       search field out of sight */
+    overflow: clip;
     width: 100%;
     min-width: 0;
     border: 1px solid var(--app-input-border);
@@ -625,13 +631,16 @@
   }
 
   /* Only while open, since that is the only time the box floats over the page rather than sitting in
-     a form or a table row where hundreds of composited blurs would be drawn at once */
+     a form or a table row.
+
+     It carries no backdrop filter. One over this box would be redrawn on every frame of the opening,
+     because the box's own height is what is moving, which is the cost the frosting behind a dialog
+     avoids by blurring something inert and still instead. The tint is plain alpha compositing, so it
+     keeps some of the depth for none of that */
   .app-dropdown-glass-open {
     border-color: var(--app-border-strong);
     background: color-mix(in srgb, var(--app-input-bg) var(--app-dropdown-tint), transparent);
     box-shadow: var(--app-shadow-soft);
-    -webkit-backdrop-filter: blur(var(--app-dropdown-blur)) saturate(var(--app-dropdown-saturate));
-    backdrop-filter: blur(var(--app-dropdown-blur)) saturate(var(--app-dropdown-saturate));
   }
 
   /* Every state below is the box class plus exactly one more simple selector, so they all weigh the
@@ -717,7 +726,7 @@
 
   .app-dropdown-body {
     min-height: 0;
-    overflow: hidden;
+    overflow: clip;
   }
 
   /* Rises into place on the overshoot curve as the box opens around it, so the contents arrive with
