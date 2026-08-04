@@ -108,6 +108,9 @@ async def get_runway(
     by the average monthly net expense over the last 12 completed months
     Expense refunds reduce expenses, while income and transfer-category
     transactions are excluded
+
+    Raises:
+        HTTPException: The stored timezone does not resolve
     """
     today = get_current_user_date(user)
     response = await get_runway_response(db, user, today)

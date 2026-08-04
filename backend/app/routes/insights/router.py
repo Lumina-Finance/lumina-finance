@@ -4,7 +4,6 @@ import uuid
 from datetime import date
 from datetime import datetime as DateTime
 from typing import Annotated
-from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import delete, select
@@ -40,6 +39,7 @@ from app.services.insights import (
     get_period_at_a_glance,
     get_savings_rate_trend,
 )
+from app.utils.dates import resolve_timezone
 
 router = APIRouter(prefix="/insights", tags=["insights"])
 
@@ -72,10 +72,13 @@ def _get_viewer_local_now(user: User) -> DateTime:
 
     Returns:
         Viewer-local datetime for the user's timezone
+
+    Raises:
+        HTTPException: The stored timezone does not resolve
     """
     from app.routes import insights as insights_routes
 
-    now = insights_routes.datetime.now(ZoneInfo(user.tz))
+    now = insights_routes.datetime.now(resolve_timezone(user.tz))
     return now
 
 
@@ -221,6 +224,9 @@ async def get_savings_rate_trend_route(
 
     Returns:
         Savings-rate trend response anchored to the viewer-local current month
+
+    Raises:
+        HTTPException: The stored timezone does not resolve
     """
     return await get_savings_rate_trend(db, user, _get_viewer_local_now(user))
 

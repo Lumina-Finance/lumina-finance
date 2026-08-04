@@ -7,7 +7,6 @@ mutations so the snapshot table stays aligned with account history
 import uuid
 from collections.abc import Sequence
 from datetime import date
-from zoneinfo import ZoneInfo
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,6 +16,7 @@ from app.models.account import Account, AccountBalanceSnapshot
 from app.models.group import Group
 from app.models.transaction import Transaction
 from app.models.user import User
+from app.utils.dates import ACCOUNT_OWNER_PROFILE, resolve_timezone
 
 PersonalOwner = aliased(User)
 GroupOwner = aliased(User)
@@ -138,6 +138,9 @@ async def restore_zero_anchor_if_empty(db: AsyncSession, account_id: uuid.UUID) 
 
     Returns:
         None
+
+    Raises:
+        HTTPException: Owner's stored timezone does not refer to a zone this build carries
     """
     # Check whether any snapshot remains before rebuilding the account's zero anchor
     existing = await db.execute(
@@ -161,7 +164,7 @@ async def restore_zero_anchor_if_empty(db: AsyncSession, account_id: uuid.UUID) 
 
     db.add(AccountBalanceSnapshot(
         account_id=account_id,
-        dt=row.created_at.astimezone(ZoneInfo(row.tz)).date(),
+        dt=row.created_at.astimezone(resolve_timezone(row.tz, stored_on=ACCOUNT_OWNER_PROFILE)).date(),
         balance=0,
     ))
     await db.flush()
