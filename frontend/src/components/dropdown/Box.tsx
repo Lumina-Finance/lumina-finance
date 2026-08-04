@@ -20,6 +20,14 @@ interface DropdownBoxProps {
   placed: boolean
 
   position: DropdownBoxPosition
+
+  /**
+   * Whether the box has finished opening and is standing still
+   *
+   * The blur is applied only then, and dropped again before the box starts closing, so it is never
+   * recomputed against a box that is moving.
+   */
+  settled: boolean
 }
 
 // Above both modal levels and the mobile filter sheet, matching the level the date picker already
@@ -47,6 +55,7 @@ export function DropdownBox({
   open,
   placed,
   position,
+  settled,
 }: DropdownBoxProps) {
   const shouldReduceMotion = useReducedMotion()
 
@@ -56,6 +65,7 @@ export function DropdownBox({
       className={joinClassNames(
         'app-dropdown-glass',
         open && 'app-dropdown-glass-open',
+        settled && 'app-dropdown-glass-settled',
         placed && position.openAbove && 'app-dropdown-glass-up',
         hasError && 'app-dropdown-glass-error',
         disabled && 'app-dropdown-glass-disabled',
@@ -78,19 +88,6 @@ export function DropdownBox({
       whileTap={open || disabled || shouldReduceMotion ? undefined : { scale: DROPDOWN_PRESS_SCALE }}
       transition={DROPDOWN_SPRING}
     >
-      {placed && (
-        <div
-          aria-hidden
-          className="app-dropdown-backdrop"
-          // Given the box's full height straight away and anchored to the edge the box grows away
-          // from, so it holds still while the box opens around it
-          style={{
-            height: position.boxMaxHeight,
-            bottom: position.openAbove ? 0 : undefined,
-            top: position.openAbove ? undefined : 0,
-          }}
-        />
-      )}
       {children}
     </motion.div>
   )

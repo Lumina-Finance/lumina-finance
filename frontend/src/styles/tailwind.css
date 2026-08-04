@@ -664,31 +664,21 @@
      keeps some of the depth for none of that */
   .app-dropdown-glass.app-dropdown-glass-open {
     border-color: var(--app-border-strong);
-    background: transparent;
+    background: color-mix(in srgb, var(--app-input-bg) var(--app-dropdown-tint), transparent);
     box-shadow: var(--app-shadow-soft);
   }
 
-  /* The tint and the blur, on a layer of their own that is already at its full height the moment the
-     box opens and never changes size after that. Putting them on the box instead would resample
-     everything behind it on every frame of the opening, because the box's own height is what is
-     moving. Here the box only reveals more of a layer that was rasterized once.
+  /* The blur waits until the box has finished opening, and is dropped again before it starts closing,
+     so it is only ever applied to a box that is standing still.
 
-     It sits behind the head and the list, both of which are lifted above it, and takes no presses */
-  .app-dropdown-backdrop {
-    position: absolute;
-    left: 0;
-    right: 0;
-    z-index: 0;
-    background: color-mix(in srgb, var(--app-input-bg) var(--app-dropdown-tint), transparent);
-    pointer-events: none;
+     What a backdrop filter costs is not its own size but its visible region: the browser resamples
+     everything behind it whenever that region changes, so a filter on a box whose height is animating
+     is recomputed on every frame of the animation, and so is one merely being uncovered by a parent
+     that is. This is the same rule as the frosting behind a dialog, which blurs a page that is inert
+     and still for as long as the dialog is up */
+  .app-dropdown-glass-settled {
     -webkit-backdrop-filter: blur(var(--app-dropdown-blur)) saturate(var(--app-dropdown-saturate));
     backdrop-filter: blur(var(--app-dropdown-blur)) saturate(var(--app-dropdown-saturate));
-  }
-
-  .app-dropdown-glass-open .app-dropdown-head,
-  .app-dropdown-glass-open .app-dropdown-bodywrap {
-    position: relative;
-    z-index: 1;
   }
 
   .app-dropdown-glass.app-dropdown-glass-error {
@@ -702,15 +692,11 @@
 
   /* A rejected field that is open still has to be readable, so the red is mixed into the open
      background rather than replacing it with a ten percent wash the page shows straight through */
+  /* A rejected field that is open still has to be readable, so the red is mixed into the open
+     background rather than replacing it with a ten percent wash the page shows straight through */
   .app-dropdown-glass.app-dropdown-glass-open.app-dropdown-glass-error {
-    background: transparent;
-    box-shadow: var(--app-shadow-soft);
-  }
-
-  /* A rejected field that is open still has to be readable, so the red is mixed into the layer's own
-     colour rather than laid over it as a wash the page shows straight through */
-  .app-dropdown-glass-error .app-dropdown-backdrop {
     background: color-mix(in srgb, var(--app-negative-soft) 40%, var(--app-input-bg));
+    box-shadow: var(--app-shadow-soft);
   }
 
   .app-dropdown-glass.app-dropdown-glass-disabled {
