@@ -6,9 +6,14 @@ import httpx
 # hundred KB, so this bounds a hostile or compromised endpoint without constraining real use
 MAX_RESPONSE_BYTES = 5 * 1024 * 1024
 
-# The capped read decodes as it counts, so the rebuilt response must not keep the headers
-# describing the encoding and length of the original transfer
-_STALE_TRANSFER_HEADERS = (b"content-encoding", b"content-length")
+# Compression is declined so the counted bytes are the real ones. Counting after decoding
+# would let a hostile endpoint spend a few hundred compressed KB to allocate gigabytes, which
+# is the case the cap exists for, and bounding that any other way means decoding by hand
+_DECLINE_COMPRESSION = {"accept-encoding": "identity"}
+
+# The rebuilt response holds exactly the bytes that came off the wire, so it keeps the header
+# describing their encoding and drops the two describing how the transfer was framed
+_RETRANSFERRED_HEADERS = (b"content-length", b"transfer-encoding")
 
 
 class ResponseTooLargeError(httpx.RequestError):
@@ -36,7 +41,7 @@ class _CappedResponseClient(httpx.AsyncClient):
             **kwargs: Remaining httpx send arguments
 
         Returns:
-            The response, already read, with the headers describing the raw transfer removed
+            The response, already read, carrying the bytes that arrived on the wire
 
         Raises:
             ResponseTooLargeError: The body went past the cap
@@ -48,7 +53,8 @@ class _CappedResponseClient(httpx.AsyncClient):
         response = await super().send(request, stream=True, **kwargs)
         body = bytearray()
         try:
-            async for chunk in response.aiter_bytes():
+            # Raw rather than decoded, so the count is of bytes actually received
+            async for chunk in response.aiter_raw():
                 body += chunk
                 if len(body) > self.max_response_bytes:
                     raise ResponseTooLargeError(
@@ -57,12 +63,15 @@ class _CappedResponseClient(httpx.AsyncClient):
         finally:
             await response.aclose()
 
+        # A response to HEAD comes back reporting a length of zero rather than the size the
+        # origin declared, since the rebuild takes its length from the body actually read
         return httpx.Response(
             status_code=response.status_code,
             headers=[(name, value) for name, value in response.headers.raw
-                     if name.lower() not in _STALE_TRANSFER_HEADERS],
+                     if name.lower() not in _RETRANSFERRED_HEADERS],
             content=bytes(body),
             request=request,
+            history=response.history,
             extensions=response.extensions,
         )
 
@@ -76,4 +85,4 @@ def build_http_client(timeout: float) -> httpx.AsyncClient:
     Returns:
         An async client enforcing the response size cap
     """
-    return _CappedResponseClient(timeout=timeout)
+    return _CappedResponseClient(timeout=timeout, headers=_DECLINE_COMPRESSION)
