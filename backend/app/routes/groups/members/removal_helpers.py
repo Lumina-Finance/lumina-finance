@@ -51,14 +51,14 @@ async def remove_group_member(
     else:
         target_membership = await get_group_member_or_404(db, group_id, member_id)
 
-    # Bump the group cache while the caller is still a member, since a self-leave
-    # removes the membership the group write policy checks
+    # Both bumps run while the memberships still exist, because each is checked against one
+    # of them: the group write policy against the caller's, which a self-leave removes, and
+    # the privileged member bump against the target's. Deleting first fails either one
     await mark_group_cache_changed(db, group_id)
-    await db.delete(target_membership)
 
     # The removed member may not be the caller, so invalidate their cache through the
-    # privileged helper that the per-user write policy would otherwise block. The group
-    # is passed because the helper authorizes the call against the caller's admin
-    # membership, the target's having just been deleted
+    # privileged helper that the per-user write policy would otherwise block
     await mark_group_member_cache_changed(db, member_id, group_id)
+
+    await db.delete(target_membership)
     await db.commit()

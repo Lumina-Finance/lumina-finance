@@ -35,18 +35,20 @@ async def mark_group_member_cache_changed(
     Removing a member from a group must invalidate that member's cache, which the
     per-user write policy blocks when an admin removes someone else, so this routes
     through a security-definer helper that bypasses the per-user scoping. The helper
-    refuses unless the caller is the member or an admin of the group given here
+    refuses unless the caller is the member, or administers the given group and the
+    member belongs to it, so it has to be called before the membership is deleted
 
     Args:
         db: Active database session
         user_id: User scope that changed
-        group_id: Group whose admin is making the change
+        group_id: Group the user belongs to and the caller administers
 
     Returns:
         None
 
     Raises:
-        ProgrammingError: The caller is neither the member nor an admin of the group
+        ProgrammingError: The caller is not the member, or does not administer a group
+            the member belongs to
     """
     await db.execute(
         text(f"SELECT {BUMP_GROUP_MEMBER_CACHE}(:user_id, :group_id)"),

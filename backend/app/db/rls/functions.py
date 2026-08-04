@@ -152,17 +152,24 @@ _HELPERS: tuple[_Helper, ...] = (
     ),
     # Touch a group member's personal cache timestamp on their behalf, used when an admin
     # removing them must invalidate their cache even though the per-user write policy scopes
-    # cache writes to the caller. The group is an argument rather than looked up from the
-    # target's membership, because the caller has already deleted that membership by the time
-    # this runs, while the caller's own is still there. plpgsql rather than sql so a denied
-    # call raises instead of quietly inserting nothing, and IS DISTINCT FROM so a connection
-    # carrying no identity is refused rather than comparing to NULL and falling through
+    # cache writes to the caller. Both halves are needed: administering the named group alone
+    # would let anyone stamp any user, since creating a group makes the creator its admin, so
+    # the target has to be a member of that same group. The caller must therefore stamp before
+    # deleting the membership. plpgsql rather than sql so a denied call raises instead of
+    # quietly inserting nothing, and IS DISTINCT FROM so a connection carrying no identity is
+    # refused rather than comparing to NULL and falling through
     _Helper(
         f"""
     CREATE OR REPLACE FUNCTION {BUMP_GROUP_MEMBER_CACHE}(p_user_id uuid, p_group_id uuid) RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
     BEGIN
-        IF p_user_id IS DISTINCT FROM {CURRENT_USER_ID}() AND NOT {IS_GROUP_ADMIN}(p_group_id) THEN
+        IF p_user_id IS DISTINCT FROM {CURRENT_USER_ID}() AND NOT (
+            {IS_GROUP_ADMIN}(p_group_id)
+            AND EXISTS (
+                SELECT 1 FROM public.group_members gm
+                WHERE gm.group_id = p_group_id AND gm.user_id = p_user_id
+            )
+        ) THEN
             RAISE EXCEPTION 'Not authorized to invalidate the cache for this user'
                 USING ERRCODE = 'insufficient_privilege';
         END IF;
