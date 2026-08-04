@@ -3,6 +3,7 @@ import type { Currency } from '@/api/currency'
 import {
   CREATE_ACCOUNT_VALUE,
   getRowAmountTooPreciseReason,
+  getRowCurrencyMismatchReason,
   ROW_ACCOUNT_BLANK_REASON,
   ROW_AMOUNT_BLANK_REASON,
   ROW_AMOUNT_TOO_LARGE_REASON,
@@ -38,6 +39,16 @@ export interface ResolvedImportRow {
 
   /** The currency the row will be stored in, empty where its account source has not resolved to one */
   currency: string
+
+  /**
+   * The currency the file states for this row, upper-cased, empty where the cell is blank or no
+   * currency column is mapped
+   *
+   * Kept apart from `currency` because the two are different claims: one is where the row will be
+   * stored, the other is what the file says the row is in, and the import refuses a row where they
+   * disagree rather than converting between them
+   */
+  importedCurrency: string
 }
 
 /**
@@ -77,7 +88,6 @@ export function resolveImportRow(row: CsvRow, fileId: string, context: ImportRow
 
   const accountSource = columnMap.account_id ? getMappedValue(row, columnMap.account_id) : fileId
   const importedDate = getMappedValue(row, columnMap.dt)
-
   return {
     accountSource,
     categorySource: getMappedValue(row, columnMap.category_id),
@@ -91,6 +101,7 @@ export function resolveImportRow(row: CsvRow, fileId: string, context: ImportRow
       ? cleanOptional(getMappedValue(row, columnMap.counterparty_account_id))
       : null,
     currency: context.currencyByAccountSource[accountSource] ?? '',
+    importedCurrency: getMappedValue(row, columnMap.currency).toUpperCase(),
   }
 }
 
@@ -110,6 +121,12 @@ export function getImportRowProblem(row: ResolvedImportRow, judgement: ImportRow
   if (!row.dt) return ROW_DATE_UNREADABLE_REASON
   if (!row.amount) return ROW_AMOUNT_BLANK_REASON
   if (parseImportNumber(row.amount) === null) return ROW_AMOUNT_UNREADABLE_REASON
+
+  // Asked before the amount is judged, because the decimal places an amount is held to are the
+  // account currency's, and a row stating another currency is one whose amount means something else
+  if (row.importedCurrency && row.currency && row.importedCurrency !== row.currency) {
+    return getRowCurrencyMismatchReason(row.importedCurrency, row.currency)
+  }
 
   const amountProblem = getImportRowAmountProblem(row.amount, row.currency, judgement.currencies)
   if (amountProblem) return amountProblem

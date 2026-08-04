@@ -35,7 +35,7 @@ export const COLUMN_TARGETS: Array<{
   { id: 'dt', label: 'Date', hint: 'Transaction date.', required: true },
   { id: 'category_id', label: 'Category', hint: 'Resolved from imported category text.', required: true },
   { id: 'amount', label: 'Amount', hint: 'Raw signed amount.', required: true },
-  { id: 'currency', label: 'Currency', hint: 'ISO currency code.' },
+  { id: 'currency', label: 'Currency', hint: 'ISO currency code. Checked against the account each row is written to.' },
   { id: 'merchant_id', label: 'Merchant', hint: 'Resolved from imported merchant text.' },
   { id: 'notes', label: 'Notes', hint: 'Optional transaction notes.' },
   { id: 'tag_ids', label: 'Tags', hint: 'Resolved from imported tag text.' },
@@ -77,6 +77,15 @@ export function getRowAmountTooPreciseReason(currency: string) {
 export const ROW_COUNTERPARTY_NOT_A_TRANSFER_REASON = 'A non-transfer transaction should not have a counterparty account recorded.'
 export const ROW_COUNTERPARTY_IS_OWN_ACCOUNT_REASON = 'A transfer cannot record its own account as its counterparty.'
 
+/**
+ * Says a row states a currency its account is not kept in
+ *
+ * Both codes are given because the fix is a choice between them: either the row belongs in a
+ * different account, or the column mapped as the currency is not what it looked like
+ */
+export function getRowCurrencyMismatchReason(rowCurrency: string, accountCurrency: string) {
+  return `This row is in ${rowCurrency} but the account it would be written to is kept in ${accountCurrency}. Amounts are stored in the account's currency and are not converted, so write these rows to a ${rowCurrency} account, or set the Currency column to Do not import to bring them in as ${accountCurrency}.`
+}
 // Shown where a source rows are written to matches an account the user has archived, which is the
 // one account that source is not offered. The matched account names follow it
 export const ARCHIVED_ACCOUNT_MATCH_EXPLANATION = 'An archived account takes no new transactions, so it is not offered as a choice here. Unarchive one of these to import rows into it:'
