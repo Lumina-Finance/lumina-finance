@@ -91,6 +91,20 @@ export interface ImportRowProblem {
 export interface ImportBuildResult {
   errors: string[]
   rowProblems: ImportRowProblem[]
+
+  /**
+   * Things worth saying about the import that do not stop it
+   *
+   * Kept apart from `errors`, which the commit button waits on. A warning describes data that is
+   * probably wrong but might be exactly what the user meant, so refusing it would be worse
+   */
+  warnings: string[]
+
+  /**
+   * Rows the import will take but that are probably not what the user meant, listed the same way a
+   * refused row is. The commit does not wait on these
+   */
+  rowWarnings: ImportRowProblem[]
   payload: TransactionImportPayload | null
 }
 

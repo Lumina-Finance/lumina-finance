@@ -8,6 +8,7 @@ type ImportCommitPanelProps = Pick<
 // Named rather than counted, because a row problem is listed in the preview step with the row it
 // belongs to and this panel would otherwise repeat all of it
 const ROWS_TO_FIX_MESSAGE = 'Some rows cannot be imported. The preview step lists them with the reason for each.'
+const ROWS_TO_CHECK_MESSAGE = 'Some rows will import but may not be what you meant. The preview step lists them.'
 
 // How many problems the panel spells out before counting the rest. A file of unmatched categories
 // produces one per category, each of them a blank dropdown already visible in the step it belongs
@@ -46,6 +47,17 @@ export function ImportCommitPanel({
           {ROWS_TO_FIX_MESSAGE}
         </p>
       )}
+      {/* Amber rather than red, and below the errors, because none of these stops the commit */}
+      {importBuild.rowWarnings.length > 0 && (
+        <p className="max-w-xl text-right text-sm font-medium" style={{ color: 'var(--app-warning-text)' }}>
+          {ROWS_TO_CHECK_MESSAGE}
+        </p>
+      )}
+      {importBuild.warnings.map((warning) => (
+        <p key={warning} className="max-w-xl text-right text-sm font-medium" style={{ color: 'var(--app-warning-text)' }}>
+          {warning}
+        </p>
+      ))}
       {importError && (
         <p role="alert" className="max-w-xl text-right text-sm font-medium" style={{ color: 'var(--app-negative)' }}>
           {importError}

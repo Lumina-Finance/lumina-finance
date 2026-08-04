@@ -2,10 +2,11 @@ import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { TransactionImportPayload, TransactionImportResponse } from '@/api/transaction-imports'
 import {
-  COLUMN_TARGETS,
   CREATE_ACCOUNT_VALUE,
   CREATE_CATEGORY_VALUE,
   DEFAULT_CATEGORY_ICON,
+  NO_OUTFLOWS_WARNING,
+  ROW_SIGN_DISAGREES_WITH_CATEGORY_REASON,
 } from '@/pages/imports/constants'
 import { BALANCE_ADJUSTMENT_CATEGORY_NAME, doesTransferRecordCounterpartyAccount, OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 import type {
@@ -21,6 +22,7 @@ import { isImportAccountType } from '@/pages/imports/accountTypeGuard'
 import type { Currency } from '@/api/currency'
 import { getCategoryMatchKind } from './categoryMatching'
 import { getImportRowId } from './common'
+import { getMissingRequiredColumnLabels } from './workflowOptions'
 import {
   getCurrencyByAccountSource,
   getImportRowProblem,
@@ -28,7 +30,7 @@ import {
   type ImportRowJudgement,
   resolveImportRow,
 } from './rowResolution'
-import type { ImportDateFormat } from './valueParsers'
+import { type ImportDateFormat, parseImportNumber } from './valueParsers'
 
 /**
  * Builds the commit payload for the generic CSV import flow from the staged files and every mapping
@@ -90,9 +92,7 @@ export function buildTransactionImportPayload({
     if (file.error) addError(`${file.name}: ${file.error}`)
   }
 
-  const missingRequired = COLUMN_TARGETS
-    .filter((target) => target.required && !columnMap[target.id])
-    .map((target) => target.label)
+  const missingRequired = getMissingRequiredColumnLabels(columnMap)
   if (missingRequired.length > 0) addError(`Missing required columns: ${missingRequired.join(', ')}`)
 
   // Without a settled format every row would fail its own date check, which reads as a file full of
@@ -124,6 +124,10 @@ export function buildTransactionImportPayload({
   // Only a transfer category records where the money went, so the rule is settled per category
   // source once and read back for every row using it
   const recordsCounterpartyBySource: Record<string, boolean> = {}
+
+  // The kind each category source settles on, read back per row to spot an amount running the other
+  // way. A source mapped to an existing category takes that category's kind
+  const kindByCategorySource: Record<string, ImportCategoryKind> = {}
   for (const source of importedCategories) {
     const choice = categoryMappings[source] ?? ''
     if (!choice) {
@@ -144,6 +148,7 @@ export function buildTransactionImportPayload({
         kind,
         source === BALANCE_ADJUSTMENT_CATEGORY_NAME,
       )
+      kindByCategorySource[source] = kind
       categories.push({
         source,
         create: {
@@ -161,13 +166,16 @@ export function buildTransactionImportPayload({
     recordsCounterpartyBySource[source] = category
       ? doesTransferRecordCounterpartyAccount(category.kind, category.name === BALANCE_ADJUSTMENT_CATEGORY_NAME)
       : false
+    if (category) kindByCategorySource[source] = category.kind
     categories.push({ source, category_id: choice })
   }
 
   // Judging rows before every mapping they depend on is answered blames them for the answer being
   // missing: with no category column mapped, every row reads as one with a blank category, and with
   // no date format settled, every row reads as one whose date does not fit
-  if (errors.length > 0) return { errors: [...columnErrors, ...errors], rowProblems: [], payload: null }
+  if (errors.length > 0) {
+    return { errors: [...columnErrors, ...errors], rowProblems: [], warnings: [], rowWarnings: [], payload: null }
+  }
 
   const rowContext: ImportRowContext = {
     columnMap,
@@ -178,6 +186,7 @@ export function buildTransactionImportPayload({
 
   const rows: TransactionImportPayload['rows'] = []
   const rowProblems: ImportRowProblem[] = []
+  const rowWarnings: ImportRowProblem[] = []
   for (const file of files) {
     for (const [rowIndex, row] of file.rows.entries()) {
       const resolved = resolveImportRow(row, file.id, rowContext)
@@ -192,6 +201,17 @@ export function buildTransactionImportPayload({
           reason: problem,
         })
         continue
+      }
+
+      // A row can be worth a second look for more than one reason, and each is listed on its own so
+      // the table says every thing that is odd about it rather than only the first
+      if (doesSignDisagreeWithCategoryKind(resolved.amount, kindByCategorySource[resolved.categorySource])) {
+        rowWarnings.push({
+          id: getImportRowId(file.id, rowIndex),
+          rowNumber: rowIndex + 1,
+          cells: row,
+          reason: ROW_SIGN_DISAGREES_WITH_CATEGORY_REASON,
+        })
       }
 
       rows.push({
@@ -211,9 +231,45 @@ export function buildTransactionImportPayload({
   // message is kept for the case it was written for
   if (rows.length === 0 && rowProblems.length === 0) addError('No transaction rows are available to import.')
 
+  const warnings = getImportWarnings(rows)
   const allErrors = [...columnErrors, ...errors]
-  if (allErrors.length > 0 || rowProblems.length > 0) return { errors: allErrors, rowProblems, payload: null }
-  return { errors: [], rowProblems: [], payload: { accounts, categories, rows } }
+  if (allErrors.length > 0 || rowProblems.length > 0) {
+    return { errors: allErrors, rowProblems, warnings, rowWarnings, payload: null }
+  }
+  return { errors: [], rowProblems: [], warnings, rowWarnings, payload: { accounts, categories, rows } }
+}
+
+/**
+ * Reports whether a row's amount runs the opposite way to the kind of category it is filed under
+ *
+ * A refund inside an expense category is real data, so this is only ever a warning. It is worth
+ * saying because the app then counts the row two ways: cash flow reads the sign, while the category
+ * total reads the kind, and the two numbers describe the same row differently
+ *
+ * A transfer has no direction rule anywhere in the app, and an amount of zero has no direction at
+ * all, so neither is judged
+ */
+function doesSignDisagreeWithCategoryKind(amount: string, kind: ImportCategoryKind | undefined) {
+  const value = parseImportNumber(amount)
+  if (value === null || value === 0) return false
+
+  if (kind === 'expense') return value > 0
+  if (kind === 'income') return value < 0
+  return false
+}
+
+/**
+ * Collects what is worth saying about an import that is otherwise ready to go
+ *
+ * A file where nothing is negative has almost certainly written its money out without a minus sign,
+ * so every expense would import as income. It is a warning rather than a refusal because a file of
+ * nothing but income is a real thing to import
+ */
+function getImportWarnings(rows: TransactionImportPayload['rows']) {
+  if (rows.length === 0) return []
+
+  const hasOutflow = rows.some((row) => (parseImportNumber(row.amount) ?? 0) < 0)
+  return hasOutflow ? [] : [NO_OUTFLOWS_WARNING]
 }
 
 function appendAccountMapping(
