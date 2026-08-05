@@ -40,10 +40,10 @@
 
   /* Every value the shared drop-down's look depends on, gathered here so it can be tuned by editing
      numbers. It sits here, in this layer and above the dark block, so a theme can override any of
-     them: from a later layer, or from below, the override would lose. Two things live elsewhere: the
-     geometry placing the open panel is in components/dropdown/position.ts, because it is computed in
-     JavaScript, and the open and close timing is in components/dropdown/motion.ts, because it drives
-     a motion transition */
+     them: from a later layer, or from below, the override would lose. One thing lives elsewhere: the
+     geometry placing the open box is in components/dropdown/position.ts, because it is computed in
+     JavaScript. What the chevron and the press do is in components/dropdown/motion.ts, since those are
+     driven by motion rather than by CSS */
   :root {
     --app-dropdown-height-compact: 36px;
     --app-dropdown-height-field: 40px;
@@ -64,23 +64,18 @@
     --app-dropdown-row-padding-x: 12px;
     --app-dropdown-row-padding-y: 8px;
     --app-dropdown-row-gap: 8px;
+    /* How far a row that cannot be chosen fades back */
     --app-dropdown-disabled-opacity: 0.4;
 
-    /* Overshoots and settles back, which is what gives the box its bounce as it blooms open */
-    --app-dropdown-bounce: cubic-bezier(0.34, 1.6, 0.5, 1);
+    /* How far a whole control fades back when it cannot be used at all */
+    --app-dropdown-disabled-opacity-control: 0.6;
 
     /* Fast at the start and flat at the end, for the height, which should not overshoot */
     --app-dropdown-ease: cubic-bezier(0.22, 1, 0.36, 1);
 
     --app-dropdown-open-duration: 0.45s;
-    --app-dropdown-fade-duration: 0.26s;
-
-    /* Matches the opening, so the box and everything in it settle together. Running longer leaves the
-       contents still rising after the box has stopped, which reads as a second animation */
-    --app-dropdown-rise-duration: 0.45s;
 
     /* How far the contents start below where they settle, so they rise into the opening box */
-    --app-dropdown-rise-distance: 8px;
   }
 
   .dark {
@@ -650,32 +645,30 @@
     box-shadow: 0 0 0 2px var(--app-accent-soft);
   }
 
-  /* Open comes after focused on purpose. An open box is always focused, since opening it puts focus
-     on the head or in the search field, so a ring there would be permanent and would replace the
-     shadow that lifts the open box off the page.
+  /* Floating rather than open, so it keeps this look for the whole of the collapse as well. Keying it
+     off open instead drew a full-height panel that was still on screen as an ordinary focused field,
+     ring and all, for the length of the animation.
 
-     It carries no backdrop filter. One over this box would be redrawn on every frame of the opening,
-     because the box's own height is what is moving, which is the cost the frosting behind a dialog
-     avoids by blurring something inert and still instead. The tint is plain alpha compositing, so it
-     keeps some of the depth for none of that */
-  /* Solid, with no transparency and no filter of any kind. Depth comes from the border and the shadow
+     It comes after focused on purpose. A floating box is always focused, since opening it puts focus
+     on the head or in the search field, so a ring there would be permanent and would replace the
+     shadow that lifts it off the page.
+
+     Solid, with no transparency and no filter of any kind. Depth comes from the border and the shadow
      instead, which cost nothing to draw and nothing to redraw while the box opens */
-  .app-dropdown-glass.app-dropdown-glass-open {
+  .app-dropdown-glass.app-dropdown-glass-floating {
     border-color: var(--app-border-strong);
     background: var(--app-input-bg);
     box-shadow: var(--app-shadow-soft);
   }
 
-  /* There is no blur behind the open box, and adding one back is a decision rather than a tweak.
-
-     A backdrop filter is the only way to blur just the region behind a small floating element, and it
-     is resampled whenever that region changes: while the box opens, while anything behind it moves,
-     and while the page scrolls under it. The frosting behind a dialog gets away with a blur because it
-     does the opposite thing, putting a plain filter on the page itself, which is one element that then
-     holds still. That does not transfer to a control covering a small part of the page.
-
-     Depth here comes from the tint, the border and the shadow instead, which is the same trade the
-     mobile filter sheet and the import progress overlay already make */
+  /* Before rejected rather than after it, so a field that is both still shows that it was rejected.
+     The message above it points at this field, and a plain one is the wrong thing to point at */
+  .app-dropdown-glass.app-dropdown-glass-disabled {
+    border-color: var(--app-input-border);
+    background: var(--app-input-bg);
+    box-shadow: none;
+    opacity: var(--app-dropdown-disabled-opacity-control);
+  }
 
   /* Mixed from the opaque negative rather than its soft variant, which carries alpha of its own. The
      two land on nearly the same colour over a form, and this one stays solid over anything */
@@ -688,19 +681,9 @@
     box-shadow: 0 0 0 2px var(--app-negative-soft);
   }
 
-  /* A rejected field that is open still has to be readable, so the red is mixed into the open
-     background rather than replacing it with a ten percent wash the page shows straight through */
-  /* Open, it keeps the same rejected colour and gains the shadow that lifts it off the page */
-  .app-dropdown-glass.app-dropdown-glass-open.app-dropdown-glass-error {
-    background: color-mix(in srgb, var(--app-negative) 10%, var(--app-input-bg));
+  /* Floating, a rejected box keeps its colour and takes the shadow back off the ring above */
+  .app-dropdown-glass.app-dropdown-glass-floating.app-dropdown-glass-error {
     box-shadow: var(--app-shadow-soft);
-  }
-
-  .app-dropdown-glass.app-dropdown-glass-disabled {
-    border-color: var(--app-input-border);
-    background: var(--app-input-bg);
-    box-shadow: none;
-    opacity: 0.6;
   }
 
   .app-dropdown-head {
@@ -764,31 +747,18 @@
 
   /* Rises into place on the overshoot curve as the box opens around it, so the contents arrive with
      the same bounce the box does rather than being revealed by it */
+  /* The rise and fade are driven by motion rather than by a transition here, because this element is
+     built at the same moment the box opens and a brand new element has no previous value to move from.
+     A CSS transition on it therefore never ran on the way in, only on the way out */
   .app-dropdown-glass-inner {
     padding: var(--app-dropdown-inner-padding);
-    opacity: 0;
-    transform: translateY(var(--app-dropdown-rise-distance));
-    transition:
-      opacity var(--app-dropdown-fade-duration) ease,
-      transform var(--app-dropdown-rise-duration) var(--app-dropdown-bounce);
-  }
-
-  .app-dropdown-glass-open .app-dropdown-glass-inner {
-    opacity: 1;
-    transform: translateY(0);
   }
 
   @media (prefers-reduced-motion: reduce) {
     .app-dropdown-glass,
     .app-dropdown-row,
-    .app-dropdown-bodywrap,
-    .app-dropdown-glass-inner {
+    .app-dropdown-bodywrap {
       transition-duration: 0s;
-    }
-
-    /* Flattened rather than shortened, or the overshoot lands as a jerk instead of a bounce */
-    .app-dropdown-glass-inner {
-      transform: none;
     }
   }
 

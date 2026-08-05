@@ -7,7 +7,9 @@ import {
 } from '@/components/dropdown/position'
 
 interface UseDropdownPositionParams {
-  open: boolean
+  /** True for as long as the box is floating, which outlasts `open` by the length of the collapse */
+  placed: boolean
+
   searchable: boolean
 
   /** The slot the control occupies in the page, held at the collapsed height while the box is open */
@@ -42,7 +44,7 @@ function getViewport(): DropdownViewport {
  * the page scrolled underneath. The wrapper stays in the page and moves with it.
  */
 export function useDropdownPosition({
-  open,
+  placed,
   searchable,
   wrapperRef,
 }: UseDropdownPositionParams): UseDropdownPositionResult {
@@ -62,7 +64,9 @@ export function useDropdownPosition({
   }, [searchable, wrapperRef])
 
   useEffect(() => {
-    if (!open) return
+    // Kept up through the collapse as well. Stopping at the moment the list closes leaves a box that is
+    // still floating welded to where the page was, while the slot it belongs to scrolls away underneath
+    if (!placed) return
 
     let frame = 0
     const updateOnFrame = () => {
@@ -82,7 +86,7 @@ export function useDropdownPosition({
       window.visualViewport?.removeEventListener('resize', updateOnFrame)
       window.visualViewport?.removeEventListener('scroll', updateOnFrame)
     }
-  }, [open, updateBoxPosition])
+  }, [placed, updateBoxPosition])
 
   return { boxPosition, updateBoxPosition }
 }

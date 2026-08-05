@@ -56,6 +56,7 @@ export function DropdownBox({
       className={joinClassNames(
         'app-dropdown-glass',
         open && 'app-dropdown-glass-open',
+        placed && 'app-dropdown-glass-floating',
         placed && position.openAbove && 'app-dropdown-glass-up',
         hasError && 'app-dropdown-glass-error',
         disabled && 'app-dropdown-glass-disabled',
@@ -73,9 +74,10 @@ export function DropdownBox({
           zIndex: DROPDOWN_OPEN_Z_INDEX,
         }
         : { position: 'absolute', top: 0, left: 0, right: 0 }}
-      // Sinks under a press and springs back when it is let go. Suppressed once open, where sinking
-      // a full-height list reads as the box collapsing early rather than as a control being pressed
-      whileTap={open || disabled || shouldReduceMotion ? undefined : { scale: DROPDOWN_PRESS_SCALE }}
+      // Sinks under a press and springs back when it is let go. Suppressed for as long as the box is
+      // floating, where sinking a full-height list reads as it collapsing early rather than as a
+      // control being pressed
+      whileTap={placed || disabled || shouldReduceMotion ? undefined : { scale: DROPDOWN_PRESS_SCALE }}
       transition={DROPDOWN_SPRING}
     >
       {children}

@@ -10,9 +10,14 @@ import {
   type UIEvent,
 } from 'react';
 import { joinClassNames } from '@/utils/classNames';
-import { useReducedMotion } from 'motion/react';
+import { motion, useReducedMotion } from 'motion/react';
 import { useMinimumVisibleFlag } from '@/hooks/useMinimumVisibleFlag';
 import { DropdownBox } from './Box';
+import {
+  DROPDOWN_INSTANT_TRANSITION,
+  DROPDOWN_RISE_DISTANCE,
+  DROPDOWN_RISE_TRANSITION,
+} from './motion';
 import { DropdownOptionList } from './OptionList';
 import { DropdownSearchControls } from './SearchControls';
 import { DropdownHead } from './Trigger';
@@ -123,8 +128,9 @@ const Dropdown = ({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const placed = open || collapsing;
   const { boxPosition, updateBoxPosition } = useDropdownPosition({
-    open,
+    placed,
     searchable,
     wrapperRef: containerRef,
   });
@@ -202,7 +208,7 @@ const Dropdown = ({
     // Only while the box is back in its slot. Through the collapse it is still floating and still
     // most of the way open, so measuring it then would pin the slot to the open height and push
     // everything below it down, which a modal that animates its own height follows by growing
-    if (open || collapsing || !box) return;
+    if (placed || !box) return;
 
     const measure = () => {
       const height = box.offsetHeight;
@@ -213,7 +219,7 @@ const Dropdown = ({
     const observer = new ResizeObserver(measure);
     observer.observe(box);
     return () => observer.disconnect();
-  }, [collapsing, open, size]);
+  }, [placed, size]);
 
   // The dropdown closes on outside mouse interactions so stale menus do not remain open. The box is
   // a descendant of this container even while positioned against the viewport, so a press inside it
@@ -388,7 +394,7 @@ const Dropdown = ({
         disabled={disabled}
         hasError={hasError}
         open={open}
-        placed={open || collapsing}
+        placed={placed}
         position={boxPosition}
       >
         <DropdownHead
@@ -422,8 +428,13 @@ const Dropdown = ({
             {/* Built only while it is being looked at, and kept through the collapse so the box has
                 something to shrink around. An import table renders four of these per row, so holding
                 every currency in the page for every row costs a great deal for nothing */}
-            {(open || collapsing) && (
-              <div className="app-dropdown-glass-inner">
+            {placed && (
+              <motion.div
+                className="app-dropdown-glass-inner"
+                initial={{ opacity: 0, y: DROPDOWN_RISE_DISTANCE }}
+                animate={open ? { opacity: 1, y: 0 } : { opacity: 0, y: DROPDOWN_RISE_DISTANCE }}
+                transition={shouldReduceMotion ? DROPDOWN_INSTANT_TRANSITION : DROPDOWN_RISE_TRANSITION}
+              >
                 {searchable && (
                   <DropdownSearchControls
                     createNewLabel={resolvedCreateNewLabel}
@@ -450,7 +461,7 @@ const Dropdown = ({
                   onScroll={handleListScroll}
                   onSelect={handleSelect}
                 />
-              </div>
+              </motion.div>
             )}
           </div>
         </div>
