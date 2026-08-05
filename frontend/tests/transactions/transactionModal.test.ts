@@ -14,6 +14,7 @@ import {
   amountInputToMinorUnits,
   amountToInputString,
   applyTransactionDirection,
+  findAmountInputString,
   getDirectionFromAmountInputSign,
 } from '@/pages/transactions/components/transaction-modal/utils/money'
 import {
@@ -124,6 +125,19 @@ describe('transaction modal helpers', () => {
     expect(amountInputToMinorUnits('123.45', 2)).toBe(12345)
     expect(applyTransactionDirection(12345, 'credit')).toBe(12345)
     expect(applyTransactionDirection(12345, 'debit')).toBe(-12345)
+  })
+
+  it('reads a stored amount back through its own currency and refuses one it cannot scale', () => {
+    // The modal fills its amount box from this when the currency table lands under an open modal,
+    // so a wrong answer here is a wrong amount shown over a transaction the user is about to save
+    expect(findAmountInputString(1234, currencies, 'CAD')).toBe('12.34')
+    expect(findAmountInputString(1234, currencies, 'JPY')).toBe('1234')
+    expect(findAmountInputString(-1234, currencies, 'CAD')).toBe('12.34')
+
+    // No table yet, and a currency the table does not carry, are the same answer: the amount cannot
+    // be turned into text, so nothing is offered rather than a figure scaled by the two-place default
+    expect(findAmountInputString(1234, [], 'JPY')).toBeNull()
+    expect(findAmountInputString(1234, currencies, 'KRW')).toBeNull()
   })
 
   it('builds create defaults from the selected account and edit defaults from the stored transaction', () => {

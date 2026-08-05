@@ -1,21 +1,23 @@
 import { useState } from 'react'
-import { AnimatePresence, motion } from 'motion/react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useNavigate, useParams } from 'react-router'
 import { useAccount, useAccounts, type Account } from '@/api/accounts'
 import { useTaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
 import type { Transaction } from '@/api/transactions'
 import AccountIdentityCard from '@/pages/accounts/detail/components/identity/Card'
 import AccountDetailBackLink from '@/pages/accounts/detail/components/BackLink'
+import AccountDetailLoadingSkeleton from '@/pages/accounts/detail/components/LoadingSkeleton'
 import BalanceChartCard from '@/pages/accounts/detail/components/balance-chart/Card'
 import EditAccountIdentityModal from '@/pages/accounts/detail/components/edit-identity/Modal'
 import MonthlyCashFlowCard from '@/pages/accounts/detail/components/monthly-cash-flow/Card'
 import { TopCategoriesBySpendingCard } from '@/pages/accounts/detail/components/spending-breakdown/TopCategoriesCard'
 import { TopMerchantsBySpendingCard } from '@/pages/accounts/detail/components/spending-breakdown/TopMerchantsCard'
-import { EASE } from '@/pages/accounts/detail/constants/accountDetail'
+import { ACCOUNT_SKELETON_FADE_MS, EASE } from '@/pages/accounts/detail/constants/accountDetail'
 import TransactionListSection from '@/pages/transactions/components/ListSection'
 import { toTransactionListAccount } from '@/pages/transactions/types/transactionList'
 import CreateTransactionModal from '@/pages/transactions/components/transaction-modal/Modal'
 import { useCurrencyGuard } from '@/hooks/useCurrencyGuard'
+import { useSkeletonVisibility } from '@/pages/accounts/detail/hooks/useSkeletonVisibility'
 
 type DeleteExitPhase = 'idle' | 'pending' | 'modal' | 'page'
 
@@ -50,6 +52,26 @@ export default function AccountDetailPage() {
     data: linkedTaxAdvantagedCategory,
     error: linkedTaxAdvantagedCategoryError,
   } = useTaxAdvantagedCategory(linkedTaxAdvantagedCategoryId)
+
+  // A deletion holds a copy of the account, so this stays false throughout one and the page keeps
+  // rendering the copy rather than dropping into the loading branch mid-exit
+  const isAccountLoading = !visibleAccount && !error
+  const showSkeleton = useSkeletonVisibility(isAccountLoading)
+  const prefersReducedMotion = useReducedMotion() ?? false
+
+  // The placeholder has to outlive the moment it is dropped, or there is nothing left on screen to
+  // fade. The loading branch is held open until its exit finishes, and the page then enters with a
+  // fade of its own so the two hand over rather than one popping in behind the other
+  const [isSkeletonExiting, setIsSkeletonExiting] = useState(false)
+  const [hasShownSkeleton, setHasShownSkeleton] = useState(false)
+  const [wasShowingSkeleton, setWasShowingSkeleton] = useState(showSkeleton)
+  if (wasShowingSkeleton !== showSkeleton) {
+    setWasShowingSkeleton(showSkeleton)
+    if (showSkeleton) setHasShownSkeleton(true)
+    else setIsSkeletonExiting(true)
+  }
+
+  const skeletonFadeSeconds = prefersReducedMotion ? 0 : ACCOUNT_SKELETON_FADE_MS / 1000
 
   const openCreateTransaction = () => {
     if (visibleAccount?.is_archived) return
@@ -96,18 +118,43 @@ export default function AccountDetailPage() {
     if (deleteExitPhase === 'page') navigate('/accounts', { replace: true })
   }
 
-  if (!visibleAccount && !error) {
+  // The skeleton outlasts the request by its minimum display and then by its fade, so the account
+  // having arrived is not on its own a reason to leave this branch. An error is: it goes to the
+  // message below at once rather than finishing an animation first
+  if (!error && (isAccountLoading || showSkeleton || isSkeletonExiting)) {
     return (
       <div>
         <AccountDetailBackLink />
+        <AnimatePresence onExitComplete={() => setIsSkeletonExiting(false)}>
+          {showSkeleton && (
+            <motion.div
+              key="account-detail-skeleton"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: skeletonFadeSeconds, ease: EASE }}
+            >
+              <AccountDetailLoadingSkeleton />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     )
   }
 
   if ((error && deleteExitPhase === 'idle') || !visibleAccount) {
     return (
-      <div>
-        <AccountDetailBackLink />
+      // Fills the height the page content area has left after its own padding, which is the whole
+      // viewport on mobile and the space beside the sidebar on desktop, so the message sits in the
+      // middle of what the reader can see. The padding subtracted here is the main element's own,
+      // set in App.tsx, and the two have to be changed together
+      <div className="relative flex min-h-[calc(100dvh-3.5rem)] flex-col items-center justify-center text-center min-[1050px]:min-h-[calc(100dvh-3.75rem)]">
+        {/* Out of the centred flow, so the message is centred against the area rather than against
+            the space left under the link */}
+        <div className="absolute left-0 top-0">
+          <AccountDetailBackLink />
+        </div>
+
         <h1 className="app-page-title">Account not found</h1>
         <p className="app-page-description">We couldn't load this account. It may have been deleted.</p>
       </div>
@@ -119,7 +166,9 @@ export default function AccountDetailPage() {
       {deleteExitPhase !== 'page' && (
         <motion.div
           key="account-detail-page"
-          initial={false}
+          // Fades in only where it is taking over from a placeholder that just faded out. Every
+          // other arrival, a cached account above all, is drawn straight away as it always was
+          initial={hasShownSkeleton && !prefersReducedMotion ? { opacity: 0, y: 0, filter: 'blur(0px)' } : false}
           animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
           exit={{ opacity: 0, y: 10, filter: 'blur(2px)' }}
           transition={{ duration: 0.22, ease: EASE }}

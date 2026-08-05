@@ -1,4 +1,5 @@
-import { fromMinorUnits, toMinorUnits } from '@/utils/moneyInput'
+import { findCurrencyExponent, fromMinorUnits, toMinorUnits } from '@/utils/moneyInput'
+import type { Currency } from '@/api/currency'
 import type { TransactionDirection } from '@/pages/transactions/components/transaction-modal/types'
 
 /**
@@ -6,6 +7,29 @@ import type { TransactionDirection } from '@/pages/transactions/components/trans
  */
 export function amountToInputString(amountMinor: number, exponent: number): string {
   return fromMinorUnits(Math.abs(amountMinor), exponent)
+}
+
+/**
+ * Converts a stored amount into input text through its own currency's decimal places, or returns
+ * null when the currency is not in the table
+ *
+ * A stored amount can only be turned into text through the real decimal places, so a currency the
+ * table does not carry yields nothing rather than a number scaled by the two-place fallback
+ *
+ * The text is unsigned, since the form carries which way the money went in its direction field
+ *
+ * @param amountMinor - The stored signed minor-unit amount
+ * @param currencies - The currency table, which is empty until it downloads
+ * @param code - The amount's own currency
+ */
+export function findAmountInputString(
+  amountMinor: number,
+  currencies: Currency[],
+  code: string,
+): string | null {
+  const exponent = findCurrencyExponent(currencies, code)
+
+  return exponent === null ? null : amountToInputString(amountMinor, exponent)
 }
 
 /**

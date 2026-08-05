@@ -7,6 +7,7 @@ import { useMoneyInput } from '@/hooks/useMoneyInput'
 import { getMoneyPlaceholder } from '@/utils/moneyInput'
 import {
   CURRENCY_AMOUNT_NOTICE,
+  CURRENCY_AMOUNT_UNKNOWN,
   CURRENCY_LIST_LOADING,
   CURRENCY_LIST_NOTICE,
   type CurrencyListState,
@@ -22,8 +23,13 @@ interface TransactionDetailsSectionProps {
   amount: string
   amountError?: string | false
 
-  // Stands the amount down unless the currency table is in hand, since its decimal places are the only way
-  // to read or write the stored amount, and says which of the two reasons applies
+  // Whether the amount is locked, decided by the modal from the transaction's own currency rather
+  // than recomputed here, so the field the form treats as locked is the field the user sees disabled
+  isAmountLocked: boolean
+
+  // Which of the reasons the amount is locked for, since a list still arriving is worth waiting
+  // out, one that failed is worth a reload, and one that simply does not carry the currency is
+  // neither. The lock itself is decided above rather than read off this
   currencyState: CurrencyListState
   currencyExponent: number
   notes: string
@@ -47,6 +53,7 @@ export default function TransactionDetailsSection({
   selectedCurrencySymbol,
   amount,
   amountError,
+  isAmountLocked,
   currencyState,
   currencyExponent,
   notes,
@@ -57,7 +64,6 @@ export default function TransactionDetailsSection({
   onAmountBlur,
   onNotesChange,
 }: TransactionDetailsSectionProps) {
-  const isAmountLocked = currencyState !== 'ready'
   const amountInput = useMoneyInput({
     value: amount,
     exponent: currencyExponent,
@@ -119,7 +125,7 @@ export default function TransactionDetailsSection({
                   </IconTooltip>
                 ) : (
                   <IconTooltip label="Amount unavailable" level="important" modalFieldTabStop>
-                    {CURRENCY_AMOUNT_NOTICE}
+                    {currencyState === 'unavailable' ? CURRENCY_AMOUNT_NOTICE : CURRENCY_AMOUNT_UNKNOWN}
                   </IconTooltip>
                 )}
               </span>

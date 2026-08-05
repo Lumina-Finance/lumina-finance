@@ -10,6 +10,9 @@ export const CURRENCY_LIST_NOTICE = "We can't load the currency list right now. 
 /** Shown beside an amount field standing down, which needs the currency's decimal places to say anything */
 export const CURRENCY_AMOUNT_NOTICE = "We can't load the currency list right now, so this amount can't be shown or changed. Refresh the page to try again."
 
+/** Shown in that field's place when the list did load but does not carry that amount's own currency */
+export const CURRENCY_AMOUNT_UNKNOWN = "We don't have the decimal places for this amount's currency, so it can't be shown or changed."
+
 /** Shown when a form that creates something with an amount is refused because the list failed */
 export const CURRENCY_LIST_REFUSAL = "We can't load the currency list right now. Refresh the page to try again."
 
