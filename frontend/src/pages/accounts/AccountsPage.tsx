@@ -28,10 +28,15 @@ export default function AccountsPage() {
   const requireCurrencies = useCurrencyGuard()
   const [createModalKey, setCreateModalKey] = useState(0)
   const { user } = useAuth()
-  const { data: accounts, isFetching: accountsLoading, error } = useAccounts()
+  const { data: accounts, isFetching, error } = useAccounts()
   const { data: taxAdvantagedCategories } = useTaxAdvantagedCategories()
 
   const allRows = useMemo(() => accounts ?? [], [accounts])
+
+  // A fetch that already has rows to show leaves them in place, so adding an account no longer
+  // drops the whole list through its exit animation and plays it back in. A fetch with nothing to
+  // show still gets the spinner, which covers first load and the retry after a failed one alike
+  const accountsLoading = isFetching && allRows.length === 0
   const rows = useMemo(() => allRows.filter((account) => !account.is_archived), [allRows])
   const archivedRows = useMemo(() => allRows.filter((account) => account.is_archived), [allRows])
   const displayCurrency = user!.base_currency
