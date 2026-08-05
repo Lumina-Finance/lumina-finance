@@ -16,6 +16,11 @@ export const ACCOUNT_SKELETON_DELAY_MS = 150
 // after it appears does not replace it mid-blink
 export const ACCOUNT_SKELETON_MINIMUM_MS = 800
 
+// How long the placeholder takes to fade in, and to fade out once the account is ready. The page
+// waits out the fade before swapping in the real cards, so this is time added to every load that
+// shows a placeholder at all
+export const ACCOUNT_SKELETON_FADE_MS = 220
+
 export const EDIT_ACCOUNT_IDENTITY_FIELD_IDS = {
   name: 'edit-account-name',
   institution: 'edit-account-institution',

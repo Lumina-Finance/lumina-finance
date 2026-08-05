@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { AnimatePresence, motion } from 'motion/react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useNavigate, useParams } from 'react-router'
 import { useAccount, useAccounts, type Account } from '@/api/accounts'
 import { useTaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
@@ -12,7 +12,7 @@ import EditAccountIdentityModal from '@/pages/accounts/detail/components/edit-id
 import MonthlyCashFlowCard from '@/pages/accounts/detail/components/monthly-cash-flow/Card'
 import { TopCategoriesBySpendingCard } from '@/pages/accounts/detail/components/spending-breakdown/TopCategoriesCard'
 import { TopMerchantsBySpendingCard } from '@/pages/accounts/detail/components/spending-breakdown/TopMerchantsCard'
-import { EASE } from '@/pages/accounts/detail/constants/accountDetail'
+import { ACCOUNT_SKELETON_FADE_MS, EASE } from '@/pages/accounts/detail/constants/accountDetail'
 import TransactionListSection from '@/pages/transactions/components/ListSection'
 import { toTransactionListAccount } from '@/pages/transactions/types/transactionList'
 import CreateTransactionModal from '@/pages/transactions/components/transaction-modal/Modal'
@@ -57,6 +57,21 @@ export default function AccountDetailPage() {
   // rendering the copy rather than dropping into the loading branch mid-exit
   const isAccountLoading = !visibleAccount && !error
   const showSkeleton = useSkeletonVisibility(isAccountLoading)
+  const prefersReducedMotion = useReducedMotion() ?? false
+
+  // The placeholder has to outlive the moment it is dropped, or there is nothing left on screen to
+  // fade. The loading branch is held open until its exit finishes, and the page then enters with a
+  // fade of its own so the two hand over rather than one popping in behind the other
+  const [isSkeletonExiting, setIsSkeletonExiting] = useState(false)
+  const [hasShownSkeleton, setHasShownSkeleton] = useState(false)
+  const [wasShowingSkeleton, setWasShowingSkeleton] = useState(showSkeleton)
+  if (wasShowingSkeleton !== showSkeleton) {
+    setWasShowingSkeleton(showSkeleton)
+    if (showSkeleton) setHasShownSkeleton(true)
+    else setIsSkeletonExiting(true)
+  }
+
+  const skeletonFadeSeconds = prefersReducedMotion ? 0 : ACCOUNT_SKELETON_FADE_MS / 1000
 
   const openCreateTransaction = () => {
     if (visibleAccount?.is_archived) return
@@ -103,14 +118,26 @@ export default function AccountDetailPage() {
     if (deleteExitPhase === 'page') navigate('/accounts', { replace: true })
   }
 
-  // The skeleton outlasts the request by its minimum display, so the account having arrived is not
-  // on its own a reason to leave this branch. An error is: it goes to the message below at once
-  // rather than finishing an animation first
-  if (!error && (isAccountLoading || showSkeleton)) {
+  // The skeleton outlasts the request by its minimum display and then by its fade, so the account
+  // having arrived is not on its own a reason to leave this branch. An error is: it goes to the
+  // message below at once rather than finishing an animation first
+  if (!error && (isAccountLoading || showSkeleton || isSkeletonExiting)) {
     return (
       <div>
         <AccountDetailBackLink />
-        {showSkeleton && <AccountDetailLoadingSkeleton />}
+        <AnimatePresence onExitComplete={() => setIsSkeletonExiting(false)}>
+          {showSkeleton && (
+            <motion.div
+              key="account-detail-skeleton"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: skeletonFadeSeconds, ease: EASE }}
+            >
+              <AccountDetailLoadingSkeleton />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     )
   }
@@ -139,7 +166,9 @@ export default function AccountDetailPage() {
       {deleteExitPhase !== 'page' && (
         <motion.div
           key="account-detail-page"
-          initial={false}
+          // Fades in only where it is taking over from a placeholder that just faded out. Every
+          // other arrival, a cached account above all, is drawn straight away as it always was
+          initial={hasShownSkeleton && !prefersReducedMotion ? { opacity: 0, y: 0, filter: 'blur(0px)' } : false}
           animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
           exit={{ opacity: 0, y: 10, filter: 'blur(2px)' }}
           transition={{ duration: 0.22, ease: EASE }}
