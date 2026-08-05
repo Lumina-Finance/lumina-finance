@@ -117,8 +117,17 @@ export default function AccountDetailPage() {
 
   if ((error && deleteExitPhase === 'idle') || !visibleAccount) {
     return (
-      <div>
-        <AccountDetailBackLink />
+      // Fills the height the page content area has left after its own padding, which is the whole
+      // viewport on mobile and the space beside the sidebar on desktop, so the message sits in the
+      // middle of what the reader can see. The padding subtracted here is the main element's own,
+      // set in App.tsx, and the two have to be changed together
+      <div className="relative flex min-h-[calc(100dvh-3.5rem)] flex-col items-center justify-center text-center min-[1050px]:min-h-[calc(100dvh-3.75rem)]">
+        {/* Out of the centred flow, so the message is centred against the area rather than against
+            the space left under the link */}
+        <div className="absolute left-0 top-0">
+          <AccountDetailBackLink />
+        </div>
+
         <h1 className="app-page-title">Account not found</h1>
         <p className="app-page-description">We couldn't load this account. It may have been deleted.</p>
       </div>
