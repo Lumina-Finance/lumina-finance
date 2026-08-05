@@ -28,3 +28,10 @@ export const DROPDOWN_RISE_TRANSITION = {
   opacity: { duration: 0.26 },
   y: { duration: 0.45, ease: RISE_EASE },
 } as const
+
+// Matched to the box's own closing, which is quicker than its opening for the reason given beside
+// --app-dropdown-close-duration in tailwind.css
+export const DROPDOWN_SINK_TRANSITION = {
+  opacity: { duration: 0.14 },
+  y: { duration: 0.2 },
+} as const

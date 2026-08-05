@@ -75,6 +75,11 @@
 
     --app-dropdown-open-duration: 0.45s;
 
+    /* Shorter than the opening, and deliberately shorter than a modal takes to leave, which is 0.25s.
+       A drop-down is often closed by dismissing whatever holds it, and one still folding itself away
+       after that has gone is left hanging over the page it belonged to */
+    --app-dropdown-close-duration: 0.2s;
+
     /* How far the contents start below where they settle, so they rise into the opening box */
   }
 
@@ -733,11 +738,14 @@
   .app-dropdown-bodywrap {
     display: grid;
     grid-template-rows: 0fr;
-    transition: grid-template-rows var(--app-dropdown-open-duration) var(--app-dropdown-ease);
+    transition: grid-template-rows var(--app-dropdown-close-duration) var(--app-dropdown-ease);
   }
 
+  /* The duration lives with the open state rather than the base, so opening and closing can differ:
+     whichever style is current when the value changes is the one whose timing is used */
   .app-dropdown-glass-open .app-dropdown-bodywrap {
     grid-template-rows: 1fr;
+    transition-duration: var(--app-dropdown-open-duration);
   }
 
   .app-dropdown-body {

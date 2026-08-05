@@ -17,6 +17,7 @@ import {
   DROPDOWN_INSTANT_TRANSITION,
   DROPDOWN_RISE_DISTANCE,
   DROPDOWN_RISE_TRANSITION,
+  DROPDOWN_SINK_TRANSITION,
 } from './motion';
 import { DropdownOptionList } from './OptionList';
 import { DropdownSearchControls } from './SearchControls';
@@ -129,6 +130,11 @@ const Dropdown = ({
   const listRef = useRef<HTMLUListElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const placed = open || collapsing;
+
+  // Closing runs quicker than opening, so the list is gone before whatever holds it can be
+  const collapseTransition = shouldReduceMotion
+    ? DROPDOWN_INSTANT_TRANSITION
+    : open ? DROPDOWN_RISE_TRANSITION : DROPDOWN_SINK_TRANSITION;
   const { boxPosition, updateBoxPosition } = useDropdownPosition({
     placed,
     searchable,
@@ -179,13 +185,8 @@ const Dropdown = ({
 
   /**
    * Resets transient menu state whenever the list closes
-   *
-   * @param instant - Skips the collapse, for a close the user did not aim at this control. Something
-   *   else is taking their attention, and a list still folding itself away half a second later can
-   *   outlive whatever was holding it: dismissing a modal takes it off the screen in less time than
-   *   the collapse runs for, leaving the list hanging over the page it belonged to
    */
-  const close = useCallback((instant = false) => {
+  const close = useCallback(() => {
     setOpen(false);
     setSearchText('');
     setHighlightedIndex(-1);
@@ -194,7 +195,7 @@ const Dropdown = ({
     // closing frame would move a box that grew upward to the other side of the head, and snap its
     // width back, while the list is still visibly collapsing. Nothing to wait for when the collapse
     // is instant, and no transition to end either, so the wait is skipped entirely
-    if (!instant && !shouldReduceMotion) setCollapsing(true);
+    if (!shouldReduceMotion) setCollapsing(true);
   }, [setSearchText, shouldReduceMotion]);
 
   // The slot holds the collapsed height so the box can grow over what is below it rather than pushing
@@ -229,9 +230,7 @@ const Dropdown = ({
 
     const handleClick = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        // Instantly, since a press outside this control is the user aiming at something else, and
-        // that something else may be the button or the backdrop that dismisses the whole modal
-        close(true);
+        close();
       }
     };
 
@@ -282,10 +281,7 @@ const Dropdown = ({
   const handleCreateNew = () => {
     if (!onCreateNew) return;
     onCreateNew(createQuery);
-
-    // The create action opens a modal over this one, so the list goes at once rather than folding
-    // away underneath it
-    close(true);
+    close();
   };
 
   /**
@@ -433,7 +429,7 @@ const Dropdown = ({
                 className="app-dropdown-glass-inner"
                 initial={{ opacity: 0, y: DROPDOWN_RISE_DISTANCE }}
                 animate={open ? { opacity: 1, y: 0 } : { opacity: 0, y: DROPDOWN_RISE_DISTANCE }}
-                transition={shouldReduceMotion ? DROPDOWN_INSTANT_TRANSITION : DROPDOWN_RISE_TRANSITION}
+                transition={collapseTransition}
               >
                 {searchable && (
                   <DropdownSearchControls
