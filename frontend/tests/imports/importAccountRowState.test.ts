@@ -93,8 +93,8 @@ describe('which rows the batch bar may edit', () => {
     expect(canApplyBatchEditToRow(OUTSIDE_ACCOUNT_VALUE, true, true)).toBe(false)
   })
 
-  // The commit refuses this answer on a source rows are written to, and that row's own dropdown does
-  // not offer the answer back, so the batch bar is the only way out of it
+  // The commit refuses this answer on a source rows are written to, and that row's own dropdown
+  // cannot put the answer back once it is changed, so the batch bar has to be able to lift it out
   it('edits a row answered outside on a source rows are written to, even by hand', () => {
     expect(canApplyBatchEditToRow(OUTSIDE_ACCOUNT_VALUE, true, false)).toBe(true)
     expect(canApplyBatchEditToRow(OUTSIDE_ACCOUNT_VALUE, false, false)).toBe(true)

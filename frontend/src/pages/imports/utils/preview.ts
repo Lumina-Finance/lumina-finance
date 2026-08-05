@@ -250,8 +250,8 @@ function getStampedPreviewMerchantName(category: Category | undefined) {
  *
  * @param recordsCounterparty - Whether this row's category records where the money went at all
  * @param counterpartyChoice - What the counterparty source is mapped to
- * @param isCounterpartyAnswered - Whether that source has an answer, false only for one whose
- *   account was deleted after it was chosen and which the step is now asking about again
+ * @param isCounterpartyAnswered - Whether that source has an answer at all, which covers a source
+ *   still waiting on one and a source whose account was deleted after it was chosen
  */
 function getPreviewCounterpartyScope(
   recordsCounterparty: boolean,
@@ -260,8 +260,8 @@ function getPreviewCounterpartyScope(
 ) {
   if (!recordsCounterparty) return null
 
-  // A source still waiting on an answer says nothing about where the money went. Only a file with
-  // no counterparty column at all is read as the money leaving, which is what the import writes
+  // A source with no answer says nothing yet about where the money went. A file stating no
+  // counterparty at all is the separate case above, and is read as the money leaving
   if (!isCounterpartyAnswered) return null
 
   return counterpartyChoice && counterpartyChoice !== OUTSIDE_ACCOUNT_VALUE ? 'tracked' : 'outside'
