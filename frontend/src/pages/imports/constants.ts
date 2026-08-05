@@ -92,13 +92,22 @@ export const ROWS_WITH_NO_PAYEE_TITLE = 'Rows with no payee'
  *
  * No merchant is stated, because which one a row gets depends on its category: a transfer has no
  * payee of its own and takes the merchant the app puts on its own transfers, while everything else
- * takes the one meaning the payee is not known. Mapping a column is offered because that is the
- * better answer when the file does hold the payee under a heading the guesser did not recognise
+ * takes the one meaning the payee is not known.
+ *
+ * Mapping a column is offered only where none is mapped, since that is the better answer when the
+ * file does hold the payee under a heading the guesser did not recognise. Where one is mapped there
+ * is nothing to map, and the rows are the ones whose cell was left blank
  */
-export function getRowsWithNoPayeeExplanation(rowCount: number) {
+export function getRowsWithNoPayeeExplanation(rowCount: number, isMerchantColumnMapped: boolean) {
   const isOne = rowCount === 1
-  const rows = isOne ? '1 row states' : `${rowCount.toLocaleString()} rows state`
-  return `${rows} no payee, and every transaction carries a merchant, so ${isOne ? 'it will be' : 'they will be'} filed under a merchant that ships with the app. Map the column holding the payee above if the file has one.`
+  const subject = isMerchantColumnMapped
+    ? `${isOne ? '1 row leaves' : `${rowCount.toLocaleString()} rows leave`} the payee column blank`
+    : `${isOne ? '1 row states' : `${rowCount.toLocaleString()} rows state`} no payee`
+  const filed = `every transaction carries a merchant, so ${isOne ? 'it will be' : 'they will be'} filed under a merchant that ships with the app`
+
+  return isMerchantColumnMapped
+    ? `${subject}, and ${filed}.`
+    : `${subject}, and ${filed}. Map the column holding the payee above if the file has one.`
 }
 
 // Shown over the upload control while the currency list is not in hand. Reading a file uses it to

@@ -74,7 +74,7 @@ export function ImportColumnMappingStep({
       {rowsWithNoPayeeCount > 0 && (
         <div className="mt-4">
           <ImportNotice title={ROWS_WITH_NO_PAYEE_TITLE}>
-            {getRowsWithNoPayeeExplanation(rowsWithNoPayeeCount)}
+            {getRowsWithNoPayeeExplanation(rowsWithNoPayeeCount, Boolean(columnMap.merchant_id))}
           </ImportNotice>
         </div>
       )}

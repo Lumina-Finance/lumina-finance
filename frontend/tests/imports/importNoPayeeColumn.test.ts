@@ -163,13 +163,26 @@ describe('showing the merchant a row with no payee will carry', () => {
 
 describe('what the mapping step says about those rows', () => {
   it('reads for one row without saying "1 rows"', () => {
-    const message = getRowsWithNoPayeeExplanation(1)
+    const message = getRowsWithNoPayeeExplanation(1, false)
 
     expect(message).toContain('1 row states no payee')
     expect(message).toContain('it will be filed under')
   })
 
   it('reads for several', () => {
-    expect(getRowsWithNoPayeeExplanation(2)).toContain('2 rows state no payee')
+    expect(getRowsWithNoPayeeExplanation(2, false)).toContain('2 rows state no payee')
+  })
+
+  it('offers the mapping advice only where no column is mapped', () => {
+    expect(getRowsWithNoPayeeExplanation(2, false)).toContain('Map the column holding the payee above')
+  })
+
+  // Telling someone to map a column they have already mapped sends them to a control that is
+  // answered, and the rows are the ones whose cell was left blank rather than a missing column
+  it('says the cells are blank where a column is mapped, and offers nothing to map', () => {
+    const message = getRowsWithNoPayeeExplanation(2, true)
+
+    expect(message).toContain('2 rows leave the payee column blank')
+    expect(message).not.toContain('Map the column')
   })
 })

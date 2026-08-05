@@ -244,8 +244,9 @@ export function useTransactionImportWorkflow() {
     [],
   )
 
-  // Counted off the files and the merchant column alone, so the choice can be put in the mapping
-  // step rather than waiting on the account and category answers the payload build needs
+  // Counted off the files and the merchant column alone, so the mapping step can say how many rows
+  // will be filed under a merchant that ships with the app without waiting on the account and
+  // category answers the payload build needs
   const rowsWithNoPayeeCount = useMemo(
     () => countRowsWithNoPayee(files, columnMap.merchant_id),
     [columnMap.merchant_id, files],
