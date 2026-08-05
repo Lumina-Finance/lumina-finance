@@ -78,7 +78,7 @@ describe('what the user is told after stopping an import', () => {
       true,
     )
 
-    expect(failure.message).toBe('Import cancelled, and nothing was added to your ledger.')
+    expect(failure.message).toBe('Import stopped, and nothing was added to your ledger.')
   })
 
   it('says the write may have finished when they stopped it during the commit', () => {

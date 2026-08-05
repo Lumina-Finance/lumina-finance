@@ -75,15 +75,18 @@ const contentVariants: Variants = {
   },
 }
 
+// No blur of their own: the block above already blurs in over everything inside it, and a second
+// animated filter on a child gives that child its own compositing layer, which the browser can be
+// seen setting up and tearing down. The Stop import button was where it showed, being the only one
+// of these carrying a border and a filled background
 const itemVariants: Variants = {
-  hidden: { opacity: 0, y: 10, filter: 'blur(4px)' },
+  hidden: { opacity: 0, y: 10 },
   visible: {
     opacity: 1,
     y: 0,
-    filter: 'blur(0px)',
     transition: { duration: 0.3, ease: OVERLAY_SPRING_EASE },
   },
-  exit: { opacity: 0, y: -8, filter: 'blur(4px)', transition: { duration: 0.16 } },
+  exit: { opacity: 0, y: -8, transition: { duration: 0.16 } },
 }
 
 const iconVariants: Variants = {
@@ -110,7 +113,7 @@ interface ImportProgressOverlayProps {
   /** Reports that the overlay has finished fading, which is when the page under it is reachable again */
   onClosed?: () => void
 
-  /** Stops an import in progress; a flow that cannot be stopped part way leaves this unset */
+  /** Stops the import, offered only while there is still a request to give up on */
   onCancel?: () => void
 
   /** Runs a failed import again without re-uploading it, offered only when that could work */
@@ -123,7 +126,7 @@ interface ImportProgressOverlayProps {
 }
 
 /**
- * Full-screen overlay shown while an import is running, and after it finishes or fails
+ * Full-screen overlay shown while an import is running, and after it finishes, fails or is stopped
  *
  * The title and message read off the phase and, when supplied, the multi-stage step list rather than
  * a fixed set of copy, so a single-stage commit collapses to a plain spinner while a multi-stage one
@@ -183,8 +186,8 @@ export function ImportProgressOverlay({
       {open && (
         // A closed overlay is still on screen for as long as it takes to fade, and its buttons go
         // on carrying the handlers from before it closed, so it stops taking pointer input at once.
-        // Declared on the way in as well, or a fade interrupted by a second import would leave the
-        // reopened overlay unable to be clicked at all
+        // Declared on both sides so the property has a value to return to, rather than leaving that
+        // to how a value dropped from the target is treated
         <motion.div
           key="import-progress-overlay"
           className="fixed inset-0 z-[90] flex items-center justify-center px-5 py-8"
@@ -264,8 +267,9 @@ export function ImportProgressOverlay({
                 )}
 
                 {/* An import with no way out leaves this overlay up until the connection gives out,
-                    so a flow that can stop one offers it here. Escape is deliberately not wired to
-                    it, since stopping an import is not something to do by brushing a key */}
+                    so it is offered here for as long as there is a request to give up on, and goes
+                    once that request has settled. Escape is deliberately not wired to it, since
+                    stopping an import is not something to do by brushing a key */}
                 {!complete && !ended && onCancel && (
                   <motion.button
                     type="button"

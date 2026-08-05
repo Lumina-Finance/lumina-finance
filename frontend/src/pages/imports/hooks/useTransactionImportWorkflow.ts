@@ -153,6 +153,11 @@ export function useTransactionImportWorkflow() {
   const [importResult, setImportResult] = useState<TransactionImportResponse | null>(null)
   const [importOverlayPhase, setImportOverlayPhase] = useState<ImportOverlayPhase>('idle')
 
+  // Read by the actions rather than the phase itself, for the same reason as the staged run below:
+  // the overlay holds a finished phase on screen while it hands over to the next one, and a button
+  // pressed in that moment carries a guard that was true when it was rendered
+  const importOverlayPhaseRef = useRef<ImportOverlayPhase>('idle')
+
   // A commit that stopped for a reason committing again could clear leaves the file staged, and
   // this is what the second attempt runs against
   const [stagedRunId, setStagedRunId] = useState<string | null>(null)
@@ -577,6 +582,14 @@ export function useTransactionImportWorkflow() {
   }
 
   /**
+   * Moves the overlay to a phase, for the screen and for the actions
+   */
+  const setOverlayPhase = (phase: ImportOverlayPhase) => {
+    importOverlayPhaseRef.current = phase
+    setImportOverlayPhase(phase)
+  }
+
+  /**
    * Reports a commit that stopped, keeping the run when committing it again could still work
    */
   const reportFailedCommit = (error: unknown, cancelled: boolean) => {
@@ -585,7 +598,7 @@ export function useTransactionImportWorkflow() {
     if (failure.discardableRunId) void discardStagedRun(failure.discardableRunId)
     setStagedRun(failure.retryableRunId)
     setImportError(failure.message)
-    setImportOverlayPhase(cancelled ? 'cancelled' : 'error')
+    setOverlayPhase(cancelled ? 'cancelled' : 'error')
   }
 
   /**
@@ -599,7 +612,7 @@ export function useTransactionImportWorkflow() {
     setImportResult(null)
     setStagedRun(null)
     setCanStopImport(true)
-    setImportOverlayPhase('importing')
+    setOverlayPhase('importing')
     const minimumOverlay = waitForMilliseconds(IMPORT_OVERLAY_MIN_MS)
 
     try {
@@ -607,7 +620,7 @@ export function useTransactionImportWorkflow() {
       await minimumOverlay
       if (!isCurrentWorkflowRun(workflowRun)) return
       setImportResult(result)
-      setImportOverlayPhase('success')
+      setOverlayPhase('success')
     } catch (error) {
       // Stopping is a decision the user has just taken, so the overlay answers it rather than
       // sitting out the rest of a minimum it was holding for an import nobody interrupted
@@ -642,13 +655,14 @@ export function useTransactionImportWorkflow() {
   }
 
   const dismissImportOverlay = () => {
-    if (importOverlayPhase !== 'error' && importOverlayPhase !== 'cancelled') return
+    const phase = importOverlayPhaseRef.current
+    if (phase !== 'error' && phase !== 'cancelled') return
 
-    // Leaving the failure behind means giving up on the staged file as well
+    // Leaving the import behind means giving up on the staged file as well
     if (stagedRunIdRef.current) void discardStagedRun(stagedRunIdRef.current)
     setStagedRun(null)
     setImportError(null)
-    setImportOverlayPhase('idle')
+    setOverlayPhase('idle')
   }
 
   const resetImportWorkflow = () => {
@@ -674,7 +688,7 @@ export function useTransactionImportWorkflow() {
     setScopedCategoryCreateKinds(emptyScopedImportAnswers)
     setImportError(null)
     setImportResult(null)
-    setImportOverlayPhase('idle')
+    setOverlayPhase('idle')
     importTransactions.reset()
     commitStagedImport.reset()
     if (inputRef.current) inputRef.current.value = ''

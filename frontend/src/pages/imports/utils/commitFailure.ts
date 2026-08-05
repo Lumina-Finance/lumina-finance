@@ -3,8 +3,8 @@ import { getErrorMessage } from '@/pages/imports/utils/payload'
 
 // What the user is told after stopping an import themselves, which reads differently either side of
 // the commit: before it nothing has been written, and during it the write may already have finished
-const IMPORT_CANCELLED_WHILE_STAGING_MESSAGE = 'Import cancelled, and nothing was added to your ledger.'
-const IMPORT_CANCELLED_WHILE_COMMITTING_MESSAGE = 'Import stopped while it was being written. Check your transactions before importing this file again.'
+const IMPORT_STOPPED_WHILE_STAGING_MESSAGE = 'Import stopped, and nothing was added to your ledger.'
+const IMPORT_STOPPED_WHILE_COMMITTING_MESSAGE = 'Import stopped while it was being written. Check your transactions before importing this file again.'
 
 /** What is left of an import that stopped, and what the user is told about it */
 export interface ImportCommitFailure {
@@ -34,7 +34,7 @@ export function getImportCommitFailure(error: unknown, cancelled: boolean): Impo
 
   return {
     message: cancelled
-      ? (stoppedDuringCommit ? IMPORT_CANCELLED_WHILE_COMMITTING_MESSAGE : IMPORT_CANCELLED_WHILE_STAGING_MESSAGE)
+      ? (stoppedDuringCommit ? IMPORT_STOPPED_WHILE_COMMITTING_MESSAGE : IMPORT_STOPPED_WHILE_STAGING_MESSAGE)
       : getErrorMessage(error),
     retryableRunId: worthRepeating ? runId : null,
     discardableRunId: worthRepeating ? null : runId,
