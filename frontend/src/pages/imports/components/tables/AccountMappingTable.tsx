@@ -158,6 +158,7 @@ export function ImportAccountMappingTable({
             <p
               className={`truncate font-medium ${row.value === OUTSIDE_ACCOUNT_VALUE ? 'line-through' : ''}`}
               style={{ color: row.value === OUTSIDE_ACCOUNT_VALUE ? 'var(--app-text-muted)' : undefined }}
+              title={row.source}
             >
               {row.source}
             </p>
@@ -187,7 +188,10 @@ export function ImportAccountMappingTable({
             value={creating ? row.createType : row.accountType}
             onChange={row.onCreateTypeChange}
             searchable
-            blankWhenEmpty
+            // A creating row still has to answer this, so it asks rather than sitting empty. A row
+            // mapped to an account shows that account's type, and stays blank while there is none
+            blankWhenEmpty={!creating}
+            placeholder="Type"
             size="compact"
             className={row.autoFilled && !creating ? 'import-auto-fill-field' : undefined}
             disabled={!creating}
@@ -199,7 +203,8 @@ export function ImportAccountMappingTable({
             value={creating ? row.createCurrency : row.accountCurrency}
             onChange={row.onCreateCurrencyChange}
             searchable
-            blankWhenEmpty
+            blankWhenEmpty={!creating}
+            placeholder="Currency"
             size="compact"
             className={row.autoFilled && !creating ? 'import-auto-fill-field' : undefined}
             disabled={!creating || currenciesDisabled}
