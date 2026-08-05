@@ -200,7 +200,7 @@ export function ImportAccountMappingStep({
                   key={match.id}
                   to={`/accounts/${match.id}`}
                   state={{ editAccount: true }}
-                  aria-label={`Unarchive ${match.name}`}
+                  aria-label={`Open ${match.name} to unarchive it`}
                   className="font-medium underline underline-offset-2 transition-colors duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
                   style={{ color: 'var(--app-accent)' }}
                 >
