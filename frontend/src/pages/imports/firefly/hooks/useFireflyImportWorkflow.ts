@@ -161,9 +161,14 @@ export function useFireflyImportWorkflow() {
     [fireflyRows],
   )
 
+  const supportedCurrencyCodes = useMemo(
+    () => getSupportedCurrencyCodes(currencies),
+    [currencies],
+  )
+
   const accountPrefills = useMemo(
-    () => buildFireflyAccountPrefills(fireflyRows, trackedAccountNames),
-    [fireflyRows, trackedAccountNames],
+    () => buildFireflyAccountPrefills(fireflyRows, trackedAccountNames, supportedCurrencyCodes),
+    [fireflyRows, supportedCurrencyCodes, trackedAccountNames],
   )
 
   // Every Firefly source is an account the import writes rows into, so none of them can be
@@ -489,7 +494,7 @@ export function useFireflyImportWorkflow() {
 
     try {
       const [draft] = await Promise.all([
-        readFireflyCsvFile(selected, kind, getSupportedCurrencyCodes(currencies)),
+        readFireflyCsvFile(selected, kind, supportedCurrencyCodes),
         waitForMilliseconds(FIREFLY_CSV_PROCESSING_MIN_MS),
       ])
       assignFireflyFile(kind, draft)

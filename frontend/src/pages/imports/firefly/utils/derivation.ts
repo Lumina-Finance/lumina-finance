@@ -121,14 +121,25 @@ export function getFireflyTrackedAccountNames(rows: CsvRow[]): string[] {
 
 /**
  * Builds create-new type and currency defaults for every tracked account name
+ *
+ * @param supportedCurrencyCodes - Every code the app can store an account in. A row stating
+ *   anything else is not counted, since the currency control offers only these: prefilling one it
+ *   does not offer leaves the box showing its placeholder while the count above the table reads the
+ *   row as answered, and the commit then sends the server a currency it refuses
  */
 export function buildFireflyAccountPrefills(
   rows: CsvRow[],
   trackedAccountNames: string[],
+  supportedCurrencyCodes: Set<string>,
 ): Record<string, FireflyAccountPrefill> {
   const currencyTallies = new Map<string, Map<string, number>>()
   const overallTally = new Map<string, number>()
   const liabilityTypes = new Map<string, AccountType>()
+
+  const readSupportedCurrency = (value: string | undefined) => {
+    const code = value?.trim().toUpperCase() ?? ''
+    return supportedCurrencyCodes.has(code) ? code : ''
+  }
 
   const tallyCurrency = (accountName: string | undefined, currency: string) => {
     if (!accountName || !currency) return
@@ -150,7 +161,7 @@ export function buildFireflyAccountPrefills(
   // where a transfer destination prefers the foreign currency when present
   for (const row of rows) {
     const journalType = row.type?.trim().toLowerCase() ?? ''
-    const rowCurrency = row.currency_code?.trim().toUpperCase() ?? ''
+    const rowCurrency = readSupportedCurrency(row.currency_code)
     if (rowCurrency) overallTally.set(rowCurrency, (overallTally.get(rowCurrency) ?? 0) + 1)
 
     const sourceName = isFireflyTrackedAccountType(row.source_type) ? row.source_name?.trim() : ''
@@ -165,7 +176,7 @@ export function buildFireflyAccountPrefills(
       tallyCurrency(destinationName, rowCurrency)
     }
     if (journalType === FIREFLY_TYPE_TRANSFER) {
-      tallyCurrency(destinationName, row.foreign_currency_code?.trim().toUpperCase() || rowCurrency)
+      tallyCurrency(destinationName, readSupportedCurrency(row.foreign_currency_code) || rowCurrency)
     }
   }
 
