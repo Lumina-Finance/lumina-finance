@@ -57,14 +57,16 @@ export interface ImportReferenceData {
   categoriesResolved: boolean
 
   /**
-   * Whether the accounts list in hand is current, meaning it arrived, no request for it is in
-   * flight, and the last one did not fail
+   * Whether a list is in hand, no request for it is in flight, and the last one did not fail
    *
-   * Stricter than `accountsResolved` because the whole query cache is kept in local storage for six
-   * months and comes back carrying its original timestamp, so a list months out of date reads as
-   * arrived. Judging a stored answer against that is fine, since an account it no longer lists has
-   * probably gone. Deciding that a source matches nothing is not, because a list refreshed a moment
-   * later can match it after all
+   * What makes the list current is the import page asking for a fresh one as it opens. This says
+   * that ask has finished and worked, which is what a decision resting on an account being absent
+   * has to wait for: the query cache is kept in local storage for six months and comes back
+   * carrying its original timestamp, so a months-old list satisfies `accountsResolved` on its own,
+   * and a source that matches nothing against it can match an account once the fresh list lands
+   *
+   * Judging a stored answer against a stale list is fine by comparison, since an account it no
+   * longer lists has probably gone, which is why the two flags are separate
    */
   accountsCurrent: boolean
 
