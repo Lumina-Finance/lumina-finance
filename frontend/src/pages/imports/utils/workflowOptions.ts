@@ -218,41 +218,23 @@ export function getImportedCategories(files: ImportFileDraft[], categoryHeader: 
  * Reports whether one row states no payee
  *
  * With no column mapped as the Merchant every row states none, and with one mapped it is the rows
- * whose cell is blank. Read from that one column alone, so the choice can be put to the user in the
- * mapping step rather than waiting on the account and category answers
+ * whose cell is blank
  */
-export function doesRowStateNoPayee(row: CsvRow, merchantHeader: string): boolean {
+function doesRowStateNoPayee(row: CsvRow, merchantHeader: string): boolean {
   return merchantHeader ? !row[merchantHeader]?.trim() : true
 }
 
 /**
  * Counts the rows across every staged file that state no payee
+ *
+ * Read from the merchant column alone, so the mapping step can say how many rows will be filed
+ * under a merchant that ships with the app without waiting on the account and category answers
  */
 export function countRowsWithNoPayee(files: ImportFileDraft[], merchantHeader: string): number {
   return files.reduce(
     (total, file) => total + file.rows.filter((row) => doesRowStateNoPayee(row, merchantHeader)).length,
     0,
   )
-}
-
-/**
- * Returns the staged files holding only the rows this import will bring in
- *
- * What the mapping steps ask about is read from these rather than from the whole file, so a
- * category or account only a left-out row uses is never asked about and never created. Row numbers
- * are never taken from this, since a row's number is its place in the file it came from
- */
-export function getImportingFiles(
-  files: ImportFileDraft[],
-  merchantHeader: string,
-  importRowsWithNoPayee: boolean,
-): ImportFileDraft[] {
-  if (importRowsWithNoPayee) return files
-
-  return files.map((file) => ({
-    ...file,
-    rows: file.rows.filter((row) => !doesRowStateNoPayee(row, merchantHeader)),
-  }))
 }
 
 /**

@@ -98,7 +98,6 @@ describe('import preview rows', () => {
       resolvedAccountMappings: {},
       resolvedCategoryMappings: {},
       rowProblems: [],
-      rowExclusions: [],
     })).toEqual([])
   })
 
@@ -136,7 +135,6 @@ describe('import preview rows', () => {
       resolvedAccountMappings: { 'file-1': CREATE_ACCOUNT_VALUE },
       resolvedCategoryMappings: { Groceries: CREATE_CATEGORY_VALUE },
       rowProblems: [],
-      rowExclusions: [],
     })
 
     expect(rows).toHaveLength(1)
@@ -195,7 +193,6 @@ describe('import preview rows', () => {
       resolvedAccountMappings: { 'file-1': 'checking' },
       resolvedCategoryMappings: { Groceries: category.id },
       rowProblems: [],
-      rowExclusions: [],
     })
 
     expect(rows).toHaveLength(5)
@@ -234,7 +231,6 @@ describe('import preview rows', () => {
       resolvedAccountMappings: { 'file-1': 'checking' },
       resolvedCategoryMappings: { Groceries: CREATE_CATEGORY_VALUE },
       rowProblems: [],
-      rowExclusions: [],
     })
 
     expect(rows).toHaveLength(1)
@@ -271,7 +267,6 @@ describe('import preview rows', () => {
       resolvedAccountMappings: { 'file-1': 'checking' },
       resolvedCategoryMappings: { Groceries: CREATE_CATEGORY_VALUE },
       rowProblems: [],
-      rowExclusions: [],
     })
 
     expect(rows[0].category).toMatchObject({ name: 'Groceries', kind: 'expense' })
@@ -315,7 +310,6 @@ describe('import preview rows', () => {
         cells: file.rows[0],
         reason: 'The amount is not a number.',
       }],
-      rowExclusions: [],
     })
 
     // Still five, because the sample fills from what is left rather than leaving a gap where the

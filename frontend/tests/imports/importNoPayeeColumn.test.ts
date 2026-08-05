@@ -1,6 +1,6 @@
 /**
- * Tests the choice the importer offers about rows stating no payee: bring them in under the shared
- * merchant, or leave them out, with the preview showing whichever was chosen
+ * Tests what the importer does with a row whose file states no payee: it imports under a merchant
+ * that ships with the app, the preview shows which one, and the mapping step says how many rows
  */
 import { describe, expect, it } from 'vitest'
 import type { AccountsOverview } from '@/api/accounts'
@@ -8,19 +8,15 @@ import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import {
   EMPTY_COLUMN_MAP,
-  getEveryRowHasNoPayeeError,
-  ROW_HAS_NO_PAYEE_REASON,
+  getRowsWithNoPayeeExplanation,
   SELF_MERCHANT_NAME,
   UNKNOWN_MERCHANT_NAME,
 } from '@/pages/imports/constants'
 import type { CsvRow, ImportFileDraft } from '@/pages/imports/types'
 import {
-  buildImportAccountMappingSources,
   buildImportPreviewRows,
   buildTransactionImportPayload,
   countRowsWithNoPayee,
-  getImportedCategories,
-  getImportingFiles,
 } from '@/pages/imports/utils'
 
 const CURRENCIES: Currency[] = [
@@ -41,8 +37,7 @@ const CATEGORY: Category = {
 const ACCOUNT = { id: 'account-1', name: 'Chequing', currency: 'CAD' } as AccountsOverview
 const HEADERS = ['Date', 'Category', 'Amount', 'Payee']
 
-// Two rows name a payee and two leave it blank, so a run that leaves the blanks out still has
-// something to import and the counts are told apart
+// Two rows name a payee and two leave it blank, one of those blank by whitespace alone
 const ROWS: CsvRow[] = [
   { Date: '2026-04-10', Category: 'Groceries', Amount: '-12.34', Payee: 'Corner Cafe' },
   { Date: '2026-04-11', Category: 'Groceries', Amount: '-8.00', Payee: '' },
@@ -66,25 +61,15 @@ function createFile(rows: CsvRow[]): ImportFileDraft {
 }
 
 /**
- * Builds a commit payload, optionally mapping the payee column and bringing payee-less rows in
+ * Builds a commit payload, optionally mapping the payee column
  */
-function build({
-  payeeMapped = true,
-  importRowsWithNoPayee = false,
-  accountMapped = true,
-  rows = ROWS,
-}: {
-  payeeMapped?: boolean
-  importRowsWithNoPayee?: boolean
-  accountMapped?: boolean
-  rows?: CsvRow[]
-} = {}) {
+function build({ payeeMapped = true }: { payeeMapped?: boolean } = {}) {
   return buildTransactionImportPayload({
     accountById: new Map([[ACCOUNT.id, ACCOUNT]]),
     accountCreateCurrencies: {},
     accountCreateInstitutions: {},
     accountCreateTypes: {},
-    accountMappings: accountMapped ? { 'file-1': ACCOUNT.id } : {},
+    accountMappings: { 'file-1': ACCOUNT.id },
     accountSources: [{ id: 'file-1', label: 'Chequing.csv', matchText: 'Chequing.csv', isCounterpartyOnly: false }],
     categoryById: new Map([[CATEGORY.id, CATEGORY]]),
     categoryCreateKinds: {},
@@ -100,42 +85,20 @@ function build({
     columnValidationErrors: {},
     currencies: CURRENCIES,
     dateFormat: 'yearFirst',
-    files: [createFile(rows)],
+    files: [createFile(ROWS)],
     importedCategories: ['Groceries'],
-    importRowsWithNoPayee,
   })
 }
 
 /**
  * Builds the preview rows for one category kind, with no payee column mapped
  */
-function preview(kind: Category['kind'], importRowsWithNoPayee: boolean) {
+function preview(kind: Category['kind']) {
   const category = { ...CATEGORY, kind }
-  const columnMap = { ...EMPTY_COLUMN_MAP, dt: 'Date', category_id: 'Category', amount: 'Amount' }
-  const files = [createFile(ROWS)]
-  const built = buildTransactionImportPayload({
-    accountById: new Map([[ACCOUNT.id, ACCOUNT]]),
-    accountCreateCurrencies: {},
-    accountCreateInstitutions: {},
-    accountCreateTypes: {},
-    accountMappings: { 'file-1': ACCOUNT.id },
-    accountSources: [{ id: 'file-1', label: 'Chequing.csv', matchText: 'Chequing.csv', isCounterpartyOnly: false }],
-    categoryById: new Map([[category.id, category]]),
-    categoryCreateKinds: {},
-    categoryMappings: { Groceries: category.id },
-    categoryTypesBySource: {},
-    columnMap,
-    columnValidationErrors: {},
-    currencies: CURRENCIES,
-    dateFormat: 'yearFirst',
-    files,
-    importedCategories: ['Groceries'],
-    importRowsWithNoPayee,
-  })
 
   return buildImportPreviewRows({
-    files,
-    columnMap,
+    files: [createFile(ROWS)],
+    columnMap: { ...EMPTY_COLUMN_MAP, dt: 'Date', category_id: 'Category', amount: 'Amount' },
     dateFormat: 'yearFirst',
     missingRequiredColumnLabels: [],
     currencies: CURRENCIES,
@@ -148,8 +111,7 @@ function preview(kind: Category['kind'], importRowsWithNoPayee: boolean) {
     institutionById: new Map(),
     resolvedAccountMappings: { 'file-1': ACCOUNT.id },
     resolvedCategoryMappings: { Groceries: category.id },
-    rowProblems: built.rowProblems,
-    rowExclusions: built.rowExclusions,
+    rowProblems: [],
   })
 }
 
@@ -162,153 +124,52 @@ describe('counting the rows that state no payee', () => {
     expect(countRowsWithNoPayee([createFile(ROWS)], 'Payee')).toBe(2)
   })
 
-  it('counts none where every row names one', () => {
+  it('counts none where every row states one', () => {
     expect(countRowsWithNoPayee([createFile([ROWS[0], ROWS[2]])], 'Payee')).toBe(0)
   })
 })
 
-describe('leaving rows with no payee out of the import', () => {
-  it('imports only the rows that name a payee, and lists the rest', () => {
+describe('importing a row that states no payee', () => {
+  // Every transaction carries a merchant, so the row is brought in under one that ships with the
+  // app rather than written without one and left uneditable
+  it('sends the row with no payee of its own, for the API to fill in', () => {
     const result = build()
 
-    expect(result.payload?.rows).toHaveLength(2)
-    expect(result.rowExclusions.map((row) => row.rowNumber)).toEqual([2, 4])
-    expect(result.rowExclusions[0].reason).toBe(ROW_HAS_NO_PAYEE_REASON)
+    expect(result.errors).toEqual([])
+    expect(result.payload?.rows).toHaveLength(4)
+    expect(result.payload?.rows.map((row) => row.merchant_name))
+      .toEqual(['Corner Cafe', null, 'Corner Cafe', null])
   })
 
-  // Leaving them out is a choice rather than a fault, so it cannot stop an import of what remains
-  it('does not stop the commit', () => {
-    expect(build().payload).not.toBeNull()
-    expect(build().errors).toEqual([])
-  })
-
-  // The list comes off the merchant column alone, so it holds while other questions are open and
-  // the preview never shows a row that is on its way out
-  it('lists them while a mapping question is still unanswered', () => {
-    const result = build({ accountMapped: false })
-
-    expect(result.payload).toBeNull()
-    expect(result.errors.length).toBeGreaterThan(0)
-    expect(result.rowExclusions.map((row) => row.rowNumber)).toEqual([2, 4])
-  })
-
-  // Nothing about a row being left out is the user's to go and fix, so its own faults stay quiet
-  it('reports a left-out row as left out rather than as one to fix', () => {
-    const result = build({
-      rows: [{ Date: '2026-04-10', Category: 'Groceries', Amount: 'abc', Payee: '' }],
-    })
-
-    expect(result.rowProblems).toEqual([])
-    expect(result.rowExclusions.map((row) => row.reason)).toEqual([ROW_HAS_NO_PAYEE_REASON])
-  })
-
-  it('says so where that leaves nothing at all to import', () => {
+  it('imports a whole file that states no payee anywhere', () => {
     const result = build({ payeeMapped: false })
 
-    expect(result.payload).toBeNull()
-    expect(result.errors).toContain(getEveryRowHasNoPayeeError(4))
-  })
-
-  it('reads that message for one row without saying "1 rows" or "them"', () => {
-    const message = getEveryRowHasNoPayeeError(1)
-
-    expect(message).toContain('The only row states no payee and is being left out')
-    expect(message).toContain('Import it under')
-    expect(message).not.toContain('them')
-  })
-
-  // Leaving a source out of the account list would move where its answer is stored, and the answer
-  // already given for it would be reread as money leaving the tracked accounts
-  it('keeps a counterparty account listed whether or not its rows are being left out', () => {
-    const rows: CsvRow[] = [
-      { Date: '2026-04-10', Category: 'Groceries', Amount: '-500.00', Payee: 'Corner Cafe', Account: 'Chequing', Other: 'Savings' },
-      { Date: '2026-04-11', Category: 'Groceries', Amount: '500.00', Payee: '', Account: 'Savings', Other: 'Chequing' },
-    ]
-    const file = { ...createFile(rows), headers: [...HEADERS, 'Account', 'Other'] }
-
-    // Savings is written to only by the row being left out, and it must stay an ordinary source
-    // rather than becoming one that only ever appeared as a counterparty
-    expect(buildImportAccountMappingSources([file], 'Account', 'Other')).toEqual([
-      { id: 'Chequing', label: 'Chequing', matchText: 'Chequing', isCounterpartyOnly: false },
-      { id: 'Savings', label: 'Savings', matchText: 'Savings', isCounterpartyOnly: false },
-    ])
-
-    // Reading the account list off the importing rows instead is what would move it, which is why
-    // the flow does not do that. An answer given for it would then be looked for under the other
-    // column, come back empty, and be reread as money leaving the tracked accounts
-    const importing = getImportingFiles([file], 'Payee', false)
-    expect(buildImportAccountMappingSources(importing, 'Account', 'Other')).toContainEqual(
-      { id: 'Savings', label: 'Savings', matchText: 'Savings', isCounterpartyOnly: true },
-    )
-  })
-
-  // The warning is about what the file says rather than about what this run brings in, so leaving
-  // the outflows out must not make a file holding both signs read as one holding only income
-  it('keeps the no-outflows warning off a file whose excluded rows are the outflows', () => {
-    const result = build({
-      rows: [
-        { Date: '2026-04-10', Category: 'Groceries', Amount: '-50.00', Payee: '' },
-        { Date: '2026-04-11', Category: 'Groceries', Amount: '2000.00', Payee: 'Employer' },
-      ],
-    })
-
-    expect(result.rowExclusions).toHaveLength(1)
-    expect(result.warnings).toEqual([])
-  })
-})
-
-describe('keeping the left-out rows out of what the steps ask about', () => {
-  // A category only a left-out row uses would otherwise be asked about in the matching step, and
-  // answering it would create a category with no transactions in it
-  it('leaves a category only a left-out row uses out of the values to match', () => {
-    const rows: CsvRow[] = [
-      { Date: '2026-04-10', Category: 'Groceries', Amount: '-12.34', Payee: 'Corner Cafe' },
-      { Date: '2026-04-11', Category: 'Charity', Amount: '-50.00', Payee: '' },
-    ]
-    const importing = getImportingFiles([createFile(rows)], 'Payee', false)
-
-    expect(getImportedCategories(importing, 'Category')).toEqual(['Groceries'])
-  })
-
-  it('asks about it again once those rows are being brought in', () => {
-    const rows: CsvRow[] = [
-      { Date: '2026-04-10', Category: 'Groceries', Amount: '-12.34', Payee: 'Corner Cafe' },
-      { Date: '2026-04-11', Category: 'Charity', Amount: '-50.00', Payee: '' },
-    ]
-    const importing = getImportingFiles([createFile(rows)], 'Payee', true)
-
-    expect(getImportedCategories(importing, 'Category')).toEqual(['Charity', 'Groceries'])
-  })
-})
-
-describe('bringing rows with no payee in', () => {
-  it('imports every row and lists none as left out', () => {
-    const result = build({ importRowsWithNoPayee: true })
-
-    expect(result.payload?.rows).toHaveLength(4)
-    expect(result.rowExclusions).toEqual([])
-  })
-
-  it('imports a whole file that names no payee anywhere', () => {
-    const result = build({ payeeMapped: false, importRowsWithNoPayee: true })
-
-    expect(result.payload?.rows).toHaveLength(4)
     expect(result.errors).toEqual([])
+    expect(result.payload?.rows.every((row) => row.merchant_name === null)).toBe(true)
   })
 })
 
-describe('showing what the choice does to the preview', () => {
-  it('leaves the rows out of the sample where they are being left out', () => {
-    expect(preview('expense', false)).toEqual([])
-  })
-
-  it('shows the shared unknown merchant on an ordinary row where they are brought in', () => {
-    expect(preview('expense', true)[0].transaction.merchant_name).toBe(UNKNOWN_MERCHANT_NAME)
+describe('showing the merchant a row with no payee will carry', () => {
+  it('shows the shared unknown merchant on an ordinary row', () => {
+    expect(preview('expense')[0].transaction.merchant_name).toBe(UNKNOWN_MERCHANT_NAME)
   })
 
   // A transfer has no payee of its own, and the app puts this merchant on the transfers it writes
   // itself, so an imported one has to read the same way
   it('shows the shared self merchant on a transfer', () => {
-    expect(preview('transfer', true)[0].transaction.merchant_name).toBe(SELF_MERCHANT_NAME)
+    expect(preview('transfer')[0].transaction.merchant_name).toBe(SELF_MERCHANT_NAME)
+  })
+})
+
+describe('what the mapping step says about those rows', () => {
+  it('reads for one row without saying "1 rows"', () => {
+    const message = getRowsWithNoPayeeExplanation(1)
+
+    expect(message).toContain('1 row states no payee')
+    expect(message).toContain('it will be filed under')
+  })
+
+  it('reads for several', () => {
+    expect(getRowsWithNoPayeeExplanation(2)).toContain('2 rows state no payee')
   })
 })

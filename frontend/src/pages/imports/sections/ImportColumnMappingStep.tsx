@@ -1,8 +1,7 @@
-import { EmptyState, ImportCheckbox, ImportHeaderMappingTable, ImportNotice, ImportStep } from '@/pages/imports/components'
+import { EmptyState, ImportHeaderMappingTable, ImportNotice, ImportStep } from '@/pages/imports/components'
 import {
   AMOUNT_CONVENTION_NOTE,
   getRowsWithNoPayeeExplanation,
-  ROWS_WITH_NO_PAYEE_CHECKBOX_LABEL,
   ROWS_WITH_NO_PAYEE_TITLE,
 } from '@/pages/imports/constants'
 import type { TransactionImportWorkflow } from '@/pages/imports/hooks'
@@ -18,9 +17,7 @@ type ImportColumnMappingStepProps = Pick<
   | 'dateFormat'
   | 'dateFormatScan'
   | 'rowsWithNoPayeeCount'
-  | 'importRowsWithNoPayee'
   | 'setDateFormat'
-  | 'setImportRowsWithNoPayee'
   | 'updateColumnTarget'
 >
 
@@ -43,9 +40,7 @@ export function ImportColumnMappingStep({
   dateFormat,
   dateFormatScan,
   rowsWithNoPayeeCount,
-  importRowsWithNoPayee,
   setDateFormat,
-  setImportRowsWithNoPayee,
   updateColumnTarget,
 }: ImportColumnMappingStepProps) {
   return (
@@ -77,24 +72,10 @@ export function ImportColumnMappingStep({
         />
       )}
       {rowsWithNoPayeeCount > 0 && (
-        <div className="mt-4 flex flex-col gap-3">
+        <div className="mt-4">
           <ImportNotice title={ROWS_WITH_NO_PAYEE_TITLE}>
             {getRowsWithNoPayeeExplanation(rowsWithNoPayeeCount)}
           </ImportNotice>
-          <div className="flex items-center gap-2 px-4">
-            {/* The checkbox centres itself for the table cells it was written for, so it is boxed
-                to its own size here and the label stays beside it rather than being pushed away */}
-            <span className="flex h-5 w-5 shrink-0">
-              <ImportCheckbox
-                checked={importRowsWithNoPayee}
-                label={ROWS_WITH_NO_PAYEE_CHECKBOX_LABEL}
-                onChange={() => setImportRowsWithNoPayee(!importRowsWithNoPayee)}
-              />
-            </span>
-            <span className="text-sm" style={{ color: 'var(--app-text)' }}>
-              {ROWS_WITH_NO_PAYEE_CHECKBOX_LABEL}
-            </span>
-          </div>
         </div>
       )}
     </ImportStep>

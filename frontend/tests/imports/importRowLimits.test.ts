@@ -81,7 +81,6 @@ function build(notes: string, tags: string) {
     dateFormat: 'yearFirst',
     files: [file],
     importedCategories: ['Groceries'],
-    importRowsWithNoPayee: true,
   })
 }
 
@@ -204,6 +203,5 @@ function buildWithManyCategories(count: number, { mapped }: { mapped: boolean })
     dateFormat: 'yearFirst',
     files: [file],
     importedCategories: sources,
-    importRowsWithNoPayee: true,
   })
 }

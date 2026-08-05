@@ -46,9 +46,6 @@ interface BuildImportPreviewRowsOptions {
   resolvedAccountMappings: Record<string, string>
   resolvedCategoryMappings: Record<string, string>
   rowProblems: ImportRowProblem[]
-
-  /** Rows the user chose to leave out, which the sample must not show as ones being created */
-  rowExclusions: ImportRowProblem[]
 }
 
 /**
@@ -89,15 +86,12 @@ export function buildImportPreviewRows({
   resolvedAccountMappings,
   resolvedCategoryMappings,
   rowProblems,
-  rowExclusions,
 }: BuildImportPreviewRowsOptions): PreviewTransactionRow[] {
   if (missingRequiredColumnLabels.length > 0) return []
 
   // A row that cannot be converted is listed with its reason instead, so previewing it as well
-  // would show an amount of zero or a blank date beside the entry saying why it was refused. A row
-  // the user chose to leave out is skipped for the same reason: the sample shows what will be
-  // written, and that row will not be
-  const problemRowIds = new Set([...rowProblems, ...rowExclusions].map((problem) => problem.id))
+  // would show an amount of zero or a blank date beside the entry saying why it was refused
+  const problemRowIds = new Set(rowProblems.map((problem) => problem.id))
   const rows: PreviewTransactionRow[] = []
   const fallbackCurrency = currencies.some((currency) => currency.id === 'CAD') ? 'CAD' : currencies[0]?.id ?? 'CAD'
   const supportedCurrencyCodes = getSupportedCurrencyCodes(currencies)

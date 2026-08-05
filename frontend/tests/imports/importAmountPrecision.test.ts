@@ -114,7 +114,6 @@ function buildPayload(amount: string, accountCurrency: string, importedCurrency 
     dateFormat: 'yearFirst',
     files: [createFile(amount, importedCurrency)],
     importedCategories: ['Groceries'],
-    importRowsWithNoPayee: true,
   })
 }
 
@@ -140,7 +139,6 @@ function buildCreateAccountPayload(amount: string, createCurrency: string, impor
     dateFormat: 'yearFirst',
     files: [createFile(amount, importedCurrency)],
     importedCategories: ['Groceries'],
-    importRowsWithNoPayee: true,
   })
 }
 
@@ -164,7 +162,6 @@ function buildPreview(amount: string, accountCurrency: string, importedCurrency 
     resolvedAccountMappings: { 'file-1': 'account-1' },
     resolvedCategoryMappings: { Groceries: GROCERIES.id },
     rowProblems: [],
-    rowExclusions: [],
   })
 }
 

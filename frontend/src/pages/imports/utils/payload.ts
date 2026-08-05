@@ -5,11 +5,9 @@ import {
   CREATE_ACCOUNT_VALUE,
   CREATE_CATEGORY_VALUE,
   DEFAULT_CATEGORY_ICON,
-  getEveryRowHasNoPayeeError,
   getTooManyMappingsError,
   MAX_IMPORT_MAPPINGS,
   NO_OUTFLOWS_WARNING,
-  ROW_HAS_NO_PAYEE_REASON,
   ROW_SIGN_DISAGREES_WITH_CATEGORY_REASON,
 } from '@/pages/imports/constants'
 import { BALANCE_ADJUSTMENT_CATEGORY_NAME, doesTransferRecordCounterpartyAccount, OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
@@ -26,7 +24,7 @@ import { isImportAccountType } from '@/pages/imports/accountTypeGuard'
 import type { Currency } from '@/api/currency'
 import { getCategoryMatchKind } from './categoryMatching'
 import { getImportRowId } from './common'
-import { doesRowStateNoPayee, getMissingRequiredColumnLabels } from './workflowOptions'
+import { getMissingRequiredColumnLabels } from './workflowOptions'
 import {
   getCurrencyByAccountSource,
   getImportRowProblem,
@@ -61,7 +59,6 @@ export function buildTransactionImportPayload({
   dateFormat,
   files,
   importedCategories,
-  importRowsWithNoPayee,
 }: {
   accountById: Map<string, AccountsOverview>
   accountCreateCurrencies: Record<string, string>
@@ -79,9 +76,6 @@ export function buildTransactionImportPayload({
   dateFormat: ImportDateFormat | null
   files: ImportFileDraft[]
   importedCategories: string[]
-
-  /** Whether rows whose file states no payee are imported, filed under the shared merchant */
-  importRowsWithNoPayee: boolean
 }): ImportBuildResult {
   // Two kinds of problem, kept apart because only one of them makes judging a row meaningless. An
   // unanswered mapping question leaves every row looking broken for want of the answer, while a
@@ -102,12 +96,6 @@ export function buildTransactionImportPayload({
 
   const missingRequired = getMissingRequiredColumnLabels(columnMap)
   if (missingRequired.length > 0) addError(`Missing required columns: ${missingRequired.join(', ')}`)
-
-  // Worked out before anything else, because it depends on the merchant column alone. That is what
-  // lets the list come back even while a mapping question is open, so the sample never shows a row
-  // that is being left out, and what makes this list and the count in the mapping step agree
-  const rowExclusions = getRowsWithNoPayeeExclusions(files, columnMap.merchant_id, importRowsWithNoPayee)
-  const excludedRowIds = new Set(rowExclusions.map((exclusion) => exclusion.id))
 
   // Counted off the distinct values the files hold rather than the mappings answered so far, so the
   // refusal does not wait for answers that cannot change it. Mapping a thousand categories by hand
@@ -203,7 +191,6 @@ export function buildTransactionImportPayload({
       rowProblems: [],
       warnings: [],
       rowWarnings: [],
-      rowExclusions,
       payload: null,
     }
   }
@@ -216,22 +203,11 @@ export function buildTransactionImportPayload({
   const rowJudgement: ImportRowJudgement = { currencies, accountMappings, recordsCounterpartyBySource }
 
   const rows: TransactionImportPayload['rows'] = []
-
-  // Every row the file holds, the ones being left out included. The whole-file warnings are about
-  // what the file says rather than about what this run brings in, so leaving the outflows out must
-  // not make a file carrying both signs read as one holding only money coming in
-  const fileRows: TransactionImportPayload['rows'] = []
   const rowProblems: ImportRowProblem[] = []
   const rowWarnings: ImportRowProblem[] = []
   for (const file of files) {
     for (const [rowIndex, row] of file.rows.entries()) {
       const resolved = resolveImportRow(row, file.id, rowContext)
-      fileRows.push(toPayloadRow(resolved))
-
-      // Judged only where the row is being imported, since nothing about a row you are leaving out
-      // is yours to go and fix, and its problems come back the moment you bring it in
-      if (excludedRowIds.has(getImportRowId(file.id, rowIndex))) continue
-
       const problem = getImportRowProblem(resolved, rowJudgement)
       if (problem) {
         rowProblems.push({
@@ -260,26 +236,20 @@ export function buildTransactionImportPayload({
     }
   }
 
-  // A file whose every row has a problem is described by the list of problems, and one whose every
-  // row was left out for having no payee is described by its own message, so the empty-file message
-  // is kept for the case it was written for
-  if (rows.length === 0 && rowProblems.length === 0) {
-    addError(rowExclusions.length > 0
-      ? getEveryRowHasNoPayeeError(rowExclusions.length)
-      : 'No transaction rows are available to import.')
-  }
+  // A file whose every row has a problem is described by the list of problems, so the empty-file
+  // message is kept for the case it was written for
+  if (rows.length === 0 && rowProblems.length === 0) addError('No transaction rows are available to import.')
 
-  const warnings = getImportWarnings(fileRows)
+  const warnings = getImportWarnings(rows)
   const allErrors = [...columnErrors, ...errors]
   if (allErrors.length > 0 || rowProblems.length > 0) {
-    return { errors: allErrors, rowProblems, warnings, rowWarnings, rowExclusions, payload: null }
+    return { errors: allErrors, rowProblems, warnings, rowWarnings, payload: null }
   }
   return {
     errors: [],
     rowProblems: [],
     warnings,
     rowWarnings,
-    rowExclusions,
     payload: { accounts, categories, rows },
   }
 }
@@ -298,32 +268,6 @@ function toPayloadRow(resolved: ReturnType<typeof resolveImportRow>): Transactio
     tag_names: resolved.tagNames,
     counterparty_account_source: resolved.counterpartySource,
   }
-}
-
-/**
- * Lists the rows being left out for stating no payee, against their places in their files
- *
- * Read from the merchant column alone, so it holds whether or not the account and category
- * questions have been answered
- */
-function getRowsWithNoPayeeExclusions(
-  files: ImportFileDraft[],
-  merchantHeader: string,
-  importRowsWithNoPayee: boolean,
-): ImportRowProblem[] {
-  if (importRowsWithNoPayee) return []
-
-  return files.flatMap((file) => file.rows.flatMap((row, rowIndex) => (
-    doesRowStateNoPayee(row, merchantHeader)
-      ? [{
-        id: getImportRowId(file.id, rowIndex),
-        // Its position among the file's data rows, which is not the line it sits on
-        rowNumber: rowIndex + 1,
-        cells: row,
-        reason: ROW_HAS_NO_PAYEE_REASON,
-      }]
-      : []
-  )))
 }
 
 /**

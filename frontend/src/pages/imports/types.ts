@@ -78,9 +78,8 @@ export interface PreviewTransactionRow {
 /**
  * One row the import has something to say about, against its position among the file's data rows
  *
- * Used for all three of them: a row that cannot be converted, one that will be taken but is
- * probably not what the user meant, and one being left out by choice. What it means is decided by
- * the list it is in rather than by the shape itself
+ * Used for both kinds: a row that cannot be converted, and one that will be taken but is probably
+ * not what the user meant. What it means is decided by the list it is in rather than by the shape
  *
  * The cells are the row as it was read, so the table can show it under the file's own headers
  */
@@ -109,13 +108,6 @@ export interface ImportBuildResult {
    * refused row is. The commit does not wait on these
    */
   rowWarnings: ImportRowProblem[]
-
-  /**
-   * Rows left out because the user chose to leave them out, rather than because anything is wrong
-   * with them. Listed so the choice is visible, and the commit does not wait on these either: an
-   * import that leaves them behind is a valid import of the rows that remain
-   */
-  rowExclusions: ImportRowProblem[]
   payload: TransactionImportPayload | null
 }
 

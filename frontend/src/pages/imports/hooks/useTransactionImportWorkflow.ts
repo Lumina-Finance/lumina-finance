@@ -17,7 +17,6 @@ import {
   buildImportPreviewRows,
   countRowsWithNoPayee,
   formatImportSummary,
-  getImportingFiles,
   getArchivedAccountMatches,
   getImportedCategoryTypes,
   getImportedCategories,
@@ -84,25 +83,9 @@ export function useTransactionImportWorkflow() {
   const [decidedColumnHeaders, setDecidedColumnHeaders] = useState<Set<string>>(() => new Set())
   const [columnMap, setColumnMap] = useState<ColumnMap>(EMPTY_COLUMN_MAP)
 
-  // Whether rows stating no payee are brought in under a merchant that ships with the app. Off to
-  // begin with, so nothing is filed under a merchant the user did not choose, and cleared whenever
-  // the merchant column mapping changes or the files do, so a choice never carries to a new question
-  const [importRowsWithNoPayee, setImportRowsWithNoPayee] = useState(false)
   const [scopedAccountMappings, setScopedAccountMappings] = useState<ScopedImportAnswers<string>>(emptyScopedImportAnswers)
   const [accountAutoMatchKey, setAccountAutoMatchKey] = useState('')
 
-  // What the mapping steps ask about is read from the rows this import will bring in, so a value
-  // only a left-out row carries is never asked about and never created. Row numbers are never taken
-  // from these, since a row's number is its place in the file it came from
-  const importingFiles = useMemo(
-    () => getImportingFiles(files, columnMap.merchant_id, importRowsWithNoPayee),
-    [columnMap.merchant_id, files, importRowsWithNoPayee],
-  )
-
-  // Read from every row rather than from the importing ones, unlike the value lists below. Which
-  // column a source came out of decides where its answer is stored, and leaving rows out can move a
-  // source from one column to the other, which would leave the answer already given for it unread
-  // and quietly reread as money leaving the tracked accounts
   const accountMappingSources = useMemo(
     () => buildImportAccountMappingSources(files, columnMap.account_id, columnMap.counterparty_account_id),
     [columnMap.account_id, columnMap.counterparty_account_id, files],
@@ -360,23 +343,23 @@ export function useTransactionImportWorkflow() {
   )
 
   const importedCategories = useMemo(
-    () => getImportedCategories(importingFiles, columnMap.category_id),
-    [columnMap.category_id, importingFiles],
+    () => getImportedCategories(files, columnMap.category_id),
+    [columnMap.category_id, files],
   )
 
   const importedMerchants = useMemo(
-    () => getImportedMerchants(importingFiles, columnMap.merchant_id),
-    [columnMap.merchant_id, importingFiles],
+    () => getImportedMerchants(files, columnMap.merchant_id),
+    [columnMap.merchant_id, files],
   )
 
   const categoryTypesBySource = useMemo(
-    () => getImportedCategoryTypes(importingFiles, columnMap.category_id, columnMap.amount, importedCategories),
-    [columnMap.amount, columnMap.category_id, importedCategories, importingFiles],
+    () => getImportedCategoryTypes(files, columnMap.category_id, columnMap.amount, importedCategories),
+    [columnMap.amount, columnMap.category_id, importedCategories, files],
   )
 
   const importedTags = useMemo(
-    () => getImportedTags(importingFiles, columnMap.tag_ids),
-    [columnMap.tag_ids, importingFiles],
+    () => getImportedTags(files, columnMap.tag_ids),
+    [columnMap.tag_ids, files],
   )
 
   const canInferCategoryMappings = Boolean(columnMap.category_id)
@@ -416,7 +399,6 @@ export function useTransactionImportWorkflow() {
       dateFormat,
       files,
       importedCategories,
-      importRowsWithNoPayee,
     }),
     [
       accountById,
@@ -427,7 +409,6 @@ export function useTransactionImportWorkflow() {
       categoryById,
       categoryCreateKinds,
       categoryTypesBySource,
-      importRowsWithNoPayee,
       currencies,
       columnMap,
       dateFormat,
@@ -458,9 +439,8 @@ export function useTransactionImportWorkflow() {
       resolvedAccountMappings,
       resolvedCategoryMappings,
       rowProblems: importBuild.rowProblems,
-      rowExclusions: importBuild.rowExclusions,
     }),
-    [accountById, accountCreateCurrencies, accountCreateInstitutions, categoryById, categoryCreateKinds, categoryTypesBySource, columnMap, currencies, dateFormat, files, importBuild.rowExclusions, importBuild.rowProblems, institutionById, missingRequiredColumnLabels, resolvedAccountMappings, resolvedCategoryMappings],
+    [accountById, accountCreateCurrencies, accountCreateInstitutions, categoryById, categoryCreateKinds, categoryTypesBySource, columnMap, currencies, dateFormat, files, importBuild.rowProblems, institutionById, missingRequiredColumnLabels, resolvedAccountMappings, resolvedCategoryMappings],
   )
 
   const previewGroups = useMemo(
@@ -514,7 +494,6 @@ export function useTransactionImportWorkflow() {
     setColumnValidationErrors(result.errors)
     setAutoFilledColumnHeaders((current) => getNextAutoFilledColumnHeaders(current, columnMap, result.map))
     syncAutoMatchKeys(result.map, result.errors, nextFiles)
-    setImportRowsWithNoPayee(false)
 
     // The staged file is what the last refusal was about, so it stops being true here
     setImportError(null)
@@ -599,10 +578,6 @@ export function useTransactionImportWorkflow() {
 
     setColumnValidationErrors(nextColumnValidationErrors)
     setColumnMap(nextColumnMap)
-
-    // The choice was made about one set of payee-less rows, and changing which column holds the
-    // payee changes that set, so it is asked again rather than carried onto a different one
-    if (nextColumnMap.merchant_id !== columnMap.merchant_id) setImportRowsWithNoPayee(false)
 
     // The mapping the last refusal was about has changed, so the message stops being true
     setImportError(null)
@@ -780,8 +755,6 @@ export function useTransactionImportWorkflow() {
     missingRequiredColumnLabels,
     columnTargetOptions,
     rowsWithNoPayeeCount,
-    importRowsWithNoPayee,
-    setImportRowsWithNoPayee,
     accountMappingSources,
     importedCategories,
     importedMerchants,
