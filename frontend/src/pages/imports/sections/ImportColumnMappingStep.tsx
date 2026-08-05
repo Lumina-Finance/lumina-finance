@@ -1,5 +1,11 @@
-import { EmptyState, ImportHeaderMappingTable, ImportNotice, ImportStep } from '@/pages/imports/components'
-import { AMOUNT_CONVENTION_NOTE } from '@/pages/imports/constants'
+import { EmptyState, ImportCheckbox, ImportHeaderMappingTable, ImportNotice, ImportStep } from '@/pages/imports/components'
+import {
+  AMOUNT_CONVENTION_NOTE,
+  getNoMerchantColumnExplanation,
+  NO_MERCHANT_COLUMN_CHECKBOX_LABEL,
+  NO_MERCHANT_COLUMN_TITLE,
+  UNKNOWN_MERCHANT_NAME,
+} from '@/pages/imports/constants'
 import type { TransactionImportWorkflow } from '@/pages/imports/hooks'
 
 type ImportColumnMappingStepProps = Pick<
@@ -12,7 +18,9 @@ type ImportColumnMappingStepProps = Pick<
   | 'columnValidationErrors'
   | 'dateFormat'
   | 'dateFormatScan'
+  | 'noPayeeColumnConfirmed'
   | 'setDateFormat'
+  | 'setNoPayeeColumnConfirmed'
   | 'updateColumnTarget'
 >
 
@@ -34,7 +42,9 @@ export function ImportColumnMappingStep({
   columnValidationErrors,
   dateFormat,
   dateFormatScan,
+  noPayeeColumnConfirmed,
   setDateFormat,
+  setNoPayeeColumnConfirmed,
   updateColumnTarget,
 }: ImportColumnMappingStepProps) {
   return (
@@ -64,6 +74,23 @@ export function ImportColumnMappingStep({
           onChange={updateColumnTarget}
           onDateFormatChange={setDateFormat}
         />
+      )}
+      {headers.length > 0 && !columnMap.merchant_id && (
+        <div className="mt-4 flex flex-col gap-3">
+          <ImportNotice title={NO_MERCHANT_COLUMN_TITLE}>
+            {getNoMerchantColumnExplanation(UNKNOWN_MERCHANT_NAME)}
+          </ImportNotice>
+          <div className="flex items-center gap-2 px-4">
+            <ImportCheckbox
+              checked={noPayeeColumnConfirmed}
+              label={NO_MERCHANT_COLUMN_CHECKBOX_LABEL}
+              onChange={() => setNoPayeeColumnConfirmed(!noPayeeColumnConfirmed)}
+            />
+            <span className="text-sm" style={{ color: 'var(--app-text)' }}>
+              {NO_MERCHANT_COLUMN_CHECKBOX_LABEL}
+            </span>
+          </div>
+        </div>
       )}
     </ImportStep>
   )

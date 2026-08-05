@@ -41,6 +41,49 @@ export const COLUMN_TARGETS: Array<{
   { id: 'tag_ids', label: 'Tags', hint: 'Resolved from imported tag text.' },
 ]
 
+// The merchant an imported row is filed under when its file states no payee, and the one a transfer
+// row gets, since a transfer has no payee of its own. Both ship with the app, and these have to stay
+// in step with the backend's own names, the way the balance adjustment category name does
+export const UNKNOWN_MERCHANT_NAME = 'Unknown'
+export const SELF_MERCHANT_NAME = 'Myself'
+
+// What one row may carry, matching what the API accepts. Checked here so an offending row is named
+// against its row number in the preview rather than failing part-way through the upload
+export const MAX_IMPORT_NOTES_LENGTH = 10_000
+export const MAX_IMPORT_TAGS_PER_ROW = 32
+
+/**
+ * Says a row's notes are longer than the importer stores
+ */
+export function getRowNotesTooLongReason(length: number) {
+  return `The notes are ${length.toLocaleString()} characters, and the importer stores up to ${MAX_IMPORT_NOTES_LENGTH.toLocaleString()}.`
+}
+
+/**
+ * Says a row names more tags than one transaction may carry
+ */
+export function getRowTooManyTagsReason(count: number) {
+  return `This row has ${count} tags, and a transaction carries up to ${MAX_IMPORT_TAGS_PER_ROW}.`
+}
+
+// Shown in the column mapping step when no column is mapped as the Merchant. Every transaction
+// carries one, so a whole file arriving under a single merchant is worth answering for rather than
+// assuming, and the answer is what unlocks the import
+export const NO_MERCHANT_COLUMN_TITLE = 'No payee column'
+export const NO_MERCHANT_COLUMN_CHECKBOX_LABEL = 'Import rows with no payee under the shared merchant'
+export const NO_MERCHANT_COLUMN_ERROR = 'Answer what rows with no payee should be imported as, in the Column Mapping step.'
+
+/**
+ * Explains what happens to every row when the file has no payee column
+ *
+ * The merchant is named because it is what the rows will read as everywhere in the app afterwards,
+ * and mapping a column instead is offered first, since that is the better answer when the file has
+ * one under a heading the guesser did not recognise
+ */
+export function getNoMerchantColumnExplanation(merchantName: string) {
+  return `No column is mapped as the Merchant, and every transaction carries one. Map the column holding the payee above, or confirm below to file these rows under ${merchantName}.`
+}
+
 // Shown over the upload control while the currency list is not in hand. Reading a file uses it to
 // tell a cell holding a currency from a header word shaped like one, and that decision is kept on
 // the staged file, so a file read without the list stays wrongly read once it arrives

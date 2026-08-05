@@ -4,6 +4,10 @@ import {
   CREATE_ACCOUNT_VALUE,
   getRowAmountTooPreciseReason,
   getRowCurrencyMismatchReason,
+  getRowNotesTooLongReason,
+  getRowTooManyTagsReason,
+  MAX_IMPORT_NOTES_LENGTH,
+  MAX_IMPORT_TAGS_PER_ROW,
   ROW_ACCOUNT_BLANK_REASON,
   ROW_AMOUNT_BLANK_REASON,
   ROW_AMOUNT_TOO_LARGE_REASON,
@@ -130,6 +134,11 @@ export function getImportRowProblem(row: ResolvedImportRow, judgement: ImportRow
 
   const amountProblem = getImportRowAmountProblem(row.amount, row.currency, judgement.currencies)
   if (amountProblem) return amountProblem
+
+  // Asked here so a row the API would refuse is named against its row number before the upload
+  // begins, rather than failing part-way through it with a position nobody can find in the file
+  if (row.notes && row.notes.length > MAX_IMPORT_NOTES_LENGTH) return getRowNotesTooLongReason(row.notes.length)
+  if (row.tagNames.length > MAX_IMPORT_TAGS_PER_ROW) return getRowTooManyTagsReason(row.tagNames.length)
 
   if (!row.counterpartySource) return null
 

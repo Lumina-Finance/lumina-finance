@@ -145,6 +145,11 @@ export function useTransactionImportWorkflow() {
   const [merchantHandlingOpen, setMerchantHandlingOpen] = useState(true)
   const [tagHandlingOpen, setTagHandlingOpen] = useState(true)
   const [columnValidationErrors, setColumnValidationErrors] = useState<ColumnValidationErrors>({})
+
+  // Whether the user has answered for a file mapping no column as the Merchant. Cleared whenever
+  // that mapping changes or the files do, so an answer never carries over to a question it was not
+  // given for
+  const [noPayeeColumnConfirmed, setNoPayeeColumnConfirmed] = useState(false)
   const [dateFormatChoice, setDateFormatChoice] = useState<DateFormatChoice | null>(null)
   const [scopedCategoryMappings, setScopedCategoryMappings] = useState<ScopedImportAnswers<string>>(emptyScopedImportAnswers)
   const [categoryAutoMatchKey, setCategoryAutoMatchKey] = useState('')
@@ -389,6 +394,7 @@ export function useTransactionImportWorkflow() {
       dateFormat,
       files,
       importedCategories,
+      noPayeeColumnConfirmed,
     }),
     [
       accountById,
@@ -399,6 +405,7 @@ export function useTransactionImportWorkflow() {
       categoryById,
       categoryCreateKinds,
       categoryTypesBySource,
+      noPayeeColumnConfirmed,
       currencies,
       columnMap,
       dateFormat,
@@ -484,6 +491,7 @@ export function useTransactionImportWorkflow() {
     setColumnValidationErrors(result.errors)
     setAutoFilledColumnHeaders((current) => getNextAutoFilledColumnHeaders(current, columnMap, result.map))
     syncAutoMatchKeys(result.map, result.errors, nextFiles)
+    setNoPayeeColumnConfirmed(false)
 
     // The staged file is what the last refusal was about, so it stops being true here
     setImportError(null)
@@ -568,6 +576,10 @@ export function useTransactionImportWorkflow() {
 
     setColumnValidationErrors(nextColumnValidationErrors)
     setColumnMap(nextColumnMap)
+
+    // The answer was given about a file with no payee column, so changing which column holds the
+    // payee asks the question again rather than carrying the old answer onto a different mapping
+    if (nextColumnMap.merchant_id !== columnMap.merchant_id) setNoPayeeColumnConfirmed(false)
 
     // The mapping the last refusal was about has changed, so the message stops being true
     setImportError(null)
@@ -744,6 +756,8 @@ export function useTransactionImportWorkflow() {
     headers,
     missingRequiredColumnLabels,
     columnTargetOptions,
+    noPayeeColumnConfirmed,
+    setNoPayeeColumnConfirmed,
     accountMappingSources,
     importedCategories,
     importedMerchants,

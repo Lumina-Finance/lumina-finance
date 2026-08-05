@@ -114,6 +114,7 @@ function buildPayload(amount: string, accountCurrency: string, importedCurrency 
     dateFormat: 'yearFirst',
     files: [createFile(amount, importedCurrency)],
     importedCategories: ['Groceries'],
+    noPayeeColumnConfirmed: true,
   })
 }
 
@@ -139,6 +140,7 @@ function buildCreateAccountPayload(amount: string, createCurrency: string, impor
     dateFormat: 'yearFirst',
     files: [createFile(amount, importedCurrency)],
     importedCategories: ['Groceries'],
+    noPayeeColumnConfirmed: true,
   })
 }
 

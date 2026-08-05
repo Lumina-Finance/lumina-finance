@@ -5,6 +5,7 @@ import {
   CREATE_ACCOUNT_VALUE,
   CREATE_CATEGORY_VALUE,
   DEFAULT_CATEGORY_ICON,
+  NO_MERCHANT_COLUMN_ERROR,
   NO_OUTFLOWS_WARNING,
   ROW_SIGN_DISAGREES_WITH_CATEGORY_REASON,
 } from '@/pages/imports/constants'
@@ -57,6 +58,7 @@ export function buildTransactionImportPayload({
   dateFormat,
   files,
   importedCategories,
+  noPayeeColumnConfirmed,
 }: {
   accountById: Map<string, AccountsOverview>
   accountCreateCurrencies: Record<string, string>
@@ -74,6 +76,9 @@ export function buildTransactionImportPayload({
   dateFormat: ImportDateFormat | null
   files: ImportFileDraft[]
   importedCategories: string[]
+
+  /** Whether the user has answered for a file that maps no column as the Merchant */
+  noPayeeColumnConfirmed: boolean
 }): ImportBuildResult {
   // Two kinds of problem, kept apart because only one of them makes judging a row meaningless. An
   // unanswered mapping question leaves every row looking broken for want of the answer, while a
@@ -94,6 +99,10 @@ export function buildTransactionImportPayload({
 
   const missingRequired = getMissingRequiredColumnLabels(columnMap)
   if (missingRequired.length > 0) addError(`Missing required columns: ${missingRequired.join(', ')}`)
+
+  // The merchant column is the one field the import fills in for itself when it is unmapped, so it
+  // is asked about rather than left to be discovered in the preview
+  if (!columnMap.merchant_id && !noPayeeColumnConfirmed) addError(NO_MERCHANT_COLUMN_ERROR)
 
   // Without a settled format every row would fail its own date check, which reads as a file full of
   // bad dates rather than one unanswered question

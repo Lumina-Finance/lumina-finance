@@ -2,7 +2,13 @@ import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import type { Institution } from '@/api/institutions'
-import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, DEFAULT_CATEGORY_ICON } from '@/pages/imports/constants'
+import {
+  CREATE_ACCOUNT_VALUE,
+  CREATE_CATEGORY_VALUE,
+  DEFAULT_CATEGORY_ICON,
+  SELF_MERCHANT_NAME,
+  UNKNOWN_MERCHANT_NAME,
+} from '@/pages/imports/constants'
 import { BALANCE_ADJUSTMENT_CATEGORY_NAME, doesTransferRecordCounterpartyAccount, OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 import type {
   ColumnMap,
@@ -179,8 +185,8 @@ export function buildImportPreviewRows({
           created_by_user_id: 'import-preview',
           account_id: account?.id ?? accountChoice,
           dt,
-          merchant_id: resolved.merchantName ? `import-preview-merchant-${file.id}-${rowIndex}` : null,
-          merchant_name: resolved.merchantName,
+          merchant_id: `import-preview-merchant-${file.id}-${rowIndex}`,
+          merchant_name: resolved.merchantName ?? getStampedPreviewMerchantName(category),
           category_id: category?.id ?? '',
           amount,
           account_amount: amount,
@@ -218,6 +224,18 @@ export function buildImportPreviewRows({
 function doesPreviewCategoryRecordCounterparty(category: Category | undefined) {
   if (!category) return false
   return doesTransferRecordCounterpartyAccount(category.kind, category.name === BALANCE_ADJUSTMENT_CATEGORY_NAME)
+}
+
+/**
+ * Returns the merchant shown for a row whose file states no payee
+ *
+ * Every transaction carries a merchant, so the import fills one in rather than writing the row
+ * without one, and the preview shows what the row will actually read as. A transfer, balance
+ * adjustment included, has no payee of its own and gets the merchant the app puts on the transfers
+ * it writes for itself
+ */
+function getStampedPreviewMerchantName(category: Category | undefined) {
+  return category?.kind === 'transfer' ? SELF_MERCHANT_NAME : UNKNOWN_MERCHANT_NAME
 }
 
 /**

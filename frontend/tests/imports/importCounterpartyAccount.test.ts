@@ -147,6 +147,7 @@ function buildPayload({
       'Other account': counterpartyAccountSource,
     }])],
     importedCategories: [categorySource],
+    noPayeeColumnConfirmed: true,
   })
 }
 

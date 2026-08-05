@@ -1,6 +1,8 @@
 import {
   IMPORT_BATCH_YIELD_INTERVAL,
   MAX_IMPORT_BATCH_BYTES,
+  MAX_IMPORT_BATCH_MAPPINGS,
+  MAX_IMPORT_BATCH_ROWS,
   TARGET_IMPORT_BATCH_BYTES,
   getEmptyImportPayloadByteSize,
   getNextArrayItemByteSize,
@@ -67,7 +69,16 @@ async function buildNextStagedBatch(
       nextEstimatedBytes += getNextMappingByteSize(source, accountSources, accountMappingsBySource, 'Account');
     }
 
-    if (rows.length > 0 && nextEstimatedBytes > TARGET_IMPORT_BATCH_BYTES) break;
+    // Mappings are small enough that a file with many distinct values fills the count long before
+    // it fills the byte budget, so both are what closes a batch
+    const nextAccountSources = countWithNewSources(accountSources, getRowAccountSources(row));
+    const nextCategorySources = countWithNewSources(categorySources, [row.category_source]);
+    const isBatchFull = nextEstimatedBytes > TARGET_IMPORT_BATCH_BYTES
+      || rows.length >= MAX_IMPORT_BATCH_ROWS
+      || nextAccountSources > MAX_IMPORT_BATCH_MAPPINGS
+      || nextCategorySources > MAX_IMPORT_BATCH_MAPPINGS;
+
+    if (rows.length > 0 && isBatchFull) break;
     if (rows.length === 0 && nextEstimatedBytes > MAX_IMPORT_BATCH_BYTES) {
       throw new Error('One imported row is too large to upload safely.');
     }
@@ -110,6 +121,14 @@ function getRowAccountSources(row: TransactionImportRow) {
 
 function getImportMappingsBySource<T extends { source: string }>(mappings: T[]) {
   return new Map(mappings.map((mapping) => [mapping.source, mapping]));
+}
+
+/**
+ * Counts what a set would hold once the given sources were added to it
+ */
+function countWithNewSources(sources: Set<string>, candidates: string[]) {
+  const added = new Set(candidates.filter((source) => !sources.has(source)));
+  return sources.size + added.size;
 }
 
 /**

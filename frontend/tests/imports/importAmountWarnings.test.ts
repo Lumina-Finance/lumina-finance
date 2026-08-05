@@ -72,6 +72,7 @@ function build(amounts: string[], kind: Category['kind'] = 'expense') {
       Amount: amount,
     })))],
     importedCategories: ['Groceries'],
+    noPayeeColumnConfirmed: true,
   })
 }
 
