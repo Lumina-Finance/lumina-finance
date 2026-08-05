@@ -1,14 +1,18 @@
 import { useState } from 'react'
 import CreateInstitutionModal from '@/components/reference-modals/CreateInstitutionModal'
 import {
+  ACCOUNTS_LOAD_FAILURE_EXPLANATION,
+  ACCOUNTS_LOAD_FAILURE_TITLE,
   ACCOUNT_TYPE_OPTIONS,
   ARCHIVED_ACCOUNT_MATCH_EXPLANATION,
+  CLEARED_ACCOUNT_SOURCES_EXPLANATION,
+  CLEARED_ACCOUNT_SOURCES_TITLE,
   COUNTERPARTY_ONLY_EXPLANATION,
   COUNTERPARTY_ONLY_TABLE_TITLE,
   UNSET_BATCH_INSTITUTION,
 } from '@/pages/imports/constants'
 import type { ImportAccountSource } from '@/pages/imports/types'
-import { ImportAccountMappingTable, EmptyState, ImportNotice, ImportStep } from '@/pages/imports/components'
+import { ImportAccountMappingTable, EmptyState, ImportLoadFailure, ImportNotice, ImportStep } from '@/pages/imports/components'
 import type { TransactionImportWorkflow } from '@/pages/imports/hooks'
 
 // Which batch bar asked for a new institution, since each table has one and a row id can be neither
@@ -36,6 +40,9 @@ type ImportAccountMappingStepProps = Pick<
   | 'currencyOptions'
   | 'institutionOptions'
   | 'accountsLoading'
+  | 'accountsFailed'
+  | 'refetchAccounts'
+  | 'clearedAccountSourceLabels'
   | 'currenciesLoading'
   | 'institutionsLoading'
   | 'selectedAccountRows'
@@ -71,6 +78,9 @@ export function ImportAccountMappingStep({
   currencyOptions,
   institutionOptions,
   accountsLoading,
+  accountsFailed,
+  refetchAccounts,
+  clearedAccountSourceLabels,
   currenciesLoading,
   institutionsLoading,
   selectedAccountRows,
@@ -159,13 +169,24 @@ export function ImportAccountMappingStep({
       <ImportNotice title="Currency Handling">
         Imported amounts are treated as raw values. During import, each amount will be assigned the base currency of the mapped account or the currency selected for a new account.
       </ImportNotice>
-      {accountMappingSources.length === 0 ? (
+      {accountsFailed ? (
+        <ImportLoadFailure
+          title={ACCOUNTS_LOAD_FAILURE_TITLE}
+          description={ACCOUNTS_LOAD_FAILURE_EXPLANATION}
+          onRetry={refetchAccounts}
+        />
+      ) : accountMappingSources.length === 0 ? (
         <EmptyState
           title="No account sources detected"
           description="Upload a file or check the mapped account column."
         />
       ) : (
         <>
+          {clearedAccountSourceLabels.length > 0 && (
+            <ImportNotice title={CLEARED_ACCOUNT_SOURCES_TITLE}>
+              {`${CLEARED_ACCOUNT_SOURCES_EXPLANATION} ${clearedAccountSourceLabels.join(', ')}`}
+            </ImportNotice>
+          )}
           {archivedAccountMatches.length > 0 && (
             <ImportNotice title="Archived Accounts">
               {`${ARCHIVED_ACCOUNT_MATCH_EXPLANATION} ${archivedAccountMatches.join(', ')}`}

@@ -1,7 +1,11 @@
 import { useState } from 'react'
 import CreateInstitutionModal from '@/components/reference-modals/CreateInstitutionModal'
-import { ACCOUNT_TYPE_OPTIONS } from '@/pages/imports/constants'
-import { ImportAccountMappingTable, EmptyState, ImportNotice, ImportStep } from '@/pages/imports/components'
+import {
+  ACCOUNTS_LOAD_FAILURE_EXPLANATION,
+  ACCOUNTS_LOAD_FAILURE_TITLE,
+  ACCOUNT_TYPE_OPTIONS,
+} from '@/pages/imports/constants'
+import { ImportAccountMappingTable, EmptyState, ImportLoadFailure, ImportNotice, ImportStep } from '@/pages/imports/components'
 import type { FireflyImportWorkflow } from '@/pages/imports/firefly/hooks'
 
 type FireflyAccountMappingStepProps = Pick<
@@ -20,6 +24,8 @@ type FireflyAccountMappingStepProps = Pick<
   | 'currencyOptions'
   | 'institutionOptions'
   | 'accountsLoading'
+  | 'accountsFailed'
+  | 'refetchAccounts'
   | 'currenciesLoading'
   | 'institutionsLoading'
   | 'selectedAccountRows'
@@ -51,6 +57,8 @@ export function FireflyAccountMappingStep({
   currencyOptions,
   institutionOptions,
   accountsLoading,
+  accountsFailed,
+  refetchAccounts,
   currenciesLoading,
   institutionsLoading,
   selectedAccountRows,
@@ -91,7 +99,13 @@ export function FireflyAccountMappingStep({
       <ImportNotice title="Currency Handling">
         Amounts are written in each mapped account&apos;s currency. Rows without an amount in that currency are skipped and reported after the import.
       </ImportNotice>
-      {trackedAccountNames.length === 0 ? (
+      {accountsFailed ? (
+        <ImportLoadFailure
+          title={ACCOUNTS_LOAD_FAILURE_TITLE}
+          description={ACCOUNTS_LOAD_FAILURE_EXPLANATION}
+          onRetry={refetchAccounts}
+        />
+      ) : trackedAccountNames.length === 0 ? (
         <EmptyState
           title="No account names detected"
           description="Upload the transactions CSV first."

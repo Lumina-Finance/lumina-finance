@@ -1,5 +1,9 @@
-import { CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
-import { EmptyState, ImportStep, ImportValueMatchTable } from '@/pages/imports/components'
+import {
+  CATEGORIES_LOAD_FAILURE_EXPLANATION,
+  CATEGORIES_LOAD_FAILURE_TITLE,
+  CREATE_CATEGORY_VALUE,
+} from '@/pages/imports/constants'
+import { EmptyState, ImportLoadFailure, ImportStep, ImportValueMatchTable } from '@/pages/imports/components'
 import type { TransactionImportWorkflow } from '@/pages/imports/hooks'
 import { getCategoryMatchKind, isExistingCategoryMatch } from '@/pages/imports/utils'
 
@@ -15,6 +19,8 @@ type ImportCategoryMatchingStepProps = Pick<
   | 'setCategoryMappings'
   | 'categoryMatchOptions'
   | 'categoriesLoading'
+  | 'categoriesFailed'
+  | 'refetchCategories'
 >
 
 /**
@@ -32,6 +38,8 @@ export function ImportCategoryMatchingStep({
   setCategoryMappings,
   categoryMatchOptions,
   categoriesLoading,
+  categoriesFailed,
+  refetchCategories,
 }: ImportCategoryMatchingStepProps) {
   return (
     <ImportStep
@@ -39,7 +47,13 @@ export function ImportCategoryMatchingStep({
       title="Category Matching"
       description="Manually match imported category values to existing categories, or queue new ones."
     >
-      {importedCategories.length === 0 ? (
+      {categoriesFailed ? (
+        <ImportLoadFailure
+          title={CATEGORIES_LOAD_FAILURE_TITLE}
+          description={CATEGORIES_LOAD_FAILURE_EXPLANATION}
+          onRetry={refetchCategories}
+        />
+      ) : importedCategories.length === 0 ? (
         <EmptyState
           title="No imported categories detected"
           description="Map a category column first."

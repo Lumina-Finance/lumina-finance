@@ -31,6 +31,32 @@ export interface ImportReferenceData {
    * happened, so the user is told to reload rather than to wait
    */
   currenciesError: boolean
+
+  /**
+   * Whether the accounts list could not be fetched and nothing is cached to fall back on
+   *
+   * Both halves matter. A step over an empty account list offers only "Create New Account", so
+   * everything gets mapped to new and the import duplicates accounts the user already has. A
+   * refetch that fails over a good cached list costs nothing, so it must not take the step away
+   */
+  accountsFailed: boolean
+
+  /** Whether the categories list could not be fetched and nothing is cached to fall back on */
+  categoriesFailed: boolean
+
+  /**
+   * Whether each list has arrived at least once, which is what makes it safe to judge a stored
+   * answer against
+   *
+   * A list that is still loading, whose first fetch failed, or whose query is switched off looks
+   * exactly like a list with nothing in it, and clearing every answer against one of those would
+   * throw away work the user has already done
+   */
+  accountsResolved: boolean
+  categoriesResolved: boolean
+
+  refetchAccounts: () => void
+  refetchCategories: () => void
   selectableAccounts: AccountsOverview[]
   allAccounts: AccountsOverview[]
   accountOptions: DropdownOption[]
@@ -47,10 +73,25 @@ export interface ImportReferenceData {
  * mappings against, and derives the dropdown options and by-id lookup maps every mapping step needs
  */
 export function useImportReferenceData(): ImportReferenceData {
-  const { data: accounts = [], isLoading: accountsLoading } = useAccounts()
+  const {
+    data: accounts = [],
+    isLoading: accountsLoading,
+    isError: accountsError,
+    dataUpdatedAt: accountsUpdatedAt,
+    refetch: refetchAccountsQuery,
+  } = useAccounts()
   const { data: currencies = [], isLoading: currenciesLoading, isError: currenciesError } = useCurrencies()
+
+  // The institution list gates nothing: the commit writes a null institution for a new account that
+  // has none, so a step answered without the list still imports
   const { data: institutions = [], isLoading: institutionsLoading } = useInstitutions()
-  const { data: categories, isLoading: categoriesLoading } = useCategories()
+  const {
+    data: categories,
+    isLoading: categoriesLoading,
+    isError: categoriesError,
+    dataUpdatedAt: categoriesUpdatedAt,
+    refetch: refetchCategoriesQuery,
+  } = useCategories()
 
   // An archived account takes no new transactions, so it is left out of every source rows are
   // written to. A transfer's counterparty is the one place it stays offerable, since recording it
@@ -103,6 +144,15 @@ export function useImportReferenceData(): ImportReferenceData {
     accountsLoading,
     currenciesLoading,
     currenciesError,
+    accountsFailed: accountsError && accounts.length === 0,
+    categoriesFailed: categoriesError && (categories ?? []).length === 0,
+
+    // Set only when data is written, so it stays at zero through a first load, a first fetch that
+    // failed, and a query switched off, and holds its earlier value when a later refetch fails
+    accountsResolved: accountsUpdatedAt > 0,
+    categoriesResolved: categoriesUpdatedAt > 0,
+    refetchAccounts: refetchAccountsQuery,
+    refetchCategories: refetchCategoriesQuery,
     institutionsLoading,
     categoriesLoading,
     selectableAccounts,

@@ -1,5 +1,9 @@
-import { CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
-import { EmptyState, ImportStep, ImportValueMatchTable } from '@/pages/imports/components'
+import {
+  CATEGORIES_LOAD_FAILURE_EXPLANATION,
+  CATEGORIES_LOAD_FAILURE_TITLE,
+  CREATE_CATEGORY_VALUE,
+} from '@/pages/imports/constants'
+import { EmptyState, ImportLoadFailure, ImportStep, ImportValueMatchTable } from '@/pages/imports/components'
 import type { FireflyImportWorkflow } from '@/pages/imports/firefly/hooks'
 
 type FireflyCategoryMatchingStepProps = Pick<
@@ -13,6 +17,8 @@ type FireflyCategoryMatchingStepProps = Pick<
   | 'setCategoryMappings'
   | 'categoryMatchOptions'
   | 'categoriesLoading'
+  | 'categoriesFailed'
+  | 'refetchCategories'
 >
 
 /**
@@ -29,6 +35,8 @@ export function FireflyCategoryMatchingStep({
   setCategoryMappings,
   categoryMatchOptions,
   categoriesLoading,
+  categoriesFailed,
+  refetchCategories,
 }: FireflyCategoryMatchingStepProps) {
   return (
     <ImportStep
@@ -36,7 +44,13 @@ export function FireflyCategoryMatchingStep({
       title="Category Matching"
       description="Exported category names matched an existing category where possible. The rest are queued as new categories."
     >
-      {importedCategories.length === 0 ? (
+      {categoriesFailed ? (
+        <ImportLoadFailure
+          title={CATEGORIES_LOAD_FAILURE_TITLE}
+          description={CATEGORIES_LOAD_FAILURE_EXPLANATION}
+          onRetry={refetchCategories}
+        />
+      ) : importedCategories.length === 0 ? (
         <EmptyState
           title="No imported categories detected"
           description="Upload the transactions CSV first."

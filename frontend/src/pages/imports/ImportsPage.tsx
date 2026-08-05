@@ -1,6 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
+import { useQueryClient } from '@tanstack/react-query'
 import { Upload, X } from 'lucide-react'
+import { accountKeys, categoryKeys, institutionKeys } from '@/api/cache/queryKeys'
 import { ImportProgressOverlay } from './components'
 import { useFireflyImportWorkflow } from './firefly/hooks'
 import {
@@ -33,6 +35,7 @@ import type { ImportDataSource } from './types'
  */
 export default function ImportsPage() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [dataSource, setDataSource] = useState<ImportDataSource>('generic')
   const workflow = useTransactionImportWorkflow()
   const fireflyWorkflow = useFireflyImportWorkflow()
@@ -50,6 +53,17 @@ export default function ImportsPage() {
   const isImportBusy = overlayOnScreen || (isFirefly
     ? fireflyWorkflow.processingFileKind !== null || fireflyWorkflow.isImportingBudgets
     : workflow.isProcessingFiles || workflow.isImportInFlight)
+
+  // Every mapping answer is made against these three lists, and one of them going stale sends the
+  // import at a category or account that has since been renamed or deleted elsewhere. Categories in
+  // particular never revalidate on their own, since their query never goes stale and the cache is
+  // kept in local storage for months. Invalidating here rather than inside the reference-data hook,
+  // which both workflows mount: two refetches issued in the same commit cancel one another
+  useEffect(() => {
+    void queryClient.invalidateQueries({ queryKey: accountKeys.list() })
+    void queryClient.invalidateQueries({ queryKey: categoryKeys.list() })
+    void queryClient.invalidateQueries({ queryKey: institutionKeys.list() })
+  }, [queryClient])
 
   const handleDataSourceChange = (next: ImportDataSource) => {
     if (next === dataSource || isImportBusy) return

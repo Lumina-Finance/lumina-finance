@@ -68,6 +68,37 @@ export function canApplyBatchEditToRow(value: string, isHandAnswered: boolean): 
 }
 
 /**
+ * Drops every mapping pointing at an account that no longer exists, and says which sources lost one
+ *
+ * Judged against every account rather than the ones the dropdown offers, since a counterparty row
+ * is deliberately allowed to keep an archived account that the list leaves out. The two answers
+ * that are not account ids are left alone, or a row set to create an account would be cleared the
+ * moment it was answered
+ *
+ * @param mappings - The answers as stored, before any match or default is layered on
+ * @param accountById - Every account the user has, archived ones included
+ */
+export function dropVanishedAccountMappings(
+  mappings: Record<string, string>,
+  accountById: Map<string, AccountsOverview>,
+) {
+  const kept: Record<string, string> = {}
+  const clearedSources = new Set<string>()
+
+  for (const [source, choice] of Object.entries(mappings)) {
+    const isAccountId = Boolean(choice) && choice !== CREATE_ACCOUNT_VALUE && choice !== OUTSIDE_ACCOUNT_VALUE
+    if (isAccountId && !accountById.has(choice)) {
+      clearedSources.add(source)
+      continue
+    }
+
+    kept[source] = choice
+  }
+
+  return { mappings: kept, clearedSources }
+}
+
+/**
  * Guesses which existing account each import source belongs to by name, filling only the sources the
  * user has not already mapped by hand
  *

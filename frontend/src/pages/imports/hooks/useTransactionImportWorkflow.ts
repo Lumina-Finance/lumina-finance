@@ -18,6 +18,8 @@ import {
   countRowsWithNoPayee,
   formatImportSummary,
   getArchivedAccountMatches,
+  dropVanishedAccountMappings,
+  dropVanishedCategoryMappings,
   getImportedCategoryTypes,
   getImportedCategories,
   getImportedMerchants,
@@ -59,6 +61,10 @@ interface DateFormatChoice {
 }
 
 const FILE_ACCOUNT_MATCH_KEY = '__file_account__'
+
+// Stands in while a reference list has not arrived, so nothing is treated as cleared and the memos
+// below keep the same identity from render to render
+const NO_CLEARED_SOURCES: Set<string> = new Set()
 const CSV_PROCESSING_MIN_MS = 1500
 const IMPORT_OVERLAY_MIN_MS = 2000
 
@@ -211,6 +217,12 @@ export function useTransactionImportWorkflow() {
     accountsLoading,
     currenciesLoading,
     currenciesError,
+    accountsFailed,
+    categoriesFailed,
+    accountsResolved,
+    categoriesResolved,
+    refetchAccounts,
+    refetchCategories,
     institutionsLoading,
     categoriesLoading,
     selectableAccounts,
@@ -303,30 +315,47 @@ export function useTransactionImportWorkflow() {
   const canInferAccountMappings = Boolean(accountAutoMatchKey)
     && accountAutoMatchKey === (columnMap.account_id || FILE_ACCOUNT_MATCH_KEY)
 
+  const { mappings: liveAccountMappings, clearedSources: clearedAccountSources } = useMemo(
+    () => (accountsResolved
+      ? dropVanishedAccountMappings(accountMappings, accountById)
+      : { mappings: accountMappings, clearedSources: NO_CLEARED_SOURCES }),
+    [accountById, accountMappings, accountsResolved],
+  )
+
   const resolvedAccountMappings = useMemo(
     () => {
+      // A source whose account has gone is left for the user to answer again, so it is kept away
+      // from both the name match and the outside default rather than being quietly refilled
+      const answerableSources = accountMappingSources.filter((source) => !clearedAccountSources.has(source.id))
+
       const resolved = canInferAccountMappings
-        ? inferAccountMappings(accountMappingSources, accountMappings, {
+        ? inferAccountMappings(answerableSources, liveAccountMappings, {
           rowAccounts: selectableAccounts,
           counterpartyAccounts: allAccounts,
         })
-        : { ...accountMappings }
+        : { ...liveAccountMappings }
 
       // No row is written to these, so the import creates nothing for them unless the user asks for
       // an account by hand, and the transfers pointing at them say the money left the app
-      for (const source of accountMappingSources) {
+      for (const source of answerableSources) {
         if (source.isCounterpartyOnly && !resolved[source.id]) resolved[source.id] = OUTSIDE_ACCOUNT_VALUE
       }
       return resolved
     },
-    [accountMappingSources, accountMappings, allAccounts, canInferAccountMappings, selectableAccounts],
+    [accountMappingSources, allAccounts, canInferAccountMappings, clearedAccountSources, liveAccountMappings, selectableAccounts],
+  )
+
+  // The labels rather than the ids, since the notice lists them for the user
+  const clearedAccountSourceLabels = useMemo(
+    () => accountMappingSources.filter((source) => clearedAccountSources.has(source.id)).map((source) => source.label),
+    [accountMappingSources, clearedAccountSources],
   )
 
   // Read before the name match and the outside default are layered on, so the batch bar can tell an
   // answer the user gave from one the step filled in for them
   const handAnsweredAccountSources = useMemo(
-    () => new Set(Object.entries(accountMappings).filter(([, choice]) => choice).map(([source]) => source)),
-    [accountMappings],
+    () => new Set(Object.entries(liveAccountMappings).filter(([, choice]) => choice).map(([source]) => source)),
+    [liveAccountMappings],
   )
 
   const archivedAccountMatches = useMemo(
@@ -340,14 +369,14 @@ export function useTransactionImportWorkflow() {
     () => new Set(
       accountMappingSources
         .filter((source) => {
-          if (accountMappings[source.id]) return false
+          if (liveAccountMappings[source.id]) return false
           const resolved = resolvedAccountMappings[source.id]
           if (!resolved) return false
           return !(source.isCounterpartyOnly && resolved === OUTSIDE_ACCOUNT_VALUE)
         })
         .map((source) => source.id),
     ),
-    [accountMappingSources, accountMappings, resolvedAccountMappings],
+    [accountMappingSources, liveAccountMappings, resolvedAccountMappings],
   )
 
   const importedCategories = useMemo(
@@ -373,20 +402,39 @@ export function useTransactionImportWorkflow() {
   const canInferCategoryMappings = Boolean(columnMap.category_id)
     && categoryAutoMatchKey === columnMap.category_id
 
+  const { mappings: liveCategoryMappings, clearedSources: clearedCategorySources } = useMemo(
+    () => (categoriesResolved
+      ? dropVanishedCategoryMappings(categoryMappings, categoryById)
+      : { mappings: categoryMappings, clearedSources: NO_CLEARED_SOURCES }),
+    [categoriesResolved, categoryById, categoryMappings],
+  )
+
   const resolvedCategoryMappings = useMemo(
-    () => (
-      canInferCategoryMappings
-        ? inferCategoryMappings(importedCategories, categoryMappings, categories ?? [], categoryTypesBySource)
-        : keepCurrentMatchMap(categoryMappings, importedCategories)
-    ),
-    [canInferCategoryMappings, categories, categoryMappings, categoryTypesBySource, importedCategories],
+    () => {
+      // A name whose category has gone is kept away from the guess, the same as an account source,
+      // so it reads as unanswered until the user answers it
+      const answerableCategories = importedCategories.filter((category) => !clearedCategorySources.has(category))
+      const matched = canInferCategoryMappings
+        ? inferCategoryMappings(answerableCategories, liveCategoryMappings, categories ?? [], categoryTypesBySource)
+        : keepCurrentMatchMap(liveCategoryMappings, answerableCategories)
+
+      // A cleared name still needs its row, just an unanswered one
+      if (clearedCategorySources.size === 0) return matched
+
+      const resolved = { ...matched }
+      for (const category of importedCategories) {
+        if (clearedCategorySources.has(category)) resolved[category] = ''
+      }
+      return resolved
+    },
+    [canInferCategoryMappings, categories, categoryTypesBySource, clearedCategorySources, importedCategories, liveCategoryMappings],
   )
 
   const autoFilledCategories = useMemo(
     () => new Set(
-      importedCategories.filter((category) => !categoryMappings[category] && Boolean(resolvedCategoryMappings[category])),
+      importedCategories.filter((category) => !liveCategoryMappings[category] && Boolean(resolvedCategoryMappings[category])),
     ),
-    [categoryMappings, importedCategories, resolvedCategoryMappings],
+    [importedCategories, liveCategoryMappings, resolvedCategoryMappings],
   )
 
   const importBuild = useMemo(
@@ -751,6 +799,11 @@ export function useTransactionImportWorkflow() {
     accountsLoading,
     currenciesLoading,
     uploadBlockReason: getImportUploadBlockReason(currencies, currenciesError),
+    accountsFailed,
+    categoriesFailed,
+    refetchAccounts,
+    refetchCategories,
+    clearedAccountSourceLabels,
     institutionsLoading,
     categoriesLoading,
     accountOptions,

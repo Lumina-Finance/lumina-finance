@@ -126,6 +126,47 @@ export function EmptyState({ title, description }: { title: string; description:
 }
 
 /**
+ * Shown in place of a mapping step whose reference list could not be loaded
+ *
+ * The step is taken away rather than left operable, since answering it against a list with nothing
+ * in it maps everything to a new record and the import then duplicates what the user already has
+ */
+export function ImportLoadFailure({
+  title,
+  description,
+  onRetry,
+}: {
+  title: string
+  description: string
+  onRetry: () => void
+}) {
+  return (
+    <div
+      className="flex flex-col items-center gap-3 px-4 py-6 text-center"
+      style={{ ...IMPORT_INSET_STYLE, color: 'var(--app-text-muted)' }}
+      role="alert"
+    >
+      <span
+        className="flex h-10 w-10 items-center justify-center"
+        style={{ background: 'var(--app-negative-soft)', color: 'var(--app-negative)' }}
+        aria-hidden
+      >
+        <TriangleAlert size={19} strokeWidth={2.25} />
+      </span>
+      <div className="min-w-0">
+        <p className="text-[0.9375rem] font-semibold" style={{ color: 'var(--app-negative)' }}>
+          {title}
+        </p>
+        <p className="mt-1 text-sm leading-5">{description}</p>
+      </div>
+      <button type="button" className="app-secondary-button h-9" onClick={onRetry}>
+        Try again
+      </button>
+    </div>
+  )
+}
+
+/**
  * Warning panel beside an import step, saying what the import will do with something rather than
  * asking anything
  *

@@ -177,6 +177,17 @@ export const AMOUNT_CONVENTION_NOTE = 'Imported amounts carry their own directio
 export const ARCHIVED_ACCOUNT_MATCH_EXPLANATION = 'An archived account takes no new transactions, so it is not offered as a choice here. Unarchive one of these to import rows into it:'
 
 // Shown over the accounts that appear only as a counterparty, which the import writes nothing to
+export const ACCOUNTS_LOAD_FAILURE_TITLE = 'Your accounts could not be loaded'
+export const ACCOUNTS_LOAD_FAILURE_EXPLANATION = 'Without them every source here would have to become a new account, which would duplicate accounts you already have.'
+export const CATEGORIES_LOAD_FAILURE_TITLE = 'Your categories could not be loaded'
+export const CATEGORIES_LOAD_FAILURE_EXPLANATION = 'Without them every category in this file would have to become a new one, which would duplicate categories you already have.'
+
+// Shown when a mapping was answered with an account that has since been deleted. The answer is
+// dropped rather than sent, and nothing fills the row back in, so the user is told why a source
+// they already dealt with is asking again
+export const CLEARED_ACCOUNT_SOURCES_TITLE = 'Answers cleared'
+export const CLEARED_ACCOUNT_SOURCES_EXPLANATION = 'An account these sources were matched to no longer exists, so their answers were cleared. Choose an account for each one, or create a new account for it:'
+
 export const COUNTERPARTY_ONLY_TABLE_TITLE = 'Counterparty accounts'
 export const COUNTERPARTY_ONLY_EXPLANATION = 'These accounts only ever appeared as the counterparty of a transfer. Matching one to an account of your own records where the money came from or went to and writes no transaction into that account, which is why an account you have archived can be chosen here and stays archived. Leaving one unmatched records the transfer as going outside this app. To bring a name in as an account of your own instead, select Create New Account in its Existing Account column.'
 
