@@ -116,7 +116,6 @@ const Dropdown = ({
   const [search, setSearch] = useState('');
   const [collapsedHeight, setCollapsedHeight] = useState<number>();
   const [collapsing, setCollapsing] = useState(false);
-  const [revealed, setRevealed] = useState(false);
   const shouldReduceMotion = useReducedMotion();
   const listId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -185,10 +184,7 @@ const Dropdown = ({
     setSearchText('');
     setHighlightedIndex(-1);
 
-    // Taking the clip back is what plays the collapse
-    setRevealed(false);
-
-    // The box holds its size and its place until that has finished. Dropping back to its slot on the
+    // The box holds its open placement until the collapse finishes. Dropping back to its slot on the
     // closing frame would move a box that grew upward to the other side of the head, and snap its
     // width back, while the list is still visibly collapsing. Nothing to wait for when the collapse
     // is instant, and no transition to end either, so the wait is skipped entirely
@@ -392,10 +388,8 @@ const Dropdown = ({
         disabled={disabled}
         hasError={hasError}
         open={open}
-        headHeight={collapsedHeight ?? 0}
         placed={open || collapsing}
         position={boxPosition}
-        revealed={revealed}
       >
         <DropdownHead
           headRef={triggerRef}
@@ -420,8 +414,8 @@ const Dropdown = ({
           className="app-dropdown-bodywrap"
           inert={open ? undefined : true}
           onTransitionEnd={(event) => {
-            // Only the clip, since the contents inside it finish their own rise separately
-            if (event.propertyName === 'clip-path') setCollapsing(false);
+            // Only the height, since the contents inside it finish their own rise separately
+            if (event.propertyName === 'grid-template-rows') setCollapsing(false);
           }}
         >
           <div className="app-dropdown-body">

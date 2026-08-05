@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode, RefObject } from 'react'
+import type { ReactNode, RefObject } from 'react'
 import { motion, useReducedMotion } from 'motion/react'
 import { joinClassNames } from '@/utils/classNames'
 import { DROPDOWN_PRESS_SCALE, DROPDOWN_SPRING } from './motion'
@@ -20,17 +20,6 @@ interface DropdownBoxProps {
   placed: boolean
 
   position: DropdownBoxPosition
-
-  /**
-   * Whether the clip has been let go, which is what plays the reveal
-   *
-   * Held for one frame after the box opens so the clip has a starting value to travel from, and taken
-   * back to start the collapse.
-   */
-  revealed: boolean
-
-  /** How tall the head is, which is the part the clip leaves showing while the rest is hidden */
-  headHeight: number
 }
 
 // Above both modal levels and the mobile filter sheet, matching the level the date picker already
@@ -56,10 +45,8 @@ export function DropdownBox({
   disabled,
   hasError,
   open,
-  headHeight,
   placed,
   position,
-  revealed,
 }: DropdownBoxProps) {
   const shouldReduceMotion = useReducedMotion()
 
@@ -69,17 +56,12 @@ export function DropdownBox({
       className={joinClassNames(
         'app-dropdown-glass',
         open && 'app-dropdown-glass-open',
-        revealed && 'app-dropdown-glass-revealed',
         placed && position.openAbove && 'app-dropdown-glass-up',
         hasError && 'app-dropdown-glass-error',
         disabled && 'app-dropdown-glass-disabled',
       )}
-      style={(placed
+      style={placed
         ? {
-          // Hides everything but the head, from whichever edge the list grows away from
-          '--app-dropdown-clip': position.openAbove
-            ? `inset(calc(100% - ${headHeight}px) 0 0 0 round var(--app-dropdown-radius))`
-            : `inset(0 0 calc(100% - ${headHeight}px) 0 round var(--app-dropdown-radius))`,
           position: 'fixed',
           // Pinned by whichever of the head's own edges the list grows away from, so the head does
           // not move by a pixel as the box opens around it
@@ -90,7 +72,7 @@ export function DropdownBox({
           maxHeight: position.boxMaxHeight,
           zIndex: DROPDOWN_OPEN_Z_INDEX,
         }
-        : { position: 'absolute', top: 0, left: 0, right: 0 }) as CSSProperties}
+        : { position: 'absolute', top: 0, left: 0, right: 0 }}
       // Sinks under a press and springs back when it is let go. Suppressed once open, where sinking
       // a full-height list reads as the box collapsing early rather than as a control being pressed
       whileTap={open || disabled || shouldReduceMotion ? undefined : { scale: DROPDOWN_PRESS_SCALE }}

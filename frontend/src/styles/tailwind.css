@@ -663,26 +663,10 @@
      because the box's own height is what is moving, which is the cost the frosting behind a dialog
      avoids by blurring something inert and still instead. The tint is plain alpha compositing, so it
      keeps some of the depth for none of that */
-  /* Open, the box is its full size straight away and the reveal is a clip travelling down it, so its
-     own geometry never changes while it is open. That is what makes the blur affordable: a backdrop
-     filter is recomputed whenever the region it samples changes, and animating a height changes that
-     region on every frame, where a clip only changes which part of an already-computed result shows.
-     It is the same rule the frosting behind a dialog follows, which blurs a page that then holds
-     still, arrived at differently because a drop-down cannot blur its own ancestors */
   .app-dropdown-glass.app-dropdown-glass-open {
     border-color: var(--app-border-strong);
     background: color-mix(in srgb, var(--app-input-bg) var(--app-dropdown-tint), transparent);
     box-shadow: var(--app-shadow-soft);
-    -webkit-backdrop-filter: blur(var(--app-dropdown-blur)) saturate(var(--app-dropdown-saturate));
-    backdrop-filter: blur(var(--app-dropdown-blur)) saturate(var(--app-dropdown-saturate));
-
-    /* Set inline, since how much to hide depends on how tall the head is and which way the list grows */
-    clip-path: var(--app-dropdown-clip);
-    transition: clip-path var(--app-dropdown-open-duration) var(--app-dropdown-ease);
-  }
-
-  .app-dropdown-glass.app-dropdown-glass-revealed {
-    clip-path: inset(0 round var(--app-dropdown-radius));
   }
 
   /* There is no blur behind the open box, and adding one back is a decision rather than a tweak.
@@ -763,6 +747,23 @@
     color: var(--app-text-subtle);
   }
 
+  /* The list's own height animates from nothing to whatever it needs, which is what makes the box
+     bloom rather than appear. A grid row is the only way to animate to a height nobody measured */
+  .app-dropdown-bodywrap {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows var(--app-dropdown-open-duration) var(--app-dropdown-ease);
+  }
+
+  .app-dropdown-glass-open .app-dropdown-bodywrap {
+    grid-template-rows: 1fr;
+  }
+
+  .app-dropdown-body {
+    min-height: 0;
+    overflow: clip;
+  }
+
   /* Rises into place on the overshoot curve as the box opens around it, so the contents arrive with
      the same bounce the box does rather than being revealed by it */
   .app-dropdown-glass-inner {
@@ -782,6 +783,7 @@
   @media (prefers-reduced-motion: reduce) {
     .app-dropdown-glass,
     .app-dropdown-row,
+    .app-dropdown-bodywrap,
     .app-dropdown-glass-inner {
       transition-duration: 0s;
     }
