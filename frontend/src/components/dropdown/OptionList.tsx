@@ -66,7 +66,7 @@ function DropdownOptionRow({
           floating against a two-line block */}
       <span className="flex min-w-0 flex-1 flex-col gap-0.5 text-sm">
         <span className="flex min-w-0 items-center gap-2">
-          <span className="min-w-0 truncate">{option.label}</span>
+          <span className="min-w-0 truncate" title={option.label}>{option.label}</span>
           {option.badge && <DropdownBadge label={option.badge} />}
         </span>
         {option.description && (

@@ -81,7 +81,9 @@ export function DropdownHead({
             {selected.icon}
           </span>
         )}
-        <span className="min-w-0 truncate">
+        {/* Only a real choice carries the full text, since a tooltip repeating the placeholder
+            says nothing the control is not already showing */}
+        <span className="min-w-0 truncate" title={hasVisibleSelection ? selected?.label : undefined}>
           {emptySelectionIsBlank ? '' : selected?.label ?? placeholder}
         </span>
         {hasVisibleSelection && selected?.badge && <DropdownBadge label={selected.badge} />}

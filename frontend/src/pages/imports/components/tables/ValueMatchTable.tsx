@@ -57,7 +57,7 @@ export function ImportValueMatchTable({
               <tr key={row.id} className={row.autoFilled || row.detailAutoFilled ? 'import-auto-fill-row' : undefined}>
                 <td className="px-4 py-2 align-middle">
                   <div className="flex min-w-0 items-center gap-2">
-                    <p className="truncate font-medium">{row.source}</p>
+                    <p className="truncate font-medium" title={row.source}>{row.source}</p>
                     {creating && (
                       <span className="shrink-0 text-[0.6875rem] font-semibold uppercase" style={{ color: 'var(--app-accent)' }}>
                         New

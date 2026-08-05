@@ -26,7 +26,7 @@ export function ImportCreateList({
           {rows.map((row) => (
             <tr key={row}>
               <td className="px-4 py-2 align-middle">
-                <p className="truncate font-medium">{row}</p>
+                <p className="truncate font-medium" title={row}>{row}</p>
               </td>
               <td className="px-4 py-2 align-middle">
                 <span className="text-sm font-medium" style={{ color: 'var(--app-text-muted)' }}>
