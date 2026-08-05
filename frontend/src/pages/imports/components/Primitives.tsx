@@ -173,10 +173,11 @@ export function ImportLoadFailure({
  * The title says which of those it is about, since a step can carry more than one and they would
  * otherwise be told apart only by reading them
  *
- * @param items - The things the text is about, one per line under it. Passing them here rather
- *   than joining them into the text keeps a list out of the paragraph, which is markup the browser
- *   rearranges on its own, and gives every notice that lists something the same shape. A notice
- *   with nothing to list omits it and renders as it always did
+ * @param items - The things the text is about, one bulleted line each under it. Passing them here
+ *   rather than joining them into the text keeps a list out of the paragraph, which is markup the
+ *   browser rearranges on its own, and gives every notice that lists something the same shape. The
+ *   marker is set back on, since Tailwind's reset takes it off. A notice with nothing to list omits
+ *   the list and renders as it always did
  */
 export function ImportNotice({ title, children, items }: { title: string; children: ReactNode; items?: ReactNode[] }) {
   return (
@@ -202,7 +203,7 @@ export function ImportNotice({ title, children, items }: { title: string; childr
           {children}
         </p>
         {items && items.length > 0 && (
-          <ul className="mt-1 space-y-0.5 text-sm leading-5">
+          <ul className="mt-1 list-disc space-y-0.5 pl-4 text-sm leading-5">
             {items.map((item, index) => (
               <li key={index}>{item}</li>
             ))}
