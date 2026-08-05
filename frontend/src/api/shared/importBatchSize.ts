@@ -1,0 +1,40 @@
+/**
+ * The request-size budget both import flows split their uploads to, and the measurements they
+ * decide each batch against
+ */
+
+const MAX_IMPORT_BATCH_BYTES = 750 * 1024;
+const TARGET_IMPORT_BATCH_BYTES = 650 * 1024;
+const IMPORT_BATCH_YIELD_INTERVAL = 250;
+const IMPORT_PAYLOAD_ENCODER = new TextEncoder();
+
+export {
+  IMPORT_BATCH_YIELD_INTERVAL,
+  MAX_IMPORT_BATCH_BYTES,
+  TARGET_IMPORT_BATCH_BYTES,
+};
+
+/**
+ * Measures what one more item costs an array, counting the comma before it
+ */
+export function getNextArrayItemByteSize(currentLength: number, value: unknown) {
+  return getJsonByteSize(value) + (currentLength > 0 ? 1 : 0);
+}
+
+/**
+ * Measures the wrapper an import request carries before any of its contents
+ */
+export function getEmptyImportPayloadByteSize() {
+  return getJsonByteSize({ accounts: [], categories: [], rows: [] });
+}
+
+/**
+ * Yields during large imports so the browser can paint between batch-building chunks
+ */
+export function yieldToBrowser() {
+  return new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+}
+
+export function getJsonByteSize(value: unknown) {
+  return IMPORT_PAYLOAD_ENCODER.encode(JSON.stringify(value)).length;
+}

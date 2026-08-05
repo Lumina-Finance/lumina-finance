@@ -31,10 +31,10 @@ async def create_import_account(
     Returns:
         Created account row
     """
-    account_type = _parse_account_type(create.account_type)
+    account_type = parse_import_account_type(create.account_type)
     currency = create.currency.upper()
-    await _validate_import_account_currency(db, currency)
-    await _validate_import_account_institution(db, create.institution_id)
+    await validate_import_account_currency(db, currency)
+    await validate_import_account_institution(db, create.institution_id)
 
     account = Account(
         owner_id=user.id,
@@ -79,7 +79,7 @@ def _add_import_account_opening_snapshot(db: AsyncSession, account: Account, use
     db.add(opening_snapshot)
 
 
-async def _validate_import_account_currency(db: AsyncSession, currency: str) -> None:
+async def validate_import_account_currency(db: AsyncSession, currency: str) -> None:
     """Validate that an import-created account currency exists
 
     Args:
@@ -100,7 +100,7 @@ async def _validate_import_account_currency(db: AsyncSession, currency: str) -> 
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f"Invalid currency code: {currency}")
 
 
-async def _validate_import_account_institution(db: AsyncSession, institution_id: uuid.UUID | None) -> None:
+async def validate_import_account_institution(db: AsyncSession, institution_id: uuid.UUID | None) -> None:
     """Validate that an optional import-created account institution exists
 
     Args:
@@ -124,7 +124,7 @@ async def _validate_import_account_institution(db: AsyncSession, institution_id:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Institution not found")
 
 
-def _parse_account_type(value: str) -> AccountType:
+def parse_import_account_type(value: str) -> AccountType:
     """Return an account type enum for an import-created account
 
     Args:

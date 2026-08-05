@@ -1,5 +1,12 @@
+import asyncio
+import uuid
 
+from sqlalchemy import text
 
+from app.schemas.transaction import MAX_IMPORT_BATCH_ROWS
+from app.services.importers.generic import run_locking
+from app.services.importers.generic.run_locking import load_locked_run
+from tests.conftest import TestSession
 from tests.routes.support import _create_user, _get_auth_header
 from tests.routes.transactions._helpers import (
     NONEXISTENT_ID,
@@ -7,11 +14,12 @@ from tests.routes.transactions._helpers import (
     _create_merchant,
     _create_tag,
     _get_system_category_id,
+    _import_transactions,
     _seed_institution,
     _setup_user_with_deps,
 )
 
-# --- POST /transactions/import ---
+# --- Staging a run and committing it ---
 
 
 async def test_import_transactions_creates_records_and_recomputes_snapshots(client):
@@ -20,7 +28,7 @@ async def test_import_transactions_creates_records_and_recomputes_snapshots(clie
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    resp = await client.post("/transactions/import", json={
+    resp = await _import_transactions(client, headers, {
         "accounts": [{
             "source": "TD Visa",
             "create": {
@@ -43,7 +51,7 @@ async def test_import_transactions_creates_records_and_recomputes_snapshots(clie
             "notes": "Lunch",
             "tag_names": ["Food", "Food", ""],
         }],
-    }, headers=headers)
+    })
 
     assert resp.status_code == 201
     data = resp.json()
@@ -85,7 +93,7 @@ async def test_import_transactions_reuses_existing_records(client):
     await _create_merchant(client, headers, name="Costco")
     await _create_tag(client, headers, name="bulk")
 
-    resp = await client.post("/transactions/import", json={
+    resp = await _import_transactions(client, headers, {
         "accounts": [{"source": "Main Chequing", "account_id": account_id}],
         "categories": [{"source": "Groceries", "category_id": category_id}],
         "rows": [{
@@ -96,7 +104,7 @@ async def test_import_transactions_reuses_existing_records(client):
             "merchant_name": "Costco",
             "tag_names": ["bulk"],
         }],
-    }, headers=headers)
+    })
 
     assert resp.status_code == 201
     data = resp.json()
@@ -128,7 +136,7 @@ async def test_import_transactions_records_the_counterparty_account_on_a_transfe
     savings_id = savings_resp.json()["id"]
     transfer_category_id = await _get_system_category_id(client, headers, "Transfer")
 
-    resp = await client.post("/transactions/import", json={
+    resp = await _import_transactions(client, headers, {
         "accounts": [
             {"source": "Chequing", "account_id": account_id},
             {"source": "Savings", "account_id": savings_id},
@@ -149,7 +157,7 @@ async def test_import_transactions_records_the_counterparty_account_on_a_transfe
                 "amount": "500.00",
             },
         ],
-    }, headers=headers)
+    })
 
     assert resp.status_code == 201
     transactions_resp = await client.get("/transactions", headers=headers)
@@ -168,7 +176,7 @@ async def test_import_transactions_records_an_account_it_creates_as_the_counterp
     headers, account_id, _ = await _setup_user_with_deps(client)
     transfer_category_id = await _get_system_category_id(client, headers, "Transfer")
 
-    resp = await client.post("/transactions/import", json={
+    resp = await _import_transactions(client, headers, {
         "accounts": [
             {"source": "Chequing", "account_id": account_id},
             {
@@ -184,7 +192,7 @@ async def test_import_transactions_records_an_account_it_creates_as_the_counterp
             "amount": "-500.00",
             "counterparty_account_source": "Savings",
         }],
-    }, headers=headers)
+    })
 
     assert resp.status_code == 201
     data = resp.json()
@@ -200,7 +208,7 @@ async def test_import_transactions_records_a_transfer_leaving_the_tracked_accoun
     headers, account_id, _ = await _setup_user_with_deps(client)
     transfer_category_id = await _get_system_category_id(client, headers, "Transfer")
 
-    resp = await client.post("/transactions/import", json={
+    resp = await _import_transactions(client, headers, {
         "accounts": [
             {"source": "Chequing", "account_id": account_id},
             {"source": "Brokerage elsewhere", "outside": True},
@@ -213,7 +221,7 @@ async def test_import_transactions_records_a_transfer_leaving_the_tracked_accoun
             "amount": "-500.00",
             "counterparty_account_source": "Brokerage elsewhere",
         }],
-    }, headers=headers)
+    })
 
     assert resp.status_code == 201
     assert resp.json()["accounts_created"] == 0
@@ -227,7 +235,7 @@ async def test_import_transactions_rejects_a_counterparty_account_on_a_non_trans
     headers, account_id, category_id = await _setup_user_with_deps(client)
     savings_resp = await _create_account(client, headers, name="Main Savings", account_type="savings")
 
-    resp = await client.post("/transactions/import", json={
+    resp = await _import_transactions(client, headers, {
         "accounts": [
             {"source": "Chequing", "account_id": account_id},
             {"source": "Savings", "account_id": savings_resp.json()["id"]},
@@ -240,7 +248,7 @@ async def test_import_transactions_rejects_a_counterparty_account_on_a_non_trans
             "amount": "-10.00",
             "counterparty_account_source": "Savings",
         }],
-    }, headers=headers)
+    })
 
     assert resp.status_code == 422
     assert resp.json()["detail"] == "Only a transfer records a counterparty account: Savings"
@@ -251,7 +259,7 @@ async def test_import_transactions_rejects_a_transfer_recording_its_own_account(
     headers, account_id, _ = await _setup_user_with_deps(client)
     transfer_category_id = await _get_system_category_id(client, headers, "Transfer")
 
-    resp = await client.post("/transactions/import", json={
+    resp = await _import_transactions(client, headers, {
         "accounts": [
             {"source": "Chequing", "account_id": account_id},
             {"source": "Chequing (old)", "account_id": account_id},
@@ -264,7 +272,7 @@ async def test_import_transactions_rejects_a_transfer_recording_its_own_account(
             "amount": "-500.00",
             "counterparty_account_source": "Chequing (old)",
         }],
-    }, headers=headers)
+    })
 
     assert resp.status_code == 422
     assert resp.json()["detail"] == "A transfer cannot record its own account as its counterparty: Chequing (old)"
@@ -275,7 +283,7 @@ async def test_import_transactions_rejects_an_unmapped_counterparty_source(clien
     headers, account_id, _ = await _setup_user_with_deps(client)
     transfer_category_id = await _get_system_category_id(client, headers, "Transfer")
 
-    resp = await client.post("/transactions/import", json={
+    resp = await _import_transactions(client, headers, {
         "accounts": [{"source": "Chequing", "account_id": account_id}],
         "categories": [{"source": "Transfer", "category_id": transfer_category_id}],
         "rows": [{
@@ -285,7 +293,7 @@ async def test_import_transactions_rejects_an_unmapped_counterparty_source(clien
             "amount": "-500.00",
             "counterparty_account_source": "Savings",
         }],
-    }, headers=headers)
+    })
 
     assert resp.status_code == 422
     assert resp.json()["detail"] == "Counterparty account source is not mapped: Savings"
@@ -295,7 +303,7 @@ async def test_import_transactions_rejects_an_outside_source_that_also_names_an_
     """A source answers with exactly one of an account, a new account, or the outside answer."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
 
-    resp = await client.post("/transactions/import", json={
+    resp = await _import_transactions(client, headers, {
         "accounts": [{"source": "Chequing", "account_id": account_id, "outside": True}],
         "categories": [{"source": "Groceries", "category_id": category_id}],
         "rows": [{
@@ -304,7 +312,7 @@ async def test_import_transactions_rejects_an_outside_source_that_also_names_an_
             "dt": "2026-04-11",
             "amount": "-10.00",
         }],
-    }, headers=headers)
+    })
 
     assert resp.status_code == 422
     assert resp.json()["detail"] == "Account source must map to exactly one account action: Chequing"
@@ -314,7 +322,7 @@ async def test_import_transactions_rejects_rows_written_to_an_outside_source(cli
     """An outside source answers where money went and holds no rows of its own."""
     headers, _, category_id = await _setup_user_with_deps(client)
 
-    resp = await client.post("/transactions/import", json={
+    resp = await _import_transactions(client, headers, {
         "accounts": [{"source": "Brokerage elsewhere", "outside": True}],
         "categories": [{"source": "Groceries", "category_id": category_id}],
         "rows": [{
@@ -323,7 +331,7 @@ async def test_import_transactions_rejects_rows_written_to_an_outside_source(cli
             "dt": "2026-04-11",
             "amount": "-10.00",
         }],
-    }, headers=headers)
+    })
 
     assert resp.status_code == 422
     assert resp.json()["detail"] == (
@@ -335,7 +343,7 @@ async def test_import_transactions_rejects_unmapped_account_source(client):
     """Rows must reference a declared account source."""
     headers, _, category_id = await _setup_user_with_deps(client)
 
-    resp = await client.post("/transactions/import", json={
+    resp = await _import_transactions(client, headers, {
         "accounts": [{
             "source": "Mapped Account",
             "create": {"name": "Imported Account", "account_type": "checking", "currency": "CAD"},
@@ -347,7 +355,7 @@ async def test_import_transactions_rejects_unmapped_account_source(client):
             "dt": "2026-04-11",
             "amount": "-10.00",
         }],
-    }, headers=headers)
+    })
 
     assert resp.status_code == 422
     assert resp.json()["detail"] == "Account source is not mapped: Missing Account"
@@ -357,7 +365,7 @@ async def test_import_transactions_rejects_invalid_created_account_institution(c
     """Import-created accounts must reference an existing institution."""
     headers, _, category_id = await _setup_user_with_deps(client)
 
-    resp = await client.post("/transactions/import", json={
+    resp = await _import_transactions(client, headers, {
         "accounts": [{
             "source": "Mapped Account",
             "create": {
@@ -374,7 +382,7 @@ async def test_import_transactions_rejects_invalid_created_account_institution(c
             "dt": "2026-04-11",
             "amount": "-10.00",
         }],
-    }, headers=headers)
+    })
 
     assert resp.status_code == 422
     assert resp.json()["detail"] == "Institution not found"
@@ -384,7 +392,7 @@ async def test_import_transactions_rejects_invalid_raw_amount(client):
     """Imported amounts must be raw numeric strings with optional thousands separators."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
 
-    resp = await client.post("/transactions/import", json={
+    resp = await _import_transactions(client, headers, {
         "accounts": [{"source": "Main Chequing", "account_id": account_id}],
         "categories": [{"source": "Groceries", "category_id": category_id}],
         "rows": [{
@@ -393,7 +401,7 @@ async def test_import_transactions_rejects_invalid_raw_amount(client):
             "dt": "2026-04-11",
             "amount": "$12.34",
         }],
-    }, headers=headers)
+    })
 
     assert resp.status_code == 422
     assert resp.json()["detail"] == "Invalid amount: $12.34"
@@ -405,7 +413,7 @@ async def test_import_transactions_rejects_archived_account_mapping(client):
     archive_resp = await client.patch(f"/accounts/{account_id}", json={"is_archived": True}, headers=headers)
     assert archive_resp.status_code == 200
 
-    resp = await client.post("/transactions/import", json={
+    resp = await _import_transactions(client, headers, {
         "accounts": [{"source": "Main Chequing", "account_id": account_id}],
         "categories": [{"source": "Groceries", "category_id": category_id}],
         "rows": [{
@@ -414,7 +422,7 @@ async def test_import_transactions_rejects_archived_account_mapping(client):
             "dt": "2026-04-11",
             "amount": "-10.00",
         }],
-    }, headers=headers)
+    })
 
     assert resp.status_code == 422
     assert resp.json()["detail"] == "Account is archived"
@@ -429,7 +437,7 @@ async def test_import_transactions_records_an_archived_account_as_the_counterpar
     assert archive_resp.status_code == 200
     transfer_category_id = await _get_system_category_id(client, headers, "Transfer")
 
-    resp = await client.post("/transactions/import", json={
+    resp = await _import_transactions(client, headers, {
         "accounts": [
             {"source": "Chequing", "account_id": account_id},
             {"source": "Old Savings", "account_id": savings_id},
@@ -442,7 +450,7 @@ async def test_import_transactions_records_an_archived_account_as_the_counterpar
             "amount": "-500.00",
             "counterparty_account_source": "Old Savings",
         }],
-    }, headers=headers)
+    })
 
     assert resp.status_code == 201
     transactions_resp = await client.get("/transactions", headers=headers)
@@ -460,7 +468,7 @@ async def test_import_transactions_rejects_an_archived_counterparty_that_also_ta
     assert archive_resp.status_code == 200
     transfer_category_id = await _get_system_category_id(client, headers, "Transfer")
 
-    resp = await client.post("/transactions/import", json={
+    resp = await _import_transactions(client, headers, {
         "accounts": [
             {"source": "Chequing", "account_id": account_id},
             {"source": "Old Savings", "account_id": savings_id},
@@ -481,7 +489,7 @@ async def test_import_transactions_rejects_an_archived_counterparty_that_also_ta
                 "amount": "500.00",
             },
         ],
-    }, headers=headers)
+    })
 
     assert resp.status_code == 422
     assert resp.json()["detail"] == "Account is archived"
@@ -493,7 +501,7 @@ async def test_import_transactions_rejects_a_counterparty_in_another_users_accou
     _, other_account_id, _ = await _setup_user_with_deps(client, email="other@example.com", name_prefix="Other")
     transfer_category_id = await _get_system_category_id(client, headers, "Transfer")
 
-    resp = await client.post("/transactions/import", json={
+    resp = await _import_transactions(client, headers, {
         "accounts": [
             {"source": "Chequing", "account_id": account_id},
             {"source": "Theirs", "account_id": other_account_id},
@@ -506,7 +514,260 @@ async def test_import_transactions_rejects_a_counterparty_in_another_users_accou
             "amount": "-500.00",
             "counterparty_account_source": "Theirs",
         }],
-    }, headers=headers)
+    })
 
     assert resp.status_code == 404
     assert resp.json()["detail"] == "Account not found"
+
+
+# --- What a run does across its calls ---
+
+
+async def _open_run(client, headers, expected_transaction_count):
+    """Open a run and return its id"""
+    resp = await client.post(
+        "/transactions/import/runs",
+        json={"expected_transaction_count": expected_transaction_count},
+        headers=headers,
+    )
+    assert resp.status_code == 201
+    return resp.json()["id"]
+
+
+def _batch(account_id, category_id, amounts, start_row_index=0):
+    """Build one staging batch for the given amounts, all in one account and category"""
+    return {
+        "accounts": [{"source": "Main Chequing", "account_id": account_id}],
+        "categories": [{"source": "Groceries", "category_id": category_id}],
+        "rows": [
+            {
+                "account_source": "Main Chequing",
+                "category_source": "Groceries",
+                "dt": "2026-04-10",
+                "amount": amount,
+                "tag_names": [],
+            }
+            for amount in amounts
+        ],
+        "start_row_index": start_row_index,
+    }
+
+
+async def test_staging_a_batch_twice_stages_its_rows_once(client):
+    """A batch whose response was lost is re-sent at the same positions and absorbed."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    run_id = await _open_run(client, headers, 2)
+    batch = _batch(account_id, category_id, ["-1.00", "-2.00"])
+
+    first = await client.post(f"/transactions/import/runs/{run_id}/rows", json=batch, headers=headers)
+    second = await client.post(f"/transactions/import/runs/{run_id}/rows", json=batch, headers=headers)
+    commit = await client.post(f"/transactions/import/runs/{run_id}/commit", headers=headers)
+
+    assert (first.status_code, second.status_code) == (204, 204)
+    assert commit.status_code == 201
+    assert commit.json()["transactions_created"] == 2
+    assert len((await client.get("/transactions", headers=headers)).json()) == 2
+
+
+async def test_staging_refuses_a_source_declared_differently_by_a_later_batch(client):
+    """A source answered one way cannot be answered another way by a later batch."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    run_id = await _open_run(client, headers, 2)
+    first_batch = _batch(account_id, category_id, ["-1.00"])
+    second_batch = _batch(account_id, category_id, ["-2.00"], start_row_index=1)
+    second_batch["accounts"] = [{
+        "source": "Main Chequing",
+        "create": {"name": "Main Chequing", "account_type": "credit_card", "currency": "CAD"},
+    }]
+
+    await client.post(f"/transactions/import/runs/{run_id}/rows", json=first_batch, headers=headers)
+    resp = await client.post(f"/transactions/import/runs/{run_id}/rows", json=second_batch, headers=headers)
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "Account source is declared twice with different answers: Main Chequing"
+
+
+async def test_staging_refuses_a_batch_reaching_past_the_declared_row_count(client):
+    """A batch running past the rows the run declared is refused rather than staged."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    run_id = await _open_run(client, headers, 1)
+
+    resp = await client.post(
+        f"/transactions/import/runs/{run_id}/rows",
+        json=_batch(account_id, category_id, ["-1.00", "-2.00"]),
+        headers=headers,
+    )
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "This batch reaches row 2 of an import declaring 1"
+
+
+async def test_committing_a_run_missing_rows_is_refused(client):
+    """A run whose file never fully arrived cannot be committed."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    run_id = await _open_run(client, headers, 3)
+    await client.post(f"/transactions/import/runs/{run_id}/rows", json=_batch(account_id, category_id, ["-1.00"]), headers=headers)
+
+    resp = await client.post(f"/transactions/import/runs/{run_id}/commit", headers=headers)
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "This import has 1 of its 3 rows staged"
+    assert (await client.get("/transactions", headers=headers)).json() == []
+
+
+async def test_staging_a_batch_over_the_row_cap_is_refused(client):
+    """A batch larger than one insert can carry is refused rather than failing inside the driver."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    oversized = MAX_IMPORT_BATCH_ROWS + 1
+    run_id = await _open_run(client, headers, oversized)
+
+    resp = await client.post(
+        f"/transactions/import/runs/{run_id}/rows",
+        json=_batch(account_id, category_id, ["-1.00"] * oversized),
+        headers=headers,
+    )
+
+    assert resp.status_code == 422
+
+
+async def test_committing_twice_answers_from_the_first_commit(client):
+    """A commit whose response was lost is repeated without importing the file again."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    run_id = await _open_run(client, headers, 1)
+    await client.post(f"/transactions/import/runs/{run_id}/rows", json=_batch(account_id, category_id, ["-1.00"]), headers=headers)
+
+    first = await client.post(f"/transactions/import/runs/{run_id}/commit", headers=headers)
+    second = await client.post(f"/transactions/import/runs/{run_id}/commit", headers=headers)
+
+    assert (first.status_code, second.status_code) == (201, 201)
+    assert second.json() == first.json()
+    assert len((await client.get("/transactions", headers=headers)).json()) == 1
+
+
+async def test_a_row_the_mappings_cannot_satisfy_leaves_nothing_written(client):
+    """One unusable row in a staged file stops the whole file reaching the ledger."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    run_id = await _open_run(client, headers, 2)
+    batch = _batch(account_id, category_id, ["-1.00", "$2.00"])
+    await client.post(f"/transactions/import/runs/{run_id}/rows", json=batch, headers=headers)
+
+    resp = await client.post(f"/transactions/import/runs/{run_id}/commit", headers=headers)
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "Invalid amount: $2.00"
+    assert (await client.get("/transactions", headers=headers)).json() == []
+
+
+async def test_deleting_a_run_drops_what_it_staged(client):
+    """A cancelled import leaves nothing behind to commit."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    run_id = await _open_run(client, headers, 1)
+    await client.post(f"/transactions/import/runs/{run_id}/rows", json=_batch(account_id, category_id, ["-1.00"]), headers=headers)
+
+    deleted = await client.delete(f"/transactions/import/runs/{run_id}", headers=headers)
+    commit = await client.post(f"/transactions/import/runs/{run_id}/commit", headers=headers)
+
+    assert deleted.status_code == 204
+    assert commit.status_code == 404
+    assert (await client.get("/transactions", headers=headers)).json() == []
+
+
+async def test_deleting_a_committed_run_is_refused(client):
+    """Rows already in the ledger are not this endpoint's to remove."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    run_id = await _open_run(client, headers, 1)
+    await client.post(f"/transactions/import/runs/{run_id}/rows", json=_batch(account_id, category_id, ["-1.00"]), headers=headers)
+    await client.post(f"/transactions/import/runs/{run_id}/commit", headers=headers)
+
+    resp = await client.delete(f"/transactions/import/runs/{run_id}", headers=headers)
+
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "This import has already been committed"
+    assert len((await client.get("/transactions", headers=headers)).json()) == 1
+
+
+async def test_another_users_run_is_out_of_reach(client):
+    """A run is only reachable by the user who opened it."""
+    owner_headers, account_id, category_id = await _setup_user_with_deps(client)
+    other_headers, _, _ = await _setup_user_with_deps(client, email="other@example.com", name_prefix="Other")
+    run_id = await _open_run(client, owner_headers, 1)
+
+    staged = await client.post(
+        f"/transactions/import/runs/{run_id}/rows",
+        json=_batch(account_id, category_id, ["-1.00"]),
+        headers=other_headers,
+    )
+    committed = await client.post(f"/transactions/import/runs/{run_id}/commit", headers=other_headers)
+    deleted = await client.delete(f"/transactions/import/runs/{run_id}", headers=other_headers)
+
+    assert (staged.status_code, committed.status_code, deleted.status_code) == (404, 404, 404)
+
+
+async def test_reuse_counts_leave_out_records_the_import_created(client):
+    """A merchant one row creates and the next row meets again is created once and reused none."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+
+    resp = await _import_transactions(client, headers, {
+        "accounts": [{"source": "Main Chequing", "account_id": account_id}],
+        "categories": [{"source": "Groceries", "category_id": category_id}],
+        "rows": [
+            {
+                "account_source": "Main Chequing",
+                "category_source": "Groceries",
+                "dt": "2026-04-10",
+                "amount": "-1.00",
+                "merchant_name": "Corner Cafe",
+                "tag_names": ["Lunch"],
+            },
+            {
+                "account_source": "Main Chequing",
+                "category_source": "Groceries",
+                "dt": "2026-04-11",
+                "amount": "-2.00",
+                "merchant_name": "Corner Cafe",
+                "tag_names": ["Lunch"],
+            },
+        ],
+    })
+
+    assert resp.status_code == 201
+    data = resp.json()
+    assert (data["merchants_created"], data["merchants_reused"]) == (1, 0)
+    assert (data["tags_created"], data["tags_reused"]) == (1, 0)
+
+    # The account and category existed before the import, so both count as reused once rather than
+    # once per row that referenced them
+    assert (data["accounts_created"], data["accounts_reused"]) == (0, 1)
+    assert (data["categories_created"], data["categories_reused"]) == (0, 1)
+
+
+async def test_a_run_another_request_holds_is_refused(client, monkeypatch):
+    """A request that cannot get the run within the wait is refused rather than queued behind it."""
+    monkeypatch.setattr(run_locking, "RUN_LOCK_WAIT", "100ms")
+    headers, _, _ = await _setup_user_with_deps(client)
+    run_id = await _open_run(client, headers, 1)
+
+    # Held open for the length of the request below, which is what the request has to wait on. The
+    # request is bounded so that a wait that never gives up fails this test rather than hanging it
+    async with TestSession() as holder:
+        await holder.execute(text("SELECT id FROM import_runs WHERE id = :id FOR UPDATE"), {"id": run_id})
+        async with asyncio.timeout(5):
+            resp = await client.delete(f"/transactions/import/runs/{run_id}", headers=headers)
+        await holder.rollback()
+
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "This import is already being worked on"
+
+
+async def test_holding_a_run_does_not_bound_the_locks_taken_after_it(client):
+    """The wait for the run is the only lock it bounds, so a later one is not cut short."""
+    headers, _, _ = await _setup_user_with_deps(client)
+    run_id = await _open_run(client, headers, 1)
+
+    async with TestSession() as session:
+        await load_locked_run(session, uuid.UUID(run_id))
+        lock_timeout = (await session.execute(text("SELECT current_setting('lock_timeout')"))).scalar_one()
+
+    # Left in place, this bound would cancel any later lock the same transaction waited on, which
+    # for a commit is every account snapshot and cache row the import touches
+    assert lock_timeout == "0"

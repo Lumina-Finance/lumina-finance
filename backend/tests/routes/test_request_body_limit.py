@@ -6,7 +6,7 @@ from app.request_security import MAX_REQUEST_BODY_BYTES
 # Any route works for the declared-length refusal, which happens before routing decides
 # anything. The counted refusal needs a route that reads a body, which this one does before
 # it resolves its dependencies, so an unauthenticated caller still reaches the count
-_TARGET_PATH = "/transactions/import"
+_TARGET_PATH = "/transactions/import/runs"
 
 
 def _oversized_payload() -> bytes:
@@ -48,7 +48,7 @@ async def test_body_under_the_cap_reaches_the_route(client):
     which is what shows the request was handed on. A 404 would mean the path below has been
     renamed and this stopped testing anything
     """
-    response = await client.post(_TARGET_PATH, json={"rows": []})
+    response = await client.post(_TARGET_PATH, json={"expected_transaction_count": 1})
 
     assert response.status_code not in (413, 404)
 

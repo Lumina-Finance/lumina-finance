@@ -17,7 +17,7 @@ def build_transaction_import_response(
     """Build the API summary returned after importing transactions
 
     Args:
-        data: Prepared import payload from the frontend compiler
+        data: The whole file, rebuilt from its run
         stats: Import summary counters updated during the import
         import_lookups: Lookup maps used while creating imported transactions
         first_import_date_by_account_id: Earliest imported transaction date by affected account ID

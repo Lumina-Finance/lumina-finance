@@ -6,7 +6,7 @@ import { getCategoryMatchKind, isExistingCategoryMatch } from '@/pages/imports/u
 type ImportCategoryMatchingStepProps = Pick<
   TransactionImportWorkflow,
   | 'importedCategories'
-  | 'resolvedCategoryMappings'
+  | 'categoryMappings'
   | 'autoFilledCategories'
   | 'categoryCreateKinds'
   | 'categoryTypesBySource'
@@ -23,7 +23,7 @@ type ImportCategoryMatchingStepProps = Pick<
  */
 export function ImportCategoryMatchingStep({
   importedCategories,
-  resolvedCategoryMappings,
+  categoryMappings,
   autoFilledCategories,
   categoryCreateKinds,
   categoryTypesBySource,
@@ -51,7 +51,7 @@ export function ImportCategoryMatchingStep({
           targetLabel="Existing Category"
           createValue={CREATE_CATEGORY_VALUE}
           rows={importedCategories.map((category) => {
-            const value = resolvedCategoryMappings[category] ?? ''
+            const value = categoryMappings[category] ?? ''
             const detailKind = getCategoryMatchKind(
               value,
               categoryCreateKinds[category],

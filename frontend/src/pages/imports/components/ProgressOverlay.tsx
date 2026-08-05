@@ -1,4 +1,4 @@
-import { AlertCircle, CheckCircle2, LoaderCircle } from 'lucide-react'
+import { AlertCircle, CheckCircle2, CircleStop, LoaderCircle } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import type { Variants } from 'motion/react'
 import type { ImportOverlayPhase, ImportProgressStep, ImportProgressStepStatus } from '@/pages/imports/types'
@@ -75,6 +75,11 @@ const contentVariants: Variants = {
   },
 }
 
+// Only ever put on an element the app does not style with a CSS transition, which is why every
+// button here is a plain one inside a wrapper carrying these rather than carrying them itself. The
+// app button classes transition every property, so a transition would chase the opacity and
+// transform written here each frame and settle again once the animation stopped, which reads as
+// the button flickering as it lands
 const itemVariants: Variants = {
   hidden: { opacity: 0, y: 10, filter: 'blur(4px)' },
   visible: {
@@ -106,6 +111,15 @@ interface ImportProgressOverlayProps {
   error: string | null
   onDone: () => void
   onReturnToImport: () => void
+
+  /** Reports that the overlay has finished fading, which is when the page under it is reachable again */
+  onClosed?: () => void
+
+  /** Stops the import, offered only while there is still a request to give up on */
+  onCancel?: () => void
+
+  /** Runs a failed import again without re-uploading it, offered only when that could work */
+  onRetry?: () => void
   phase: ImportOverlayPhase
 
   /** Stages of a multi-stage import, listed while it runs; single-stage flows leave this unset */
@@ -114,7 +128,7 @@ interface ImportProgressOverlayProps {
 }
 
 /**
- * Full-screen overlay shown while an import is running, and after it finishes or fails
+ * Full-screen overlay shown while an import is running, and after it finishes, fails or is stopped
  *
  * The title and message read off the phase and, when supplied, the multi-stage step list rather than
  * a fixed set of copy, so a single-stage commit collapses to a plain spinner while a multi-stage one
@@ -124,6 +138,9 @@ export function ImportProgressOverlay({
   error,
   onDone,
   onReturnToImport,
+  onClosed,
+  onCancel,
+  onRetry,
   phase,
   steps,
   summary,
@@ -132,20 +149,27 @@ export function ImportProgressOverlay({
   const complete = phase === 'success'
   const failed = phase === 'error'
 
-  // The stage list already names the work in flight, so the title stops
+  // An import the user stopped is not one that went wrong, so it is told apart from a failure
+  // everywhere the two would otherwise read the same: the title, the icon and the message colour
+  const stopped = phase === 'cancelled'
+  const ended = failed || stopped
+
+  // The stage list already says what is in flight, so the title stops
   // repeating the first stage when a flow supplies one
-  const title = failed
-    ? 'Import failed'
-    : complete
-      ? 'Import complete'
-      : steps
-        ? 'Importing'
-        : 'Importing transactions'
-  const message = failed
-    ? error ?? 'Import failed.'
+  const title = stopped
+    ? 'Import stopped'
+    : failed
+      ? 'Import failed'
+      : complete
+        ? 'Import complete'
+        : steps
+          ? 'Importing'
+          : 'Importing transactions'
+  const message = ended
+    ? error ?? (stopped ? 'Import stopped.' : 'Import failed.')
     : complete
       ? summary || 'Your import is complete.'
-      : 'Your staged import is being written to the ledger.'
+      : 'Your import is being added to your ledger, and nothing is saved until it finishes.'
   const messageStyle = complete
     ? {
         color: OVERLAY_SUCCESS,
@@ -160,15 +184,19 @@ export function ImportProgressOverlay({
       }
 
   return (
-    <AnimatePresence>
+    <AnimatePresence onExitComplete={onClosed}>
       {open && (
+        // A closed overlay is still on screen for as long as it takes to fade, and its buttons go
+        // on carrying the handlers from before it closed, so it stops taking pointer input at once.
+        // Declared on both sides so the property has a value to return to, rather than leaving that
+        // to how a value dropped from the target is treated
         <motion.div
           key="import-progress-overlay"
           className="fixed inset-0 z-[90] flex items-center justify-center px-5 py-8"
           style={{ background: OVERLAY_BACKGROUND, color: OVERLAY_TEXT }}
           initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
+          animate={{ opacity: 1, pointerEvents: 'auto' }}
+          exit={{ opacity: 0, pointerEvents: 'none' }}
           transition={{ duration: 0.24, ease: 'easeOut' }}
           role="dialog"
           aria-modal="true"
@@ -184,7 +212,9 @@ export function ImportProgressOverlay({
             <motion.div
               className="mb-5 flex h-20 w-20 items-center justify-center"
               animate={{
-                color: failed ? OVERLAY_ERROR : complete ? OVERLAY_SUCCESS : OVERLAY_ACCENT,
+                color: stopped
+                  ? OVERLAY_MUTED_TEXT
+                  : failed ? OVERLAY_ERROR : complete ? OVERLAY_SUCCESS : OVERLAY_ACCENT,
               }}
               initial={false}
               transition={{ duration: 0.26, ease: 'easeOut' }}
@@ -192,14 +222,16 @@ export function ImportProgressOverlay({
             >
               <AnimatePresence mode="wait" initial={false}>
                 <motion.span
-                  key={failed ? 'error' : complete ? 'success' : 'importing'}
+                  key={stopped ? 'cancelled' : failed ? 'error' : complete ? 'success' : 'importing'}
                   className="flex h-full w-full items-center justify-center"
                   variants={iconVariants}
                   initial="hidden"
                   animate="visible"
                   exit="exit"
                 >
-                  {failed ? (
+                  {stopped ? (
+                    <CircleStop size={48} strokeWidth={1.9} />
+                  ) : failed ? (
                     <AlertCircle size={48} strokeWidth={1.9} />
                   ) : complete ? (
                     <CheckCircle2 size={52} strokeWidth={1.85} />
@@ -230,9 +262,25 @@ export function ImportProgressOverlay({
                   {message}
                 </motion.p>
 
-                {!complete && !failed && steps && steps.length > 0 && (
+                {!complete && !ended && steps && steps.length > 0 && (
                   <motion.div className="mt-6 w-full" variants={itemVariants}>
                     <ImportProgressSteps steps={steps} />
+                  </motion.div>
+                )}
+
+                {/* An import with no way out leaves this overlay up until the connection gives out,
+                    so it is offered here for as long as there is a request to give up on, and goes
+                    once that request has settled. Escape is deliberately not wired to it, since
+                    stopping an import is not something to do by brushing a key */}
+                {!complete && !ended && onCancel && (
+                  <motion.div className="mt-8 flex w-full justify-center" variants={itemVariants}>
+                    <button
+                      type="button"
+                      className={`app-secondary-button ${overlayButtonClass} sm:min-w-[8.5rem]`}
+                      onClick={onCancel}
+                    >
+                      Stop import
+                    </button>
                   </motion.div>
                 )}
 
@@ -251,15 +299,30 @@ export function ImportProgressOverlay({
                   </motion.div>
                 )}
 
-                {failed && (
-                  <motion.button
-                    type="button"
-                    className={`app-secondary-button ${overlayButtonClass} mt-8 sm:min-w-[8.5rem]`}
+                {ended && (
+                  <motion.div
+                    className="mt-8 flex w-full flex-col gap-3 sm:flex-row sm:justify-center"
                     variants={itemVariants}
-                    onClick={onReturnToImport}
                   >
-                    Back to import
-                  </motion.button>
+                    {/* Offered only where the file is still staged and sending it again could
+                        land, so a refusal of the file itself does not invite a pointless repeat */}
+                    {onRetry && (
+                      <button
+                        type="button"
+                        className={`app-primary-button ${overlayButtonClass} sm:min-w-[7rem]`}
+                        onClick={onRetry}
+                      >
+                        Try again
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className={`app-secondary-button ${overlayButtonClass} sm:min-w-[8.5rem]`}
+                      onClick={onReturnToImport}
+                    >
+                      Back to import
+                    </button>
+                  </motion.div>
                 )}
               </motion.div>
             </AnimatePresence>

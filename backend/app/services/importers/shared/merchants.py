@@ -76,7 +76,7 @@ async def _get_or_create_import_merchant_by_name(
     """
     existing_merchant = merchants_by_name.get(name)
     if existing_merchant is not None:
-        stats.merchants_reused += 1
+        stats.reused_merchant_ids.add(existing_merchant.id)
         return existing_merchant
 
     merchant = Merchant(owner_id=user_id, group_id=None, name=name, default_category_id=None)

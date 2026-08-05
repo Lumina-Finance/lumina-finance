@@ -8,6 +8,15 @@ from pydantic import BaseModel, Field
 from app.models.base import TransferCounterpartyScope
 from app.schemas.fx import FxStatus
 
+# Rows one import may carry, matching the cap the file reader applies before a file is staged. A
+# run is refused past it here as well, since the reader runs in the browser
+MAX_IMPORT_ROWS = 100_000
+
+# One batch becomes a single insert carrying five bind parameters per row, and a statement may
+# carry 65535 of them, so a batch past about 13000 rows fails inside the driver rather than being
+# refused. The browser closes a batch on its byte budget long before this, at roughly 4000 rows
+MAX_IMPORT_BATCH_ROWS = 5_000
+
 
 class TopCategorySpend(BaseModel):
     """One row in the top-categories breakdown."""
@@ -179,11 +188,36 @@ class TransactionImportRow(BaseModel):
 
 
 class TransactionImportRequest(BaseModel):
-    """Batch import frontend-compiled CSV transactions."""
+    """A whole staged file, rebuilt from its run at commit time and handed to the import service."""
 
     accounts: list[TransactionImportAccountMapping] = Field(min_length=1)
     categories: list[TransactionImportCategoryMapping] = Field(min_length=1)
     rows: list[TransactionImportRow] = Field(min_length=1)
+
+
+class TransactionImportRunRequest(BaseModel):
+    """Open a run for a file about to be staged."""
+
+    expected_transaction_count: int = Field(gt=0, le=MAX_IMPORT_ROWS)
+
+
+class TransactionImportRunResponse(BaseModel):
+    """The opened run, which every later call for this file quotes."""
+
+    id: uuid.UUID
+
+
+class TransactionImportStageRequest(BaseModel):
+    """One batch of a staged file: the mappings its rows reference, and the rows themselves."""
+
+    accounts: list[TransactionImportAccountMapping] = Field(min_length=1)
+    categories: list[TransactionImportCategoryMapping] = Field(min_length=1)
+    rows: list[TransactionImportRow] = Field(min_length=1, max_length=MAX_IMPORT_BATCH_ROWS)
+
+    # Where this batch starts in the file, so a batch sent twice stages the same positions and the
+    # unique constraint on them absorbs the second copy. A position already staged keeps what it
+    # was first given, so a caller wanting different rows there opens a new run
+    start_row_index: int = Field(ge=0)
 
 
 class TransactionImportResponse(BaseModel):

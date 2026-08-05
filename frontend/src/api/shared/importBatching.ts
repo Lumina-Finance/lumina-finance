@@ -1,13 +1,16 @@
+import {
+  IMPORT_BATCH_YIELD_INTERVAL,
+  MAX_IMPORT_BATCH_BYTES,
+  TARGET_IMPORT_BATCH_BYTES,
+  getEmptyImportPayloadByteSize,
+  getNextArrayItemByteSize,
+  yieldToBrowser,
+} from '@/api/shared/importBatchSize';
 import type {
   TransactionImportAccountMapping,
   TransactionImportCategoryMapping,
   TransactionImportResponse,
 } from '@/api/transaction-imports/types';
-
-const MAX_IMPORT_BATCH_BYTES = 750 * 1024;
-const TARGET_IMPORT_BATCH_BYTES = 650 * 1024;
-const IMPORT_BATCH_YIELD_INTERVAL = 250;
-const IMPORT_PAYLOAD_ENCODER = new TextEncoder();
 
 /**
  * Request payload shape a domain must produce for the batching engine to split across requests
@@ -131,7 +134,7 @@ async function buildNextImportBatch<TRow, TResponse extends TransactionImportRes
   // account sources (for example a Firefly row with no tracked source or destination
   // account), so a batch built entirely from such rows borrows one known mapping
   if (accountSources.size === 0 && payload.accounts.length > 0) {
-    accountSources.add(payload.accounts[0].source);
+    accountSources.add(getBorrowedAccountSource(payload.accounts, accountSourceIds));
   }
 
   return {
@@ -208,6 +211,26 @@ function getImportMappingsBySource<T extends { source: string }>(mappings: T[]) 
 }
 
 /**
+ * Picks the mapping a batch with no account sources of its own carries
+ *
+ * A source an earlier batch already created, or one that states an account that exists, costs
+ * nothing to carry. A create mapping would have the backend create an account no row in the batch
+ * references, so it is the last resort rather than the first choice
+ */
+function getBorrowedAccountSource(
+  accounts: TransactionImportAccountMapping[],
+  accountSourceIds: Record<string, string>,
+) {
+  const alreadyCreated = accounts.find((mapping) => accountSourceIds[mapping.source]);
+  if (alreadyCreated) return alreadyCreated.source;
+
+  const existingAccount = accounts.find((mapping) => mapping.account_id);
+  if (existingAccount) return existingAccount.source;
+
+  return accounts[0].source;
+}
+
+/**
  * Estimates the payload bytes added by a not-yet-included account source
  */
 function getNextAccountMappingByteSize(
@@ -237,25 +260,6 @@ function getNextCategoryMappingByteSize(
     sources.size,
     getBatchCategoryMapping(source, mappingsBySource, sourceIds),
   );
-}
-
-function getNextArrayItemByteSize(currentLength: number, value: unknown) {
-  return getJsonByteSize(value) + (currentLength > 0 ? 1 : 0);
-}
-
-function getEmptyImportPayloadByteSize() {
-  return getJsonByteSize({ accounts: [], categories: [], rows: [] });
-}
-
-/**
- * Yields during large imports so the browser can paint between batch-building chunks
- */
-function yieldToBrowser() {
-  return new Promise<void>((resolve) => window.setTimeout(resolve, 0));
-}
-
-function getJsonByteSize(value: unknown) {
-  return IMPORT_PAYLOAD_ENCODER.encode(JSON.stringify(value)).length;
 }
 
 /**
@@ -311,9 +315,16 @@ export function mergeBaseImportResponse(
 
 /**
  * Appends IDs while keeping aggregate import response lists stable across batches
+ *
+ * Membership is tested against a set rather than the list itself, since an import creating tens of
+ * thousands of merchants would otherwise scan the whole list once per id
  */
 function appendUnique(target: string[], source: string[]) {
+  const seen = new Set(target);
+
   for (const value of source) {
-    if (!target.includes(value)) target.push(value);
+    if (seen.has(value)) continue;
+    seen.add(value);
+    target.push(value);
   }
 }

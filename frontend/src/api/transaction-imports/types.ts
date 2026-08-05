@@ -47,6 +47,21 @@ export interface TransactionImportPayload {
   rows: TransactionImportRow[];
 }
 
+/** One batch of a staged file, carrying the mappings its own rows reference */
+export interface TransactionImportStageBatch {
+  accounts: TransactionImportAccountMapping[];
+  categories: TransactionImportCategoryMapping[];
+  rows: TransactionImportRow[];
+
+  /** Where this batch starts in the file, which is what makes staging it twice harmless */
+  start_row_index: number;
+}
+
+/** The run a staged file is uploaded and committed under */
+export interface TransactionImportRun {
+  id: string;
+}
+
 export interface TransactionImportResponse {
   transactions_created: number;
   accounts_created: number;

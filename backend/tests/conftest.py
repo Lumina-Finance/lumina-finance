@@ -22,6 +22,7 @@ from app.models import (  # noqa: F401
     category,
     currency,
     group,
+    import_run,
     institution,
     merchant,
     saved_insights_range,

@@ -1,6 +1,16 @@
-import { useState, type Dispatch, type SetStateAction } from 'react'
+import { useMemo, useState, type Dispatch, type SetStateAction } from 'react'
 import { CREATE_ACCOUNT_VALUE } from '@/pages/imports/constants'
-import { removeRecordKey, removeSetValue } from '@/pages/imports/utils'
+import {
+  emptyScopedImportAnswers,
+  readScopedImportAnswers,
+  readScopedSelection,
+  removeRecordKey,
+  removeSetValue,
+  writeScopedImportAnswers,
+  writeScopedSelection,
+  type ImportSourceScope,
+  type ScopedImportAnswers,
+} from '@/pages/imports/utils'
 
 /**
  * Account-create state shared by both import flows: the per-row type, currency and institution picked
@@ -23,6 +33,9 @@ export interface ImportAccountCreateState {
   setBatchAccountCurrency: Dispatch<SetStateAction<string>>
   setBatchAccountInstitution: Dispatch<SetStateAction<string>>
   updateAccountMapping: (sourceAccount: string, accountId: string) => void
+
+  /** Forgets every answer, including ones filed under a column that is not mapped right now */
+  resetAccountCreateState: () => void
 }
 
 /**
@@ -31,17 +44,45 @@ export interface ImportAccountCreateState {
  * The mappings themselves stay with the caller, since each flow resolves them differently, so this
  * takes the caller's mappings setter and calls it from the shared handler that also clears a row's
  * create-state once it no longer creates an account
+ *
+ * @param setAccountMappings - The caller's own mappings setter
+ * @param getSourceScope - What each source value was read from, so an answer is kept while that
+ *   still holds and left behind once the same value comes from somewhere else
  */
 export function useImportAccountCreateState(
   setAccountMappings: Dispatch<SetStateAction<Record<string, string>>>,
+  getSourceScope: ImportSourceScope,
 ): ImportAccountCreateState {
-  const [accountCreateTypes, setAccountCreateTypes] = useState<Record<string, string>>({})
-  const [accountCreateCurrencies, setAccountCreateCurrencies] = useState<Record<string, string>>({})
-  const [accountCreateInstitutions, setAccountCreateInstitutions] = useState<Record<string, string>>({})
-  const [selectedAccountRows, setSelectedAccountRows] = useState<Set<string>>(() => new Set())
+  const [storedCreateTypes, setStoredCreateTypes] = useState<ScopedImportAnswers<string>>(emptyScopedImportAnswers)
+  const [storedCreateCurrencies, setStoredCreateCurrencies] = useState<ScopedImportAnswers<string>>(emptyScopedImportAnswers)
+  const [storedCreateInstitutions, setStoredCreateInstitutions] = useState<ScopedImportAnswers<string>>(emptyScopedImportAnswers)
+  const [storedSelectedRows, setStoredSelectedRows] = useState<ScopedImportAnswers<true>>(emptyScopedImportAnswers)
   const [batchAccountType, setBatchAccountType] = useState('')
   const [batchAccountCurrency, setBatchAccountCurrency] = useState('')
   const [batchAccountInstitution, setBatchAccountInstitution] = useState('')
+
+  /**
+   * Wraps a scoped answer store as the plain record setter every table already takes
+   */
+  const scopedSetter = (
+    setStored: Dispatch<SetStateAction<ScopedImportAnswers<string>>>,
+  ): Dispatch<SetStateAction<Record<string, string>>> => (update) => {
+    setStored((current) => {
+      const answers = readScopedImportAnswers(current, getSourceScope)
+      return writeScopedImportAnswers(current, typeof update === 'function' ? update(answers) : update, getSourceScope)
+    })
+  }
+
+  const setAccountCreateTypes = scopedSetter(setStoredCreateTypes)
+  const setAccountCreateCurrencies = scopedSetter(setStoredCreateCurrencies)
+  const setAccountCreateInstitutions = scopedSetter(setStoredCreateInstitutions)
+
+  const setSelectedAccountRows: Dispatch<SetStateAction<Set<string>>> = (update) => {
+    setStoredSelectedRows((current) => {
+      const selection = readScopedSelection(current, getSourceScope)
+      return writeScopedSelection(current, typeof update === 'function' ? update(selection) : update, getSourceScope)
+    })
+  }
 
   const updateAccountMapping = (sourceAccount: string, accountId: string) => {
     setAccountMappings((current) => ({ ...current, [sourceAccount]: accountId }))
@@ -51,6 +92,39 @@ export function useImportAccountCreateState(
       setAccountCreateInstitutions((current) => removeRecordKey(current, sourceAccount))
       setSelectedAccountRows((current) => removeSetValue(current, sourceAccount))
     }
+  }
+
+  // Held steady while the answers behind them are unchanged, since the three create records reach
+  // the commit payload and the selection drives both mapping tables, and rebuilding any of them on
+  // each render would put that work behind every keystroke on the page
+  const accountCreateTypes = useMemo(
+    () => readScopedImportAnswers(storedCreateTypes, getSourceScope),
+    [getSourceScope, storedCreateTypes],
+  )
+
+  const accountCreateCurrencies = useMemo(
+    () => readScopedImportAnswers(storedCreateCurrencies, getSourceScope),
+    [getSourceScope, storedCreateCurrencies],
+  )
+
+  const accountCreateInstitutions = useMemo(
+    () => readScopedImportAnswers(storedCreateInstitutions, getSourceScope),
+    [getSourceScope, storedCreateInstitutions],
+  )
+
+  const selectedAccountRows = useMemo(
+    () => readScopedSelection(storedSelectedRows, getSourceScope),
+    [getSourceScope, storedSelectedRows],
+  )
+
+  const resetAccountCreateState = () => {
+    setStoredCreateTypes(emptyScopedImportAnswers)
+    setStoredCreateCurrencies(emptyScopedImportAnswers)
+    setStoredCreateInstitutions(emptyScopedImportAnswers)
+    setStoredSelectedRows(emptyScopedImportAnswers)
+    setBatchAccountType('')
+    setBatchAccountCurrency('')
+    setBatchAccountInstitution('')
   }
 
   return {
@@ -69,5 +143,6 @@ export function useImportAccountCreateState(
     setBatchAccountCurrency,
     setBatchAccountInstitution,
     updateAccountMapping,
+    resetAccountCreateState,
   }
 }

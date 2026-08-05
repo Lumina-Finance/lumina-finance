@@ -6,8 +6,17 @@ export type {
   TransactionImportPayload,
   TransactionImportResponse,
   TransactionImportRow,
+  TransactionImportRun,
+  TransactionImportStageBatch,
 } from '@/api/transaction-imports/types';
 
-export { importTransactionsInBatches } from '@/api/transaction-imports/batching';
-export { postTransactionImportBatch } from '@/api/transaction-imports/requests';
-export { useImportTransactions } from '@/api/transaction-imports/hooks';
+export { buildStagedImportBatches } from '@/api/transaction-imports/batching';
+export {
+  TransactionImportRunError,
+  commitStagedImportRun,
+  discardStagedRun,
+  isImportCommitWorthRepeating,
+  runTransactionImport,
+} from '@/api/transaction-imports/run';
+export type { TransactionImportPhase } from '@/api/transaction-imports/run';
+export { useCommitStagedImport, useImportTransactions } from '@/api/transaction-imports/hooks';

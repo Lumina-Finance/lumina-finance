@@ -26,6 +26,11 @@ from app.services.importers.shared.stats import ImportStats
 from app.services.importers.shared.tags import get_or_create_import_tags
 from app.services.importers.shared.validation_helpers import strip_import_text_or_raise
 
+# Rows written before the session sends them and reads their ids back. A whole file is now one
+# transaction, so flushing per row would be one round trip per row, and flushing once at the end
+# would hold every row of a large file in the session before any of it moves
+_TRANSACTION_FLUSH_CHUNK = 500
+
 
 async def create_imported_transactions(
     db: AsyncSession,
@@ -51,6 +56,7 @@ async def create_imported_transactions(
         HTTPException: Raised with 422 when a row cannot be written as the payload states it
     """
     first_import_date_by_account_id: dict[uuid.UUID, date] = {}
+    pending_transaction_tags: list[tuple[Transaction, list[Tag]]] = []
 
     # Convert each frontend-compiled row into a transaction and track affected account dates
     for row in rows:
@@ -83,29 +89,33 @@ async def create_imported_transactions(
         )
         tags = await get_or_create_import_tags(db, user_id, row.tag_names, import_lookups.tags_by_name, stats)
 
-        await _insert_imported_transaction_and_tags(
-            db,
+        transaction = _build_imported_transaction(
             user_id=user_id,
             account=account,
             category=category,
             row=row,
             amount=amount,
             merchant=merchant,
-            tags=tags,
             counterparty_account_id=counterparty_account_id,
             counterparty_account_scope=counterparty_account_scope,
         )
+        db.add(transaction)
+        pending_transaction_tags.append((transaction, tags))
+
+        if len(pending_transaction_tags) >= _TRANSACTION_FLUSH_CHUNK:
+            await _add_imported_transaction_tags(db, pending_transaction_tags)
+            pending_transaction_tags.clear()
 
         current_first_import_date = first_import_date_by_account_id.get(account.id)
         first_import_date_by_account_id[account.id] = (
             row.dt if current_first_import_date is None else min(current_first_import_date, row.dt)
         )
 
+    await _add_imported_transaction_tags(db, pending_transaction_tags)
     return first_import_date_by_account_id
 
 
-async def _insert_imported_transaction_and_tags(
-    db: AsyncSession,
+def _build_imported_transaction(
     *,
     user_id: uuid.UUID,
     account: Account,
@@ -113,28 +123,25 @@ async def _insert_imported_transaction_and_tags(
     row: TransactionImportRow,
     amount: int,
     merchant: Merchant | None,
-    tags: list[Tag],
     counterparty_account_id: uuid.UUID | None,
     counterparty_account_scope: TransferCounterpartyScope | None,
-) -> None:
-    """Insert an imported transaction and its transaction-tag rows into the session
+) -> Transaction:
+    """Build the transaction one import row writes
 
     Args:
-        db: Active database session
         user_id: Identifier for the user running the import
         account: Account selected for the import row
         category: Category selected for the import row
         row: Import row being written
         amount: Parsed transaction amount in account-currency minor units
         merchant: Optional merchant selected for the import row
-        tags: Tag rows selected for the import row
         counterparty_account_id: Counterparty account recorded on a transfer, if any
         counterparty_account_scope: Where the counterparty sits, or None for a category that records neither
 
     Returns:
-        None
+        The transaction row, not yet added to the session
     """
-    transaction = Transaction(
+    return Transaction(
         created_by_user_id=user_id,
         account_id=account.id,
         dt=row.dt,
@@ -147,10 +154,27 @@ async def _insert_imported_transaction_and_tags(
         counterparty_account_id=counterparty_account_id,
         counterparty_account_scope=counterparty_account_scope,
     )
-    db.add(transaction)
+
+
+async def _add_imported_transaction_tags(
+    db: AsyncSession,
+    pending_transaction_tags: list[tuple[Transaction, list[Tag]]],
+) -> None:
+    """Write the transactions waiting in the session, then attach their tags
+
+    Args:
+        db: Active database session
+        pending_transaction_tags: Transactions added since the last flush, each with its tags
+
+    Returns:
+        None
+    """
+    if not pending_transaction_tags:
+        return
+
     await db.flush()
 
-    # Add transaction-tag rows after the transaction id is available from the flush
-    for tag in tags:
-        transaction_tag = TransactionTag(transaction_id=transaction.id, tag_id=tag.id)
-        db.add(transaction_tag)
+    # Add transaction-tag rows after the transaction ids are available from the flush
+    for transaction, tags in pending_transaction_tags:
+        for tag in tags:
+            db.add(TransactionTag(transaction_id=transaction.id, tag_id=tag.id))
