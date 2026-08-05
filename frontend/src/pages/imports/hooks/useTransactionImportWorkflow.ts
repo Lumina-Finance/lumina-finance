@@ -17,6 +17,7 @@ import {
   buildImportPreviewRows,
   countRowsWithNoPayee,
   formatImportSummary,
+  getImportingFiles,
   getArchivedAccountMatches,
   getImportedCategoryTypes,
   getImportedCategories,
@@ -82,12 +83,25 @@ export function useTransactionImportWorkflow() {
   // as answered, which is the case an empty mapping cannot tell apart on its own
   const [decidedColumnHeaders, setDecidedColumnHeaders] = useState<Set<string>>(() => new Set())
   const [columnMap, setColumnMap] = useState<ColumnMap>(EMPTY_COLUMN_MAP)
+
+  // Whether rows stating no payee are brought in under a merchant that ships with the app. Off to
+  // begin with, so nothing is filed under a merchant the user did not choose, and cleared whenever
+  // the merchant column mapping changes or the files do, so a choice never carries to a new question
+  const [importRowsWithNoPayee, setImportRowsWithNoPayee] = useState(false)
   const [scopedAccountMappings, setScopedAccountMappings] = useState<ScopedImportAnswers<string>>(emptyScopedImportAnswers)
   const [accountAutoMatchKey, setAccountAutoMatchKey] = useState('')
 
+  // What the mapping steps ask about is read from the rows this import will bring in, so a value
+  // only a left-out row carries is never asked about and never created. Row numbers are never taken
+  // from these, since a row's number is its place in the file it came from
+  const importingFiles = useMemo(
+    () => getImportingFiles(files, columnMap.merchant_id, importRowsWithNoPayee),
+    [columnMap.merchant_id, files, importRowsWithNoPayee],
+  )
+
   const accountMappingSources = useMemo(
-    () => buildImportAccountMappingSources(files, columnMap.account_id, columnMap.counterparty_account_id),
-    [columnMap.account_id, columnMap.counterparty_account_id, files],
+    () => buildImportAccountMappingSources(importingFiles, columnMap.account_id, columnMap.counterparty_account_id),
+    [columnMap.account_id, columnMap.counterparty_account_id, importingFiles],
   )
 
   // The account sources come from two columns, so an answer is about whichever of them supplied it
@@ -147,10 +161,6 @@ export function useTransactionImportWorkflow() {
   const [tagHandlingOpen, setTagHandlingOpen] = useState(true)
   const [columnValidationErrors, setColumnValidationErrors] = useState<ColumnValidationErrors>({})
 
-  // Whether rows stating no payee are brought in under the shared merchant. Off to begin with, so
-  // nothing is filed under a merchant the user did not choose, and cleared whenever the merchant
-  // column mapping changes or the files do, so a choice never carries over to a different question
-  const [importRowsWithNoPayee, setImportRowsWithNoPayee] = useState(false)
   const [dateFormatChoice, setDateFormatChoice] = useState<DateFormatChoice | null>(null)
   const [scopedCategoryMappings, setScopedCategoryMappings] = useState<ScopedImportAnswers<string>>(emptyScopedImportAnswers)
   const [categoryAutoMatchKey, setCategoryAutoMatchKey] = useState('')
@@ -346,23 +356,23 @@ export function useTransactionImportWorkflow() {
   )
 
   const importedCategories = useMemo(
-    () => getImportedCategories(files, columnMap.category_id),
-    [columnMap.category_id, files],
+    () => getImportedCategories(importingFiles, columnMap.category_id),
+    [columnMap.category_id, importingFiles],
   )
 
   const importedMerchants = useMemo(
-    () => getImportedMerchants(files, columnMap.merchant_id),
-    [columnMap.merchant_id, files],
+    () => getImportedMerchants(importingFiles, columnMap.merchant_id),
+    [columnMap.merchant_id, importingFiles],
   )
 
   const categoryTypesBySource = useMemo(
-    () => getImportedCategoryTypes(files, columnMap.category_id, columnMap.amount, importedCategories),
-    [columnMap.amount, columnMap.category_id, files, importedCategories],
+    () => getImportedCategoryTypes(importingFiles, columnMap.category_id, columnMap.amount, importedCategories),
+    [columnMap.amount, columnMap.category_id, importedCategories, importingFiles],
   )
 
   const importedTags = useMemo(
-    () => getImportedTags(files, columnMap.tag_ids),
-    [columnMap.tag_ids, files],
+    () => getImportedTags(importingFiles, columnMap.tag_ids),
+    [columnMap.tag_ids, importingFiles],
   )
 
   const canInferCategoryMappings = Boolean(columnMap.category_id)

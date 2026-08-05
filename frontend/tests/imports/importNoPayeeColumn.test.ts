@@ -18,6 +18,8 @@ import {
   buildImportPreviewRows,
   buildTransactionImportPayload,
   countRowsWithNoPayee,
+  getImportedCategories,
+  getImportingFiles,
 } from '@/pages/imports/utils'
 
 const CURRENCIES: Currency[] = [
@@ -68,14 +70,20 @@ function createFile(rows: CsvRow[]): ImportFileDraft {
 function build({
   payeeMapped = true,
   importRowsWithNoPayee = false,
+  accountMapped = true,
   rows = ROWS,
-}: { payeeMapped?: boolean; importRowsWithNoPayee?: boolean; rows?: CsvRow[] } = {}) {
+}: {
+  payeeMapped?: boolean
+  importRowsWithNoPayee?: boolean
+  accountMapped?: boolean
+  rows?: CsvRow[]
+} = {}) {
   return buildTransactionImportPayload({
     accountById: new Map([[ACCOUNT.id, ACCOUNT]]),
     accountCreateCurrencies: {},
     accountCreateInstitutions: {},
     accountCreateTypes: {},
-    accountMappings: { 'file-1': ACCOUNT.id },
+    accountMappings: accountMapped ? { 'file-1': ACCOUNT.id } : {},
     accountSources: [{ id: 'file-1', label: 'Chequing.csv', matchText: 'Chequing.csv', isCounterpartyOnly: false }],
     categoryById: new Map([[CATEGORY.id, CATEGORY]]),
     categoryCreateKinds: {},
@@ -173,6 +181,26 @@ describe('leaving rows with no payee out of the import', () => {
     expect(build().errors).toEqual([])
   })
 
+  // The list comes off the merchant column alone, so it holds while other questions are open and
+  // the preview never shows a row that is on its way out
+  it('lists them while a mapping question is still unanswered', () => {
+    const result = build({ accountMapped: false })
+
+    expect(result.payload).toBeNull()
+    expect(result.errors.length).toBeGreaterThan(0)
+    expect(result.rowExclusions.map((row) => row.rowNumber)).toEqual([2, 4])
+  })
+
+  // Nothing about a row being left out is the user's to go and fix, so its own faults stay quiet
+  it('reports a left-out row as left out rather than as one to fix', () => {
+    const result = build({
+      rows: [{ Date: '2026-04-10', Category: 'Groceries', Amount: 'abc', Payee: '' }],
+    })
+
+    expect(result.rowProblems).toEqual([])
+    expect(result.rowExclusions.map((row) => row.reason)).toEqual([ROW_HAS_NO_PAYEE_REASON])
+  })
+
   it('says so where that leaves nothing at all to import', () => {
     const result = build({ payeeMapped: false })
 
@@ -196,6 +224,30 @@ describe('leaving rows with no payee out of the import', () => {
 
     expect(result.rowExclusions).toHaveLength(1)
     expect(result.warnings).toEqual([])
+  })
+})
+
+describe('keeping the left-out rows out of what the steps ask about', () => {
+  // A category only a left-out row uses would otherwise be asked about in the matching step, and
+  // answering it would create a category with no transactions in it
+  it('leaves a category only a left-out row uses out of the values to match', () => {
+    const rows: CsvRow[] = [
+      { Date: '2026-04-10', Category: 'Groceries', Amount: '-12.34', Payee: 'Corner Cafe' },
+      { Date: '2026-04-11', Category: 'Charity', Amount: '-50.00', Payee: '' },
+    ]
+    const importing = getImportingFiles([createFile(rows)], 'Payee', false)
+
+    expect(getImportedCategories(importing, 'Category')).toEqual(['Groceries'])
+  })
+
+  it('asks about it again once those rows are being brought in', () => {
+    const rows: CsvRow[] = [
+      { Date: '2026-04-10', Category: 'Groceries', Amount: '-12.34', Payee: 'Corner Cafe' },
+      { Date: '2026-04-11', Category: 'Charity', Amount: '-50.00', Payee: '' },
+    ]
+    const importing = getImportingFiles([createFile(rows)], 'Payee', true)
+
+    expect(getImportedCategories(importing, 'Category')).toEqual(['Charity', 'Groceries'])
   })
 })
 
