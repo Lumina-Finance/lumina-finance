@@ -75,18 +75,20 @@ const contentVariants: Variants = {
   },
 }
 
-// No blur of their own: the block above already blurs in over everything inside it, and a second
-// animated filter on a child gives that child its own compositing layer, which the browser can be
-// seen setting up and tearing down. The Stop import button was where it showed, being the only one
-// of these carrying a border and a filled background
+// Only ever put on an element the app does not style with a CSS transition, which is why every
+// button here is a plain one inside a wrapper carrying these rather than carrying them itself. The
+// app button classes transition every property, so a transition would chase the opacity and
+// transform written here each frame and settle again once the animation stopped, which reads as
+// the button flickering as it lands
 const itemVariants: Variants = {
-  hidden: { opacity: 0, y: 10 },
+  hidden: { opacity: 0, y: 10, filter: 'blur(4px)' },
   visible: {
     opacity: 1,
     y: 0,
+    filter: 'blur(0px)',
     transition: { duration: 0.3, ease: OVERLAY_SPRING_EASE },
   },
-  exit: { opacity: 0, y: -8, transition: { duration: 0.16 } },
+  exit: { opacity: 0, y: -8, filter: 'blur(4px)', transition: { duration: 0.16 } },
 }
 
 const iconVariants: Variants = {
@@ -271,14 +273,15 @@ export function ImportProgressOverlay({
                     once that request has settled. Escape is deliberately not wired to it, since
                     stopping an import is not something to do by brushing a key */}
                 {!complete && !ended && onCancel && (
-                  <motion.button
-                    type="button"
-                    className={`app-secondary-button ${overlayButtonClass} mt-8 sm:min-w-[8.5rem]`}
-                    variants={itemVariants}
-                    onClick={onCancel}
-                  >
-                    Stop import
-                  </motion.button>
+                  <motion.div className="mt-8 flex w-full justify-center" variants={itemVariants}>
+                    <button
+                      type="button"
+                      className={`app-secondary-button ${overlayButtonClass} sm:min-w-[8.5rem]`}
+                      onClick={onCancel}
+                    >
+                      Stop import
+                    </button>
+                  </motion.div>
                 )}
 
                 {complete && (
