@@ -229,14 +229,23 @@ const Dropdown = ({
     if (!open) return;
 
     const handleClick = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        close();
-      }
+      const container = containerRef.current;
+      const target = e.target;
+      if (!container || !(target instanceof Element) || container.contains(target)) return;
+
+      // The field's own visible label sits outside this container but points at the head inside it,
+      // and a label's job is to repeat the click on what it names. Closing here would be undone a
+      // moment later by that repeat, which reaches a list this handler has already closed and opens
+      // it again. Left alone, the repeat arrives at the head and closes the list once, exactly as
+      // pressing the head does
+      if (id && target.closest('label')?.htmlFor === id) return;
+
+      close();
     };
 
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
-  }, [open, close]);
+  }, [close, id, open]);
 
   // The highlighted option scrolls into view after keyboard movement so focus stays visible. The list
   // is scrolled by hand rather than through scrollIntoView, which walks up and scrolls every ancestor
