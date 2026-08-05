@@ -37,6 +37,9 @@ MAX_IMPORT_NOTES_LENGTH = 10_000
 MAX_IMPORT_TAGS_PER_ROW = 32
 MAX_IMPORT_TAG_NAME_LENGTH = 64
 
+# Characters a payee may carry, matching the column merchants are stored in
+MAX_IMPORT_MERCHANT_NAME_LENGTH = 256
+
 # One imported tag name, bounded so that the count and the length are stated in one place for both
 # importers
 ImportTagName = Annotated[str, Field(max_length=MAX_IMPORT_TAG_NAME_LENGTH)]
@@ -202,7 +205,7 @@ class TransactionImportRow(BaseModel):
     category_source: str = Field(min_length=1, max_length=256)
     dt: date
     amount: str = Field(min_length=1, max_length=64)
-    merchant_name: str | None = Field(None, max_length=256)
+    merchant_name: str | None = Field(None, max_length=MAX_IMPORT_MERCHANT_NAME_LENGTH)
     notes: str | None = Field(None, max_length=MAX_IMPORT_NOTES_LENGTH)
     tag_names: list[ImportTagName] = Field(default=[], max_length=MAX_IMPORT_TAGS_PER_ROW)
 

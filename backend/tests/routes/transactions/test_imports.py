@@ -13,7 +13,7 @@ from app.schemas.transaction import (
 from app.services.importers.generic import run_locking
 from app.services.importers.generic.run_locking import load_locked_run
 from tests.conftest import TestSession
-from tests.routes.support import _create_user, _get_auth_header
+from tests.routes.support import _create_user, _get_auth_header, _get_system_merchant_id
 from tests.routes.transactions._helpers import (
     NONEXISTENT_ID,
     _create_account,
@@ -636,6 +636,51 @@ async def test_staging_a_batch_over_the_row_cap_is_refused(client):
     assert resp.status_code == 422
 
 
+async def test_a_payee_matching_a_shared_merchant_reuses_it(client):
+    """A file whose payee is a merchant shipping with the app reuses it rather than copying it."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    system_merchant_id = await _get_system_merchant_id(client, headers)
+
+    resp = await _import_rows(client, headers, account_id, category_id, [{"merchant_name": "Myself"}])
+
+    assert resp.status_code == 201
+    assert resp.json()["merchants_created"] == 0
+    assert resp.json()["merchants_reused"] == 1
+    transaction = (await client.get("/transactions", headers=headers)).json()[0]
+    assert transaction["merchant_id"] == system_merchant_id
+
+
+async def test_a_payee_spelled_differently_from_an_existing_merchant_reuses_it(client):
+    """Capitalisation does not make a second merchant, matching what the merchants route refuses."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    created = await _create_merchant(client, headers, name="Corner Cafe")
+
+    resp = await _import_rows(client, headers, account_id, category_id, [{"merchant_name": "CORNER CAFE"}])
+
+    assert resp.status_code == 201
+    assert resp.json()["merchants_created"] == 0
+    transaction = (await client.get("/transactions", headers=headers)).json()[0]
+    assert transaction["merchant_id"] == created.json()["id"]
+    assert transaction["merchant_name"] == "Corner Cafe"
+
+
+async def test_two_spellings_of_one_payee_in_a_file_make_one_merchant(client):
+    """A file carrying both spellings creates one merchant, under the spelling it uses first."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+
+    resp = await _import_rows(client, headers, account_id, category_id, [
+        {"merchant_name": "Bakery"},
+        {"merchant_name": "BAKERY"},
+    ])
+
+    assert resp.status_code == 201
+    assert resp.json()["merchants_created"] == 1
+    merchants = (await client.get("/merchants", headers=headers)).json()
+    assert [merchant["name"] for merchant in merchants if not merchant["is_system"]] == ["Bakery"]
+    transactions = (await client.get("/transactions", headers=headers)).json()
+    assert len({transaction["merchant_id"] for transaction in transactions}) == 1
+
+
 async def test_staging_a_batch_over_the_mapping_cap_is_refused(client):
     """A batch declaring more mappings than an import may carry is refused before any is checked."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
@@ -729,6 +774,24 @@ def _category_mappings(indexes):
         {"source": f"Category {index}", "create": {"name": f"Category {index}", "kind": "expense"}}
         for index in indexes
     ]
+
+
+async def _import_rows(client, headers, account_id, category_id, row_overrides):
+    """Import one file of rows sharing an account and category, each row taking its own overrides"""
+    return await _import_transactions(client, headers, {
+        "accounts": [{"source": "Main Chequing", "account_id": account_id}],
+        "categories": [{"source": "Groceries", "category_id": category_id}],
+        "rows": [
+            {
+                "account_source": "Main Chequing",
+                "category_source": "Groceries",
+                "dt": "2026-04-10",
+                "amount": "-1.00",
+                "tag_names": [],
+            } | overrides
+            for overrides in row_overrides
+        ],
+    })
 
 
 async def test_committing_twice_answers_from_the_first_commit(client):

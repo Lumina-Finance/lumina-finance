@@ -15,7 +15,10 @@ from app.models.transaction import Transaction
 from app.schemas.transaction import TransactionImportRow
 from app.services.importers.generic.amounts import parse_import_amount_to_minor_units
 from app.services.importers.generic.lookup_helpers import TransactionImportLookups
-from app.services.importers.shared.merchants import get_or_create_import_merchant
+from app.services.importers.shared.merchants import (
+    create_missing_import_merchants,
+    get_import_merchant,
+)
 from app.services.importers.shared.row_mappings import (
     get_import_row_account,
     get_import_row_category,
@@ -23,7 +26,7 @@ from app.services.importers.shared.row_mappings import (
     validate_import_category_can_be_used_for_account,
 )
 from app.services.importers.shared.stats import ImportStats
-from app.services.importers.shared.tags import get_or_create_import_tags
+from app.services.importers.shared.tags import create_missing_import_tags, get_import_row_tags
 from app.services.importers.shared.validation_helpers import strip_import_text_or_raise
 
 # Rows written before the session sends them and reads their ids back. A whole file is now one
@@ -58,6 +61,24 @@ async def create_imported_transactions(
     first_import_date_by_account_id: dict[uuid.UUID, date] = {}
     pending_transaction_tags: list[tuple[Transaction, list[Tag]]] = []
 
+    # Everything the file introduces is created before the rows are walked, so each of them costs
+    # one insert for the whole file rather than one per row that first mentions it. A row refused
+    # further down takes the whole commit with it, so nothing survives having been created here
+    await create_missing_import_merchants(
+        db,
+        user_id,
+        (row.merchant_name for row in rows),
+        import_lookups.merchants_by_key,
+        stats,
+    )
+    await create_missing_import_tags(
+        db,
+        user_id,
+        (tag_name for row in rows for tag_name in row.tag_names),
+        import_lookups.tags_by_name,
+        stats,
+    )
+
     # Convert each frontend-compiled row into a transaction and track affected account dates
     for row in rows:
         account_source = strip_import_text_or_raise(row.account_source, "Account source")
@@ -80,14 +101,8 @@ async def create_imported_transactions(
 
         currency = import_lookups.currencies_by_code[account.currency]
         amount = parse_import_amount_to_minor_units(row.amount, currency)
-        merchant = await get_or_create_import_merchant(
-            db,
-            user_id,
-            row.merchant_name,
-            import_lookups.merchants_by_name,
-            stats,
-        )
-        tags = await get_or_create_import_tags(db, user_id, row.tag_names, import_lookups.tags_by_name, stats)
+        merchant = get_import_merchant(row.merchant_name, import_lookups.merchants_by_key, stats)
+        tags = get_import_row_tags(row.tag_names, import_lookups.tags_by_name, stats)
 
         transaction = _build_imported_transaction(
             user_id=user_id,

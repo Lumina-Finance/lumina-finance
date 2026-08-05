@@ -14,7 +14,7 @@ from app.schemas.transaction import TransactionImportRequest
 from app.services.importers.shared.accounts import resolve_import_account_sources
 from app.services.importers.shared.categories import get_or_create_import_categories_by_source
 from app.services.importers.shared.currencies import get_import_currencies_by_code
-from app.services.importers.shared.merchants import get_personal_import_merchants_by_name
+from app.services.importers.shared.merchants import get_import_merchants_by_key
 from app.services.importers.shared.stats import ImportStats
 from app.services.importers.shared.tags import get_personal_import_tags_by_name
 
@@ -28,7 +28,7 @@ class TransactionImportLookups:
         outside_account_sources: Sources answered as money outside the tracked accounts
         categories_by_source: Category rows keyed by import source
         currencies_by_code: Currency rows keyed by currency code
-        merchants_by_name: Merchant lookup for this import, keyed by merchant name
+        merchants_by_key: Merchant lookup for this import, keyed by what matches a payee
         tags_by_name: Tag lookup for this import, keyed by tag name
     """
 
@@ -36,7 +36,7 @@ class TransactionImportLookups:
     outside_account_sources: set[str]
     categories_by_source: dict[str, Category]
     currencies_by_code: dict[str, Currency]
-    merchants_by_name: dict[str, Merchant]
+    merchants_by_key: dict[str, Merchant]
     tags_by_name: dict[str, Tag]
 
 
@@ -89,7 +89,7 @@ async def load_transaction_import_lookups(
     # Load currencies after account mappings because new accounts can introduce new currency codes
     account_currency_codes = {account.currency for account in accounts_by_source.values()}
     currencies_by_code = await get_import_currencies_by_code(db, account_currency_codes)
-    merchants_by_name = await get_personal_import_merchants_by_name(db, user.id)
+    merchants_by_key = await get_import_merchants_by_key(db, user.id)
     tags_by_name = await get_personal_import_tags_by_name(db, user.id)
 
     transaction_import_lookups = TransactionImportLookups(
@@ -97,7 +97,7 @@ async def load_transaction_import_lookups(
         outside_account_sources=account_sources.outside_sources,
         categories_by_source=categories_by_source,
         currencies_by_code=currencies_by_code,
-        merchants_by_name=merchants_by_name,
+        merchants_by_key=merchants_by_key,
         tags_by_name=tags_by_name,
     )
     return transaction_import_lookups
