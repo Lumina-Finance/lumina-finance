@@ -1,9 +1,9 @@
-
 import asyncio
 import uuid
 
 from sqlalchemy import text
 
+from app.schemas.transaction import MAX_IMPORT_BATCH_ROWS
 from app.services.importers.generic import run_locking
 from app.services.importers.generic.run_locking import load_locked_run
 from tests.conftest import TestSession
@@ -610,9 +610,24 @@ async def test_committing_a_run_missing_rows_is_refused(client):
 
     resp = await client.post(f"/transactions/import/runs/{run_id}/commit", headers=headers)
 
-    assert resp.status_code == 409
+    assert resp.status_code == 422
     assert resp.json()["detail"] == "This import has 1 of its 3 rows staged"
     assert (await client.get("/transactions", headers=headers)).json() == []
+
+
+async def test_staging_a_batch_over_the_row_cap_is_refused(client):
+    """A batch larger than one insert can carry is refused rather than failing inside the driver."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    oversized = MAX_IMPORT_BATCH_ROWS + 1
+    run_id = await _open_run(client, headers, oversized)
+
+    resp = await client.post(
+        f"/transactions/import/runs/{run_id}/rows",
+        json=_batch(account_id, category_id, ["-1.00"] * oversized),
+        headers=headers,
+    )
+
+    assert resp.status_code == 422
 
 
 async def test_committing_twice_answers_from_the_first_commit(client):

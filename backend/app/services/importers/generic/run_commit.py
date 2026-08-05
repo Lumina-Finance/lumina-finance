@@ -37,9 +37,9 @@ async def commit_import_run(db: AsyncSession, user: User, run_id: uuid.UUID) -> 
 
     Raises:
         HTTPException: Raised with 404 for a run that is absent or not the caller's, or a mapped
-            account they cannot reach, 409 when another request holds the run or when the staged
-            rows do not add up to the file the run declared, and 422 when a staged row cannot be
-            written as it stands or a mapping the run recorded no longer resolves
+            account they cannot reach, 409 when another request holds the run, and 422 when the
+            staged rows do not add up to the file the run declared, when a staged row cannot be
+            written as it stands, or when a mapping the run recorded no longer resolves
     """
     run = await _lock_run_for_commit(db, run_id)
     if run.committed_at is not None:
@@ -47,8 +47,11 @@ async def commit_import_run(db: AsyncSession, user: User, run_id: uuid.UUID) -> 
 
     rows = await _get_staged_rows(db, run_id)
     if len(rows) != run.expected_transaction_count:
+        # A run is opened for a fixed number of rows, so a batch that never arrived can never be
+        # supplied to this one. Refusing it as the file's own fault rather than as a clash is what
+        # stops the page offering a second attempt that would answer the same way
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"This import has {len(rows)} of its {run.expected_transaction_count} rows staged",
         )
 

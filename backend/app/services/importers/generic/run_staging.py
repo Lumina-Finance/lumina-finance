@@ -191,7 +191,8 @@ async def _insert_staged_rows(
     """Park one batch's rows at their positions in the file
 
     A batch whose response was lost is sent again at the same positions, so the insert leaves the
-    copies already staged alone rather than failing on them
+    copies already staged alone rather than failing on them. A position keeps what it was first
+    given even where the second copy differs, which only a caller writing its own requests can do
 
     Args:
         db: Active database session

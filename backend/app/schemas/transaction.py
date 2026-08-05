@@ -12,6 +12,11 @@ from app.schemas.fx import FxStatus
 # run is refused past it here as well, since the reader runs in the browser
 MAX_IMPORT_ROWS = 100_000
 
+# One batch becomes a single insert carrying five bind parameters per row, and a statement may
+# carry 65535 of them, so a batch past about 13000 rows fails inside the driver rather than being
+# refused. The browser closes a batch on its byte budget long before this, at roughly 4000 rows
+MAX_IMPORT_BATCH_ROWS = 5_000
+
 
 class TopCategorySpend(BaseModel):
     """One row in the top-categories breakdown."""
@@ -207,10 +212,11 @@ class TransactionImportStageRequest(BaseModel):
 
     accounts: list[TransactionImportAccountMapping] = Field(min_length=1)
     categories: list[TransactionImportCategoryMapping] = Field(min_length=1)
-    rows: list[TransactionImportRow] = Field(min_length=1)
+    rows: list[TransactionImportRow] = Field(min_length=1, max_length=MAX_IMPORT_BATCH_ROWS)
 
     # Where this batch starts in the file, so a batch sent twice stages the same positions and the
-    # unique constraint on them absorbs the second copy
+    # unique constraint on them absorbs the second copy. A position already staged keeps what it
+    # was first given, so a caller wanting different rows there opens a new run
     start_row_index: int = Field(ge=0)
 
 
