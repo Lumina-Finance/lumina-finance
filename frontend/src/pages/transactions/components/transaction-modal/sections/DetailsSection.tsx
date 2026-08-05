@@ -23,11 +23,11 @@ interface TransactionDetailsSectionProps {
   amount: string
   amountError?: string | false
 
-  // Whether the amount stands down, decided by the modal from the transaction's own currency rather
+  // Whether the amount is locked, decided by the modal from the transaction's own currency rather
   // than recomputed here, so the field the form treats as locked is the field the user sees disabled
   isAmountLocked: boolean
 
-  // Which of the reasons the amount stands down for, since a list still arriving is worth waiting
+  // Which of the reasons the amount is locked for, since a list still arriving is worth waiting
   // out, one that failed is worth a reload, and one that simply does not carry the currency is
   // neither. The lock itself is decided above rather than read off this
   currencyState: CurrencyListState

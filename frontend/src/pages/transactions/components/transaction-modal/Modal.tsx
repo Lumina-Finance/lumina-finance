@@ -158,9 +158,9 @@ export default function CreateTransactionModal({
   const selectedCurrencyExponent = knownCurrencyExponent ?? DEFAULT_MINOR_UNIT_EXPONENT
 
   // Asked of this transaction's own currency rather than of the table as a whole, so a currency the
-  // table does not carry keeps the field down instead of unlocking it empty over a stored amount.
+  // table does not carry keeps the field locked instead of unlocking it empty over a stored amount.
   // Editing only: an edit leaves a locked amount out of the patch, where a create would post the
-  // blank it leaves behind as a zero, and a new transaction has no stored amount to stand down over
+  // blank it leaves behind as a zero, and a new transaction has no stored amount to lock over
   const isAmountLocked = editing && knownCurrencyExponent === null
 
   useRestoreLockedAmount({ open, transaction, currencies, isAmountLocked, setForm })
