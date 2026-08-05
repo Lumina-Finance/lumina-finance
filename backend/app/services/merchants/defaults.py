@@ -18,7 +18,7 @@ UNKNOWN_MERCHANT_NAME = "Unknown"
 SYSTEM_MERCHANT_NAMES = (SELF_MERCHANT_NAME, UNKNOWN_MERCHANT_NAME)
 
 
-async def seed_system_merchants(db: AsyncSession) -> None:
+async def seed_system_merchants(db: AsyncSession) -> list[str]:
     """Create the global system merchants that are missing
 
     Nothing is updated in place, since a system merchant carries only its name and that name is
@@ -26,6 +26,9 @@ async def seed_system_merchants(db: AsyncSession) -> None:
 
     Args:
         db: Active database session
+
+    Returns:
+        Names of the merchants this run created, which is empty where they were all already there
     """
     # Fetch the existing system merchants by name so seeding can run against a database that
     # already has some of them
@@ -34,6 +37,7 @@ async def seed_system_merchants(db: AsyncSession) -> None:
     )
     existing_names = set(existing_result.scalars().all())
 
+    created_names = []
     for name in SYSTEM_MERCHANT_NAMES:
         if name in existing_names:
             continue
@@ -44,3 +48,5 @@ async def seed_system_merchants(db: AsyncSession) -> None:
             is_system=True,
             default_category_id=None,
         ))
+        created_names.append(name)
+    return created_names

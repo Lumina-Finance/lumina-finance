@@ -12,7 +12,10 @@ from app.schemas.transaction import (
 )
 from app.services.importers.generic import run_locking
 from app.services.importers.generic.run_locking import load_locked_run
-from app.services.merchants.defaults import SELF_MERCHANT_NAME, UNKNOWN_MERCHANT_NAME
+from app.services.merchants.defaults import (
+    SELF_MERCHANT_NAME,
+    UNKNOWN_MERCHANT_NAME,
+)
 from tests.conftest import TestSession
 from tests.routes.support import _create_user, _get_auth_header, _get_system_merchant_id
 from tests.routes.transactions._helpers import (
@@ -725,6 +728,43 @@ async def test_a_payee_spelled_differently_from_an_existing_merchant_reuses_it(c
     assert transaction["merchant_name"] == "Corner Cafe"
 
 
+async def test_a_payee_matching_two_stored_spellings_resolves_to_the_older_one(client):
+    """A database written before capitalisation stopped counting can hold both, so one has to win."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    first = await _create_merchant(client, headers, name="Corner Cafe")
+    # Written straight to the table, since the merchants route refuses the second spelling, and
+    # stamped a second later so the older row is unambiguous rather than settled by chance
+    await _insert_later_personal_merchant(first.json()["id"], "corner cafe")
+
+    resp = await _import_rows(client, headers, account_id, category_id, [
+        {"merchant_name": "CORNER CAFE"},
+        {"merchant_name": "corner cafe"},
+    ])
+
+    assert resp.status_code == 201
+    assert resp.json()["merchants_created"] == 0
+    transactions = (await client.get("/transactions", headers=headers)).json()
+    # Both rows land on the same merchant, and it is the one stored first
+    assert {transaction["merchant_id"] for transaction in transactions} == {first.json()["id"]}
+
+
+async def test_an_import_is_refused_when_a_shared_merchant_is_not_seeded(client):
+    """A database migrated but never seeded fails loudly instead of writing rows with no merchant."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    async with TestSession() as session:
+        await session.execute(
+            text("DELETE FROM merchants WHERE is_system = true AND name = :name"),
+            {"name": UNKNOWN_MERCHANT_NAME},
+        )
+        await session.commit()
+
+    resp = await _import_rows(client, headers, account_id, category_id, [{}])
+
+    assert resp.status_code == 500
+    assert resp.json()["detail"] == f"{UNKNOWN_MERCHANT_NAME} merchant is not configured"
+    assert (await client.get("/transactions", headers=headers)).json() == []
+
+
 async def test_two_spellings_of_one_payee_in_a_file_make_one_merchant(client):
     """A file carrying both spellings creates one merchant, under the spelling it uses first."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
@@ -814,8 +854,8 @@ async def test_staging_a_row_whose_tag_name_is_too_long_is_refused(client):
     assert resp.status_code == 422
 
 
-async def test_staging_accepts_a_row_at_every_cap(client):
-    """The values sitting exactly on each cap are accepted, so the bound refuses only past it."""
+async def test_staging_accepts_a_row_at_every_row_cap(client):
+    """The row values sitting exactly on each cap are accepted, so the bound refuses only past it."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
     run_id = await _open_run(client, headers, 1)
     batch = _batch(account_id, category_id, ["-1.00"])
@@ -829,12 +869,51 @@ async def test_staging_accepts_a_row_at_every_cap(client):
     assert resp.status_code == 204
 
 
+async def test_staging_accepts_a_run_holding_exactly_the_mapping_cap(client):
+    """A run sitting on the mapping cap is staged, so the bound refuses only past it."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    run_id = await _open_run(client, headers, 1)
+    batch = _batch(account_id, category_id, ["-1.00"])
+    # One short of the cap, since the batch already declares the Groceries mapping its row uses
+    batch["categories"] += _category_mappings(range(MAX_IMPORT_MAPPINGS - 1))
+
+    resp = await client.post(f"/transactions/import/runs/{run_id}/rows", json=batch, headers=headers)
+
+    assert resp.status_code == 204
+
+
 def _category_mappings(indexes):
     """Build category mappings creating one new category per index"""
     return [
         {"source": f"Category {index}", "create": {"name": f"Category {index}", "kind": "expense"}}
         for index in indexes
     ]
+
+
+async def _insert_later_personal_merchant(sibling_merchant_id, name):
+    """Write a second personal merchant for the same owner, stamped after the one given
+
+    The merchants route refuses a name differing only in capitalisation, so a database holding both
+    can only be built by writing straight to the table, which is what a database written before that
+    rule looks like
+
+    Args:
+        sibling_merchant_id: A merchant of the owner this one belongs to
+        name: Name for the new merchant
+    """
+    async with TestSession() as session:
+        owner_id = (await session.execute(
+            text("SELECT owner_id FROM merchants WHERE id = :id"),
+            {"id": sibling_merchant_id},
+        )).scalar_one()
+        await session.execute(
+            text(
+                "INSERT INTO merchants (id, owner_id, name, created_at)"
+                " VALUES (gen_random_uuid(), :owner_id, :name, now() + interval '1 second')",
+            ),
+            {"owner_id": owner_id, "name": name},
+        )
+        await session.commit()
 
 
 async def _import_rows(client, headers, account_id, category_id, row_overrides):
