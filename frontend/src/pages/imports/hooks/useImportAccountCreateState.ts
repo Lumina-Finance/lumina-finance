@@ -94,8 +94,9 @@ export function useImportAccountCreateState(
     }
   }
 
-  // Every one of these feeds the commit payload, so they are held steady while the answers behind
-  // them are unchanged rather than rebuilt on each render
+  // Held steady while the answers behind them are unchanged, since the three create records reach
+  // the commit payload and the selection drives both mapping tables, and rebuilding any of them on
+  // each render would put that work behind every keystroke on the page
   const accountCreateTypes = useMemo(
     () => readScopedImportAnswers(storedCreateTypes, getSourceScope),
     [getSourceScope, storedCreateTypes],

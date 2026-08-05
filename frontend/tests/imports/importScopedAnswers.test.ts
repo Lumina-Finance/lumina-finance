@@ -156,6 +156,17 @@ describe('scoped row selection', () => {
     expect(readScopedSelection(stored, nextFile)).toEqual(new Set())
   })
 
+  // A tick follows its column the way an answer does, so the other table's ticks are left alone
+  // when one column changes and the ticks come back with the column they were made under
+  it('keeps the other table ticked when one column changes, and restores its own', () => {
+    const bothMapped = accountSourceScope('Account', 'Transfer To', ['Savings'])
+    const stored = writeScopedSelection(emptyScopedImportAnswers<true>(), new Set(['Chequing', 'Savings']), bothMapped)
+    const accountUnmapped = accountSourceScope('', 'Transfer To', ['Savings'])
+
+    expect(readScopedSelection(stored, accountUnmapped)).toEqual(new Set(['Savings']))
+    expect(readScopedSelection(stored, bothMapped)).toEqual(new Set(['Chequing', 'Savings']))
+  })
+
   it('starts with nothing ticked', () => {
     expect(readScopedSelection(emptyScopedImportAnswers<true>(), accountSourceScope('Account', ''))).toEqual(new Set())
   })

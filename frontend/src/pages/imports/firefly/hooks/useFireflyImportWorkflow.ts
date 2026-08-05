@@ -407,9 +407,6 @@ export function useFireflyImportWorkflow() {
   const resetMappingState = () => {
     setAccountMappings({})
     resetAccountCreateState()
-    setBatchAccountType('')
-    setBatchAccountCurrency('')
-    setBatchAccountInstitution('')
     setCategoryMappings({})
     setCategoryCreateKinds({})
   }

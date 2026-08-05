@@ -101,8 +101,8 @@ export function useTransactionImportWorkflow() {
     [accountMappingSources],
   )
 
-  // Both resolvers are held steady, since every set of answers read through one is a dependency of
-  // the payload and preview, and a new function each render would rebuild both on every keystroke
+  // Both resolvers are held steady, since the answers read through them reach the commit payload
+  // and the preview, and a new function each render would rebuild those on every keystroke
   const getAccountSourceScope = useMemo(
     () => (sourceId: string) => (
       counterpartyOnlySourceIds.has(sourceId) ? counterpartyAnswerScope : rowAccountAnswerScope
