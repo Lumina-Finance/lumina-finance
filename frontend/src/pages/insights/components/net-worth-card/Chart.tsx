@@ -21,6 +21,10 @@ import {
   type ChartTooltipPointer,
   type DeferredChartTooltipOverlayHandle,
 } from '@/components/charts/DeferredTooltipOverlay'
+import {
+  getChartDataSignature,
+  useChartEntranceAnimation,
+} from '@/components/charts/useChartEntranceAnimation'
 import { DASHBOARD_X_AXIS_TICK_FONT_SIZE } from '@/pages/dashboard/constants/chart'
 import { formatCurrency } from '@/utils/formatCurrency'
 import {
@@ -245,6 +249,27 @@ export function NetWorthChart({
   )
   const legendAnimationKey = `${mode}-${legendItems.map((item) => item.id).join('|')}`
 
+  // One signature spanning everything the plot draws, in both modes. The mapped items and the total
+  // line share a vertical scale taken from all of them together, so a change in any one moves the
+  // rest, and the mode belongs in it because switching modes unmounts and remounts the items with
+  // the same values behind them
+  const dataSignature = useMemo(
+    () => `${mode}:${getChartDataSignature(
+      deltaSeries,
+      (point) => [
+        ...chartItems.map((_item, index) => Number(point[getChartKey(index)] ?? 0)),
+        point.totalChange,
+      ].join('|'),
+    )}`,
+    [chartItems, deltaSeries, mode],
+  )
+  const compositionAreasEntrance = useChartEntranceAnimation({ dataSignature })
+
+  // The bars all sit on Bar's own defaults and one instance serves them, but the line runs on
+  // Line's longer default and would be cut short by the bars' end if it shared theirs
+  const overviewBarsEntrance = useChartEntranceAnimation({ dataSignature })
+  const overviewLineEntrance = useChartEntranceAnimation({ dataSignature })
+
   /**
    * Shows the tooltip for the active Recharts date bucket
    */
@@ -344,6 +369,7 @@ export function NetWorthChart({
                     fill={item.color}
                     fillOpacity={0.65}
                     activeDot={false}
+                    {...compositionAreasEntrance}
                   />
                 ))
               ) : (
@@ -356,6 +382,7 @@ export function NetWorthChart({
                       fill={item.color}
                       maxBarSize={34}
                       radius={4}
+                      {...overviewBarsEntrance}
                     />
                   ))}
                   <Line
@@ -365,6 +392,7 @@ export function NetWorthChart({
                     strokeWidth={2.5}
                     dot={false}
                     activeDot={{ r: 4, strokeWidth: 0 }}
+                    {...overviewLineEntrance}
                   />
                 </>
               )}

@@ -97,6 +97,14 @@ export default function AccountListSection({
             <motion.div
               key={account.id}
               layout={prefersReducedMotion ? false : 'position'}
+              // Without this motion re-measures every row on any re-render, so a change in page
+              // coordinates that has nothing to do with the list moves them: opening a modal below
+              // the fullscreen breakpoint pins the body at its scroll offset, which shifts every
+              // row's page position without moving it on screen, and the rows slide it back. The
+              // array is rebuilt whenever the account data, the filters or the search change, which
+              // covers every moment a row can be added, removed, reordered, or grow a line and push
+              // the rows below it down
+              layoutDependency={accounts}
               className="overflow-hidden"
               initial={prefersReducedMotion ? false : { opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}

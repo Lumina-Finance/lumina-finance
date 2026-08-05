@@ -13,6 +13,10 @@ import type { InsightsBreakdownCategoryKind } from '@/api/insights'
 import { BreakdownCrossoverBadge } from '@/components/display/BreakdownCrossoverBadge'
 import { ChartTooltipTitle, ChartTooltipValue } from '@/components/charts/TooltipContent'
 import CursorTooltipPortal from '@/components/charts/CursorTooltipPortal'
+import {
+  getChartDataSignature,
+  useChartEntranceAnimation,
+} from '@/components/charts/useChartEntranceAnimation'
 import { useCursorTooltip } from '@/hooks/useCursorTooltip'
 import type { BreakdownEntry } from '@/pages/insights/types/incomeExpenseBreakdown'
 import {
@@ -89,6 +93,11 @@ export function IncomeExpensePieChart({
     [entries, mode],
   )
   const legendMinHeight = getBreakdownLegendMinHeight(legendEntries.length)
+  const dataSignature = useMemo(
+    () => getChartDataSignature(entries, (entry) => entry.amount),
+    [entries],
+  )
+  const pieEntrance = useChartEntranceAnimation({ dataSignature })
 
   function getBreakdownColor(entry: BreakdownEntry) {
     return getCategoryColor({
@@ -136,6 +145,7 @@ export function IncomeExpensePieChart({
                 showEntryTooltip(entries[index], event)
               }}
               onMouseLeave={hideTooltip}
+              {...pieEntrance}
             >
               {entries.map((entry) => (
                 <Cell key={entry.id} fill={getSpacedBreakdownColor(entry)} />

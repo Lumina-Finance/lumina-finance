@@ -1,4 +1,4 @@
-import { useRef, type MouseEvent as ReactMouseEvent } from 'react'
+import { useMemo, useRef, type MouseEvent as ReactMouseEvent } from 'react'
 import {
   Bar,
   BarChart,
@@ -14,6 +14,10 @@ import {
   type ChartTooltipPointer,
   type DeferredChartTooltipOverlayHandle,
 } from '@/components/charts/DeferredTooltipOverlay'
+import {
+  getChartDataSignature,
+  useChartEntranceAnimation,
+} from '@/components/charts/useChartEntranceAnimation'
 import { SavingsCurrentBoundary } from '@/pages/dashboard/components/SavingsCurrentBoundary'
 import { DASHBOARD_X_AXIS_TICK_FONT_SIZE } from '@/pages/dashboard/constants/chart'
 import type { SavingsRateHistoryPoint } from '@/pages/insights/types/savingsRate'
@@ -160,6 +164,18 @@ export function SavingsRateChart({
     capRates,
   })
 
+  // The bar height comes from chartRate, the fill from the uncapped rate and isCurrent, and the
+  // capped plot switches to a fixed vertical scale that changes every height without changing a
+  // single rate, so all four have to arm the entrance
+  const dataSignature = useMemo(
+    () => `${capRates}:${getChartDataSignature(
+      chartPoints,
+      (point) => `${point.chartRate}|${point.rate}|${point.isCurrent}`,
+    )}`,
+    [capRates, chartPoints],
+  )
+  const barEntrance = useChartEntranceAnimation({ dataSignature })
+
   /**
    * Shows the bar tooltip for the active Recharts savings-rate point
    */
@@ -253,7 +269,7 @@ export function SavingsRateChart({
                 />
               )}
               {currentPoint && <SavingsCurrentBoundary currentLabel={currentPoint.monthKey} />}
-              <Bar dataKey="chartRate" radius={[3, 3, 0, 0]} maxBarSize={30}>
+              <Bar dataKey="chartRate" radius={[3, 3, 0, 0]} maxBarSize={30} {...barEntrance}>
                 {chartPoints.map((entry: SavingsRateChartPoint) => {
                   const tier = getSavingsRateTier(entry.rate)
                   return (
