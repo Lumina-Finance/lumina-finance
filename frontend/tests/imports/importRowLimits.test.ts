@@ -1,6 +1,6 @@
 /**
- * Tests that a row the API would refuse for its notes or its tags is named against its row number in
- * the preview, rather than passing the preview and failing part-way through the upload
+ * Tests the limits the importer checks before anything is uploaded: what one row may carry, named
+ * against its row number, and how many distinct values a whole import may declare
  */
 import { describe, expect, it } from 'vitest'
 import type { AccountsOverview } from '@/api/accounts'
@@ -10,6 +10,8 @@ import {
   EMPTY_COLUMN_MAP,
   getRowNotesTooLongReason,
   getRowTooManyTagsReason,
+  getTooManyMappingsError,
+  MAX_IMPORT_MAPPINGS,
   MAX_IMPORT_NOTES_LENGTH,
   MAX_IMPORT_TAGS_PER_ROW,
 } from '@/pages/imports/constants'
@@ -129,3 +131,71 @@ describe('refusing a row carrying too many tags', () => {
     expect(result.payload?.rows[0].tag_names).toEqual(['groceries', 'food', 'weekly'])
   })
 })
+
+describe('refusing an import declaring more values than it may carry', () => {
+  // No answer to any outstanding mapping question can make such an import work, so it is said
+  // before those questions rather than after the user has answered every one of them
+  it('says so while category types are still unanswered', () => {
+    const result = buildWithManyCategories(MAX_IMPORT_MAPPINGS + 1)
+
+    expect(result.payload).toBeNull()
+    expect(result.errors).toContain(getTooManyMappingsError('category', MAX_IMPORT_MAPPINGS + 1))
+  })
+
+  it('accepts an import sitting exactly on the limit', () => {
+    const result = buildWithManyCategories(MAX_IMPORT_MAPPINGS)
+
+    expect(result.errors).not.toContain(getTooManyMappingsError('category', MAX_IMPORT_MAPPINGS))
+  })
+})
+
+/**
+ * Builds a payload for a file whose category column holds the given number of distinct values
+ *
+ * Every value is left unmapped, which is the state a user is in before answering the matching step,
+ * and is what proves the count is reported without waiting for those answers
+ */
+function buildWithManyCategories(count: number) {
+  const sources = Array.from({ length: count }, (_, index) => `Category ${index}`)
+  const rows: CsvRow[] = sources.map((source) => ({
+    Date: '2026-04-10',
+    Category: source,
+    Amount: '-12.34',
+    Notes: '',
+    Tags: '',
+  }))
+  const file: ImportFileDraft = {
+    id: 'file-1',
+    name: 'Chequing.csv',
+    size: 512,
+    headers: HEADERS,
+    hasHeaderRow: true,
+    rows,
+    error: null,
+  }
+
+  return buildTransactionImportPayload({
+    accountById: new Map([[ACCOUNT.id, ACCOUNT]]),
+    accountCreateCurrencies: {},
+    accountCreateInstitutions: {},
+    accountCreateTypes: {},
+    accountMappings: { 'file-1': ACCOUNT.id },
+    accountSources: [{ id: 'file-1', label: 'Chequing.csv', matchText: 'Chequing.csv', isCounterpartyOnly: false }],
+    categoryById: new Map([[CATEGORY.id, CATEGORY]]),
+    categoryCreateKinds: {},
+    categoryMappings: Object.fromEntries(sources.map((source) => [source, CATEGORY.id])),
+    categoryTypesBySource: {},
+    columnMap: {
+      ...EMPTY_COLUMN_MAP,
+      dt: 'Date',
+      category_id: 'Category',
+      amount: 'Amount',
+    },
+    columnValidationErrors: {},
+    currencies: CURRENCIES,
+    dateFormat: 'yearFirst',
+    files: [file],
+    importedCategories: sources,
+    noPayeeColumnConfirmed: true,
+  })
+}

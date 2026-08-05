@@ -57,10 +57,13 @@ export const MAX_IMPORT_TAGS_PER_ROW = 32
 export const MAX_IMPORT_MAPPINGS = 1_000
 
 /**
- * Says a file declares more distinct values for a column than one import may carry
+ * Says an import declares more distinct values for a column than one import may carry
+ *
+ * Counted across every staged file, since they are imported together as one run, so the way out is
+ * to stage fewer of them at a time rather than to split any one file
  */
 export function getTooManyMappingsError(kind: 'account' | 'category', count: number) {
-  return `This file has ${count.toLocaleString()} different ${kind} values, and one import carries up to ${MAX_IMPORT_MAPPINGS.toLocaleString()}. Split it into smaller files.`
+  return `These files have ${count.toLocaleString()} different ${kind} values between them, and one import carries up to ${MAX_IMPORT_MAPPINGS.toLocaleString()}. Import fewer files at a time.`
 }
 
 /**

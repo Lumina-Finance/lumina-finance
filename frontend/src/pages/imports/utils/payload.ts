@@ -177,6 +177,12 @@ export function buildTransactionImportPayload({
     categories.push({ source, category_id: choice })
   }
 
+  // Said before the mapping questions are judged, because no answer to any of them makes a file
+  // carrying this many values importable, and asking them first would have the user answer every
+  // one before learning that
+  if (accounts.length > MAX_IMPORT_MAPPINGS) addError(getTooManyMappingsError('account', accounts.length))
+  if (categories.length > MAX_IMPORT_MAPPINGS) addError(getTooManyMappingsError('category', categories.length))
+
   // Judging rows before every mapping they depend on is answered blames them for the answer being
   // missing: with no category column mapped, every row reads as one with a blank category, and with
   // no date format settled, every row reads as one whose date does not fit
@@ -242,12 +248,6 @@ export function buildTransactionImportPayload({
   // no row's verdict depends on the answer, and asking it up there would empty the problem list the
   // user needs in order to give it
   if (!columnMap.merchant_id && !noPayeeColumnConfirmed) addError(NO_MERCHANT_COLUMN_ERROR)
-
-  // The API bounds how many mappings one import may declare, and it counts them across the whole
-  // run, so no way of splitting the batches gets a file past it. Said here, before anything is
-  // uploaded, rather than as a refusal part-way through staging
-  if (accounts.length > MAX_IMPORT_MAPPINGS) addError(getTooManyMappingsError('account', accounts.length))
-  if (categories.length > MAX_IMPORT_MAPPINGS) addError(getTooManyMappingsError('category', categories.length))
 
   const warnings = getImportWarnings(rows)
   const allErrors = [...columnErrors, ...errors]
