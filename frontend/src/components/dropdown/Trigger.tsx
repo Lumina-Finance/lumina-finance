@@ -12,7 +12,10 @@ interface DropdownHeadProps {
   headRef: RefObject<HTMLButtonElement | null>
   id?: string
 
-  /** Id of the element naming this control, for a field whose label sits above it */
+  /**
+   * Id of the visible label this control takes its accessible name from, for a field whose label
+   * sits above it
+   */
   labelledBy?: string
 
   /** Id of the open list, so assistive software can follow the head to the options it controls */

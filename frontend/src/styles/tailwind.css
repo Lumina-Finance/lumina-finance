@@ -635,7 +635,7 @@
 
   /* Every state below is the box class plus exactly one more simple selector, so they all weigh the
      same and the later rule wins. That settles which state shows once, in this order: touched, then
-     focused, then open, then rejected, then unavailable. Each one names every property the others
+     focused, then open, then rejected, then unavailable. Each one sets every property the others
      set, since equal weight settles a property at a time and one left out is one an earlier state
      still wins. Open is written as two classes for that reason alone, since a lone class would weigh
      less than a hover and lose to it. A new state goes in this order rather than out-weighing what

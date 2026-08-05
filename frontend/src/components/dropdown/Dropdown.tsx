@@ -57,7 +57,10 @@ interface DropdownProps {
   /** Draws the control in the error state, for a field the form has rejected */
   hasError?: boolean;
 
-  /** Id of the visible label naming this field, since a label element cannot name a button on its own */
+  /**
+   * Id of the visible label for this field, since a label element does not give a button its
+   * accessible name
+   */
   labelledBy?: string;
 
   placeholder?: string;
@@ -234,7 +237,7 @@ const Dropdown = ({
       if (!container || !(target instanceof Element) || container.contains(target)) return;
 
       // The field's own visible label sits outside this container but points at the head inside it,
-      // and a label's job is to repeat the click on what it names. Closing here would be undone a
+      // and a label repeats its click on the control it belongs to. Closing here would be undone a
       // moment later by that repeat, which reaches a list this handler has already closed and opens
       // it again. Left alone, the repeat arrives at the head and closes the list once, exactly as
       // pressing the head does
