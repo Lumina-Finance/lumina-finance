@@ -14,7 +14,7 @@ export const ACCOUNT_SKELETON_DELAY_MS = 150
 
 // Once the skeleton is on screen it stays for at least this long, so an account arriving just
 // after it appears does not replace it mid-blink
-export const ACCOUNT_SKELETON_MINIMUM_MS = 300
+export const ACCOUNT_SKELETON_MINIMUM_MS = 800
 
 export const EDIT_ACCOUNT_IDENTITY_FIELD_IDS = {
   name: 'edit-account-name',
