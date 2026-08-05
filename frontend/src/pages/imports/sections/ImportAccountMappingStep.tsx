@@ -186,8 +186,8 @@ export function ImportAccountMappingStep({
       ) : (
         <>
           {clearedAccountSourceLabels.length > 0 && (
-            <ImportNotice title={CLEARED_ACCOUNT_SOURCES_TITLE}>
-              {`${CLEARED_ACCOUNT_SOURCES_EXPLANATION} ${clearedAccountSourceLabels.join(', ')}`}
+            <ImportNotice title={CLEARED_ACCOUNT_SOURCES_TITLE} items={clearedAccountSourceLabels}>
+              {CLEARED_ACCOUNT_SOURCES_EXPLANATION}
             </ImportNotice>
           )}
           {archivedAccountMatches.length > 0 && (

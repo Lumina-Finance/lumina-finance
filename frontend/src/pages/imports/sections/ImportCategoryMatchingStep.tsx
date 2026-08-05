@@ -65,8 +65,8 @@ export function ImportCategoryMatchingStep({
       ) : (
         <>
         {clearedCategorySourceLabels.length > 0 && (
-          <ImportNotice title={CLEARED_CATEGORY_SOURCES_TITLE}>
-            {`${CLEARED_CATEGORY_SOURCES_EXPLANATION} ${clearedCategorySourceLabels.join(', ')}`}
+          <ImportNotice title={CLEARED_CATEGORY_SOURCES_TITLE} items={clearedCategorySourceLabels}>
+            {CLEARED_CATEGORY_SOURCES_EXPLANATION}
           </ImportNotice>
         )}
         <ImportValueMatchTable
