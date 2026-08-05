@@ -327,6 +327,37 @@ describe('CSV import counterparty account', () => {
     expect(rows[0].counterpartyAccountName).toBe('Savings')
   })
 
+  // A counterparty source loses its answer when the account it was matched to is deleted, and the
+  // step then holds it blank rather than falling back to the outside answer. The preview has to
+  // hold the same line, or it states money leaving for a row the commit is about to refuse
+  it('previews a counterparty source with no answer as unanswered rather than as money leaving', () => {
+    const rows = buildImportPreviewRows({
+      files: [createFile([
+        { Account: 'Chequing', Date: '2026-04-11', Amount: '-500.00', Category: 'Transfer', 'Other account': 'Savings' },
+      ])],
+      columnMap: COLUMN_MAP,
+      dateFormat: 'yearFirst',
+      missingRequiredColumnLabels: [],
+      currencies,
+      accountById: new Map([[CHEQUING.id, CHEQUING]]),
+      accountCreateCurrencies: {},
+      accountCreateInstitutions: {},
+      categoryById: new Map([[TRANSFER.id, TRANSFER]]),
+      categoryCreateKinds: {},
+      categoryTypesBySource: {},
+      institutionById: new Map(),
+
+      // Savings was answered, then the account was deleted, so the source carries no answer at all
+      resolvedAccountMappings: { Chequing: CHEQUING.id },
+
+      resolvedCategoryMappings: { Transfer: TRANSFER.id },
+      rowProblems: [],
+    })
+
+    expect(rows[0].transaction.counterparty_account_scope).toBeNull()
+    expect(rows[0].transaction.counterparty_account_id).toBeNull()
+  })
+
   it('previews a row whose category cannot record a counterparty account as unanswered', () => {
     const rows = buildImportPreviewRows({
       files: [createFile([

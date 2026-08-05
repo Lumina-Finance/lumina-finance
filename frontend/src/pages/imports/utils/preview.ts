@@ -196,7 +196,11 @@ export function buildImportPreviewRows({
           notes: resolved.notes,
 
           counterparty_account_id: counterpartyAccount?.id ?? (counterpartyChoice === CREATE_ACCOUNT_VALUE ? CREATE_ACCOUNT_VALUE : null),
-          counterparty_account_scope: getPreviewCounterpartyScope(recordsCounterparty, counterpartyChoice),
+          counterparty_account_scope: getPreviewCounterpartyScope(
+            recordsCounterparty,
+            counterpartyChoice,
+            !counterpartySource || Boolean(counterpartyChoice),
+          ),
           created_at: timestamp,
           updated_at: timestamp,
           tag_ids: tagIds,
@@ -243,9 +247,23 @@ function getStampedPreviewMerchantName(category: Category | undefined) {
  *
  * A transfer that states no counterparty records that the money left the app, which is what the
  * import writes for it, and a category that records neither leaves both fields empty
+ *
+ * @param recordsCounterparty - Whether this row's category records where the money went at all
+ * @param counterpartyChoice - What the counterparty source is mapped to
+ * @param isCounterpartyAnswered - Whether that source has an answer at all, which covers a source
+ *   still waiting on one and a source whose account was deleted after it was chosen
  */
-function getPreviewCounterpartyScope(recordsCounterparty: boolean, counterpartyChoice: string) {
+function getPreviewCounterpartyScope(
+  recordsCounterparty: boolean,
+  counterpartyChoice: string,
+  isCounterpartyAnswered: boolean,
+) {
   if (!recordsCounterparty) return null
+
+  // A source with no answer says nothing yet about where the money went. A file stating no
+  // counterparty at all is the separate case above, and is read as the money leaving
+  if (!isCounterpartyAnswered) return null
+
   return counterpartyChoice && counterpartyChoice !== OUTSIDE_ACCOUNT_VALUE ? 'tracked' : 'outside'
 }
 

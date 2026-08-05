@@ -15,6 +15,8 @@ import type {
   ImportProgressStep,
 } from '@/pages/imports/types'
 import {
+  dropVanishedAccountMappings,
+  dropVanishedCategoryMappings,
   getErrorMessage,
   getImportUploadBlockReason,
   getSupportedCurrencyCodes,
@@ -112,6 +114,12 @@ export function useFireflyImportWorkflow() {
     accountsLoading,
     currenciesLoading,
     currenciesError,
+    accountsFailed,
+    categoriesFailed,
+    accountsResolved,
+    categoriesResolved,
+    refetchAccounts,
+    refetchCategories,
     institutionsLoading,
     categoriesLoading,
     selectableAccounts,
@@ -153,9 +161,14 @@ export function useFireflyImportWorkflow() {
     [fireflyRows],
   )
 
+  const supportedCurrencyCodes = useMemo(
+    () => getSupportedCurrencyCodes(currencies),
+    [currencies],
+  )
+
   const accountPrefills = useMemo(
-    () => buildFireflyAccountPrefills(fireflyRows, trackedAccountNames),
-    [fireflyRows, trackedAccountNames],
+    () => buildFireflyAccountPrefills(fireflyRows, trackedAccountNames, supportedCurrencyCodes),
+    [fireflyRows, supportedCurrencyCodes, trackedAccountNames],
   )
 
   // Every Firefly source is an account the import writes rows into, so none of them can be
@@ -167,11 +180,23 @@ export function useFireflyImportWorkflow() {
 
   // Names without an explicit choice fall back to the best existing-account
   // match and default to create-new so every tracked account stays mapped
+  // An answer pointing at a deleted account is dropped before anything is derived from it, or the
+  // commit sends an id the server will refuse. Unlike the CSV flow there is no unanswered state to
+  // put the row back into, since every name here resolves to a match or to creating an account, so
+  // a dropped answer is replaced by whichever of those applies. Only the match shows as auto-filled,
+  // since creating a new account is what an unmatched name does here rather than a guess at one
+  const liveAccountMappings = useMemo(
+    () => (accountsResolved
+      ? dropVanishedAccountMappings(accountMappings, accountById).mappings
+      : accountMappings),
+    [accountById, accountMappings, accountsResolved],
+  )
+
   const resolvedAccountMappings = useMemo(
     () => {
       // Both sides of a Firefly transfer take rows, so no source here can record an archived
       // account and both lists are the same one
-      const inferred = inferAccountMappings(accountMappingSources, accountMappings, {
+      const inferred = inferAccountMappings(accountMappingSources, liveAccountMappings, {
         rowAccounts: selectableAccounts,
         counterpartyAccounts: selectableAccounts,
       })
@@ -180,16 +205,23 @@ export function useFireflyImportWorkflow() {
       }
       return inferred
     },
-    [accountMappingSources, accountMappings, selectableAccounts, trackedAccountNames],
+    [accountMappingSources, liveAccountMappings, selectableAccounts, trackedAccountNames],
   )
 
   const autoFilledAccountSources = useMemo(
     () => new Set(
       trackedAccountNames.filter((name) => (
-        !accountMappings[name] && resolvedAccountMappings[name] !== CREATE_ACCOUNT_VALUE
+        !liveAccountMappings[name] && resolvedAccountMappings[name] !== CREATE_ACCOUNT_VALUE
       )),
     ),
-    [accountMappings, resolvedAccountMappings, trackedAccountNames],
+    [liveAccountMappings, resolvedAccountMappings, trackedAccountNames],
+  )
+
+  // Read before the name match and the create-new default are layered on, so the batch bar can tell
+  // an answer the user gave from one the step filled in for them
+  const handAnsweredAccountSources = useMemo(
+    () => new Set(Object.entries(liveAccountMappings).filter(([, choice]) => choice).map(([source]) => source)),
+    [liveAccountMappings],
   )
 
   const resolvedAccountCreateDetails = useMemo(
@@ -217,18 +249,26 @@ export function useFireflyImportWorkflow() {
     [fireflyRows],
   )
 
+  // Same reason as the accounts above: a match pointing at a deleted category would reach the commit
+  const liveCategoryMappings = useMemo(
+    () => (categoriesResolved
+      ? dropVanishedCategoryMappings(categoryMappings, categoryById).mappings
+      : categoryMappings),
+    [categoriesResolved, categoryById, categoryMappings],
+  )
+
   const resolvedCategoryMappings = useMemo(
-    () => inferFireflyCategoryMappings(importedCategories, categoryMappings, categories ?? [], inferredCategoryKinds),
-    [categories, categoryMappings, importedCategories, inferredCategoryKinds],
+    () => inferFireflyCategoryMappings(importedCategories, liveCategoryMappings, categories ?? [], inferredCategoryKinds),
+    [categories, liveCategoryMappings, importedCategories, inferredCategoryKinds],
   )
 
   const autoFilledCategories = useMemo(
     () => new Set(
       importedCategories.filter((source) => (
-        !categoryMappings[source] && resolvedCategoryMappings[source] !== CREATE_CATEGORY_VALUE
+        !liveCategoryMappings[source] && resolvedCategoryMappings[source] !== CREATE_CATEGORY_VALUE
       )),
     ),
-    [categoryMappings, importedCategories, resolvedCategoryMappings],
+    [liveCategoryMappings, importedCategories, resolvedCategoryMappings],
   )
 
   // Category creates always carry a kind because unresolved sources default to
@@ -328,12 +368,14 @@ export function useFireflyImportWorkflow() {
       rows: fireflyRows,
       trackedAccountNames,
       accountMappings: resolvedAccountMappings,
+      accountById,
       accountCreateDetails: resolvedAccountCreateDetails,
       importedCategories,
       categoryMappings: resolvedCategoryMappings,
       categoryCreateKinds: resolvedCategoryKinds,
     }),
     [
+      accountById,
       fireflyRows,
       importedCategories,
       resolvedAccountCreateDetails,
@@ -452,7 +494,7 @@ export function useFireflyImportWorkflow() {
 
     try {
       const [draft] = await Promise.all([
-        readFireflyCsvFile(selected, kind, getSupportedCurrencyCodes(currencies)),
+        readFireflyCsvFile(selected, kind, supportedCurrencyCodes),
         waitForMilliseconds(FIREFLY_CSV_PROCESSING_MIN_MS),
       ])
       assignFireflyFile(kind, draft)
@@ -630,6 +672,11 @@ export function useFireflyImportWorkflow() {
     accountPrefills,
     accountMappings: resolvedAccountMappings,
     autoFilledAccountSources,
+    handAnsweredAccountSources,
+    accountsFailed,
+    categoriesFailed,
+    refetchAccounts,
+    refetchCategories,
     accountCreateDetails: resolvedAccountCreateDetails,
     selectedAccountRows,
     batchAccountType,

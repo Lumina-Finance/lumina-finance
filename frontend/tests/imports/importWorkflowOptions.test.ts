@@ -13,6 +13,7 @@ import {
   CURRENCIES_FAILED_UPLOAD_BLOCK,
   CURRENCIES_LOADING_UPLOAD_BLOCK,
   EMPTY_COLUMN_MAP,
+  UNSET_BATCH_INSTITUTION,
 } from '@/pages/imports/constants'
 import type { ImportFileDraft } from '@/pages/imports/types'
 import {
@@ -110,6 +111,14 @@ describe('import workflow option helpers', () => {
       { value: '', label: 'None' },
       { value: 'bank', label: 'Bank' },
     ])
+  })
+
+  // The batch bar shows its placeholder by holding a value no option carries, so the moment one
+  // does, the resting control reads as an answer the user never gave
+  it('offers no institution option matching the unset value the batch bar holds', () => {
+    const options = buildImportInstitutionOptions([{ id: 'bank', name: 'Bank' } as Institution])
+
+    expect(options.some((option) => option.value === UNSET_BATCH_INSTITUTION)).toBe(false)
   })
 
   it('sorts category match options by kind and name after the create action', () => {
@@ -232,13 +241,21 @@ describe('archived accounts in account mapping', () => {
   it('reports the archived account a row source was left unmapped by', () => {
     const accounts = [chequing, archivedSavings]
 
-    expect(getArchivedAccountMatches([rowSource], {}, accounts)).toEqual(['Old Savings'])
+    // The id comes back with the name, since the notice links each one to the account's own page
+    expect(getArchivedAccountMatches([rowSource], {}, accounts)).toEqual([{ id: 'savings', name: 'Old Savings' }])
 
     // Nothing to say once the source is answered, and nothing to say about a counterparty source,
     // which is offered the archived account in the first place
     expect(getArchivedAccountMatches([rowSource], { 'Old Savings': 'checking' }, accounts)).toEqual([])
     expect(getArchivedAccountMatches([counterpartySource], {}, accounts)).toEqual([])
     expect(getArchivedAccountMatches([rowSource], {}, [chequing])).toEqual([])
+  })
+
+  it('lists an archived account once however many sources point at it', () => {
+    const secondSource = { ...rowSource, id: 'Old Savings Account', matchText: 'Old Savings Account' }
+
+    expect(getArchivedAccountMatches([rowSource, secondSource], {}, [chequing, archivedSavings]))
+      .toEqual([{ id: 'savings', name: 'Old Savings' }])
   })
 })
 

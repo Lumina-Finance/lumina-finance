@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import { useNavigate, useParams } from 'react-router'
+import { useLocation, useNavigate, useParams } from 'react-router'
 import { useAccount, useAccounts, type Account } from '@/api/accounts'
 import { useTaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
 import type { Transaction } from '@/api/transactions'
@@ -31,6 +31,7 @@ type DeleteExitPhase = 'idle' | 'pending' | 'modal' | 'page'
  */
 export default function AccountDetailPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { accountId } = useParams<{ accountId: string }>()
   const { data: account, error } = useAccount(accountId)
 
@@ -42,9 +43,20 @@ export default function AccountDetailPage() {
   const [showTxnModal, setShowTxnModal] = useState(false)
   const [txnModalKey, setTxnModalKey] = useState(0)
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
-  const [showAccountEditModal, setShowAccountEditModal] = useState(false)
+  // The import step's archived-account notice links here to have the account unarchived, which is
+  // done in this modal, so arriving that way opens it
+  const wantsAccountEditModal = (location.state as { editAccount?: boolean } | null)?.editAccount === true
+  const [showAccountEditModal, setShowAccountEditModal] = useState(wantsAccountEditModal)
   const [deleteExitPhase, setDeleteExitPhase] = useState<DeleteExitPhase>('idle')
   const [deletedAccountSnapshot, setDeletedAccountSnapshot] = useState<Account | null>(null)
+
+  // Taken off the history entry once it has been read, so a reload does not reopen the modal. This
+  // answers to the arrival rather than to the modal being open, since the Edit button opens the
+  // same modal and would otherwise rewrite the entry every time it was pressed
+  useEffect(() => {
+    if (!wantsAccountEditModal) return
+    navigate(`${location.pathname}${location.search}${location.hash}`, { replace: true, state: null })
+  }, [location.hash, location.pathname, location.search, navigate, wantsAccountEditModal])
 
   const visibleAccount = account ?? (deleteExitPhase !== 'idle' ? deletedAccountSnapshot : null)
   const linkedTaxAdvantagedCategoryId = visibleAccount?.group_id === null ? visibleAccount.tax_advantaged_category_id : null

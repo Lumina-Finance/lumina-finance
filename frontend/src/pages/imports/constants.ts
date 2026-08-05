@@ -174,7 +174,24 @@ export const AMOUNT_CONVENTION_NOTE = 'Imported amounts carry their own directio
 
 // Shown where a source rows are written to matches an account the user has archived, which is the
 // one account that source is not offered. The matched account names follow it
-export const ARCHIVED_ACCOUNT_MATCH_EXPLANATION = 'An archived account takes no new transactions, so it is not offered as a choice here. Unarchive one of these to import rows into it:'
+export const ARCHIVED_ACCOUNT_MATCH_EXPLANATION = 'An archived account takes no new transactions, so it is not offered as a choice here. Unarchive one of these to import rows into it, which means leaving this import and uploading your file again:'
+
+// Shown in place of a mapping step whose list could not be fetched at all, since answering one
+// against nothing maps every value to a new record and duplicates what the user already has
+export const ACCOUNTS_LOAD_FAILURE_TITLE = 'Your accounts could not be loaded'
+export const ACCOUNTS_LOAD_FAILURE_EXPLANATION = 'Without them every source here would have to become a new account, which would duplicate accounts you already have.'
+export const CATEGORIES_LOAD_FAILURE_TITLE = 'Your categories could not be loaded'
+export const CATEGORIES_LOAD_FAILURE_EXPLANATION = 'Without them every category in this file would have to become a new one, which would duplicate categories you already have.'
+
+// Shown when a mapping was answered with an account that has since been deleted. The answer is
+// dropped rather than sent, and nothing fills the row back in, so the user is told why a source
+// they already dealt with is asking again
+export const CLEARED_ACCOUNT_SOURCES_TITLE = 'Answers cleared'
+// The answers a row can be given differ between the two tables, and one notice covers both, so it
+// asks for an answer rather than listing which ones are on offer
+export const CLEARED_ACCOUNT_SOURCES_EXPLANATION = 'An account these sources were matched to no longer exists, so their answers were cleared. Answer each one again:'
+export const CLEARED_CATEGORY_SOURCES_TITLE = 'Answers cleared'
+export const CLEARED_CATEGORY_SOURCES_EXPLANATION = 'A category these values were matched to no longer exists, so their answers were cleared. Choose a category for each one, or queue a new one for it:'
 
 // Shown over the accounts that appear only as a counterparty, which the import writes nothing to
 export const COUNTERPARTY_ONLY_TABLE_TITLE = 'Counterparty accounts'
@@ -210,6 +227,12 @@ export const KIND_RANKS: Record<Category['kind'], number> = {
 export const DEFAULT_CATEGORY_ICON = '🏷️'
 export const CREATE_ACCOUNT_VALUE = '__create_account__'
 export const CREATE_CATEGORY_VALUE = '__create_category__'
+
+// What the batch bar's institution control holds before anything is chosen. The institution list
+// already spends the empty string on "None", which is a real answer meaning the account belongs to
+// no institution, so nothing chosen needs a value of its own. Absent from the options list, which
+// is what leaves the control showing its placeholder rather than the first option's label
+export const UNSET_BATCH_INSTITUTION = '__unset_institution__'
 export const IMPORT_CATEGORY_KIND_OPTIONS: Array<{ value: ImportCategoryKind; label: string }> = [
   { value: 'expense', label: 'Expense' },
   { value: 'income', label: 'Income' },

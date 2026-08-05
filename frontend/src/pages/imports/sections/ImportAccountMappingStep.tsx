@@ -1,13 +1,19 @@
 import { useState } from 'react'
+import { Link } from 'react-router'
 import CreateInstitutionModal from '@/components/reference-modals/CreateInstitutionModal'
 import {
+  ACCOUNTS_LOAD_FAILURE_EXPLANATION,
+  ACCOUNTS_LOAD_FAILURE_TITLE,
   ACCOUNT_TYPE_OPTIONS,
   ARCHIVED_ACCOUNT_MATCH_EXPLANATION,
+  CLEARED_ACCOUNT_SOURCES_EXPLANATION,
+  CLEARED_ACCOUNT_SOURCES_TITLE,
   COUNTERPARTY_ONLY_EXPLANATION,
   COUNTERPARTY_ONLY_TABLE_TITLE,
+  UNSET_BATCH_INSTITUTION,
 } from '@/pages/imports/constants'
 import type { ImportAccountSource } from '@/pages/imports/types'
-import { ImportAccountMappingTable, EmptyState, ImportNotice, ImportStep } from '@/pages/imports/components'
+import { ImportAccountMappingTable, EmptyState, ImportLoadFailure, ImportNotice, ImportStep } from '@/pages/imports/components'
 import type { TransactionImportWorkflow } from '@/pages/imports/hooks'
 
 // Which batch bar asked for a new institution, since each table has one and a row id can be neither
@@ -21,6 +27,7 @@ type ImportAccountMappingStepProps = Pick<
   | 'accountMappings'
   | 'archivedAccountMatches'
   | 'autoFilledAccountSources'
+  | 'handAnsweredAccountSources'
   | 'accountById'
   | 'accountCreateTypes'
   | 'accountCreateCurrencies'
@@ -34,6 +41,9 @@ type ImportAccountMappingStepProps = Pick<
   | 'currencyOptions'
   | 'institutionOptions'
   | 'accountsLoading'
+  | 'accountsFailed'
+  | 'refetchAccounts'
+  | 'clearedAccountSourceLabels'
   | 'currenciesLoading'
   | 'institutionsLoading'
   | 'selectedAccountRows'
@@ -55,6 +65,7 @@ export function ImportAccountMappingStep({
   accountMappings,
   archivedAccountMatches,
   autoFilledAccountSources,
+  handAnsweredAccountSources,
   accountById,
   accountCreateTypes,
   accountCreateCurrencies,
@@ -68,6 +79,9 @@ export function ImportAccountMappingStep({
   currencyOptions,
   institutionOptions,
   accountsLoading,
+  accountsFailed,
+  refetchAccounts,
+  clearedAccountSourceLabels,
   currenciesLoading,
   institutionsLoading,
   selectedAccountRows,
@@ -87,7 +101,7 @@ export function ImportAccountMappingStep({
   // The counterparty table carries its own batch bar, so typing into one bar leaves the other alone
   const [counterpartyBatchType, setCounterpartyBatchType] = useState('')
   const [counterpartyBatchCurrency, setCounterpartyBatchCurrency] = useState('')
-  const [counterpartyBatchInstitution, setCounterpartyBatchInstitution] = useState('')
+  const [counterpartyBatchInstitution, setCounterpartyBatchInstitution] = useState(UNSET_BATCH_INSTITUTION)
 
   const openInstitutionModal = (query: string, target: BatchTarget | string) => {
     setInstitutionModalName(query)
@@ -120,6 +134,9 @@ export function ImportAccountMappingStep({
       value,
       selectedOption: account ? { value, label: account.name } : undefined,
       autoFilled: autoFilledAccountSources.has(sourceAccount.id),
+      isCounterpartyOnly: sourceAccount.isCounterpartyOnly,
+      isArchivedAccount: account?.is_archived ?? false,
+      isHandAnswered: handAnsweredAccountSources.has(sourceAccount.id),
       accountType: account?.account_type ?? '',
       accountCurrency: account?.currency ?? '',
       accountInstitution: account?.institution?.id ?? '',
@@ -150,19 +167,48 @@ export function ImportAccountMappingStep({
 
   return (
     <ImportStep index="03" title="Account Mapping">
-      <ImportNotice title="Currency Handling">
-        Imported amounts are treated as raw values. During import, each amount will be assigned the base currency of the mapped account or the currency selected for a new account.
-      </ImportNotice>
-      {accountMappingSources.length === 0 ? (
+      {!accountsFailed && (
+        <ImportNotice title="Currency Handling">
+          Imported amounts are treated as raw values. During import, each amount will be assigned the base currency of the mapped account, or the currency shown against a new account, which is taken from the file where it states one and can be changed on any row.
+        </ImportNotice>
+      )}
+      {accountsFailed ? (
+        <ImportLoadFailure
+          title={ACCOUNTS_LOAD_FAILURE_TITLE}
+          description={ACCOUNTS_LOAD_FAILURE_EXPLANATION}
+          onRetry={refetchAccounts}
+        />
+      ) : accountMappingSources.length === 0 ? (
         <EmptyState
           title="No account sources detected"
           description="Upload a file or check the mapped account column."
         />
       ) : (
         <>
+          {clearedAccountSourceLabels.length > 0 && (
+            <ImportNotice title={CLEARED_ACCOUNT_SOURCES_TITLE} items={clearedAccountSourceLabels}>
+              {CLEARED_ACCOUNT_SOURCES_EXPLANATION}
+            </ImportNotice>
+          )}
           {archivedAccountMatches.length > 0 && (
-            <ImportNotice title="Archived Accounts">
-              {`${ARCHIVED_ACCOUNT_MATCH_EXPLANATION} ${archivedAccountMatches.join(', ')}`}
+            <ImportNotice
+              title="Archived Accounts"
+              items={archivedAccountMatches.map((match) => (
+                // The visible text is the account name, so the label is what says where following
+                // it goes, which is all a screen reader's list of links would otherwise show
+                <Link
+                  key={match.id}
+                  to={`/accounts/${match.id}`}
+                  state={{ editAccount: true }}
+                  aria-label={`Open ${match.name} to unarchive it`}
+                  className="font-medium underline underline-offset-2 transition-colors duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                  style={{ color: 'var(--app-accent)' }}
+                >
+                  {match.name}
+                </Link>
+              ))}
+            >
+              {ARCHIVED_ACCOUNT_MATCH_EXPLANATION}
             </ImportNotice>
           )}
           <ImportAccountMappingTable

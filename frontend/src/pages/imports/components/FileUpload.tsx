@@ -4,6 +4,9 @@ import { IMPORT_INSET_STYLE } from '@/pages/imports/constants'
 import type { ImportFileDraft, ImportUploadBlock } from '@/pages/imports/types'
 import { formatBytes } from '@/pages/imports/utils'
 
+// Shown on the card and read out by the live region beside it, so both say the same thing
+const PROCESSING_STATUS = 'Processing CSV'
+
 /**
  * Upload affordance shared by the import flows that animates between its idle
  * prompt and the processing state
@@ -16,6 +19,10 @@ import { formatBytes } from '@/pages/imports/utils'
  * so it is shown without telling the user to choose a different one, and it
  * leads when both are set. Only a block the user has to act on is dressed as an
  * error, since a page that is still loading its reference data is not one
+ *
+ * While it cannot take a file the card refuses presses rather than being
+ * disabled, since the browser blurs a disabled element and a file starting to
+ * parse would take the keyboard user's place on the page away from them
  */
 export function ImportUploadCard({
   title,
@@ -53,98 +60,116 @@ export function ImportUploadCard({
       transition: { duration: 0.24, ease: [0.25, 0.1, 0.25, 1] as const },
     }
 
+  // Written out rather than left to `disabled:` variants, which no longer apply, and rather than
+  // `aria-disabled:` ones, whose hover rule would land at the same specificity as the plain hover
+  // above it and be settled by the order Tailwind happens to emit them in
+  const unavailableClasses = blockReason?.isFailure ? 'cursor-not-allowed' : 'cursor-wait'
+  const availableClasses = 'hover:bg-[var(--app-surface-soft)]'
+
   return (
-    <button
-      type="button"
-      className={`group grid min-h-32 w-full place-items-center px-5 py-6 text-center transition-colors duration-150 hover:bg-[var(--app-surface-soft)] disabled:opacity-100 ${blockReason?.isFailure ? 'disabled:cursor-not-allowed' : 'disabled:cursor-wait'}`}
-      style={{
-        ...IMPORT_INSET_STYLE,
-        color: 'var(--app-text-muted)',
-        border: isRefusal ? '1px solid var(--app-negative-border)' : undefined,
-      }}
-      onClick={onClick}
-      disabled={disabled}
-      aria-busy={processing}
-    >
-      <span className="relative flex min-h-[5.75rem] w-full items-center justify-center overflow-hidden">
-        <AnimatePresence initial={false} mode="wait">
-          {processing ? (
-            <motion.span
-              key="processing"
-              className="flex flex-col items-center"
-              {...uploadStateMotion}
-            >
-              <span
-                className="mb-3 flex h-11 w-11 items-center justify-center"
-                style={{ background: 'var(--app-surface-soft)', color: 'var(--app-accent)' }}
+    <>
+      <button
+        type="button"
+        className={`group grid min-h-32 w-full place-items-center px-5 py-6 text-center transition-colors duration-150 ${disabled ? unavailableClasses : availableClasses}`}
+        style={{
+          ...IMPORT_INSET_STYLE,
+          color: 'var(--app-text-muted)',
+          border: isRefusal ? '1px solid var(--app-negative-border)' : undefined,
+        }}
+        onClick={() => {
+          if (disabled) return
+          onClick()
+        }}
+        aria-disabled={disabled}
+        aria-busy={processing}
+      >
+        <span className="relative flex min-h-[5.75rem] w-full items-center justify-center overflow-hidden">
+          <AnimatePresence initial={false} mode="wait">
+            {processing ? (
+              <motion.span
+                key="processing"
+                className="flex flex-col items-center"
+                {...uploadStateMotion}
               >
-                <LoaderCircle size={21} strokeWidth={2.4} className="animate-spin motion-reduce:animate-none" aria-hidden />
-              </span>
-              <span className="block text-sm font-semibold" style={{ color: 'var(--app-text)' }}>
-                Processing CSV
-              </span>
-              <span className="mt-2 flex items-center gap-1" aria-hidden>
-                <span className="h-1.5 w-6 animate-pulse" style={{ background: 'var(--app-accent)' }} />
-                <span className="h-1.5 w-6 animate-pulse [animation-delay:120ms]" style={{ background: 'var(--app-accent)' }} />
-                <span className="h-1.5 w-6 animate-pulse [animation-delay:240ms]" style={{ background: 'var(--app-accent)' }} />
-              </span>
-            </motion.span>
-          ) : message ? (
-            <motion.span
-              // Waiting and refusing are separate keys so a fetch that fails after the waiting
-              // message is on screen animates between the two rather than swapping the icon in
-              // place, and so the polite live region is replaced by an assertive one rather than
-              // having its politeness changed under a screen reader, which is not reliably honoured
-              key={isBlockedWithoutFailure ? 'waiting' : 'rejected'}
-              className="flex flex-col items-center"
-              role={isBlockedWithoutFailure ? 'status' : 'alert'}
-              {...uploadStateMotion}
-            >
-              <span
-                className="mb-3 flex h-11 w-11 items-center justify-center"
-                style={isBlockedWithoutFailure
-                  ? { background: 'var(--app-surface-soft)', color: 'var(--app-accent)' }
-                  : { background: 'var(--app-negative-soft)', color: 'var(--app-negative)' }}
-              >
-                {isBlockedWithoutFailure
-                  ? <LoaderCircle size={21} strokeWidth={2.4} className="animate-spin motion-reduce:animate-none" aria-hidden />
-                  : <TriangleAlert size={20} strokeWidth={2.25} aria-hidden />}
-              </span>
-              <span
-                className="block text-sm font-semibold"
-                style={{ color: isBlockedWithoutFailure ? 'var(--app-text-muted)' : 'var(--app-negative)' }}
-              >
-                {message}
-              </span>
-              {!blockReason && (
-                <span className="mt-1 block text-xs" style={{ color: 'var(--app-text-subtle)' }}>
-                  Choose another file to try again.
+                <span
+                  className="mb-3 flex h-11 w-11 items-center justify-center"
+                  style={{ background: 'var(--app-surface-soft)', color: 'var(--app-accent)' }}
+                >
+                  <LoaderCircle size={21} strokeWidth={2.4} className="animate-spin motion-reduce:animate-none" aria-hidden />
                 </span>
-              )}
-            </motion.span>
-          ) : (
-            <motion.span
-              key="upload"
-              className="flex flex-col items-center"
-              {...uploadStateMotion}
-            >
-              <span
-                className="mb-3 flex h-11 w-11 items-center justify-center transition-colors duration-150"
-                style={{ background: 'var(--app-surface-soft)' }}
+                <span className="block text-sm font-semibold" style={{ color: 'var(--app-text)' }}>
+                  {PROCESSING_STATUS}
+                </span>
+                <span className="mt-2 flex items-center gap-1" aria-hidden>
+                  <span className="h-1.5 w-6 animate-pulse" style={{ background: 'var(--app-accent)' }} />
+                  <span className="h-1.5 w-6 animate-pulse [animation-delay:120ms]" style={{ background: 'var(--app-accent)' }} />
+                  <span className="h-1.5 w-6 animate-pulse [animation-delay:240ms]" style={{ background: 'var(--app-accent)' }} />
+                </span>
+              </motion.span>
+            ) : message ? (
+              <motion.span
+                // Waiting and refusing are separate keys so a fetch that fails after the waiting
+                // message is on screen animates between the two rather than swapping the icon in
+                // place, and so the polite live region is replaced by an assertive one rather than
+                // having its politeness changed under a screen reader, which is not reliably honoured
+                key={isBlockedWithoutFailure ? 'waiting' : 'rejected'}
+                className="flex flex-col items-center"
+                role={isBlockedWithoutFailure ? 'status' : 'alert'}
+                {...uploadStateMotion}
               >
-                <Upload size={20} aria-hidden />
-              </span>
-              <span className="block text-sm font-semibold" style={{ color: 'var(--app-text)' }}>
-                {title}
-              </span>
-              <span className="mt-1 block text-xs" style={{ color: 'var(--app-text-subtle)' }}>
-                {hint}
-              </span>
-            </motion.span>
-          )}
-        </AnimatePresence>
+                <span
+                  className="mb-3 flex h-11 w-11 items-center justify-center"
+                  style={isBlockedWithoutFailure
+                    ? { background: 'var(--app-surface-soft)', color: 'var(--app-accent)' }
+                    : { background: 'var(--app-negative-soft)', color: 'var(--app-negative)' }}
+                >
+                  {isBlockedWithoutFailure
+                    ? <LoaderCircle size={21} strokeWidth={2.4} className="animate-spin motion-reduce:animate-none" aria-hidden />
+                    : <TriangleAlert size={20} strokeWidth={2.25} aria-hidden />}
+                </span>
+                <span
+                  className="block text-sm font-semibold"
+                  style={{ color: isBlockedWithoutFailure ? 'var(--app-text-muted)' : 'var(--app-negative)' }}
+                >
+                  {message}
+                </span>
+                {!blockReason && (
+                  <span className="mt-1 block text-xs" style={{ color: 'var(--app-text-subtle)' }}>
+                    Choose another file to try again.
+                  </span>
+                )}
+              </motion.span>
+            ) : (
+              <motion.span
+                key="upload"
+                className="flex flex-col items-center"
+                {...uploadStateMotion}
+              >
+                <span
+                  className="mb-3 flex h-11 w-11 items-center justify-center transition-colors duration-150"
+                  style={{ background: 'var(--app-surface-soft)' }}
+                >
+                  <Upload size={20} aria-hidden />
+                </span>
+                <span className="block text-sm font-semibold" style={{ color: 'var(--app-text)' }}>
+                  {title}
+                </span>
+                <span className="mt-1 block text-xs" style={{ color: 'var(--app-text-subtle)' }}>
+                  {hint}
+                </span>
+              </motion.span>
+            )}
+          </AnimatePresence>
+        </span>
+      </button>
+
+      {/* Outside the button and always present, so a screen reader is watching this region before
+          the text arrives. The refusal and waiting messages carry their own regions inside the
+          card, and only the processing state was left without one */}
+      <span className="sr-only" role="status">
+        {processing ? PROCESSING_STATUS : ''}
       </span>
-    </button>
+    </>
   )
 }
 

@@ -59,6 +59,35 @@ export function getImportedCategoryTypes(
 }
 
 /**
+ * Drops every match pointing at a category that no longer exists, and says which names lost one
+ *
+ * The create-new answer is left alone, or a name queued for a new category would be cleared the
+ * moment it was answered
+ *
+ * @param mappings - The matches as stored, before any guess is layered on
+ * @param categoryById - Every category the user has
+ */
+export function dropVanishedCategoryMappings(
+  mappings: Record<string, string>,
+  categoryById: Map<string, Category>,
+) {
+  const kept: Record<string, string> = {}
+  const clearedSources = new Set<string>()
+
+  for (const [source, choice] of Object.entries(mappings)) {
+    const isCategoryId = Boolean(choice) && choice !== CREATE_CATEGORY_VALUE
+    if (isCategoryId && !categoryById.has(choice)) {
+      clearedSources.add(source)
+      continue
+    }
+
+    kept[source] = choice
+  }
+
+  return { mappings: kept, clearedSources }
+}
+
+/**
  * Lines a map of matches up with the values currently present in the imported files, keeping the
  * matches that still apply, adding blanks for new values and dropping ones that have gone away
  *

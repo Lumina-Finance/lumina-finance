@@ -1,14 +1,15 @@
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
-import { CREATE_ACCOUNT_VALUE, IMPORT_INSET_STYLE } from '@/pages/imports/constants'
+import { CREATE_ACCOUNT_VALUE, IMPORT_INSET_STYLE, UNSET_BATCH_INSTITUTION } from '@/pages/imports/constants'
 import { OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
+import { canApplyBatchEditToRow, countImportAccountRowStates } from '@/pages/imports/utils'
 import { ImportCheckbox } from '@/pages/imports/components/Primitives'
 
 /**
  * Table mapping every source account found in an import to an existing account or a new one, with a
  * batch bar above it that applies a type, currency, and institution to every selected row at once
  *
- * Applying the batch edit switches each selected row to create-new before filling in the chosen
- * fields, so it never overwrites a row that is already mapped to an existing account
+ * Applying the batch edit fills in only the rows the user has not settled, switching each of those
+ * to create-new first, so an account they picked or that was matched for them is left alone
  */
 export function ImportAccountMappingTable({
   rows,
@@ -44,6 +45,16 @@ export function ImportAccountMappingTable({
      */
     selectedOption?: DropdownOption
     autoFilled?: boolean
+
+    /** Whether no row is written to this source, which is what makes the lenient answers legal */
+    isCounterpartyOnly: boolean
+
+    /** Whether the account this row points at is archived, false for every other kind of answer */
+    isArchivedAccount: boolean
+
+    /** Whether this row's answer came from the user rather than from a match or a default */
+    isHandAnswered: boolean
+
     accountType: string
     accountCurrency: string
     accountInstitution: string
@@ -76,10 +87,13 @@ export function ImportAccountMappingTable({
   const selectedRows = rows.filter((row) => selectedRowIds.has(row.id))
   const allRowsSelected = rows.length > 0 && selectedRows.length === rows.length
   const someRowsSelected = selectedRows.length > 0 && !allRowsSelected
-  const createRows = rows.filter((row) => row.value === CREATE_ACCOUNT_VALUE)
-  const mappedCount = rows.filter((row) => row.value && row.value !== CREATE_ACCOUNT_VALUE).length
-  const newCount = createRows.length
-  const reviewCount = rows.length - mappedCount - newCount
+  const { mapped: mappedCount, new: newCount, review: reviewCount } = countImportAccountRowStates(rows)
+
+  // Apply leaves a settled row alone, so both the button and the edit itself work from this rather
+  // than from the selection, which can hold rows this Apply will not touch
+  const editableRows = selectedRows.filter((row) => canApplyBatchEditToRow(row.value, row.isHandAnswered, row.isCounterpartyOnly))
+  const hasBatchInstitutionSet = batchAccountInstitution !== UNSET_BATCH_INSTITUTION
+  const hasBatchFieldSet = Boolean(batchAccountType || batchAccountCurrency) || hasBatchInstitutionSet
 
   const toggleRow = (row: (typeof rows)[number]) => {
     const next = new Set(selectedRowIds)
@@ -103,20 +117,24 @@ export function ImportAccountMappingTable({
   }
 
   const applyBatchType = () => {
-    if (!batchAccountType && !batchAccountCurrency && !batchAccountInstitution) return
-    for (const row of selectedRows) {
+    if (!hasBatchFieldSet || editableRows.length === 0) return
+    for (const row of editableRows) {
       if (row.value !== CREATE_ACCOUNT_VALUE) row.onChange(CREATE_ACCOUNT_VALUE)
       if (batchAccountType) row.onCreateTypeChange(batchAccountType)
       if (batchAccountCurrency) row.onCreateCurrencyChange(batchAccountCurrency)
-      if (batchAccountInstitution) row.onCreateInstitutionChange(batchAccountInstitution)
+
+      // Unlike the other two, an empty institution is a choice rather than an unset control, so
+      // applying None is how a row's institution gets cleared in bulk
+      if (hasBatchInstitutionSet) row.onCreateInstitutionChange(batchAccountInstitution)
     }
     onBatchAccountTypeChange('')
     onBatchAccountCurrencyChange('')
-    onBatchAccountInstitutionChange('')
+    onBatchAccountInstitutionChange(UNSET_BATCH_INSTITUTION)
 
-    // Only the rows this table just edited leave the selection, which the other table shares
+    // Only the rows this table just edited leave the selection, which the other table shares, so a
+    // row Apply skipped stays ticked rather than reading as though something happened to it
     const next = new Set(selectedRowIds)
-    for (const row of rows) next.delete(row.id)
+    for (const row of editableRows) next.delete(row.id)
     onSelectedRowsChange(next)
   }
 
@@ -140,6 +158,7 @@ export function ImportAccountMappingTable({
             <p
               className={`truncate font-medium ${row.value === OUTSIDE_ACCOUNT_VALUE ? 'line-through' : ''}`}
               style={{ color: row.value === OUTSIDE_ACCOUNT_VALUE ? 'var(--app-text-muted)' : undefined }}
+              title={row.source}
             >
               {row.source}
             </p>
@@ -169,7 +188,10 @@ export function ImportAccountMappingTable({
             value={creating ? row.createType : row.accountType}
             onChange={row.onCreateTypeChange}
             searchable
-            blankWhenEmpty
+            // A creating row still has to answer this, so it asks rather than sitting empty. A row
+            // mapped to an account shows that account's type, and stays blank while there is none
+            blankWhenEmpty={!creating}
+            placeholder="Type"
             size="compact"
             className={row.autoFilled && !creating ? 'import-auto-fill-field' : undefined}
             disabled={!creating}
@@ -181,7 +203,8 @@ export function ImportAccountMappingTable({
             value={creating ? row.createCurrency : row.accountCurrency}
             onChange={row.onCreateCurrencyChange}
             searchable
-            blankWhenEmpty
+            blankWhenEmpty={!creating}
+            placeholder="Currency"
             size="compact"
             className={row.autoFilled && !creating ? 'import-auto-fill-field' : undefined}
             disabled={!creating || currenciesDisabled}
@@ -193,6 +216,10 @@ export function ImportAccountMappingTable({
             value={creating ? row.createInstitution : row.accountInstitution}
             onChange={row.onCreateInstitutionChange}
             searchable
+            // The institution list spends the empty string on "None", so without this an unanswered
+            // row reads as having been given one, and its tooltip repeats the claim
+            blankWhenEmpty={!creating}
+            placeholder="Institution"
             size="compact"
             className={row.autoFilled && !creating ? 'import-auto-fill-field' : undefined}
             disabled={!creating || institutionsDisabled}
@@ -256,7 +283,7 @@ export function ImportAccountMappingTable({
               type="button"
               className="app-primary-button h-10 shrink-0"
               onClick={applyBatchType}
-              disabled={(!batchAccountType && !batchAccountCurrency && !batchAccountInstitution) || selectedRows.length === 0}
+              disabled={!hasBatchFieldSet || editableRows.length === 0}
             >
               Apply
             </button>
