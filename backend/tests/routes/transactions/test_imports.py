@@ -12,6 +12,7 @@ from app.schemas.transaction import (
 )
 from app.services.importers.generic import run_locking
 from app.services.importers.generic.run_locking import load_locked_run
+from app.services.merchants.defaults import SELF_MERCHANT_NAME, UNKNOWN_MERCHANT_NAME
 from tests.conftest import TestSession
 from tests.routes.support import _create_user, _get_auth_header, _get_system_merchant_id
 from tests.routes.transactions._helpers import (
@@ -634,6 +635,66 @@ async def test_staging_a_batch_over_the_row_cap_is_refused(client):
     )
 
     assert resp.status_code == 422
+
+
+async def test_a_row_stating_no_payee_is_stamped_with_the_unknown_merchant(client):
+    """A file with no payee for a row still writes a transaction carrying a merchant."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    unknown_merchant_id = await _get_system_merchant_id(client, headers, UNKNOWN_MERCHANT_NAME)
+
+    resp = await _import_rows(client, headers, account_id, category_id, [{}])
+
+    assert resp.status_code == 201
+    transaction = (await client.get("/transactions", headers=headers)).json()[0]
+    assert transaction["merchant_id"] == unknown_merchant_id
+    assert transaction["merchant_name"] == UNKNOWN_MERCHANT_NAME
+
+
+async def test_a_transfer_stating_no_payee_is_stamped_with_the_self_merchant(client):
+    """A transfer has no payee of its own, so it gets what the app puts on its own transfers."""
+    headers, account_id, _ = await _setup_user_with_deps(client)
+    transfer_category_id = await _get_system_category_id(client, headers, "Transfer")
+    self_merchant_id = await _get_system_merchant_id(client, headers, SELF_MERCHANT_NAME)
+
+    resp = await _import_transactions(client, headers, {
+        "accounts": [{"source": "Main Chequing", "account_id": account_id}],
+        "categories": [{"source": "Transfer", "category_id": transfer_category_id}],
+        "rows": [{
+            "account_source": "Main Chequing",
+            "category_source": "Transfer",
+            "dt": "2026-04-10",
+            "amount": "-50.00",
+            "tag_names": [],
+        }],
+    })
+
+    assert resp.status_code == 201
+    transaction = (await client.get("/transactions", headers=headers)).json()[0]
+    assert transaction["merchant_id"] == self_merchant_id
+
+
+async def test_a_stamped_merchant_counts_as_neither_created_nor_reused(client):
+    """The summary reports what the file's own values matched, and a stamped merchant matched none."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+
+    resp = await _import_rows(client, headers, account_id, category_id, [{}, {}])
+
+    assert resp.status_code == 201
+    assert resp.json()["merchants_created"] == 0
+    assert resp.json()["merchants_reused"] == 0
+    assert resp.json()["created_merchant_ids"] == []
+
+
+async def test_a_row_imported_without_a_payee_can_then_be_edited(client):
+    """The edit route demands a merchant, so an imported row has to arrive holding one."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    await _import_rows(client, headers, account_id, category_id, [{}])
+    transaction_id = (await client.get("/transactions", headers=headers)).json()[0]["id"]
+
+    resp = await client.patch(f"/transactions/{transaction_id}", json={"notes": "Checked"}, headers=headers)
+
+    assert resp.status_code == 200
+    assert resp.json()["notes"] == "Checked"
 
 
 async def test_a_payee_matching_a_shared_merchant_reuses_it(client):

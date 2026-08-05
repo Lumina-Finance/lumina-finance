@@ -36,6 +36,7 @@ from app.services.importers.shared.merchants import (
     create_missing_import_merchants,
     get_import_merchant,
     get_import_merchants_by_key,
+    get_no_payee_merchants,
 )
 from app.services.importers.shared.stats import ImportStats
 from app.services.importers.shared.tags import (
@@ -195,6 +196,7 @@ async def _write_legs(
         Earliest imported transaction date by affected account ID
     """
     first_import_date_by_account_id: dict[uuid.UUID, date] = {}
+    no_payee_merchants = get_no_payee_merchants(merchants_by_key)
 
     # Every merchant and tag the export introduces is created before the legs are walked, so each
     # costs one insert for the whole export rather than one per leg that first mentions it
@@ -212,13 +214,18 @@ async def _write_legs(
         pending: list[tuple[Transaction, list]] = []
 
         for leg in chunk:
-            merchant = get_import_merchant(leg.merchant_name, merchants_by_key, stats)
+            # Every transaction carries a merchant, and a transfer leg or a balance adjustment has
+            # no payee of its own, so the shared merchant for its kind stands in
+            merchant = (
+                get_import_merchant(leg.merchant_name, merchants_by_key, stats)
+                or no_payee_merchants.get_for_category(leg.category)
+            )
             tags = get_import_row_tags(leg.tag_names, tags_by_name, stats)
             transaction = Transaction(
                 created_by_user_id=user_id,
                 account_id=leg.account.id,
                 dt=leg.dt,
-                merchant_id=merchant.id if merchant else None,
+                merchant_id=merchant.id,
                 category_id=leg.category.id,
                 amount=leg.amount,
                 currency=leg.account.currency,

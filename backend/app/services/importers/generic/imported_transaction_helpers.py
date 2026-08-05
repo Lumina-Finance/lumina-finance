@@ -18,6 +18,7 @@ from app.services.importers.generic.lookup_helpers import TransactionImportLooku
 from app.services.importers.shared.merchants import (
     create_missing_import_merchants,
     get_import_merchant,
+    get_no_payee_merchants,
 )
 from app.services.importers.shared.row_mappings import (
     get_import_row_account,
@@ -60,6 +61,7 @@ async def create_imported_transactions(
     """
     first_import_date_by_account_id: dict[uuid.UUID, date] = {}
     pending_transaction_tags: list[tuple[Transaction, list[Tag]]] = []
+    no_payee_merchants = get_no_payee_merchants(import_lookups.merchants_by_key)
 
     # Everything the file introduces is created before the rows are walked, so each of them costs
     # one insert for the whole file rather than one per row that first mentions it. A row refused
@@ -101,7 +103,12 @@ async def create_imported_transactions(
 
         currency = import_lookups.currencies_by_code[account.currency]
         amount = parse_import_amount_to_minor_units(row.amount, currency)
-        merchant = get_import_merchant(row.merchant_name, import_lookups.merchants_by_key, stats)
+        # Every transaction carries a merchant, so a row whose file states none is stamped with the
+        # shared one for its kind rather than written without one and left uneditable
+        merchant = (
+            get_import_merchant(row.merchant_name, import_lookups.merchants_by_key, stats)
+            or no_payee_merchants.get_for_category(category)
+        )
         tags = get_import_row_tags(row.tag_names, import_lookups.tags_by_name, stats)
 
         transaction = _build_imported_transaction(
@@ -137,7 +144,7 @@ def _build_imported_transaction(
     category: Category,
     row: TransactionImportRow,
     amount: int,
-    merchant: Merchant | None,
+    merchant: Merchant,
     counterparty_account_id: uuid.UUID | None,
     counterparty_account_scope: TransferCounterpartyScope | None,
 ) -> Transaction:
@@ -149,7 +156,7 @@ def _build_imported_transaction(
         category: Category selected for the import row
         row: Import row being written
         amount: Parsed transaction amount in account-currency minor units
-        merchant: Optional merchant selected for the import row
+        merchant: Merchant for the import row, either its own payee or the shared stand-in
         counterparty_account_id: Counterparty account recorded on a transfer, if any
         counterparty_account_scope: Where the counterparty sits, or None for a category that records neither
 
@@ -160,7 +167,7 @@ def _build_imported_transaction(
         created_by_user_id=user_id,
         account_id=account.id,
         dt=row.dt,
-        merchant_id=merchant.id if merchant else None,
+        merchant_id=merchant.id,
         category_id=category.id,
         amount=amount,
         currency=account.currency,

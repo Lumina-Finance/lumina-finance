@@ -1,14 +1,18 @@
 """Transaction import merchant lookup and creation"""
 import uuid
 from collections.abc import Iterable
+from dataclasses import dataclass
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.base import CategoryKind
+from app.models.category import Category
 from app.models.merchant import Merchant
 from app.schemas.transaction import MAX_IMPORT_MERCHANT_NAME_LENGTH
 from app.services.importers.shared.stats import ImportStats
+from app.services.merchants.defaults import SELF_MERCHANT_NAME, UNKNOWN_MERCHANT_NAME
 
 
 def get_import_merchant_key(name: str) -> str:
@@ -127,7 +131,7 @@ def get_import_merchant(
         stats: Import summary counters updated when a merchant is used
 
     Returns:
-        The merchant for the row, or None when the row gives no payee
+        The merchant for the row, or None when the row states no payee
 
     Raises:
         KeyError: Raised when the name was not put through create_missing_import_merchants first
@@ -138,4 +142,76 @@ def get_import_merchant(
 
     merchant = merchants_by_key[get_import_merchant_key(name)]
     stats.reused_merchant_ids.add(merchant.id)
+    return merchant
+
+
+@dataclass
+class NoPayeeMerchants:
+    """The shared merchants an import stamps on a row that states no payee
+
+    Neither is counted as created or reused, because the summary reports what the file's own values
+    matched and a stamped merchant matched nothing
+
+    Attributes:
+        transfer: Stamped where the importer itself settled that there is no payee, meaning any
+            transfer-kind row, which is what the app puts on the balance adjustments it writes for
+            itself when an account is created by hand
+        other: Stamped where the file had a payee to state and left it blank
+    """
+
+    transfer: Merchant
+    other: Merchant
+
+    def get_for_category(self, category: Category) -> Merchant:
+        """Return the merchant a row stating no payee is stamped with
+
+        Args:
+            category: Category the row is filed under
+
+        Returns:
+            The shared merchant for the row
+        """
+        return self.transfer if category.kind == CategoryKind.TRANSFER else self.other
+
+
+def get_no_payee_merchants(merchants_by_key: dict[str, Merchant]) -> NoPayeeMerchants:
+    """Return the shared merchants stamped on rows that state no payee
+
+    Args:
+        merchants_by_key: Merchant lookup for this import, which already holds every system merchant
+
+    Returns:
+        The shared merchants for this import
+
+    Raises:
+        HTTPException: Raised with 500 when either merchant is not seeded
+    """
+    return NoPayeeMerchants(
+        transfer=_require_system_merchant(merchants_by_key, SELF_MERCHANT_NAME),
+        other=_require_system_merchant(merchants_by_key, UNKNOWN_MERCHANT_NAME),
+    )
+
+
+def _require_system_merchant(merchants_by_key: dict[str, Merchant], name: str) -> Merchant:
+    """Return one merchant that ships with the app, refusing the import when it is absent
+
+    A personal merchant of the same name is not accepted in its place, so a database that never ran
+    the seeding fails here rather than quietly stamping one user's own merchant on their rows
+
+    Args:
+        merchants_by_key: Merchant lookup for this import
+        name: Name of the system merchant wanted
+
+    Returns:
+        The system merchant
+
+    Raises:
+        HTTPException: Raised with 500 when the merchant is absent or is not the shared one
+    """
+    merchant = merchants_by_key.get(get_import_merchant_key(name))
+    if merchant is None or not merchant.is_system:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"{name} merchant is not configured",
+        )
     return merchant

@@ -2,7 +2,8 @@
 
 from datetime import UTC, datetime
 
-from tests.routes.support import _create_user, _get_auth_header
+from app.services.merchants.defaults import SELF_MERCHANT_NAME
+from tests.routes.support import _create_user, _get_auth_header, _get_system_merchant_id
 from tests.routes.transactions._helpers import _create_account, _seed_usd_currency
 
 # --- POST /transactions/import/firefly ---
@@ -195,6 +196,36 @@ async def test_firefly_import_records_accounts_it_creates_as_each_other_s_other_
     }
     assert transactions_by_account[chequing_id]["counterparty_account_id"] == savings_id
     assert transactions_by_account[savings_id]["counterparty_account_id"] == chequing_id
+
+
+async def test_firefly_transfer_legs_are_stamped_with_the_self_merchant(client):
+    """Neither leg of a transfer has a payee, so both get what the app puts on its own transfers."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await client.post("/transactions/import/firefly", json={
+        "accounts": [
+            _chequing_mapping(),
+            {
+                "source": "High Interest Savings",
+                "create": {"name": "High Interest Savings", "account_type": "savings", "currency": "CAD"},
+            },
+        ],
+        "categories": [],
+        "rows": [_firefly_row(
+            type="Transfer",
+            amount="500.00",
+            destination_name="High Interest Savings",
+            destination_type="Asset account",
+            category=None,
+        )],
+    }, headers=headers)
+
+    assert resp.status_code == 201
+    self_merchant_id = await _get_system_merchant_id(client, headers, SELF_MERCHANT_NAME)
+    transactions = (await client.get("/transactions", headers=headers)).json()
+    assert [transaction["merchant_id"] for transaction in transactions] == [self_merchant_id] * 2
+    assert resp.json()["merchants_created"] == 0
 
 
 async def test_firefly_import_records_a_one_sided_transfer_row_as_leaving_the_accounts(client):

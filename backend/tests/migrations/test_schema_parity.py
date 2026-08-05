@@ -13,6 +13,7 @@ from sqlalchemy.pool import NullPool
 
 from app.config.database import MIGRATOR_DB_USER
 from app.models.base import Base
+from app.services.merchants.defaults import SELF_MERCHANT_NAME, SYSTEM_MERCHANT_NAMES
 from tests.conftest import (
     DB_HOST,
     DB_PASSWORD,
@@ -329,9 +330,11 @@ async def test_system_merchant_migration_folds_everyones_own_myself() -> None:
         finally:
             await engine.dispose()
 
-        assert [name for _, name in system_merchants] == ["Myself"]
+        # Compared as a set, since the query states no order and the app ships more than one
+        merchant_ids_by_name = {name: merchant_id for merchant_id, name in system_merchants}
+        assert set(merchant_ids_by_name) == set(SYSTEM_MERCHANT_NAMES)
         assert remaining_own == 0
-        assert merchant_on_transaction == system_merchants[0][0]
+        assert merchant_on_transaction == merchant_ids_by_name[SELF_MERCHANT_NAME]
     finally:
         await _drop_database(_ALEMBIC_SYSTEM_MERCHANT_DB_NAME)
 
