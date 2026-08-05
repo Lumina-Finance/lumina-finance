@@ -81,11 +81,15 @@ export function ImportColumnMappingStep({
             {getNoMerchantColumnExplanation(UNKNOWN_MERCHANT_NAME)}
           </ImportNotice>
           <div className="flex items-center gap-2 px-4">
-            <ImportCheckbox
-              checked={noPayeeColumnConfirmed}
-              label={NO_MERCHANT_COLUMN_CHECKBOX_LABEL}
-              onChange={() => setNoPayeeColumnConfirmed(!noPayeeColumnConfirmed)}
-            />
+            {/* The checkbox centres itself for the table cells it was written for, so it is boxed
+                to its own size here and the label stays beside it rather than being pushed away */}
+            <span className="flex h-5 w-5 shrink-0">
+              <ImportCheckbox
+                checked={noPayeeColumnConfirmed}
+                label={NO_MERCHANT_COLUMN_CHECKBOX_LABEL}
+                onChange={() => setNoPayeeColumnConfirmed(!noPayeeColumnConfirmed)}
+              />
+            </span>
             <span className="text-sm" style={{ color: 'var(--app-text)' }}>
               {NO_MERCHANT_COLUMN_CHECKBOX_LABEL}
             </span>
