@@ -224,6 +224,7 @@ export function useTransactionImportWorkflow() {
     accountsFailed,
     categoriesFailed,
     accountsResolved,
+    accountsCurrent,
     categoriesResolved,
     refetchAccounts,
     refetchCategories,
@@ -358,14 +359,15 @@ export function useTransactionImportWorkflow() {
   )
 
   // Every row source the match could not place rests on creating an account, so the step asks for
-  // its type rather than for all three answers. It waits for both the accounts list and a column
-  // map complete enough to match against: without either, every row would read as creating an
-  // account and then change its own answer to one of the user's the moment the match could run
+  // its type rather than for all three answers. Both conditions keep a row from answering itself
+  // and then changing its mind: it only ever fires alongside the name match, which is what
+  // `canInferAccountMappings` says has run, and only against an accounts list that is current, so
+  // a list still being refreshed cannot turn a row from creating an account into one of the user's
   const resolvedAccountMappings = useMemo(
-    () => (accountsResolved && canInferAccountMappings
+    () => (accountsCurrent && canInferAccountMappings
       ? applyCreateAccountFallback(accountMappingSources, matchedAccountMappings)
       : matchedAccountMappings),
-    [accountMappingSources, accountsResolved, canInferAccountMappings, matchedAccountMappings],
+    [accountMappingSources, accountsCurrent, canInferAccountMappings, matchedAccountMappings],
   )
 
   const resolvedAccountCreateCurrencies = useMemo(

@@ -56,6 +56,18 @@ export interface ImportReferenceData {
   accountsResolved: boolean
   categoriesResolved: boolean
 
+  /**
+   * Whether the accounts list in hand is current, meaning it arrived, no request for it is in
+   * flight, and the last one did not fail
+   *
+   * Stricter than `accountsResolved` because the whole query cache is kept in local storage for six
+   * months and comes back carrying its original timestamp, so a list months out of date reads as
+   * arrived. Judging a stored answer against that is fine, since an account it no longer lists has
+   * probably gone. Deciding that a source matches nothing is not, because a list refreshed a moment
+   * later can match it after all
+   */
+  accountsCurrent: boolean
+
   refetchAccounts: () => void
   refetchCategories: () => void
   selectableAccounts: AccountsOverview[]
@@ -78,6 +90,7 @@ export function useImportReferenceData(): ImportReferenceData {
     data: accounts = [],
     isLoading: accountsLoading,
     isError: accountsError,
+    isFetching: accountsFetching,
     dataUpdatedAt: accountsUpdatedAt,
     refetch: refetchAccountsQuery,
   } = useAccounts()
@@ -155,6 +168,7 @@ export function useImportReferenceData(): ImportReferenceData {
     // failed, and a query switched off, and holds its earlier value when a later refetch fails
     accountsResolved: accountsUpdatedAt > 0,
     categoriesResolved: categoriesUpdatedAt > 0,
+    accountsCurrent: accountsUpdatedAt > 0 && !accountsFetching && !accountsError,
     refetchAccounts: refetchAccountsQuery,
     refetchCategories: refetchCategoriesQuery,
     institutionsLoading,
