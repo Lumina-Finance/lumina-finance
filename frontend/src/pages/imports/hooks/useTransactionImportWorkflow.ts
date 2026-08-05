@@ -101,12 +101,21 @@ export function useTransactionImportWorkflow() {
     [accountMappingSources],
   )
 
-  const getAccountSourceScope = (sourceId: string) => (
-    counterpartyOnlySourceIds.has(sourceId) ? counterpartyAnswerScope : rowAccountAnswerScope
+  // Both resolvers are held steady, since every set of answers read through one is a dependency of
+  // the payload and preview, and a new function each render would rebuild both on every keystroke
+  const getAccountSourceScope = useMemo(
+    () => (sourceId: string) => (
+      counterpartyOnlySourceIds.has(sourceId) ? counterpartyAnswerScope : rowAccountAnswerScope
+    ),
+    [counterpartyAnswerScope, counterpartyOnlySourceIds, rowAccountAnswerScope],
   )
-  const getCategorySourceScope = () => categoryAnswerScope
 
-  const accountMappings = readScopedImportAnswers(scopedAccountMappings, getAccountSourceScope)
+  const getCategorySourceScope = useMemo(() => () => categoryAnswerScope, [categoryAnswerScope])
+
+  const accountMappings = useMemo(
+    () => readScopedImportAnswers(scopedAccountMappings, getAccountSourceScope),
+    [getAccountSourceScope, scopedAccountMappings],
+  )
 
   const setAccountMappings: Dispatch<SetStateAction<Record<string, string>>> = (update) => {
     setScopedAccountMappings((current) => {
@@ -155,8 +164,15 @@ export function useTransactionImportWorkflow() {
   const importTransactions = useImportTransactions()
   const commitStagedImport = useCommitStagedImport()
 
-  const categoryMappings = readScopedImportAnswers(scopedCategoryMappings, getCategorySourceScope)
-  const categoryCreateKinds = readScopedImportAnswers(scopedCategoryCreateKinds, getCategorySourceScope)
+  const categoryMappings = useMemo(
+    () => readScopedImportAnswers(scopedCategoryMappings, getCategorySourceScope),
+    [getCategorySourceScope, scopedCategoryMappings],
+  )
+
+  const categoryCreateKinds = useMemo(
+    () => readScopedImportAnswers(scopedCategoryCreateKinds, getCategorySourceScope),
+    [getCategorySourceScope, scopedCategoryCreateKinds],
+  )
 
   const setCategoryMappings: Dispatch<SetStateAction<Record<string, string>>> = (update) => {
     setScopedCategoryMappings((current) => {
@@ -505,17 +521,6 @@ export function useTransactionImportWorkflow() {
     const nextColumnMap = getNextColumnMap(columnMap, header, targetValue)
     const nextColumnMappingComplete = isColumnMappingComplete(nextColumnMap, nextColumnValidationErrors, files)
 
-    // A scope alone cannot tell that a column was unmapped and mapped back, since it ends up the
-    // string it started as, so the ticks a changed column produced are dropped here. The rows the
-    // other column produced keep theirs, which is the whole point of filing them separately
-    const rowColumnChanged = nextColumnMap.account_id !== columnMap.account_id
-    const counterpartyColumnChanged = nextColumnMap.counterparty_account_id !== columnMap.counterparty_account_id
-    if (rowColumnChanged || counterpartyColumnChanged) {
-      setSelectedAccountRows((current) => new Set([...current].filter((sourceId) => (
-        counterpartyOnlySourceIds.has(sourceId) ? !counterpartyColumnChanged : !rowColumnChanged
-      ))))
-    }
-
     setAutoFilledColumnHeaders((current) => {
       const next = new Set(current)
       next.delete(header)
@@ -635,16 +640,16 @@ export function useTransactionImportWorkflow() {
     setAutoFilledColumnHeaders(new Set())
     setDecidedColumnHeaders(new Set())
     setColumnMap(EMPTY_COLUMN_MAP)
-    setAccountMappings({})
+    setScopedAccountMappings(emptyScopedImportAnswers)
     setAccountAutoMatchKey('')
     resetAccountCreateState()
     setMerchantHandlingOpen(true)
     setTagHandlingOpen(true)
     setColumnValidationErrors({})
     setDateFormatChoice(null)
-    setCategoryMappings({})
+    setScopedCategoryMappings(emptyScopedImportAnswers)
     setCategoryAutoMatchKey('')
-    setCategoryCreateKinds({})
+    setScopedCategoryCreateKinds(emptyScopedImportAnswers)
     setImportError(null)
     setImportResult(null)
     setImportOverlayPhase('idle')

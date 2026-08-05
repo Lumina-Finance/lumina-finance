@@ -6,7 +6,6 @@ import { describe, expect, it } from 'vitest'
 import type { ImportFileDraft } from '@/pages/imports/types'
 import {
   buildImportAnswerScope,
-  clearScopedImportAnswers,
   emptyScopedImportAnswers,
   readScopedImportAnswers,
   readScopedSelection,
@@ -52,7 +51,7 @@ describe('scoped import answers', () => {
     expect(readScopedImportAnswers(stored, scope)).toEqual({ Savings: 'acc_1' })
   })
 
-  it('drops an answer when a different file repeats the same value', () => {
+  it('shows nothing for a value a different file repeats', () => {
     const stored = writeScopedImportAnswers(
       emptyScopedImportAnswers<string>(),
       { Savings: 'acc_1' },
@@ -63,7 +62,7 @@ describe('scoped import answers', () => {
     expect(readScopedImportAnswers(stored, nextFile)).toEqual({})
   })
 
-  it('drops an answer when the column it was read from changes', () => {
+  it('shows nothing once the column an answer was read from changes', () => {
     const stored = writeScopedImportAnswers(
       emptyScopedImportAnswers<string>(),
       { Savings: 'acc_1' },
@@ -127,12 +126,14 @@ describe('scoped import answers', () => {
     expect(readScopedImportAnswers(emptyScopedImportAnswers<string>(), accountSourceScope('Account', ''))).toEqual({})
   })
 
-  it('forgets everything filed under one scope', () => {
+  // Putting a column back is not the same as answering its values again, so the answers filed
+  // under it come back with it
+  it('shows an answer again when the column it was read from is mapped back', () => {
     const scope = accountSourceScope('Account', '')
     const stored = writeScopedImportAnswers(emptyScopedImportAnswers<string>(), { Savings: 'acc_1' }, scope)
-    const cleared = clearScopedImportAnswers(stored, buildImportAnswerScope('Account', [FILE]))
 
-    expect(readScopedImportAnswers(cleared, scope)).toEqual({})
+    expect(readScopedImportAnswers(stored, accountSourceScope('', ''))).toEqual({})
+    expect(readScopedImportAnswers(stored, scope)).toEqual({ Savings: 'acc_1' })
   })
 })
 

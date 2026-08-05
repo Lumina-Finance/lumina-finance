@@ -62,35 +62,22 @@ export function writeScopedImportAnswers<T>(
 ): ScopedImportAnswers<T> {
   const next: ScopedImportAnswers<T> = {}
 
+  // Written into rather than spread over, since the batch bar files a bucket one row at a time and
+  // rebuilding it per row would cost the square of what the bucket holds
   for (const [scope, scopedAnswers] of Object.entries(stored)) {
     for (const [sourceId, answer] of Object.entries(scopedAnswers)) {
       if (getSourceScope(sourceId) === scope) continue
-      next[scope] = { ...next[scope], [sourceId]: answer }
+      next[scope] ??= {}
+      next[scope][sourceId] = answer
     }
   }
 
   for (const [sourceId, answer] of Object.entries(answers)) {
     const scope = getSourceScope(sourceId)
-    next[scope] = { ...next[scope], [sourceId]: answer }
+    next[scope] ??= {}
+    next[scope][sourceId] = answer
   }
 
-  return next
-}
-
-/**
- * Forgets every answer filed under one scope
- *
- * What this is for is the state a scope alone cannot tell apart: a column unmapped and mapped back
- * arrives at the string it started from, so a caller that wants those answers gone says so here
- */
-export function clearScopedImportAnswers<T>(
-  stored: ScopedImportAnswers<T>,
-  scope: string,
-): ScopedImportAnswers<T> {
-  if (!(scope in stored)) return stored
-
-  const next = { ...stored }
-  delete next[scope]
   return next
 }
 

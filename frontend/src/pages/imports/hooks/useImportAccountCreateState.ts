@@ -1,4 +1,4 @@
-import { useState, type Dispatch, type SetStateAction } from 'react'
+import { useMemo, useState, type Dispatch, type SetStateAction } from 'react'
 import { CREATE_ACCOUNT_VALUE } from '@/pages/imports/constants'
 import {
   emptyScopedImportAnswers,
@@ -94,6 +94,28 @@ export function useImportAccountCreateState(
     }
   }
 
+  // Every one of these feeds the commit payload, so they are held steady while the answers behind
+  // them are unchanged rather than rebuilt on each render
+  const accountCreateTypes = useMemo(
+    () => readScopedImportAnswers(storedCreateTypes, getSourceScope),
+    [getSourceScope, storedCreateTypes],
+  )
+
+  const accountCreateCurrencies = useMemo(
+    () => readScopedImportAnswers(storedCreateCurrencies, getSourceScope),
+    [getSourceScope, storedCreateCurrencies],
+  )
+
+  const accountCreateInstitutions = useMemo(
+    () => readScopedImportAnswers(storedCreateInstitutions, getSourceScope),
+    [getSourceScope, storedCreateInstitutions],
+  )
+
+  const selectedAccountRows = useMemo(
+    () => readScopedSelection(storedSelectedRows, getSourceScope),
+    [getSourceScope, storedSelectedRows],
+  )
+
   const resetAccountCreateState = () => {
     setStoredCreateTypes(emptyScopedImportAnswers)
     setStoredCreateCurrencies(emptyScopedImportAnswers)
@@ -105,10 +127,10 @@ export function useImportAccountCreateState(
   }
 
   return {
-    accountCreateTypes: readScopedImportAnswers(storedCreateTypes, getSourceScope),
-    accountCreateCurrencies: readScopedImportAnswers(storedCreateCurrencies, getSourceScope),
-    accountCreateInstitutions: readScopedImportAnswers(storedCreateInstitutions, getSourceScope),
-    selectedAccountRows: readScopedSelection(storedSelectedRows, getSourceScope),
+    accountCreateTypes,
+    accountCreateCurrencies,
+    accountCreateInstitutions,
+    selectedAccountRows,
     batchAccountType,
     batchAccountCurrency,
     batchAccountInstitution,
