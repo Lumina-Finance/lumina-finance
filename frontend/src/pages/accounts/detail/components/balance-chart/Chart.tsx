@@ -1,4 +1,4 @@
-import { useEffect, useRef, type MouseEvent as ReactMouseEvent } from 'react'
+import { useEffect, useMemo, useRef, type MouseEvent as ReactMouseEvent } from 'react'
 import {
   Area,
   AreaChart,
@@ -11,6 +11,10 @@ import {
   DeferredChartTooltipOverlay,
   type DeferredChartTooltipOverlayHandle,
 } from '@/components/charts/DeferredTooltipOverlay'
+import {
+  getChartDataSignature,
+  useChartEntranceAnimation,
+} from '@/components/charts/useChartEntranceAnimation'
 import {
   getRechartsTooltipPoint,
   getRechartsTooltipPointer,
@@ -79,6 +83,18 @@ function BalanceXAxisTick({
 export function BalanceChart({ accountId, snapshot }: BalanceChartProps) {
   const chartRef = useRef<HTMLDivElement>(null)
   const tooltipRef = useRef<DeferredChartTooltipOverlayHandle<BalanceChartDataPoint>>(null)
+
+  // The series carries one point per day in the range whether or not any balances have arrived, so
+  // the plot is drawn flat at zero while the card is still concealed. Arming on the values means the
+  // one animation the reader sees runs as the real balances are revealed
+  const dataSignature = useMemo(
+    () => `${snapshot.chartDataKey}:${getChartDataSignature(
+      snapshot.chartSeries,
+      (point) => point[snapshot.chartDataKey],
+    )}`,
+    [snapshot.chartDataKey, snapshot.chartSeries],
+  )
+  const balanceEntrance = useChartEntranceAnimation({ dataSignature })
 
   /**
    * Shows the active balance point from Recharts payload, index, or date label fallback
@@ -178,6 +194,7 @@ export function BalanceChart({ accountId, snapshot }: BalanceChartProps) {
               stroke={snapshot.chartLineColor}
               strokeWidth={2}
               fill={`url(#balanceFill-${accountId})`}
+              {...balanceEntrance}
             />
             {snapshot.yearBoundary && (
               <ReferenceLine

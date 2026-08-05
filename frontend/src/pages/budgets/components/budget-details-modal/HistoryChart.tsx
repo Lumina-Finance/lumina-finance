@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import {
   Bar,
   BarChart,
@@ -17,6 +17,10 @@ import {
   getRechartsTooltipPointer,
   type RechartsTooltipState,
 } from '@/components/charts/rechartsTooltip'
+import {
+  getChartDataSignature,
+  useChartEntranceAnimation,
+} from '@/components/charts/useChartEntranceAnimation'
 import ArchivedBandsLayer from '@/pages/budgets/components/budget-details-modal/ArchivedBands'
 import { getArchivedChartStretches } from '@/pages/budgets/components/budget-details-modal/archivedStretches'
 import {
@@ -99,13 +103,19 @@ export default function BudgetHistoryChart({
   const currentPeriodKey = chartData.find((point) => point.isCurrent)?.periodKey
   const [isMobile, setIsMobile] = useState(() => window.matchMedia(BUDGET_CHART_MOBILE_QUERY).matches)
 
-  // Recharts keys a bar's animation off the identity of the rectangles it computes, and that identity
-  // changes on every render, so an animated bar replays its entrance whenever anything re-renders the
-  // chart. Pointer movement re-renders it on every event, which leaves the plot repainting frame by
-  // frame for as long as the pointer keeps moving. Animation is therefore switched off as soon as the
-  // entrance has played, leaving the bars static for the rest of the chart's life
-  const [barsAnimating, setBarsAnimating] = useState(true)
-  const stopBarAnimation = () => setBarsAnimating(false)
+  // Every stacked segment of one period animates on the same delay and duration, so they finish
+  // together and one entrance state serves all of them
+  const dataSignature = useMemo(
+    () => getChartDataSignature(
+      chartData,
+      (point) => [
+        point.utilizationPct,
+        ...(point.categories?.map((category) => category.utilizationPct) ?? []),
+      ].join('|'),
+    ),
+    [chartData],
+  )
+  const barsEntrance = useChartEntranceAnimation({ dataSignature })
 
   useEffect(() => {
     const mobileQuery = window.matchMedia(BUDGET_CHART_MOBILE_QUERY)
@@ -241,9 +251,8 @@ export default function BudgetHistoryChart({
                     />
                   )}
                   barSize={barSize}
-                  isAnimationActive={barsAnimating}
                   animationBegin={MODAL_SURFACE_TRANSITION_MS}
-                  onAnimationEnd={stopBarAnimation}
+                  {...barsEntrance}
                 />
               )) : (
                 <Bar
@@ -259,9 +268,8 @@ export default function BudgetHistoryChart({
                     />
                   )}
                   barSize={barSize}
-                  isAnimationActive={barsAnimating}
                   animationBegin={MODAL_SURFACE_TRANSITION_MS}
-                  onAnimationEnd={stopBarAnimation}
+                  {...barsEntrance}
                 />
               )}
               <ReferenceLine

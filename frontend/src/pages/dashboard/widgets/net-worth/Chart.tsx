@@ -15,6 +15,10 @@ import {
   type DeferredChartTooltipOverlayHandle,
 } from '@/components/charts/DeferredTooltipOverlay'
 import {
+  getChartDataSignature,
+  useChartEntranceAnimation,
+} from '@/components/charts/useChartEntranceAnimation'
+import {
   DASHBOARD_NET_WORTH_X_AXIS_LABEL_PADDING,
   DASHBOARD_NET_WORTH_X_AXIS_TICK_COUNT,
   DASHBOARD_X_AXIS_TICK_FONT_SIZE,
@@ -122,6 +126,11 @@ export function NetWorthChart({ data, displayCurrency }: NetWorthChartProps) {
     () => new Map(data.map((point) => [point.date, point])),
     [data],
   )
+  const dataSignature = useMemo(
+    () => getChartDataSignature(data, (point) => point.value),
+    [data],
+  )
+  const lineEntrance = useChartEntranceAnimation({ dataSignature })
   const lineColor = getNetWorthLineColor(data)
 
   /**
@@ -194,6 +203,7 @@ export function NetWorthChart({ data, displayCurrency }: NetWorthChartProps) {
             stroke={lineColor}
             strokeWidth={1.5}
             dot={false}
+            {...lineEntrance}
           />
         </LineChart>
       </ResponsiveContainer>

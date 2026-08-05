@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useMemo, useRef } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import {
   Cell,
@@ -10,10 +10,14 @@ import type { CategoryBreakdownEntry } from '@/api/dashboard'
 import { AppScrambledNumber } from '@/components/display/ScrambledNumber'
 import CursorTooltipPortal from '@/components/charts/CursorTooltipPortal'
 import {
+  getChartDataSignature,
+  useChartEntranceAnimation,
+} from '@/components/charts/useChartEntranceAnimation'
+import {
   BREAKDOWN_DONUT_TRANSITION,
   BREAKDOWN_PIE_ANIMATION_MS,
 } from '@/pages/dashboard/constants/animation'
-import { useCursorTooltip } from '@/hooks/useCursorTooltip'
+import { useCursorTooltip, type CursorTooltipPointer } from '@/hooks/useCursorTooltip'
 import { formatDashboardMoney } from '@/pages/dashboard/utils/formatDashboardMoney'
 import {
   getSpendingBreakdownEntryColor,
@@ -31,6 +35,67 @@ type SpendingBreakdownChartProps = {
   displayCurrency: string
   summary: SpendingBreakdownSummary
   shouldReduceMotion: boolean
+}
+
+/**
+ * Renders one donut, holding its entrance animation for exactly as long as the donut itself lives
+ *
+ * The mode and range controls swap the donut behind an AnimatePresence, so the outgoing one is
+ * still on screen finishing its own sweep while the incoming one starts. An entrance state held by
+ * the parent would be shared between them, and the outgoing donut reaching its end would cut the
+ * incoming one short
+ */
+function SpendingBreakdownDonut({
+  entries,
+  summary,
+  onSliceEnter,
+  onSliceLeave,
+}: {
+  entries: CategoryBreakdownEntry[]
+  summary: SpendingBreakdownSummary
+  onSliceEnter: (entry: CategoryBreakdownEntry, event: CursorTooltipPointer) => void
+  onSliceLeave: () => void
+}) {
+  const dataSignature = useMemo(
+    () => getChartDataSignature(entries, (entry) => entry.amount),
+    [entries],
+  )
+  const pieEntrance = useChartEntranceAnimation({ dataSignature })
+
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <PieChart>
+        <Pie
+          data={entries}
+          cx="50%"
+          cy="50%"
+          innerRadius="68%"
+          outerRadius="92%"
+          paddingAngle={3}
+          dataKey="amount"
+          nameKey="name"
+          stroke="none"
+          animationDuration={BREAKDOWN_PIE_ANIMATION_MS}
+          animationEasing="ease-out"
+          {...pieEntrance}
+          onMouseEnter={(_sector, index, event) => {
+            onSliceEnter(entries[index], event)
+          }}
+          onMouseMove={(_sector, index, event) => {
+            onSliceEnter(entries[index], event)
+          }}
+          onMouseLeave={onSliceLeave}
+        >
+          {entries.map((entry) => (
+            <Cell
+              key={entry.category_id}
+              fill={getSpendingBreakdownEntryColor(entry, summary)}
+            />
+          ))}
+        </Pie>
+      </PieChart>
+    </ResponsiveContainer>
+  )
 }
 
 /**
@@ -83,38 +148,12 @@ export function SpendingBreakdownChart({
           exit={shouldReduceMotion ? undefined : { opacity: 0, scale: 1.015 }}
           transition={shouldReduceMotion ? { duration: 0 } : BREAKDOWN_DONUT_TRANSITION}
         >
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie
-                data={entries}
-                cx="50%"
-                cy="50%"
-                innerRadius="68%"
-                outerRadius="92%"
-                paddingAngle={3}
-                dataKey="amount"
-                nameKey="name"
-                stroke="none"
-                isAnimationActive={!shouldReduceMotion}
-                animationDuration={shouldReduceMotion ? 0 : BREAKDOWN_PIE_ANIMATION_MS}
-                animationEasing="ease-out"
-                onMouseEnter={(_sector, index, event) => {
-                  showTooltip(entries[index], event)
-                }}
-                onMouseMove={(_sector, index, event) => {
-                  showTooltip(entries[index], event)
-                }}
-                onMouseLeave={hideTooltip}
-              >
-                {entries.map((entry) => (
-                  <Cell
-                    key={entry.category_id}
-                    fill={getSpendingBreakdownEntryColor(entry, summary)}
-                  />
-                ))}
-              </Pie>
-            </PieChart>
-          </ResponsiveContainer>
+          <SpendingBreakdownDonut
+            entries={entries}
+            summary={summary}
+            onSliceEnter={showTooltip}
+            onSliceLeave={hideTooltip}
+          />
         </motion.div>
       </AnimatePresence>
       <CursorTooltipPortal

@@ -26,6 +26,10 @@ import {
   getRechartsTooltipPointer,
   type RechartsTooltipState,
 } from '@/components/charts/rechartsTooltip'
+import {
+  getChartDataSignature,
+  useChartEntranceAnimation,
+} from '@/components/charts/useChartEntranceAnimation'
 import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
 import IconTooltip from '@/components/tooltips/IconTooltip'
 import { formatCurrency } from '@/utils/formatCurrency'
@@ -41,6 +45,10 @@ import type { OverviewCategorySpend } from '@/pages/transactions/components/top-
 import { getTopCategoriesFxStatusMessage } from '@/pages/transactions/utils/fxTooltipMessages'
 
 const emptyTopCategoryHeight = TOP_CATEGORY_LIMIT * TOP_CATEGORY_ROW_HEIGHT
+
+// Overrides Bar's own 400 ms default, holding the entrance this chart ran before its animation
+// state moved to the shared hook
+const TOP_CATEGORY_BAR_ENTRANCE_DURATION_MS = 550
 
 function getTopCategoryTooltipKey(point: OverviewCategorySpend) {
   return point.name
@@ -131,7 +139,17 @@ export default function TopCategoriesChart({
     () => new Map(categorySpend.map((category) => [category.name, category])),
     [categorySpend],
   )
-  const chartAnimationDuration = prefersReducedMotion ? 0 : 550
+
+  // The plot is remounted on this key whenever the filters or the range change, and a fresh mount
+  // has to arm the entrance even when the new filters happen to leave the same five categories
+  const dataSignature = useMemo(
+    () => `${chartAnimationKey}:${getChartDataSignature(
+      categorySpend,
+      (point) => `${point.name}|${point.amount}`,
+    )}`,
+    [categorySpend, chartAnimationKey],
+  )
+  const topCategoryBarEntrance = useChartEntranceAnimation({ dataSignature })
   const contentTransition = { duration: prefersReducedMotion ? 0 : 0.24, ease: [0.25, 0.1, 0.25, 1] } as const
 
   /**
@@ -232,8 +250,8 @@ export default function TopCategoriesChart({
                     dataKey="amount"
                     radius={[0, 5, 5, 0]}
                     barSize={16}
-                    isAnimationActive={!prefersReducedMotion}
-                    animationDuration={chartAnimationDuration}
+                    animationDuration={TOP_CATEGORY_BAR_ENTRANCE_DURATION_MS}
+                    {...topCategoryBarEntrance}
                   >
                     {categorySpend.map((_, index) => (
                       <Cell

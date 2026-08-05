@@ -1,4 +1,5 @@
 import {
+  useMemo,
   useRef,
   type MouseEvent as ReactMouseEvent,
 } from 'react'
@@ -17,6 +18,10 @@ import {
   type ChartTooltipPointer,
   type DeferredChartTooltipOverlayHandle,
 } from '@/components/charts/DeferredTooltipOverlay'
+import {
+  getChartDataSignature,
+  useChartEntranceAnimation,
+} from '@/components/charts/useChartEntranceAnimation'
 import { DASHBOARD_X_AXIS_TICK_FONT_SIZE } from '@/pages/dashboard/constants/chart'
 import type { CashFlowBarBucket } from '@/pages/insights/types/cashFlow'
 import { formatSignedCurrency, getSignedAmountColor } from '@/pages/insights/utils/money'
@@ -116,6 +121,11 @@ export function CashFlowBarChart({
   const tooltipRef = useRef<DeferredChartTooltipOverlayHandle<CashFlowBarBucket>>(null)
   const hasActivity = buckets.some((bucket) => bucket.inflow > 0 || bucket.outflow > 0)
   const yAxisWidth = getCashFlowYAxisWidth(buckets, displayCurrency)
+  const dataSignature = useMemo(
+    () => getChartDataSignature(buckets, (bucket) => bucket.net),
+    [buckets],
+  )
+  const barEntrance = useChartEntranceAnimation({ dataSignature })
 
   /**
    * Shows the bar tooltip for the active Recharts bucket
@@ -182,7 +192,7 @@ export function CashFlowBarChart({
               tickFormatter={(value) => formatCurrency(Number(value), displayCurrency)}
             />
             <ReferenceLine y={0} stroke="var(--app-border-strong)" strokeWidth={1} />
-            <Bar dataKey="net" radius={4} maxBarSize={40}>
+            <Bar dataKey="net" radius={4} maxBarSize={40} {...barEntrance}>
               {buckets.map((bucket) => (
                 <Cell
                   key={bucket.rangeLabel}

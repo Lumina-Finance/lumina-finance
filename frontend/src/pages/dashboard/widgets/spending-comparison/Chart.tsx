@@ -1,4 +1,4 @@
-import { useRef, type MouseEvent as ReactMouseEvent } from 'react'
+import { useMemo, useRef, type MouseEvent as ReactMouseEvent } from 'react'
 import {
   Area,
   AreaChart,
@@ -11,6 +11,10 @@ import {
   DeferredChartTooltipOverlay,
   type DeferredChartTooltipOverlayHandle,
 } from '@/components/charts/DeferredTooltipOverlay'
+import {
+  getChartDataSignature,
+  useChartEntranceAnimation,
+} from '@/components/charts/useChartEntranceAnimation'
 import { DASHBOARD_X_AXIS_TICK_FONT_SIZE } from '@/pages/dashboard/constants/chart'
 import type { SpendingComparisonSeriesPoint } from '@/pages/dashboard/types/dashboard'
 import {
@@ -84,6 +88,15 @@ export function SpendingComparisonChart({
 }: SpendingComparisonChartProps) {
   const chartRef = useRef<HTMLDivElement>(null)
   const tooltipRef = useRef<DeferredChartTooltipOverlayHandle<SpendingComparisonSeriesPoint>>(null)
+
+  // Both areas are drawn against one shared vertical scale taken from the two series together, so a
+  // change in either moves both. One signature and one entrance keeps them animating together
+  // rather than leaving the untouched series to jump to its rescaled position
+  const dataSignature = useMemo(
+    () => getChartDataSignature(data, (point) => `${point.previous}|${point.current}`),
+    [data],
+  )
+  const areasEntrance = useChartEntranceAnimation({ dataSignature })
 
   /**
    * Shows a tooltip only when Recharts resolves a point with current or previous values
@@ -163,6 +176,7 @@ export function SpendingComparisonChart({
             strokeDasharray="4 3"
             fill="url(#spendPreviousFill)"
             connectNulls={false}
+            {...areasEntrance}
           />
           <Area
             xAxisId="plot"
@@ -172,6 +186,7 @@ export function SpendingComparisonChart({
             strokeWidth={2.5}
             fill="url(#spendCurrentFill)"
             connectNulls={false}
+            {...areasEntrance}
           />
         </AreaChart>
       </ResponsiveContainer>

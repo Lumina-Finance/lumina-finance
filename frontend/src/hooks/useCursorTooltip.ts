@@ -7,7 +7,7 @@ import {
 } from 'react'
 import { applyCursorTooltipPosition } from '@/utils/tooltipPosition'
 
-type CursorTooltipPointer = {
+export type CursorTooltipPointer = {
   clientX: number
   clientY: number
 }

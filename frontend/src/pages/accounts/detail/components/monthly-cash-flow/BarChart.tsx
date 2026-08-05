@@ -1,4 +1,4 @@
-import { useRef, type MouseEvent as ReactMouseEvent } from 'react'
+import { useMemo, useRef, type MouseEvent as ReactMouseEvent } from 'react'
 import {
   Bar,
   BarChart,
@@ -15,6 +15,10 @@ import {
   getRechartsTooltipPointer,
   type RechartsTooltipState,
 } from '@/components/charts/rechartsTooltip'
+import {
+  getChartDataSignature,
+  useChartEntranceAnimation,
+} from '@/components/charts/useChartEntranceAnimation'
 import type { CashFlowBar } from '@/pages/accounts/detail/utils/cashFlowChartViewModel'
 import { MonthlyCashFlowTooltipContent } from './TooltipContent'
 
@@ -54,6 +58,14 @@ export function MonthlyCashFlowBarChart({
 }: MonthlyCashFlowBarChartProps) {
   const chartRef = useRef<HTMLDivElement>(null)
   const tooltipRef = useRef<DeferredChartTooltipOverlayHandle<CashFlowBar>>(null)
+
+  // Income and expense both sit on Bar's default duration and begin, so one entrance instance
+  // serves both, armed by whichever value changes
+  const dataSignature = useMemo(
+    () => getChartDataSignature(data, (point) => `${point.income}|${point.expense}`),
+    [data],
+  )
+  const barsEntrance = useChartEntranceAnimation({ dataSignature })
 
   /**
    * Shows the active cash flow bar from Recharts payload, index, or label fallback
@@ -109,6 +121,7 @@ export function MonthlyCashFlowBarChart({
             radius={[4, 4, 0, 0]}
             maxBarSize={24}
             opacity={0.85}
+            {...barsEntrance}
           />
           <Bar
             dataKey="expense"
@@ -116,6 +129,7 @@ export function MonthlyCashFlowBarChart({
             radius={[4, 4, 0, 0]}
             maxBarSize={24}
             opacity={0.85}
+            {...barsEntrance}
           />
         </BarChart>
       </ResponsiveContainer>
