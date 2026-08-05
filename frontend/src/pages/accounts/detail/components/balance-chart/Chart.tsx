@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, type MouseEvent as ReactMouseEvent } from 'react'
+import { motion, useReducedMotion } from 'motion/react'
 import {
   Area,
   AreaChart,
@@ -11,10 +12,7 @@ import {
   DeferredChartTooltipOverlay,
   type DeferredChartTooltipOverlayHandle,
 } from '@/components/charts/DeferredTooltipOverlay'
-import {
-  getChartDataSignature,
-  useChartEntranceAnimation,
-} from '@/components/charts/useChartEntranceAnimation'
+import { getChartDataSignature } from '@/components/charts/useChartEntranceAnimation'
 import {
   getRechartsTooltipPoint,
   getRechartsTooltipPointer,
@@ -29,6 +27,10 @@ import type {
 import { BalanceChartTooltipContent } from './TooltipContent'
 
 const BALANCE_AXIS_EDGE_PADDING_PX = 4
+
+// Length and shape of the reveal that draws the balance line in from the left
+const BALANCE_REVEAL_SECONDS = 1.5
+const BALANCE_REVEAL_EASING = [0.37, 0, 0.63, 1] as const
 
 type BalanceChartProps = {
   accountId: string
@@ -84,17 +86,21 @@ export function BalanceChart({ accountId, snapshot }: BalanceChartProps) {
   const chartRef = useRef<HTMLDivElement>(null)
   const tooltipRef = useRef<DeferredChartTooltipOverlayHandle<BalanceChartDataPoint>>(null)
 
-  // The series carries one point per day in the range whether or not any balances have arrived, so
-  // the plot is drawn flat at zero while the card is still concealed. Arming on the values means the
-  // one animation the reader sees runs as the real balances are revealed
-  const dataSignature = useMemo(
+  const prefersReducedMotion = useReducedMotion()
+
+  // Recharts draws an area's entrance as a reveal over a line that already sits in its final shape,
+  // so anything recomputing the plotted points part way through replaces the animation with one
+  // whose start and end are the same, and the rest of the line appears at once. The reveal is
+  // therefore driven from here instead, over a plot recharts never animates, which no recomputation
+  // can interrupt. The series carries one point per day in the range whether or not any balances
+  // have arrived, so the key holds the plot steady until the real ones land and then reveals once
+  const revealKey = useMemo(
     () => `${snapshot.chartDataKey}:${getChartDataSignature(
       snapshot.chartSeries,
       (point) => point[snapshot.chartDataKey],
     )}`,
     [snapshot.chartDataKey, snapshot.chartSeries],
   )
-  const balanceEntrance = useChartEntranceAnimation({ dataSignature })
 
   /**
    * Shows the active balance point from Recharts payload, index, or date label fallback
@@ -143,6 +149,17 @@ export function BalanceChart({ accountId, snapshot }: BalanceChartProps) {
           Not enough history yet
         </div>
       ) : (
+        <motion.div
+          key={revealKey}
+          className="h-full w-full"
+          initial={prefersReducedMotion ? false : { clipPath: 'inset(0 100% 0 0)' }}
+          animate={{ clipPath: 'inset(0 0% 0 0)' }}
+          transition={
+            prefersReducedMotion
+              ? { duration: 0 }
+              : { duration: BALANCE_REVEAL_SECONDS, ease: BALANCE_REVEAL_EASING }
+          }
+        >
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart
             data={snapshot.chartSeries}
@@ -194,7 +211,7 @@ export function BalanceChart({ accountId, snapshot }: BalanceChartProps) {
               stroke={snapshot.chartLineColor}
               strokeWidth={2}
               fill={`url(#balanceFill-${accountId})`}
-              {...balanceEntrance}
+              isAnimationActive={false}
             />
             {snapshot.yearBoundary && (
               <ReferenceLine
@@ -212,6 +229,7 @@ export function BalanceChart({ accountId, snapshot }: BalanceChartProps) {
             )}
           </AreaChart>
         </ResponsiveContainer>
+        </motion.div>
       )}
       {snapshot.chartSeries.length >= 2 && (
         <DeferredChartTooltipOverlay
