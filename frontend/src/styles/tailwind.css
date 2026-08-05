@@ -38,6 +38,50 @@
     --app-label-compact-size: 0.75rem;
   }
 
+  /* Every value the shared drop-down's look depends on, gathered here so it can be tuned by editing
+     numbers. It sits here, in this layer and above the dark block, so a theme can override any of
+     them: from a later layer, or from below, the override would lose. One thing lives elsewhere: the
+     geometry placing the open box is in components/dropdown/position.ts, because it is computed in
+     JavaScript. What the chevron and the press do is in components/dropdown/motion.ts, since those are
+     driven by motion rather than by CSS */
+  :root {
+    --app-dropdown-height-compact: 36px;
+    --app-dropdown-height-field: 40px;
+    /* The same corner the text inputs carry, so a drop-down and the field beside it match */
+    --app-dropdown-radius: 0.5rem;
+
+    --app-dropdown-padding-x: 16px;
+
+    /* A control in a table cell spends most of its width on chrome at the full padding */
+    --app-dropdown-padding-x-compact: 8px;
+
+    --app-dropdown-gap: 8px;
+    --app-dropdown-font-size: 0.9375rem;
+
+    --app-dropdown-inner-padding: 6px;
+    --app-dropdown-row-radius: 6px;
+    --app-dropdown-row-padding-x: 12px;
+    --app-dropdown-row-padding-y: 8px;
+    --app-dropdown-row-gap: 8px;
+    /* How far a row that cannot be chosen fades back */
+    --app-dropdown-disabled-opacity: 0.4;
+
+    /* How far a whole control fades back when it cannot be used at all */
+    --app-dropdown-disabled-opacity-control: 0.6;
+
+    /* Fast at the start and flat at the end. Carried by the box's height and, as the same numbers in
+       components/dropdown/motion.ts, by the contents rising inside it, so the two arrive as one
+       movement. Neither may overshoot, for the reason given beside those numbers */
+    --app-dropdown-ease: cubic-bezier(0.22, 1, 0.36, 1);
+
+    --app-dropdown-open-duration: 0.45s;
+
+    /* Shorter than the opening, and deliberately shorter than a modal takes to leave, which is 0.25s.
+       A drop-down is often closed by dismissing whatever holds it, and one still folding itself away
+       after that has gone is left hanging over the page it belonged to */
+    --app-dropdown-close-duration: 0.2s;
+  }
+
   .dark {
     /* Dark — warm charcoal */
     --app-bg: #0F0E0C;
@@ -554,6 +598,233 @@
     appearance: none;
   }
 
+  /* The slot the control keeps in the page while the box grows out of it. It carries the same corner
+     so that anything drawn around the control, such as the importer's highlight on a row it filled in
+     by itself, traces the control rather than a rectangle around it */
+  .app-dropdown-slot {
+    position: relative;
+    border-radius: var(--app-dropdown-radius);
+  }
+
+  /* One box holding the head and the list, which grows open around them rather than opening a second
+     box underneath. Its own clipping is what hides the list while closed, so the list can grow out of
+     the head instead of appearing beside it */
+  .app-dropdown-glass {
+    display: flex;
+    flex-direction: column;
+
+    /* Clipped rather than hidden, which is the same picture but not a thing anything can scroll.
+       Hidden boxes can still be scrolled by script, and one that scrolls carries the head or the
+       search field out of sight */
+    overflow: clip;
+    width: 100%;
+    min-width: 0;
+    border: 1px solid var(--app-input-border);
+    border-radius: var(--app-dropdown-radius);
+    background: var(--app-input-bg);
+    color: var(--app-text);
+
+    transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+  }
+
+  /* Opening upward stacks the contents in reverse, so the list appears above the head while the head
+     itself stays exactly where it sits closed */
+  .app-dropdown-glass-up {
+    flex-direction: column-reverse;
+  }
+
+  /* Every state below is the box class plus exactly one more simple selector, so they all weigh the
+     same and the later rule wins. That settles which state shows once, in this order: touched, then
+     focused, then open, then rejected, then unavailable. Each one sets every property the others
+     set, since equal weight settles a property at a time and one left out is one an earlier state
+     still wins. Open is written as two classes for that reason alone, since a lone class would weigh
+     less than a hover and lose to it. A new state goes in this order rather than out-weighing what
+     came before */
+  .app-dropdown-glass:hover {
+    border-color: var(--app-border-strong);
+  }
+
+  .app-dropdown-glass:focus-within {
+    border-color: var(--app-accent-border);
+    box-shadow: 0 0 0 2px var(--app-accent-soft);
+  }
+
+  /* Floating rather than open, so it keeps this look for the whole of the collapse as well. Keying it
+     off open instead drew a full-height panel that was still on screen as an ordinary focused field,
+     ring and all, for the length of the animation.
+
+     It comes after focused on purpose. A floating box is always focused, since opening it puts focus
+     on the head or in the search field, so a ring there would be permanent and would replace the
+     shadow that lifts it off the page.
+
+     Solid, with no transparency and no filter of any kind. Depth comes from the border and the shadow
+     instead, which cost nothing to draw and nothing to redraw while the box opens */
+  .app-dropdown-glass.app-dropdown-glass-floating {
+    border-color: var(--app-border-strong);
+    background: var(--app-input-bg);
+    box-shadow: var(--app-shadow-soft);
+  }
+
+  /* Before rejected rather than after it, so a field that is both still shows that it was rejected.
+     The message above it points at this field, and a plain one is the wrong thing to point at */
+  .app-dropdown-glass.app-dropdown-glass-disabled {
+    border-color: var(--app-input-border);
+    background: var(--app-input-bg);
+    box-shadow: none;
+    opacity: var(--app-dropdown-disabled-opacity-control);
+  }
+
+  /* Mixed from the opaque negative rather than its soft variant, which carries alpha of its own. The
+     two land on nearly the same colour over a form, and this one stays solid over anything */
+  .app-dropdown-glass.app-dropdown-glass-error {
+    border-color: var(--app-negative-border);
+    background: color-mix(in srgb, var(--app-negative) 10%, var(--app-input-bg));
+  }
+
+  .app-dropdown-glass.app-dropdown-glass-error:focus-within {
+    box-shadow: 0 0 0 2px var(--app-negative-soft);
+  }
+
+  /* Floating, a rejected box keeps its colour and takes the shadow back off the ring above */
+  .app-dropdown-glass.app-dropdown-glass-floating.app-dropdown-glass-error {
+    box-shadow: var(--app-shadow-soft);
+  }
+
+  .app-dropdown-head {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--app-dropdown-gap);
+    width: 100%;
+    min-width: 0;
+    padding: 0 var(--app-dropdown-padding-x);
+    background: none;
+    border: 0;
+    color: inherit;
+    font-size: var(--app-dropdown-font-size);
+    text-align: left;
+    outline: none;
+  }
+
+  .app-dropdown-head:disabled {
+    cursor: not-allowed;
+  }
+
+  /* The height tokens are the whole control's outer height, which is what a caller thinks in and what
+     has to match the text input beside it. The box's own border sits outside the head, so each of
+     these takes it off first */
+  .app-dropdown-head-compact {
+    height: calc(var(--app-dropdown-height-compact) - 2px);
+    padding: 0 var(--app-dropdown-padding-x-compact);
+  }
+
+  .app-dropdown-head-field {
+    height: calc(var(--app-dropdown-height-field) - 2px);
+  }
+
+  .app-dropdown-chevron {
+    flex-shrink: 0;
+    color: var(--app-text-subtle);
+  }
+
+  /* The list's own height animates from nothing to whatever it needs, which is what makes the box
+     bloom rather than appear. A grid row is the only way to animate to a height nobody measured */
+  .app-dropdown-bodywrap {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows var(--app-dropdown-close-duration) var(--app-dropdown-ease);
+  }
+
+  /* The duration lives with the open state rather than the base, so opening and closing can differ:
+     whichever style is current when the value changes is the one whose timing is used */
+  .app-dropdown-glass-open .app-dropdown-bodywrap {
+    grid-template-rows: 1fr;
+    transition-duration: var(--app-dropdown-open-duration);
+  }
+
+  .app-dropdown-body {
+    min-height: 0;
+    overflow: clip;
+  }
+
+  /* Rises and fades into place as the box opens around it, on the box's own curve and over the box's
+     own duration, so the contents arrive with it rather than being revealed by it.
+
+     The rise and fade are driven by motion rather than by a transition here, because this element is
+     built at the same moment the box opens and a brand new element has no previous value to move from.
+     A CSS transition on it therefore never ran on the way in, only on the way out */
+  .app-dropdown-glass-inner {
+    padding: var(--app-dropdown-inner-padding);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .app-dropdown-glass,
+    .app-dropdown-row,
+    .app-dropdown-bodywrap {
+      transition-duration: 0s;
+    }
+  }
+
+  .app-dropdown-row {
+    display: flex;
+    align-items: center;
+    gap: var(--app-dropdown-row-gap);
+    width: 100%;
+    padding: var(--app-dropdown-row-padding-y) var(--app-dropdown-row-padding-x);
+    border-radius: var(--app-dropdown-row-radius);
+    color: var(--app-text);
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.1s;
+  }
+
+  /* The row the pointer or the arrow keys are resting on, tinted rather than accented so it stays
+     distinct from the row that is actually chosen */
+  .app-dropdown-row-highlighted {
+    background: color-mix(in srgb, var(--app-text) 6%, transparent);
+  }
+
+  .app-dropdown-row-selected {
+    background: var(--app-accent-soft);
+    color: var(--app-accent);
+    font-weight: 500;
+  }
+
+  /* The chosen row is also where the keyboard starts, so it needs to show both at once. Without this
+     the cursor is invisible until it moves off the chosen row */
+  .app-dropdown-row-selected.app-dropdown-row-highlighted {
+    background: color-mix(in srgb, var(--app-accent) 18%, transparent);
+  }
+
+  .app-dropdown-row-disabled {
+    cursor: default;
+    opacity: var(--app-dropdown-disabled-opacity);
+  }
+
+  /* Sits above the rows it heads while the list scrolls under it, so it needs to hide them rather
+     than let them show through its own translucency */
+  .app-dropdown-group {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    padding: 6px var(--app-dropdown-row-padding-x);
+    background: var(--app-input-bg);
+    border-bottom: 1px solid var(--app-border);
+    color: var(--app-text-subtle);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+  }
+
+  /* The line standing in for options while the list is loading or has nothing to show */
+  .app-dropdown-note {
+    padding: var(--app-dropdown-row-padding-y) var(--app-dropdown-row-padding-x);
+    color: var(--app-text-subtle);
+    font-size: 0.875rem;
+  }
+
   /* Translucent collapsing date-range control on the insights page. The pill widens with a
      soft overshoot and the panel height settles smoothly, so it blooms open with a bounce */
   .app-range-glass {
@@ -752,9 +1023,9 @@
     border: 1px solid var(--app-border);
   }
 
-  /* The segmented toggles adopt the accent colours of the theme switcher and the facet dropdown
-     options so the insights range presets, the This/Last/Past qualifier, and the filter facet tabs
-     all read as the same control */
+  /* The segmented toggles adopt the accent colours of the theme switcher and of a chosen drop-down
+     option, so the insights range presets, the This/Last/Past qualifier and the filter tabs all read
+     as the same control */
   .app-range-seg-option {
     position: relative;
     appearance: none;
@@ -889,8 +1160,9 @@
     animation: import-auto-fill-row 900ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
   }
 
+  /* Sets no radius of its own, so the glow follows the corners of whatever it marks. A drop-down
+     carries the pill's radius and a plain wrapper sets its own */
   .import-auto-fill-field {
-    border-radius: 0.5rem;
     animation: import-auto-fill-field 900ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
   }
 

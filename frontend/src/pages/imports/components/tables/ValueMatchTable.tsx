@@ -67,7 +67,9 @@ export function ImportValueMatchTable({
                 </td>
                 {detailLabel && (
                   <td className="px-4 py-2 align-middle">
-                    <div className={row.detailAutoFilled ? 'import-auto-fill-field' : undefined}>
+                    {/* Carries its own corner, since the glow no longer sets one and the toggle
+                        inside is not a pill */}
+                    <div className={row.detailAutoFilled ? 'import-auto-fill-field rounded-lg' : undefined}>
                       {row.onDetailKindChange ? (
                         <ImportCategoryTypeToggle
                           value={row.detailKind ?? ''}
@@ -89,7 +91,8 @@ export function ImportValueMatchTable({
                     onChange={row.onChange}
                     searchable
                     blankWhenEmpty
-                    className={`app-input h-9 px-3 ${row.autoFilled ? 'import-auto-fill-field' : ''}`}
+                    size="compact"
+                    className={row.autoFilled ? 'import-auto-fill-field' : undefined}
                     disabled={disabled}
                   />
                 </td>

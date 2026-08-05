@@ -31,7 +31,6 @@ export function ImportSourceStep({
         options={DATA_SOURCE_OPTIONS}
         value={value}
         onChange={(next) => onChange(next as ImportDataSource)}
-        className="app-input"
       />
     </ImportStep>
   )

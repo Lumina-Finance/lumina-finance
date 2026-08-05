@@ -6,71 +6,133 @@ export interface DropdownAnchorRect {
 }
 
 export interface DropdownViewport {
+  /** Height of the part currently on screen, which shrinks when a phone raises its keyboard */
   height: number
+
+  /**
+   * Height a `position: fixed` element measures against, which the visible part sits inside
+   *
+   * The two differ on a zoomed or keyboard-raised phone. Available space is decided against the
+   * visible part, and the box's own lower edge has to be expressed against this one.
+   */
+  layoutHeight: number
+
   offsetLeft: number
   offsetTop: number
   width: number
 }
 
-export interface DropdownListPosition {
+export interface DropdownBoxPosition {
+  /** Distance from the bottom of the layout viewport to the box's lower edge, applied when openAbove */
+  bottom: number
+
+  /** How tall the whole control may grow, head and list together */
+  boxMaxHeight: number
+
   left: number
+
+  /** What the list itself may take, once the head and any search field have had their share */
   listMaxHeight: number
-  menuMaxHeight: number
+
+  /**
+   * Whether the list grows upward, above the head
+   *
+   * The head stays exactly where it sits closed either way. Growing down, the box is pinned by the
+   * head's upper edge; growing up, by its lower edge, with the contents stacked in reverse so the
+   * list appears above the head rather than pushing it.
+   */
+  openAbove: boolean
+
   top: number
   width: number
 }
 
-interface DropdownListPositionParams {
+interface DropdownBoxPositionParams {
   anchorRect: DropdownAnchorRect
+
+  /** Height of the collapsed head, which the list has to share the box with */
+  headHeight: number
+
   searchable: boolean
   viewport: DropdownViewport
 }
 
-export const DEFAULT_DROPDOWN_LIST_POSITION: DropdownListPosition = {
+export const DEFAULT_DROPDOWN_BOX_POSITION: DropdownBoxPosition = {
+  bottom: 0,
+  boxMaxHeight: 208,
   left: 0,
   listMaxHeight: 208,
-  menuMaxHeight: 208,
+  openAbove: false,
   top: 0,
   width: 0,
 }
 
-const DROPDOWN_GAP = 6
-const DROPDOWN_MAX_HEIGHT = 336
+// The geometry of the box lives here rather than beside the look in tailwind.css, because placement
+// is computed in JavaScript and a second copy in CSS would drift from this one
+const DROPDOWN_MAX_HEIGHT = 400
 const DROPDOWN_MIN_HEIGHT = 160
+
 const DROPDOWN_SEARCH_HEIGHT = 56
+
+// The box's own border and the padding around its contents. Mirrors the 1px border of
+// .app-dropdown-glass and the 6px padding of .app-dropdown-glass-inner in tailwind.css
+const DROPDOWN_BOX_CHROME = 14
+
 const DROPDOWN_VIEWPORT_PADDING = 12
 
 /**
- * Calculates the floating menu position while keeping it inside the visual viewport on desktop and mobile browsers
+ * Places the whole control and works out how much of it the option list may take
+ *
+ * The control is one box holding the head and the list, so it is pinned by whichever of the head's
+ * own edges the list grows away from, and it never leaves the visible viewport.
  */
-export function getDropdownListPosition({
+export function getDropdownBoxPosition({
   anchorRect,
+  headHeight,
   searchable,
   viewport,
-}: DropdownListPositionParams): DropdownListPosition {
+}: DropdownBoxPositionParams): DropdownBoxPosition {
   const viewportBottom = viewport.offsetTop + viewport.height
   const viewportRight = viewport.offsetLeft + viewport.width
+
+  // Exactly the width of the slot it came from. The head and the list are one box now, so widening
+  // the box to give a narrow list more room would widen the head with it and slide it sideways in
+  // front of the user at the moment they opened it
+  const width = anchorRect.width
+
+  // Only moves the box when the slot itself is partly off the screen, which is the one case where
+  // leaving it where it is would put the list somewhere nobody can read it
   const left = Math.min(
     Math.max(anchorRect.left, viewport.offsetLeft + DROPDOWN_VIEWPORT_PADDING),
-    viewportRight - anchorRect.width - DROPDOWN_VIEWPORT_PADDING,
+    Math.max(viewport.offsetLeft, viewportRight - width - DROPDOWN_VIEWPORT_PADDING),
   )
-  const spaceBelow = viewportBottom - anchorRect.bottom - DROPDOWN_GAP - DROPDOWN_VIEWPORT_PADDING
-  const spaceAbove = anchorRect.top - viewport.offsetTop - DROPDOWN_GAP - DROPDOWN_VIEWPORT_PADDING
+
+  // The box starts at the head and grows one way or the other, so the head's own height counts as
+  // room the box already occupies on both sides
+  const spaceBelow = viewportBottom - anchorRect.top - DROPDOWN_VIEWPORT_PADDING
+  const spaceAbove = anchorRect.bottom - viewport.offsetTop - DROPDOWN_VIEWPORT_PADDING
+  // The minimum decides only whether the room below is worth using. The box is never given more than
+  // the room it actually has, or it would grow past the edge of the screen and clip its own list
   const openAbove = spaceBelow < DROPDOWN_MIN_HEIGHT && spaceAbove > spaceBelow
-  const availableHeight = Math.max(
-    DROPDOWN_MIN_HEIGHT,
-    openAbove ? spaceAbove : spaceBelow,
-  )
-  const maxHeight = Math.min(DROPDOWN_MAX_HEIGHT, availableHeight)
-  const top = openAbove
-    ? Math.max(viewport.offsetTop + DROPDOWN_VIEWPORT_PADDING, anchorRect.top - maxHeight - DROPDOWN_GAP)
-    : Math.min(anchorRect.bottom + DROPDOWN_GAP, viewportBottom - maxHeight - DROPDOWN_VIEWPORT_PADDING)
+  const boxMaxHeight = Math.min(DROPDOWN_MAX_HEIGHT, openAbove ? spaceAbove : spaceBelow)
 
   return {
+    // Pinned by the head's lower edge, so the head stays put and the list grows away above it
+    bottom: viewport.layoutHeight - anchorRect.bottom,
+    boxMaxHeight,
+
     left,
-    listMaxHeight: Math.max(96, maxHeight - (searchable ? DROPDOWN_SEARCH_HEIGHT : 0)),
-    menuMaxHeight: maxHeight,
-    top,
-    width: anchorRect.width,
+
+    // What is left once the head, any search field and the box's own border and padding are paid for
+    listMaxHeight: Math.max(
+      0,
+      boxMaxHeight - headHeight - DROPDOWN_BOX_CHROME - (searchable ? DROPDOWN_SEARCH_HEIGHT : 0),
+    ),
+
+    openAbove,
+
+    // Pinned by the head's upper edge, so the head stays put and the list grows away below it
+    top: anchorRect.top,
+    width,
   }
 }

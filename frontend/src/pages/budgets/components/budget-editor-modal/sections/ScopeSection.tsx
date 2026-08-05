@@ -138,7 +138,7 @@ export default function BudgetEditorModalScopeSection({
                 }))}
                 value={form.currency}
                 onChange={(value) => setField('currency', value)}
-                className={`app-input ${showError('currency') ? 'app-input-error' : ''}`}
+                hasError={!!showError('currency')}
                 placeholder={currencies.length === 0 ? 'Loading currencies...' : 'Select currency...'}
                 searchable
                 searchPlaceholder="Search currencies..."

@@ -158,7 +158,8 @@ export function ImportAccountMappingTable({
             onChange={row.onChange}
             searchable
             blankWhenEmpty
-            className={`app-input ${row.autoFilled ? 'import-auto-fill-field' : ''}`}
+            size="compact"
+            className={row.autoFilled ? 'import-auto-fill-field' : undefined}
             disabled={disabled}
           />
         </td>
@@ -169,7 +170,8 @@ export function ImportAccountMappingTable({
             onChange={row.onCreateTypeChange}
             searchable
             blankWhenEmpty
-            className={`app-input ${row.autoFilled && !creating ? 'import-auto-fill-field' : ''}`}
+            size="compact"
+            className={row.autoFilled && !creating ? 'import-auto-fill-field' : undefined}
             disabled={!creating}
           />
         </td>
@@ -180,7 +182,8 @@ export function ImportAccountMappingTable({
             onChange={row.onCreateCurrencyChange}
             searchable
             blankWhenEmpty
-            className={`app-input px-2 ${row.autoFilled && !creating ? 'import-auto-fill-field' : ''}`}
+            size="compact"
+            className={row.autoFilled && !creating ? 'import-auto-fill-field' : undefined}
             disabled={!creating || currenciesDisabled}
           />
         </td>
@@ -190,7 +193,8 @@ export function ImportAccountMappingTable({
             value={creating ? row.createInstitution : row.accountInstitution}
             onChange={row.onCreateInstitutionChange}
             searchable
-            className={`app-input ${row.autoFilled && !creating ? 'import-auto-fill-field' : ''}`}
+            size="compact"
+            className={row.autoFilled && !creating ? 'import-auto-fill-field' : undefined}
             disabled={!creating || institutionsDisabled}
             onCreateNew={(query) => onCreateInstitution(query, row.id)}
             createNewLabel={(query) => query ? `Create institution "${query}"` : 'Create institution'}
@@ -220,7 +224,7 @@ export function ImportAccountMappingTable({
               onChange={onBatchAccountTypeChange}
               searchable
               placeholder="Type"
-              className="app-input"
+              size="field"
             />
           </div>
           <div className="min-w-0 px-2">
@@ -230,7 +234,7 @@ export function ImportAccountMappingTable({
               onChange={onBatchAccountCurrencyChange}
               searchable
               placeholder="Currency"
-              className="app-input px-2"
+              size="field"
               disabled={currenciesDisabled}
             />
           </div>
@@ -242,7 +246,7 @@ export function ImportAccountMappingTable({
                 onChange={onBatchAccountInstitutionChange}
                 searchable
                 placeholder="Institution"
-                className="app-input"
+                size="field"
                 disabled={institutionsDisabled}
                 onCreateNew={onBatchCreateInstitution}
                 createNewLabel={(query) => query ? `Create institution "${query}"` : 'Create institution'}

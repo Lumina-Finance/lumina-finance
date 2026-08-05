@@ -113,7 +113,8 @@ export default function InlineMerchantEdit({
           </div>
           <div className="min-w-0">
             <Dropdown
-              className="h-9 w-full rounded-md border border-[var(--app-input-border)] bg-[var(--app-input-bg)] px-2 py-0 outline-none transition-colors duration-150 hover:border-[var(--app-border-strong)] focus:border-[var(--app-accent-border)]"
+              className="w-full"
+              size="compact"
               options={categoryOptions}
               value={form.default_category_id}
               onChange={(value) => setField('default_category_id', value)}

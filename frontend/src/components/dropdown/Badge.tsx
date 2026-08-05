@@ -17,3 +17,21 @@ export function DropdownBadge({ label }: { label: string }) {
     </span>
   )
 }
+
+/**
+ * Renders an option's count as a round accent pill, for a list whose options each stand for a number
+ * of things rather than for one value
+ */
+export function DropdownCount({ count }: { count: number }) {
+  return (
+    <span
+      className="flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full px-1.5 text-[11px] font-medium"
+      style={{
+        background: 'var(--app-accent-soft)',
+        color: 'var(--app-accent)',
+      }}
+    >
+      {count}
+    </span>
+  )
+}

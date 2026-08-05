@@ -105,13 +105,16 @@ export function ImportHeaderMappingTable({
                 </td>
                 <td className="px-4 py-2.5 align-middle">
                   <div className="flex items-center gap-2">
-                    <div className={`min-w-0 flex-1 ${autoFilled ? 'import-auto-fill-field' : ''}`}>
+                    {/* Rounded like the control inside it, so the auto-fill glow traces it rather
+                        than a rectangle around it */}
+                    <div className={`min-w-0 flex-1 rounded-lg ${autoFilled ? 'import-auto-fill-field' : ''}`}>
                       <Dropdown
                         options={options}
                         value={selectedTarget}
                         onChange={(nextValue) => onChange(header, nextValue)}
                         searchable
-                        className={`app-input ${validationError ? 'app-input-error' : ''}`}
+                        size="compact"
+                        hasError={Boolean(validationError)}
                       />
                     </div>
                     {selectedTarget === 'dt' && (
@@ -121,7 +124,7 @@ export function ImportHeaderMappingTable({
                           value={dateFormat ?? ''}
                           onChange={(nextValue) => onDateFormatChange(nextValue as ImportDateFormat)}
                           placeholder="Choose the date format"
-                          className="app-input"
+                          size="compact"
                         />
                       </div>
                     )}

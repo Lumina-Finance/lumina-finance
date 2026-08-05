@@ -1,34 +1,35 @@
 import { useCallback, useEffect, useState, type RefObject } from 'react'
 import {
-  DEFAULT_DROPDOWN_LIST_POSITION,
-  getDropdownListPosition,
-  type DropdownListPosition,
+  DEFAULT_DROPDOWN_BOX_POSITION,
+  getDropdownBoxPosition,
+  type DropdownBoxPosition,
+  type DropdownViewport,
 } from '@/components/dropdown/position'
 
 interface UseDropdownPositionParams {
-  open: boolean
+  /** True for as long as the box is floating, which outlasts `open` by the length of the collapse */
+  placed: boolean
+
   searchable: boolean
-  triggerRef: RefObject<HTMLButtonElement | null>
+
+  /** The slot the control occupies in the page, held at the collapsed height while the box is open */
+  wrapperRef: RefObject<HTMLDivElement | null>
 }
 
 interface UseDropdownPositionResult {
-  listPosition: DropdownListPosition
-  updateListPosition: () => void
+  boxPosition: DropdownBoxPosition
+  updateBoxPosition: () => void
 }
 
 /**
- * Reads the visual viewport when available so mobile browser chrome does not push the menu off-screen
+ * Reads the visual viewport when available so mobile browser chrome does not push the box off-screen
  */
-function getViewport(): {
-  height: number
-  offsetLeft: number
-  offsetTop: number
-  width: number
-} {
+function getViewport(): DropdownViewport {
   const visualViewport = window.visualViewport
 
   return {
     height: visualViewport?.height ?? window.innerHeight,
+    layoutHeight: window.innerHeight,
     offsetLeft: visualViewport?.offsetLeft ?? 0,
     offsetTop: visualViewport?.offsetTop ?? 0,
     width: visualViewport?.width ?? window.innerWidth,
@@ -36,33 +37,41 @@ function getViewport(): {
 }
 
 /**
- * Tracks the floating dropdown menu position against the trigger and visual viewport
+ * Tracks where the open box sits against the slot it came from and the visible viewport
+ *
+ * Measured from the wrapper rather than from the box or the head inside it. Both of those move with
+ * the box once it is open, so the box would be chasing its own position and would sit still while
+ * the page scrolled underneath. The wrapper stays in the page and moves with it.
  */
 export function useDropdownPosition({
-  open,
+  placed,
   searchable,
-  triggerRef,
+  wrapperRef,
 }: UseDropdownPositionParams): UseDropdownPositionResult {
-  const [listPosition, setListPosition] = useState(DEFAULT_DROPDOWN_LIST_POSITION)
+  const [boxPosition, setBoxPosition] = useState(DEFAULT_DROPDOWN_BOX_POSITION)
 
-  const updateListPosition = useCallback(() => {
-    if (!triggerRef.current) return
+  const updateBoxPosition = useCallback(() => {
+    const wrapper = wrapperRef.current
+    if (!wrapper) return
 
-    const rect = triggerRef.current.getBoundingClientRect()
-    setListPosition(getDropdownListPosition({
+    const rect = wrapper.getBoundingClientRect()
+    setBoxPosition(getDropdownBoxPosition({
       anchorRect: rect,
+      headHeight: rect.height,
       searchable,
       viewport: getViewport(),
     }))
-  }, [searchable, triggerRef])
+  }, [searchable, wrapperRef])
 
   useEffect(() => {
-    if (!open) return
+    // Kept up through the collapse as well. Stopping at the moment the list closes leaves a box that is
+    // still floating welded to where the page was, while the slot it belongs to scrolls away underneath
+    if (!placed) return
 
     let frame = 0
     const updateOnFrame = () => {
       window.cancelAnimationFrame(frame)
-      frame = window.requestAnimationFrame(updateListPosition)
+      frame = window.requestAnimationFrame(updateBoxPosition)
     }
 
     updateOnFrame()
@@ -77,7 +86,7 @@ export function useDropdownPosition({
       window.visualViewport?.removeEventListener('resize', updateOnFrame)
       window.visualViewport?.removeEventListener('scroll', updateOnFrame)
     }
-  }, [open, updateListPosition])
+  }, [placed, updateBoxPosition])
 
-  return { listPosition, updateListPosition }
+  return { boxPosition, updateBoxPosition }
 }

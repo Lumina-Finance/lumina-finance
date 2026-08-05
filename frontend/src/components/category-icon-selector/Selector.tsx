@@ -309,13 +309,17 @@ function EmojiMartIconPicker({
 
   return createPortal(
     <div
-      className="fixed z-[110] inline-block rounded-xl pb-2 pl-1 pr-1 pt-1"
+      className="fixed z-[110] inline-block pb-2 pl-1 pr-1 pt-1"
       data-category-emoji-picker="true"
       role="dialog"
       aria-label={`Select ${categoryName} icon`}
       style={{
+        // Takes the drop-down panel's corner and edge so it reads as the same family, but keeps a
+        // solid background of its own, in the two colours the emoji grid is themed to. The grid is
+        // dense enough that anything showing through it would cost legibility
         background: isDark ? 'rgb(15, 14, 12)' : 'rgb(242, 237, 228)',
         border: '1px solid var(--app-border-strong)',
+        borderRadius: 'var(--app-dropdown-radius)',
         boxShadow: 'var(--app-shadow-soft)',
         left: position.left,
         maxHeight: position.maxHeight,

@@ -15,6 +15,7 @@ import type {
   TransactionModalKind,
 } from '@/pages/transactions/components/transaction-modal/types'
 import { formatCurrency } from '@/utils/formatCurrency'
+import { getFieldLabelId } from '@/utils/fieldLabel'
 
 type SelectedTransactionTag = {
   id: string
@@ -205,6 +206,7 @@ export default function TransactionReferencesSection({
     <CreateModalSectionFrame step="02" title="Source/Destination">
       <div>
         <CreateModalFieldLabelRow
+          htmlFor={TRANSACTION_MODAL_FIELD_IDS.account}
           label={accountLabel}
           error={accountError}
         />
@@ -214,7 +216,8 @@ export default function TransactionReferencesSection({
           selectedOption={selectedArchivedAccountOption}
           value={accountValue}
           onChange={onAccountChange}
-          className={`app-input ${accountError ? 'app-input-error' : ''}`}
+          hasError={!!accountError}
+          labelledBy={getFieldLabelId(TRANSACTION_MODAL_FIELD_IDS.account)}
           placeholder={accountPlaceholder}
           searchable
           searchPlaceholder="Search accounts..."
@@ -234,6 +237,7 @@ export default function TransactionReferencesSection({
             >
               <div className="pt-3">
                 <CreateModalFieldLabelRow
+                  htmlFor={TRANSACTION_MODAL_FIELD_IDS.counterpartyAccount}
                   label={(
                     <>
                       {/* Only the part that changes rolls, so "Money" stays put rather than
@@ -248,11 +252,13 @@ export default function TransactionReferencesSection({
                   error={counterpartyAccountError}
                 />
                 <Dropdown
+                  id={TRANSACTION_MODAL_FIELD_IDS.counterpartyAccount}
                   options={counterpartyAccountOptions}
                   selectedOption={selectedArchivedCounterpartyAccountOption}
                   value={counterpartyAccountValue}
                   onChange={onCounterpartyAccountChange}
-                  className={`app-input ${counterpartyAccountError ? 'app-input-error' : ''}`}
+                  hasError={!!counterpartyAccountError}
+                  labelledBy={getFieldLabelId(TRANSACTION_MODAL_FIELD_IDS.counterpartyAccount)}
                   placeholder="Select account..."
                   searchable
                   searchPlaceholder="Search accounts..."
@@ -315,14 +321,19 @@ export default function TransactionReferencesSection({
       </div>
 
       <div>
-        <CreateModalFieldLabelRow label="Merchant" error={merchantError} />
+        <CreateModalFieldLabelRow
+          htmlFor={TRANSACTION_MODAL_FIELD_IDS.merchant}
+          label="Merchant"
+          error={merchantError}
+        />
         <Dropdown
           id={TRANSACTION_MODAL_FIELD_IDS.merchant}
           options={merchantOptions}
           selectedOption={selectedMerchantOption}
           value={merchantValue}
           onChange={onMerchantChange}
-          className={`app-input ${merchantError ? 'app-input-error' : ''}`}
+          hasError={!!merchantError}
+          labelledBy={getFieldLabelId(TRANSACTION_MODAL_FIELD_IDS.merchant)}
           placeholder="Select or type to create..."
           searchable
           searchPlaceholder="Search merchants..."
@@ -346,6 +357,7 @@ export default function TransactionReferencesSection({
 
       <div>
         <CreateModalFieldLabelRow
+          htmlFor={TRANSACTION_MODAL_FIELD_IDS.category}
           label="Category"
           error={categoryError}
           action={showMerchantDefaultCategoryAction && (
@@ -366,7 +378,8 @@ export default function TransactionReferencesSection({
           options={categoryOptions}
           value={categoryValue}
           onChange={onCategoryChange}
-          className={`app-input ${categoryError ? 'app-input-error' : ''}`}
+          hasError={!!categoryError}
+          labelledBy={getFieldLabelId(TRANSACTION_MODAL_FIELD_IDS.category)}
           placeholder="Select category..."
           searchable
           searchPlaceholder="Search categories..."
@@ -378,12 +391,13 @@ export default function TransactionReferencesSection({
       </div>
 
       <div>
-        <CreateModalFieldLabelRow label="Tags" />
+        <CreateModalFieldLabelRow htmlFor={TRANSACTION_MODAL_FIELD_IDS.tags} label="Tags" />
         <Dropdown
+          id={TRANSACTION_MODAL_FIELD_IDS.tags}
           options={tagOptions}
           value=""
           onChange={onTagChange}
-          className="app-input"
+          labelledBy={getFieldLabelId(TRANSACTION_MODAL_FIELD_IDS.tags)}
           placeholder={tagsDisabled ? 'Select account first' : 'Add tags...'}
           searchable
           searchPlaceholder="Search tags..."

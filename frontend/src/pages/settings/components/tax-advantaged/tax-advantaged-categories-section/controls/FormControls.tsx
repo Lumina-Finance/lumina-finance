@@ -1,9 +1,7 @@
 import { Pencil } from 'lucide-react'
 import type { Currency } from '@/api/currency'
-import type { TaxTreatment } from '@/api/tax-advantaged-categories'
 import IconTooltip from '@/components/tooltips/IconTooltip'
 import { useMoneyInput } from '@/hooks/useMoneyInput'
-import { TAX_TREATMENT_OPTIONS } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/constants'
 import { currencySymbol } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/utils/categoryUtils'
 import { getCurrencyExponent, getMoneyPlaceholder } from '@/utils/moneyInput'
 
@@ -141,48 +139,6 @@ export function CompactCurrencyInput({
         placeholder={placeholder ?? getMoneyPlaceholder(exponent)}
         {...moneyInput}
       />
-      <Pencil
-        size={13}
-        className="shrink-0 opacity-45 transition-opacity duration-150 group-hover:opacity-70 group-focus-within:opacity-80"
-        style={{ color: 'var(--app-text-subtle)' }}
-        aria-hidden
-      />
-    </div>
-  )
-}
-
-/**
- * Underlined select for choosing a category's tax treatment inline, styled to match the other
- * inline editors
- */
-export function InlineTaxTreatmentSelect({
-  onBlur,
-  onChange,
-  value,
-}: {
-  onBlur?: () => void
-  onChange: (value: TaxTreatment) => void
-  value: TaxTreatment
-}) {
-  return (
-    <div
-      className="group flex h-6 min-w-0 items-center gap-1"
-      style={{ borderBottom: '1px solid var(--app-border-strong)' }}
-    >
-      <select
-        aria-label="Category type"
-        className="block h-6 min-w-0 flex-1 appearance-none bg-transparent text-[0.9375rem] font-medium leading-6 outline-none"
-        onBlur={onBlur}
-        onChange={(event) => onChange(event.target.value as TaxTreatment)}
-        style={{ color: 'var(--app-text)' }}
-        value={value}
-      >
-        {TAX_TREATMENT_OPTIONS.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
       <Pencil
         size={13}
         className="shrink-0 opacity-45 transition-opacity duration-150 group-hover:opacity-70 group-focus-within:opacity-80"

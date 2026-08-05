@@ -1,10 +1,13 @@
 import { Fragment, type RefObject, type UIEvent } from 'react'
-import { DropdownBadge } from './Badge'
+import { Check } from 'lucide-react'
+import { joinClassNames } from '@/utils/classNames'
+import { DropdownBadge, DropdownCount } from './Badge'
 import type { DropdownOption, DropdownOptionGroup } from './types'
 
 interface DropdownOptionListProps {
   effectiveHighlightedIndex: number
   groupedOptions: DropdownOptionGroup[] | null
+  listId: string
   listMaxHeight: number
   listRef: RefObject<HTMLUListElement | null>
   loadingText: string
@@ -26,7 +29,7 @@ interface DropdownOptionRowProps {
 }
 
 /**
- * Renders one option row with the shared selected and highlighted states used by grouped and flat menus
+ * Renders one option row with the shared selected, highlighted and unavailable states used by grouped and flat menus
  */
 function DropdownOptionRow({
   flatIndex,
@@ -36,28 +39,32 @@ function DropdownOptionRow({
   onHighlight,
   onSelect,
 }: DropdownOptionRowProps) {
+  const disabled = Boolean(option.disabled)
+
   return (
     <li
       role="option"
       aria-selected={selected}
+      aria-disabled={disabled || undefined}
       data-option-index={flatIndex}
-      className="flex cursor-pointer items-center gap-2 px-4 py-2 text-sm transition-colors duration-100"
-      style={{
-        background: highlighted ? 'var(--app-accent-soft)' : 'transparent',
-        color: selected ? 'var(--app-accent)' : 'var(--app-text)',
-      }}
-      onMouseEnter={() => onHighlight(flatIndex)}
+      className={joinClassNames(
+        'app-dropdown-row',
+        highlighted && !disabled && 'app-dropdown-row-highlighted',
+        selected && 'app-dropdown-row-selected',
+        disabled && 'app-dropdown-row-disabled',
+      )}
+      onMouseEnter={disabled ? undefined : () => onHighlight(flatIndex)}
       onMouseDown={(event) => event.preventDefault()}
-      onClick={() => onSelect(option.value)}
+      onClick={disabled ? undefined : () => onSelect(option.value)}
     >
       {option.icon && (
-        <span className="shrink-0 text-base leading-none" aria-hidden>
+        <span className="flex shrink-0 items-center text-base leading-none" aria-hidden>
           {option.icon}
         </span>
       )}
       {/* The label and its description stack, so a badge stays beside the label rather than
           floating against a two-line block */}
-      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5 text-sm">
         <span className="flex min-w-0 items-center gap-2">
           <span className="min-w-0 truncate">{option.label}</span>
           {option.badge && <DropdownBadge label={option.badge} />}
@@ -68,16 +75,19 @@ function DropdownOptionRow({
           </span>
         )}
       </span>
+      {option.count !== undefined && <DropdownCount count={option.count} />}
+      {selected && <Check size={16} className="shrink-0" aria-hidden />}
     </li>
   )
 }
 
 /**
- * Renders dropdown options, grouped headers, empty text, and loading status inside the scrollable listbox
+ * Renders drop-down options, grouped headers, empty text, and loading status inside the scrollable listbox
  */
 export function DropdownOptionList({
   effectiveHighlightedIndex,
   groupedOptions,
+  listId,
   listMaxHeight,
   listRef,
   loadingText,
@@ -91,27 +101,18 @@ export function DropdownOptionList({
   return (
     <ul
       ref={listRef}
+      id={listId}
       role="listbox"
       className="overflow-auto"
       style={{ maxHeight: listMaxHeight }}
       onScroll={onScroll}
     >
       {options.length === 0 && !showLoading ? (
-        <li className="px-4 py-2 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
-          No results
-        </li>
+        <li className="app-dropdown-note">No results</li>
       ) : groupedOptions ? (
         groupedOptions.map((group, groupIndex) => (
           <Fragment key={`${group.label}-${groupIndex}`}>
-            <li
-              role="presentation"
-              className="sticky top-0 z-10 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide"
-              style={{
-                color: 'var(--app-text-subtle)',
-                background: 'var(--app-input-bg)',
-                borderBottom: '1px solid var(--app-border)',
-              }}
-            >
+            <li role="presentation" className="app-dropdown-group">
               {group.label}
             </li>
             {group.items.map(({ option, flatIndex }) => (
@@ -140,11 +141,7 @@ export function DropdownOptionList({
           />
         ))
       )}
-      {showLoading && (
-        <li className="px-4 py-2 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
-          {loadingText}
-        </li>
-      )}
+      {showLoading && <li className="app-dropdown-note">{loadingText}</li>}
     </ul>
   )
 }

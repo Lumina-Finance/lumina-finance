@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { joinClassNames } from '@/utils/classNames'
+import { getFieldLabelId } from '@/utils/fieldLabel'
 
 const ACTION_SLOT_EASE = [0.25, 0.1, 0.25, 1] as const
 
@@ -36,7 +37,11 @@ export default function CreateModalFieldLabelRow({
       )}
     >
       <div className="flex min-w-0 items-center gap-1.5">
-        <label htmlFor={htmlFor} className="app-label block shrink-0 text-[0.9375rem] leading-5">
+        <label
+          id={htmlFor && getFieldLabelId(htmlFor)}
+          htmlFor={htmlFor}
+          className="app-label block shrink-0 text-[0.9375rem] leading-5"
+        >
           {label}
         </label>
         {accessory}
