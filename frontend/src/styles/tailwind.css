@@ -59,11 +59,6 @@
     --app-dropdown-gap: 8px;
     --app-dropdown-font-size: 0.9375rem;
 
-    /* How much of the input colour survives over what is behind the open box. Depth comes from this,
-       the border and the shadow rather than from a blur, so it has to stay high enough for the option
-       text to hold up over whatever the box is covering, and low enough to see that there is
-       something behind it. Plain alpha, so it costs nothing whatever it is set to */
-    --app-dropdown-tint: 80%;
     --app-dropdown-inner-padding: 6px;
     --app-dropdown-row-radius: 6px;
     --app-dropdown-row-padding-x: 12px;
@@ -663,9 +658,11 @@
      because the box's own height is what is moving, which is the cost the frosting behind a dialog
      avoids by blurring something inert and still instead. The tint is plain alpha compositing, so it
      keeps some of the depth for none of that */
+  /* Solid, with no transparency and no filter of any kind. Depth comes from the border and the shadow
+     instead, which cost nothing to draw and nothing to redraw while the box opens */
   .app-dropdown-glass.app-dropdown-glass-open {
     border-color: var(--app-border-strong);
-    background: color-mix(in srgb, var(--app-input-bg) var(--app-dropdown-tint), transparent);
+    background: var(--app-input-bg);
     box-shadow: var(--app-shadow-soft);
   }
 
@@ -680,9 +677,11 @@
      Depth here comes from the tint, the border and the shadow instead, which is the same trade the
      mobile filter sheet and the import progress overlay already make */
 
+  /* Mixed from the opaque negative rather than its soft variant, which carries alpha of its own. The
+     two land on nearly the same colour over a form, and this one stays solid over anything */
   .app-dropdown-glass.app-dropdown-glass-error {
     border-color: var(--app-negative-border);
-    background: var(--app-negative-soft);
+    background: color-mix(in srgb, var(--app-negative) 10%, var(--app-input-bg));
   }
 
   .app-dropdown-glass.app-dropdown-glass-error:focus-within {
@@ -691,10 +690,9 @@
 
   /* A rejected field that is open still has to be readable, so the red is mixed into the open
      background rather than replacing it with a ten percent wash the page shows straight through */
-  /* A rejected field that is open still has to be readable, so the red is mixed into the open
-     background rather than replacing it with a ten percent wash the page shows straight through */
+  /* Open, it keeps the same rejected colour and gains the shadow that lifts it off the page */
   .app-dropdown-glass.app-dropdown-glass-open.app-dropdown-glass-error {
-    background: color-mix(in srgb, var(--app-negative-soft) 40%, var(--app-input-bg));
+    background: color-mix(in srgb, var(--app-negative) 10%, var(--app-input-bg));
     box-shadow: var(--app-shadow-soft);
   }
 
