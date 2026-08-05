@@ -179,6 +179,24 @@ describe('leaving rows with no payee out of the import', () => {
     expect(result.payload).toBeNull()
     expect(result.errors).toContain(getEveryRowHasNoPayeeError(4))
   })
+
+  it('reads that message for one row without saying "1 rows"', () => {
+    expect(getEveryRowHasNoPayeeError(1)).toContain('The only row states no payee and is being left out')
+  })
+
+  // The warning is about what the file says rather than about what this run brings in, so leaving
+  // the outflows out must not make a file holding both signs read as one holding only income
+  it('keeps the no-outflows warning off a file whose excluded rows are the outflows', () => {
+    const result = build({
+      rows: [
+        { Date: '2026-04-10', Category: 'Groceries', Amount: '-50.00', Payee: '' },
+        { Date: '2026-04-11', Category: 'Groceries', Amount: '2000.00', Payee: 'Employer' },
+      ],
+    })
+
+    expect(result.rowExclusions).toHaveLength(1)
+    expect(result.warnings).toEqual([])
+  })
 })
 
 describe('bringing rows with no payee in', () => {

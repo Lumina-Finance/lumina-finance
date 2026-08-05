@@ -60,6 +60,7 @@ export function ImportPreviewStep({
             title={getRowWarningsTitle(importBuild.rowWarnings.length)}
             rowProblems={importBuild.rowWarnings}
             headers={headers}
+            toggleLabel="rows to check"
           />
         </div>
       )}
@@ -69,6 +70,7 @@ export function ImportPreviewStep({
             title={getRowExclusionsTitle(importBuild.rowExclusions.length)}
             rowProblems={importBuild.rowExclusions}
             headers={headers}
+            toggleLabel="rows being left out"
           />
         </div>
       )}

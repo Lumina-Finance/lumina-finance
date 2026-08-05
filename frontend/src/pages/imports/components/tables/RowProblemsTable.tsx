@@ -14,10 +14,17 @@ export function ImportRowProblemsTable({
   title,
   rowProblems,
   headers,
+  toggleLabel = 'rows to fix',
 }: {
   title: string
   rowProblems: ImportRowProblem[]
   headers: string[]
+
+  /**
+   * What the collapse control calls the rows, for the tables holding rows that need no fixing.
+   * Defaults to the refused rows this table was written for
+   */
+  toggleLabel?: string
 }) {
   // Only the rows the table will show are shaped for it, and the count it summarizes the rest
   // against comes from the full list. A file whose every row is refused would otherwise rebuild a
@@ -32,7 +39,7 @@ export function ImportRowProblemsTable({
   return (
     <ImportSkippedTable
       title={title}
-      toggleLabel="rows to fix"
+      toggleLabel={toggleLabel}
       leadHeader="Row"
       leadColumnWidth={ROW_NUMBER_COLUMN_WIDTH}
       leadCellClassName="font-financial font-semibold tabular-nums"

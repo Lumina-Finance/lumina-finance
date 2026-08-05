@@ -94,12 +94,14 @@ export const ROW_HAS_NO_PAYEE_REASON = 'This row states no payee.'
 /**
  * Explains what the choice does, with the rows it applies to counted
  *
- * The merchant is stated because it is what those rows will read as everywhere in the app
- * afterwards, and mapping a column is offered first, since that is the better answer when the file
- * does hold the payee under a heading the guesser did not recognise
+ * No merchant is stated, because which one a row gets depends on its category: a transfer has no
+ * payee of its own and takes the merchant the app puts on its own transfers, while everything else
+ * takes the one meaning the payee is not known. Mapping a column is offered first, since that is
+ * the better answer when the file does hold the payee under a heading the guesser did not recognise
  */
-export function getRowsWithNoPayeeExplanation(rowCount: number, merchantName: string) {
-  return `${rowCount.toLocaleString()} row${rowCount === 1 ? '' : 's'} state no payee, and every transaction carries a merchant. Map the column holding the payee above if the file has one. Otherwise choose whether to bring these rows in under ${merchantName}, or to leave them out of the import.`
+export function getRowsWithNoPayeeExplanation(rowCount: number) {
+  const rows = rowCount === 1 ? '1 row states' : `${rowCount.toLocaleString()} rows state`
+  return `${rows} no payee, and every transaction carries a merchant. Map the column holding the payee above if the file has one. Otherwise choose whether to bring these rows in under a merchant that ships with the app, or to leave them out of the import.`
 }
 
 /**
@@ -109,7 +111,8 @@ export function getRowsWithNoPayeeExplanation(rowCount: number, merchantName: st
  * different file
  */
 export function getEveryRowHasNoPayeeError(rowCount: number) {
-  return `All ${rowCount.toLocaleString()} rows state no payee and are being left out, so this import would bring in nothing. Import them under the shared merchant, or map the column holding the payee.`
+  const rows = rowCount === 1 ? 'The only row states' : `All ${rowCount.toLocaleString()} rows state`
+  return `${rows} no payee and ${rowCount === 1 ? 'is' : 'are'} being left out, so this import would bring in nothing. Import them under a merchant that ships with the app, or map the column holding the payee.`
 }
 
 /**

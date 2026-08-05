@@ -4,7 +4,6 @@ import {
   getRowsWithNoPayeeExplanation,
   ROWS_WITH_NO_PAYEE_CHECKBOX_LABEL,
   ROWS_WITH_NO_PAYEE_TITLE,
-  UNKNOWN_MERCHANT_NAME,
 } from '@/pages/imports/constants'
 import type { TransactionImportWorkflow } from '@/pages/imports/hooks'
 
@@ -80,7 +79,7 @@ export function ImportColumnMappingStep({
       {rowsWithNoPayeeCount > 0 && (
         <div className="mt-4 flex flex-col gap-3">
           <ImportNotice title={ROWS_WITH_NO_PAYEE_TITLE}>
-            {getRowsWithNoPayeeExplanation(rowsWithNoPayeeCount, UNKNOWN_MERCHANT_NAME)}
+            {getRowsWithNoPayeeExplanation(rowsWithNoPayeeCount)}
           </ImportNotice>
           <div className="flex items-center gap-2 px-4">
             {/* The checkbox centres itself for the table cells it was written for, so it is boxed

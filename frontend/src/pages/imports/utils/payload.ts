@@ -210,6 +210,11 @@ export function buildTransactionImportPayload({
   const rowJudgement: ImportRowJudgement = { currencies, accountMappings, recordsCounterpartyBySource }
 
   const rows: TransactionImportPayload['rows'] = []
+
+  // Every row that converts, whether or not it is being left out. The whole-file warnings are about
+  // what the file says rather than about what this run brings in, so excluding rows must not make a
+  // file of both signs read as one holding only money coming in
+  const convertibleRows: TransactionImportPayload['rows'] = []
   const rowProblems: ImportRowProblem[] = []
   const rowWarnings: ImportRowProblem[] = []
   const rowExclusions: ImportRowProblem[] = []
@@ -229,9 +234,21 @@ export function buildTransactionImportPayload({
         continue
       }
 
+      const convertedRow = {
+        account_source: resolved.accountSource,
+        category_source: resolved.categorySource,
+        dt: resolved.dt,
+        amount: resolved.amount,
+        merchant_name: resolved.merchantName,
+        notes: resolved.notes,
+        tag_names: resolved.tagNames,
+        counterparty_account_source: resolved.counterpartySource,
+      }
+      convertibleRows.push(convertedRow)
+
       // A row whose file states no payee is only imported where the user has asked for it, since
-      // it can only be filed under the shared merchant. Left out is a choice rather than a fault,
-      // so it is listed apart from the rows something is wrong with and stops nothing
+      // it can only be filed under a merchant that ships with the app. Left out is a choice rather
+      // than a fault, so it is listed apart from the rows something is wrong with and stops nothing
       if (!resolved.merchantName && !importRowsWithNoPayee) {
         rowExclusions.push({
           id: getImportRowId(file.id, rowIndex),
@@ -253,16 +270,7 @@ export function buildTransactionImportPayload({
         })
       }
 
-      rows.push({
-        account_source: resolved.accountSource,
-        category_source: resolved.categorySource,
-        dt: resolved.dt,
-        amount: resolved.amount,
-        merchant_name: resolved.merchantName,
-        notes: resolved.notes,
-        tag_names: resolved.tagNames,
-        counterparty_account_source: resolved.counterpartySource,
-      })
+      rows.push(convertedRow)
     }
   }
 
@@ -275,7 +283,7 @@ export function buildTransactionImportPayload({
       : 'No transaction rows are available to import.')
   }
 
-  const warnings = getImportWarnings(rows)
+  const warnings = getImportWarnings(convertibleRows)
   const allErrors = [...columnErrors, ...errors]
   if (allErrors.length > 0 || rowProblems.length > 0) {
     return { errors: allErrors, rowProblems, warnings, rowWarnings, rowExclusions, payload: null }

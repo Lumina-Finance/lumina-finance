@@ -586,8 +586,8 @@ export function useTransactionImportWorkflow() {
     setColumnValidationErrors(nextColumnValidationErrors)
     setColumnMap(nextColumnMap)
 
-    // The answer was given about a file with no payee column, so changing which column holds the
-    // payee asks the question again rather than carrying the old answer onto a different mapping
+    // The choice was made about one set of payee-less rows, and changing which column holds the
+    // payee changes that set, so it is asked again rather than carried onto a different one
     if (nextColumnMap.merchant_id !== columnMap.merchant_id) setImportRowsWithNoPayee(false)
 
     // The mapping the last refusal was about has changed, so the message stops being true
