@@ -15,6 +15,7 @@ import {
 } from '@/pages/imports/constants'
 import type { CsvRow, ImportFileDraft } from '@/pages/imports/types'
 import {
+  buildImportAccountMappingSources,
   buildImportPreviewRows,
   buildTransactionImportPayload,
   countRowsWithNoPayee,
@@ -208,8 +209,37 @@ describe('leaving rows with no payee out of the import', () => {
     expect(result.errors).toContain(getEveryRowHasNoPayeeError(4))
   })
 
-  it('reads that message for one row without saying "1 rows"', () => {
-    expect(getEveryRowHasNoPayeeError(1)).toContain('The only row states no payee and is being left out')
+  it('reads that message for one row without saying "1 rows" or "them"', () => {
+    const message = getEveryRowHasNoPayeeError(1)
+
+    expect(message).toContain('The only row states no payee and is being left out')
+    expect(message).toContain('Import it under')
+    expect(message).not.toContain('them')
+  })
+
+  // Leaving a source out of the account list would move where its answer is stored, and the answer
+  // already given for it would be reread as money leaving the tracked accounts
+  it('keeps a counterparty account listed whether or not its rows are being left out', () => {
+    const rows: CsvRow[] = [
+      { Date: '2026-04-10', Category: 'Groceries', Amount: '-500.00', Payee: 'Corner Cafe', Account: 'Chequing', Other: 'Savings' },
+      { Date: '2026-04-11', Category: 'Groceries', Amount: '500.00', Payee: '', Account: 'Savings', Other: 'Chequing' },
+    ]
+    const file = { ...createFile(rows), headers: [...HEADERS, 'Account', 'Other'] }
+
+    // Savings is written to only by the row being left out, and it must stay an ordinary source
+    // rather than becoming one that only ever appeared as a counterparty
+    expect(buildImportAccountMappingSources([file], 'Account', 'Other')).toEqual([
+      { id: 'Chequing', label: 'Chequing', matchText: 'Chequing', isCounterpartyOnly: false },
+      { id: 'Savings', label: 'Savings', matchText: 'Savings', isCounterpartyOnly: false },
+    ])
+
+    // Reading the account list off the importing rows instead is what would move it, which is why
+    // the flow does not do that. An answer given for it would then be looked for under the other
+    // column, come back empty, and be reread as money leaving the tracked accounts
+    const importing = getImportingFiles([file], 'Payee', false)
+    expect(buildImportAccountMappingSources(importing, 'Account', 'Other')).toContainEqual(
+      { id: 'Savings', label: 'Savings', matchText: 'Savings', isCounterpartyOnly: true },
+    )
   })
 
   // The warning is about what the file says rather than about what this run brings in, so leaving

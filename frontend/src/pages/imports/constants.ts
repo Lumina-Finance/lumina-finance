@@ -85,7 +85,7 @@ export function getRowTooManyTagsReason(count: number) {
 // is mapped as the Merchant and only the blank ones where a column is. Every transaction carries a
 // merchant, so such a row can only be brought in under the shared one, and that is a choice
 export const ROWS_WITH_NO_PAYEE_TITLE = 'Rows with no payee'
-export const ROWS_WITH_NO_PAYEE_CHECKBOX_LABEL = 'Import these rows under the shared merchant'
+export const ROWS_WITH_NO_PAYEE_CHECKBOX_LABEL = 'Import these rows under a merchant that ships with the app'
 
 // Said against a row left out because the user chose not to bring in rows with no payee. Nothing is
 // wrong with the row, so it reads as a statement rather than as a fault
@@ -100,8 +100,10 @@ export const ROW_HAS_NO_PAYEE_REASON = 'This row states no payee.'
  * the better answer when the file does hold the payee under a heading the guesser did not recognise
  */
 export function getRowsWithNoPayeeExplanation(rowCount: number) {
-  const rows = rowCount === 1 ? '1 row states' : `${rowCount.toLocaleString()} rows state`
-  return `${rows} no payee, and every transaction carries a merchant. Map the column holding the payee above if the file has one. Otherwise choose whether to bring these rows in under a merchant that ships with the app, or to leave them out of the import.`
+  const isOne = rowCount === 1
+  const rows = isOne ? '1 row states' : `${rowCount.toLocaleString()} rows state`
+  const them = isOne ? 'it' : 'them'
+  return `${rows} no payee, and every transaction carries a merchant. Map the column holding the payee above if the file has one. Otherwise choose whether to bring ${them} in under a merchant that ships with the app, or to leave ${them} out of the import.`
 }
 
 /**
@@ -111,8 +113,9 @@ export function getRowsWithNoPayeeExplanation(rowCount: number) {
  * different file
  */
 export function getEveryRowHasNoPayeeError(rowCount: number) {
-  const rows = rowCount === 1 ? 'The only row states' : `All ${rowCount.toLocaleString()} rows state`
-  return `${rows} no payee and ${rowCount === 1 ? 'is' : 'are'} being left out, so this import would bring in nothing. Import them under a merchant that ships with the app, or map the column holding the payee.`
+  const isOne = rowCount === 1
+  const rows = isOne ? 'The only row states' : `All ${rowCount.toLocaleString()} rows state`
+  return `${rows} no payee and ${isOne ? 'is' : 'are'} being left out, so this import would bring in nothing. Import ${isOne ? 'it' : 'them'} under a merchant that ships with the app, or map the column holding the payee.`
 }
 
 /**

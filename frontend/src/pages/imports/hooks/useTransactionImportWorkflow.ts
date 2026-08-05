@@ -99,9 +99,13 @@ export function useTransactionImportWorkflow() {
     [columnMap.merchant_id, files, importRowsWithNoPayee],
   )
 
+  // Read from every row rather than from the importing ones, unlike the value lists below. Which
+  // column a source came out of decides where its answer is stored, and leaving rows out can move a
+  // source from one column to the other, which would leave the answer already given for it unread
+  // and quietly reread as money leaving the tracked accounts
   const accountMappingSources = useMemo(
-    () => buildImportAccountMappingSources(importingFiles, columnMap.account_id, columnMap.counterparty_account_id),
-    [columnMap.account_id, columnMap.counterparty_account_id, importingFiles],
+    () => buildImportAccountMappingSources(files, columnMap.account_id, columnMap.counterparty_account_id),
+    [columnMap.account_id, columnMap.counterparty_account_id, files],
   )
 
   // The account sources come from two columns, so an answer is about whichever of them supplied it
