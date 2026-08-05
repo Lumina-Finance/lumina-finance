@@ -133,17 +133,25 @@ describe('refusing a row carrying too many tags', () => {
 })
 
 describe('refusing an import declaring more values than it may carry', () => {
-  // No answer to any outstanding mapping question can make such an import work, so it is said
-  // before those questions rather than after the user has answered every one of them
-  it('says so while category types are still unanswered', () => {
-    const result = buildWithManyCategories(MAX_IMPORT_MAPPINGS + 1)
+  // The count comes off the file itself, so the refusal does not wait for the mapping answers. A
+  // user who has to map 1,001 categories by hand before being told the import cannot run has done
+  // all of that work for nothing
+  it('says so while every category is still unmapped', () => {
+    const result = buildWithManyCategories(MAX_IMPORT_MAPPINGS + 1, { mapped: false })
+
+    expect(result.payload).toBeNull()
+    expect(result.errors).toContain(getTooManyMappingsError('category', MAX_IMPORT_MAPPINGS + 1))
+  })
+
+  it('says so once they are mapped as well', () => {
+    const result = buildWithManyCategories(MAX_IMPORT_MAPPINGS + 1, { mapped: true })
 
     expect(result.payload).toBeNull()
     expect(result.errors).toContain(getTooManyMappingsError('category', MAX_IMPORT_MAPPINGS + 1))
   })
 
   it('accepts an import sitting exactly on the limit', () => {
-    const result = buildWithManyCategories(MAX_IMPORT_MAPPINGS)
+    const result = buildWithManyCategories(MAX_IMPORT_MAPPINGS, { mapped: true })
 
     expect(result.errors).not.toContain(getTooManyMappingsError('category', MAX_IMPORT_MAPPINGS))
   })
@@ -152,10 +160,10 @@ describe('refusing an import declaring more values than it may carry', () => {
 /**
  * Builds a payload for a file whose category column holds the given number of distinct values
  *
- * Every value is left unmapped, which is the state a user is in before answering the matching step,
- * and is what proves the count is reported without waiting for those answers
+ * Leaving them unmapped is the state a user is in before answering the matching step, which is
+ * where the count has to be known
  */
-function buildWithManyCategories(count: number) {
+function buildWithManyCategories(count: number, { mapped }: { mapped: boolean }) {
   const sources = Array.from({ length: count }, (_, index) => `Category ${index}`)
   const rows: CsvRow[] = sources.map((source) => ({
     Date: '2026-04-10',
@@ -183,7 +191,7 @@ function buildWithManyCategories(count: number) {
     accountSources: [{ id: 'file-1', label: 'Chequing.csv', matchText: 'Chequing.csv', isCounterpartyOnly: false }],
     categoryById: new Map([[CATEGORY.id, CATEGORY]]),
     categoryCreateKinds: {},
-    categoryMappings: Object.fromEntries(sources.map((source) => [source, CATEGORY.id])),
+    categoryMappings: mapped ? Object.fromEntries(sources.map((source) => [source, CATEGORY.id])) : {},
     categoryTypesBySource: {},
     columnMap: {
       ...EMPTY_COLUMN_MAP,

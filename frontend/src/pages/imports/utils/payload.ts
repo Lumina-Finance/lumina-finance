@@ -102,6 +102,16 @@ export function buildTransactionImportPayload({
   const missingRequired = getMissingRequiredColumnLabels(columnMap)
   if (missingRequired.length > 0) addError(`Missing required columns: ${missingRequired.join(', ')}`)
 
+  // Counted off the distinct values the files hold rather than the mappings answered so far, so the
+  // refusal does not wait for answers that cannot change it. Mapping a thousand categories by hand
+  // and only then being told the import cannot run is the whole reason this is asked here
+  if (accountSources.length > MAX_IMPORT_MAPPINGS) {
+    addError(getTooManyMappingsError('account', accountSources.length))
+  }
+  if (importedCategories.length > MAX_IMPORT_MAPPINGS) {
+    addError(getTooManyMappingsError('category', importedCategories.length))
+  }
+
   // Without a settled format every row would fail its own date check, which reads as a file full of
   // bad dates rather than one unanswered question
   if (columnMap.dt && !dateFormat) addError('Choose the date format this file is written in.')
@@ -176,12 +186,6 @@ export function buildTransactionImportPayload({
     if (category) kindByCategorySource[source] = category.kind
     categories.push({ source, category_id: choice })
   }
-
-  // Said before the mapping questions are judged, because no answer to any of them makes a file
-  // carrying this many values importable, and asking them first would have the user answer every
-  // one before learning that
-  if (accounts.length > MAX_IMPORT_MAPPINGS) addError(getTooManyMappingsError('account', accounts.length))
-  if (categories.length > MAX_IMPORT_MAPPINGS) addError(getTooManyMappingsError('category', categories.length))
 
   // Judging rows before every mapping they depend on is answered blames them for the answer being
   // missing: with no category column mapped, every row reads as one with a blank category, and with

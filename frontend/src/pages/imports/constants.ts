@@ -59,11 +59,12 @@ export const MAX_IMPORT_MAPPINGS = 1_000
 /**
  * Says an import declares more distinct values for a column than one import may carry
  *
- * Counted across every staged file, since they are imported together as one run, so the way out is
- * to stage fewer of them at a time rather than to split any one file
+ * Counted across every staged file, since they are committed together as one import. The way out
+ * depends on which case it is, so the wording covers both: stage fewer files, or split the one file
+ * that carries them all
  */
 export function getTooManyMappingsError(kind: 'account' | 'category', count: number) {
-  return `These files have ${count.toLocaleString()} different ${kind} values between them, and one import carries up to ${MAX_IMPORT_MAPPINGS.toLocaleString()}. Import fewer files at a time.`
+  return `This import has ${count.toLocaleString()} different ${kind} values, and one import carries up to ${MAX_IMPORT_MAPPINGS.toLocaleString()}. Split the data into smaller imports.`
 }
 
 /**
