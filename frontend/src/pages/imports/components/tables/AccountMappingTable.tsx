@@ -1,5 +1,5 @@
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
-import { CREATE_ACCOUNT_VALUE, IMPORT_INSET_STYLE } from '@/pages/imports/constants'
+import { CREATE_ACCOUNT_VALUE, IMPORT_INSET_STYLE, UNSET_BATCH_INSTITUTION } from '@/pages/imports/constants'
 import { OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 import { canApplyBatchEditToRow, countImportAccountRowStates } from '@/pages/imports/utils'
 import { ImportCheckbox } from '@/pages/imports/components/Primitives'
@@ -92,7 +92,8 @@ export function ImportAccountMappingTable({
   // Apply leaves a settled row alone, so both the button and the edit itself work from this rather
   // than from the selection, which can hold rows this Apply will not touch
   const editableRows = selectedRows.filter((row) => canApplyBatchEditToRow(row.value, row.isHandAnswered))
-  const hasBatchFieldSet = Boolean(batchAccountType || batchAccountCurrency || batchAccountInstitution)
+  const hasBatchInstitutionSet = batchAccountInstitution !== UNSET_BATCH_INSTITUTION
+  const hasBatchFieldSet = Boolean(batchAccountType || batchAccountCurrency) || hasBatchInstitutionSet
 
   const toggleRow = (row: (typeof rows)[number]) => {
     const next = new Set(selectedRowIds)
@@ -121,11 +122,14 @@ export function ImportAccountMappingTable({
       if (row.value !== CREATE_ACCOUNT_VALUE) row.onChange(CREATE_ACCOUNT_VALUE)
       if (batchAccountType) row.onCreateTypeChange(batchAccountType)
       if (batchAccountCurrency) row.onCreateCurrencyChange(batchAccountCurrency)
-      if (batchAccountInstitution) row.onCreateInstitutionChange(batchAccountInstitution)
+
+      // Unlike the other two, an empty institution is a choice rather than an unset control, so
+      // applying None is how a row's institution gets cleared in bulk
+      if (hasBatchInstitutionSet) row.onCreateInstitutionChange(batchAccountInstitution)
     }
     onBatchAccountTypeChange('')
     onBatchAccountCurrencyChange('')
-    onBatchAccountInstitutionChange('')
+    onBatchAccountInstitutionChange(UNSET_BATCH_INSTITUTION)
 
     // Only the rows this table just edited leave the selection, which the other table shares, so a
     // row Apply skipped stays ticked rather than reading as though something happened to it

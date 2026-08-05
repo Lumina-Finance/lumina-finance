@@ -13,6 +13,7 @@ import {
   CURRENCIES_FAILED_UPLOAD_BLOCK,
   CURRENCIES_LOADING_UPLOAD_BLOCK,
   EMPTY_COLUMN_MAP,
+  UNSET_BATCH_INSTITUTION,
 } from '@/pages/imports/constants'
 import type { ImportFileDraft } from '@/pages/imports/types'
 import {
@@ -110,6 +111,14 @@ describe('import workflow option helpers', () => {
       { value: '', label: 'None' },
       { value: 'bank', label: 'Bank' },
     ])
+  })
+
+  // The batch bar shows its placeholder by holding a value no option carries, so the moment one
+  // does, the resting control reads as an answer the user never gave
+  it('offers no institution option matching the unset value the batch bar holds', () => {
+    const options = buildImportInstitutionOptions([{ id: 'bank', name: 'Bank' } as Institution])
+
+    expect(options.some((option) => option.value === UNSET_BATCH_INSTITUTION)).toBe(false)
   })
 
   it('sorts category match options by kind and name after the create action', () => {

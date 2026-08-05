@@ -210,6 +210,12 @@ export const KIND_RANKS: Record<Category['kind'], number> = {
 export const DEFAULT_CATEGORY_ICON = '🏷️'
 export const CREATE_ACCOUNT_VALUE = '__create_account__'
 export const CREATE_CATEGORY_VALUE = '__create_category__'
+
+// What the batch bar's institution control holds before anything is chosen. The institution list
+// already spends the empty string on "None", which is a real answer meaning the account belongs to
+// no institution, so nothing chosen needs a value of its own. Absent from the options list, which
+// is what leaves the control showing its placeholder rather than the first option's label
+export const UNSET_BATCH_INSTITUTION = '__unset_institution__'
 export const IMPORT_CATEGORY_KIND_OPTIONS: Array<{ value: ImportCategoryKind; label: string }> = [
   { value: 'expense', label: 'Expense' },
   { value: 'income', label: 'Income' },

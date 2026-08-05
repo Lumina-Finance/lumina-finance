@@ -5,6 +5,7 @@ import {
   ARCHIVED_ACCOUNT_MATCH_EXPLANATION,
   COUNTERPARTY_ONLY_EXPLANATION,
   COUNTERPARTY_ONLY_TABLE_TITLE,
+  UNSET_BATCH_INSTITUTION,
 } from '@/pages/imports/constants'
 import type { ImportAccountSource } from '@/pages/imports/types'
 import { ImportAccountMappingTable, EmptyState, ImportNotice, ImportStep } from '@/pages/imports/components'
@@ -89,7 +90,7 @@ export function ImportAccountMappingStep({
   // The counterparty table carries its own batch bar, so typing into one bar leaves the other alone
   const [counterpartyBatchType, setCounterpartyBatchType] = useState('')
   const [counterpartyBatchCurrency, setCounterpartyBatchCurrency] = useState('')
-  const [counterpartyBatchInstitution, setCounterpartyBatchInstitution] = useState('')
+  const [counterpartyBatchInstitution, setCounterpartyBatchInstitution] = useState(UNSET_BATCH_INSTITUTION)
 
   const openInstitutionModal = (query: string, target: BatchTarget | string) => {
     setInstitutionModalName(query)

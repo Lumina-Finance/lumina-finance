@@ -1,5 +1,5 @@
 import { useMemo, useState, type Dispatch, type SetStateAction } from 'react'
-import { CREATE_ACCOUNT_VALUE } from '@/pages/imports/constants'
+import { CREATE_ACCOUNT_VALUE, UNSET_BATCH_INSTITUTION } from '@/pages/imports/constants'
 import {
   emptyScopedImportAnswers,
   readScopedImportAnswers,
@@ -59,7 +59,7 @@ export function useImportAccountCreateState(
   const [storedSelectedRows, setStoredSelectedRows] = useState<ScopedImportAnswers<true>>(emptyScopedImportAnswers)
   const [batchAccountType, setBatchAccountType] = useState('')
   const [batchAccountCurrency, setBatchAccountCurrency] = useState('')
-  const [batchAccountInstitution, setBatchAccountInstitution] = useState('')
+  const [batchAccountInstitution, setBatchAccountInstitution] = useState(UNSET_BATCH_INSTITUTION)
 
   /**
    * Wraps a scoped answer store as the plain record setter every table already takes
@@ -124,7 +124,7 @@ export function useImportAccountCreateState(
     setStoredSelectedRows(emptyScopedImportAnswers)
     setBatchAccountType('')
     setBatchAccountCurrency('')
-    setBatchAccountInstitution('')
+    setBatchAccountInstitution(UNSET_BATCH_INSTITUTION)
   }
 
   return {
