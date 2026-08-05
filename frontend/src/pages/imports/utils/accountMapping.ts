@@ -115,7 +115,9 @@ export function dropVanishedAccountMappings(
  * user has not already mapped by hand
  *
  * A source is left unmapped when two accounts score equally well, since guessing between them would
- * silently file transactions against the wrong account
+ * silently file transactions against the wrong account. In the CSV flow that source then rests on
+ * creating an account, since `applyCreateAccountFallback` covers every row source with no answer,
+ * so a tie between two of the user's accounts ends up creating a third one carrying that name
  *
  * The two lists differ by which accounts each kind of source can be offered: a source no row is
  * written to can record an archived account, so matching it against the list the dropdown does not

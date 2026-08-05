@@ -168,7 +168,7 @@ export function ImportAccountMappingStep({
     <ImportStep index="03" title="Account Mapping">
       {!accountsFailed && (
         <ImportNotice title="Currency Handling">
-          Imported amounts are treated as raw values. During import, each amount will be assigned the base currency of the mapped account or the currency selected for a new account.
+          Imported amounts are treated as raw values. During import, each amount will be assigned the base currency of the mapped account, or the currency shown against a new account, which is taken from the file where it states one.
         </ImportNotice>
       )}
       {accountsFailed ? (

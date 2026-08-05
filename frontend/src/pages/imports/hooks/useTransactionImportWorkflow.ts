@@ -438,8 +438,8 @@ export function useTransactionImportWorkflow() {
 
   const resolvedCategoryMappings = useMemo(
     () => {
-      // A name whose category has gone is kept away from the guess, the same as an account source,
-      // so it reads as unanswered until the user answers it
+      // A name whose category has gone is kept away from the guess, so it reads as unanswered
+      // until the user answers it
       const answerableCategories = importedCategories.filter((category) => !clearedCategorySources.has(category))
       const matched = canInferCategoryMappings
         ? inferCategoryMappings(answerableCategories, liveCategoryMappings, categories ?? [], categoryTypesBySource)
