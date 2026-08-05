@@ -241,13 +241,21 @@ describe('archived accounts in account mapping', () => {
   it('reports the archived account a row source was left unmapped by', () => {
     const accounts = [chequing, archivedSavings]
 
-    expect(getArchivedAccountMatches([rowSource], {}, accounts)).toEqual(['Old Savings'])
+    // The id comes back with the name, since the notice links each one to the account's own page
+    expect(getArchivedAccountMatches([rowSource], {}, accounts)).toEqual([{ id: 'savings', name: 'Old Savings' }])
 
     // Nothing to say once the source is answered, and nothing to say about a counterparty source,
     // which is offered the archived account in the first place
     expect(getArchivedAccountMatches([rowSource], { 'Old Savings': 'checking' }, accounts)).toEqual([])
     expect(getArchivedAccountMatches([counterpartySource], {}, accounts)).toEqual([])
     expect(getArchivedAccountMatches([rowSource], {}, [chequing])).toEqual([])
+  })
+
+  it('lists an archived account once however many sources point at it', () => {
+    const secondSource = { ...rowSource, id: 'Old Savings Account', matchText: 'Old Savings Account' }
+
+    expect(getArchivedAccountMatches([rowSource, secondSource], {}, [chequing, archivedSavings]))
+      .toEqual([{ id: 'savings', name: 'Old Savings' }])
   })
 })
 

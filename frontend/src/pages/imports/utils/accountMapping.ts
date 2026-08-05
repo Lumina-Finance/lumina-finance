@@ -189,12 +189,22 @@ export function isAutoFilledAccountSource(
   return !(isCounterpartyOnly && resolvedChoice === OUTSIDE_ACCOUNT_VALUE)
 }
 
+/** An archived account a file appears to point at, carrying the id so the notice can link to it */
+export interface ImportArchivedAccountMatch {
+  id: string
+  name: string
+}
+
 /**
  * Lists the archived accounts that an unmapped row source appears to point at
  *
  * Those sources are offered every account except an archived one, so a file pointing at one
  * matches nothing and the reason never reaches the user. A source that is only ever a transfer's
  * counterparty is left out, since it can record an archived account as it is
+ *
+ * Two sources can point at the same archived account, so each one is listed once. Two archived
+ * accounts sharing a name are listed neither once nor twice: `findBestAccountNameMatch` refuses to
+ * choose between accounts that tie, and identical names always tie
  *
  * @param resolvedMappings - The answers as they stand after the name match and before the
  *   create-new fallback. Given the finished map instead, every row source holds an answer and this
@@ -205,19 +215,24 @@ export function getArchivedAccountMatches(
   sources: ImportAccountSource[],
   resolvedMappings: Record<string, string>,
   accounts: AccountsOverview[],
-): string[] {
+): ImportArchivedAccountMatch[] {
   const archivedAccounts = accounts.filter((account) => account.is_archived)
   if (archivedAccounts.length === 0) return []
 
-  const matchedNames: string[] = []
+  const matches: ImportArchivedAccountMatch[] = []
+  const matchedIds = new Set<string>()
+
   for (const source of sources) {
     if (source.isCounterpartyOnly || resolvedMappings[source.id]) continue
 
     const match = findBestAccountNameMatch(source.matchText, archivedAccounts)
-    if (match && !matchedNames.includes(match.name)) matchedNames.push(match.name)
+    if (!match || matchedIds.has(match.id)) continue
+
+    matchedIds.add(match.id)
+    matches.push({ id: match.id, name: match.name })
   }
 
-  return matchedNames
+  return matches
 }
 
 /**

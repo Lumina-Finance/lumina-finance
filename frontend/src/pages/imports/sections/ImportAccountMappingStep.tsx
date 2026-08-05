@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router'
 import CreateInstitutionModal from '@/components/reference-modals/CreateInstitutionModal'
 import {
   ACCOUNTS_LOAD_FAILURE_EXPLANATION,
@@ -190,8 +191,24 @@ export function ImportAccountMappingStep({
             </ImportNotice>
           )}
           {archivedAccountMatches.length > 0 && (
-            <ImportNotice title="Archived Accounts">
-              {`${ARCHIVED_ACCOUNT_MATCH_EXPLANATION} ${archivedAccountMatches.join(', ')}`}
+            <ImportNotice
+              title="Archived Accounts"
+              items={archivedAccountMatches.map((match) => (
+                // The visible text is the account name, so the label is what says where following
+                // it goes, which is all a screen reader's list of links would otherwise show
+                <Link
+                  key={match.id}
+                  to={`/accounts/${match.id}`}
+                  state={{ editAccount: true }}
+                  aria-label={`Unarchive ${match.name}`}
+                  className="font-medium underline underline-offset-2 transition-colors duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                  style={{ color: 'var(--app-accent)' }}
+                >
+                  {match.name}
+                </Link>
+              ))}
+            >
+              {ARCHIVED_ACCOUNT_MATCH_EXPLANATION}
             </ImportNotice>
           )}
           <ImportAccountMappingTable

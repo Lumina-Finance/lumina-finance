@@ -172,8 +172,13 @@ export function ImportLoadFailure({
  *
  * The title says which of those it is about, since a step can carry more than one and they would
  * otherwise be told apart only by reading them
+ *
+ * @param items - The things the text is about, one per line under it. Passing them here rather
+ *   than joining them into the text keeps a list out of the paragraph, which is markup the browser
+ *   rearranges on its own, and gives every notice that lists something the same shape. A notice
+ *   with nothing to list omits it and renders as it always did
  */
-export function ImportNotice({ title, children }: { title: string; children: ReactNode }) {
+export function ImportNotice({ title, children, items }: { title: string; children: ReactNode; items?: ReactNode[] }) {
   return (
     <div
       className="flex items-start gap-3 rounded-lg px-4 py-3"
@@ -196,13 +201,20 @@ export function ImportNotice({ title, children }: { title: string; children: Rea
         <p className="mt-1 text-sm leading-5">
           {children}
         </p>
+        {items && items.length > 0 && (
+          <ul className="mt-1 space-y-0.5 text-sm leading-5">
+            {items.map((item, index) => (
+              <li key={index}>{item}</li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   )
 }
 
 /**
- * Info panel pairing a title with body text beside an accent info icon, used to surface neutral
+ * Info panel pairing a title with body text beside an accent info icon, used to put neutral
  * guidance next to an import step
  */
 export function ImportInfoCard({ title, children }: { title: string; children: ReactNode }) {

@@ -174,7 +174,7 @@ export const AMOUNT_CONVENTION_NOTE = 'Imported amounts carry their own directio
 
 // Shown where a source rows are written to matches an account the user has archived, which is the
 // one account that source is not offered. The matched account names follow it
-export const ARCHIVED_ACCOUNT_MATCH_EXPLANATION = 'An archived account takes no new transactions, so it is not offered as a choice here. Unarchive one of these to import rows into it:'
+export const ARCHIVED_ACCOUNT_MATCH_EXPLANATION = 'An archived account takes no new transactions, so it is not offered as a choice here. Unarchive one of these to import rows into it, which means leaving this import and uploading your file again:'
 
 // Shown in place of a mapping step whose list could not be fetched at all, since answering one
 // against nothing maps every value to a new record and duplicates what the user already has

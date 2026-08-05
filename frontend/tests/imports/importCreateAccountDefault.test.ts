@@ -234,7 +234,7 @@ describe('what the archived-account notice is read from', () => {
     const matched = {}
     const resolved = applyCreateAccountFallback([source], matched)
 
-    expect(getArchivedAccountMatches([source], matched, accounts)).toEqual(['Old Savings'])
+    expect(getArchivedAccountMatches([source], matched, accounts)).toEqual([{ id: 'savings', name: 'Old Savings' }])
     expect(getArchivedAccountMatches([source], resolved, accounts)).toEqual([])
   })
 })
