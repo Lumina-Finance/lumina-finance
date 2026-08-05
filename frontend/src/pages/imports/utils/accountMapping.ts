@@ -23,8 +23,10 @@ export interface ImportAccountRowAnswer {
 /**
  * Says whether a mapping row is answered, and how
  *
- * `mapped` and `new` mean answered, `review` means the commit would refuse it, so the line above
- * the table cannot read as finished while the commit would stop. This mirrors every case of
+ * `mapped` and `new` mean answered and `review` means the commit would refuse this row, so no row
+ * reads as answered while the commit would refuse it. Whether the import as a whole can run is a
+ * separate question, since the commit also refuses an import declaring more distinct values than
+ * one request carries, which no row is at fault for. This mirrors every case of
  * `appendAccountMapping` in `payload.ts` that the step's own controls can produce, and the two have
  * to be changed together. The one case left out is an account type outside the supported set, which
  * that function also refuses and which only a control offering something other than
