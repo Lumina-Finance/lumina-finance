@@ -6,6 +6,7 @@ import { useTaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
 import type { Transaction } from '@/api/transactions'
 import AccountIdentityCard from '@/pages/accounts/detail/components/identity/Card'
 import AccountDetailBackLink from '@/pages/accounts/detail/components/BackLink'
+import AccountDetailLoadingSkeleton from '@/pages/accounts/detail/components/LoadingSkeleton'
 import BalanceChartCard from '@/pages/accounts/detail/components/balance-chart/Card'
 import EditAccountIdentityModal from '@/pages/accounts/detail/components/edit-identity/Modal'
 import MonthlyCashFlowCard from '@/pages/accounts/detail/components/monthly-cash-flow/Card'
@@ -16,6 +17,7 @@ import TransactionListSection from '@/pages/transactions/components/ListSection'
 import { toTransactionListAccount } from '@/pages/transactions/types/transactionList'
 import CreateTransactionModal from '@/pages/transactions/components/transaction-modal/Modal'
 import { useCurrencyGuard } from '@/hooks/useCurrencyGuard'
+import { useSkeletonVisibility } from '@/pages/accounts/detail/hooks/useSkeletonVisibility'
 
 type DeleteExitPhase = 'idle' | 'pending' | 'modal' | 'page'
 
@@ -50,6 +52,11 @@ export default function AccountDetailPage() {
     data: linkedTaxAdvantagedCategory,
     error: linkedTaxAdvantagedCategoryError,
   } = useTaxAdvantagedCategory(linkedTaxAdvantagedCategoryId)
+
+  // A deletion holds a copy of the account, so this stays false throughout one and the page keeps
+  // rendering the copy rather than dropping into the loading branch mid-exit
+  const isAccountLoading = !visibleAccount && !error
+  const showSkeleton = useSkeletonVisibility(isAccountLoading)
 
   const openCreateTransaction = () => {
     if (visibleAccount?.is_archived) return
@@ -96,10 +103,14 @@ export default function AccountDetailPage() {
     if (deleteExitPhase === 'page') navigate('/accounts', { replace: true })
   }
 
-  if (!visibleAccount && !error) {
+  // The skeleton outlasts the request by its minimum display, so the account having arrived is not
+  // on its own a reason to leave this branch. An error is: it goes to the message below at once
+  // rather than finishing an animation first
+  if (!error && (isAccountLoading || showSkeleton)) {
     return (
       <div>
         <AccountDetailBackLink />
+        {showSkeleton && <AccountDetailLoadingSkeleton />}
       </div>
     )
   }

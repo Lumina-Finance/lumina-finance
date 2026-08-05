@@ -8,6 +8,14 @@ export const ACCOUNT_KIND_LABEL: Record<string, string> = {
 
 export const EASE = [0.25, 0.1, 0.25, 1] as const
 
+// An account already in the cache resolves in a few milliseconds, so the loading skeleton waits
+// this long before appearing rather than flickering through a load nobody perceives as slow
+export const ACCOUNT_SKELETON_DELAY_MS = 150
+
+// Once the skeleton is on screen it stays for at least this long, so an account arriving just
+// after it appears does not replace it mid-blink
+export const ACCOUNT_SKELETON_MINIMUM_MS = 300
+
 export const EDIT_ACCOUNT_IDENTITY_FIELD_IDS = {
   name: 'edit-account-name',
   institution: 'edit-account-institution',
