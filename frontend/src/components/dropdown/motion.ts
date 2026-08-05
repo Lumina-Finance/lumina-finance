@@ -2,8 +2,9 @@
  * How the drop-down moves
  *
  * The box's own opening is a CSS transition in tailwind.css, since it animates to a height nobody
- * measured. What is here is everything driven by motion instead: the chevron and the press. Editing
- * these numbers is all that changing the feel of either takes.
+ * measured. What is here is everything driven by motion instead: the chevron, the press, and the
+ * contents rising inside the box as it opens. Editing these numbers is all that changing the feel of
+ * any of them takes.
  */
 
 // Gently damped, settling with little overshoot. The same spring the insights range control and the
@@ -16,8 +17,11 @@ export const DROPDOWN_PRESS_SCALE = 0.985
 
 export const DROPDOWN_INSTANT_TRANSITION = { duration: 0 } as const
 
-// Overshoots and settles back, which is what gives the contents their bounce as they arrive
-const RISE_EASE = [0.34, 1.6, 0.5, 1] as const
+// The same curve as --app-dropdown-ease in tailwind.css, which is what the box's own height uses, so
+// the contents and the box they arrive in are on one motion. It must not overshoot: the rise is only
+// a few pixels, so going past and coming back moves the text by under a pixel, which is too small to
+// read as a bounce and lands as the options settling twice
+const RISE_EASE = [0.22, 1, 0.36, 1] as const
 
 // How far the contents start below where they settle, so they rise into the opening box
 export const DROPDOWN_RISE_DISTANCE = 8
