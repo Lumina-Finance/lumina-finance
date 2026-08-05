@@ -1,5 +1,71 @@
 import type { AccountsOverview } from '@/api/accounts'
+import { CREATE_ACCOUNT_VALUE } from '@/pages/imports/constants'
 import type { ImportAccountSource } from '@/pages/imports/types'
+import { OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
+
+/** Which of the three states a mapping row is in, as the line above the table counts them */
+export type ImportAccountRowState = 'mapped' | 'new' | 'review'
+
+/** One mapping row's answer, and the facts that decide whether the commit would accept it */
+export interface ImportAccountRowAnswer {
+  value: string
+
+  /** Whether no row is written to this source, which is what makes the lenient answers legal */
+  isCounterpartyOnly: boolean
+
+  createType: string
+  createCurrency: string
+
+  /** Whether the account this row points at is archived, false for every other kind of answer */
+  isArchivedAccount: boolean
+}
+
+/**
+ * Says whether a mapping row is answered, and how
+ *
+ * `mapped` and `new` mean answered, `review` means the commit would refuse it, so the line above
+ * the table cannot read as finished while the commit would stop. This mirrors `appendAccountMapping`
+ * in `payload.ts` case for case, and the two have to be changed together
+ */
+export function getImportAccountRowState(row: ImportAccountRowAnswer): ImportAccountRowState {
+  if (!row.value) return 'review'
+
+  // The commit asks for both of these before it will create an account
+  if (row.value === CREATE_ACCOUNT_VALUE) {
+    return row.createType && row.createCurrency ? 'new' : 'review'
+  }
+
+  // Nothing is written to a counterparty source, which is why the outside answer and an archived
+  // account are both accepted there and both refused on a source rows are written to
+  if (row.isCounterpartyOnly) return 'mapped'
+
+  return row.value === OUTSIDE_ACCOUNT_VALUE || row.isArchivedAccount ? 'review' : 'mapped'
+}
+
+/**
+ * Counts the mapping rows in each state, for the line above the table
+ */
+export function countImportAccountRowStates(rows: ImportAccountRowAnswer[]) {
+  const counts: Record<ImportAccountRowState, number> = { mapped: 0, new: 0, review: 0 }
+  for (const row of rows) counts[getImportAccountRowState(row)] += 1
+  return counts
+}
+
+/**
+ * Whether the batch bar's Apply may edit a row
+ *
+ * Apply fills in what the user has not settled, so it leaves alone an account they picked or that
+ * was matched for them, and leaves alone the outside answer where they chose it themselves. A
+ * counterparty row resting on the outside answer it was given by default is still unanswered, so
+ * Apply converts it like any other blank row
+ *
+ * @param value - The row's answer as it stands
+ * @param isHandAnswered - Whether this source's answer came from the user rather than a default
+ */
+export function canApplyBatchEditToRow(value: string, isHandAnswered: boolean): boolean {
+  if (value === OUTSIDE_ACCOUNT_VALUE) return !isHandAnswered
+  return !value || value === CREATE_ACCOUNT_VALUE
+}
 
 /**
  * Guesses which existing account each import source belongs to by name, filling only the sources the

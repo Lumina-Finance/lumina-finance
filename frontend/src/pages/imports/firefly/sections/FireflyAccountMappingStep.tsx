@@ -9,6 +9,7 @@ type FireflyAccountMappingStepProps = Pick<
   | 'trackedAccountNames'
   | 'accountMappings'
   | 'autoFilledAccountSources'
+  | 'handAnsweredAccountSources'
   | 'accountById'
   | 'accountCreateDetails'
   | 'updateFireflyAccountMapping'
@@ -39,6 +40,7 @@ export function FireflyAccountMappingStep({
   trackedAccountNames,
   accountMappings,
   autoFilledAccountSources,
+  handAnsweredAccountSources,
   accountById,
   accountCreateDetails,
   updateFireflyAccountMapping,
@@ -106,6 +108,12 @@ export function FireflyAccountMappingStep({
               source: sourceAccount,
               value,
               autoFilled: autoFilledAccountSources.has(sourceAccount),
+
+              // Both sides of a Firefly transfer take rows, so no source here is counterparty-only
+              isCounterpartyOnly: false,
+
+              isArchivedAccount: account?.is_archived ?? false,
+              isHandAnswered: handAnsweredAccountSources.has(sourceAccount),
               accountType: account?.account_type ?? '',
               accountCurrency: account?.currency ?? '',
               accountInstitution: account?.institution?.id ?? '',

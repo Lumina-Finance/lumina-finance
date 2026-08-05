@@ -192,6 +192,13 @@ export function useFireflyImportWorkflow() {
     [accountMappings, resolvedAccountMappings, trackedAccountNames],
   )
 
+  // Read before the name match and the create-new default are layered on, so the batch bar can tell
+  // an answer the user gave from one the step filled in for them
+  const handAnsweredAccountSources = useMemo(
+    () => new Set(Object.entries(accountMappings).filter(([, choice]) => choice).map(([source]) => source)),
+    [accountMappings],
+  )
+
   const resolvedAccountCreateDetails = useMemo(
     () => {
       const details: Record<string, FireflyAccountCreateDetails> = {}
@@ -630,6 +637,7 @@ export function useFireflyImportWorkflow() {
     accountPrefills,
     accountMappings: resolvedAccountMappings,
     autoFilledAccountSources,
+    handAnsweredAccountSources,
     accountCreateDetails: resolvedAccountCreateDetails,
     selectedAccountRows,
     batchAccountType,

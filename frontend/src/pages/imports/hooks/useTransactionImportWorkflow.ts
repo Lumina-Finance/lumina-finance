@@ -322,6 +322,13 @@ export function useTransactionImportWorkflow() {
     [accountMappingSources, accountMappings, allAccounts, canInferAccountMappings, selectableAccounts],
   )
 
+  // Read before the name match and the outside default are layered on, so the batch bar can tell an
+  // answer the user gave from one the step filled in for them
+  const handAnsweredAccountSources = useMemo(
+    () => new Set(Object.entries(accountMappings).filter(([, choice]) => choice).map(([source]) => source)),
+    [accountMappings],
+  )
+
   const archivedAccountMatches = useMemo(
     () => getArchivedAccountMatches(accountMappingSources, resolvedAccountMappings, allAccounts),
     [accountMappingSources, allAccounts, resolvedAccountMappings],
@@ -718,6 +725,7 @@ export function useTransactionImportWorkflow() {
     accountMappings: resolvedAccountMappings,
     archivedAccountMatches,
     autoFilledAccountSources,
+    handAnsweredAccountSources,
     accountCreateTypes,
     accountCreateCurrencies,
     accountCreateInstitutions,

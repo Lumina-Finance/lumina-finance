@@ -21,6 +21,7 @@ type ImportAccountMappingStepProps = Pick<
   | 'accountMappings'
   | 'archivedAccountMatches'
   | 'autoFilledAccountSources'
+  | 'handAnsweredAccountSources'
   | 'accountById'
   | 'accountCreateTypes'
   | 'accountCreateCurrencies'
@@ -55,6 +56,7 @@ export function ImportAccountMappingStep({
   accountMappings,
   archivedAccountMatches,
   autoFilledAccountSources,
+  handAnsweredAccountSources,
   accountById,
   accountCreateTypes,
   accountCreateCurrencies,
@@ -120,6 +122,9 @@ export function ImportAccountMappingStep({
       value,
       selectedOption: account ? { value, label: account.name } : undefined,
       autoFilled: autoFilledAccountSources.has(sourceAccount.id),
+      isCounterpartyOnly: sourceAccount.isCounterpartyOnly,
+      isArchivedAccount: account?.is_archived ?? false,
+      isHandAnswered: handAnsweredAccountSources.has(sourceAccount.id),
       accountType: account?.account_type ?? '',
       accountCurrency: account?.currency ?? '',
       accountInstitution: account?.institution?.id ?? '',
