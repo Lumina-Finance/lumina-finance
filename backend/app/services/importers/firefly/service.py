@@ -33,12 +33,15 @@ from app.services.importers.shared.accounts import resolve_import_account_source
 from app.services.importers.shared.categories import get_or_create_import_categories_by_source
 from app.services.importers.shared.currencies import get_import_currencies_by_code
 from app.services.importers.shared.merchants import (
-    get_or_create_import_merchant,
-    get_personal_import_merchants_by_name,
+    create_missing_import_merchants,
+    get_import_merchant,
+    get_import_merchants_by_key,
+    get_no_payee_merchants,
 )
 from app.services.importers.shared.stats import ImportStats
 from app.services.importers.shared.tags import (
-    get_or_create_import_tags,
+    create_missing_import_tags,
+    get_import_row_tags,
     get_personal_import_tags_by_name,
 )
 
@@ -86,7 +89,7 @@ async def import_firefly_transactions(
     # Load currencies after account mappings because new accounts can introduce new currency codes
     account_currency_codes = {account.currency for account in accounts_by_source.values()}
     currencies_by_code = await get_import_currencies_by_code(db, account_currency_codes)
-    merchants_by_name = await get_personal_import_merchants_by_name(db, user.id)
+    merchants_by_key = await get_import_merchants_by_key(db, user.id)
     tags_by_name = await get_personal_import_tags_by_name(db, user.id)
     transfer_category, balance_adjustment_category = await get_firefly_system_categories(db)
 
@@ -105,7 +108,7 @@ async def import_firefly_transactions(
         db,
         user_id=user.id,
         legs=legs,
-        merchants_by_name=merchants_by_name,
+        merchants_by_key=merchants_by_key,
         tags_by_name=tags_by_name,
         stats=stats,
     )
@@ -175,7 +178,7 @@ async def _write_legs(
     *,
     user_id: uuid.UUID,
     legs: list[FireflyLeg],
-    merchants_by_name: dict,
+    merchants_by_key: dict,
     tags_by_name: dict,
     stats: ImportStats,
 ) -> dict[uuid.UUID, date]:
@@ -185,7 +188,7 @@ async def _write_legs(
         db: Active database session
         user_id: Identifier for the user running the import
         legs: Transaction legs resolved from the import payload
-        merchants_by_name: Request-local merchant lookup keyed by merchant name
+        merchants_by_key: Request-local merchant lookup keyed by what matches a payee
         tags_by_name: Request-local tag lookup keyed by tag name
         stats: Import summary counters updated during the import
 
@@ -193,25 +196,36 @@ async def _write_legs(
         Earliest imported transaction date by affected account ID
     """
     first_import_date_by_account_id: dict[uuid.UUID, date] = {}
+    no_payee_merchants = get_no_payee_merchants(merchants_by_key)
+
+    # Every merchant and tag the export introduces is created before the legs are walked, so each
+    # costs one insert for the whole export rather than one per leg that first mentions it
+    await create_missing_import_merchants(db, user_id, (leg.merchant_name for leg in legs), merchants_by_key, stats)
+    await create_missing_import_tags(
+        db,
+        user_id,
+        (tag_name for leg in legs for tag_name in leg.tag_names),
+        tags_by_name,
+        stats,
+    )
 
     for chunk_start in range(0, len(legs), INSERT_CHUNK_SIZE):
         chunk = legs[chunk_start:chunk_start + INSERT_CHUNK_SIZE]
         pending: list[tuple[Transaction, list]] = []
 
         for leg in chunk:
-            merchant = await get_or_create_import_merchant(
-                db,
-                user_id,
-                leg.merchant_name,
-                merchants_by_name,
-                stats,
+            # Every transaction carries a merchant, and a transfer leg or a balance adjustment has
+            # no payee of its own, so the shared merchant for its kind stands in
+            merchant = (
+                get_import_merchant(leg.merchant_name, merchants_by_key, stats)
+                or no_payee_merchants.get_for_category(leg.category)
             )
-            tags = await get_or_create_import_tags(db, user_id, leg.tag_names, tags_by_name, stats)
+            tags = get_import_row_tags(leg.tag_names, tags_by_name, stats)
             transaction = Transaction(
                 created_by_user_id=user_id,
                 account_id=leg.account.id,
                 dt=leg.dt,
-                merchant_id=merchant.id if merchant else None,
+                merchant_id=merchant.id,
                 category_id=leg.category.id,
                 amount=leg.amount,
                 currency=leg.account.currency,

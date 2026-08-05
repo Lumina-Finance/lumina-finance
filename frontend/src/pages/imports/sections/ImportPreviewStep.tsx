@@ -58,6 +58,7 @@ export function ImportPreviewStep({
             title={getRowWarningsTitle(importBuild.rowWarnings.length)}
             rowProblems={importBuild.rowWarnings}
             headers={headers}
+            toggleLabel="rows to check"
           />
         </div>
       )}

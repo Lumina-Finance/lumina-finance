@@ -1,7 +1,7 @@
 import type { CsvRow, PreviewTransactionRow } from '@/pages/imports/types'
 import { BALANCE_ADJUSTMENT_CATEGORY_NAME, doesTransferRecordCounterpartyAccount } from '@/utils/transfers'
 import { getPreviewDateLabel } from '@/pages/imports/utils'
-import { getFireflyRowDate, isFireflyRowImportable, splitFireflyTags } from './derivation'
+import { getFireflyRowDate, isFireflyRowUploadable, splitFireflyTags } from './derivation'
 import { resolveFireflyRowLegs, type FireflyResolvedLeg, type FireflyRowResolutionOptions } from './rowResolution'
 
 interface BuildFireflyPreviewRowsOptions extends FireflyRowResolutionOptions {
@@ -10,8 +10,12 @@ interface BuildFireflyPreviewRowsOptions extends FireflyRowResolutionOptions {
 }
 
 /**
- * Compiles the first importable journal rows into capped ledger preview rows
+ * Compiles the first uploadable journal rows into capped ledger preview rows
  * by applying the account and category mappings the same way the commit will
+ *
+ * Gated on the same rule the payload build uses, so a row the upload drops is
+ * never shown here as a transaction that will be created while the skipped
+ * table beside it says the opposite
  */
 export function buildFireflyPreviewRows(options: BuildFireflyPreviewRowsOptions): PreviewTransactionRow[] {
   const previewRows: PreviewTransactionRow[] = []
@@ -21,7 +25,7 @@ export function buildFireflyPreviewRows(options: BuildFireflyPreviewRowsOptions)
   // preview only renders a small sample
   for (const row of options.rows) {
     if (previewRows.length >= options.limit) break
-    if (!isFireflyRowImportable(row)) continue
+    if (!isFireflyRowUploadable(row)) continue
 
     const resolution = resolveFireflyRowLegs(row, options)
     if (resolution.skipReason !== null) continue

@@ -15,7 +15,7 @@ import {
   KIND_LABELS,
   KIND_RANKS,
 } from '@/pages/imports/constants'
-import type { ColumnMap, ImportAccountSource, ImportFileDraft, ImportUploadBlock } from '@/pages/imports/types'
+import type { ColumnMap, CsvRow, ImportAccountSource, ImportFileDraft, ImportUploadBlock } from '@/pages/imports/types'
 import { getImportAccountName } from './accountMapping'
 import { splitImportedValues } from './categoryMatching'
 import { unique } from './common'
@@ -212,6 +212,29 @@ export function buildImportAccountMappingSources(
 export function getImportedCategories(files: ImportFileDraft[], categoryHeader: string): string[] {
   if (!categoryHeader) return []
   return getUniqueColumnValues(files, categoryHeader).sort((a, b) => a.localeCompare(b))
+}
+
+/**
+ * Reports whether one row states no payee
+ *
+ * With no column mapped as the Merchant every row states none, and with one mapped it is the rows
+ * whose cell is blank
+ */
+function doesRowStateNoPayee(row: CsvRow, merchantHeader: string): boolean {
+  return merchantHeader ? !row[merchantHeader]?.trim() : true
+}
+
+/**
+ * Counts the rows across every staged file that state no payee
+ *
+ * Read from the merchant column alone, so the mapping step can say how many rows will be filed
+ * under a merchant that ships with the app without waiting on the account and category answers
+ */
+export function countRowsWithNoPayee(files: ImportFileDraft[], merchantHeader: string): number {
+  return files.reduce(
+    (total, file) => total + file.rows.filter((row) => doesRowStateNoPayee(row, merchantHeader)).length,
+    0,
+  )
 }
 
 /**

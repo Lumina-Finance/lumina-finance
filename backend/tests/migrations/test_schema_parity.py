@@ -13,6 +13,11 @@ from sqlalchemy.pool import NullPool
 
 from app.config.database import MIGRATOR_DB_USER
 from app.models.base import Base
+from app.services.merchants.defaults import (
+    SELF_MERCHANT_NAME,
+    SYSTEM_MERCHANT_NAMES,
+    UNKNOWN_MERCHANT_NAME,
+)
 from tests.conftest import (
     DB_HOST,
     DB_PASSWORD,
@@ -28,6 +33,8 @@ _ALEMBIC_AUTH_RESET_DB_NAME = f"{WORKER_DB_NAME}_alembic_auth_reset"
 _AUTH_SESSIONS_REVISION = "a4f8d1c2e7b3"
 _ALEMBIC_SYSTEM_MERCHANT_DB_NAME = f"{WORKER_DB_NAME}_alembic_system_merchant"
 _BEFORE_SYSTEM_MERCHANTS_REVISION = "cbf7ada87de3"
+_ALEMBIC_UNKNOWN_MERCHANT_DB_NAME = f"{WORKER_DB_NAME}_alembic_unknown_merchant"
+_BEFORE_UNKNOWN_MERCHANT_REVISION = "93e7aa96d2ae"
 
 
 async def test_alembic_schema_columns_match_model_metadata() -> None:
@@ -329,11 +336,146 @@ async def test_system_merchant_migration_folds_everyones_own_myself() -> None:
         finally:
             await engine.dispose()
 
-        assert [name for _, name in system_merchants] == ["Myself"]
+        # Compared as a set, since the query states no order and the app ships more than one
+        merchant_ids_by_name = {name: merchant_id for merchant_id, name in system_merchants}
+        assert set(merchant_ids_by_name) == set(SYSTEM_MERCHANT_NAMES)
         assert remaining_own == 0
-        assert merchant_on_transaction == system_merchants[0][0]
+        assert merchant_on_transaction == merchant_ids_by_name[SELF_MERCHANT_NAME]
     finally:
         await _drop_database(_ALEMBIC_SYSTEM_MERCHANT_DB_NAME)
+
+
+async def test_unknown_merchant_migration_folds_a_personal_one_and_spares_a_group_one() -> None:
+    """Verify the fold takes a user's own Unknown and leaves a group's alone"""
+    await _recreate_database(_ALEMBIC_UNKNOWN_MERCHANT_DB_NAME)
+    try:
+        _run_alembic_upgrade(_ALEMBIC_UNKNOWN_MERCHANT_DB_NAME, revision=_BEFORE_UNKNOWN_MERCHANT_REVISION)
+        seeded = await _seed_own_unknown_merchants(_ALEMBIC_UNKNOWN_MERCHANT_DB_NAME)
+
+        _run_alembic_upgrade(_ALEMBIC_UNKNOWN_MERCHANT_DB_NAME)
+
+        engine = _create_engine_for_database(_ALEMBIC_UNKNOWN_MERCHANT_DB_NAME)
+        try:
+            async with engine.connect() as conn:
+                system_merchant_id = (await conn.execute(
+                    text("SELECT id FROM merchants WHERE is_system = true AND name = :name"),
+                    {"name": UNKNOWN_MERCHANT_NAME},
+                )).scalar_one()
+                merchant_on_transaction = (await conn.execute(
+                    text("SELECT merchant_id FROM transactions WHERE id = :id"),
+                    {"id": seeded["transaction_id"]},
+                )).scalar_one()
+                personal_remaining = (await conn.execute(
+                    text("SELECT count(*) FROM merchants WHERE id = :id"),
+                    {"id": seeded["personal_merchant_id"]},
+                )).scalar_one()
+                group_remaining = (await conn.execute(
+                    text("SELECT count(*) FROM merchants WHERE id = :id"),
+                    {"id": seeded["group_merchant_id"]},
+                )).scalar_one()
+        finally:
+            await engine.dispose()
+
+        # The transaction that pointed at the user's own spelling now points at the shared merchant,
+        # and their own row is gone
+        assert merchant_on_transaction == system_merchant_id
+        assert personal_remaining == 0
+
+        # A group's merchant is left alone, since taking one from a group is a decision nobody has
+        # made and folding it could not be undone
+        assert group_remaining == 1
+    finally:
+        await _drop_database(_ALEMBIC_UNKNOWN_MERCHANT_DB_NAME)
+
+
+async def _seed_own_unknown_merchants(database_name: str) -> dict[str, UUID]:
+    """Insert a personal merchant spelled UNKNOWN carrying a transaction, and a group-owned one
+
+    Returns:
+        The identifiers the fold is judged against
+    """
+    user_id = UUID("11111111-2222-4333-8444-555555555555")
+    group_id = UUID("22222222-3333-4444-8555-666666666666")
+    account_id = UUID("33333333-4444-4555-8666-777777777777")
+    category_id = UUID("44444444-5555-4666-8777-888888888888")
+    personal_merchant_id = UUID("55555555-6666-4777-8888-999999999999")
+    group_merchant_id = UUID("66666666-7777-4888-8999-aaaaaaaaaaaa")
+    transaction_id = UUID("77777777-8888-4999-8aaa-bbbbbbbbbbbb")
+
+    engine = _create_engine_for_database(database_name)
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text(
+                "INSERT INTO currencies (id, name, symbol, minor_unit_exponent)"
+                " VALUES ('CAD', 'Canadian Dollar', '$', 2)",
+            ))
+            await conn.execute(
+                text(
+                    "INSERT INTO users (id, email, first_name, tz, base_currency)"
+                    " VALUES (:user_id, 'migration-unknown@example.com', 'Migration', 'America/Toronto', 'CAD')",
+                ),
+                {"user_id": user_id},
+            )
+            await conn.execute(
+                text("INSERT INTO groups (id, owner_id, name) VALUES (:group_id, :user_id, 'Household')"),
+                {"group_id": group_id, "user_id": user_id},
+            )
+            await conn.execute(
+                text(
+                    "INSERT INTO accounts"
+                    " (id, owner_id, account_kind, account_type, name, currency, is_archived)"
+                    " VALUES (:account_id, :user_id, 'ASSET', 'CHECKING', 'Chequing', 'CAD', false)",
+                ),
+                {"account_id": account_id, "user_id": user_id},
+            )
+            await conn.execute(
+                text(
+                    "INSERT INTO categories (id, owner_id, name, kind, is_system)"
+                    " VALUES (:category_id, :user_id, 'Shopping', 'EXPENSE', false)",
+                ),
+                {"category_id": category_id, "user_id": user_id},
+            )
+
+            # Spelled in capitals, which the fold has to catch as the same intent
+            await conn.execute(
+                text("INSERT INTO merchants (id, owner_id, name) VALUES (:merchant_id, :user_id, 'UNKNOWN')"),
+                {"merchant_id": personal_merchant_id, "user_id": user_id},
+            )
+            await conn.execute(
+                text(
+                    "INSERT INTO merchants (id, owner_id, group_id, name)"
+                    " VALUES (:merchant_id, :user_id, :group_id, :name)",
+                ),
+                {
+                    "merchant_id": group_merchant_id,
+                    "user_id": user_id,
+                    "group_id": group_id,
+                    "name": UNKNOWN_MERCHANT_NAME,
+                },
+            )
+            await conn.execute(
+                text(
+                    "INSERT INTO transactions"
+                    " (id, created_by_user_id, account_id, dt, merchant_id, category_id, amount, currency)"
+                    " VALUES (:transaction_id, :user_id, :account_id, '2026-03-15', :merchant_id,"
+                    " :category_id, -2500, 'CAD')",
+                ),
+                {
+                    "transaction_id": transaction_id,
+                    "user_id": user_id,
+                    "account_id": account_id,
+                    "merchant_id": personal_merchant_id,
+                    "category_id": category_id,
+                },
+            )
+    finally:
+        await engine.dispose()
+
+    return {
+        "transaction_id": transaction_id,
+        "personal_merchant_id": personal_merchant_id,
+        "group_merchant_id": group_merchant_id,
+    }
 
 
 async def _seed_own_myself_merchant(database_name: str) -> UUID:

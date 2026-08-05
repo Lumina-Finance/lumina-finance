@@ -41,6 +41,75 @@ export const COLUMN_TARGETS: Array<{
   { id: 'tag_ids', label: 'Tags', hint: 'Resolved from imported tag text.' },
 ]
 
+// The merchant an imported row is filed under when its file states no payee, and the one a transfer
+// row gets, since a transfer has no payee of its own. Both ship with the app, and these have to stay
+// in step with the backend's own names, the way the balance adjustment category name does
+export const UNKNOWN_MERCHANT_NAME = 'Unknown'
+export const SELF_MERCHANT_NAME = 'Myself'
+
+// What one row may carry, matching what the API accepts. Checked here so an offending row is named
+// against its row number in the preview rather than failing part-way through the upload
+export const MAX_IMPORT_NOTES_LENGTH = 10_000
+export const MAX_IMPORT_TAGS_PER_ROW = 32
+
+// Distinct account or category values one import may declare, matching what the API accepts across
+// a whole run rather than per request, so splitting the batches differently cannot get past it
+export const MAX_IMPORT_MAPPINGS = 1_000
+
+/**
+ * Says an import declares more distinct values for a column than one import may carry
+ *
+ * Counted across every staged file, since they are committed together as one import. The way out
+ * depends on which case it is, so the wording covers both: stage fewer files, or split the one file
+ * that carries them all
+ */
+export function getTooManyMappingsError(kind: 'account' | 'category', count: number) {
+  return `This import has ${count.toLocaleString()} different ${kind} values, and one import carries up to ${MAX_IMPORT_MAPPINGS.toLocaleString()}. Split the data into smaller imports.`
+}
+
+/**
+ * Says a row's notes are longer than the importer stores
+ */
+export function getRowNotesTooLongReason(length: number) {
+  return `The notes are ${length.toLocaleString()} characters, and the importer stores up to ${MAX_IMPORT_NOTES_LENGTH.toLocaleString()}.`
+}
+
+/**
+ * Says a row names more tags than one transaction may carry
+ */
+export function getRowTooManyTagsReason(count: number) {
+  return `This row has ${count} tags, and a transaction carries up to ${MAX_IMPORT_TAGS_PER_ROW}.`
+}
+
+// Shown in the column mapping step where any row states no payee, which is every row when no column
+// is mapped as the Merchant and only the blank ones where a column is. It asks for nothing: every
+// transaction carries a merchant, so those rows are filed under one that ships with the app, and
+// this says so before the import runs rather than leaving it to be noticed in the preview
+export const ROWS_WITH_NO_PAYEE_TITLE = 'Rows with no payee'
+
+/**
+ * Says what will happen to the rows stating no payee, with them counted
+ *
+ * No merchant is stated, because which one a row gets depends on its category: a transfer has no
+ * payee of its own and takes the merchant the app puts on its own transfers, while everything else
+ * takes the one meaning the payee is not known.
+ *
+ * Mapping a column is offered only where none is mapped, since that is the better answer when the
+ * file does hold the payee under a heading the guesser did not recognise. Where one is mapped there
+ * is nothing to map, and the rows are the ones whose cell was left blank
+ */
+export function getRowsWithNoPayeeExplanation(rowCount: number, isMerchantColumnMapped: boolean) {
+  const isOne = rowCount === 1
+  const subject = isMerchantColumnMapped
+    ? `${isOne ? '1 row leaves' : `${rowCount.toLocaleString()} rows leave`} the payee column blank`
+    : `${isOne ? '1 row states' : `${rowCount.toLocaleString()} rows state`} no payee`
+  const filed = `every transaction carries a merchant, so ${isOne ? 'it will be' : 'they will be'} filed under a merchant that ships with the app`
+
+  return isMerchantColumnMapped
+    ? `${subject}, and ${filed}.`
+    : `${subject}, and ${filed}. Map the column holding the payee above if the file has one.`
+}
+
 // Shown over the upload control while the currency list is not in hand. Reading a file uses it to
 // tell a cell holding a currency from a header word shaped like one, and that decision is kept on
 // the staged file, so a file read without the list stays wrongly read once it arrives

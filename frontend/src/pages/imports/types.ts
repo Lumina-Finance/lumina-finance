@@ -76,7 +76,10 @@ export interface PreviewTransactionRow {
 }
 
 /**
- * One row the import cannot convert, against its position among the file's data rows
+ * One row the import has something to say about, against its position among the file's data rows
+ *
+ * Used for both kinds: a row that cannot be converted, and one that will be taken but is probably
+ * not what the user meant. What it means is decided by the list it is in rather than by the shape
  *
  * The cells are the row as it was read, so the table can show it under the file's own headers
  */

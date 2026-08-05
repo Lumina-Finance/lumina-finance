@@ -5,7 +5,13 @@ import { describe, expect, it } from 'vitest'
 import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
-import { CREATE_ACCOUNT_VALUE } from '@/pages/imports/constants'
+import {
+  CREATE_ACCOUNT_VALUE,
+  getRowNotesTooLongReason,
+  getRowTooManyTagsReason,
+  MAX_IMPORT_NOTES_LENGTH,
+  MAX_IMPORT_TAGS_PER_ROW,
+} from '@/pages/imports/constants'
 import type { CsvRow } from '@/pages/imports/types'
 import {
   forecastFireflyImport,
@@ -154,6 +160,33 @@ describe('forecastFireflyImport', () => {
     expect(skipped).toHaveLength(1)
     expect(skipped[0].reason).toBe(`Tag name is too long: ${'x'.repeat(28)}`)
     expect(skipped[0].droppedBeforeUpload).toBe(true)
+  })
+
+  // A Firefly import commits each batch as it goes, so a row the API refuses part-way through would
+  // leave the batches before it in the ledger with no way to bring in the rest
+  it('drops a row carrying more tags than a transaction holds, before upload', () => {
+    const tags = Array.from({ length: MAX_IMPORT_TAGS_PER_ROW + 1 }, (_, index) => `tag${index}`).join(',')
+    const { skippedRows: skipped } = forecastFireflyImport([createFireflyRow({ tags })], createOptions())
+
+    expect(skipped).toHaveLength(1)
+    expect(skipped[0].reason).toBe(getRowTooManyTagsReason(MAX_IMPORT_TAGS_PER_ROW + 1))
+    expect(skipped[0].droppedBeforeUpload).toBe(true)
+  })
+
+  it('drops a row whose notes are longer than the importer stores, before upload', () => {
+    const notes = 'n'.repeat(MAX_IMPORT_NOTES_LENGTH + 1)
+    const { skippedRows: skipped } = forecastFireflyImport([createFireflyRow({ notes })], createOptions())
+
+    expect(skipped).toHaveLength(1)
+    expect(skipped[0].reason).toBe(getRowNotesTooLongReason(MAX_IMPORT_NOTES_LENGTH + 1))
+    expect(skipped[0].droppedBeforeUpload).toBe(true)
+  })
+
+  it('keeps a row sitting exactly on both limits', () => {
+    const tags = Array.from({ length: MAX_IMPORT_TAGS_PER_ROW }, (_, index) => `tag${index}`).join(',')
+    const row = createFireflyRow({ tags, notes: 'n'.repeat(MAX_IMPORT_NOTES_LENGTH) })
+
+    expect(forecastFireflyImport([row], createOptions()).skippedRows).toEqual([])
   })
 
   it('reports an unsupported journal type with the raw type text', () => {

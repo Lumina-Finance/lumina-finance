@@ -6,7 +6,7 @@ import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import type { Institution } from '@/api/institutions'
-import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
+import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, MAX_IMPORT_TAGS_PER_ROW } from '@/pages/imports/constants'
 import type { CsvRow } from '@/pages/imports/types'
 import { FIREFLY_NO_CATEGORY_SOURCE } from '@/api/firefly-imports'
 import {
@@ -127,6 +127,15 @@ function createOptions(overrides: Partial<Parameters<typeof buildFireflyPreviewR
 }
 
 describe('firefly preview rows', () => {
+  // The skipped table beside the preview already lists this row as one the upload drops, so showing
+  // it here as a transaction that will be created would have the two panels contradict each other
+  it('leaves out a row the upload drops for carrying too many tags', () => {
+    const tags = Array.from({ length: MAX_IMPORT_TAGS_PER_ROW + 1 }, (_, index) => `tag${index}`).join(',')
+    const rows = buildFireflyPreviewRows(createOptions({ rows: [createFireflyRow({ tags })] }))
+
+    expect(rows).toEqual([])
+  })
+
   it('maps a withdrawal to one negative row with the destination as merchant', () => {
     const rows = buildFireflyPreviewRows(createOptions())
 

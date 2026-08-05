@@ -5,6 +5,8 @@ import {
   CREATE_ACCOUNT_VALUE,
   CREATE_CATEGORY_VALUE,
   DEFAULT_CATEGORY_ICON,
+  getTooManyMappingsError,
+  MAX_IMPORT_MAPPINGS,
   NO_OUTFLOWS_WARNING,
   ROW_SIGN_DISAGREES_WITH_CATEGORY_REASON,
 } from '@/pages/imports/constants'
@@ -95,6 +97,16 @@ export function buildTransactionImportPayload({
   const missingRequired = getMissingRequiredColumnLabels(columnMap)
   if (missingRequired.length > 0) addError(`Missing required columns: ${missingRequired.join(', ')}`)
 
+  // Counted off the distinct values the files hold rather than the mappings answered so far, so the
+  // refusal does not wait for answers that cannot change it. Mapping a thousand categories by hand
+  // and only then being told the import cannot run is the whole reason this is asked here
+  if (accountSources.length > MAX_IMPORT_MAPPINGS) {
+    addError(getTooManyMappingsError('account', accountSources.length))
+  }
+  if (importedCategories.length > MAX_IMPORT_MAPPINGS) {
+    addError(getTooManyMappingsError('category', importedCategories.length))
+  }
+
   // Without a settled format every row would fail its own date check, which reads as a file full of
   // bad dates rather than one unanswered question
   if (columnMap.dt && !dateFormat) addError('Choose the date format this file is written in.')
@@ -174,7 +186,13 @@ export function buildTransactionImportPayload({
   // missing: with no category column mapped, every row reads as one with a blank category, and with
   // no date format settled, every row reads as one whose date does not fit
   if (errors.length > 0) {
-    return { errors: [...columnErrors, ...errors], rowProblems: [], warnings: [], rowWarnings: [], payload: null }
+    return {
+      errors: [...columnErrors, ...errors],
+      rowProblems: [],
+      warnings: [],
+      rowWarnings: [],
+      payload: null,
+    }
   }
 
   const rowContext: ImportRowContext = {
@@ -214,16 +232,7 @@ export function buildTransactionImportPayload({
         })
       }
 
-      rows.push({
-        account_source: resolved.accountSource,
-        category_source: resolved.categorySource,
-        dt: resolved.dt,
-        amount: resolved.amount,
-        merchant_name: resolved.merchantName,
-        notes: resolved.notes,
-        tag_names: resolved.tagNames,
-        counterparty_account_source: resolved.counterpartySource,
-      })
+      rows.push(toPayloadRow(resolved))
     }
   }
 
@@ -236,7 +245,29 @@ export function buildTransactionImportPayload({
   if (allErrors.length > 0 || rowProblems.length > 0) {
     return { errors: allErrors, rowProblems, warnings, rowWarnings, payload: null }
   }
-  return { errors: [], rowProblems: [], warnings, rowWarnings, payload: { accounts, categories, rows } }
+  return {
+    errors: [],
+    rowProblems: [],
+    warnings,
+    rowWarnings,
+    payload: { accounts, categories, rows },
+  }
+}
+
+/**
+ * Shapes one resolved row as the payload carries it
+ */
+function toPayloadRow(resolved: ReturnType<typeof resolveImportRow>): TransactionImportPayload['rows'][number] {
+  return {
+    account_source: resolved.accountSource,
+    category_source: resolved.categorySource,
+    dt: resolved.dt,
+    amount: resolved.amount,
+    merchant_name: resolved.merchantName,
+    notes: resolved.notes,
+    tag_names: resolved.tagNames,
+    counterparty_account_source: resolved.counterpartySource,
+  }
 }
 
 /**

@@ -3,11 +3,21 @@ import uuid
 
 from sqlalchemy import text
 
-from app.schemas.transaction import MAX_IMPORT_BATCH_ROWS
+from app.schemas.transaction import (
+    MAX_IMPORT_BATCH_ROWS,
+    MAX_IMPORT_MAPPINGS,
+    MAX_IMPORT_NOTES_LENGTH,
+    MAX_IMPORT_TAG_NAME_LENGTH,
+    MAX_IMPORT_TAGS_PER_ROW,
+)
 from app.services.importers.generic import run_locking
 from app.services.importers.generic.run_locking import load_locked_run
+from app.services.merchants.defaults import (
+    SELF_MERCHANT_NAME,
+    UNKNOWN_MERCHANT_NAME,
+)
 from tests.conftest import TestSession
-from tests.routes.support import _create_user, _get_auth_header
+from tests.routes.support import _create_user, _get_auth_header, _get_system_merchant_id
 from tests.routes.transactions._helpers import (
     NONEXISTENT_ID,
     _create_account,
@@ -628,6 +638,300 @@ async def test_staging_a_batch_over_the_row_cap_is_refused(client):
     )
 
     assert resp.status_code == 422
+
+
+async def test_a_row_stating_no_payee_is_stamped_with_the_unknown_merchant(client):
+    """A file with no payee for a row still writes a transaction carrying a merchant."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    unknown_merchant_id = await _get_system_merchant_id(client, headers, UNKNOWN_MERCHANT_NAME)
+
+    resp = await _import_rows(client, headers, account_id, category_id, [{}])
+
+    assert resp.status_code == 201
+    transaction = (await client.get("/transactions", headers=headers)).json()[0]
+    assert transaction["merchant_id"] == unknown_merchant_id
+    assert transaction["merchant_name"] == UNKNOWN_MERCHANT_NAME
+
+
+async def test_a_transfer_stating_no_payee_is_stamped_with_the_self_merchant(client):
+    """A transfer has no payee of its own, so it gets what the app puts on its own transfers."""
+    headers, account_id, _ = await _setup_user_with_deps(client)
+    transfer_category_id = await _get_system_category_id(client, headers, "Transfer")
+    self_merchant_id = await _get_system_merchant_id(client, headers, SELF_MERCHANT_NAME)
+
+    resp = await _import_transactions(client, headers, {
+        "accounts": [{"source": "Main Chequing", "account_id": account_id}],
+        "categories": [{"source": "Transfer", "category_id": transfer_category_id}],
+        "rows": [{
+            "account_source": "Main Chequing",
+            "category_source": "Transfer",
+            "dt": "2026-04-10",
+            "amount": "-50.00",
+            "tag_names": [],
+        }],
+    })
+
+    assert resp.status_code == 201
+    transaction = (await client.get("/transactions", headers=headers)).json()[0]
+    assert transaction["merchant_id"] == self_merchant_id
+
+
+async def test_a_stamped_merchant_counts_as_neither_created_nor_reused(client):
+    """The summary reports what the file's own values matched, and a stamped merchant matched none."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+
+    resp = await _import_rows(client, headers, account_id, category_id, [{}, {}])
+
+    assert resp.status_code == 201
+    assert resp.json()["merchants_created"] == 0
+    assert resp.json()["merchants_reused"] == 0
+    assert resp.json()["created_merchant_ids"] == []
+
+
+async def test_a_row_imported_without_a_payee_can_then_be_edited(client):
+    """The edit route demands a merchant, so an imported row has to arrive holding one."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    await _import_rows(client, headers, account_id, category_id, [{}])
+    transaction_id = (await client.get("/transactions", headers=headers)).json()[0]["id"]
+
+    resp = await client.patch(f"/transactions/{transaction_id}", json={"notes": "Checked"}, headers=headers)
+
+    assert resp.status_code == 200
+    assert resp.json()["notes"] == "Checked"
+
+
+async def test_a_payee_matching_a_shared_merchant_reuses_it(client):
+    """A file whose payee is a merchant shipping with the app reuses it rather than copying it."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    system_merchant_id = await _get_system_merchant_id(client, headers)
+
+    resp = await _import_rows(client, headers, account_id, category_id, [{"merchant_name": "Myself"}])
+
+    assert resp.status_code == 201
+    assert resp.json()["merchants_created"] == 0
+    assert resp.json()["merchants_reused"] == 1
+    transaction = (await client.get("/transactions", headers=headers)).json()[0]
+    assert transaction["merchant_id"] == system_merchant_id
+
+
+async def test_a_payee_spelled_differently_from_an_existing_merchant_reuses_it(client):
+    """Capitalisation does not make a second merchant, matching what the merchants route refuses."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    created = await _create_merchant(client, headers, name="Corner Cafe")
+
+    resp = await _import_rows(client, headers, account_id, category_id, [{"merchant_name": "CORNER CAFE"}])
+
+    assert resp.status_code == 201
+    assert resp.json()["merchants_created"] == 0
+    transaction = (await client.get("/transactions", headers=headers)).json()[0]
+    assert transaction["merchant_id"] == created.json()["id"]
+    assert transaction["merchant_name"] == "Corner Cafe"
+
+
+async def test_a_payee_matching_two_stored_spellings_resolves_to_the_older_one(client):
+    """A database written before capitalisation stopped counting can hold both, so one has to win."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    first = await _create_merchant(client, headers, name="Corner Cafe")
+    # Written straight to the table, since the merchants route refuses the second spelling, and
+    # stamped a second later so the older row is unambiguous rather than settled by chance
+    await _insert_later_personal_merchant(first.json()["id"], "corner cafe")
+
+    resp = await _import_rows(client, headers, account_id, category_id, [
+        {"merchant_name": "CORNER CAFE"},
+        {"merchant_name": "corner cafe"},
+    ])
+
+    assert resp.status_code == 201
+    assert resp.json()["merchants_created"] == 0
+    transactions = (await client.get("/transactions", headers=headers)).json()
+    # Both rows land on the same merchant, and it is the one stored first
+    assert {transaction["merchant_id"] for transaction in transactions} == {first.json()["id"]}
+
+
+async def test_an_import_is_refused_when_a_shared_merchant_is_not_seeded(client):
+    """A database migrated but never seeded fails loudly instead of writing rows with no merchant."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    async with TestSession() as session:
+        await session.execute(
+            text("DELETE FROM merchants WHERE is_system = true AND name = :name"),
+            {"name": UNKNOWN_MERCHANT_NAME},
+        )
+        await session.commit()
+
+    resp = await _import_rows(client, headers, account_id, category_id, [{}])
+
+    assert resp.status_code == 500
+    assert resp.json()["detail"] == f"{UNKNOWN_MERCHANT_NAME} merchant is not configured"
+    assert (await client.get("/transactions", headers=headers)).json() == []
+
+
+async def test_two_spellings_of_one_payee_in_a_file_make_one_merchant(client):
+    """A file carrying both spellings creates one merchant, under the spelling it uses first."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+
+    resp = await _import_rows(client, headers, account_id, category_id, [
+        {"merchant_name": "Bakery"},
+        {"merchant_name": "BAKERY"},
+    ])
+
+    assert resp.status_code == 201
+    assert resp.json()["merchants_created"] == 1
+    merchants = (await client.get("/merchants", headers=headers)).json()
+    assert [merchant["name"] for merchant in merchants if not merchant["is_system"]] == ["Bakery"]
+    transactions = (await client.get("/transactions", headers=headers)).json()
+    assert len({transaction["merchant_id"] for transaction in transactions}) == 1
+
+
+async def test_staging_a_batch_over_the_mapping_cap_is_refused(client):
+    """A batch declaring more mappings than an import may carry is refused before any is checked."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    run_id = await _open_run(client, headers, 1)
+    batch = _batch(account_id, category_id, ["-1.00"])
+    batch["categories"] += _category_mappings(range(MAX_IMPORT_MAPPINGS))
+
+    resp = await client.post(f"/transactions/import/runs/{run_id}/rows", json=batch, headers=headers)
+
+    assert resp.status_code == 422
+
+
+async def test_staging_refuses_more_mappings_than_an_import_may_declare_across_batches(client):
+    """Two batches each under the cap cannot together leave the run holding more than it."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    run_id = await _open_run(client, headers, 2)
+    half = MAX_IMPORT_MAPPINGS // 2 + 1
+
+    first_batch = _batch(account_id, category_id, ["-1.00"])
+    first_batch["categories"] += _category_mappings(range(half))
+    second_batch = _batch(account_id, category_id, ["-2.00"], start_row_index=1)
+    second_batch["categories"] += _category_mappings(range(half, half * 2))
+
+    first = await client.post(f"/transactions/import/runs/{run_id}/rows", json=first_batch, headers=headers)
+    second = await client.post(f"/transactions/import/runs/{run_id}/rows", json=second_batch, headers=headers)
+
+    assert first.status_code == 204
+    assert second.status_code == 422
+    # The run already held the Groceries mapping every batch declares, so the total runs one past
+    # the two halves
+    assert second.json()["detail"] == (
+        f"This import declares {half * 2 + 1} distinct values for Category source, "
+        f"and the limit is {MAX_IMPORT_MAPPINGS}"
+    )
+
+
+async def test_staging_a_row_whose_notes_are_too_long_is_refused(client):
+    """A note past the cap is refused as its batch is staged rather than at the commit."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    run_id = await _open_run(client, headers, 1)
+    batch = _batch(account_id, category_id, ["-1.00"])
+    batch["rows"][0]["notes"] = "n" * (MAX_IMPORT_NOTES_LENGTH + 1)
+
+    resp = await client.post(f"/transactions/import/runs/{run_id}/rows", json=batch, headers=headers)
+
+    assert resp.status_code == 422
+
+
+async def test_staging_a_row_carrying_too_many_tags_is_refused(client):
+    """A row naming more tags than the cap allows is refused rather than creating them all."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    run_id = await _open_run(client, headers, 1)
+    batch = _batch(account_id, category_id, ["-1.00"])
+    batch["rows"][0]["tag_names"] = [f"Tag {index}" for index in range(MAX_IMPORT_TAGS_PER_ROW + 1)]
+
+    resp = await client.post(f"/transactions/import/runs/{run_id}/rows", json=batch, headers=headers)
+
+    assert resp.status_code == 422
+
+
+async def test_staging_a_row_whose_tag_name_is_too_long_is_refused(client):
+    """A tag name past the column it is stored in is refused at staging, not at the commit."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    run_id = await _open_run(client, headers, 1)
+    batch = _batch(account_id, category_id, ["-1.00"])
+    batch["rows"][0]["tag_names"] = ["t" * (MAX_IMPORT_TAG_NAME_LENGTH + 1)]
+
+    resp = await client.post(f"/transactions/import/runs/{run_id}/rows", json=batch, headers=headers)
+
+    assert resp.status_code == 422
+
+
+async def test_staging_accepts_a_row_at_every_row_cap(client):
+    """The row values sitting exactly on each cap are accepted, so the bound refuses only past it."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    run_id = await _open_run(client, headers, 1)
+    batch = _batch(account_id, category_id, ["-1.00"])
+    batch["rows"][0]["notes"] = "n" * MAX_IMPORT_NOTES_LENGTH
+    batch["rows"][0]["tag_names"] = [
+        f"{index}".ljust(MAX_IMPORT_TAG_NAME_LENGTH, "t") for index in range(MAX_IMPORT_TAGS_PER_ROW)
+    ]
+
+    resp = await client.post(f"/transactions/import/runs/{run_id}/rows", json=batch, headers=headers)
+
+    assert resp.status_code == 204
+
+
+async def test_staging_accepts_a_run_holding_exactly_the_mapping_cap(client):
+    """A run sitting on the mapping cap is staged, so the bound refuses only past it."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    run_id = await _open_run(client, headers, 1)
+    batch = _batch(account_id, category_id, ["-1.00"])
+    # One short of the cap, since the batch already declares the Groceries mapping its row uses
+    batch["categories"] += _category_mappings(range(MAX_IMPORT_MAPPINGS - 1))
+
+    resp = await client.post(f"/transactions/import/runs/{run_id}/rows", json=batch, headers=headers)
+
+    assert resp.status_code == 204
+
+
+def _category_mappings(indexes):
+    """Build category mappings creating one new category per index"""
+    return [
+        {"source": f"Category {index}", "create": {"name": f"Category {index}", "kind": "expense"}}
+        for index in indexes
+    ]
+
+
+async def _insert_later_personal_merchant(sibling_merchant_id, name):
+    """Write a second personal merchant for the same owner, stamped after the one given
+
+    The merchants route refuses a name differing only in capitalisation, so a database holding both
+    can only be built by writing straight to the table, which is what a database written before that
+    rule looks like
+
+    Args:
+        sibling_merchant_id: A merchant of the owner this one belongs to
+        name: Name for the new merchant
+    """
+    async with TestSession() as session:
+        owner_id = (await session.execute(
+            text("SELECT owner_id FROM merchants WHERE id = :id"),
+            {"id": sibling_merchant_id},
+        )).scalar_one()
+        await session.execute(
+            text(
+                "INSERT INTO merchants (id, owner_id, name, created_at)"
+                " VALUES (gen_random_uuid(), :owner_id, :name, now() + interval '1 second')",
+            ),
+            {"owner_id": owner_id, "name": name},
+        )
+        await session.commit()
+
+
+async def _import_rows(client, headers, account_id, category_id, row_overrides):
+    """Import one file of rows sharing an account and category, each row taking its own overrides"""
+    return await _import_transactions(client, headers, {
+        "accounts": [{"source": "Main Chequing", "account_id": account_id}],
+        "categories": [{"source": "Groceries", "category_id": category_id}],
+        "rows": [
+            {
+                "account_source": "Main Chequing",
+                "category_source": "Groceries",
+                "dt": "2026-04-10",
+                "amount": "-1.00",
+                "tag_names": [],
+            } | overrides
+            for overrides in row_overrides
+        ],
+    })
 
 
 async def test_committing_twice_answers_from_the_first_commit(client):

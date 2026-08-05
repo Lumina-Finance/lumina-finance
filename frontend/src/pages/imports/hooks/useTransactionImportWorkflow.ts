@@ -15,6 +15,7 @@ import {
   buildImportAccountOptions,
   buildTransactionImportPayload,
   buildImportPreviewRows,
+  countRowsWithNoPayee,
   formatImportSummary,
   getArchivedAccountMatches,
   getImportedCategoryTypes,
@@ -81,6 +82,7 @@ export function useTransactionImportWorkflow() {
   // as answered, which is the case an empty mapping cannot tell apart on its own
   const [decidedColumnHeaders, setDecidedColumnHeaders] = useState<Set<string>>(() => new Set())
   const [columnMap, setColumnMap] = useState<ColumnMap>(EMPTY_COLUMN_MAP)
+
   const [scopedAccountMappings, setScopedAccountMappings] = useState<ScopedImportAnswers<string>>(emptyScopedImportAnswers)
   const [accountAutoMatchKey, setAccountAutoMatchKey] = useState('')
 
@@ -145,6 +147,7 @@ export function useTransactionImportWorkflow() {
   const [merchantHandlingOpen, setMerchantHandlingOpen] = useState(true)
   const [tagHandlingOpen, setTagHandlingOpen] = useState(true)
   const [columnValidationErrors, setColumnValidationErrors] = useState<ColumnValidationErrors>({})
+
   const [dateFormatChoice, setDateFormatChoice] = useState<DateFormatChoice | null>(null)
   const [scopedCategoryMappings, setScopedCategoryMappings] = useState<ScopedImportAnswers<string>>(emptyScopedImportAnswers)
   const [categoryAutoMatchKey, setCategoryAutoMatchKey] = useState('')
@@ -239,6 +242,14 @@ export function useTransactionImportWorkflow() {
   const columnTargetOptions = useMemo(
     () => buildColumnTargetOptions(),
     [],
+  )
+
+  // Counted off the files and the merchant column alone, so the mapping step can say how many rows
+  // will be filed under a merchant that ships with the app without waiting on the account and
+  // category answers the payload build needs
+  const rowsWithNoPayeeCount = useMemo(
+    () => countRowsWithNoPayee(files, columnMap.merchant_id),
+    [columnMap.merchant_id, files],
   )
 
   const dateFormatScan = useMemo(
@@ -344,7 +355,7 @@ export function useTransactionImportWorkflow() {
 
   const categoryTypesBySource = useMemo(
     () => getImportedCategoryTypes(files, columnMap.category_id, columnMap.amount, importedCategories),
-    [columnMap.amount, columnMap.category_id, files, importedCategories],
+    [columnMap.amount, columnMap.category_id, importedCategories, files],
   )
 
   const importedTags = useMemo(
@@ -744,6 +755,7 @@ export function useTransactionImportWorkflow() {
     headers,
     missingRequiredColumnLabels,
     columnTargetOptions,
+    rowsWithNoPayeeCount,
     accountMappingSources,
     importedCategories,
     importedMerchants,

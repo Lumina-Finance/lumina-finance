@@ -1,5 +1,9 @@
 import { EmptyState, ImportHeaderMappingTable, ImportNotice, ImportStep } from '@/pages/imports/components'
-import { AMOUNT_CONVENTION_NOTE } from '@/pages/imports/constants'
+import {
+  AMOUNT_CONVENTION_NOTE,
+  getRowsWithNoPayeeExplanation,
+  ROWS_WITH_NO_PAYEE_TITLE,
+} from '@/pages/imports/constants'
 import type { TransactionImportWorkflow } from '@/pages/imports/hooks'
 
 type ImportColumnMappingStepProps = Pick<
@@ -12,6 +16,7 @@ type ImportColumnMappingStepProps = Pick<
   | 'columnValidationErrors'
   | 'dateFormat'
   | 'dateFormatScan'
+  | 'rowsWithNoPayeeCount'
   | 'setDateFormat'
   | 'updateColumnTarget'
 >
@@ -34,6 +39,7 @@ export function ImportColumnMappingStep({
   columnValidationErrors,
   dateFormat,
   dateFormatScan,
+  rowsWithNoPayeeCount,
   setDateFormat,
   updateColumnTarget,
 }: ImportColumnMappingStepProps) {
@@ -64,6 +70,13 @@ export function ImportColumnMappingStep({
           onChange={updateColumnTarget}
           onDateFormatChange={setDateFormat}
         />
+      )}
+      {rowsWithNoPayeeCount > 0 && (
+        <div className="mt-4">
+          <ImportNotice title={ROWS_WITH_NO_PAYEE_TITLE}>
+            {getRowsWithNoPayeeExplanation(rowsWithNoPayeeCount, Boolean(columnMap.merchant_id))}
+          </ImportNotice>
+        </div>
       )}
     </ImportStep>
   )

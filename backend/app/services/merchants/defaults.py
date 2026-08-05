@@ -10,11 +10,15 @@ from app.models.merchant import Merchant
 # since those are nobody's transaction but still have to name a merchant
 SELF_MERCHANT_NAME = "Myself"
 
+# Carried by an imported row whose file had a payee to state and left it blank. Every transaction
+# has to have a merchant, and this says the answer is not known rather than claiming one
+UNKNOWN_MERCHANT_NAME = "Unknown"
+
 # Merchants that ship with the app and belong to every user
-SYSTEM_MERCHANT_NAMES = (SELF_MERCHANT_NAME,)
+SYSTEM_MERCHANT_NAMES = (SELF_MERCHANT_NAME, UNKNOWN_MERCHANT_NAME)
 
 
-async def seed_system_merchants(db: AsyncSession) -> None:
+async def seed_system_merchants(db: AsyncSession) -> list[str]:
     """Create the global system merchants that are missing
 
     Nothing is updated in place, since a system merchant carries only its name and that name is
@@ -22,6 +26,9 @@ async def seed_system_merchants(db: AsyncSession) -> None:
 
     Args:
         db: Active database session
+
+    Returns:
+        Names of the merchants this run created, which is empty where they were all already there
     """
     # Fetch the existing system merchants by name so seeding can run against a database that
     # already has some of them
@@ -30,6 +37,7 @@ async def seed_system_merchants(db: AsyncSession) -> None:
     )
     existing_names = set(existing_result.scalars().all())
 
+    created_names = []
     for name in SYSTEM_MERCHANT_NAMES:
         if name in existing_names:
             continue
@@ -40,3 +48,5 @@ async def seed_system_merchants(db: AsyncSession) -> None:
             is_system=True,
             default_category_id=None,
         ))
+        created_names.append(name)
+    return created_names

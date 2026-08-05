@@ -6,6 +6,11 @@ from datetime import date
 from pydantic import BaseModel, Field
 
 from app.schemas.transaction import (
+    MAX_IMPORT_BATCH_ROWS,
+    MAX_IMPORT_MAPPINGS,
+    MAX_IMPORT_NOTES_LENGTH,
+    MAX_IMPORT_TAGS_PER_ROW,
+    ImportTagName,
     TransactionImportAccountMapping,
     TransactionImportCategoryMapping,
 )
@@ -13,6 +18,12 @@ from app.schemas.transaction import (
 # Bounds the limit history one budget can carry, which covers a century of
 # monthly limits or two decades of weekly ones
 MAX_BUDGET_LIMIT_PERIODS = 1200
+
+# Budgets one request may carry, and categories one budget may track. Both are
+# checked and written one at a time, so each decides the work a single request
+# costs, and both sit far above any real export
+MAX_FIREFLY_BUDGETS = 1000
+MAX_FIREFLY_BUDGET_CATEGORIES = 1000
 
 
 class FireflyTransactionRow(BaseModel):
@@ -36,8 +47,8 @@ class FireflyTransactionRow(BaseModel):
     destination_name: str | None = Field(None, max_length=256)
     destination_type: str | None = Field(None, max_length=64)
     category: str | None = Field(None, max_length=256)
-    tag_names: list[str] = []
-    notes: str | None = None
+    tag_names: list[ImportTagName] = Field(default=[], max_length=MAX_IMPORT_TAGS_PER_ROW)
+    notes: str | None = Field(None, max_length=MAX_IMPORT_NOTES_LENGTH)
 
 
 class FireflyTransactionImportRequest(BaseModel):
@@ -48,9 +59,9 @@ class FireflyTransactionImportRequest(BaseModel):
     the no-category placeholder when rows without a category are present
     """
 
-    accounts: list[TransactionImportAccountMapping] = Field(min_length=1)
-    categories: list[TransactionImportCategoryMapping] = []
-    rows: list[FireflyTransactionRow] = Field(min_length=1)
+    accounts: list[TransactionImportAccountMapping] = Field(min_length=1, max_length=MAX_IMPORT_MAPPINGS)
+    categories: list[TransactionImportCategoryMapping] = Field(default=[], max_length=MAX_IMPORT_MAPPINGS)
+    rows: list[FireflyTransactionRow] = Field(min_length=1, max_length=MAX_IMPORT_BATCH_ROWS)
 
 
 class FireflyBudgetLimit(BaseModel):
@@ -77,7 +88,7 @@ class FireflyBudgetImport(BaseModel):
 
     name: str = Field(min_length=1, max_length=256)
     currency: str = Field(min_length=3, max_length=3)
-    category_ids: list[uuid.UUID] = Field(min_length=1)
+    category_ids: list[uuid.UUID] = Field(min_length=1, max_length=MAX_FIREFLY_BUDGET_CATEGORIES)
     limits: list[FireflyBudgetLimit] = Field(min_length=1, max_length=MAX_BUDGET_LIMIT_PERIODS)
     is_archived: bool = False
 
@@ -85,7 +96,7 @@ class FireflyBudgetImport(BaseModel):
 class FireflyBudgetImportRequest(BaseModel):
     """Batch import budgets derived from a Firefly III export"""
 
-    budgets: list[FireflyBudgetImport] = Field(min_length=1)
+    budgets: list[FireflyBudgetImport] = Field(min_length=1, max_length=MAX_FIREFLY_BUDGETS)
 
 
 class FireflyBudgetImportResult(BaseModel):

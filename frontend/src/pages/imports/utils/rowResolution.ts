@@ -4,6 +4,10 @@ import {
   CREATE_ACCOUNT_VALUE,
   getRowAmountTooPreciseReason,
   getRowCurrencyMismatchReason,
+  getRowNotesTooLongReason,
+  getRowTooManyTagsReason,
+  MAX_IMPORT_NOTES_LENGTH,
+  MAX_IMPORT_TAGS_PER_ROW,
   ROW_ACCOUNT_BLANK_REASON,
   ROW_AMOUNT_BLANK_REASON,
   ROW_AMOUNT_TOO_LARGE_REASON,
@@ -18,6 +22,7 @@ import type { ColumnMap, CsvRow } from '@/pages/imports/types'
 import { findCurrencyExponent } from '@/utils/moneyInput'
 import { splitImportedValues } from './categoryMatching'
 import { getMappedValue } from './columnMapping'
+import { unique } from './common'
 import { type ImportDateFormat, parseImportNumber, readImportDate, toImportMinorUnits } from './valueParsers'
 
 /**
@@ -96,7 +101,9 @@ export function resolveImportRow(row: CsvRow, fileId: string, context: ImportRow
     amount: getMappedValue(row, columnMap.amount),
     merchantName: cleanOptional(getMappedValue(row, columnMap.merchant_id)),
     notes: cleanOptional(getMappedValue(row, columnMap.notes)),
-    tagNames: splitImportedValues(getMappedValue(row, columnMap.tag_ids)),
+    // Deduplicated here rather than left to the API, which keeps one of each anyway, so the count
+    // the row is judged on is the number of tags it will actually carry
+    tagNames: unique(splitImportedValues(getMappedValue(row, columnMap.tag_ids))),
     counterpartySource: columnMap.counterparty_account_id
       ? cleanOptional(getMappedValue(row, columnMap.counterparty_account_id))
       : null,
@@ -130,6 +137,11 @@ export function getImportRowProblem(row: ResolvedImportRow, judgement: ImportRow
 
   const amountProblem = getImportRowAmountProblem(row.amount, row.currency, judgement.currencies)
   if (amountProblem) return amountProblem
+
+  // Asked here so a row the API would refuse is named against its row number before the upload
+  // begins, rather than failing part-way through it with a position nobody can find in the file
+  if (row.notes && row.notes.length > MAX_IMPORT_NOTES_LENGTH) return getRowNotesTooLongReason(row.notes.length)
+  if (row.tagNames.length > MAX_IMPORT_TAGS_PER_ROW) return getRowTooManyTagsReason(row.tagNames.length)
 
   if (!row.counterpartySource) return null
 

@@ -1,11 +1,13 @@
 """Transaction import tag lookup and creation"""
 import uuid
+from collections.abc import Iterable
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.tag import Tag
+from app.schemas.transaction import MAX_IMPORT_TAG_NAME_LENGTH
 from app.services.importers.shared.stats import ImportStats
 
 
@@ -24,27 +26,75 @@ async def get_personal_import_tags_by_name(db: AsyncSession, user_id: uuid.UUID)
     return {tag.name: tag for tag in result.scalars().all()}
 
 
-async def get_or_create_import_tags(
+async def create_missing_import_tags(
     db: AsyncSession,
     user_id: uuid.UUID,
-    raw_names: list[str],
+    raw_names: Iterable[str],
     tags_by_name: dict[str, Tag],
     stats: ImportStats,
-) -> list[Tag]:
-    """Return tag rows for one import row, creating personal tags when needed
+) -> None:
+    """Create the personal tags an import needs and does not already have
+
+    Every tag the file introduces is written in one insert, so a file carrying many new tags costs
+    one round trip rather than one for each
 
     Args:
         db: Active database session
         user_id: Identifier for the user running the import
-        raw_names: Raw tag names from an import row
-        tags_by_name: Request-local tag lookup keyed by tag name
-        stats: Import summary counters updated when tags are reused or created
+        raw_names: Raw tag names from every row of the import, blanks and repeats included
+        tags_by_name: Tag lookup for this import, extended with what is created
+        stats: Import summary counters updated when tags are created
+
+    Returns:
+        None
+
+    Raises:
+        HTTPException: Raised with 422 when a tag name is too long
+    """
+    pending: dict[str, Tag] = {}
+
+    for raw_name in raw_names:
+        name = raw_name.strip()
+        if not name:
+            continue
+        if len(name) > MAX_IMPORT_TAG_NAME_LENGTH:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=f"Tag name is too long: {name[:28]}",
+            )
+        if name in tags_by_name or name in pending:
+            continue
+
+        pending[name] = Tag(owner_id=user_id, group_id=None, name=name)
+
+    if not pending:
+        return
+
+    db.add_all(list(pending.values()))
+    await db.flush()
+    for name, tag in pending.items():
+        tags_by_name[name] = tag
+        stats.tags_created += 1
+        stats.created_tag_ids.append(tag.id)
+
+
+def get_import_row_tags(
+    raw_names: list[str],
+    tags_by_name: dict[str, Tag],
+    stats: ImportStats,
+) -> list[Tag]:
+    """Return the tag rows one import row carries
+
+    Args:
+        raw_names: Raw tag names from the import row
+        tags_by_name: Tag lookup for this import
+        stats: Import summary counters updated when tags are used
 
     Returns:
         Ordered tag rows for the import row after dropping blanks and duplicates
 
     Raises:
-        HTTPException: Raised with 422 when a tag name is too long
+        KeyError: Raised when a name was not put through create_missing_import_tags first
     """
     tags: list[Tag] = []
     seen_names: set[str] = set()
@@ -54,43 +104,9 @@ async def get_or_create_import_tags(
         name = raw_name.strip()
         if not name or name in seen_names:
             continue
-        if len(name) > 64:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f"Tag name is too long: {name[:28]}")
 
-        tag = await _get_or_create_import_tag(db, user_id, name, tags_by_name, stats)
+        tag = tags_by_name[name]
+        stats.reused_tag_ids.add(tag.id)
         tags.append(tag)
         seen_names.add(name)
     return tags
-
-
-async def _get_or_create_import_tag(
-    db: AsyncSession,
-    user_id: uuid.UUID,
-    name: str,
-    tags_by_name: dict[str, Tag],
-    stats: ImportStats,
-) -> Tag:
-    """Return one existing tag by name or create a personal import tag
-
-    Args:
-        db: Active database session
-        user_id: Identifier for the user running the import
-        name: Trimmed tag name from an import row
-        tags_by_name: Request-local tag lookup keyed by tag name
-        stats: Import summary counters updated when a tag is reused or created
-
-    Returns:
-        Existing or newly created tag row for the import row
-    """
-    existing_tag = tags_by_name.get(name)
-    if existing_tag is not None:
-        stats.reused_tag_ids.add(existing_tag.id)
-        return existing_tag
-
-    tag = Tag(owner_id=user_id, group_id=None, name=name)
-    db.add(tag)
-    await db.flush()
-    tags_by_name[name] = tag
-    stats.tags_created += 1
-    stats.created_tag_ids.append(tag.id)
-    return tag

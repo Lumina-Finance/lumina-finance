@@ -1,6 +1,10 @@
 import type { CsvRow } from '@/pages/imports/types'
 import { FIREFLY_MISSING_REQUIRED_VALUES_REASON, FIREFLY_TAG_TOO_LONG_REASON } from '@/pages/imports/firefly/constants'
-import { getFireflyMissingRequiredFields, getFireflyOverlongTag } from './derivation'
+import {
+  getFireflyMissingRequiredFields,
+  getFireflyOverlongTag,
+  getFireflyRowOverLimitReason,
+} from './derivation'
 import { resolveFireflyRowLegs, type FireflyRowResolutionOptions } from './rowResolution'
 
 // How much of an overlong tag the skip reason shows, mirroring the backend's
@@ -77,6 +81,15 @@ export function forecastFireflyImport(
         `${FIREFLY_TAG_TOO_LONG_REASON}: ${overlongTag.slice(0, OVERLONG_TAG_PREVIEW_LENGTH)}`,
         { droppedBeforeUpload: true },
       ))
+      continue
+    }
+
+    // Notes or a tag count past what one transaction holds would fail the
+    // whole upload batch, and the batches already sent stay in the ledger, so
+    // the row is dropped before upload with the count named
+    const overLimitReason = getFireflyRowOverLimitReason(row)
+    if (overLimitReason !== null) {
+      skippedRows.push(buildFireflySkippedRowDetail(row, index, overLimitReason, { droppedBeforeUpload: true }))
       continue
     }
 
