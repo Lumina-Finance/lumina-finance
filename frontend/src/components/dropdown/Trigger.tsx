@@ -29,7 +29,6 @@ interface DropdownHeadProps {
 const SIZE_CLASS: Record<DropdownSize, string> = {
   compact: 'app-dropdown-head-compact',
   field: 'app-dropdown-head-field',
-  toolbar: 'app-dropdown-head-toolbar',
 }
 
 /**

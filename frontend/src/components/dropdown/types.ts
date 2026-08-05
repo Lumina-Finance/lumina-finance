@@ -8,9 +8,6 @@ export type DropdownSize =
   /** 40px, matching the height of a text input beside it in a form */
   | 'field'
 
-  /** 44px, for a toolbar or a filter bar, where it is a primary tap target */
-  | 'toolbar'
-
 export interface DropdownOption {
   value: string
   label: string

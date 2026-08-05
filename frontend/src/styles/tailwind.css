@@ -47,7 +47,6 @@
   :root {
     --app-dropdown-height-compact: 36px;
     --app-dropdown-height-field: 40px;
-    --app-dropdown-height-toolbar: 44px;
     /* The same corner the text inputs carry, so a drop-down and the field beside it match */
     --app-dropdown-radius: 0.5rem;
 
@@ -722,10 +721,6 @@
 
   .app-dropdown-head-field {
     height: calc(var(--app-dropdown-height-field) - 2px);
-  }
-
-  .app-dropdown-head-toolbar {
-    height: calc(var(--app-dropdown-height-toolbar) - 2px);
   }
 
   .app-dropdown-chevron {

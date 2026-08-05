@@ -86,15 +86,15 @@ describe('drop-down box placement', () => {
     expect(withSearch.listMaxHeight).toBe(290)
   })
 
-  it('gives a taller head less list, since they share one box', () => {
-    const toolbar = getDropdownBoxPosition({
+  it('gives a shorter head more list, since they share one box', () => {
+    const compact = getDropdownBoxPosition({
       ...head,
-      headHeight: 44,
-      anchorRect: { bottom: 144, left: 20, top: 100, width: 200 },
+      headHeight: 36,
+      anchorRect: { bottom: 136, left: 20, top: 100, width: 200 },
       viewport,
     })
 
-    expect(toolbar.listMaxHeight).toBe(342)
+    expect(compact.listMaxHeight).toBe(350)
   })
 
   it('keeps the box inside horizontal viewport padding', () => {
