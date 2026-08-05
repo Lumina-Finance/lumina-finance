@@ -9,6 +9,7 @@ import { EMPTY_COLUMN_MAP } from '@/pages/imports/constants'
 import { OUTSIDE_ACCOUNT_LABEL, OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 import type { ColumnMap, ColumnTarget, ColumnValidationErrors, ImportCategoryKind, ImportFileDraft, ImportOverlayPhase, PreviewTransactionRow } from '@/pages/imports/types'
 import {
+  applyCreateAccountFallback,
   buildColumnTargetOptions,
   buildImportAnswerScope,
   buildImportAccountMappingSources,
@@ -25,6 +26,7 @@ import {
   getImportedMerchants,
   getImportedTags,
   getImportHeaders,
+  getStatedCurrencyByAccountSource,
   getColumnValues,
   getMissingRequiredColumnLabels,
   getNextAutoFilledColumnHeaders,
@@ -35,6 +37,7 @@ import {
   getSupportedCurrencyCodes,
   inferAccountMappings,
   inferCategoryMappings,
+  isAutoFilledAccountSource,
   isColumnMappingComplete,
   groupPreviewRowsByDate,
   inferColumnMap,
@@ -42,6 +45,7 @@ import {
   keepCurrentMatchMap,
   readCsvFile,
   readScopedImportAnswers,
+  resolveImportAccountCreateCurrencies,
   scanImportDateFormats,
   validateColumnValues,
   writeScopedImportAnswers,
@@ -241,6 +245,13 @@ export function useTransactionImportWorkflow() {
     [currencies],
   )
 
+  // What each account source's own rows say its currency is, which is what a row creating an
+  // account starts out holding
+  const statedAccountCurrencies = useMemo(
+    () => getStatedCurrencyByAccountSource(files, columnMap.account_id, columnMap.currency, supportedCurrencyCodes),
+    [columnMap.account_id, columnMap.currency, files, supportedCurrencyCodes],
+  )
+
   const headers = useMemo(
     () => getImportHeaders(files),
     [files],
@@ -322,10 +333,11 @@ export function useTransactionImportWorkflow() {
     [accountById, accountMappings, accountsResolved],
   )
 
-  const resolvedAccountMappings = useMemo(
+  const matchedAccountMappings = useMemo(
     () => {
-      // A source whose account has gone is left for the user to answer again, so it is kept away
-      // from both the name match and the outside default rather than being quietly refilled
+      // A source whose account has gone is kept away from the name match, so it can never come back
+      // holding a different account of the user's. The create-new fallback below does cover it,
+      // since the worst that answer can do is offer a new account the user still has to fill in
       const answerableSources = accountMappingSources.filter((source) => !clearedAccountSources.has(source.id))
 
       const resolved = canInferAccountMappings
@@ -345,35 +357,50 @@ export function useTransactionImportWorkflow() {
     [accountMappingSources, allAccounts, canInferAccountMappings, clearedAccountSources, liveAccountMappings, selectableAccounts],
   )
 
+  // Every row source the match could not place rests on creating an account, so the step asks for
+  // its type rather than for all three answers. It waits for both the accounts list and a column
+  // map complete enough to match against: without either, every row would read as creating an
+  // account and then change its own answer to one of the user's the moment the match could run
+  const resolvedAccountMappings = useMemo(
+    () => (accountsResolved && canInferAccountMappings
+      ? applyCreateAccountFallback(accountMappingSources, matchedAccountMappings)
+      : matchedAccountMappings),
+    [accountMappingSources, accountsResolved, canInferAccountMappings, matchedAccountMappings],
+  )
+
+  const resolvedAccountCreateCurrencies = useMemo(
+    () => resolveImportAccountCreateCurrencies(accountCreateCurrencies, resolvedAccountMappings, statedAccountCurrencies),
+    [accountCreateCurrencies, resolvedAccountMappings, statedAccountCurrencies],
+  )
+
   // The labels rather than the ids, since the notice lists them for the user
   const clearedAccountSourceLabels = useMemo(
     () => accountMappingSources.filter((source) => clearedAccountSources.has(source.id)).map((source) => source.label),
     [accountMappingSources, clearedAccountSources],
   )
 
-  // Read before the name match and the outside default are layered on, so the batch bar can tell an
+  // Read before the name match and any of the defaults are layered on, so the batch bar can tell an
   // answer the user gave from one the step filled in for them
   const handAnsweredAccountSources = useMemo(
     () => new Set(Object.entries(liveAccountMappings).filter(([, choice]) => choice).map(([source]) => source)),
     [liveAccountMappings],
   )
 
+  // Read before the create-new fallback, which answers every row source and would therefore leave
+  // this with nothing to report, dropping the notice without a word
   const archivedAccountMatches = useMemo(
-    () => getArchivedAccountMatches(accountMappingSources, resolvedAccountMappings, allAccounts),
-    [accountMappingSources, allAccounts, resolvedAccountMappings],
+    () => getArchivedAccountMatches(accountMappingSources, matchedAccountMappings, allAccounts),
+    [accountMappingSources, allAccounts, matchedAccountMappings],
   )
 
-  // The highlight says a choice was matched from the file. The outside answer on a counterparty
-  // source is a default rather than a match, so it is left plain
   const autoFilledAccountSources = useMemo(
     () => new Set(
       accountMappingSources
-        .filter((source) => {
-          if (liveAccountMappings[source.id]) return false
-          const resolved = resolvedAccountMappings[source.id]
-          if (!resolved) return false
-          return !(source.isCounterpartyOnly && resolved === OUTSIDE_ACCOUNT_VALUE)
-        })
+        .filter((source) => isAutoFilledAccountSource(
+          liveAccountMappings[source.id] ?? '',
+          resolvedAccountMappings[source.id] ?? '',
+          source.isCounterpartyOnly,
+        ))
         .map((source) => source.id),
     ),
     [accountMappingSources, liveAccountMappings, resolvedAccountMappings],
@@ -447,7 +474,7 @@ export function useTransactionImportWorkflow() {
   const importBuild = useMemo(
     () => buildTransactionImportPayload({
       accountById,
-      accountCreateCurrencies,
+      accountCreateCurrencies: resolvedAccountCreateCurrencies,
       accountCreateInstitutions,
       accountCreateTypes,
       accountMappings: resolvedAccountMappings,
@@ -465,7 +492,6 @@ export function useTransactionImportWorkflow() {
     }),
     [
       accountById,
-      accountCreateCurrencies,
       accountCreateInstitutions,
       accountCreateTypes,
       accountMappingSources,
@@ -477,6 +503,7 @@ export function useTransactionImportWorkflow() {
       dateFormat,
       files,
       importedCategories,
+      resolvedAccountCreateCurrencies,
       resolvedAccountMappings,
       resolvedCategoryMappings,
       resolvedColumnValidationErrors,
@@ -493,7 +520,7 @@ export function useTransactionImportWorkflow() {
       missingRequiredColumnLabels,
       currencies,
       accountById,
-      accountCreateCurrencies,
+      accountCreateCurrencies: resolvedAccountCreateCurrencies,
       accountCreateInstitutions,
       categoryById,
       categoryCreateKinds,
@@ -503,7 +530,7 @@ export function useTransactionImportWorkflow() {
       resolvedCategoryMappings,
       rowProblems: importBuild.rowProblems,
     }),
-    [accountById, accountCreateCurrencies, accountCreateInstitutions, categoryById, categoryCreateKinds, categoryTypesBySource, columnMap, currencies, dateFormat, files, importBuild.rowProblems, institutionById, missingRequiredColumnLabels, resolvedAccountMappings, resolvedCategoryMappings],
+    [accountById, accountCreateInstitutions, categoryById, categoryCreateKinds, categoryTypesBySource, columnMap, currencies, dateFormat, files, importBuild.rowProblems, institutionById, missingRequiredColumnLabels, resolvedAccountCreateCurrencies, resolvedAccountMappings, resolvedCategoryMappings],
   )
 
   const previewGroups = useMemo(
@@ -782,7 +809,7 @@ export function useTransactionImportWorkflow() {
     autoFilledAccountSources,
     handAnsweredAccountSources,
     accountCreateTypes,
-    accountCreateCurrencies,
+    accountCreateCurrencies: resolvedAccountCreateCurrencies,
     accountCreateInstitutions,
     selectedAccountRows,
     batchAccountType,

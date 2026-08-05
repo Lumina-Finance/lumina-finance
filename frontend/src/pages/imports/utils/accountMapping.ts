@@ -1,6 +1,6 @@
 import type { AccountsOverview } from '@/api/accounts'
 import { CREATE_ACCOUNT_VALUE } from '@/pages/imports/constants'
-import type { ImportAccountSource } from '@/pages/imports/types'
+import type { ImportAccountSource, ImportFileDraft } from '@/pages/imports/types'
 import { OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 
 /** Which of the three states a mapping row is in, as the line above the table counts them */
@@ -139,11 +139,65 @@ export function inferAccountMappings(
 }
 
 /**
+ * Rests every row source the match could not place on creating an account
+ *
+ * A source rows are written to has to end up as some account, so creating one is the only answer
+ * that is always available, and leaving the row blank asks the user for three answers where the
+ * type alone would do. A counterparty-only source is left alone, since no row is written to it and
+ * the outside answer is the right default there
+ *
+ * Kept out of `inferAccountMappings`, which the Firefly flow shares and which answers a different
+ * question: which existing account a source is, with no answer being a legitimate result
+ *
+ * @param sources - Every mapping source, cleared ones included, since a cleared row still has to be
+ *   answerable and this fallback can only ever offer it a new account
+ * @param resolved - The answers after the name match and the outside default
+ */
+export function applyCreateAccountFallback(
+  sources: ImportAccountSource[],
+  resolved: Record<string, string>,
+): Record<string, string> {
+  const next = { ...resolved }
+
+  for (const source of sources) {
+    if (source.isCounterpartyOnly || next[source.id]) continue
+    next[source.id] = CREATE_ACCOUNT_VALUE
+  }
+
+  return next
+}
+
+/**
+ * Whether a row's answer should carry the highlight saying the step filled it in from the file
+ *
+ * The highlight means an existing account was recognised from what the file says. Neither default
+ * is that: the outside answer on a counterparty source and the create-new fallback are both what
+ * the step falls back to having recognised nothing
+ *
+ * @param liveChoice - The answer as stored, empty unless the user gave one
+ * @param resolvedChoice - The answer after the match and both defaults
+ * @param isCounterpartyOnly - Whether no row is written to this source
+ */
+export function isAutoFilledAccountSource(
+  liveChoice: string,
+  resolvedChoice: string,
+  isCounterpartyOnly: boolean,
+): boolean {
+  if (liveChoice || !resolvedChoice || resolvedChoice === CREATE_ACCOUNT_VALUE) return false
+  return !(isCounterpartyOnly && resolvedChoice === OUTSIDE_ACCOUNT_VALUE)
+}
+
+/**
  * Lists the archived accounts that an unmapped row source appears to point at
  *
  * Those sources are offered every account except an archived one, so a file pointing at one
  * matches nothing and the reason never reaches the user. A source that is only ever a transfer's
  * counterparty is left out, since it can record an archived account as it is
+ *
+ * @param resolvedMappings - The answers as they stand after the name match and before the
+ *   create-new fallback. Given the finished map instead, every row source holds an answer and this
+ *   returns nothing, so a user importing a file naming an account they archived would be told to
+ *   unarchive nothing and would silently get a second account carrying that name
  */
 export function getArchivedAccountMatches(
   sources: ImportAccountSource[],
@@ -162,6 +216,89 @@ export function getArchivedAccountMatches(
   }
 
   return matchedNames
+}
+
+/**
+ * Reads the currency each account source's own rows state
+ *
+ * A source counts as stating one only where every row of it that fills the currency cell fills it
+ * with the same code, since two different codes leave nothing to choose between, and only where the
+ * app supports that code, or the box would hold a value its own dropdown does not offer. It is
+ * upper-cased
+ * to match `resolveImportRow` and what the commit sends, so `usd` in the file and `USD` in the
+ * dropdown are one answer rather than two
+ *
+ * @param files - The staged files, read row by row rather than through the unique-value helpers,
+ *   since this has to see the currency each row states beside the source that row belongs to
+ * @param accountHeader - The mapped account column, empty when the file itself is the source
+ * @param currencyHeader - The mapped currency column, empty when none is mapped
+ * @param supportedCurrencyCodes - Every code the app can store an account in
+ * @returns The currency per source id, leaving out any source that states none, states more than
+ *   one, or states one the app does not support
+ */
+export function getStatedCurrencyByAccountSource(
+  files: ImportFileDraft[],
+  accountHeader: string,
+  currencyHeader: string,
+  supportedCurrencyCodes: Set<string>,
+): Record<string, string> {
+  if (!currencyHeader) return {}
+
+  // Null marks a source whose rows disagree, told apart from one no row has stated a currency for
+  const statedBySource = new Map<string, string | null>()
+
+  for (const file of files) {
+    for (const row of file.rows) {
+      // The same source id `buildImportAccountMappingSources` builds, which is the file rather than
+      // a cell value when no account column is mapped
+      const source = accountHeader ? row[accountHeader]?.trim() ?? '' : file.id
+      if (!source) continue
+
+      const code = (row[currencyHeader]?.trim() ?? '').toUpperCase()
+      if (!code) continue
+
+      const stated = statedBySource.get(source)
+      statedBySource.set(source, stated === undefined || stated === code ? code : null)
+    }
+  }
+
+  const currencyBySource: Record<string, string> = {}
+  for (const [source, code] of statedBySource) {
+    if (code && supportedCurrencyCodes.has(code)) currencyBySource[source] = code
+  }
+
+  return currencyBySource
+}
+
+/**
+ * Settles the currency each row set to create an account is creating it in
+ *
+ * The user's own answer wins, then whatever the file states for that source, then nothing. The
+ * user's base currency is deliberately not used: this value is not only shown, it lands on every
+ * row of that account, where the decimal-places check and the currency-mismatch check both read it,
+ * so guessing here either files a foreign statement in the wrong currency without a word or refuses
+ * a correct file outright
+ *
+ * A source not creating an account is left out entirely, so a row moved off create stops carrying
+ * a currency with nothing having to clear it
+ *
+ * @param storedCurrencies - The answers the user gave
+ * @param mappings - The answers after the match and both defaults, which is what says who is creating
+ * @param statedCurrencies - What each source's own rows state
+ */
+export function resolveImportAccountCreateCurrencies(
+  storedCurrencies: Record<string, string>,
+  mappings: Record<string, string>,
+  statedCurrencies: Record<string, string>,
+): Record<string, string> {
+  const resolved: Record<string, string> = {}
+
+  for (const [source, choice] of Object.entries(mappings)) {
+    if (choice !== CREATE_ACCOUNT_VALUE) continue
+    resolved[source] = storedCurrencies[source] || statedCurrencies[source] || ''
+  }
+
+  return resolved
 }
 
 /**
