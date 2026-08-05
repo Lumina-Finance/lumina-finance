@@ -19,13 +19,17 @@ import type {
 
 /**
  * Builds one row, optionally against a category source of its own
+ *
+ * Field values are as short as the shapes allow, so the byte budget stays out of the way of the
+ * row-count cap. A row of ordinary size fills the bytes first, which is what makes the count the
+ * condition that only bites on unusually small rows
  */
-function buildRow(categorySource = 'Groceries'): TransactionImportRow {
+function buildRow(categorySource = 'G'): TransactionImportRow {
   return {
-    account_source: 'Checking',
+    account_source: 'C',
     category_source: categorySource,
     dt: '2026-06-12',
-    amount: '-42.50',
+    amount: '-1',
     merchant_name: null,
     notes: '',
     tag_names: [],
@@ -37,7 +41,7 @@ function buildRow(categorySource = 'Groceries'): TransactionImportRow {
  */
 function buildPayload(categorySources: string[]): TransactionImportPayload {
   return {
-    accounts: [{ source: 'Checking', account_id: 'acc_1' }],
+    accounts: [{ source: 'C', account_id: 'acc_1' }],
     categories: categorySources.map((source) => ({
       source,
       create: { name: source, kind: 'expense' },
@@ -60,17 +64,19 @@ describe('the limits a staged batch is built against', () => {
     }
   });
 
-  it('keeps every batch inside the row count the API accepts', async () => {
-    // Rows sharing one category are as small as a batch gets, which is what puts the row count
-    // closest to its cap
+  it('closes a batch on the row count where the rows are small enough to fit more', async () => {
+    // Rows this small all share one mapping and stay well inside the byte budget, so the row count
+    // is the only condition that can close the batch. An ordinary row fills the bytes first
     const payload: TransactionImportPayload = {
-      accounts: [{ source: 'Checking', account_id: 'acc_1' }],
-      categories: [{ source: 'Groceries', category_id: 'cat_1' }],
-      rows: Array.from({ length: MAX_IMPORT_BATCH_ROWS * 2 }, () => buildRow()),
+      accounts: [{ source: 'C', account_id: 'acc_1' }],
+      categories: [{ source: 'G', category_id: 'cat_1' }],
+      rows: Array.from({ length: MAX_IMPORT_BATCH_ROWS + 100 }, () => buildRow()),
     };
 
     const batches = await buildStagedImportBatches(payload);
 
+    expect(batches[0].rows).toHaveLength(MAX_IMPORT_BATCH_ROWS);
+    expect(batches).toHaveLength(2);
     for (const batch of batches) {
       expect(batch.rows.length).toBeLessThanOrEqual(MAX_IMPORT_BATCH_ROWS);
     }

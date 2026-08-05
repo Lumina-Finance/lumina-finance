@@ -90,6 +90,33 @@ function build({
 }
 
 /**
+ * Builds a payload for a file whose one row carries a date the chosen format cannot read
+ */
+function buildWithUnreadableDate() {
+  const rows: CsvRow[] = [{ Date: 'not a date', Category: 'Groceries', Amount: '-12.34', Payee: '' }]
+
+  return buildTransactionImportPayload({
+    accountById: new Map([[ACCOUNT.id, ACCOUNT]]),
+    accountCreateCurrencies: {},
+    accountCreateInstitutions: {},
+    accountCreateTypes: {},
+    accountMappings: { 'file-1': ACCOUNT.id },
+    accountSources: [{ id: 'file-1', label: 'Chequing.csv', matchText: 'Chequing.csv', isCounterpartyOnly: false }],
+    categoryById: new Map([[CATEGORY.id, CATEGORY]]),
+    categoryCreateKinds: {},
+    categoryMappings: { Groceries: CATEGORY.id },
+    categoryTypesBySource: {},
+    columnMap: { ...EMPTY_COLUMN_MAP, dt: 'Date', category_id: 'Category', amount: 'Amount' },
+    columnValidationErrors: {},
+    currencies: CURRENCIES,
+    dateFormat: 'yearFirst',
+    files: [createFile(rows)],
+    importedCategories: ['Groceries'],
+    noPayeeColumnConfirmed: false,
+  })
+}
+
+/**
  * Builds the preview rows for one category kind, with no payee column mapped
  */
 function preview(kind: Category['kind']) {
@@ -136,6 +163,16 @@ describe('asking what a file with no payee column should do', () => {
 
     expect(result.payload?.rows).toHaveLength(1)
     expect(result.errors).not.toContain(NO_MERCHANT_COLUMN_ERROR)
+  })
+
+  // No row's verdict depends on this answer, so the rows a user has to go and fix are still listed
+  // while it is outstanding, rather than appearing only once the box is ticked
+  it('still lists the rows that cannot be converted while the question is open', () => {
+    const result = buildWithUnreadableDate()
+
+    expect(result.errors).toContain(NO_MERCHANT_COLUMN_ERROR)
+    expect(result.rowProblems).toHaveLength(1)
+    expect(result.rowProblems[0].rowNumber).toBe(1)
   })
 })
 

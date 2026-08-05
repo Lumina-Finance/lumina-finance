@@ -22,6 +22,7 @@ import type { ColumnMap, CsvRow } from '@/pages/imports/types'
 import { findCurrencyExponent } from '@/utils/moneyInput'
 import { splitImportedValues } from './categoryMatching'
 import { getMappedValue } from './columnMapping'
+import { unique } from './common'
 import { type ImportDateFormat, parseImportNumber, readImportDate, toImportMinorUnits } from './valueParsers'
 
 /**
@@ -100,7 +101,9 @@ export function resolveImportRow(row: CsvRow, fileId: string, context: ImportRow
     amount: getMappedValue(row, columnMap.amount),
     merchantName: cleanOptional(getMappedValue(row, columnMap.merchant_id)),
     notes: cleanOptional(getMappedValue(row, columnMap.notes)),
-    tagNames: splitImportedValues(getMappedValue(row, columnMap.tag_ids)),
+    // Deduplicated here rather than left to the API, which keeps one of each anyway, so the count
+    // the row is judged on is the number of tags it will actually carry
+    tagNames: unique(splitImportedValues(getMappedValue(row, columnMap.tag_ids))),
     counterpartySource: columnMap.counterparty_account_id
       ? cleanOptional(getMappedValue(row, columnMap.counterparty_account_id))
       : null,

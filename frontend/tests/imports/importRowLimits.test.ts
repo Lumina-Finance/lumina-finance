@@ -118,4 +118,14 @@ describe('refusing a row carrying too many tags', () => {
   it('accepts a row sitting exactly on the limit', () => {
     expect(build('', tagCell(MAX_IMPORT_TAGS_PER_ROW)).rowProblems).toEqual([])
   })
+
+  // The import keeps one of each name, so a cell repeating three tags eleven times stores three
+  // tags. Counting the repeats would refuse a row the import would have written
+  it('counts the tags the row will carry rather than the entries in the cell', () => {
+    const repeated = Array.from({ length: 11 }, () => 'groceries;food;weekly').join(';')
+    const result = build('', repeated)
+
+    expect(result.rowProblems).toEqual([])
+    expect(result.payload?.rows[0].tag_names).toEqual(['groceries', 'food', 'weekly'])
+  })
 })

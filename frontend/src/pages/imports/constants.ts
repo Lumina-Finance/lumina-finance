@@ -52,6 +52,17 @@ export const SELF_MERCHANT_NAME = 'Myself'
 export const MAX_IMPORT_NOTES_LENGTH = 10_000
 export const MAX_IMPORT_TAGS_PER_ROW = 32
 
+// Distinct account or category values one import may declare, matching what the API accepts across
+// a whole run rather than per request, so splitting the batches differently cannot get past it
+export const MAX_IMPORT_MAPPINGS = 1_000
+
+/**
+ * Says a file declares more distinct values for a column than one import may carry
+ */
+export function getTooManyMappingsError(kind: 'account' | 'category', count: number) {
+  return `This file has ${count.toLocaleString()} different ${kind} values, and one import carries up to ${MAX_IMPORT_MAPPINGS.toLocaleString()}. Split it into smaller files.`
+}
+
 /**
  * Says a row's notes are longer than the importer stores
  */

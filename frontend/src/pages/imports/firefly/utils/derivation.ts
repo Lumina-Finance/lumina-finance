@@ -1,7 +1,13 @@
 import type { AccountType } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import { FIREFLY_NO_CATEGORY_SOURCE, isFireflyTrackedAccountType } from '@/api/firefly-imports'
-import { CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
+import {
+  CREATE_CATEGORY_VALUE,
+  getRowNotesTooLongReason,
+  getRowTooManyTagsReason,
+  MAX_IMPORT_NOTES_LENGTH,
+  MAX_IMPORT_TAGS_PER_ROW,
+} from '@/pages/imports/constants'
 import type { CsvRow, ImportCategoryKind } from '@/pages/imports/types'
 import {
   FIREFLY_FALLBACK_ACCOUNT_TYPE,
@@ -56,6 +62,23 @@ export function getFireflyOverlongTag(row: CsvRow): string | null {
 }
 
 /**
+ * Returns why a row carries more than one transaction may hold, or null
+ *
+ * The API refuses the whole request for either, and a Firefly import commits
+ * each batch as it goes, so one such row part-way through an export would
+ * leave the batches before it in the ledger with no way to retry the rest.
+ * Dropping the row before upload is what the overlong tag above already does
+ */
+export function getFireflyRowOverLimitReason(row: CsvRow): string | null {
+  const tagCount = splitFireflyTags(row.tags ?? '').length
+  if (tagCount > MAX_IMPORT_TAGS_PER_ROW) return getRowTooManyTagsReason(tagCount)
+
+  const notesLength = row.notes?.trim().length ?? 0
+  if (notesLength > MAX_IMPORT_NOTES_LENGTH) return getRowNotesTooLongReason(notesLength)
+  return null
+}
+
+/**
  * Whether a row survives the payload build and reaches the backend
  *
  * Anything deriving import sources, such as the budget category inference,
@@ -63,7 +86,9 @@ export function getFireflyOverlongTag(row: CsvRow): string | null {
  * an account or category source in the commit response
  */
 export function isFireflyRowUploadable(row: CsvRow): boolean {
-  return isFireflyRowImportable(row) && getFireflyOverlongTag(row) === null
+  return isFireflyRowImportable(row)
+    && getFireflyOverlongTag(row) === null
+    && getFireflyRowOverLimitReason(row) === null
 }
 
 /**

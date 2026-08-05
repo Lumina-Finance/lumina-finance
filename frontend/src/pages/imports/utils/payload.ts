@@ -5,6 +5,8 @@ import {
   CREATE_ACCOUNT_VALUE,
   CREATE_CATEGORY_VALUE,
   DEFAULT_CATEGORY_ICON,
+  getTooManyMappingsError,
+  MAX_IMPORT_MAPPINGS,
   NO_MERCHANT_COLUMN_ERROR,
   NO_OUTFLOWS_WARNING,
   ROW_SIGN_DISAGREES_WITH_CATEGORY_REASON,
@@ -99,10 +101,6 @@ export function buildTransactionImportPayload({
 
   const missingRequired = getMissingRequiredColumnLabels(columnMap)
   if (missingRequired.length > 0) addError(`Missing required columns: ${missingRequired.join(', ')}`)
-
-  // The merchant column is the one field the import fills in for itself when it is unmapped, so it
-  // is asked about rather than left to be discovered in the preview
-  if (!columnMap.merchant_id && !noPayeeColumnConfirmed) addError(NO_MERCHANT_COLUMN_ERROR)
 
   // Without a settled format every row would fail its own date check, which reads as a file full of
   // bad dates rather than one unanswered question
@@ -239,6 +237,17 @@ export function buildTransactionImportPayload({
   // A file whose every row has a problem is described by the list of problems, so the empty-file
   // message is kept for the case it was written for
   if (rows.length === 0 && rowProblems.length === 0) addError('No transaction rows are available to import.')
+
+  // Asked after the rows are judged rather than with the other unanswered questions above, because
+  // no row's verdict depends on the answer, and asking it up there would empty the problem list the
+  // user needs in order to give it
+  if (!columnMap.merchant_id && !noPayeeColumnConfirmed) addError(NO_MERCHANT_COLUMN_ERROR)
+
+  // The API bounds how many mappings one import may declare, and it counts them across the whole
+  // run, so no way of splitting the batches gets a file past it. Said here, before anything is
+  // uploaded, rather than as a refusal part-way through staging
+  if (accounts.length > MAX_IMPORT_MAPPINGS) addError(getTooManyMappingsError('account', accounts.length))
+  if (categories.length > MAX_IMPORT_MAPPINGS) addError(getTooManyMappingsError('category', categories.length))
 
   const warnings = getImportWarnings(rows)
   const allErrors = [...columnErrors, ...errors]
