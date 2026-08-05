@@ -84,19 +84,34 @@ export function useTransactionImportWorkflow() {
   const [scopedAccountMappings, setScopedAccountMappings] = useState<ScopedImportAnswers<string>>(emptyScopedImportAnswers)
   const [accountAutoMatchKey, setAccountAutoMatchKey] = useState('')
 
-  // Both mapped account columns feed the sources, so an answer given under either one stops
-  // applying when either changes, the same way the date format choice answers to its own column
-  const accountAnswerScope = buildImportAnswerScope(
-    [columnMap.account_id, columnMap.counterparty_account_id],
-    files,
+  const accountMappingSources = useMemo(
+    () => buildImportAccountMappingSources(files, columnMap.account_id, columnMap.counterparty_account_id),
+    [columnMap.account_id, columnMap.counterparty_account_id, files],
   )
-  const categoryAnswerScope = buildImportAnswerScope([columnMap.category_id], files)
-  const accountMappings = readScopedImportAnswers(scopedAccountMappings, accountAnswerScope)
+
+  // The account sources come from two columns, so an answer is about whichever of them supplied it
+  // and survives the other one changing. The date format choice answers to its own column the same
+  // way, and this is that idea for a set of sources that has more than one origin
+  const rowAccountAnswerScope = buildImportAnswerScope(columnMap.account_id, files)
+  const counterpartyAnswerScope = buildImportAnswerScope(columnMap.counterparty_account_id, files)
+  const categoryAnswerScope = buildImportAnswerScope(columnMap.category_id, files)
+
+  const counterpartyOnlySourceIds = useMemo(
+    () => new Set(accountMappingSources.filter((source) => source.isCounterpartyOnly).map((source) => source.id)),
+    [accountMappingSources],
+  )
+
+  const getAccountSourceScope = (sourceId: string) => (
+    counterpartyOnlySourceIds.has(sourceId) ? counterpartyAnswerScope : rowAccountAnswerScope
+  )
+  const getCategorySourceScope = () => categoryAnswerScope
+
+  const accountMappings = readScopedImportAnswers(scopedAccountMappings, getAccountSourceScope)
 
   const setAccountMappings: Dispatch<SetStateAction<Record<string, string>>> = (update) => {
     setScopedAccountMappings((current) => {
-      const answers = readScopedImportAnswers(current, accountAnswerScope)
-      return writeScopedImportAnswers(accountAnswerScope, typeof update === 'function' ? update(answers) : update)
+      const answers = readScopedImportAnswers(current, getAccountSourceScope)
+      return writeScopedImportAnswers(current, typeof update === 'function' ? update(answers) : update, getAccountSourceScope)
     })
   }
 
@@ -116,7 +131,8 @@ export function useTransactionImportWorkflow() {
     setBatchAccountCurrency,
     setBatchAccountInstitution,
     updateAccountMapping: updateSourceAccount,
-  } = useImportAccountCreateState(setAccountMappings, accountAnswerScope)
+    resetAccountCreateState,
+  } = useImportAccountCreateState(setAccountMappings, getAccountSourceScope)
   const [merchantHandlingOpen, setMerchantHandlingOpen] = useState(true)
   const [tagHandlingOpen, setTagHandlingOpen] = useState(true)
   const [columnValidationErrors, setColumnValidationErrors] = useState<ColumnValidationErrors>({})
@@ -139,20 +155,20 @@ export function useTransactionImportWorkflow() {
   const importTransactions = useImportTransactions()
   const commitStagedImport = useCommitStagedImport()
 
-  const categoryMappings = readScopedImportAnswers(scopedCategoryMappings, categoryAnswerScope)
-  const categoryCreateKinds = readScopedImportAnswers(scopedCategoryCreateKinds, categoryAnswerScope)
+  const categoryMappings = readScopedImportAnswers(scopedCategoryMappings, getCategorySourceScope)
+  const categoryCreateKinds = readScopedImportAnswers(scopedCategoryCreateKinds, getCategorySourceScope)
 
   const setCategoryMappings: Dispatch<SetStateAction<Record<string, string>>> = (update) => {
     setScopedCategoryMappings((current) => {
-      const answers = readScopedImportAnswers(current, categoryAnswerScope)
-      return writeScopedImportAnswers(categoryAnswerScope, typeof update === 'function' ? update(answers) : update)
+      const answers = readScopedImportAnswers(current, getCategorySourceScope)
+      return writeScopedImportAnswers(current, typeof update === 'function' ? update(answers) : update, getCategorySourceScope)
     })
   }
 
   const setCategoryCreateKinds: Dispatch<SetStateAction<Record<string, ImportCategoryKind>>> = (update) => {
     setScopedCategoryCreateKinds((current) => {
-      const answers = readScopedImportAnswers(current, categoryAnswerScope)
-      return writeScopedImportAnswers(categoryAnswerScope, typeof update === 'function' ? update(answers) : update)
+      const answers = readScopedImportAnswers(current, getCategorySourceScope)
+      return writeScopedImportAnswers(current, typeof update === 'function' ? update(answers) : update, getCategorySourceScope)
     })
   }
   const {
@@ -230,11 +246,6 @@ export function useTransactionImportWorkflow() {
   const setDateFormat = (format: ImportDateFormat) => {
     setDateFormatChoice({ scope: dateFormatScope, format })
   }
-
-  const accountMappingSources = useMemo(
-    () => buildImportAccountMappingSources(files, columnMap.account_id, columnMap.counterparty_account_id),
-    [columnMap.account_id, columnMap.counterparty_account_id, files],
-  )
 
   // Only a source no row is written to can answer that the money left the tracked accounts, so the
   // extra choice is kept off every other row's dropdown, and the same reason is why an archived
@@ -494,11 +505,16 @@ export function useTransactionImportWorkflow() {
     const nextColumnMap = getNextColumnMap(columnMap, header, targetValue)
     const nextColumnMappingComplete = isColumnMappingComplete(nextColumnMap, nextColumnValidationErrors, files)
 
-    // Ticks are made against the rows one pair of columns produced, and a scope alone cannot tell
-    // that a column was unmapped and mapped back, since it ends up the string it started as
-    const accountColumnsChanged = nextColumnMap.account_id !== columnMap.account_id
-      || nextColumnMap.counterparty_account_id !== columnMap.counterparty_account_id
-    if (accountColumnsChanged) setSelectedAccountRows(new Set())
+    // A scope alone cannot tell that a column was unmapped and mapped back, since it ends up the
+    // string it started as, so the ticks a changed column produced are dropped here. The rows the
+    // other column produced keep theirs, which is the whole point of filing them separately
+    const rowColumnChanged = nextColumnMap.account_id !== columnMap.account_id
+    const counterpartyColumnChanged = nextColumnMap.counterparty_account_id !== columnMap.counterparty_account_id
+    if (rowColumnChanged || counterpartyColumnChanged) {
+      setSelectedAccountRows((current) => new Set([...current].filter((sourceId) => (
+        counterpartyOnlySourceIds.has(sourceId) ? !counterpartyColumnChanged : !rowColumnChanged
+      ))))
+    }
 
     setAutoFilledColumnHeaders((current) => {
       const next = new Set(current)
@@ -621,13 +637,7 @@ export function useTransactionImportWorkflow() {
     setColumnMap(EMPTY_COLUMN_MAP)
     setAccountMappings({})
     setAccountAutoMatchKey('')
-    setAccountCreateTypes({})
-    setAccountCreateCurrencies({})
-    setAccountCreateInstitutions({})
-    setSelectedAccountRows(new Set())
-    setBatchAccountType('')
-    setBatchAccountCurrency('')
-    setBatchAccountInstitution('')
+    resetAccountCreateState()
     setMerchantHandlingOpen(true)
     setTagHandlingOpen(true)
     setColumnValidationErrors({})

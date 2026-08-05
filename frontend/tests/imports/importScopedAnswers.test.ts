@@ -1,11 +1,12 @@
 /**
- * Covers the scope every per-source answer is held under, so an answer given for one file and
- * column is not reused for a different one that happens to repeat a value
+ * Covers what each answer is filed under, so an answer given for one file and column is neither
+ * reused for a different one that repeats the value nor dropped when an unrelated column changes
  */
 import { describe, expect, it } from 'vitest'
 import type { ImportFileDraft } from '@/pages/imports/types'
 import {
   buildImportAnswerScope,
+  clearScopedImportAnswers,
   emptyScopedImportAnswers,
   readScopedImportAnswers,
   readScopedSelection,
@@ -21,73 +22,140 @@ function createFile(id: string): ImportFileDraft {
     id,
     name: 'Statement.csv',
     size: 1024,
-    headers: ['Date', 'Amount', 'Account'],
+    headers: ['Date', 'Amount', 'Account', 'Transfer To'],
     hasHeaderRow: true,
-    rows: [{ Date: '2026-06-01', Amount: '10.00', Account: 'Savings' }],
+    rows: [{ Date: '2026-06-01', Amount: '10.00', Account: 'Savings', 'Transfer To': 'Savings' }],
     error: null,
   }
 }
 
+const FILE = createFile('file_1')
+
+/**
+ * Builds the resolver the workflow passes in, from the two mapped account columns and which
+ * sources came from the second of them
+ */
+function accountSourceScope(accountColumn: string, counterpartyColumn: string, counterpartyOnly: string[] = []) {
+  const counterpartyOnlyIds = new Set(counterpartyOnly)
+  return (sourceId: string) => (
+    counterpartyOnlyIds.has(sourceId)
+      ? buildImportAnswerScope(counterpartyColumn, [FILE])
+      : buildImportAnswerScope(accountColumn, [FILE])
+  )
+}
+
 describe('scoped import answers', () => {
-  it('reads back the answers while the columns and files they were given for still hold', () => {
-    const scope = buildImportAnswerScope(['Account', ''], [createFile('file_1')])
-    const stored = writeScopedImportAnswers(scope, { Savings: 'acc_1' })
+  it('reads back an answer while the column and file it was given for still hold', () => {
+    const scope = accountSourceScope('Account', '')
+    const stored = writeScopedImportAnswers(emptyScopedImportAnswers<string>(), { Savings: 'acc_1' }, scope)
 
     expect(readScopedImportAnswers(stored, scope)).toEqual({ Savings: 'acc_1' })
   })
 
-  it('drops the answers when a different file repeats the same value', () => {
-    const firstScope = buildImportAnswerScope(['Account', ''], [createFile('file_1')])
-    const stored = writeScopedImportAnswers(firstScope, { Savings: 'acc_1' })
-    const secondScope = buildImportAnswerScope(['Account', ''], [createFile('file_2')])
+  it('drops an answer when a different file repeats the same value', () => {
+    const stored = writeScopedImportAnswers(
+      emptyScopedImportAnswers<string>(),
+      { Savings: 'acc_1' },
+      accountSourceScope('Account', ''),
+    )
+    const nextFile = () => buildImportAnswerScope('Account', [createFile('file_2')])
 
-    expect(readScopedImportAnswers(stored, secondScope)).toEqual({})
+    expect(readScopedImportAnswers(stored, nextFile)).toEqual({})
   })
 
-  it('drops the answers when the column they were read from changes', () => {
-    const scope = buildImportAnswerScope(['Account', ''], [createFile('file_1')])
-    const stored = writeScopedImportAnswers(scope, { Savings: 'acc_1' })
-    const remapped = buildImportAnswerScope(['Payee', ''], [createFile('file_1')])
+  it('drops an answer when the column it was read from changes', () => {
+    const stored = writeScopedImportAnswers(
+      emptyScopedImportAnswers<string>(),
+      { Savings: 'acc_1' },
+      accountSourceScope('Account', ''),
+    )
 
-    expect(readScopedImportAnswers(stored, remapped)).toEqual({})
+    expect(readScopedImportAnswers(stored, accountSourceScope('Payee', ''))).toEqual({})
   })
 
-  // The account sources come from both mapped columns, so an answer given under either one stops
-  // applying when either changes
-  it('drops the answers when only the counterparty column changes', () => {
-    const scope = buildImportAnswerScope(['Account', 'Transfer To'], [createFile('file_1')])
-    const stored = writeScopedImportAnswers(scope, { Savings: 'acc_1' })
-    const remapped = buildImportAnswerScope(['Account', 'Payee'], [createFile('file_1')])
+  // The account sources come from two columns, and an answer belongs to whichever one supplied it
+  it('keeps an account answer when only the counterparty column changes', () => {
+    const stored = writeScopedImportAnswers(
+      emptyScopedImportAnswers<string>(),
+      { Chequing: 'acc_1' },
+      accountSourceScope('Account', ''),
+    )
 
-    expect(readScopedImportAnswers(stored, remapped)).toEqual({})
+    expect(readScopedImportAnswers(stored, accountSourceScope('Account', 'Transfer To'))).toEqual({
+      Chequing: 'acc_1',
+    })
+  })
+
+  it('drops a counterparty answer when the counterparty column changes, and keeps the account one', () => {
+    const answered = accountSourceScope('Account', 'Transfer To', ['Savings'])
+    const stored = writeScopedImportAnswers(
+      emptyScopedImportAnswers<string>(),
+      { Chequing: 'acc_1', Savings: 'outside' },
+      answered,
+    )
+
+    expect(readScopedImportAnswers(stored, accountSourceScope('Account', 'Payee', ['Savings']))).toEqual({
+      Chequing: 'acc_1',
+    })
+  })
+
+  // Answering the same value under one column must not overwrite what it was answered as under
+  // another, or putting the first column back would show the second column's answer
+  it('holds an answer for the same value under each column it came from', () => {
+    const underAccount = accountSourceScope('Account', '')
+    const underCounterparty = accountSourceScope('', 'Transfer To', ['Savings'])
+    const afterAccount = writeScopedImportAnswers(emptyScopedImportAnswers<string>(), { Savings: 'acc_1' }, underAccount)
+    const afterBoth = writeScopedImportAnswers(afterAccount, { Savings: 'outside' }, underCounterparty)
+
+    expect(readScopedImportAnswers(afterBoth, underCounterparty)).toEqual({ Savings: 'outside' })
+    expect(readScopedImportAnswers(afterBoth, underAccount)).toEqual({ Savings: 'acc_1' })
+  })
+
+  it('drops an answer removed from the set in front of the user', () => {
+    const scope = accountSourceScope('Account', '')
+    const stored = writeScopedImportAnswers(
+      emptyScopedImportAnswers<string>(),
+      { Chequing: 'acc_1', Savings: 'acc_2' },
+      scope,
+    )
+    const afterRemoval = writeScopedImportAnswers(stored, { Chequing: 'acc_1' }, scope)
+
+    expect(readScopedImportAnswers(afterRemoval, scope)).toEqual({ Chequing: 'acc_1' })
   })
 
   it('starts with nothing answered', () => {
-    const scope = buildImportAnswerScope(['Account', ''], [createFile('file_1')])
+    expect(readScopedImportAnswers(emptyScopedImportAnswers<string>(), accountSourceScope('Account', ''))).toEqual({})
+  })
 
-    expect(readScopedImportAnswers(emptyScopedImportAnswers<string>(), scope)).toEqual({})
+  it('forgets everything filed under one scope', () => {
+    const scope = accountSourceScope('Account', '')
+    const stored = writeScopedImportAnswers(emptyScopedImportAnswers<string>(), { Savings: 'acc_1' }, scope)
+    const cleared = clearScopedImportAnswers(stored, buildImportAnswerScope('Account', [FILE]))
+
+    expect(readScopedImportAnswers(cleared, scope)).toEqual({})
   })
 })
 
 describe('scoped row selection', () => {
   it('reads the ticks back while the column they were made under still holds', () => {
-    const scope = buildImportAnswerScope(['Account', ''], [createFile('file_1')])
-    const stored = writeScopedSelection(scope, new Set(['Savings', 'Chequing']))
+    const scope = accountSourceScope('Account', '')
+    const stored = writeScopedSelection(emptyScopedImportAnswers<true>(), new Set(['Savings', 'Chequing']), scope)
 
     expect(readScopedSelection(stored, scope)).toEqual(new Set(['Savings', 'Chequing']))
   })
 
   it('leaves the table unticked when a different file supplies the sources', () => {
-    const scope = buildImportAnswerScope(['Account', ''], [createFile('file_1')])
-    const stored = writeScopedSelection(scope, new Set(['Savings']))
-    const nextFile = buildImportAnswerScope(['Account', ''], [createFile('file_2')])
+    const stored = writeScopedSelection(
+      emptyScopedImportAnswers<true>(),
+      new Set(['Savings']),
+      accountSourceScope('Account', ''),
+    )
+    const nextFile = () => buildImportAnswerScope('Account', [createFile('file_2')])
 
     expect(readScopedSelection(stored, nextFile)).toEqual(new Set())
   })
 
   it('starts with nothing ticked', () => {
-    const scope = buildImportAnswerScope(['Account', ''], [createFile('file_1')])
-
-    expect(readScopedSelection(emptyScopedImportAnswers<true>(), scope)).toEqual(new Set())
+    expect(readScopedSelection(emptyScopedImportAnswers<true>(), accountSourceScope('Account', ''))).toEqual(new Set())
   })
 })

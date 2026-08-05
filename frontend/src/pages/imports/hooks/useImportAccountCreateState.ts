@@ -8,6 +8,7 @@ import {
   removeSetValue,
   writeScopedImportAnswers,
   writeScopedSelection,
+  type ImportSourceScope,
   type ScopedImportAnswers,
 } from '@/pages/imports/utils'
 
@@ -32,6 +33,9 @@ export interface ImportAccountCreateState {
   setBatchAccountCurrency: Dispatch<SetStateAction<string>>
   setBatchAccountInstitution: Dispatch<SetStateAction<string>>
   updateAccountMapping: (sourceAccount: string, accountId: string) => void
+
+  /** Forgets every answer, including ones filed under a column that is not mapped right now */
+  resetAccountCreateState: () => void
 }
 
 /**
@@ -42,17 +46,17 @@ export interface ImportAccountCreateState {
  * create-state once it no longer creates an account
  *
  * @param setAccountMappings - The caller's own mappings setter
- * @param scope - What the answers were given for, so they are dropped rather than carried once the
- *   sources they were about are gone
+ * @param getSourceScope - What each source value was read from, so an answer is kept while that
+ *   still holds and left behind once the same value comes from somewhere else
  */
 export function useImportAccountCreateState(
   setAccountMappings: Dispatch<SetStateAction<Record<string, string>>>,
-  scope: string,
+  getSourceScope: ImportSourceScope,
 ): ImportAccountCreateState {
-  const [accountCreateTypes, setScopedAccountCreateTypes] = useState<ScopedImportAnswers<string>>(emptyScopedImportAnswers)
-  const [accountCreateCurrencies, setScopedAccountCreateCurrencies] = useState<ScopedImportAnswers<string>>(emptyScopedImportAnswers)
-  const [accountCreateInstitutions, setScopedAccountCreateInstitutions] = useState<ScopedImportAnswers<string>>(emptyScopedImportAnswers)
-  const [scopedSelectedAccountRows, setScopedSelectedAccountRows] = useState<ScopedImportAnswers<true>>(emptyScopedImportAnswers)
+  const [storedCreateTypes, setStoredCreateTypes] = useState<ScopedImportAnswers<string>>(emptyScopedImportAnswers)
+  const [storedCreateCurrencies, setStoredCreateCurrencies] = useState<ScopedImportAnswers<string>>(emptyScopedImportAnswers)
+  const [storedCreateInstitutions, setStoredCreateInstitutions] = useState<ScopedImportAnswers<string>>(emptyScopedImportAnswers)
+  const [storedSelectedRows, setStoredSelectedRows] = useState<ScopedImportAnswers<true>>(emptyScopedImportAnswers)
   const [batchAccountType, setBatchAccountType] = useState('')
   const [batchAccountCurrency, setBatchAccountCurrency] = useState('')
   const [batchAccountInstitution, setBatchAccountInstitution] = useState('')
@@ -61,24 +65,22 @@ export function useImportAccountCreateState(
    * Wraps a scoped answer store as the plain record setter every table already takes
    */
   const scopedSetter = (
-    setScoped: Dispatch<SetStateAction<ScopedImportAnswers<string>>>,
+    setStored: Dispatch<SetStateAction<ScopedImportAnswers<string>>>,
   ): Dispatch<SetStateAction<Record<string, string>>> => (update) => {
-    setScoped((current) => {
-      const answers = readScopedImportAnswers(current, scope)
-      return writeScopedImportAnswers(scope, typeof update === 'function' ? update(answers) : update)
+    setStored((current) => {
+      const answers = readScopedImportAnswers(current, getSourceScope)
+      return writeScopedImportAnswers(current, typeof update === 'function' ? update(answers) : update, getSourceScope)
     })
   }
 
-  const setAccountCreateTypes = scopedSetter(setScopedAccountCreateTypes)
-  const setAccountCreateCurrencies = scopedSetter(setScopedAccountCreateCurrencies)
-  const setAccountCreateInstitutions = scopedSetter(setScopedAccountCreateInstitutions)
-
-  const selectedAccountRows = readScopedSelection(scopedSelectedAccountRows, scope)
+  const setAccountCreateTypes = scopedSetter(setStoredCreateTypes)
+  const setAccountCreateCurrencies = scopedSetter(setStoredCreateCurrencies)
+  const setAccountCreateInstitutions = scopedSetter(setStoredCreateInstitutions)
 
   const setSelectedAccountRows: Dispatch<SetStateAction<Set<string>>> = (update) => {
-    setScopedSelectedAccountRows((current) => {
-      const selection = readScopedSelection(current, scope)
-      return writeScopedSelection(scope, typeof update === 'function' ? update(selection) : update)
+    setStoredSelectedRows((current) => {
+      const selection = readScopedSelection(current, getSourceScope)
+      return writeScopedSelection(current, typeof update === 'function' ? update(selection) : update, getSourceScope)
     })
   }
 
@@ -92,11 +94,21 @@ export function useImportAccountCreateState(
     }
   }
 
+  const resetAccountCreateState = () => {
+    setStoredCreateTypes(emptyScopedImportAnswers)
+    setStoredCreateCurrencies(emptyScopedImportAnswers)
+    setStoredCreateInstitutions(emptyScopedImportAnswers)
+    setStoredSelectedRows(emptyScopedImportAnswers)
+    setBatchAccountType('')
+    setBatchAccountCurrency('')
+    setBatchAccountInstitution('')
+  }
+
   return {
-    accountCreateTypes: readScopedImportAnswers(accountCreateTypes, scope),
-    accountCreateCurrencies: readScopedImportAnswers(accountCreateCurrencies, scope),
-    accountCreateInstitutions: readScopedImportAnswers(accountCreateInstitutions, scope),
-    selectedAccountRows,
+    accountCreateTypes: readScopedImportAnswers(storedCreateTypes, getSourceScope),
+    accountCreateCurrencies: readScopedImportAnswers(storedCreateCurrencies, getSourceScope),
+    accountCreateInstitutions: readScopedImportAnswers(storedCreateInstitutions, getSourceScope),
+    selectedAccountRows: readScopedSelection(storedSelectedRows, getSourceScope),
     batchAccountType,
     batchAccountCurrency,
     batchAccountInstitution,
@@ -108,5 +120,6 @@ export function useImportAccountCreateState(
     setBatchAccountCurrency,
     setBatchAccountInstitution,
     updateAccountMapping,
+    resetAccountCreateState,
   }
 }
