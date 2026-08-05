@@ -2,6 +2,7 @@
 
 import uuid
 from datetime import date, datetime
+from typing import Annotated
 
 from pydantic import BaseModel, Field
 
@@ -14,8 +15,31 @@ MAX_IMPORT_ROWS = 100_000
 
 # One batch becomes a single insert carrying five bind parameters per row, and a statement may
 # carry 65535 of them, so a batch past about 13000 rows fails inside the driver rather than being
-# refused. The browser closes a batch on its byte budget long before this, at roughly 4000 rows
+# refused. The browser closes a batch on its byte budget long before this, at roughly 4000 rows.
+# The Firefly III import reuses the figure, where a row carries more fields and a batch of them
+# reaches roughly 2000 rows against the same byte budget
 MAX_IMPORT_BATCH_ROWS = 5_000
+
+# Account or category mappings one import may carry, applied both to a single batch and to the total
+# a run accumulates across its batches. Staging checks every mapping against the database, one query
+# for an existing account and two for one being created, so the count decides the work a single
+# request costs. No statement file has more than a handful of accounts or more than dozens of
+# categories
+MAX_IMPORT_MAPPINGS = 1_000
+
+# Characters of notes one row may carry, against a column that would otherwise take a megabyte a
+# row. Long enough for a full statement memo line and the reference numbers banks append to it
+MAX_IMPORT_NOTES_LENGTH = 10_000
+
+# Tags one row may carry, and characters one tag name may carry. The length matches the column tags
+# are stored in, so a name too long is refused as the batch carrying it is staged rather than at the
+# commit, once the rows are already parked
+MAX_IMPORT_TAGS_PER_ROW = 32
+MAX_IMPORT_TAG_NAME_LENGTH = 64
+
+# One imported tag name, bounded so that the count and the length are stated in one place for both
+# importers
+ImportTagName = Annotated[str, Field(max_length=MAX_IMPORT_TAG_NAME_LENGTH)]
 
 
 class TopCategorySpend(BaseModel):
@@ -179,8 +203,8 @@ class TransactionImportRow(BaseModel):
     dt: date
     amount: str = Field(min_length=1, max_length=64)
     merchant_name: str | None = Field(None, max_length=256)
-    notes: str | None = None
-    tag_names: list[str] = []
+    notes: str | None = Field(None, max_length=MAX_IMPORT_NOTES_LENGTH)
+    tag_names: list[ImportTagName] = Field(default=[], max_length=MAX_IMPORT_TAGS_PER_ROW)
 
     # Counterparty account source, meaning the account the money moved to or from. A transfer row
     # that leaves it unset records that the money left the tracked accounts
@@ -210,8 +234,8 @@ class TransactionImportRunResponse(BaseModel):
 class TransactionImportStageRequest(BaseModel):
     """One batch of a staged file: the mappings its rows reference, and the rows themselves."""
 
-    accounts: list[TransactionImportAccountMapping] = Field(min_length=1)
-    categories: list[TransactionImportCategoryMapping] = Field(min_length=1)
+    accounts: list[TransactionImportAccountMapping] = Field(min_length=1, max_length=MAX_IMPORT_MAPPINGS)
+    categories: list[TransactionImportCategoryMapping] = Field(min_length=1, max_length=MAX_IMPORT_MAPPINGS)
     rows: list[TransactionImportRow] = Field(min_length=1, max_length=MAX_IMPORT_BATCH_ROWS)
 
     # Where this batch starts in the file, so a batch sent twice stages the same positions and the

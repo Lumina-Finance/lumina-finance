@@ -12,6 +12,7 @@ from app.models.import_run import ImportRun, ImportStagedRow
 from app.models.user import User
 from app.permissions import check_account_access
 from app.schemas.transaction import (
+    MAX_IMPORT_MAPPINGS,
     TransactionImportAccountMapping,
     TransactionImportCategoryMapping,
     TransactionImportStageRequest,
@@ -156,6 +157,10 @@ def _merge_import_mappings(
     Re-sending a batch merges the same answers again, which is why an identical re-declaration is
     accepted while a different one is refused
 
+    The merged total is capped as well as each batch, because a batch cap alone bounds nothing: the
+    same positions can be staged over and over, where the unique constraint absorbs the repeated
+    rows while every batch adds more mappings to what the run holds
+
     Args:
         stored: Mappings the run already holds
         mappings: Mappings this batch declares
@@ -165,7 +170,8 @@ def _merge_import_mappings(
         The merged mappings
 
     Raises:
-        HTTPException: Raised with 422 when a source is declared differently from before
+        HTTPException: Raised with 422 when a source is declared differently from before, and when
+            the run would end up holding more mappings than an import may declare
     """
     merged = dict(stored)
 
@@ -179,6 +185,12 @@ def _merge_import_mappings(
                 detail=f"{label} is declared twice with different answers: {source}",
             )
         merged[source] = declared
+
+    if len(merged) > MAX_IMPORT_MAPPINGS:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"This import declares {len(merged)} distinct values for {label}, and the limit is {MAX_IMPORT_MAPPINGS}",
+        )
     return merged
 
 

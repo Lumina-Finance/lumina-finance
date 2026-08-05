@@ -3,7 +3,13 @@ import uuid
 
 from sqlalchemy import text
 
-from app.schemas.transaction import MAX_IMPORT_BATCH_ROWS
+from app.schemas.transaction import (
+    MAX_IMPORT_BATCH_ROWS,
+    MAX_IMPORT_MAPPINGS,
+    MAX_IMPORT_NOTES_LENGTH,
+    MAX_IMPORT_TAG_NAME_LENGTH,
+    MAX_IMPORT_TAGS_PER_ROW,
+)
 from app.services.importers.generic import run_locking
 from app.services.importers.generic.run_locking import load_locked_run
 from tests.conftest import TestSession
@@ -628,6 +634,101 @@ async def test_staging_a_batch_over_the_row_cap_is_refused(client):
     )
 
     assert resp.status_code == 422
+
+
+async def test_staging_a_batch_over_the_mapping_cap_is_refused(client):
+    """A batch declaring more mappings than an import may carry is refused before any is checked."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    run_id = await _open_run(client, headers, 1)
+    batch = _batch(account_id, category_id, ["-1.00"])
+    batch["categories"] += _category_mappings(range(MAX_IMPORT_MAPPINGS))
+
+    resp = await client.post(f"/transactions/import/runs/{run_id}/rows", json=batch, headers=headers)
+
+    assert resp.status_code == 422
+
+
+async def test_staging_refuses_more_mappings_than_an_import_may_declare_across_batches(client):
+    """Two batches each under the cap cannot together leave the run holding more than it."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    run_id = await _open_run(client, headers, 2)
+    half = MAX_IMPORT_MAPPINGS // 2 + 1
+
+    first_batch = _batch(account_id, category_id, ["-1.00"])
+    first_batch["categories"] += _category_mappings(range(half))
+    second_batch = _batch(account_id, category_id, ["-2.00"], start_row_index=1)
+    second_batch["categories"] += _category_mappings(range(half, half * 2))
+
+    first = await client.post(f"/transactions/import/runs/{run_id}/rows", json=first_batch, headers=headers)
+    second = await client.post(f"/transactions/import/runs/{run_id}/rows", json=second_batch, headers=headers)
+
+    assert first.status_code == 204
+    assert second.status_code == 422
+    # The run already held the Groceries mapping every batch declares, so the total runs one past
+    # the two halves
+    assert second.json()["detail"] == (
+        f"This import declares {half * 2 + 1} distinct values for Category source, "
+        f"and the limit is {MAX_IMPORT_MAPPINGS}"
+    )
+
+
+async def test_staging_a_row_whose_notes_are_too_long_is_refused(client):
+    """A note past the cap is refused as its batch is staged rather than at the commit."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    run_id = await _open_run(client, headers, 1)
+    batch = _batch(account_id, category_id, ["-1.00"])
+    batch["rows"][0]["notes"] = "n" * (MAX_IMPORT_NOTES_LENGTH + 1)
+
+    resp = await client.post(f"/transactions/import/runs/{run_id}/rows", json=batch, headers=headers)
+
+    assert resp.status_code == 422
+
+
+async def test_staging_a_row_carrying_too_many_tags_is_refused(client):
+    """A row naming more tags than the cap allows is refused rather than creating them all."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    run_id = await _open_run(client, headers, 1)
+    batch = _batch(account_id, category_id, ["-1.00"])
+    batch["rows"][0]["tag_names"] = [f"Tag {index}" for index in range(MAX_IMPORT_TAGS_PER_ROW + 1)]
+
+    resp = await client.post(f"/transactions/import/runs/{run_id}/rows", json=batch, headers=headers)
+
+    assert resp.status_code == 422
+
+
+async def test_staging_a_row_whose_tag_name_is_too_long_is_refused(client):
+    """A tag name past the column it is stored in is refused at staging, not at the commit."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    run_id = await _open_run(client, headers, 1)
+    batch = _batch(account_id, category_id, ["-1.00"])
+    batch["rows"][0]["tag_names"] = ["t" * (MAX_IMPORT_TAG_NAME_LENGTH + 1)]
+
+    resp = await client.post(f"/transactions/import/runs/{run_id}/rows", json=batch, headers=headers)
+
+    assert resp.status_code == 422
+
+
+async def test_staging_accepts_a_row_at_every_cap(client):
+    """The values sitting exactly on each cap are accepted, so the bound refuses only past it."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    run_id = await _open_run(client, headers, 1)
+    batch = _batch(account_id, category_id, ["-1.00"])
+    batch["rows"][0]["notes"] = "n" * MAX_IMPORT_NOTES_LENGTH
+    batch["rows"][0]["tag_names"] = [
+        f"{index}".ljust(MAX_IMPORT_TAG_NAME_LENGTH, "t") for index in range(MAX_IMPORT_TAGS_PER_ROW)
+    ]
+
+    resp = await client.post(f"/transactions/import/runs/{run_id}/rows", json=batch, headers=headers)
+
+    assert resp.status_code == 204
+
+
+def _category_mappings(indexes):
+    """Build category mappings creating one new category per index"""
+    return [
+        {"source": f"Category {index}", "create": {"name": f"Category {index}", "kind": "expense"}}
+        for index in indexes
+    ]
 
 
 async def test_committing_twice_answers_from_the_first_commit(client):
