@@ -22,8 +22,12 @@ interface TransactionDetailsSectionProps {
   amount: string
   amountError?: string | false
 
-  // Stands the amount down unless the currency table is in hand, since its decimal places are the only way
-  // to read or write the stored amount, and says which of the two reasons applies
+  // Whether the amount stands down, decided by the modal from the transaction's own currency rather
+  // than recomputed here, so the field the form treats as locked is the field the user sees disabled
+  isAmountLocked: boolean
+
+  // Which of the two reasons the amount stands down for, since one is worth waiting out and the
+  // other is not
   currencyState: CurrencyListState
   currencyExponent: number
   notes: string
@@ -47,6 +51,7 @@ export default function TransactionDetailsSection({
   selectedCurrencySymbol,
   amount,
   amountError,
+  isAmountLocked,
   currencyState,
   currencyExponent,
   notes,
@@ -57,7 +62,6 @@ export default function TransactionDetailsSection({
   onAmountBlur,
   onNotesChange,
 }: TransactionDetailsSectionProps) {
-  const isAmountLocked = currencyState !== 'ready'
   const amountInput = useMoneyInput({
     value: amount,
     exponent: currencyExponent,

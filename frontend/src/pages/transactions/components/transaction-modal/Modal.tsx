@@ -4,6 +4,7 @@ import { useCategories } from '@/api/categories'
 import { useCurrencies } from '@/api/currency'
 import { useCurrencyListState } from '@/hooks/useCurrencyListState'
 import { CURRENCY_LIST_LOADING } from '@/utils/currencyStatus'
+import { DEFAULT_MINOR_UNIT_EXPONENT, findCurrencyExponent } from '@/utils/moneyInput'
 import { useAuth } from '@/hooks/useAuth'
 import { KIND_LABELS } from '@/pages/transactions/components/transaction-modal/constants'
 import { buildInitialTransactionForm } from '@/pages/transactions/components/transaction-modal/utils/initialForm'
@@ -24,6 +25,7 @@ import TransactionReferencesSection from '@/pages/transactions/components/transa
 import TransactionTypeDirectionSection from '@/pages/transactions/components/transaction-modal/sections/TypeDirectionSection'
 import { useTransactionFormState } from '@/pages/transactions/components/transaction-modal/hooks/useFormState'
 import { useTransactionReferenceCreationModals } from '@/pages/transactions/components/transaction-modal/hooks/useReferenceCreationModals'
+import { useRestoreLockedAmount } from '@/pages/transactions/components/transaction-modal/hooks/useRestoreLockedAmount'
 import { useCategoryField } from '@/pages/transactions/components/transaction-modal/hooks/useCategoryField'
 import { useMerchantField } from '@/pages/transactions/components/transaction-modal/hooks/useMerchantField'
 import { useTagField } from '@/pages/transactions/components/transaction-modal/hooks/useTagField'
@@ -152,9 +154,16 @@ export default function CreateTransactionModal({
   )
   const selectedCurrency = currencies.find((c) => c.id === form.currency)
   const selectedCurrencySymbol = selectedCurrency?.symbol ?? ''
-  const selectedCurrencyExponent = selectedCurrency?.minor_unit_exponent ?? 2
-  // Only reachable while editing, since a create click is refused before the modal opens
-  const isAmountLocked = currencyState !== 'ready'
+  const knownCurrencyExponent = findCurrencyExponent(currencies, form.currency)
+  const selectedCurrencyExponent = knownCurrencyExponent ?? DEFAULT_MINOR_UNIT_EXPONENT
+
+  // Asked of this transaction's own currency rather than of the table as a whole, so a currency the
+  // table does not carry keeps the field down instead of unlocking it empty over a stored amount.
+  // Editing only: a locked amount is left out of validation and sent as zero, and a new transaction
+  // has no stored amount to stand down over. Its click is refused before the modal opens anyway
+  const isAmountLocked = editing && knownCurrencyExponent === null
+
+  useRestoreLockedAmount({ open, transaction, currencies, isAmountLocked, setForm })
 
   const { openRef, recordCreatedAccountId, flushDeferredRefresh, closeModal } = useDeferredTransactionRefresh({
     open,
@@ -337,9 +346,10 @@ export default function CreateTransactionModal({
             dateError={showError('date')}
             currencyOptions={currencyOptions}
             currencyValue={form.currency}
-            currencyPlaceholder={isAmountLocked ? CURRENCY_LIST_LOADING : 'Select...'}
+            currencyPlaceholder={currencyState === 'loading' ? CURRENCY_LIST_LOADING : 'Select...'}
             selectedCurrencySymbol={selectedCurrencySymbol}
             currencyExponent={selectedCurrencyExponent}
+            isAmountLocked={isAmountLocked}
             currencyState={currencyState}
             amount={form.amount}
             amountError={showError('amount')}
