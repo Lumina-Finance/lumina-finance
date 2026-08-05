@@ -19,7 +19,7 @@ export type ColumnValidationErrors = Record<string, string>
 export type CsvRow = Record<string, string>
 export type ImportCategoryKind = Category['kind']
 export type ImportDataSource = 'generic' | 'firefly'
-export type ImportOverlayPhase = 'idle' | 'importing' | 'success' | 'error'
+export type ImportOverlayPhase = 'idle' | 'importing' | 'success' | 'error' | 'cancelled'
 export type ImportProgressStepStatus = 'active' | 'queued' | 'done'
 
 /**

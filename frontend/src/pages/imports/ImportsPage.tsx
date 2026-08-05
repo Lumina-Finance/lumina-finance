@@ -39,11 +39,17 @@ export default function ImportsPage() {
   const isFirefly = dataSource === 'firefly'
   const importOverlayOpen = isFirefly ? fireflyWorkflow.importOverlayOpen : workflow.importOverlayOpen
 
+  // The overlay covers the page for as long as it takes to fade, which is after the import it was
+  // showing has already ended, so the page under it is held until it has actually gone rather than
+  // until the import finished
+  const [overlayOnScreen, setOverlayOnScreen] = useState(false)
+  if (importOverlayOpen && !overlayOnScreen) setOverlayOnScreen(true)
+
   // Switching source resets the flow being left, so a file still being read or an import still
   // being written would finish into a flow the user has already discarded
-  const isImportBusy = isFirefly
-    ? fireflyWorkflow.importOverlayOpen
-    : workflow.importOverlayOpen || workflow.isProcessingFiles || workflow.isImportInFlight
+  const isImportBusy = overlayOnScreen || (isFirefly
+    ? fireflyWorkflow.processingFileKind !== null || fireflyWorkflow.isImportingBudgets
+    : workflow.isProcessingFiles || workflow.isImportInFlight)
 
   const handleDataSourceChange = (next: ImportDataSource) => {
     if (next === dataSource || isImportBusy) return
@@ -66,14 +72,15 @@ export default function ImportsPage() {
     <div
       className="relative h-screen min-h-screen overflow-hidden"
       style={{ background: 'var(--app-bg)', color: 'var(--app-text)' }}
-      aria-busy={importOverlayOpen}
+      aria-busy={overlayOnScreen}
     >
       {/* Inert rather than aria-hidden: dimming alone leaves every control behind the overlay
           reachable by keyboard, which is how a second commit could be started on top of one that
-          was still writing. It also takes the subtree out of the accessibility tree on its own */}
+          was still writing. It also takes the subtree out of the accessibility tree on its own.
+          The dimming follows the same flag, so the page never looks reachable before it is */}
       <div
-        className={`flex h-full min-h-full transition duration-200 ${importOverlayOpen ? 'select-none opacity-40 grayscale' : 'opacity-100'}`}
-        inert={importOverlayOpen}
+        className={`flex h-full min-h-full transition duration-200 ${overlayOnScreen ? 'select-none opacity-40 grayscale' : 'opacity-100'}`}
+        inert={overlayOnScreen}
       >
         <button
           type="button"
@@ -186,6 +193,7 @@ export default function ImportsPage() {
           error={fireflyWorkflow.importOverlayError}
           onDone={handleDone}
           onReturnToImport={fireflyWorkflow.closeImportOverlay}
+          onClosed={() => setOverlayOnScreen(false)}
         />
       ) : (
         <ImportProgressOverlay
@@ -194,7 +202,8 @@ export default function ImportsPage() {
           error={workflow.importError}
           onDone={handleDone}
           onReturnToImport={workflow.dismissImportOverlay}
-          onCancel={workflow.cancelImport}
+          onClosed={() => setOverlayOnScreen(false)}
+          onCancel={workflow.canStopImport ? workflow.cancelImport : undefined}
           onRetry={workflow.canRetryImportCommit ? workflow.retryImportCommit : undefined}
         />
       )}

@@ -156,7 +156,17 @@ export function useTransactionImportWorkflow() {
   // A commit that stopped for a reason committing again could clear leaves the file staged, and
   // this is what the second attempt runs against
   const [stagedRunId, setStagedRunId] = useState<string | null>(null)
+
+  // The overlay keeps its buttons on screen while it fades out, and each one carries the handler
+  // from the render before it closed, so an action reads the run from here rather than from what
+  // its own render captured. Without this, Try again pressed inside the fade commits a run that
+  // Back to import has already dropped
+  const stagedRunIdRef = useRef<string | null>(null)
   const commitAbortRef = useRef<AbortController | null>(null)
+
+  // Whether the request can still be given up on, which stops being true the moment it settles
+  // while the overlay is still held open for the rest of its minimum
+  const [canStopImport, setCanStopImport] = useState(false)
 
   // Tells a finished file read or commit whether the workflow it started in is still the one on
   // screen, so a reset in between drops its result instead of writing into what replaced it
@@ -559,15 +569,23 @@ export function useTransactionImportWorkflow() {
   }
 
   /**
+   * Records the staged file a second attempt would run against, for the screen and for the actions
+   */
+  const setStagedRun = (runId: string | null) => {
+    stagedRunIdRef.current = runId
+    setStagedRunId(runId)
+  }
+
+  /**
    * Reports a commit that stopped, keeping the run when committing it again could still work
    */
   const reportFailedCommit = (error: unknown, cancelled: boolean) => {
     const failure = getImportCommitFailure(error, cancelled)
 
     if (failure.discardableRunId) void discardStagedRun(failure.discardableRunId)
-    setStagedRunId(failure.retryableRunId)
+    setStagedRun(failure.retryableRunId)
     setImportError(failure.message)
-    setImportOverlayPhase('error')
+    setImportOverlayPhase(cancelled ? 'cancelled' : 'error')
   }
 
   /**
@@ -579,18 +597,21 @@ export function useTransactionImportWorkflow() {
     commitAbortRef.current = controller
     setImportError(null)
     setImportResult(null)
-    setStagedRunId(null)
+    setStagedRun(null)
+    setCanStopImport(true)
     setImportOverlayPhase('importing')
     const minimumOverlay = waitForMilliseconds(IMPORT_OVERLAY_MIN_MS)
 
     try {
-      const result = await attempt(controller.signal)
+      const result = await attempt(controller.signal).finally(() => setCanStopImport(false))
       await minimumOverlay
       if (!isCurrentWorkflowRun(workflowRun)) return
       setImportResult(result)
       setImportOverlayPhase('success')
     } catch (error) {
-      await minimumOverlay
+      // Stopping is a decision the user has just taken, so the overlay answers it rather than
+      // sitting out the rest of a minimum it was holding for an import nobody interrupted
+      if (!controller.signal.aborted) await minimumOverlay
       if (!isCurrentWorkflowRun(workflowRun)) return
       reportFailedCommit(error, controller.signal.aborted)
     } finally {
@@ -606,9 +627,9 @@ export function useTransactionImportWorkflow() {
   }
 
   const retryImportCommit = async () => {
-    if (!stagedRunId || importTransactions.isPending || commitStagedImport.isPending) return
+    const runId = stagedRunIdRef.current
+    if (!runId || importTransactions.isPending || commitStagedImport.isPending) return
 
-    const runId = stagedRunId
     await runImportAttempt((signal) => commitStagedImport.mutateAsync({ runId, signal }))
   }
 
@@ -621,11 +642,11 @@ export function useTransactionImportWorkflow() {
   }
 
   const dismissImportOverlay = () => {
-    if (importOverlayPhase !== 'error') return
+    if (importOverlayPhase !== 'error' && importOverlayPhase !== 'cancelled') return
 
     // Leaving the failure behind means giving up on the staged file as well
-    if (stagedRunId) void discardStagedRun(stagedRunId)
-    setStagedRunId(null)
+    if (stagedRunIdRef.current) void discardStagedRun(stagedRunIdRef.current)
+    setStagedRun(null)
     setImportError(null)
     setImportOverlayPhase('idle')
   }
@@ -633,8 +654,9 @@ export function useTransactionImportWorkflow() {
   const resetImportWorkflow = () => {
     startWorkflowRun()
     commitAbortRef.current?.abort()
-    if (stagedRunId) void discardStagedRun(stagedRunId)
-    setStagedRunId(null)
+    if (stagedRunIdRef.current) void discardStagedRun(stagedRunIdRef.current)
+    setStagedRun(null)
+    setCanStopImport(false)
     setFiles([])
     setIsProcessingFiles(false)
     setAutoFilledColumnHeaders(new Set())
@@ -691,6 +713,7 @@ export function useTransactionImportWorkflow() {
     importOverlayPhase,
     importOverlayOpen,
     isImportInFlight,
+    canStopImport,
     canRetryImportCommit: stagedRunId !== null,
     accountsLoading,
     currenciesLoading,

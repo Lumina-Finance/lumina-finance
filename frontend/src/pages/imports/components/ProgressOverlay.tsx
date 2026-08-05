@@ -1,4 +1,4 @@
-import { AlertCircle, CheckCircle2, LoaderCircle } from 'lucide-react'
+import { AlertCircle, CheckCircle2, CircleStop, LoaderCircle } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import type { Variants } from 'motion/react'
 import type { ImportOverlayPhase, ImportProgressStep, ImportProgressStepStatus } from '@/pages/imports/types'
@@ -107,6 +107,9 @@ interface ImportProgressOverlayProps {
   onDone: () => void
   onReturnToImport: () => void
 
+  /** Reports that the overlay has finished fading, which is when the page under it is reachable again */
+  onClosed?: () => void
+
   /** Stops an import in progress; a flow that cannot be stopped part way leaves this unset */
   onCancel?: () => void
 
@@ -130,6 +133,7 @@ export function ImportProgressOverlay({
   error,
   onDone,
   onReturnToImport,
+  onClosed,
   onCancel,
   onRetry,
   phase,
@@ -140,17 +144,24 @@ export function ImportProgressOverlay({
   const complete = phase === 'success'
   const failed = phase === 'error'
 
-  // The stage list already names the work in flight, so the title stops
+  // An import the user stopped is not one that went wrong, so it is told apart from a failure
+  // everywhere the two would otherwise read the same: the title, the icon and the message colour
+  const stopped = phase === 'cancelled'
+  const ended = failed || stopped
+
+  // The stage list already says what is in flight, so the title stops
   // repeating the first stage when a flow supplies one
-  const title = failed
-    ? 'Import failed'
-    : complete
-      ? 'Import complete'
-      : steps
-        ? 'Importing'
-        : 'Importing transactions'
-  const message = failed
-    ? error ?? 'Import failed.'
+  const title = stopped
+    ? 'Import stopped'
+    : failed
+      ? 'Import failed'
+      : complete
+        ? 'Import complete'
+        : steps
+          ? 'Importing'
+          : 'Importing transactions'
+  const message = ended
+    ? error ?? (stopped ? 'Import stopped.' : 'Import failed.')
     : complete
       ? summary || 'Your import is complete.'
       : 'Your import is being added to your ledger, and nothing is saved until it finishes.'
@@ -168,15 +179,19 @@ export function ImportProgressOverlay({
       }
 
   return (
-    <AnimatePresence>
+    <AnimatePresence onExitComplete={onClosed}>
       {open && (
+        // A closed overlay is still on screen for as long as it takes to fade, and its buttons go
+        // on carrying the handlers from before it closed, so it stops taking pointer input at once.
+        // Declared on the way in as well, or a fade interrupted by a second import would leave the
+        // reopened overlay unable to be clicked at all
         <motion.div
           key="import-progress-overlay"
           className="fixed inset-0 z-[90] flex items-center justify-center px-5 py-8"
           style={{ background: OVERLAY_BACKGROUND, color: OVERLAY_TEXT }}
           initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
+          animate={{ opacity: 1, pointerEvents: 'auto' }}
+          exit={{ opacity: 0, pointerEvents: 'none' }}
           transition={{ duration: 0.24, ease: 'easeOut' }}
           role="dialog"
           aria-modal="true"
@@ -192,7 +207,9 @@ export function ImportProgressOverlay({
             <motion.div
               className="mb-5 flex h-20 w-20 items-center justify-center"
               animate={{
-                color: failed ? OVERLAY_ERROR : complete ? OVERLAY_SUCCESS : OVERLAY_ACCENT,
+                color: stopped
+                  ? OVERLAY_MUTED_TEXT
+                  : failed ? OVERLAY_ERROR : complete ? OVERLAY_SUCCESS : OVERLAY_ACCENT,
               }}
               initial={false}
               transition={{ duration: 0.26, ease: 'easeOut' }}
@@ -200,14 +217,16 @@ export function ImportProgressOverlay({
             >
               <AnimatePresence mode="wait" initial={false}>
                 <motion.span
-                  key={failed ? 'error' : complete ? 'success' : 'importing'}
+                  key={stopped ? 'cancelled' : failed ? 'error' : complete ? 'success' : 'importing'}
                   className="flex h-full w-full items-center justify-center"
                   variants={iconVariants}
                   initial="hidden"
                   animate="visible"
                   exit="exit"
                 >
-                  {failed ? (
+                  {stopped ? (
+                    <CircleStop size={48} strokeWidth={1.9} />
+                  ) : failed ? (
                     <AlertCircle size={48} strokeWidth={1.9} />
                   ) : complete ? (
                     <CheckCircle2 size={52} strokeWidth={1.85} />
@@ -238,7 +257,7 @@ export function ImportProgressOverlay({
                   {message}
                 </motion.p>
 
-                {!complete && !failed && steps && steps.length > 0 && (
+                {!complete && !ended && steps && steps.length > 0 && (
                   <motion.div className="mt-6 w-full" variants={itemVariants}>
                     <ImportProgressSteps steps={steps} />
                   </motion.div>
@@ -247,7 +266,7 @@ export function ImportProgressOverlay({
                 {/* An import with no way out leaves this overlay up until the connection gives out,
                     so a flow that can stop one offers it here. Escape is deliberately not wired to
                     it, since stopping an import is not something to do by brushing a key */}
-                {!complete && !failed && onCancel && (
+                {!complete && !ended && onCancel && (
                   <motion.button
                     type="button"
                     className={`app-secondary-button ${overlayButtonClass} mt-8 sm:min-w-[8.5rem]`}
@@ -273,7 +292,7 @@ export function ImportProgressOverlay({
                   </motion.div>
                 )}
 
-                {failed && (
+                {ended && (
                   <motion.div
                     className="mt-8 flex w-full flex-col gap-3 sm:flex-row sm:justify-center"
                     variants={itemVariants}
