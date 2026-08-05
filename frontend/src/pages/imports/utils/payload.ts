@@ -5,10 +5,11 @@ import {
   CREATE_ACCOUNT_VALUE,
   CREATE_CATEGORY_VALUE,
   DEFAULT_CATEGORY_ICON,
+  getEveryRowHasNoPayeeError,
   getTooManyMappingsError,
   MAX_IMPORT_MAPPINGS,
-  NO_MERCHANT_COLUMN_ERROR,
   NO_OUTFLOWS_WARNING,
+  ROW_HAS_NO_PAYEE_REASON,
   ROW_SIGN_DISAGREES_WITH_CATEGORY_REASON,
 } from '@/pages/imports/constants'
 import { BALANCE_ADJUSTMENT_CATEGORY_NAME, doesTransferRecordCounterpartyAccount, OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
@@ -60,7 +61,7 @@ export function buildTransactionImportPayload({
   dateFormat,
   files,
   importedCategories,
-  noPayeeColumnConfirmed,
+  importRowsWithNoPayee,
 }: {
   accountById: Map<string, AccountsOverview>
   accountCreateCurrencies: Record<string, string>
@@ -79,8 +80,8 @@ export function buildTransactionImportPayload({
   files: ImportFileDraft[]
   importedCategories: string[]
 
-  /** Whether the user has answered for a file that maps no column as the Merchant */
-  noPayeeColumnConfirmed: boolean
+  /** Whether rows whose file states no payee are imported, filed under the shared merchant */
+  importRowsWithNoPayee: boolean
 }): ImportBuildResult {
   // Two kinds of problem, kept apart because only one of them makes judging a row meaningless. An
   // unanswered mapping question leaves every row looking broken for want of the answer, while a
@@ -191,7 +192,14 @@ export function buildTransactionImportPayload({
   // missing: with no category column mapped, every row reads as one with a blank category, and with
   // no date format settled, every row reads as one whose date does not fit
   if (errors.length > 0) {
-    return { errors: [...columnErrors, ...errors], rowProblems: [], warnings: [], rowWarnings: [], payload: null }
+    return {
+      errors: [...columnErrors, ...errors],
+      rowProblems: [],
+      warnings: [],
+      rowWarnings: [],
+      rowExclusions: [],
+      payload: null,
+    }
   }
 
   const rowContext: ImportRowContext = {
@@ -204,6 +212,7 @@ export function buildTransactionImportPayload({
   const rows: TransactionImportPayload['rows'] = []
   const rowProblems: ImportRowProblem[] = []
   const rowWarnings: ImportRowProblem[] = []
+  const rowExclusions: ImportRowProblem[] = []
   for (const file of files) {
     for (const [rowIndex, row] of file.rows.entries()) {
       const resolved = resolveImportRow(row, file.id, rowContext)
@@ -216,6 +225,19 @@ export function buildTransactionImportPayload({
           rowNumber: rowIndex + 1,
           cells: row,
           reason: problem,
+        })
+        continue
+      }
+
+      // A row whose file states no payee is only imported where the user has asked for it, since
+      // it can only be filed under the shared merchant. Left out is a choice rather than a fault,
+      // so it is listed apart from the rows something is wrong with and stops nothing
+      if (!resolved.merchantName && !importRowsWithNoPayee) {
+        rowExclusions.push({
+          id: getImportRowId(file.id, rowIndex),
+          rowNumber: rowIndex + 1,
+          cells: row,
+          reason: ROW_HAS_NO_PAYEE_REASON,
         })
         continue
       }
@@ -244,21 +266,28 @@ export function buildTransactionImportPayload({
     }
   }
 
-  // A file whose every row has a problem is described by the list of problems, so the empty-file
-  // message is kept for the case it was written for
-  if (rows.length === 0 && rowProblems.length === 0) addError('No transaction rows are available to import.')
-
-  // Asked after the rows are judged rather than with the other unanswered questions above, because
-  // no row's verdict depends on the answer, and asking it up there would empty the problem list the
-  // user needs in order to give it
-  if (!columnMap.merchant_id && !noPayeeColumnConfirmed) addError(NO_MERCHANT_COLUMN_ERROR)
+  // A file whose every row has a problem is described by the list of problems, and one whose every
+  // row was left out for having no payee is described by its own message, so the empty-file message
+  // is kept for the case it was written for
+  if (rows.length === 0 && rowProblems.length === 0) {
+    addError(rowExclusions.length > 0
+      ? getEveryRowHasNoPayeeError(rowExclusions.length)
+      : 'No transaction rows are available to import.')
+  }
 
   const warnings = getImportWarnings(rows)
   const allErrors = [...columnErrors, ...errors]
   if (allErrors.length > 0 || rowProblems.length > 0) {
-    return { errors: allErrors, rowProblems, warnings, rowWarnings, payload: null }
+    return { errors: allErrors, rowProblems, warnings, rowWarnings, rowExclusions, payload: null }
   }
-  return { errors: [], rowProblems: [], warnings, rowWarnings, payload: { accounts, categories, rows } }
+  return {
+    errors: [],
+    rowProblems: [],
+    warnings,
+    rowWarnings,
+    rowExclusions,
+    payload: { accounts, categories, rows },
+  }
 }
 
 /**

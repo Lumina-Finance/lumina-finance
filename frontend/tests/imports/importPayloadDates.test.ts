@@ -70,7 +70,7 @@ function build(dates: string[], dateFormat: ImportDateFormat | null, columnValid
     dateFormat,
     files: [createFile(dates)],
     importedCategories: ['Groceries'],
-    noPayeeColumnConfirmed: true,
+    importRowsWithNoPayee: true,
   })
 }
 

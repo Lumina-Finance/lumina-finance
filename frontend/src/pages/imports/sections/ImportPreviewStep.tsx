@@ -1,4 +1,5 @@
 import { EmptyState, ImportPreviewList, ImportRowProblemsTable, ImportStep } from '@/pages/imports/components'
+import { getRowExclusionsTitle } from '@/pages/imports/constants'
 import type { TransactionImportWorkflow } from '@/pages/imports/hooks'
 
 type ImportPreviewStepProps = Pick<
@@ -28,7 +29,8 @@ function getRowWarningsTitle(count: number) {
  *
  * Rows that cannot be converted are listed above the sample with the reason each was refused, and
  * the import stays refused until every one of them is gone. Rows that will import but are probably
- * not what the user meant are listed under them, and hold nothing up
+ * not what the user meant are listed under them, and hold nothing up, as are the rows the user
+ * chose to leave out, which the sample also leaves out
  */
 export function ImportPreviewStep({
   missingRequiredColumnLabels,
@@ -57,6 +59,15 @@ export function ImportPreviewStep({
           <ImportRowProblemsTable
             title={getRowWarningsTitle(importBuild.rowWarnings.length)}
             rowProblems={importBuild.rowWarnings}
+            headers={headers}
+          />
+        </div>
+      )}
+      {importBuild.rowExclusions.length > 0 && (
+        <div className="mb-4">
+          <ImportRowProblemsTable
+            title={getRowExclusionsTitle(importBuild.rowExclusions.length)}
+            rowProblems={importBuild.rowExclusions}
             headers={headers}
           />
         </div>

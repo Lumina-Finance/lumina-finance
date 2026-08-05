@@ -147,7 +147,7 @@ function buildPayload({
       'Other account': counterpartyAccountSource,
     }])],
     importedCategories: [categorySource],
-    noPayeeColumnConfirmed: true,
+    importRowsWithNoPayee: true,
   })
 }
 
@@ -314,6 +314,7 @@ describe('CSV import counterparty account', () => {
       },
       resolvedCategoryMappings: { Transfer: TRANSFER.id },
       rowProblems: [],
+      rowExclusions: [],
     })
 
     expect(rows.map((row) => [row.transaction.counterparty_account_id, row.transaction.counterparty_account_scope])).toEqual([
@@ -347,6 +348,7 @@ describe('CSV import counterparty account', () => {
       resolvedAccountMappings: { Chequing: CHEQUING.id, Savings: SAVINGS.id },
       resolvedCategoryMappings: { Groceries: GROCERIES.id },
       rowProblems: [],
+      rowExclusions: [],
     })
 
     expect(rows[0].transaction.counterparty_account_id).toBeNull()
@@ -372,6 +374,7 @@ describe('CSV import counterparty account', () => {
       resolvedAccountMappings: { Chequing: CHEQUING.id, Savings: CREATE_ACCOUNT_VALUE },
       resolvedCategoryMappings: { Transfer: TRANSFER.id },
       rowProblems: [],
+      rowExclusions: [],
     })
 
     // The import writes the new account's id, which does not exist yet, so the preview stands in

@@ -81,22 +81,42 @@ export function getRowTooManyTagsReason(count: number) {
   return `This row has ${count} tags, and a transaction carries up to ${MAX_IMPORT_TAGS_PER_ROW}.`
 }
 
-// Shown in the column mapping step when no column is mapped as the Merchant. Every transaction
-// carries one, so a whole file arriving under a single merchant is worth answering for rather than
-// assuming, and the answer is what unlocks the import
-export const NO_MERCHANT_COLUMN_TITLE = 'No payee column'
-export const NO_MERCHANT_COLUMN_CHECKBOX_LABEL = 'Import rows with no payee under the shared merchant'
-export const NO_MERCHANT_COLUMN_ERROR = 'Answer what rows with no payee should be imported as, in the Column Mapping step.'
+// Shown in the column mapping step where any row states no payee, which is every row when no column
+// is mapped as the Merchant and only the blank ones where a column is. Every transaction carries a
+// merchant, so such a row can only be brought in under the shared one, and that is a choice
+export const ROWS_WITH_NO_PAYEE_TITLE = 'Rows with no payee'
+export const ROWS_WITH_NO_PAYEE_CHECKBOX_LABEL = 'Import these rows under the shared merchant'
+
+// Said against a row left out because the user chose not to bring in rows with no payee. Nothing is
+// wrong with the row, so it reads as a statement rather than as a fault
+export const ROW_HAS_NO_PAYEE_REASON = 'This row states no payee.'
 
 /**
- * Explains what happens to every row when the file has no payee column
+ * Explains what the choice does, with the rows it applies to counted
  *
- * The merchant is named because it is what the rows will read as everywhere in the app afterwards,
- * and mapping a column instead is offered first, since that is the better answer when the file has
- * one under a heading the guesser did not recognise
+ * The merchant is stated because it is what those rows will read as everywhere in the app
+ * afterwards, and mapping a column is offered first, since that is the better answer when the file
+ * does hold the payee under a heading the guesser did not recognise
  */
-export function getNoMerchantColumnExplanation(merchantName: string) {
-  return `No column is mapped as the Merchant, and every transaction carries one. Map the column holding the payee above, or confirm below to file these rows under ${merchantName}.`
+export function getRowsWithNoPayeeExplanation(rowCount: number, merchantName: string) {
+  return `${rowCount.toLocaleString()} row${rowCount === 1 ? '' : 's'} state no payee, and every transaction carries a merchant. Map the column holding the payee above if the file has one. Otherwise choose whether to bring these rows in under ${merchantName}, or to leave them out of the import.`
+}
+
+/**
+ * Says the import would bring in nothing, because every row was left out for stating no payee
+ *
+ * Told apart from an empty file, since the way out is a choice on this screen rather than a
+ * different file
+ */
+export function getEveryRowHasNoPayeeError(rowCount: number) {
+  return `All ${rowCount.toLocaleString()} rows state no payee and are being left out, so this import would bring in nothing. Import them under the shared merchant, or map the column holding the payee.`
+}
+
+/**
+ * Heads the rows being left out of the import by choice
+ */
+export function getRowExclusionsTitle(count: number) {
+  return `${count.toLocaleString()} row${count === 1 ? '' : 's'} will not be imported`
 }
 
 // Shown over the upload control while the currency list is not in hand. Reading a file uses it to

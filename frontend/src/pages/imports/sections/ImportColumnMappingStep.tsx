@@ -1,9 +1,9 @@
 import { EmptyState, ImportCheckbox, ImportHeaderMappingTable, ImportNotice, ImportStep } from '@/pages/imports/components'
 import {
   AMOUNT_CONVENTION_NOTE,
-  getNoMerchantColumnExplanation,
-  NO_MERCHANT_COLUMN_CHECKBOX_LABEL,
-  NO_MERCHANT_COLUMN_TITLE,
+  getRowsWithNoPayeeExplanation,
+  ROWS_WITH_NO_PAYEE_CHECKBOX_LABEL,
+  ROWS_WITH_NO_PAYEE_TITLE,
   UNKNOWN_MERCHANT_NAME,
 } from '@/pages/imports/constants'
 import type { TransactionImportWorkflow } from '@/pages/imports/hooks'
@@ -18,9 +18,10 @@ type ImportColumnMappingStepProps = Pick<
   | 'columnValidationErrors'
   | 'dateFormat'
   | 'dateFormatScan'
-  | 'noPayeeColumnConfirmed'
+  | 'rowsWithNoPayeeCount'
+  | 'importRowsWithNoPayee'
   | 'setDateFormat'
-  | 'setNoPayeeColumnConfirmed'
+  | 'setImportRowsWithNoPayee'
   | 'updateColumnTarget'
 >
 
@@ -42,9 +43,10 @@ export function ImportColumnMappingStep({
   columnValidationErrors,
   dateFormat,
   dateFormatScan,
-  noPayeeColumnConfirmed,
+  rowsWithNoPayeeCount,
+  importRowsWithNoPayee,
   setDateFormat,
-  setNoPayeeColumnConfirmed,
+  setImportRowsWithNoPayee,
   updateColumnTarget,
 }: ImportColumnMappingStepProps) {
   return (
@@ -75,23 +77,23 @@ export function ImportColumnMappingStep({
           onDateFormatChange={setDateFormat}
         />
       )}
-      {headers.length > 0 && !columnMap.merchant_id && (
+      {rowsWithNoPayeeCount > 0 && (
         <div className="mt-4 flex flex-col gap-3">
-          <ImportNotice title={NO_MERCHANT_COLUMN_TITLE}>
-            {getNoMerchantColumnExplanation(UNKNOWN_MERCHANT_NAME)}
+          <ImportNotice title={ROWS_WITH_NO_PAYEE_TITLE}>
+            {getRowsWithNoPayeeExplanation(rowsWithNoPayeeCount, UNKNOWN_MERCHANT_NAME)}
           </ImportNotice>
           <div className="flex items-center gap-2 px-4">
             {/* The checkbox centres itself for the table cells it was written for, so it is boxed
                 to its own size here and the label stays beside it rather than being pushed away */}
             <span className="flex h-5 w-5 shrink-0">
               <ImportCheckbox
-                checked={noPayeeColumnConfirmed}
-                label={NO_MERCHANT_COLUMN_CHECKBOX_LABEL}
-                onChange={() => setNoPayeeColumnConfirmed(!noPayeeColumnConfirmed)}
+                checked={importRowsWithNoPayee}
+                label={ROWS_WITH_NO_PAYEE_CHECKBOX_LABEL}
+                onChange={() => setImportRowsWithNoPayee(!importRowsWithNoPayee)}
               />
             </span>
             <span className="text-sm" style={{ color: 'var(--app-text)' }}>
-              {NO_MERCHANT_COLUMN_CHECKBOX_LABEL}
+              {ROWS_WITH_NO_PAYEE_CHECKBOX_LABEL}
             </span>
           </div>
         </div>

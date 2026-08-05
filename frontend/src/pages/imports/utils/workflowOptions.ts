@@ -215,6 +215,22 @@ export function getImportedCategories(files: ImportFileDraft[], categoryHeader: 
 }
 
 /**
+ * Counts the rows across every staged file that state no payee
+ *
+ * With no column mapped as the Merchant that is every row, and with one mapped it is the rows whose
+ * cell is blank. Worked out from the files and that one column alone, so the choice can be put to
+ * the user in the mapping step rather than waiting on the account and category answers
+ */
+export function countRowsWithNoPayee(files: ImportFileDraft[], merchantHeader: string): number {
+  if (!merchantHeader) return files.reduce((total, file) => total + file.rows.length, 0)
+
+  return files.reduce(
+    (total, file) => total + file.rows.filter((row) => !row[merchantHeader]?.trim()).length,
+    0,
+  )
+}
+
+/**
  * Gets sorted imported merchant names from the mapped merchant column
  */
 export function getImportedMerchants(files: ImportFileDraft[], merchantHeader: string): string[] {

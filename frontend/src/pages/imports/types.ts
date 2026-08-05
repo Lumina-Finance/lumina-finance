@@ -105,6 +105,13 @@ export interface ImportBuildResult {
    * refused row is. The commit does not wait on these
    */
   rowWarnings: ImportRowProblem[]
+
+  /**
+   * Rows left out because the user chose to leave them out, rather than because anything is wrong
+   * with them. Listed so the choice is visible, and the commit does not wait on these either: an
+   * import that leaves them behind is a valid import of the rows that remain
+   */
+  rowExclusions: ImportRowProblem[]
   payload: TransactionImportPayload | null
 }
 
