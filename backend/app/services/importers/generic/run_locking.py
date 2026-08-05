@@ -29,7 +29,8 @@ async def load_locked_run(db: AsyncSession, run_id: uuid.UUID) -> ImportRun | No
         run_id: Run to load
 
     Returns:
-        The run, held for the rest of the transaction, or None when it is not the caller's
+        The run, held for the rest of the transaction, or None when there is no such run of the
+        caller's, whether it never existed or another request has already dropped it
 
     Raises:
         HTTPException: Raised with 409 when another request holds the run for longer than the wait

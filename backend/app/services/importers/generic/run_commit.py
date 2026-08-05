@@ -36,10 +36,10 @@ async def commit_import_run(db: AsyncSession, user: User, run_id: uuid.UUID) -> 
         account counts
 
     Raises:
-        HTTPException: Raised with 404 for a run that is not the caller's or a mapped account they
-            cannot reach, 409 when another request holds the run or when the staged rows do not add
-            up to the file the run declared, and 422 when a staged row cannot be written as it
-            stands
+        HTTPException: Raised with 404 for a run that is absent or not the caller's, or a mapped
+            account they cannot reach, 409 when another request holds the run or when the staged
+            rows do not add up to the file the run declared, and 422 when a staged row cannot be
+            written as it stands or a mapping the run recorded no longer resolves
     """
     run = await _lock_run_for_commit(db, run_id)
     if run.committed_at is not None:
@@ -77,8 +77,8 @@ async def _lock_run_for_commit(db: AsyncSession, run_id: uuid.UUID) -> ImportRun
         The run, held for the rest of the transaction
 
     Raises:
-        HTTPException: Raised with 404 when the run is not the caller's, and 409 when another
-            request already holds it
+        HTTPException: Raised with 404 when there is no such run of the caller's, and 409 when
+            another request already holds it
     """
     run = await load_locked_run(db, run_id)
     if run is None:
@@ -96,8 +96,8 @@ async def _get_staged_rows(db: AsyncSession, run_id: uuid.UUID) -> list[ImportSt
     Returns:
         Staged rows ordered by their position in the file
     """
-    # Ordered by position so the import reads the file as the user sees it, which is what makes a
-    # refusal quoting a row match what they are looking at
+    # Ordered by position so the import reads the file as the user sees it, whatever order the
+    # batches carrying it arrived in
     query = select(ImportStagedRow).where(ImportStagedRow.import_run_id == run_id).order_by(ImportStagedRow.row_index)
     return list((await db.execute(query)).scalars().all())
 

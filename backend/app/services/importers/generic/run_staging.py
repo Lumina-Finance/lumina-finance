@@ -135,8 +135,8 @@ async def _load_uncommitted_run(db: AsyncSession, run_id: uuid.UUID) -> ImportRu
         The open run
 
     Raises:
-        HTTPException: Raised with 404 when the run is not the caller's, 409 when it has already
-            been committed, and 409 when another request is working on it
+        HTTPException: Raised with 404 when there is no such run of the caller's, 409 when it has
+            already been committed, and 409 when another request is working on it
     """
     run = await load_locked_run(db, run_id)
     if run is None:

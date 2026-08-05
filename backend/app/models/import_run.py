@@ -65,6 +65,7 @@ class ImportStagedRow(Base):
     # rather than reading the run, which every staged row would otherwise have to do
     owner_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
 
-    # Position in the file, which orders the commit and identifies a row in a refusal
+    # Position in the file, which orders the commit and keeps a batch sent twice from staging its
+    # rows twice
     row_index: Mapped[int] = mapped_column(Integer, nullable=False)
     payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
