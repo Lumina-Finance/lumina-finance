@@ -25,6 +25,7 @@ import {
   getImportedCategories,
   getImportedMerchants,
   getImportedTags,
+  getImportAccountRowState,
   getImportHeaders,
   getStatedCurrencyByAccountSource,
   getColumnValues,
@@ -375,10 +376,32 @@ export function useTransactionImportWorkflow() {
     [accountCreateCurrencies, resolvedAccountMappings, statedAccountCurrencies],
   )
 
-  // The labels rather than the ids, since the notice lists them for the user
+  // The labels rather than the ids, since the notice lists them for the user, and only the sources
+  // still waiting on an answer: the create-new fallback can leave a cleared row finished, and a
+  // notice telling the user to answer a row they have already answered is worse than no notice
   const clearedAccountSourceLabels = useMemo(
-    () => accountMappingSources.filter((source) => clearedAccountSources.has(source.id)).map((source) => source.label),
-    [accountMappingSources, clearedAccountSources],
+    () => accountMappingSources
+      .filter((source) => {
+        if (!clearedAccountSources.has(source.id)) return false
+
+        const value = resolvedAccountMappings[source.id] ?? ''
+        return getImportAccountRowState({
+          value,
+          isCounterpartyOnly: source.isCounterpartyOnly,
+          createType: accountCreateTypes[source.id] ?? '',
+          createCurrency: resolvedAccountCreateCurrencies[source.id] ?? '',
+          isArchivedAccount: accountById.get(value)?.is_archived ?? false,
+        }) === 'review'
+      })
+      .map((source) => source.label),
+    [
+      accountById,
+      accountCreateTypes,
+      accountMappingSources,
+      clearedAccountSources,
+      resolvedAccountCreateCurrencies,
+      resolvedAccountMappings,
+    ],
   )
 
   // Read before the name match and any of the defaults are layered on, so the batch bar can tell an
