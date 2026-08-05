@@ -437,6 +437,13 @@ export function useTransactionImportWorkflow() {
     [importedCategories, liveCategoryMappings, resolvedCategoryMappings],
   )
 
+  // Only the ones still present in the file, so a value the user has since stopped importing is not
+  // listed as needing an answer
+  const clearedCategorySourceLabels = useMemo(
+    () => importedCategories.filter((category) => clearedCategorySources.has(category)),
+    [clearedCategorySources, importedCategories],
+  )
+
   const importBuild = useMemo(
     () => buildTransactionImportPayload({
       accountById,
@@ -804,6 +811,7 @@ export function useTransactionImportWorkflow() {
     refetchAccounts,
     refetchCategories,
     clearedAccountSourceLabels,
+    clearedCategorySourceLabels,
     institutionsLoading,
     categoriesLoading,
     accountOptions,

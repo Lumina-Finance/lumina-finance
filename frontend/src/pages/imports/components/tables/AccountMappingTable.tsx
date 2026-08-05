@@ -91,7 +91,7 @@ export function ImportAccountMappingTable({
 
   // Apply leaves a settled row alone, so both the button and the edit itself work from this rather
   // than from the selection, which can hold rows this Apply will not touch
-  const editableRows = selectedRows.filter((row) => canApplyBatchEditToRow(row.value, row.isHandAnswered))
+  const editableRows = selectedRows.filter((row) => canApplyBatchEditToRow(row.value, row.isHandAnswered, row.isCounterpartyOnly))
   const hasBatchInstitutionSet = batchAccountInstitution !== UNSET_BATCH_INSTITUTION
   const hasBatchFieldSet = Boolean(batchAccountType || batchAccountCurrency) || hasBatchInstitutionSet
 
@@ -216,6 +216,10 @@ export function ImportAccountMappingTable({
             value={creating ? row.createInstitution : row.accountInstitution}
             onChange={row.onCreateInstitutionChange}
             searchable
+            // The institution list spends the empty string on "None", so without this an unanswered
+            // row reads as having been given one, and its tooltip repeats the claim
+            blankWhenEmpty={!creating}
+            placeholder="Institution"
             size="compact"
             className={row.autoFilled && !creating ? 'import-auto-fill-field' : undefined}
             disabled={!creating || institutionsDisabled}

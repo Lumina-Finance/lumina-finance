@@ -33,15 +33,16 @@ export interface ImportReferenceData {
   currenciesError: boolean
 
   /**
-   * Whether the accounts list could not be fetched and nothing is cached to fall back on
+   * Whether the accounts list has never arrived and the last attempt at it failed
    *
-   * Both halves matter. A step over an empty account list offers only "Create New Account", so
+   * Both halves matter. A step with no list to map onto offers only "Create New Account", so
    * everything gets mapped to new and the import duplicates accounts the user already has. A
-   * refetch that fails over a good cached list costs nothing, so it must not take the step away
+   * refetch that fails over a list already in hand costs nothing, so it must not take the step
+   * away, and neither must an empty list belonging to a user who has no accounts yet
    */
   accountsFailed: boolean
 
-  /** Whether the categories list could not be fetched and nothing is cached to fall back on */
+  /** Whether the categories list has never arrived and the last attempt at it failed */
   categoriesFailed: boolean
 
   /**
@@ -144,8 +145,11 @@ export function useImportReferenceData(): ImportReferenceData {
     accountsLoading,
     currenciesLoading,
     currenciesError,
-    accountsFailed: accountsError && accounts.length === 0,
-    categoriesFailed: categoriesError && (categories ?? []).length === 0,
+    // Keyed on the list never having arrived rather than on it being empty, or a user who genuinely
+    // has no accounts would lose the step to a failure message the moment a refetch failed, on the
+    // one path where mapping everything to a new account is exactly right
+    accountsFailed: accountsError && accountsUpdatedAt === 0,
+    categoriesFailed: categoriesError && categoriesUpdatedAt === 0,
 
     // Set only when data is written, so it stays at zero through a first load, a first fetch that
     // failed, and a query switched off, and holds its earlier value when a later refetch fails

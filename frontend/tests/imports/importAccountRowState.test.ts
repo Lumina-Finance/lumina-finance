@@ -76,30 +76,51 @@ describe('what the mapping counter calls answered', () => {
 
 describe('which rows the batch bar may edit', () => {
   it('leaves a row pointing at an account alone whether or not the user picked it', () => {
-    expect(canApplyBatchEditToRow('checking', true)).toBe(false)
-    expect(canApplyBatchEditToRow('checking', false)).toBe(false)
+    expect(canApplyBatchEditToRow('checking', true, false)).toBe(false)
+    expect(canApplyBatchEditToRow('checking', false, false)).toBe(false)
   })
 
   it('edits an unanswered row and one already set to create', () => {
-    expect(canApplyBatchEditToRow('', false)).toBe(true)
-    expect(canApplyBatchEditToRow(CREATE_ACCOUNT_VALUE, false)).toBe(true)
-    expect(canApplyBatchEditToRow(CREATE_ACCOUNT_VALUE, true)).toBe(true)
+    expect(canApplyBatchEditToRow('', false, false)).toBe(true)
+    expect(canApplyBatchEditToRow(CREATE_ACCOUNT_VALUE, false, false)).toBe(true)
+    expect(canApplyBatchEditToRow(CREATE_ACCOUNT_VALUE, true, false)).toBe(true)
   })
 
   // Every counterparty row rests on the outside answer until something else is chosen, so treating
   // that default as settled would leave the counterparty table's batch bar with nothing to do
-  it('edits a row given the outside answer by default and leaves alone one the user chose it for', () => {
-    expect(canApplyBatchEditToRow(OUTSIDE_ACCOUNT_VALUE, false)).toBe(true)
-    expect(canApplyBatchEditToRow(OUTSIDE_ACCOUNT_VALUE, true)).toBe(false)
+  it('edits a transfer-only row given the outside answer by default, not one the user chose it for', () => {
+    expect(canApplyBatchEditToRow(OUTSIDE_ACCOUNT_VALUE, false, true)).toBe(true)
+    expect(canApplyBatchEditToRow(OUTSIDE_ACCOUNT_VALUE, true, true)).toBe(false)
+  })
+
+  // The commit refuses this answer on a source rows are written to, and that row's own dropdown does
+  // not offer the answer back, so the batch bar is the only way out of it
+  it('edits a row answered outside on a source rows are written to, even by hand', () => {
+    expect(canApplyBatchEditToRow(OUTSIDE_ACCOUNT_VALUE, true, false)).toBe(true)
+    expect(canApplyBatchEditToRow(OUTSIDE_ACCOUNT_VALUE, false, false)).toBe(true)
   })
 
   // LF-253: eight sources, six already matched to accounts, all eight ticked, a currency set
   it('skips the matched rows and converts the unanswered ones in the eight-source sequence', () => {
     const matched = Array.from({ length: 6 }, (_, index) => `account-${index}`)
-    const rows = [...matched.map((value) => ({ value, isHandAnswered: false })), { value: '', isHandAnswered: false }, { value: '', isHandAnswered: false }]
+    const rows = [
+      ...matched.map((value) => ({ value, isHandAnswered: false })),
+      { value: '', isHandAnswered: false },
+      { value: '', isHandAnswered: false },
+    ]
 
-    const editable = rows.filter((row) => canApplyBatchEditToRow(row.value, row.isHandAnswered))
+    const editable = rows.filter((row) => canApplyBatchEditToRow(row.value, row.isHandAnswered, false))
 
     expect(editable).toHaveLength(2)
+  })
+
+  // Every row in the counterparty table rests on the outside default, so a rule treating that as
+  // settled would leave its batch bar permanently disabled
+  it('edits every row of a counterparty table resting on the default', () => {
+    const rows = Array.from({ length: 8 }, () => ({ value: OUTSIDE_ACCOUNT_VALUE, isHandAnswered: false }))
+
+    const editable = rows.filter((row) => canApplyBatchEditToRow(row.value, row.isHandAnswered, true))
+
+    expect(editable).toHaveLength(8)
   })
 })

@@ -178,7 +178,8 @@ export function useFireflyImportWorkflow() {
   // An answer pointing at a deleted account is dropped before anything is derived from it, or the
   // commit sends an id the server will refuse. Unlike the CSV flow there is no unanswered state to
   // put the row back into, since every name here resolves to a match or to creating an account, so
-  // a dropped answer is replaced by whichever of those applies and the row shows as auto-filled
+  // a dropped answer is replaced by whichever of those applies. Only the match shows as auto-filled,
+  // since creating a new account is what an unmatched name does here rather than a guess at one
   const liveAccountMappings = useMemo(
     () => (accountsResolved
       ? dropVanishedAccountMappings(accountMappings, accountById).mappings
@@ -362,12 +363,14 @@ export function useFireflyImportWorkflow() {
       rows: fireflyRows,
       trackedAccountNames,
       accountMappings: resolvedAccountMappings,
+      accountById,
       accountCreateDetails: resolvedAccountCreateDetails,
       importedCategories,
       categoryMappings: resolvedCategoryMappings,
       categoryCreateKinds: resolvedCategoryKinds,
     }),
     [
+      accountById,
       fireflyRows,
       importedCategories,
       resolvedAccountCreateDetails,

@@ -24,8 +24,11 @@ export interface ImportAccountRowAnswer {
  * Says whether a mapping row is answered, and how
  *
  * `mapped` and `new` mean answered, `review` means the commit would refuse it, so the line above
- * the table cannot read as finished while the commit would stop. This mirrors `appendAccountMapping`
- * in `payload.ts` case for case, and the two have to be changed together
+ * the table cannot read as finished while the commit would stop. This mirrors every case of
+ * `appendAccountMapping` in `payload.ts` that the step's own controls can produce, and the two have
+ * to be changed together. The one case left out is an account type outside the supported set, which
+ * that function also refuses and which only a control offering something other than
+ * `ACCOUNT_TYPE_OPTIONS` could put on a row
  */
 export function getImportAccountRowState(row: ImportAccountRowAnswer): ImportAccountRowState {
   if (!row.value) return 'review'
@@ -55,15 +58,22 @@ export function countImportAccountRowStates(rows: ImportAccountRowAnswer[]) {
  * Whether the batch bar's Apply may edit a row
  *
  * Apply fills in what the user has not settled, so it leaves alone an account they picked or that
- * was matched for them, and leaves alone the outside answer where they chose it themselves. A
- * counterparty row resting on the outside answer it was given by default is still unanswered, so
- * Apply converts it like any other blank row
+ * was matched for them. The outside answer is only settled where it is legal, meaning on a source
+ * no row is written to and where the user chose it themselves: a counterparty row resting on the
+ * default it was given is still unanswered, and the same answer on a source rows are written to is
+ * one the commit refuses, which the batch bar has to be able to lift the row out of since its own
+ * dropdown does not offer that answer back
  *
  * @param value - The row's answer as it stands
  * @param isHandAnswered - Whether this source's answer came from the user rather than a default
+ * @param isCounterpartyOnly - Whether no row is written to this source
  */
-export function canApplyBatchEditToRow(value: string, isHandAnswered: boolean): boolean {
-  if (value === OUTSIDE_ACCOUNT_VALUE) return !isHandAnswered
+export function canApplyBatchEditToRow(
+  value: string,
+  isHandAnswered: boolean,
+  isCounterpartyOnly: boolean,
+): boolean {
+  if (value === OUTSIDE_ACCOUNT_VALUE) return !isHandAnswered || !isCounterpartyOnly
   return !value || value === CREATE_ACCOUNT_VALUE
 }
 

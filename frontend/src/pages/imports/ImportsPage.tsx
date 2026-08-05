@@ -59,10 +59,13 @@ export default function ImportsPage() {
   // particular never revalidate on their own, since their query never goes stale and the cache is
   // kept in local storage for months. Invalidating here rather than inside the reference-data hook,
   // which both workflows mount: two refetches issued in the same commit cancel one another
+  // Exact, since the account list's key is the prefix of every per-account key: without it, opening
+  // this page marks each account's snapshots, cash flow and spending breakdown stale as well, and
+  // the account pages refetch all of them instead of painting from the cache
   useEffect(() => {
-    void queryClient.invalidateQueries({ queryKey: accountKeys.list() })
-    void queryClient.invalidateQueries({ queryKey: categoryKeys.list() })
-    void queryClient.invalidateQueries({ queryKey: institutionKeys.list() })
+    void queryClient.invalidateQueries({ queryKey: accountKeys.list(), exact: true })
+    void queryClient.invalidateQueries({ queryKey: categoryKeys.list(), exact: true })
+    void queryClient.invalidateQueries({ queryKey: institutionKeys.list(), exact: true })
   }, [queryClient])
 
   const handleDataSourceChange = (next: ImportDataSource) => {

@@ -1,9 +1,11 @@
 import {
   CATEGORIES_LOAD_FAILURE_EXPLANATION,
   CATEGORIES_LOAD_FAILURE_TITLE,
+  CLEARED_CATEGORY_SOURCES_EXPLANATION,
+  CLEARED_CATEGORY_SOURCES_TITLE,
   CREATE_CATEGORY_VALUE,
 } from '@/pages/imports/constants'
-import { EmptyState, ImportLoadFailure, ImportStep, ImportValueMatchTable } from '@/pages/imports/components'
+import { EmptyState, ImportLoadFailure, ImportNotice, ImportStep, ImportValueMatchTable } from '@/pages/imports/components'
 import type { TransactionImportWorkflow } from '@/pages/imports/hooks'
 import { getCategoryMatchKind, isExistingCategoryMatch } from '@/pages/imports/utils'
 
@@ -21,6 +23,7 @@ type ImportCategoryMatchingStepProps = Pick<
   | 'categoriesLoading'
   | 'categoriesFailed'
   | 'refetchCategories'
+  | 'clearedCategorySourceLabels'
 >
 
 /**
@@ -40,6 +43,7 @@ export function ImportCategoryMatchingStep({
   categoriesLoading,
   categoriesFailed,
   refetchCategories,
+  clearedCategorySourceLabels,
 }: ImportCategoryMatchingStepProps) {
   return (
     <ImportStep
@@ -59,6 +63,12 @@ export function ImportCategoryMatchingStep({
           description="Map a category column first."
         />
       ) : (
+        <>
+        {clearedCategorySourceLabels.length > 0 && (
+          <ImportNotice title={CLEARED_CATEGORY_SOURCES_TITLE}>
+            {`${CLEARED_CATEGORY_SOURCES_EXPLANATION} ${clearedCategorySourceLabels.join(', ')}`}
+          </ImportNotice>
+        )}
         <ImportValueMatchTable
           sourceLabel="Category From File"
           detailLabel="Type"
@@ -89,6 +99,7 @@ export function ImportCategoryMatchingStep({
           options={categoryMatchOptions}
           disabled={categoriesLoading}
         />
+        </>
       )}
     </ImportStep>
   )

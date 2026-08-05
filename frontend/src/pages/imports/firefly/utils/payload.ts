@@ -1,3 +1,4 @@
+import type { AccountsOverview } from '@/api/accounts'
 import type {
   FireflyTransactionImportPayload,
   FireflyTransactionImportResponse,
@@ -30,6 +31,7 @@ export function buildFireflyImportPayload({
   rows,
   trackedAccountNames,
   accountMappings,
+  accountById,
   accountCreateDetails,
   importedCategories,
   categoryMappings,
@@ -39,6 +41,7 @@ export function buildFireflyImportPayload({
   rows: CsvRow[]
   trackedAccountNames: string[]
   accountMappings: Record<string, string>
+  accountById: Map<string, AccountsOverview>
   accountCreateDetails: Record<string, FireflyAccountCreateDetails>
   importedCategories: string[]
   categoryMappings: Record<string, string>
@@ -61,6 +64,13 @@ export function buildFireflyImportPayload({
     }
 
     if (choice !== CREATE_ACCOUNT_VALUE) {
+      // Every Firefly source takes rows, and an archived account takes none, so an account archived
+      // after it was chosen is refused here rather than by the server part way through the import
+      if (accountById.get(choice)?.is_archived) {
+        addError(`Rows cannot be written to an archived account: ${name}`)
+        continue
+      }
+
       accounts.push({ source: name, account_id: choice })
       continue
     }

@@ -96,9 +96,11 @@ export function FireflyAccountMappingStep({
       title="Account Mapping"
       description="Asset and liability accounts from the export must map to an existing account or a new one."
     >
-      <ImportNotice title="Currency Handling">
-        Amounts are written in each mapped account&apos;s currency. Rows without an amount in that currency are skipped and reported after the import.
-      </ImportNotice>
+      {!accountsFailed && (
+        <ImportNotice title="Currency Handling">
+          Amounts are written in each mapped account&apos;s currency. Rows without an amount in that currency are skipped and reported after the import.
+        </ImportNotice>
+      )}
       {accountsFailed ? (
         <ImportLoadFailure
           title={ACCOUNTS_LOAD_FAILURE_TITLE}
@@ -121,6 +123,11 @@ export function FireflyAccountMappingStep({
               id: sourceAccount,
               source: sourceAccount,
               value,
+
+              // Keeps an account the dropdown has stopped offering, which here means one archived
+              // since it was chosen, visible on its row rather than reading as unanswered
+              selectedOption: account ? { value, label: account.name } : undefined,
+
               autoFilled: autoFilledAccountSources.has(sourceAccount),
 
               // Both sides of a Firefly transfer take rows, so no source here is counterparty-only
