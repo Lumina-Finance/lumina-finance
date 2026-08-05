@@ -159,8 +159,8 @@ export default function CreateTransactionModal({
 
   // Asked of this transaction's own currency rather than of the table as a whole, so a currency the
   // table does not carry keeps the field down instead of unlocking it empty over a stored amount.
-  // Editing only: a locked amount is left out of validation and sent as zero, and a new transaction
-  // has no stored amount to stand down over. Its click is refused before the modal opens anyway
+  // Editing only: an edit leaves a locked amount out of the patch, where a create would post the
+  // blank it leaves behind as a zero, and a new transaction has no stored amount to stand down over
   const isAmountLocked = editing && knownCurrencyExponent === null
 
   useRestoreLockedAmount({ open, transaction, currencies, isAmountLocked, setForm })

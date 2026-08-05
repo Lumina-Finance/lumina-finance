@@ -55,7 +55,8 @@ function BreakdownCardSkeleton({ reducedMotion }: { reducedMotion: boolean }) {
 }
 
 /**
- * Stands in for the whole account detail page while the account request is in flight
+ * Stands in for the whole account detail page until the account is ready to render, which outlasts
+ * the request itself by the minimum the page holds this on screen for
  *
  * Built from the same grid and card classes the loaded page uses, so every card lands in the
  * position its placeholder occupied and nothing moves under the user. The blocks are hidden from

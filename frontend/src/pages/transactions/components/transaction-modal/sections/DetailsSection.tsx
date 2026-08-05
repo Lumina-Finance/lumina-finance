@@ -7,6 +7,7 @@ import { useMoneyInput } from '@/hooks/useMoneyInput'
 import { getMoneyPlaceholder } from '@/utils/moneyInput'
 import {
   CURRENCY_AMOUNT_NOTICE,
+  CURRENCY_AMOUNT_UNKNOWN,
   CURRENCY_LIST_LOADING,
   CURRENCY_LIST_NOTICE,
   type CurrencyListState,
@@ -26,8 +27,9 @@ interface TransactionDetailsSectionProps {
   // than recomputed here, so the field the form treats as locked is the field the user sees disabled
   isAmountLocked: boolean
 
-  // Which of the two reasons the amount stands down for, since one is worth waiting out and the
-  // other is not
+  // Which of the reasons the amount stands down for, since a list still arriving is worth waiting
+  // out, one that failed is worth a reload, and one that simply does not carry the currency is
+  // neither. The lock itself is decided above rather than read off this
   currencyState: CurrencyListState
   currencyExponent: number
   notes: string
@@ -123,7 +125,7 @@ export default function TransactionDetailsSection({
                   </IconTooltip>
                 ) : (
                   <IconTooltip label="Amount unavailable" level="important" modalFieldTabStop>
-                    {CURRENCY_AMOUNT_NOTICE}
+                    {currencyState === 'unavailable' ? CURRENCY_AMOUNT_NOTICE : CURRENCY_AMOUNT_UNKNOWN}
                   </IconTooltip>
                 )}
               </span>
