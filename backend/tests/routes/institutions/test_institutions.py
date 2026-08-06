@@ -383,6 +383,41 @@ async def test_update_institution_keeping_its_own_name_is_not_a_conflict(client)
     assert resp.json()["website"] == "https://alpha.example.com"
 
 
+async def test_create_institution_same_name_in_another_country_is_allowed(client):
+    """The registry keys on name and country together, so one name can serve two countries."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    first_resp = await client.post("/institutions", json=INSTITUTION_PAYLOAD, headers=headers)
+    second_resp = await client.post(
+        "/institutions",
+        json={**INSTITUTION_PAYLOAD, "country_code": "US"},
+        headers=headers,
+    )
+
+    assert first_resp.status_code == 201
+    assert second_resp.status_code == 201
+    assert second_resp.json()["country_code"] == "US"
+
+
+async def test_update_institution_rename_into_a_free_pair_is_allowed(client):
+    """A name another country already uses is free in this one, so the rename is accepted."""
+    await _seed_institution(name="Alpha Bank", country_code="CA")
+    american = await _seed_institution(name="Beta Bank", country_code="US")
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await client.patch(
+        f"/institutions/{american.id}",
+        json={"name": "Alpha Bank"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["name"] == "Alpha Bank"
+    assert resp.json()["country_code"] == "US"
+
+
 async def test_update_institution_conflict_reads_the_name_and_country_pair(client):
     """Changing only the country onto an existing pair is rejected."""
     canadian = await _seed_institution(name="Alpha Bank", country_code="CA")
