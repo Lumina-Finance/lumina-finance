@@ -8,11 +8,18 @@ import { FacetSelectDropdown } from '@/components/list-controls/FacetSelectDropd
 import { FILTER_GLASS_SPRING } from '@/components/list-controls/toolbarStyles'
 import { joinClassNames } from '@/utils/classNames'
 import { getMoneyPlaceholder } from '@/utils/moneyInput'
+import {
+  CURRENCY_RANGE_LOADING,
+  CURRENCY_RANGE_NOTICE,
+  CURRENCY_RANGE_UNKNOWN,
+  CURRENCY_REFRESH_ACTION,
+  type CurrencyListState,
+} from '@/utils/currencyStatus'
 import { useMoneyInput } from '@/hooks/useMoneyInput'
 import { ReferenceFacet } from '@/pages/transactions/components/toolbar/ReferenceFacet'
+import type { AmountDraft } from '@/pages/transactions/utils/amountRange'
 import {
   FILTER_FACETS,
-  type AmountDraft,
   type FacetConfig,
   type MultiSelections,
   type TransactionFilterDraft,
@@ -23,6 +30,32 @@ const NO_DISABLED_FACETS = new Set<string>()
 
 // The account facet is disabled on an account's own transaction list, where the scope is fixed
 const ACCOUNT_DISABLED_FACETS = new Set(['accounts'])
+
+/**
+ * Names why the amount range cannot be shown or changed, for the line the currency note usually holds
+ *
+ * A failed list is the one case the user can act on, so the way out is a control that reloads rather
+ * than a sentence telling them to do it themselves
+ */
+function AmountLockNote({ currencyListState }: { currencyListState: CurrencyListState }) {
+  if (currencyListState === 'loading') return CURRENCY_RANGE_LOADING
+  if (currencyListState !== 'unavailable') return CURRENCY_RANGE_UNKNOWN
+
+  return (
+    <>
+      {CURRENCY_RANGE_NOTICE}{' '}
+      <button
+        type="button"
+        className="underline underline-offset-2"
+        style={{ color: 'inherit' }}
+        onClick={() => window.location.reload()}
+      >
+        {CURRENCY_REFRESH_ACTION}
+      </button>
+      .
+    </>
+  )
+}
 
 /**
  * Renders the shared filter panel body: the facet tabs, the active facet editor, the removable
@@ -135,7 +168,7 @@ export function FilterPanelBody({
             exit={{ opacity: 0 }}
             transition={{ duration: shouldReduceMotion ? 0 : 0.15 }}
           >
-            <FacetEditor
+            <SectionEditor
               facet={activeFacet}
               options={draft.getFacetOptions(activeFacet.id)}
               selectedValues={draft.selections[activeFacet.id] ?? []}
@@ -145,6 +178,9 @@ export function FilterPanelBody({
               amountSymbol={draft.amountSymbol}
               amountCurrencyNote={draft.amountCurrencyNote}
               amountExponent={draft.amountExponent}
+              isAmountLocked={draft.isAmountLocked}
+              isAmountCurrencyLocked={draft.isAmountCurrencyLocked}
+              currencyListState={draft.currencyListState}
               hasCrossedAmountBounds={draft.hasCrossedAmountBounds}
               amountRangeMessageId={amountRangeMessageId}
               hasCrossedDateRange={draft.hasCrossedDateRange}
@@ -258,7 +294,7 @@ function DateFacetInput({
   )
 }
 
-type FacetEditorProps = {
+type SectionEditorProps = {
   facet: FacetConfig
   options: OptionItem[]
   selectedValues: string[]
@@ -269,6 +305,14 @@ type FacetEditorProps = {
   amountCurrencyNote: string
   // Decimal places of the currency the amount range matches, for parsing and normalizing input
   amountExponent: number
+  // Passed down rather than recomputed here, so the fields the draft treats as locked are the ones
+  // the user sees disabled
+  isAmountLocked: boolean
+  // True only while an applied bound is waiting for its currency, which is when changing the choice
+  // would leave that bound counted in a currency nothing on screen names
+  isAmountCurrencyLocked: boolean
+  // Which of the reasons the fields are locked, for the note under them
+  currencyListState: CurrencyListState
   // True while the minimum sits above the maximum once both are rounded to the currency's minor
   // units, which no transaction can satisfy
   hasCrossedAmountBounds: boolean
@@ -297,10 +341,11 @@ type FacetEditorProps = {
 }
 
 /**
- * Renders the editor for the active facet: a searchable list for multi-select facets, a server
- * search for merchants and tags, and labelled inputs for the amount and date ranges
+ * Renders the editor for the section being edited: a searchable list for the multi-select ones, a
+ * server search for merchants and tags, a currency chip row and two bounds for the amount, and
+ * labelled inputs for the date range
  */
-function FacetEditor({
+function SectionEditor({
   facet,
   options,
   selectedValues,
@@ -310,6 +355,9 @@ function FacetEditor({
   amountSymbol,
   amountCurrencyNote,
   amountExponent,
+  isAmountLocked,
+  isAmountCurrencyLocked,
+  currencyListState,
   hasCrossedAmountBounds,
   amountRangeMessageId,
   hasCrossedDateRange,
@@ -325,7 +373,7 @@ function FacetEditor({
   onTagMatchChange,
   onAmountChange,
   onDateRangeChange,
-}: FacetEditorProps) {
+}: SectionEditorProps) {
   const shouldReduceMotion = useReducedMotion()
   const tagMatchThumbId = useId()
   // Called on every render regardless of facet kind so the rules of hooks hold, since the amount
@@ -366,7 +414,10 @@ function FacetEditor({
                       key={option.value}
                       type="button"
                       aria-pressed={isSelected}
-                      className="rounded-full border px-3 py-1 text-sm transition-colors hover:bg-[var(--app-accent-soft)]"
+                      // Picking the currency is what decides which minor units a bound is counted in,
+                      // so the choice is held still while an applied bound is waiting for its own
+                      disabled={isAmountCurrencyLocked}
+                      className="rounded-full border px-3 py-1 text-sm transition-colors hover:bg-[var(--app-accent-soft)] disabled:cursor-not-allowed disabled:opacity-60"
                       style={
                         isSelected
                           ? { background: 'var(--app-accent-soft)', borderColor: 'transparent', color: 'var(--app-accent)', fontWeight: 500 }
@@ -400,8 +451,9 @@ function FacetEditor({
                   </span>
                 )}
                 <input
-                  className={joinClassNames('app-input', amountSymbol && 'pl-8', hasCrossedAmountBounds && 'app-input-error')}
-                  placeholder={getMoneyPlaceholder(amountExponent)}
+                  className={joinClassNames('app-input disabled:cursor-not-allowed disabled:opacity-60', amountSymbol && 'pl-8', hasCrossedAmountBounds && 'app-input-error')}
+                  placeholder={isAmountLocked ? undefined : getMoneyPlaceholder(amountExponent)}
+                  disabled={isAmountLocked}
                   aria-invalid={hasCrossedAmountBounds}
                   aria-describedby={hasCrossedAmountBounds ? amountRangeMessageId : undefined}
                   {...minAmountInput}
@@ -423,8 +475,9 @@ function FacetEditor({
                   </span>
                 )}
                 <input
-                  className={joinClassNames('app-input', amountSymbol && 'pl-8', hasCrossedAmountBounds && 'app-input-error')}
-                  placeholder="Any"
+                  className={joinClassNames('app-input disabled:cursor-not-allowed disabled:opacity-60', amountSymbol && 'pl-8', hasCrossedAmountBounds && 'app-input-error')}
+                  placeholder={isAmountLocked ? undefined : 'Any'}
+                  disabled={isAmountLocked}
                   aria-invalid={hasCrossedAmountBounds}
                   aria-describedby={hasCrossedAmountBounds ? amountRangeMessageId : undefined}
                   {...maxAmountInput}
@@ -432,8 +485,13 @@ function FacetEditor({
               </div>
             </label>
           </div>
-          <p className="px-0.5 text-xs" style={{ color: 'var(--app-text-subtle)' }}>
-            {amountCurrencyNote}
+          {/* A locked range takes the warning colour rather than the muted one the currency note
+              uses, so the reason the fields cannot be typed into carries the weight the fields lost */}
+          <p
+            className="px-0.5 text-xs"
+            style={{ color: isAmountLocked ? 'var(--app-warning-text)' : 'var(--app-text-subtle)' }}
+          >
+            {isAmountLocked ? <AmountLockNote currencyListState={currencyListState} /> : amountCurrencyNote}
           </p>
         </div>
       </div>

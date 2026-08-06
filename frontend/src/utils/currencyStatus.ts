@@ -7,11 +7,23 @@ export const CURRENCY_LIST_LOADING = 'Loading currencies...'
 /** Shown beside a currency field once the list has failed */
 export const CURRENCY_LIST_NOTICE = "We can't load the currency list right now. Refresh the page to try again."
 
-/** Shown beside an amount field standing down, which needs the currency's decimal places to say anything */
+/** Shown beside a disabled amount field, which needs the currency's decimal places to say anything */
 export const CURRENCY_AMOUNT_NOTICE = "We can't load the currency list right now, so this amount can't be shown or changed. Refresh the page to try again."
 
-/** Shown in that field's place when the list did load but does not carry that amount's own currency */
+/** Shown beside that field when the list did load but does not carry that amount's own currency */
 export const CURRENCY_AMOUNT_UNKNOWN = "We don't have the decimal places for this amount's currency, so it can't be shown or changed."
+
+/** Shown under a disabled minimum and maximum while the list is still on its way */
+export const CURRENCY_RANGE_LOADING = "The currency list is still loading, so the amount range can't be shown or changed yet."
+
+/** Shown under that pair once the list has failed, followed by the refresh offer below */
+export const CURRENCY_RANGE_NOTICE = "We can't load the currency list right now, so the amount range can't be shown or changed."
+
+/** The way out of a failed list, offered as a control that reloads rather than as an instruction */
+export const CURRENCY_REFRESH_ACTION = 'Refresh the page to try again'
+
+/** Shown under that pair when the list did load but does not carry the currency the range matches in */
+export const CURRENCY_RANGE_UNKNOWN = "We don't have the decimal places for the currency this range matches in, so it can't be shown or changed."
 
 /** Shown when a form that creates something with an amount is refused because the list failed */
 export const CURRENCY_LIST_REFUSAL = "We can't load the currency list right now. Refresh the page to try again."

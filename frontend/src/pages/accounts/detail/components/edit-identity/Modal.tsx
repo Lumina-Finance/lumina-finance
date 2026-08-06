@@ -56,7 +56,7 @@ const MIN_DELETE_SPINNER_MS = 1000
  * Coordinates account identity edits, archive changes, and destructive deletion from one modal workflow
  *
  * Opens whether or not the currency table arrived. Everything except the credit limit is independent of
- * it, and that one field stands down when the account's currency is missing from the table, since its
+ * it, and that one field locks when the account's currency is missing from the table, since its
  * stored amount can only be read or written through that currency's decimal places
  */
 export default function EditAccountIdentityModal({
