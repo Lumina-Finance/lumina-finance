@@ -3,7 +3,7 @@
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import VARCHAR, BigInteger, CheckConstraint, Date, DateTime, ForeignKey, Numeric, Text, func
+from sqlalchemy import VARCHAR, BigInteger, CheckConstraint, Date, DateTime, ForeignKey, Index, Numeric, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TransferCounterpartyScope
@@ -20,6 +20,10 @@ class Transaction(Base):
             "(counterparty_account_id IS NOT NULL) = (counterparty_account_scope IS NOT DISTINCT FROM 'TRACKED')",
             name="ck_transactions_counterparty_account_scope_matches_id",
         ),
+        # Serves the merchant listing, which sums a per-transaction weight over a bounded date
+        # range for each merchant. Leading on merchant_id means it also covers every lookup that
+        # filters on the merchant alone, so no separate index on that column is needed
+        Index("ix_transactions_merchant_id_dt", "merchant_id", "dt"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
@@ -28,7 +32,7 @@ class Transaction(Base):
     dt: Mapped[date] = mapped_column(Date, nullable=False)
     # The create and edit routes require one, so this is null only on a transaction recorded before
     # that rule or brought in by an import whose file named no payee
-    merchant_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("merchants.id"), index=True)
+    merchant_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("merchants.id"))
     category_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("categories.id"), nullable=False)
     amount: Mapped[int] = mapped_column(BigInteger, nullable=False)  # In currency base units
     currency: Mapped[str] = mapped_column(VARCHAR(3), ForeignKey("currencies.id"), nullable=False)

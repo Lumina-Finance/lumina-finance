@@ -1,5 +1,6 @@
 """Merchant routes"""
 import uuid
+from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, status
@@ -15,6 +16,7 @@ from app.routes.merchants.listing_helpers import get_merchants_for_user
 from app.routes.merchants.merge_helpers import merge_merchant_into_replacement_for_user
 from app.routes.merchants.update_helpers import update_merchant_for_user
 from app.schemas.merchant import CreateMerchantRequest, MerchantResponse, MergeMerchantRequest, UpdateMerchantRequest
+from app.utils.dates import resolve_timezone
 
 router = APIRouter(prefix="/merchants", tags=["merchants"])
 
@@ -39,9 +41,15 @@ async def list_merchants(
         offset: Number of merchants to skip before returning rows
 
     Returns:
-        Merchants ordered by recent transaction count then name
+        Merchants ordered by decayed usage score, then name, then identifier
+
+    Raises:
+        HTTPException: User is not a member of the requested group, or the stored timezone does not resolve
     """
-    merchants = await get_merchants_for_user(db, user.id, group_id, q, limit, offset)
+    # The score drops transactions dated ahead of today, so today has to be the user's own date
+    # rather than the server's, or someone in a zone hours ahead loses the ones they just recorded
+    today = datetime.now(resolve_timezone(user.tz)).date()
+    merchants = await get_merchants_for_user(db, user.id, group_id, q, limit, offset, today)
     return merchants
 
 

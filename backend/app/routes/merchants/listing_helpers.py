@@ -4,7 +4,7 @@ import uuid
 from collections.abc import Sequence
 from datetime import date, timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import Date, Integer, Numeric, cast, func, literal, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.category import Category
@@ -15,10 +15,21 @@ from app.routes.merchants.scope_filter_helpers import get_merchant_list_scope_fi
 from app.services.categories.transfer_rules import BALANCE_ADJUSTMENT_CATEGORY_NAME
 from app.utils.sql_search_helpers import escape_like_search_text
 
-# Recent-usage window that ranks the merchant dropdown so the merchants a user
-# transacts with most often surface first, a window shorter than the user's
-# history simply ranks by every transaction they have
-MERCHANT_FREQUENCY_WINDOW_DAYS = 90
+# How long a transaction takes to count for half of what it counted the day it was recorded. The
+# score fades smoothly instead of stopping at the 90-day window it replaces, so a merchant used
+# often a while ago still outranks one used a single time today
+MERCHANT_USAGE_HALF_LIFE_DAYS = 90
+
+# Transactions older than this are left out of the score. The oldest one still counted, dated at
+# exactly this age, is worth 0.36% of a transaction recorded today, so around 280 of them would be
+# needed to outweigh a single recent one, which is far beyond anything a real history holds
+MERCHANT_USAGE_CUTOFF_DAYS = 730
+
+# The score is rounded before it orders anything, because adding floating-point numbers is not
+# associative and the database does not promise to sum a merchant's rows in any fixed order. Two
+# merchants used identically would otherwise differ by a rounding step, never reach the name
+# tiebreaker, and swap places between requests, which pages a merchant twice or not at all
+MERCHANT_USAGE_SCORE_DECIMAL_PLACES = 6
 
 
 async def get_merchants_for_user(
@@ -28,8 +39,9 @@ async def get_merchants_for_user(
     search_text: str | None,
     limit: int | None,
     offset: int,
+    today: date,
 ) -> Sequence[Merchant]:
-    """Return merchants visible in the requested scope ranked by recent usage
+    """Return merchants visible in the requested scope ranked by decayed usage
 
     Args:
         db: Active database session
@@ -38,15 +50,27 @@ async def get_merchants_for_user(
         search_text: Optional name search text
         limit: Optional maximum number of merchants to return
         offset: Number of merchants to skip before returning rows
+        today: Current date in the requesting user's timezone, used to age each transaction
 
     Returns:
-        Merchants ordered by recent transaction count then name
+        Merchants ordered by decayed usage score, then name, then identifier
 
     Raises:
         HTTPException: User is not a member of the requested group
     """
-    recent_usage_cutoff = date.today() - timedelta(days=MERCHANT_FREQUENCY_WINDOW_DAYS)
-    recent_usage_count = func.count(Transaction.id)
+    usage_cutoff = today - timedelta(days=MERCHANT_USAGE_CUTOFF_DAYS)
+
+    # Subtracting one date from another gives whole days in Postgres, and SQLAlchemy casts the
+    # divisor so the division keeps its fraction instead of truncating to whole half-lives
+    transaction_age_days = cast(literal(today, Date) - Transaction.dt, Integer)
+    usage_weight = func.power(0.5, transaction_age_days / float(MERCHANT_USAGE_HALF_LIFE_DAYS))
+
+    # Summing no rows gives null, which Postgres sorts ahead of every number under DESC, so a
+    # merchant nobody has used would lead the list without this
+    decayed_usage_score = func.round(
+        cast(func.coalesce(func.sum(usage_weight), 0.0), Numeric),
+        MERCHANT_USAGE_SCORE_DECIMAL_PLACES,
+    )
 
     # Balance adjustments are written by the app rather than the user, and they carry the shared
     # Myself merchant, so counting them would let opening a few accounts push that merchant to the
@@ -56,14 +80,16 @@ async def get_merchants_for_user(
         Category.name == BALANCE_ADJUSTMENT_CATEGORY_NAME,
     )
 
-    # Count each merchant's transactions inside the recency window, the date lives
-    # in the join condition so merchants with no recent activity are kept and ranked last
+    # Score each merchant's transactions, the date bound living in the join condition so merchants
+    # with nothing to count are kept and ranked last. Bounding both ends in one comparison drops
+    # transactions past the cutoff and transactions dated ahead of the user's today, which would
+    # otherwise weigh more than one recorded now
     merchant_query = (
         select(Merchant)
         .outerjoin(
             Transaction,
             (Transaction.merchant_id == Merchant.id)
-            & (Transaction.dt >= recent_usage_cutoff)
+            & Transaction.dt.between(usage_cutoff, today)
             & Transaction.category_id.notin_(balance_adjustment_category_ids),
         )
         .where(get_merchant_list_scope_filter(user_id, group_id))
@@ -78,8 +104,10 @@ async def get_merchants_for_user(
         escaped_search_text = escape_like_search_text(normalized_search_text)
         merchant_query = merchant_query.where(Merchant.name.ilike(f"%{escaped_search_text}%", escape="\\"))
 
-    # Rank by recent usage and fall back to name so untouched merchants stay alphabetical
-    merchant_query = merchant_query.order_by(recent_usage_count.desc(), Merchant.name)
+    # Rank by decayed usage and fall back to name so untouched merchants stay alphabetical. The
+    # identifier settles what name cannot: a personal merchant and a group merchant may share one,
+    # and paging over a tie the database breaks differently each time repeats or skips a row
+    merchant_query = merchant_query.order_by(decayed_usage_score.desc(), Merchant.name, Merchant.id)
     if limit is not None:
         merchant_query = merchant_query.limit(limit).offset(offset)
 
