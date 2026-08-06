@@ -8,7 +8,7 @@ import {
   getAccountSummaryFxStatusMessage,
 } from '@/pages/accounts/utils/fxTooltipMessages'
 
-describe('summary FX status messages', () => {
+describe('account FX status messages', () => {
   it('explains incomplete account totals when some conversion rates are missing', () => {
     expect(getAccountSummaryFxStatusMessage({
       state: 'incomplete',

@@ -56,7 +56,7 @@ export function createAccount(overrides: Partial<AccountsOverview>): AccountsOve
 }
 
 /**
- * Creates a transaction fixture with stable defaults for create and edit payload comparisons
+ * Creates a stored transaction fixture, for the edit paths that read one back
  */
 export function createTransaction(overrides: Partial<Transaction> = {}): Transaction {
   return {

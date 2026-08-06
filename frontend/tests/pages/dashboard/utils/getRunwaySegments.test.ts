@@ -1,6 +1,10 @@
 /**
  * Tests the runway bar segments, so the widths and positions of the account bars cannot drift from the
- * balances behind them, and an archived or revolving account is left out
+ * balances behind them
+ *
+ * Two of the four accounts get no bar. The archived one is dropped by the helper's own check, and the
+ * revolving one is dropped for having no balance recorded against it rather than for its kind, since
+ * liabilities are already filtered out before this helper sees them
  */
 import { describe, expect, it } from 'vitest'
 import { getRunwaySegments } from '@/pages/dashboard/utils/getRunwaySegments'

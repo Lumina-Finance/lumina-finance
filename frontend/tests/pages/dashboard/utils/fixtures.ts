@@ -93,8 +93,8 @@ export function createBudget(overrides: Partial<LatestBudgetUtilization>): Lates
 }
 
 /**
- * Four months of runway over three accounts, one of them archived and one revolving, so the caption
- * and the bar segments are read off the same figures
+ * Four months of runway over three accounts, one of them archived, so the caption and the bar
+ * segments are read off the same figures
  */
 export const runway: RunwayResult = {
   months: 4,

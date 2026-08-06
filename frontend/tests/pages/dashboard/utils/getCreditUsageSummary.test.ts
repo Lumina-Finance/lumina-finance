@@ -1,6 +1,6 @@
 /**
  * Tests the credit usage summary, so the percentage and amount shown cannot drift from the limit and
- * the balance behind them, in either the used or the remaining mode
+ * the balance behind them, in either the used or the available mode
  */
 import { describe, expect, it } from 'vitest'
 import { getCreditUsageSummary } from '@/pages/dashboard/utils/getCreditUsageSummary'
