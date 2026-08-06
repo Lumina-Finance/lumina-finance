@@ -1,7 +1,8 @@
-import { Fragment, type RefObject, type UIEvent } from 'react'
-import { Check } from 'lucide-react'
+import { Fragment, type MouseEvent, type RefObject, type UIEvent } from 'react'
+import { Check, Pencil } from 'lucide-react'
 import { joinClassNames } from '@/utils/classNames'
 import { DropdownBadge, DropdownCount } from './Badge'
+import { canEditDropdownOption } from './options'
 import type { DropdownOption, DropdownOptionGroup } from './types'
 
 interface DropdownOptionListProps {
@@ -14,9 +15,11 @@ interface DropdownOptionListProps {
   options: DropdownOption[]
   selectedValue: string
   showLoading: boolean
+  editOptionLabel: string | undefined
   onHighlight: (index: number) => void
   onScroll: (event: UIEvent<HTMLUListElement>) => void
   onSelect: (value: string) => void
+  onEditOption: ((value: string) => void) | undefined
 }
 
 interface DropdownOptionRowProps {
@@ -24,9 +27,13 @@ interface DropdownOptionRowProps {
   highlighted: boolean
   option: DropdownOption
   selected: boolean
+  editOptionLabel: string | undefined
   onHighlight: (index: number) => void
   onSelect: (value: string) => void
+  onEditOption: ((value: string) => void) | undefined
 }
+
+const DEFAULT_EDIT_OPTION_LABEL = 'Edit'
 
 /**
  * Renders one option row with the shared selected, highlighted and unavailable states used by grouped and flat menus
@@ -36,10 +43,20 @@ function DropdownOptionRow({
   highlighted,
   option,
   selected,
+  editOptionLabel,
   onHighlight,
   onSelect,
+  onEditOption,
 }: DropdownOptionRowProps) {
   const disabled = Boolean(option.disabled)
+  const editable = canEditDropdownOption(option, Boolean(onEditOption))
+
+  const handleEdit = (event: MouseEvent<HTMLSpanElement>) => {
+
+    // The row itself chooses the option, so the click stops here rather than doing both
+    event.stopPropagation()
+    onEditOption?.(option.value)
+  }
 
   return (
     <li
@@ -76,6 +93,20 @@ function DropdownOptionRow({
         )}
       </span>
       {option.count !== undefined && <DropdownCount count={option.count} />}
+
+      {/* Held in the row rather than mounted on hover, so the label truncates to one width
+          instead of shifting as the pointer runs down the list, and revealed by the stylesheet
+          rather than from here */}
+      {editable && (
+        <span
+          className="app-dropdown-row-edit shrink-0"
+          title={editOptionLabel ?? DEFAULT_EDIT_OPTION_LABEL}
+          aria-hidden
+          onClick={handleEdit}
+        >
+          <Pencil size={14} />
+        </span>
+      )}
       {selected && <Check size={16} className="shrink-0" aria-hidden />}
     </li>
   )
@@ -94,9 +125,11 @@ export function DropdownOptionList({
   options,
   selectedValue,
   showLoading,
+  editOptionLabel,
   onHighlight,
   onScroll,
   onSelect,
+  onEditOption,
 }: DropdownOptionListProps) {
   return (
     <ul
@@ -122,8 +155,10 @@ export function DropdownOptionList({
                 highlighted={flatIndex === effectiveHighlightedIndex}
                 option={option}
                 selected={option.value === selectedValue}
+                editOptionLabel={editOptionLabel}
                 onHighlight={onHighlight}
                 onSelect={onSelect}
+                onEditOption={onEditOption}
               />
             ))}
           </Fragment>
@@ -136,8 +171,10 @@ export function DropdownOptionList({
             highlighted={index === effectiveHighlightedIndex}
             option={option}
             selected={option.value === selectedValue}
+            editOptionLabel={editOptionLabel}
             onHighlight={onHighlight}
             onSelect={onSelect}
+            onEditOption={onEditOption}
           />
         ))
       )}

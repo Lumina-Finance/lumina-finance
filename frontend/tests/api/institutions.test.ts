@@ -1,8 +1,9 @@
 /**
- * Covers institution API request functions used by account creation and identity edits
+ * Covers institution API request functions used by account creation, identity edits and
+ * the correction a user submits to an institution
  *
- * These tests catch regressions where institution list and create requests call
- * the wrong endpoint or send malformed create payloads
+ * These tests catch regressions where institution list, create and correction requests
+ * call the wrong endpoint or send a malformed payload
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -17,6 +18,7 @@ vi.mock('@/api/client', () => ({
 import {
   createInstitution,
   fetchInstitutions,
+  updateInstitution,
 } from '@/api/institutions';
 
 beforeEach(() => {
@@ -33,18 +35,33 @@ describe('institution API functions', () => {
 
   it('creates institutions with country and website fields', async () => {
     await createInstitution({
-      name: 'Royal Bank of Canada',
+      name: 'Alpha Bank',
       country_code: 'CA',
-      website: 'https://www.rbcroyalbank.com',
+      website: 'https://alpha.example.com',
     });
 
     expect(authenticatedFetchMock).toHaveBeenCalledWith('/institutions', {
       method: 'POST',
       body: JSON.stringify({
-        name: 'Royal Bank of Canada',
+        name: 'Alpha Bank',
         country_code: 'CA',
-        website: 'https://www.rbcroyalbank.com',
+        website: 'https://alpha.example.com',
       }),
     });
+  });
+
+  it('sends a correction to the institution being corrected, carrying only the fields given', async () => {
+    await updateInstitution({
+      institutionId: '11111111-1111-1111-1111-111111111111',
+      payload: { website: 'https://alpha.example.com' },
+    });
+
+    expect(authenticatedFetchMock).toHaveBeenCalledWith(
+      '/institutions/11111111-1111-1111-1111-111111111111',
+      {
+        method: 'PATCH',
+        body: JSON.stringify({ website: 'https://alpha.example.com' }),
+      },
+    );
   });
 });

@@ -105,7 +105,9 @@ def apply_policies(connection: Connection) -> None:
 
     for table in GLOBAL_READ_TABLES:
         connection.execute(text(f'GRANT SELECT ON public.{table} TO "{APP_DB_USER}"'))
-    connection.execute(text(f'GRANT INSERT ON public.institutions TO "{APP_DB_USER}"'))
+    # Institutions are submitted and corrected by the users who read them, so the app role
+    # writes the table as well, while the rest of the global-read tables stay read-only to it
+    connection.execute(text(f'GRANT INSERT, UPDATE ON public.institutions TO "{APP_DB_USER}"'))
     for table in AUTH_TABLES:
 
         # A later migration can add an auth table after this bootstrap runs, so skip any

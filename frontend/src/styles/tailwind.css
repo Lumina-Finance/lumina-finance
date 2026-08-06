@@ -802,6 +802,33 @@
     opacity: var(--app-dropdown-disabled-opacity);
   }
 
+  /* Correcting the record a row stands for, rather than choosing it. It holds its place in every
+     row rather than being revealed into one, so the label truncates to a single width instead of
+     shifting as the pointer runs down the list */
+  .app-dropdown-row-edit {
+    display: flex;
+    align-items: center;
+    visibility: hidden;
+    color: var(--app-text-muted);
+    transition: color 0.1s;
+  }
+
+  .app-dropdown-row:hover .app-dropdown-row-edit {
+    visibility: visible;
+  }
+
+  .app-dropdown-row-edit:hover {
+    color: var(--app-accent);
+  }
+
+  /* Nothing rests on a row before tapping it, so a touch screen has no state to reveal this in and
+     it stays out permanently. Hiding it there would leave the correction unreachable */
+  @media (hover: none) {
+    .app-dropdown-row-edit {
+      visibility: visible;
+    }
+  }
+
   /* Sits above the rows it heads while the list scrolls under it, so it needs to hide them rather
      than let them show through its own translucency */
   .app-dropdown-group {

@@ -15,6 +15,7 @@ type AccountIdentitySectionProps = {
   institutionOptions: DropdownOption[]
   setField: SetIdentityFormField
   onCreateInstitution: (name: string) => void
+  onCorrectInstitution: (institutionId: string) => void
 }
 
 /**
@@ -26,6 +27,7 @@ export function AccountIdentitySection({
   institutionOptions,
   setField,
   onCreateInstitution,
+  onCorrectInstitution,
 }: AccountIdentitySectionProps) {
   return (
     <EditModalSection number="01" title="Identity">
@@ -52,6 +54,8 @@ export function AccountIdentitySection({
           searchPlaceholder="Search institutions..."
           onCreateNew={onCreateInstitution}
           createNewLabel={(query) => query ? `Create institution "${query}"` : 'Create institution'}
+          onEditOption={onCorrectInstitution}
+          editOptionLabel="Correct institution"
         />
       </div>
     </EditModalSection>

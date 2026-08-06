@@ -23,6 +23,17 @@ export function getSelectedDropdownOption(
 }
 
 /**
+ * Reports whether an option offers the edit action, which needs a caller that handles it and an
+ * option that stands for something editable
+ *
+ * A blank value is the "None" entry that reference pickers put at the top of their list, which
+ * is the absence of a choice rather than a record anyone could correct
+ */
+export function canEditDropdownOption(option: DropdownOption, hasEditHandler: boolean): boolean {
+  return hasEditHandler && option.value !== '' && !option.disabled
+}
+
+/**
  * Applies client-side search and loading visibility rules before the menu renders options
  */
 export function getVisibleDropdownOptions({

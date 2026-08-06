@@ -1,17 +1,18 @@
 import { useState, type FormEvent } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
+import { Building2 } from 'lucide-react'
 import { ApiError } from '@/api/auth'
-import { useCreateInstitution, type Institution } from '@/api/institutions'
+import { useCreateInstitution, useUpdateInstitution, type Institution } from '@/api/institutions'
 import Dropdown from '@/components/dropdown/Dropdown'
 import CreateModalFieldLabelRow from '@/components/create-modal/FieldLabelRow'
 import CreateModalSectionFrame from '@/components/create-modal/SectionFrame'
 import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import { ModalFormFooter } from '@/components/modal/FormFooter'
-import { CREATE_INSTITUTION_FIELD_IDS } from '@/components/reference-modals/createInstitutionConstants'
+import { INSTITUTION_FIELD_IDS } from '@/components/reference-modals/institutionModalConstants'
 import { COUNTRY_OPTIONS } from '@/constants/countries'
 import { waitForMilliseconds } from '@/utils/timing'
 
-const CREATE_INSTITUTION_MIN_LOADING_MS = 800
+const INSTITUTION_MIN_LOADING_MS = 800
 
 const INITIAL_FORM = {
   name: '',
@@ -19,28 +20,34 @@ const INITIAL_FORM = {
   website: '',
 }
 
-type CreateInstitutionForm = typeof INITIAL_FORM
-type CreateInstitutionField = keyof CreateInstitutionForm
-type CreateInstitutionFieldErrors = Partial<Record<CreateInstitutionField, string>>
+type InstitutionForm = typeof INITIAL_FORM
+type InstitutionField = keyof InstitutionForm
+type InstitutionFieldErrors = Partial<Record<InstitutionField, string>>
 
-interface CreateInstitutionModalProps {
+interface InstitutionModalProps {
   open: boolean
   initialName: string
+
+  /**
+   * The institution being corrected. Supplying one switches the modal from adding an
+   * institution to rewriting the shared row every user on the instance sees
+   */
+  institution?: Institution | null
   onClose: () => void
-  onCreated: (institution: Institution) => void
+  onSaved: (institution: Institution) => void
 }
 
-const ALL_INSTITUTION_FIELDS_TOUCHED: Record<CreateInstitutionField, boolean> = {
+const ALL_INSTITUTION_FIELDS_TOUCHED: Record<InstitutionField, boolean> = {
   name: true,
   country_code: true,
   website: true,
 }
 
 /**
- * Validates the institution fields required by the backend create endpoint
+ * Validates the institution fields the backend requires on both write paths
  */
-function validateCreateInstitutionForm(form: CreateInstitutionForm): CreateInstitutionFieldErrors {
-  const errors: CreateInstitutionFieldErrors = {}
+function validateInstitutionForm(form: InstitutionForm): InstitutionFieldErrors {
+  const errors: InstitutionFieldErrors = {}
   if (!form.name.trim()) errors.name = 'Name is required'
   if (!form.country_code) errors.country_code = 'Select a country'
   if (!form.website.trim()) errors.website = 'Website is required'
@@ -48,27 +55,40 @@ function validateCreateInstitutionForm(form: CreateInstitutionForm): CreateInsti
 }
 
 /**
- * Creates an institution from nested account and import workflows
+ * Adds an institution, or corrects one, from nested account and import workflows
+ *
+ * The form holds no logo field, because a logo is derived from the website rather than
+ * uploaded, and a correction leaves any stored logo URL alone
  */
-export default function CreateInstitutionModal({
+export default function InstitutionModal({
   open,
   initialName,
+  institution,
   onClose,
-  onCreated,
-}: CreateInstitutionModalProps) {
-  const mutation = useCreateInstitution()
+  onSaved,
+}: InstitutionModalProps) {
+  const createMutation = useCreateInstitution()
+  const updateMutation = useUpdateInstitution()
+  const isCorrection = Boolean(institution)
 
-  const [form, setForm] = useState(() => ({
-    ...INITIAL_FORM,
-    name: initialName,
-  }))
-  const [fieldErrors, setFieldErrors] = useState<CreateInstitutionFieldErrors>({})
-  const [touched, setTouched] = useState<Partial<Record<CreateInstitutionField, boolean>>>({})
+  // Callers remount this with a key rather than reopening it, so the initial values are
+  // read once per opening and never go stale against the institution being corrected
+  const [form, setForm] = useState<InstitutionForm>(() => (
+    institution
+      ? {
+          name: institution.name,
+          country_code: institution.country_code,
+          website: institution.website,
+        }
+      : { ...INITIAL_FORM, name: initialName }
+  ))
+  const [fieldErrors, setFieldErrors] = useState<InstitutionFieldErrors>({})
+  const [touched, setTouched] = useState<Partial<Record<InstitutionField, boolean>>>({})
   const [submitError, setSubmitError] = useState('')
-  const [createInProgress, setCreateInProgress] = useState(false)
-  const isCreating = mutation.isPending || createInProgress
+  const [saveInProgress, setSaveInProgress] = useState(false)
+  const isSaving = createMutation.isPending || updateMutation.isPending || saveInProgress
 
-  const handleChange = (field: CreateInstitutionField, value: string) => {
+  const handleChange = (field: InstitutionField, value: string) => {
     setForm((current) => ({ ...current, [field]: value }))
     if (fieldErrors[field]) {
       setFieldErrors((current) => ({ ...current, [field]: undefined }))
@@ -76,55 +96,64 @@ export default function CreateInstitutionModal({
     setSubmitError('')
   }
 
-  const handleBlur = (field: CreateInstitutionField) => {
+  const handleBlur = (field: InstitutionField) => {
     setTouched((current) => ({ ...current, [field]: true }))
-    const errors = validateCreateInstitutionForm(form)
+    const errors = validateInstitutionForm(form)
     setFieldErrors((current) => ({ ...current, [field]: errors[field] }))
   }
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (isCreating) return
+    if (isSaving) return
 
-    const errors = validateCreateInstitutionForm(form)
+    const errors = validateInstitutionForm(form)
     setFieldErrors(errors)
     setTouched(ALL_INSTITUTION_FIELDS_TOUCHED)
     if (Object.keys(errors).length > 0) return
 
-    setCreateInProgress(true)
-    const minimumLoading = waitForMilliseconds(CREATE_INSTITUTION_MIN_LOADING_MS)
+    setSaveInProgress(true)
+    const minimumLoading = waitForMilliseconds(INSTITUTION_MIN_LOADING_MS)
+    const payload = {
+      name: form.name.trim(),
+      country_code: form.country_code.toUpperCase(),
+      website: form.website.trim(),
+    }
+    const saved = institution
+      ? updateMutation.mutateAsync({ institutionId: institution.id, payload })
+      : createMutation.mutateAsync(payload)
 
-    void mutation.mutateAsync(
-      {
-        name: form.name.trim(),
-        country_code: form.country_code.toUpperCase(),
-        website: form.website.trim(),
-      },
-    ).then(async (institution) => {
+    void saved.then(async (savedInstitution) => {
       await minimumLoading
-      onCreated(institution)
+      onSaved(savedInstitution)
     }).catch(async (error) => {
       await minimumLoading
       setSubmitError(error instanceof ApiError ? error.message : 'Something went wrong.')
-      setCreateInProgress(false)
+      setSaveInProgress(false)
     })
   }
 
-  const showError = (field: CreateInstitutionField) => touched[field] && fieldErrors[field]
+  const showError = (field: InstitutionField) => touched[field] && fieldErrors[field]
 
   return (
     <ModalTitledPanel
       open={open}
       level="stacked"
-      titleId="create-institution-title"
+      titleId="institution-modal-title"
       eyebrow="Account setup"
-      title="Add Institution"
+      title={isCorrection ? 'Correct Institution' : 'Add Institution'}
+      RailIcon={Building2}
+      railLabel={isCorrection ? 'Details' : 'New'}
       onClose={onClose}
       onSubmit={handleSubmit}
+
+      // A save that outlives its modal still runs its callback, which would write into
+      // whatever the field is showing by then, so dismissing is locked while it is in flight
+      // exactly as cancelling already is
+      closeDisabled={isSaving}
       footer={
         <ModalFormFooter
-          submitLabel="Create"
-          submitDisabled={isCreating}
+          submitLabel={isCorrection ? 'Save' : 'Create'}
+          submitDisabled={isSaving}
           submitWidthClassName="w-full sm:w-32"
           level="stacked"
           onCancel={onClose}
@@ -132,14 +161,20 @@ export default function CreateInstitutionModal({
       }
     >
       <div className="space-y-5">
+        {isCorrection && (
+          <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+            The institution's details don't look right? You can update it here.
+          </p>
+        )}
+
         <CreateModalSectionFrame step="01">
           <div className="min-w-0 space-y-3">
             <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Identity</p>
 
             <div>
-              <CreateModalFieldLabelRow htmlFor={CREATE_INSTITUTION_FIELD_IDS.name} label="Name" error={showError('name') || undefined} />
+              <CreateModalFieldLabelRow htmlFor={INSTITUTION_FIELD_IDS.name} label="Name" error={showError('name') || undefined} />
               <input
-                id={CREATE_INSTITUTION_FIELD_IDS.name}
+                id={INSTITUTION_FIELD_IDS.name}
                 type="text"
                 className={`app-input ${showError('name') ? 'app-input-error' : ''}`}
                 value={form.name}
@@ -150,9 +185,9 @@ export default function CreateInstitutionModal({
             </div>
 
             <div>
-              <CreateModalFieldLabelRow htmlFor={CREATE_INSTITUTION_FIELD_IDS.country} label="Country" error={showError('country_code') || undefined} />
+              <CreateModalFieldLabelRow htmlFor={INSTITUTION_FIELD_IDS.country} label="Country" error={showError('country_code') || undefined} />
               <Dropdown
-                id={CREATE_INSTITUTION_FIELD_IDS.country}
+                id={INSTITUTION_FIELD_IDS.country}
                 options={COUNTRY_OPTIONS}
                 value={form.country_code}
                 onChange={(value) => handleChange('country_code', value)}
@@ -170,9 +205,9 @@ export default function CreateInstitutionModal({
             <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Reference</p>
 
             <div>
-              <CreateModalFieldLabelRow htmlFor={CREATE_INSTITUTION_FIELD_IDS.website} label="Website" error={showError('website') || undefined} />
+              <CreateModalFieldLabelRow htmlFor={INSTITUTION_FIELD_IDS.website} label="Website" error={showError('website') || undefined} />
               <input
-                id={CREATE_INSTITUTION_FIELD_IDS.website}
+                id={INSTITUTION_FIELD_IDS.website}
                 type="url"
                 className={`app-input ${showError('website') ? 'app-input-error' : ''}`}
                 placeholder="https://example.com"

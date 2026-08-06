@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import CreateInstitutionModal from '@/components/reference-modals/CreateInstitutionModal'
+import InstitutionModal from '@/components/reference-modals/InstitutionModal'
+import { useInstitutionModal } from '@/hooks/useInstitutionModal'
 import {
   ACCOUNTS_LOAD_FAILURE_EXPLANATION,
   ACCOUNTS_LOAD_FAILURE_TITLE,
@@ -75,24 +76,31 @@ export function FireflyAccountMappingStep({
   setBatchAccountInstitution,
   setSelectedAccountRows,
 }: FireflyAccountMappingStepProps) {
-  const [institutionModalName, setInstitutionModalName] = useState('')
+  const institutionModal = useInstitutionModal()
+
+  // Which field asked for a new institution, so the one it creates comes back to that field
   const [institutionModalTarget, setInstitutionModalTarget] = useState<'batch' | string>('')
-  const [institutionModalKey, setInstitutionModalKey] = useState(0)
-  const institutionModalOpen = Boolean(institutionModalTarget)
 
   const openInstitutionModal = (query: string, target: 'batch' | string) => {
-    setInstitutionModalName(query)
     setInstitutionModalTarget(target)
-    setInstitutionModalKey((current) => current + 1)
+    institutionModal.openForCreate(query)
   }
 
-  const handleInstitutionCreated = (institution: { id: string }) => {
+  const closeInstitutionModal = () => {
+    setInstitutionModalTarget('')
+    institutionModal.close()
+  }
+
+  const handleInstitutionSaved = (institution: { id: string }) => {
+
+    // A correction changes an institution rather than which one a field answers with, so it
+    // comes back to no field and leaves every answer as it was
     if (institutionModalTarget === 'batch') {
       setBatchAccountInstitution(institution.id)
     } else if (institutionModalTarget) {
       setAccountCreateInstitutions((current) => ({ ...current, [institutionModalTarget]: institution.id }))
     }
-    setInstitutionModalTarget('')
+    closeInstitutionModal()
   }
 
   const accountRows = trackedAccountNames.map((sourceAccount) => {
@@ -187,12 +195,13 @@ export function FireflyAccountMappingStep({
           />
         </>
       )}
-      <CreateInstitutionModal
-        key={institutionModalKey}
-        open={institutionModalOpen}
-        initialName={institutionModalName}
-        onClose={() => setInstitutionModalTarget('')}
-        onCreated={handleInstitutionCreated}
+      <InstitutionModal
+        key={institutionModal.key}
+        open={institutionModal.open}
+        initialName={institutionModal.name}
+        institution={institutionModal.institution}
+        onClose={closeInstitutionModal}
+        onSaved={handleInstitutionSaved}
       />
     </ImportStep>
   )

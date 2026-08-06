@@ -8,12 +8,13 @@ import { Landmark } from 'lucide-react';
 import { ModalTitledPanel } from '@/components/modal/TitledPanel';
 import { ModalFormFooter } from '@/components/modal/FormFooter';
 import { useCurrencies } from '@/api/currency';
-import { useInstitutions } from '@/api/institutions';
+import { useInstitutions, type Institution } from '@/api/institutions';
 import { useTaxAdvantagedCategories } from '@/api/tax-advantaged-categories';
-import CreateInstitutionModal from '@/components/reference-modals/CreateInstitutionModal';
+import InstitutionModal from '@/components/reference-modals/InstitutionModal';
 import { useCreateAccount } from '@/api/accounts';
 import { ApiError } from '@/api/auth';
 import { useAuth } from '@/hooks/useAuth';
+import { useInstitutionModal } from '@/hooks/useInstitutionModal';
 import { useMoneyInput } from '@/hooks/useMoneyInput';
 import { getCurrencyExponent } from '@/utils/moneyInput';
 import { getFieldLabelId } from '@/utils/fieldLabel';
@@ -95,19 +96,12 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
     setSubmitError('');
   };
 
-  const [institutionModalName, setInstitutionModalName] = useState('');
-  const [showInstitutionModal, setShowInstitutionModal] = useState(false);
-  const [institutionModalKey, setInstitutionModalKey] = useState(0);
+  const institutionModal = useInstitutionModal(institutions);
 
-  const handleCreateInstitution = (name: string) => {
-    setInstitutionModalName(name);
-    setInstitutionModalKey((k) => k + 1);
-    setShowInstitutionModal(true);
-  };
-
-  const handleInstitutionCreated = (institution: { id: string }) => {
-    handleChange('institution_id', institution.id);
-    setShowInstitutionModal(false);
+  const handleInstitutionSaved = (institution: Institution) => {
+    // A correction leaves the selection where it is, so only a new institution is selected here
+    if (!institutionModal.institution) handleChange('institution_id', institution.id);
+    institutionModal.close();
   };
 
   const handleBlur = (field: CreateAccountValidatedField) => {
@@ -256,8 +250,10 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                   placeholder="Select institution..."
                   searchable
                   searchPlaceholder="Search institutions..."
-                  onCreateNew={handleCreateInstitution}
+                  onCreateNew={institutionModal.openForCreate}
                   createNewLabel={(query) => query ? `Create institution "${query}"` : 'Create institution'}
+                  onEditOption={institutionModal.openForCorrection}
+                  editOptionLabel="Correct institution"
                 />
               </div>
 
@@ -372,12 +368,13 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
         </div>
       </ModalTitledPanel>
 
-      <CreateInstitutionModal
-        key={institutionModalKey}
-        open={showInstitutionModal}
-        initialName={institutionModalName}
-        onClose={() => setShowInstitutionModal(false)}
-        onCreated={handleInstitutionCreated}
+      <InstitutionModal
+        key={institutionModal.key}
+        open={institutionModal.open}
+        initialName={institutionModal.name}
+        institution={institutionModal.institution}
+        onClose={institutionModal.close}
+        onSaved={handleInstitutionSaved}
       />
     </>
   );

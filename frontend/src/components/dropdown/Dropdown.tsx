@@ -83,6 +83,16 @@ interface DropdownProps {
   /** Called when the user clicks the dropdown create action with the current search text */
   onCreateNew?: (query: string) => void;
   createNewLabel?: DropdownCreateLabel;
+
+  /**
+   * Called with an option's value when the user clicks the edit action on that option's row,
+   * which is offered on every option standing for a record, so the blank "None" entry and a
+   * disabled option never reach this
+   */
+  onEditOption?: (value: string) => void;
+
+  /** Tooltip on the edit action, since the action itself is hidden from assistive software */
+  editOptionLabel?: string;
 }
 
 const LOADING_TEXT_MIN_MS = 300;
@@ -119,6 +129,8 @@ const Dropdown = ({
   blankWhenEmpty = false,
   onCreateNew,
   createNewLabel,
+  onEditOption,
+  editOptionLabel,
 }: DropdownProps) => {
   const [open, setOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
@@ -296,6 +308,14 @@ const Dropdown = ({
     close();
   };
 
+  // Closing is what lets the correction be seen: the open box sits above the stacked modal it
+  // opens, and left open it would cover that modal until the first press anywhere inside it
+  const handleEditOption = (optionValue: string) => {
+    if (!onEditOption) return;
+    close();
+    onEditOption(optionValue);
+  };
+
   /**
    * Applies the shared keyboard policy to an event from the trigger or the search field
    */
@@ -465,6 +485,8 @@ const Dropdown = ({
                   options={visibleFiltered}
                   selectedValue={value}
                   showLoading={showLoading}
+                  editOptionLabel={editOptionLabel}
+                  onEditOption={onEditOption && handleEditOption}
                   onHighlight={setHighlightedIndex}
                   onScroll={handleListScroll}
                   onSelect={handleSelect}

@@ -1,7 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createInstitution, fetchInstitutions } from '@/api/institutions/requests';
+import {
+  createInstitution,
+  fetchInstitutions,
+  updateInstitution,
+} from '@/api/institutions/requests';
 import type { Institution } from '@/api/institutions/types';
 import { institutionKeys } from '@/api/cache/queryKeys';
+import { updateCachedInstitution } from '@/api/cache/updates/institutions';
 import { useAuth } from '@/hooks/useAuth';
 
 /**
@@ -34,6 +39,19 @@ export function useCreateInstitution() {
     onError: () => {
       // Duplicate creates can return 409 before the existing institution is present locally
       queryClient.invalidateQueries({ queryKey: institutionKeys.list(), exact: true });
+    },
+  });
+}
+
+/**
+ * Submits corrections to institutions and refreshes what shows their details
+ */
+export function useUpdateInstitution() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: updateInstitution,
+    onSuccess: (institution) => {
+      updateCachedInstitution(queryClient, institution);
     },
   });
 }
