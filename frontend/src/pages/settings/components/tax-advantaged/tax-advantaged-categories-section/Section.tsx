@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Plus } from 'lucide-react'
 import type { AccountsOverview } from '@/api/accounts'
+import { ApiError } from '@/api/auth'
 import { GlassSearchField } from '@/components/list-controls/GlassSearchField'
 import { useCurrencies } from '@/api/currency'
 import { useTaxAdvantagedCategories } from '@/api/tax-advantaged-categories'
@@ -11,6 +12,38 @@ import { useCurrencyGuard } from '@/hooks/useCurrencyGuard'
 import TaxAdvantagedCategoriesTable from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/table/CategoriesTable'
 import TaxAdvantagedCategoryModal from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/modals/CategoryModal'
 import { useTaxAdvantagedCategoryList } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/hooks/useCategoryList'
+
+/**
+ * Says why the category list is missing, quoting the API's own sentence where it sent one, so a
+ * refusal that says which setting is at fault reaches the reader instead of an empty section
+ *
+ * Where the API sent no sentence, the offer to refresh is a button rather than an anchor, since it
+ * acts on the page the reader is already on rather than taking them anywhere
+ */
+function CategoriesLoadError({ detail }: { detail: string | null }) {
+  return (
+    <div className="py-3 text-center" role="alert">
+      <p className="text-sm font-semibold" style={{ color: 'var(--app-text)' }}>
+        Categories could not load
+      </p>
+      <p className="mt-1 text-sm leading-6" style={{ color: 'var(--app-text-subtle)' }}>
+        {detail ?? (
+          <>
+            <button
+              type="button"
+              className="underline underline-offset-2"
+              style={{ color: 'var(--app-accent)' }}
+              onClick={() => window.location.reload()}
+            >
+              Refresh the page
+            </button>
+            {' or try again later.'}
+          </>
+        )}
+      </p>
+    </div>
+  )
+}
 
 /**
  * Settings section for managing tax-advantaged categories, combining search, creation and a
@@ -26,7 +59,10 @@ export default function TaxAdvantagedCategoriesSection({
   userTimezone?: string
 }) {
   const { data: currencies = [] } = useCurrencies()
-  const { data: plans = [], isLoading } = useTaxAdvantagedCategories()
+  const { data: plans = [], isLoading, isError, error } = useTaxAdvantagedCategories()
+  // Cached categories from an earlier session survive a failed request, since the query cache is
+  // persisted, so the message sits above them rather than throwing a readable list away
+  const listErrorDetail = error instanceof ApiError ? error.message : null
   const [openCategoryId, setOpenCategoryId] = useState<string | null>(null)
   // Held apart from the selection so the panel keeps its contents while it animates out
   const [isCategoryOpen, setIsCategoryOpen] = useState(false)
@@ -84,7 +120,9 @@ export default function TaxAdvantagedCategoriesSection({
             </button>
           </div>
 
-          {isLoading ? null : plans.length === 0 ? (
+          {isError && <CategoriesLoadError detail={listErrorDetail} />}
+
+          {isLoading || (isError && plans.length === 0) ? null : plans.length === 0 ? (
             <p className="py-3 text-center italic text-sm" style={{ color: 'var(--app-text-subtle)' }}>
               No tax-advantaged categories yet.
             </p>

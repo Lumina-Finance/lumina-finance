@@ -1,17 +1,22 @@
 """TAC limit metric helpers"""
 
 import uuid
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
+from fastapi import HTTPException, status
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.rls.functions import USER_TZ
 from app.models.account import TaxAdvantagedCategory, TaxAdvantagedCategoryLimit
 from app.utils.dates import CATEGORY_OWNER_PROFILE, resolve_timezone
+
+# Refusal for an owner row the helper cannot read. users.tz is NOT NULL, so an empty answer means
+# the row itself is absent rather than a profile someone left without a timezone
+MISSING_CATEGORY_OWNER_DETAIL = "The profile that owns this category could not be read, so no date could be calculated"
 
 
 @dataclass(frozen=True)
@@ -23,37 +28,54 @@ class TacLimitMetrics:
     category_ids_with_accrued_limit_rows: set[uuid.UUID]
 
 
-async def get_tac_category_current_years(
+async def get_category_owner_timezones(
     db: AsyncSession,
+    owner_ids: Iterable[uuid.UUID],
+) -> dict[uuid.UUID, ZoneInfo]:
+    """Return the zone stored on each category owner's profile
+
+    Takes owner identifiers rather than category rows so a category being created can resolve its
+    owner's zone before it is written, which keeps a refusal from leaving a saved category behind
+
+    Args:
+        db: Active database session
+        owner_ids: Identifiers of the users owning the categories being enriched
+
+    Returns:
+        Zone keyed by category owner identifier
+
+    Raises:
+        HTTPException: An owner row cannot be read, or its stored timezone is not a zone the app recognizes
+    """
+    # Fetch owner time zones through the helper since other owners' user rows are not
+    # directly visible, so current-year metrics use each owner's local calendar
+    owner_timezones: dict[uuid.UUID, ZoneInfo] = {}
+    for owner_id in set(owner_ids):
+        stored_tz = await db.scalar(text(f"SELECT {USER_TZ}(:owner_id)"), {"owner_id": owner_id})
+        if stored_tz is None:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=MISSING_CATEGORY_OWNER_DETAIL)
+        owner_timezones[owner_id] = resolve_timezone(stored_tz, stored_on=CATEGORY_OWNER_PROFILE)
+    return owner_timezones
+
+
+def get_tac_category_current_years(
     tax_advantaged_categories: Sequence[TaxAdvantagedCategory],
+    owner_timezones: dict[uuid.UUID, ZoneInfo],
     current_datetime_for_timezone: Callable[[ZoneInfo], datetime],
 ) -> dict[uuid.UUID, int]:
     """Return the current calendar year for each TAC category
 
     Args:
-        db: Active database session
         tax_advantaged_categories: Tax-advantaged categories being enriched
+        owner_timezones: Zone keyed by category owner identifier
         current_datetime_for_timezone: Clock function for timezone-aware current dates
 
     Returns:
         Current calendar year keyed by tax-advantaged category identifier
-
-    Raises:
-        HTTPException: An owner's stored timezone is not a zone the app recognizes
     """
-    owner_ids = {tax_advantaged_category.category_owner_user_id for tax_advantaged_category in tax_advantaged_categories}
-
-    # Fetch owner time zones through the helper since other owners' user rows are not
-    # directly visible, so current-year metrics use each owner's local calendar
-    owner_timezones: dict[uuid.UUID, str] = {}
-    for owner_id in owner_ids:
-        owner_timezones[owner_id] = await db.scalar(text(f"SELECT {USER_TZ}(:owner_id)"), {"owner_id": owner_id})
     current_years_by_tax_advantaged_category_id = {
         tax_advantaged_category.id: current_datetime_for_timezone(
-            resolve_timezone(
-                owner_timezones[tax_advantaged_category.category_owner_user_id],
-                stored_on=CATEGORY_OWNER_PROFILE,
-            ),
+            owner_timezones[tax_advantaged_category.category_owner_user_id],
         ).year
         for tax_advantaged_category in tax_advantaged_categories
     }

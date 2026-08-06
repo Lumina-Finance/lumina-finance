@@ -13,7 +13,7 @@ from app.routes.tax_advantaged_categories.tac_category_helpers import (
 )
 from app.schemas.tax_advantaged_category import CreateTaxAdvantagedCategoryRequest
 from app.services.cache_state import mark_cache_changed_for_scope
-from app.services.tax_advantaged_categories import attach_tax_advantaged_category_metrics
+from app.services.tax_advantaged_categories import attach_tax_advantaged_category_metrics, get_category_owner_timezones
 
 
 async def create_tax_advantaged_category_with_metrics(
@@ -32,18 +32,24 @@ async def create_tax_advantaged_category_with_metrics(
         Created tax-advantaged category with current-year metrics attached
 
     Raises:
-        HTTPException: Tax treatment, group scope, or currency is invalid
+        HTTPException: Tax treatment, group scope, or currency is invalid, the owner row cannot be
+            read, or its stored timezone is not a zone the app recognizes
     """
     validate_tax_advantaged_category_tax_treatment(data.tax_treatment)
     await validate_tax_advantaged_category_group_scope(db, data.group_id, owner_id)
     await validate_tax_advantaged_category_currency(db, data.currency)
 
+    # Built before the zone is fetched so the lookup is keyed by the same owner the metrics read it
+    # back under, and resolved before anything is written, since the response metrics are read after
+    # the commit and a refusal there would leave the category created and the request failed
     tax_advantaged_category = build_tac_category(owner_id, data)
+    owner_timezones = await get_category_owner_timezones(db, {tax_advantaged_category.category_owner_user_id})
+
     db.add(tax_advantaged_category)
 
     # Mark the tax-advantaged category scope stale before committing the new category
     await mark_cache_changed_for_scope(db, user_id=tax_advantaged_category.category_owner_user_id, group_id=tax_advantaged_category.group_id)
     await db.commit()
     await db.refresh(tax_advantaged_category)
-    await attach_tax_advantaged_category_metrics(db, [tax_advantaged_category])
+    await attach_tax_advantaged_category_metrics(db, [tax_advantaged_category], owner_timezones)
     return tax_advantaged_category

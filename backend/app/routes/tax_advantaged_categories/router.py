@@ -38,6 +38,9 @@ async def list_tax_advantaged_categories(
 
     Returns:
         Tax-advantaged categories owned by the authenticated user with current-year limits attached
+
+    Raises:
+        HTTPException: Owner row cannot be read, or its stored timezone is not a zone the app recognizes
     """
     tax_advantaged_categories = await get_tax_advantaged_categories_with_metrics_for_owner(db, user.id)
     return tax_advantaged_categories
@@ -60,7 +63,8 @@ async def create_tax_advantaged_category(
         Created tax-advantaged category with current-year limits attached
 
     Raises:
-        HTTPException: Tax treatment, group scope, or currency is invalid
+        HTTPException: Tax treatment, group scope, or currency is invalid, the owner row cannot be read,
+            or its stored timezone is not a zone the app recognizes
     """
     tax_advantaged_category = await create_tax_advantaged_category_with_metrics(db, user.id, data)
     return tax_advantaged_category
@@ -83,7 +87,8 @@ async def get_tax_advantaged_category(
         Owned tax-advantaged category with current-year limits attached
 
     Raises:
-        HTTPException: Tax-advantaged category does not exist or belongs to another user
+        HTTPException: Tax-advantaged category does not exist, belongs to another user, the owner row
+            cannot be read, or its stored timezone is not a zone the app recognizes
     """
     tax_advantaged_category = await get_tax_advantaged_category_with_metrics_for_owner(db, tax_advantaged_category_id, user.id)
     return tax_advantaged_category
@@ -108,7 +113,8 @@ async def update_tax_advantaged_category(
         Updated tax-advantaged category with current-year limits attached
 
     Raises:
-        HTTPException: Tax-advantaged category is inaccessible or a supplied field is invalid
+        HTTPException: Tax-advantaged category is inaccessible, a supplied field is invalid, the owner
+            row cannot be read, or its stored timezone is not a zone the app recognizes
     """
     tax_advantaged_category = await update_tax_advantaged_category_with_metrics(db, tax_advantaged_category_id, user.id, data)
     return tax_advantaged_category
