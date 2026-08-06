@@ -59,8 +59,8 @@ export function readMoneyInputChange(value: string, typed: string, exponent: num
  * in the table
  *
  * The fallback cannot tell an unrecognized code from a table that has not loaded yet, so a field
- * holding a stored amount should read its exponent through findCurrencyExponent below and stand down
- * when there is none, rather than displaying an amount scaled by this guess
+ * holding a stored amount should read its exponent through findCurrencyExponent below and lock when
+ * there is none, rather than displaying an amount scaled by this guess
  */
 export function getCurrencyExponent(currencies: Currency[], code: string): number {
   return currencies.find((currency) => currency.id === code)?.minor_unit_exponent ?? DEFAULT_MINOR_UNIT_EXPONENT
@@ -70,7 +70,7 @@ export function getCurrencyExponent(currencies: Currency[], code: string): numbe
  * Returns the number of decimal places a currency uses, or null when the code is not in the table
  *
  * A form holding a stored amount needs the difference the fallback above hides: without the real
- * exponent it can neither show that amount nor convert an edit to it, so the field has to stand down
+ * exponent it can neither show that amount nor convert an edit to it, so the field has to lock
  * rather than display a number scaled by a guess
  */
 export function findCurrencyExponent(currencies: Currency[], code: string): number | null {

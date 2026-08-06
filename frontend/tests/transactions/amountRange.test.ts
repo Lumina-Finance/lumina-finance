@@ -58,7 +58,7 @@ describe('the range while its currency has no known decimal places', () => {
     expect(isAmountRangeLocked({}, NO_CURRENCIES, 'JPY')).toBe(true)
     expect(isAmountRangeLocked({}, currencies, 'JPY')).toBe(false)
     expect(isAmountRangeLocked({}, currencies, 'KWD')).toBe(true)
-    // The base currency is blank until the signed-in user's profile arrives
+    // A user whose base currency is empty names no currency for the fields to edit in
     expect(isAmountRangeLocked({}, currencies, '')).toBe(true)
   })
 
@@ -119,7 +119,10 @@ describe('the range while its currency has no known decimal places', () => {
     })).toStrictEqual({ min_amount: 1000, max_amount: 5000, amount_currency: 'JPY' })
   })
 
-  it('commits what the fields hold once they are editable', () => {
+})
+
+describe('the range once its currency is known', () => {
+  it('commits what the fields hold', () => {
     expect(buildAmountFilterPatch({
       amount: { min: '25', max: '80' },
       amountCurrency: 'JPY',
