@@ -185,7 +185,7 @@ export default function TopCategoriesChart({
           placement="bottom"
           widthClassName="w-64"
         >
-          The top 5 categories ranked by net expense-side total in the selected period. The progress bar is relative to the highest-spend category, not an absolute scale.
+          The top 5 expense categories in the selected period, each totalled after its refunds and dropped once those refunds cancel the spending. The progress bar is relative to the highest-spend category, not an absolute scale.
         </IconTooltip>
         <FxStatusBadge
           label="Top categories FX status"

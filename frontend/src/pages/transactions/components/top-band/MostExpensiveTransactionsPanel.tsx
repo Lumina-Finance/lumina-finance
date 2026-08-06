@@ -47,7 +47,7 @@ export default function MostExpensiveTransactionsPanel({
           placement="bottom"
           widthClassName="w-64"
         >
-          Shows the three largest net expense-side transaction contributors in the selected period
+          The three largest single outflows in the selected period, excluding transfers. A refund is its own transaction, so it does not reduce the amounts shown here.
         </IconTooltip>
         <FxStatusBadge
           label="Most expensive transactions FX status"

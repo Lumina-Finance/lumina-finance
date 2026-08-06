@@ -6,10 +6,12 @@ from app.schemas.fx import FxStatus
 from app.schemas.transaction import OutlierTransaction
 from app.services.fx import FxConverter
 
+# How many transactions the most expensive transactions panel has room for
+_OVERVIEW_OUTLIER_LIMIT = 3
+
 
 async def convert_overview_outliers(
     *,
-    category_total_rows,
     outlier_candidate_rows,
     accounts_by_id: dict[uuid.UUID, Account],
     converter: FxConverter,
@@ -18,7 +20,6 @@ async def convert_overview_outliers(
     """Convert and rank overview outlier transactions
 
     Args:
-        category_total_rows: Category total rows used to cap outlier contribution
         outlier_candidate_rows: Candidate transaction rows eligible for outlier ranking
         accounts_by_id: Account rows keyed by account ID
         converter: Request-scoped FX converter
@@ -27,29 +28,6 @@ async def convert_overview_outliers(
     Returns:
         Top converted outlier response rows and FX status for the conversion
     """
-    category_totals: dict[uuid.UUID, int] = {}
-
-    # Convert category totals into base-currency spend caps for each outlier category
-    for row in category_total_rows:
-        currency = accounts_by_id[row.account_id].currency
-        converted_total = await converter.convert_minor_units(
-            int(row.total or 0),
-            base=currency,
-            quote=base_currency,
-            rate_date=row.date,
-        )
-        if converted_total is None:
-            continue
-
-        category_totals[row.category_id] = category_totals.get(row.category_id, 0) + converted_total
-
-    # Cap each category's outlier contribution at that category's converted spend total
-    remaining_by_category = {
-        category_id: -total
-        for category_id, total in category_totals.items()
-        if total < 0
-    }
-
     converted_outlier_candidates = []
 
     # Convert candidate transactions so outliers can be ranked across account currencies
@@ -66,22 +44,17 @@ async def convert_overview_outliers(
 
         converted_outlier_candidates.append((row, converted_amount))
 
-    outliers = []
-
-    # Rank converted candidates and apply category caps before returning the top rows
-    for row, converted_amount in sorted(converted_outlier_candidates, key=lambda item: item[1]):
-        remaining = remaining_by_category.get(row.category_id, 0)
-        if remaining <= 0:
-            continue
-        amount = -min(-converted_amount, remaining)
-        remaining_by_category[row.category_id] = remaining + amount
-        outliers.append(OutlierTransaction(
+    # Rank by each transaction's own converted outflow, so a purchase refunded later still counts
+    converted_outlier_candidates.sort(key=lambda candidate: candidate[1])
+    outliers = [
+        OutlierTransaction(
             id=row.id,
             merchant_name=row.merchant_name,
             notes=row.notes,
             amount=int(row.amount),
             currency=accounts_by_id[row.account_id].currency,
             dt=row.date,
-        ))
-
-    return outliers[:3], converter.get_status()
+        )
+        for row, _converted_amount in converted_outlier_candidates[:_OVERVIEW_OUTLIER_LIMIT]
+    ]
+    return outliers, converter.get_status()

@@ -116,7 +116,6 @@ async def get_transactions_overview(
     )
     total_inflow, total_outflow = sum_overview_net_flow(daily_cash_flow)
     outliers, outliers_fx_status = await convert_overview_outliers(
-        category_total_rows=category_total_rows,
         outlier_candidate_rows=outlier_candidate_rows,
         accounts_by_id=accounts_by_id,
         converter=clone_overview_converter(shared_converter),

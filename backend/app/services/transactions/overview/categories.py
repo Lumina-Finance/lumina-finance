@@ -42,6 +42,8 @@ async def convert_overview_top_categories(
         name, current_total = category_totals.get(row.category_id, (row.category_name, 0))
         category_totals[row.category_id] = (name, current_total + converted_total)
 
+    # A category counts as spending only while its refunds leave the total negative, so one that
+    # refunds cancel out drops from the list rather than being ranked last
     top_categories = [
         TopCategorySpend(category_id=category_id, category_name=name, total=total)
         for category_id, (name, total) in category_totals.items()
