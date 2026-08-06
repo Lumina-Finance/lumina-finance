@@ -1,4 +1,4 @@
-name: Docker build and smoke test
+name: Docker build and test
 
 # Reusable step invoked by the pull request pipeline, it does not trigger on its own
 on:
@@ -8,12 +8,12 @@ permissions:
   contents: read
 
 env:
-  # Fixed local tag the smoke test reuses, it matches the image name in docker/compose.yml
+  # Fixed local tag the stack below reuses, it matches the image name in docker/compose.yml
   IMAGE_REF: luminahq/lumina-finance:ci
 
 jobs:
   build:
-    name: Build and smoke test Docker image (${{ matrix.platform }})
+    name: Build and test Docker image (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
 
     # Each leg builds on a runner of its own architecture, so neither is emulated. One
@@ -47,8 +47,8 @@ jobs:
           registry-username: ${{ vars.DOCKERHUB_USERNAME }}
           registry-token: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # Load the image into the local daemon rather than pushing, so the smoke test below
-      # can run the exact image this job just built without it leaving the runner
+      # Load the image into the local daemon rather than pushing, so the checks below run the
+      # exact image this job just built without it leaving the runner
       - name: Build image
         uses: docker/build-push-action@v7
         env:
@@ -76,6 +76,31 @@ jobs:
       - name: Start the stack
         run: docker compose -f docker/compose.yml up -d
 
+      # Installed while the container migrates, applies row-level security and seeds its
+      # currencies and categories, so the poll below usually passes on its first attempt
+      # rather than waiting out a boot that could have been overlapped
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "26.5"
+          cache: npm
+          cache-dependency-path: e2e/package-lock.json
+
+      - name: Install the browser suite
+        working-directory: e2e
+        run: npm ci
+
+      # Nothing else type-checks this package: there is no root tsconfig, and the frontend's
+      # covers its own source and tests alone. It runs here rather than beside the suite so a
+      # type error is reported before the browser download and the health poll it does not need
+      - name: Type-check the browser suite
+        working-directory: e2e
+        run: npm run typecheck
+
+      - name: Install the browser it drives
+        working-directory: e2e
+        run: npx playwright install --with-deps chromium
+
       # Caddy serves the backend health route under /api, poll until the app reports ready
       - name: Ping the health endpoint
         run: |
@@ -90,6 +115,24 @@ jobs:
           echo "Health check never succeeded, dumping logs"
           docker compose -f docker/compose.yml logs
           exit 1
+
+      - name: Run the browser suite
+        id: browser-suite
+        working-directory: e2e
+        env:
+          E2E_BASE_URL: http://localhost:8080
+        run: npm test
+
+      # Gated on the suite rather than on the job, because a report only exists when the suite
+      # itself ran. On an image that never boots the poll above fails first, and an upload
+      # gated on the job would then find nothing and pass with a warning
+      - name: Keep the report from a failed run
+        if: ${{ failure() && steps.browser-suite.outcome == 'failure' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: browser-suite-${{ matrix.platform }}
+          path: e2e/playwright-report
+          retention-days: 7
 
       - name: Tear down the stack
         if: always()
