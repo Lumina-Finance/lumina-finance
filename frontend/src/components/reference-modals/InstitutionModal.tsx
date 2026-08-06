@@ -139,7 +139,7 @@ export default function InstitutionModal({
       open={open}
       level="stacked"
       titleId="institution-modal-title"
-      eyebrow={isCorrection ? 'Institution details' : 'Account setup'}
+      eyebrow="Account setup"
       title={isCorrection ? 'Correct Institution' : 'Add Institution'}
       RailIcon={Building2}
       railLabel={isCorrection ? 'Details' : 'New'}

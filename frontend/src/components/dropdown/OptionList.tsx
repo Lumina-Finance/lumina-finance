@@ -95,8 +95,8 @@ function DropdownOptionRow({
       {option.count !== undefined && <DropdownCount count={option.count} />}
 
       {/* Held in the row rather than mounted on hover, so the label truncates to one width
-          instead of shifting as the pointer runs down the list. The stylesheet is what reveals
-          it, and what keeps it from taking clicks meant for the row while it is hidden */}
+          instead of shifting as the pointer runs down the list, and revealed by the stylesheet
+          rather than from here */}
       {editable && (
         <span
           className="app-dropdown-row-edit shrink-0"

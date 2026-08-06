@@ -308,8 +308,8 @@ const Dropdown = ({
     close();
   };
 
-  // The open box sits above a stacked modal, so the list has to go before the correction it
-  // opens, or it covers that modal until the first click anywhere inside it
+  // Closing is what lets the correction be seen: the open box sits above the stacked modal it
+  // opens, and left open it would cover that modal until the first press anywhere inside it
   const handleEditOption = (optionValue: string) => {
     if (!onEditOption) return;
     close();
