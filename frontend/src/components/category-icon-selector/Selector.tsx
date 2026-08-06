@@ -285,7 +285,7 @@ function EmojiMartIconPicker({
       pickerElement = picker as unknown as HTMLElement
       const theme = EMOJI_MART_THEME[isDark ? 'dark' : 'light']
       pickerElement.style.width = '100%'
-      pickerElement.style.setProperty('--font-family', '"DM Sans", system-ui, sans-serif')
+      pickerElement.style.setProperty('--font-family', '"DM Sans Variable", system-ui, sans-serif')
       pickerElement.style.setProperty('--font-size', '14px')
       pickerElement.style.setProperty('--border-radius', '0.75rem')
       pickerElement.style.setProperty('--shadow', 'none')

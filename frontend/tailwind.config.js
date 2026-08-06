@@ -7,11 +7,13 @@ export default {
   ],
   theme: {
     extend: {
+      // The "Variable" suffix is part of the family name the fontsource packages declare, rather
+      // than a typo. DM Mono has no variable build, so its package keeps the bare name
       fontFamily: {
-        sans: ['"DM Sans"', 'system-ui', 'sans-serif'],
-        serif: ['"Cormorant Garamond"', 'Georgia', 'serif'],
+        sans: ['"DM Sans Variable"', 'system-ui', 'sans-serif'],
+        serif: ['"Cormorant Garamond Variable"', 'Georgia', 'serif'],
         mono: ['"DM Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
-        display: ['"Cormorant Garamond"', 'Georgia', 'serif'],
+        display: ['"Cormorant Garamond Variable"', 'Georgia', 'serif'],
       },
       colors: {
         gold: '#C9A96A',

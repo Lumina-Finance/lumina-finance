@@ -146,7 +146,7 @@
     overflow-x: clip;
     background-color: var(--app-bg);
     color: var(--app-text);
-    font-family: "DM Sans", system-ui, sans-serif;
+    font-family: "DM Sans Variable", system-ui, sans-serif;
   }
 
   button:not(:disabled),
@@ -2040,7 +2040,7 @@
   .app-page-title {
     font-size: var(--app-page-title-size);
     line-height: 1;
-    font-family: "Cormorant Garamond", Georgia, serif;
+    font-family: "Cormorant Garamond Variable", Georgia, serif;
     font-weight: 400;
     letter-spacing: -0.01em;
     color: var(--app-text);
@@ -2054,7 +2054,7 @@
 
   /* Financial figures — currency amounts, balances, percentages */
   .font-financial {
-    font-family: "Space Grotesk", "DM Sans", system-ui, sans-serif;
+    font-family: "Space Grotesk Variable", "DM Sans Variable", system-ui, sans-serif;
     font-variant-numeric: tabular-nums;
   }
 

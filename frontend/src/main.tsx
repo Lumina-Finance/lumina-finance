@@ -3,6 +3,14 @@ import { createRoot } from 'react-dom/client'
 import { defaultShouldDehydrateQuery, QueryClient, type Query } from '@tanstack/react-query'
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister'
+// Each import picks the narrowest build covering what the app renders. DM Sans varies by weight
+// only, giving up the letterform adjustment the third-party stylesheet carried, and italic ships
+// for it alone since no other family is ever set in italic. DM Mono ships the one weight in use
+import '@fontsource-variable/dm-sans/wght.css'
+import '@fontsource-variable/dm-sans/wght-italic.css'
+import '@fontsource-variable/cormorant-garamond/wght.css'
+import '@fontsource-variable/space-grotesk/wght.css'
+import '@fontsource/dm-mono/400.css'
 import '@/styles/tailwind.css'
 import App from '@/App.tsx'
 import ErrorBoundary from '@/components/errors/Boundary'
