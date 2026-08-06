@@ -1,8 +1,8 @@
 /**
- * Covers paginated reference-data API functions used by selector hooks
+ * Covers the paginated tag lookup used by selector hooks
  *
- * These tests catch regressions where tag or merchant filters,
- * page size, or offset are omitted from lookup endpoints
+ * These tests catch regressions where the tag filter, page size,
+ * or offset are omitted from the lookup endpoint
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -14,7 +14,6 @@ vi.mock('@/api/client', () => ({
   authenticatedFetch: authenticatedFetchMock,
 }));
 
-import { fetchMerchantsPage } from '@/api/merchants';
 import { fetchTagsPage } from '@/api/tags';
 
 beforeEach(() => {
@@ -22,7 +21,7 @@ beforeEach(() => {
   authenticatedFetchMock.mockResolvedValue([]);
 });
 
-describe('reference lookup API functions', () => {
+describe('tag lookup API functions', () => {
   it('requests paginated tags with default paging', async () => {
     await fetchTagsPage();
 
@@ -34,20 +33,6 @@ describe('reference lookup API functions', () => {
 
     expect(authenticatedFetchMock).toHaveBeenCalledWith(
       '/tags?group_id=group_123&q=tax+credit&limit=50&offset=100',
-    );
-  });
-
-  it('requests paginated merchants with default paging', async () => {
-    await fetchMerchantsPage();
-
-    expect(authenticatedFetchMock).toHaveBeenCalledWith('/merchants?limit=20&offset=0');
-  });
-
-  it('requests filtered merchants with encoded search text', async () => {
-    await fetchMerchantsPage({ group_id: 'group_123', q: 'coffee shop' }, 25, 75);
-
-    expect(authenticatedFetchMock).toHaveBeenCalledWith(
-      '/merchants?group_id=group_123&q=coffee+shop&limit=25&offset=75',
     );
   });
 });
