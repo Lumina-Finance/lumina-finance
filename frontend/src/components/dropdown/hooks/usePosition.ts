@@ -30,6 +30,7 @@ function getViewport(): DropdownViewport {
   return {
     height: visualViewport?.height ?? window.innerHeight,
     layoutHeight: window.innerHeight,
+    layoutWidth: window.innerWidth,
     offsetLeft: visualViewport?.offsetLeft ?? 0,
     offsetTop: visualViewport?.offsetTop ?? 0,
     width: visualViewport?.width ?? window.innerWidth,

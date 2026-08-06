@@ -40,7 +40,12 @@ export const DROPDOWN_SINK_TRANSITION = {
   y: { duration: 0.2 },
 } as const
 
+// The box widening as it opens. Stated as the time it takes and how far it carries past its target,
+// rather than as a stiffness and a weight, because those are what have to be tuned by eye. Softer
+// than the spring the chevron and the press take, since this one moves the whole side of a panel
+// and arrives under a list rather than beside it
+export const DROPDOWN_WIDEN_SPRING = { type: 'spring', duration: 0.5, bounce: 0.2 } as const
+
 // The box giving back the room it grew into, on its own height's closing timing and curve so the
-// two are done together. Widening is DROPDOWN_SPRING, which is what the insights range control and
-// the toolbar filter pill both give their own width
+// two are done together
 export const DROPDOWN_NARROW_TRANSITION = { duration: 0.2, ease: RISE_EASE } as const

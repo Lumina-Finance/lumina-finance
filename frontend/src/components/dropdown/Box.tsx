@@ -1,7 +1,13 @@
 import { useLayoutEffect, type ReactNode, type RefObject } from 'react'
 import { animate, motion, useMotionValue, useReducedMotion } from 'motion/react'
 import { joinClassNames } from '@/utils/classNames'
-import { DROPDOWN_INSTANT_TRANSITION, DROPDOWN_NARROW_TRANSITION, DROPDOWN_PRESS_SCALE, DROPDOWN_SPRING } from './motion'
+import {
+  DROPDOWN_INSTANT_TRANSITION,
+  DROPDOWN_NARROW_TRANSITION,
+  DROPDOWN_PRESS_SCALE,
+  DROPDOWN_SPRING,
+  DROPDOWN_WIDEN_SPRING,
+} from './motion'
 import type { DropdownBoxPosition } from './position'
 
 interface DropdownBoxProps {
@@ -63,12 +69,12 @@ export function DropdownBox({
   // to where it started, and the first frame of an opening would have nothing to widen from
   const boxWidth = useMotionValue<number | string>(SLOT_WIDTH)
 
-  // The same spring the insights range control and the toolbar filter pill give their own width,
-  // and the height's own closing timing on the way back, so the width settles when the list does
-  // rather than carrying on under a list that has arrived
+  // A spring on the way out, in the family the insights range control and the toolbar filter pill
+  // use for their own width, and the height's own closing timing on the way back, so the width
+  // settles when the list does rather than carrying on under a list that has arrived
   const widthTransition = shouldReduceMotion
     ? DROPDOWN_INSTANT_TRANSITION
-    : open ? DROPDOWN_SPRING : DROPDOWN_NARROW_TRANSITION
+    : open ? DROPDOWN_WIDEN_SPRING : DROPDOWN_NARROW_TRANSITION
 
   // Settled here rather than in the effect below, so the width is already right in the frame that
   // takes the box out of the page. Set a moment later, the box would be seen at the whole width of
@@ -105,7 +111,10 @@ export function DropdownBox({
           // not move by a pixel as the box opens around it
           bottom: position.openAbove ? position.bottom : undefined,
           top: position.openAbove ? undefined : position.top,
-          left: position.left,
+          // Pinned by whichever of the slot's own side edges the box grows away from, so that edge
+          // does not move as the box widens, exactly as its upper and lower edges work
+          left: position.openLeftward ? undefined : position.left,
+          right: position.openLeftward ? position.right : undefined,
           width: boxWidth,
           // Holds the spring's overshoot, which is under a pixel, off the room the box is keeping
           // clear of the edge of the screen
