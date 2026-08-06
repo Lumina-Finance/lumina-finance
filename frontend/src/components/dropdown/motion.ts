@@ -1,10 +1,10 @@
 /**
  * How the drop-down moves
  *
- * The box's own opening is a CSS transition in tailwind.css, since it animates to a height nobody
- * measured. What is here is everything driven by motion instead: the chevron, the press, and the
- * contents rising inside the box as it opens. Editing these numbers is all that changing the feel of
- * any of them takes.
+ * The box's height is a CSS transition in tailwind.css, since it animates to a height nobody
+ * measured. What is here is everything driven by motion instead: the chevron, the press, the width
+ * the box grows into, and the contents rising inside it as it opens. Editing these numbers is all
+ * that changing the feel of any of them takes.
  */
 
 // Gently damped, settling with little overshoot. The same spring the insights range control and the
@@ -39,3 +39,13 @@ export const DROPDOWN_SINK_TRANSITION = {
   opacity: { duration: 0.14 },
   y: { duration: 0.2 },
 } as const
+
+// The box widening as it opens. Stated as the time it takes and how far it carries past its target,
+// rather than as a stiffness and a weight, because those are what have to be tuned by eye. Softer
+// than the spring the chevron and the press take, since this one moves the whole side of a panel
+// and arrives under a list rather than beside it
+export const DROPDOWN_WIDEN_SPRING = { type: 'spring', duration: 0.5, bounce: 0.2 } as const
+
+// The box giving back the room it grew into, on its own height's closing timing and curve so the
+// two are done together
+export const DROPDOWN_NARROW_TRANSITION = { duration: 0.2, ease: RISE_EASE } as const

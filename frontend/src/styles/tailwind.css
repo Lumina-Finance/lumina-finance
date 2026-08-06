@@ -42,8 +42,8 @@
      numbers. It sits here, in this layer and above the dark block, so a theme can override any of
      them: from a later layer, or from below, the override would lose. One thing lives elsewhere: the
      geometry placing the open box is in components/dropdown/position.ts, because it is computed in
-     JavaScript. What the chevron and the press do is in components/dropdown/motion.ts, since those are
-     driven by motion rather than by CSS */
+     JavaScript. What the chevron, the press and the width the open box grows into do is in
+     components/dropdown/motion.ts, since those are driven by motion rather than by CSS */
   :root {
     --app-dropdown-height-compact: 36px;
     --app-dropdown-height-field: 40px;

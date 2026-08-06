@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState, type RefObject } from 'react'
+import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import {
   DEFAULT_DROPDOWN_BOX_POSITION,
   getDropdownBoxPosition,
+  type DropdownBoxDirection,
   type DropdownBoxPosition,
   type DropdownViewport,
 } from '@/components/dropdown/position'
@@ -30,6 +31,10 @@ function getViewport(): DropdownViewport {
   return {
     height: visualViewport?.height ?? window.innerHeight,
     layoutHeight: window.innerHeight,
+    // The page's own width rather than the window's, which counts the scrollbar gutter this app
+    // keeps reserved. A fixed box placed by its right edge against the window would sit that far
+    // to the left of where it belongs
+    layoutWidth: document.documentElement.clientWidth,
     offsetLeft: visualViewport?.offsetLeft ?? 0,
     offsetTop: visualViewport?.offsetTop ?? 0,
     width: visualViewport?.width ?? window.innerWidth,
@@ -50,23 +55,36 @@ export function useDropdownPosition({
 }: UseDropdownPositionParams): UseDropdownPositionResult {
   const [boxPosition, setBoxPosition] = useState(DEFAULT_DROPDOWN_BOX_POSITION)
 
+  // The way the box is currently growing, kept from the measurement that opened it and given back
+  // to every measurement after it, so scrolling changes how much room the box has rather than which
+  // side of the field it is on
+  const heldDirection = useRef<DropdownBoxDirection | null>(null)
+
   const updateBoxPosition = useCallback(() => {
     const wrapper = wrapperRef.current
     if (!wrapper) return
 
     const rect = wrapper.getBoundingClientRect()
-    setBoxPosition(getDropdownBoxPosition({
+    const next = getDropdownBoxPosition({
       anchorRect: rect,
       headHeight: rect.height,
+      held: heldDirection.current,
       searchable,
       viewport: getViewport(),
-    }))
+    })
+
+    heldDirection.current = { openAbove: next.openAbove, openLeftward: next.openLeftward }
+    setBoxPosition(next)
   }, [searchable, wrapperRef])
 
   useEffect(() => {
     // Kept up through the collapse as well. Stopping at the moment the list closes leaves a box that is
     // still floating welded to where the page was, while the slot it belongs to scrolls away underneath
-    if (!placed) return
+    if (!placed) {
+      // Let go of once the box is back in its slot, so the next opening chooses its own way again
+      heldDirection.current = null
+      return
+    }
 
     let frame = 0
     const updateOnFrame = () => {
