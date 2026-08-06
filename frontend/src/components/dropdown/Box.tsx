@@ -110,10 +110,14 @@ export function DropdownBox({
           bottom: position.openAbove ? position.bottom : undefined,
           top: position.openAbove ? undefined : position.top,
           left: position.left,
-          // Sized to what it holds while it is open, and to the width it reached while it closes.
-          // The ceiling that settles which of those the box gets is animated rather than set here
+          // Sized to what it holds while it is open, and to the width it reached while it closes
           width,
           minWidth,
+          // Written here for the one frame before the animation takes the property over, and by the
+          // animation from then on. A box left without a ceiling for that frame is measured at the
+          // full width of its longest option, and the floor taken from that measurement then holds
+          // it there from the next frame on, with the whole widening skipped
+          maxWidth: painted ? undefined : maxWidth,
           maxHeight: position.boxMaxHeight,
           zIndex: DROPDOWN_OPEN_Z_INDEX,
         }
