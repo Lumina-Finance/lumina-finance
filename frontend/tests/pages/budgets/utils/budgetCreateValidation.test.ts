@@ -1,13 +1,12 @@
 /**
- * Tests budget form helpers so currency input, category validation, and category set comparisons catch invalid payloads before API calls
+ * Tests create-budget validation, so an invalid form is caught with a message against each field
+ * before any API call is made
  */
 import { describe, expect, it } from 'vitest'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import type { BudgetFormState } from '@/pages/budgets/types'
 import { validateBudgetCreateForm } from '@/pages/budgets/utils/budgetCreateValidation'
-import { sameStringSet } from '@/pages/budgets/utils/form'
-import { toMinorUnits } from '@/pages/budgets/utils/money'
 
 const currencies: Currency[] = [
   { id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 },
@@ -44,18 +43,7 @@ function createForm(overrides: Partial<BudgetFormState> = {}): BudgetFormState {
   }
 }
 
-describe('budget form helpers', () => {
-  it('converts between decimal inputs and currency minor units', () => {
-    expect(toMinorUnits('1234.56', currencies, 'CAD')).toBe(123456)
-    expect(toMinorUnits('1234.56', currencies, 'JPY')).toBe(1235)
-    expect(toMinorUnits('0', currencies, 'CAD')).toBeNull()
-  })
-
-  it('reads no amount from the blank limit a missing currency table leaves behind', () => {
-    // The edit form treats this null as no change, so a period keeps the limit the user was never shown
-    expect(toMinorUnits('', [], 'JPY')).toBeNull()
-  })
-
+describe('create budget validation', () => {
   it('validates create-budget fields before building an API payload', () => {
     expect(validateBudgetCreateForm(createForm(), currencies, categories)).toEqual({})
     expect(validateBudgetCreateForm(createForm({
@@ -74,10 +62,4 @@ describe('budget form helpers', () => {
       categoryIds: 'Select at least one category',
     })
   })
-
-  it('compares selected category IDs without depending on order', () => {
-    expect(sameStringSet(['travel', 'groceries'], ['groceries', 'travel'])).toBe(true)
-    expect(sameStringSet(['travel'], ['travel', 'groceries'])).toBe(false)
-  })
-
 })

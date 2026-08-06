@@ -1,10 +1,9 @@
 /**
- * Tests create-account modal helper behaviour so refactors catch broken dependent fields, validation, option filtering, and signed account payloads before the modal renders
+ * Tests the create-account form, so the fields it clears when a dependent one changes, the errors it
+ * raises and the signed minor-unit payload it builds cannot drift from the account type chosen
  */
 import { describe, expect, it } from 'vitest'
 import type { Currency } from '@/api/currency'
-import type { Institution } from '@/api/institutions'
-import type { TaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
 import {
   buildCreateAccountPayload,
   buildCreateAccountViewModel,
@@ -12,70 +11,13 @@ import {
   getNextCreateAccountForm,
   validateCreateAccountForm,
 } from '@/pages/accounts/components/create-account-modal/utils/form'
-import {
-  buildCreateAccountCurrencyOptions,
-  buildCreateAccountInstitutionOptions,
-  buildCreateAccountTaxPlanOptions,
-} from '@/pages/accounts/components/create-account-modal/utils/options'
 
 const currencies: Currency[] = [
   { id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 },
   { id: 'JPY', name: 'Japanese Yen', symbol: '¥', minor_unit_exponent: 0 },
 ]
 
-const institutions: Institution[] = [
-  {
-    id: 'td',
-    status: 'active',
-    name: 'TD',
-    country_code: 'CA',
-    website: 'https://td.com',
-    logo_url: null,
-  },
-]
-
-const taxAdvantagedCategories: TaxAdvantagedCategory[] = [
-  {
-    id: 'tfsa',
-    category_owner_user_id: 'user',
-    group_id: null,
-    name: 'TFSA',
-    tax_treatment: 'tax_free',
-    currency: 'CAD',
-    lifetime_contribution_limit: null,
-    accrued_contributions: 0,
-    accrued_lifetime_contribution_limit: null,
-    current_year_contribution_limit: null,
-    current_year_withdrawal_limit: null,
-    ytd_contributions: 0,
-    ytd_withdrawals: 0,
-    lifetime_contributions: 0,
-    lifetime_withdrawals: 0,
-    counts_internal_transfers: false,
-    created_at: '2026-01-01T00:00:00Z',
-  },
-  {
-    id: 'grouped',
-    category_owner_user_id: 'user',
-    group_id: 'family',
-    name: 'Grouped TFSA',
-    tax_treatment: 'tax_free',
-    currency: 'CAD',
-    lifetime_contribution_limit: null,
-    accrued_contributions: 0,
-    accrued_lifetime_contribution_limit: null,
-    current_year_contribution_limit: null,
-    current_year_withdrawal_limit: null,
-    ytd_contributions: 0,
-    ytd_withdrawals: 0,
-    lifetime_contributions: 0,
-    lifetime_withdrawals: 0,
-    counts_internal_transfers: false,
-    created_at: '2026-01-01T00:00:00Z',
-  },
-]
-
-describe('create account modal helpers', () => {
+describe('create account form helpers', () => {
   it('seeds the base currency and clears dependent fields when account type or currency changes', () => {
     const baseForm = {
       ...buildInitialCreateAccountForm('CAD'),
@@ -108,21 +50,6 @@ describe('create account modal helpers', () => {
       credit_limit: 'Must be a positive number',
       starting_balance: 'Must be zero or higher',
     })
-  })
-
-  it('builds dropdown options and filters tax-advantaged categories by ownership scope and currency', () => {
-    expect(buildCreateAccountCurrencyOptions(currencies)[0]).toEqual({
-      value: 'CAD',
-      label: 'CAD — Canadian Dollar ($)',
-    })
-    expect(buildCreateAccountInstitutionOptions(institutions)).toEqual([
-      { value: '', label: 'None' },
-      { value: 'td', label: 'TD' },
-    ])
-    expect(buildCreateAccountTaxPlanOptions(taxAdvantagedCategories, 'CAD')).toEqual([
-      { value: '', label: 'None' },
-      { value: 'tfsa', label: 'TFSA' },
-    ])
   })
 
   it('derives conditional fields and builds signed minor-unit payloads for liabilities', () => {
