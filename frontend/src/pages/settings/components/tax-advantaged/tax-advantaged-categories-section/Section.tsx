@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Plus } from 'lucide-react'
 import type { AccountsOverview } from '@/api/accounts'
+import { ApiError } from '@/api/auth'
 import { GlassSearchField } from '@/components/list-controls/GlassSearchField'
 import { useCurrencies } from '@/api/currency'
 import { useTaxAdvantagedCategories } from '@/api/tax-advantaged-categories'
@@ -11,6 +12,25 @@ import { useCurrencyGuard } from '@/hooks/useCurrencyGuard'
 import TaxAdvantagedCategoriesTable from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/table/CategoriesTable'
 import TaxAdvantagedCategoryModal from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/modals/CategoryModal'
 import { useTaxAdvantagedCategoryList } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/hooks/useCategoryList'
+
+const LIST_ERROR_FALLBACK = 'Refresh the page or try again later.'
+
+/**
+ * Says why the category list is missing, quoting the API's own sentence where it sent one, so a
+ * refusal that says which setting is at fault reaches the reader instead of an empty section
+ */
+function CategoriesLoadError({ detail }: { detail: string }) {
+  return (
+    <div className="py-3" role="alert">
+      <p className="text-sm font-semibold" style={{ color: 'var(--app-text)' }}>
+        Categories could not load
+      </p>
+      <p className="mt-1 text-sm leading-6" style={{ color: 'var(--app-text-subtle)' }}>
+        {detail}
+      </p>
+    </div>
+  )
+}
 
 /**
  * Settings section for managing tax-advantaged categories, combining search, creation and a
@@ -26,7 +46,10 @@ export default function TaxAdvantagedCategoriesSection({
   userTimezone?: string
 }) {
   const { data: currencies = [] } = useCurrencies()
-  const { data: plans = [], isLoading } = useTaxAdvantagedCategories()
+  const { data: plans = [], isLoading, isError, error } = useTaxAdvantagedCategories()
+  // Cached categories from an earlier session survive a failed request, since the query cache is
+  // persisted, so the message sits above them rather than throwing a readable list away
+  const listErrorDetail = isError ? (error instanceof ApiError ? error.message : LIST_ERROR_FALLBACK) : null
   const [openCategoryId, setOpenCategoryId] = useState<string | null>(null)
   // Held apart from the selection so the panel keeps its contents while it animates out
   const [isCategoryOpen, setIsCategoryOpen] = useState(false)
@@ -84,7 +107,9 @@ export default function TaxAdvantagedCategoriesSection({
             </button>
           </div>
 
-          {isLoading ? null : plans.length === 0 ? (
+          {listErrorDetail && <CategoriesLoadError detail={listErrorDetail} />}
+
+          {isLoading || (listErrorDetail && plans.length === 0) ? null : plans.length === 0 ? (
             <p className="py-3 text-center italic text-sm" style={{ color: 'var(--app-text-subtle)' }}>
               No tax-advantaged categories yet.
             </p>
