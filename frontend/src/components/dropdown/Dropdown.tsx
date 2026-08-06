@@ -31,7 +31,6 @@ import {
   getVisibleDropdownOptions,
 } from './options';
 import type { DropdownCreateLabel, DropdownOption, DropdownSize } from './types';
-import { useDropdownBoxWidth } from './hooks/useBoxWidth';
 import { useDropdownPosition } from './hooks/usePosition';
 
 export type { DropdownOption } from './types';
@@ -156,7 +155,6 @@ const Dropdown = ({
     searchable,
     wrapperRef: containerRef,
   });
-  const { grownWidth, painted } = useDropdownBoxWidth({ boxRef, open, placed });
 
   const selected = useMemo(
     () => getSelectedDropdownOption(options, selectedOption, value),
@@ -422,10 +420,8 @@ const Dropdown = ({
       <DropdownBox
         boxRef={boxRef}
         disabled={disabled}
-        grownWidth={grownWidth}
         hasError={hasError}
         open={open}
-        painted={painted}
         placed={placed}
         position={boxPosition}
       >

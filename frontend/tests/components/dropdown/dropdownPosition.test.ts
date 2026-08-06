@@ -1,14 +1,10 @@
 /**
- * Tests where the open drop-down sits, how much of it the option list gets and how far it may grow,
- * so a change catches a box growing off the screen, a head that shifts as the box opens, a list
- * clipped by its own box, or a box that narrows under the user while they read it
+ * Tests where the open drop-down sits, how much of it the option list gets and how wide it opens,
+ * so a change catches a box growing off the screen, a head that shifts as the box opens, or a list
+ * clipped by its own box
  */
 import { describe, expect, it } from 'vitest'
-import {
-  DEFAULT_DROPDOWN_BOX_POSITION,
-  getDropdownBoxPosition,
-  getDropdownBoxWidths,
-} from '@/components/dropdown/position'
+import { getDropdownBoxPosition } from '@/components/dropdown/position'
 
 const viewport = {
   height: 600,
@@ -31,8 +27,8 @@ describe('drop-down box placement', () => {
       boxMaxHeight: 400,
       left: 20,
       listMaxHeight: 346,
-      maxWidth: 320,
       openAbove: false,
+      openWidth: 320,
       top: 100,
       width: 200,
     })
@@ -111,7 +107,7 @@ describe('drop-down box placement', () => {
     })
 
     expect(position.left).toBe(12)
-    expect(position.maxWidth).toBe(276)
+    expect(position.openWidth).toBe(276)
   })
 
   it('leaves the head where it is when the box is free to grow', () => {
@@ -126,7 +122,7 @@ describe('drop-down box placement', () => {
     // moment the user opened it
     expect(position.width).toBe(100)
     expect(position.left).toBe(150)
-    expect(position.maxWidth).toBe(138)
+    expect(position.openWidth).toBe(138)
   })
 
   it('pulls the box back on screen only when its slot is hanging off the edge', () => {
@@ -139,7 +135,7 @@ describe('drop-down box placement', () => {
     // Pulled back to sit inside the padding, and then given no room to grow, so a box that had to
     // be moved on screen does not spend the move growing off it again
     expect(position.left).toBe(188)
-    expect(position.maxWidth).toBe(100)
+    expect(position.openWidth).toBe(100)
   })
 
   it('stops the box at the padding when it opens near the right edge', () => {
@@ -150,10 +146,10 @@ describe('drop-down box placement', () => {
     })
 
     expect(position.left).toBe(600)
-    expect(position.maxWidth).toBe(188)
+    expect(position.openWidth).toBe(188)
 
     // The far side of a box grown as wide as it may be, which is exactly the padding off the edge
-    expect(position.left + position.maxWidth).toBe(788)
+    expect(position.left + position.openWidth).toBe(788)
   })
 
   it('never grows a slot that is already wider than the maximum', () => {
@@ -163,8 +159,9 @@ describe('drop-down box placement', () => {
       viewport,
     })
 
-    // Floor and ceiling meet, which is how a full-width field opens exactly as wide as it sits
-    expect(position.maxWidth).toBe(480)
+    // The open width is the slot's own, which is how a full-width field opens exactly as wide as
+    // it sits and never moves at all
+    expect(position.openWidth).toBe(480)
     expect(position.width).toBe(480)
   })
 
@@ -177,7 +174,7 @@ describe('drop-down box placement', () => {
 
     // A phone pinched and panned sideways, where the visible part starts 100px in. Taken from the
     // width alone the box would be held to 138 and lose 100px of room it actually has
-    expect(position.maxWidth).toBe(238)
+    expect(position.openWidth).toBe(238)
   })
 
   it('keeps the closed width when the screen is narrower than the slot itself', () => {
@@ -190,7 +187,7 @@ describe('drop-down box placement', () => {
     // 138 of room for a 200 slot, so there is nothing to grow into and nothing to gain by taking
     // the box in narrower than the head inside it
     expect(position.left).toBe(0)
-    expect(position.maxWidth).toBe(200)
+    expect(position.openWidth).toBe(200)
   })
 
   it('grows a narrow control on a phone and leaves a full-width field alone', () => {
@@ -207,77 +204,10 @@ describe('drop-down box placement', () => {
       viewport: phone,
     })
 
-    expect(field.maxWidth).toBe(358)
-    expect(compact.maxWidth).toBe(320)
+    expect(field.openWidth).toBe(358)
+    expect(compact.openWidth).toBe(320)
 
     // Still 54px short of the far edge, so a grown box on a phone is nowhere near it
-    expect(390 - (compact.left + compact.maxWidth)).toBe(54)
-  })
-})
-
-describe('how wide the floating box is', () => {
-  /** A box measured against a 200px slot, with however much room to grow the case calls for */
-  const boxAt = (maxWidth: number) => ({
-    ...DEFAULT_DROPDOWN_BOX_POSITION,
-    maxWidth,
-    width: 200,
-  })
-
-  it('holds the box at its slot until it has been on screen for a frame', () => {
-    // Both ends of the widening have to be a width, or there is nothing to move between and the
-    // box takes the whole room on in one frame
-    expect(getDropdownBoxWidths({
-      grownWidth: 0,
-      open: true,
-      painted: false,
-      position: boxAt(320),
-    })).toEqual({ maxWidth: 200, minWidth: 200, width: 'max-content' })
-  })
-
-  it('leaves the box to its contents, above the slot it came from, once it may grow', () => {
-    expect(getDropdownBoxWidths({
-      grownWidth: 0,
-      open: true,
-      painted: true,
-      position: boxAt(320),
-    })).toEqual({ maxWidth: 320, minWidth: 200, width: 'max-content' })
-  })
-
-  it('keeps the width the box has grown to, so filtering the list does not narrow it', () => {
-    expect(getDropdownBoxWidths({
-      grownWidth: 260,
-      open: true,
-      painted: true,
-      position: boxAt(320),
-    })).toEqual({ maxWidth: 320, minWidth: 260, width: 'max-content' })
-  })
-
-  it('gives up the grown width when the window no longer has room for it', () => {
-    expect(getDropdownBoxWidths({
-      grownWidth: 300,
-      open: true,
-      painted: true,
-      position: boxAt(220),
-    })).toEqual({ maxWidth: 220, minWidth: 220, width: 'max-content' })
-  })
-
-  it('takes the box back to its slot while it closes, from the width it had reached', () => {
-    // Pinned at 300 rather than left to its contents, which a filtered list has taken well below
-    // that, so the box narrows from where the user last saw it instead of stepping there first
-    expect(getDropdownBoxWidths({
-      grownWidth: 300,
-      open: false,
-      painted: true,
-      position: boxAt(320),
-    })).toEqual({ maxWidth: 200, minWidth: 200, width: 300 })
-  })
-
-  it('leaves a box that was never measured to its contents while it closes', () => {
-    expect(getDropdownBoxWidths({
-      grownWidth: 0,
-      open: false,
-      painted: true,
-      position: boxAt(320),
-    })).toEqual({ maxWidth: 200, minWidth: 200, width: 'max-content' })
+    expect(390 - (compact.left + compact.openWidth)).toBe(54)
   })
 })

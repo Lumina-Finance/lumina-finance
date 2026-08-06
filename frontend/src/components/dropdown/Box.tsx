@@ -1,27 +1,15 @@
-import type { ReactNode, RefObject } from 'react'
-import { motion, useReducedMotion } from 'motion/react'
+import { useLayoutEffect, type ReactNode, type RefObject } from 'react'
+import { animate, motion, useMotionValue, useReducedMotion } from 'motion/react'
 import { joinClassNames } from '@/utils/classNames'
 import { DROPDOWN_INSTANT_TRANSITION, DROPDOWN_NARROW_TRANSITION, DROPDOWN_PRESS_SCALE, DROPDOWN_SPRING } from './motion'
-import { getDropdownBoxWidths, type DropdownBoxPosition } from './position'
+import type { DropdownBoxPosition } from './position'
 
 interface DropdownBoxProps {
   boxRef: RefObject<HTMLDivElement | null>
   children: ReactNode
   disabled: boolean
-
-  /** The widest the box has been since it opened, which it keeps while there is room for it */
-  grownWidth: number
-
   hasError: boolean
   open: boolean
-
-  /**
-   * Whether the box may be given the whole of its room yet
-   *
-   * True once it has been on screen for a frame, which is what the widening moves from, and true
-   * from the start for a user who has asked for no motion, where there is nothing to move.
-   */
-  painted: boolean
 
   /**
    * Whether the box holds the placement it opened with
@@ -38,6 +26,10 @@ interface DropdownBoxProps {
 // takes so a menu and a calendar opened from the same form agree on which sits in front
 const DROPDOWN_OPEN_Z_INDEX = 110
 
+// What the box is while it sits in its slot, which is the whole of it. Written as the width rather
+// than left with none, so the value the animation drives is the only thing that ever sets it
+const SLOT_WIDTH = '100%'
+
 /**
  * Renders the one box that holds the head and the list, and grows around them as it opens
  *
@@ -46,10 +38,9 @@ const DROPDOWN_OPEN_Z_INDEX = 110
  * scrolling table or a modal body without being cut off. Switching only the positioning means the
  * head is never remounted, so focus, its id and the modal's own Tab handling carry straight through.
  *
- * Open, it is also as wide as its contents need, between the slot it came from and the room it has,
- * so a list in a narrow table cell is not read through a slot-width window. The browser settles that
- * width from the contents themselves. Both edges the box is pinned by stay where they are, so what
- * grows is the far side of a control the user is already looking at.
+ * Open, it is also as wide as the room it has allows, up to a maximum, so a list in a narrow table
+ * cell is not read through a slot-width window. Both edges the box is pinned by stay where they are,
+ * so what grows is the far side of a control the user is already looking at.
  *
  * It is not portalled: a modal decides whether focus is still inside it, and this drop-down decides
  * whether a press was outside it, by asking whether the element is a descendant. That costs one
@@ -60,36 +51,41 @@ export function DropdownBox({
   boxRef,
   children,
   disabled,
-  grownWidth,
   hasError,
   open,
-  painted,
   placed,
   position,
 }: DropdownBoxProps) {
   const shouldReduceMotion = useReducedMotion()
 
-  // Widens as it opens and gives the room back as it closes, rather than at the moment the box is
-  // placed and the moment it returns to its slot. Taking a width on or losing it in a single frame
-  // reads as the control flinching, and the second one moves the chevron long after the user
-  // pressed anything
-  const { maxWidth, minWidth, width } = getDropdownBoxWidths({
-    grownWidth,
-    open,
-    painted,
-    position,
-  })
+  // The width is driven as a value of its own rather than through the style, which is what keeps a
+  // single owner: a render landing part way through the widening would otherwise write the box back
+  // to where it started, and the first frame of an opening would have nothing to widen from
+  const boxWidth = useMotionValue<number | string>(SLOT_WIDTH)
 
-  // The press keeps the spring it has always had, and the width takes one of its own: the same
-  // spring while the box opens, which is what the insights range control and the toolbar filter
-  // pill give their own width, and its height's closing timing while it closes. Either way the
-  // width settles when the list does, rather than carrying on under a list that has arrived
-  const transition = {
-    ...DROPDOWN_SPRING,
-    maxWidth: shouldReduceMotion
-      ? DROPDOWN_INSTANT_TRANSITION
-      : open ? DROPDOWN_SPRING : DROPDOWN_NARROW_TRANSITION,
+  // The same spring the insights range control and the toolbar filter pill give their own width,
+  // and the height's own closing timing on the way back, so the width settles when the list does
+  // rather than carrying on under a list that has arrived
+  const widthTransition = shouldReduceMotion
+    ? DROPDOWN_INSTANT_TRANSITION
+    : open ? DROPDOWN_SPRING : DROPDOWN_NARROW_TRANSITION
+
+  // Settled here rather than in the effect below, so the width is already right in the frame that
+  // takes the box out of the page. Set a moment later, the box would be seen at the whole width of
+  // the screen first, which is what a proportion means to an element measured against the viewport
+  if (!placed) {
+    boxWidth.set(SLOT_WIDTH)
+  } else if (typeof boxWidth.get() !== 'number') {
+    // An opening starts from the slot, since a proportion is not a width the box can widen from
+    boxWidth.set(position.width)
   }
+
+  useLayoutEffect(() => {
+    if (!placed) return
+
+    const controls = animate(boxWidth, open ? position.openWidth : position.width, widthTransition)
+    return () => controls.stop()
+  }, [boxWidth, open, placed, position.openWidth, position.width, widthTransition])
 
   return (
     <motion.div
@@ -110,30 +106,19 @@ export function DropdownBox({
           bottom: position.openAbove ? position.bottom : undefined,
           top: position.openAbove ? undefined : position.top,
           left: position.left,
-          // Sized to what it holds while it is open, and to the width it reached while it closes
-          width,
-          minWidth,
-          // Written here for the one frame before the animation takes the property over, and by the
-          // animation from then on. A box left without a ceiling for that frame is measured at the
-          // full width of its longest option, and the floor taken from that measurement then holds
-          // it there from the next frame on, with the whole widening skipped
-          maxWidth: painted ? undefined : maxWidth,
+          width: boxWidth,
+          // Holds the spring's overshoot, which is under a pixel, off the room the box is keeping
+          // clear of the edge of the screen
+          maxWidth: position.openWidth,
           maxHeight: position.boxMaxHeight,
           zIndex: DROPDOWN_OPEN_Z_INDEX,
         }
-        // The ceiling is cleared by hand, since animating it writes the property straight onto the
-        // element and leaving the last value behind would hold a box in its slot to the width the
-        // slot happened to be when it last closed
-        : { position: 'absolute', top: 0, left: 0, right: 0, maxWidth: 'none' }}
-      // Given as a pair on the frame the box is placed, which states where the width starts instead
-      // of reading it off a box that has no ceiling yet. A box with no ceiling has no width to
-      // leave from, and the spring would be skipped and the whole room taken at once
-      animate={placed ? { maxWidth: painted ? maxWidth : [maxWidth, maxWidth] } : undefined}
+        : { position: 'absolute', top: 0, left: 0, right: 0, width: boxWidth }}
       // Sinks under a press and springs back when it is let go. Suppressed for as long as the box is
       // floating, where sinking a full-height list reads as it collapsing early rather than as a
       // control being pressed
       whileTap={placed || disabled || shouldReduceMotion ? undefined : { scale: DROPDOWN_PRESS_SCALE }}
-      transition={transition}
+      transition={DROPDOWN_SPRING}
     >
       {children}
     </motion.div>
