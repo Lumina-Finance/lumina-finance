@@ -46,7 +46,6 @@ type ImportAccountMappingStepProps = Pick<
   | 'counterpartyAccountOptions'
   | 'currencyOptions'
   | 'institutionOptions'
-  | 'institutions'
   | 'accountsLoading'
   | 'accountsFailed'
   | 'refetchAccounts'
@@ -85,7 +84,6 @@ export function ImportAccountMappingStep({
   counterpartyAccountOptions,
   currencyOptions,
   institutionOptions,
-  institutions,
   accountsLoading,
   accountsFailed,
   refetchAccounts,
@@ -101,7 +99,7 @@ export function ImportAccountMappingStep({
   setBatchAccountInstitution,
   setSelectedAccountRows,
 }: ImportAccountMappingStepProps) {
-  const institutionModal = useInstitutionModal(institutions)
+  const institutionModal = useInstitutionModal()
 
   // Which field asked for a new institution, so the one it creates comes back to that field
   const [institutionModalTarget, setInstitutionModalTarget] = useState<BatchTarget | string>('')
@@ -175,7 +173,6 @@ export function ImportAccountMappingStep({
     selectedRowIds: selectedAccountRows,
     onSelectedRowsChange: setSelectedAccountRows,
     onCreateInstitution: (query: string, rowId: string) => openInstitutionModal(query, rowId),
-    onCorrectInstitution: institutionModal.openForCorrection,
   }
 
   const importedSources = accountMappingSources.filter((source) => !source.isCounterpartyOnly)

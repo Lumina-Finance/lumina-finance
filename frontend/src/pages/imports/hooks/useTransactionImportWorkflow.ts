@@ -240,7 +240,6 @@ export function useTransactionImportWorkflow() {
     accountById,
     categoryById,
     institutionById,
-    institutions,
   } = useImportReferenceData()
 
   const supportedCurrencyCodes = useMemo(
@@ -874,7 +873,6 @@ export function useTransactionImportWorkflow() {
     categoryMatchOptions,
     accountById,
     categoryById,
-    institutions,
     headers,
     missingRequiredColumnLabels,
     columnTargetOptions,

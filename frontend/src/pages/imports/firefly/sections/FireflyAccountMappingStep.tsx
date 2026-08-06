@@ -29,7 +29,6 @@ type FireflyAccountMappingStepProps = Pick<
   | 'accountOptions'
   | 'currencyOptions'
   | 'institutionOptions'
-  | 'institutions'
   | 'accountsLoading'
   | 'accountsFailed'
   | 'refetchAccounts'
@@ -63,7 +62,6 @@ export function FireflyAccountMappingStep({
   accountOptions,
   currencyOptions,
   institutionOptions,
-  institutions,
   accountsLoading,
   accountsFailed,
   refetchAccounts,
@@ -78,7 +76,7 @@ export function FireflyAccountMappingStep({
   setBatchAccountInstitution,
   setSelectedAccountRows,
 }: FireflyAccountMappingStepProps) {
-  const institutionModal = useInstitutionModal(institutions)
+  const institutionModal = useInstitutionModal()
 
   // Which field asked for a new institution, so the one it creates comes back to that field
   const [institutionModalTarget, setInstitutionModalTarget] = useState<'batch' | string>('')
@@ -194,7 +192,6 @@ export function FireflyAccountMappingStep({
             onSelectedRowsChange={setSelectedAccountRows}
             onCreateInstitution={(query, rowId) => openInstitutionModal(query, rowId)}
             onBatchCreateInstitution={(query) => openInstitutionModal(query, 'batch')}
-            onCorrectInstitution={institutionModal.openForCorrection}
           />
         </>
       )}

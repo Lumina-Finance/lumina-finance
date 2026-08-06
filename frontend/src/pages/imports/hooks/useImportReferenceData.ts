@@ -81,10 +81,6 @@ export interface ImportReferenceData {
   accountById: Map<string, AccountsOverview>
   categoryById: Map<string, Category>
   institutionById: Map<string, Institution>
-
-  // The mapping steps offer a correction on every institution their dropdowns list, which needs
-  // the institutions themselves rather than the options built from them
-  institutions: Institution[]
 }
 
 /**
@@ -188,6 +184,5 @@ export function useImportReferenceData(): ImportReferenceData {
     accountById,
     categoryById,
     institutionById,
-    institutions,
   }
 }

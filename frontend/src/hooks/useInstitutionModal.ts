@@ -7,8 +7,11 @@ import type { Institution } from '@/api/institutions'
  * The modal reads its initial values once per mount and stays mounted while closed, so every
  * opening bumps `key` to remount it. Keeping that here is what stops a field from reopening
  * the modal onto whatever the last opening left in the form
+ *
+ * @param institutions - The list a correction resolves its target against. A field that only
+ *   adds institutions leaves it out, and `openForCorrection` then finds nothing to open
  */
-export function useInstitutionModal(institutions: Institution[]) {
+export function useInstitutionModal(institutions: Institution[] = []) {
   const [name, setName] = useState('')
   const [institution, setInstitution] = useState<Institution | null>(null)
   const [open, setOpen] = useState(false)

@@ -130,7 +130,6 @@ export function useFireflyImportWorkflow() {
     accountById,
     categoryById,
     institutionById,
-    institutions,
   } = useImportReferenceData()
 
   // The commit assigns these seeded system categories to transfer legs and
@@ -719,7 +718,6 @@ export function useFireflyImportWorkflow() {
     categoryMatchOptions,
     accountById,
     categoryById,
-    institutions,
     setAccountCreateTypes,
     setAccountCreateCurrencies,
     setAccountCreateInstitutions,
