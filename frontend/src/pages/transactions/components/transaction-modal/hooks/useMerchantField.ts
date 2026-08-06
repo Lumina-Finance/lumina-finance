@@ -101,8 +101,9 @@ export function useMerchantField({
     return [...map.values()]
   }, [createdMerchant, merchantReference.visibleItems])
 
-  // The backend already ranks merchants by recent usage then name, so preserve that order
-  // here instead of re-sorting and place any just-created merchant at the end
+  // The backend already ranks merchants by a usage score that fades with age, then name, so this
+  // keeps whatever order the loaded pages are in rather than re-sorting them. Creating or editing
+  // a merchant does lose that order, because the cache update re-sorts every loaded page by name
   const merchantOptions = useMemo(
     () => merchantCandidates.map((m) => ({ value: m.id, label: m.name })),
     [merchantCandidates],

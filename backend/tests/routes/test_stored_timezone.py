@@ -182,6 +182,20 @@ async def test_the_category_listing_refuses_an_unresolvable_stored_timezone(clie
     assert UNRESOLVABLE_IDENTIFIER in resp.json()["detail"]
 
 
+async def test_the_merchant_listing_refuses_an_unresolvable_stored_timezone(client):
+    """The reader is told which value is at fault instead of getting a server error"""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    await _store_unresolvable_timezone()
+
+    # Merchants are ranked by how old each transaction is against the reader's own day, so the zone
+    # is needed before any row is read and a reader owning no merchants is refused just the same
+    resp = await client.get("/merchants", headers=headers)
+
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+    assert UNRESOLVABLE_IDENTIFIER in resp.json()["detail"]
+
+
 async def test_a_group_account_refusal_says_the_owner_setting_is_at_fault(client):
     """A group account is dated on its owner's day, which the member creating it cannot fix"""
     await _seed_currency()
