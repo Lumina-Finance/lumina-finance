@@ -1,4 +1,4 @@
-name: Docker build and test
+name: Docker build and browser suite
 
 # Reusable step invoked by the pull request pipeline, it does not trigger on its own
 on:

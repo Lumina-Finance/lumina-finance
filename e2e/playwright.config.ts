@@ -4,8 +4,8 @@ import { TEST_TIMEZONE } from './support/api'
 import { BASE_URL } from './support/target'
 
 // Above the 1050px breakpoint, so the desktop navigation and the desktop filter panel are the
-// ones rendered. The mobile filter sheet has no accessible name on the control that chooses
-// which filter to edit, so nothing drives it
+// ones rendered. In the mobile sheet the control that chooses which filter to edit is named by
+// whichever option it currently shows, so its name moves as it is used and nothing drives it
 const DESKTOP_VIEWPORT = { width: 1440, height: 900 }
 
 export default defineConfig({

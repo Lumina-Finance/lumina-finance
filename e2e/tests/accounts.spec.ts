@@ -11,9 +11,11 @@ test('starts a new user with no accounts and creates one through the modal', asy
   await logIn(page, user)
   await page.goto('/accounts')
 
-  // Asserted together on purpose. The empty label alone also renders when the accounts request
-  // fails, since the list is given no error to show, so it would read the same on a broken page
-  // as on a new user's. The summary is the half that only appears once the request succeeded
+  // Both halves are needed before the empty state means anything. The list is given no error to
+  // show, so a failed accounts request renders the same empty label a new user sees. Waiting for
+  // the summary's placeholder to go says the request settled, and the summary label is there
+  // only when it settled without an error, since a failure replaces the whole summary
+  await expect(page.getByRole('status', { name: 'Loading net worth value' })).toBeHidden()
   await expect(page.getByText('Net Worth')).toBeVisible()
 
   // A fresh user sees this even against a database holding other people's records, so the
