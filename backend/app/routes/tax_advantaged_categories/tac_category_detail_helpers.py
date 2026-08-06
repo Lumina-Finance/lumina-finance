@@ -25,8 +25,8 @@ async def get_tax_advantaged_category_with_metrics_for_owner(
         Owned tax-advantaged category with current-year metrics attached
 
     Raises:
-        HTTPException: Tax-advantaged category does not exist or belongs to another user, or the owner's
-            stored timezone cannot be read
+        HTTPException: Tax-advantaged category does not exist or belongs to another user, the owner row
+            cannot be read, or its stored timezone is not a zone the app recognizes
     """
     tax_advantaged_category = await get_owned_tax_advantaged_category_or_404(db, tax_advantaged_category_id, owner_id)
     owner_timezones = await get_category_owner_timezones(db, {tax_advantaged_category.category_owner_user_id})

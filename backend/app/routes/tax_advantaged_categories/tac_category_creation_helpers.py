@@ -32,18 +32,19 @@ async def create_tax_advantaged_category_with_metrics(
         Created tax-advantaged category with current-year metrics attached
 
     Raises:
-        HTTPException: Tax treatment, group scope, or currency is invalid, or the owner's stored
-            timezone cannot be read
+        HTTPException: Tax treatment, group scope, or currency is invalid, the owner row cannot be
+            read, or its stored timezone is not a zone the app recognizes
     """
     validate_tax_advantaged_category_tax_treatment(data.tax_treatment)
     await validate_tax_advantaged_category_group_scope(db, data.group_id, owner_id)
     await validate_tax_advantaged_category_currency(db, data.currency)
 
-    # Resolved before anything is written, since the response metrics are read after the commit and a
-    # refusal there would leave the category created and the request failed
-    owner_timezones = await get_category_owner_timezones(db, {owner_id})
-
+    # Built before the zone is fetched so the lookup is keyed by the same owner the metrics read it
+    # back under, and resolved before anything is written, since the response metrics are read after
+    # the commit and a refusal there would leave the category created and the request failed
     tax_advantaged_category = build_tac_category(owner_id, data)
+    owner_timezones = await get_category_owner_timezones(db, {tax_advantaged_category.category_owner_user_id})
+
     db.add(tax_advantaged_category)
 
     # Mark the tax-advantaged category scope stale before committing the new category

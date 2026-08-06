@@ -123,6 +123,7 @@ async def test_category_update_writes_nothing_when_the_stored_timezone_is_unreso
     )
 
     assert update_resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+    assert UNRESOLVABLE_IDENTIFIER in update_resp.json()["detail"]
     async with TestSession() as session:
 
         # Read the stored name back, since a refusal after the commit would have saved the new one
@@ -130,6 +131,42 @@ async def test_category_update_writes_nothing_when_the_stored_timezone_is_unreso
             select(TaxAdvantagedCategory.name).where(TaxAdvantagedCategory.id == uuid.UUID(category_id)),
         )
     assert stored_name == "TFSA"
+
+
+async def test_an_invalid_category_payload_is_reported_before_the_timezone(client):
+    """Validation runs above the timezone lookup, so a bad field is what the user is told about"""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    category_id = (await _create_tax_advantaged_category(client, headers)).json()["id"]
+    await _store_unresolvable_timezone()
+
+    create_resp = await client.post(
+        "/tax-advantaged-categories",
+        json={"name": "RRSP", "tax_treatment": "taxable", "currency": "CAD"},
+        headers=headers,
+    )
+    update_resp = await client.patch(
+        f"/tax-advantaged-categories/{category_id}",
+        json={"tax_treatment": "taxable"},
+        headers=headers,
+    )
+
+    assert create_resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+    assert update_resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+    assert create_resp.json()["detail"] == "Tax-advantaged categories require a non-taxable tax treatment"
+    assert update_resp.json()["detail"] == "Tax-advantaged categories require a non-taxable tax treatment"
+
+
+async def test_a_reader_with_no_categories_is_not_refused(client):
+    """The owners whose zones are needed come from the rows found, so an empty list needs none"""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    await _store_unresolvable_timezone()
+
+    resp = await client.get("/tax-advantaged-categories", headers=headers)
+
+    assert resp.status_code == status.HTTP_200_OK
+    assert resp.json() == []
 
 
 async def test_the_category_listing_refuses_an_unresolvable_stored_timezone(client):

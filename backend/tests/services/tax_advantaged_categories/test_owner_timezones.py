@@ -27,5 +27,5 @@ async def test_an_absent_owner_row_is_refused(db):
 
 
 async def test_no_owner_ids_returns_an_empty_map(db):
-    """A reader with no categories asks for no zones, which must not reach the database"""
+    """A reader with no categories asks for no zones and gets none, rather than a refusal"""
     assert await get_category_owner_timezones(db, set()) == {}

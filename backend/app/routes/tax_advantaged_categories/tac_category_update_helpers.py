@@ -33,8 +33,8 @@ async def update_tax_advantaged_category_with_metrics(
         Updated tax-advantaged category with current-year metrics attached
 
     Raises:
-        HTTPException: Tax-advantaged category is inaccessible, a supplied field is invalid, or the
-            owner's stored timezone cannot be read
+        HTTPException: Tax-advantaged category is inaccessible, a supplied field is invalid, the owner
+            row cannot be read, or its stored timezone is not a zone the app recognizes
     """
     tax_advantaged_category = await get_owned_tax_advantaged_category_or_404(db, tax_advantaged_category_id, owner_id)
     previous_group_id = tax_advantaged_category.group_id
