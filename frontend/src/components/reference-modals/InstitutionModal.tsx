@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
+import { Building2 } from 'lucide-react'
 import { ApiError } from '@/api/auth'
 import { useCreateInstitution, useUpdateInstitution, type Institution } from '@/api/institutions'
 import Dropdown from '@/components/dropdown/Dropdown'
@@ -140,6 +141,8 @@ export default function InstitutionModal({
       titleId="institution-modal-title"
       eyebrow={isCorrection ? 'Institution details' : 'Account setup'}
       title={isCorrection ? 'Correct Institution' : 'Add Institution'}
+      RailIcon={Building2}
+      railLabel={isCorrection ? 'Details' : 'New'}
       onClose={onClose}
       onSubmit={handleSubmit}
 
@@ -160,8 +163,7 @@ export default function InstitutionModal({
       <div className="space-y-5">
         {isCorrection && (
           <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-            Everyone on this server picks from the same list, so a correction changes this
-            institution for all of them.
+            The institution's details don't look right? You can update it here.
           </p>
         )}
 
@@ -213,9 +215,6 @@ export default function InstitutionModal({
                 onChange={(event) => handleChange('website', event.target.value)}
                 onBlur={() => handleBlur('website')}
               />
-              <p className="mt-1.5 text-xs italic" style={{ color: 'var(--app-text-subtle)' }}>
-                The logo is taken from this address.
-              </p>
             </div>
           </div>
         </CreateModalSectionFrame>
