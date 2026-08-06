@@ -50,7 +50,10 @@ export async function openModal(page: Page, buttonName: string, dialogName: stri
 
   await expect(async () => {
     if (!(await dialog.isVisible())) {
-      await page.getByRole('button', { name: buttonName, exact: true }).click()
+      // Bounded, because a modal that opens between the check above and this click puts its
+      // backdrop over the button. Without a timeout that click waits out the whole test rather
+      // than failing and letting the next attempt see the dialog is already open
+      await page.getByRole('button', { name: buttonName, exact: true }).click({ timeout: MODAL_ATTEMPT_MS })
     }
     await expect(dialog).toBeVisible({ timeout: MODAL_ATTEMPT_MS })
   }).toPass({ timeout: CONTENT_TIMEOUT_MS })

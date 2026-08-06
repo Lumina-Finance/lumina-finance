@@ -20,6 +20,13 @@ export default defineConfig({
   // or in itself, and retrying would hide the one thing this suite exists to catch
   retries: 0,
 
+  // Both are raised above Playwright's defaults of 30 seconds and 5 seconds, because a spec
+  // can spend 20 seconds signing in and 20 more waiting for a modal against an instance that
+  // has just started, and every first assertion after a navigation waits on a cold query. With
+  // no retries, one slow query would otherwise be a failed run rather than a slow one
+  timeout: 90_000,
+  expect: { timeout: 15_000 },
+
   reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
 
   globalSetup: './support/global-setup.ts',

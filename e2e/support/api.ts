@@ -59,7 +59,11 @@ export async function signUpUser(request: APIRequestContext): Promise<TestUser> 
     throw new Error(`signup for ${email} answered ${response.status()}: ${await response.text()}`)
   }
 
-  const body = (await response.json()) as { access_token: string }
+  const body = (await response.json()) as { access_token?: string }
+  if (body.access_token === undefined) {
+    throw new Error(`signup for ${email} answered 201 without an access token`)
+  }
+
   return { email, password: TEST_PASSWORD, firstName, accessToken: body.access_token }
 }
 
@@ -247,6 +251,16 @@ export interface CreateMonthlyBudgetOptions {
 
   /** Spending limit for the period, in minor units */
   overallLimit: number
+
+  /**
+   * Where the period starts, as YYYY-MM-DD, which must be the first of a month.
+   *
+   * Passed in rather than worked out here so a spec can date its transactions to the same day
+   * it gave the budget. Left to default, a run crossing midnight into the first of a month
+   * anchors the period to one month and the spending to the next, and the card then reports
+   * nothing spent rather than failing.
+   */
+  periodStart?: string
   currency?: string
 }
 
@@ -283,7 +297,7 @@ export async function createMonthlyBudget(
       recurrence_freq: 'monthly',
       recurrence_dom: BUDGET_ANCHOR_DAY,
       category_ids: categoryIds,
-      period_start: budgetPeriodStart(),
+      period_start: options.periodStart ?? budgetPeriodStart(),
       overall_limit: options.overallLimit,
     },
   })

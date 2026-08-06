@@ -26,18 +26,29 @@ test('filters the list down to one category', async ({ page, request }) => {
   ]
   const dining = page.getByRole('button', { name: /-\$30\.00/ })
 
-  await expect(dining).toBeVisible()
+  // Every row carries its amount in its own name, so this counts rows and nothing else
+  const rows = page.getByRole('button', { name: /-\$\d+\.\d\d/ })
+
+  await expect(rows).toHaveCount(3)
 
   await page.getByRole('button', { name: 'Transaction filters' }).click()
   await page.getByRole('tab', { name: 'Category' }).click()
   await page.getByRole('checkbox', { name: 'Groceries' }).click()
   await page.getByRole('button', { name: 'Apply filters' }).click()
 
-  // Nothing here asserts on the filter controls themselves. A collapsed panel keeps its
-  // children in the DOM without inert or aria-hidden, so a check that the Groceries box is
-  // visible passes whether or not the panel ever opened
+  // The list holds the rows it had before Apply for a second, so anything asserted first would
+  // be reading the unfiltered list. Waiting for the Dining row to go is what says the filtered
+  // result has arrived, and only then does what survived mean anything
+  await expect(dining).toBeHidden()
+
+  // Counted as well as named, or a filter that wrongly matched nothing would leave an empty
+  // list that satisfies every assertion about what should have gone
+  await expect(rows).toHaveCount(2)
   for (const row of groceries) {
     await expect(row).toBeVisible()
   }
-  await expect(dining).toBeHidden()
+
+  // Nothing here asserts on the filter controls themselves. A collapsed panel keeps its
+  // children in the DOM without inert or aria-hidden, so a check that the Groceries box is
+  // visible passes whether or not the panel ever opened
 })

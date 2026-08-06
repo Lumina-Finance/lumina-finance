@@ -13,10 +13,15 @@ test('counts seeded spending against the budget limit', async ({ page, request }
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday Chequing' })
 
+  // Read once and used for both, so a run that crosses midnight into the first of a month
+  // cannot anchor the period to one month and the spending to the next
+  const periodStart = budgetPeriodStart()
+
   await createMonthlyBudget(request, user, {
     name: 'Monthly Food',
     categoryNames: ['Groceries'],
     overallLimit: 50_000,
+    periodStart,
   })
 
   // Dated where the period starts, so both fall inside it whatever day the suite runs. A
@@ -27,7 +32,7 @@ test('counts seeded spending against the budget limit', async ({ page, request }
       accountId: account.id,
       categoryName: 'Groceries',
       amount,
-      date: budgetPeriodStart(),
+      date: periodStart,
     })
   }
 

@@ -11,6 +11,11 @@ test('starts a new user with no accounts and creates one through the modal', asy
   await logIn(page, user)
   await page.goto('/accounts')
 
+  // Asserted together on purpose. The empty label alone also renders when the accounts request
+  // fails, since the list is given no error to show, so it would read the same on a broken page
+  // as on a new user's. The summary is the half that only appears once the request succeeded
+  await expect(page.getByText('Net Worth')).toBeVisible()
+
   // A fresh user sees this even against a database holding other people's records, so the
   // assertion also fails if row-level security ever stops separating one user from another
   await expect(page.getByText('No asset accounts')).toBeVisible()
