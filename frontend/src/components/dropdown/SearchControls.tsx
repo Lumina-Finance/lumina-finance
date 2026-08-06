@@ -40,12 +40,15 @@ export function DropdownSearchControls({
   const resolvedEditSelectedLabel = editSelectedLabel ?? DEFAULT_EDIT_SELECTED_LABEL
 
   return (
-    <div className="flex gap-2 px-2 pb-2 pt-2">
+    // The box is only as wide as the field it opened from, and an import table's institution
+    // column is narrow enough that two action buttons would leave the search box unusable, so
+    // they drop to a line of their own rather than squeezing it
+    <div className="flex flex-wrap gap-2 px-2 pb-2 pt-2">
       <input
         ref={searchRef}
         type="text"
         data-dropdown-search="true"
-        className="app-input min-w-0 flex-1"
+        className="app-input min-w-[7rem] flex-1"
         style={{ fontSize: '0.8125rem' }}
         placeholder={searchPlaceholder}
         value={searchText}
