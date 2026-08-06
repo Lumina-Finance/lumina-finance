@@ -165,6 +165,9 @@ interface DropdownBoxWidthsParams {
   /** False for the length of the collapse, which the box is still floating for */
   open: boolean
 
+  /** Whether the box may be given the whole of its room yet, which waits a frame for the animation */
+  painted: boolean
+
   position: DropdownBoxPosition
 }
 
@@ -181,8 +184,12 @@ export interface DropdownBoxWidths {
  *
  * Open, it follows its own contents between the slot it came from and the room it has, held at the
  * widest it has been so that filtering a list does not take the panel in with it. That much lasts
- * only as long as the room does: a window resized under an open box brings the ceiling down and the
- * box with it.
+ * only as long as the room does: a window resized under an open box brings the ceiling down, and
+ * the box follows it over the same time it took to widen.
+ *
+ * Both ends of the opening are the slot's own width, since the ceiling is only raised once the box
+ * has been on screen at that width for a frame. The widening then has somewhere to start, which is
+ * what turns it from a jump into something the eye can follow.
  *
  * Closing, the ceiling comes down to the slot's width, and the box is pinned at the width it had
  * reached rather than left to its contents. A list filtered down to two options is narrower than the
@@ -192,9 +199,10 @@ export interface DropdownBoxWidths {
 export function getDropdownBoxWidths({
   grownWidth,
   open,
+  painted,
   position,
 }: DropdownBoxWidthsParams): DropdownBoxWidths {
-  const ceiling = open ? position.maxWidth : position.width
+  const ceiling = open && painted ? position.maxWidth : position.width
 
   return {
     maxWidth: ceiling,

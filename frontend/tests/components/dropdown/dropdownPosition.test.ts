@@ -223,10 +223,22 @@ describe('how wide the floating box is', () => {
     width: 200,
   })
 
-  it('leaves the box to its contents, above the slot it came from, until it has been measured', () => {
+  it('holds the box at its slot until it has been on screen for a frame', () => {
+    // Both ends of the widening have to be a width, or there is nothing to move between and the
+    // box takes the whole room on in one frame
     expect(getDropdownBoxWidths({
       grownWidth: 0,
       open: true,
+      painted: false,
+      position: boxAt(320),
+    })).toEqual({ maxWidth: 200, minWidth: 200, width: 'max-content' })
+  })
+
+  it('leaves the box to its contents, above the slot it came from, once it may grow', () => {
+    expect(getDropdownBoxWidths({
+      grownWidth: 0,
+      open: true,
+      painted: true,
       position: boxAt(320),
     })).toEqual({ maxWidth: 320, minWidth: 200, width: 'max-content' })
   })
@@ -235,6 +247,7 @@ describe('how wide the floating box is', () => {
     expect(getDropdownBoxWidths({
       grownWidth: 260,
       open: true,
+      painted: true,
       position: boxAt(320),
     })).toEqual({ maxWidth: 320, minWidth: 260, width: 'max-content' })
   })
@@ -243,6 +256,7 @@ describe('how wide the floating box is', () => {
     expect(getDropdownBoxWidths({
       grownWidth: 300,
       open: true,
+      painted: true,
       position: boxAt(220),
     })).toEqual({ maxWidth: 220, minWidth: 220, width: 'max-content' })
   })
@@ -253,6 +267,7 @@ describe('how wide the floating box is', () => {
     expect(getDropdownBoxWidths({
       grownWidth: 300,
       open: false,
+      painted: true,
       position: boxAt(320),
     })).toEqual({ maxWidth: 200, minWidth: 200, width: 300 })
   })
@@ -261,6 +276,7 @@ describe('how wide the floating box is', () => {
     expect(getDropdownBoxWidths({
       grownWidth: 0,
       open: false,
+      painted: true,
       position: boxAt(320),
     })).toEqual({ maxWidth: 200, minWidth: 200, width: 'max-content' })
   })

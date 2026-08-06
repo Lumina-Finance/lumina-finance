@@ -16,6 +16,14 @@ interface DropdownBoxProps {
   open: boolean
 
   /**
+   * Whether the box may be given the whole of its room yet
+   *
+   * True once it has been on screen for a frame, which is what the widening moves from, and true
+   * from the start for a user who has asked for no motion, where there is nothing to move.
+   */
+  painted: boolean
+
+  /**
    * Whether the box holds the placement it opened with
    *
    * Stays true through the collapse, so a box that grew upward does not drop back to its slot on the
@@ -55,15 +63,22 @@ export function DropdownBox({
   grownWidth,
   hasError,
   open,
+  painted,
   placed,
   position,
 }: DropdownBoxProps) {
   const shouldReduceMotion = useReducedMotion()
 
-  // The box gives its grown width back over the collapse rather than the moment it returns to its
-  // slot, where losing it in a single frame would take the chevron with it long after the user
-  // pressed anything
-  const { maxWidth, minWidth, width } = getDropdownBoxWidths({ grownWidth, open, position })
+  // Widens over the opening and gives the room back over the collapse, rather than at the moment
+  // the box is placed and the moment it returns to its slot. Taking a width on or losing it in a
+  // single frame reads as the control flinching, and the second one moves the chevron long after
+  // the user pressed anything
+  const { maxWidth, minWidth, width } = getDropdownBoxWidths({
+    grownWidth,
+    open,
+    painted,
+    position,
+  })
 
   return (
     <motion.div

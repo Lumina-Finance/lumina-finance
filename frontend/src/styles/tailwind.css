@@ -624,11 +624,21 @@
     background: var(--app-input-bg);
     color: var(--app-text);
 
-    /* The width ceiling is in the list so that a box that grew past its slot narrows along with the
-       list as it closes, on the same timing. Opening is unaffected, since a ceiling arriving where
-       there was none has nothing to move from */
+    /* Read from a property rather than written here, because the width grows and shrinks with the
+       list beside it and those two take different times. Setting a duration on the open state
+       instead would set it for the colours in this list as well */
+    --app-dropdown-width-duration: var(--app-dropdown-close-duration);
+
+    /* The width ceiling is in the list so that a box grown past its slot widens and narrows with
+       the list rather than taking the room on and giving it back in a single frame */
     transition: border-color 0.2s, background 0.2s, box-shadow 0.2s,
-      max-width var(--app-dropdown-close-duration) var(--app-dropdown-ease);
+      max-width var(--app-dropdown-width-duration) var(--app-dropdown-ease);
+  }
+
+  /* Two classes for the same reason the states below are, so that nothing among them can outweigh
+     this and leave the widening running at the closing speed */
+  .app-dropdown-glass.app-dropdown-glass-open {
+    --app-dropdown-width-duration: var(--app-dropdown-open-duration);
   }
 
   /* Opening upward stacks the contents in reverse, so the list appears above the head while the head
