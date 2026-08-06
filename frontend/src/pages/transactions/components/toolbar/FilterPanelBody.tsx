@@ -12,6 +12,7 @@ import {
   CURRENCY_RANGE_LOADING,
   CURRENCY_RANGE_NOTICE,
   CURRENCY_RANGE_UNKNOWN,
+  CURRENCY_REFRESH_ACTION,
   type CurrencyListState,
 } from '@/utils/currencyStatus'
 import { useMoneyInput } from '@/hooks/useMoneyInput'
@@ -32,12 +33,28 @@ const ACCOUNT_DISABLED_FACETS = new Set(['accounts'])
 
 /**
  * Names why the amount range cannot be shown or changed, for the line the currency note usually holds
+ *
+ * A failed list is the one case the user can act on, so the way out is a control that reloads rather
+ * than a sentence telling them to do it themselves
  */
-function getAmountLockNote(currencyListState: CurrencyListState): string {
+function AmountLockNote({ currencyListState }: { currencyListState: CurrencyListState }) {
   if (currencyListState === 'loading') return CURRENCY_RANGE_LOADING
-  if (currencyListState === 'unavailable') return CURRENCY_RANGE_NOTICE
+  if (currencyListState !== 'unavailable') return CURRENCY_RANGE_UNKNOWN
 
-  return CURRENCY_RANGE_UNKNOWN
+  return (
+    <>
+      {CURRENCY_RANGE_NOTICE}{' '}
+      <button
+        type="button"
+        className="underline underline-offset-2"
+        style={{ color: 'inherit' }}
+        onClick={() => window.location.reload()}
+      >
+        {CURRENCY_REFRESH_ACTION}
+      </button>
+      .
+    </>
+  )
 }
 
 /**
@@ -468,8 +485,13 @@ function SectionEditor({
               </div>
             </label>
           </div>
-          <p className="px-0.5 text-xs" style={{ color: 'var(--app-text-subtle)' }}>
-            {isAmountLocked ? getAmountLockNote(currencyListState) : amountCurrencyNote}
+          {/* A locked range takes the warning colour rather than the muted one the currency note
+              uses, so the reason the fields cannot be typed into carries the weight the fields lost */}
+          <p
+            className="px-0.5 text-xs"
+            style={{ color: isAmountLocked ? 'var(--app-warning-text)' : 'var(--app-text-subtle)' }}
+          >
+            {isAmountLocked ? <AmountLockNote currencyListState={currencyListState} /> : amountCurrencyNote}
           </p>
         </div>
       </div>

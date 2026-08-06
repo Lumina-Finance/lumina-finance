@@ -16,8 +16,11 @@ export const CURRENCY_AMOUNT_UNKNOWN = "We don't have the decimal places for thi
 /** Shown under a disabled minimum and maximum while the list is still on its way */
 export const CURRENCY_RANGE_LOADING = "The currency list is still loading, so the amount range can't be shown or changed yet."
 
-/** Shown under that pair once the list has failed */
-export const CURRENCY_RANGE_NOTICE = "We can't load the currency list right now, so the amount range can't be shown or changed. Refresh the page to try again."
+/** Shown under that pair once the list has failed, followed by the refresh offer below */
+export const CURRENCY_RANGE_NOTICE = "We can't load the currency list right now, so the amount range can't be shown or changed."
+
+/** The way out of a failed list, offered as a control that reloads rather than as an instruction */
+export const CURRENCY_REFRESH_ACTION = 'Refresh the page to try again'
 
 /** Shown under that pair when the list did load but does not carry the currency the range matches in */
 export const CURRENCY_RANGE_UNKNOWN = "We don't have the decimal places for the currency this range matches in, so it can't be shown or changed."
