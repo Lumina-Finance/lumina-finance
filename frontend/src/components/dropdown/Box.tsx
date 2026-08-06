@@ -116,8 +116,8 @@ export function DropdownBox({
           left: position.openLeftward ? undefined : position.left,
           right: position.openLeftward ? position.right : undefined,
           width: boxWidth,
-          // Holds the spring's overshoot, which is under a pixel, off the room the box is keeping
-          // clear of the edge of the screen
+          // Keeps the spring's overshoot, a few pixels at the end of a long widening, out of the
+          // room the box leaves clear of the edge of the screen
           maxWidth: position.openWidth,
           maxHeight: position.boxMaxHeight,
           zIndex: DROPDOWN_OPEN_Z_INDEX,

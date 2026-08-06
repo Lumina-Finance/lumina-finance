@@ -17,7 +17,12 @@ export interface DropdownViewport {
    */
   layoutHeight: number
 
-  /** Width a `position: fixed` element measures its own right edge against, as `layoutHeight` is */
+  /**
+   * Width a `position: fixed` element measures its own right edge against
+   *
+   * Narrower than the window wherever the scrollbar takes a gutter of its own, which this page
+   * always reserves. The height has no matching case, since the page never scrolls sideways.
+   */
   layoutWidth: number
 
   offsetLeft: number
@@ -66,11 +71,26 @@ export interface DropdownBoxPosition {
   width: number
 }
 
+/** Which way the box is growing, held for as long as one opening lasts */
+export interface DropdownBoxDirection {
+  openAbove: boolean
+  openLeftward: boolean
+}
+
 interface DropdownBoxPositionParams {
   anchorRect: DropdownAnchorRect
 
   /** Height of the collapsed head, which the list has to share the box with */
   headHeight: number
+
+  /**
+   * The way an already open box is growing, or null when one is being opened
+   *
+   * The page keeps moving under an open box, and the room each way moves with it, so a box left to
+   * choose freely would swap sides part way through being read. Whichever way it opened is kept
+   * until it closes, and only how much room it has follows the page.
+   */
+  held: DropdownBoxDirection | null
 
   searchable: boolean
   viewport: DropdownViewport
@@ -93,6 +113,11 @@ export const DEFAULT_DROPDOWN_BOX_POSITION: DropdownBoxPosition = {
 // is computed in JavaScript and a second copy in CSS would drift from this one
 const DROPDOWN_MAX_HEIGHT = 400
 
+// How much room below the slot the box wants before it opens downward. More than its own greatest
+// height, so a box that would only just fit underneath opens upward instead, where it has room to
+// spare rather than ending against the bottom of the screen
+const DROPDOWN_DOWNWARD_ROOM = 480
+
 // How wide an open box is, wherever its slot is narrower than this. The room left between the box
 // and the edge of the screen is taken off it, so a box opened near the edge gets less
 const DROPDOWN_MAX_WIDTH = 320
@@ -114,6 +139,7 @@ const DROPDOWN_VIEWPORT_PADDING = 12
 export function getDropdownBoxPosition({
   anchorRect,
   headHeight,
+  held,
   searchable,
   viewport,
 }: DropdownBoxPositionParams): DropdownBoxPosition {
@@ -148,12 +174,14 @@ export function getDropdownBoxPosition({
   const spaceRight = viewportRight - left - DROPDOWN_VIEWPORT_PADDING
   const spaceLeft = rightEdge - viewport.offsetLeft - DROPDOWN_VIEWPORT_PADDING
 
-  // Downward and rightward wherever that side can hold the whole box, since a box that opens the
-  // same way every time is easier to follow than one picking the roomier side by a few pixels.
-  // Where neither side can, the roomier one wins, which is what gives a field low on a phone a list
-  // worth reading instead of the sliver underneath it, and one near the right edge its full width
-  const openAbove = spaceBelow < DROPDOWN_MAX_HEIGHT && spaceAbove > spaceBelow
-  const openLeftward = spaceRight < DROPDOWN_MAX_WIDTH && spaceLeft > spaceRight
+  // Downward and rightward wherever that side has the room, since a box that opens the same way
+  // every time is easier to follow than one picking the roomier side by a few pixels. Otherwise the
+  // roomier side wins, which is what gives a field low on a phone a list worth reading instead of
+  // the sliver underneath it, and one near the right edge its full width
+  const openAbove = held?.openAbove
+    ?? (spaceBelow < DROPDOWN_DOWNWARD_ROOM && spaceAbove > spaceBelow)
+  const openLeftward = held?.openLeftward
+    ?? (spaceRight < DROPDOWN_MAX_WIDTH && spaceLeft > spaceRight)
 
   // The box is never given more than the room it actually has, or it would grow past the edge of
   // the screen and clip its own list

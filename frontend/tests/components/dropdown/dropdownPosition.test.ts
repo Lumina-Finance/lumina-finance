@@ -15,7 +15,7 @@ const viewport = {
   width: 800,
 }
 
-const head = { headHeight: 40, searchable: false }
+const head = { headHeight: 40, held: null, searchable: false }
 
 describe('drop-down box placement', () => {
   it('pins the box by the head’s upper edge when the list grows downward', () => {
@@ -52,6 +52,20 @@ describe('drop-down box placement', () => {
     expect(position.listMaxHeight).toBe(290)
   })
 
+  it('opens upward while there is still room below, once the room above beats it', () => {
+    const position = getDropdownBoxPosition({
+      ...head,
+      anchorRect: { bottom: 480, left: 20, top: 440, width: 200 },
+      viewport: { ...viewport, height: 900, layoutHeight: 900 },
+    })
+
+    // 448 below is enough to hold the whole 400 box, so the box would fit either way. It goes up
+    // anyway, because 468 above is more, and a box that only just fits ends against the bottom of
+    // the screen with nothing under it
+    expect(position.openAbove).toBe(true)
+    expect(position.boxMaxHeight).toBe(400)
+  })
+
   it('opens upward when neither side can hold the box and there is more room above', () => {
     const position = getDropdownBoxPosition({
       ...head,
@@ -63,6 +77,27 @@ describe('drop-down box placement', () => {
     // would have opening downward out of habit
     expect(position.openAbove).toBe(true)
     expect(position.boxMaxHeight).toBe(328)
+  })
+
+  it('keeps the way an open box is already growing while the page moves under it', () => {
+    const anchorRect = { bottom: 140, left: 20, top: 100, width: 200 }
+
+    // Geometry that would be chosen downward and rightward from cold
+    expect(getDropdownBoxPosition({ ...head, anchorRect, viewport }).openAbove).toBe(false)
+
+    const held = getDropdownBoxPosition({
+      ...head,
+      anchorRect,
+      held: { openAbove: true, openLeftward: true },
+      viewport,
+    })
+
+    // A box already open keeps its side and takes only the room from the new measurement, or an
+    // ordinary scroll past the point where the sides trade places would throw the panel across the
+    // field being read
+    expect(held.openAbove).toBe(true)
+    expect(held.openLeftward).toBe(true)
+    expect(held.boxMaxHeight).toBe(128)
   })
 
   it('never gives the box more height than the room it actually has', () => {
