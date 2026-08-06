@@ -9,9 +9,9 @@ import { FILTER_GLASS_SPRING } from '@/components/list-controls/toolbarStyles'
 import { joinClassNames } from '@/utils/classNames'
 import { getMoneyPlaceholder } from '@/utils/moneyInput'
 import {
-  CURRENCY_AMOUNT_NOTICE,
-  CURRENCY_AMOUNT_UNKNOWN,
-  CURRENCY_LIST_LOADING,
+  CURRENCY_RANGE_LOADING,
+  CURRENCY_RANGE_NOTICE,
+  CURRENCY_RANGE_UNKNOWN,
   type CurrencyListState,
 } from '@/utils/currencyStatus'
 import { useMoneyInput } from '@/hooks/useMoneyInput'
@@ -34,10 +34,10 @@ const ACCOUNT_DISABLED_FACETS = new Set(['accounts'])
  * Names why the amount range cannot be shown or changed, for the line the currency note usually holds
  */
 function getAmountLockNote(currencyListState: CurrencyListState): string {
-  if (currencyListState === 'loading') return CURRENCY_LIST_LOADING
-  if (currencyListState === 'unavailable') return CURRENCY_AMOUNT_NOTICE
+  if (currencyListState === 'loading') return CURRENCY_RANGE_LOADING
+  if (currencyListState === 'unavailable') return CURRENCY_RANGE_NOTICE
 
-  return CURRENCY_AMOUNT_UNKNOWN
+  return CURRENCY_RANGE_UNKNOWN
 }
 
 /**
@@ -162,6 +162,7 @@ export function FilterPanelBody({
               amountCurrencyNote={draft.amountCurrencyNote}
               amountExponent={draft.amountExponent}
               isAmountLocked={draft.isAmountLocked}
+              isAmountCurrencyLocked={draft.isAmountCurrencyLocked}
               currencyListState={draft.currencyListState}
               hasCrossedAmountBounds={draft.hasCrossedAmountBounds}
               amountRangeMessageId={amountRangeMessageId}
@@ -287,10 +288,13 @@ type SectionEditorProps = {
   amountCurrencyNote: string
   // Decimal places of the currency the amount range matches, for parsing and normalizing input
   amountExponent: number
-  // Passed down rather than recomputed here, so the section the draft treats as locked is the one
+  // Passed down rather than recomputed here, so the fields the draft treats as locked are the ones
   // the user sees disabled
   isAmountLocked: boolean
-  // Which of the reasons the amount section is locked, for the message shown in its place
+  // True only while an applied bound is waiting for its currency, which is when changing the choice
+  // would leave that bound counted in a currency nothing on screen names
+  isAmountCurrencyLocked: boolean
+  // Which of the reasons the fields are locked, for the note under them
   currencyListState: CurrencyListState
   // True while the minimum sits above the maximum once both are rounded to the currency's minor
   // units, which no transaction can satisfy
@@ -321,7 +325,8 @@ type SectionEditorProps = {
 
 /**
  * Renders the editor for the section being edited: a searchable list for the multi-select ones, a
- * server search for merchants and tags, and labelled inputs for the amount and date ranges
+ * server search for merchants and tags, a currency chip row and two bounds for the amount, and
+ * labelled inputs for the date range
  */
 function SectionEditor({
   facet,
@@ -334,6 +339,7 @@ function SectionEditor({
   amountCurrencyNote,
   amountExponent,
   isAmountLocked,
+  isAmountCurrencyLocked,
   currencyListState,
   hasCrossedAmountBounds,
   amountRangeMessageId,
@@ -391,9 +397,9 @@ function SectionEditor({
                       key={option.value}
                       type="button"
                       aria-pressed={isSelected}
-                      // Picking the currency is what decides which minor units the bounds are counted
-                      // in, so it goes dead with them rather than letting the two come apart
-                      disabled={isAmountLocked}
+                      // Picking the currency is what decides which minor units a bound is counted in,
+                      // so the choice is held still while an applied bound is waiting for its own
+                      disabled={isAmountCurrencyLocked}
                       className="rounded-full border px-3 py-1 text-sm transition-colors hover:bg-[var(--app-accent-soft)] disabled:cursor-not-allowed disabled:opacity-60"
                       style={
                         isSelected

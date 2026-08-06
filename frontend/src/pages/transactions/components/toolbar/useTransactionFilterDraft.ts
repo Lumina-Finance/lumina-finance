@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { Bookmark, Calendar, Coins, Store, Tag, Wallet } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { OptionItem } from '@/components/filters/OptionList'
@@ -14,9 +14,11 @@ import {
   findAmountRangeDraft,
   isAmountRangeCrossed,
   isAmountRangeLocked,
+  isAppliedRangeWaitingOnCurrency,
   type AmountDraft,
 } from '@/pages/transactions/utils/amountRange'
 import { isDateRangeCrossed } from '@/pages/transactions/utils/dateRange'
+import { useRestoreAmountRange } from '@/pages/transactions/components/toolbar/hooks/useRestoreAmountRange'
 import type { TransactionListFilters } from '@/pages/transactions/types/transactionList'
 import type { TransactionFilterSetter } from '@/pages/transactions/components/toolbar/types'
 
@@ -123,10 +125,14 @@ export function useTransactionFilterDraft({
   const amountCurrency = lockedCurrency ?? selections.currency[0] ?? baseCurrency
   const amountSymbol = currencies.find((currency) => currency.id === amountCurrency)?.symbol ?? ''
   const amountExponent = getCurrencyExponent(currencies, amountCurrency)
-  // The whole amount section is dead while its currency's decimal places are unknown, since neither
-  // the stored bounds nor a typed one means anything without them. Decided here rather than in the
-  // body, so the section the draft treats as locked is the section the user sees disabled
-  const isAmountLocked = isAmountRangeLocked(currencies, amountCurrency)
+  // Both fields refuse input while the decimal places are unknown, since a bound typed against the
+  // two-place fallback would be stored at the wrong scale. Decided here rather than in the body, so
+  // the fields the draft treats as locked are the fields the user sees disabled
+  const isAmountLocked = isAmountRangeLocked(filters, currencies, amountCurrency)
+  // The currency choice decides which minor units a bound is counted in, so it is held still only
+  // while an applied bound is waiting for that currency to arrive, which is the one case where
+  // changing it would leave the applied bounds counted in a currency nothing on screen names
+  const isAmountCurrencyLocked = isAppliedRangeWaitingOnCurrency(filters, currencies)
   const hasCrossedAmountBounds = isAmountRangeCrossed(amount, amountExponent)
   const amountCurrencyNote = currencyLocked
     ? `Amounts are matched in ${amountCurrency}, this account's currency`
@@ -166,9 +172,7 @@ export function useTransactionFilterDraft({
     return []
   }
 
-  // Whether the last seeding left the bounds blank because the decimal places were unknown, which is
-  // the only case with anything to fill in later
-  const seededWhileLockedRef = useRef(isAmountLocked)
+  const armAmountRestore = useRestoreAmountRange(filters, currencies, setAmount)
 
   /**
    * Reseeds the draft from the applied filters so opening starts clean and dismissing discards any
@@ -189,23 +193,12 @@ export function useTransactionFilterDraft({
     })
     setTagMatch(filters.tag_match ?? 'all')
     setDateRange({ from: filters.from_date ?? '', to: filters.to_date ?? '' })
-    // Stored bounds are in the minor units of the currency they were applied in, which is not
+    // Applied bounds are in the minor units of the currency they were applied in, which is not
     // necessarily the one the draft is now editing. They stay blank until that currency's decimal
-    // places are known, and the effect below fills them in once they are
-    const storedAmount = findAmountRangeDraft(filters, currencies)
-    seededWhileLockedRef.current = storedAmount === null
-    setAmount(storedAmount ?? EMPTY_AMOUNT)
-  }, [filters, currencies, showAccountFilter, currencyLocked])
-
-  // Fills the bounds in when the decimal places arrive, for a panel that opened before the currency
-  // table did and therefore seeded them blank. The whole section is disabled for as long as this is
-  // armed, so the fill can never land on an amount being typed
-  useEffect(() => {
-    if (isAmountLocked || !seededWhileLockedRef.current) return
-
-    seededWhileLockedRef.current = false
+    // places are known, and the restore above fills them in once they are
+    armAmountRestore()
     setAmount(findAmountRangeDraft(filters, currencies) ?? EMPTY_AMOUNT)
-  }, [isAmountLocked, filters, currencies])
+  }, [filters, currencies, showAccountFilter, currencyLocked, armAmountRestore])
 
   /**
    * Adds or removes a value from a facet draft, recording the label for server-searched facets
@@ -255,9 +248,9 @@ export function useTransactionFilterDraft({
 
   /**
    * Commits the draft to the applied filters, converting the amount bounds into the matched
-   * currency's minor units, then closes the panel. An amount or date range whose bounds exclude
-   * each other is refused, leaving the panel open on the message rather than closing on a list that
-   * cannot have results
+   * currency's minor units, then closes whichever presentation is open. An amount or date range
+   * whose bounds exclude each other is refused, staying open on the message rather than closing on
+   * a list that cannot have results
    */
   function applyFilters() {
     if (isApplyBlocked) return
@@ -296,6 +289,7 @@ export function useTransactionFilterDraft({
     amountExponent,
     amountCurrencyNote,
     isAmountLocked,
+    isAmountCurrencyLocked,
     currencyListState,
     hasCrossedAmountBounds,
     hasCrossedDateRange,

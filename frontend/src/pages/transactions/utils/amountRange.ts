@@ -26,19 +26,42 @@ export function isAmountRangeCrossed(amount: AmountDraft, exponent: number): boo
 }
 
 /**
- * Reports whether the amount range can be shown or edited at all, which it cannot while the decimal
- * places of the currency it matches in are unknown
+ * Reports whether the fields have to refuse input, which they do while the decimal places they would
+ * be edited in are unknown, and while an applied bound cannot be shown
  *
+ * @param filters - The applied bounds and the currency their minor units belong to
  * @param currencies - The currency table, which is empty until it downloads
- * @param amountCurrency - The currency the range matches in
+ * @param amountCurrency - The currency the fields edit in, which is the one a typed bound is stored
+ * through and is not necessarily the one an applied bound was stored through
  */
-export function isAmountRangeLocked(currencies: Currency[], amountCurrency: string): boolean {
+export function isAmountRangeLocked(
+  filters: AppliedAmountRange,
+  currencies: Currency[],
+  amountCurrency: string,
+): boolean {
   return findCurrencyExponent(currencies, amountCurrency) === null
+    || isAppliedRangeWaitingOnCurrency(filters, currencies)
 }
 
 /**
- * Converts the applied bounds into the text the fields hold, or returns null when the decimal places
- * of the currency they were applied in are unknown
+ * Reports whether an applied bound exists that the fields cannot show yet, which is the only case
+ * with anything to fill in once the currency table arrives
+ *
+ * @param filters - The applied bounds and the currency their minor units belong to
+ * @param currencies - The currency table, which is empty until it downloads
+ */
+export function isAppliedRangeWaitingOnCurrency(
+  filters: AppliedAmountRange,
+  currencies: Currency[],
+): boolean {
+  const hasBound = filters.min_amount !== undefined || filters.max_amount !== undefined
+
+  return hasBound && findAmountRangeDraft(filters, currencies) === null
+}
+
+/**
+ * Converts the applied bounds into the text the fields hold, returning null when no currency was
+ * applied with them or when its decimal places are unknown
  *
  * A stored bound can only be turned into text through the real decimal places, so a currency the
  * table does not carry yields nothing rather than an amount scaled by the two-place fallback
@@ -60,14 +83,15 @@ export function findAmountRangeDraft(filters: AppliedAmountRange, currencies: Cu
  * Builds the amount part of the applied filters from the draft, handing back the bounds already
  * applied while the range is locked
  *
- * The fields are blank for as long as they are locked, so converting them would clear a bound the
- * user was never shown. Their currency is handed back with them, since bounds and the minor units
- * they are counted in only mean anything together
+ * A locked range is one whose decimal places are unknown, so converting what the fields hold would
+ * scale it by the two-place fallback, and a locked range that is blank would clear a bound the user
+ * was never shown. The applied currency is handed back with the applied bounds, since bounds and the
+ * minor units they are counted in only mean anything together
  *
  * @param amount - The minimum and maximum as the fields hold them
- * @param amountCurrency - The currency the range matches in
+ * @param amountCurrency - The currency the fields edit in
  * @param exponent - Decimal places of that currency
- * @param isLocked - Whether the range is locked, which is what makes the fields blank
+ * @param isLocked - Whether the fields are refusing input, which is what makes the draft unusable
  * @param filters - The applied bounds, kept as they are while locked
  */
 export function buildAmountFilterPatch({
