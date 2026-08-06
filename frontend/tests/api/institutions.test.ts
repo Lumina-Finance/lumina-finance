@@ -35,17 +35,17 @@ describe('institution API functions', () => {
 
   it('creates institutions with country and website fields', async () => {
     await createInstitution({
-      name: 'Royal Bank of Canada',
+      name: 'Alpha Bank',
       country_code: 'CA',
-      website: 'https://www.rbcroyalbank.com',
+      website: 'https://alpha.example.com',
     });
 
     expect(authenticatedFetchMock).toHaveBeenCalledWith('/institutions', {
       method: 'POST',
       body: JSON.stringify({
-        name: 'Royal Bank of Canada',
+        name: 'Alpha Bank',
         country_code: 'CA',
-        website: 'https://www.rbcroyalbank.com',
+        website: 'https://alpha.example.com',
       }),
     });
   });
@@ -53,14 +53,14 @@ describe('institution API functions', () => {
   it('sends a correction to the institution being corrected, carrying only the fields given', async () => {
     await updateInstitution({
       institutionId: '11111111-1111-1111-1111-111111111111',
-      payload: { website: 'https://www.rbcroyalbank.com' },
+      payload: { website: 'https://alpha.example.com' },
     });
 
     expect(authenticatedFetchMock).toHaveBeenCalledWith(
       '/institutions/11111111-1111-1111-1111-111111111111',
       {
         method: 'PATCH',
-        body: JSON.stringify({ website: 'https://www.rbcroyalbank.com' }),
+        body: JSON.stringify({ website: 'https://alpha.example.com' }),
       },
     );
   });
