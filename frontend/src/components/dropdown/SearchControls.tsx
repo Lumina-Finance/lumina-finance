@@ -39,20 +39,16 @@ export function DropdownSearchControls({
 
   const resolvedEditSelectedLabel = editSelectedLabel ?? DEFAULT_EDIT_SELECTED_LABEL
 
-  // The box is only as wide as the field it opened from, and an import table's columns are
-  // narrow enough that an action button beside the search box leaves it unusable. Holding the
-  // box to a readable width makes the buttons wrap to a line of their own instead. With no
-  // button there is nothing to wrap, so the box shrinks to the space there is rather than
-  // overflowing a clipped container
-  const searchWidthClassName = showCreateAction || showEditAction ? 'min-w-[7rem]' : 'min-w-0'
-
+  // One line, because the height the open box reserves for this row is a fixed figure in the
+  // positioning module. A second line would push the option list past the bottom of the box,
+  // which clips rather than scrolls, so a caller with no room for two actions offers one
   return (
-    <div className="flex flex-wrap gap-2 px-2 pb-2 pt-2">
+    <div className="flex gap-2 px-2 pb-2 pt-2">
       <input
         ref={searchRef}
         type="text"
         data-dropdown-search="true"
-        className={`app-input ${searchWidthClassName} flex-1`}
+        className="app-input min-w-0 flex-1"
         style={{ fontSize: '0.8125rem' }}
         placeholder={searchPlaceholder}
         value={searchText}

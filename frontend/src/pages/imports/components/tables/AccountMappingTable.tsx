@@ -30,7 +30,6 @@ export function ImportAccountMappingTable({
   onSelectedRowsChange,
   onCreateInstitution,
   onBatchCreateInstitution,
-  onCorrectInstitution,
 }: {
   rows: Array<{
     id: string
@@ -84,10 +83,6 @@ export function ImportAccountMappingTable({
   onSelectedRowsChange: (rows: Set<string>) => void
   onCreateInstitution: (query: string, rowId: string) => void
   onBatchCreateInstitution: (query: string) => void
-
-  // A correction changes an institution rather than which one a row answers with, so it
-  // needs no row to come back to
-  onCorrectInstitution: (institutionId: string) => void
 }) {
   const selectedRows = rows.filter((row) => selectedRowIds.has(row.id))
   const allRowsSelected = rows.length > 0 && selectedRows.length === rows.length
@@ -230,8 +225,6 @@ export function ImportAccountMappingTable({
             disabled={!creating || institutionsDisabled}
             onCreateNew={(query) => onCreateInstitution(query, row.id)}
             createNewLabel={(query) => query ? `Create institution "${query}"` : 'Create institution'}
-            onEditSelected={onCorrectInstitution}
-            editSelectedLabel="Correct institution"
           />
         </td>
       </tr>
@@ -284,8 +277,6 @@ export function ImportAccountMappingTable({
                 disabled={institutionsDisabled}
                 onCreateNew={onBatchCreateInstitution}
                 createNewLabel={(query) => query ? `Create institution "${query}"` : 'Create institution'}
-                onEditSelected={onCorrectInstitution}
-                editSelectedLabel="Correct institution"
               />
             </div>
             <button

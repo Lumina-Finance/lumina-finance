@@ -175,7 +175,6 @@ export function ImportAccountMappingStep({
     selectedRowIds: selectedAccountRows,
     onSelectedRowsChange: setSelectedAccountRows,
     onCreateInstitution: (query: string, rowId: string) => openInstitutionModal(query, rowId),
-    onCorrectInstitution: institutionModal.openForCorrection,
   }
 
   const importedSources = accountMappingSources.filter((source) => !source.isCounterpartyOnly)
