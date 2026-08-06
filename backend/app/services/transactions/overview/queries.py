@@ -99,7 +99,7 @@ async def get_overview_category_total_rows(db: AsyncSession, transaction_filters
     Returns:
         SQLAlchemy rows containing category, account, date, and total values
     """
-    # Aggregate income and expense totals by category, account, and date for conversion
+    # Aggregate expense totals by category, account, and date for conversion
     return (
         await db.execute(
             select(
@@ -111,7 +111,10 @@ async def get_overview_category_total_rows(db: AsyncSession, transaction_filters
             )
             .join(Category, Transaction.category_id == Category.id)
             .where(transaction_filters)
-            .where(Category.kind.in_([CategoryKind.EXPENSE, CategoryKind.INCOME]))
+
+            # Spending is what an expense category nets once its refunds are taken off, so an
+            # income category stays out even when a reversal leaves it negative for the period
+            .where(Category.kind == CategoryKind.EXPENSE)
             .group_by(Transaction.category_id, Category.name, Transaction.account_id, Transaction.dt),
         )
     ).all()
@@ -121,14 +124,14 @@ async def get_overview_outlier_candidate_rows(db: AsyncSession, transaction_filt
     """Return candidate outlier transaction rows for an overview
 
     The query loads negative income or expense transactions with merchant data
-    so the conversion layer can rank the largest converted spending rows
+    so the conversion layer can rank the largest converted outflows
 
     Args:
         db: Active database session
         transaction_filters: SQLAlchemy filters shared by overview queries
 
     Returns:
-        SQLAlchemy rows for expense-side transactions eligible for outlier ranking
+        SQLAlchemy rows for transactions eligible for outlier ranking
     """
     # Fetch negative income or expense transactions that can be ranked as outliers
     return (
@@ -140,7 +143,6 @@ async def get_overview_outlier_candidate_rows(db: AsyncSession, transaction_filt
                 Transaction.notes,
                 Transaction.amount,
                 Transaction.dt.label("date"),
-                Transaction.category_id,
             )
             .outerjoin(Merchant, Transaction.merchant_id == Merchant.id)
             .join(Category, Transaction.category_id == Category.id)

@@ -62,6 +62,7 @@ async def test_transactions_overview_net_flow_excludes_balance_adjustments(clien
     assert data["daily_cash_flow"] == [
         {"date": "2026-03-15", "end_date": "2026-03-15", "inflow": 12_500, "outflow": -5_500},
     ]
+    assert [row["amount"] for row in data["outliers"]] == [-4_000]
 
 
 async def test_transactions_overview_net_flow_converts_foreign_accounts(client, monkeypatch):
@@ -390,14 +391,16 @@ async def test_transactions_overview_explicit_archived_account_is_allowed(client
     assert data["total_outflow"] == -30_000
 
 
-async def test_transactions_overview_top_categories_use_net_expense_side_categories(client):
-    """Top categories net refunds and include net-negative income categories."""
+async def test_transactions_overview_top_categories_cover_expense_categories_only(client):
+    """Top categories net refunds inside expense categories and leave income categories out."""
     headers, account_id, expense_category_id = await _setup_user_with_deps(client)
     transfer_category_id = (await _create_category(client, headers, name="Main Transfer", kind="transfer")).json()["id"]
     income_category_id = (await _create_category(client, headers, name="Main Income", kind="income")).json()["id"]
     over_refund_category_id = (await _create_category(client, headers, name="Over Refund", kind="expense")).json()["id"]
 
-    await _create_transaction(client, headers, account_id, transfer_category_id, amount=-20_000)
+    await _create_transaction(
+        client, headers, account_id, transfer_category_id, amount=-20_000, counterparty_account_scope="outside",
+    )
     await _create_transaction(client, headers, account_id, income_category_id, amount=-15_000)
     await _create_transaction(client, headers, account_id, expense_category_id, amount=-4_000)
     await _create_transaction(client, headers, account_id, expense_category_id, amount=-3_000)
@@ -410,10 +413,178 @@ async def test_transactions_overview_top_categories_use_net_expense_side_categor
     assert resp.status_code == 200
     data = resp.json()
     assert [(row["category_id"], row["total"]) for row in data["top_categories"]] == [
-        (income_category_id, -15_000),
         (expense_category_id, -5_000),
     ]
     assert data["top_categories_fx_status"] == {"state": "none", "missing_pairs": []}
+
+
+async def test_transactions_overview_top_categories_drop_a_category_refunded_to_zero(client):
+    """A category whose refunds exactly cancel its spending is not spending for the period."""
+    headers, account_id, expense_category_id = await _setup_user_with_deps(client)
+    cancelled_category_id = (await _create_category(client, headers, name="Cancelled Expense")).json()["id"]
+
+    await _create_transaction(client, headers, account_id, cancelled_category_id, amount=-6_000)
+    await _create_transaction(client, headers, account_id, cancelled_category_id, amount=6_000)
+    await _create_transaction(client, headers, account_id, expense_category_id, amount=-3_000)
+
+    resp = await client.get("/transactions/overview", headers=headers)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert [(row["category_id"], row["total"]) for row in data["top_categories"]] == [
+        (expense_category_id, -3_000),
+    ]
+
+
+async def test_transactions_overview_refund_nets_against_its_category_and_counts_as_inflow(client):
+    """A refund reduces its own category's spend while still arriving as money in."""
+    headers, account_id, expense_category_id = await _setup_user_with_deps(client)
+
+    await _create_transaction(client, headers, account_id, expense_category_id, amount=-10_000)
+    await _create_transaction(client, headers, account_id, expense_category_id, amount=4_500)
+
+    resp = await client.get("/transactions/overview", headers=headers)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert [(row["category_id"], row["total"]) for row in data["top_categories"]] == [
+        (expense_category_id, -5_500),
+    ]
+    assert data["total_inflow"] == 4_500
+    assert data["total_outflow"] == -10_000
+
+
+async def test_transactions_overview_refund_after_its_period_leaves_no_top_category(client):
+    """A period holding only the refund reports inflow and no spending category."""
+    headers, account_id, expense_category_id = await _setup_user_with_deps(client)
+
+    await _create_transaction(client, headers, account_id, expense_category_id, amount=-10_000, dt="2026-03-15")
+    await _create_transaction(client, headers, account_id, expense_category_id, amount=4_500, dt="2026-04-20")
+
+    resp = await client.get(
+        "/transactions/overview",
+        params={"from_date": "2026-04-01", "to_date": "2026-04-30"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["top_categories"] == []
+    assert data["outliers"] == []
+    assert data["total_inflow"] == 4_500
+    assert data["total_outflow"] == 0
+
+
+async def test_transactions_overview_income_loss_ranks_as_outlier_without_being_a_top_category(client):
+    """An income reversal is one of the largest outflows without counting as spending."""
+    headers, account_id, expense_category_id = await _setup_user_with_deps(client)
+    income_category_id = (await _create_category(client, headers, name="Main Income", kind="income")).json()["id"]
+
+    await _create_transaction(client, headers, account_id, income_category_id, amount=-12_000)
+    await _create_transaction(client, headers, account_id, expense_category_id, amount=-3_000)
+
+    resp = await client.get("/transactions/overview", headers=headers)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert [(row["category_id"], row["total"]) for row in data["top_categories"]] == [
+        (expense_category_id, -3_000),
+    ]
+    assert [row["amount"] for row in data["outliers"]] == [-12_000, -3_000]
+    assert data["total_outflow"] == -15_000
+
+
+async def test_transactions_overview_unconvertible_income_row_leaves_top_categories_clean(client, monkeypatch):
+    """A missing rate that only an income row needed no longer marks top categories incomplete."""
+    from app.services.fx import FrankfurterProvider, FxRateNotFoundError
+
+    async def fake_get_rates(self, base, quote, start_date, end_date):
+        raise FxRateNotFoundError()
+
+    monkeypatch.setattr(FrankfurterProvider, "get_rates", fake_get_rates)
+
+    async with TestSession() as session:
+        session.add(Currency(id="ABC", name="Unsupported Test Currency", symbol="A", minor_unit_exponent=2))
+        await session.commit()
+
+    headers, cad_account_id, category_id = await _setup_user_with_deps(client)
+    income_category_id = (await _create_category(client, headers, name="Main Income", kind="income")).json()["id"]
+    abc_account_id = (await _create_account(
+        client,
+        headers,
+        name="ABC Chequing",
+        currency="ABC",
+    )).json()["id"]
+
+    await _create_transaction(client, headers, cad_account_id, category_id, amount=-5_000)
+    await _create_transaction(
+        client,
+        headers,
+        abc_account_id,
+        income_category_id,
+        amount=-12_000,
+        currency="ABC",
+    )
+
+    resp = await client.get("/transactions/overview", headers=headers)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert [(row["category_id"], row["total"]) for row in data["top_categories"]] == [
+        (category_id, -5_000),
+    ]
+    assert data["top_categories_fx_status"] == {"state": "none", "missing_pairs": []}
+    assert [row["amount"] for row in data["outliers"]] == [-5_000]
+    assert data["outliers_fx_status"] == {
+        "state": "incomplete",
+        "missing_pairs": [{"base": "ABC", "quote": "CAD"}],
+    }
+
+
+async def test_transactions_overview_panels_report_fx_status_for_their_own_conversions(client, monkeypatch):
+    """An unconvertible refund marks top categories incomplete and leaves outliers untouched."""
+    from app.services.fx import FrankfurterProvider, FxRateNotFoundError
+
+    async def fake_get_rates(self, base, quote, start_date, end_date):
+        raise FxRateNotFoundError()
+
+    monkeypatch.setattr(FrankfurterProvider, "get_rates", fake_get_rates)
+
+    async with TestSession() as session:
+        session.add(Currency(id="ABC", name="Unsupported Test Currency", symbol="A", minor_unit_exponent=2))
+        await session.commit()
+
+    headers, cad_account_id, category_id = await _setup_user_with_deps(client)
+    abc_account_id = (await _create_account(
+        client,
+        headers,
+        name="ABC Chequing",
+        currency="ABC",
+    )).json()["id"]
+
+    await _create_transaction(client, headers, cad_account_id, category_id, amount=-5_000)
+    await _create_transaction(
+        client,
+        headers,
+        abc_account_id,
+        category_id,
+        amount=90_000,
+        currency="ABC",
+    )
+
+    resp = await client.get("/transactions/overview", headers=headers)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert [(row["category_id"], row["total"]) for row in data["top_categories"]] == [
+        (category_id, -5_000),
+    ]
+    assert data["top_categories_fx_status"] == {
+        "state": "incomplete",
+        "missing_pairs": [{"base": "ABC", "quote": "CAD"}],
+    }
+    assert [row["amount"] for row in data["outliers"]] == [-5_000]
+    assert data["outliers_fx_status"] == {"state": "none", "missing_pairs": []}
 
 
 async def test_transactions_overview_top_categories_convert_and_rank_foreign_accounts(client, monkeypatch):
@@ -518,15 +689,17 @@ async def test_transactions_overview_top_categories_report_incomplete_fx(client,
     }
 
 
-async def test_transactions_overview_outliers_include_income_loss_transactions(client):
-    """Most expensive transactions include income losses but exclude transfers."""
+async def test_transactions_overview_outliers_rank_by_each_transactions_own_outflow(client):
+    """Most expensive transactions rank by outflow alone, so a refunded purchase still ranks."""
     headers, account_id, expense_category_id = await _setup_user_with_deps(client)
     transfer_category_id = (await _create_category(client, headers, name="Main Transfer", kind="transfer")).json()["id"]
     income_category_id = (await _create_category(client, headers, name="Main Income", kind="income")).json()["id"]
     refunded_category_id = (await _create_category(client, headers, name="Refunded Expense", kind="expense")).json()["id"]
     over_refund_category_id = (await _create_category(client, headers, name="Over-refunded Expense", kind="expense")).json()["id"]
 
-    await _create_transaction(client, headers, account_id, transfer_category_id, amount=-20_000)
+    await _create_transaction(
+        client, headers, account_id, transfer_category_id, amount=-20_000, counterparty_account_scope="outside",
+    )
     await _create_transaction(client, headers, account_id, income_category_id, amount=-15_000)
     await _create_transaction(client, headers, account_id, refunded_category_id, amount=-10_000)
     await _create_transaction(client, headers, account_id, refunded_category_id, amount=4_000)
@@ -539,7 +712,7 @@ async def test_transactions_overview_outliers_include_income_loss_transactions(c
 
     assert resp.status_code == 200
     data = resp.json()
-    assert [row["amount"] for row in data["outliers"]] == [-15_000, -10_000, -4_000]
+    assert [row["amount"] for row in data["outliers"]] == [-15_000, -10_000, -9_000]
     assert data["outliers_fx_status"] == {"state": "none", "missing_pairs": []}
 
 
