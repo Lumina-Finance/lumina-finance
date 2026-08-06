@@ -1,7 +1,7 @@
 import type { ReactNode, RefObject } from 'react'
 import { motion, useReducedMotion } from 'motion/react'
 import { joinClassNames } from '@/utils/classNames'
-import { DROPDOWN_PRESS_SCALE, DROPDOWN_SPRING } from './motion'
+import { DROPDOWN_INSTANT_TRANSITION, DROPDOWN_NARROW_TRANSITION, DROPDOWN_PRESS_SCALE, DROPDOWN_SPRING } from './motion'
 import { getDropdownBoxWidths, type DropdownBoxPosition } from './position'
 
 interface DropdownBoxProps {
@@ -80,6 +80,17 @@ export function DropdownBox({
     position,
   })
 
+  // The press keeps the spring it has always had, and the width takes one of its own: the same
+  // spring while the box opens, which is what the insights range control and the toolbar filter
+  // pill give their own width, and its height's closing timing while it closes. Either way the
+  // width settles when the list does, rather than carrying on under a list that has arrived
+  const transition = {
+    ...DROPDOWN_SPRING,
+    maxWidth: shouldReduceMotion
+      ? DROPDOWN_INSTANT_TRANSITION
+      : open ? DROPDOWN_SPRING : DROPDOWN_NARROW_TRANSITION,
+  }
+
   return (
     <motion.div
       ref={boxRef}
@@ -99,19 +110,26 @@ export function DropdownBox({
           bottom: position.openAbove ? position.bottom : undefined,
           top: position.openAbove ? undefined : position.top,
           left: position.left,
-          // Sized to what it holds while it is open, and to the width it reached while it closes
+          // Sized to what it holds while it is open, and to the width it reached while it closes.
+          // The ceiling that settles which of those the box gets is animated rather than set here
           width,
           minWidth,
-          maxWidth,
           maxHeight: position.boxMaxHeight,
           zIndex: DROPDOWN_OPEN_Z_INDEX,
         }
-        : { position: 'absolute', top: 0, left: 0, right: 0 }}
+        // The ceiling is cleared by hand, since animating it writes the property straight onto the
+        // element and leaving the last value behind would hold a box in its slot to the width the
+        // slot happened to be when it last closed
+        : { position: 'absolute', top: 0, left: 0, right: 0, maxWidth: 'none' }}
+      // Given as a pair on the frame the box is placed, which states where the width starts instead
+      // of reading it off a box that has no ceiling yet. A box with no ceiling has no width to
+      // leave from, and the spring would be skipped and the whole room taken at once
+      animate={placed ? { maxWidth: painted ? maxWidth : [maxWidth, maxWidth] } : undefined}
       // Sinks under a press and springs back when it is let go. Suppressed for as long as the box is
       // floating, where sinking a full-height list reads as it collapsing early rather than as a
       // control being pressed
       whileTap={placed || disabled || shouldReduceMotion ? undefined : { scale: DROPDOWN_PRESS_SCALE }}
-      transition={DROPDOWN_SPRING}
+      transition={transition}
     >
       {children}
     </motion.div>
