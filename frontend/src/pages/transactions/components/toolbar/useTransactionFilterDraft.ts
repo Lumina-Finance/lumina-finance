@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Bookmark, Calendar, Coins, Store, Tag, Wallet } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { OptionItem } from '@/components/filters/OptionList'
@@ -7,8 +7,15 @@ import { useCurrencies } from '@/api/currency'
 import { useMerchantDetails } from '@/api/merchants'
 import { useTagDetails } from '@/api/tags'
 import { useAuth } from '@/hooks/useAuth'
-import { fromMinorUnits, getCurrencyExponent, toMinorUnits } from '@/utils/moneyInput'
-import { isAmountRangeCrossed } from '@/pages/transactions/utils/amountRange'
+import { useCurrencyListState } from '@/hooks/useCurrencyListState'
+import { getCurrencyExponent } from '@/utils/moneyInput'
+import {
+  buildAmountFilterPatch,
+  findAmountRangeDraft,
+  isAmountRangeCrossed,
+  isAmountRangeLocked,
+  type AmountDraft,
+} from '@/pages/transactions/utils/amountRange'
 import { isDateRangeCrossed } from '@/pages/transactions/utils/dateRange'
 import type { TransactionListFilters } from '@/pages/transactions/types/transactionList'
 import type { TransactionFilterSetter } from '@/pages/transactions/components/toolbar/types'
@@ -37,7 +44,7 @@ export const FILTER_FACETS: FacetConfig[] = [
 
 export type MultiSelections = Record<string, string[]>
 
-export type AmountDraft = { min: string; max: string }
+const EMPTY_AMOUNT: AmountDraft = { min: '', max: '' }
 
 const EMPTY_SELECTIONS: MultiSelections = {
   accounts: [],
@@ -82,10 +89,11 @@ export function useTransactionFilterDraft({
   // Resolved names for selected merchants and tags, kept so the summary and the pinned rows stay
   // readable after the server search moves on
   const [referenceLabels, setReferenceLabels] = useState<Record<string, string>>({})
-  const [amount, setAmount] = useState<AmountDraft>({ min: '', max: '' })
+  const [amount, setAmount] = useState<AmountDraft>(EMPTY_AMOUNT)
   const [dateRange, setDateRange] = useState({ from: '', to: '' })
   const { user } = useAuth()
   const { data: currencies = [] } = useCurrencies()
+  const currencyListState = useCurrencyListState()
   const { data: accounts = [] } = useAccounts()
 
   // Merchant and tag names are only cached for the session they are picked in, so reopening the
@@ -115,6 +123,10 @@ export function useTransactionFilterDraft({
   const amountCurrency = lockedCurrency ?? selections.currency[0] ?? baseCurrency
   const amountSymbol = currencies.find((currency) => currency.id === amountCurrency)?.symbol ?? ''
   const amountExponent = getCurrencyExponent(currencies, amountCurrency)
+  // The whole amount section is dead while its currency's decimal places are unknown, since neither
+  // the stored bounds nor a typed one means anything without them. Decided here rather than in the
+  // body, so the section the draft treats as locked is the section the user sees disabled
+  const isAmountLocked = isAmountRangeLocked(currencies, amountCurrency)
   const hasCrossedAmountBounds = isAmountRangeCrossed(amount, amountExponent)
   const amountCurrencyNote = currencyLocked
     ? `Amounts are matched in ${amountCurrency}, this account's currency`
@@ -154,6 +166,10 @@ export function useTransactionFilterDraft({
     return []
   }
 
+  // Whether the last seeding left the bounds blank because the decimal places were unknown, which is
+  // the only case with anything to fill in later
+  const seededWhileLockedRef = useRef(isAmountLocked)
+
   /**
    * Reseeds the draft from the applied filters so opening starts clean and dismissing discards any
    * uncommitted edits
@@ -174,11 +190,22 @@ export function useTransactionFilterDraft({
     setTagMatch(filters.tag_match ?? 'all')
     setDateRange({ from: filters.from_date ?? '', to: filters.to_date ?? '' })
     // Stored bounds are in the minor units of the currency they were applied in, which is not
-    // necessarily the one the draft is now editing
-    const exponent = getCurrencyExponent(currencies, filters.amount_currency ?? '')
-    const toInput = (value?: number) => fromMinorUnits(value ?? null, exponent)
-    setAmount({ min: toInput(filters.min_amount), max: toInput(filters.max_amount) })
+    // necessarily the one the draft is now editing. They stay blank until that currency's decimal
+    // places are known, and the effect below fills them in once they are
+    const storedAmount = findAmountRangeDraft(filters, currencies)
+    seededWhileLockedRef.current = storedAmount === null
+    setAmount(storedAmount ?? EMPTY_AMOUNT)
   }, [filters, currencies, showAccountFilter, currencyLocked])
+
+  // Fills the bounds in when the decimal places arrive, for a panel that opened before the currency
+  // table did and therefore seeded them blank. The whole section is disabled for as long as this is
+  // armed, so the fill can never land on an amount being typed
+  useEffect(() => {
+    if (isAmountLocked || !seededWhileLockedRef.current) return
+
+    seededWhileLockedRef.current = false
+    setAmount(findAmountRangeDraft(filters, currencies) ?? EMPTY_AMOUNT)
+  }, [isAmountLocked, filters, currencies])
 
   /**
    * Adds or removes a value from a facet draft, recording the label for server-searched facets
@@ -208,7 +235,7 @@ export function useTransactionFilterDraft({
    */
   function clearAll() {
     setSelections(EMPTY_SELECTIONS)
-    setAmount({ min: '', max: '' })
+    setAmount(EMPTY_AMOUNT)
     setDateRange({ from: '', to: '' })
     setFilter({
       account_id: undefined,
@@ -228,17 +255,20 @@ export function useTransactionFilterDraft({
 
   /**
    * Commits the draft to the applied filters, converting the amount bounds into the matched
-   * currency's minor units, then closes the surface. An amount or date range whose bounds exclude
+   * currency's minor units, then closes the panel. An amount or date range whose bounds exclude
    * each other is refused, leaving the panel open on the message rather than closing on a list that
    * cannot have results
    */
   function applyFilters() {
     if (isApplyBlocked) return
 
-    // toMinorUnits returns null rather than undefined for a blank amount, so the setFilter payload
-    // below converts it back to keep min_amount and max_amount optional
-    const toMinor = (value: string) => toMinorUnits(value, amountExponent) ?? undefined
-    const hasAmount = Boolean(amount.min.trim() || amount.max.trim())
+    const appliedAmount = buildAmountFilterPatch({
+      amount,
+      amountCurrency,
+      exponent: amountExponent,
+      isLocked: isAmountLocked,
+      filters,
+    })
 
     setFilter({
       account_id: selections.accounts,
@@ -247,9 +277,7 @@ export function useTransactionFilterDraft({
       tag_id: selections.tags,
       tag_match: selections.tags.length > 0 ? tagMatch : undefined,
       currency: selections.currency[0],
-      min_amount: toMinor(amount.min),
-      max_amount: toMinor(amount.max),
-      amount_currency: hasAmount ? amountCurrency : undefined,
+      ...appliedAmount,
       from_date: dateRange.from || undefined,
       to_date: dateRange.to || undefined,
     })
@@ -267,6 +295,8 @@ export function useTransactionFilterDraft({
     amountSymbol,
     amountExponent,
     amountCurrencyNote,
+    isAmountLocked,
+    currencyListState,
     hasCrossedAmountBounds,
     hasCrossedDateRange,
     isApplyBlocked,
