@@ -7,9 +7,10 @@ import {
 } from '@/api/accounts'
 import { useCurrencies } from '@/api/currency'
 import { useCurrencyListState } from '@/hooks/useCurrencyListState'
-import { useInstitutions } from '@/api/institutions'
+import { useInstitutions, type Institution } from '@/api/institutions'
+import { useInstitutionModal } from '@/hooks/useInstitutionModal'
 import { useTaxAdvantagedCategories } from '@/api/tax-advantaged-categories'
-import CreateInstitutionModal from '@/components/reference-modals/CreateInstitutionModal'
+import InstitutionModal from '@/components/reference-modals/InstitutionModal'
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
 import { ModalShell } from '@/components/modal/Shell'
 import {
@@ -83,9 +84,7 @@ export default function EditAccountIdentityModal({
   const [deleteStage, setDeleteStage] = useState<DeleteStage>('idle')
   const [deleteNameInput, setDeleteNameInput] = useState('')
   const [saveDelayPending, setSaveDelayPending] = useState(false)
-  const [institutionModalName, setInstitutionModalName] = useState('')
-  const [showInstitutionModal, setShowInstitutionModal] = useState(false)
-  const [institutionModalKey, setInstitutionModalKey] = useState(0)
+  const institutionModal = useInstitutionModal(institutions)
 
   const isRevolving = account.account_kind === 'revolving'
   const canLinkTaxAdvantagedCategory = account.account_kind === 'asset' && account.group_id === null && !account.is_archived
@@ -132,8 +131,7 @@ export default function EditAccountIdentityModal({
       setFieldErrors({})
       setDeleteStage('idle')
       setDeleteNameInput('')
-      setShowInstitutionModal(false)
-      setInstitutionModalName('')
+      institutionModal.reset()
     }
   }
 
@@ -165,20 +163,12 @@ export default function EditAccountIdentityModal({
   }
 
   /**
-   * Opens the create-institution modal from the current dropdown search text
+   * Selects a newly created institution without leaving the edit modal, and leaves the
+   * selection alone after a correction, which changes an institution rather than the choice
    */
-  const handleCreateInstitution = (name: string) => {
-    setInstitutionModalName(name)
-    setInstitutionModalKey((key) => key + 1)
-    setShowInstitutionModal(true)
-  }
-
-  /**
-   * Selects a newly created institution without leaving the edit modal
-   */
-  const handleInstitutionCreated = (institution: { id: string }) => {
-    setField('institution_id', institution.id)
-    setShowInstitutionModal(false)
+  const handleInstitutionSaved = (institution: Institution) => {
+    if (!institutionModal.institution) setField('institution_id', institution.id)
+    institutionModal.close()
   }
 
   /**
@@ -313,7 +303,8 @@ export default function EditAccountIdentityModal({
                 fieldErrors={fieldErrors}
                 institutionOptions={institutionOptions}
                 setField={setField}
-                onCreateInstitution={handleCreateInstitution}
+                onCreateInstitution={institutionModal.openForCreate}
+                onCorrectInstitution={institutionModal.openForCorrection}
               />
 
               {hasEditableAccountContext && (
@@ -384,12 +375,13 @@ export default function EditAccountIdentityModal({
           />
         </motion.form>
       </ModalShell>
-      <CreateInstitutionModal
-        key={institutionModalKey}
-        open={showInstitutionModal}
-        initialName={institutionModalName}
-        onClose={() => setShowInstitutionModal(false)}
-        onCreated={handleInstitutionCreated}
+      <InstitutionModal
+        key={institutionModal.key}
+        open={institutionModal.open}
+        initialName={institutionModal.name}
+        institution={institutionModal.institution}
+        onClose={institutionModal.close}
+        onSaved={handleInstitutionSaved}
       />
     </>
   )

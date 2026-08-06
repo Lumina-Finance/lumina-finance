@@ -83,6 +83,14 @@ interface DropdownProps {
   /** Called when the user clicks the dropdown create action with the current search text */
   onCreateNew?: (query: string) => void;
   createNewLabel?: DropdownCreateLabel;
+
+  /**
+   * Called with the selected value when the user clicks the dropdown edit action, which is
+   * offered only while the value resolves to an option, so a placeholder or a blank
+   * selection never reaches this
+   */
+  onEditSelected?: (value: string) => void;
+  editSelectedLabel?: string;
 }
 
 const LOADING_TEXT_MIN_MS = 300;
@@ -119,6 +127,8 @@ const Dropdown = ({
   blankWhenEmpty = false,
   onCreateNew,
   createNewLabel,
+  onEditSelected,
+  editSelectedLabel,
 }: DropdownProps) => {
   const [open, setOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
@@ -296,6 +306,16 @@ const Dropdown = ({
     close();
   };
 
+  // A blank value and a placeholder the option list does not carry both resolve to no
+  // option, and neither is something the caller can edit
+  const showEditAction = Boolean(onEditSelected) && value !== '' && Boolean(selected);
+
+  const handleEditSelected = () => {
+    if (!onEditSelected) return;
+    onEditSelected(value);
+    close();
+  };
+
   /**
    * Applies the shared keyboard policy to an event from the trigger or the search field
    */
@@ -446,11 +466,14 @@ const Dropdown = ({
                 {searchable && (
                   <DropdownSearchControls
                     createNewLabel={resolvedCreateNewLabel}
+                    editSelectedLabel={editSelectedLabel}
                     searchPlaceholder={searchPlaceholder}
                     searchRef={searchRef}
                     searchText={searchText}
                     showCreateAction={Boolean(onCreateNew)}
+                    showEditAction={showEditAction}
                     onCreateNew={handleCreateNew}
+                    onEditSelected={handleEditSelected}
                     onKeyDown={handleSearchKeyDown}
                     onSearchChange={setSearchText}
                   />

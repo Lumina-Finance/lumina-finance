@@ -81,6 +81,10 @@ export interface ImportReferenceData {
   accountById: Map<string, AccountsOverview>
   categoryById: Map<string, Category>
   institutionById: Map<string, Institution>
+
+  // The mapping steps offer a correction to the institution a row answers with, which needs
+  // the institution itself rather than the option built from it
+  institutions: Institution[]
 }
 
 /**
@@ -184,5 +188,6 @@ export function useImportReferenceData(): ImportReferenceData {
     accountById,
     categoryById,
     institutionById,
+    institutions,
   }
 }

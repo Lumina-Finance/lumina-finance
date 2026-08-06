@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
-import CreateInstitutionModal from '@/components/reference-modals/CreateInstitutionModal'
+import InstitutionModal from '@/components/reference-modals/InstitutionModal'
+import { useInstitutionModal } from '@/hooks/useInstitutionModal'
 import {
   ACCOUNTS_LOAD_FAILURE_EXPLANATION,
   ACCOUNTS_LOAD_FAILURE_TITLE,
@@ -45,6 +46,7 @@ type ImportAccountMappingStepProps = Pick<
   | 'counterpartyAccountOptions'
   | 'currencyOptions'
   | 'institutionOptions'
+  | 'institutions'
   | 'accountsLoading'
   | 'accountsFailed'
   | 'refetchAccounts'
@@ -83,6 +85,7 @@ export function ImportAccountMappingStep({
   counterpartyAccountOptions,
   currencyOptions,
   institutionOptions,
+  institutions,
   accountsLoading,
   accountsFailed,
   refetchAccounts,
@@ -98,10 +101,10 @@ export function ImportAccountMappingStep({
   setBatchAccountInstitution,
   setSelectedAccountRows,
 }: ImportAccountMappingStepProps) {
-  const [institutionModalName, setInstitutionModalName] = useState('')
+  const institutionModal = useInstitutionModal(institutions)
+
+  // Which field asked for a new institution, so the one it creates comes back to that field
   const [institutionModalTarget, setInstitutionModalTarget] = useState<BatchTarget | string>('')
-  const [institutionModalKey, setInstitutionModalKey] = useState(0)
-  const institutionModalOpen = Boolean(institutionModalTarget)
 
   // The counterparty table carries its own batch bar, so typing into one bar leaves the other alone
   const [counterpartyBatchType, setCounterpartyBatchType] = useState('')
@@ -109,12 +112,19 @@ export function ImportAccountMappingStep({
   const [counterpartyBatchInstitution, setCounterpartyBatchInstitution] = useState(UNSET_BATCH_INSTITUTION)
 
   const openInstitutionModal = (query: string, target: BatchTarget | string) => {
-    setInstitutionModalName(query)
     setInstitutionModalTarget(target)
-    setInstitutionModalKey((current) => current + 1)
+    institutionModal.openForCreate(query)
   }
 
-  const handleInstitutionCreated = (institution: { id: string }) => {
+  const closeInstitutionModal = () => {
+    setInstitutionModalTarget('')
+    institutionModal.close()
+  }
+
+  const handleInstitutionSaved = (institution: { id: string }) => {
+
+    // A correction changes an institution rather than which one a field answers with, so it
+    // comes back to no field and leaves every answer as it was
     if (institutionModalTarget === IMPORTED_BATCH_TARGET) {
       setBatchAccountInstitution(institution.id)
     } else if (institutionModalTarget === COUNTERPARTY_BATCH_TARGET) {
@@ -122,7 +132,7 @@ export function ImportAccountMappingStep({
     } else if (institutionModalTarget) {
       setAccountCreateInstitutions((current) => ({ ...current, [institutionModalTarget]: institution.id }))
     }
-    setInstitutionModalTarget('')
+    closeInstitutionModal()
   }
 
   /**
@@ -165,6 +175,7 @@ export function ImportAccountMappingStep({
     selectedRowIds: selectedAccountRows,
     onSelectedRowsChange: setSelectedAccountRows,
     onCreateInstitution: (query: string, rowId: string) => openInstitutionModal(query, rowId),
+    onCorrectInstitution: institutionModal.openForCorrection,
   }
 
   const importedSources = accountMappingSources.filter((source) => !source.isCounterpartyOnly)
@@ -266,12 +277,13 @@ export function ImportAccountMappingStep({
           )}
         </>
       )}
-      <CreateInstitutionModal
-        key={institutionModalKey}
-        open={institutionModalOpen}
-        initialName={institutionModalName}
-        onClose={() => setInstitutionModalTarget('')}
-        onCreated={handleInstitutionCreated}
+      <InstitutionModal
+        key={institutionModal.key}
+        open={institutionModal.open}
+        initialName={institutionModal.name}
+        institution={institutionModal.institution}
+        onClose={closeInstitutionModal}
+        onSaved={handleInstitutionSaved}
       />
     </ImportStep>
   )
