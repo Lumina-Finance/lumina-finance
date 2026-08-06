@@ -34,6 +34,9 @@ export interface DropdownBoxPosition {
   /** What the list itself may take, once the head and any search field have had their share */
   listMaxHeight: number
 
+  /** How wide the box may grow to fit what it holds, which is never less than `width` */
+  maxWidth: number
+
   /**
    * Whether the list grows upward, above the head
    *
@@ -44,6 +47,8 @@ export interface DropdownBoxPosition {
   openAbove: boolean
 
   top: number
+
+  /** The width of the slot the box came from, which is the floor an open box grows up from */
   width: number
 }
 
@@ -62,6 +67,7 @@ export const DEFAULT_DROPDOWN_BOX_POSITION: DropdownBoxPosition = {
   boxMaxHeight: 208,
   left: 0,
   listMaxHeight: 208,
+  maxWidth: 0,
   openAbove: false,
   top: 0,
   width: 0,
@@ -71,6 +77,10 @@ export const DEFAULT_DROPDOWN_BOX_POSITION: DropdownBoxPosition = {
 // is computed in JavaScript and a second copy in CSS would drift from this one
 const DROPDOWN_MAX_HEIGHT = 400
 const DROPDOWN_MIN_HEIGHT = 160
+
+// How far an open box may grow to fit what it holds. The room left between the box and the edge of
+// the screen is taken off this, so a box opened near the edge gets less than the whole of it
+const DROPDOWN_MAX_WIDTH = 320
 
 const DROPDOWN_SEARCH_HEIGHT = 56
 
@@ -95,13 +105,15 @@ export function getDropdownBoxPosition({
   const viewportBottom = viewport.offsetTop + viewport.height
   const viewportRight = viewport.offsetLeft + viewport.width
 
-  // Exactly the width of the slot it came from. The head and the list are one box now, so widening
-  // the box to give a narrow list more room would widen the head with it and slide it sideways in
-  // front of the user at the moment they opened it
+  // The width of the slot it came from, which an open box grows up from rather than down to. The
+  // head and the list are one box, so a box that opened narrower than its own slot would take the
+  // head in with it
   const width = anchorRect.width
 
   // Only moves the box when the slot itself is partly off the screen, which is the one case where
-  // leaving it where it is would put the list somewhere nobody can read it
+  // leaving it where it is would put the list somewhere nobody can read it. Worked out from the
+  // closed width rather than the grown one, so growing cannot slide the head sideways in front of
+  // the user at the moment they opened it
   const left = Math.min(
     Math.max(anchorRect.left, viewport.offsetLeft + DROPDOWN_VIEWPORT_PADDING),
     Math.max(viewport.offsetLeft, viewportRight - width - DROPDOWN_VIEWPORT_PADDING),
@@ -129,10 +141,64 @@ export function getDropdownBoxPosition({
       boxMaxHeight - headHeight - DROPDOWN_BOX_CHROME - (searchable ? DROPDOWN_SEARCH_HEIGHT : 0),
     ),
 
+    // Whatever room is left between the box and the far edge, so a box that grows to fit its
+    // content still stops where a box that never grew would have. Floored at the closed width,
+    // since a slot with less room than that is one already hanging off the edge, and narrowing it
+    // would only take the head in with it
+    maxWidth: Math.max(
+      width,
+      Math.min(DROPDOWN_MAX_WIDTH, viewportRight - left - DROPDOWN_VIEWPORT_PADDING),
+    ),
+
     openAbove,
 
     // Pinned by the head's upper edge, so the head stays put and the list grows away below it
     top: anchorRect.top,
     width,
+  }
+}
+
+interface DropdownBoxWidthsParams {
+  /** The widest the box has been since it opened, or 0 before it has been measured */
+  grownWidth: number
+
+  /** False for the length of the collapse, which the box is still floating for */
+  open: boolean
+
+  position: DropdownBoxPosition
+}
+
+export interface DropdownBoxWidths {
+  maxWidth: number
+  minWidth: number
+
+  /** Left to the contents while the box is free to follow them, or the width it had reached */
+  width: number | 'max-content'
+}
+
+/**
+ * Settles how wide the box is while it is floating, on the way in and on the way out
+ *
+ * Open, it follows its own contents between the slot it came from and the room it has, held at the
+ * widest it has been so that filtering a list does not take the panel in with it. That much lasts
+ * only as long as the room does: a window resized under an open box brings the ceiling down and the
+ * box with it.
+ *
+ * Closing, the ceiling comes down to the slot's width, and the box is pinned at the width it had
+ * reached rather than left to its contents. A list filtered down to two options is narrower than the
+ * panel the user is looking at, so without the pin the box would step to that width in one frame
+ * before starting to narrow.
+ */
+export function getDropdownBoxWidths({
+  grownWidth,
+  open,
+  position,
+}: DropdownBoxWidthsParams): DropdownBoxWidths {
+  const ceiling = open ? position.maxWidth : position.width
+
+  return {
+    maxWidth: ceiling,
+    minWidth: Math.min(Math.max(position.width, grownWidth), ceiling),
+    width: open || !grownWidth ? 'max-content' : grownWidth,
   }
 }

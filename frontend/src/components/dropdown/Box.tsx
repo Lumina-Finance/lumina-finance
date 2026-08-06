@@ -2,12 +2,16 @@ import type { ReactNode, RefObject } from 'react'
 import { motion, useReducedMotion } from 'motion/react'
 import { joinClassNames } from '@/utils/classNames'
 import { DROPDOWN_PRESS_SCALE, DROPDOWN_SPRING } from './motion'
-import type { DropdownBoxPosition } from './position'
+import { getDropdownBoxWidths, type DropdownBoxPosition } from './position'
 
 interface DropdownBoxProps {
   boxRef: RefObject<HTMLDivElement | null>
   children: ReactNode
   disabled: boolean
+
+  /** The widest the box has been since it opened, which it keeps while there is room for it */
+  grownWidth: number
+
   hasError: boolean
   open: boolean
 
@@ -34,6 +38,11 @@ const DROPDOWN_OPEN_Z_INDEX = 110
  * scrolling table or a modal body without being cut off. Switching only the positioning means the
  * head is never remounted, so focus, its id and the modal's own Tab handling carry straight through.
  *
+ * Open, it is also as wide as its contents need, between the slot it came from and the room it has,
+ * so a list in a narrow table cell is not read through a slot-width window. The browser settles that
+ * width from the contents themselves. Both edges the box is pinned by stay where they are, so what
+ * grows is the far side of a control the user is already looking at.
+ *
  * It is not portalled: a modal decides whether focus is still inside it, and this drop-down decides
  * whether a press was outside it, by asking whether the element is a descendant. That costs one
  * constraint: no ancestor may carry a backdrop filter, a filter or a settled transform, any of which
@@ -43,12 +52,18 @@ export function DropdownBox({
   boxRef,
   children,
   disabled,
+  grownWidth,
   hasError,
   open,
   placed,
   position,
 }: DropdownBoxProps) {
   const shouldReduceMotion = useReducedMotion()
+
+  // The box gives its grown width back over the collapse rather than the moment it returns to its
+  // slot, where losing it in a single frame would take the chevron with it long after the user
+  // pressed anything
+  const { maxWidth, minWidth, width } = getDropdownBoxWidths({ grownWidth, open, position })
 
   return (
     <motion.div
@@ -69,7 +84,10 @@ export function DropdownBox({
           bottom: position.openAbove ? position.bottom : undefined,
           top: position.openAbove ? undefined : position.top,
           left: position.left,
-          width: position.width,
+          // Sized to what it holds while it is open, and to the width it reached while it closes
+          width,
+          minWidth,
+          maxWidth,
           maxHeight: position.boxMaxHeight,
           zIndex: DROPDOWN_OPEN_Z_INDEX,
         }

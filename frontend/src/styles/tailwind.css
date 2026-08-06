@@ -624,7 +624,11 @@
     background: var(--app-input-bg);
     color: var(--app-text);
 
-    transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+    /* The width ceiling is in the list so that a box that grew past its slot narrows along with the
+       list as it closes, on the same timing. Opening is unaffected, since a ceiling arriving where
+       there was none has nothing to move from */
+    transition: border-color 0.2s, background 0.2s, box-shadow 0.2s,
+      max-width var(--app-dropdown-close-duration) var(--app-dropdown-ease);
   }
 
   /* Opening upward stacks the contents in reverse, so the list appears above the head while the head
