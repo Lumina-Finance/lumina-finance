@@ -4,7 +4,12 @@ import {
   ACCOUNTS_LOAD_FAILURE_EXPLANATION,
   ACCOUNTS_LOAD_FAILURE_TITLE,
   ACCOUNT_TYPE_OPTIONS,
+  CREATED_ACCOUNT_BALANCE_NOTE,
+  CREATED_ACCOUNT_CREDIT_LIMIT_NOTE,
+  CREATED_ACCOUNT_EXPLANATION,
+  CREATED_ACCOUNT_TITLE,
 } from '@/pages/imports/constants'
+import { isCreatingImportAccount } from '@/pages/imports/utils'
 import { ImportAccountMappingTable, EmptyState, ImportLoadFailure, ImportNotice, ImportStep } from '@/pages/imports/components'
 import type { FireflyImportWorkflow } from '@/pages/imports/firefly/hooks'
 
@@ -90,6 +95,44 @@ export function FireflyAccountMappingStep({
     setInstitutionModalTarget('')
   }
 
+  const accountRows = trackedAccountNames.map((sourceAccount) => {
+    const value = accountMappings[sourceAccount] ?? ''
+    const account = accountById.get(value)
+    const createDetails = accountCreateDetails[sourceAccount]
+
+    return {
+      id: sourceAccount,
+      source: sourceAccount,
+      value,
+
+      // Keeps an account the dropdown has stopped offering, which here means one archived
+      // since it was chosen, visible on its row rather than reading as unanswered
+      selectedOption: account ? { value, label: account.name } : undefined,
+
+      autoFilled: autoFilledAccountSources.has(sourceAccount),
+
+      // Both sides of a Firefly transfer take rows, so no source here is counterparty-only
+      isCounterpartyOnly: false,
+
+      isArchivedAccount: account?.is_archived ?? false,
+      isHandAnswered: handAnsweredAccountSources.has(sourceAccount),
+      accountType: account?.account_type ?? '',
+      accountCurrency: account?.currency ?? '',
+      accountInstitution: account?.institution?.id ?? '',
+      createType: createDetails?.accountType ?? '',
+      createCurrency: createDetails?.currency ?? '',
+      createInstitution: createDetails?.institutionId ?? '',
+      onChange: (nextValue: string) => updateFireflyAccountMapping(sourceAccount, nextValue),
+      onCreateTypeChange: (nextValue: string) => setAccountCreateTypes((current) => ({ ...current, [sourceAccount]: nextValue })),
+      onCreateCurrencyChange: (nextValue: string) => setAccountCreateCurrencies((current) => ({ ...current, [sourceAccount]: nextValue })),
+      onCreateInstitutionChange: (nextValue: string) => setAccountCreateInstitutions((current) => ({ ...current, [sourceAccount]: nextValue })),
+    }
+  })
+
+  // Held back until the account list has landed, since every tracked name resolves to create until
+  // it does, which would show the notice and then drop it once the names match
+  const isCreatingAccount = !accountsLoading && isCreatingImportAccount(accountRows)
+
   return (
     <ImportStep
       index="02"
@@ -113,58 +156,36 @@ export function FireflyAccountMappingStep({
           description="Upload the transactions CSV first."
         />
       ) : (
-        <ImportAccountMappingTable
-          rows={trackedAccountNames.map((sourceAccount) => {
-            const value = accountMappings[sourceAccount] ?? ''
-            const account = accountById.get(value)
-            const createDetails = accountCreateDetails[sourceAccount]
-
-            return {
-              id: sourceAccount,
-              source: sourceAccount,
-              value,
-
-              // Keeps an account the dropdown has stopped offering, which here means one archived
-              // since it was chosen, visible on its row rather than reading as unanswered
-              selectedOption: account ? { value, label: account.name } : undefined,
-
-              autoFilled: autoFilledAccountSources.has(sourceAccount),
-
-              // Both sides of a Firefly transfer take rows, so no source here is counterparty-only
-              isCounterpartyOnly: false,
-
-              isArchivedAccount: account?.is_archived ?? false,
-              isHandAnswered: handAnsweredAccountSources.has(sourceAccount),
-              accountType: account?.account_type ?? '',
-              accountCurrency: account?.currency ?? '',
-              accountInstitution: account?.institution?.id ?? '',
-              createType: createDetails?.accountType ?? '',
-              createCurrency: createDetails?.currency ?? '',
-              createInstitution: createDetails?.institutionId ?? '',
-              onChange: (nextValue: string) => updateFireflyAccountMapping(sourceAccount, nextValue),
-              onCreateTypeChange: (nextValue: string) => setAccountCreateTypes((current) => ({ ...current, [sourceAccount]: nextValue })),
-              onCreateCurrencyChange: (nextValue: string) => setAccountCreateCurrencies((current) => ({ ...current, [sourceAccount]: nextValue })),
-              onCreateInstitutionChange: (nextValue: string) => setAccountCreateInstitutions((current) => ({ ...current, [sourceAccount]: nextValue })),
-            }
-          })}
-          options={accountOptions}
-          accountTypeOptions={ACCOUNT_TYPE_OPTIONS}
-          currencyOptions={currencyOptions}
-          institutionOptions={institutionOptions}
-          disabled={accountsLoading}
-          currenciesDisabled={currenciesLoading}
-          institutionsDisabled={institutionsLoading}
-          selectedRowIds={selectedAccountRows}
-          batchAccountType={batchAccountType}
-          batchAccountCurrency={batchAccountCurrency}
-          batchAccountInstitution={batchAccountInstitution}
-          onBatchAccountTypeChange={setBatchAccountType}
-          onBatchAccountCurrencyChange={setBatchAccountCurrency}
-          onBatchAccountInstitutionChange={setBatchAccountInstitution}
-          onSelectedRowsChange={setSelectedAccountRows}
-          onCreateInstitution={(query, rowId) => openInstitutionModal(query, rowId)}
-          onBatchCreateInstitution={(query) => openInstitutionModal(query, 'batch')}
-        />
+        <>
+          {isCreatingAccount && (
+            <ImportNotice
+              title={CREATED_ACCOUNT_TITLE}
+              items={[CREATED_ACCOUNT_BALANCE_NOTE, CREATED_ACCOUNT_CREDIT_LIMIT_NOTE]}
+            >
+              {CREATED_ACCOUNT_EXPLANATION}
+            </ImportNotice>
+          )}
+          <ImportAccountMappingTable
+            rows={accountRows}
+            options={accountOptions}
+            accountTypeOptions={ACCOUNT_TYPE_OPTIONS}
+            currencyOptions={currencyOptions}
+            institutionOptions={institutionOptions}
+            disabled={accountsLoading}
+            currenciesDisabled={currenciesLoading}
+            institutionsDisabled={institutionsLoading}
+            selectedRowIds={selectedAccountRows}
+            batchAccountType={batchAccountType}
+            batchAccountCurrency={batchAccountCurrency}
+            batchAccountInstitution={batchAccountInstitution}
+            onBatchAccountTypeChange={setBatchAccountType}
+            onBatchAccountCurrencyChange={setBatchAccountCurrency}
+            onBatchAccountInstitutionChange={setBatchAccountInstitution}
+            onSelectedRowsChange={setSelectedAccountRows}
+            onCreateInstitution={(query, rowId) => openInstitutionModal(query, rowId)}
+            onBatchCreateInstitution={(query) => openInstitutionModal(query, 'batch')}
+          />
+        </>
       )}
       <CreateInstitutionModal
         key={institutionModalKey}

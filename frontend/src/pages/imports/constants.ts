@@ -176,6 +176,19 @@ export const AMOUNT_CONVENTION_NOTE = 'Imported amounts carry their own directio
 // one account that source is not offered. The matched account names follow it
 export const ARCHIVED_ACCOUNT_MATCH_EXPLANATION = 'An archived account takes no new transactions, so it is not offered as a choice here. Unarchive one of these to import rows into it, which means leaving this import and uploading your file again:'
 
+// Shown once any source on either table is answered create, since nothing else in the flow says
+// what an account made this way is and is not given
+export const CREATED_ACCOUNT_TITLE = 'New Accounts'
+export const CREATED_ACCOUNT_EXPLANATION = 'Accounts imported as new accounts (by selecting "Create New Account" in the "Existing Account" column) won\'t create starting balance nor credit limits automatically:'
+// A balance adjustment rather than a field, because an account that already exists has no starting
+// balance to set. Left to the user to want one rather than told to enter one, since a Firefly
+// export carries its own opening balances and the import writes those as balance adjustments
+// already
+export const CREATED_ACCOUNT_BALANCE_NOTE = 'If you\'d like to enter a starting balance of an imported account, please create a balance adjustment transaction in that account'
+// The edit button this describes is the pencil on the account's own card, which is the only place a
+// credit limit can be set once the account exists
+export const CREATED_ACCOUNT_CREDIT_LIMIT_NOTE = 'If you\'d like to set a credit limit for that account, you can do so by opening it from Accounts and using the edit button on its card'
+
 // Shown in place of a mapping step whose list could not be fetched at all, since answering one
 // against nothing maps every value to a new record and duplicates what the user already has
 export const ACCOUNTS_LOAD_FAILURE_TITLE = 'Your accounts could not be loaded'
