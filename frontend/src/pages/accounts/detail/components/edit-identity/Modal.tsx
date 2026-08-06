@@ -131,7 +131,7 @@ export default function EditAccountIdentityModal({
       setFieldErrors({})
       setDeleteStage('idle')
       setDeleteNameInput('')
-      institutionModal.reset()
+      institutionModal.close()
     }
   }
 

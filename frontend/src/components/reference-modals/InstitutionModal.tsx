@@ -142,6 +142,11 @@ export default function InstitutionModal({
       title={isCorrection ? 'Correct Institution' : 'Add Institution'}
       onClose={onClose}
       onSubmit={handleSubmit}
+
+      // A save that outlives its modal still runs its callback, which would write into
+      // whatever the field is showing by then, so dismissing is locked while it is in flight
+      // exactly as cancelling already is
+      closeDisabled={isSaving}
       footer={
         <ModalFormFooter
           submitLabel={isCorrection ? 'Save' : 'Create'}

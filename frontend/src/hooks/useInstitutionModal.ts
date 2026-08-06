@@ -38,20 +38,11 @@ export function useInstitutionModal(institutions: Institution[]) {
   }
 
   // Only the open flag, since the modal is still on screen while it animates out and would
-  // otherwise switch from correcting to adding as it goes
+  // otherwise switch from correcting to adding as it goes. What it was opened with is left
+  // alone, because every opening sets both values before showing it again
   const close = () => {
     setOpen(false)
   }
 
-  /**
-   * Clears what the last opening left behind, for a parent modal that stays mounted between
-   * openings and starts each one clean
-   */
-  const reset = () => {
-    setName('')
-    setInstitution(null)
-    setOpen(false)
-  }
-
-  return { name, institution, open, key, openForCreate, openForCorrection, close, reset }
+  return { name, institution, open, key, openForCreate, openForCorrection, close }
 }
