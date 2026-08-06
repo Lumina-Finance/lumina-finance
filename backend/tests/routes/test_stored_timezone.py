@@ -1,9 +1,11 @@
 """Route behaviour when a stored timezone no longer resolves"""
 
+import uuid
+
 from fastapi import status
 from sqlalchemy import func, select, update
 
-from app.models.account import Account
+from app.models.account import Account, TaxAdvantagedCategory
 from app.models.user import User
 from app.utils.dates import ACCOUNT_OWNER_PROFILE, OWN_PROFILE
 from tests.conftest import TestSession
@@ -44,6 +46,23 @@ async def _signup(client, *, email: str):
     return await client.post("/auth/signup", json={**SIGNUP_PAYLOAD, "email": email})
 
 
+async def _create_tax_advantaged_category(client, headers):
+    """Create a personal tax-advantaged category
+
+    Args:
+        client: Async test client
+        headers: Authorization header for the creating user
+
+    Returns:
+        API response from creating the category
+    """
+    return await client.post(
+        "/tax-advantaged-categories",
+        json={"name": "TFSA", "tax_treatment": "tax_free", "currency": "CAD"},
+        headers=headers,
+    )
+
+
 async def test_dashboard_refuses_an_unresolvable_stored_timezone(client):
     """The reader is told which setting is at fault instead of getting a server error"""
     signup_resp = await _create_user(client)
@@ -71,6 +90,59 @@ async def test_account_creation_writes_nothing_when_the_stored_timezone_is_unres
         # Count every account row, since a refusal after the commit would leave one behind
         account_count = await session.scalar(select(func.count()).select_from(Account))
     assert account_count == 0
+
+
+async def test_category_creation_writes_nothing_when_the_stored_timezone_is_unresolvable(client):
+    """The refusal lands before the commit, so a failed request leaves no category behind"""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    await _store_unresolvable_timezone()
+
+    create_resp = await _create_tax_advantaged_category(client, headers)
+
+    assert create_resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+    assert UNRESOLVABLE_IDENTIFIER in create_resp.json()["detail"]
+    async with TestSession() as session:
+
+        # Count every tax-advantaged category row, since a refusal after the commit would leave one behind
+        category_count = await session.scalar(select(func.count()).select_from(TaxAdvantagedCategory))
+    assert category_count == 0
+
+
+async def test_category_update_writes_nothing_when_the_stored_timezone_is_unresolvable(client):
+    """A refused update leaves the category as it was rather than saving and then failing"""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    category_id = (await _create_tax_advantaged_category(client, headers)).json()["id"]
+    await _store_unresolvable_timezone()
+
+    update_resp = await client.patch(
+        f"/tax-advantaged-categories/{category_id}",
+        json={"name": "RRSP"},
+        headers=headers,
+    )
+
+    assert update_resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+    async with TestSession() as session:
+
+        # Read the stored name back, since a refusal after the commit would have saved the new one
+        stored_name = await session.scalar(
+            select(TaxAdvantagedCategory.name).where(TaxAdvantagedCategory.id == uuid.UUID(category_id)),
+        )
+    assert stored_name == "TFSA"
+
+
+async def test_the_category_listing_refuses_an_unresolvable_stored_timezone(client):
+    """The reader is told which value is at fault instead of getting a server error"""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    await _create_tax_advantaged_category(client, headers)
+    await _store_unresolvable_timezone()
+
+    resp = await client.get("/tax-advantaged-categories", headers=headers)
+
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+    assert UNRESOLVABLE_IDENTIFIER in resp.json()["detail"]
 
 
 async def test_a_group_account_refusal_says_the_owner_setting_is_at_fault(client):
