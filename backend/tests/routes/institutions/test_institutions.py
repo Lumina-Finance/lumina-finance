@@ -274,3 +274,217 @@ async def test_create_institution_without_auth_returns_401(client):
     """POST /institutions without an Authorization header returns 401."""
     resp = await client.post("/institutions", json=INSTITUTION_PAYLOAD)
     assert resp.status_code == 401
+
+
+# --- PATCH /institutions/{institution_id} ---
+
+
+async def test_update_institution_rewrites_the_shared_row(client):
+    """A correction to the website is stored, leaving the other fields alone."""
+    inst = await _seed_institution()
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await client.patch(
+        f"/institutions/{inst.id}",
+        json={"website": "https://newbank.example.com"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["website"] == "https://newbank.example.com"
+    assert data["name"] == "Test Bank"
+    assert data["country_code"] == "CA"
+
+
+async def test_update_institution_demotes_a_canonical_row(client):
+    """A correction drops a canonical institution back to pending."""
+    inst = await _seed_institution(status=InstitutionStatus.CANONICAL)
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await client.patch(
+        f"/institutions/{inst.id}",
+        json={"website": "https://newbank.example.com"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "pending"
+
+
+async def test_update_institution_leaves_omitted_fields_alone(client):
+    """Fields left out of the request keep their stored values."""
+    inst = await _seed_institution(logo_url="https://cdn.example.com/logo-bank.png")
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await client.patch(
+        f"/institutions/{inst.id}",
+        json={"website": "https://newbank.example.com"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["logo_url"] == "https://cdn.example.com/logo-bank.png"
+
+
+async def test_update_institution_clears_logo_url_with_an_explicit_null(client):
+    """Sending logo_url as null clears the stored logo."""
+    inst = await _seed_institution(logo_url="https://cdn.example.com/logo-bank.png")
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await client.patch(f"/institutions/{inst.id}", json={"logo_url": None}, headers=headers)
+
+    assert resp.status_code == 200
+    assert resp.json()["logo_url"] is None
+
+
+async def test_update_institution_rejects_a_null_on_a_required_field(client):
+    """A field backed by a NOT NULL column cannot be sent as null."""
+    inst = await _seed_institution()
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    for field in ("name", "country_code", "website"):
+        resp = await client.patch(f"/institutions/{inst.id}", json={field: None}, headers=headers)
+        assert resp.status_code == 422, field
+
+
+async def test_update_institution_rename_onto_an_existing_pair_returns_409(client):
+    """Renaming onto a name and country another institution holds is rejected."""
+    await _seed_institution(name="Alpha Bank", country_code="CA")
+    beta = await _seed_institution(name="Beta Bank", country_code="CA")
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await client.patch(f"/institutions/{beta.id}", json={"name": "Alpha Bank"}, headers=headers)
+
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "Institution with this name and country already exists"
+
+
+async def test_update_institution_keeping_its_own_name_is_not_a_conflict(client):
+    """Resending the stored name alongside a change does not collide with the row itself."""
+    inst = await _seed_institution(name="Alpha Bank", country_code="CA")
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await client.patch(
+        f"/institutions/{inst.id}",
+        json={"name": "Alpha Bank", "website": "https://alpha.example.com"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["website"] == "https://alpha.example.com"
+
+
+async def test_update_institution_conflict_reads_the_name_and_country_pair(client):
+    """Changing only the country onto an existing pair is rejected."""
+    canadian = await _seed_institution(name="Alpha Bank", country_code="CA")
+    await _seed_institution(name="Alpha Bank", country_code="US")
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await client.patch(
+        f"/institutions/{canadian.id}",
+        json={"country_code": "US"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 409
+
+
+async def test_update_institution_with_no_fields_changes_nothing(client):
+    """A request carrying no fields leaves the row, including its status, untouched."""
+    inst = await _seed_institution(status=InstitutionStatus.CANONICAL)
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await client.patch(f"/institutions/{inst.id}", json={}, headers=headers)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "canonical"
+    assert data["website"] == "https://testbank.example.com"
+
+
+async def test_update_institution_not_found_returns_404(client):
+    """Correcting an institution that does not exist returns 404."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await client.patch(
+        f"/institutions/{NONEXISTENT_ID}",
+        json={"website": "https://newbank.example.com"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Institution not found"
+
+
+async def test_update_institution_status_override_ignored(client):
+    """Client cannot hold a row canonical by sending a status alongside the correction."""
+    inst = await _seed_institution(status=InstitutionStatus.CANONICAL)
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await client.patch(
+        f"/institutions/{inst.id}",
+        json={"status": "canonical", "website": "https://newbank.example.com"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "pending"
+
+
+async def test_update_institution_validates_like_create(client):
+    """An empty name and a country code of the wrong length are both rejected."""
+    inst = await _seed_institution()
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    empty_name_resp = await client.patch(f"/institutions/{inst.id}", json={"name": ""}, headers=headers)
+    long_country_resp = await client.patch(
+        f"/institutions/{inst.id}",
+        json={"country_code": "CAN"},
+        headers=headers,
+    )
+
+    assert empty_name_resp.status_code == 422
+    assert long_country_resp.status_code == 422
+
+
+async def test_update_institution_without_auth_returns_401(client):
+    """PATCH /institutions/{id} without an Authorization header returns 401."""
+    resp = await client.patch(
+        f"/institutions/{NONEXISTENT_ID}",
+        json={"website": "https://newbank.example.com"},
+    )
+    assert resp.status_code == 401
+
+
+async def test_update_institution_updates_cache_status(client):
+    """A correction marks app data changed for the submitting user's cache validation."""
+    inst = await _seed_institution()
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    before_resp = await client.get("/me/cache-status", headers=headers)
+    resp = await client.patch(
+        f"/institutions/{inst.id}",
+        json={"website": "https://newbank.example.com"},
+        headers=headers,
+    )
+    after_resp = await client.get("/me/cache-status", headers=headers)
+
+    assert resp.status_code == 200
+    before_changed_at = before_resp.json()["personal"]["changed_at"]
+    after_changed_at = after_resp.json()["personal"]["changed_at"]
+    assert after_changed_at is not None
+    assert after_changed_at != before_changed_at
