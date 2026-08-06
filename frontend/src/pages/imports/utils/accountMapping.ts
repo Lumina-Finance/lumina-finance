@@ -57,6 +57,19 @@ export function countImportAccountRowStates(rows: ImportAccountRowAnswer[]) {
 }
 
 /**
+ * Whether any mapping row on a step is answered create, which is what the new-account notice is for
+ *
+ * A row counts whether or not its type and currency are filled in, since choosing to create is what
+ * the notice is about, which is why this does not go through `getImportAccountRowState` and its
+ * stricter idea of an answered row
+ *
+ * @param rows - Every mapping row on the step, from both its tables
+ */
+export function isCreatingImportAccount(rows: Array<{ value: string }>): boolean {
+  return rows.some((row) => row.value === CREATE_ACCOUNT_VALUE)
+}
+
+/**
  * Whether the batch bar's Apply may edit a row
  *
  * Apply fills in what the user has not settled, so it leaves alone an account they picked or that

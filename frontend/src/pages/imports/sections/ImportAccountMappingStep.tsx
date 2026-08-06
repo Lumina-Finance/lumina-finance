@@ -10,9 +10,14 @@ import {
   CLEARED_ACCOUNT_SOURCES_TITLE,
   COUNTERPARTY_ONLY_EXPLANATION,
   COUNTERPARTY_ONLY_TABLE_TITLE,
+  CREATED_ACCOUNT_BALANCE_NOTE,
+  CREATED_ACCOUNT_CREDIT_LIMIT_NOTE,
+  CREATED_ACCOUNT_EXPLANATION,
+  CREATED_ACCOUNT_TITLE,
   UNSET_BATCH_INSTITUTION,
 } from '@/pages/imports/constants'
 import type { ImportAccountSource } from '@/pages/imports/types'
+import { isCreatingImportAccount } from '@/pages/imports/utils'
 import { ImportAccountMappingTable, EmptyState, ImportLoadFailure, ImportNotice, ImportStep } from '@/pages/imports/components'
 import type { TransactionImportWorkflow } from '@/pages/imports/hooks'
 
@@ -164,6 +169,12 @@ export function ImportAccountMappingStep({
 
   const importedSources = accountMappingSources.filter((source) => !source.isCounterpartyOnly)
   const counterpartySources = accountMappingSources.filter((source) => source.isCounterpartyOnly)
+  const importedRows = buildRows(importedSources)
+  const counterpartyRows = buildRows(counterpartySources)
+
+  // Both tables create accounts, so one notice covers them and reads every row of the step. Held
+  // back until the account list has landed, since rows rest on create until it does
+  const isCreatingAccount = !accountsLoading && isCreatingImportAccount([...importedRows, ...counterpartyRows])
 
   return (
     <ImportStep index="03" title="Account Mapping">
@@ -211,8 +222,16 @@ export function ImportAccountMappingStep({
               {ARCHIVED_ACCOUNT_MATCH_EXPLANATION}
             </ImportNotice>
           )}
+          {isCreatingAccount && (
+            <ImportNotice
+              title={CREATED_ACCOUNT_TITLE}
+              items={[CREATED_ACCOUNT_BALANCE_NOTE, CREATED_ACCOUNT_CREDIT_LIMIT_NOTE]}
+            >
+              {CREATED_ACCOUNT_EXPLANATION}
+            </ImportNotice>
+          )}
           <ImportAccountMappingTable
-            rows={buildRows(importedSources)}
+            rows={importedRows}
             options={accountOptions}
             batchAccountType={batchAccountType}
             batchAccountCurrency={batchAccountCurrency}
@@ -232,7 +251,7 @@ export function ImportAccountMappingStep({
                 </p>
               </div>
               <ImportAccountMappingTable
-                rows={buildRows(counterpartySources)}
+                rows={counterpartyRows}
                 options={counterpartyAccountOptions}
                 batchAccountType={counterpartyBatchType}
                 batchAccountCurrency={counterpartyBatchCurrency}
