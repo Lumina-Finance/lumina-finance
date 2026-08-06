@@ -194,6 +194,7 @@ export function FireflyAccountMappingStep({
             onSelectedRowsChange={setSelectedAccountRows}
             onCreateInstitution={(query, rowId) => openInstitutionModal(query, rowId)}
             onBatchCreateInstitution={(query) => openInstitutionModal(query, 'batch')}
+            onCorrectInstitution={institutionModal.openForCorrection}
           />
         </>
       )}

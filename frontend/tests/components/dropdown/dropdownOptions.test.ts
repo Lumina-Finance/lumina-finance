@@ -3,6 +3,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  canEditDropdownOption,
   getCreateNewLabel,
   getEffectiveHighlightedIndex,
   getGroupedDropdownOptions,
@@ -75,6 +76,15 @@ describe('dropdown option helpers', () => {
     expect(getCreateNewLabel(undefined, 'Groceries')).toBe('Create "Groceries"')
     expect(getCreateNewLabel('Add account', 'Groceries')).toBe('Add account')
     expect(getCreateNewLabel((query) => `Add ${query}`, 'Groceries')).toBe('Add Groceries')
+  })
+
+  it('offers the edit action only on an option standing for a record a caller can edit', () => {
+    expect(canEditDropdownOption({ value: 'inst-1', label: 'Alpha Bank' }, true)).toBe(true)
+
+    // The blank entry is the absence of a choice, so there is nothing behind it to correct
+    expect(canEditDropdownOption({ value: '', label: 'None' }, true)).toBe(false)
+    expect(canEditDropdownOption({ value: 'inst-1', label: 'Alpha Bank', disabled: true }, true)).toBe(false)
+    expect(canEditDropdownOption({ value: 'inst-1', label: 'Alpha Bank' }, false)).toBe(false)
   })
 })
 

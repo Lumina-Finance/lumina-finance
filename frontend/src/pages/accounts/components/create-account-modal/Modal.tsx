@@ -252,8 +252,8 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                   searchPlaceholder="Search institutions..."
                   onCreateNew={institutionModal.openForCreate}
                   createNewLabel={(query) => query ? `Create institution "${query}"` : 'Create institution'}
-                  onEditSelected={institutionModal.openForCorrection}
-                  editSelectedLabel="Correct institution"
+                  onEditOption={institutionModal.openForCorrection}
+                  editOptionLabel="Correct institution"
                 />
               </div>
 

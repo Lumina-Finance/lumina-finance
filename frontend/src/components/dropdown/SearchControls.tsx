@@ -1,35 +1,27 @@
 import type { ChangeEvent, KeyboardEvent, RefObject } from 'react'
-import { Pencil, Plus } from 'lucide-react'
+import { Plus } from 'lucide-react'
 
 interface DropdownSearchControlsProps {
   createNewLabel: string
-  editSelectedLabel: string | undefined
   searchPlaceholder: string
   searchRef: RefObject<HTMLInputElement | null>
   searchText: string
   showCreateAction: boolean
-  showEditAction: boolean
   onCreateNew: () => void
-  onEditSelected: () => void
   onKeyDown: (event: KeyboardEvent<HTMLInputElement>) => void
   onSearchChange: (value: string) => void
 }
 
-const DEFAULT_EDIT_SELECTED_LABEL = 'Edit selected'
-
 /**
- * Renders the searchable dropdown input and its optional create and edit actions inside the open box
+ * Renders the searchable dropdown input and optional create action inside the open box
  */
 export function DropdownSearchControls({
   createNewLabel,
-  editSelectedLabel,
   searchPlaceholder,
   searchRef,
   searchText,
   showCreateAction,
-  showEditAction,
   onCreateNew,
-  onEditSelected,
   onKeyDown,
   onSearchChange,
 }: DropdownSearchControlsProps) {
@@ -37,11 +29,6 @@ export function DropdownSearchControls({
     onSearchChange(event.target.value)
   }
 
-  const resolvedEditSelectedLabel = editSelectedLabel ?? DEFAULT_EDIT_SELECTED_LABEL
-
-  // One line, because the height the open box reserves for this row is a fixed figure in the
-  // positioning module. A second line would push the option list past the bottom of the box,
-  // which clips rather than scrolls, so a caller with no room for two actions offers one
   return (
     <div className="flex gap-2 px-2 pb-2 pt-2">
       <input
@@ -66,19 +53,6 @@ export function DropdownSearchControls({
           onClick={onCreateNew}
         >
           <Plus size={18} aria-hidden />
-        </button>
-      )}
-      {showEditAction && (
-        <button
-          type="button"
-          className="app-icon-button h-10 w-10 shrink-0"
-          style={{ color: 'var(--app-accent)' }}
-          aria-label={resolvedEditSelectedLabel}
-          title={resolvedEditSelectedLabel}
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={onEditSelected}
-        >
-          <Pencil size={16} aria-hidden />
         </button>
       )}
     </div>

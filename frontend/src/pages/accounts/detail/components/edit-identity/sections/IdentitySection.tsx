@@ -54,8 +54,8 @@ export function AccountIdentitySection({
           searchPlaceholder="Search institutions..."
           onCreateNew={onCreateInstitution}
           createNewLabel={(query) => query ? `Create institution "${query}"` : 'Create institution'}
-          onEditSelected={onCorrectInstitution}
-          editSelectedLabel="Correct institution"
+          onEditOption={onCorrectInstitution}
+          editOptionLabel="Correct institution"
         />
       </div>
     </EditModalSection>

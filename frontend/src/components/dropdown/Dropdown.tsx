@@ -85,12 +85,14 @@ interface DropdownProps {
   createNewLabel?: DropdownCreateLabel;
 
   /**
-   * Called with the selected value when the user clicks the dropdown edit action, which is
-   * offered only while the value resolves to an option, so a placeholder or a blank
-   * selection never reaches this
+   * Called with an option's value when the user clicks the edit action on that option's row,
+   * which is offered on every option standing for a record, so the blank "None" entry and a
+   * disabled option never reach this
    */
-  onEditSelected?: (value: string) => void;
-  editSelectedLabel?: string;
+  onEditOption?: (value: string) => void;
+
+  /** Tooltip on the edit action, since the action itself is hidden from assistive software */
+  editOptionLabel?: string;
 }
 
 const LOADING_TEXT_MIN_MS = 300;
@@ -127,8 +129,8 @@ const Dropdown = ({
   blankWhenEmpty = false,
   onCreateNew,
   createNewLabel,
-  onEditSelected,
-  editSelectedLabel,
+  onEditOption,
+  editOptionLabel,
 }: DropdownProps) => {
   const [open, setOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
@@ -306,14 +308,12 @@ const Dropdown = ({
     close();
   };
 
-  // A blank value and a placeholder the option list does not carry both resolve to no
-  // option, and neither is something the caller can edit
-  const showEditAction = Boolean(onEditSelected) && value !== '' && Boolean(selected);
-
-  const handleEditSelected = () => {
-    if (!onEditSelected) return;
-    onEditSelected(value);
+  // The open box sits above a stacked modal, so the list has to go before the correction it
+  // opens, or it covers that modal until the first click anywhere inside it
+  const handleEditOption = (optionValue: string) => {
+    if (!onEditOption) return;
     close();
+    onEditOption(optionValue);
   };
 
   /**
@@ -466,14 +466,11 @@ const Dropdown = ({
                 {searchable && (
                   <DropdownSearchControls
                     createNewLabel={resolvedCreateNewLabel}
-                    editSelectedLabel={editSelectedLabel}
                     searchPlaceholder={searchPlaceholder}
                     searchRef={searchRef}
                     searchText={searchText}
                     showCreateAction={Boolean(onCreateNew)}
-                    showEditAction={showEditAction}
                     onCreateNew={handleCreateNew}
-                    onEditSelected={handleEditSelected}
                     onKeyDown={handleSearchKeyDown}
                     onSearchChange={setSearchText}
                   />
@@ -488,6 +485,8 @@ const Dropdown = ({
                   options={visibleFiltered}
                   selectedValue={value}
                   showLoading={showLoading}
+                  editOptionLabel={editOptionLabel}
+                  onEditOption={onEditOption && handleEditOption}
                   onHighlight={setHighlightedIndex}
                   onScroll={handleListScroll}
                   onSelect={handleSelect}
