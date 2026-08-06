@@ -83,6 +83,22 @@ export function todayInTestTimezone(): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: TEST_TIMEZONE }).format(new Date())
 }
 
+// A monthly budget's period has to start on the day its cadence is anchored to, and the API
+// refuses any other day rather than moving it
+const BUDGET_ANCHOR_DAY = 1
+
+/**
+ * The first of the current month, which is where a seeded budget's period starts.
+ *
+ * Dating a transaction here rather than at an arbitrary day keeps it inside the period whatever
+ * day the suite runs on, and never puts it in the future.
+ *
+ * @returns The date as YYYY-MM-DD
+ */
+export function budgetPeriodStart(): string {
+  return `${todayInTestTimezone().slice(0, 7)}-${String(BUDGET_ANCHOR_DAY).padStart(2, '0')}`
+}
+
 /**
  * Look up a system record the container seeded, by its exact name.
  *
@@ -217,6 +233,63 @@ export async function createTransaction(
     throw new Error(
       `recording ${options.amount} in ${options.categoryName} answered ${response.status()}: ${await response.text()}`,
     )
+  }
+
+  const body = (await response.json()) as { id: string }
+  return body.id
+}
+
+export interface CreateMonthlyBudgetOptions {
+  name: string
+
+  /** Exact names of the seeded system categories the budget tracks */
+  categoryNames: string[]
+
+  /** Spending limit for the period, in minor units */
+  overallLimit: number
+  currency?: string
+}
+
+/**
+ * Create a monthly budget with a period already running.
+ *
+ * Monthly is the only cadence here because it is the only one a spec needs. The others take
+ * different anchor fields, which the API checks rather than infers.
+ *
+ * The limit and the period start go together on purpose. Leaving them off is accepted and
+ * creates a base budget with no period at all, whose card then reads "Not set" and tracks
+ * nothing, so a spec seeded that way asserts against a budget that was never watching.
+ *
+ * @param request - Playwright request context
+ * @param user - Budget owner
+ * @param options - What to create
+ * @returns The base budget's id
+ * @throws When creation does not answer 201
+ */
+export async function createMonthlyBudget(
+  request: APIRequestContext,
+  user: TestUser,
+  options: CreateMonthlyBudgetOptions,
+): Promise<string> {
+  const categoryIds = await Promise.all(
+    options.categoryNames.map((name) => findReferenceId(request, user, 'categories', name)),
+  )
+
+  const response = await request.post('/api/base-budgets', {
+    headers: asUser(user),
+    data: {
+      name: options.name,
+      currency: options.currency ?? TEST_CURRENCY,
+      recurrence_freq: 'monthly',
+      recurrence_dom: BUDGET_ANCHOR_DAY,
+      category_ids: categoryIds,
+      period_start: budgetPeriodStart(),
+      overall_limit: options.overallLimit,
+    },
+  })
+
+  if (response.status() !== 201) {
+    throw new Error(`creating budget ${options.name} answered ${response.status()}: ${await response.text()}`)
   }
 
   const body = (await response.json()) as { id: string }
