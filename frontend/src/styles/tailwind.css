@@ -76,6 +76,10 @@
 
     --app-dropdown-open-duration: 0.45s;
 
+    /* Slower than the list it grows beside, on purpose. The height is what the user is waiting on,
+       so it arrives first, and the width keeps going under a list that is already readable */
+    --app-dropdown-widen-duration: 0.85s;
+
     /* Shorter than the opening, and deliberately shorter than a modal takes to leave, which is 0.25s.
        A drop-down is often closed by dismissing whatever holds it, and one still folding itself away
        after that has gone is left hanging over the page it belonged to */
@@ -624,13 +628,13 @@
     background: var(--app-input-bg);
     color: var(--app-text);
 
-    /* Read from a property rather than written here, because the width grows and shrinks with the
-       list beside it and those two take different times. Setting a duration on the open state
-       instead would set it for the colours in this list as well */
+    /* Read from a property rather than written here, because widening and narrowing take different
+       times. Setting a duration on the open state instead would set it for the colours in this
+       list as well */
     --app-dropdown-width-duration: var(--app-dropdown-close-duration);
 
-    /* The width ceiling is in the list so that a box grown past its slot widens and narrows with
-       the list rather than taking the room on and giving it back in a single frame */
+    /* The width ceiling is in the list so that a box grown past its slot widens and narrows over
+       time rather than taking the room on and giving it back in a single frame */
     transition: border-color 0.2s, background 0.2s, box-shadow 0.2s,
       max-width var(--app-dropdown-width-duration) var(--app-dropdown-ease);
   }
@@ -638,7 +642,7 @@
   /* Two classes for the same reason the states below are, so that nothing among them can outweigh
      this and leave the widening running at the closing speed */
   .app-dropdown-glass.app-dropdown-glass-open {
-    --app-dropdown-width-duration: var(--app-dropdown-open-duration);
+    --app-dropdown-width-duration: var(--app-dropdown-widen-duration);
   }
 
   /* Opening upward stacks the contents in reverse, so the list appears above the head while the head

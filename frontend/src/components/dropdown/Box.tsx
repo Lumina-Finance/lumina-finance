@@ -69,10 +69,10 @@ export function DropdownBox({
 }: DropdownBoxProps) {
   const shouldReduceMotion = useReducedMotion()
 
-  // Widens over the opening and gives the room back over the collapse, rather than at the moment
-  // the box is placed and the moment it returns to its slot. Taking a width on or losing it in a
-  // single frame reads as the control flinching, and the second one moves the chevron long after
-  // the user pressed anything
+  // Widens as it opens and gives the room back as it closes, rather than at the moment the box is
+  // placed and the moment it returns to its slot. Taking a width on or losing it in a single frame
+  // reads as the control flinching, and the second one moves the chevron long after the user
+  // pressed anything
   const { maxWidth, minWidth, width } = getDropdownBoxWidths({
     grownWidth,
     open,
