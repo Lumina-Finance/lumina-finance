@@ -1,5 +1,6 @@
 from app.models.base import InstitutionStatus
 from app.models.institution import Institution
+from app.routes import institution as institution_routes
 from tests.conftest import TestSession
 from tests.routes.support import _create_user, _get_auth_header
 
@@ -396,6 +397,71 @@ async def test_update_institution_conflict_reads_the_name_and_country_pair(clien
     )
 
     assert resp.status_code == 409
+
+
+async def test_update_institution_with_unchanged_values_changes_nothing(client):
+    """Saving the form without editing it is not a correction, so the row stays canonical."""
+    inst = await _seed_institution(status=InstitutionStatus.CANONICAL)
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await client.patch(
+        f"/institutions/{inst.id}",
+        json={
+            "name": "Test Bank",
+            "country_code": "CA",
+            "website": "https://testbank.example.com",
+        },
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "canonical"
+
+
+async def test_update_institution_losing_a_name_race_returns_409(client, monkeypatch):
+    """A pair claimed between the check and the commit answers with the same conflict."""
+    inst = await _seed_institution(name="Beta Bank", country_code="CA")
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    real_mark_user_cache_changed = institution_routes.mark_user_cache_changed
+
+    async def claim_the_pair_first(db, user_id):
+        """Take the requested pair from another session, the way a concurrent write would"""
+        await _seed_institution(name="Alpha Bank", country_code="CA")
+        await real_mark_user_cache_changed(db, user_id)
+
+    monkeypatch.setattr(institution_routes, "mark_user_cache_changed", claim_the_pair_first)
+
+    resp = await client.patch(
+        f"/institutions/{inst.id}",
+        json={"name": "Alpha Bank"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "Institution with this name and country already exists"
+
+
+async def test_create_institution_losing_a_name_race_returns_409(client, monkeypatch):
+    """A pair claimed between the check and the commit answers with the same conflict."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    real_mark_user_cache_changed = institution_routes.mark_user_cache_changed
+
+    async def claim_the_pair_first(db, user_id):
+        """Take the requested pair from another session, the way a concurrent write would"""
+        await _seed_institution(name="Test Bank", country_code="CA")
+        await real_mark_user_cache_changed(db, user_id)
+
+    monkeypatch.setattr(institution_routes, "mark_user_cache_changed", claim_the_pair_first)
+
+    resp = await client.post("/institutions", json=INSTITUTION_PAYLOAD, headers=headers)
+
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "Institution with this name and country already exists"
 
 
 async def test_update_institution_with_no_fields_changes_nothing(client):

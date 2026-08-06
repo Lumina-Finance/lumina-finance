@@ -97,6 +97,10 @@ async def create_institution(
     """
     await _raise_for_duplicate_institution(db, data.name, data.country_code)
 
+    # Before the row is added, since a query issued afterwards would flush it early and the
+    # unique violation would escape the commit guard
+    await mark_user_cache_changed(db, user.id)
+
     # Explicitly set PENDING, since client input for status is never trusted
     institution = Institution(
         name=data.name,
@@ -106,7 +110,6 @@ async def create_institution(
         status=InstitutionStatus.PENDING,
     )
     db.add(institution)
-    await mark_user_cache_changed(db, user.id)
     await _commit_or_raise_for_duplicate(db)
     await db.refresh(institution)
     return institution
@@ -122,7 +125,8 @@ async def update_institution(
     """Apply a correction to an institution every user on the instance shares
 
     The row drops back to PENDING, so a reviewer can tell a corrected institution from an
-    untouched one. A request carrying no fields changes nothing and leaves the status alone
+    untouched one. A request that changes no value is not a correction, so it leaves the row
+    and its status alone, which covers both an empty body and a form saved without an edit
 
     Args:
         institution_id: UUID of the institution being corrected
@@ -142,23 +146,32 @@ async def update_institution(
     if not institution:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=NOT_FOUND_DETAIL)
 
+    # The form resends every field it holds rather than the edited ones, so what the user
+    # actually changed is whatever differs from the stored row
     updates = data.model_dump(exclude_unset=True)
-    if not updates:
+    changes = {
+        field: value for field, value in updates.items()
+        if getattr(institution, field) != value
+    }
+    if not changes:
         return institution
 
     # A correction that leaves the name and country pair as it was cannot collide with
     # anything, and checking it anyway would find the row itself
-    name = updates.get("name", institution.name)
-    country_code = updates.get("country_code", institution.country_code)
+    name = changes.get("name", institution.name)
+    country_code = changes.get("country_code", institution.country_code)
     if (name, country_code) != (institution.name, institution.country_code):
         await _raise_for_duplicate_institution(db, name, country_code)
 
-    for field, value in updates.items():
+    # Before the row is mutated, since a query issued afterwards would flush the change early
+    # and the unique violation would escape the commit guard
+    await mark_user_cache_changed(db, user.id)
+
+    for field, value in changes.items():
         setattr(institution, field, value)
 
     # Nothing has reviewed the correction, so the row stops counting as canonical
     institution.status = InstitutionStatus.PENDING
-    await mark_user_cache_changed(db, user.id)
     await _commit_or_raise_for_duplicate(db)
     await db.refresh(institution)
     return institution
