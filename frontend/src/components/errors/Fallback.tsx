@@ -27,8 +27,8 @@ interface FallbackProps {
   error: unknown;
 
   // Keeps the reload from emptying this browser's storage. Set it where the failure is known to be a
-  // network one, since the wipe exists to clear state that could have caused a render error and it
-  // costs the theme and the sidebar width to no purpose when that is not what went wrong
+  // network one, since the wipe exists to clear state that could have caused a render error, and it
+  // otherwise takes the theme, the sidebar width and the whole cached query data with it for nothing
   preserveStoredData?: boolean;
 
   variant: FallbackVariant;
@@ -56,8 +56,9 @@ export default function Fallback({ componentStack, error, preserveStoredData = f
    * Reloads, by default onto empty storage, because state saved in this browser can be what broke the
    * render and a plain reload would restore it
    *
-   * A caller that knows the failure was a network one keeps the storage, since wiping it then only
-   * costs the user their theme and sidebar width without making the reload any likelier to work
+   * A caller that knows the failure was a network one keeps the storage, since wiping it then costs
+   * the user their theme, their sidebar width and every cached response without making the reload any
+   * likelier to work
    */
   const handleReload = () => {
     if (!preserveStoredData) clearStoredData();

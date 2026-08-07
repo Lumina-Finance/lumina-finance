@@ -72,7 +72,6 @@ function scrollDocumentToTop() {
 // Module-level flag so the loading screen only shows once per app session
 let hasShownLoadingScreen = false;
 
-
 /** Redirect to /login if unauthenticated. Show loading screen on first visit. */
 function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase, isInitialLoad }: { displayLocation: Location; onContentReady: () => void; pageTransitionPhase: PageTransitionPhase; isInitialLoad: boolean }) {
   const { user, loading } = useAuth();
@@ -102,9 +101,16 @@ function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase, 
   const ready = !loading && minTimePassed && !currenciesPending;
 
   // Failing means the recovery screen rather than the app, because every screen below shows money and
-  // none can show it correctly without the list. Gated on the session being known, so a visitor whose
-  // session turns out to be stale is sent to log in rather than shown an error on the way there
-  const currencyListUnavailable = !loading && currenciesFailed;
+  // none can show it correctly without the list
+  //
+  // Deliberately not held back until the session is known. Doing that reads better for a visitor whose
+  // stored session turns out to be stale, who would otherwise see the error for the moment before
+  // being sent to log in, but it costs more than it buys: the session request carries no timeout of
+  // its own, so a network that swallows packets leaves it pending forever, and waiting on it would
+  // leave that user on the loading screen with no reload button instead of on this screen with one.
+  // Both cases mean the server is unreachable, and the screen that says so is the better answer to
+  // both. Once the session does resolve without one, the redirect above wins on the next render
+  const currencyListUnavailable = currenciesFailed;
 
   // The loading phase runs after the switch while the new route's chunk mounts
   const routeLoading = pageTransitionPhase === 'loading';
@@ -155,8 +161,9 @@ function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase, 
   // A recovery-code login holds the account to re-enrolment before any route renders
   if (user?.second_factor_reenrollment_required) return <ForcedReenrollScreen />;
 
-  // Nothing here retries on its own, so this stands until the user reloads, which is what the screen
-  // asks them to do. It says so in its own words when the reason is that the server cannot be reached
+  // Nothing retries this on its own, not a refocus, a reconnect, or the remount every navigation
+  // performs, so it stands until the user reloads, which is what the screen asks them to do. It says
+  // so in its own words when the reason is that the server cannot be reached
   if (currencyListUnavailable) {
     return <Fallback componentStack={null} error={currencyError} preserveStoredData variant="screen" />;
   }
