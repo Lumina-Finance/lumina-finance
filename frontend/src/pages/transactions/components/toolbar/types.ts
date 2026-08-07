@@ -17,5 +17,11 @@ export type TransactionListToolbarProps = {
   onCreateTransaction: () => void
   createDisabled?: boolean
   createDisabledReason?: string
+
+  // Opens an import that files every row into the one account this list is fixed to. Absent on the
+  // list of every account, which has no one account to import into
+  onImport?: () => void
+  importDisabled?: boolean
+  importDisabledReason?: string
   onStickyOffsetChange?: (offset: number) => void
 }

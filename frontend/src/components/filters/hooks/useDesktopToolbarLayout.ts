@@ -7,7 +7,10 @@ export type DesktopToolbarRefs = {
   toolbarRef: RefObject<HTMLDivElement | null>
   controlsRef: RefObject<HTMLDivElement | null>
   filterGroupRef: RefObject<HTMLDivElement | null>
-  createMeasureRef: RefObject<HTMLButtonElement | null>
+
+  // The whole run of actions after the filters, not the create button alone, since a list can offer
+  // a second one and the row has to be measured as it is drawn
+  createMeasureRef: RefObject<HTMLDivElement | null>
 }
 
 export type DesktopToolbarLayoutState = DesktopToolbarRefs & {
@@ -22,7 +25,7 @@ export function useDesktopToolbarLayout(): DesktopToolbarLayoutState {
   const toolbarRef = useRef<HTMLDivElement>(null)
   const controlsRef = useRef<HTMLDivElement>(null)
   const filterGroupRef = useRef<HTMLDivElement>(null)
-  const createMeasureRef = useRef<HTMLButtonElement>(null)
+  const createMeasureRef = useRef<HTMLDivElement>(null)
   const [desktopInlineLayout, setDesktopInlineLayout] = useState(false)
   const [desktopCreateStacked, setDesktopCreateStacked] = useState(false)
 

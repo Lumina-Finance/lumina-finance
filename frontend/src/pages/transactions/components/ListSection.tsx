@@ -5,6 +5,7 @@ import {
   useInfiniteTransactions,
   type Transaction,
 } from '@/api/transactions'
+import { isImportableAccount } from '@/pages/imports/utils'
 import { TRANSACTION_FILTER_KEYS, TRANSACTION_LIST_EASE } from '@/pages/transactions/constants/transactionList'
 import TransactionDateGroupList from '@/pages/transactions/components/DateGroupList'
 import TransactionFilterLoadingOverlay from '@/pages/transactions/components/FilterLoadingOverlay'
@@ -44,6 +45,7 @@ export default function TransactionListSection({
   onSettledTransactionsChange,
   onCreateTransaction,
   onEditTransaction,
+  onImport,
 }: {
   fixedAccount?: TransactionListAccount
   accounts?: TransactionListAccount[]
@@ -54,6 +56,9 @@ export default function TransactionListSection({
   onSettledTransactionsChange?: (transactions: Transaction[]) => void
   onCreateTransaction: () => void
   onEditTransaction: (transaction: Transaction) => void
+
+  // Opens an import filed into the account this list is fixed to, offered only alongside one
+  onImport?: () => void
 }) {
   const prefersReducedMotion = useReducedMotion()
   const { search, setSearch, activeSearch, submitSearch } = useTransactionSearch()
@@ -132,6 +137,14 @@ export default function TransactionListSection({
   const createDisabled = Boolean(fixedAccount?.is_archived)
   const createDisabledReason = createDisabled ? 'Archived accounts are read-only' : undefined
 
+  // Offered only where the list is fixed to one account, since an import written from here goes to
+  // that account and the list of every account has none. It stays on the row in the two states an
+  // import cannot be written to, greyed out with the reason, rather than coming and going
+  const importDisabled = !isImportableAccount(fixedAccount)
+  const importDisabledReason = fixedAccount?.is_archived
+    ? 'Archived accounts are read-only'
+    : fixedAccount?.closed_at ? 'Closed accounts are read-only' : undefined
+
   const { sentinelRef, showPendingFetch } = useInfiniteScrollTrigger({
     hasNextPage,
     isFetchingNextPage,
@@ -171,6 +184,9 @@ export default function TransactionListSection({
         onCreateTransaction={onCreateTransaction}
         createDisabled={createDisabled}
         createDisabledReason={createDisabledReason}
+        onImport={fixedAccount && onImport ? onImport : undefined}
+        importDisabled={importDisabled}
+        importDisabledReason={importDisabledReason}
         onStickyOffsetChange={setDateHeaderStickyTop}
       />
 

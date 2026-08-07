@@ -201,7 +201,6 @@ export default function AccountDetailPage() {
               linkedTaxAdvantagedCategory={linkedTaxAdvantagedCategory}
               linkedTaxAdvantagedCategoryError={linkedTaxAdvantagedCategoryError}
               onEdit={openAccountEditModal}
-              onImport={openImport}
             />
 
             <BalanceChartCard account={visibleAccount} />
@@ -225,11 +224,13 @@ export default function AccountDetailPage() {
                 currency: visibleAccount.currency,
                 institution: visibleAccount.institution,
                 is_archived: visibleAccount.is_archived,
+                closed_at: visibleAccount.closed_at,
               }}
               accounts={(accounts ?? []).map(toTransactionListAccount)}
               currency={visibleAccount.currency}
               onCreateTransaction={openCreateTransaction}
               onEditTransaction={openEditTransaction}
+              onImport={openImport}
             />
           </div>
 

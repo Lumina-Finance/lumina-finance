@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { Upload } from 'lucide-react'
 import { DesktopToolbarControls } from '@/components/list-controls/DesktopToolbarControls'
 import { GlassSearchField } from '@/components/list-controls/GlassSearchField'
 import { MobileToolbarActions } from '@/components/list-controls/MobileToolbarActions'
@@ -31,10 +32,28 @@ export default function TransactionListToolbar({
   onCreateTransaction,
   createDisabled = false,
   createDisabledReason,
+  onImport,
+  importDisabled = false,
+  importDisabledReason,
   onStickyOffsetChange,
 }: TransactionListToolbarProps) {
   const shell = useToolbarShellState()
   useToolbarStickyOffset(shell.toolbarRef, onStickyOffsetChange)
+
+  // One node for both widths and for the hidden copy the desktop row measures itself by, sized to
+  // match whichever primary button it stands beside, which is taller on a phone than on a desktop
+  const importAction = onImport ? (
+    <button
+      type="button"
+      className="app-glass-button h-11 w-11 shrink-0 px-0 min-[750px]:h-10 min-[750px]:w-10"
+      onClick={onImport}
+      disabled={importDisabled}
+      title={importDisabledReason}
+      aria-label={importDisabledReason ?? 'Import transactions into this account'}
+    >
+      <Upload size={18} aria-hidden />
+    </button>
+  ) : undefined
 
   const accountOptions = useMemo(
     () => getAccountOptions(accounts),
@@ -70,6 +89,7 @@ export default function TransactionListToolbar({
           primaryLabel="Add transaction"
           primaryDisabled={createDisabled}
           primaryDisabledReason={createDisabledReason}
+          secondaryAction={importAction}
         />
 
         <DesktopToolbarControls
@@ -92,6 +112,7 @@ export default function TransactionListToolbar({
           onCreate={onCreateTransaction}
           createDisabled={createDisabled}
           createDisabledReason={createDisabledReason}
+          secondaryAction={importAction}
         />
       </ToolbarStickyShell>
 
