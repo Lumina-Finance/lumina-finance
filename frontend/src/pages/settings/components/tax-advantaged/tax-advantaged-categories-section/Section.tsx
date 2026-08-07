@@ -8,10 +8,7 @@ import { useCurrencies } from '@/api/currency'
 import { useTaxAdvantagedCategories } from '@/api/tax-advantaged-categories'
 import SettingsSectionHeader from '@/pages/settings/components/SectionHeader'
 import SettingsCard from '@/pages/settings/components/Card'
-import {
-  SETTINGS_LIST_LOADING_MIN_HEIGHT_PX,
-  SETTINGS_LIST_LOADING_OVERLAY_CLASS,
-} from '@/pages/settings/components/shared/constants'
+import { SETTINGS_LIST_LOADING_OVERLAY_CLASS } from '@/pages/settings/components/shared/constants'
 import CreateTaxAdvantagedCategoryModal from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/modals/CreateCategoryModal'
 import { useCurrencyGuard } from '@/hooks/useCurrencyGuard'
 import TaxAdvantagedCategoriesTable from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/table/CategoriesTable'
@@ -131,7 +128,6 @@ export default function TaxAdvantagedCategoriesSection({
           <LoadingRegion
             loading={isLoading}
             label="Loading tax-advantaged categories"
-            loadingMinHeight={SETTINGS_LIST_LOADING_MIN_HEIGHT_PX}
             overlayClassName={SETTINGS_LIST_LOADING_OVERLAY_CLASS}
             animateLoadingHeight
           >

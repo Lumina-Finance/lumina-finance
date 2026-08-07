@@ -18,10 +18,7 @@ import { categoryOptions } from '@/pages/settings/components/merchant-settings-s
 import { useMerchantSettingsList } from '@/pages/settings/components/merchant-settings-section/hooks/useList'
 import SettingsSectionHeader from '@/pages/settings/components/SectionHeader'
 import SettingsCard from '@/pages/settings/components/Card'
-import {
-  SETTINGS_LIST_LOADING_MIN_HEIGHT_PX,
-  SETTINGS_LIST_LOADING_OVERLAY_CLASS,
-} from '@/pages/settings/components/shared/constants'
+import { SETTINGS_LIST_LOADING_OVERLAY_CLASS } from '@/pages/settings/components/shared/constants'
 import { waitForMilliseconds } from '@/utils/timing'
 
 /**
@@ -54,6 +51,22 @@ export default function MerchantSettingsSection() {
     [categories],
   )
   const options = useMemo(() => categoryOptions(categories), [categories])
+  // The rows and everything describing how they are laid out are held together, since a search
+  // empties the live list the moment it settles while the rows on screen are still the old ones.
+  // A list keeping its rows but losing its scroll cap would grow to the full height of them
+  const merchantListSnapshot = useMemo(() => ({
+    hasMore: merchantList.hasMoreMerchants,
+    merchants: merchantList.visibleMerchants,
+    shouldScroll: merchantList.shouldScrollMerchants,
+    showListEnd: merchantList.showMerchantListEnd,
+    showListMoreIndicator: merchantList.showMerchantListMoreIndicator,
+  }), [
+    merchantList.hasMoreMerchants,
+    merchantList.shouldScrollMerchants,
+    merchantList.showMerchantListEnd,
+    merchantList.showMerchantListMoreIndicator,
+    merchantList.visibleMerchants,
+  ])
 
   const handleDeleteRequest = (merchant: Merchant) => {
     setDeleteError(null)
@@ -129,12 +142,11 @@ export default function MerchantSettingsSection() {
             loading={merchantList.showInitialMerchantLoading}
             label="Loading merchants"
             transitionKey={merchantList.activeSearch}
-            snapshot={merchantList.visibleMerchants}
-            loadingMinHeight={SETTINGS_LIST_LOADING_MIN_HEIGHT_PX}
+            snapshot={merchantListSnapshot}
             overlayClassName={SETTINGS_LIST_LOADING_OVERLAY_CLASS}
             animateLoadingHeight
           >
-            {(displayMerchants) => (
+            {(shownMerchants) => (
               <MerchantSettingsList
                 activeSearch={merchantList.activeSearch}
                 categoryById={categoryById}
@@ -142,14 +154,14 @@ export default function MerchantSettingsSection() {
                 confirmingDeleteMerchantId={confirmingDeleteMerchantId}
                 deletingMerchantId={deletingMerchantId}
                 editingMerchantId={editingMerchantId}
-                hasMoreMerchants={merchantList.hasMoreMerchants}
+                hasMoreMerchants={shownMerchants.hasMore}
                 merchantListRef={merchantList.merchantListRef}
-                shouldScrollMerchants={merchantList.shouldScrollMerchants}
+                shouldScrollMerchants={shownMerchants.shouldScroll}
                 showFetchingMoreMerchants={merchantList.showFetchingMoreMerchants}
                 showInitialMerchantLoading={merchantList.showInitialMerchantLoading}
-                showMerchantListEnd={merchantList.showMerchantListEnd}
-                showMerchantListMoreIndicator={merchantList.showMerchantListMoreIndicator}
-                visibleMerchants={displayMerchants}
+                showMerchantListEnd={shownMerchants.showListEnd}
+                showMerchantListMoreIndicator={shownMerchants.showListMoreIndicator}
+                visibleMerchants={shownMerchants.merchants}
                 onDeleteCancel={() => setConfirmingDeleteMerchantId(null)}
                 onDeleteConfirm={handleDelete}
                 onDeleteRequest={handleDeleteRequest}

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Plus } from 'lucide-react'
 import { GlassSearchField } from '@/components/list-controls/GlassSearchField'
 import LoadingRegion from '@/components/loading/Region'
@@ -15,10 +15,7 @@ import MergeDeleteTagModal from '@/pages/settings/components/tag-settings-sectio
 import TagCreateModal from '@/pages/settings/components/tag-settings-section/modals/CreateModal'
 import TagSettingsList from '@/pages/settings/components/tag-settings-section/list/List'
 import { DELETE_SPINNER_MS } from '@/pages/settings/components/tag-settings-section/constants'
-import {
-  SETTINGS_LIST_LOADING_MIN_HEIGHT_PX,
-  SETTINGS_LIST_LOADING_OVERLAY_CLASS,
-} from '@/pages/settings/components/shared/constants'
+import { SETTINGS_LIST_LOADING_OVERLAY_CLASS } from '@/pages/settings/components/shared/constants'
 import { useTagSettingsList } from '@/pages/settings/components/tag-settings-section/hooks/useList'
 import { waitForMilliseconds } from '@/utils/timing'
 
@@ -45,6 +42,22 @@ export default function TagSettingsSection() {
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [locallyDeletedTagIds, setLocallyDeletedTagIds] = useState<string[]>([])
   const tagList = useTagSettingsList(locallyDeletedTagIds)
+  // The rows and everything describing how they are laid out are held together, since a search
+  // empties the live list the moment it settles while the rows on screen are still the old ones.
+  // A list keeping its rows but losing its scroll cap would grow to the full height of them
+  const tagListSnapshot = useMemo(() => ({
+    hasMore: tagList.hasMoreTags,
+    shouldScroll: tagList.shouldScrollTags,
+    showListEnd: tagList.showTagListEnd,
+    showListMoreIndicator: tagList.showTagListMoreIndicator,
+    tags: tagList.visibleTags,
+  }), [
+    tagList.hasMoreTags,
+    tagList.shouldScrollTags,
+    tagList.showTagListEnd,
+    tagList.showTagListMoreIndicator,
+    tagList.visibleTags,
+  ])
 
   const handleDeleteCancel = () => setConfirmingDeleteTagId(null)
 
@@ -119,31 +132,30 @@ export default function TagSettingsSection() {
           )}
 
           {/* Outside the list rather than inside it, since the list clips its own box while
-              animating its height and would cut the spinner off part way through a load. Its
-              animation is also what carries the box between the loading height and the rows,
-              so the region holds no height of its own here */}
+              animating its height and would cut the spinner off part way through a load. That
+              same animation is what moves the box as the rows change, so the region is not asked
+              to hold a height here */}
           <LoadingRegion
             loading={tagList.showInitialTagLoading}
             label="Loading tags"
             transitionKey={tagList.activeSearch}
-            snapshot={tagList.visibleTags}
-            loadingMinHeight={SETTINGS_LIST_LOADING_MIN_HEIGHT_PX}
+            snapshot={tagListSnapshot}
             overlayClassName={SETTINGS_LIST_LOADING_OVERLAY_CLASS}
           >
-            {(displayTags) => (
+            {(shownTags) => (
               <TagSettingsList
                 activeSearch={tagList.activeSearch}
                 confirmingDeleteTagId={confirmingDeleteTagId}
                 deletingTagId={deletingTagId}
                 editingTagId={editingTagId}
-                hasMoreTags={tagList.hasMoreTags}
+                hasMoreTags={shownTags.hasMore}
                 showFetchingMoreTags={tagList.showFetchingMoreTags}
                 showInitialTagLoading={tagList.showInitialTagLoading}
-                showTagListEnd={tagList.showTagListEnd}
-                showTagListMoreIndicator={tagList.showTagListMoreIndicator}
-                shouldScrollTags={tagList.shouldScrollTags}
+                showTagListEnd={shownTags.showListEnd}
+                showTagListMoreIndicator={shownTags.showListMoreIndicator}
+                shouldScrollTags={shownTags.shouldScroll}
                 tagListRef={tagList.tagListRef}
-                visibleTags={displayTags}
+                visibleTags={shownTags.tags}
                 onDeleteCancel={handleDeleteCancel}
                 onDeleteConfirm={handleDelete}
                 onDeleteRequest={handleDeleteRequest}

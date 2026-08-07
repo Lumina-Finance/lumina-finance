@@ -16,9 +16,6 @@ type LoadingRegionBaseProps = {
   overlayClassName?: string
   transitionKey?: string
 
-  /** Pixels the region holds while the spinner is up, for a load with nothing behind it yet */
-  loadingMinHeight?: number
-
   /** Follows the content's height across the load, for content that animates no height of its own */
   animateLoadingHeight?: boolean
 }
@@ -53,7 +50,6 @@ export default function LoadingRegion<T>({
   overlayClassName = 'absolute inset-0 z-10 flex items-center justify-center bg-[var(--app-bg)]',
   transitionKey,
   snapshot,
-  loadingMinHeight = 0,
   animateLoadingHeight = false,
 }: LoadingRegionProps<T>) {
   const {
@@ -118,7 +114,6 @@ export default function LoadingRegion<T>({
   const height = getLoadingRegionHeight({
     loadingVisible,
     contentHeight,
-    loadingMinHeight,
     revealSettled,
     shouldReduceMotion,
   })
@@ -131,16 +126,9 @@ export default function LoadingRegion<T>({
       className={`relative overflow-hidden ${className}`}
       style={{
         height: height ?? undefined,
-        // Carries the box on its own for the frame before the content has been measured, and for
-        // a region whose height is the content's own business throughout
-        minHeight: loadingVisible ? loadingMinHeight : 0,
-        // Only one of the two is animated. Where the region holds a height, that height is what
-        // moves and a minimum moving underneath it would fight the same box from below. Where it
-        // does not, the minimum is all there is, and taking it to nothing rather than dropping it
-        // is what shrinks a region into content shorter than the loading box
-        transition: shouldReduceMotion
+        transition: shouldReduceMotion || !animateLoadingHeight
           ? undefined
-          : `${animateLoadingHeight ? 'height' : 'min-height'} ${loadingVisibilityCss}`,
+          : `height ${loadingVisibilityCss}`,
       }}
     >
       <LoadingContent

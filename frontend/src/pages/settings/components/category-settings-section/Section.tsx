@@ -17,10 +17,7 @@ import { DELETE_SPINNER_MS } from '@/pages/settings/components/category-settings
 import { useCategorySettingsGroups } from '@/pages/settings/components/category-settings-section/hooks/useGroups'
 import SettingsSectionHeader from '@/pages/settings/components/SectionHeader'
 import SettingsCard from '@/pages/settings/components/Card'
-import {
-  SETTINGS_LIST_LOADING_MIN_HEIGHT_PX,
-  SETTINGS_LIST_LOADING_OVERLAY_CLASS,
-} from '@/pages/settings/components/shared/constants'
+import { SETTINGS_LIST_LOADING_OVERLAY_CLASS } from '@/pages/settings/components/shared/constants'
 import { waitForMilliseconds } from '@/utils/timing'
 
 /**
@@ -132,7 +129,6 @@ export default function CategorySettingsSection() {
           <LoadingRegion
             loading={isLoading}
             label="Loading categories"
-            loadingMinHeight={SETTINGS_LIST_LOADING_MIN_HEIGHT_PX}
             overlayClassName={SETTINGS_LIST_LOADING_OVERLAY_CLASS}
             animateLoadingHeight
           >

@@ -6,20 +6,17 @@
 import { describe, expect, it } from 'vitest'
 import { getLoadingRegionHeight } from '@/components/loading/regionHeight'
 
-const LOADING_MIN_HEIGHT = 128
-
 const base = {
   loadingVisible: false,
   contentHeight: null,
-  loadingMinHeight: LOADING_MIN_HEIGHT,
   revealSettled: true,
   shouldReduceMotion: false,
 }
 
 describe('loading region height', () => {
-  it('holds the loading height while the content is shorter than it', () => {
+  it('starts a load at the height the section already had', () => {
     expect(getLoadingRegionHeight({ ...base, loadingVisible: true, revealSettled: false, contentHeight: 44 }))
-      .toBe(LOADING_MIN_HEIGHT)
+      .toBe(44)
   })
 
   it('follows the rows up as they arrive behind the spinner', () => {
@@ -27,8 +24,7 @@ describe('loading region height', () => {
       .toBe(560)
   })
 
-  it('goes to the content height as the spinner leaves, so a short list shrinks rather than snapping', () => {
-    // Below the loading minimum, and taken anyway: the shrink to it is the point
+  it('keeps hold of the height as the spinner leaves, so a shorter list shrinks rather than snapping', () => {
     expect(getLoadingRegionHeight({ ...base, revealSettled: false, contentHeight: 42 })).toBe(42)
   })
 
@@ -40,18 +36,11 @@ describe('loading region height', () => {
     expect(getLoadingRegionHeight({ ...base, loadingVisible: true, revealSettled: false })).toBeNull()
   })
 
-  it('holds nothing where the region has no minimum and no content, rather than clipping its own spinner', () => {
+  it('holds nothing where the content has no height, rather than clipping its own spinner', () => {
     // A measured zero is not the same as nothing measured yet, so the check that separates them
     // has to be for null rather than for a falsy value
-    expect(getLoadingRegionHeight({
-      ...base,
-      loadingVisible: true,
-      revealSettled: false,
-      contentHeight: 0,
-      loadingMinHeight: 0,
-    })).toBeNull()
     expect(getLoadingRegionHeight({ ...base, loadingVisible: true, revealSettled: false, contentHeight: 0 }))
-      .toBe(LOADING_MIN_HEIGHT)
+      .toBeNull()
   })
 
   it('holds no height at all under reduced motion, since there is nothing to animate', () => {
