@@ -9,6 +9,15 @@ const OVERLAY_MUTED_TEXT = 'var(--app-text-muted)'
 const OVERLAY_ACCENT = 'var(--app-accent)'
 const OVERLAY_SUCCESS = 'var(--app-positive)'
 const OVERLAY_ERROR = 'var(--app-negative)'
+/**
+ * Covers the imports page and nothing else, so this orders it only against the rest of that page
+ * rather than against the app. What scopes it is the `fixed inset-0 z-focused-page` on
+ * app-page-content, which the imports route takes: naming that rather than the isolation beside it
+ * matters, because only that branch also decides where this overlay's own `fixed inset-0` measures
+ * from. It is not a level on the named scale, since it competes with nothing outside the page
+ */
+const OVERLAY_Z_INDEX = 90
+
 const OVERLAY_EASE: [number, number, number, number] = [0.25, 0.1, 0.25, 1]
 const OVERLAY_SPRING_EASE: [number, number, number, number] = [0.16, 1, 0.3, 1]
 const overlayButtonClass = 'h-10 w-full box-border whitespace-nowrap leading-none sm:w-auto'
@@ -192,8 +201,8 @@ export function ImportProgressOverlay({
         // to how a value dropped from the target is treated
         <motion.div
           key="import-progress-overlay"
-          className="fixed inset-0 z-[90] flex items-center justify-center px-5 py-8"
-          style={{ background: OVERLAY_BACKGROUND, color: OVERLAY_TEXT }}
+          className="fixed inset-0 flex items-center justify-center px-5 py-8"
+          style={{ background: OVERLAY_BACKGROUND, color: OVERLAY_TEXT, zIndex: OVERLAY_Z_INDEX }}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1, pointerEvents: 'auto' }}
           exit={{ opacity: 0, pointerEvents: 'none' }}

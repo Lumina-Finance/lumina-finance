@@ -19,6 +19,13 @@ import { isFloatingLayerOpen, isInsideFloatingLayer } from '@/utils/floatingLaye
 // Collapsed footprint used before the head is measured, so the toolbar slot does not jump on mount
 const COLLAPSED_FALLBACK = { width: 140, height: 34 }
 
+// Lifts the open panel over the toolbar rows beside it. Page content is isolated as one stacking
+// context, so this orders the panel within the page and never against the navigation or a dialog
+const PANEL_Z_INDEX = 50
+
+// Above the panel's own glass, so the clear control stays pressable over it
+const CLEAR_BUTTON_Z_INDEX = 2
+
 // Chrome around the measured content span in the collapsed pill: horizontal padding, the gap to the
 // chevron, the chevron itself, and the borders, plus a couple of pixels so sub-pixel rounding never
 // clips the label. Added to the content width to size the pill
@@ -201,7 +208,7 @@ export function FilterGlassPanel({
           bottom: openUpward ? 0 : undefined,
           right: 0,
           maxWidth: '90vw',
-          zIndex: 50,
+          zIndex: PANEL_Z_INDEX,
           marginLeft: 0,
         }}
         initial={false}
@@ -247,7 +254,7 @@ export function FilterGlassPanel({
             type="button"
             aria-label="Clear all filters"
             className="app-range-glass-clear absolute inline-flex items-center justify-center"
-            style={{ top: 5, right: 8, height: 28, width: 28, zIndex: 2 }}
+            style={{ top: 5, right: 8, height: 28, width: 28, zIndex: CLEAR_BUTTON_Z_INDEX }}
             onClick={(event) => {
               event.stopPropagation()
               clearAll()

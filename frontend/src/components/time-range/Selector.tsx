@@ -30,6 +30,10 @@ const glassSpring = { type: 'spring', stiffness: 420, damping: 34, mass: 0.9 } a
 // the blooming panel free to overlay the content below without nudging it
 const GLASS_BORDER_ALLOWANCE = 2
 
+// Lifts the glass over the content the open panel blooms across. Open, the wrapper takes z-30 and
+// becomes a stacking context of its own, so this orders the glass only within this control
+const GLASS_Z_INDEX = 50
+
 /**
  * Resolves whether the compact shortcut label adds information beyond the main label
  */
@@ -196,7 +200,7 @@ function MobileTimeRangeSelector<T extends string>({
     >
       <motion.div
         className={joinClassNames('app-range-glass app-range-glass-full', open && 'app-range-glass-open')}
-        style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 50 }}
+        style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: GLASS_Z_INDEX }}
         whileTap={open || shouldReduceMotion ? undefined : { scale: 0.94 }}
       >
         <button
