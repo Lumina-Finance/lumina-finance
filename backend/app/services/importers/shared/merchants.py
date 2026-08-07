@@ -77,19 +77,24 @@ async def require_usable_import_merchant(db: AsyncSession, merchant_id: uuid.UUI
 class ImportMerchants:
     """What an import files each of its rows under, worked out once for the whole file
 
+    Three separate questions, each with a map of its own, because one map answering more than one of
+    them is what let an answer for a payee value be read back as a merchant that exists under that
+    name, and what let a payee value reading "Unknown" take the shared merchant out of the lookup
+
     Attributes:
-        by_key: Merchant rows keyed by what matches a payee, extended as answers are read and
-            merchants are created
-        system_by_key: The merchants that ship with the app, held apart because answering a payee
-            value overwrites its key in by_key. A file whose payee column reads "Unknown", answered
-            with some other merchant, would otherwise take the shared merchant out of the lookup
-            that the rows stating no payee are stamped from
+        existing_by_name_key: What merchants there are, keyed by their own name. Extended only by
+            the merchants this import creates, never by an answer
+        system_by_key: The merchants that ship with the app, keyed by their own name, which is what
+            a row stating no payee is stamped from
+        resolved_by_payee_key: What each payee value in the file resolves to, keyed by the value
+            rather than by any merchant's name. This is what a row is filed through
         skipped_keys: Payee values the user answered skip, whose rows are filed under the shared
             merchant the app stamps on a row stating no payee at all
     """
 
-    by_key: dict[str, Merchant]
+    existing_by_name_key: dict[str, Merchant]
     system_by_key: dict[str, Merchant] = field(default_factory=dict)
+    resolved_by_payee_key: dict[str, Merchant] = field(default_factory=dict)
     skipped_keys: set[str] = field(default_factory=set)
 
 
@@ -115,14 +120,14 @@ async def load_import_merchants(db: AsyncSession, user_id: uuid.UUID) -> ImportM
         .order_by(Merchant.is_system.desc(), Merchant.created_at, Merchant.id),
     )
 
-    merchants_by_key: dict[str, Merchant] = {}
+    existing_by_name_key: dict[str, Merchant] = {}
     system_by_key: dict[str, Merchant] = {}
     for merchant in result.scalars().all():
         key = get_import_merchant_key(merchant.name)
-        merchants_by_key.setdefault(key, merchant)
+        existing_by_name_key.setdefault(key, merchant)
         if merchant.is_system:
             system_by_key.setdefault(key, merchant)
-    return ImportMerchants(by_key=merchants_by_key, system_by_key=system_by_key)
+    return ImportMerchants(existing_by_name_key=existing_by_name_key, system_by_key=system_by_key)
 
 
 async def create_missing_import_merchants(
@@ -173,14 +178,12 @@ async def create_missing_import_merchants(
         _require_import_merchant_name_fits(name)
 
         payee_key = get_import_merchant_key(name)
-        if payee_key in name_key_by_payee_key:
+        if payee_key in name_key_by_payee_key or payee_key in merchants.resolved_by_payee_key:
             continue
 
         answer = answers.get(payee_key)
         if answer is None:
             # Left alone, so it matches an existing merchant or is created under its own spelling
-            if payee_key in merchants.by_key:
-                continue
             stored_name = name
         elif answer.create is None:
             # Answered skip or pointed at a merchant, both already settled above
@@ -188,14 +191,13 @@ async def create_missing_import_merchants(
         else:
             stored_name = answer.create.name
 
-        name_key = get_import_merchant_key(stored_name)
-
         # A name already held is reused rather than written again, which is what the merchants route
         # answers 409 for. The unique index catches the user's own, but not one that ships with the
         # app, since a system merchant has no owner and so shares no index entry with a personal one
-        existing = merchants.by_key.get(name_key)
+        name_key = get_import_merchant_key(stored_name)
+        existing = merchants.existing_by_name_key.get(name_key)
         if existing is not None:
-            merchants.by_key[payee_key] = existing
+            merchants.resolved_by_payee_key[payee_key] = existing
             continue
 
         # The first spelling the file uses is the one stored, so a file carrying both "Amazon" and
@@ -228,8 +230,9 @@ async def create_missing_import_merchants(
     if taken_keys:
         written_by_key.update(await _load_import_merchants_created_elsewhere(db, user_id, taken_keys))
 
+    merchants.existing_by_name_key.update(written_by_key)
     for payee_key, name_key in name_key_by_payee_key.items():
-        merchants.by_key[payee_key] = written_by_key[name_key]
+        merchants.resolved_by_payee_key[payee_key] = written_by_key[name_key]
 
 
 def _require_import_merchant_name_fits(name: str) -> None:
@@ -261,7 +264,9 @@ def _index_import_merchant_answers(
 
     Raises:
         HTTPException: Raised with 422 when an answer states no single action, and when two answers
-            are given for values that match as one payee
+            are given for values that match as one payee. A staged run cannot carry that pair, since
+            it holds one answer per matching key, so this second refusal is what a request built by
+            hand rather than by the import page meets
     """
     answers: dict[str, TransactionImportMerchantMapping] = {}
 
@@ -325,9 +330,10 @@ async def _attach_chosen_import_merchants(
         if merchant is None:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Merchant not found")
 
-        # Overrides what the payee would have matched on its own, which is the whole point of
-        # answering it: a descriptor reading nothing like the merchant still lands on it
-        merchants.by_key[key] = merchant
+        # Settles what this payee value resolves to, whatever it would have matched on its own,
+        # which is the whole point of answering it: a descriptor reading nothing like the merchant
+        # still lands on it
+        merchants.resolved_by_payee_key[key] = merchant
 
 
 async def _load_import_merchants_created_elsewhere(
@@ -399,7 +405,7 @@ def get_import_merchant(
     if key in merchants.skipped_keys:
         return None
 
-    merchant = merchants.by_key[key]
+    merchant = merchants.resolved_by_payee_key[key]
     stats.reused_merchant_ids.add(merchant.id)
     return merchant
 
@@ -437,7 +443,8 @@ def get_no_payee_merchants(merchants: ImportMerchants) -> NoPayeeMerchants:
     """Return the shared merchants stamped on rows that state no payee
 
     Args:
-        merchants: Merchant lookup for this import, which already holds every system merchant
+        merchants: Merchant lookup for this import, read for the merchants that ship with the app
+            rather than for what its payee values resolved to
 
     Returns:
         The shared merchants for this import

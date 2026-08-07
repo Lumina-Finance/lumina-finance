@@ -158,7 +158,6 @@ export function useTransactionImportWorkflow() {
     updateAccountMapping: updateSourceAccount,
     resetAccountCreateState,
   } = useImportAccountCreateState(setAccountMappings, getAccountSourceScope)
-  const [merchantHandlingOpen, setMerchantHandlingOpen] = useState(true)
   const [tagHandlingOpen, setTagHandlingOpen] = useState(true)
   const [columnValidationErrors, setColumnValidationErrors] = useState<ColumnValidationErrors>({})
 
@@ -860,7 +859,6 @@ export function useTransactionImportWorkflow() {
     setScopedAccountMappings(emptyScopedImportAnswers)
     setAccountAutoMatchKey('')
     resetAccountCreateState()
-    setMerchantHandlingOpen(true)
     setTagHandlingOpen(true)
     setColumnValidationErrors({})
     setDateFormatChoice(null)
@@ -898,7 +896,6 @@ export function useTransactionImportWorkflow() {
     batchAccountType,
     batchAccountCurrency,
     batchAccountInstitution,
-    merchantHandlingOpen,
     tagHandlingOpen,
     columnValidationErrors: resolvedColumnValidationErrors,
     dateFormat,
@@ -972,7 +969,6 @@ export function useTransactionImportWorkflow() {
     setMerchantMappings,
     setMerchantCreateNames,
     setMerchantSearch,
-    setMerchantHandlingOpen,
     setTagHandlingOpen,
     handleFileChange,
     removeFile,

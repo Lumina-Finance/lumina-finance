@@ -1006,6 +1006,32 @@ async def test_answering_a_payee_named_like_a_shared_merchant_leaves_the_stamped
     assert merchants_by_amount == {-100: chosen["id"], -200: unknown_merchant_id}
 
 
+async def test_a_payee_pointed_at_a_merchant_does_not_take_another_payees_new_name(client):
+    """What a value resolves to and what merchants exist are separate questions, keyed separately."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    chosen = (await _create_merchant(client, headers, name="Corner Cafe")).json()
+
+    # The first value is pointed at a merchant, and the second is created under a name reading like
+    # the first value. Answered against one lookup, the second would land on the first one's merchant
+    resp = await _import_rows(
+        client,
+        headers,
+        account_id,
+        category_id,
+        [{"merchant_name": "Amazon", "amount": "-1.00"}, {"merchant_name": "SQ *AMZN 88", "amount": "-2.00"}],
+        merchants=[
+            {"source": "Amazon", "merchant_id": chosen["id"]},
+            {"source": "SQ *AMZN 88", "create": {"name": "Amazon"}},
+        ],
+    )
+
+    assert resp.status_code == 201
+    assert resp.json()["merchants_created"] == 1
+    transactions = (await client.get("/transactions", headers=headers)).json()
+    merchants_by_amount = {transaction["amount"]: transaction["merchant_name"] for transaction in transactions}
+    assert merchants_by_amount == {-100: "Corner Cafe", -200: "Amazon"}
+
+
 async def test_two_batches_answering_one_payee_differently_are_refused_at_staging(client):
     """Both spellings are one payee, so the clash is caught while staging rather than at the commit."""
     headers, account_id, category_id = await _setup_user_with_deps(client)

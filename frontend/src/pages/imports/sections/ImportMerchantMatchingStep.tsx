@@ -2,6 +2,7 @@ import {
   CREATE_MERCHANT_VALUE,
   MERCHANT_MATCHES_LOAD_FAILURE_EXPLANATION,
   MERCHANT_MATCHES_LOAD_FAILURE_TITLE,
+  SKIP_MERCHANT_VALUE,
 } from '@/pages/imports/constants'
 import { EmptyState, ImportLoadFailure, ImportStep, ImportValueMatchTable } from '@/pages/imports/components'
 import type { TransactionImportWorkflow } from '@/pages/imports/hooks'
@@ -110,9 +111,11 @@ export function ImportMerchantMatchingStep({
                 </span>
               ),
               onChange: (nextValue) => {
-                // Held on to as it is chosen, since the option it came from goes when the search
-                // that found it clears, and the row would then show nothing for its own answer
-                const picked = merchantOptions.find((option) => option.value === nextValue)
+                // A merchant is held on to as it is chosen, since the option it came from goes when
+                // the search that found it clears, and the row would then show nothing for its own
+                // answer. The two actions are always offered, so neither is worth remembering
+                const isMerchant = nextValue !== CREATE_MERCHANT_VALUE && nextValue !== SKIP_MERCHANT_VALUE
+                const picked = isMerchant && merchantOptions.find((option) => option.value === nextValue)
                 if (picked) rememberPickedMerchant(nextValue, picked.label)
                 setMerchantMappings((current) => ({ ...current, [value]: nextValue }))
               },

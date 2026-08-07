@@ -39,9 +39,11 @@ _MERCHANT_NAME_SCOPE = """
     END
 """
 
-# What is taken off both ends of a name, matching what str.strip() takes off in the application.
-# btrim with no character set removes spaces alone, which would leave a name ending in a tab stored
-# untrimmed while every comparison trims, so no typed name could ever match it again
+# What is taken off both ends of a name. btrim with no character set removes spaces alone, which
+# would leave a name ending in a tab stored untrimmed while every comparison trims it, so no typed
+# name could ever match that row again. This covers the whitespace a file or a paste actually
+# carries, and not the rest of what Python's str.strip() removes, such as U+2000 to U+200A, so a
+# name ending in one of those is left as it is and still reads as its own name
 _TRIMMED_CHARACTERS = " \t\n\r\f\v "
 
 
@@ -105,8 +107,9 @@ def _fold_categories() -> None:
     )
 
     # One budget cannot track one category twice, which is what moving the rows would leave where a
-    # budget tracked the survivor and a loser, or two losers of one set. Every active row past the
-    # first for a budget and its survivor goes, so exactly one is left to move
+    # budget tracked the survivor and a loser, or two losers of one set. Where the survivor is
+    # already tracked every loser's row goes, and otherwise all but the first do, so the budget ends
+    # up tracking the survivor exactly once either way
     op.execute(
         sa.text(
             "DELETE FROM budget_tracked_categories b USING ("

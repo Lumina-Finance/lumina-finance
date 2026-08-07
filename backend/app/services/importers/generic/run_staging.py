@@ -174,7 +174,7 @@ def _merge_import_mappings(
     label: str,
     get_key: Callable[[str], str] = lambda source: source,
 ) -> dict[str, Any]:
-    """Merge one batch's mappings into what the run already holds, keyed by trimmed source
+    """Merge one batch's mappings into what the run already holds, one entry per source
 
     Re-sending a batch merges the same answers again, which is why an identical re-declaration is
     accepted while a different one is refused
