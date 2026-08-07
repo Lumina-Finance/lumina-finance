@@ -154,18 +154,6 @@ export default function TagSettingsList({
                 </td>
               </tr>
             )}
-            {showInitialTagLoading && visibleTags.length === 0 && (
-              <tr>
-                <td colSpan={2}>
-                  <p
-                    className="py-4 text-center text-sm italic"
-                    style={{ color: 'var(--app-text-subtle)' }}
-                  >
-                    Loading tags...
-                  </p>
-                </td>
-              </tr>
-            )}
           </tbody>
         </table>
       </div>

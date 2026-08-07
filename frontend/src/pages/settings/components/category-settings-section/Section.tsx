@@ -10,12 +10,17 @@ import {
   type Category,
 } from '@/api/categories'
 import CreateCategoryModal from '@/components/reference-modals/CreateCategoryModal'
+import LoadingRegion from '@/components/loading/Region'
 import CategorySettingsGroup from '@/pages/settings/components/category-settings-section/list/Group'
 import MergeDeleteCategoryModal from '@/pages/settings/components/category-settings-section/modals/MergeDeleteModal'
 import { DELETE_SPINNER_MS } from '@/pages/settings/components/category-settings-section/constants'
 import { useCategorySettingsGroups } from '@/pages/settings/components/category-settings-section/hooks/useGroups'
 import SettingsSectionHeader from '@/pages/settings/components/SectionHeader'
 import SettingsCard from '@/pages/settings/components/Card'
+import {
+  SETTINGS_LIST_LOADING_MIN_HEIGHT_PX,
+  SETTINGS_LIST_LOADING_OVERLAY_CLASS,
+} from '@/pages/settings/components/shared/constants'
 import { waitForMilliseconds } from '@/utils/timing'
 
 /**
@@ -122,37 +127,47 @@ export default function CategorySettingsSection() {
             </p>
           )}
 
-          {isLoading ? null : categories.length === 0 ? (
-            <p className="py-3 text-center text-sm italic" style={{ color: 'var(--app-text-subtle)' }}>
-              No categories yet.
-            </p>
-          ) : !hasMatches ? (
-            <p className="py-3 text-center text-sm italic" style={{ color: 'var(--app-text-subtle)' }}>
-              No categories match your search.
-            </p>
-          ) : (
-            <div className="space-y-6">
-              {groupedCategories.map(({ kind, items }) => (
-                items.length > 0 && (
-                  <CategorySettingsGroup
-                    key={kind}
-                    kind={kind}
-                    expanded={expandedKinds.has(kind)}
-                    categories={items}
-                    confirmingDeleteCategoryId={confirmingDeleteCategoryId}
-                    deletingCategoryId={deletingCategoryId}
-                    editingCategoryId={editingCategoryId}
-                    onDeleteCancel={() => setConfirmingDeleteCategoryId(null)}
-                    onDeleteConfirm={handleDelete}
-                    onEdit={(category) => setEditingCategoryId(category.id)}
-                    onDeleteRequest={handleDeleteRequest}
-                    onEditCancel={() => setEditingCategoryId(null)}
-                    onToggle={() => toggleKind(kind)}
-                  />
-                )
-              ))}
-            </div>
-          )}
+          {/* No transition key, since the search filters categories already in hand and blurring
+              the list would hide the rows the reader is typing to find */}
+          <LoadingRegion
+            loading={isLoading}
+            label="Loading categories"
+            loadingMinHeight={SETTINGS_LIST_LOADING_MIN_HEIGHT_PX}
+            overlayClassName={SETTINGS_LIST_LOADING_OVERLAY_CLASS}
+            animateLoadingHeight
+          >
+            {categories.length === 0 ? (
+              <p className="py-3 text-center text-sm italic" style={{ color: 'var(--app-text-subtle)' }}>
+                No categories yet.
+              </p>
+            ) : !hasMatches ? (
+              <p className="py-3 text-center text-sm italic" style={{ color: 'var(--app-text-subtle)' }}>
+                No categories match your search.
+              </p>
+            ) : (
+              <div className="space-y-6">
+                {groupedCategories.map(({ kind, items }) => (
+                  items.length > 0 && (
+                    <CategorySettingsGroup
+                      key={kind}
+                      kind={kind}
+                      expanded={expandedKinds.has(kind)}
+                      categories={items}
+                      confirmingDeleteCategoryId={confirmingDeleteCategoryId}
+                      deletingCategoryId={deletingCategoryId}
+                      editingCategoryId={editingCategoryId}
+                      onDeleteCancel={() => setConfirmingDeleteCategoryId(null)}
+                      onDeleteConfirm={handleDelete}
+                      onEdit={(category) => setEditingCategoryId(category.id)}
+                      onDeleteRequest={handleDeleteRequest}
+                      onEditCancel={() => setEditingCategoryId(null)}
+                      onToggle={() => toggleKind(kind)}
+                    />
+                  )
+                ))}
+              </div>
+            )}
+          </LoadingRegion>
         </div>
       </SettingsCard>
 

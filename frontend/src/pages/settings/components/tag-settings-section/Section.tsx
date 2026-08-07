@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Plus } from 'lucide-react'
 import { GlassSearchField } from '@/components/list-controls/GlassSearchField'
+import LoadingRegion from '@/components/loading/Region'
 import { ApiError } from '@/api/auth'
 import {
   useDeleteTag,
@@ -14,6 +15,10 @@ import MergeDeleteTagModal from '@/pages/settings/components/tag-settings-sectio
 import TagCreateModal from '@/pages/settings/components/tag-settings-section/modals/CreateModal'
 import TagSettingsList from '@/pages/settings/components/tag-settings-section/list/List'
 import { DELETE_SPINNER_MS } from '@/pages/settings/components/tag-settings-section/constants'
+import {
+  SETTINGS_LIST_LOADING_MIN_HEIGHT_PX,
+  SETTINGS_LIST_LOADING_OVERLAY_CLASS,
+} from '@/pages/settings/components/shared/constants'
 import { useTagSettingsList } from '@/pages/settings/components/tag-settings-section/hooks/useList'
 import { waitForMilliseconds } from '@/utils/timing'
 
@@ -113,27 +118,42 @@ export default function TagSettingsSection() {
             </p>
           )}
 
-          <TagSettingsList
-            activeSearch={tagList.activeSearch}
-            confirmingDeleteTagId={confirmingDeleteTagId}
-            deletingTagId={deletingTagId}
-            editingTagId={editingTagId}
-            hasMoreTags={tagList.hasMoreTags}
-            showFetchingMoreTags={tagList.showFetchingMoreTags}
-            showInitialTagLoading={tagList.showInitialTagLoading}
-            showTagListEnd={tagList.showTagListEnd}
-            showTagListMoreIndicator={tagList.showTagListMoreIndicator}
-            shouldScrollTags={tagList.shouldScrollTags}
-            tagListRef={tagList.tagListRef}
-            visibleTags={tagList.visibleTags}
-            onDeleteCancel={handleDeleteCancel}
-            onDeleteConfirm={handleDelete}
-            onDeleteRequest={handleDeleteRequest}
-            onEdit={(tag) => setEditingTagId(tag.id)}
-            onEditCancel={() => setEditingTagId(null)}
-            onListMoreClick={tagList.handleTagListMoreClick}
-            onListScroll={tagList.handleTagListScroll}
-          />
+          {/* Outside the list rather than inside it, since the list clips its own box while
+              animating its height and would cut the spinner off part way through a load. Its
+              animation is also what carries the box between the loading height and the rows,
+              so the region holds no height of its own here */}
+          <LoadingRegion
+            loading={tagList.showInitialTagLoading}
+            label="Loading tags"
+            transitionKey={tagList.activeSearch}
+            snapshot={tagList.visibleTags}
+            loadingMinHeight={SETTINGS_LIST_LOADING_MIN_HEIGHT_PX}
+            overlayClassName={SETTINGS_LIST_LOADING_OVERLAY_CLASS}
+          >
+            {(displayTags) => (
+              <TagSettingsList
+                activeSearch={tagList.activeSearch}
+                confirmingDeleteTagId={confirmingDeleteTagId}
+                deletingTagId={deletingTagId}
+                editingTagId={editingTagId}
+                hasMoreTags={tagList.hasMoreTags}
+                showFetchingMoreTags={tagList.showFetchingMoreTags}
+                showInitialTagLoading={tagList.showInitialTagLoading}
+                showTagListEnd={tagList.showTagListEnd}
+                showTagListMoreIndicator={tagList.showTagListMoreIndicator}
+                shouldScrollTags={tagList.shouldScrollTags}
+                tagListRef={tagList.tagListRef}
+                visibleTags={displayTags}
+                onDeleteCancel={handleDeleteCancel}
+                onDeleteConfirm={handleDelete}
+                onDeleteRequest={handleDeleteRequest}
+                onEdit={(tag) => setEditingTagId(tag.id)}
+                onEditCancel={() => setEditingTagId(null)}
+                onListMoreClick={tagList.handleTagListMoreClick}
+                onListScroll={tagList.handleTagListScroll}
+              />
+            )}
+          </LoadingRegion>
         </div>
       </SettingsCard>
 

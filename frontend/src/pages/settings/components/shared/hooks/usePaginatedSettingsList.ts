@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type UIEvent } from 'react'
 import { useMinimumVisibleFlag } from '@/hooks/useMinimumVisibleFlag'
 
-// Held long enough that the initial-load and fetch-more messages do not flash on a fast
+// Held long enough that the first load's overlay and the fetch-more message do not flash on a fast
 // connection, before the fetched page is old enough to reveal on its own
-const LOADING_TEXT_MIN_MS = 300
+const INITIAL_LOAD_MIN_MS = 300
 const FETCHING_MORE_TEXT_MIN_MS = 800
 
 // Distance in pixels from the end of the scroll container still counted as "at the bottom",
@@ -36,9 +36,9 @@ interface UsePaginatedSettingsListParams<TItem extends { id: string }> {
 }
 
 /**
- * Drives a paginated, searchable settings list: an infinite query, minimum-visible-time gating
- * on the loading and fetching-more messages, deferred reveal of a fetched page, scroll-to-bottom
- * detection, local-deletion filtering and a debounced search
+ * Drives a paginated, searchable settings list: an infinite query, minimum-visible-time gating on
+ * the first load's flag and the fetching-more message, deferred reveal of a fetched page,
+ * scroll-to-bottom detection, local-deletion filtering and a debounced search
  *
  * Whether new data counts as an appended page is tracked by a flag set when the caller asks for
  * more, rather than inferred from a growing list, so a background refetch that happens to grow
@@ -84,7 +84,7 @@ export function usePaginatedSettingsList<TItem extends { id: string }>({
     visibleItems.length > 0 &&
     pageFetchPending
   )
-  const showInitialLoading = useMinimumVisibleFlag(listQuery.isLoading, LOADING_TEXT_MIN_MS)
+  const showInitialLoading = useMinimumVisibleFlag(listQuery.isLoading, INITIAL_LOAD_MIN_MS)
   const showFetchingMore = useMinimumVisibleFlag(
     listQuery.isFetchingNextPage || hasUndisplayedFetchedItems,
     FETCHING_MORE_TEXT_MIN_MS,
@@ -148,9 +148,9 @@ export function usePaginatedSettingsList<TItem extends { id: string }>({
     const fetchStartedAt = isAppendingPage
       ? fetchMoreStartedAtRef.current
       : initialFetchStartedAtRef.current
-    const elapsed = fetchStartedAt === null ? LOADING_TEXT_MIN_MS : now - fetchStartedAt
+    const elapsed = fetchStartedAt === null ? INITIAL_LOAD_MIN_MS : now - fetchStartedAt
     const shouldDelay = isAppendingPage || isInitialPage
-    const minimumVisibleMs = isAppendingPage ? FETCHING_MORE_TEXT_MIN_MS : LOADING_TEXT_MIN_MS
+    const minimumVisibleMs = isAppendingPage ? FETCHING_MORE_TEXT_MIN_MS : INITIAL_LOAD_MIN_MS
     const delayMs = shouldDelay ? Math.max(minimumVisibleMs - elapsed, 0) : 0
     const timeoutId = window.setTimeout(() => {
       setVisibleItems(fetchedItems)
