@@ -13,7 +13,7 @@ const CONTENT_TIMEOUT_MS = 20_000
 const MODAL_ATTEMPT_MS = 3_000
 
 // The app's own two breakpoints. Above the first the navigation is a sidebar and below it a
-// menu behind a button; above the second the list toolbars show their own controls inline and
+// menu behind a button. Above the second the list toolbars show their controls inline, and
 // below it a reduced set that opens filtering in a sheet
 const NAVIGATION_BREAKPOINT_PX = 1050
 const TOOLBAR_BREAKPOINT_PX = 750
@@ -117,7 +117,7 @@ export async function openModal(page: Page, buttonNames: string[], dialogName: s
   const dialog = page.getByRole('dialog', { name: dialogName })
 
   // Only one toolbar is ever displayed, so only one of these names is in the accessibility
-  // tree and the pair resolves to a single control at any width.
+  // tree and the pair resolves to a single control at any width
   //
   // Anything inside an open dialog is excluded, because the transaction modal's own submit
   // button carries the same name as the toolbar button that opened it. Without this the two

@@ -58,8 +58,9 @@ export default defineConfig({
   },
 
   // Pinned rather than left to default, which is half the machine's cores and would serialise
-  // the three sizes on a two-core runner. The ceiling is not the runner but the one app
-  // container every test signs up against, which hashes each password with argon2id at 64 MiB
+  // the three sizes on a two-core runner. Raising it further buys little: every test signs up,
+  // and the app hashes each password on its single event loop, so those calls queue behind one
+  // another however many browsers are asking at once
   workers: 6,
 
   projects: [
