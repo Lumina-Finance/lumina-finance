@@ -65,13 +65,7 @@ export default function ImportsPage() {
     || fireflyWorkflow.processingFileKind !== null
     || fireflyWorkflow.isImportingBudgets
   const isGenericBusy = workflow.importOverlayOpen || workflow.isProcessingFiles || workflow.isImportInFlight
-
-  // A staged CSV holds the page as well as a running import, or dismissing a failed commit would
-  // drop the user on an empty Firefly flow with their file still staged behind it. Kept apart from
-  // the busy flag, which decides whether the source may be changed at all, and a staged file has
-  // never stopped that: changing the source resets the flow being left
-  const isGenericHoldingPage = isGenericBusy || workflow.files.length > 0
-  const isFirefly = isFireflyBusy || (!isGenericHoldingPage && dataSource === 'firefly' && !isScopedToAccount)
+  const isFirefly = isFireflyBusy || (!isGenericBusy && dataSource === 'firefly' && !isScopedToAccount)
   const importOverlayOpen = isFirefly ? fireflyWorkflow.importOverlayOpen : workflow.importOverlayOpen
 
   // Where the page came from, which is also where its two exits go while the scope holds
@@ -124,9 +118,14 @@ export default function ImportsPage() {
 
   // The scope is settled against the accounts list, so the page holds until that answer arrives and
   // shows no import flow at all where the answer is no. Settings is the way out of all three, since
-  // none of them has an account worth returning to. None of the three can interrupt an import that
-  // has already started, because the scope settles once per account and is then held
-  if (accountScope.state !== 'unscoped' && accountScope.state !== 'ready') {
+  // none of them has an account worth returning to
+  //
+  // None of the three may take the page from an import that is already working. The scope holds its
+  // answer once a current list has given one, but a list that has not managed to arrive settles
+  // nothing, and a refetch landing during a commit would otherwise replace the overlay reporting
+  // what was written. That also strands the page: the overlay is taken off screen without the exit
+  // that would clear the flag dimming and disabling everything under it
+  if (accountScope.state !== 'unscoped' && accountScope.state !== 'ready' && !isImportBusy) {
     return (
       <div
         className="relative flex h-screen min-h-screen flex-col items-center justify-center px-5"
