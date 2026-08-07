@@ -61,18 +61,23 @@ export default function LoadingRegion<T>({
     snapshot: snapshot as T,
     loading,
     transitionKey: transitionKey ?? label,
+    // A key change with nothing loading behind it holds only long enough to conceal what is on
+    // screen before the new value takes its place, since there is nothing to wait for and a
+    // spinner over data already in hand only delays reading it
+    swapMinVisibleMs: LOADING_VISIBILITY_MS,
   })
   const contentRef = useRef<HTMLDivElement | null>(null)
   const [contentHeight, setContentHeight] = useState<number | null>(null)
   const [revealSettled, setRevealSettled] = useState(true)
-  // Held only across a load, so an expanding row or an arriving page afterwards is the content's
-  // own business and neither measures nor re-renders this region
-  const heightHeld = animateLoadingHeight && (loadingVisible || !revealSettled)
+  // Held across any concealment rather than only a load, since a swap moves the box between two
+  // heights the same way. Afterwards an expanding row or an arriving page is the content's own
+  // business, and neither measures nor re-renders this region
+  const heightHeld = animateLoadingHeight && (contentConcealed || !revealSettled)
 
   useEffect(() => {
-    if (loadingVisible) {
-      // Nothing reads this while the spinner is up, since the height then follows the content on
-      // its own, so it is cleared a frame later rather than during the effect itself
+    if (contentConcealed) {
+      // Nothing reads this while the content is concealed, since the height then follows the
+      // content on its own, so it is cleared a frame later rather than during the effect itself
       const clearFrameId = window.requestAnimationFrame(() => setRevealSettled(false))
 
       return () => window.cancelAnimationFrame(clearFrameId)
@@ -83,7 +88,7 @@ export default function LoadingRegion<T>({
     const settleTimeoutId = window.setTimeout(() => setRevealSettled(true), LOADING_VISIBILITY_MS)
 
     return () => window.clearTimeout(settleTimeoutId)
-  }, [loadingVisible])
+  }, [contentConcealed])
 
   useEffect(() => {
     const element = contentRef.current
@@ -112,7 +117,6 @@ export default function LoadingRegion<T>({
   }, [heightHeld])
 
   const height = getLoadingRegionHeight({
-    loadingVisible,
     contentHeight,
     revealSettled,
     shouldReduceMotion,
