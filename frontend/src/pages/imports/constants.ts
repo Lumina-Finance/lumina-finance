@@ -245,25 +245,6 @@ export const IMPORT_NOT_PERMITTED_EXPLANATION = 'Transactions can only be import
 export const IMPORT_SCOPE_FAILURE_TITLE = 'Your accounts could not be loaded'
 export const IMPORT_SCOPE_FAILURE_EXPLANATION = 'Without them this import cannot tell whether it may write to the account it was started from.'
 
-// Shown in place of the imported-account table when the import was started from an account, since
-// every row goes to that account and there is nothing left to answer
-export const FIXED_ACCOUNT_EMPTY_TITLE = 'No file staged'
-export const FIXED_ACCOUNT_EMPTY_DESCRIPTION = 'Upload a CSV file to import it into this account.'
-
-/**
- * Says which account every row of a scoped import is written to
- *
- * Where the file states a counterparty, the second half points at the table that answers it rather
- * than promising the transfer lands in an account of the user's, since an unanswered counterparty
- * records the transfer as money going outside this app. A file stating none gets the first half
- * alone
- */
-export function getFixedAccountStatement(accountName: string, hasCounterpartySources: boolean) {
-  return hasCounterpartySources
-    ? `All transactions will be imported into ${accountName}. Where a row is a transfer, the counterparty it names is answered in the table below.`
-    : `All transactions will be imported into ${accountName}.`
-}
-
 /**
  * Says what a scoped import does with the currency of the account it writes to
  *
@@ -285,9 +266,12 @@ export const FIXED_ACCOUNT_WARNING_LINK_LABEL = 'Open the full import page'
 
 /**
  * Says what a scoped import will do with a file it is the wrong page for
+ *
+ * Shown before a file is staged as well as after, so it speaks of the import rather than of a file
+ * on screen, and it is the one place the step says which account the rows are going to
  */
 export function getFixedAccountWarning(accountName: string) {
-  return `Every row in this file will be written to ${accountName}. A file covering more than one account, or holding amounts in a currency this account is not kept in, has to go through the full import page.`
+  return `Every transaction imported here will be written to ${accountName}. A file covering more than one account, or holding amounts in a currency this account is not kept in, has to go through the full import page.`
 }
 
 // Shown over the accounts that appear only as a counterparty, which the import writes nothing to

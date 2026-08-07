@@ -15,14 +15,10 @@ import {
   CREATED_ACCOUNT_CREDIT_LIMIT_NOTE,
   CREATED_ACCOUNT_EXPLANATION,
   CREATED_ACCOUNT_TITLE,
-  FIXED_ACCOUNT_EMPTY_DESCRIPTION,
-  FIXED_ACCOUNT_EMPTY_TITLE,
   FIXED_ACCOUNT_WARNING_LINK_LABEL,
   FIXED_ACCOUNT_WARNING_TITLE,
-  IMPORT_INSET_STYLE,
   UNSET_BATCH_INSTITUTION,
   getFixedAccountCurrencyNote,
-  getFixedAccountStatement,
   getFixedAccountWarning,
 } from '@/pages/imports/constants'
 import type { ImportAccountSource } from '@/pages/imports/types'
@@ -207,6 +203,21 @@ export function ImportAccountMappingStep({
             : 'Imported amounts are treated as raw values. During import, each amount will be assigned the base currency of the mapped account, or the currency shown against a new account, which is taken from the file where it states one and can be changed on any row.'}
         </ImportNotice>
       )}
+      {/* Says what this page will do with a file whether or not one is staged, since a file covering
+          more than one account has to be sent elsewhere before it is uploaded rather than after */}
+      {fixedAccount && (
+        <ImportNotice tone="danger" title={FIXED_ACCOUNT_WARNING_TITLE}>
+          {getFixedAccountWarning(fixedAccount.name)}
+          {' '}
+          <Link
+            to="/settings/imports"
+            className="font-medium underline underline-offset-2 transition-colors duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+            style={{ color: 'var(--app-accent)' }}
+          >
+            {FIXED_ACCOUNT_WARNING_LINK_LABEL}
+          </Link>
+        </ImportNotice>
+      )}
       {accountsFailed ? (
         <ImportLoadFailure
           title={ACCOUNTS_LOAD_FAILURE_TITLE}
@@ -214,11 +225,14 @@ export function ImportAccountMappingStep({
           onRetry={refetchAccounts}
         />
       ) : accountMappingSources.length === 0 ? (
-        // A fixed account has no column to check, so the empty state asks only for the file
-        <EmptyState
-          title={fixedAccount ? FIXED_ACCOUNT_EMPTY_TITLE : 'No account sources detected'}
-          description={fixedAccount ? FIXED_ACCOUNT_EMPTY_DESCRIPTION : 'Upload a file or check the mapped account column.'}
-        />
+        // A fixed account has already been told what will happen, by the notice above, so nothing
+        // asks it for a file a second time
+        fixedAccount ? null : (
+          <EmptyState
+            title="No account sources detected"
+            description="Upload a file or check the mapped account column."
+          />
+        )
       ) : (
         <>
           {clearedAccountSourceLabels.length > 0 && (
@@ -255,27 +269,9 @@ export function ImportAccountMappingStep({
               {CREATED_ACCOUNT_EXPLANATION}
             </ImportNotice>
           )}
-          {fixedAccount ? (
-            <div className="space-y-3">
-              <p
-                className="px-4 py-6 text-center text-sm leading-6"
-                style={{ ...IMPORT_INSET_STYLE, color: 'var(--app-text-muted)' }}
-              >
-                {getFixedAccountStatement(fixedAccount.name, counterpartySources.length > 0)}
-              </p>
-              <ImportNotice tone="danger" title={FIXED_ACCOUNT_WARNING_TITLE}>
-                {getFixedAccountWarning(fixedAccount.name)}
-                {' '}
-                <Link
-                  to="/settings/imports"
-                  className="font-medium underline underline-offset-2 transition-colors duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
-                  style={{ color: 'var(--app-accent)' }}
-                >
-                  {FIXED_ACCOUNT_WARNING_LINK_LABEL}
-                </Link>
-              </ImportNotice>
-            </div>
-          ) : (
+          {/* The scope answers every source rows are written to, so there is no table to show for
+              them. The counterparty table below still asks about a transfer's other side */}
+          {fixedAccount ? null : (
             <ImportAccountMappingTable
               rows={importedRows}
               options={accountOptions}
