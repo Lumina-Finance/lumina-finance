@@ -173,9 +173,11 @@ const MIN_CATEGORY_DISTINCT_VALUES = 4
  * it used to hold
  * @param omitAccountColumn - Whether the finished map may hold an account column, which an import
  * started from an account may not, since that account is the answer. The account column is still
- * detected and only dropped at the end, so the column it found stays claimed and no other field can
- * take it. Skipping the detection instead would hand a column of account names to the merchant
- * field, which scores on the shape of a short repeated text column
+ * detected and only dropped at the end, so a column it claims is not left for another field to take.
+ * Skipping the detection instead would hand a column of account names to the merchant field, which
+ * scores on the shape of a short repeated text column. This only covers a column the account field
+ * would accept: one with a blank cell fails its required-values check, is refused there, and can
+ * still be claimed as a merchant, which is what happens on an ordinary import as well
  */
 export function inferColumnMap(
   columnMap: ColumnMap,

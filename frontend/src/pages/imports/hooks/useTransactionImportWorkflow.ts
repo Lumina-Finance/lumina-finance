@@ -104,13 +104,15 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   const isAccountFixed = fixedAccount !== null
 
   // The account an import was started from answers for every row, so nothing downstream may read a
-  // mapped account column while that holds. Emptied here rather than cleared from what is stored,
-  // because the column mapping is only inferred when a file is staged: a user who leaves the scope,
-  // maps the account column by hand and comes back would otherwise arrive with it mapped, the row
-  // sources would go back to being that column's values, and every row with a blank account cell
-  // would be refused on a page where the column is meant not to matter. Their answer is still there
-  // when they leave the scope again, until they map another column here, which writes the emptied
-  // map back
+  // mapped account column while that holds. Emptied here rather than cleared outright, because the
+  // column mapping is only inferred when a file is staged: a user who leaves the scope, maps the
+  // account column by hand and comes back would otherwise arrive with it mapped, the row sources
+  // would go back to being that column's values, and every row with a blank account cell would be
+  // refused on a page where the column is meant not to matter
+  //
+  // What is stored keeps that answer only until the next file is staged or the next column is
+  // answered here, both of which write this emptied map back. So leaving the scope leaves the
+  // account column unmapped in the ordinary case, for the user to answer on the page they went to
   const columnMap = useMemo(
     () => (isAccountFixed ? { ...storedColumnMap, account_id: '' } : storedColumnMap),
     [isAccountFixed, storedColumnMap],
@@ -377,8 +379,13 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     [allAccounts],
   )
 
+  // Read against the stored map rather than the emptied one, because that is the map the key was
+  // written from. The scope can turn on and off without a file being staged or a column answered,
+  // which is what writes the key, so comparing against the emptied map would call the key stale on
+  // a scope change alone. The match would then never run and every counterparty the file names
+  // would quietly record its transfer as money leaving the app
   const canInferAccountMappings = Boolean(accountAutoMatchKey)
-    && accountAutoMatchKey === (columnMap.account_id || FILE_ACCOUNT_MATCH_KEY)
+    && accountAutoMatchKey === (storedColumnMap.account_id || FILE_ACCOUNT_MATCH_KEY)
 
   const { mappings: liveAccountMappings, clearedSources: clearedAccountSources } = useMemo(
     () => (accountsResolved
@@ -463,9 +470,23 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
 
   // Read before the name match and any of the defaults are layered on, so the batch bar can tell an
   // answer the user gave from one the step filled in for them
+  //
+  // A source rows are written to is left out while the account is fixed. Its answer is that account
+  // whatever the user picked earlier, so reporting it as theirs would offer a later reader an answer
+  // the step is ignoring
   const handAnsweredAccountSources = useMemo(
-    () => new Set(Object.entries(liveAccountMappings).filter(([, choice]) => choice).map(([source]) => source)),
-    [liveAccountMappings],
+    () => {
+      const counterpartyOnly = new Set(
+        accountMappingSources.filter((source) => source.isCounterpartyOnly).map((source) => source.id),
+      )
+
+      return new Set(
+        Object.entries(liveAccountMappings)
+          .filter(([source, choice]) => choice && !(isAccountFixed && !counterpartyOnly.has(source)))
+          .map(([source]) => source),
+      )
+    },
+    [accountMappingSources, isAccountFixed, liveAccountMappings],
   )
 
   // Read before the create-new fallback, which answers every row source and would therefore leave

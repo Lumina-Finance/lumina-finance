@@ -4,10 +4,10 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Upload, X } from 'lucide-react'
 import { accountKeys, categoryKeys, institutionKeys, merchantKeys } from '@/api/cache/queryKeys'
 import {
-  ACCOUNTS_LOAD_FAILURE_EXPLANATION,
-  ACCOUNTS_LOAD_FAILURE_TITLE,
   IMPORT_NOT_PERMITTED_EXPLANATION,
   IMPORT_NOT_PERMITTED_TITLE,
+  IMPORT_SCOPE_FAILURE_EXPLANATION,
+  IMPORT_SCOPE_FAILURE_TITLE,
 } from './constants'
 import { ImportLoadFailure, ImportProgressOverlay } from './components'
 import { useFireflyImportWorkflow } from './firefly/hooks'
@@ -54,7 +54,15 @@ export default function ImportsPage() {
   // scope arriving over a staged Firefly export has to render the generic flow without disturbing
   // what the user had. Leaving the scope gives that export back
   const isScopedToAccount = accountScope.state === 'ready'
-  const isFirefly = !isScopedToAccount && dataSource === 'firefly'
+
+  // A Firefly import that is already running keeps its own flow on screen even if a scope arrives
+  // over it, which the browser's Back button can do without remounting the page. Swapping the flow
+  // under a commit would replace the overlay reporting it with an idle one and leave the page
+  // looking finished while the write was still going
+  const isFireflyBusy = fireflyWorkflow.importOverlayOpen
+    || fireflyWorkflow.processingFileKind !== null
+    || fireflyWorkflow.isImportingBudgets
+  const isFirefly = dataSource === 'firefly' && (!isScopedToAccount || isFireflyBusy)
   const importOverlayOpen = isFirefly ? fireflyWorkflow.importOverlayOpen : workflow.importOverlayOpen
 
   // Where the page came from, which is also where its two exits go while the scope holds
@@ -110,7 +118,12 @@ export default function ImportsPage() {
   // The scope is settled against the accounts list, so the page holds until that answer arrives and
   // shows no import flow at all where the answer is no. Settings is the way out of all three, since
   // none of them has an account worth returning to
-  if (accountScope.state !== 'unscoped' && accountScope.state !== 'ready') {
+  //
+  // An import already under way keeps the page it is running on. The commit refetches the accounts
+  // list as it finishes, so an account archived elsewhere during the import would otherwise replace
+  // the overlay reporting what was written with a refusal screen, and the user would never learn
+  // whether the import wrote anything
+  if (accountScope.state !== 'unscoped' && accountScope.state !== 'ready' && !isImportBusy) {
     return (
       <div
         className="relative flex h-screen min-h-screen flex-col items-center justify-center px-5"
@@ -130,8 +143,8 @@ export default function ImportsPage() {
         {accountScope.state === 'failed' && (
           <div className="w-full max-w-md">
             <ImportLoadFailure
-              title={ACCOUNTS_LOAD_FAILURE_TITLE}
-              description={ACCOUNTS_LOAD_FAILURE_EXPLANATION}
+              title={IMPORT_SCOPE_FAILURE_TITLE}
+              description={IMPORT_SCOPE_FAILURE_EXPLANATION}
               onRetry={accountScope.refetchAccounts}
             />
           </div>

@@ -21,6 +21,7 @@ import {
   FIXED_ACCOUNT_WARNING_TITLE,
   IMPORT_INSET_STYLE,
   UNSET_BATCH_INSTITUTION,
+  getFixedAccountCurrencyNote,
   getFixedAccountStatement,
   getFixedAccountWarning,
 } from '@/pages/imports/constants'
@@ -201,7 +202,9 @@ export function ImportAccountMappingStep({
     <ImportStep index="03" title="Account Mapping">
       {!accountsFailed && (
         <ImportNotice title="Currency Handling">
-          Imported amounts are treated as raw values. During import, each amount will be assigned the base currency of the mapped account, or the currency shown against a new account, which is taken from the file where it states one and can be changed on any row.
+          {fixedAccount
+            ? getFixedAccountCurrencyNote(fixedAccount.name, fixedAccount.currency)
+            : 'Imported amounts are treated as raw values. During import, each amount will be assigned the base currency of the mapped account, or the currency shown against a new account, which is taken from the file where it states one and can be changed on any row.'}
         </ImportNotice>
       )}
       {accountsFailed ? (
@@ -258,7 +261,7 @@ export function ImportAccountMappingStep({
                 className="px-4 py-6 text-center text-sm leading-6"
                 style={{ ...IMPORT_INSET_STYLE, color: 'var(--app-text-muted)' }}
               >
-                {getFixedAccountStatement(fixedAccount.name)}
+                {getFixedAccountStatement(fixedAccount.name, counterpartySources.length > 0)}
               </p>
               <ImportNotice tone="danger" title={FIXED_ACCOUNT_WARNING_TITLE}>
                 {getFixedAccountWarning(fixedAccount.name)}

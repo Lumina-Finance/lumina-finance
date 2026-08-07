@@ -233,8 +233,17 @@ export const IMPORT_ACCOUNT_PARAM = 'account'
 // Shown in place of the whole import page when the address points at an account no import can be
 // written to, which the button on the account's own card never offers and only a typed or shared
 // address reaches
+// The account is only ever missing from the list, archived or closed, and the list leaves out both
+// an account that has gone and one belonging to someone else, so the wording covers being unable to
+// import into it rather than claiming to know which of those it is
 export const IMPORT_NOT_PERMITTED_TITLE = 'This action is not permitted'
-export const IMPORT_NOT_PERMITTED_EXPLANATION = 'Transactions can only be imported into an account that is open and not archived. This account is archived, closed, or no longer exists.'
+export const IMPORT_NOT_PERMITTED_EXPLANATION = 'Transactions can only be imported into an account that is open and not archived. This one is archived, closed, or not an account you can import into.'
+
+// Shown in place of the whole page where the accounts list cannot say whether this account takes an
+// import. The mapping step's own failure text is about mapping sources onto a list, which is a
+// question this page never reaches
+export const IMPORT_SCOPE_FAILURE_TITLE = 'Your accounts could not be loaded'
+export const IMPORT_SCOPE_FAILURE_EXPLANATION = 'Without them this import cannot tell whether it may write to the account it was started from.'
 
 // Shown in place of the imported-account table when the import was started from an account, since
 // every row goes to that account and there is nothing left to answer
@@ -243,9 +252,24 @@ export const FIXED_ACCOUNT_EMPTY_DESCRIPTION = 'Upload a CSV file to import it i
 
 /**
  * Says which account every row of a scoped import is written to
+ *
+ * The counterparty clause is only true where the file states one, so a file with no such column
+ * gets the first half alone rather than a promise about transfers it does not carry
  */
-export function getFixedAccountStatement(accountName: string) {
-  return `All transactions will be imported into ${accountName}, with the appropriate transfers recorded in the counterparty account.`
+export function getFixedAccountStatement(accountName: string, hasCounterpartySources: boolean) {
+  return hasCounterpartySources
+    ? `All transactions will be imported into ${accountName}, with the appropriate transfers recorded in the counterparty account.`
+    : `All transactions will be imported into ${accountName}.`
+}
+
+/**
+ * Says what a scoped import does with the currency of the account it writes to
+ *
+ * Replaces the ordinary currency note, which speaks of the account each source is mapped to and of
+ * changing a currency on a row, neither of which a scoped import has
+ */
+export function getFixedAccountCurrencyNote(accountName: string, currency: string) {
+  return `Imported amounts are treated as raw values. Every row will be assigned ${currency}, the currency ${accountName} is kept in, and a row stating a different currency is left out of the import.`
 }
 
 // The file cannot be checked for covering more than one account, since the column that would say so

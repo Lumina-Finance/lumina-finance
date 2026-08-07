@@ -14,9 +14,11 @@ import { TaxAdvantagedCategoryBand } from './TaxAdvantagedBand'
 /**
  * Renders account identity, static account facts, and tax-advantaged context
  *
- * @param onImport - Opens an import that files every row into this account. Offered only while the
- *   account can take new transactions, which an archived or closed one cannot, so the import is
- *   absent rather than disabled on those, the way the edit button already is on a closed account
+ * @param onImport - Opens an import that files every row into this account. Absent rather than
+ *   disabled on an archived or closed account, the way the edit button already is on a closed one,
+ *   since the API refuses an import written to either. It is still offered on an account the user
+ *   may only read, which the API also refuses, because nothing the account list carries says which
+ *   of them those are
  */
 export default function AccountIdentityCard({
   account,

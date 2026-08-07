@@ -57,6 +57,22 @@ describe('filing every row into the account an import was started from', () => {
     expect(applyFixedImportAccount(sources, {}, 'acct-1')).toEqual({ 'file-1': 'acct-1' })
   })
 
+  // Every source rows are written to rather than the first of them, so answering one and stopping
+  // would leave the rest to the create-new fallback while the step says every row goes to one
+  // account
+  it('answers every source rows are written to', () => {
+    const sources = [
+      createSource('Everyday'),
+      createSource('Travel Card'),
+      COUNTERPARTY_SOURCE,
+    ]
+
+    expect(applyFixedImportAccount(sources, {}, 'acct-1')).toEqual({
+      Everyday: 'acct-1',
+      'Travel Card': 'acct-1',
+    })
+  })
+
   // The step shows no dropdown to answer a row source with while the account is fixed, so an answer
   // stored under an earlier scope cannot be corrected by hand and has to give way here
   it('overrides an answer stored for that source', () => {
