@@ -118,10 +118,11 @@ export function DropdownBox({
           maxWidth: position.openWidth,
           maxHeight: position.boxMaxHeight,
           // The box is fixed in place rather than portalled, so this orders it against whatever
-          // stacking context it lands in. On a page that is the whole app, since page content is
-          // isolated as one context and the box is the popover level within it. Opened inside a
-          // modal or the filter sheet, both of which are fixed with a level of their own, it orders
-          // only against that container's contents
+          // stacking context it lands in and never against the whole app. Opened from a page that is
+          // the page, which is isolated as one context, so the navigation and a toast still draw over
+          // the open list. Opened inside a modal or the filter sheet, both fixed with a level of
+          // their own, it is that container. What the level buys either way is the box over the
+          // content it grows across, and agreement with the calendar, which takes the same one
           zIndex: STACKING_LEVELS.popover,
         }
         : { position: 'absolute', top: 0, left: 0, right: 0, width: boxWidth }}

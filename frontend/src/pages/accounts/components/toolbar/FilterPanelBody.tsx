@@ -18,7 +18,9 @@ import {
 // transaction facets, so the tabs are laid out three across
 const FACET_GRID_COLUMNS = 'repeat(3, minmax(0, 1fr))'
 
-// Keeps the count badge over its own tab's background, ordering it inside the tab and nowhere else
+// Says the badge belongs over the sliding highlight behind it rather than among the tab's own
+// content. It would land there from document order alone, being the last child and absolutely
+// positioned, so this states the intent rather than achieving it
 const FACET_COUNT_BADGE_Z_INDEX = 1
 
 /**

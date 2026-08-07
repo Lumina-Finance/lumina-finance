@@ -31,7 +31,9 @@ const NO_DISABLED_FACETS = new Set<string>()
 // The account facet is disabled on an account's own transaction list, where the scope is fixed
 const ACCOUNT_DISABLED_FACETS = new Set(['accounts'])
 
-// Keeps the count badge over its own tab's background, ordering it inside the tab and nowhere else
+// Says the badge belongs over the sliding highlight behind it rather than among the tab's own
+// content. It would land there from document order alone, being the last child and absolutely
+// positioned, so this states the intent rather than achieving it
 const FACET_COUNT_BADGE_Z_INDEX = 1
 
 /**

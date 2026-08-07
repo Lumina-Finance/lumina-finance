@@ -372,6 +372,9 @@ export function InsightsFloatingRangeControl(props: InsightsFloatingRangeControl
         document.body,
       )}
 
+      {/* The desktop control stays in the page rather than portalled, so this 40 lifts it over the
+          cards beside it and is not the navigation level it happens to share a number with. Page
+          content is isolated as one stacking context, so it cannot reach past the page either way */}
       <div className="pointer-events-none absolute inset-x-0 bottom-0 top-0 z-40 hidden pt-[3.8rem] min-[1050px]:block">
         <div className="sticky top-6 flex justify-end">
           <div className="pointer-events-auto w-[24rem]">

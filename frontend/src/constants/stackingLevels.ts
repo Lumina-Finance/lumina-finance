@@ -12,9 +12,9 @@
  * fixed at the sheet level. Page content is a stacking context too, through the isolation on
  * app-page-content, which is what keeps the numbers below meaningful against everything in a page.
  *
- * Markup reads these as Tailwind classes, z-modal and the rest, generated from this object by
- * toTailwindZIndexTheme in tailwind.config.js. Anything computing a style object or writing to an
- * element reads the number directly.
+ * Markup reads these as Tailwind classes, z-modal and the rest. toTailwindZIndexTheme below turns
+ * this object into the theme entries that generate them, and tailwind.config.js calls it. Anything
+ * computing a style object or writing to an element reads the number directly.
  */
 export const STACKING_LEVELS = {
   /** An overlay covering the page content area while leaving the navigation visible */
@@ -75,10 +75,11 @@ export type StackingLevel = keyof typeof STACKING_LEVELS
 /**
  * The scale as Tailwind zIndex theme entries, so `popover` generates `z-popover`.
  *
- * The keys are kebab-cased here rather than left to Tailwind. Its compatibility layer for a
- * JavaScript config kebab-cases only the first segment of a key path, so `navigationToggle` would
- * otherwise reach the stylesheet as `z-navigationToggle` while the markup asks for
- * `z-navigation-toggle`, and a Tailwind class that matches nothing fails silently.
+ * The keys are kebab-cased here rather than left to Tailwind, which puts a theme key into the class
+ * name exactly as written. Building with the keys left camelCase emits `.z-navigationToggle` and
+ * emits nothing at all for the five class names the markup actually asks for, since Tailwind only
+ * generates a class it finds as literal text somewhere in the source. Neither the build nor the type
+ * check nor the suite reports that, so the overlays would simply carry no level.
  */
 export function toTailwindZIndexTheme(): Record<string, string> {
   return Object.fromEntries(

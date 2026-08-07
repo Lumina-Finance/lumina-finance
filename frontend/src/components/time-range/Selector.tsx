@@ -30,8 +30,10 @@ const glassSpring = { type: 'spring', stiffness: 420, damping: 34, mass: 0.9 } a
 // the blooming panel free to overlay the content below without nudging it
 const GLASS_BORDER_ALLOWANCE = 2
 
-// Lifts the glass over the content the open panel blooms across. Open, the wrapper takes z-30 and
-// becomes a stacking context of its own, so this orders the glass only within this control
+// Lifts the glass over the content the open panel blooms across. Open, the wrapper takes z-30 and is
+// a stacking context, so this resolves inside this control. Closed, the wrapper is only relative and
+// what holds the 50 inside the page is the isolation on app-page-content, without which it would
+// reach the top of the page and tie with the mobile navigation button, which is also 50
 const GLASS_Z_INDEX = 50
 
 /**

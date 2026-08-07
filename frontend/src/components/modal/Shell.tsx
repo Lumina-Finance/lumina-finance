@@ -44,7 +44,7 @@ interface ModalShellProps {
   titleId: string
   /** Size and layout classes for the panel. Its background, border and shadow come from app-modal-panel */
   panelClassName: string
-  /** Whether the modal was opened from the page or from another modal, which sets its stacking level, backdrop blur and timing */
+  /** Whether the modal was opened from the page or from another modal, which sets its stacking level and its entrance timing */
   level?: ModalLevel
   /** Blocks Escape and backdrop dismissal while an action is in flight */
   closeDisabled?: boolean

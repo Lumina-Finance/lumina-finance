@@ -10,11 +10,10 @@ const OVERLAY_ACCENT = 'var(--app-accent)'
 const OVERLAY_SUCCESS = 'var(--app-positive)'
 const OVERLAY_ERROR = 'var(--app-negative)'
 /**
- * Covers the imports page and nothing else, so this orders it only against the rest of that page
- * rather than against the app. What scopes it is the `fixed inset-0 z-focused-page` on
- * app-page-content, which the imports route takes: naming that rather than the isolation beside it
- * matters, because only that branch also decides where this overlay's own `fixed inset-0` measures
- * from. It is not a level on the named scale, since it competes with nothing outside the page
+ * Covers the imports page and nothing else, so this orders it only against the rest of that page and
+ * competes with nothing outside it, which is why it is not a level on the app's stacking scale.
+ * app-page-content is a stacking context twice over on this route, through the isolation it always
+ * carries and through the `fixed inset-0 z-focused-page` the imports page takes
  */
 const OVERLAY_Z_INDEX = 90
 

@@ -19,11 +19,13 @@ import { isFloatingLayerOpen, isInsideFloatingLayer } from '@/utils/floatingLaye
 // Collapsed footprint used before the head is measured, so the toolbar slot does not jump on mount
 const COLLAPSED_FALLBACK = { width: 140, height: 34 }
 
-// Lifts the open panel over the toolbar rows beside it. Page content is isolated as one stacking
-// context, so this orders the panel within the page and never against the navigation or a dialog
+// Lifts the open panel over the controls beside it in the toolbar. It reaches no further than that
+// row, which is sticky with a level of its own and so a stacking context, meaning this never competed
+// with the navigation or a dialog even before the page content was isolated
 const PANEL_Z_INDEX = 50
 
-// Above the panel's own glass, so the clear control stays pressable over it
+// The clear control would sit above the glass it is a child of with no level at all. Kept because it
+// says the control belongs over the panel rather than among the rows inside it
 const CLEAR_BUTTON_Z_INDEX = 2
 
 // Chrome around the measured content span in the collapsed pill: horizontal padding, the gap to the
