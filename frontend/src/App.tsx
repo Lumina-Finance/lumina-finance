@@ -78,6 +78,12 @@ let hasShownLoadingScreen = false;
 // either state leaves the whole authenticated app on a loading screen with no way even to sign out
 const CURRENCY_WAIT_LIMIT_MS = 3000;
 
+// Whether that wait has already been served. Module-level for the same reason hasShownLoadingScreen
+// above is: the protected subtree remounts on every navigation, so a flag held in component state
+// would start the wait again on each one, and a list that never arrives would put the loading screen
+// back between every page for as long as the session lasted
+let hasWaitedForCurrencies = false;
+
 /** Redirect to /login if unauthenticated. Show loading screen on first visit. */
 function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase, isInitialLoad }: { displayLocation: Location; onContentReady: () => void; pageTransitionPhase: PageTransitionPhase; isInitialLoad: boolean }) {
   const { user, loading } = useAuth();
@@ -102,7 +108,7 @@ function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase, 
   // correctly, rather than at a guessed scale that then jumps. Past the deadline the app renders
   // anyway, falling back to what the browser reports, which is right for 139 of the 155 codes
   const { isPending: currenciesPending } = useCurrencies();
-  const [currencyWaitElapsed, setCurrencyWaitElapsed] = useState(false);
+  const [currencyWaitElapsed, setCurrencyWaitElapsed] = useState(hasWaitedForCurrencies);
   const ready = !loading && minTimePassed && (!currenciesPending || currencyWaitElapsed);
 
   // The loading phase runs after the switch while the new route's chunk mounts
@@ -127,8 +133,11 @@ function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase, 
   // Give up waiting on the currency list once the deadline passes, so a request that never resolves
   // either way cannot hold the app on its loading screen
   useEffect(() => {
-    if (!currenciesPending) return;
-    const timer = setTimeout(() => setCurrencyWaitElapsed(true), CURRENCY_WAIT_LIMIT_MS);
+    if (!currenciesPending || hasWaitedForCurrencies) return;
+    const timer = setTimeout(() => {
+      hasWaitedForCurrencies = true;
+      setCurrencyWaitElapsed(true);
+    }, CURRENCY_WAIT_LIMIT_MS);
     return () => clearTimeout(timer);
   }, [currenciesPending]);
 

@@ -63,11 +63,12 @@ function getCashFlowTooltipPointer(
   }
 }
 
-// Wide enough for the longest label this can produce, which is a negative amount in a currency whose
-// symbol carries a region prefix: (US$1,234,567.89) is seventeen characters, four more than the
-// $1,234,567.89 the old bound was set for, since accounting style wraps a negative in parentheses
-// and the net figure plotted here is negative in any month that spent more than it earned
-const MAX_Y_AXIS_WIDTH_PX = 112
+// Wide enough for the longest label this can produce across the seeded currencies, measured rather
+// than assumed: a negative three-decimal amount written with its code instead of a symbol, such as
+// (BHD 1,234,567.890) at nineteen characters. Most codes render that way rather than with a symbol,
+// accounting style wraps a negative in parentheses, and the net figure plotted here is negative in
+// any month that spent more than it earned, so all three apply at once
+const MAX_Y_AXIS_WIDTH_PX = 124
 
 /**
  * Sizes the Y axis from formatted currency labels so large values do not clip

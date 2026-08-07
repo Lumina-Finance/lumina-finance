@@ -24,10 +24,7 @@ function formatCurrencyWithSuffix(
   suffix: CompactMoneyRule['suffix'],
   fractionDigits: number,
 ) {
-  // Same reason formatMajorUnits normalizes: accounting style wraps a negative before rounding it,
-  // so a compacted amount too small to show would come back as ($0K)
-  const roundsToZero = Math.abs(value) < 0.5 / 10 ** fractionDigits
-  const parts = createMoneyFormatter(currency, fractionDigits).formatToParts(roundsToZero ? 0 : value)
+  const parts = createMoneyFormatter(currency, fractionDigits).formatToParts(value)
   const numberPartTypes = new Set(['integer', 'group', 'decimal', 'fraction'])
   const suffixIndex = parts.findLastIndex((part) => numberPartTypes.has(part.type))
 
