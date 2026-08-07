@@ -3,8 +3,9 @@ import { useCurrencies } from '@/api/currency'
 import type { Currency } from '@/api/currency'
 import { formatCurrency } from '@/utils/formatCurrency'
 
-// A stable empty list, so the memo below does not rebuild the formatter on every render while the
-// currency list is still on its way
+// Only reached if this is somehow called above the gate in App.tsx that waits for the list, since no
+// screen below that gate renders before the list is in hand. It is a stable reference rather than a
+// fresh array so that, if it ever is reached, the memo below does not rebuild on every render
 const NO_CURRENCIES: Currency[] = []
 
 /**

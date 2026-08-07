@@ -31,11 +31,11 @@ export function createMoneyFormatter(currency: string, fractionDigits: number): 
  * Returns the decimal places to render a currency at
  *
  * The seeded list is the authority, since the browser's own figures disagree with it for 16 of the
- * 155 seeded codes. A code the list does not carry falls back to the browser rather than to a flat
- * two, because two is wrong by a factor of a hundred for a currency with no decimal places at all:
- * a list that failed to load would otherwise render a ¥500,000 balance as JP¥5,000.00. The browser
- * is right for 139 of the 155 and is what the app rendered before the list was read at all, so an
- * unreachable currency service costs the decimals of 16 currencies rather than a hundredfold error
+ * 155 seeded codes. The fallback covers a code that list does not carry, such as one added to the
+ * standard after the seed last ran, and it reads the browser rather than assuming a flat two, because
+ * two is wrong by a factor of a hundred for a currency with no decimal places at all: it would render
+ * a ¥500,000 balance as JP¥5,000.00. A list that fails to load never reaches here, since the app shows
+ * its recovery screen instead of rendering any amount at all
  */
 function resolveDisplayExponent(currency: string, currencies: Currency[]): number {
   const seeded = findCurrencyExponent(currencies, currency)

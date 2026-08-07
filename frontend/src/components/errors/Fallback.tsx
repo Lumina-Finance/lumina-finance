@@ -25,6 +25,12 @@ const COPY_CONFIRMATION_MS = 2000;
 interface FallbackProps {
   componentStack: string | null;
   error: unknown;
+
+  // Keeps the reload from emptying this browser's storage. Set it where the failure is known to be a
+  // network one, since the wipe exists to clear state that could have caused a render error and it
+  // costs the theme and the sidebar width to no purpose when that is not what went wrong
+  preserveStoredData?: boolean;
+
   variant: FallbackVariant;
 }
 
@@ -35,7 +41,7 @@ interface FallbackProps {
  * stands alone when there is no app left around it. Both carry the same message and actions, since
  * from the user's side the difference is only how much of the app is still there
  */
-export default function Fallback({ componentStack, error, variant }: FallbackProps) {
+export default function Fallback({ componentStack, error, preserveStoredData = false, variant }: FallbackProps) {
   const [copyStatus, setCopyStatus] = useState<CopyStatus>('idle');
   const copyResetTimer = useRef<number | null>(null);
   // Until the probe comes back the message assumes a bug, since that is the only thing the user
@@ -47,11 +53,14 @@ export default function Fallback({ componentStack, error, variant }: FallbackPro
   }, []);
 
   /**
-   * Reloads onto empty storage, because state saved in this browser can be what broke the render
-   * and a plain reload would restore it
+   * Reloads, by default onto empty storage, because state saved in this browser can be what broke the
+   * render and a plain reload would restore it
+   *
+   * A caller that knows the failure was a network one keeps the storage, since wiping it then only
+   * costs the user their theme and sidebar width without making the reload any likelier to work
    */
   const handleReload = () => {
-    clearStoredData();
+    if (!preserveStoredData) clearStoredData();
     window.location.reload();
   };
 

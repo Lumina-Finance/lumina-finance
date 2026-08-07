@@ -72,10 +72,6 @@ function scrollDocumentToTop() {
 // Module-level flag so the loading screen only shows once per app session
 let hasShownLoadingScreen = false;
 
-// How long the app waits for the currency list before giving up on it. A request that fails says so
-// on its own, but one can also stay pending indefinitely: a browser that reports itself offline
-// leaves the query paused rather than failed. Waiting needs an end either way
-const CURRENCY_WAIT_LIMIT_MS = 5000;
 
 /** Redirect to /login if unauthenticated. Show loading screen on first visit. */
 function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase, isInitialLoad }: { displayLocation: Location; onContentReady: () => void; pageTransitionPhase: PageTransitionPhase; isInitialLoad: boolean }) {
@@ -96,17 +92,19 @@ function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase, 
   const shouldShowLoading = loading || (!hasShownLoadingScreen && user);
   const [minTimePassed, setMinTimePassed] = useState(hasShownLoadingScreen);
   // No amount can be rendered before the currency list arrives, since each currency's decimal places
-  // live in it and the browser's own figures disagree with it for 16 codes. Holding the app behind the
-  // loading screen it is already showing means every screen below paints its amounts once and
-  // correctly, rather than at a guessed scale that then jumps
+  // live in it and the browser's own figures disagree with it for 16 codes. Waiting here means every
+  // screen below paints its amounts once and correctly, rather than at a guessed scale that then jumps
+  //
+  // The wait is bounded by the request rather than by a timer here, so it survives this component
+  // remounting on every navigation and needs nothing reset. useCurrencies aborts at five seconds and
+  // does not retry, so this is pending for at most that long and then either has the list or has failed
   const { isPending: currenciesPending, isError: currenciesFailed, error: currencyError } = useCurrencies();
-  const [currencyWaitExpired, setCurrencyWaitExpired] = useState(false);
   const ready = !loading && minTimePassed && !currenciesPending;
 
-  // Giving up means the recovery screen rather than the app, because every screen below this one
-  // shows money and none of them can show it correctly without the list. A slow list that arrives
-  // after the deadline clears this on its own, since the wait only counts while the query is pending
-  const currencyListUnavailable = currenciesFailed || (currenciesPending && currencyWaitExpired);
+  // Failing means the recovery screen rather than the app, because every screen below shows money and
+  // none can show it correctly without the list. Gated on the session being known, so a visitor whose
+  // session turns out to be stale is sent to log in rather than shown an error on the way there
+  const currencyListUnavailable = !loading && currenciesFailed;
 
   // The loading phase runs after the switch while the new route's chunk mounts
   const routeLoading = pageTransitionPhase === 'loading';
@@ -127,15 +125,7 @@ function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase, 
     return () => cancelAnimationFrame(frame);
   }, [ready]);
 
-  // Give up waiting on the currency list once the deadline passes, so a request that never resolves
-  // either way cannot hold the app on its loading screen
-  useEffect(() => {
-    if (!currenciesPending) return;
-    const timer = setTimeout(() => setCurrencyWaitExpired(true), CURRENCY_WAIT_LIMIT_MS);
-    return () => clearTimeout(timer);
-  }, [currenciesPending]);
-
-  useCacheValidation(user?.id, Boolean(user && ready));
+  useCacheValidation(user?.id, Boolean(user && ready && !currencyListUnavailable));
 
   // Hold the route loader back until the chunk has stayed pending past the delay so
   // cached or fast navigations never flash the spinner, and clear the flag on
@@ -165,18 +155,10 @@ function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase, 
   // A recovery-code login holds the account to re-enrolment before any route renders
   if (user?.second_factor_reenrollment_required) return <ForcedReenrollScreen />;
 
-  // Every screen below this one shows money, and none of them can show it correctly without the
-  // currency list, so a list that never arrived is a dead end rather than something to render
-  // around. The recovery screen offers the reload that fixes it, and says so itself when what went
-  // wrong is that the server cannot be reached
+  // Nothing here retries on its own, so this stands until the user reloads, which is what the screen
+  // asks them to do. It says so in its own words when the reason is that the server cannot be reached
   if (currencyListUnavailable) {
-    return (
-      <Fallback
-        componentStack={null}
-        error={currencyError ?? new Error('The currency list did not arrive')}
-        variant="screen"
-      />
-    );
+    return <Fallback componentStack={null} error={currencyError} preserveStoredData variant="screen" />;
   }
 
   // The Routes subtree remounts on each path change, so this wrapper is recreated

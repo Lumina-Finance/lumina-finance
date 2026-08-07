@@ -39,9 +39,8 @@ describe('money formatting', () => {
   })
 
   it('falls back to the browser for a code the list does not carry', () => {
-    // A list that failed to load leaves the app on what it rendered before the list was read at all,
-    // which is right for 139 of the 155 seeded codes. A flat two places instead would render this
-    // yen balance as JP\u00A55,000.00, a hundredth of the real amount
+    // Reading the browser is right for 139 of the 155 seeded codes. A flat two places instead would
+    // render this yen balance as JP\u00A55,000.00, a hundredth of the real amount
     expect(formatCurrency(500000, 'JPY', [])).toBe('JP\u00A5500,000')
     expect(formatCurrency(123456, 'IQD', [])).toBe('IQD\u00A0123,456')
     // A loaded list missing one code takes the same path as no list at all
