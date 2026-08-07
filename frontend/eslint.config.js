@@ -43,6 +43,36 @@ const crossFolderRelativeImport = {
 // no-restricted-imports has to restate every pattern that should still apply to its files
 const restrictedImportPatterns = [crossFolderRelativeImport]
 
+const STACKING_LEVEL_MESSAGE =
+  'Take the stacking level from STACKING_LEVELS in @/constants/stackingLevels, or name a module-level constant where the value only orders siblings inside one container'
+
+// A stacking level written as a bare number is how the app ended up with five overlays at 110 and no
+// statement anywhere of which belongs above which. Only the arbitrary bracket form is rejected, so
+// z-10 through z-50 stay available for a level that orders siblings inside a single container.
+//
+// Each form needs two selectors. A class in a plain string is a Literal, while one built in a
+// template literal lives in TemplateElement.value.raw, which App.tsx does. A numeric zIndex is
+// matched on raw rather than value, because esquery applies a regex attribute test only to strings,
+// and an assignment to element.style.zIndex is an AssignmentExpression rather than a Property
+const restrictedStackingLevels = [
+  {
+    selector: 'Literal[value=/z-\\[\\d+\\]/]',
+    message: STACKING_LEVEL_MESSAGE,
+  },
+  {
+    selector: 'TemplateElement[value.raw=/z-\\[\\d+\\]/]',
+    message: STACKING_LEVEL_MESSAGE,
+  },
+  {
+    selector: "Property[key.name='zIndex'] > Literal[raw=/^-?\\d/]",
+    message: STACKING_LEVEL_MESSAGE,
+  },
+  {
+    selector: "AssignmentExpression[left.property.name='zIndex'] > Literal[raw=/^-?\\d/]",
+    message: STACKING_LEVEL_MESSAGE,
+  },
+]
+
 export default defineConfig([
   globalIgnores(['dist']),
   {
@@ -59,6 +89,7 @@ export default defineConfig([
     },
     rules: {
       'no-restricted-imports': ['error', { patterns: restrictedImportPatterns }],
+      'no-restricted-syntax': ['error', ...restrictedStackingLevels],
     },
   },
   {
