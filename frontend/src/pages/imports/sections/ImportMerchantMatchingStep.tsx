@@ -88,10 +88,17 @@ export function ImportMerchantMatchingStep({
               // opens on it rather than on a blank the user has to answer
               value: answer || (matched ? matched.id : CREATE_MERCHANT_VALUE),
               autoFilled: !answer,
-              detailNode: rowState === 'creating' ? (
+              // A row filed under a merchant that already exists creates nothing, so the name it
+              // would create is greyed out rather than taken away: the column keeps its shape down
+              // the table, and switching the row back to creating shows what it was already holding
+              detailNode: rowState === 'skipped' ? (
+                <span className="text-sm font-medium" style={{ color: 'var(--app-text-muted)' }}>
+                  Skipped
+                </span>
+              ) : (
                 <input
                   type="text"
-                  className="w-full rounded-lg px-3 py-1.5 text-sm"
+                  className={`w-full rounded-lg px-3 py-1.5 text-sm ${rowState === 'creating' ? '' : 'opacity-60'}`}
                   style={{
                     background: 'var(--app-input-bg)',
                     color: 'var(--app-text)',
@@ -103,12 +110,8 @@ export function ImportMerchantMatchingStep({
                     ...current,
                     [value]: event.target.value,
                   }))}
-                  disabled={matchesLoading}
+                  disabled={matchesLoading || rowState !== 'creating'}
                 />
-              ) : (
-                <span className="text-sm font-medium" style={{ color: 'var(--app-text-muted)' }}>
-                  {rowState === 'skipped' ? 'Skipped' : ''}
-                </span>
               ),
               onChange: (nextValue) => {
                 // A merchant is held on to as it is chosen, since the option it came from goes when
