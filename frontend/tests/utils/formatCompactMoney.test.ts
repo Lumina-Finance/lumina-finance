@@ -1,6 +1,10 @@
 /**
  * Tests compact money formatting, so an amount either side of a threshold is scaled by the same
  * decimal places and the caller's choice of prefix and plain decimals is honoured
+ *
+ * A currency's symbol is written the reader's way, so the amounts below assume the region the suite
+ * pins through LC_ALL in its package script: read from the United States, where US dollars are the
+ * plain ones and Canadian dollars are marked CA$
  */
 import { describe, expect, it } from 'vitest'
 import type { Currency } from '@/api/currency'

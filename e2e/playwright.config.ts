@@ -44,10 +44,10 @@ export default defineConfig({
     baseURL: BASE_URL,
     timezoneId: TEST_TIMEZONE,
 
-    // Money no longer follows this, since the app pins its own locale for currency, so an amount
-    // reads the same here whatever this is set to. It still decides what the browser reports to
-    // anything reading the locale directly, and matching the app's pinned convention keeps the two
-    // from telling a test different stories
+    // Money is written the way the reader's own region writes it, so this decides how the currency
+    // symbols in these tests render and cannot be removed without rewriting their expectations. The
+    // suite spends Canadian dollars, which this renders as $42.50. Dropped, a runner set to the
+    // United States renders the same amount CA$42.50 and every assertion naming a symbol fails
     locale: 'en-CA',
 
     trace: 'retain-on-failure',

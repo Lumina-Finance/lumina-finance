@@ -1,6 +1,10 @@
 /**
  * Tests the tax-advantaged limit helpers, so the usage percentages, meter labels and plan summaries
  * cannot drift from the contribution room recorded against each plan
+ *
+ * A currency's symbol is written the reader's way, so the amounts below assume the region the suite
+ * pins through LC_ALL in its package script: read from the United States, where US dollars are the
+ * plain ones and Canadian dollars are marked CA$
  */
 import { describe, expect, it } from 'vitest'
 import { getFilteredRows } from '@/pages/accounts/utils/filters'
@@ -37,7 +41,7 @@ describe('tax-advantaged limit helpers', () => {
 
   it('shows an amount too small for the meter as zero rather than as a negative', () => {
     // The meter renders no decimals, and accounting style decides to wrap a negative before it
-    // rounds, so being 40 cents over a limit would otherwise read as ($0)
+    // rounds, so being 40 cents over a limit would otherwise read as (CA$0)
     expect(formatTaxAdvantagedMeterMoney(-40, 'CAD', testCurrencies)).toBe('CA$0')
     expect(formatTaxAdvantagedRawMoney(-40, 'CAD', testCurrencies)).toBe('CA$0')
     // Far enough from zero to keep its sign
@@ -51,7 +55,7 @@ describe('tax-advantaged limit helpers', () => {
 
   it('rounds a compacted meter amount rather than rounding it up', () => {
     // 1100 major units is 1.1 thousand, which rounds down to one. Rounding up would report a
-    // contribution of $2K against a limit the account is nowhere near
+    // contribution of CA$2K against a limit the account is nowhere near
     expect(formatTaxAdvantagedMeterMoney(110_000, 'CAD', testCurrencies)).toBe('CA$1K')
   })
 

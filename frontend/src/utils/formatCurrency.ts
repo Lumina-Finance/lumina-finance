@@ -5,11 +5,13 @@ import { DEFAULT_MINOR_UNIT_EXPONENT, findCurrencyExponent } from '@/utils/money
  * Builds the money formatter for a currency, fixed at the decimal places given
  *
  * The locale is left to the reader's own, which is what decides how a currency's symbol is written.
- * Every region writes its own currency bare and marks the rest: to a reader in Canada, Canadian
- * dollars are "$" and US dollars are "US$", and to a reader in the United States it is the other way
- * round. Both are right for the person looking at them, so this follows the browser rather than
- * naming a region. Note this is not what utils/date.ts does, which pins one date convention, because
- * a date has no home country to be read as foreign from
+ * Where two currencies would otherwise share a symbol, a region writes its own plain and marks the
+ * others: read from Canada, Canadian dollars are "$" and US dollars are "US$", and read from the
+ * United States, US dollars are "$" and Canadian dollars are "CA$". A currency whose symbol collides
+ * with nothing, such as the euro, is written plain everywhere. Each of those is right for the person
+ * looking at it, so this follows the browser rather than naming a region. Note this is not what
+ * utils/date.ts does, which pins one date convention, because a date has no home country to be read
+ * as foreign from
  *
  * Both fraction-digit options are set rather than left to Intl, whose own tables disagree with the
  * seeded currency list for 16 codes. Dividing by the seeded exponent without also fixing the places
@@ -34,9 +36,10 @@ export function createMoneyFormatter(currency: string, fractionDigits: number): 
  * The seeded list is the authority, since the browser's own figures disagree with it for 16 of the
  * 155 seeded codes. The fallback covers a code that list does not carry, such as one added to the
  * standard after the seed last ran, and it reads the browser rather than assuming a flat two, because
- * two is wrong by a factor of a hundred for a currency with no decimal places at all: it would render
- * a ¥500,000 balance as JP¥5,000.00. A list that fails to load never reaches here, since the app shows
- * its recovery screen instead of rendering any amount at all
+ * two is wrong by a factor of a hundred for a currency with no decimal places at all: a yen balance of
+ * 500000 minor units would render as five thousand rather than five hundred thousand. A list that
+ * fails to load never reaches here, since the app shows its recovery screen instead of rendering any
+ * amount at all
  */
 function resolveDisplayExponent(currency: string, currencies: Currency[]): number {
   const seeded = findCurrencyExponent(currencies, currency)
@@ -68,8 +71,8 @@ export function toMajorUnits(minorUnits: number, currency: string, currencies: C
 }
 
 /**
- * Formats an integer amount in a currency's minor units as a currency string in the app's own
- * convention, rather than the reader's
+ * Formats an integer amount in a currency's minor units as a currency string, written the way the
+ * reader's own region writes it
  *
  * Negative amounts render in accounting style, wrapped in parentheses instead of a leading minus sign,
  * and an amount that rounds to zero never appears wrapped that way

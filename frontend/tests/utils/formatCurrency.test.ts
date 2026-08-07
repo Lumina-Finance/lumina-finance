@@ -8,8 +8,7 @@
  * reader in Canada sees the opposite. The first test fails legibly if that pinning ever stops working
  *
  * Where a code stands in place of a symbol, PKR and IQD below, what separates it from the digits is a
- * non-breaking space rather than a plain one. It is invisible in this file, so an assertion that
- * looks right and fails on the separator is what to suspect first
+ * non-breaking space, written as an escape so it cannot be retyped as a plain one
  */
 import { describe, expect, it } from 'vitest'
 import type { Currency } from '@/api/currency'
@@ -39,8 +38,8 @@ describe('money formatting', () => {
   it('scales by the decimal places the currency list records, not the browser', () => {
     // The browser reports no decimal places for either code, so without the list these would render
     // as PKR 123,456 and IQD 123,456
-    expect(formatCurrency(123456, 'PKR', currencies)).toBe('PKR 1,234.56')
-    expect(formatCurrency(123456, 'IQD', currencies)).toBe('IQD 123.456')
+    expect(formatCurrency(123456, 'PKR', currencies)).toBe('PKR\u00A01,234.56')
+    expect(formatCurrency(123456, 'IQD', currencies)).toBe('IQD\u00A0123.456')
     expect(formatCurrency(500000, 'JPY', currencies)).toBe('¥500,000')
   })
 
@@ -48,7 +47,7 @@ describe('money formatting', () => {
     // Reading the browser is right for 139 of the 155 seeded codes. A flat two places instead would
     // render this yen balance as ¥5,000.00, a hundredth of the real amount
     expect(formatCurrency(500000, 'JPY', [])).toBe('¥500,000')
-    expect(formatCurrency(123456, 'IQD', [])).toBe('IQD 123,456')
+    expect(formatCurrency(123456, 'IQD', [])).toBe('IQD\u00A0123,456')
     // A loaded list missing one code takes the same path as no list at all
     expect(formatCurrency(123456, 'JPY', [currencies[0]])).toBe('¥123,456')
   })
