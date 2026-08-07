@@ -3,11 +3,12 @@ import uuid
 from collections.abc import Iterable
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.tag import Tag
 from app.schemas.transaction import MAX_IMPORT_TAG_NAME_LENGTH
+from app.services.importers.shared.insertion_helpers import insert_import_records_if_absent
 from app.services.importers.shared.stats import ImportStats
 
 
@@ -51,7 +52,7 @@ async def create_missing_import_tags(
     Raises:
         HTTPException: Raised with 422 when a tag name is too long
     """
-    pending: dict[str, Tag] = {}
+    pending: set[str] = set()
 
     for raw_name in raw_names:
         name = raw_name.strip()
@@ -65,17 +66,64 @@ async def create_missing_import_tags(
         if name in tags_by_name or name in pending:
             continue
 
-        pending[name] = Tag(owner_id=user_id, group_id=None, name=name)
+        pending.add(name)
 
     if not pending:
         return
 
-    db.add_all(list(pending.values()))
-    await db.flush()
-    for name, tag in pending.items():
-        tags_by_name[name] = tag
+    inserted = await insert_import_records_if_absent(
+        db,
+        Tag,
+        [{"owner_id": user_id, "group_id": None, "name": name} for name in pending],
+        index_elements=[Tag.owner_id, Tag.name],
+        index_where=text("group_id IS NULL"),
+    )
+
+    for tag in inserted:
+        tags_by_name[tag.name] = tag
         stats.tags_created += 1
         stats.created_tag_ids.append(tag.id)
+
+    # A name the insert skipped was taken between this import loading its tags and writing them, by
+    # another import of the same file or by the user in another tab
+    taken_names = pending - tags_by_name.keys()
+    if taken_names:
+        await _load_import_tags_created_elsewhere(db, user_id, taken_names, tags_by_name)
+
+
+async def _load_import_tags_created_elsewhere(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    names: set[str],
+    tags_by_name: dict[str, Tag],
+) -> None:
+    """Load the tags another request wrote while this import was running
+
+    Args:
+        db: Active database session
+        user_id: Identifier for the user running the import
+        names: Names the insert skipped because they were already taken
+        tags_by_name: Tag lookup for this import, extended with what is found
+
+    Returns:
+        None
+
+    Raises:
+        HTTPException: Raised with 500 when a name the insert skipped cannot then be found, which
+            would leave the rows carrying it with no tag to file them under
+    """
+    result = await db.execute(
+        select(Tag).where(Tag.owner_id == user_id, Tag.group_id.is_(None), Tag.name.in_(names)),
+    )
+    for tag in result.scalars().all():
+        tags_by_name.setdefault(tag.name, tag)
+
+    missing = names - tags_by_name.keys()
+    if missing:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Tag could not be created or found: {sorted(missing)[0]}",
+        )
 
 
 def get_import_row_tags(
