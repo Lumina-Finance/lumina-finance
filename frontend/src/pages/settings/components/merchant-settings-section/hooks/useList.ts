@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { useInfiniteMerchants, type Merchant } from '@/api/merchants'
 import { usePaginatedSettingsList } from '@/pages/settings/components/shared/hooks/usePaginatedSettingsList'
 import {
@@ -42,6 +43,17 @@ export function useMerchantSettingsList(locallyDeletedMerchantIds: string[]) {
     getItemIdentityKey: (merchant: Merchant) => [merchant.id, merchant.name, merchant.default_category_id],
   })
 
+  // Merchants that ship with the app cannot be renamed, deleted or merged, so settings leaves them
+  // out rather than showing rows whose every control is refused. They are still offered when
+  // picking one on a transaction, which is the only place they are meant to be used. Filtered here
+  // rather than in the query, so a page holding one comes back a row short. Memoized because the
+  // loading region holds this array across a transition and a new one each render would restart
+  // the hold
+  const visibleMerchants = useMemo(
+    () => visibleItems.filter((merchant: Merchant) => !merchant.is_system),
+    [visibleItems],
+  )
+
   return {
     activeSearch,
     handleMerchantListMoreClick: handleListMoreClick,
@@ -57,11 +69,6 @@ export function useMerchantSettingsList(locallyDeletedMerchantIds: string[]) {
     showMerchantListEnd: showListEnd,
     showMerchantListMoreIndicator: showListMoreIndicator,
     merchantListRef: listRef,
-
-    // Merchants that ship with the app cannot be renamed, deleted or merged, so settings leaves
-    // them out rather than showing rows whose every control is refused. They are still offered
-    // when picking one on a transaction, which is the only place they are meant to be used.
-    // Filtered here rather than in the query, so a page holding one comes back a row short
-    visibleMerchants: visibleItems.filter((merchant: Merchant) => !merchant.is_system),
+    visibleMerchants,
   }
 }

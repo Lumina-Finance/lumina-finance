@@ -3,10 +3,12 @@ import { Plus } from 'lucide-react'
 import type { AccountsOverview } from '@/api/accounts'
 import { ApiError } from '@/api/auth'
 import { GlassSearchField } from '@/components/list-controls/GlassSearchField'
+import LoadingRegion from '@/components/loading/Region'
 import { useCurrencies } from '@/api/currency'
 import { useTaxAdvantagedCategories } from '@/api/tax-advantaged-categories'
 import SettingsSectionHeader from '@/pages/settings/components/SectionHeader'
 import SettingsCard from '@/pages/settings/components/Card'
+import { SETTINGS_LIST_LOADING_OVERLAY_CLASS } from '@/pages/settings/components/shared/constants'
 import CreateTaxAdvantagedCategoryModal from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/modals/CreateCategoryModal'
 import { useCurrencyGuard } from '@/hooks/useCurrencyGuard'
 import TaxAdvantagedCategoriesTable from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/table/CategoriesTable'
@@ -120,24 +122,34 @@ export default function TaxAdvantagedCategoriesSection({
             </button>
           </div>
 
-          {isError && <CategoriesLoadError detail={listErrorDetail} />}
+          {/* The failure sits inside the region, so a first load that fails reveals its reason as
+              the spinner leaves rather than putting a message beside a spinner still running. A
+              refresh that fails over cached rows never conceals, so that message still lands at once */}
+          <LoadingRegion
+            loading={isLoading}
+            label="Loading tax-advantaged categories"
+            overlayClassName={SETTINGS_LIST_LOADING_OVERLAY_CLASS}
+            animateLoadingHeight
+          >
+            {isError && <CategoriesLoadError detail={listErrorDetail} />}
 
-          {isLoading || (isError && plans.length === 0) ? null : plans.length === 0 ? (
-            <p className="py-3 text-center italic text-sm" style={{ color: 'var(--app-text-subtle)' }}>
-              No tax-advantaged categories yet.
-            </p>
-          ) : filteredPlans.length === 0 ? (
-            <p className="py-3 text-center italic text-sm" style={{ color: 'var(--app-text-subtle)' }}>
-              No categories match your search.
-            </p>
-          ) : (
-            <TaxAdvantagedCategoriesTable
-              currentYear={currentYear}
-              linkedAccountCounts={linkedAccountCounts}
-              onSelect={openCategoryDetails}
-              plans={filteredPlans}
-            />
-          )}
+            {isError && plans.length === 0 ? null : plans.length === 0 ? (
+              <p className="py-3 text-center italic text-sm" style={{ color: 'var(--app-text-subtle)' }}>
+                No tax-advantaged categories yet.
+              </p>
+            ) : filteredPlans.length === 0 ? (
+              <p className="py-3 text-center italic text-sm" style={{ color: 'var(--app-text-subtle)' }}>
+                No categories match your search.
+              </p>
+            ) : (
+              <TaxAdvantagedCategoriesTable
+                currentYear={currentYear}
+                linkedAccountCounts={linkedAccountCounts}
+                onSelect={openCategoryDetails}
+                plans={filteredPlans}
+              />
+            )}
+          </LoadingRegion>
         </div>
       </SettingsCard>
 

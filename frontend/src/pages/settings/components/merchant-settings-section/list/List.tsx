@@ -9,7 +9,8 @@ import MobileMerchantRow from '@/pages/settings/components/merchant-settings-sec
 
 /**
  * Renders the merchant list as a table on wider screens and stacked cards on narrow ones,
- * sharing the same rows, loading state and end-of-list markers between both layouts
+ * sharing the same rows and end-of-list markers between both layouts. The first load is covered
+ * by the overlay the section puts over the whole list rather than by a row in either layout
  */
 export default function MerchantSettingsList({
   activeSearch,
@@ -110,14 +111,6 @@ export default function MerchantSettingsList({
               Fetching more
             </p>
           )}
-          {showInitialMerchantLoading && visibleMerchants.length === 0 && (
-            <p
-              className="py-4 text-center text-sm italic"
-              style={{ color: 'var(--app-text-subtle)' }}
-            >
-              Loading merchants...
-            </p>
-          )}
         </div>
 
         <table className="hidden w-full table-auto text-left text-[0.9375rem] min-[750px]:table">
@@ -192,18 +185,6 @@ export default function MerchantSettingsList({
                     style={{ color: 'var(--app-text-subtle)' }}
                   >
                     Fetching more
-                  </p>
-                </td>
-              </tr>
-            )}
-            {showInitialMerchantLoading && visibleMerchants.length === 0 && (
-              <tr>
-                <td colSpan={3}>
-                  <p
-                    className="py-4 text-center text-sm italic"
-                    style={{ color: 'var(--app-text-subtle)' }}
-                  >
-                    Loading merchants...
                   </p>
                 </td>
               </tr>
