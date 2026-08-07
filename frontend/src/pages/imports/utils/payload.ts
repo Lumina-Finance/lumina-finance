@@ -1,5 +1,6 @@
 import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
+import type { Merchant } from '@/api/merchants'
 import type { TransactionImportPayload, TransactionImportResponse } from '@/api/transaction-imports'
 import {
   CREATE_ACCOUNT_VALUE,
@@ -24,6 +25,7 @@ import type {
 import { isImportAccountType } from '@/pages/imports/accountTypeGuard'
 import type { Currency } from '@/api/currency'
 import { findReusedImportCategory, getCategoryMatchKind } from './categoryMatching'
+import { buildImportMerchantMappings } from './merchantMatching'
 import { getImportRowId } from './common'
 import { getMissingRequiredColumnLabels } from './workflowOptions'
 import {
@@ -60,6 +62,7 @@ export function buildTransactionImportPayload({
   dateFormat,
   files,
   importedCategories,
+  merchantAnswers,
 }: {
   accountById: Map<string, AccountsOverview>
   accountCreateCurrencies: Record<string, string>
@@ -77,6 +80,17 @@ export function buildTransactionImportPayload({
   dateFormat: ImportDateFormat | null
   files: ImportFileDraft[]
   importedCategories: string[]
+
+  /**
+   * What the user answered about the file's payee values, absent where no merchant column is
+   * mapped and there are none to answer
+   */
+  merchantAnswers?: {
+    importedMerchants: string[]
+    matchedMerchantByKey: Map<string, Merchant>
+    merchantMappings: Record<string, string>
+    merchantCreateNames: Record<string, string>
+  }
 }): ImportBuildResult {
   // Two kinds of problem, kept apart because only one of them makes judging a row meaningless. An
   // unanswered mapping question leaves every row looking broken for want of the answer, while a
@@ -194,6 +208,15 @@ export function buildTransactionImportPayload({
     categories.push({ source, category_id: choice })
   }
 
+  // Only the payee values answered differently from what the commit would do unasked are carried,
+  // so a file with thousands of distinct descriptors nobody touched declares none of them
+  const merchants: TransactionImportPayload['merchants'] = []
+  if (merchantAnswers) {
+    const built = buildImportMerchantMappings(merchantAnswers)
+    merchants.push(...built.mappings)
+    for (const message of built.errors) addError(message)
+  }
+
   // Judging rows before every mapping they depend on is answered blames them for the answer being
   // missing: with no category column mapped, every row reads as one with a blank category, and with
   // no date format settled, every row reads as one whose date does not fit
@@ -262,7 +285,7 @@ export function buildTransactionImportPayload({
     rowProblems: [],
     warnings,
     rowWarnings,
-    payload: { accounts, categories, rows },
+    payload: { accounts, categories, merchants, rows },
   }
 }
 

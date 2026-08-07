@@ -28,6 +28,25 @@ export interface TransactionImportCategoryMapping {
   create?: TransactionImportCreateCategory | null;
 }
 
+export interface TransactionImportCreateMerchant {
+  name: string;
+}
+
+/**
+ * One payee value the user answered by hand, carrying exactly one of the three answers
+ *
+ * A value left alone is not sent at all, and keeps what the importer does unasked: matching an
+ * existing merchant by name, and creating one where nothing matches
+ */
+export interface TransactionImportMerchantMapping {
+  source: string;
+  merchant_id?: string | null;
+  create?: TransactionImportCreateMerchant | null;
+
+  /** True to write no merchant for this value, so its rows are filed under the shared one */
+  skip?: boolean;
+}
+
 export interface TransactionImportRow {
   account_source: string;
   category_source: string;
@@ -44,6 +63,7 @@ export interface TransactionImportRow {
 export interface TransactionImportPayload {
   accounts: TransactionImportAccountMapping[];
   categories: TransactionImportCategoryMapping[];
+  merchants: TransactionImportMerchantMapping[];
   rows: TransactionImportRow[];
 }
 
@@ -51,6 +71,7 @@ export interface TransactionImportPayload {
 export interface TransactionImportStageBatch {
   accounts: TransactionImportAccountMapping[];
   categories: TransactionImportCategoryMapping[];
+  merchants: TransactionImportMerchantMapping[];
   rows: TransactionImportRow[];
 
   /** Where this batch starts in the file, which is what makes staging it twice harmless */

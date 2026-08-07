@@ -1,10 +1,12 @@
+import type { ReactNode } from 'react'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
 import type { ImportCategoryKind } from '@/pages/imports/types'
 import { ImportCategoryTypeToggle } from './CategoryTypeToggle'
 
 /**
  * Table matching source values found in an import to an existing target or a new one, with an
- * optional detail column that shows either read-only text or a type toggle for a row being created
+ * optional detail column showing read-only text, a type toggle for a category being created, or
+ * whatever control the step supplies, such as the name a new merchant is created under
  */
 export function ImportValueMatchTable({
   sourceLabel,
@@ -14,6 +16,12 @@ export function ImportValueMatchTable({
   rows,
   options,
   disabled,
+  searchValue,
+  onSearchChange,
+  filterOptions,
+  isLoading,
+  hasMore,
+  onLoadMore,
 }: {
   sourceLabel: string
   detailLabel?: string
@@ -27,12 +35,21 @@ export function ImportValueMatchTable({
     detail?: string
     detailKind?: ImportCategoryKind | ''
     detailDisabled?: boolean
+    detailNode?: ReactNode
     onDetailKindChange?: (kind: ImportCategoryKind) => void
     value: string
     onChange: (value: string) => void
   }>
   options: DropdownOption[]
   disabled: boolean
+
+  /** Search text shared by every row's dropdown, for a target list the page does not hold whole */
+  searchValue?: string
+  onSearchChange?: (value: string) => void
+  filterOptions?: boolean
+  isLoading?: boolean
+  hasMore?: boolean
+  onLoadMore?: () => void
 }) {
   return (
     <div className="overflow-x-auto">
@@ -70,7 +87,7 @@ export function ImportValueMatchTable({
                     {/* Carries its own corner, since the glow no longer sets one and the toggle
                         inside is not a pill */}
                     <div className={row.detailAutoFilled ? 'import-auto-fill-field rounded-lg' : undefined}>
-                      {row.onDetailKindChange ? (
+                      {row.detailNode ?? (row.onDetailKindChange ? (
                         <ImportCategoryTypeToggle
                           value={row.detailKind ?? ''}
                           onChange={row.onDetailKindChange}
@@ -80,7 +97,7 @@ export function ImportValueMatchTable({
                         <span className="text-sm font-medium" style={{ color: 'var(--app-text-muted)' }}>
                           {row.detail ?? ''}
                         </span>
-                      )}
+                      ))}
                     </div>
                   </td>
                 )}
@@ -94,6 +111,12 @@ export function ImportValueMatchTable({
                     size="compact"
                     className={row.autoFilled ? 'import-auto-fill-field' : undefined}
                     disabled={disabled}
+                    searchValue={searchValue}
+                    onSearchChange={onSearchChange}
+                    filterOptions={filterOptions}
+                    isLoading={isLoading}
+                    hasMore={hasMore}
+                    onLoadMore={onLoadMore}
                   />
                 </td>
               </tr>

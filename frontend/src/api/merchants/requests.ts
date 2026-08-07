@@ -4,6 +4,7 @@ import type {
   CreateMerchantPayload,
   Merchant,
   MerchantFilters,
+  MerchantNameMatch,
   MergeMerchantRequest,
   UpdateMerchantRequest,
 } from '@/api/merchants/types';
@@ -65,5 +66,18 @@ export function mergeMerchant({ merchantId, payload }: MergeMerchantRequest) {
   return authenticatedFetch<void>(`/merchants/${merchantId}/merge`, {
     method: 'POST',
     body: JSON.stringify(payload),
+  });
+}
+
+/**
+ * Asks which of the payee values given already have a merchant
+ *
+ * A read sent as a POST, since a file's worth of payee values does not fit in a query string. The
+ * import page asks this rather than holding every merchant a user has, which can run to thousands
+ */
+export function fetchMerchantNameMatches(names: string[]) {
+  return authenticatedFetch<MerchantNameMatch[]>('/merchants/name-matches', {
+    method: 'POST',
+    body: JSON.stringify({ names }),
   });
 }

@@ -47,6 +47,12 @@ export const COLUMN_TARGETS: Array<{
 export const UNKNOWN_MERCHANT_NAME = 'Unknown'
 export const SELF_MERCHANT_NAME = 'Myself'
 
+// The two answers the merchant step offers beside the merchants themselves, kept distinct from any
+// merchant id. Creating is what a value gets when nothing matches it, and skipping files that
+// value's rows under the shared merchant a row stating no payee gets
+export const CREATE_MERCHANT_VALUE = '__create_merchant__'
+export const SKIP_MERCHANT_VALUE = '__skip_merchant__'
+
 // What one row may carry, matching what the API accepts. Checked here so an offending row is named
 // against its row number in the preview rather than failing part-way through the upload
 export const MAX_IMPORT_NOTES_LENGTH = 10_000
@@ -204,6 +210,11 @@ export const ACCOUNTS_LOAD_FAILURE_TITLE = 'Your accounts could not be loaded'
 export const ACCOUNTS_LOAD_FAILURE_EXPLANATION = 'Without them every source here would have to become a new account, which would duplicate accounts you already have.'
 export const CATEGORIES_LOAD_FAILURE_TITLE = 'Your categories could not be loaded'
 export const CATEGORIES_LOAD_FAILURE_EXPLANATION = 'Without them every category in this file would have to become a new one, which would duplicate categories you already have.'
+
+// Shown when the page could not ask which of the file's payee values already have a merchant.
+// Every value would then read as one about to be created, which is what the step exists to stop
+export const MERCHANT_MATCHES_LOAD_FAILURE_TITLE = 'Your merchants could not be checked'
+export const MERCHANT_MATCHES_LOAD_FAILURE_EXPLANATION = 'Without that check every payee in this file reads as a new merchant, and importing would create merchants you already have.'
 
 // Shown when a mapping was answered with an account that has since been deleted. The answer is
 // dropped rather than sent, and nothing fills the row back in, so the user is told why a source

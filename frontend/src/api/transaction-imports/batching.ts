@@ -8,9 +8,11 @@ import {
   getNextArrayItemByteSize,
   yieldToBrowser,
 } from '@/api/shared/importBatchSize';
+import { getMerchantNameKey } from '@/api/shared/merchantNameKey';
 import type {
   TransactionImportAccountMapping,
   TransactionImportCategoryMapping,
+  TransactionImportMerchantMapping,
   TransactionImportPayload,
   TransactionImportRow,
   TransactionImportStageBatch,
@@ -27,6 +29,12 @@ export async function buildStagedImportBatches(
 ): Promise<TransactionImportStageBatch[]> {
   const accountMappingsBySource = getImportMappingsBySource(payload.accounts);
   const categoryMappingsBySource = getImportMappingsBySource(payload.categories);
+
+  // Keyed by what matches a payee rather than by the spelling the answer names, so a row spelling
+  // it differently still finds the answer given for it
+  const merchantMappingsByKey = new Map(
+    payload.merchants.map((mapping) => [getMerchantNameKey(mapping.source), mapping]),
+  );
   const batches: TransactionImportStageBatch[] = [];
   let rowIndex = 0;
 
@@ -36,6 +44,7 @@ export async function buildStagedImportBatches(
       rowIndex,
       accountMappingsBySource,
       categoryMappingsBySource,
+      merchantMappingsByKey,
     );
     batches.push(batch.payload);
     rowIndex = batch.nextRowIndex;
@@ -52,10 +61,12 @@ async function buildNextStagedBatch(
   startIndex: number,
   accountMappingsBySource: Map<string, TransactionImportAccountMapping>,
   categoryMappingsBySource: Map<string, TransactionImportCategoryMapping>,
+  merchantMappingsByKey: Map<string, TransactionImportMerchantMapping>,
 ) {
   const rows: TransactionImportRow[] = [];
   const accountSources = new Set<string>();
   const categorySources = new Set<string>();
+  const merchantKeys = new Set<string>();
   let estimatedBytes = getEmptyImportPayloadByteSize();
   let rowIndex = startIndex;
 
@@ -69,14 +80,23 @@ async function buildNextStagedBatch(
       nextEstimatedBytes += getNextMappingByteSize(source, accountSources, accountMappingsBySource, 'Account');
     }
 
+    // Only the payee values the user answered carry a mapping, so a row whose payee was left alone
+    // adds nothing to the batch and is not looked up as though it must be there
+    const rowMerchantKey = getRowMerchantKey(row, merchantMappingsByKey);
+    if (rowMerchantKey && !merchantKeys.has(rowMerchantKey)) {
+      nextEstimatedBytes += getNextArrayItemByteSize(merchantKeys.size, merchantMappingsByKey.get(rowMerchantKey));
+    }
+
     // Mappings are small enough that a file with many distinct values fills the count long before
     // it fills the byte budget, so both are what closes a batch
     const nextAccountSources = countWithNewSources(accountSources, getRowAccountSources(row));
     const nextCategorySources = countWithNewSources(categorySources, [row.category_source]);
+    const nextMerchantKeys = countWithNewSources(merchantKeys, rowMerchantKey ? [rowMerchantKey] : []);
     const isBatchFull = nextEstimatedBytes > TARGET_IMPORT_BATCH_BYTES
       || rows.length >= MAX_IMPORT_BATCH_ROWS
       || nextAccountSources > MAX_IMPORT_BATCH_MAPPINGS
-      || nextCategorySources > MAX_IMPORT_BATCH_MAPPINGS;
+      || nextCategorySources > MAX_IMPORT_BATCH_MAPPINGS
+      || nextMerchantKeys > MAX_IMPORT_BATCH_MAPPINGS;
 
     if (rows.length > 0 && isBatchFull) break;
     if (rows.length === 0 && nextEstimatedBytes > MAX_IMPORT_BATCH_BYTES) {
@@ -86,6 +106,7 @@ async function buildNextStagedBatch(
     rows.push(row);
     for (const source of getRowAccountSources(row)) accountSources.add(source);
     categorySources.add(row.category_source);
+    if (rowMerchantKey) merchantKeys.add(rowMerchantKey);
     estimatedBytes = nextEstimatedBytes;
     rowIndex += 1;
 
@@ -100,11 +121,24 @@ async function buildNextStagedBatch(
     payload: {
       accounts: [...accountSources].map((source) => getMapping(source, accountMappingsBySource, 'Account')),
       categories: [...categorySources].map((source) => getMapping(source, categoryMappingsBySource, 'Category')),
+      merchants: [...merchantKeys].map((key) => getMapping(key, merchantMappingsByKey, 'Merchant')),
       rows,
       start_row_index: startIndex,
     },
     nextRowIndex: rowIndex,
   };
+}
+
+/**
+ * The answered payee value a row carries, or nothing where its payee was left alone
+ */
+function getRowMerchantKey(
+  row: TransactionImportRow,
+  merchantMappingsByKey: Map<string, TransactionImportMerchantMapping>,
+) {
+  if (!row.merchant_name) return '';
+  const key = getMerchantNameKey(row.merchant_name);
+  return merchantMappingsByKey.has(key) ? key : '';
 }
 
 /**

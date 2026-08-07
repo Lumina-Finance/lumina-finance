@@ -12,6 +12,7 @@ from app.models.user import User
 from app.schemas.transaction import (
     TransactionImportAccountMapping,
     TransactionImportCategoryMapping,
+    TransactionImportMerchantMapping,
     TransactionImportRequest,
     TransactionImportResponse,
     TransactionImportRow,
@@ -109,7 +110,7 @@ def _build_import_request(run: ImportRun, rows: list[ImportStagedRow]) -> Transa
     """Rebuild the whole file from its run and staged rows
 
     Args:
-        run: Run holding the merged account and category mappings
+        run: Run holding the merged account, category and merchant mappings
         rows: Staged rows in file order
 
     Returns:
@@ -119,6 +120,9 @@ def _build_import_request(run: ImportRun, rows: list[ImportStagedRow]) -> Transa
         accounts=[TransactionImportAccountMapping.model_validate(mapping) for mapping in run.account_mappings.values()],
         categories=[
             TransactionImportCategoryMapping.model_validate(mapping) for mapping in run.category_mappings.values()
+        ],
+        merchants=[
+            TransactionImportMerchantMapping.model_validate(mapping) for mapping in run.merchant_mappings.values()
         ],
         rows=[TransactionImportRow.model_validate(row.payload) for row in rows],
     )

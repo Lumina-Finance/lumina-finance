@@ -137,6 +137,9 @@ export const merchantKeys = {
     filters,
     pageSize,
   ] as const,
+
+  /** Which of a file's payee values already have a merchant, asked once per set of values */
+  nameMatches: (names: string[]) => ['merchants', 'name-matches', names] as const,
 };
 
 export const tagKeys = {

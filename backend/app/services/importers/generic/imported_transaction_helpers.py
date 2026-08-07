@@ -12,7 +12,7 @@ from app.models.category import Category
 from app.models.merchant import Merchant
 from app.models.tag import Tag, TransactionTag
 from app.models.transaction import Transaction
-from app.schemas.transaction import TransactionImportRow
+from app.schemas.transaction import TransactionImportMerchantMapping, TransactionImportRow
 from app.services.importers.generic.amounts import parse_import_amount_to_minor_units
 from app.services.importers.generic.lookup_helpers import TransactionImportLookups
 from app.services.importers.shared.merchants import (
@@ -41,6 +41,7 @@ async def create_imported_transactions(
     *,
     user_id: uuid.UUID,
     rows: list[TransactionImportRow],
+    merchant_mappings: list[TransactionImportMerchantMapping],
     import_lookups: TransactionImportLookups,
     stats: ImportStats,
 ) -> dict[uuid.UUID, date]:
@@ -50,6 +51,7 @@ async def create_imported_transactions(
         db: Active database session
         user_id: Identifier for the user running the import
         rows: Prepared transaction rows from the import payload
+        merchant_mappings: The payee values the user answered by hand, which may be none of them
         import_lookups: Lookup maps needed to create imported transaction rows
         stats: Import summary counters updated during the import
 
@@ -61,7 +63,7 @@ async def create_imported_transactions(
     """
     first_import_date_by_account_id: dict[uuid.UUID, date] = {}
     pending_transaction_tags: list[tuple[Transaction, list[Tag]]] = []
-    no_payee_merchants = get_no_payee_merchants(import_lookups.merchants_by_key)
+    no_payee_merchants = get_no_payee_merchants(import_lookups.merchants)
 
     # Everything the file introduces is created before the rows are walked, so each of them costs
     # one insert for the whole file rather than one per row that first mentions it. A row refused
@@ -70,7 +72,8 @@ async def create_imported_transactions(
         db,
         user_id,
         (row.merchant_name for row in rows),
-        import_lookups.merchants_by_key,
+        merchant_mappings,
+        import_lookups.merchants,
         stats,
     )
     await create_missing_import_tags(
@@ -106,7 +109,7 @@ async def create_imported_transactions(
         # Every transaction carries a merchant, so a row whose file states none is stamped with the
         # shared one for its kind rather than written without one and left uneditable
         merchant = (
-            get_import_merchant(row.merchant_name, import_lookups.merchants_by_key, stats)
+            get_import_merchant(row.merchant_name, import_lookups.merchants, stats)
             or no_payee_merchants.get_for_category(category)
         )
         tags = get_import_row_tags(row.tag_names, import_lookups.tags_by_name, stats)

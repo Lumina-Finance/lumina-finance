@@ -1,7 +1,7 @@
 """Transaction import merchant lookup and creation"""
 import uuid
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from fastapi import HTTPException, status
 from sqlalchemy import func, literal_column, select, text
@@ -10,9 +10,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.base import CategoryKind
 from app.models.category import Category
 from app.models.merchant import Merchant
-from app.schemas.transaction import MAX_IMPORT_MERCHANT_NAME_LENGTH
+from app.schemas.transaction import MAX_IMPORT_MERCHANT_NAME_LENGTH, TransactionImportMerchantMapping
 from app.services.importers.shared.insertion_helpers import insert_import_records_if_absent
 from app.services.importers.shared.stats import ImportStats
+from app.services.importers.shared.validation_helpers import strip_import_text_or_raise
 from app.services.merchants.defaults import SELF_MERCHANT_NAME, UNKNOWN_MERCHANT_NAME
 
 
@@ -32,7 +33,61 @@ def get_import_merchant_key(name: str) -> str:
     return name.strip().lower()
 
 
-async def get_import_merchants_by_key(db: AsyncSession, user_id: uuid.UUID) -> dict[str, Merchant]:
+def get_import_merchant_scope_filter(user_id: uuid.UUID):
+    """Return the SQL filter for the merchants an import may file rows under
+
+    The user's own and the ones that ship with the app, which is the same scope the merchants routes
+    measure a new name against
+
+    Args:
+        user_id: Identifier for the user running the import
+
+    Returns:
+        SQLAlchemy filter matching the merchants an import may use
+    """
+    return Merchant.is_system.is_(True) | ((Merchant.owner_id == user_id) & Merchant.group_id.is_(None))
+
+
+async def require_usable_import_merchant(db: AsyncSession, merchant_id: uuid.UUID, user_id: uuid.UUID) -> Merchant:
+    """Return a merchant an import may file rows under, refusing any other
+
+    Args:
+        db: Active database session
+        merchant_id: Merchant an answer points at
+        user_id: Identifier for the user running the import
+
+    Returns:
+        The merchant
+
+    Raises:
+        HTTPException: Raised with 422 when the merchant is not one this import may use, which
+            covers another user's and a group's, so answering a value cannot reach further than
+            matching one does
+    """
+    result = await db.execute(
+        select(Merchant).where(Merchant.id == merchant_id, get_import_merchant_scope_filter(user_id)),
+    )
+    merchant = result.scalar_one_or_none()
+    if merchant is None:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Merchant not found")
+    return merchant
+
+
+@dataclass
+class ImportMerchants:
+    """What an import files each of its rows under, worked out once for the whole file
+
+    Attributes:
+        by_key: Merchant rows keyed by what matches a payee
+        skipped_keys: Payee values the user answered skip, whose rows are filed under the shared
+            merchant the app stamps on a row stating no payee at all
+    """
+
+    by_key: dict[str, Merchant]
+    skipped_keys: set[str] = field(default_factory=set)
+
+
+async def load_import_merchants(db: AsyncSession, user_id: uuid.UUID) -> ImportMerchants:
     """Return the merchants an import may match, keyed by what matches them
 
     Args:
@@ -40,17 +95,14 @@ async def get_import_merchants_by_key(db: AsyncSession, user_id: uuid.UUID) -> d
         user_id: Identifier for the user running the import
 
     Returns:
-        Merchant rows keyed by matching key
+        The merchants this import can match a payee to
     """
     # Every merchant a row could match is loaded once, so matching a row costs no query. System
     # merchants are included because their names are taken in every scope, and leaving them out is
     # what let an import create a personal Myself beside the seeded one
     result = await db.execute(
         select(Merchant)
-        .where(
-            Merchant.is_system.is_(True)
-            | ((Merchant.owner_id == user_id) & Merchant.group_id.is_(None)),
-        )
+        .where(get_import_merchant_scope_filter(user_id))
         # A database written before capitalisation stopped counting can hold two merchants sharing a
         # key, so the order settles which one wins rather than leaving it to the order rows arrive
         # in: the shared one first, then the oldest personal one
@@ -60,55 +112,79 @@ async def get_import_merchants_by_key(db: AsyncSession, user_id: uuid.UUID) -> d
     merchants_by_key: dict[str, Merchant] = {}
     for merchant in result.scalars().all():
         merchants_by_key.setdefault(get_import_merchant_key(merchant.name), merchant)
-    return merchants_by_key
+    return ImportMerchants(by_key=merchants_by_key)
 
 
 async def create_missing_import_merchants(
     db: AsyncSession,
     user_id: uuid.UUID,
     raw_names: Iterable[str | None],
-    merchants_by_key: dict[str, Merchant],
+    mappings: list[TransactionImportMerchantMapping],
+    merchants: ImportMerchants,
     stats: ImportStats,
 ) -> None:
-    """Create the personal merchants an import needs and does not already have
+    """Settle what every payee value in a file resolves to, creating the merchants it needs
 
-    Every merchant the file introduces is written in one insert, so a file carrying a hundred
-    thousand new payees costs one round trip rather than one for each
+    A value the user answered is taken as answered: pointed at a merchant they chose, created under
+    a name they wrote, or left with none. Every other value keeps what the importer does unasked,
+    matching an existing merchant by name and creating one where nothing matches. Whatever the file
+    introduces is written in one insert, so a file carrying a hundred thousand new payees costs one
+    round trip rather than one for each
 
     Args:
         db: Active database session
         user_id: Identifier for the user running the import
         raw_names: Raw merchant names from every row of the import, blanks and repeats included
-        merchants_by_key: Merchant lookup for this import, extended with what is created
+        mappings: The payee values the user answered by hand, which may be none of them
+        merchants: Merchant lookup for this import, extended with what is chosen and created
         stats: Import summary counters updated when merchants are created
 
     Returns:
         None
 
     Raises:
-        HTTPException: Raised with 422 when a merchant name is too long
+        HTTPException: Raised with 422 when a merchant name is too long, when an answer states no
+            single action, when one payee value is answered twice, and when an answer points at a
+            merchant the import cannot use
     """
-    pending: dict[str, str] = {}
+    answers = _index_import_merchant_answers(mappings)
+    merchants.skipped_keys.update(key for key, answer in answers.items() if answer.skip)
+    await _attach_chosen_import_merchants(db, user_id, answers, merchants)
+
+    # Keyed by the name a merchant will be stored under rather than by the payee value, since two
+    # values corrected to one name make one merchant between them
+    names_by_key: dict[str, str] = {}
+    name_key_by_payee_key: dict[str, str] = {}
 
     for raw_name in raw_names:
         name = raw_name.strip() if raw_name else ""
         if not name:
             continue
-        if len(name) > MAX_IMPORT_MERCHANT_NAME_LENGTH:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=f"Merchant name is too long: {name[:28]}",
-            )
+        _require_import_merchant_name_fits(name)
 
-        key = get_import_merchant_key(name)
-        if key in merchants_by_key or key in pending:
+        payee_key = get_import_merchant_key(name)
+        if payee_key in name_key_by_payee_key:
             continue
+
+        answer = answers.get(payee_key)
+        if answer is None:
+            # Left alone, so it matches an existing merchant or is created under its own spelling
+            if payee_key in merchants.by_key:
+                continue
+            stored_name = name
+        elif answer.create is None:
+            # Answered skip or pointed at a merchant, both already settled above
+            continue
+        else:
+            stored_name = answer.create.name
 
         # The first spelling the file uses is the one stored, so a file carrying both "Amazon" and
         # "AMAZON" produces one merchant rather than two
-        pending[key] = name
+        name_key = get_import_merchant_key(stored_name)
+        names_by_key.setdefault(name_key, stored_name)
+        name_key_by_payee_key[payee_key] = name_key
 
-    if not pending:
+    if not names_by_key:
         return
 
     inserted = await insert_import_records_if_absent(
@@ -116,40 +192,139 @@ async def create_missing_import_merchants(
         Merchant,
         [
             {"owner_id": user_id, "group_id": None, "name": name, "default_category_id": None}
-            for name in pending.values()
+            for name in names_by_key.values()
         ],
         index_elements=[Merchant.owner_id, literal_column("lower(name)")],
         index_where=text("group_id IS NULL"),
     )
 
+    written_by_key = {get_import_merchant_key(merchant.name): merchant for merchant in inserted}
     for merchant in inserted:
-        merchants_by_key[get_import_merchant_key(merchant.name)] = merchant
         stats.merchants_created += 1
         stats.created_merchant_ids.append(merchant.id)
 
     # A name the insert skipped was taken between this import loading its merchants and writing
     # them, by another import of the same file or by the user in another tab
-    taken_keys = pending.keys() - merchants_by_key.keys()
+    taken_keys = names_by_key.keys() - written_by_key.keys()
     if taken_keys:
-        await _load_import_merchants_created_elsewhere(db, user_id, taken_keys, merchants_by_key)
+        written_by_key.update(await _load_import_merchants_created_elsewhere(db, user_id, taken_keys))
+
+    for payee_key, name_key in name_key_by_payee_key.items():
+        merchants.by_key[payee_key] = written_by_key[name_key]
+
+
+def _require_import_merchant_name_fits(name: str) -> None:
+    """Refuse a merchant name longer than the column stores
+
+    Args:
+        name: Merchant name from a row or from an answer
+
+    Raises:
+        HTTPException: Raised with 422 when the name is too long
+    """
+    if len(name) > MAX_IMPORT_MERCHANT_NAME_LENGTH:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"Merchant name is too long: {name[:28]}",
+        )
+
+
+def _index_import_merchant_answers(
+    mappings: list[TransactionImportMerchantMapping],
+) -> dict[str, TransactionImportMerchantMapping]:
+    """Return the answered payee values keyed by what matches them
+
+    Args:
+        mappings: The payee values the user answered by hand
+
+    Returns:
+        Each answer keyed by its matching key
+
+    Raises:
+        HTTPException: Raised with 422 when an answer states no single action, and when two answers
+            are given for values that match as one payee
+    """
+    answers: dict[str, TransactionImportMerchantMapping] = {}
+
+    for mapping in mappings:
+        source = strip_import_text_or_raise(mapping.source, "Merchant source")
+        stated_actions = (mapping.merchant_id is not None) + (mapping.create is not None) + mapping.skip
+        if stated_actions != 1:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=f"Merchant source must map to exactly one merchant action: {source}",
+            )
+
+        # Two spellings of one payee resolve to one merchant, so answering both leaves nothing to
+        # say which answer the rows carrying either spelling should take
+        key = get_import_merchant_key(source)
+        if key in answers:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=f"Merchant source is answered twice: {source}",
+            )
+        answers[key] = mapping
+
+    return answers
+
+
+async def _attach_chosen_import_merchants(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    answers: dict[str, TransactionImportMerchantMapping],
+    merchants: ImportMerchants,
+) -> None:
+    """Point the payee values answered with an existing merchant at it
+
+    Args:
+        db: Active database session
+        user_id: Identifier for the user running the import
+        answers: The answered payee values keyed by what matches them
+        merchants: Merchant lookup for this import, extended with what was chosen
+
+    Returns:
+        None
+
+    Raises:
+        HTTPException: Raised with 422 when an answer points at a merchant this import cannot use,
+            which is any but the user's own and the ones that ship with the app
+    """
+    chosen = [(key, answer.merchant_id) for key, answer in answers.items() if answer.merchant_id is not None]
+    if not chosen:
+        return
+
+    result = await db.execute(
+        select(Merchant).where(
+            Merchant.id.in_({merchant_id for _, merchant_id in chosen}),
+            get_import_merchant_scope_filter(user_id),
+        ),
+    )
+    merchants_by_id = {merchant.id: merchant for merchant in result.scalars().all()}
+
+    for key, merchant_id in chosen:
+        merchant = merchants_by_id.get(merchant_id)
+        if merchant is None:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Merchant not found")
+
+        # Overrides what the payee would have matched on its own, which is the whole point of
+        # answering it: a descriptor reading nothing like the merchant still lands on it
+        merchants.by_key[key] = merchant
 
 
 async def _load_import_merchants_created_elsewhere(
     db: AsyncSession,
     user_id: uuid.UUID,
     keys: set[str],
-    merchants_by_key: dict[str, Merchant],
-) -> None:
+) -> dict[str, Merchant]:
     """Load the merchants another request wrote while this import was running
 
     Args:
         db: Active database session
         user_id: Identifier for the user running the import
         keys: Matching keys the insert skipped because the name was already taken
-        merchants_by_key: Merchant lookup for this import, extended with what is found
 
     Returns:
-        None
+        The merchants found, keyed by what matches them
 
     Raises:
         HTTPException: Raised with 500 when a name the insert skipped cannot then be found, which
@@ -159,36 +334,40 @@ async def _load_import_merchants_created_elsewhere(
     result = await db.execute(
         select(Merchant)
         .where(
-            Merchant.is_system.is_(True) | ((Merchant.owner_id == user_id) & Merchant.group_id.is_(None)),
+            get_import_merchant_scope_filter(user_id),
             func.lower(Merchant.name).in_(keys),
         )
         .order_by(Merchant.is_system.desc(), Merchant.created_at, Merchant.id),
     )
-    for merchant in result.scalars().all():
-        merchants_by_key.setdefault(get_import_merchant_key(merchant.name), merchant)
 
-    missing = keys - merchants_by_key.keys()
+    found: dict[str, Merchant] = {}
+    for merchant in result.scalars().all():
+        found.setdefault(get_import_merchant_key(merchant.name), merchant)
+
+    missing = keys - found.keys()
     if missing:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Merchant could not be created or found: {sorted(missing)[0]}",
         )
+    return found
 
 
 def get_import_merchant(
     raw_name: str | None,
-    merchants_by_key: dict[str, Merchant],
+    merchants: ImportMerchants,
     stats: ImportStats,
 ) -> Merchant | None:
     """Return the merchant one import row's payee text resolves to
 
     Args:
         raw_name: Raw merchant name from the import row
-        merchants_by_key: Merchant lookup for this import
+        merchants: Merchant lookup for this import
         stats: Import summary counters updated when a merchant is used
 
     Returns:
-        The merchant for the row, or None when the row states no payee
+        The merchant for the row, or None where the row states no payee and where the user answered
+        skip for the one it states, both of which leave the caller to stamp a shared merchant on it
 
     Raises:
         KeyError: Raised when the name was not put through create_missing_import_merchants first
@@ -197,7 +376,11 @@ def get_import_merchant(
     if not name:
         return None
 
-    merchant = merchants_by_key[get_import_merchant_key(name)]
+    key = get_import_merchant_key(name)
+    if key in merchants.skipped_keys:
+        return None
+
+    merchant = merchants.by_key[key]
     stats.reused_merchant_ids.add(merchant.id)
     return merchant
 
@@ -231,11 +414,11 @@ class NoPayeeMerchants:
         return self.transfer if category.kind == CategoryKind.TRANSFER else self.other
 
 
-def get_no_payee_merchants(merchants_by_key: dict[str, Merchant]) -> NoPayeeMerchants:
+def get_no_payee_merchants(merchants: ImportMerchants) -> NoPayeeMerchants:
     """Return the shared merchants stamped on rows that state no payee
 
     Args:
-        merchants_by_key: Merchant lookup for this import, which already holds every system merchant
+        merchants: Merchant lookup for this import, which already holds every system merchant
 
     Returns:
         The shared merchants for this import
@@ -244,8 +427,8 @@ def get_no_payee_merchants(merchants_by_key: dict[str, Merchant]) -> NoPayeeMerc
         HTTPException: Raised with 500 when either merchant is not seeded
     """
     return NoPayeeMerchants(
-        transfer=_require_system_merchant(merchants_by_key, SELF_MERCHANT_NAME),
-        other=_require_system_merchant(merchants_by_key, UNKNOWN_MERCHANT_NAME),
+        transfer=_require_system_merchant(merchants.by_key, SELF_MERCHANT_NAME),
+        other=_require_system_merchant(merchants.by_key, UNKNOWN_MERCHANT_NAME),
     )
 
 

@@ -17,6 +17,7 @@ import { useTransactionImportWorkflow } from './hooks'
 import {
   ImportAccountMappingStep,
   ImportAutoCreateStep,
+  ImportMerchantMatchingStep,
   ImportCategoryMatchingStep,
   ImportColumnMappingStep,
   ImportCommitPanel,
@@ -165,19 +166,7 @@ export default function ImportsPage() {
                       <ImportColumnMappingStep {...workflow} />
                       <ImportAccountMappingStep {...workflow} />
                       <ImportCategoryMatchingStep {...workflow} />
-                      <ImportAutoCreateStep
-                        index="05"
-                        title="Merchant Handling"
-                        description="Merchants are created when transactions are imported. If an imported merchant matches an existing merchant name, the transaction will use the existing merchant."
-                        expanded={workflow.merchantHandlingOpen}
-                        collapseLabel="Collapse merchant handling"
-                        expandLabel="Expand merchant handling"
-                        emptyTitle="No imported merchants detected"
-                        emptyDescription="Map a merchant column first."
-                        sourceLabel="Merchant From File"
-                        rows={workflow.importedMerchants}
-                        onToggle={() => workflow.setMerchantHandlingOpen((current) => !current)}
-                      />
+                      <ImportMerchantMatchingStep {...workflow} />
                       <ImportAutoCreateStep
                         index="06"
                         title="Tag Handling"

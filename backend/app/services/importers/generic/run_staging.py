@@ -15,6 +15,7 @@ from app.schemas.transaction import (
     MAX_IMPORT_MAPPINGS,
     TransactionImportAccountMapping,
     TransactionImportCategoryMapping,
+    TransactionImportMerchantMapping,
     TransactionImportStageRequest,
 )
 from app.services.importers.generic.run_locking import load_locked_run
@@ -27,6 +28,7 @@ from app.services.importers.shared.categories import (
     get_visible_import_category,
     parse_import_category_kind,
 )
+from app.services.importers.shared.merchants import require_usable_import_merchant
 from app.services.importers.shared.validation_helpers import strip_import_text_or_raise
 
 
@@ -46,6 +48,7 @@ async def open_import_run(db: AsyncSession, user: User, expected_transaction_cou
         expected_transaction_count=expected_transaction_count,
         account_mappings={},
         category_mappings={},
+        merchant_mappings={},
     )
     db.add(run)
     await db.commit()
@@ -88,11 +91,14 @@ async def stage_import_batch(
         await _validate_account_mapping(db, user, account_mapping)
     for category_mapping in data.categories:
         await _validate_category_mapping(db, user, category_mapping)
+    for merchant_mapping in data.merchants:
+        await _validate_merchant_mapping(db, user, merchant_mapping)
 
     # Reassigned rather than mutated, since SQLAlchemy tracks a JSONB column by identity and would
     # not see a change made inside the dictionary it already holds
     run.account_mappings = _merge_import_mappings(run.account_mappings, data.accounts, "Account source")
     run.category_mappings = _merge_import_mappings(run.category_mappings, data.categories, "Category source")
+    run.merchant_mappings = _merge_import_mappings(run.merchant_mappings, data.merchants, "Merchant source")
 
     await _insert_staged_rows(db, run, user.id, data)
     await db.commit()
@@ -149,7 +155,11 @@ async def _load_uncommitted_run(db: AsyncSession, run_id: uuid.UUID) -> ImportRu
 
 def _merge_import_mappings(
     stored: dict[str, Any],
-    mappings: list[TransactionImportAccountMapping] | list[TransactionImportCategoryMapping],
+    mappings: (
+        list[TransactionImportAccountMapping]
+        | list[TransactionImportCategoryMapping]
+        | list[TransactionImportMerchantMapping]
+    ),
     label: str,
 ) -> dict[str, Any]:
     """Merge one batch's mappings into what the run already holds, keyed by trimmed source
@@ -313,3 +323,35 @@ async def _validate_category_mapping(
         return
 
     parse_import_category_kind(mapping.create.kind)
+
+
+async def _validate_merchant_mapping(
+    db: AsyncSession,
+    user: User,
+    mapping: TransactionImportMerchantMapping,
+) -> None:
+    """Check one merchant mapping as far as staging can, without creating anything
+
+    Args:
+        db: Active database session
+        user: Authenticated user running the import
+        mapping: Payee value answered in the batch
+
+    Returns:
+        None
+
+    Raises:
+        HTTPException: Raised with 422 when the mapping states no single merchant action, and when
+            it points at a merchant this import cannot use
+    """
+    source = strip_import_text_or_raise(mapping.source, "Merchant source")
+
+    stated_actions = (mapping.merchant_id is not None) + (mapping.create is not None) + mapping.skip
+    if stated_actions != 1:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"Merchant source must map to exactly one merchant action: {source}",
+        )
+
+    if mapping.merchant_id is not None:
+        await require_usable_import_merchant(db, mapping.merchant_id, user.id)
