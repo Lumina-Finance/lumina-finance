@@ -49,7 +49,7 @@ describe('drop-down box placement', () => {
     // head stays exactly where it was: its lower edge is 40px off the bottom of the page either way
     expect(position.openAbove).toBe(true)
     expect(position.bottom).toBe(40)
-    expect(position.listMaxHeight).toBe(290)
+    expect(position.listMaxHeight).toBe(304)
   })
 
   it('opens upward while there is still room below, once the room above beats it', () => {
@@ -135,8 +135,23 @@ describe('drop-down box placement', () => {
     // 400 of box, less a 40 head and 14 of border and padding
     expect(withoutSearch.listMaxHeight).toBe(346)
 
-    // and less another 56 once a search field sits above the list
-    expect(withSearch.listMaxHeight).toBe(290)
+    // and less another 42 once a search row and its clearance sit above the list
+    expect(withSearch.listMaxHeight).toBe(304)
+  })
+
+  it('leaves a searchable box with almost no room showing its head and search and no list', () => {
+    const position = getDropdownBoxPosition({
+      ...head,
+      searchable: true,
+      anchorRect: { bottom: 100, left: 20, top: 60, width: 200 },
+      viewport: { height: 120, layoutHeight: 120, layoutWidth: 390, offsetLeft: 0, offsetTop: 0, width: 390 },
+    })
+
+    // 88 of room above the head, which the head, the box's own edges and the search row take between
+    // them. The list is given nothing rather than a negative height the box would then draw around
+    expect(position.openAbove).toBe(true)
+    expect(position.boxMaxHeight).toBe(88)
+    expect(position.listMaxHeight).toBe(0)
   })
 
   it('gives a shorter head more list, since they share one box', () => {

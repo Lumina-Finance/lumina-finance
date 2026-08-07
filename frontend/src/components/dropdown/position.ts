@@ -122,7 +122,10 @@ const DROPDOWN_DOWNWARD_ROOM = 480
 // and the edge of the screen is taken off it, so a box opened near the edge gets less
 const DROPDOWN_MAX_WIDTH = 320
 
-const DROPDOWN_SEARCH_HEIGHT = 56
+// The whole search area above the list: the row itself, whose own lower rule is inside its height,
+// and the clearance under it. Mirrors the 36px height and 6px bottom margin of .app-dropdown-search
+// in tailwind.css
+const DROPDOWN_SEARCH_HEIGHT = 42
 
 // The box's own border and the padding around its contents. Mirrors the 1px border of
 // .app-dropdown-glass and the 6px padding of .app-dropdown-glass-inner in tailwind.css
