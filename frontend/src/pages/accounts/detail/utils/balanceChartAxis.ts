@@ -1,4 +1,5 @@
 import type { BalanceRange } from '@/pages/accounts/detail/constants/accountDetail'
+import type { Currency } from '@/api/currency'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { calendarDateMs } from './calendarDate'
 import { DATE_FORMATS, formatDate } from '@/utils/date'
@@ -45,7 +46,7 @@ export function formatUtcAxisDate(value: number): string {
  * Formats a change in balance with an explicit plus or minus in front of it, leaving an unchanged
  * balance with no sign at all
  */
-export function formatSignedBalanceCurrency(amount: number, currency: string): string {
-  if (amount === 0) return formatCurrency(amount, currency)
-  return `${amount > 0 ? '+' : '−'}${formatCurrency(Math.abs(amount), currency)}`
+export function formatSignedBalanceCurrency(amount: number, currency: string, currencies: Currency[]): string {
+  if (amount === 0) return formatCurrency(amount, currency, currencies)
+  return `${amount > 0 ? '+' : '−'}${formatCurrency(Math.abs(amount), currency, currencies)}`
 }

@@ -1,4 +1,5 @@
-import { formatCurrency } from '@/utils/formatCurrency'
+import type { Currency } from '@/api/currency'
+import { createMoneyFormatter, formatCurrency, formatMajorUnits, toMajorUnits } from '@/utils/formatCurrency'
 
 export type CompactMoneyRule = {
   threshold: number
@@ -10,12 +11,11 @@ export type CompactMoneyRule = {
 
 type CompactMoneyOptions = {
   prefix?: string
-}
 
-function getCurrencyExponent(currency: string) {
-  return new Intl.NumberFormat(undefined, { style: 'currency', currency })
-    .resolvedOptions()
-    .maximumFractionDigits ?? 2
+  // Decimal places for an amount below every threshold, which renders in full rather than compacted.
+  // Left unset it follows the currency's own, so a caller showing whole amounts when compacted has
+  // to say so here or a small amount comes back carrying cents the rest of its scale does not show
+  plainFractionDigits?: number
 }
 
 function formatCurrencyWithSuffix(
@@ -24,14 +24,7 @@ function formatCurrencyWithSuffix(
   suffix: CompactMoneyRule['suffix'],
   fractionDigits: number,
 ) {
-  const formatter = new Intl.NumberFormat(undefined, {
-    style: 'currency',
-    currency,
-    currencySign: 'accounting',
-    minimumFractionDigits: fractionDigits,
-    maximumFractionDigits: fractionDigits,
-  })
-  const parts = formatter.formatToParts(value)
+  const parts = createMoneyFormatter(currency, fractionDigits).formatToParts(value)
   const numberPartTypes = new Set(['integer', 'group', 'decimal', 'fraction'])
   const suffixIndex = parts.findLastIndex((part) => numberPartTypes.has(part.type))
 
@@ -51,22 +44,26 @@ function applyCompactRule(value: number, rule: CompactMoneyRule) {
 
 /**
  * Formats an amount in a currency's minor units as compact text once it crosses one of the given
- * thresholds, such as showing "≈$1.2M" instead of the full number, falling back to `formatCurrency`
- * when no rule applies
+ * thresholds, such as showing "≈$1.2M" instead of the full number, and in full when no rule applies
  *
  * Rules are checked in order and the first whose threshold the absolute value meets is used, so callers
  * should list rules from largest threshold to smallest
+ *
+ * @param currencies - The fetched currency list, which carries each code's decimal places
  */
 export function formatCompactMoney(
   minorUnits: number,
   currency: string,
   rules: CompactMoneyRule[],
-  { prefix = '≈' }: CompactMoneyOptions = {},
+  currencies: Currency[],
+  { prefix = '≈', plainFractionDigits }: CompactMoneyOptions = {},
 ) {
-  const exponent = getCurrencyExponent(currency)
-  const majorUnits = minorUnits / Math.pow(10, exponent) || 0
+  const majorUnits = toMajorUnits(minorUnits, currency, currencies)
   const rule = rules.find(({ threshold }) => Math.abs(majorUnits) >= threshold)
-  if (!rule) return formatCurrency(minorUnits, currency)
+  if (!rule) {
+    if (plainFractionDigits === undefined) return formatCurrency(minorUnits, currency, currencies)
+    return formatMajorUnits(majorUnits, currency, plainFractionDigits)
+  }
 
   return `${prefix}${formatCurrencyWithSuffix(
     applyCompactRule(majorUnits, rule),

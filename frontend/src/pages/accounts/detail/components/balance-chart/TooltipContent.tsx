@@ -2,7 +2,7 @@ import {
   ChartTooltipRow,
   ChartTooltipTitle,
 } from '@/components/charts/TooltipContent'
-import { formatCurrency } from '@/utils/formatCurrency'
+import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import type { BalanceChartMode } from '@/pages/accounts/detail/constants/accountDetail'
 import { formatSignedBalanceCurrency } from '@/pages/accounts/detail/utils/balanceChartAxis'
 import type { BalanceChartDataPoint } from '@/pages/accounts/detail/utils/balanceChartViewModel'
@@ -21,10 +21,11 @@ export function BalanceChartTooltipContent({
   chartMode,
   currency,
 }: BalanceChartTooltipContentProps) {
+  const { currencies, formatCurrency } = useMoneyFormatters()
   const label = chartMode === 'balance' ? 'Balance' : 'Change'
   const value = chartMode === 'balance'
     ? formatCurrency(point.balance, currency)
-    : formatSignedBalanceCurrency(point.periodBalance ?? 0, currency)
+    : formatSignedBalanceCurrency(point.periodBalance ?? 0, currency, currencies)
 
   return (
     <>

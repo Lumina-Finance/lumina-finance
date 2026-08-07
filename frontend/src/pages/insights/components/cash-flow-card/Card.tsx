@@ -6,6 +6,7 @@ import {
   LoadingOverlay,
 } from '@/components/loading/Transition'
 import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
+import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { CashFlowBarChart } from './BarChart'
 import type { CashFlowBarBucket, CashFlowGranularity } from '@/pages/insights/types/cashFlow'
 import { getInsightsCashFlowFxStatusMessage } from '@/pages/insights/utils/fxTooltipMessages'
@@ -44,6 +45,7 @@ export function CashFlowCard({
   loading = false,
   transitionKey,
 }: CashFlowCardProps) {
+  const { currencies } = useMoneyFormatters()
   const incomingSnapshot = useMemo<CashFlowSnapshot>(() => ({
     granularity,
     buckets,
@@ -101,7 +103,7 @@ export function CashFlowCard({
                 className="mt-1 font-financial text-3xl leading-none tracking-tight"
                 style={{ color: getSignedAmountColor(totalNet) }}
               >
-                {formatSignedCurrency(totalNet, displaySnapshot.displayCurrency)}
+                {formatSignedCurrency(totalNet, displaySnapshot.displayCurrency, currencies)}
               </p>
             </div>
             <CashFlowBarChart

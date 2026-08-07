@@ -1,6 +1,10 @@
 /**
  * Tests the account metrics themselves, so the savings rate, credit usage and runway figures cannot
  * drift from the history and balances they are calculated from
+ *
+ * A currency's symbol is written the reader's way, so the amounts below assume the region the suite
+ * pins through LC_ALL in its package script: read from the United States, where US dollars are the
+ * plain ones and Canadian dollars are marked CA$
  */
 import { describe, expect, it } from 'vitest'
 import type { RunwayResult } from '@/api/user'
@@ -9,7 +13,7 @@ import {
   getRunwayMetric,
   getSavingsRateMetric,
 } from '@/pages/accounts/utils/accountMetrics'
-import { createAccount } from './fixtures'
+import { createAccount, testCurrencies } from './fixtures'
 
 describe('account metric helpers', () => {
   it('uses the latest savings period and handles no-income expense months', () => {
@@ -86,15 +90,15 @@ describe('account metric helpers', () => {
       fx_status: { state: 'complete', missing_pairs: [] },
     }
 
-    expect(getRunwayMetric(undefined, false, 'USD')).toMatchObject({
+    expect(getRunwayMetric(undefined, false, 'USD', testCurrencies)).toMatchObject({
       months: null,
       progress: 0,
       caption: '',
     })
-    expect(getRunwayMetric({ ...runway, months: null, reason: 'no_accounts' }, false, 'USD')).toMatchObject({
+    expect(getRunwayMetric({ ...runway, months: null, reason: 'no_accounts' }, false, 'USD', testCurrencies)).toMatchObject({
       caption: 'Choose accounts in Settings',
     })
-    expect(getRunwayMetric(runway, false, 'USD')).toMatchObject({
+    expect(getRunwayMetric(runway, false, 'USD', testCurrencies)).toMatchObject({
       months: 7.4,
       caption: '$1,234.56/mth · 6 mths basis',
       progress: 100,

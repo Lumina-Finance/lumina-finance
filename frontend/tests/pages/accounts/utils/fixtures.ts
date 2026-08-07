@@ -5,8 +5,14 @@
  * unremarkable, so an assertion only ever turns on what its own test set
  */
 import type { AccountsOverview } from '@/api/accounts'
+import type { Currency } from '@/api/currency'
 import type { Institution } from '@/api/institutions'
 import type { TaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
+
+export const testCurrencies: Currency[] = [
+  { id: 'USD', name: 'US Dollar', symbol: 'US$', minor_unit_exponent: 2 },
+  { id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 },
+]
 
 export function createAccount(overrides: Partial<AccountsOverview>): AccountsOverview {
   return {

@@ -2,7 +2,7 @@ import {
   ChartTooltipRow,
   ChartTooltipTitle,
 } from '@/components/charts/TooltipContent'
-import { formatCurrency } from '@/utils/formatCurrency'
+import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import type { CashFlowBar } from '@/pages/accounts/detail/utils/cashFlowChartViewModel'
 
 type MonthlyCashFlowTooltipContentProps = {
@@ -19,6 +19,8 @@ export function MonthlyCashFlowTooltipContent({
   currency,
   title,
 }: MonthlyCashFlowTooltipContentProps) {
+  const { formatCurrency } = useMoneyFormatters()
+
   return (
     <>
       <ChartTooltipTitle>{title}</ChartTooltipTitle>

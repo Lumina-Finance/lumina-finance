@@ -1,4 +1,5 @@
 import type { AccountsMetricsViewModel } from '@/pages/accounts/types/accounts'
+import type { Currency } from '@/api/currency'
 import { formatCurrency } from '@/utils/formatCurrency'
 
 export type MetricDisplay = {
@@ -12,6 +13,7 @@ export type MetricDisplay = {
 export function getSavingsRateDisplay(
   savingsRate: AccountsMetricsViewModel['savingsRate'],
   displayCurrency: string,
+  currencies: Currency[],
 ): MetricDisplay {
   const value =
     !savingsRate.isLoading && savingsRate.value !== null
@@ -22,7 +24,7 @@ export function getSavingsRateDisplay(
   const caption = savingsRate.isLoading
     ? 'Loading savings rate'
     : savingsRate.value !== null
-      ? `${formatCurrency(savingsRate.net, displayCurrency)} of ${formatCurrency(savingsRate.income, displayCurrency)} this month`
+      ? `${formatCurrency(savingsRate.net, displayCurrency, currencies)} of ${formatCurrency(savingsRate.income, displayCurrency, currencies)} this month`
       : savingsRate.hasExpenses
         ? 'No income this month'
         : 'No data this month'
@@ -36,13 +38,14 @@ export function getSavingsRateDisplay(
 export function getCreditUsageDisplay(
   creditUsage: AccountsMetricsViewModel['creditUsage'],
   displayCurrency: string,
+  currencies: Currency[],
 ): MetricDisplay {
   const value =
     !creditUsage.isLoading && creditUsage.hasCreditData ? `${creditUsage.utilization}%` : 'N/A'
   const caption = creditUsage.isLoading
     ? 'Loading credit totals'
     : creditUsage.hasCreditData
-      ? `${formatCurrency(creditUsage.totalUsed, displayCurrency)} of ${formatCurrency(creditUsage.totalLimit, displayCurrency)}`
+      ? `${formatCurrency(creditUsage.totalUsed, displayCurrency, currencies)} of ${formatCurrency(creditUsage.totalLimit, displayCurrency, currencies)}`
       : creditUsage.hasCreditLimits && creditUsage.fxStatus?.state !== 'none'
         ? 'FX unavailable'
         : creditUsage.hasCreditAccounts

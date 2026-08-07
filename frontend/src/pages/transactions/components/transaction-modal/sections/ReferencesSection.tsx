@@ -14,7 +14,7 @@ import type {
   TransactionDirection,
   TransactionModalKind,
 } from '@/pages/transactions/components/transaction-modal/types'
-import { formatCurrency } from '@/utils/formatCurrency'
+import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { getFieldLabelId } from '@/utils/fieldLabel'
 
 type SelectedTransactionTag = {
@@ -103,6 +103,8 @@ interface TransactionReferencesSectionProps {
  * two account dropdowns is currently holding that account
  */
 function RunningBalanceRow({ runningBalance }: { runningBalance?: { amount: number; currency: string } }) {
+  const { formatCurrency } = useMoneyFormatters()
+
   return (
     <AnimatePresence initial={false}>
       {runningBalance && (

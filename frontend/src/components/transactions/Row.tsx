@@ -4,7 +4,7 @@ import { StickyNote, Tag as TagIcon } from 'lucide-react'
 import type { Institution } from '@/api/institutions'
 import type { Category } from '@/api/categories'
 import type { Transaction } from '@/api/transactions'
-import { formatCurrency } from '@/utils/formatCurrency'
+import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { resolveInstitutionLogoUrl } from '@/utils/institutionLogo'
 
 const MAX_VISIBLE_TAGS = 1
@@ -155,6 +155,7 @@ export default function TransactionRow({
   // The row clips its content only while the height animates, so the grow and collapse read cleanly
   // while the resting row still lets a tag tooltip overflow past its edges
   const [isAnimatingHeight, setIsAnimatingHeight] = useState(false)
+  const { formatCurrency } = useMoneyFormatters()
   const categoryName = category?.name ?? 'Uncategorized'
   const categoryIcon = category?.icon ?? DEFAULT_CATEGORY_ICON
   const fallbackTitle = category?.kind === 'transfer' ? 'Transfer' : 'Transaction'

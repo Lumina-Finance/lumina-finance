@@ -1,18 +1,23 @@
 /**
  * Tests the tax-advantaged limit helpers, so the usage percentages, meter labels and plan summaries
  * cannot drift from the contribution room recorded against each plan
+ *
+ * A currency's symbol is written the reader's way, so the amounts below assume the region the suite
+ * pins through LC_ALL in its package script: read from the United States, where US dollars are the
+ * plain ones and Canadian dollars are marked CA$
  */
 import { describe, expect, it } from 'vitest'
 import { getFilteredRows } from '@/pages/accounts/utils/filters'
 import {
   formatTaxAdvantagedMeterMoney,
+  formatTaxAdvantagedRawMoney,
   getLifetimeAvailableBoundary,
   getTaxAdvantagedLimitSummaries,
   getTaxAdvantagedUsageColor,
   getTaxAdvantagedUsagePercent,
   hasTaxAdvantagedLimitTracking,
 } from '@/pages/accounts/utils/taxAdvantagedLimits'
-import { createAccount, createInstitution, createTaxAdvantagedCategory } from './fixtures'
+import { createAccount, createInstitution, createTaxAdvantagedCategory, testCurrencies } from './fixtures'
 
 describe('tax-advantaged limit helpers', () => {
   it('bounds usage percentages and marks over-limit usage as negative', () => {
@@ -23,8 +28,35 @@ describe('tax-advantaged limit helpers', () => {
   })
 
   it('formats compact meter values without losing the currency sign', () => {
-    expect(formatTaxAdvantagedMeterMoney(123_456, 'USD')).toBe('$1K')
-    expect(formatTaxAdvantagedMeterMoney(12_300_000, 'USD')).toBe('$123K')
+    expect(formatTaxAdvantagedMeterMoney(123_456, 'USD', testCurrencies)).toBe('$1K')
+    expect(formatTaxAdvantagedMeterMoney(12_300_000, 'USD', testCurrencies)).toBe('$123K')
+  })
+
+  it('keeps meter amounts whole and unprefixed below the compaction thresholds', () => {
+    // The meter shows this beside the limit it is measured against, so a small amount must match
+    // how that limit is written: no cents, and no "≈" marking one of the pair as approximate
+    expect(formatTaxAdvantagedMeterMoney(50_000, 'CAD', testCurrencies)).toBe('CA$500')
+    expect(formatTaxAdvantagedMeterMoney(0, 'CAD', testCurrencies)).toBe('CA$0')
+  })
+
+  it('shows an amount too small for the meter as zero rather than as a negative', () => {
+    // The meter renders no decimals, and accounting style decides to wrap a negative before it
+    // rounds, so being 40 cents over a limit would otherwise read as (CA$0)
+    expect(formatTaxAdvantagedMeterMoney(-40, 'CAD', testCurrencies)).toBe('CA$0')
+    expect(formatTaxAdvantagedRawMoney(-40, 'CAD', testCurrencies)).toBe('CA$0')
+    // Far enough from zero to keep its sign
+    expect(formatTaxAdvantagedRawMoney(-60, 'CAD', testCurrencies)).toBe('(CA$1)')
+  })
+
+  it('renders tooltip amounts whole, and keeps the suffix inside a negative', () => {
+    expect(formatTaxAdvantagedRawMoney(123_456, 'CAD', testCurrencies)).toBe('CA$1,235')
+    expect(formatTaxAdvantagedMeterMoney(-12_300_000, 'USD', testCurrencies)).toBe('($123K)')
+  })
+
+  it('rounds a compacted meter amount rather than rounding it up', () => {
+    // 1100 major units is 1.1 thousand, which rounds down to one. Rounding up would report a
+    // contribution of CA$2K against a limit the account is nowhere near
+    expect(formatTaxAdvantagedMeterMoney(110_000, 'CAD', testCurrencies)).toBe('CA$1K')
   })
 
   it('shows lifetime available boundary only when accrued room is between used and the lifetime cap', () => {

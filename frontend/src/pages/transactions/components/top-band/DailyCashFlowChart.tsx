@@ -29,7 +29,7 @@ import {
 } from '@/components/charts/rechartsTooltip'
 import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
 import IconTooltip from '@/components/tooltips/IconTooltip'
-import { formatCurrency } from '@/utils/formatCurrency'
+import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { useDeferredMount } from '@/hooks/useDeferredMount'
 import { PLACEHOLDER_DAILY_FLOW } from '@/pages/transactions/components/top-band/constants'
 import {
@@ -82,6 +82,8 @@ function DailyCashFlowTooltipContent({
   displayCurrency: string
   mode: DailyCashFlowChartMode
 }) {
+  const { formatCurrency } = useMoneyFormatters()
+
   return (
     <>
       <ChartTooltipTitle>{point.rangeLabel}</ChartTooltipTitle>

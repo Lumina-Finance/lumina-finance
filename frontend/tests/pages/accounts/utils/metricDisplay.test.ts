@@ -8,6 +8,7 @@ import {
   getCreditUsageDisplay,
   getSavingsRateDisplay,
 } from '@/pages/accounts/utils/metricDisplay'
+import { testCurrencies } from './fixtures'
 
 describe('account metric display helpers', () => {
   it('formats savings rate empty states for accounts with expenses and no income', () => {
@@ -22,7 +23,7 @@ describe('account metric display helpers', () => {
       fxStatus: undefined,
     }
 
-    expect(getSavingsRateDisplay(savingsRate, 'USD')).toEqual({
+    expect(getSavingsRateDisplay(savingsRate, 'USD', testCurrencies)).toEqual({
       value: '−∞%',
       caption: 'No income this month',
     })
@@ -41,7 +42,7 @@ describe('account metric display helpers', () => {
       fxStatus: { state: 'unavailable', missing_pairs: [] },
     }
 
-    expect(getCreditUsageDisplay(creditUsage, 'USD')).toEqual({
+    expect(getCreditUsageDisplay(creditUsage, 'USD', testCurrencies)).toEqual({
       value: 'N/A',
       caption: 'FX unavailable',
     })

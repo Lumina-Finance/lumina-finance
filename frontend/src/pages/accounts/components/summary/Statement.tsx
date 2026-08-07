@@ -1,4 +1,4 @@
-import { formatCurrency } from '@/utils/formatCurrency'
+import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import type { FxStatus } from '@/api/shared/fx'
 import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
 import { getAccountSummaryFxStatusMessage } from '@/pages/accounts/utils/fxTooltipMessages'
@@ -31,6 +31,8 @@ export default function SummaryStatement({
   displayCurrency,
   fxStatus,
 }: SummaryStatementProps) {
+  const { formatCurrency } = useMoneyFormatters()
+
   if (error) {
     return (
       <p className="py-2 font-medium" style={{ color: 'var(--app-negative)' }}>

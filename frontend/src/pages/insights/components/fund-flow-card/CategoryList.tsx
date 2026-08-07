@@ -4,7 +4,7 @@ import { ChevronDown } from 'lucide-react'
 import { InsightCalculationTooltip } from '@/pages/insights/components/CalculationTooltip'
 import type { InsightsFlowEntry } from '@/api/insights'
 import { joinClassNames } from '@/utils/classNames'
-import { formatCurrency } from '@/utils/formatCurrency'
+import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 
 type FundFlowCategoryListProps = {
   title: string
@@ -36,6 +36,7 @@ export function FundFlowCategoryList({
 }: FundFlowCategoryListProps) {
   const listId = useId()
   const shouldReduceMotion = useReducedMotion()
+  const { formatCurrency } = useMoneyFormatters()
   const totalCount = normalEntries.length + flippedEntries.length
   const displayCount = flippedEntries.length > 0
     ? `${normalEntries.length} + ${flippedEntries.length}`

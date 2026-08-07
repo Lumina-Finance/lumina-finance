@@ -1,4 +1,5 @@
 import { RunwayHelpTooltip } from '@/components/tooltips/RunwayHelpTooltip'
+import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import type { AccountsMetricsViewModel } from '@/pages/accounts/types/accounts'
 import {
   getCreditUsageDisplay,
@@ -23,9 +24,10 @@ export default function MetricsBand({
   metrics,
   displayCurrency,
 }: MetricsBandProps) {
+  const { currencies } = useMoneyFormatters()
   const { savingsRate, creditUsage, runway } = metrics
-  const savingsRateDisplay = getSavingsRateDisplay(savingsRate, displayCurrency)
-  const creditUsageDisplay = getCreditUsageDisplay(creditUsage, displayCurrency)
+  const savingsRateDisplay = getSavingsRateDisplay(savingsRate, displayCurrency, currencies)
+  const creditUsageDisplay = getCreditUsageDisplay(creditUsage, displayCurrency, currencies)
 
   return (
     <section>

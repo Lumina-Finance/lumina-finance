@@ -1,4 +1,5 @@
 import { AppScrambledNumber } from '@/components/display/ScrambledNumber'
+import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { formatDashboardMoney } from '@/pages/dashboard/utils/formatDashboardMoney'
 import type { CreditUsageSummary } from '@/pages/dashboard/utils/getCreditUsageSummary'
 
@@ -21,6 +22,7 @@ export function CreditUsageBody({
     hasCredit,
     tierColor,
   } = summary
+  const { currencies } = useMoneyFormatters()
 
   const size = 120
   const strokeWidth = 10
@@ -68,10 +70,10 @@ export function CreditUsageBody({
       </div>
       <div className="min-w-0">
         <p className="font-financial text-3xl font-normal leading-none tracking-tight max-[1000px]:text-[1.6875rem]">
-          <AppScrambledNumber text={formatDashboardMoney(displayAmount, displayCurrency, 'credit')} />
+          <AppScrambledNumber text={formatDashboardMoney(displayAmount, displayCurrency, 'credit', currencies)} />
         </p>
         <p className="font-financial mt-1.5 text-sm max-[1000px]:text-[0.7875rem]" style={{ color: 'var(--app-text-muted)' }}>
-          of <AppScrambledNumber text={formatDashboardMoney(creditAvailable, displayCurrency, 'credit')} />
+          of <AppScrambledNumber text={formatDashboardMoney(creditAvailable, displayCurrency, 'credit', currencies)} />
         </p>
       </div>
     </div>

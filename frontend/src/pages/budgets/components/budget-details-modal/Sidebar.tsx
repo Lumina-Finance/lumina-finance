@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type UIEvent } from 'react'
 import { Pencil, Trash2, X } from 'lucide-react'
 import type { BaseBudget, Budget, BudgetUtilization } from '@/api/budgets'
-import { formatCurrency } from '@/utils/formatCurrency'
+import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import MarqueeText from '@/components/display/MarqueeText'
 import ScrollableListMoreButton from '@/components/list-controls/MoreButton'
 import ArchivedPill from '@/pages/budgets/components/shared/ArchivedPill'
@@ -62,6 +62,7 @@ export default function BudgetDetailsSidebar({
   onDelete,
 }: BudgetDetailsSidebarProps) {
   const trackedCategoryListRef = useRef<HTMLDivElement | null>(null)
+  const { formatCurrency } = useMoneyFormatters()
   const [trackedCategoryListScrollable, setTrackedCategoryListScrollable] = useState(false)
   const [trackedCategoryListAtBottom, setTrackedCategoryListAtBottom] = useState(false)
   const showTrackedCategoryListMoreIndicator = trackedCategoryListScrollable && !trackedCategoryListAtBottom

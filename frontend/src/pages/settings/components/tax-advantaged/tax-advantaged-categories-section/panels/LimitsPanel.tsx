@@ -5,7 +5,7 @@ import type {
   TaxAdvantagedCategory,
   TaxAdvantagedCategoryLimit,
 } from '@/api/tax-advantaged-categories'
-import { formatCurrency } from '@/utils/formatCurrency'
+import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { LIMIT_DELETE_BUTTON_TRANSITION } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/constants'
 import TaxAdvantagedOpeningUsageLabel from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/controls/OpeningUsageLabel'
 
@@ -51,6 +51,8 @@ export default function TaxAdvantagedLimitsPanel({
   showAddTaxYear,
   sortedLimits,
 }: TaxAdvantagedLimitsPanelProps) {
+  const { formatCurrency } = useMoneyFormatters()
+
   return (
     <div className="space-y-5">
       <div className="space-y-2 border-b pb-4" style={{ borderColor: 'var(--app-border)' }}>

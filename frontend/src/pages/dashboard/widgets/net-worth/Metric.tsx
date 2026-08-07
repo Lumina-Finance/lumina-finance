@@ -1,3 +1,5 @@
+import type { Currency } from '@/api/currency'
+import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { formatDashboardMoney } from '@/pages/dashboard/utils/formatDashboardMoney'
 
 type NetWorthMetricProps = {
@@ -9,9 +11,9 @@ type NetWorthMetricProps = {
 /**
  * Formats dashboard net worth movement with an explicit positive or negative sign
  */
-function formatNetWorthChange(amount: number, currency: string) {
-  if (amount === 0) return formatDashboardMoney(0, currency, 'netWorth')
-  return `${amount > 0 ? '+' : '-'}${formatDashboardMoney(Math.abs(amount), currency, 'netWorth')}`
+function formatNetWorthChange(amount: number, currency: string, currencies: Currency[]) {
+  if (amount === 0) return formatDashboardMoney(0, currency, 'netWorth', currencies)
+  return `${amount > 0 ? '+' : '-'}${formatDashboardMoney(Math.abs(amount), currency, 'netWorth', currencies)}`
 }
 
 /**
@@ -22,6 +24,7 @@ export function NetWorthMetric({
   netWorthChange,
   displayCurrency,
 }: NetWorthMetricProps) {
+  const { currencies } = useMoneyFormatters()
   const netWorthColor = netWorth < 0 ? 'var(--app-negative)' : 'var(--app-text)'
   const netWorthChangeColor =
     netWorthChange == null || netWorthChange === 0
@@ -36,15 +39,15 @@ export function NetWorthMetric({
         className="min-w-0 font-financial font-normal tracking-tight leading-none text-3xl max-[1000px]:text-[1.6875rem]"
         style={{ color: netWorthColor }}
       >
-        {formatDashboardMoney(netWorth, displayCurrency, 'netWorth')}
+        {formatDashboardMoney(netWorth, displayCurrency, 'netWorth', currencies)}
       </p>
       {netWorthChange != null && (
         <p
           className="shrink-0 pb-0.5 font-financial text-sm font-medium leading-none max-[1000px]:text-xs"
           style={{ color: netWorthChangeColor }}
-          aria-label={`Net worth change ${formatNetWorthChange(netWorthChange, displayCurrency)}`}
+          aria-label={`Net worth change ${formatNetWorthChange(netWorthChange, displayCurrency, currencies)}`}
         >
-          {formatNetWorthChange(netWorthChange, displayCurrency)}
+          {formatNetWorthChange(netWorthChange, displayCurrency, currencies)}
         </p>
       )}
     </div>

@@ -9,7 +9,7 @@ import {
 import CursorTooltipPortal from '@/components/charts/CursorTooltipPortal'
 import type { RunwaySegment } from '@/pages/dashboard/types/dashboard'
 import { useCursorTooltip } from '@/hooks/useCursorTooltip'
-import { formatCurrency } from '@/utils/formatCurrency'
+import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 
 type RunwaySegmentsBarProps = {
   segments: RunwaySegment[]
@@ -42,6 +42,7 @@ export function RunwaySegmentsBar({
   displayCurrency,
   tooltipOriginRef,
 }: RunwaySegmentsBarProps) {
+  const { formatCurrency } = useMoneyFormatters()
   const {
     tooltipRef,
     tooltipItem: hoveredSegment,

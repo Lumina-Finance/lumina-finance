@@ -1,6 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useCallback, startTransition, lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation, type Location } from 'react-router'
 import { AnimatePresence, motion } from 'motion/react'
+import { useCurrencies } from '@/api/currency'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { NavCollapseProvider } from '@/contexts/NavCollapseContext'
 import { ToastProvider } from '@/contexts/ToastContext'
@@ -10,6 +11,7 @@ import { useCacheValidation } from '@/hooks/useCacheValidation'
 import { useTheme } from '@/hooks/useTheme'
 import Navigation from '@/components/navigation/Navigation'
 import ErrorBoundary from '@/components/errors/Boundary'
+import Fallback from '@/components/errors/Fallback'
 import LoadingScreen from '@/components/loading/Screen'
 import ForcedReenrollScreen from '@/components/two-factor/ForcedReenrollScreen'
 
@@ -88,7 +90,31 @@ function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase, 
   // Only show loading screen if there's a session being restored or user just authenticated
   const shouldShowLoading = loading || (!hasShownLoadingScreen && user);
   const [minTimePassed, setMinTimePassed] = useState(hasShownLoadingScreen);
-  const ready = !loading && minTimePassed;
+  // No amount can be rendered before the currency list arrives, since each currency's decimal places
+  // live in it and the browser's own figures disagree with it for 16 codes. Waiting here means every
+  // screen below paints its amounts once and correctly, rather than at a guessed scale that then jumps
+  //
+  // The wait is bounded by the request rather than by a timer here, so it survives this component
+  // remounting on every navigation and needs nothing reset. useCurrencies aborts at five seconds and
+  // does not retry, so this is pending for at most that long and then either has the list or has failed
+  const { isPending: currenciesPending, isError: currenciesFailed, error: currencyError } = useCurrencies();
+  const ready = !loading && minTimePassed && !currenciesPending;
+
+  // Failing means the recovery screen rather than the app, because every screen below shows money and
+  // none can show it correctly without the list
+  //
+  // Deliberately not held back until the session is known, though that does cost something. A visitor
+  // whose stored session turns out to be stale sees this screen until the session request answers and
+  // the redirect above wins, which is immediate on a fresh load but at least 750ms after a browser
+  // reload, since the session restore is held back that long, and longer again behind a slow server.
+  // A valid session that answers slowly can see it too, cutting the minimum loading screen short
+  //
+  // It buys more than it costs. The session request carries no timeout of its own, so a network that
+  // swallows packets leaves it pending forever, and waiting on it would strand that user on the
+  // loading screen with no reload button rather than on this screen with one. Every one of these
+  // cases means the server is unreachable, and the screen saying so is the better answer to all of
+  // them
+  const currencyListUnavailable = currenciesFailed;
 
   // The loading phase runs after the switch while the new route's chunk mounts
   const routeLoading = pageTransitionPhase === 'loading';
@@ -109,7 +135,7 @@ function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase, 
     return () => cancelAnimationFrame(frame);
   }, [ready]);
 
-  useCacheValidation(user?.id, Boolean(user && ready));
+  useCacheValidation(user?.id, Boolean(user && ready && !currencyListUnavailable));
 
   // Hold the route loader back until the chunk has stayed pending past the delay so
   // cached or fast navigations never flash the spinner, and clear the flag on
@@ -138,6 +164,13 @@ function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase, 
 
   // A recovery-code login holds the account to re-enrolment before any route renders
   if (user?.second_factor_reenrollment_required) return <ForcedReenrollScreen />;
+
+  // Nothing retries this on its own, not a refocus, a reconnect, or the remount every navigation
+  // performs, so it stands until the user reloads, which is what the screen asks them to do. It says
+  // so in its own words when the reason is that the server cannot be reached
+  if (currencyListUnavailable) {
+    return <Fallback componentStack={null} error={currencyError} preserveStoredData variant="screen" />;
+  }
 
   // The Routes subtree remounts on each path change, so this wrapper is recreated
   // per navigation and must start hidden through both loading and entering, otherwise

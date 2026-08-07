@@ -4,6 +4,7 @@ import type {
   SavingsRateWidgetResponse,
 } from '@/api/dashboard'
 import type { RunwayResult } from '@/api/user'
+import type { Currency } from '@/api/currency'
 import type { AccountsMetricsViewModel } from '@/pages/accounts/types/accounts'
 import { formatCurrency } from '@/utils/formatCurrency'
 import {
@@ -102,6 +103,7 @@ export function getRunwayMetric(
   runway: RunwayResult | undefined,
   isLoading: boolean,
   displayCurrency: string,
+  currencies: Currency[],
 ): AccountsMetricsViewModel['runway'] {
   const months = runway?.months ?? null
   const bandKey = runwayBand(months, runway?.thresholds)
@@ -114,7 +116,7 @@ export function getRunwayMetric(
         ? 'Choose accounts in Settings'
         : runway.reason === 'insufficient_history'
           ? 'Need 1+ month of net expense data'
-          : `${formatCurrency(runway.avg_monthly_expense, displayCurrency)}/mth · ${formatRunwayBasis(runway.months_covered)}`
+          : `${formatCurrency(runway.avg_monthly_expense, displayCurrency, currencies)}/mth · ${formatRunwayBasis(runway.months_covered)}`
 
   return {
     label: formatCompactRunway(months),

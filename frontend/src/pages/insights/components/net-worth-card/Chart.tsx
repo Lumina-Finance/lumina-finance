@@ -25,8 +25,8 @@ import {
   getChartDataSignature,
   useChartEntranceAnimation,
 } from '@/components/charts/useChartEntranceAnimation'
+import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { DASHBOARD_X_AXIS_TICK_FONT_SIZE } from '@/pages/dashboard/constants/chart'
-import { formatCurrency } from '@/utils/formatCurrency'
 import {
   NET_WORTH_AXIS_TICK_COUNT,
   formatNetWorthAxisDate,
@@ -159,6 +159,7 @@ function NetWorthChartTooltipContent({
   displayCurrency: string
   mode: NetWorthViewMode
 }) {
+  const { currencies, formatCurrency } = useMoneyFormatters()
   const detailItems = items.map((item, index) => ({ item, index }))
   const displayedNetWorth = mode === 'composition'
     ? detailItems.reduce((sum, { index }) => sum + Number(point[getValueKey(index)] ?? 0), 0)
@@ -175,7 +176,7 @@ function NetWorthChartTooltipContent({
       {mode === 'overview' && (
         <ChartTooltipRow
           label="Change"
-          value={formatSignedNetWorthCurrency(point.totalChange, displayCurrency)}
+          value={formatSignedNetWorthCurrency(point.totalChange, displayCurrency, currencies)}
           financialValue
         />
       )}
@@ -195,7 +196,7 @@ function NetWorthChartTooltipContent({
                   {mode === 'overview' && (
                     <>
                       {' '}
-                      ({formatSignedNetWorthCurrency(change, displayCurrency)})
+                      ({formatSignedNetWorthCurrency(change, displayCurrency, currencies)})
                     </>
                   )}
                 </>
@@ -223,6 +224,7 @@ export function NetWorthChart({
 }: NetWorthChartProps) {
   const chartRef = useRef<HTMLDivElement>(null)
   const tooltipRef = useRef<DeferredChartTooltipOverlayHandle<NetWorthDeltaPoint>>(null)
+  const { currencies } = useMoneyFormatters()
   const hasChartData = groups.length > 0 && deltaSeries.length > 0
   const dateAxisStartMs = deltaSeries[0]?.dateMs ?? 0
   const dateAxisEndMs = deltaSeries.at(-1)?.dateMs ?? dateAxisStartMs
@@ -238,7 +240,7 @@ export function NetWorthChart({
     () => new Map(deltaSeries.map((point) => [point.dateMs, point])),
     [deltaSeries],
   )
-  const startNetWorthAxisLabel = formatNetWorthAxisMoney(deltaSeries[0]?.startTotal ?? 0, displayCurrency)
+  const startNetWorthAxisLabel = formatNetWorthAxisMoney(deltaSeries[0]?.startTotal ?? 0, displayCurrency, currencies)
   const startNetWorthLabelPoint = mode === 'overview' ? deltaSeries[0] : undefined
   const startNetWorthLabelY = startNetWorthLabelPoint
     ? getNetWorthFirstBarLabelY(startNetWorthLabelPoint, chartItems)

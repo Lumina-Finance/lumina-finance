@@ -29,7 +29,7 @@ import {
   type SavingsRateTier,
 } from '@/pages/insights/utils/savingsRateChart'
 import { formatSavingsRateValue } from '@/pages/insights/utils/money'
-import { formatCurrency } from '@/utils/formatCurrency'
+import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 
 type SavingsRateTooltipState = {
   activeLabel?: string | number
@@ -91,6 +91,8 @@ function SavingsRateHistoryTooltipContent({
   point: SavingsRateHistoryPoint
   displayCurrency: string
 }) {
+  const { formatCurrency } = useMoneyFormatters()
+
   return (
     <>
       <ChartTooltipTitle>{point.fullLabel}</ChartTooltipTitle>

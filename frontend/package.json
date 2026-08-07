@@ -9,8 +9,8 @@
     "build:app": "tsc -b tsconfig.app.json tsconfig.node.json && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "LC_ALL=en-US vitest run",
+    "test:watch": "LC_ALL=en-US vitest"
   },
   "dependencies": {
     "@fontsource-variable/cormorant-garamond": "^5.3.0",

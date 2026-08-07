@@ -18,6 +18,7 @@ import {
   BREAKDOWN_PIE_ANIMATION_MS,
 } from '@/pages/dashboard/constants/animation'
 import { useCursorTooltip, type CursorTooltipPointer } from '@/hooks/useCursorTooltip'
+import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { formatDashboardMoney } from '@/pages/dashboard/utils/formatDashboardMoney'
 import {
   getSpendingBreakdownEntryColor,
@@ -111,6 +112,7 @@ export function SpendingBreakdownChart({
   shouldReduceMotion,
 }: SpendingBreakdownChartProps) {
   const chartRef = useRef<HTMLDivElement>(null)
+  const { currencies } = useMoneyFormatters()
   const {
     tooltipRef,
     tooltipItem: hoveredEntry,
@@ -136,7 +138,7 @@ export function SpendingBreakdownChart({
           Total {breakdownMode === 'spending' ? 'Expense' : 'Income'}
         </span>
         <span className="font-financial mt-1 text-3xl font-normal tracking-tight max-[1000px]:text-[1.6875rem]">
-          <AppScrambledNumber text={formatDashboardMoney(total, displayCurrency, 'breakdown')} />
+          <AppScrambledNumber text={formatDashboardMoney(total, displayCurrency, 'breakdown', currencies)} />
         </span>
       </div>
       <AnimatePresence initial={false}>

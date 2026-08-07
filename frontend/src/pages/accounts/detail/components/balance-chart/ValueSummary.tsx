@@ -1,5 +1,5 @@
 import { TrendingDown, TrendingUp } from 'lucide-react'
-import { formatCurrency } from '@/utils/formatCurrency'
+import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import type { BalanceChartSnapshot } from '@/pages/accounts/detail/utils/balanceChartViewModel'
 
 type BalanceValueSummaryProps = {
@@ -10,6 +10,8 @@ type BalanceValueSummaryProps = {
  * Renders the current balance and selected-range movement summary above the chart
  */
 export function BalanceValueSummary({ snapshot }: BalanceValueSummaryProps) {
+  const { formatCurrency } = useMoneyFormatters()
+
   return (
     <div className="mb-4">
       <p

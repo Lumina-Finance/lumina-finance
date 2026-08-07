@@ -1,5 +1,5 @@
 import type { BaseBudget, Budget, BudgetUtilization } from '@/api/budgets'
-import { formatCurrency } from '@/utils/formatCurrency'
+import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import BudgetCategoryRow from '@/pages/budgets/components/budget-card/CategoryRow'
 import ArchivedPill from '@/pages/budgets/components/shared/ArchivedPill'
 import BudgetAttentionIcon from '@/pages/budgets/components/shared/AttentionIcon'
@@ -26,6 +26,7 @@ export default function BudgetCard({
   isArchived?: boolean
   onOpen: () => void
 }) {
+  const { formatCurrency } = useMoneyFormatters()
   const shownCategories = categoryNames.length > 3 ? categoryNames.slice(0, 2) : categoryNames.slice(0, 3)
   const extraCategoryCount = Math.max(categoryNames.length - shownCategories.length, 0)
   const spent = utilization?.total_spent ?? 0

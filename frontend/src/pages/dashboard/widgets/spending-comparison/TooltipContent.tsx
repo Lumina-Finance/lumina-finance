@@ -8,7 +8,7 @@ import {
   PREVIOUS_LABEL_BY_RANGE,
 } from '@/pages/dashboard/constants/ranges'
 import type { SpendingComparisonSeriesPoint } from '@/pages/dashboard/types/dashboard'
-import { formatCurrency } from '@/utils/formatCurrency'
+import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 
 type SpendingComparisonTooltipContentProps = {
   point: SpendingComparisonSeriesPoint
@@ -24,6 +24,7 @@ export function SpendingComparisonTooltipContent({
   displayCurrency,
   spendingRange,
 }: SpendingComparisonTooltipContentProps) {
+  const { formatCurrency } = useMoneyFormatters()
   const rows = [
     {
       key: 'current',

@@ -1,6 +1,6 @@
 import type { AccountsOverview } from '@/api/accounts'
 import type { TaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
-import { formatCurrency } from '@/utils/formatCurrency'
+import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 
 interface TaxAdvantagedAccountLinksPanelProps {
   accountError: string | null
@@ -22,6 +22,8 @@ export default function TaxAdvantagedAccountLinksPanel({
   pendingAccountId,
   plan,
 }: TaxAdvantagedAccountLinksPanelProps) {
+  const { formatCurrency } = useMoneyFormatters()
+
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
       <div className="shrink-0">

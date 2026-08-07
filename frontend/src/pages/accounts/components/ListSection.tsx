@@ -1,7 +1,7 @@
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import type { AccountsOverview } from '@/api/accounts'
 import type { TaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
-import { formatCurrency } from '@/utils/formatCurrency'
+import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import AccountRow from '@/pages/accounts/components/Row'
 import type { AccountAccent } from '@/pages/accounts/types/accounts'
 
@@ -32,6 +32,7 @@ export default function AccountListSection({
   loading?: boolean
 }) {
   const prefersReducedMotion = useReducedMotion()
+  const { formatCurrency } = useMoneyFormatters()
   const titleColor = accent === 'positive' ? 'var(--app-positive)' : 'var(--app-negative)'
   const subtotalColor = accent === 'positive'
     ? subtotal >= 0 ? 'var(--app-positive)' : 'var(--app-negative)'

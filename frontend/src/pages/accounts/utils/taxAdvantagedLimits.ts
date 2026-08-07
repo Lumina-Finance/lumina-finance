@@ -1,6 +1,9 @@
 import type { AccountsOverview } from '@/api/accounts'
+import type { Currency } from '@/api/currency'
 import type { TaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
 import type { TaxAdvantagedLimitSummary } from '@/pages/accounts/types/accounts'
+import { type CompactMoneyRule, formatCompactMoney } from '@/utils/formatCompactMoney'
+import { formatMajorUnits, toMajorUnits } from '@/utils/formatCurrency'
 
 /**
  * Chooses the usage colour for tax-advantaged contribution and withdrawal meters
@@ -37,66 +40,40 @@ export function getTaxAdvantagedRemainingColor(remaining: number): string {
   return 'var(--app-accent)'
 }
 
-function getMajorCurrencyAmount(minorUnits: number, currency: string): number {
-  const formatter = new Intl.NumberFormat(undefined, { style: 'currency', currency })
-  const exponent = formatter.resolvedOptions().maximumFractionDigits ?? 2
-  return minorUnits / Math.pow(10, exponent) || 0
-}
-
-function formatNoDecimalCurrency(value: number, currency: string): string {
-  return new Intl.NumberFormat(undefined, {
-    style: 'currency',
-    currency,
-    currencySign: 'accounting',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value)
-}
-
-/**
- * Adds a compact suffix after the final numeric part of a currency amount
- */
-function formatNoDecimalCurrencyWithSuffix(
-  value: number,
-  currency: string,
-  suffix: 'K' | 'M',
-): string {
-  const formatter = new Intl.NumberFormat(undefined, {
-    style: 'currency',
-    currency,
-    currencySign: 'accounting',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  })
-  const parts = formatter.formatToParts(value)
-  const numberPartTypes = new Set(['integer', 'group'])
-  const suffixIndex = parts.findLastIndex((part) => numberPartTypes.has(part.type))
-
-  return parts
-    .map((part, index) => `${part.value}${index === suffixIndex ? suffix : ''}`)
-    .join('')
-}
+// The meters read at a glance beside a progress bar, so every amount on them is whole, both the
+// compacted ones and the ones small enough to render in full
+const METER_MONEY_RULES: CompactMoneyRule[] = [
+  { threshold: 1_000_000, divisor: 1_000_000, suffix: 'M', fractionDigits: 0 },
+  { threshold: 1_000, divisor: 1_000, suffix: 'K', fractionDigits: 0 },
+]
 
 /**
  * Formats compact meter amounts without decimals while preserving currency symbols
+ *
+ * No "≈" prefix, unlike the dashboard's compact amounts: the meter shows the figure beside the limit
+ * it is measured against, where a marker of approximation on one and not the other would read as a
+ * difference between them
  */
-export function formatTaxAdvantagedMeterMoney(amount: number, currency: string): string {
-  const majorUnits = getMajorCurrencyAmount(amount, currency)
-  const absoluteMajorUnits = Math.abs(majorUnits)
-  if (absoluteMajorUnits >= 1_000_000) {
-    return formatNoDecimalCurrencyWithSuffix(majorUnits / 1_000_000, currency, 'M')
-  }
-  if (absoluteMajorUnits >= 1_000) {
-    return formatNoDecimalCurrencyWithSuffix(majorUnits / 1_000, currency, 'K')
-  }
-  return formatNoDecimalCurrency(majorUnits, currency)
+export function formatTaxAdvantagedMeterMoney(
+  amount: number,
+  currency: string,
+  currencies: Currency[],
+): string {
+  return formatCompactMoney(amount, currency, METER_MONEY_RULES, currencies, {
+    prefix: '',
+    plainFractionDigits: 0,
+  })
 }
 
 /**
  * Formats full tax-advantaged limit amounts for tooltip rows
  */
-export function formatTaxAdvantagedRawMoney(amount: number, currency: string): string {
-  return formatNoDecimalCurrency(getMajorCurrencyAmount(amount, currency), currency)
+export function formatTaxAdvantagedRawMoney(
+  amount: number,
+  currency: string,
+  currencies: Currency[],
+): string {
+  return formatMajorUnits(toMajorUnits(amount, currency, currencies), currency, 0)
 }
 
 /**

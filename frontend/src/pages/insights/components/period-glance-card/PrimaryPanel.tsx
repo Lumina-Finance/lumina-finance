@@ -3,7 +3,7 @@ import type { FxStatus } from '@/api/shared/fx'
 import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
 import type { PeriodGlancePrimaryMetric } from '@/pages/insights/types/periodGlance'
 import { getPeriodIncomeExpenseFxStatusMessage } from '@/pages/insights/utils/fxTooltipMessages'
-import { formatCurrency } from '@/utils/formatCurrency'
+import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { InsightCalculationTooltip } from '@/pages/insights/components/CalculationTooltip'
 import { getPeriodGlanceToneClass } from './display'
 import { useFittedPrimaryAmount } from './useFittedPrimaryAmount'
@@ -26,6 +26,7 @@ export function PeriodGlancePrimaryPanel({
   incomeExpenseFxStatus,
   displayCurrency,
 }: PeriodGlancePrimaryPanelProps) {
+  const { formatCurrency } = useMoneyFormatters()
   const [primaryAmountRef, primaryAmountFontSizeRem, primaryAmountMaxRem] = useFittedPrimaryAmount(primaryMetric.value)
   const primaryAmountStyle: CSSProperties | undefined =
     primaryAmountFontSizeRem < primaryAmountMaxRem ? { fontSize: `${primaryAmountFontSizeRem}rem` } : undefined

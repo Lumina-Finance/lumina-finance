@@ -6,8 +6,8 @@ import {
   LoadingOverlay,
 } from '@/components/loading/Transition'
 import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
+import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { getInsightsNetWorthFxStatusMessage } from '@/pages/insights/utils/fxTooltipMessages'
-import { formatCurrency } from '@/utils/formatCurrency'
 import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
 import { InsightCalculationTooltip } from '@/pages/insights/components/CalculationTooltip'
 import { InsightActionButton } from '@/pages/insights/components/ActionButton'
@@ -69,6 +69,7 @@ export function NetWorthCard({
   loading = false,
   transitionKey,
 }: NetWorthCardProps) {
+  const { currencies, formatCurrency } = useMoneyFormatters()
   const incomingSnapshot = useMemo<NetWorthSnapshot>(() => ({
     mode,
     groups,
@@ -153,7 +154,7 @@ export function NetWorthCard({
                   </p>
                   <div className="flex items-center gap-1.5 text-sm font-medium leading-none" style={{ color: netWorthTrendColor }}>
                     <NetWorthTrendIcon size={14} aria-hidden />
-                    <span className="font-financial">{formatSignedNetWorthCurrency(latestChange, displaySnapshot.displayCurrency)}</span>
+                    <span className="font-financial">{formatSignedNetWorthCurrency(latestChange, displaySnapshot.displayCurrency, currencies)}</span>
                     <span style={{ color: 'var(--app-text-subtle)' }}>since start</span>
                   </div>
                 </div>

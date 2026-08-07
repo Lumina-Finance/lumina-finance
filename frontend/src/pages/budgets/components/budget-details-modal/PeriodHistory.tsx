@@ -1,4 +1,4 @@
-import { formatCurrency } from '@/utils/formatCurrency'
+import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { formatBudgetPeriod } from '@/pages/budgets/utils/budgetPeriods'
 import type { BudgetPeriodHistoryEntry } from '@/pages/budgets/utils/budgetDetails'
 
@@ -18,6 +18,8 @@ export default function BudgetPeriodHistory({
   loading,
   error,
 }: BudgetPeriodHistoryProps) {
+  const { formatCurrency } = useMoneyFormatters()
+
   return (
     <section className="min-[1050px]:flex min-[1050px]:min-h-0 min-[1050px]:flex-1 min-[1050px]:flex-col">
       <h3 className="text-base font-semibold" style={{ color: 'var(--app-text)' }}>Period history</h3>

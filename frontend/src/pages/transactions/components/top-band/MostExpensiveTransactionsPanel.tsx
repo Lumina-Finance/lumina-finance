@@ -3,7 +3,7 @@ import type { FxStatus } from '@/api/shared/fx'
 import type { OutlierTransaction } from '@/api/transactions'
 import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
 import IconTooltip from '@/components/tooltips/IconTooltip'
-import { formatCurrency } from '@/utils/formatCurrency'
+import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import {
   OUTLIER_TRANSACTION_LIMIT,
   OUTLIER_TRANSACTION_ROW_GAP,
@@ -35,6 +35,7 @@ export default function MostExpensiveTransactionsPanel({
   onOpenOutlierTransaction: (transactionId: string) => void
   className?: string
 }) {
+  const { formatCurrency } = useMoneyFormatters()
   const contentTransition = { duration: prefersReducedMotion ? 0 : 0.24, ease: [0.25, 0.1, 0.25, 1] } as const
 
   return (

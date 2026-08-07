@@ -1,5 +1,5 @@
 import { AlertTriangle } from 'lucide-react'
-import { formatCurrency } from '@/utils/formatCurrency'
+import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 
 type ArchiveBalanceWarningProps = {
   balance: number
@@ -13,6 +13,7 @@ export function ArchiveBalanceWarning({
   balance,
   currency,
 }: ArchiveBalanceWarningProps) {
+  const { formatCurrency } = useMoneyFormatters()
   const adjustmentAmount = -balance
   const hasBalance = balance !== 0
 

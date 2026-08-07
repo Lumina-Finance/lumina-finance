@@ -1,4 +1,4 @@
-import { formatCurrency } from '@/utils/formatCurrency'
+import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import {
   getTaxAdvantagedUsageColor,
   getTaxAdvantagedUsagePercent,
@@ -20,6 +20,8 @@ export function DetailLimitUsage({
   limit,
   currency,
 }: DetailLimitUsageProps) {
+  const { formatCurrency } = useMoneyFormatters()
+
   if (limit === null) {
     return (
       <div>

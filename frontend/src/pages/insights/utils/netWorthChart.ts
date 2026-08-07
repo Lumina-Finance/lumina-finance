@@ -1,3 +1,4 @@
+import type { Currency } from '@/api/currency'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { formatCompactMoney, type CompactMoneyRule } from '@/utils/formatCompactMoney'
 import { DATE_FORMATS, formatDate, parseYmd } from '@/utils/date'
@@ -66,16 +67,16 @@ const netWorthAxisMoneyRules: CompactMoneyRule[] = [
 /**
  * Formats signed currency changes without showing a sign for unchanged values
  */
-export function formatSignedNetWorthCurrency(amount: number, currency: string) {
-  if (amount === 0) return formatCurrency(amount, currency)
-  return `${amount > 0 ? '+' : '-'}${formatCurrency(Math.abs(amount), currency)}`
+export function formatSignedNetWorthCurrency(amount: number, currency: string, currencies: Currency[]) {
+  if (amount === 0) return formatCurrency(amount, currency, currencies)
+  return `${amount > 0 ? '+' : '-'}${formatCurrency(Math.abs(amount), currency, currencies)}`
 }
 
 /**
  * Formats a net worth chart axis value with K/M compaction rules and no currency prefix
  */
-export function formatNetWorthAxisMoney(value: number, currency: string) {
-  return formatCompactMoney(value, currency, netWorthAxisMoneyRules, { prefix: '' })
+export function formatNetWorthAxisMoney(value: number, currency: string, currencies: Currency[]) {
+  return formatCompactMoney(value, currency, netWorthAxisMoneyRules, currencies, { prefix: '' })
 }
 
 /**

@@ -44,8 +44,10 @@ export default defineConfig({
     baseURL: BASE_URL,
     timezoneId: TEST_TIMEZONE,
 
-    // Amounts are formatted with the browser's own locale, so an unpinned runner renders a
-    // Canadian dollar amount as CA$42.50 where this one renders $42.50
+    // Money is written the way the reader's own region writes it, so this decides how the currency
+    // symbols in these tests render and cannot be removed without rewriting their expectations. The
+    // suite spends Canadian dollars, which this renders as $42.50. Dropped, a runner set to the
+    // United States renders the same amount CA$42.50 and every assertion naming a symbol fails
     locale: 'en-CA',
 
     trace: 'retain-on-failure',
