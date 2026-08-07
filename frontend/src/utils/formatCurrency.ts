@@ -1,7 +1,7 @@
 import type { Currency } from '@/api/currency'
-import { getCurrencyExponent } from '@/utils/moneyInput'
+import { DEFAULT_MINOR_UNIT_EXPONENT, findCurrencyExponent } from '@/utils/moneyInput'
 
-// Every amount the product renders goes through this locale, so a browser configured for another
+// Every amount rendered as money goes through this locale, so a browser configured for another
 // region still sees one currency convention. Under it CAD is "$" and USD is "US$", which keeps the
 // two apart on a screen holding both. Kept separate from DATE_LOCALE in utils/date.ts, since the
 // date convention and the currency convention could diverge later
@@ -28,14 +28,42 @@ export function createMoneyFormatter(currency: string, fractionDigits: number): 
 }
 
 /**
+ * Returns the decimal places to render a currency at
+ *
+ * The seeded list is the authority, since the browser's own figures disagree with it for 16 of the
+ * 155 seeded codes. A code the list does not carry falls back to the browser rather than to a flat
+ * two, because two is wrong by a factor of a hundred for a currency with no decimal places at all:
+ * a list that failed to load would otherwise render a ¥500,000 balance as JP¥5,000.00. The browser
+ * is right for 139 of the 155 and is what the app rendered before the list was read at all, so an
+ * unreachable currency service costs the decimals of 16 currencies rather than a hundredfold error
+ */
+function resolveDisplayExponent(currency: string, currencies: Currency[]): number {
+  const seeded = findCurrencyExponent(currencies, currency)
+  if (seeded !== null) return seeded
+
+  return new Intl.NumberFormat(MONEY_LOCALE, { style: 'currency', currency })
+    .resolvedOptions()
+    .maximumFractionDigits ?? DEFAULT_MINOR_UNIT_EXPONENT
+}
+
+/**
+ * Formats an amount already in major units at a fixed number of decimal places
+ *
+ * An amount too small to show at those places is rendered as zero rather than as a signed value.
+ * Accounting style decides to wrap a negative in parentheses before rounding it, so without this a
+ * balance 40 cents over its limit comes back as ($0) on a meter that shows no decimals
+ */
+export function formatMajorUnits(value: number, currency: string, fractionDigits: number): string {
+  const roundsToZero = Math.abs(value) < 0.5 / 10 ** fractionDigits
+  return createMoneyFormatter(currency, fractionDigits).format(roundsToZero ? 0 : value)
+}
+
+/**
  * Converts an amount in a currency's minor units into its major units, using the decimal places
  * recorded for that currency
- *
- * -0 is normalized to 0, so an amount that divides to negative zero never reaches accounting style
- * and comes back wrapped in parentheses
  */
 export function toMajorUnits(minorUnits: number, currency: string, currencies: Currency[]): number {
-  return minorUnits / Math.pow(10, getCurrencyExponent(currencies, currency)) || 0
+  return minorUnits / Math.pow(10, resolveDisplayExponent(currency, currencies))
 }
 
 /**
@@ -43,13 +71,11 @@ export function toMajorUnits(minorUnits: number, currency: string, currencies: C
  * convention, rather than the reader's
  *
  * Negative amounts render in accounting style, wrapped in parentheses instead of a leading minus sign,
- * and -0 is normalized to 0 so a zero amount never appears wrapped in parentheses
+ * and an amount that rounds to zero never appears wrapped that way
  *
- * @param currencies - The fetched currency list, which carries each code's decimal places. A code
- *   missing from it falls back to two places, so a list that has not arrived scales every amount by
- *   a guess
+ * @param currencies - The fetched currency list, which carries each code's decimal places
  */
 export function formatCurrency(minorUnits: number, currency: string, currencies: Currency[]): string {
-  const exponent = getCurrencyExponent(currencies, currency)
-  return createMoneyFormatter(currency, exponent).format(toMajorUnits(minorUnits, currency, currencies))
+  const exponent = resolveDisplayExponent(currency, currencies)
+  return formatMajorUnits(minorUnits / Math.pow(10, exponent), currency, exponent)
 }

@@ -3,7 +3,7 @@ import type { Currency } from '@/api/currency'
 import type { TaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
 import type { TaxAdvantagedLimitSummary } from '@/pages/accounts/types/accounts'
 import { type CompactMoneyRule, formatCompactMoney } from '@/utils/formatCompactMoney'
-import { createMoneyFormatter, toMajorUnits } from '@/utils/formatCurrency'
+import { formatMajorUnits, toMajorUnits } from '@/utils/formatCurrency'
 
 /**
  * Chooses the usage colour for tax-advantaged contribution and withdrawal meters
@@ -73,7 +73,7 @@ export function formatTaxAdvantagedRawMoney(
   currency: string,
   currencies: Currency[],
 ): string {
-  return createMoneyFormatter(currency, 0).format(toMajorUnits(amount, currency, currencies))
+  return formatMajorUnits(toMajorUnits(amount, currency, currencies), currency, 0)
 }
 
 /**

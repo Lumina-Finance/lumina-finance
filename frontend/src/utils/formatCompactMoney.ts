@@ -1,5 +1,5 @@
 import type { Currency } from '@/api/currency'
-import { createMoneyFormatter, formatCurrency, toMajorUnits } from '@/utils/formatCurrency'
+import { createMoneyFormatter, formatCurrency, formatMajorUnits, toMajorUnits } from '@/utils/formatCurrency'
 
 export type CompactMoneyRule = {
   threshold: number
@@ -24,7 +24,10 @@ function formatCurrencyWithSuffix(
   suffix: CompactMoneyRule['suffix'],
   fractionDigits: number,
 ) {
-  const parts = createMoneyFormatter(currency, fractionDigits).formatToParts(value)
+  // Same reason formatMajorUnits normalizes: accounting style wraps a negative before rounding it,
+  // so a compacted amount too small to show would come back as ($0K)
+  const roundsToZero = Math.abs(value) < 0.5 / 10 ** fractionDigits
+  const parts = createMoneyFormatter(currency, fractionDigits).formatToParts(roundsToZero ? 0 : value)
   const numberPartTypes = new Set(['integer', 'group', 'decimal', 'fraction'])
   const suffixIndex = parts.findLastIndex((part) => numberPartTypes.has(part.type))
 
@@ -62,7 +65,7 @@ export function formatCompactMoney(
   const rule = rules.find(({ threshold }) => Math.abs(majorUnits) >= threshold)
   if (!rule) {
     if (plainFractionDigits === undefined) return formatCurrency(minorUnits, currency, currencies)
-    return createMoneyFormatter(currency, plainFractionDigits).format(majorUnits)
+    return formatMajorUnits(majorUnits, currency, plainFractionDigits)
   }
 
   return `${prefix}${formatCurrencyWithSuffix(

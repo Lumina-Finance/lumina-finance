@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest'
 import { getFilteredRows } from '@/pages/accounts/utils/filters'
 import {
   formatTaxAdvantagedMeterMoney,
+  formatTaxAdvantagedRawMoney,
   getLifetimeAvailableBoundary,
   getTaxAdvantagedLimitSummaries,
   getTaxAdvantagedUsageColor,
@@ -28,10 +29,24 @@ describe('tax-advantaged limit helpers', () => {
   })
 
   it('keeps meter amounts whole and unprefixed below the compaction thresholds', () => {
-    // The meter shows this beside the limit it is measured against, so an amount small enough to
-    // render in full must not come back carrying cents, or a "≈" the limit next to it does not have
+    // The meter shows this beside the limit it is measured against, so a small amount must match
+    // how that limit is written: no cents, and no "≈" marking one of the pair as approximate
     expect(formatTaxAdvantagedMeterMoney(50_000, 'CAD', testCurrencies)).toBe('$500')
     expect(formatTaxAdvantagedMeterMoney(0, 'CAD', testCurrencies)).toBe('$0')
+  })
+
+  it('shows an amount too small for the meter as zero rather than as a negative', () => {
+    // The meter renders no decimals, and accounting style decides to wrap a negative before it
+    // rounds, so being 40 cents over a limit would otherwise read as ($0)
+    expect(formatTaxAdvantagedMeterMoney(-40, 'CAD', testCurrencies)).toBe('$0')
+    expect(formatTaxAdvantagedRawMoney(-40, 'CAD', testCurrencies)).toBe('$0')
+    // Far enough from zero to keep its sign
+    expect(formatTaxAdvantagedRawMoney(-60, 'CAD', testCurrencies)).toBe('($1)')
+  })
+
+  it('renders tooltip amounts whole, and keeps the suffix inside a negative', () => {
+    expect(formatTaxAdvantagedRawMoney(123_456, 'CAD', testCurrencies)).toBe('$1,235')
+    expect(formatTaxAdvantagedMeterMoney(-12_300_000, 'USD', testCurrencies)).toBe('(US$123K)')
   })
 
   it('rounds a compacted meter amount rather than rounding it up', () => {
