@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { Upload, X } from 'lucide-react'
-import { accountKeys, categoryKeys, institutionKeys } from '@/api/cache/queryKeys'
+import { accountKeys, categoryKeys, institutionKeys, merchantKeys } from '@/api/cache/queryKeys'
 import { ImportProgressOverlay } from './components'
 import { useFireflyImportWorkflow } from './firefly/hooks'
 import {
@@ -67,6 +67,10 @@ export default function ImportsPage() {
     void queryClient.invalidateQueries({ queryKey: accountKeys.list(), exact: true })
     void queryClient.invalidateQueries({ queryKey: categoryKeys.list(), exact: true })
     void queryClient.invalidateQueries({ queryKey: institutionKeys.list(), exact: true })
+
+    // Asked again rather than read back, since a merchant created in another tab would otherwise
+    // leave a payee value reading as one with no merchant yet
+    void queryClient.invalidateQueries({ queryKey: merchantKeys.nameMatchesAll })
   }, [queryClient])
 
   const handleDataSourceChange = (next: ImportDataSource) => {

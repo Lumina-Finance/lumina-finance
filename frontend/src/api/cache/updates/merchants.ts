@@ -2,6 +2,7 @@ import type { InfiniteData, QueryClient } from '@tanstack/react-query';
 import {
   invalidateDashboardRecent,
   invalidateInsightsMerchants,
+  invalidateMerchantNameMatches,
   invalidateMerchants,
   invalidateTransactionOverview,
   invalidateTransactions,
@@ -61,6 +62,11 @@ function updateMerchantLookupPages(
 export function updateMerchantCreateCaches(queryClient: QueryClient, merchant: Merchant) {
   queryClient.setQueryData<Merchant>(merchantKeys.detail(merchant.id), merchant);
   updateMerchantLookupPages(queryClient, merchant, false);
+
+  // The lookup pages can be written into, since a new merchant simply joins them. What a file's
+  // payee values match cannot, because the answer says which values have no merchant yet, and this
+  // one may be what a value was waiting for
+  invalidateMerchantNameMatches(queryClient);
 }
 
 /**
