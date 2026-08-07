@@ -48,14 +48,17 @@ export default function TransactionListToolbar({
   const importAction = onImport ? (
     <button
       type="button"
-      className="app-glass-button h-11 shrink-0 min-[750px]:h-10"
+      className="app-glass-button h-11 w-11 shrink-0 px-0 min-[750px]:h-10 min-[750px]:w-auto min-[750px]:px-4"
       onClick={onImport}
       disabled={importDisabled}
       title={importDisabledReason}
       aria-label={showAccountFilter ? 'Import transactions' : 'Import transactions into this account'}
     >
       <Upload size={18} aria-hidden />
-      <span>Import</span>
+
+      {/* The word is dropped on a phone, where the row is three controls wide and the filters button
+          needs the space it would take. The accessible name carries it at both widths */}
+      <span className="hidden min-[750px]:inline">Import</span>
     </button>
   ) : undefined
 
