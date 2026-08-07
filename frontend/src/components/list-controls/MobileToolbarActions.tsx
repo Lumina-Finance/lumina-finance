@@ -11,7 +11,7 @@ type MobileToolbarActionsProps = {
   // Shown as the button's title and accessible name in place of primaryLabel while disabled
   primaryDisabledReason?: string
 
-  // An action shown ahead of the primary one, for a list that has a second thing to offer
+  // An action shown ahead of the filters, for a list that has a second thing to offer
   secondaryAction?: ReactNode
 }
 
@@ -30,6 +30,8 @@ export function MobileToolbarActions({
 }: MobileToolbarActionsProps) {
   return (
     <div className="flex w-full items-center gap-3 min-[750px]:hidden">
+      {secondaryAction}
+
       <button
         type="button"
         className="app-glass-button h-11 min-w-0 flex-1 justify-between"
@@ -51,8 +53,6 @@ export function MobileToolbarActions({
           </span>
         )}
       </button>
-
-      {secondaryAction}
 
       <button
         type="button"

@@ -9,12 +9,19 @@ import type { AccountsOverview } from '@/api/accounts'
  */
 export type ImportAccountScopeState = 'unscoped' | 'loading' | 'failed' | 'unavailable' | 'ready'
 
+/** One mapping row's answer, and the facts that decide whether an import may be written to it */
+export interface ImportableAccountFacts {
+  is_archived?: boolean
+  closed_at?: string | null
+}
+
 /**
  * Whether an import may write rows to this account
  *
- * The rule the API applies to every account an import writes to, which refuses an archived one and
- * an account that has been closed. Read both by the page that offers the import and by the page that
- * carries it out, so the control offering it and the screen refusing it cannot drift apart
+ * The two states the app can see that stop an import: an archived account and a closed one. The API
+ * refuses a third the accounts list says nothing about, which is an account shared with the user at
+ * read level, so a true answer here means only that nothing on this side objects. Read both by the
+ * control offering the import and by the page carrying it out, so the two cannot drift apart
  *
  * Asked of the two fields rather than of a whole account, since the transaction list is handed a
  * summary carrying only what it reads. A summary stating neither field is taken as an open account,
@@ -22,10 +29,22 @@ export type ImportAccountScopeState = 'unscoped' | 'loading' | 'failed' | 'unava
  *
  * @param account - The account, or null where none has been loaded, which is not importable either
  */
-export function isImportableAccount(
-  account: { is_archived?: boolean; closed_at?: string | null } | null | undefined,
-): boolean {
+export function isImportableAccount(account: ImportableAccountFacts | null | undefined): boolean {
   return Boolean(account) && !account?.is_archived && !account?.closed_at
+}
+
+/**
+ * Says why an import cannot be written to this account, or nothing where it can
+ *
+ * Both states are read-only, and an account in both is described as archived, since that is the one
+ * a user put it in and the one they can take it out of
+ *
+ * @param account - The account, or null where the control has no one account to import into, which
+ *   has no reason to give
+ */
+export function getImportBlockReason(account: ImportableAccountFacts | null | undefined): string | undefined {
+  if (!account || isImportableAccount(account)) return undefined
+  return account.is_archived ? 'Archived accounts are read-only' : 'Closed accounts are read-only'
 }
 
 /**

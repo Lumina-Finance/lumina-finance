@@ -218,14 +218,11 @@ export default function AccountDetailPage() {
             <h2 className="mb-4 font-serif text-4xl font-medium leading-none">Transactions</h2>
             <TransactionListSection
               key={visibleAccount.id}
-              fixedAccount={{
-                id: visibleAccount.id,
-                name: visibleAccount.name,
-                currency: visibleAccount.currency,
-                institution: visibleAccount.institution,
-                is_archived: visibleAccount.is_archived,
-                closed_at: visibleAccount.closed_at,
-              }}
+              // The same narrowing the counterparty accounts go through, rather than a second list
+              // of fields to keep in step with it. A field this page forgot to copy is one the
+              // toolbar reads as absent, and whether an import may be written here is read from two
+              // of them
+              fixedAccount={toTransactionListAccount(visibleAccount)}
               accounts={(accounts ?? []).map(toTransactionListAccount)}
               currency={visibleAccount.currency}
               onCreateTransaction={openCreateTransaction}

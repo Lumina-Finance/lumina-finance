@@ -40,18 +40,22 @@ export default function TransactionListToolbar({
   const shell = useToolbarShellState()
   useToolbarStickyOffset(shell.toolbarRef, onStickyOffsetChange)
 
-  // One node for both widths and for the hidden copy the desktop row measures itself by, sized to
-  // match whichever primary button it stands beside, which is taller on a phone than on a desktop
+  // One node for both widths, sized to match the buttons it stands beside, which are taller on a
+  // phone than on a desktop. The accessible name says which import this is, since the word on the
+  // button cannot: on a list fixed to one account it files every row into that account, and on the
+  // list of every account it is the way to the import page. The reason it is blocked rides on the
+  // title alone, the way the create button's does, so the name still says what the control is
   const importAction = onImport ? (
     <button
       type="button"
-      className="app-glass-button h-11 w-11 shrink-0 px-0 min-[750px]:h-10 min-[750px]:w-10"
+      className="app-glass-button h-11 shrink-0 min-[750px]:h-10"
       onClick={onImport}
       disabled={importDisabled}
       title={importDisabledReason}
-      aria-label={importDisabledReason ?? 'Import transactions into this account'}
+      aria-label={showAccountFilter ? 'Import transactions' : 'Import transactions into this account'}
     >
       <Upload size={18} aria-hidden />
+      <span>Import</span>
     </button>
   ) : undefined
 
@@ -99,20 +103,27 @@ export default function TransactionListToolbar({
           desktopInlineLayout={shell.desktopInlineLayout}
           desktopCreateStacked={shell.desktopCreateStacked}
           filterPanel={
-            <TransactionFilterPanel
-              accountOptions={accountOptions}
-              categoryOptions={categoryOptions}
-              filters={filters}
-              setFilter={setFilter}
-              showAccountFilter={showAccountFilter}
-              lockedCurrency={lockedCurrency}
-            />
+            // Both go in the filter slot rather than beside the create button, because the layout
+            // hook measures this group's own children as they render. A button placed after the
+            // group instead would need its own measured twin, or the row would report itself
+            // narrower than it draws and stay on one line where it no longer fits. Wrapped as one
+            // child, since the group spreads its children apart once the create button stacks
+            <div className="flex min-w-0 items-center gap-3">
+              {importAction}
+              <TransactionFilterPanel
+                accountOptions={accountOptions}
+                categoryOptions={categoryOptions}
+                filters={filters}
+                setFilter={setFilter}
+                showAccountFilter={showAccountFilter}
+                lockedCurrency={lockedCurrency}
+              />
+            </div>
           }
           createLabel="Add Transaction"
           onCreate={onCreateTransaction}
           createDisabled={createDisabled}
           createDisabledReason={createDisabledReason}
-          secondaryAction={importAction}
         />
       </ToolbarStickyShell>
 

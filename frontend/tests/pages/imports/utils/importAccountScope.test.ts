@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { AccountsOverview } from '@/api/accounts'
-import { getImportAccountScopeState, isImportableAccount } from '@/pages/imports/utils'
+import { getImportAccountScopeState, getImportBlockReason, isImportableAccount } from '@/pages/imports/utils'
 
 /**
  * Creates an account overview, carrying only the fields this rule reads
@@ -50,6 +50,38 @@ describe('which accounts an import may be written to', () => {
   it('refuses an account that is not there at all', () => {
     expect(isImportableAccount(undefined)).toBe(false)
     expect(isImportableAccount(null)).toBe(false)
+  })
+
+  // The transaction list is handed a summary of an account rather than the whole thing, so the rule
+  // has to answer for one stating neither field, and it answers the way the Add Transaction button
+  // beside it already reads a missing archived flag
+  it('takes a summary stating neither field as an open account', () => {
+    expect(isImportableAccount({})).toBe(true)
+  })
+})
+
+describe('why an import cannot be written to an account', () => {
+  it('says nothing about an open account', () => {
+    expect(getImportBlockReason(createAccount())).toBeUndefined()
+  })
+
+  it('says nothing where there is no account to speak of', () => {
+    expect(getImportBlockReason(undefined)).toBeUndefined()
+  })
+
+  it('says an archived account is read-only', () => {
+    expect(getImportBlockReason(createAccount({ is_archived: true }))).toBe('Archived accounts are read-only')
+  })
+
+  it('says a closed account is read-only', () => {
+    expect(getImportBlockReason(createAccount({ closed_at: '2026-03-01T14:00:00Z' }))).toBe('Closed accounts are read-only')
+  })
+
+  // Both are true of an account in both states, and archiving is the one the user did and can undo
+  it('describes an account in both states as archived', () => {
+    const account = createAccount({ is_archived: true, closed_at: '2026-03-01T14:00:00Z' })
+
+    expect(getImportBlockReason(account)).toBe('Archived accounts are read-only')
   })
 })
 

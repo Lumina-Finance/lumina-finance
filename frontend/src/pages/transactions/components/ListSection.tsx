@@ -5,7 +5,7 @@ import {
   useInfiniteTransactions,
   type Transaction,
 } from '@/api/transactions'
-import { isImportableAccount } from '@/pages/imports/utils'
+import { getImportBlockReason, isImportableAccount } from '@/pages/imports/utils'
 import { TRANSACTION_FILTER_KEYS, TRANSACTION_LIST_EASE } from '@/pages/transactions/constants/transactionList'
 import TransactionDateGroupList from '@/pages/transactions/components/DateGroupList'
 import TransactionFilterLoadingOverlay from '@/pages/transactions/components/FilterLoadingOverlay'
@@ -137,13 +137,12 @@ export default function TransactionListSection({
   const createDisabled = Boolean(fixedAccount?.is_archived)
   const createDisabledReason = createDisabled ? 'Archived accounts are read-only' : undefined
 
-  // Offered only where the list is fixed to one account, since an import written from here goes to
-  // that account and the list of every account has none. It stays on the row in the two states an
-  // import cannot be written to, greyed out with the reason, rather than coming and going
-  const importDisabled = !isImportableAccount(fixedAccount)
-  const importDisabledReason = fixedAccount?.is_archived
-    ? 'Archived accounts are read-only'
-    : fixedAccount?.closed_at ? 'Closed accounts are read-only' : undefined
+  // Only a list fixed to one account can be blocked, since only that one writes rows to an account
+  // of its own. On the list of every account the button is the way to the import page and is always
+  // offered. Where it is blocked it stays on the row, greyed out with the reason, rather than
+  // coming and going
+  const importDisabled = Boolean(fixedAccount) && !isImportableAccount(fixedAccount)
+  const importDisabledReason = getImportBlockReason(fixedAccount)
 
   const { sentinelRef, showPendingFetch } = useInfiniteScrollTrigger({
     hasNextPage,
@@ -184,7 +183,7 @@ export default function TransactionListSection({
         onCreateTransaction={onCreateTransaction}
         createDisabled={createDisabled}
         createDisabledReason={createDisabledReason}
-        onImport={fixedAccount && onImport ? onImport : undefined}
+        onImport={onImport}
         importDisabled={importDisabled}
         importDisabledReason={importDisabledReason}
         onStickyOffsetChange={setDateHeaderStickyTop}
