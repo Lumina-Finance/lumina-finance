@@ -1,11 +1,21 @@
 import { COLUMN_TARGETS, EMPTY_COLUMN_MAP, IMPORT_DATE_FORMAT_LABELS } from '@/pages/imports/constants'
-import type { ColumnMap, ColumnTarget, ColumnValidationErrors, CsvRow, ImportFileDraft } from '@/pages/imports/types'
+import type {
+  ColumnMap,
+  ColumnTarget,
+  ColumnValidationErrors,
+  CsvRow,
+  ImportAmountSideProblem,
+  ImportAmountSignConventions,
+  ImportFileDraft,
+} from '@/pages/imports/types'
 import { unique } from './common'
 import {
+  applyImportAmountDirection,
   type ImportDateFormat,
   isSupportedCurrency,
   isValidAmountValue,
   isValidDateValue,
+  parseImportNumber,
   readImportDate,
   truncateValue,
 } from './valueParsers'
@@ -43,6 +53,18 @@ const COLUMN_VALIDATION_RULES: Record<ColumnTarget, {
   amount: {
     expected: 'a raw signed number such as -12.34 or 1,234.56; every row must have a value',
     requiredValues: true,
+    accepts: isValidAmountValue,
+  },
+
+  // Neither side requires a value, because a row states its amount on one side and leaves the other
+  // blank, which is the whole shape of this arrangement. Which rows a file may leave on neither side,
+  // or on both, is judged per row rather than against the column
+  amount_out: {
+    expected: 'a raw number such as 45.00 or 1,234.56, with the rows this column says nothing about left blank or zero',
+    accepts: isValidAmountValue,
+  },
+  amount_in: {
+    expected: 'a raw number such as 45.00 or 1,234.56, with the rows this column says nothing about left blank or zero',
     accepts: isValidAmountValue,
   },
   currency: {
@@ -240,6 +262,67 @@ function getNumberedColumnValues(files: ImportFileDraft[], header: string) {
  */
 export function getMappedValue(row: CsvRow, header: string) {
   return header ? row[header]?.trim() ?? '' : ''
+}
+
+/**
+ * Reads a row's amount from whichever arrangement the file is mapped as using
+ *
+ * A single Amount column is taken as it comes. Where either side is mapped instead, the row states
+ * its amount on one side and leaves the other blank or zero, and which side carries it settles which
+ * way the row runs unless the value's own sign says otherwise
+ *
+ * @param signConventions - Which sign each side writes its own direction with
+ * @returns The amount as the payload carries it, and why there is none where the row breaks the rule
+ */
+export function resolveImportAmount(
+  row: CsvRow,
+  columnMap: ColumnMap,
+  signConventions: ImportAmountSignConventions,
+): {
+  amount: string
+  amountSideProblem: ImportAmountSideProblem | null
+} {
+  if (!columnMap.amount_out && !columnMap.amount_in) {
+    return { amount: getMappedValue(row, columnMap.amount), amountSideProblem: null }
+  }
+
+  const outCell = getMappedValue(row, columnMap.amount_out)
+  const inCell = getMappedValue(row, columnMap.amount_in)
+  if (!outCell && !inCell) return { amount: '', amountSideProblem: 'neitherFilled' }
+
+  const outValue = outCell ? parseImportNumber(outCell) : null
+  const inValue = inCell ? parseImportNumber(inCell) : null
+
+  // Handed back as it stands, ahead of every rule below, so the row is judged unreadable against the
+  // cell the user has to go and fix. Asking which side states an amount first would report a row
+  // holding one bad cell and one good one as a row stating two amounts
+  if (outCell && outValue === null) return { amount: outCell, amountSideProblem: null }
+  if (inCell && inValue === null) return { amount: inCell, amountSideProblem: null }
+
+  // A zero states no money moved either way, so it never claims its side against the other
+  const doesOutState = outValue !== null && outValue !== 0
+  const doesInState = inValue !== null && inValue !== 0
+
+  if (doesOutState && doesInState) return { amount: '', amountSideProblem: 'bothFilled' }
+
+  // Where only one side is mapped every row has to state its amount there, so a zero means this
+  // row's money went the way the file has no mapped column for. With both sides mapped the same row
+  // is one where no money moved either way, which is a real thing to import
+  const isOneSided = !columnMap.amount_out || !columnMap.amount_in
+  if (!doesOutState && !doesInState && isOneSided) {
+    return { amount: '', amountSideProblem: 'sideStatesZero' }
+  }
+
+  // Where neither side states an amount, every cell the row did fill is a zero, so whichever side is
+  // read gives the same answer
+  const direction = doesOutState || !inCell ? 'out' : 'in'
+
+  const side = direction === 'out' ? 'amount_out' : 'amount_in'
+
+  return {
+    amount: applyImportAmountDirection(direction === 'out' ? outCell : inCell, direction, signConventions[side]),
+    amountSideProblem: null,
+  }
 }
 
 /**

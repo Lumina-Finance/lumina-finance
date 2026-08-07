@@ -1,6 +1,6 @@
 import { COLUMN_TARGETS } from '@/pages/imports/constants'
 import type { ColumnMap, ColumnTarget, ColumnValidationErrors, ImportFileDraft } from '@/pages/imports/types'
-import { getMissingRequiredColumnLabels } from './workflowOptions'
+import { getMissingRequiredColumnLabels, hasAmountArrangementClash } from './workflowOptions'
 import { removeRecordKey } from './common'
 
 /**
@@ -66,6 +66,9 @@ export function getNextColumnValidationErrors(
 
 /**
  * Checks that all required columns are mapped and all mapped headers pass validation
+ *
+ * A map stating the amount two ways at once is not complete either, since the commit refuses it, so
+ * a file staged against such a map does not start the account and category matching off it
  */
 export function isColumnMappingComplete(
   columnMap: ColumnMap,
@@ -75,6 +78,7 @@ export function isColumnMappingComplete(
   if (files.length === 0) return false
 
   if (getMissingRequiredColumnLabels(columnMap).length > 0) return false
+  if (hasAmountArrangementClash(columnMap)) return false
 
   const mappedHeaders = new Set(Object.values(columnMap).filter(Boolean))
   return !Object.keys(columnValidationErrors).some((header) => mappedHeaders.has(header))

@@ -278,3 +278,251 @@ describe('remembering which columns the user answered for', () => {
     expect(map.notes).toBe('')
   })
 })
+
+describe('a file writing money out and money in in columns of their own', () => {
+  /**
+   * Creates a statement whose two amount columns pad the unused side with a zero, under the headings
+   * given, so the only thing separating the two is what they are called
+   */
+  function createTwoSidedFile(outHeader: string, inHeader: string) {
+    return [createFile(
+      ['Date', 'Description', outHeader, inHeader],
+      [
+        { Date: '2026-04-11', Description: 'Coffee shop', [outHeader]: '4.50', [inHeader]: '0.00' },
+        { Date: '2026-04-12', Description: 'Payroll', [outHeader]: '0.00', [inHeader]: '2100.00' },
+        { Date: '2026-04-13', Description: 'Hardware store', [outHeader]: '82.10', [inHeader]: '0.00' },
+      ],
+    )]
+  }
+
+  // Both columns are numeric down every row, so before the two sides existed the single Amount field
+  // took whichever came first in the file and the other column's rows all imported as 0.00
+  it('gives each side its own field', () => {
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, createTwoSidedFile('Debit', 'Credit'), SUPPORTED_CURRENCY_CODES)
+
+    expect(map.amount_out).toBe('Debit')
+    expect(map.amount_in).toBe('Credit')
+    expect(map.amount).toBe('')
+  })
+
+  it('reads the same file the same way with the two columns swapped', () => {
+    const files = [createFile(
+      ['Date', 'Description', 'Credit', 'Debit'],
+      [
+        { Date: '2026-04-11', Description: 'Coffee shop', Credit: '0.00', Debit: '4.50' },
+        { Date: '2026-04-12', Description: 'Payroll', Credit: '2100.00', Debit: '0.00' },
+      ],
+    )]
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(map.amount_out).toBe('Debit')
+    expect(map.amount_in).toBe('Credit')
+    expect(map.amount).toBe('')
+  })
+
+  it('reads a file naming its sides in plain words rather than in bookkeeping terms', () => {
+    const { map } = inferColumnMap(
+      EMPTY_COLUMN_MAP,
+      createTwoSidedFile('Withdrawals', 'Deposits'),
+      SUPPORTED_CURRENCY_CODES,
+    )
+
+    expect(map.amount_out).toBe('Withdrawals')
+    expect(map.amount_in).toBe('Deposits')
+  })
+
+  // Naming both directions, it is one signed column rather than one side of a pair. Claiming it as
+  // money out would sign every row that way, half of them wrongly
+  it('leaves a lone column naming both directions for the user to answer', () => {
+    const files = [createFile(
+      ['Date', 'Description', 'Debit/Credit Amount'],
+      [
+        { Date: '2026-04-11', Description: 'Coffee shop', 'Debit/Credit Amount': '-4.50' },
+        { Date: '2026-04-12', Description: 'Payroll', 'Debit/Credit Amount': '2100.00' },
+      ],
+    )]
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(map.amount_out).toBe('')
+    expect(map.amount_in).toBe('')
+    expect(map.amount).toBe('')
+  })
+
+  // A statement often carries the signed total beside the breakdown, and all three headings match
+  // outright, so without this the guess hands back a map the commit then refuses
+  it('keeps the signed column and drops both sides where a file carries all three', () => {
+    const files = [createFile(
+      ['Date', 'Description', 'Amount', 'Debit', 'Credit'],
+      [
+        { Date: '2026-04-11', Description: 'Coffee shop', Amount: '-4.50', Debit: '4.50', Credit: '0.00' },
+        { Date: '2026-04-12', Description: 'Payroll', Amount: '2100.00', Debit: '0.00', Credit: '2100.00' },
+      ],
+    )]
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(map.amount).toBe('Amount')
+    expect(map.amount_out).toBe('')
+    expect(map.amount_in).toBe('')
+  })
+
+  // Each is money by shape or a run of digits, and each carries a word one side is called, so it
+  // would reach that side on its heading alone. Tested without the plain column it competes with,
+  // since that column outscores it anyway and would decide the answer instead of the exclusion
+  it.each([
+    ['Credit Limit', '5000.00'],
+    ['Available Credit', '4200.00'],
+    ['Credit Card Number', '4111111111111111'],
+    ['Debit Balance', '820.00'],
+  ])('leaves a %s column to neither side', (header, value) => {
+    const files = [createFile(
+      ['Date', 'Description', header],
+      [
+        { Date: '2026-04-11', Description: 'Coffee shop', [header]: value },
+        { Date: '2026-04-12', Description: 'Payroll', [header]: value },
+      ],
+    )]
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(map.amount_out).toBe('')
+    expect(map.amount_in).toBe('')
+  })
+
+  // The compound headings are the ones the single Amount field would otherwise take, since it scores
+  // on the word they end with. A bare Debit never reaches it, so those say nothing about this rule
+  it.each(['Debit Amount', 'Credit Amount', 'Withdrawal Amount', 'Deposit Amount'])(
+    'keeps the single Amount field off a %s column',
+    (header) => {
+      const files = [createFile(
+        ['Date', 'Description', header],
+        [
+          { Date: '2026-04-11', Description: 'Coffee shop', [header]: '4.50' },
+          { Date: '2026-04-12', Description: 'Hardware store', [header]: '82.10' },
+        ],
+      )]
+
+      const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+      expect(map.amount).toBe('')
+    },
+  )
+
+  // Both sides matched their own headings at full score, so a numeric column still going spare is a
+  // fee rather than the transaction amount. Letting the single field take it on its values alone
+  // costs both sides, and every row then imports as the zero the unused side is padded with
+  it('leaves a spare numeric column alone rather than reading it as the amount', () => {
+    const files = [createFile(
+      ['Date', 'Description', 'Debit', 'Credit', 'Fee'],
+      [
+        { Date: '2026-04-11', Description: 'Coffee shop', Debit: '84.31', Credit: '0.00', Fee: '0.00' },
+        { Date: '2026-04-12', Description: 'Payroll', Debit: '0.00', Credit: '2100.00', Fee: '0.00' },
+      ],
+    )]
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(map.amount_out).toBe('Debit')
+    expect(map.amount_in).toBe('Credit')
+    expect(map.amount).toBe('')
+  })
+
+  // One side matching says nothing about how the file writes its amounts, so neither is guessed and
+  // the user answers the amount row against the samples the table shows. Guessing the half that
+  // matched is the worst outcome, since the other column is then read as the whole transaction
+  it.each([
+    ['Withdrawal', 'Fee'],
+    ['Net', 'Deposit'],
+  ])('guesses no side at all where only %s or %s matched', (first, second) => {
+    const files = [createFile(
+      ['Date', 'Description', first, second],
+      [
+        { Date: '2026-04-11', Description: 'Coffee shop', [first]: '-4.50', [second]: '0.00' },
+        { Date: '2026-04-12', Description: 'Payroll', [first]: '2100.00', [second]: '2100.00' },
+      ],
+    )]
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(map.amount_out).toBe('')
+    expect(map.amount_in).toBe('')
+  })
+
+  it('reads a lone signed column as the amount', () => {
+    const files = [createFile(
+      ['Date', 'Description', 'Net'],
+      [
+        { Date: '2026-04-11', Description: 'Coffee shop', Net: '-4.50' },
+        { Date: '2026-04-12', Description: 'Payroll', Net: '2100.00' },
+      ],
+    )]
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(map.amount).toBe('Net')
+  })
+
+  // The single field scores on the word these headings end with, and reading a one-directional
+  // column as the whole transaction signs half the file wrongly. Every wording either side knows has
+  // to be barred from it, not just the bookkeeping ones
+  it.each([
+    'Money Out Amount',
+    'Money In Amount',
+    'Outgoing Amount',
+    'Incoming Amount',
+    'Outflow Amount',
+    'Inflow Amount',
+    'Paid Out Amount',
+    'Paid In Amount',
+    'Withdrawn Amount',
+    'Deposited Amount',
+  ])('keeps the single Amount field off a %s column', (header) => {
+    const files = [createFile(
+      ['Date', 'Description', header],
+      [
+        { Date: '2026-04-11', Description: 'Coffee shop', [header]: '4.50' },
+        { Date: '2026-04-12', Description: 'Payroll', [header]: '82.10' },
+      ],
+    )]
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(map.amount).toBe('')
+  })
+
+  // Matching one side and not the other is worse than matching neither: the unmatched column falls
+  // to the single Amount field, which then takes the whole arrangement with it
+  it('matches both sides of a file written in the past tense', () => {
+    const files = [createFile(
+      ['Date', 'Withdrawn', 'Deposited'],
+      [
+        { Date: '2026-04-11', Withdrawn: '84.31', Deposited: '0.00' },
+        { Date: '2026-04-12', Withdrawn: '0.00', Deposited: '2100.00' },
+      ],
+    )]
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(map.amount_out).toBe('Withdrawn')
+    expect(map.amount_in).toBe('Deposited')
+    expect(map.amount).toBe('')
+  })
+
+  // Nothing the guesser does clears a field that already holds a column, so an answer the user gave
+  // survives a file being replaced, which is what every other mapping already promises
+  it('leaves an answered side alone when the file is read again', () => {
+    const files = [createFile(
+      ['Date', 'Description', 'Debit', 'Credit'],
+      [
+        { Date: '2026-04-11', Description: 'Coffee shop', Debit: '4.50', Credit: '0.00' },
+      ],
+    )]
+    const answered = { ...EMPTY_COLUMN_MAP, amount_out: 'Debit' }
+
+    const { map } = inferColumnMap(answered, files, SUPPORTED_CURRENCY_CODES, new Set(['Debit']))
+
+    expect(map.amount_out).toBe('Debit')
+  })
+})

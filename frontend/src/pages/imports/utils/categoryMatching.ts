@@ -1,6 +1,12 @@
 import type { Category } from '@/api/categories'
 import { CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
-import type { ImportCategoryKind, ImportFileDraft } from '@/pages/imports/types'
+import type {
+  ColumnMap,
+  ImportAmountSignConventions,
+  ImportCategoryKind,
+  ImportFileDraft,
+} from '@/pages/imports/types'
+import { resolveImportAmount } from './columnMapping'
 import { parseImportNumber } from './valueParsers'
 
 /**
@@ -19,29 +25,36 @@ export function splitImportedValues(value: string) {
  * filed against it, labelling a name Mixed when both signs appear
  *
  * Rows with an amount of zero or an amount that cannot be read are ignored, since neither says
- * anything about direction, and every name is left blank until both the category and amount columns
- * have been mapped
+ * anything about direction, and every name is left blank until both the category column and an
+ * arrangement carrying the amount have been mapped
+ *
+ * Each row's amount is read the same way the commit reads it, so a file writing money out and money
+ * in in columns of their own is judged on the direction those columns state rather than left with
+ * every category unlabelled
  */
 export function getImportedCategoryTypes(
   files: ImportFileDraft[],
-  categoryHeader: string,
-  amountHeader: string,
+  columnMap: ColumnMap,
+  signConventions: ImportAmountSignConventions,
   importedCategories: string[],
 ) {
   const signsByCategory = new Map<string, Set<'expense' | 'income'>>()
+  const categoryHeader = columnMap.category_id
+  const amountHeaders = [columnMap.amount, columnMap.amount_out, columnMap.amount_in].filter(Boolean)
 
-  if (!categoryHeader || !amountHeader) {
+  if (!categoryHeader || amountHeaders.length === 0) {
     return Object.fromEntries(importedCategories.map((category) => [category, '']))
   }
 
   for (const file of files) {
-    if (!file.headers.includes(categoryHeader) || !file.headers.includes(amountHeader)) continue
+    if (!file.headers.includes(categoryHeader)) continue
+    if (!amountHeaders.some((header) => file.headers.includes(header))) continue
 
     for (const row of file.rows) {
       const category = row[categoryHeader]?.trim()
       if (!category) continue
 
-      const amount = parseImportNumber(row[amountHeader] ?? '')
+      const amount = parseImportNumber(resolveImportAmount(row, columnMap, signConventions).amount)
       if (amount === null || amount === 0) continue
 
       const signs = signsByCategory.get(category) ?? new Set<'expense' | 'income'>()

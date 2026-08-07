@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import {
+  DEFAULT_AMOUNT_SIGN_CONVENTIONS,
   EMPTY_COLUMN_MAP,
   NO_OUTFLOWS_WARNING,
   ROW_SIGN_DISAGREES_WITH_CATEGORY_REASON,
@@ -65,6 +66,7 @@ function build(amounts: string[], kind: Category['kind'] = 'expense') {
     columnMap: { ...EMPTY_COLUMN_MAP, dt: 'Date', category_id: 'Category', amount: 'Amount' },
     columnValidationErrors: {},
     currencies: CURRENCIES,
+    amountSignConventions: DEFAULT_AMOUNT_SIGN_CONVENTIONS,
     dateFormat: 'yearFirst',
     files: [createFile(amounts.map((amount, index) => ({
       Date: `2026-04-${String(index + 1).padStart(2, '0')}`,
@@ -87,6 +89,47 @@ describe('warning that a file reads as all money coming in', () => {
 
   it('says nothing where the file carries a negative', () => {
     expect(build(['-12.34', '45.00']).warnings).toEqual([])
+  })
+
+  // The one arrangement never asked, since every row of such a file is positive whatever the data
+  // says and the warning would fire on every import. A money out column mapped anywhere in the map
+  // is asked, because the sign answered for it can be wrong
+  it('says nothing about a file whose money in column is the one mapped', () => {
+    const file: ImportFileDraft = {
+      id: 'file-1',
+      name: 'Chequing.csv',
+      size: 512,
+      headers: ['Date', 'Category', 'Credit'],
+      hasHeaderRow: true,
+      rows: [
+        { Date: '2026-04-01', Category: 'Groceries', Credit: '12.34' },
+        { Date: '2026-04-02', Category: 'Groceries', Credit: '45.00' },
+      ],
+      error: null,
+    }
+
+    const result = buildTransactionImportPayload({
+      accountById: new Map(),
+      accountCreateCurrencies: {},
+      accountCreateInstitutions: {},
+      accountCreateTypes: {},
+      accountMappings: { 'file-1': 'account-1' },
+      accountSources: [{ id: 'file-1', label: 'Chequing.csv', matchText: 'Chequing.csv', isCounterpartyOnly: false }],
+      categoryById: new Map([[CATEGORY.id, { ...CATEGORY, kind: 'income' as const }]]),
+      categoryCreateKinds: {},
+      categoryMappings: { Groceries: CATEGORY.id },
+      categoryTypesBySource: {},
+      columnMap: { ...EMPTY_COLUMN_MAP, dt: 'Date', category_id: 'Category', amount_in: 'Credit' },
+      columnValidationErrors: {},
+      currencies: CURRENCIES,
+      amountSignConventions: DEFAULT_AMOUNT_SIGN_CONVENTIONS,
+      dateFormat: 'yearFirst',
+      files: [file],
+      importedCategories: ['Groceries'],
+    })
+
+    expect(result.warnings).toEqual([])
+    expect(result.payload).not.toBeNull()
   })
 })
 

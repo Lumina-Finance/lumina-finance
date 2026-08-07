@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
-import { CREATE_CATEGORY_VALUE, EMPTY_COLUMN_MAP } from '@/pages/imports/constants'
+import { DEFAULT_AMOUNT_SIGN_CONVENTIONS, CREATE_CATEGORY_VALUE, EMPTY_COLUMN_MAP } from '@/pages/imports/constants'
 import type { CsvRow, ImportCategoryKind, ImportFileDraft } from '@/pages/imports/types'
 import { buildTransactionImportPayload } from '@/pages/imports/utils'
 
@@ -69,6 +69,7 @@ function build(categorySource: string, kind: ImportCategoryKind, categories: Cat
     columnMap: { ...EMPTY_COLUMN_MAP, dt: 'Date', category_id: 'Category', amount: 'Amount' },
     columnValidationErrors: {},
     currencies: CURRENCIES,
+    amountSignConventions: DEFAULT_AMOUNT_SIGN_CONVENTIONS,
     dateFormat: 'yearFirst',
     files: [createFile(categorySource)],
     importedCategories: [categorySource],

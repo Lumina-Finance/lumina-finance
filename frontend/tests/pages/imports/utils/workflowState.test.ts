@@ -82,4 +82,19 @@ describe('import workflow state helpers', () => {
     expect(isColumnMappingComplete({ ...completeMap, amount: '' }, {}, [createFile()])).toBe(false)
     expect(isColumnMappingComplete(completeMap, {}, [])).toBe(false)
   })
+
+  // The commit refuses a map stating the amount twice, so treating it as complete would run the
+  // account and category matching against a mapping that cannot be imported
+  it('does not call a mapping complete while it states the amount two ways at once', () => {
+    const clashingMap = {
+      ...EMPTY_COLUMN_MAP,
+      dt: 'Date',
+      amount: 'Amount',
+      amount_out: 'Debit',
+      category_id: 'Category',
+    }
+
+    expect(isColumnMappingComplete(clashingMap, {}, [createFile()])).toBe(false)
+    expect(isColumnMappingComplete({ ...clashingMap, amount: '' }, {}, [createFile()])).toBe(true)
+  })
 })

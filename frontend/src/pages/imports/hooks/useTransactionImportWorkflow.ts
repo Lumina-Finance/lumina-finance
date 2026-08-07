@@ -8,12 +8,13 @@ import {
 } from '@/api/transaction-imports'
 import { EMPTY_COLUMN_MAP } from '@/pages/imports/constants'
 import { OUTSIDE_ACCOUNT_LABEL, OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
-import type { ColumnMap, ColumnTarget, ColumnValidationErrors, ImportCategoryKind, ImportFileDraft, ImportOverlayPhase, PreviewTransactionRow } from '@/pages/imports/types'
+import type { ColumnMap, ColumnTarget, ColumnValidationErrors, ImportAmountSideTarget, ImportAmountSignConvention, ImportCategoryKind, ImportFileDraft, ImportOverlayPhase, PreviewTransactionRow } from '@/pages/imports/types'
 import {
   applyCreateAccountFallback,
   applyFixedImportAccount,
   buildColumnTargetOptions,
   buildImportAnswerScope,
+  readAmountSignConvention,
   buildImportAccountMappingSources,
   buildImportAccountOptions,
   buildTransactionImportPayload,
@@ -59,6 +60,14 @@ import { waitForMilliseconds } from '@/utils/timing'
 import { useImportAccountCreateState } from './useImportAccountCreateState'
 import { useImportMerchantMatches } from './useImportMerchantMatches'
 import { useImportReferenceData } from './useImportReferenceData'
+
+/**
+ * A sign convention the user answered, against the column and files it was answered for
+ */
+interface AmountSignChoice {
+  scope: string
+  convention: ImportAmountSignConvention
+}
 
 /**
  * A date format the user picked, tagged with the column and files it was picked for
@@ -185,6 +194,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   const [columnValidationErrors, setColumnValidationErrors] = useState<ColumnValidationErrors>({})
 
   const [dateFormatChoice, setDateFormatChoice] = useState<DateFormatChoice | null>(null)
+  const [amountSignChoices, setAmountSignChoices] = useState<Partial<Record<ImportAmountSideTarget, AmountSignChoice>>>({})
   const [scopedCategoryMappings, setScopedCategoryMappings] = useState<ScopedImportAnswers<string>>(emptyScopedImportAnswers)
   const [categoryAutoMatchKey, setCategoryAutoMatchKey] = useState('')
   const [scopedCategoryCreateKinds, setScopedCategoryCreateKinds] = useState<ScopedImportAnswers<ImportCategoryKind>>(emptyScopedImportAnswers)
@@ -336,9 +346,26 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     [columnMap.dt, files],
   )
 
-  // Names what the scan was run against, so a format chosen for one column and set of files is
+  // Says what the scan was run against, so a format chosen for one column and set of files is
   // dropped rather than carried onto another
-  const dateFormatScope = `${columnMap.dt}:${files.map((file) => file.id).join(',')}`
+  const dateFormatScope = buildImportAnswerScope(columnMap.dt, files)
+
+  // The same for each amount side, so a convention answered for one column is not carried onto the
+  // next file or onto a column the field was moved to afterwards
+  const amountSignConventions = useMemo(
+    () => ({
+      amount_out: readAmountSignConvention(amountSignChoices.amount_out, columnMap.amount_out, files),
+      amount_in: readAmountSignConvention(amountSignChoices.amount_in, columnMap.amount_in, files),
+    }),
+    [amountSignChoices, columnMap.amount_out, columnMap.amount_in, files],
+  )
+
+  const setAmountSignConvention = (side: ImportAmountSideTarget, convention: ImportAmountSignConvention) => {
+    setAmountSignChoices((current) => ({
+      ...current,
+      [side]: { scope: buildImportAnswerScope(columnMap[side], files), convention },
+    }))
+  }
 
   // The user's answer while it still applies, otherwise the only format the column can be read in.
   // More than one survivor leaves it unanswered, because choosing between them is exactly the guess
@@ -540,8 +567,8 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   } = useImportMerchantMatches(importedMerchants)
 
   const categoryTypesBySource = useMemo(
-    () => getImportedCategoryTypes(files, columnMap.category_id, columnMap.amount, importedCategories),
-    [columnMap.amount, columnMap.category_id, importedCategories, files],
+    () => getImportedCategoryTypes(files, columnMap, amountSignConventions, importedCategories),
+    [amountSignConventions, columnMap, importedCategories, files],
   )
 
   const importedTags = useMemo(
@@ -609,6 +636,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
       columnMap,
       columnValidationErrors: resolvedColumnValidationErrors,
       currencies,
+      amountSignConventions,
       dateFormat,
       files,
       importedCategories,
@@ -622,6 +650,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     [
       accountById,
       accountCreateInstitutions,
+      amountSignConventions,
       accountCreateTypes,
       accountMappingSources,
       categoryById,
@@ -649,6 +678,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     () => buildImportPreviewRows({
       files,
       columnMap,
+      amountSignConventions,
       dateFormat,
       missingRequiredColumnLabels,
       currencies,
@@ -663,7 +693,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
       resolvedCategoryMappings,
       rowProblems: importBuild.rowProblems,
     }),
-    [accountById, accountCreateInstitutions, categoryById, categoryCreateKinds, categoryTypesBySource, columnMap, currencies, dateFormat, files, importBuild.rowProblems, institutionById, missingRequiredColumnLabels, resolvedAccountCreateCurrencies, resolvedAccountMappings, resolvedCategoryMappings],
+    [accountById, accountCreateInstitutions, amountSignConventions, categoryById, categoryCreateKinds, categoryTypesBySource, columnMap, currencies, dateFormat, files, importBuild.rowProblems, institutionById, missingRequiredColumnLabels, resolvedAccountCreateCurrencies, resolvedAccountMappings, resolvedCategoryMappings],
   )
 
   const previewGroups = useMemo(
@@ -917,6 +947,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     setTagHandlingOpen(true)
     setColumnValidationErrors({})
     setDateFormatChoice(null)
+    setAmountSignChoices({})
     setScopedCategoryMappings(emptyScopedImportAnswers)
     setCategoryAutoMatchKey('')
     setScopedCategoryCreateKinds(emptyScopedImportAnswers)
@@ -957,6 +988,8 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     dateFormat,
     dateFormatScan,
     setDateFormat,
+    amountSignConventions,
+    setAmountSignConvention,
     categoryMappings: resolvedCategoryMappings,
     categoryCreateKinds,
     merchantMappings,

@@ -12,6 +12,7 @@ import {
 import { BALANCE_ADJUSTMENT_CATEGORY_NAME, doesTransferRecordCounterpartyAccount, OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 import type {
   ColumnMap,
+  ImportAmountSignConventions,
   ImportCategoryKind,
   ImportFileDraft,
   ImportRowProblem,
@@ -22,7 +23,7 @@ import { getImportRowId } from './common'
 import { getCategoryMatchKind } from './categoryMatching'
 import { findCurrencyExponent } from '@/utils/moneyInput'
 import { getCurrencyByAccountSource, type ImportRowContext, resolveImportRow } from './rowResolution'
-import { getSupportedCurrencyCodes } from './workflowOptions'
+import { getSupportedCurrencyCodes, hasAmountArrangementClash } from './workflowOptions'
 import {
   type ImportDateFormat,
   getPreviewDateLabel,
@@ -33,6 +34,7 @@ import {
 interface BuildImportPreviewRowsOptions {
   files: ImportFileDraft[]
   columnMap: ColumnMap
+  amountSignConventions: ImportAmountSignConventions
   dateFormat: ImportDateFormat | null
   missingRequiredColumnLabels: string[]
   currencies: Currency[]
@@ -73,6 +75,7 @@ export function groupPreviewRowsByDate(rows: PreviewTransactionRow[]) {
 export function buildImportPreviewRows({
   files,
   columnMap,
+  amountSignConventions,
   dateFormat,
   missingRequiredColumnLabels,
   currencies,
@@ -89,6 +92,11 @@ export function buildImportPreviewRows({
 }: BuildImportPreviewRowsOptions): PreviewTransactionRow[] {
   if (missingRequiredColumnLabels.length > 0) return []
 
+  // A map stating the amount two ways at once satisfies the required-column check, since any one of
+  // the three answers it, and reading a row then picks the sides and ignores the Amount column. That
+  // is a reading the commit refuses, so previewing it would show rows the import will never write
+  if (hasAmountArrangementClash(columnMap)) return []
+
   // A row that cannot be converted is listed with its reason instead, so previewing it as well
   // would show an amount of zero or a blank date beside the entry saying why it was refused
   const problemRowIds = new Set(rowProblems.map((problem) => problem.id))
@@ -102,6 +110,7 @@ export function buildImportPreviewRows({
   const rowContext: ImportRowContext = {
     columnMap,
     dateFormat,
+    amountSignConventions,
     currencyByAccountSource: getCurrencyByAccountSource(resolvedAccountMappings, accountById, accountCreateCurrencies),
   }
 

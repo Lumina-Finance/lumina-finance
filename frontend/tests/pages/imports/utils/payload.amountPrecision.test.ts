@@ -8,6 +8,7 @@ import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import {
+  DEFAULT_AMOUNT_SIGN_CONVENTIONS,
   CREATE_ACCOUNT_VALUE,
   EMPTY_COLUMN_MAP,
   getRowAmountTooPreciseReason,
@@ -111,6 +112,7 @@ function buildPayload(amount: string, accountCurrency: string, importedCurrency 
     columnMap: COLUMN_MAP,
     columnValidationErrors: {},
     currencies: CURRENCIES,
+    amountSignConventions: DEFAULT_AMOUNT_SIGN_CONVENTIONS,
     dateFormat: 'yearFirst',
     files: [createFile(amount, importedCurrency)],
     importedCategories: ['Groceries'],
@@ -136,6 +138,7 @@ function buildCreateAccountPayload(amount: string, createCurrency: string, impor
     columnMap: COLUMN_MAP,
     columnValidationErrors: {},
     currencies: CURRENCIES,
+    amountSignConventions: DEFAULT_AMOUNT_SIGN_CONVENTIONS,
     dateFormat: 'yearFirst',
     files: [createFile(amount, importedCurrency)],
     importedCategories: ['Groceries'],
@@ -149,6 +152,7 @@ function buildPreview(amount: string, accountCurrency: string, importedCurrency 
   return buildImportPreviewRows({
     files: [createFile(amount, importedCurrency)],
     columnMap: COLUMN_MAP,
+    amountSignConventions: DEFAULT_AMOUNT_SIGN_CONVENTIONS,
     dateFormat: 'yearFirst',
     missingRequiredColumnLabels: [],
     currencies: CURRENCIES,

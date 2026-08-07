@@ -1,10 +1,13 @@
 import { EmptyState, ImportHeaderMappingTable, ImportNotice, ImportStep } from '@/pages/imports/components'
 import {
+  AMOUNT_ARRANGEMENT_CLASH_ERROR,
+  AMOUNT_ARRANGEMENT_CLASH_TITLE,
   AMOUNT_CONVENTION_NOTE,
   getRowsWithNoPayeeExplanation,
   ROWS_WITH_NO_PAYEE_TITLE,
 } from '@/pages/imports/constants'
 import type { TransactionImportWorkflow } from '@/pages/imports/hooks'
+import { hasAmountArrangementClash } from '@/pages/imports/utils'
 
 type ImportColumnMappingStepProps = Pick<
   TransactionImportWorkflow,
@@ -16,8 +19,10 @@ type ImportColumnMappingStepProps = Pick<
   | 'columnValidationErrors'
   | 'dateFormat'
   | 'dateFormatScan'
+  | 'amountSignConventions'
   | 'rowsWithNoPayeeCount'
   | 'setDateFormat'
+  | 'setAmountSignConvention'
   | 'updateColumnTarget'
 >
 
@@ -25,10 +30,10 @@ type ImportColumnMappingStepProps = Pick<
  * Column mapping step of the generic CSV import flow, matching each header found in the uploaded
  * file to an app field
  *
- * The amount convention is stated above the table rather than offered as a choice, because the file
- * is read one way only and a statement written to another convention has to be corrected before it
- * is uploaded. It sits where the account step states its own currency handling, since both say what
- * the import will do with a number rather than asking anything
+ * The amount convention is stated above the table rather than offered as a choice, because which
+ * arrangement a file uses is answered by mapping its columns rather than by a question of its own.
+ * It sits where the account step states its own currency handling, since both say what the import
+ * will do with a number rather than asking anything
  */
 export function ImportColumnMappingStep({
   headers,
@@ -39,8 +44,10 @@ export function ImportColumnMappingStep({
   columnValidationErrors,
   dateFormat,
   dateFormatScan,
+  amountSignConventions,
   rowsWithNoPayeeCount,
   setDateFormat,
+  setAmountSignConvention,
   updateColumnTarget,
 }: ImportColumnMappingStepProps) {
   return (
@@ -67,9 +74,18 @@ export function ImportColumnMappingStep({
           validationErrors={columnValidationErrors}
           dateFormat={dateFormat}
           dateFormatScan={dateFormatScan}
+          amountSignConventions={amountSignConventions}
           onChange={updateColumnTarget}
           onDateFormatChange={setDateFormat}
+          onAmountSignConventionChange={setAmountSignConvention}
         />
+      )}
+      {hasAmountArrangementClash(columnMap) && (
+        <div className="mt-4">
+          <ImportNotice title={AMOUNT_ARRANGEMENT_CLASH_TITLE} tone="danger">
+            {AMOUNT_ARRANGEMENT_CLASH_ERROR}
+          </ImportNotice>
+        </div>
       )}
       {rowsWithNoPayeeCount > 0 && (
         <div className="mt-4">

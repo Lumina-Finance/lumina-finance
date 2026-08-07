@@ -7,6 +7,7 @@ import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import {
+  DEFAULT_AMOUNT_SIGN_CONVENTIONS,
   EMPTY_COLUMN_MAP,
   getRowNotesTooLongReason,
   getRowTooManyTagsReason,
@@ -78,6 +79,7 @@ function build(notes: string, tags: string) {
     },
     columnValidationErrors: {},
     currencies: CURRENCIES,
+    amountSignConventions: DEFAULT_AMOUNT_SIGN_CONVENTIONS,
     dateFormat: 'yearFirst',
     files: [file],
     importedCategories: ['Groceries'],
@@ -200,6 +202,7 @@ function buildWithManyCategories(count: number, { mapped }: { mapped: boolean })
     },
     columnValidationErrors: {},
     currencies: CURRENCIES,
+    amountSignConventions: DEFAULT_AMOUNT_SIGN_CONVENTIONS,
     dateFormat: 'yearFirst',
     files: [file],
     importedCategories: sources,

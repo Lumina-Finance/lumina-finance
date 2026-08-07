@@ -6,6 +6,8 @@ import type { DropdownOption } from '@/components/dropdown/Dropdown'
 import {
   ACCOUNT_KIND_LABELS,
   ACCOUNT_KIND_RANKS,
+  COLUMN_TARGET_GROUP_LABELS,
+  COLUMN_TARGET_GROUP_RANKS,
   COLUMN_TARGETS,
   CREATE_ACCOUNT_VALUE,
   CREATE_CATEGORY_VALUE,
@@ -14,10 +16,19 @@ import {
   DEFAULT_CATEGORY_ICON,
   KIND_LABELS,
   KIND_RANKS,
+  MISSING_AMOUNT_COLUMN_LABEL,
 } from '@/pages/imports/constants'
 import { getMerchantNameKey } from '@/api/shared/merchantNameKey'
-import type { ColumnMap, CsvRow, ImportAccountSource, ImportFileDraft, ImportUploadBlock } from '@/pages/imports/types'
+import type {
+  ColumnMap,
+  CsvRow,
+  ImportAccountSource,
+  ImportAmountSignConvention,
+  ImportFileDraft,
+  ImportUploadBlock,
+} from '@/pages/imports/types'
 import { getImportAccountName } from './accountMapping'
+import { buildImportAnswerScope } from './scopedAnswers'
 import { splitImportedValues } from './categoryMatching'
 import { unique } from './common'
 
@@ -129,10 +140,10 @@ export function buildImportCategoryMatchOptions(categories: Category[] = []): Dr
 }
 
 /**
- * Builds import column target options grouped by required and optional fields
+ * Builds import column target options grouped by how each field is required
  *
- * The list starts a new heading every time the group changes down the options, so the required ones
- * are gathered ahead of the optional ones rather than following the order the fields are declared in
+ * The list starts a new heading every time the group changes down the options, so the targets are
+ * sorted by group rather than following the order the fields are declared in
  *
  * Each field's hint rides along as the option's description, which is where a user decides what a
  * column means. Ignoring a column needs no explanation, so that entry carries none
@@ -144,14 +155,16 @@ export function buildColumnTargetOptions({ omitAccountColumn = false } = {}): Dr
   const offeredTargets = omitAccountColumn
     ? COLUMN_TARGETS.filter((target) => target.id !== 'account_id')
     : COLUMN_TARGETS
-  const targetsByGroup = [...offeredTargets].sort((a, b) => Number(Boolean(b.required)) - Number(Boolean(a.required)))
+  const targetsByGroup = [...offeredTargets].sort(
+    (a, b) => COLUMN_TARGET_GROUP_RANKS[a.group] - COLUMN_TARGET_GROUP_RANKS[b.group],
+  )
 
   return [
     { value: '', label: 'Do not import' },
     ...targetsByGroup.map((target) => ({
       value: target.id,
       label: target.label,
-      group: target.required ? 'Required fields' : 'Optional fields',
+      group: COLUMN_TARGET_GROUP_LABELS[target.group],
       description: target.hint,
     })),
   ]
@@ -166,11 +179,51 @@ export function getImportHeaders(files: ImportFileDraft[]): string[] {
 
 /**
  * Lists required import columns that are still unmapped
+ *
+ * The three amount fields share one requirement between them, so they are reported as the single
+ * label rather than one per field: mapping any of them answers it, and a file mapping the two sides
+ * is not missing an Amount column
  */
 export function getMissingRequiredColumnLabels(columnMap: ColumnMap): string[] {
-  return COLUMN_TARGETS
-    .filter((target) => target.required && !columnMap[target.id])
+  const missing = COLUMN_TARGETS
+    .filter((target) => target.group === 'required' && !columnMap[target.id])
     .map((target) => target.label)
+
+  const hasAmountArrangement = COLUMN_TARGETS.some(
+    (target) => target.group === 'amount' && columnMap[target.id],
+  )
+  if (!hasAmountArrangement) missing.push(MISSING_AMOUNT_COLUMN_LABEL)
+
+  return missing
+}
+
+/**
+ * Reads back an amount side's sign convention while it still applies, otherwise the default
+ *
+ * A convention is answered about one column in one set of files, so moving the field to another
+ * column, or staging a different file, leaves the answer behind rather than carrying it onto values
+ * it was never given for. Almost every statement writes both sides as positive numbers, so that is
+ * what a column starts on
+ *
+ * @param choice - The answer as stored, against what it was answered about
+ * @param header - The column that side is mapped to now
+ */
+export function readAmountSignConvention(
+  choice: { scope: string; convention: ImportAmountSignConvention } | undefined,
+  header: string,
+  files: ImportFileDraft[],
+): ImportAmountSignConvention {
+  return choice?.scope === buildImportAnswerScope(header, files) ? choice.convention : 'positive'
+}
+
+/**
+ * Reports whether a file is mapped as carrying its amount two ways at once
+ *
+ * A single signed column and the two sides written separately are alternatives, so a map holding
+ * both states the amount twice and there is nothing to say which reading wins
+ */
+export function hasAmountArrangementClash(columnMap: ColumnMap): boolean {
+  return Boolean(columnMap.amount && (columnMap.amount_out || columnMap.amount_in))
 }
 
 /**

@@ -8,6 +8,7 @@ import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import {
+  DEFAULT_AMOUNT_SIGN_CONVENTIONS,
   CREATE_ACCOUNT_VALUE,
   CREATE_CATEGORY_VALUE,
   EMPTY_COLUMN_MAP,
@@ -141,6 +142,7 @@ function buildPayload({
     categoryTypesBySource: {},
     columnMap: COLUMN_MAP,
     columnValidationErrors: {},
+    amountSignConventions: DEFAULT_AMOUNT_SIGN_CONVENTIONS,
     dateFormat: 'yearFirst',
     files: [createFile([{
       Account: 'Chequing',
@@ -315,6 +317,7 @@ describe('CSV import counterparty account', () => {
         { Account: 'Chequing', Date: '2026-04-13', Amount: '-30.00', Category: 'Transfer', 'Other account': '' },
       ])],
       columnMap: COLUMN_MAP,
+      amountSignConventions: DEFAULT_AMOUNT_SIGN_CONVENTIONS,
       dateFormat: 'yearFirst',
       missingRequiredColumnLabels: [],
       currencies,
@@ -355,6 +358,7 @@ describe('CSV import counterparty account', () => {
         { Account: 'Chequing', Date: '2026-04-11', Amount: '-500.00', Category: 'Transfer', 'Other account': 'Savings' },
       ])],
       columnMap: COLUMN_MAP,
+      amountSignConventions: DEFAULT_AMOUNT_SIGN_CONVENTIONS,
       dateFormat: 'yearFirst',
       missingRequiredColumnLabels: [],
       currencies,
@@ -383,6 +387,7 @@ describe('CSV import counterparty account', () => {
         { Account: 'Chequing', Date: '2026-04-11', Amount: '-12.00', Category: 'Groceries', 'Other account': 'Savings' },
       ])],
       columnMap: COLUMN_MAP,
+      amountSignConventions: DEFAULT_AMOUNT_SIGN_CONVENTIONS,
       dateFormat: 'yearFirst',
       missingRequiredColumnLabels: [],
       currencies,
@@ -408,6 +413,7 @@ describe('CSV import counterparty account', () => {
         { Account: 'Chequing', Date: '2026-04-11', Amount: '-500.00', Category: 'Transfer', 'Other account': 'Savings' },
       ])],
       columnMap: COLUMN_MAP,
+      amountSignConventions: DEFAULT_AMOUNT_SIGN_CONVENTIONS,
       dateFormat: 'yearFirst',
       missingRequiredColumnLabels: [],
       currencies,

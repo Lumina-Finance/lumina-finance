@@ -1,5 +1,5 @@
 import { COLUMN_TARGETS } from '@/pages/imports/constants'
-import type { ColumnMap, ColumnTarget, ImportFileDraft } from '@/pages/imports/types'
+import type { ColumnMap, ColumnTarget, ImportAmountSideTarget, ImportFileDraft } from '@/pages/imports/types'
 import { unique } from './common'
 import { validateColumnMap, validateColumnValues } from './columnMapping'
 import { isSupportedCurrency, isValidAmountValue, isValidDateValue } from './valueParsers'
@@ -36,6 +36,35 @@ const HEADER_ALIAS_SCORES: Record<ColumnTarget, Record<string, number>> = {
     signedamount: 100,
     value: 75,
     total: 65,
+  },
+  // The past-tense and plain-English wordings are listed alongside the bookkeeping ones because the
+  // two sides have to match together. A pair where only one side is recognised is worse than one
+  // where neither is: the unmatched column falls to another field and its rows import the wrong way
+  amount_out: {
+    debit: 100,
+    debits: 100,
+    debitamount: 100,
+    withdrawal: 100,
+    withdrawals: 100,
+    withdrawn: 100,
+    moneyout: 100,
+    paidout: 100,
+    outflow: 90,
+    outgoing: 90,
+    out: 70,
+  },
+  amount_in: {
+    credit: 100,
+    credits: 100,
+    creditamount: 100,
+    deposit: 100,
+    deposits: 100,
+    deposited: 100,
+    moneyin: 100,
+    paidin: 100,
+    inflow: 90,
+    incoming: 90,
+    in: 70,
   },
   currency: {
     currency: 100,
@@ -106,6 +135,27 @@ const HEADER_CONTAINS_SCORES: Record<ColumnTarget, Array<{ value: string; score:
     { value: 'signed amount', score: 90 },
     { value: 'amount', score: 70 },
   ],
+  // Every wording the alias table above knows appears here too. An alias only matches a heading that
+  // is nothing but that word, so without the pair a compound like "Outgoing Amount" is recognised by
+  // neither table, and the single Amount field then takes it on the word it ends with
+  amount_out: [
+    { value: 'money out', score: 90 },
+    { value: 'amount out', score: 90 },
+    { value: 'paid out', score: 90 },
+    { value: 'outgoing', score: 90 },
+    { value: 'outflow', score: 90 },
+    { value: 'debit', score: 85 },
+    { value: 'withdraw', score: 85 },
+  ],
+  amount_in: [
+    { value: 'money in', score: 90 },
+    { value: 'amount in', score: 90 },
+    { value: 'paid in', score: 90 },
+    { value: 'incoming', score: 90 },
+    { value: 'inflow', score: 90 },
+    { value: 'credit', score: 85 },
+    { value: 'deposit', score: 85 },
+  ],
   currency: [
     { value: 'currency code', score: 90 },
     { value: 'currency', score: 75 },
@@ -141,10 +191,35 @@ const HEADER_CONTAINS_SCORES: Record<ColumnTarget, Array<{ value: string; score:
 // barred from the headers describing the counterparty account of a transfer, which it would
 // otherwise take first. A file whose own account column is called "Destination account" is mapped
 // by hand
+// A running total, a headroom figure and an identifier are all barred from every amount field: the
+// first two are money by shape, and an identifier is a run of digits the side fields would otherwise
+// take, since they accept any number and any blank
+const AMOUNT_LIKE_EXCLUDED_PARTS = ['balance', 'available', 'limit', 'rate', 'number', 'iban', 'routing']
+
 const EXCLUDED_HEADER_PARTS: Partial<Record<ColumnTarget, string[]>> = {
   account_id: ['number', 'no', 'iban', 'routing', 'other', 'destination', 'counter'],
-  amount: ['balance', 'available', 'limit', 'rate'],
+  amount: AMOUNT_LIKE_EXCLUDED_PARTS,
+  amount_out: AMOUNT_LIKE_EXCLUDED_PARTS,
+  amount_in: AMOUNT_LIKE_EXCLUDED_PARTS,
 }
+
+// Which other amount fields a heading has to be unknown to before this one may take it. The single
+// Amount field is barred from any heading either side recognises, because such a heading states one
+// direction and reading it as the whole transaction signs half the file wrongly. Each side is barred
+// from the other's headings, which is what leaves a lone column called "Debit/Credit Amount" to be
+// answered by hand: stating both directions, it is claimable by neither side
+//
+// Asked of the scoring tables rather than repeated as its own word list, since a list would have to
+// be extended every time a wording was added to those tables and is wrong in the meantime
+const RIVAL_AMOUNT_TARGETS: Partial<Record<ColumnTarget, ColumnTarget[]>> = {
+  amount: ['amount_out', 'amount_in'],
+  amount_out: ['amount_in'],
+  amount_in: ['amount_out'],
+}
+
+// Only ever guessed together, since one side on its own says nothing about how the file writes its
+// amounts
+const AMOUNT_SIDE_TARGETS: ImportAmountSideTarget[] = ['amount_out', 'amount_in']
 
 // How long an excluded part has to be before it is also looked for inside a run-together heading.
 // A heading written without separators has no words to check, so `accountnumber` would otherwise
@@ -194,12 +269,30 @@ export function inferColumnMap(
 
   const usedHeaders = new Set([...Object.values(inferredMap).filter(Boolean), ...decidedHeaders])
 
+  // Both sides or neither. One side matching a heading says nothing about how the file writes its
+  // amounts, since a lone Deposit column sits just as happily beside one signed column, and no
+  // heading tells those two apart. Guessing half the arrangement is the worst of the three outcomes,
+  // because the unmatched column is then read as the whole transaction, so a file the guesser cannot
+  // settle is left for the user to answer against the samples the mapping table shows them
+  const sideHeaders = AMOUNT_SIDE_TARGETS.map(
+    (target) => getBestHeaderMatch(files, headers, usedHeaders, target, supportedCurrencyCodes, true),
+  )
+  const areSidesInferable = sideHeaders.every(Boolean)
+
   // What a heading says beats what the values look like, whichever field asks first. Taking every
   // heading match before any value match is what stops a column of short text being claimed as a
   // merchant on its shape while the field its heading actually names is still waiting for it
   for (const byHeadingOnly of [true, false]) {
     for (const target of COLUMN_TARGETS) {
       if (inferredMap[target.id]) continue
+
+      // The three amount fields are alternatives, so once one arrangement is settled the other is
+      // not asked. A file stating its whole transaction in one column has no sides to read, and one
+      // stating both has no separate total: whatever numeric column is left over there is a fee or a
+      // running balance
+      const isSide = AMOUNT_SIDE_TARGETS.includes(target.id as ImportAmountSideTarget)
+      if (isSide && (!areSidesInferable || inferredMap.amount)) continue
+      if (target.id === 'amount' && AMOUNT_SIDE_TARGETS.every((side) => inferredMap[side])) continue
 
       const header = getBestHeaderMatch(files, headers, usedHeaders, target.id, supportedCurrencyCodes, byHeadingOnly)
       if (!header) continue
@@ -258,10 +351,13 @@ function isHeaderExcludedForTarget(header: string, target: ColumnTarget) {
   const parts = normalized.split(' ')
   const compact = normalized.replace(/\s/g, '')
 
-  return (EXCLUDED_HEADER_PARTS[target] ?? []).some((excluded) => (
+  const isExcludedByPart = (EXCLUDED_HEADER_PARTS[target] ?? []).some((excluded) => (
     parts.includes(excluded)
     || (excluded.length >= MIN_COMPACT_EXCLUSION_LENGTH && compact.includes(excluded))
   ))
+
+  return isExcludedByPart
+    || (RIVAL_AMOUNT_TARGETS[target] ?? []).some((rival) => scoreHeaderForTarget(header, rival) > 0)
 }
 
 function scoreHeaderForTarget(header: string, target: ColumnTarget) {
@@ -301,6 +397,12 @@ function scoreValuesForTarget(
 
   if (target === 'dt') return validDateRatio >= 0.8 ? Math.round(validDateRatio * 95) : 0
   if (target === 'amount') return validAmountRatio >= 0.8 ? Math.round(validAmountRatio * 95) : 0
+
+  // Neither side of a two-sided file is ever claimed on its values. A column of money out looks
+  // exactly like any other column of money, so scoring these on shape would pair off whichever two
+  // numeric columns a file happens to hold. The arrangement is claimed from the headings or answered
+  // by hand
+  if (target === 'amount_out' || target === 'amount_in') return 0
   if (target === 'currency') return validCurrencyRatio >= 0.8 ? Math.round(validCurrencyRatio * 85) : 0
   if (target === 'account_id') {
     const accountLikeRatio = getRatio(textValues, isAccountLikeValue)

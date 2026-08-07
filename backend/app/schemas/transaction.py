@@ -224,7 +224,11 @@ class TransactionImportMerchantMapping(BaseModel):
 
 
 class TransactionImportRow(BaseModel):
-    """One frontend-compiled import row. Amount is the raw CSV value, not minor units."""
+    """One frontend-compiled import row.
+
+    Amount carries the cell's own digits rather than minor units. Its sign is the frontend's where
+    the file states direction by which column a value sits in, and the cell's own otherwise.
+    """
 
     account_source: str = Field(min_length=1, max_length=256)
     category_source: str = Field(min_length=1, max_length=256)

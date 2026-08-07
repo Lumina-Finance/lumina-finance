@@ -1,3 +1,4 @@
+import type { ImportAmountSignConvention } from '@/pages/imports/types'
 import { DATE_FORMATS, formatDate, parseYmd } from '@/utils/date'
 
 /**
@@ -237,6 +238,46 @@ export function parseImportNumber(value: string) {
 
   const parsed = Number(normalized.replace(/,/g, ''))
   return Number.isFinite(parsed) ? parsed : null
+}
+
+/**
+ * Rewrites an amount cell to run the way its column and that column's convention say, without
+ * touching its digits
+ *
+ * A cell whose sign matches the convention runs the way its column does. One carrying the other sign
+ * runs the other way, which is how a refund sits in a column of purchases and a reversed deposit in
+ * a column of deposits. Only a minus counts as a sign here, so a value written `+45.00` reads the
+ * same as `45.00`
+ *
+ * The sign is replaced rather than added in front, because prefixing a minus onto a cell that
+ * already carries one gives `--12.00`, and onto a cell written `+5.00` gives `-+5.00`, neither of
+ * which this module's pattern nor the backend's matching one reads. Everything after the sign is
+ * left exactly as the file wrote it, thousands separators included, since the commit sends the
+ * string for the API to parse with exact decimals
+ *
+ * A zero is written without a sign, because it runs neither way
+ *
+ * @param value - The raw cell value, which the caller has already read as an amount
+ * @param direction - Which way the column the cell sits in holds money
+ * @param convention - Which sign that column writes its own direction with
+ * @returns The amount as the payload carries it. An empty string where the value is not an amount
+ * after all, which the type needs and no caller can reach
+ */
+export function applyImportAmountDirection(
+  value: string,
+  direction: 'out' | 'in',
+  convention: ImportAmountSignConvention,
+) {
+  const match = IMPORT_NUMBER_PATTERN.exec(value.trim())
+  if (!match) return ''
+
+  const [, sign, whole, fraction] = match
+  const digits = fraction === undefined ? whole : `${whole}.${fraction}`
+
+  const doesCellRunWithColumn = (sign === '-') === (convention === 'negative')
+  const isMoneyOut = doesCellRunWithColumn === (direction === 'out')
+
+  return isMoneyOut && parseImportNumber(value) !== 0 ? `-${digits}` : digits
 }
 
 /**
