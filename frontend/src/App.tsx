@@ -103,13 +103,17 @@ function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase, 
   // Failing means the recovery screen rather than the app, because every screen below shows money and
   // none can show it correctly without the list
   //
-  // Deliberately not held back until the session is known. Doing that reads better for a visitor whose
-  // stored session turns out to be stale, who would otherwise see the error for the moment before
-  // being sent to log in, but it costs more than it buys: the session request carries no timeout of
-  // its own, so a network that swallows packets leaves it pending forever, and waiting on it would
-  // leave that user on the loading screen with no reload button instead of on this screen with one.
-  // Both cases mean the server is unreachable, and the screen that says so is the better answer to
-  // both. Once the session does resolve without one, the redirect above wins on the next render
+  // Deliberately not held back until the session is known, though that does cost something. A visitor
+  // whose stored session turns out to be stale sees this screen until the session request answers and
+  // the redirect above wins, which is immediate on a fresh load but at least 750ms after a browser
+  // reload, since the session restore is held back that long, and longer again behind a slow server.
+  // A valid session that answers slowly can see it too, cutting the minimum loading screen short
+  //
+  // It buys more than it costs. The session request carries no timeout of its own, so a network that
+  // swallows packets leaves it pending forever, and waiting on it would strand that user on the
+  // loading screen with no reload button rather than on this screen with one. Every one of these
+  // cases means the server is unreachable, and the screen saying so is the better answer to all of
+  // them
   const currencyListUnavailable = currenciesFailed;
 
   // The loading phase runs after the switch while the new route's chunk mounts
