@@ -1,3 +1,5 @@
+import { toTailwindZIndexTheme } from './src/constants/stackingLevels.ts'
+
 /** @type {import('tailwindcss').Config} */
 export default {
   darkMode: 'class',
@@ -15,6 +17,10 @@ export default {
         mono: ['"DM Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
         display: ['"Cormorant Garamond Variable"', 'Georgia', 'serif'],
       },
+      // The one ordered list of stacking levels that can reach the top of the page, kept in
+      // src/constants/stackingLevels.ts so the sites that compute a style object read the same
+      // numbers these classes carry
+      zIndex: toTailwindZIndexTheme(),
       colors: {
         gold: '#C9A96A',
         'gold-bright': '#E4C17A',

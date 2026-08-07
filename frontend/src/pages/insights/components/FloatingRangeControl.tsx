@@ -358,7 +358,7 @@ export function InsightsFloatingRangeControl(props: InsightsFloatingRangeControl
           bottom-floating mobile control is portaled to the body to stay pinned to the viewport */}
       {createPortal(
         <div
-          className="pointer-events-none fixed inset-x-4 bottom-1.5 z-30 min-[1050px]:hidden"
+          className="pointer-events-none fixed inset-x-4 bottom-1.5 z-page-overlay min-[1050px]:hidden"
           style={keyboardLift > 0 ? { transform: `translateY(-${keyboardLift}px)` } : undefined}
           onFocusCapture={(event) => setIsEditingField(event.target instanceof HTMLInputElement)}
           onBlurCapture={(event) => {

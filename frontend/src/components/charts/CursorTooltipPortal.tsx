@@ -5,7 +5,7 @@ import {
   type TransitionEvent as ReactTransitionEvent,
 } from 'react'
 import { createPortal } from 'react-dom'
-import { CURSOR_TOOLTIP_Z_INDEX } from '@/utils/tooltipPosition'
+import { STACKING_LEVELS } from '@/constants/stackingLevels'
 
 type CursorTooltipPortalProps = {
   children: ReactNode
@@ -15,7 +15,7 @@ type CursorTooltipPortalProps = {
 }
 
 const defaultTooltipStyle: CSSProperties = {
-  zIndex: CURSOR_TOOLTIP_Z_INDEX,
+  zIndex: STACKING_LEVELS.tooltip,
   transition: 'opacity 150ms ease-out, transform 160ms cubic-bezier(0.22, 1, 0.36, 1)',
   willChange: 'opacity, transform',
 }

@@ -1,5 +1,6 @@
 import { useLayoutEffect, type ReactNode, type RefObject } from 'react'
 import { animate, motion, useMotionValue, useReducedMotion } from 'motion/react'
+import { STACKING_LEVELS } from '@/constants/stackingLevels'
 import { joinClassNames } from '@/utils/classNames'
 import {
   DROPDOWN_INSTANT_TRANSITION,
@@ -27,10 +28,6 @@ interface DropdownBoxProps {
 
   position: DropdownBoxPosition
 }
-
-// Above both modal levels and the mobile filter sheet, matching the level the date picker already
-// takes so a menu and a calendar opened from the same form agree on which sits in front
-const DROPDOWN_OPEN_Z_INDEX = 110
 
 // What the box is while it sits in its slot, which is the whole of it. Written as the width rather
 // than left with none, so the value the animation drives is the only thing that ever sets it
@@ -120,7 +117,12 @@ export function DropdownBox({
           // room the box leaves clear of the edge of the screen
           maxWidth: position.openWidth,
           maxHeight: position.boxMaxHeight,
-          zIndex: DROPDOWN_OPEN_Z_INDEX,
+          // The box is fixed in place rather than portalled, so this orders it against whatever
+          // stacking context it lands in. On a page that is the whole app, since page content is
+          // isolated as one context and the box is the popover level within it. Opened inside a
+          // modal or the filter sheet, both of which are fixed with a level of their own, it orders
+          // only against that container's contents
+          zIndex: STACKING_LEVELS.popover,
         }
         : { position: 'absolute', top: 0, left: 0, right: 0, width: boxWidth }}
       // Sinks under a press and springs back when it is let go. Suppressed for as long as the box is

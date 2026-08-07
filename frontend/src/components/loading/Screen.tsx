@@ -9,8 +9,8 @@ type LoadingScreenProps = {
 // time it is mounted, otherwise its exit fade keeps swallowing taps on the menu and
 // in-page buttons for the length of the fade after the content is already interactive
 const loadingScreenClassNames = {
-  screen: 'pointer-events-none fixed inset-0 z-50 flex flex-col items-center justify-center gap-5 px-6 text-center min-[730px]:gap-6',
-  main: 'pointer-events-none fixed inset-0 z-30 flex flex-col items-center justify-center gap-5 px-6 text-center min-[730px]:gap-6 min-[1050px]:left-[260px]',
+  screen: 'pointer-events-none fixed inset-0 z-loading-screen flex flex-col items-center justify-center gap-5 px-6 text-center min-[730px]:gap-6',
+  main: 'pointer-events-none fixed inset-0 z-page-overlay flex flex-col items-center justify-center gap-5 px-6 text-center min-[730px]:gap-6 min-[1050px]:left-[260px]',
 };
 
 const LoadingScreen = ({ variant = 'screen', message = 'Your financial future awaits' }: LoadingScreenProps) => (
