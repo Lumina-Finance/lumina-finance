@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { useReducedMotion } from 'motion/react'
+import { useNavigate } from 'react-router'
 import { useAuth } from '@/hooks/useAuth'
 import { useAccounts } from '@/api/accounts'
 import {
@@ -22,6 +23,7 @@ import {
  * Renders the transactions page overview, filters, list, and transaction modal workflows
  */
 export default function TransactionsPage() {
+  const navigate = useNavigate()
   const prefersReducedMotion = useReducedMotion()
   const loadTransaction = useLoadTransaction()
   const { user } = useAuth()
@@ -46,6 +48,16 @@ export default function TransactionsPage() {
       setCreateModalKey((key) => key + 1)
       setShowCreateModal(true)
     })
+  }
+
+  /**
+   * Opens the import page, which asks which account each row belongs to
+   *
+   * This list spans every account, so the import is not fixed to one the way it is from an account's
+   * own page, and the address carries none
+   */
+  const openImport = () => {
+    navigate('/settings/imports')
   }
 
   /**
@@ -162,6 +174,7 @@ export default function TransactionsPage() {
           onSettledTransactionsChange={handleSettledTransactionsChange}
           onCreateTransaction={openCreateModal}
           onEditTransaction={openEditModal}
+          onImport={openImport}
         />
       </div>
 

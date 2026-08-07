@@ -5,6 +5,7 @@ import {
   useInfiniteTransactions,
   type Transaction,
 } from '@/api/transactions'
+import { getImportBlockReason, isImportableAccount } from '@/pages/imports/utils'
 import { TRANSACTION_FILTER_KEYS, TRANSACTION_LIST_EASE } from '@/pages/transactions/constants/transactionList'
 import TransactionDateGroupList from '@/pages/transactions/components/DateGroupList'
 import TransactionFilterLoadingOverlay from '@/pages/transactions/components/FilterLoadingOverlay'
@@ -44,6 +45,7 @@ export default function TransactionListSection({
   onSettledTransactionsChange,
   onCreateTransaction,
   onEditTransaction,
+  onImport,
 }: {
   fixedAccount?: TransactionListAccount
   accounts?: TransactionListAccount[]
@@ -54,6 +56,9 @@ export default function TransactionListSection({
   onSettledTransactionsChange?: (transactions: Transaction[]) => void
   onCreateTransaction: () => void
   onEditTransaction: (transaction: Transaction) => void
+
+  // Opens an import filed into the account this list is fixed to, offered only alongside one
+  onImport?: () => void
 }) {
   const prefersReducedMotion = useReducedMotion()
   const { search, setSearch, activeSearch, submitSearch } = useTransactionSearch()
@@ -132,6 +137,13 @@ export default function TransactionListSection({
   const createDisabled = Boolean(fixedAccount?.is_archived)
   const createDisabledReason = createDisabled ? 'Archived accounts are read-only' : undefined
 
+  // Only a list fixed to one account can be blocked, since only that one writes rows to an account
+  // of its own. On the list of every account the button is the way to the import page and is always
+  // offered. Where it is blocked it stays on the row, greyed out with the reason, rather than
+  // coming and going
+  const importDisabled = Boolean(fixedAccount) && !isImportableAccount(fixedAccount)
+  const importDisabledReason = getImportBlockReason(fixedAccount)
+
   const { sentinelRef, showPendingFetch } = useInfiniteScrollTrigger({
     hasNextPage,
     isFetchingNextPage,
@@ -171,6 +183,9 @@ export default function TransactionListSection({
         onCreateTransaction={onCreateTransaction}
         createDisabled={createDisabled}
         createDisabledReason={createDisabledReason}
+        onImport={onImport}
+        importDisabled={importDisabled}
+        importDisabledReason={importDisabledReason}
         onStickyOffsetChange={setDateHeaderStickyTop}
       />
 

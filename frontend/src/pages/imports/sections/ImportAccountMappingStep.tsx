@@ -15,7 +15,11 @@ import {
   CREATED_ACCOUNT_CREDIT_LIMIT_NOTE,
   CREATED_ACCOUNT_EXPLANATION,
   CREATED_ACCOUNT_TITLE,
+  FIXED_ACCOUNT_WARNING_LINK_LABEL,
+  FIXED_ACCOUNT_WARNING_TITLE,
   UNSET_BATCH_INSTITUTION,
+  getFixedAccountCurrencyNote,
+  getFixedAccountWarning,
 } from '@/pages/imports/constants'
 import type { ImportAccountSource } from '@/pages/imports/types'
 import { isCreatingImportAccount } from '@/pages/imports/utils'
@@ -31,6 +35,7 @@ type ImportAccountMappingStepProps = Pick<
   TransactionImportWorkflow,
   | 'accountMappingSources'
   | 'accountMappings'
+  | 'fixedAccount'
   | 'archivedAccountMatches'
   | 'autoFilledAccountSources'
   | 'handAnsweredAccountSources'
@@ -65,10 +70,15 @@ type ImportAccountMappingStepProps = Pick<
 /**
  * Account mapping step of the generic CSV import flow, wrapping the shared mapping table with the
  * modal used to create an institution from a row or from the batch bar
+ *
+ * An import started from an account has no imported-account table at all: every row goes to that
+ * account, so the step says so and warns about the one file this page is wrong for. The counterparty
+ * table is unaffected, since a transfer still has to say where its money came from or went to
  */
 export function ImportAccountMappingStep({
   accountMappingSources,
   accountMappings,
+  fixedAccount,
   archivedAccountMatches,
   autoFilledAccountSources,
   handAnsweredAccountSources,
@@ -188,7 +198,24 @@ export function ImportAccountMappingStep({
     <ImportStep index="03" title="Account Mapping">
       {!accountsFailed && (
         <ImportNotice title="Currency Handling">
-          Imported amounts are treated as raw values. During import, each amount will be assigned the base currency of the mapped account, or the currency shown against a new account, which is taken from the file where it states one and can be changed on any row.
+          {fixedAccount
+            ? getFixedAccountCurrencyNote(fixedAccount.name, fixedAccount.currency)
+            : 'Imported amounts are treated as raw values. During import, each amount will be assigned the base currency of the mapped account, or the currency shown against a new account, which is taken from the file where it states one and can be changed on any row.'}
+        </ImportNotice>
+      )}
+      {/* Says what this page will do with a file whether or not one is staged, since a file covering
+          more than one account has to be sent elsewhere before it is uploaded rather than after */}
+      {fixedAccount && (
+        <ImportNotice tone="danger" title={FIXED_ACCOUNT_WARNING_TITLE}>
+          {getFixedAccountWarning(fixedAccount.name)}
+          {' '}
+          <Link
+            to="/settings/imports"
+            className="font-medium underline underline-offset-2 transition-colors duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+            style={{ color: 'var(--app-accent)' }}
+          >
+            {FIXED_ACCOUNT_WARNING_LINK_LABEL}
+          </Link>
         </ImportNotice>
       )}
       {accountsFailed ? (
@@ -198,10 +225,14 @@ export function ImportAccountMappingStep({
           onRetry={refetchAccounts}
         />
       ) : accountMappingSources.length === 0 ? (
-        <EmptyState
-          title="No account sources detected"
-          description="Upload a file or check the mapped account column."
-        />
+        // A fixed account has already been told what will happen, by the notice above, so nothing
+        // asks it for a file a second time
+        fixedAccount ? null : (
+          <EmptyState
+            title="No account sources detected"
+            description="Upload a file or check the mapped account column."
+          />
+        )
       ) : (
         <>
           {clearedAccountSourceLabels.length > 0 && (
@@ -238,18 +269,22 @@ export function ImportAccountMappingStep({
               {CREATED_ACCOUNT_EXPLANATION}
             </ImportNotice>
           )}
-          <ImportAccountMappingTable
-            rows={importedRows}
-            options={accountOptions}
-            batchAccountType={batchAccountType}
-            batchAccountCurrency={batchAccountCurrency}
-            batchAccountInstitution={batchAccountInstitution}
-            onBatchAccountTypeChange={setBatchAccountType}
-            onBatchAccountCurrencyChange={setBatchAccountCurrency}
-            onBatchAccountInstitutionChange={setBatchAccountInstitution}
-            onBatchCreateInstitution={(query) => openInstitutionModal(query, IMPORTED_BATCH_TARGET)}
-            {...sharedTableProps}
-          />
+          {/* The scope answers every source rows are written to, so there is no table to show for
+              them. The counterparty table below still asks about a transfer's other side */}
+          {fixedAccount ? null : (
+            <ImportAccountMappingTable
+              rows={importedRows}
+              options={accountOptions}
+              batchAccountType={batchAccountType}
+              batchAccountCurrency={batchAccountCurrency}
+              batchAccountInstitution={batchAccountInstitution}
+              onBatchAccountTypeChange={setBatchAccountType}
+              onBatchAccountCurrencyChange={setBatchAccountCurrency}
+              onBatchAccountInstitutionChange={setBatchAccountInstitution}
+              onBatchCreateInstitution={(query) => openInstitutionModal(query, IMPORTED_BATCH_TARGET)}
+              {...sharedTableProps}
+            />
+          )}
           {counterpartySources.length > 0 && (
             <div className="space-y-3 pt-8">
               <div className="space-y-1">

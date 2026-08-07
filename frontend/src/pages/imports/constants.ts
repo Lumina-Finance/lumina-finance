@@ -226,6 +226,54 @@ export const CLEARED_ACCOUNT_SOURCES_EXPLANATION = 'An account these sources wer
 export const CLEARED_CATEGORY_SOURCES_TITLE = 'Answers cleared'
 export const CLEARED_CATEGORY_SOURCES_EXPLANATION = 'A category these values were matched to no longer exists, so their answers were cleared. Choose a category for each one, or queue a new one for it:'
 
+// Carries the account an import was started from, as a query parameter rather than router state so
+// the scope survives a reload and a shared address
+export const IMPORT_ACCOUNT_PARAM = 'account'
+
+// Shown in place of the whole import page when the address points at an account no import can be
+// written to. The button offering the import is disabled in those states, so this is reached by a
+// typed or shared address, or by an account whose state changed after the address was made
+// The account is only ever missing from the list, archived or closed, and the list leaves out both
+// an account that has gone and one belonging to someone else, so the wording covers being unable to
+// import into it rather than claiming to know which of those it is
+export const IMPORT_NOT_PERMITTED_TITLE = 'This action is not permitted'
+export const IMPORT_NOT_PERMITTED_EXPLANATION = 'Transactions can only be imported into an account that is open and not archived. This one is archived, closed, or not an account you can import into.'
+
+// Shown in place of the whole page where the accounts list cannot say whether this account takes an
+// import. The mapping step's own failure text is about mapping sources onto a list, which is a
+// question this page never reaches
+export const IMPORT_SCOPE_FAILURE_TITLE = 'Your accounts could not be loaded'
+export const IMPORT_SCOPE_FAILURE_EXPLANATION = 'Without them this import cannot tell whether it may write to the account it was started from.'
+
+/**
+ * Says what a scoped import does with the currency of the account it writes to
+ *
+ * Replaces the ordinary currency note, which speaks of the account each source is mapped to and of
+ * changing a currency on a row, neither of which a scoped import has. A row stating another currency
+ * stops the whole import rather than being dropped from it, since one unimportable row leaves the
+ * commit with no payload at all
+ */
+export function getFixedAccountCurrencyNote(accountName: string, currency: string) {
+  return `Imported amounts are treated as raw values. Every row will be assigned ${currency}, the currency ${accountName} is kept in, and a row stating a different currency stops the import until the file is corrected or its currency column is set to Do not import.`
+}
+
+// The file cannot be checked for covering more than one account, since the column that would say so
+// is not offered here, so the notice says what the import will do and offers the way out. The
+// currency is named alongside it because a file the account's currency refuses is the other reason
+// to leave, and both are answered by the same page
+export const FIXED_ACCOUNT_WARNING_TITLE = 'One account only'
+export const FIXED_ACCOUNT_WARNING_LINK_LABEL = 'Open the full import page'
+
+/**
+ * Says what a scoped import will do with a file it is the wrong page for
+ *
+ * Shown before a file is staged as well as after, so it speaks of the import rather than of a file
+ * on screen, and it is the one place the step says which account the rows are going to
+ */
+export function getFixedAccountWarning(accountName: string) {
+  return `Every transaction imported here will be written to ${accountName}. A file covering more than one account, or holding amounts in a currency this account is not kept in, has to go through the full import page.`
+}
+
 // Shown over the accounts that appear only as a counterparty, which the import writes nothing to
 export const COUNTERPARTY_ONLY_TABLE_TITLE = 'Counterparty accounts'
 export const COUNTERPARTY_ONLY_EXPLANATION = 'These accounts only ever appeared as the counterparty of a transfer. Matching one to an account of your own records where the money came from or went to and writes no transaction into that account, which is why an account you have archived can be chosen here and stays archived. Leaving one unmatched records the transfer as going outside this app. To bring a name in as an account of your own instead, select Create New Account in its Existing Account column.'

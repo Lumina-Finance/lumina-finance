@@ -13,6 +13,7 @@ import MonthlyCashFlowCard from '@/pages/accounts/detail/components/monthly-cash
 import { TopCategoriesBySpendingCard } from '@/pages/accounts/detail/components/spending-breakdown/TopCategoriesCard'
 import { TopMerchantsBySpendingCard } from '@/pages/accounts/detail/components/spending-breakdown/TopMerchantsCard'
 import { ACCOUNT_SKELETON_FADE_MS, EASE } from '@/pages/accounts/detail/constants/accountDetail'
+import { IMPORT_ACCOUNT_PARAM } from '@/pages/imports/constants'
 import TransactionListSection from '@/pages/transactions/components/ListSection'
 import { toTransactionListAccount } from '@/pages/transactions/types/transactionList'
 import CreateTransactionModal from '@/pages/transactions/components/transaction-modal/Modal'
@@ -104,6 +105,13 @@ export default function AccountDetailPage() {
   const openAccountEditModal = () => {
     if (!visibleAccount) return
     setShowAccountEditModal(true)
+  }
+
+  // The account rides in the address rather than in router state, so the import survives a reload
+  // and can be shared, and the import page settles for itself whether it may write to that account
+  const openImport = () => {
+    if (!visibleAccount) return
+    navigate(`/settings/imports?${IMPORT_ACCOUNT_PARAM}=${visibleAccount.id}`)
   }
 
   const handleAccountDeleteStarted = (deletingAccount: Account) => {
@@ -210,17 +218,16 @@ export default function AccountDetailPage() {
             <h2 className="mb-4 font-serif text-4xl font-medium leading-none">Transactions</h2>
             <TransactionListSection
               key={visibleAccount.id}
-              fixedAccount={{
-                id: visibleAccount.id,
-                name: visibleAccount.name,
-                currency: visibleAccount.currency,
-                institution: visibleAccount.institution,
-                is_archived: visibleAccount.is_archived,
-              }}
+              // The same narrowing the counterparty accounts go through, rather than a second list
+              // of fields to keep in step with it. A field this page forgot to copy is one the
+              // toolbar reads as absent, and whether an import may be written here is read from two
+              // of them
+              fixedAccount={toTransactionListAccount(visibleAccount)}
               accounts={(accounts ?? []).map(toTransactionListAccount)}
               currency={visibleAccount.currency}
               onCreateTransaction={openCreateTransaction}
               onEditTransaction={openEditTransaction}
+              onImport={openImport}
             />
           </div>
 

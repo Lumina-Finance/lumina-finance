@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type Dispatch, type SetStateAction } from 'react'
+import type { AccountsOverview } from '@/api/accounts'
 import {
   discardStagedRun,
   useCommitStagedImport,
@@ -10,6 +11,7 @@ import { OUTSIDE_ACCOUNT_LABEL, OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 import type { ColumnMap, ColumnTarget, ColumnValidationErrors, ImportCategoryKind, ImportFileDraft, ImportOverlayPhase, PreviewTransactionRow } from '@/pages/imports/types'
 import {
   applyCreateAccountFallback,
+  applyFixedImportAccount,
   buildColumnTargetOptions,
   buildImportAnswerScope,
   buildImportAccountMappingSources,
@@ -82,8 +84,13 @@ const IMPORT_OVERLAY_MIN_MS = 2000
  * Account and category matches are only inferred automatically while the required columns stay
  * mapped to the same headers; changing a required column's mapping clears the matching auto-fill key
  * so a stale inference is never carried into a different set of source values
+ *
+ * @param fixedAccount - The account this import was started from, null for an ordinary import. It
+ *   answers the account question outright, so the column mapping neither offers nor keeps an account
+ *   column while it holds, and every source rows are written to is that account rather than anything
+ *   resolved from the file. A transfer's counterparty is resolved as it always is
  */
-export function useTransactionImportWorkflow() {
+export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | null = null) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [files, setFiles] = useState<ImportFileDraft[]>([])
   const [isProcessingFiles, setIsProcessingFiles] = useState(false)
@@ -93,7 +100,23 @@ export function useTransactionImportWorkflow() {
   // leaves their answers alone instead of guessing over them. A column set to Do not import counts
   // as answered, which is the case an empty mapping cannot tell apart on its own
   const [decidedColumnHeaders, setDecidedColumnHeaders] = useState<Set<string>>(() => new Set())
-  const [columnMap, setColumnMap] = useState<ColumnMap>(EMPTY_COLUMN_MAP)
+  const [storedColumnMap, setStoredColumnMap] = useState<ColumnMap>(EMPTY_COLUMN_MAP)
+  const isAccountFixed = fixedAccount !== null
+
+  // The account an import was started from answers for every row, so nothing downstream may read a
+  // mapped account column while that holds. Emptied here rather than cleared outright, because the
+  // column mapping is only inferred when a file is staged: a user who leaves the scope, maps the
+  // account column by hand and comes back would otherwise arrive with it mapped, the row sources
+  // would go back to being that column's values, and every row with a blank account cell would be
+  // refused on a page where the column is meant not to matter
+  //
+  // What is stored keeps that answer only until the next file is staged or the next column is
+  // answered here, both of which write this emptied map back. So leaving the scope leaves the
+  // account column unmapped in the ordinary case, for the user to answer on the page they went to
+  const columnMap = useMemo(
+    () => (isAccountFixed ? { ...storedColumnMap, account_id: '' } : storedColumnMap),
+    [isAccountFixed, storedColumnMap],
+  )
 
   const [scopedAccountMappings, setScopedAccountMappings] = useState<ScopedImportAnswers<string>>(emptyScopedImportAnswers)
   const [accountAutoMatchKey, setAccountAutoMatchKey] = useState('')
@@ -296,8 +319,8 @@ export function useTransactionImportWorkflow() {
   )
 
   const columnTargetOptions = useMemo(
-    () => buildColumnTargetOptions(),
-    [],
+    () => buildColumnTargetOptions({ omitAccountColumn: isAccountFixed }),
+    [isAccountFixed],
   )
 
   // Counted off the files and the merchant column alone, so the mapping step can say how many rows
@@ -356,8 +379,13 @@ export function useTransactionImportWorkflow() {
     [allAccounts],
   )
 
+  // Read against the stored map rather than the emptied one, because that is the map the key was
+  // written from. The scope can turn on and off without a file being staged or a column answered,
+  // which is what writes the key, so comparing against the emptied map would call the key stale on
+  // a scope change alone. The match would then never run and every counterparty the file names
+  // would quietly record its transfer as money leaving the app
   const canInferAccountMappings = Boolean(accountAutoMatchKey)
-    && accountAutoMatchKey === (columnMap.account_id || FILE_ACCOUNT_MATCH_KEY)
+    && accountAutoMatchKey === (storedColumnMap.account_id || FILE_ACCOUNT_MATCH_KEY)
 
   const { mappings: liveAccountMappings, clearedSources: clearedAccountSources } = useMemo(
     () => (accountsResolved
@@ -373,12 +401,17 @@ export function useTransactionImportWorkflow() {
       // since the worst that answer can do is offer a new account the user still has to fill in
       const answerableSources = accountMappingSources.filter((source) => !clearedAccountSources.has(source.id))
 
+      // The account an import was started from answers every source rows are written to, over every
+      // source rather than only the answerable ones, so a cleared source cannot slip past it into
+      // the create-new fallback and quietly create an account the step says nothing about
+      const answered = applyFixedImportAccount(accountMappingSources, liveAccountMappings, fixedAccount?.id ?? null)
+
       const resolved = canInferAccountMappings
-        ? inferAccountMappings(answerableSources, liveAccountMappings, {
+        ? inferAccountMappings(answerableSources, answered, {
           rowAccounts: selectableAccounts,
           counterpartyAccounts: allAccounts,
         })
-        : { ...liveAccountMappings }
+        : { ...answered }
 
       // No row is written to these, so the import creates nothing for them unless the user asks for
       // an account by hand, and the transfers pointing at them say the money left the app
@@ -387,7 +420,7 @@ export function useTransactionImportWorkflow() {
       }
       return resolved
     },
-    [accountMappingSources, allAccounts, canInferAccountMappings, clearedAccountSources, liveAccountMappings, selectableAccounts],
+    [accountMappingSources, allAccounts, canInferAccountMappings, clearedAccountSources, fixedAccount, liveAccountMappings, selectableAccounts],
   )
 
   // Every row source the match could not place rests on creating an account, so the step asks for
@@ -437,9 +470,23 @@ export function useTransactionImportWorkflow() {
 
   // Read before the name match and any of the defaults are layered on, so the batch bar can tell an
   // answer the user gave from one the step filled in for them
+  //
+  // A source rows are written to is left out while the account is fixed. Its answer is that account
+  // whatever the user picked earlier, so reporting it as theirs would offer a later reader an answer
+  // the step is ignoring
   const handAnsweredAccountSources = useMemo(
-    () => new Set(Object.entries(liveAccountMappings).filter(([, choice]) => choice).map(([source]) => source)),
-    [liveAccountMappings],
+    () => {
+      const counterpartyOnly = new Set(
+        accountMappingSources.filter((source) => source.isCounterpartyOnly).map((source) => source.id),
+      )
+
+      return new Set(
+        Object.entries(liveAccountMappings)
+          .filter(([source, choice]) => choice && !(isAccountFixed && !counterpartyOnly.has(source)))
+          .map(([source]) => source),
+      )
+    },
+    [accountMappingSources, isAccountFixed, liveAccountMappings],
   )
 
   // Read before the create-new fallback, which answers every row source and would therefore leave
@@ -452,14 +499,20 @@ export function useTransactionImportWorkflow() {
   const autoFilledAccountSources = useMemo(
     () => new Set(
       accountMappingSources
-        .filter((source) => isAutoFilledAccountSource(
-          liveAccountMappings[source.id] ?? '',
-          resolvedAccountMappings[source.id] ?? '',
-          source.isCounterpartyOnly,
-        ))
+        .filter((source) => {
+          // The highlight means an account was recognised from what the file says, and the account
+          // an import was started from is neither recognised nor shown in a row of its own
+          if (isAccountFixed && !source.isCounterpartyOnly) return false
+
+          return isAutoFilledAccountSource(
+            liveAccountMappings[source.id] ?? '',
+            resolvedAccountMappings[source.id] ?? '',
+            source.isCounterpartyOnly,
+          )
+        })
         .map((source) => source.id),
     ),
-    [accountMappingSources, liveAccountMappings, resolvedAccountMappings],
+    [accountMappingSources, isAccountFixed, liveAccountMappings, resolvedAccountMappings],
   )
 
   const importedCategories = useMemo(
@@ -657,10 +710,12 @@ export function useTransactionImportWorkflow() {
    * none of them has to be re-run to reach the same state
    */
   const applyStagedFiles = (nextFiles: ImportFileDraft[]) => {
-    const result = inferColumnMap(columnMap, nextFiles, supportedCurrencyCodes, decidedColumnHeaders)
+    const result = inferColumnMap(columnMap, nextFiles, supportedCurrencyCodes, decidedColumnHeaders, {
+      omitAccountColumn: isAccountFixed,
+    })
 
     setFiles(nextFiles)
-    setColumnMap(result.map)
+    setStoredColumnMap(result.map)
     setColumnValidationErrors(result.errors)
     setAutoFilledColumnHeaders((current) => getNextAutoFilledColumnHeaders(current, columnMap, result.map))
     syncAutoMatchKeys(result.map, result.errors, nextFiles)
@@ -747,7 +802,7 @@ export function useTransactionImportWorkflow() {
     }
 
     setColumnValidationErrors(nextColumnValidationErrors)
-    setColumnMap(nextColumnMap)
+    setStoredColumnMap(nextColumnMap)
 
     // The mapping the last refusal was about has changed, so the message stops being true
     setImportError(null)
@@ -855,7 +910,7 @@ export function useTransactionImportWorkflow() {
     setIsProcessingFiles(false)
     setAutoFilledColumnHeaders(new Set())
     setDecidedColumnHeaders(new Set())
-    setColumnMap(EMPTY_COLUMN_MAP)
+    setStoredColumnMap(EMPTY_COLUMN_MAP)
     setScopedAccountMappings(emptyScopedImportAnswers)
     setAccountAutoMatchKey('')
     resetAccountCreateState()
@@ -885,6 +940,7 @@ export function useTransactionImportWorkflow() {
     isProcessingFiles,
     autoFilledColumnHeaders,
     columnMap,
+    fixedAccount,
     accountMappings: resolvedAccountMappings,
     archivedAccountMatches,
     autoFilledAccountSources,

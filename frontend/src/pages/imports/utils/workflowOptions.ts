@@ -136,9 +136,15 @@ export function buildImportCategoryMatchOptions(categories: Category[] = []): Dr
  *
  * Each field's hint rides along as the option's description, which is where a user decides what a
  * column means. Ignoring a column needs no explanation, so that entry carries none
+ *
+ * @param omitAccountColumn - Whether the account field is left out, which is what an import started
+ *   from an account does, since that account is the answer and no column may contradict it
  */
-export function buildColumnTargetOptions(): DropdownOption[] {
-  const targetsByGroup = [...COLUMN_TARGETS].sort((a, b) => Number(Boolean(b.required)) - Number(Boolean(a.required)))
+export function buildColumnTargetOptions({ omitAccountColumn = false } = {}): DropdownOption[] {
+  const offeredTargets = omitAccountColumn
+    ? COLUMN_TARGETS.filter((target) => target.id !== 'account_id')
+    : COLUMN_TARGETS
+  const targetsByGroup = [...offeredTargets].sort((a, b) => Number(Boolean(b.required)) - Number(Boolean(a.required)))
 
   return [
     { value: '', label: 'Do not import' },

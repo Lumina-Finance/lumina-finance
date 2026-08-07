@@ -132,6 +132,10 @@ export function dropVanishedAccountMappings(
  * creating an account, since `applyCreateAccountFallback` covers every row source with no answer,
  * so a tie between two of the user's accounts ends up creating a third one carrying that name
  *
+ * An import started from an account reaches neither of those. `applyFixedImportAccount` has already
+ * answered every source rows are written to, so this only ever settles a transfer's counterparty
+ * there
+ *
  * The two lists differ by which accounts each kind of source can be offered: a source no row is
  * written to can record an archived account, so matching it against the list the dropdown does not
  * offer would fill in a choice the user cannot see or change
@@ -154,6 +158,39 @@ export function inferAccountMappings(
 }
 
 /**
+ * Files every source rows are written to into the one account an import was started from
+ *
+ * That account is the user's own answer rather than a guess, so it goes on before the name match,
+ * which leaves an answered source alone, and before the create-new fallback, which then finds
+ * nothing left to rest on create. It answers a source whose stored answer was cleared as well, since
+ * the step shows no dropdown to answer one with while the account is fixed
+ *
+ * A counterparty-only source is left alone. No row is written to it, so it still asks which account
+ * a transfer's money came from or went to, which may be any account or none
+ *
+ * @param sources - Every mapping source, cleared ones included
+ * @param mappings - The answers as stored, before any match or default is layered on
+ * @param accountId - The account the import was started from, null for an ordinary import, which
+ *   returns the answers untouched
+ */
+export function applyFixedImportAccount(
+  sources: ImportAccountSource[],
+  mappings: Record<string, string>,
+  accountId: string | null,
+): Record<string, string> {
+  if (!accountId) return mappings
+
+  const next = { ...mappings }
+
+  for (const source of sources) {
+    if (source.isCounterpartyOnly) continue
+    next[source.id] = accountId
+  }
+
+  return next
+}
+
+/**
  * Rests every row source the match could not place on creating an account
  *
  * A source rows are written to has to end up as some account, so creating one is the only answer
@@ -163,6 +200,9 @@ export function inferAccountMappings(
  *
  * Kept out of `inferAccountMappings`, which the Firefly flow shares and which answers a different
  * question: which existing account a source is, with no answer being a legitimate result
+ *
+ * An import started from an account leaves nothing here to rest on create, since every source rows
+ * are written to is answered before this runs
  *
  * @param sources - Every mapping source, cleared ones included, since a cleared row still has to be
  *   answerable and this fallback can only ever offer it a new account

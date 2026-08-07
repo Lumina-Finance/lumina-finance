@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { Plus, SlidersHorizontal } from 'lucide-react'
 
 type MobileToolbarActionsProps = {
@@ -9,6 +10,9 @@ type MobileToolbarActionsProps = {
   primaryDisabled?: boolean
   // Shown as the button's title and accessible name in place of primaryLabel while disabled
   primaryDisabledReason?: string
+
+  // An action shown beside the primary one, for a list that has a second thing to offer
+  secondaryAction?: ReactNode
 }
 
 /**
@@ -22,6 +26,7 @@ export function MobileToolbarActions({
   primaryLabel,
   primaryDisabled = false,
   primaryDisabledReason,
+  secondaryAction,
 }: MobileToolbarActionsProps) {
   return (
     <div className="flex w-full items-center gap-3 min-[750px]:hidden">
@@ -46,6 +51,8 @@ export function MobileToolbarActions({
           </span>
         )}
       </button>
+
+      {secondaryAction}
 
       <button
         type="button"

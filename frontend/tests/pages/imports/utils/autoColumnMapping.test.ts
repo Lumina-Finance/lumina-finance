@@ -176,6 +176,48 @@ describe('import column inference', () => {
     expect(Object.values(map)).not.toContain('Type')
   })
 
+  // An import started from an account has no account field to fill, and the column that would have
+  // filled it must not fall to another field instead. Three rows over two distinct values is what
+  // the merchant field scores on, so this fails if the account field is skipped rather than filled
+  // in and then dropped
+  it('leaves an account column unmapped rather than passing it to another field when the account is fixed', () => {
+    const files = [createFile(
+      ['Date', 'Account', 'Amount', 'Category'],
+      [
+        { Date: '2026-04-11', Account: 'Everyday', Amount: '-12.00', Category: 'Groceries' },
+        { Date: '2026-04-12', Account: 'Everyday', Amount: '-8.00', Category: 'Transit' },
+        { Date: '2026-04-13', Account: 'Travel Card', Amount: '-20.00', Category: 'Dining' },
+      ],
+    )]
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES, new Set(), {
+      omitAccountColumn: true,
+    })
+
+    expect(map.account_id).toBe('')
+    expect(Object.values(map)).not.toContain('Account')
+
+    // The rest of the file still maps as it always did
+    expect(map.dt).toBe('Date')
+    expect(map.amount).toBe('Amount')
+    expect(map.category_id).toBe('Category')
+  })
+
+  it('maps the same account column as usual when the account is not fixed', () => {
+    const files = [createFile(
+      ['Date', 'Account', 'Amount', 'Category'],
+      [
+        { Date: '2026-04-11', Account: 'Everyday', Amount: '-12.00', Category: 'Groceries' },
+        { Date: '2026-04-12', Account: 'Everyday', Amount: '-8.00', Category: 'Transit' },
+        { Date: '2026-04-13', Account: 'Travel Card', Amount: '-20.00', Category: 'Dining' },
+      ],
+    )]
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(map.account_id).toBe('Account')
+  })
+
   // Reading the alias table by property returned the function every object inherits for this one
   // name, which is truthy, and comparing scores against it left a value nothing could beat: the
   // column claimed whichever field reached it first, and no later column could displace it

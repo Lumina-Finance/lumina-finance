@@ -1,4 +1,5 @@
 export * from './accountMapping'
+export * from './accountScope'
 export * from './autoColumnMapping'
 export * from './categoryMatching'
 export * from './merchantMatching'

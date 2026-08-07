@@ -7,7 +7,10 @@ type DesktopToolbarControlsProps = {
   createMeasureRef: RefObject<HTMLButtonElement | null>
   desktopInlineLayout: boolean
   desktopCreateStacked: boolean
-  // The domain-specific filter glass panel slotted into the filter group
+
+  // The domain-specific filter glass panel slotted into the filter group, alongside anything else
+  // the list puts on that side of the row. Everything in here is measured as it renders, since the
+  // hook reads the filter group's own children
   filterPanel: ReactNode
   createLabel: string
   onCreate: () => void
