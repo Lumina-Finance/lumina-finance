@@ -65,7 +65,13 @@ export default function ImportsPage() {
     || fireflyWorkflow.processingFileKind !== null
     || fireflyWorkflow.isImportingBudgets
   const isGenericBusy = workflow.importOverlayOpen || workflow.isProcessingFiles || workflow.isImportInFlight
-  const isFirefly = isFireflyBusy || (!isGenericBusy && dataSource === 'firefly' && !isScopedToAccount)
+
+  // A staged CSV holds the page as well as a running import, or dismissing a failed commit would
+  // drop the user on an empty Firefly flow with their file still staged behind it. Kept apart from
+  // the busy flag, which decides whether the source may be changed at all, and a staged file has
+  // never stopped that: changing the source resets the flow being left
+  const isGenericHoldingPage = isGenericBusy || workflow.files.length > 0
+  const isFirefly = isFireflyBusy || (!isGenericHoldingPage && dataSource === 'firefly' && !isScopedToAccount)
   const importOverlayOpen = isFirefly ? fireflyWorkflow.importOverlayOpen : workflow.importOverlayOpen
 
   // Where the page came from, which is also where its two exits go while the scope holds
