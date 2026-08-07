@@ -253,12 +253,14 @@ export const FIXED_ACCOUNT_EMPTY_DESCRIPTION = 'Upload a CSV file to import it i
 /**
  * Says which account every row of a scoped import is written to
  *
- * The counterparty clause is only true where the file states one, so a file with no such column
- * gets the first half alone rather than a promise about transfers it does not carry
+ * Where the file states a counterparty, the second half points at the table that answers it rather
+ * than promising the transfer lands in an account of the user's, since an unanswered counterparty
+ * records the transfer as money going outside this app. A file stating none gets the first half
+ * alone
  */
 export function getFixedAccountStatement(accountName: string, hasCounterpartySources: boolean) {
   return hasCounterpartySources
-    ? `All transactions will be imported into ${accountName}, with the appropriate transfers recorded in the counterparty account.`
+    ? `All transactions will be imported into ${accountName}. Where a row is a transfer, the counterparty it names is answered in the table below.`
     : `All transactions will be imported into ${accountName}.`
 }
 
@@ -266,10 +268,12 @@ export function getFixedAccountStatement(accountName: string, hasCounterpartySou
  * Says what a scoped import does with the currency of the account it writes to
  *
  * Replaces the ordinary currency note, which speaks of the account each source is mapped to and of
- * changing a currency on a row, neither of which a scoped import has
+ * changing a currency on a row, neither of which a scoped import has. A row stating another currency
+ * stops the whole import rather than being dropped from it, since one unimportable row leaves the
+ * commit with no payload at all
  */
 export function getFixedAccountCurrencyNote(accountName: string, currency: string) {
-  return `Imported amounts are treated as raw values. Every row will be assigned ${currency}, the currency ${accountName} is kept in, and a row stating a different currency is left out of the import.`
+  return `Imported amounts are treated as raw values. Every row will be assigned ${currency}, the currency ${accountName} is kept in, and a row stating a different currency stops the import until the file is corrected or its currency column is set to Do not import.`
 }
 
 // The file cannot be checked for covering more than one account, since the column that would say so

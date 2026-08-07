@@ -55,14 +55,17 @@ export default function ImportsPage() {
   // what the user had. Leaving the scope gives that export back
   const isScopedToAccount = accountScope.state === 'ready'
 
-  // A Firefly import that is already running keeps its own flow on screen even if a scope arrives
-  // over it, which the browser's Back button can do without remounting the page. Swapping the flow
-  // under a commit would replace the overlay reporting it with an idle one and leave the page
-  // looking finished while the write was still going
+  // Whichever flow is working keeps the page, whatever the scope and the stored choice say. The
+  // address can gain or lose the account without remounting the page, through the link out of the
+  // scope and the browser's Back button, and swapping the flow under a commit would replace the
+  // overlay reporting it with an idle one and leave the page looking finished while the write was
+  // still going. Read from each workflow rather than from the flow on screen, so neither can be
+  // swapped away while it is the busy one
   const isFireflyBusy = fireflyWorkflow.importOverlayOpen
     || fireflyWorkflow.processingFileKind !== null
     || fireflyWorkflow.isImportingBudgets
-  const isFirefly = dataSource === 'firefly' && (!isScopedToAccount || isFireflyBusy)
+  const isGenericBusy = workflow.importOverlayOpen || workflow.isProcessingFiles || workflow.isImportInFlight
+  const isFirefly = isFireflyBusy || (!isGenericBusy && dataSource === 'firefly' && !isScopedToAccount)
   const importOverlayOpen = isFirefly ? fireflyWorkflow.importOverlayOpen : workflow.importOverlayOpen
 
   // Where the page came from, which is also where its two exits go while the scope holds
@@ -76,9 +79,7 @@ export default function ImportsPage() {
 
   // Switching source resets the flow being left, so a file still being read or an import still
   // being written would finish into a flow the user has already discarded
-  const isImportBusy = overlayOnScreen || (isFirefly
-    ? fireflyWorkflow.processingFileKind !== null || fireflyWorkflow.isImportingBudgets
-    : workflow.isProcessingFiles || workflow.isImportInFlight)
+  const isImportBusy = overlayOnScreen || isFireflyBusy || isGenericBusy
 
   // Every mapping answer is made against these three lists, and one of them going stale sends the
   // import at a category or account that has since been renamed or deleted elsewhere. Categories in
@@ -117,13 +118,9 @@ export default function ImportsPage() {
 
   // The scope is settled against the accounts list, so the page holds until that answer arrives and
   // shows no import flow at all where the answer is no. Settings is the way out of all three, since
-  // none of them has an account worth returning to
-  //
-  // An import already under way keeps the page it is running on. The commit refetches the accounts
-  // list as it finishes, so an account archived elsewhere during the import would otherwise replace
-  // the overlay reporting what was written with a refusal screen, and the user would never learn
-  // whether the import wrote anything
-  if (accountScope.state !== 'unscoped' && accountScope.state !== 'ready' && !isImportBusy) {
+  // none of them has an account worth returning to. None of the three can interrupt an import that
+  // has already started, because the scope settles once per account and is then held
+  if (accountScope.state !== 'unscoped' && accountScope.state !== 'ready') {
     return (
       <div
         className="relative flex h-screen min-h-screen flex-col items-center justify-center px-5"
