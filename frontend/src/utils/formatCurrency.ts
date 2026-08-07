@@ -1,14 +1,15 @@
 import type { Currency } from '@/api/currency'
 import { DEFAULT_MINOR_UNIT_EXPONENT, findCurrencyExponent } from '@/utils/moneyInput'
 
-// Every amount rendered as money goes through this locale, so a browser configured for another
-// region still sees one currency convention. Under it CAD is "$" and USD is "US$", which keeps the
-// two apart on a screen holding both. Kept separate from DATE_LOCALE in utils/date.ts, since the
-// date convention and the currency convention could diverge later
-export const MONEY_LOCALE = 'en-CA'
-
 /**
- * Builds the pinned money formatter for a currency, fixed at the decimal places given
+ * Builds the money formatter for a currency, fixed at the decimal places given
+ *
+ * The locale is left to the reader's own, which is what decides how a currency's symbol is written.
+ * Every region writes its own currency bare and marks the rest: to a reader in Canada, Canadian
+ * dollars are "$" and US dollars are "US$", and to a reader in the United States it is the other way
+ * round. Both are right for the person looking at them, so this follows the browser rather than
+ * naming a region. Note this is not what utils/date.ts does, which pins one date convention, because
+ * a date has no home country to be read as foreign from
  *
  * Both fraction-digit options are set rather than left to Intl, whose own tables disagree with the
  * seeded currency list for 16 codes. Dividing by the seeded exponent without also fixing the places
@@ -18,7 +19,7 @@ export const MONEY_LOCALE = 'en-CA'
  * currencySign: 'accounting' renders negatives in parentheses, so -100 gives ($100.00)
  */
 export function createMoneyFormatter(currency: string, fractionDigits: number): Intl.NumberFormat {
-  return new Intl.NumberFormat(MONEY_LOCALE, {
+  return new Intl.NumberFormat(undefined, {
     style: 'currency',
     currency,
     currencySign: 'accounting',
@@ -41,7 +42,7 @@ function resolveDisplayExponent(currency: string, currencies: Currency[]): numbe
   const seeded = findCurrencyExponent(currencies, currency)
   if (seeded !== null) return seeded
 
-  return new Intl.NumberFormat(MONEY_LOCALE, { style: 'currency', currency })
+  return new Intl.NumberFormat(undefined, { style: 'currency', currency })
     .resolvedOptions()
     .maximumFractionDigits ?? DEFAULT_MINOR_UNIT_EXPONENT
 }

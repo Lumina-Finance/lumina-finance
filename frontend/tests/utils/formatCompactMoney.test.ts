@@ -19,8 +19,8 @@ const RULES: CompactMoneyRule[] = [
 
 describe('compact money formatting', () => {
   it('compacts once an amount crosses a threshold', () => {
-    expect(formatCompactMoney(123_456_789_00, 'CAD', RULES, currencies)).toBe('≈$123.5M')
-    expect(formatCompactMoney(1_234_56, 'CAD', RULES, currencies)).toBe('≈$1K')
+    expect(formatCompactMoney(123_456_789_00, 'CAD', RULES, currencies)).toBe('≈CA$123.5M')
+    expect(formatCompactMoney(1_234_56, 'CAD', RULES, currencies)).toBe('≈CA$1K')
   })
 
   it('renders an amount below every threshold at the currency decimals the list records', () => {
@@ -36,6 +36,6 @@ describe('compact money formatting', () => {
     expect(formatCompactMoney(50_000, 'CAD', RULES, currencies, {
       prefix: '',
       plainFractionDigits: 0,
-    })).toBe('$500')
+    })).toBe('CA$500')
   })
 })

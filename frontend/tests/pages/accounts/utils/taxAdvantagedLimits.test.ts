@@ -24,35 +24,35 @@ describe('tax-advantaged limit helpers', () => {
   })
 
   it('formats compact meter values without losing the currency sign', () => {
-    expect(formatTaxAdvantagedMeterMoney(123_456, 'USD', testCurrencies)).toBe('US$1K')
-    expect(formatTaxAdvantagedMeterMoney(12_300_000, 'USD', testCurrencies)).toBe('US$123K')
+    expect(formatTaxAdvantagedMeterMoney(123_456, 'USD', testCurrencies)).toBe('$1K')
+    expect(formatTaxAdvantagedMeterMoney(12_300_000, 'USD', testCurrencies)).toBe('$123K')
   })
 
   it('keeps meter amounts whole and unprefixed below the compaction thresholds', () => {
     // The meter shows this beside the limit it is measured against, so a small amount must match
     // how that limit is written: no cents, and no "≈" marking one of the pair as approximate
-    expect(formatTaxAdvantagedMeterMoney(50_000, 'CAD', testCurrencies)).toBe('$500')
-    expect(formatTaxAdvantagedMeterMoney(0, 'CAD', testCurrencies)).toBe('$0')
+    expect(formatTaxAdvantagedMeterMoney(50_000, 'CAD', testCurrencies)).toBe('CA$500')
+    expect(formatTaxAdvantagedMeterMoney(0, 'CAD', testCurrencies)).toBe('CA$0')
   })
 
   it('shows an amount too small for the meter as zero rather than as a negative', () => {
     // The meter renders no decimals, and accounting style decides to wrap a negative before it
     // rounds, so being 40 cents over a limit would otherwise read as ($0)
-    expect(formatTaxAdvantagedMeterMoney(-40, 'CAD', testCurrencies)).toBe('$0')
-    expect(formatTaxAdvantagedRawMoney(-40, 'CAD', testCurrencies)).toBe('$0')
+    expect(formatTaxAdvantagedMeterMoney(-40, 'CAD', testCurrencies)).toBe('CA$0')
+    expect(formatTaxAdvantagedRawMoney(-40, 'CAD', testCurrencies)).toBe('CA$0')
     // Far enough from zero to keep its sign
-    expect(formatTaxAdvantagedRawMoney(-60, 'CAD', testCurrencies)).toBe('($1)')
+    expect(formatTaxAdvantagedRawMoney(-60, 'CAD', testCurrencies)).toBe('(CA$1)')
   })
 
   it('renders tooltip amounts whole, and keeps the suffix inside a negative', () => {
-    expect(formatTaxAdvantagedRawMoney(123_456, 'CAD', testCurrencies)).toBe('$1,235')
-    expect(formatTaxAdvantagedMeterMoney(-12_300_000, 'USD', testCurrencies)).toBe('(US$123K)')
+    expect(formatTaxAdvantagedRawMoney(123_456, 'CAD', testCurrencies)).toBe('CA$1,235')
+    expect(formatTaxAdvantagedMeterMoney(-12_300_000, 'USD', testCurrencies)).toBe('($123K)')
   })
 
   it('rounds a compacted meter amount rather than rounding it up', () => {
     // 1100 major units is 1.1 thousand, which rounds down to one. Rounding up would report a
     // contribution of $2K against a limit the account is nowhere near
-    expect(formatTaxAdvantagedMeterMoney(110_000, 'CAD', testCurrencies)).toBe('$1K')
+    expect(formatTaxAdvantagedMeterMoney(110_000, 'CAD', testCurrencies)).toBe('CA$1K')
   })
 
   it('shows lifetime available boundary only when accrued room is between used and the lifetime cap', () => {

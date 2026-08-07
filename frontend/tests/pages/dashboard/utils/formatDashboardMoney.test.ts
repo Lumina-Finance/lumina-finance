@@ -8,9 +8,9 @@ import { currencies } from './fixtures'
 
 describe('dashboard money formatting', () => {
   it('formats dashboard money using widget-specific compaction rules', () => {
-    expect(formatDashboardMoney(12345678900, 'USD', 'netWorth', currencies)).toBe('≈US$123M')
-    expect(formatDashboardMoney(12345678, 'USD', 'credit', currencies)).toBe('≈US$123K')
-    expect(formatDashboardMoney(123456, 'USD', 'breakdown', currencies)).toBe('≈US$2K')
-    expect(formatDashboardMoney(123456, 'USD', 'raw', currencies)).toBe('US$1,234.56')
+    expect(formatDashboardMoney(12345678900, 'USD', 'netWorth', currencies)).toBe('≈$123M')
+    expect(formatDashboardMoney(12345678, 'USD', 'credit', currencies)).toBe('≈$123K')
+    expect(formatDashboardMoney(123456, 'USD', 'breakdown', currencies)).toBe('≈$2K')
+    expect(formatDashboardMoney(123456, 'USD', 'raw', currencies)).toBe('$1,234.56')
   })
 })
