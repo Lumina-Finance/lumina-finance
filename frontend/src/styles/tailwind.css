@@ -59,6 +59,12 @@
     --app-dropdown-font-size: 0.9375rem;
 
     --app-dropdown-inner-padding: 6px;
+
+    /* The search row above the list, the same height as an option row. Its own lower rule is inside
+       this height, since everything here is border-box. position.ts reserves this plus the clearance
+       under it, because the list's share of the box is worked out there */
+    --app-dropdown-search-height: 36px;
+
     --app-dropdown-row-radius: 6px;
     --app-dropdown-row-padding-x: 12px;
     --app-dropdown-row-padding-y: 8px;
@@ -850,6 +856,54 @@
     padding: var(--app-dropdown-row-padding-y) var(--app-dropdown-row-padding-x);
     color: var(--app-text-subtle);
     font-size: 0.875rem;
+  }
+
+  /* Part of the panel rather than a field inside it, so it draws no border, no fill and no ring of
+     its own: the box around it already has all three. Its height is set rather than left to the line
+     box, so a browser with a raised minimum font size cannot make the row taller than the height
+     position.ts worked the list's own share out against */
+  .app-dropdown-search {
+    display: flex;
+    align-items: center;
+    gap: var(--app-dropdown-row-gap);
+    height: var(--app-dropdown-search-height);
+    padding: 0 var(--app-dropdown-row-padding-x);
+    margin-bottom: var(--app-dropdown-inner-padding);
+    border-bottom: 1px solid var(--app-border);
+  }
+
+  /* Sits in the column an option row's own icon sits in, so the row lines up with the list under it */
+  .app-dropdown-search-icon {
+    display: flex;
+    flex-shrink: 0;
+    color: var(--app-text-subtle);
+  }
+
+  /* Draws no focus ring, since focus lands here the moment the box opens and a ring there would be
+     permanent. The caret is what shows the field is live */
+  .app-dropdown-search-input {
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--app-text);
+    font-size: 0.875rem;
+    outline: none;
+  }
+
+  .app-dropdown-search-input::placeholder {
+    color: var(--app-text-subtle);
+  }
+
+  /* Accented at rest and under the pointer. The scoped rule out-weighs the plain colour
+     app-icon-button sets, but its hover weighs exactly what one scoped rule weighs and is written a
+     thousand lines below this, so without the second selector the button would drop to plain text
+     colour the moment it was hovered */
+  .app-dropdown-search .app-icon-button,
+  .app-dropdown-search .app-icon-button:hover {
+    color: var(--app-accent);
   }
 
   /* Translucent collapsing date-range control on the insights page. The pill widens with a

@@ -1,5 +1,5 @@
 import type { ChangeEvent, KeyboardEvent, RefObject } from 'react'
-import { Plus } from 'lucide-react'
+import { Plus, Search } from 'lucide-react'
 
 interface DropdownSearchControlsProps {
   createNewLabel: string
@@ -30,13 +30,15 @@ export function DropdownSearchControls({
   }
 
   return (
-    <div className="flex gap-2 px-2 pb-2 pt-2">
+    <div className="app-dropdown-search">
+      <Search size={16} className="app-dropdown-search-icon" aria-hidden />
       <input
         ref={searchRef}
         type="text"
+        // Left out of the fields a modal picks its opening focus from, in modal/focus.ts, since
+        // this input belongs to the list rather than to the form around it
         data-dropdown-search="true"
-        className="app-input min-w-0 flex-1"
-        style={{ fontSize: '0.8125rem' }}
+        className="app-dropdown-search-input"
         placeholder={searchPlaceholder}
         value={searchText}
         onChange={handleChange}
@@ -45,8 +47,7 @@ export function DropdownSearchControls({
       {showCreateAction && (
         <button
           type="button"
-          className="app-icon-button h-10 w-10 shrink-0"
-          style={{ color: 'var(--app-accent)' }}
+          className="app-icon-button shrink-0"
           aria-label={createNewLabel}
           title={createNewLabel}
           onMouseDown={(event) => event.preventDefault()}
