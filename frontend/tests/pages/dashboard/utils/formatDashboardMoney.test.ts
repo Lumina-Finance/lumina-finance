@@ -7,9 +7,9 @@ import { formatDashboardMoney } from '@/pages/dashboard/utils/formatDashboardMon
 
 describe('dashboard money formatting', () => {
   it('formats dashboard money using widget-specific compaction rules', () => {
-    expect(formatDashboardMoney(12345678900, 'USD', 'netWorth')).toBe('≈$123M')
-    expect(formatDashboardMoney(12345678, 'USD', 'credit')).toBe('≈$123K')
-    expect(formatDashboardMoney(123456, 'USD', 'breakdown')).toBe('≈$2K')
-    expect(formatDashboardMoney(123456, 'USD', 'raw')).toBe('$1,234.56')
+    expect(formatDashboardMoney(12345678900, 'USD', 'netWorth')).toBe('≈US$123M')
+    expect(formatDashboardMoney(12345678, 'USD', 'credit')).toBe('≈US$123K')
+    expect(formatDashboardMoney(123456, 'USD', 'breakdown')).toBe('≈US$2K')
+    expect(formatDashboardMoney(123456, 'USD', 'raw')).toBe('US$1,234.56')
   })
 })

@@ -1,4 +1,4 @@
-import { formatCurrency } from '@/utils/formatCurrency'
+import { MONEY_LOCALE, formatCurrency } from '@/utils/formatCurrency'
 
 export type CompactMoneyRule = {
   threshold: number
@@ -13,7 +13,7 @@ type CompactMoneyOptions = {
 }
 
 function getCurrencyExponent(currency: string) {
-  return new Intl.NumberFormat(undefined, { style: 'currency', currency })
+  return new Intl.NumberFormat(MONEY_LOCALE, { style: 'currency', currency })
     .resolvedOptions()
     .maximumFractionDigits ?? 2
 }
@@ -24,7 +24,7 @@ function formatCurrencyWithSuffix(
   suffix: CompactMoneyRule['suffix'],
   fractionDigits: number,
 ) {
-  const formatter = new Intl.NumberFormat(undefined, {
+  const formatter = new Intl.NumberFormat(MONEY_LOCALE, {
     style: 'currency',
     currency,
     currencySign: 'accounting',

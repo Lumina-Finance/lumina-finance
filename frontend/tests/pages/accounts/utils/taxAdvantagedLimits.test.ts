@@ -23,8 +23,8 @@ describe('tax-advantaged limit helpers', () => {
   })
 
   it('formats compact meter values without losing the currency sign', () => {
-    expect(formatTaxAdvantagedMeterMoney(123_456, 'USD')).toBe('$1K')
-    expect(formatTaxAdvantagedMeterMoney(12_300_000, 'USD')).toBe('$123K')
+    expect(formatTaxAdvantagedMeterMoney(123_456, 'USD')).toBe('US$1K')
+    expect(formatTaxAdvantagedMeterMoney(12_300_000, 'USD')).toBe('US$123K')
   })
 
   it('shows lifetime available boundary only when accrued room is between used and the lifetime cap', () => {

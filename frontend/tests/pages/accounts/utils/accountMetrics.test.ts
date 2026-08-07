@@ -96,7 +96,7 @@ describe('account metric helpers', () => {
     })
     expect(getRunwayMetric(runway, false, 'USD')).toMatchObject({
       months: 7.4,
-      caption: '$1,234.56/mth · 6 mths basis',
+      caption: 'US$1,234.56/mth · 6 mths basis',
       progress: 100,
     })
   })

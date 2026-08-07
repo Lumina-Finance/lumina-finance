@@ -1,6 +1,7 @@
 import type { AccountsOverview } from '@/api/accounts'
 import type { TaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
 import type { TaxAdvantagedLimitSummary } from '@/pages/accounts/types/accounts'
+import { MONEY_LOCALE } from '@/utils/formatCurrency'
 
 /**
  * Chooses the usage colour for tax-advantaged contribution and withdrawal meters
@@ -38,13 +39,13 @@ export function getTaxAdvantagedRemainingColor(remaining: number): string {
 }
 
 function getMajorCurrencyAmount(minorUnits: number, currency: string): number {
-  const formatter = new Intl.NumberFormat(undefined, { style: 'currency', currency })
+  const formatter = new Intl.NumberFormat(MONEY_LOCALE, { style: 'currency', currency })
   const exponent = formatter.resolvedOptions().maximumFractionDigits ?? 2
   return minorUnits / Math.pow(10, exponent) || 0
 }
 
 function formatNoDecimalCurrency(value: number, currency: string): string {
-  return new Intl.NumberFormat(undefined, {
+  return new Intl.NumberFormat(MONEY_LOCALE, {
     style: 'currency',
     currency,
     currencySign: 'accounting',
@@ -61,7 +62,7 @@ function formatNoDecimalCurrencyWithSuffix(
   currency: string,
   suffix: 'K' | 'M',
 ): string {
-  const formatter = new Intl.NumberFormat(undefined, {
+  const formatter = new Intl.NumberFormat(MONEY_LOCALE, {
     style: 'currency',
     currency,
     currencySign: 'accounting',
