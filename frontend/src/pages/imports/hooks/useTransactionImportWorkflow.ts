@@ -11,6 +11,7 @@ import { OUTSIDE_ACCOUNT_LABEL, OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 import type { ColumnMap, ColumnTarget, ColumnValidationErrors, ImportCategoryKind, ImportFileDraft, ImportOverlayPhase, PreviewTransactionRow } from '@/pages/imports/types'
 import {
   applyCreateAccountFallback,
+  applyFixedImportAccount,
   buildColumnTargetOptions,
   buildImportAnswerScope,
   buildImportAccountMappingSources,
@@ -392,12 +393,17 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
       // since the worst that answer can do is offer a new account the user still has to fill in
       const answerableSources = accountMappingSources.filter((source) => !clearedAccountSources.has(source.id))
 
+      // The account an import was started from answers every source rows are written to, over every
+      // source rather than only the answerable ones, so a cleared source cannot slip past it into
+      // the create-new fallback and quietly create an account the step says nothing about
+      const answered = applyFixedImportAccount(accountMappingSources, liveAccountMappings, fixedAccount?.id ?? null)
+
       const resolved = canInferAccountMappings
-        ? inferAccountMappings(answerableSources, liveAccountMappings, {
+        ? inferAccountMappings(answerableSources, answered, {
           rowAccounts: selectableAccounts,
           counterpartyAccounts: allAccounts,
         })
-        : { ...liveAccountMappings }
+        : { ...answered }
 
       // No row is written to these, so the import creates nothing for them unless the user asks for
       // an account by hand, and the transfers pointing at them say the money left the app
@@ -406,7 +412,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
       }
       return resolved
     },
-    [accountMappingSources, allAccounts, canInferAccountMappings, clearedAccountSources, liveAccountMappings, selectableAccounts],
+    [accountMappingSources, allAccounts, canInferAccountMappings, clearedAccountSources, fixedAccount, liveAccountMappings, selectableAccounts],
   )
 
   // Every row source the match could not place rests on creating an account, so the step asks for
@@ -906,6 +912,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     isProcessingFiles,
     autoFilledColumnHeaders,
     columnMap,
+    fixedAccount,
     accountMappings: resolvedAccountMappings,
     archivedAccountMatches,
     autoFilledAccountSources,

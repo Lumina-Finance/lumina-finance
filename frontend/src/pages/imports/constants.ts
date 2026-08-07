@@ -236,6 +236,32 @@ export const IMPORT_ACCOUNT_PARAM = 'account'
 export const IMPORT_NOT_PERMITTED_TITLE = 'This action is not permitted'
 export const IMPORT_NOT_PERMITTED_EXPLANATION = 'Transactions can only be imported into an account that is open and not archived. This account is archived, closed, or no longer exists.'
 
+// Shown in place of the imported-account table when the import was started from an account, since
+// every row goes to that account and there is nothing left to answer
+export const FIXED_ACCOUNT_EMPTY_TITLE = 'No file staged'
+export const FIXED_ACCOUNT_EMPTY_DESCRIPTION = 'Upload a CSV file to import it into this account.'
+
+/**
+ * Says which account every row of a scoped import is written to
+ */
+export function getFixedAccountStatement(accountName: string) {
+  return `All transactions will be imported into ${accountName}, with the appropriate transfers recorded in the counterparty account.`
+}
+
+// The file cannot be checked for covering more than one account, since the column that would say so
+// is not offered here, so the notice says what the import will do and offers the way out. The
+// currency is named alongside it because a file the account's currency refuses is the other reason
+// to leave, and both are answered by the same page
+export const FIXED_ACCOUNT_WARNING_TITLE = 'One account only'
+export const FIXED_ACCOUNT_WARNING_LINK_LABEL = 'Open the full import page'
+
+/**
+ * Says what a scoped import will do with a file it is the wrong page for
+ */
+export function getFixedAccountWarning(accountName: string) {
+  return `Every row in this file will be written to ${accountName}. A file covering more than one account, or holding amounts in a currency this account is not kept in, has to go through the full import page.`
+}
+
 // Shown over the accounts that appear only as a counterparty, which the import writes nothing to
 export const COUNTERPARTY_ONLY_TABLE_TITLE = 'Counterparty accounts'
 export const COUNTERPARTY_ONLY_EXPLANATION = 'These accounts only ever appeared as the counterparty of a transfer. Matching one to an account of your own records where the money came from or went to and writes no transaction into that account, which is why an account you have archived can be chosen here and stays archived. Leaving one unmatched records the transfer as going outside this app. To bring a name in as an account of your own instead, select Create New Account in its Existing Account column.'

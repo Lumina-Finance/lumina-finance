@@ -15,7 +15,14 @@ import {
   CREATED_ACCOUNT_CREDIT_LIMIT_NOTE,
   CREATED_ACCOUNT_EXPLANATION,
   CREATED_ACCOUNT_TITLE,
+  FIXED_ACCOUNT_EMPTY_DESCRIPTION,
+  FIXED_ACCOUNT_EMPTY_TITLE,
+  FIXED_ACCOUNT_WARNING_LINK_LABEL,
+  FIXED_ACCOUNT_WARNING_TITLE,
+  IMPORT_INSET_STYLE,
   UNSET_BATCH_INSTITUTION,
+  getFixedAccountStatement,
+  getFixedAccountWarning,
 } from '@/pages/imports/constants'
 import type { ImportAccountSource } from '@/pages/imports/types'
 import { isCreatingImportAccount } from '@/pages/imports/utils'
@@ -31,6 +38,7 @@ type ImportAccountMappingStepProps = Pick<
   TransactionImportWorkflow,
   | 'accountMappingSources'
   | 'accountMappings'
+  | 'fixedAccount'
   | 'archivedAccountMatches'
   | 'autoFilledAccountSources'
   | 'handAnsweredAccountSources'
@@ -65,10 +73,15 @@ type ImportAccountMappingStepProps = Pick<
 /**
  * Account mapping step of the generic CSV import flow, wrapping the shared mapping table with the
  * modal used to create an institution from a row or from the batch bar
+ *
+ * An import started from an account has no imported-account table at all: every row goes to that
+ * account, so the step says so and warns about the one file this page is wrong for. The counterparty
+ * table is unaffected, since a transfer still has to say where its money came from or went to
  */
 export function ImportAccountMappingStep({
   accountMappingSources,
   accountMappings,
+  fixedAccount,
   archivedAccountMatches,
   autoFilledAccountSources,
   handAnsweredAccountSources,
@@ -198,9 +211,10 @@ export function ImportAccountMappingStep({
           onRetry={refetchAccounts}
         />
       ) : accountMappingSources.length === 0 ? (
+        // A fixed account has no column to check, so the empty state asks only for the file
         <EmptyState
-          title="No account sources detected"
-          description="Upload a file or check the mapped account column."
+          title={fixedAccount ? FIXED_ACCOUNT_EMPTY_TITLE : 'No account sources detected'}
+          description={fixedAccount ? FIXED_ACCOUNT_EMPTY_DESCRIPTION : 'Upload a file or check the mapped account column.'}
         />
       ) : (
         <>
@@ -238,18 +252,40 @@ export function ImportAccountMappingStep({
               {CREATED_ACCOUNT_EXPLANATION}
             </ImportNotice>
           )}
-          <ImportAccountMappingTable
-            rows={importedRows}
-            options={accountOptions}
-            batchAccountType={batchAccountType}
-            batchAccountCurrency={batchAccountCurrency}
-            batchAccountInstitution={batchAccountInstitution}
-            onBatchAccountTypeChange={setBatchAccountType}
-            onBatchAccountCurrencyChange={setBatchAccountCurrency}
-            onBatchAccountInstitutionChange={setBatchAccountInstitution}
-            onBatchCreateInstitution={(query) => openInstitutionModal(query, IMPORTED_BATCH_TARGET)}
-            {...sharedTableProps}
-          />
+          {fixedAccount ? (
+            <div className="space-y-3">
+              <p
+                className="px-4 py-6 text-center text-sm leading-6"
+                style={{ ...IMPORT_INSET_STYLE, color: 'var(--app-text-muted)' }}
+              >
+                {getFixedAccountStatement(fixedAccount.name)}
+              </p>
+              <ImportNotice tone="danger" title={FIXED_ACCOUNT_WARNING_TITLE}>
+                {getFixedAccountWarning(fixedAccount.name)}
+                {' '}
+                <Link
+                  to="/settings/imports"
+                  className="font-medium underline underline-offset-2 transition-colors duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                  style={{ color: 'var(--app-accent)' }}
+                >
+                  {FIXED_ACCOUNT_WARNING_LINK_LABEL}
+                </Link>
+              </ImportNotice>
+            </div>
+          ) : (
+            <ImportAccountMappingTable
+              rows={importedRows}
+              options={accountOptions}
+              batchAccountType={batchAccountType}
+              batchAccountCurrency={batchAccountCurrency}
+              batchAccountInstitution={batchAccountInstitution}
+              onBatchAccountTypeChange={setBatchAccountType}
+              onBatchAccountCurrencyChange={setBatchAccountCurrency}
+              onBatchAccountInstitutionChange={setBatchAccountInstitution}
+              onBatchCreateInstitution={(query) => openInstitutionModal(query, IMPORTED_BATCH_TARGET)}
+              {...sharedTableProps}
+            />
+          )}
           {counterpartySources.length > 0 && (
             <div className="space-y-3 pt-8">
               <div className="space-y-1">

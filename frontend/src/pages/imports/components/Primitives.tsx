@@ -178,25 +178,47 @@ export function ImportLoadFailure({
  *   browser rearranges on its own, and gives every notice that lists something the same shape. The
  *   marker is set back on, since Tailwind's reset takes it off. A notice with nothing to list omits
  *   the list and renders as it always did
+ * @param tone - How much the notice is asking of the reader. The danger tone is for the one a user
+ *   has to act on before importing, rather than the ordinary ones saying what the import will do,
+ *   and it takes the same colours the load failure already uses
  */
-export function ImportNotice({ title, children, items }: { title: string; children: ReactNode; items?: ReactNode[] }) {
+export function ImportNotice({
+  title,
+  children,
+  items,
+  tone = 'warning',
+}: {
+  title: string
+  children: ReactNode
+  items?: ReactNode[]
+  tone?: 'warning' | 'danger'
+}) {
+  const isDanger = tone === 'danger'
+
   return (
     <div
       className="flex items-start gap-3 rounded-lg px-4 py-3"
       style={{
         ...IMPORT_INSET_STYLE,
+        // The inset style carries a background and no border, so the danger tone brings its own
+        ...(isDanger
+          ? { border: '1px solid var(--app-negative-border)', background: 'var(--app-negative-soft)' }
+          : {}),
         color: 'var(--app-text-muted)',
       }}
     >
       <span
         className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center"
-        style={{ color: 'var(--app-warning-text)' }}
+        style={{ color: isDanger ? 'var(--app-negative)' : 'var(--app-warning-text)' }}
         aria-hidden
       >
         <TriangleAlert size={16} strokeWidth={2.25} />
       </span>
       <div className="min-w-0">
-        <p className="text-[0.9375rem] font-semibold leading-5" style={{ color: 'var(--app-text)' }}>
+        <p
+          className="text-[0.9375rem] font-semibold leading-5"
+          style={{ color: isDanger ? 'var(--app-negative)' : 'var(--app-text)' }}
+        >
           {title}
         </p>
         <p className="mt-1 text-sm leading-5">
