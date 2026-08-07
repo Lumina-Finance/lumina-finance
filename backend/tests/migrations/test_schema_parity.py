@@ -513,10 +513,20 @@ async def test_folded_name_migration_merges_categories_and_numbers_the_ones_reco
                 )).scalars().all()
                 active_tracked_rows = (await conn.execute(
                     text(
-                        "SELECT count(*) FROM budget_tracked_categories"
-                        " WHERE base_budget_id = :budget_id AND removed_at IS NULL",
+                        "SELECT base_budget_id, count(*) FROM budget_tracked_categories"
+                        " WHERE removed_at IS NULL GROUP BY base_budget_id",
                     ),
-                    {"budget_id": seeded["base_budget_id"]},
+                )).all()
+                tabbed_name = (await conn.execute(
+                    text("SELECT name FROM categories WHERE id = :id"),
+                    {"id": seeded["tabbed_snacks_id"]},
+                )).scalar_one()
+                staged_category_id = (await conn.execute(
+                    text(
+                        "SELECT category_mappings->'GROCERIES'->>'category_id'"
+                        " FROM import_runs WHERE id = :id",
+                    ),
+                    {"id": seeded["import_run_id"]},
                 )).scalar_one()
                 bonus_names = dict((await conn.execute(
                     text("SELECT id, name FROM categories WHERE id = ANY(:ids)"),
@@ -552,8 +562,19 @@ async def test_folded_name_migration_merges_categories_and_numbers_the_ones_reco
         assert grocery_ids == [seeded["older_grocery_id"]]
         assert set(grocery_transaction_categories) == {seeded["older_grocery_id"]}
 
-        # The budget tracked both, and one category cannot be tracked twice on one budget
-        assert active_tracked_rows == 1
+        # One row each, whether the budget tracked the survivor beside its losers or the losers alone
+        assert dict(active_tracked_rows) == {
+            seeded["base_budget_id"]: 1,
+            seeded["losers_only_budget_id"]: 1,
+        }
+
+        # Trimming takes off every kind of surrounding whitespace, not the space character alone,
+        # or the routes would compare a trimmed name against one still holding a tab and never match
+        assert tabbed_name == "Snacks"
+
+        # An import staged before the upgrade now points at the category that survived, so its
+        # commit still resolves rather than refusing the whole file for a category that is gone
+        assert staged_category_id == str(seeded["older_grocery_id"])
 
         # An income Bonus and an expense bonus mean different things, so both survive and the later
         # one is numbered rather than merged, leaving its transactions where they were
@@ -594,10 +615,18 @@ async def test_folded_name_migration_merges_merchants_differing_only_in_capitals
                 remaining = (await conn.execute(
                     text(
                         "SELECT id, name FROM merchants"
-                        " WHERE owner_id = :user_id AND lower(name) = 'amazon'",
+                        " WHERE owner_id = :user_id AND group_id IS NULL AND lower(name) = 'amazon'",
                     ),
                     {"user_id": seeded["user_id"]},
                 )).all()
+                group_remaining = (await conn.execute(
+                    text("SELECT id, name FROM merchants WHERE group_id = :group_id"),
+                    {"group_id": seeded["group_id"]},
+                )).all()
+                group_transaction_merchant = (await conn.execute(
+                    text("SELECT merchant_id FROM transactions WHERE id = :id"),
+                    {"id": seeded["group_transaction_id"]},
+                )).scalar_one()
                 merchants_on_transactions = (await conn.execute(
                     text("SELECT merchant_id FROM transactions WHERE id = ANY(:ids)"),
                     {"ids": [seeded["older_transaction_id"], seeded["newer_transaction_id"]]},
@@ -608,6 +637,12 @@ async def test_folded_name_migration_merges_merchants_differing_only_in_capitals
         # The later spelling is gone and both transactions point at the one that was there first
         assert remaining == [(seeded["older_merchant_id"], "Amazon")]
         assert set(merchants_on_transactions) == {seeded["older_merchant_id"]}
+
+        # A group's merchants are unique per group whoever owns them, so two members' spellings fold
+        # into one. Grouping them by owner instead would leave the pair the group index forbids and
+        # the upgrade would fail building it
+        assert group_remaining == [(seeded["older_group_merchant_id"], "Hardware")]
+        assert group_transaction_merchant == seeded["older_group_merchant_id"]
 
         await _assert_second_merchant_differing_only_in_capitals_is_refused(
             _ALEMBIC_FOLDED_MERCHANT_DB_NAME,
@@ -752,6 +787,8 @@ async def _seed_categories_differing_only_in_capitals(database_name: str) -> dic
         "income_bonus_id": UUID("bbbbbbbb-3333-4333-8333-333333333333"),
         "expense_bonus_id": UUID("bbbbbbbb-4444-4444-8444-444444444444"),
         "spaced_dining_id": UUID("bbbbbbbb-5555-4555-8555-555555555555"),
+        "third_grocery_id": UUID("bbbbbbbb-aaaa-4aaa-8aaa-aaaaaaaaaaaa"),
+        "tabbed_snacks_id": UUID("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"),
         "plain_dining_id": UUID("bbbbbbbb-6666-4666-8666-666666666666"),
         "group_grocery_id": UUID("bbbbbbbb-7777-4777-8777-777777777777"),
         "older_adjustment_id": UUID("bbbbbbbb-8888-4888-8888-888888888888"),
@@ -762,15 +799,21 @@ async def _seed_categories_differing_only_in_capitals(database_name: str) -> dic
         "expense_bonus_transaction_id": UUID("cccccccc-4444-4444-8444-444444444444"),
         "adjustment_transaction_id": UUID("cccccccc-5555-4555-8555-555555555555"),
         "base_budget_id": UUID("dddddddd-1111-4111-8111-111111111111"),
+        "losers_only_budget_id": UUID("dddddddd-2222-4222-8222-222222222222"),
+        "import_run_id": UUID("dddddddd-3333-4333-8333-333333333333"),
     }
 
     # Each pair is stamped a day apart, so which one the fold keeps is settled by the data rather
     # than by the order the rows happen to come back in
     first_day = datetime(2026, 1, 1, tzinfo=UTC)
     second_day = datetime(2026, 1, 2, tzinfo=UTC)
+    third_day = datetime(2026, 1, 3, tzinfo=UTC)
     categories = [
         (ids["older_grocery_id"], ids["user_id"], None, "Groceries", "EXPENSE", first_day),
         (ids["newer_grocery_id"], ids["user_id"], None, "GROCERIES", "EXPENSE", second_day),
+        (ids["third_grocery_id"], ids["user_id"], None, "groceries", "EXPENSE", third_day),
+        # Stored with a tab on the end, which btrim with no character set would leave in place
+        (ids["tabbed_snacks_id"], ids["user_id"], None, "Snacks\t", "EXPENSE", first_day),
         (ids["income_bonus_id"], ids["user_id"], None, "Bonus", "INCOME", first_day),
         (ids["expense_bonus_id"], ids["user_id"], None, "bonus", "EXPENSE", second_day),
         (ids["spaced_dining_id"], ids["user_id"], None, "Dining ", "EXPENSE", first_day),
@@ -866,25 +909,56 @@ async def _seed_categories_differing_only_in_capitals(database_name: str) -> dic
                 },
             )
 
-            await conn.execute(
-                text(
-                    "INSERT INTO base_budgets"
-                    " (id, owner_id, name, currency, recurrence_freq, instance_length, recurs, is_archived)"
-                    " VALUES (:id, :user_id, 'Monthly', 'CAD', 'MONTHLY', 1, true, false)",
-                ),
-                {"id": ids["base_budget_id"], "user_id": ids["user_id"]},
-            )
+            for budget_id, budget_name in (
+                (ids["base_budget_id"], "Monthly"),
+                (ids["losers_only_budget_id"], "Groceries only"),
+            ):
+                await conn.execute(
+                    text(
+                        "INSERT INTO base_budgets"
+                        " (id, owner_id, name, currency, recurrence_freq, instance_length, recurs, is_archived)"
+                        " VALUES (:id, :user_id, :name, 'CAD', 'MONTHLY', 1, true, false)",
+                    ),
+                    {"id": budget_id, "user_id": ids["user_id"], "name": budget_name},
+                )
 
-            # Tracking both spellings, so the fold has to drop one rather than move it onto a budget
-            # already tracking the survivor
-            for category_id in (ids["older_grocery_id"], ids["newer_grocery_id"]):
+            # One budget tracks the survivor and both losers, the other tracks the two losers alone.
+            # Either way the survivor can only be tracked once, so the fold has to drop rows rather
+            # than move every one of them
+            tracked = [
+                (ids["base_budget_id"], ids["older_grocery_id"]),
+                (ids["base_budget_id"], ids["newer_grocery_id"]),
+                (ids["base_budget_id"], ids["third_grocery_id"]),
+                (ids["losers_only_budget_id"], ids["newer_grocery_id"]),
+                (ids["losers_only_budget_id"], ids["third_grocery_id"]),
+            ]
+            for budget_id, category_id in tracked:
                 await conn.execute(
                     text(
                         "INSERT INTO budget_tracked_categories (id, base_budget_id, category_id, added_at)"
                         " VALUES (gen_random_uuid(), :budget_id, :category_id, '2026-01-01')",
                     ),
-                    {"budget_id": ids["base_budget_id"], "category_id": category_id},
+                    {"budget_id": budget_id, "category_id": category_id},
                 )
+
+            # An import staged before the upgrade, holding the id of a category the fold removes.
+            # Nothing links this to the categories table, so only the migration can keep it usable
+            await conn.execute(
+                text(
+                    "INSERT INTO import_runs"
+                    " (id, owner_id, expected_transaction_count, account_mappings, category_mappings)"
+                    " VALUES (:id, :user_id, 1, '{}'::jsonb, CAST(:category_mappings AS jsonb))",
+                ),
+                {
+                    "id": ids["import_run_id"],
+                    "user_id": ids["user_id"],
+                    "category_mappings": (
+                        '{"GROCERIES": {"source": "GROCERIES", "category_id": "'
+                        + str(ids["newer_grocery_id"])
+                        + '"}}'
+                    ),
+                },
+            )
     finally:
         await engine.dispose()
 
@@ -899,12 +973,17 @@ async def _seed_merchants_differing_only_in_capitals(database_name: str) -> dict
     """
     ids = {
         "user_id": UUID("eeeeeeee-1111-4111-8111-111111111111"),
+        "other_user_id": UUID("eeeeeeee-5555-4555-8555-555555555555"),
+        "group_id": UUID("eeeeeeee-6666-4666-8666-666666666666"),
         "account_id": UUID("eeeeeeee-2222-4222-8222-222222222222"),
         "category_id": UUID("eeeeeeee-3333-4333-8333-333333333333"),
         "older_merchant_id": UUID("ffffffff-1111-4111-8111-111111111111"),
         "newer_merchant_id": UUID("ffffffff-2222-4222-8222-222222222222"),
         "older_transaction_id": UUID("ffffffff-3333-4333-8333-333333333333"),
         "newer_transaction_id": UUID("ffffffff-4444-4444-8444-444444444444"),
+        "older_group_merchant_id": UUID("ffffffff-5555-4555-8555-555555555555"),
+        "newer_group_merchant_id": UUID("ffffffff-6666-4666-8666-666666666666"),
+        "group_transaction_id": UUID("ffffffff-7777-4777-8777-777777777777"),
     }
 
     engine = _create_engine_for_database(database_name)
@@ -952,9 +1031,42 @@ async def _seed_merchants_differing_only_in_capitals(database_name: str) -> dict
                     {"id": merchant_id, "user_id": ids["user_id"], "name": name, "created_at": created_at},
                 )
 
+            # A second member of the same group, since a group's merchant carries an owner as well
+            # as its group and the two members' merchants are what the group index measures together
+            await conn.execute(
+                text(
+                    "INSERT INTO users (id, email, first_name, tz, base_currency)"
+                    " VALUES (:user_id, 'migration-folded-member@example.com', 'Member',"
+                    " 'America/Toronto', 'CAD')",
+                ),
+                {"user_id": ids["other_user_id"]},
+            )
+            await conn.execute(
+                text("INSERT INTO groups (id, owner_id, name) VALUES (:group_id, :user_id, 'Household')"),
+                {"group_id": ids["group_id"], "user_id": ids["user_id"]},
+            )
+            for merchant_id, owner_id, name, created_at in (
+                (ids["older_group_merchant_id"], ids["user_id"], "Hardware", datetime(2026, 1, 1, tzinfo=UTC)),
+                (ids["newer_group_merchant_id"], ids["other_user_id"], "HARDWARE", datetime(2026, 1, 2, tzinfo=UTC)),
+            ):
+                await conn.execute(
+                    text(
+                        "INSERT INTO merchants (id, owner_id, group_id, name, created_at)"
+                        " VALUES (:id, :owner_id, :group_id, :name, :created_at)",
+                    ),
+                    {
+                        "id": merchant_id,
+                        "owner_id": owner_id,
+                        "group_id": ids["group_id"],
+                        "name": name,
+                        "created_at": created_at,
+                    },
+                )
+
             for transaction_id, merchant_id in (
                 (ids["older_transaction_id"], ids["older_merchant_id"]),
                 (ids["newer_transaction_id"], ids["newer_merchant_id"]),
+                (ids["group_transaction_id"], ids["newer_group_merchant_id"]),
             ):
                 await conn.execute(
                     text(

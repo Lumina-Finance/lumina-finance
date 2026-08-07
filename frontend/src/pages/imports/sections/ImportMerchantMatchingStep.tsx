@@ -17,6 +17,7 @@ type ImportMerchantMatchingStepProps = Pick<
   | 'setMerchantCreateNames'
   | 'matchedMerchantByKey'
   | 'merchantOptions'
+  | 'rememberPickedMerchant'
   | 'merchantSearch'
   | 'setMerchantSearch'
   | 'merchantSearchLoading'
@@ -40,6 +41,7 @@ export function ImportMerchantMatchingStep({
   setMerchantCreateNames,
   matchedMerchantByKey,
   merchantOptions,
+  rememberPickedMerchant,
   merchantSearch,
   setMerchantSearch,
   merchantSearchLoading,
@@ -107,7 +109,13 @@ export function ImportMerchantMatchingStep({
                   {rowState === 'skipped' ? 'Skipped' : ''}
                 </span>
               ),
-              onChange: (nextValue) => setMerchantMappings((current) => ({ ...current, [value]: nextValue })),
+              onChange: (nextValue) => {
+                // Held on to as it is chosen, since the option it came from goes when the search
+                // that found it clears, and the row would then show nothing for its own answer
+                const picked = merchantOptions.find((option) => option.value === nextValue)
+                if (picked) rememberPickedMerchant(nextValue, picked.label)
+                setMerchantMappings((current) => ({ ...current, [value]: nextValue }))
+              },
             }
           })}
           options={merchantOptions}

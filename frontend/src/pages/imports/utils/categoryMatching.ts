@@ -249,9 +249,14 @@ function scoreCategoryNameMatch(source: string, categoryName: string) {
   const normalizedCategory = normalizeCategoryName(categoryName)
   if (!normalizedSource || !normalizedCategory) return 0
 
+  if (normalizedSource === normalizedCategory) return 100
+
+  // Below an exact match rather than equal to it, so a value reading "Pet Care" takes the category
+  // spelled that way over one spelled "Petcare". Scored the same, the two would tie and the value
+  // would be left unanswered, which is what the direction read off the amounts used to prevent
   const compactSource = normalizedSource.replace(/\s/g, '')
   const compactCategory = normalizedCategory.replace(/\s/g, '')
-  if (normalizedSource === normalizedCategory || compactSource === compactCategory) return 100
+  if (compactSource === compactCategory) return 95
 
   const shorterLength = Math.min(normalizedSource.length, normalizedCategory.length)
   if (shorterLength >= 4 && (normalizedSource.includes(normalizedCategory) || normalizedCategory.includes(normalizedSource))) {

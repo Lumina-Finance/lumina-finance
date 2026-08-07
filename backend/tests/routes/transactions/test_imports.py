@@ -789,9 +789,10 @@ async def test_a_category_source_creating_a_name_recording_the_other_direction_i
     })
 
     assert resp.status_code == 422
-    detail = resp.json()["detail"]
-    assert "Bonus" in detail
-    assert "income" in detail
+    assert resp.json()["detail"] == (
+        "A category named Bonus already records income, so this import cannot create Bonus as "
+        "expense. Match this value to that category, or set its type to income."
+    )
     assert (await client.get("/transactions", headers=headers)).json() == []
 
 
@@ -899,7 +900,7 @@ async def test_a_payee_answered_with_a_merchant_the_user_cannot_see_is_refused(c
     assert (await client.get("/transactions", headers=headers)).json() == []
 
 
-async def test_answering_one_payee_under_two_spellings_is_refused(client):
+async def test_answering_one_payee_under_two_spellings_in_one_batch_is_refused(client):
     """Both spellings resolve to one merchant, so two answers leave nothing to say which one wins."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
 
@@ -916,7 +917,7 @@ async def test_answering_one_payee_under_two_spellings_is_refused(client):
     )
 
     assert resp.status_code == 422
-    assert "answered twice" in resp.json()["detail"]
+    assert "declared twice with different answers" in resp.json()["detail"]
 
 
 async def test_a_payee_answer_stating_two_actions_is_refused(client):
@@ -935,6 +936,92 @@ async def test_a_payee_answer_stating_two_actions_is_refused(client):
 
     assert resp.status_code == 422
     assert "exactly one merchant action" in resp.json()["detail"]
+
+
+async def test_a_payee_answered_with_a_name_that_ships_with_the_app_reuses_that_merchant(client):
+    """A shared merchant's name is taken in every scope, so answering with it cannot write a second."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    self_merchant_id = await _get_system_merchant_id(client, headers, SELF_MERCHANT_NAME)
+
+    resp = await _import_rows(
+        client,
+        headers,
+        account_id,
+        category_id,
+        [{"merchant_name": "TFR TO SAVINGS 0012"}],
+        merchants=[{"source": "TFR TO SAVINGS 0012", "create": {"name": SELF_MERCHANT_NAME.lower()}}],
+    )
+
+    assert resp.status_code == 201
+    assert resp.json()["merchants_created"] == 0
+    assert [merchant["name"] for merchant in (await client.get("/merchants", headers=headers)).json()
+            if not merchant["is_system"]] == []
+    transaction = (await client.get("/transactions", headers=headers)).json()[0]
+    assert transaction["merchant_id"] == self_merchant_id
+
+
+async def test_a_payee_answered_with_a_name_the_user_already_has_reuses_that_merchant(client):
+    """Correcting a descriptor onto a merchant they already have is the same as picking it."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    existing = (await _create_merchant(client, headers, name="Corner Cafe")).json()
+
+    resp = await _import_rows(
+        client,
+        headers,
+        account_id,
+        category_id,
+        [{"merchant_name": "SQ *COFFEE 4471"}],
+        merchants=[{"source": "SQ *COFFEE 4471", "create": {"name": "CORNER CAFE"}}],
+    )
+
+    assert resp.status_code == 201
+    assert resp.json()["merchants_created"] == 0
+    transaction = (await client.get("/transactions", headers=headers)).json()[0]
+    assert transaction["merchant_id"] == existing["id"]
+
+
+async def test_answering_a_payee_named_like_a_shared_merchant_leaves_the_stamped_rows_alone(client):
+    """A row stating no payee is stamped from the merchants that ship with the app, not the lookup."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    unknown_merchant_id = await _get_system_merchant_id(client, headers, UNKNOWN_MERCHANT_NAME)
+    chosen = (await _create_merchant(client, headers, name="Corner Cafe")).json()
+
+    # The file's own payee reads as the shared merchant's name, and is answered with another
+    # merchant, which takes that name over in the lookup the rows are matched through
+    resp = await _import_rows(
+        client,
+        headers,
+        account_id,
+        category_id,
+        [{"merchant_name": UNKNOWN_MERCHANT_NAME, "amount": "-1.00"}, {"amount": "-2.00"}],
+        merchants=[{"source": UNKNOWN_MERCHANT_NAME, "merchant_id": chosen["id"]}],
+    )
+
+    assert resp.status_code == 201
+    transactions = (await client.get("/transactions", headers=headers)).json()
+    merchants_by_amount = {transaction["amount"]: transaction["merchant_id"] for transaction in transactions}
+
+    # The answered value goes where it was pointed, and the row stating no payee is still stamped
+    # with the shared merchant rather than with what took that name over in the lookup
+    assert merchants_by_amount == {-100: chosen["id"], -200: unknown_merchant_id}
+
+
+async def test_two_batches_answering_one_payee_differently_are_refused_at_staging(client):
+    """Both spellings are one payee, so the clash is caught while staging rather than at the commit."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    run_id = await _open_run(client, headers, 2)
+
+    first = _batch(account_id, category_id, ["-1.00"])
+    first["merchants"] = [{"source": "Amazon", "skip": True}]
+    second = _batch(account_id, category_id, ["-2.00"], start_row_index=1)
+    second["merchants"] = [{"source": "AMAZON", "create": {"name": "Amazon"}}]
+
+    first_resp = await client.post(f"/transactions/import/runs/{run_id}/rows", json=first, headers=headers)
+    second_resp = await client.post(f"/transactions/import/runs/{run_id}/rows", json=second, headers=headers)
+
+    assert first_resp.status_code == 204
+    assert second_resp.status_code == 422
+    assert "declared twice with different answers" in second_resp.json()["detail"]
 
 
 async def test_an_import_is_refused_when_a_shared_merchant_is_not_seeded(client):
@@ -1087,6 +1174,9 @@ async def _insert_personal_merchant_beside_a_shared_one(sibling_merchant_id, nam
     scope has an index of its own, which is what a database looks like where someone had their own
     merchant before the app shipped one reading the same
 
+    Stamped a day earlier than the shared merchant, so a match landing on the shared one proves the
+    rule that a shared merchant wins rather than the one that a rule of oldest-first would give
+
     Args:
         sibling_merchant_id: A merchant of the owner this one belongs to
         name: Name for the new merchant
@@ -1099,7 +1189,7 @@ async def _insert_personal_merchant_beside_a_shared_one(sibling_merchant_id, nam
         await session.execute(
             text(
                 "INSERT INTO merchants (id, owner_id, name, created_at)"
-                " VALUES (gen_random_uuid(), :owner_id, :name, now() + interval '1 second')",
+                " VALUES (gen_random_uuid(), :owner_id, :name, now() - interval '1 day')",
             ),
             {"owner_id": owner_id, "name": name},
         )

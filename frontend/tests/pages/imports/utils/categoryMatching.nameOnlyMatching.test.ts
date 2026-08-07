@@ -56,6 +56,17 @@ describe('suggesting a category for a value in the file', () => {
     expect(inferCategoryMappings(['Bonus'], {}, [PERSONAL_EXPENSE, second])).toEqual({ Bonus: '' })
   })
 
+  it('suggests the category spelled as the file spells it over one differing in its spaces', () => {
+    // Both read as the same words, and the direction read off the amounts used to be what separated
+    // an expense "Pet Care" from an income "Petcare". Scored equally they would tie and the value
+    // would come up unanswered, so the one matching space for space wins
+    const spaced: Category = { ...PERSONAL_EXPENSE, id: 'spaced', name: 'Pet Care' }
+    const compact: Category = { ...PERSONAL_INCOME, id: 'compact', name: 'Petcare' }
+
+    expect(inferCategoryMappings(['Pet Care'], {}, [compact, spaced])).toEqual({ 'Pet Care': 'spaced' })
+    expect(inferCategoryMappings(['Petcare'], {}, [compact, spaced])).toEqual({ Petcare: 'compact' })
+  })
+
   it('leaves an answer the user gave alone', () => {
     expect(inferCategoryMappings(['Bonus'], { Bonus: 'chosen-by-hand' }, [PERSONAL_INCOME]))
       .toEqual({ Bonus: 'chosen-by-hand' })

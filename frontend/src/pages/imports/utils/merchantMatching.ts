@@ -15,9 +15,15 @@ import {
  * turned up, since a person can have thousands and the page never holds them all
  *
  * @param merchants - Merchants to offer, from the file's matches and from the current search
+ * @param pickedLabelsById - What merchants already picked are called, so one chosen through the
+ *   search stays offerable once the search that found it is cleared
  */
-export function buildImportMerchantOptions(merchants: Merchant[]): DropdownOption[] {
-  const byId = new Map(merchants.map((merchant) => [merchant.id, merchant]))
+export function buildImportMerchantOptions(
+  merchants: Merchant[],
+  pickedLabelsById: Record<string, string> = {},
+): DropdownOption[] {
+  const labelsById = new Map(Object.entries(pickedLabelsById))
+  for (const merchant of merchants) labelsById.set(merchant.id, merchant.name)
 
   return [
     { value: CREATE_MERCHANT_VALUE, label: 'Create new merchant', group: 'Import action' },
@@ -26,11 +32,11 @@ export function buildImportMerchantOptions(merchants: Merchant[]): DropdownOptio
       label: `Skip, filing rows under ${UNKNOWN_MERCHANT_NAME}`,
       group: 'Import action',
     },
-    ...[...byId.values()]
-      .sort((a, b) => a.name.localeCompare(b.name))
-      .map((merchant) => ({
-        value: merchant.id,
-        label: merchant.name,
+    ...[...labelsById.entries()]
+      .sort(([, first], [, second]) => first.localeCompare(second))
+      .map(([id, label]) => ({
+        value: id,
+        label,
         group: 'Existing merchants',
       })),
   ]

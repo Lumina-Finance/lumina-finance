@@ -1,6 +1,7 @@
 """Staging a transaction import run before it is committed"""
 
 import uuid
+from collections.abc import Callable
 from typing import Any
 
 from fastapi import HTTPException, status
@@ -28,7 +29,7 @@ from app.services.importers.shared.categories import (
     get_visible_import_category,
     parse_import_category_kind,
 )
-from app.services.importers.shared.merchants import require_usable_import_merchant
+from app.services.importers.shared.merchants import get_import_merchant_key, require_usable_import_merchant
 from app.services.importers.shared.validation_helpers import strip_import_text_or_raise
 
 
@@ -98,7 +99,17 @@ async def stage_import_batch(
     # not see a change made inside the dictionary it already holds
     run.account_mappings = _merge_import_mappings(run.account_mappings, data.accounts, "Account source")
     run.category_mappings = _merge_import_mappings(run.category_mappings, data.categories, "Category source")
-    run.merchant_mappings = _merge_import_mappings(run.merchant_mappings, data.merchants, "Merchant source")
+
+    # Keyed by what matches a payee rather than by the spelling, since two spellings of one payee
+    # resolve to one merchant. Held apart this way, a batch answering "Amazon" and a later one
+    # answering "AMAZON" differently are refused here rather than at the commit, where the run would
+    # already hold both and every retry would answer the same
+    run.merchant_mappings = _merge_import_mappings(
+        run.merchant_mappings,
+        data.merchants,
+        "Merchant source",
+        get_key=get_import_merchant_key,
+    )
 
     await _insert_staged_rows(db, run, user.id, data)
     await db.commit()
@@ -161,6 +172,7 @@ def _merge_import_mappings(
         | list[TransactionImportMerchantMapping]
     ),
     label: str,
+    get_key: Callable[[str], str] = lambda source: source,
 ) -> dict[str, Any]:
     """Merge one batch's mappings into what the run already holds, keyed by trimmed source
 
@@ -175,6 +187,8 @@ def _merge_import_mappings(
         stored: Mappings the run already holds
         mappings: Mappings this batch declares
         label: What a source is called in a refusal
+        get_key: What a source is held under, which is the trimmed source itself except for a payee
+            value, where two spellings are one merchant and so one answer
 
     Returns:
         The merged mappings
@@ -188,13 +202,14 @@ def _merge_import_mappings(
     for mapping in mappings:
         source = strip_import_text_or_raise(mapping.source, label)
         declared = mapping.model_dump(mode="json") | {"source": source}
-        existing = merged.get(source)
+        key = get_key(source)
+        existing = merged.get(key)
         if existing is not None and existing != declared:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=f"{label} is declared twice with different answers: {source}",
             )
-        merged[source] = declared
+        merged[key] = declared
 
     if len(merged) > MAX_IMPORT_MAPPINGS:
         raise HTTPException(

@@ -21,10 +21,28 @@ depends_on: str | Sequence[str] | None = None
 # doing what it did on the day it ran however the application code moves on
 _BALANCE_ADJUSTMENT_CATEGORY_NAME = "Balance Adjustment"
 
-# The scope a name has to be unique within, which is the same three the check constraints describe:
-# one that ships with the app, one a user owns, one a group owns. Grouping on all three columns at
-# once covers the three cases in one pass, since the unused two are null in each
-_NAME_SCOPE = "is_system, owner_id, group_id"
+# The scope a category name has to be unique within, which is the same three the check constraint
+# describes: one that ships with the app, one a user owns, one a group owns. Grouping on all three
+# columns at once covers the three cases in one pass, since a category carries an owner or a group
+# but never both
+_CATEGORY_NAME_SCOPE = "is_system, owner_id, group_id"
+
+# A merchant carries an owner even when it belongs to a group, so grouping on the columns the way
+# categories are grouped would put two members' merchants of one group in separate sets and leave
+# the pair the group index forbids. Written as the key each of the three indexes is built on
+# instead: a group's by group, a shared one by nothing, and a personal one by owner
+_MERCHANT_NAME_SCOPE = """
+    CASE
+        WHEN group_id IS NOT NULL THEN 'group:' || group_id::text
+        WHEN is_system THEN 'system'
+        ELSE 'owner:' || owner_id::text
+    END
+"""
+
+# What is taken off both ends of a name, matching what str.strip() takes off in the application.
+# btrim with no character set removes spaces alone, which would leave a name ending in a tab stored
+# untrimmed while every comparison trims, so no typed name could ever match it again
+_TRIMMED_CHARACTERS = " \t\n\r\f\v "
 
 
 def upgrade() -> None:
@@ -37,8 +55,13 @@ def upgrade() -> None:
 
     # A name is stored trimmed from here on, so the routes and the indexes compare what is stored
     # rather than each trimming for themselves
-    op.execute(sa.text("UPDATE categories SET name = btrim(name) WHERE name <> btrim(name)"))
-    op.execute(sa.text("UPDATE merchants SET name = btrim(name) WHERE name <> btrim(name)"))
+    for table in ("categories", "merchants"):
+        op.execute(
+            sa.text(
+                f"UPDATE {table} SET name = btrim(name, :characters)"  # noqa: S608
+                " WHERE name <> btrim(name, :characters)",
+            ).bindparams(characters=_TRIMMED_CHARACTERS),
+        )
 
     _fold_categories()
     _rename_categories_colliding_across_kinds()
@@ -75,26 +98,35 @@ def _fold_categories() -> None:
             "    first_value(kind::text <> 'TRANSFER' OR name <> :balance_adjustment)"
             "      OVER same_category AS survivor_records_counterparty"
             "  FROM categories"
-            f"  WINDOW same_category AS (PARTITION BY {_NAME_SCOPE}, kind, lower(name)"
+            f"  WINDOW same_category AS (PARTITION BY {_CATEGORY_NAME_SCOPE}, kind, lower(name)"
             "    ORDER BY created_at, id)"
             ") ranked WHERE id <> survivor_id",
         ).bindparams(balance_adjustment=_BALANCE_ADJUSTMENT_CATEGORY_NAME),
     )
 
-    # A budget tracking both categories would end up tracking the survivor twice, which the index on
-    # the active rows forbids, so the loser's row goes rather than moving
+    # One budget cannot track one category twice, which is what moving the rows would leave where a
+    # budget tracked the survivor and a loser, or two losers of one set. Every active row past the
+    # first for a budget and its survivor goes, so exactly one is left to move
     op.execute(
         sa.text(
-            "DELETE FROM budget_tracked_categories AS loser_row"
-            " USING folded_categories f"
-            " WHERE loser_row.category_id = f.loser_id"
-            "   AND loser_row.removed_at IS NULL"
-            "   AND EXISTS ("
-            "     SELECT 1 FROM budget_tracked_categories AS survivor_row"
-            "     WHERE survivor_row.base_budget_id = loser_row.base_budget_id"
-            "       AND survivor_row.category_id = f.survivor_id"
-            "       AND survivor_row.removed_at IS NULL"
-            "   )",
+            "DELETE FROM budget_tracked_categories b USING ("
+            "  SELECT"
+            "    loser_row.id,"
+            "    row_number() OVER ("
+            "      PARTITION BY loser_row.base_budget_id, f.survivor_id"
+            "      ORDER BY loser_row.added_at, loser_row.id"
+            "    ) AS position,"
+            "    EXISTS ("
+            "      SELECT 1 FROM budget_tracked_categories survivor_row"
+            "      WHERE survivor_row.base_budget_id = loser_row.base_budget_id"
+            "        AND survivor_row.category_id = f.survivor_id"
+            "        AND survivor_row.removed_at IS NULL"
+            "    ) AS survivor_already_tracked"
+            "  FROM budget_tracked_categories loser_row"
+            "  JOIN folded_categories f ON f.loser_id = loser_row.category_id"
+            "  WHERE loser_row.removed_at IS NULL"
+            ") ranked"
+            " WHERE b.id = ranked.id AND (ranked.survivor_already_tracked OR ranked.position > 1)",
         ),
     )
 
@@ -125,6 +157,29 @@ def _fold_categories() -> None:
             " FROM folded_categories f WHERE b.category_id = f.loser_id",
         ),
     )
+
+    # An import staged but not yet committed holds the categories its user picked, as ids inside a
+    # JSONB column that no foreign key reaches. Left alone, the commit would answer 422 for a
+    # category that no longer exists and refuse the whole file, and the ids a user picks in the
+    # mapping step are exactly the ones this fold removes
+    op.execute(
+        sa.text(
+            "UPDATE import_runs r SET category_mappings = ("
+            "  SELECT jsonb_object_agg("
+            "    mapping.key,"
+            "    CASE WHEN f.survivor_id IS NULL THEN mapping.value"
+            "         ELSE jsonb_set(mapping.value, '{category_id}', to_jsonb(f.survivor_id::text))"
+            "    END"
+            "  )"
+            "  FROM jsonb_each(r.category_mappings) AS mapping"
+            "  LEFT JOIN folded_categories f ON f.loser_id::text = mapping.value->>'category_id'"
+            ") WHERE EXISTS ("
+            "  SELECT 1 FROM jsonb_each(r.category_mappings) AS mapping"
+            "  JOIN folded_categories f ON f.loser_id::text = mapping.value->>'category_id'"
+            ")",
+        ),
+    )
+
     op.execute(sa.text("DELETE FROM categories c USING folded_categories f WHERE c.id = f.loser_id"))
 
 
@@ -143,7 +198,7 @@ def _rename_categories_colliding_across_kinds() -> None:
             "   FOR loser IN"
             "     SELECT id, name, is_system, owner_id, group_id FROM ("
             "       SELECT id, name, is_system, owner_id, group_id, created_at,"
-            f"         first_value(id) OVER (PARTITION BY {_NAME_SCOPE}, lower(name)"
+            f"         first_value(id) OVER (PARTITION BY {_CATEGORY_NAME_SCOPE}, lower(name)"
             "            ORDER BY created_at, id) AS survivor_id"
             "       FROM categories"
             "     ) ranked WHERE id <> survivor_id ORDER BY created_at, id"
@@ -173,6 +228,10 @@ def _fold_merchants() -> None:
 
     A merchant records no direction, so every collision folds and none is renamed. Transactions are
     the only thing pointing at a merchant, so they are the only thing to move
+
+    Grouped by the key each of the three indexes is built on rather than by the scope columns. A
+    group's merchant carries an owner as well as its group, so grouping by owner would leave two
+    members' merchants of one group unfolded and the index build would then fail
     """
     op.execute(
         sa.text(
@@ -180,7 +239,7 @@ def _fold_merchants() -> None:
             "SELECT id AS loser_id, survivor_id FROM ("
             "  SELECT id, first_value(id) OVER same_merchant AS survivor_id"
             "  FROM merchants"
-            f"  WINDOW same_merchant AS (PARTITION BY {_NAME_SCOPE}, lower(name)"
+            f"  WINDOW same_merchant AS (PARTITION BY {_MERCHANT_NAME_SCOPE}, lower(name)"
             "    ORDER BY created_at, id)"
             ") ranked WHERE id <> survivor_id",
         ),

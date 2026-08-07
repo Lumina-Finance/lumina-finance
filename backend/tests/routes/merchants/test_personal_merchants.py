@@ -1,8 +1,4 @@
-import uuid
-
-from app.models.merchant import Merchant
 from app.services.merchants.defaults import SELF_MERCHANT_NAME
-from tests.conftest import TestSession
 from tests.routes.merchants._helpers import (
     MERCHANT_PAYLOAD,
     NONEXISTENT_ID,
@@ -407,25 +403,6 @@ async def test_patch_merchant_recapitalises_its_own_name(client):
 
     assert resp.status_code == 200
     assert resp.json()["name"] == "Corner Shop"
-
-
-async def test_creating_a_merchant_beside_a_personal_and_a_shared_one_returns_409(client):
-    """Two rows can answer the check at once, since each scope has an index of its own."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-    created = (await _create_merchant(client, headers, name="Corner Shop")).json()
-
-    # Inserted past the route, which refuses a name a shared merchant holds whatever the scope. The
-    # unique indexes still allow the pair, so this is what a database looks like where someone had
-    # their own merchant before the app shipped one reading the same
-    async with TestSession() as session:
-        session.add(Merchant(owner_id=uuid.UUID(created["owner_id"]), name=SELF_MERCHANT_NAME.lower()))
-        await session.commit()
-
-    resp = await _create_merchant(client, headers, name=SELF_MERCHANT_NAME.upper())
-
-    assert resp.status_code == 409
-    assert "already exists" in resp.json()["detail"]
 
 
 async def test_creating_a_merchant_differing_only_in_surrounding_spaces_returns_409(client):

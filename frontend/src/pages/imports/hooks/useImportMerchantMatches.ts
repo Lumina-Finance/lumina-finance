@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { fetchMerchantNameMatches, useInfiniteMerchants, type Merchant } from '@/api/merchants'
 import { merchantKeys } from '@/api/cache/queryKeys'
@@ -51,12 +51,21 @@ export function useImportMerchantMatches(importedMerchants: string[]) {
     [matches],
   )
 
+  // What a merchant picked through the search is called, remembered as it is picked. Closing the
+  // dropdown clears the search, which empties the results it was chosen from, and the row would
+  // then read as unanswered while holding the right answer, its option having gone with them
+  const [pickedMerchantLabels, setPickedMerchantLabels] = useState<Record<string, string>>({})
+
+  const rememberPickedMerchant = useCallback((merchantId: string, label: string) => {
+    setPickedMerchantLabels((current) => (current[merchantId] ? current : { ...current, [merchantId]: label }))
+  }, [])
+
   const merchantOptions = useMemo(
     () => {
       const searched: Merchant[] = searchPages?.pages.flat() ?? []
-      return buildImportMerchantOptions([...matchedMerchantByKey.values(), ...searched])
+      return buildImportMerchantOptions([...matchedMerchantByKey.values(), ...searched], pickedMerchantLabels)
     },
-    [matchedMerchantByKey, searchPages],
+    [matchedMerchantByKey, pickedMerchantLabels, searchPages],
   )
 
   return {
@@ -65,6 +74,7 @@ export function useImportMerchantMatches(importedMerchants: string[]) {
     matchesFailed,
     refetchMatches,
     merchantOptions,
+    rememberPickedMerchant,
     merchantSearch,
     setMerchantSearch,
     merchantSearchLoading: searchFetching,

@@ -78,12 +78,18 @@ class ImportMerchants:
     """What an import files each of its rows under, worked out once for the whole file
 
     Attributes:
-        by_key: Merchant rows keyed by what matches a payee
+        by_key: Merchant rows keyed by what matches a payee, extended as answers are read and
+            merchants are created
+        system_by_key: The merchants that ship with the app, held apart because answering a payee
+            value overwrites its key in by_key. A file whose payee column reads "Unknown", answered
+            with some other merchant, would otherwise take the shared merchant out of the lookup
+            that the rows stating no payee are stamped from
         skipped_keys: Payee values the user answered skip, whose rows are filed under the shared
             merchant the app stamps on a row stating no payee at all
     """
 
     by_key: dict[str, Merchant]
+    system_by_key: dict[str, Merchant] = field(default_factory=dict)
     skipped_keys: set[str] = field(default_factory=set)
 
 
@@ -110,9 +116,13 @@ async def load_import_merchants(db: AsyncSession, user_id: uuid.UUID) -> ImportM
     )
 
     merchants_by_key: dict[str, Merchant] = {}
+    system_by_key: dict[str, Merchant] = {}
     for merchant in result.scalars().all():
-        merchants_by_key.setdefault(get_import_merchant_key(merchant.name), merchant)
-    return ImportMerchants(by_key=merchants_by_key)
+        key = get_import_merchant_key(merchant.name)
+        merchants_by_key.setdefault(key, merchant)
+        if merchant.is_system:
+            system_by_key.setdefault(key, merchant)
+    return ImportMerchants(by_key=merchants_by_key, system_by_key=system_by_key)
 
 
 async def create_missing_import_merchants(
@@ -178,9 +188,18 @@ async def create_missing_import_merchants(
         else:
             stored_name = answer.create.name
 
+        name_key = get_import_merchant_key(stored_name)
+
+        # A name already held is reused rather than written again, which is what the merchants route
+        # answers 409 for. The unique index catches the user's own, but not one that ships with the
+        # app, since a system merchant has no owner and so shares no index entry with a personal one
+        existing = merchants.by_key.get(name_key)
+        if existing is not None:
+            merchants.by_key[payee_key] = existing
+            continue
+
         # The first spelling the file uses is the one stored, so a file carrying both "Amazon" and
         # "AMAZON" produces one merchant rather than two
-        name_key = get_import_merchant_key(stored_name)
         names_by_key.setdefault(name_key, stored_name)
         name_key_by_payee_key[payee_key] = name_key
 
@@ -427,29 +446,31 @@ def get_no_payee_merchants(merchants: ImportMerchants) -> NoPayeeMerchants:
         HTTPException: Raised with 500 when either merchant is not seeded
     """
     return NoPayeeMerchants(
-        transfer=_require_system_merchant(merchants.by_key, SELF_MERCHANT_NAME),
-        other=_require_system_merchant(merchants.by_key, UNKNOWN_MERCHANT_NAME),
+        transfer=_require_system_merchant(merchants.system_by_key, SELF_MERCHANT_NAME),
+        other=_require_system_merchant(merchants.system_by_key, UNKNOWN_MERCHANT_NAME),
     )
 
 
-def _require_system_merchant(merchants_by_key: dict[str, Merchant], name: str) -> Merchant:
+def _require_system_merchant(system_by_key: dict[str, Merchant], name: str) -> Merchant:
     """Return one merchant that ships with the app, refusing the import when it is absent
 
-    A personal merchant of the same name is not accepted in its place, so a database that never ran
-    the seeding fails here rather than quietly stamping one user's own merchant on their rows
+    Read from the merchants that ship with the app rather than from the whole lookup, since a payee
+    value reading "Unknown" that the user answered by hand replaces that key in the lookup. A
+    personal merchant is not accepted in place of a shared one either way, so a database that never
+    ran the seeding fails here rather than quietly stamping one user's own merchant on their rows
 
     Args:
-        merchants_by_key: Merchant lookup for this import
+        system_by_key: The merchants that ship with the app, keyed by what matches them
         name: Name of the system merchant wanted
 
     Returns:
         The system merchant
 
     Raises:
-        HTTPException: Raised with 500 when the merchant is absent or is not the shared one
+        HTTPException: Raised with 500 when the merchant is absent
     """
-    merchant = merchants_by_key.get(get_import_merchant_key(name))
-    if merchant is None or not merchant.is_system:
+    merchant = system_by_key.get(get_import_merchant_key(name))
+    if merchant is None:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"{name} merchant is not configured",

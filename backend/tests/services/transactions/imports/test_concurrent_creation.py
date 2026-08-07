@@ -8,12 +8,14 @@ the whole import failing on the unique index.
 The interleaving itself is not reproduced. What a race reaches is the state where the name is taken
 by the time the insert runs, and these put the code in exactly that state, which is also what a user
 creating the same record in another tab does.
+
+One branch stays uncovered: the category path re-reads after a skipped insert and applies the same
+direction check there, and nothing can reach that re-read in one session, since the lookup running
+just before the insert would already have found the row.
 """
 
 import uuid
 
-import pytest
-from fastapi import HTTPException
 from sqlalchemy import literal_column, select, text
 
 from app.models.base import CategoryKind
@@ -22,8 +24,6 @@ from app.models.currency import Currency
 from app.models.merchant import Merchant
 from app.models.tag import Tag
 from app.models.user import User
-from app.schemas.transaction import TransactionImportCategoryMapping, TransactionImportCreateCategory
-from app.services.importers.shared.categories import get_or_create_import_categories_by_source
 from app.services.importers.shared.insertion_helpers import insert_import_records_if_absent
 from app.services.importers.shared.merchants import (
     ImportMerchants,
@@ -219,27 +219,3 @@ async def _seed_other_user(session) -> uuid.UUID:
     session.add(user)
     await session.flush()
     return user.id
-
-
-async def test_a_category_name_taken_by_the_other_direction_is_refused_with_both_ways_out():
-    """The create step refuses the name rather than writing a second category recording the other way."""
-    async with TestSession() as session:
-        user_id = await _seed_user(session)
-        await insert_import_records_if_absent(
-            session,
-            Category,
-            [{"owner_id": user_id, "group_id": None, "name": "Bonus", "kind": CategoryKind.INCOME}],
-            **_CATEGORY_CONFLICT,
-        )
-        user = (await session.execute(select(User).where(User.id == user_id))).scalar_one()
-        mapping = TransactionImportCategoryMapping(
-            source="Bonus",
-            create=TransactionImportCreateCategory(name="Bonus", kind="expense"),
-        )
-
-        with pytest.raises(HTTPException) as raised:
-            await get_or_create_import_categories_by_source(session, user, [mapping], ImportStats())
-
-        assert raised.value.status_code == 422
-        assert "already records income" in raised.value.detail
-        assert "set its type to income" in raised.value.detail
