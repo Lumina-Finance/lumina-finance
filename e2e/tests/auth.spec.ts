@@ -1,12 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 import { signUpUser, TEST_PASSWORD } from '../support/api'
-import { logIn } from '../support/app'
-
-// Only the signed-in shell renders the primary navigation, so this is what says a spec reached
-// the app. The dashboard's own heading cannot say it: the greeting is one of five chosen by the
-// hour, and asserting on the heading role alone matches the auth page, which is also an h1
-const SIGNED_IN = { role: 'link' as const, name: 'Accounts' }
+import { expectSignedIn, logIn } from '../support/app'
 
 test('signs a new user up through the form', async ({ page }) => {
   const email = `e2e-${crypto.randomUUID()}@example.com`
@@ -30,7 +25,7 @@ test('signs a new user up through the form', async ({ page }) => {
   await page.getByRole('button', { name: 'Skip for now' }).click()
   await page.getByRole('button', { name: 'I still want to skip' }).click()
 
-  await expect(page.getByRole(SIGNED_IN.role, { name: SIGNED_IN.name })).toBeVisible()
+  await expectSignedIn(page)
 })
 
 test('signs an existing user in with their password', async ({ page, request }) => {
@@ -38,7 +33,7 @@ test('signs an existing user in with their password', async ({ page, request }) 
 
   await logIn(page, user)
 
-  await expect(page.getByRole(SIGNED_IN.role, { name: SIGNED_IN.name })).toBeVisible()
+  await expectSignedIn(page)
 })
 
 test('refuses a wrong password before accepting the right one', async ({ page, request }) => {
@@ -57,5 +52,5 @@ test('refuses a wrong password before accepting the right one', async ({ page, r
   await page.getByLabel('Password', { exact: true }).fill(user.password)
   await page.getByRole('button', { name: 'Log in' }).click()
 
-  await expect(page.getByRole(SIGNED_IN.role, { name: SIGNED_IN.name })).toBeVisible()
+  await expectSignedIn(page)
 })

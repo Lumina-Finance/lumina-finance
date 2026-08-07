@@ -3,10 +3,19 @@ import { defineConfig, devices } from '@playwright/test'
 import { TEST_TIMEZONE } from './support/api'
 import { BASE_URL } from './support/target'
 
-// Above the 1050px breakpoint, so the desktop navigation and the desktop filter panel are the
-// ones rendered. In the mobile sheet the control that chooses which filter to edit is named by
-// whichever option it currently shows, so its name moves as it is used and nothing drives it
-const DESKTOP_VIEWPORT = { width: 1440, height: 900 }
+// The three sizes the screenshot captures use, so the suite checks the layouts the captures
+// show. Copied by value from dev/demo/capture/shared.mjs rather than imported: that file is
+// JavaScript in the internal repository and this one is TypeScript in this one, so an import
+// would need a build step across the two
+const VIEWPORTS = {
+  desktop: { width: 2200, height: 1322 },
+
+  // Playwright's iPad Pro 11 landscape screen. Only the size is taken, because its full device
+  // entry also selects WebKit, and only Chromium is installed
+  tablet: { width: 1194, height: 834 },
+
+  phone: { width: 393, height: 852 },
+}
 
 export default defineConfig({
   testDir: './tests',
@@ -43,10 +52,25 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
 
+  // Pinned rather than left to default, which is half the machine's cores and would serialise
+  // the three sizes on a two-core runner. The ceiling is not the runner but the one app
+  // container every test signs up against, which hashes each password with argon2id at 64 MiB
+  workers: 6,
+
   projects: [
     {
-      name: 'chromium',
-      use: { ...devices['Desktop Chrome'], viewport: DESKTOP_VIEWPORT },
+      name: 'desktop',
+      use: { ...devices['Desktop Chrome'], viewport: VIEWPORTS.desktop },
+    },
+    {
+      // Mobile devices, as the captures take them, so Chromium honours the page's own viewport
+      // meta tag and the layout width is the one written above rather than the screen's
+      name: 'tablet',
+      use: { ...devices['Desktop Chrome'], viewport: VIEWPORTS.tablet, isMobile: true, hasTouch: true },
+    },
+    {
+      name: 'phone',
+      use: { ...devices['Desktop Chrome'], viewport: VIEWPORTS.phone, isMobile: true, hasTouch: true },
     },
   ],
 })

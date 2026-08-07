@@ -12,6 +12,27 @@ const CONTENT_TIMEOUT_MS = 20_000
 // How long one attempt at opening a modal is given before the click is made again
 const MODAL_ATTEMPT_MS = 3_000
 
+// The app's own two breakpoints. Above the first the navigation is a sidebar and below it a
+// menu behind a button; above the second the list toolbars show their own controls inline and
+// below it a reduced set that opens filtering in a sheet
+const NAVIGATION_BREAKPOINT_PX = 1050
+const TOOLBAR_BREAKPOINT_PX = 750
+
+/**
+ * Whether the page is at least this wide, as the app's own media queries see it.
+ *
+ * Asked of the page rather than worked out from the configured viewport, because a classic
+ * scrollbar takes its width out of the layout viewport, so the two numbers differ by fifteen
+ * on any project that draws one.
+ *
+ * @param page - Page to measure
+ * @param widthPx - Width to compare against
+ * @returns Whether the app's layout is at or above that width
+ */
+async function isAtLeast(page: Page, widthPx: number): Promise<boolean> {
+  return page.evaluate((px) => matchMedia(`(min-width: ${px}px)`).matches, widthPx)
+}
+
 /**
  * Sign in through the login form and wait until the app leaves the login page.
  *
@@ -33,6 +54,52 @@ export async function logIn(page: Page, user: TestUser): Promise<void> {
 }
 
 /**
+ * Assert the app is showing its signed-in shell.
+ *
+ * The navigation is the thing that says so, and it only renders for a signed-in user past the
+ * boot splash. Which half of it to read depends on the width: the sidebar carries the links
+ * themselves, while the menu keeps them behind a button and mounts them only once it is open.
+ *
+ * @param page - Page to assert on
+ */
+export async function expectSignedIn(page: Page): Promise<void> {
+  const signedIn = (await isAtLeast(page, NAVIGATION_BREAKPOINT_PX))
+    ? page.getByRole('link', { name: 'Accounts' })
+    : page.getByRole('button', { name: 'Open navigation menu' })
+
+  await expect(signedIn).toBeVisible()
+}
+
+/**
+ * Filter the transaction list down to one category, and apply it.
+ *
+ * Two different control sets do this job. Above the toolbar breakpoint it is a pill that opens
+ * a panel of tabs; below it a sheet whose first control is a dropdown rather than tabs, and
+ * that dropdown is named by whichever filter it currently shows rather than by what it is, so
+ * it is reached as the only one inside the sheet.
+ *
+ * @param page - Page showing the transaction list
+ * @param categoryName - Exact name of the category to keep
+ */
+export async function filterByCategory(page: Page, categoryName: string): Promise<void> {
+  if (await isAtLeast(page, TOOLBAR_BREAKPOINT_PX)) {
+    await page.getByRole('button', { name: 'Transaction filters' }).click()
+    await page.getByRole('tab', { name: 'Category' }).click()
+    await page.getByRole('checkbox', { name: categoryName }).click()
+    await page.getByRole('button', { name: 'Apply filters' }).click()
+    return
+  }
+
+  await page.getByRole('button', { name: 'Filters', exact: true }).click()
+
+  const sheet = page.getByRole('dialog', { name: 'Transaction filters' })
+  await sheet.getByRole('combobox').click()
+  await sheet.getByRole('option', { name: 'Category' }).click()
+  await sheet.getByRole('checkbox', { name: categoryName }).click()
+  await sheet.getByRole('button', { name: 'Apply filters' }).click()
+}
+
+/**
  * Open a modal from a toolbar button, and answer with the dialog.
  *
  * The create buttons do nothing but raise a toast until the currency list has arrived, so a
@@ -41,19 +108,26 @@ export async function logIn(page: Page, user: TestUser): Promise<void> {
  * is what makes a spec independent of when that request settles.
  *
  * @param page - Page showing the toolbar
- * @param buttonName - Accessible name of the button that opens the modal, matched exactly
+ * @param buttonNames - Accessible names of the button that opens the modal, one per toolbar,
+ *   since the reduced toolbar below the breakpoint calls the same control something else
  * @param dialogName - Accessible name of the dialog it opens
  * @returns The dialog, to scope every query inside it
  */
-export async function openModal(page: Page, buttonName: string, dialogName: string): Promise<Locator> {
+export async function openModal(page: Page, buttonNames: string[], dialogName: string): Promise<Locator> {
   const dialog = page.getByRole('dialog', { name: dialogName })
+
+  // Only one toolbar is ever displayed, so only one of these names is in the accessibility
+  // tree and the pair resolves to a single control at any width
+  const opener = buttonNames
+    .map((name) => page.getByRole('button', { name, exact: true }))
+    .reduce((all, one) => all.or(one))
 
   await expect(async () => {
     if (!(await dialog.isVisible())) {
       // Bounded, because a modal that opens between the check above and this click puts its
       // backdrop over the button. Without a timeout that click waits out the whole test rather
       // than failing and letting the next attempt see the dialog is already open
-      await page.getByRole('button', { name: buttonName, exact: true }).click({ timeout: MODAL_ATTEMPT_MS })
+      await opener.click({ timeout: MODAL_ATTEMPT_MS })
     }
     await expect(dialog).toBeVisible({ timeout: MODAL_ATTEMPT_MS })
   }).toPass({ timeout: CONTENT_TIMEOUT_MS })

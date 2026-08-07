@@ -22,7 +22,7 @@ test('starts a new user with no accounts and creates one through the modal', asy
   // assertion also fails if row-level security ever stops separating one user from another
   await expect(page.getByText('No asset accounts')).toBeVisible()
 
-  const dialog = await openModal(page, 'Add Account', 'Add Account')
+  const dialog = await openModal(page, ['Add Account', 'Add account'], 'Add Account')
   await chooseFromDropdown(dialog, 'Account Type', 'Checking')
   await dialog.getByLabel('Account Name').fill(ACCOUNT_NAME)
 
@@ -40,7 +40,7 @@ test('records an expense through the modal and shows it as money out', async ({ 
   await logIn(page, user)
   await page.goto('/transactions')
 
-  const dialog = await openModal(page, 'Add Transaction', 'Add Transaction')
+  const dialog = await openModal(page, ['Add Transaction', 'Add transaction'], 'Add Transaction')
   await chooseFromDropdown(dialog, 'Account', new RegExp(account.name))
   await chooseFromDropdown(dialog, 'Merchant', 'Unknown')
   await chooseFromDropdown(dialog, 'Category', 'Groceries')

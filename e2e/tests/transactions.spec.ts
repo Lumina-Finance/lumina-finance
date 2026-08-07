@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 import { createAccount, createTransaction, signUpUser } from '../support/api'
-import { logIn } from '../support/app'
+import { filterByCategory, logIn } from '../support/app'
 
 test('filters the list down to one category', async ({ page, request }) => {
   const user = await signUpUser(request)
@@ -31,10 +31,7 @@ test('filters the list down to one category', async ({ page, request }) => {
 
   await expect(rows).toHaveCount(3)
 
-  await page.getByRole('button', { name: 'Transaction filters' }).click()
-  await page.getByRole('tab', { name: 'Category' }).click()
-  await page.getByRole('checkbox', { name: 'Groceries' }).click()
-  await page.getByRole('button', { name: 'Apply filters' }).click()
+  await filterByCategory(page, 'Groceries')
 
   // The list holds the rows it had before Apply for a second, so anything asserted first would
   // be reading the unfiltered list. Waiting for the Dining row to go is what says the filtered
