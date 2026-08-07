@@ -50,6 +50,11 @@ export default defineConfig({
 
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
+
+    // The captures pass this for the same reason: Chromium on Linux otherwise draws a classic
+    // scrollbar that takes fifteen pixels out of the page, so the widest project would lay out
+    // at 2185 and stop being the size it says it is
+    launchOptions: { args: ['--enable-features=OverlayScrollbar'] },
   },
 
   // Pinned rather than left to default, which is half the machine's cores and would serialise
@@ -63,8 +68,9 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'], viewport: VIEWPORTS.desktop },
     },
     {
-      // Mobile devices, as the captures take them, so Chromium honours the page's own viewport
-      // meta tag and the layout width is the one written above rather than the screen's
+      // Mobile devices, as the captures take them. What that changes here is the coarse-pointer
+      // media queries and the scrollbar, which is drawn over the page rather than taking width
+      // out of it, so these two lay out at exactly the width written above
       name: 'tablet',
       use: { ...devices['Desktop Chrome'], viewport: VIEWPORTS.tablet, isMobile: true, hasTouch: true },
     },

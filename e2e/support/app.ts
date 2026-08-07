@@ -117,9 +117,14 @@ export async function openModal(page: Page, buttonNames: string[], dialogName: s
   const dialog = page.getByRole('dialog', { name: dialogName })
 
   // Only one toolbar is ever displayed, so only one of these names is in the accessibility
-  // tree and the pair resolves to a single control at any width
+  // tree and the pair resolves to a single control at any width.
+  //
+  // Anything inside an open dialog is excluded, because the transaction modal's own submit
+  // button carries the same name as the toolbar button that opened it. Without this the two
+  // match together in the moment between the check below and the click
+  const outsideDialogs = page.locator(':not([role="dialog"] *)')
   const opener = buttonNames
-    .map((name) => page.getByRole('button', { name, exact: true }))
+    .map((name) => page.getByRole('button', { name, exact: true }).and(outsideDialogs))
     .reduce((all, one) => all.or(one))
 
   await expect(async () => {
