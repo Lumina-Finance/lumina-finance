@@ -13,6 +13,7 @@ import MonthlyCashFlowCard from '@/pages/accounts/detail/components/monthly-cash
 import { TopCategoriesBySpendingCard } from '@/pages/accounts/detail/components/spending-breakdown/TopCategoriesCard'
 import { TopMerchantsBySpendingCard } from '@/pages/accounts/detail/components/spending-breakdown/TopMerchantsCard'
 import { ACCOUNT_SKELETON_FADE_MS, EASE } from '@/pages/accounts/detail/constants/accountDetail'
+import { IMPORT_ACCOUNT_PARAM } from '@/pages/imports/constants'
 import TransactionListSection from '@/pages/transactions/components/ListSection'
 import { toTransactionListAccount } from '@/pages/transactions/types/transactionList'
 import CreateTransactionModal from '@/pages/transactions/components/transaction-modal/Modal'
@@ -106,6 +107,13 @@ export default function AccountDetailPage() {
     setShowAccountEditModal(true)
   }
 
+  // The account rides in the address rather than in router state, so the import survives a reload
+  // and can be shared, and the import page settles for itself whether it may write to that account
+  const openImport = () => {
+    if (!visibleAccount) return
+    navigate(`/settings/imports?${IMPORT_ACCOUNT_PARAM}=${visibleAccount.id}`)
+  }
+
   const handleAccountDeleteStarted = (deletingAccount: Account) => {
     setDeletedAccountSnapshot(deletingAccount)
     setDeleteExitPhase('pending')
@@ -193,6 +201,7 @@ export default function AccountDetailPage() {
               linkedTaxAdvantagedCategory={linkedTaxAdvantagedCategory}
               linkedTaxAdvantagedCategoryError={linkedTaxAdvantagedCategoryError}
               onEdit={openAccountEditModal}
+              onImport={openImport}
             />
 
             <BalanceChartCard account={visibleAccount} />

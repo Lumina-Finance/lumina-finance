@@ -1,4 +1,4 @@
-import { Pencil } from 'lucide-react'
+import { Pencil, Upload } from 'lucide-react'
 import type { Account } from '@/api/accounts'
 import type { TaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
 import { formatCurrency } from '@/utils/formatCurrency'
@@ -13,17 +13,23 @@ import { TaxAdvantagedCategoryBand } from './TaxAdvantagedBand'
 
 /**
  * Renders account identity, static account facts, and tax-advantaged context
+ *
+ * @param onImport - Opens an import that files every row into this account. Offered only while the
+ *   account can take new transactions, which an archived or closed one cannot, so the import is
+ *   absent rather than disabled on those, the way the edit button already is on a closed account
  */
 export default function AccountIdentityCard({
   account,
   linkedTaxAdvantagedCategory,
   linkedTaxAdvantagedCategoryError,
   onEdit,
+  onImport,
 }: {
   account: Account
   linkedTaxAdvantagedCategory: TaxAdvantagedCategory | undefined
   linkedTaxAdvantagedCategoryError: unknown
   onEdit: () => void
+  onImport: () => void
 }) {
   const { user } = useAuth()
   const linkedTaxAdvantagedCategoryId = account.group_id === null ? account.tax_advantaged_category_id : null
@@ -45,14 +51,27 @@ export default function AccountIdentityCard({
   return (
     <section className="app-card relative flex flex-col min-[750px]:min-h-[440px]">
       {!account.closed_at && (
-        <button
-          type="button"
-          aria-label="Edit account"
-          className="app-icon-button absolute right-2 top-2"
-          onClick={onEdit}
-        >
-          <Pencil size={14} aria-hidden />
-        </button>
+        <div className="absolute right-2 top-2 flex items-center gap-1">
+          {!account.is_archived && (
+            <button
+              type="button"
+              aria-label="Import transactions into this account"
+              className="app-icon-button"
+              onClick={onImport}
+            >
+              <Upload size={14} aria-hidden />
+            </button>
+          )}
+
+          <button
+            type="button"
+            aria-label="Edit account"
+            className="app-icon-button"
+            onClick={onEdit}
+          >
+            <Pencil size={14} aria-hidden />
+          </button>
+        </div>
       )}
 
       <InstitutionLogo institution={account.institution} variant="detail" />
