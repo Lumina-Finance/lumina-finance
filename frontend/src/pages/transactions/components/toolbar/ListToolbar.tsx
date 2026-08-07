@@ -40,15 +40,17 @@ export default function TransactionListToolbar({
   const shell = useToolbarShellState()
   useToolbarStickyOffset(shell.toolbarRef, onStickyOffsetChange)
 
-  // One node for both widths, sized to match the buttons it stands beside, which are taller on a
-  // phone than on a desktop. The accessible name says which import this is, since the word on the
-  // button cannot: on a list fixed to one account it files every row into that account, and on the
-  // list of every account it is the way to the import page. The reason it is blocked rides on the
-  // title alone, the way the create button's does, so the name still says what the control is
+  // One node for both widths, at the 44px control height the row is built on, which the search field
+  // and the collapsed filter pill it stands against both take. Square on a phone and widening for its
+  // word on a desktop, but the same height throughout. The accessible name says which import this is,
+  // since the word on the button cannot: on a list fixed to one account it files every row into that
+  // account, and on the list of every account it is the way to the import page. The reason it is
+  // blocked rides on the title alone, the way the create button's does, so the name still says what
+  // the control is
   const importAction = onImport ? (
     <button
       type="button"
-      className="app-glass-button h-11 w-11 shrink-0 px-0 min-[750px]:h-10 min-[750px]:w-auto min-[750px]:px-4"
+      className="app-glass-button h-11 w-11 shrink-0 px-0 min-[750px]:w-auto min-[750px]:px-4"
       onClick={onImport}
       disabled={importDisabled}
       title={importDisabledReason}
