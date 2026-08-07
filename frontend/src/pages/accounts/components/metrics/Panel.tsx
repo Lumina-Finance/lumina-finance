@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import type { FxStatus } from '@/api/shared/fx'
 import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
-import AccountsLoadingRegion from '@/pages/accounts/components/LoadingRegion'
+import LoadingRegion from '@/components/loading/Region'
 
 type MetricPanelProps = {
   className: string
@@ -56,7 +56,7 @@ export function MetricPanel({
         />
       </div>
       {badge}
-      <AccountsLoadingRegion
+      <LoadingRegion
         loading={loading}
         label={loadingLabel}
         className="rounded-lg"
@@ -87,7 +87,7 @@ export function MetricPanel({
             {caption}
           </p>
         </div>
-      </AccountsLoadingRegion>
+      </LoadingRegion>
     </div>
   )
 }
