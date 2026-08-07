@@ -1,0 +1,5 @@
+node_modules
+
+# Playwright writes both on a failing run, holding traces, screenshots and the HTML report
+test-results
+playwright-report
