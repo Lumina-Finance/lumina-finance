@@ -45,7 +45,7 @@ export default function ImportsPage() {
   const queryClient = useQueryClient()
   const [dataSource, setDataSource] = useState<ImportDataSource>('generic')
   const accountScope = useImportAccountScope()
-  const workflow = useTransactionImportWorkflow()
+  const workflow = useTransactionImportWorkflow(accountScope.account)
   const fireflyWorkflow = useFireflyImportWorkflow()
 
   // An import started from an account is the generic flow and nothing else, since the account it

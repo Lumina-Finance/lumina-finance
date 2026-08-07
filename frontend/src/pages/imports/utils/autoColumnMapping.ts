@@ -171,12 +171,18 @@ const MIN_CATEGORY_DISTINCT_VALUES = 4
  * headings does not undo the answer. The decision is remembered about the column rather than about
  * the field, so ignoring a column keeps it ignored while a different column can still fill the field
  * it used to hold
+ * @param omitAccountColumn - Whether the finished map may hold an account column, which an import
+ * started from an account may not, since that account is the answer. The account column is still
+ * detected and only dropped at the end, so the column it found stays claimed and no other field can
+ * take it. Skipping the detection instead would hand a column of account names to the merchant
+ * field, which scores on the shape of a short repeated text column
  */
 export function inferColumnMap(
   columnMap: ColumnMap,
   files: ImportFileDraft[],
   supportedCurrencyCodes: Set<string>,
   decidedHeaders: Set<string> = new Set(),
+  { omitAccountColumn = false } = {},
 ) {
   const result = validateColumnMap(columnMap, files, supportedCurrencyCodes)
   if (files.length === 0) return result
@@ -200,6 +206,8 @@ export function inferColumnMap(
       usedHeaders.add(header)
     }
   }
+
+  if (omitAccountColumn) inferredMap.account_id = ''
 
   return validateColumnMap(inferredMap, files, supportedCurrencyCodes)
 }

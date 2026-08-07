@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type Dispatch, type SetStateAction } from 'react'
+import type { AccountsOverview } from '@/api/accounts'
 import {
   discardStagedRun,
   useCommitStagedImport,
@@ -82,8 +83,12 @@ const IMPORT_OVERLAY_MIN_MS = 2000
  * Account and category matches are only inferred automatically while the required columns stay
  * mapped to the same headers; changing a required column's mapping clears the matching auto-fill key
  * so a stale inference is never carried into a different set of source values
+ *
+ * @param fixedAccount - The account this import was started from, null for an ordinary import. It
+ *   answers the account question outright, so the column mapping neither offers nor keeps an account
+ *   column while it holds
  */
-export function useTransactionImportWorkflow() {
+export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | null = null) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [files, setFiles] = useState<ImportFileDraft[]>([])
   const [isProcessingFiles, setIsProcessingFiles] = useState(false)
@@ -93,7 +98,21 @@ export function useTransactionImportWorkflow() {
   // leaves their answers alone instead of guessing over them. A column set to Do not import counts
   // as answered, which is the case an empty mapping cannot tell apart on its own
   const [decidedColumnHeaders, setDecidedColumnHeaders] = useState<Set<string>>(() => new Set())
-  const [columnMap, setColumnMap] = useState<ColumnMap>(EMPTY_COLUMN_MAP)
+  const [storedColumnMap, setStoredColumnMap] = useState<ColumnMap>(EMPTY_COLUMN_MAP)
+  const isAccountFixed = fixedAccount !== null
+
+  // The account an import was started from answers for every row, so nothing downstream may read a
+  // mapped account column while that holds. Emptied here rather than cleared from what is stored,
+  // because the column mapping is only inferred when a file is staged: a user who leaves the scope,
+  // maps the account column by hand and comes back would otherwise arrive with it mapped, the row
+  // sources would go back to being that column's values, and every row with a blank account cell
+  // would be refused on a page where the column is meant not to matter. Their answer is still there
+  // when they leave the scope again, until they map another column here, which writes the emptied
+  // map back
+  const columnMap = useMemo(
+    () => (isAccountFixed ? { ...storedColumnMap, account_id: '' } : storedColumnMap),
+    [isAccountFixed, storedColumnMap],
+  )
 
   const [scopedAccountMappings, setScopedAccountMappings] = useState<ScopedImportAnswers<string>>(emptyScopedImportAnswers)
   const [accountAutoMatchKey, setAccountAutoMatchKey] = useState('')
@@ -296,8 +315,8 @@ export function useTransactionImportWorkflow() {
   )
 
   const columnTargetOptions = useMemo(
-    () => buildColumnTargetOptions(),
-    [],
+    () => buildColumnTargetOptions({ omitAccountColumn: isAccountFixed }),
+    [isAccountFixed],
   )
 
   // Counted off the files and the merchant column alone, so the mapping step can say how many rows
@@ -657,10 +676,12 @@ export function useTransactionImportWorkflow() {
    * none of them has to be re-run to reach the same state
    */
   const applyStagedFiles = (nextFiles: ImportFileDraft[]) => {
-    const result = inferColumnMap(columnMap, nextFiles, supportedCurrencyCodes, decidedColumnHeaders)
+    const result = inferColumnMap(columnMap, nextFiles, supportedCurrencyCodes, decidedColumnHeaders, {
+      omitAccountColumn: isAccountFixed,
+    })
 
     setFiles(nextFiles)
-    setColumnMap(result.map)
+    setStoredColumnMap(result.map)
     setColumnValidationErrors(result.errors)
     setAutoFilledColumnHeaders((current) => getNextAutoFilledColumnHeaders(current, columnMap, result.map))
     syncAutoMatchKeys(result.map, result.errors, nextFiles)
@@ -747,7 +768,7 @@ export function useTransactionImportWorkflow() {
     }
 
     setColumnValidationErrors(nextColumnValidationErrors)
-    setColumnMap(nextColumnMap)
+    setStoredColumnMap(nextColumnMap)
 
     // The mapping the last refusal was about has changed, so the message stops being true
     setImportError(null)
@@ -855,7 +876,7 @@ export function useTransactionImportWorkflow() {
     setIsProcessingFiles(false)
     setAutoFilledColumnHeaders(new Set())
     setDecidedColumnHeaders(new Set())
-    setColumnMap(EMPTY_COLUMN_MAP)
+    setStoredColumnMap(EMPTY_COLUMN_MAP)
     setScopedAccountMappings(emptyScopedImportAnswers)
     setAccountAutoMatchKey('')
     resetAccountCreateState()

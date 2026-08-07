@@ -187,6 +187,21 @@ describe('import workflow option helpers', () => {
     expect(groups.indexOf('Optional fields')).toBeGreaterThan(groups.lastIndexOf('Required fields'))
   })
 
+  // An import started from an account has its answer already, so no column may contradict it
+  it('leaves the account field out of the column targets when the account is fixed', () => {
+    const options = buildColumnTargetOptions({ omitAccountColumn: true })
+    const values = options.map((option) => option.value)
+
+    expect(values).not.toContain('account_id')
+    expect(values).toEqual(expect.arrayContaining([
+      '',
+      'dt',
+      'amount',
+      'category_id',
+      'counterparty_account_id',
+    ]))
+  })
+
 
   it('marks an archived account wherever it is offered', () => {
     const options = buildImportAccountOptions([
