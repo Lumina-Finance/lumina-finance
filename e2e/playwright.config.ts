@@ -44,8 +44,10 @@ export default defineConfig({
     baseURL: BASE_URL,
     timezoneId: TEST_TIMEZONE,
 
-    // Amounts are formatted with the browser's own locale, so an unpinned runner renders a
-    // Canadian dollar amount as CA$42.50 where this one renders $42.50
+    // Money no longer follows this, since the app pins its own locale for currency, so an amount
+    // reads the same here whatever this is set to. It still decides what the browser reports to
+    // anything reading the locale directly, and matching the app's pinned convention keeps the two
+    // from telling a test different stories
     locale: 'en-CA',
 
     trace: 'retain-on-failure',

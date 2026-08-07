@@ -71,6 +71,13 @@ function scrollDocumentToTop() {
 // Module-level flag so the loading screen only shows once per app session
 let hasShownLoadingScreen = false;
 
+// How long the app waits for the currency list before rendering money without it. The list normally
+// arrives with the session, so this is not the expected path. It exists because the request can stay
+// pending rather than fail: a browser that reports itself offline leaves the query paused, and one
+// that black-holes the connection runs out its own timeout and its retry first. Without a deadline
+// either state leaves the whole authenticated app on a loading screen with no way even to sign out
+const CURRENCY_WAIT_LIMIT_MS = 3000;
+
 /** Redirect to /login if unauthenticated. Show loading screen on first visit. */
 function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase, isInitialLoad }: { displayLocation: Location; onContentReady: () => void; pageTransitionPhase: PageTransitionPhase; isInitialLoad: boolean }) {
   const { user, loading } = useAuth();
@@ -92,10 +99,11 @@ function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase, 
   // No amount can be rendered before the currency list arrives, since each currency's decimal places
   // live in it and the browser's own figures disagree with it for 16 codes. Holding the app behind the
   // loading screen it is already showing means every screen below paints its amounts once and
-  // correctly, rather than at a guessed scale that then jumps. A list that fails to arrive stops
-  // being pending, so an outage costs the wrong decimals rather than locking anyone out
+  // correctly, rather than at a guessed scale that then jumps. Past the deadline the app renders
+  // anyway, falling back to what the browser reports, which is right for 139 of the 155 codes
   const { isPending: currenciesPending } = useCurrencies();
-  const ready = !loading && minTimePassed && !currenciesPending;
+  const [currencyWaitElapsed, setCurrencyWaitElapsed] = useState(false);
+  const ready = !loading && minTimePassed && (!currenciesPending || currencyWaitElapsed);
 
   // The loading phase runs after the switch while the new route's chunk mounts
   const routeLoading = pageTransitionPhase === 'loading';
@@ -115,6 +123,14 @@ function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase, 
     });
     return () => cancelAnimationFrame(frame);
   }, [ready]);
+
+  // Give up waiting on the currency list once the deadline passes, so a request that never resolves
+  // either way cannot hold the app on its loading screen
+  useEffect(() => {
+    if (!currenciesPending) return;
+    const timer = setTimeout(() => setCurrencyWaitElapsed(true), CURRENCY_WAIT_LIMIT_MS);
+    return () => clearTimeout(timer);
+  }, [currenciesPending]);
 
   useCacheValidation(user?.id, Boolean(user && ready));
 

@@ -63,10 +63,11 @@ function getCashFlowTooltipPointer(
   }
 }
 
-// Wide enough for the longest label the pinned format produces, which is two characters longer than
-// it used to be: a currency whose symbol carries a region prefix renders as US$1,234,567.89 rather
-// than $1,234,567.89, and the label clips at the old bound
-const MAX_Y_AXIS_WIDTH_PX = 104
+// Wide enough for the longest label this can produce, which is a negative amount in a currency whose
+// symbol carries a region prefix: (US$1,234,567.89) is seventeen characters, four more than the
+// $1,234,567.89 the old bound was set for, since accounting style wraps a negative in parentheses
+// and the net figure plotted here is negative in any month that spent more than it earned
+const MAX_Y_AXIS_WIDTH_PX = 112
 
 /**
  * Sizes the Y axis from formatted currency labels so large values do not clip
