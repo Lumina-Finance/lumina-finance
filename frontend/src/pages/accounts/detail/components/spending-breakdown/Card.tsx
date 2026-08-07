@@ -3,7 +3,7 @@ import type { SpendingRange } from '@/api/accounts'
 import { LoadingContent, LoadingOverlay } from '@/components/loading/Transition'
 import { TimeRangeSelector } from '@/components/time-range/Selector'
 import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
-import { formatCurrency } from '@/utils/formatCurrency'
+import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { getDeterministicChartColor } from '@/utils/chartColor'
 import {
   BREAKDOWN_CARD_LIST_MIN_HEIGHT,
@@ -42,6 +42,7 @@ export function SpendingBreakdownCard({
   loading,
   transitionKey,
 }: SpendingBreakdownCardProps) {
+  const { formatCurrency } = useMoneyFormatters()
   const incomingSnapshot = useMemo<BreakdownSnapshot>(() => ({
     rows,
     grandTotal,

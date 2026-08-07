@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from 'motion/react'
 import type { Category } from '@/api/categories'
 import type { Transaction } from '@/api/transactions'
-import { formatCurrency } from '@/utils/formatCurrency'
+import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import TransactionRow from '@/components/transactions/Row'
 import { TRANSACTION_LIST_EASE } from '@/pages/transactions/constants/transactionList'
 import type { TransactionDateGroup, TransactionListAccount } from '@/pages/transactions/types/transactionList'
@@ -34,6 +34,8 @@ export default function TransactionDateGroupList({
   skipEnterAnimation?: boolean
   onEditTransaction: (transaction: Transaction) => void
 }) {
+  const { formatCurrency } = useMoneyFormatters()
+
   return (
     <div className="min-[1300px]:grid min-[1300px]:grid-cols-[2.5rem_fit-content(24rem)_fit-content(18rem)_minmax(0,1fr)_max-content_max-content] min-[1300px]:gap-x-3">
       {/* initial={false} suppresses the first render and the whole-list swap on filter changes, so a

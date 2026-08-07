@@ -3,7 +3,7 @@ import {
   ArrowUpRight,
 } from 'lucide-react'
 import { AppScrambledNumber } from '@/components/display/ScrambledNumber'
-import { formatCurrency } from '@/utils/formatCurrency'
+import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 
 type SpendingComparisonMetricProps = {
   spentToDate: number
@@ -21,6 +21,8 @@ export function SpendingComparisonMetric({
   spendingDeltaText,
   displayCurrency,
 }: SpendingComparisonMetricProps) {
+  const { formatCurrency } = useMoneyFormatters()
+
   return (
     <div className="flex items-baseline gap-2">
       <p className="font-financial text-3xl font-normal leading-none tracking-tight max-[1000px]:text-[1.6875rem]">

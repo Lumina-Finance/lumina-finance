@@ -9,7 +9,7 @@ import {
   getRunwayMetric,
   getSavingsRateMetric,
 } from '@/pages/accounts/utils/accountMetrics'
-import { createAccount } from './fixtures'
+import { createAccount, testCurrencies } from './fixtures'
 
 describe('account metric helpers', () => {
   it('uses the latest savings period and handles no-income expense months', () => {
@@ -86,15 +86,15 @@ describe('account metric helpers', () => {
       fx_status: { state: 'complete', missing_pairs: [] },
     }
 
-    expect(getRunwayMetric(undefined, false, 'USD')).toMatchObject({
+    expect(getRunwayMetric(undefined, false, 'USD', testCurrencies)).toMatchObject({
       months: null,
       progress: 0,
       caption: '',
     })
-    expect(getRunwayMetric({ ...runway, months: null, reason: 'no_accounts' }, false, 'USD')).toMatchObject({
+    expect(getRunwayMetric({ ...runway, months: null, reason: 'no_accounts' }, false, 'USD', testCurrencies)).toMatchObject({
       caption: 'Choose accounts in Settings',
     })
-    expect(getRunwayMetric(runway, false, 'USD')).toMatchObject({
+    expect(getRunwayMetric(runway, false, 'USD', testCurrencies)).toMatchObject({
       months: 7.4,
       caption: 'US$1,234.56/mth · 6 mths basis',
       progress: 100,

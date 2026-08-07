@@ -1,4 +1,5 @@
 import type { InsightsPeriodGlanceResponse } from '@/api/insights'
+import type { Currency } from '@/api/currency'
 import { formatCurrency } from '@/utils/formatCurrency'
 import type {
   PeriodGlancePrimaryMetric,
@@ -58,15 +59,20 @@ function getPeriodGlanceChangeDetail(
   changeAmount: number,
   changePct: number | undefined,
   displayCurrency: string,
+  currencies: Currency[],
 ) {
-  const amount = formatSignedCurrency(changeAmount, displayCurrency)
+  const amount = formatSignedCurrency(changeAmount, displayCurrency, currencies)
   if (changePct === undefined) {
     return `${amount} vs previous matching period`
   }
   return `${amount} (${changePct > 0 ? '+' : ''}${changePct}%) vs previous matching period`
 }
 
-function getPeriodGlanceBrief(data: InsightsPeriodGlanceResponse, displayCurrency: string): PeriodBrief {
+function getPeriodGlanceBrief(
+  data: InsightsPeriodGlanceResponse,
+  displayCurrency: string,
+  currencies: Currency[],
+): PeriodBrief {
   const netSavings = data.income - data.expenses
   const savingsRate = getSavingsRate(data.income, data.expenses)
 
@@ -97,7 +103,7 @@ function getPeriodGlanceBrief(data: InsightsPeriodGlanceResponse, displayCurrenc
         label: 'Biggest Change',
         value: data.biggest_change_name ?? 'N/A',
         detail: data.biggest_change_name && data.biggest_change_amount !== undefined
-          ? getPeriodGlanceChangeDetail(data.biggest_change_amount, data.biggest_change_pct, displayCurrency)
+          ? getPeriodGlanceChangeDetail(data.biggest_change_amount, data.biggest_change_pct, displayCurrency, currencies)
           : 'No comparable category movement in this range',
         calculation: 'Category with the largest dollar change from the previous matching period',
         fxStatus: data.biggest_change_fx_status,
@@ -167,16 +173,22 @@ function getLoadingPeriodGlanceBrief(): PeriodBrief {
 function formatBriefMetricValue(
   metric: PeriodBrief['metrics'][number],
   displayCurrency: string,
+  currencies: Currency[],
 ) {
   return metric.signed
-    ? formatSignedCurrency(metric.value, displayCurrency)
-    : formatCurrency(metric.value, displayCurrency)
+    ? formatSignedCurrency(metric.value, displayCurrency, currencies)
+    : formatCurrency(metric.value, displayCurrency, currencies)
 }
 
-function getSupportItems(secondaryMetric: PeriodBrief['metrics'][number], signals: PeriodBrief['signals'], displayCurrency: string) {
+function getSupportItems(
+  secondaryMetric: PeriodBrief['metrics'][number],
+  signals: PeriodBrief['signals'],
+  displayCurrency: string,
+  currencies: Currency[],
+) {
   const secondarySignal: InsightSignal = {
     label: secondaryMetric.label,
-    value: formatBriefMetricValue(secondaryMetric, displayCurrency),
+    value: formatBriefMetricValue(secondaryMetric, displayCurrency, currencies),
     detail: secondaryMetric.detail,
     calculation: secondaryMetric.calculation,
     tone: secondaryMetric.tone,
@@ -205,9 +217,10 @@ function getSupportItems(secondaryMetric: PeriodBrief['metrics'][number], signal
 export function getPeriodGlanceCardData(
   data: InsightsPeriodGlanceResponse | undefined,
   displayCurrency: string,
+  currencies: Currency[],
 ): PeriodGlanceCardData {
   const brief = data
-    ? getPeriodGlanceBrief(data, displayCurrency)
+    ? getPeriodGlanceBrief(data, displayCurrency, currencies)
     : getLoadingPeriodGlanceBrief()
   const primaryMetric = brief.metrics[0]
   const secondaryMetric = brief.metrics[1]
@@ -215,12 +228,12 @@ export function getPeriodGlanceCardData(
   return {
     primaryMetric: {
       label: primaryMetric.label,
-      value: formatBriefMetricValue(primaryMetric, displayCurrency),
+      value: formatBriefMetricValue(primaryMetric, displayCurrency, currencies),
       detail: primaryMetric.detail,
       calculation: primaryMetric.calculation,
       tone: primaryMetric.tone,
     },
-    supportItems: getSupportItems(secondaryMetric, brief.signals, displayCurrency),
+    supportItems: getSupportItems(secondaryMetric, brief.signals, displayCurrency, currencies),
     income: data?.income ?? 0,
     expenses: data?.expenses ?? 0,
   }

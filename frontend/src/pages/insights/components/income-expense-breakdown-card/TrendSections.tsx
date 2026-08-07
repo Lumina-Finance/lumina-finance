@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from 'motion/react'
 import type { InsightsBreakdownCategoryKind } from '@/api/insights'
+import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { InsightCalculationTooltip } from '@/pages/insights/components/CalculationTooltip'
 import type { CategoryTrendSection } from '@/pages/insights/types/incomeExpenseBreakdown'
 import {
@@ -9,7 +10,6 @@ import {
   getTransactionCountLabel,
   getTrendSectionCalculation,
 } from '@/pages/insights/utils/incomeExpenseBreakdownDisplay'
-import { formatCurrency } from '@/utils/formatCurrency'
 
 type IncomeExpenseTrendSectionsProps = {
   mode: InsightsBreakdownCategoryKind
@@ -43,6 +43,8 @@ export function IncomeExpenseTrendSections({
   animationKey,
   shouldReduceMotion,
 }: IncomeExpenseTrendSectionsProps) {
+  const { currencies, formatCurrency } = useMoneyFormatters()
+
   return (
     <div className="flex flex-col border-t border-[var(--app-border)] pt-4 min-[1350px]:min-h-[620px] min-[1350px]:border-t-0 min-[1350px]:pt-0">
       <div className="grid gap-5 min-[1350px]:min-h-0 min-[1350px]:flex-1 min-[1350px]:grid-rows-2 min-[1350px]:gap-4">
@@ -117,7 +119,7 @@ export function IncomeExpenseTrendSections({
                             {formatCurrency(driver.amount, displayCurrency)}
                           </p>
                           <p className="font-financial text-sm min-[750px]:mt-1" style={{ color: driverColor }}>
-                            {formatSignedBreakdownCurrency(changeAmount, displayCurrency)}
+                            {formatSignedBreakdownCurrency(changeAmount, displayCurrency, currencies)}
                             {changePctLabel && (
                               <>
                                 {' '}

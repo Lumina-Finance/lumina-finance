@@ -2,7 +2,7 @@ import { Link } from 'react-router'
 import type { TopBudget } from '@/pages/dashboard/types/dashboard'
 import { formatDashboardShortDate } from '@/pages/dashboard/utils/formatDashboardShortDate'
 import { getTopBudgetAttentionState } from '@/pages/dashboard/utils/getTopBudgetAttentionState'
-import { formatCurrency } from '@/utils/formatCurrency'
+import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 
 type TopBudgetsListProps = {
   budgets: TopBudget[]
@@ -24,6 +24,7 @@ function getBudgetProgressWidth(usagePct: number) {
  * Renders a linked top budget row with its usage status and progress bar
  */
 function TopBudgetRow({ budget, showDivider }: TopBudgetRowProps) {
+  const { formatCurrency } = useMoneyFormatters()
   const attention = getTopBudgetAttentionState(budget.usagePct)
   const barPct = getBudgetProgressWidth(budget.usagePct)
 

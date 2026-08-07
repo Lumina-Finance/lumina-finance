@@ -1,4 +1,5 @@
 import type { InsightsBreakdownCategoryKind } from '@/api/insights'
+import type { Currency } from '@/api/currency'
 import type {
   BreakdownEntry,
   CategoryTrendSection,
@@ -30,9 +31,9 @@ export function getBreakdownPercent(amount: number, total: number) {
 /**
  * Formats signed currency changes without showing a sign for unchanged values
  */
-export function formatSignedBreakdownCurrency(amount: number, currency: string) {
-  if (amount === 0) return formatCurrency(amount, currency)
-  return `${amount > 0 ? '+' : '-'}${formatCurrency(Math.abs(amount), currency)}`
+export function formatSignedBreakdownCurrency(amount: number, currency: string, currencies: Currency[]) {
+  if (amount === 0) return formatCurrency(amount, currency, currencies)
+  return `${amount > 0 ? '+' : '-'}${formatCurrency(Math.abs(amount), currency, currencies)}`
 }
 
 /**

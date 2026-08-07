@@ -1,7 +1,7 @@
 import { Archive, Check } from 'lucide-react'
 import type { AccountsOverview } from '@/api/accounts'
 import MarqueeText from '@/components/display/MarqueeText'
-import { formatCurrency } from '@/utils/formatCurrency'
+import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 
 interface ArchivedRunwayAccountTileProps {
   account: AccountsOverview
@@ -17,6 +17,7 @@ interface RunwayAccountTileProps {
  * Shows an archived account that was previously included in runway settings
  */
 export function ArchivedRunwayAccountTile({ account }: ArchivedRunwayAccountTileProps) {
+  const { formatCurrency } = useMoneyFormatters()
   const institutionName = account.institution?.name ?? 'Cash'
 
   return (
@@ -57,6 +58,7 @@ export function ArchivedRunwayAccountTile({ account }: ArchivedRunwayAccountTile
  * Renders an eligible runway account as a selectable settings row
  */
 export function RunwayAccountTile({ account, selected, onToggle }: RunwayAccountTileProps) {
+  const { formatCurrency } = useMoneyFormatters()
   const institutionName = account.institution?.name ?? 'Cash'
 
   return (

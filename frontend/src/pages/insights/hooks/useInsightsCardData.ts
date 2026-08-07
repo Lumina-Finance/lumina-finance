@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import type { InsightsBreakdownCategoryKind } from '@/api/insights'
+import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import type { InsightsCardQueries } from '@/pages/insights/hooks/useInsightsCardQueries'
 import type { InsightsRangeInputDates } from '@/pages/insights/types/range'
 import { getCashFlowBarData } from '@/pages/insights/utils/cashFlow'
@@ -31,6 +32,7 @@ export function useInsightsCardData({
   rangeInputDates,
   breakdownMode,
 }: UseInsightsCardDataParams) {
+  const { currencies } = useMoneyFormatters()
   const selectedBreakdown = useMemo(
     () => getBreakdownEntriesForMode(queries.incomeExpenseBreakdown.data, breakdownMode),
     [breakdownMode, queries.incomeExpenseBreakdown.data],
@@ -44,8 +46,8 @@ export function useInsightsCardData({
     [breakdownMode, queries.incomeExpenseBreakdown.data],
   )
   const periodGlanceData = useMemo(
-    () => getPeriodGlanceCardData(queries.periodGlance.data, displayCurrency),
-    [displayCurrency, queries.periodGlance.data],
+    () => getPeriodGlanceCardData(queries.periodGlance.data, displayCurrency, currencies),
+    [currencies, displayCurrency, queries.periodGlance.data],
   )
   const fundFlowData = useMemo(
     () => getFundFlowCardData(queries.fundFlow.data),

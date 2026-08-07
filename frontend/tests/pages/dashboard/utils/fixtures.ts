@@ -9,12 +9,17 @@
 import type { AccountsOverview } from '@/api/accounts'
 import type { LatestBudgetUtilization } from '@/api/budgets'
 import type { Category } from '@/api/categories'
+import type { Currency } from '@/api/currency'
 import type { SpendingComparisonResponse } from '@/api/dashboard'
 import type { FxStatus } from '@/api/shared/fx'
 import type { Transaction } from '@/api/transactions'
 import type { RunwayResult } from '@/api/user'
 
 export const fxStatus: FxStatus = { state: 'none', missing_pairs: [] }
+
+export const currencies: Currency[] = [
+  { id: 'USD', name: 'US Dollar', symbol: 'US$', minor_unit_exponent: 2 },
+]
 
 export function createAccount(overrides: Partial<AccountsOverview>): AccountsOverview {
   return {

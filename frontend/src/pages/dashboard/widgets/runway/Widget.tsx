@@ -2,6 +2,7 @@ import { useMemo, useRef } from 'react'
 import { useAccounts } from '@/api/accounts'
 import { useRunway, useRunwayAccounts } from '@/api/user'
 import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
+import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import {
   RUNWAY_BAND_STYLE,
   formatCompactRunway,
@@ -22,6 +23,7 @@ type RunwayWidgetProps = {
  */
 export function RunwayWidget({ displayCurrency }: RunwayWidgetProps) {
   const runwayCardRef = useRef<HTMLDivElement>(null)
+  const { currencies } = useMoneyFormatters()
   const { data: incomingRunway, isFetching: runwayLoading } = useRunway()
   const { data: incomingRunwayAccountIds, isFetching: runwayAccountsLoading } = useRunwayAccounts()
   const { data: incomingAccounts, isFetching: accountsLoading } = useAccounts()
@@ -47,7 +49,7 @@ export function RunwayWidget({ displayCurrency }: RunwayWidgetProps) {
   const runwayMonths = runway?.months ?? null
   const runwayBandKey = runwayBand(runwayMonths, runway?.thresholds)
   const runwayStyle = runwayBandKey ? RUNWAY_BAND_STYLE[runwayBandKey] : null
-  const runwayCaption = getRunwayCaption(runway, displayCurrency)
+  const runwayCaption = getRunwayCaption(runway, displayCurrency, currencies)
   const fxStatus = runway?.fx_status
   const runwaySegments = useMemo(
     () => getRunwaySegments(accounts, runwayAccountIds, runway),

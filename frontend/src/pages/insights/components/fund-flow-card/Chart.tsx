@@ -13,8 +13,8 @@ import {
 import { ChartTooltipTitle, ChartTooltipValue } from '@/components/charts/TooltipContent'
 import CursorTooltipPortal from '@/components/charts/CursorTooltipPortal'
 import { useCursorTooltip } from '@/hooks/useCursorTooltip'
+import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import type { FundFlowData, FundFlowNode, FundFlowNodeKind } from '@/pages/insights/types/fundFlow'
-import { formatCurrency } from '@/utils/formatCurrency'
 import {
   LoadingContent,
   LoadingOverlay,
@@ -158,6 +158,8 @@ function SankeyFlowTooltipContent({
   tooltip: SankeyFlowTooltipData
   displayCurrency: string
 }) {
+  const { formatCurrency } = useMoneyFormatters()
+
   return (
     <div className="min-w-44 max-w-64">
       <div className="flex justify-between gap-4">

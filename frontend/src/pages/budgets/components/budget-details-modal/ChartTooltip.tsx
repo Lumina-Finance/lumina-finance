@@ -1,4 +1,4 @@
-import { formatCurrency } from '@/utils/formatCurrency'
+import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import {
   ChartTooltipRow,
   ChartTooltipTitle,
@@ -47,6 +47,7 @@ export default function BudgetChartTooltip({
   point: BudgetChartPoint
   currency: string
 }) {
+  const { formatCurrency } = useMoneyFormatters()
   const categoryBreakdown = point.categories ?? []
 
   return (

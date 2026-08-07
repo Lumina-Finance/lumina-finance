@@ -1,7 +1,7 @@
 import { Pencil } from 'lucide-react'
 import type { Account } from '@/api/accounts'
 import type { TaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
-import { formatCurrency } from '@/utils/formatCurrency'
+import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { InstitutionLogo } from '@/pages/accounts/components/InstitutionLogo'
 import { ACCOUNT_KIND_LABEL } from '@/pages/accounts/detail/constants/accountDetail'
 import { humanizeAccountType } from '@/pages/accounts/detail/utils/formatAccountType'
@@ -26,6 +26,7 @@ export default function AccountIdentityCard({
   onEdit: () => void
 }) {
   const { user } = useAuth()
+  const { formatCurrency } = useMoneyFormatters()
   const linkedTaxAdvantagedCategoryId = account.group_id === null ? account.tax_advantaged_category_id : null
 
   // closed_at is an instant rather than a calendar day, so it is read in the user's own zone

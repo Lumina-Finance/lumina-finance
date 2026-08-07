@@ -6,9 +6,9 @@ import {
   LoadingOverlay,
 } from '@/components/loading/Transition'
 import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
+import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import type { MerchantRankingRow } from '@/pages/insights/types/merchantRanking'
 import { getMerchantSpendingFxStatusMessage } from '@/pages/insights/utils/fxTooltipMessages'
-import { formatCurrency } from '@/utils/formatCurrency'
 import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
 import { InsightCalculationTooltip } from '@/pages/insights/components/CalculationTooltip'
 import { InsightSectionHeader } from '@/pages/insights/components/SectionHeader'
@@ -51,6 +51,7 @@ export function MerchantRankingCard({
   loading = false,
   transitionKey,
 }: MerchantRankingCardProps) {
+  const { formatCurrency } = useMoneyFormatters()
   const incomingSnapshot = useMemo<MerchantRankingSnapshot>(() => ({
     merchants,
     fxStatus,

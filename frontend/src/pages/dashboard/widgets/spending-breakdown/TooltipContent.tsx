@@ -4,7 +4,7 @@ import {
   ChartTooltipValue,
 } from '@/components/charts/TooltipContent'
 import type { BreakdownMode } from '@/pages/dashboard/utils/getSpendingBreakdownSummary'
-import { formatCurrency } from '@/utils/formatCurrency'
+import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { SpendingBreakdownCrossoverBadge } from './CrossoverBadge'
 
 type SpendingBreakdownTooltipContentProps = {
@@ -21,6 +21,8 @@ export function SpendingBreakdownTooltipContent({
   breakdownMode,
   displayCurrency,
 }: SpendingBreakdownTooltipContentProps) {
+  const { formatCurrency } = useMoneyFormatters()
+
   return (
     <>
       <div className="flex items-center gap-2">

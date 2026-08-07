@@ -4,7 +4,7 @@ import type { FxStatus } from '@/api/shared/fx'
 import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
 import IconTooltip from '@/components/tooltips/IconTooltip'
 import { getCashFlowFxStatusMessage } from '@/pages/transactions/utils/fxTooltipMessages'
-import { formatCurrency } from '@/utils/formatCurrency'
+import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 
 const MAX_NET_FLOW_FONT_SIZE = 60
 const netFlowCalculation =
@@ -29,6 +29,7 @@ export default function NetFlowSummary({
   const containerRef = useRef<HTMLDivElement>(null)
   const measurementRef = useRef<HTMLSpanElement>(null)
   const [netFlowFontSize, setNetFlowFontSize] = useState(MAX_NET_FLOW_FONT_SIZE)
+  const { formatCurrency } = useMoneyFormatters()
   const netFlow = inflow + outflow
   const netColor = netFlow >= 0 ? 'var(--app-positive)' : 'var(--app-negative)'
   const formattedNetFlow = `${netFlow >= 0 ? '+' : ''}${formatCurrency(netFlow, displayCurrency)}`

@@ -7,6 +7,7 @@ import {
 import { ChartTooltipRow, ChartTooltipTitle } from '@/components/charts/TooltipContent'
 import CursorTooltipPortal from '@/components/charts/CursorTooltipPortal'
 import { useCursorTooltip } from '@/hooks/useCursorTooltip'
+import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import type {
   MerchantMarketMerchant,
   MerchantMarketTile,
@@ -16,7 +17,6 @@ import {
   splitMerchantTreemapItems,
 } from '@/pages/insights/utils/merchantDistributionMap'
 import { formatSignedCurrency } from '@/pages/insights/utils/money'
-import { formatCurrency } from '@/utils/formatCurrency'
 
 type MerchantMarketMapProps = {
   merchants: MerchantMarketMerchant[]
@@ -36,6 +36,7 @@ export function MerchantMarketMap({
   currency,
 }: MerchantMarketMapProps) {
   const mapRef = useRef<HTMLDivElement | null>(null)
+  const { currencies, formatCurrency } = useMoneyFormatters()
   const {
     tooltipRef,
     tooltipItem: hoveredMerchant,
@@ -205,7 +206,7 @@ export function MerchantMarketMap({
                 label="Change"
                 value={(
                   <>
-                    {formatSignedCurrency(hoveredMerchant.changeAmount, currency)}
+                    {formatSignedCurrency(hoveredMerchant.changeAmount, currency, currencies)}
                     {hoveredMerchant.changePct === null
                       ? ''
                       : ` (${hoveredMerchant.changePct > 0 ? '+' : ''}${hoveredMerchant.changePct}%)`}

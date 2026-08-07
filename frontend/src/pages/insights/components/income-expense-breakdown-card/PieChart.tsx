@@ -18,6 +18,7 @@ import {
   useChartEntranceAnimation,
 } from '@/components/charts/useChartEntranceAnimation'
 import { useCursorTooltip } from '@/hooks/useCursorTooltip'
+import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import type { BreakdownEntry } from '@/pages/insights/types/incomeExpenseBreakdown'
 import {
   getBreakdownCrossoverKind,
@@ -27,7 +28,6 @@ import {
   getBreakdownTotal,
 } from '@/pages/insights/utils/incomeExpenseBreakdownDisplay'
 import { getCategoryColor, getCategoryColorMap } from '@/utils/chartColor'
-import { formatCurrency } from '@/utils/formatCurrency'
 
 type IncomeExpensePieChartProps = {
   mode: InsightsBreakdownCategoryKind
@@ -69,6 +69,7 @@ export function IncomeExpensePieChart({
   shouldReduceMotion,
 }: IncomeExpensePieChartProps) {
   const chartRef = useRef<HTMLDivElement>(null)
+  const { formatCurrency } = useMoneyFormatters()
   const {
     tooltipRef,
     tooltipItem: hoveredEntry,

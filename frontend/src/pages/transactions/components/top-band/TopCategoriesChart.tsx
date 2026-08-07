@@ -32,7 +32,7 @@ import {
 } from '@/components/charts/useChartEntranceAnimation'
 import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
 import IconTooltip from '@/components/tooltips/IconTooltip'
-import { formatCurrency } from '@/utils/formatCurrency'
+import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { useDeferredMount } from '@/hooks/useDeferredMount'
 import {
   TOP_CATEGORY_AXIS_AVG_CHAR_WIDTH,
@@ -64,6 +64,8 @@ function TopCategoryTooltipContent({
   point: OverviewCategorySpend
   displayCurrency: string
 }) {
+  const { formatCurrency } = useMoneyFormatters()
+
   return (
     <>
       <ChartTooltipTitle>{point.name}</ChartTooltipTitle>

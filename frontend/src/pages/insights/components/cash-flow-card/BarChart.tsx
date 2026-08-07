@@ -22,6 +22,8 @@ import {
   getChartDataSignature,
   useChartEntranceAnimation,
 } from '@/components/charts/useChartEntranceAnimation'
+import type { Currency } from '@/api/currency'
+import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { DASHBOARD_X_AXIS_TICK_FONT_SIZE } from '@/pages/dashboard/constants/chart'
 import type { CashFlowBarBucket } from '@/pages/insights/types/cashFlow'
 import { formatSignedCurrency, getSignedAmountColor } from '@/pages/insights/utils/money'
@@ -61,17 +63,22 @@ function getCashFlowTooltipPointer(
   }
 }
 
+// Wide enough for the longest label the pinned format produces, which is two characters longer than
+// it used to be: a currency whose symbol carries a region prefix renders as US$1,234,567.89 rather
+// than $1,234,567.89, and the label clips at the old bound
+const MAX_Y_AXIS_WIDTH_PX = 104
+
 /**
  * Sizes the Y axis from formatted currency labels so large values do not clip
  */
-function getCashFlowYAxisWidth(buckets: CashFlowBarBucket[], currency: string) {
+function getCashFlowYAxisWidth(buckets: CashFlowBarBucket[], currency: string, currencies: Currency[]) {
   const values = buckets.flatMap((bucket) => [bucket.net, 0])
   const longestLabel = values.reduce((longest, value) => {
-    const label = formatCurrency(value, currency)
+    const label = formatCurrency(value, currency, currencies)
     return label.length > longest.length ? label : longest
   }, '')
 
-  return Math.min(92, Math.max(52, longestLabel.length * 6 + 10))
+  return Math.min(MAX_Y_AXIS_WIDTH_PX, Math.max(52, longestLabel.length * 6 + 10))
 }
 
 /**
@@ -84,12 +91,14 @@ function CashFlowBarTooltipContent({
   bucket: CashFlowBarBucket
   displayCurrency: string
 }) {
+  const { currencies, formatCurrency } = useMoneyFormatters()
+
   return (
     <>
       <ChartTooltipTitle>{bucket.rangeLabel}</ChartTooltipTitle>
       <ChartTooltipRow
         label="Net"
-        value={formatSignedCurrency(bucket.net, displayCurrency)}
+        value={formatSignedCurrency(bucket.net, displayCurrency, currencies)}
         valueStyle={{ color: getSignedAmountColor(bucket.net) }}
         financialValue
       />
@@ -119,8 +128,9 @@ export function CashFlowBarChart({
 }: CashFlowBarChartProps) {
   const chartRef = useRef<HTMLDivElement>(null)
   const tooltipRef = useRef<DeferredChartTooltipOverlayHandle<CashFlowBarBucket>>(null)
+  const { currencies, formatCurrency } = useMoneyFormatters()
   const hasActivity = buckets.some((bucket) => bucket.inflow > 0 || bucket.outflow > 0)
-  const yAxisWidth = getCashFlowYAxisWidth(buckets, displayCurrency)
+  const yAxisWidth = getCashFlowYAxisWidth(buckets, displayCurrency, currencies)
   const dataSignature = useMemo(
     () => getChartDataSignature(buckets, (bucket) => bucket.net),
     [buckets],

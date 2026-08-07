@@ -29,7 +29,7 @@ import {
   getRechartsTooltipPointer,
   type RechartsTooltipState,
 } from '@/components/charts/rechartsTooltip'
-import { formatCurrency } from '@/utils/formatCurrency'
+import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 
 type NetWorthChartProps = {
   data: NetWorthSeriesPoint[]
@@ -66,6 +66,8 @@ function NetWorthTooltipContent({
   point: NetWorthSeriesPoint
   displayCurrency: string
 }) {
+  const { formatCurrency } = useMoneyFormatters()
+
   return (
     <>
       <ChartTooltipTitle>{point.date}</ChartTooltipTitle>

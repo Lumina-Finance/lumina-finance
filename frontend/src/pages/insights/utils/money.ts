@@ -1,3 +1,4 @@
+import type { Currency } from '@/api/currency'
 import { formatCurrency } from '@/utils/formatCurrency'
 
 /**
@@ -26,9 +27,9 @@ export function formatSavingsRateValue(rate: number | null) {
  * Formats an amount with a leading plus or minus so a movement reads as a direction, while zero
  * is shown plainly with no sign at all
  */
-export function formatSignedCurrency(amount: number, currency: string) {
-  if (amount === 0) return formatCurrency(amount, currency)
-  return `${amount > 0 ? '+' : '-'}${formatCurrency(Math.abs(amount), currency)}`
+export function formatSignedCurrency(amount: number, currency: string, currencies: Currency[]) {
+  if (amount === 0) return formatCurrency(amount, currency, currencies)
+  return `${amount > 0 ? '+' : '-'}${formatCurrency(Math.abs(amount), currency, currencies)}`
 }
 
 /**

@@ -1,7 +1,7 @@
 import { Link } from 'react-router'
 import { formatDashboardShortDate } from '@/pages/dashboard/utils/formatDashboardShortDate'
 import type { RecentActivityRow } from '@/pages/dashboard/utils/getRecentActivityRows'
-import { formatCurrency } from '@/utils/formatCurrency'
+import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 
 type RecentActivityListProps = {
   rows: RecentActivityRow[]
@@ -16,6 +16,7 @@ type RecentActivityRowProps = {
  * Renders one recent transaction row with category metadata and signed amount
  */
 function RecentActivityRowItem({ row, showDivider }: RecentActivityRowProps) {
+  const { formatCurrency } = useMoneyFormatters()
   const { transaction, category, title, isIncome } = row
 
   return (

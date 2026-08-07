@@ -3,7 +3,7 @@ import { EyeOff } from 'lucide-react'
 import type { AccountsOverview } from '@/api/accounts'
 import type { TaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
 import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
-import { formatCurrency } from '@/utils/formatCurrency'
+import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { InstitutionLogo } from '@/pages/accounts/components/InstitutionLogo'
 import { humanizeAccountType } from '@/pages/accounts/detail/utils/formatAccountType'
 import type { AccountAccent } from '@/pages/accounts/types/accounts'
@@ -34,6 +34,7 @@ export default function AccountRow({
   displayCurrency: string
   isArchived?: boolean
 }) {
+  const { formatCurrency } = useMoneyFormatters()
   const barColor = isArchived
     ? 'var(--app-text-muted)'
     : accent === 'positive' ? 'var(--app-positive)' : 'var(--app-negative)'

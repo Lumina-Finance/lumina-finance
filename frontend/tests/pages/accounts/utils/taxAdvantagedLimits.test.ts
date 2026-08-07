@@ -12,7 +12,7 @@ import {
   getTaxAdvantagedUsagePercent,
   hasTaxAdvantagedLimitTracking,
 } from '@/pages/accounts/utils/taxAdvantagedLimits'
-import { createAccount, createInstitution, createTaxAdvantagedCategory } from './fixtures'
+import { createAccount, createInstitution, createTaxAdvantagedCategory, testCurrencies } from './fixtures'
 
 describe('tax-advantaged limit helpers', () => {
   it('bounds usage percentages and marks over-limit usage as negative', () => {
@@ -23,8 +23,21 @@ describe('tax-advantaged limit helpers', () => {
   })
 
   it('formats compact meter values without losing the currency sign', () => {
-    expect(formatTaxAdvantagedMeterMoney(123_456, 'USD')).toBe('US$1K')
-    expect(formatTaxAdvantagedMeterMoney(12_300_000, 'USD')).toBe('US$123K')
+    expect(formatTaxAdvantagedMeterMoney(123_456, 'USD', testCurrencies)).toBe('US$1K')
+    expect(formatTaxAdvantagedMeterMoney(12_300_000, 'USD', testCurrencies)).toBe('US$123K')
+  })
+
+  it('keeps meter amounts whole and unprefixed below the compaction thresholds', () => {
+    // The meter shows this beside the limit it is measured against, so an amount small enough to
+    // render in full must not come back carrying cents, or a "≈" the limit next to it does not have
+    expect(formatTaxAdvantagedMeterMoney(50_000, 'CAD', testCurrencies)).toBe('$500')
+    expect(formatTaxAdvantagedMeterMoney(0, 'CAD', testCurrencies)).toBe('$0')
+  })
+
+  it('rounds a compacted meter amount rather than rounding it up', () => {
+    // 1100 major units is 1.1 thousand, which rounds down to one. Rounding up would report a
+    // contribution of $2K against a limit the account is nowhere near
+    expect(formatTaxAdvantagedMeterMoney(110_000, 'CAD', testCurrencies)).toBe('$1K')
   })
 
   it('shows lifetime available boundary only when accrued room is between used and the lifetime cap', () => {

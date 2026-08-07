@@ -1,3 +1,4 @@
+import type { Currency } from '@/api/currency'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { DASHBOARD_MONEY_RULES } from '@/pages/dashboard/constants/moneyRules'
 import { formatCompactMoney } from '@/utils/formatCompactMoney'
@@ -11,8 +12,9 @@ export function formatDashboardMoney(
   minorUnits: number,
   currency: string,
   format: DashboardMoneyFormat,
+  currencies: Currency[],
 ) {
-  if (format === 'raw') return formatCurrency(minorUnits, currency)
+  if (format === 'raw') return formatCurrency(minorUnits, currency, currencies)
 
-  return formatCompactMoney(minorUnits, currency, DASHBOARD_MONEY_RULES[format])
+  return formatCompactMoney(minorUnits, currency, DASHBOARD_MONEY_RULES[format], currencies)
 }

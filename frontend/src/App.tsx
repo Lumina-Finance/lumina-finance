@@ -1,6 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useCallback, startTransition, lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation, type Location } from 'react-router'
 import { AnimatePresence, motion } from 'motion/react'
+import { useCurrencies } from '@/api/currency'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { NavCollapseProvider } from '@/contexts/NavCollapseContext'
 import { ToastProvider } from '@/contexts/ToastContext'
@@ -88,7 +89,13 @@ function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase, 
   // Only show loading screen if there's a session being restored or user just authenticated
   const shouldShowLoading = loading || (!hasShownLoadingScreen && user);
   const [minTimePassed, setMinTimePassed] = useState(hasShownLoadingScreen);
-  const ready = !loading && minTimePassed;
+  // No amount can be rendered before the currency list arrives, since each currency's decimal places
+  // live in it and the browser's own figures disagree with it for 16 codes. Holding the app behind the
+  // loading screen it is already showing means every screen below paints its amounts once and
+  // correctly, rather than at a guessed scale that then jumps. A list that fails to arrive stops
+  // being pending, so an outage costs the wrong decimals rather than locking anyone out
+  const { isPending: currenciesPending } = useCurrencies();
+  const ready = !loading && minTimePassed && !currenciesPending;
 
   // The loading phase runs after the switch while the new route's chunk mounts
   const routeLoading = pageTransitionPhase === 'loading';
