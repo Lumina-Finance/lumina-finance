@@ -226,6 +226,16 @@ export const CLEARED_ACCOUNT_SOURCES_EXPLANATION = 'An account these sources wer
 export const CLEARED_CATEGORY_SOURCES_TITLE = 'Answers cleared'
 export const CLEARED_CATEGORY_SOURCES_EXPLANATION = 'A category these values were matched to no longer exists, so their answers were cleared. Choose a category for each one, or queue a new one for it:'
 
+// Carries the account an import was started from, as a query parameter rather than router state so
+// the scope survives a reload and a shared address
+export const IMPORT_ACCOUNT_PARAM = 'account'
+
+// Shown in place of the whole import page when the address points at an account no import can be
+// written to, which the button on the account's own card never offers and only a typed or shared
+// address reaches
+export const IMPORT_NOT_PERMITTED_TITLE = 'This action is not permitted'
+export const IMPORT_NOT_PERMITTED_EXPLANATION = 'Transactions can only be imported into an account that is open and not archived. This account is archived, closed, or no longer exists.'
+
 // Shown over the accounts that appear only as a counterparty, which the import writes nothing to
 export const COUNTERPARTY_ONLY_TABLE_TITLE = 'Counterparty accounts'
 export const COUNTERPARTY_ONLY_EXPLANATION = 'These accounts only ever appeared as the counterparty of a transfer. Matching one to an account of your own records where the money came from or went to and writes no transaction into that account, which is why an account you have archived can be chosen here and stays archived. Leaving one unmatched records the transfer as going outside this app. To bring a name in as an account of your own instead, select Create New Account in its Existing Account column.'

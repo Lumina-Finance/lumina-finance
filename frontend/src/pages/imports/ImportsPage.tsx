@@ -3,7 +3,13 @@ import { useNavigate } from 'react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { Upload, X } from 'lucide-react'
 import { accountKeys, categoryKeys, institutionKeys, merchantKeys } from '@/api/cache/queryKeys'
-import { ImportProgressOverlay } from './components'
+import {
+  ACCOUNTS_LOAD_FAILURE_EXPLANATION,
+  ACCOUNTS_LOAD_FAILURE_TITLE,
+  IMPORT_NOT_PERMITTED_EXPLANATION,
+  IMPORT_NOT_PERMITTED_TITLE,
+} from './constants'
+import { ImportLoadFailure, ImportProgressOverlay } from './components'
 import { useFireflyImportWorkflow } from './firefly/hooks'
 import {
   FireflyAccountMappingStep,
@@ -13,7 +19,7 @@ import {
   FireflyFilesStep,
   FireflyPreviewStep,
 } from './firefly/sections'
-import { useTransactionImportWorkflow } from './hooks'
+import { useImportAccountScope, useTransactionImportWorkflow } from './hooks'
 import {
   ImportAccountMappingStep,
   ImportAutoCreateStep,
@@ -38,10 +44,21 @@ export default function ImportsPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [dataSource, setDataSource] = useState<ImportDataSource>('generic')
+  const accountScope = useImportAccountScope()
   const workflow = useTransactionImportWorkflow()
   const fireflyWorkflow = useFireflyImportWorkflow()
-  const isFirefly = dataSource === 'firefly'
+
+  // An import started from an account is the generic flow and nothing else, since the account it
+  // fixes has no meaning to the Firefly one. Read from the scope rather than from the stored choice,
+  // because that choice is page state and a change of query string leaves the page mounted, so a
+  // scope arriving over a staged Firefly export has to render the generic flow without disturbing
+  // what the user had. Leaving the scope gives that export back
+  const isScopedToAccount = accountScope.state === 'ready'
+  const isFirefly = !isScopedToAccount && dataSource === 'firefly'
   const importOverlayOpen = isFirefly ? fireflyWorkflow.importOverlayOpen : workflow.importOverlayOpen
+
+  // Where the page came from, which is also where its two exits go while the scope holds
+  const scopedAccountPath = accountScope.accountId ? `/accounts/${accountScope.accountId}` : null
 
   // The overlay covers the page for as long as it takes to fade, which is after the import it was
   // showing has already ended, so the page under it is held until it has actually gone rather than
@@ -87,7 +104,47 @@ export default function ImportsPage() {
   }
 
   const handleDone = () => {
-    navigate('/')
+    navigate(isScopedToAccount && scopedAccountPath ? scopedAccountPath : '/')
+  }
+
+  // The scope is settled against the accounts list, so the page holds until that answer arrives and
+  // shows no import flow at all where the answer is no. Settings is the way out of all three, since
+  // none of them has an account worth returning to
+  if (accountScope.state !== 'unscoped' && accountScope.state !== 'ready') {
+    return (
+      <div
+        className="relative flex h-screen min-h-screen flex-col items-center justify-center px-5"
+        style={{ background: 'var(--app-bg)', color: 'var(--app-text)' }}
+      >
+        <button
+          type="button"
+          className="app-icon-button absolute right-5 top-5 z-20 shrink-0 sm:right-8 sm:top-6"
+          onClick={() => navigate('/settings')}
+          aria-label="Close import workflow"
+        >
+          <X size={20} aria-hidden />
+        </button>
+
+        {accountScope.state === 'loading' && <div className="app-spinner" role="status" aria-label="Loading" />}
+
+        {accountScope.state === 'failed' && (
+          <div className="w-full max-w-md">
+            <ImportLoadFailure
+              title={ACCOUNTS_LOAD_FAILURE_TITLE}
+              description={ACCOUNTS_LOAD_FAILURE_EXPLANATION}
+              onRetry={accountScope.refetchAccounts}
+            />
+          </div>
+        )}
+
+        {accountScope.state === 'unavailable' && (
+          <div className="max-w-md text-center">
+            <h1 className="app-page-title">{IMPORT_NOT_PERMITTED_TITLE}</h1>
+            <p className="app-page-description">{IMPORT_NOT_PERMITTED_EXPLANATION}</p>
+          </div>
+        )}
+      </div>
+    )
   }
 
   return (
@@ -107,7 +164,7 @@ export default function ImportsPage() {
         <button
           type="button"
           className="app-icon-button absolute right-5 top-5 z-20 shrink-0 sm:right-8 sm:top-6"
-          onClick={() => navigate('/settings')}
+          onClick={() => navigate(isScopedToAccount && scopedAccountPath ? scopedAccountPath : '/settings')}
           aria-label="Close import workflow"
         >
           <X size={20} aria-hidden />
@@ -149,7 +206,8 @@ export default function ImportsPage() {
           <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-5 pt-3 sm:px-8 xl:overflow-hidden">
             <div className="flex min-h-full flex-col gap-8 xl:h-full xl:min-h-0 xl:flex-row">
               <aside className="flex flex-col gap-8 xl:h-full xl:w-[340px] xl:shrink-0">
-                <ImportSourceStep value={dataSource} onChange={handleDataSourceChange} />
+                {/* An import started from an account has one source, so the choice is not offered */}
+                {!isScopedToAccount && <ImportSourceStep value={dataSource} onChange={handleDataSourceChange} />}
                 <div className="min-h-0 xl:flex-1">
                   {isFirefly ? <FireflyFilesStep {...fireflyWorkflow} /> : <ImportFilesStep {...workflow} />}
                 </div>
