@@ -1,6 +1,7 @@
 import uuid
 
 from app.models.merchant import Merchant
+from app.services.merchants.defaults import SELF_MERCHANT_NAME
 from tests.conftest import TestSession
 from tests.routes.merchants._helpers import (
     MERCHANT_PAYLOAD,
@@ -408,22 +409,56 @@ async def test_patch_merchant_recapitalises_its_own_name(client):
     assert resp.json()["name"] == "Corner Shop"
 
 
-async def test_creating_a_merchant_beside_two_stored_case_variants_returns_409(client):
-    """A database written before capitalisation stopped counting can hold both, and the check still answers cleanly."""
+async def test_creating_a_merchant_beside_a_personal_and_a_shared_one_returns_409(client):
+    """Two rows can answer the check at once, since each scope has an index of its own."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     created = (await _create_merchant(client, headers, name="Corner Shop")).json()
 
-    # Inserted past the route, which now refuses the second variant, to stand in for the pair a
-    # database from before this rule already holds
+    # Inserted past the route, which refuses a name a shared merchant holds whatever the scope. The
+    # unique indexes still allow the pair, so this is what a database looks like where someone had
+    # their own merchant before the app shipped one reading the same
     async with TestSession() as session:
-        session.add(Merchant(owner_id=uuid.UUID(created["owner_id"]), name="corner shop"))
+        session.add(Merchant(owner_id=uuid.UUID(created["owner_id"]), name=SELF_MERCHANT_NAME.lower()))
         await session.commit()
 
-    resp = await _create_merchant(client, headers, name="CORNER SHOP")
+    resp = await _create_merchant(client, headers, name=SELF_MERCHANT_NAME.upper())
 
     assert resp.status_code == 409
     assert "already exists" in resp.json()["detail"]
+
+
+async def test_creating_a_merchant_differing_only_in_surrounding_spaces_returns_409(client):
+    """A name is stored trimmed, so spaces around it cannot make a second merchant."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    await _create_merchant(client, headers, name="Corner Shop")
+
+    resp = await _create_merchant(client, headers, name="  Corner Shop  ")
+
+    assert resp.status_code == 409
+    assert "already exists" in resp.json()["detail"]
+
+
+async def test_creating_a_merchant_stores_its_name_without_surrounding_spaces(client):
+    """Trimming happens on the way in, so the stored name is what every comparison reads."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _create_merchant(client, headers, name="  Corner Shop  ")
+
+    assert resp.status_code == 201
+    assert resp.json()["name"] == "Corner Shop"
+
+
+async def test_creating_a_merchant_named_only_spaces_is_refused(client):
+    """Nothing is left after trimming, so it is refused rather than stored empty."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _create_merchant(client, headers, name="   ")
+
+    assert resp.status_code == 422
 
 
 async def test_patch_merchant_without_auth_returns_401(client):

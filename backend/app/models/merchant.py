@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import VARCHAR, Boolean, CheckConstraint, DateTime, ForeignKey, Index, UniqueConstraint, func, text
+from sqlalchemy import VARCHAR, Boolean, CheckConstraint, DateTime, ForeignKey, Index, func, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
@@ -30,16 +30,23 @@ class Merchant(Base):
             """,
             name="ck_merchants_scope",
         ),
+        # All three are built on the name with capitals folded, so the database refuses the pair
+        # the routes refuse: Amazon beside AMAZON in one scope. Surrounding spaces are trimmed on
+        # the way in instead, so the stored name is already what these compare
         # Personal merchants: unique per user (only when not group-scoped)
         Index(
-            "uq_merchant_owner_name", "owner_id", "name",
+            "uq_merchant_owner_name", "owner_id", text("lower(name)"),
             unique=True, postgresql_where=text("group_id IS NULL"),
         ),
-        # Group merchants: unique per group
-        UniqueConstraint("group_id", "name", name="uq_merchant_group_name"),
+        # Group merchants: unique per group, as an index rather than a unique constraint, which
+        # cannot be written against an expression
+        Index(
+            "uq_merchant_group_name", "group_id", text("lower(name)"),
+            unique=True, postgresql_where=text("group_id IS NOT NULL"),
+        ),
         # One merchant per name across the whole app, so a second Myself cannot be seeded
         Index(
-            "uq_merchant_system_name", "name",
+            "uq_merchant_system_name", text("lower(name)"),
             unique=True, postgresql_where=text("is_system = true"),
         ),
     )

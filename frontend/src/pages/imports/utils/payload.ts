@@ -22,7 +22,7 @@ import type {
 } from '@/pages/imports/types'
 import { isImportAccountType } from '@/pages/imports/accountTypeGuard'
 import type { Currency } from '@/api/currency'
-import { getCategoryMatchKind } from './categoryMatching'
+import { findReusedImportCategory, getCategoryMatchKind } from './categoryMatching'
 import { getImportRowId } from './common'
 import { getMissingRequiredColumnLabels } from './workflowOptions'
 import {
@@ -154,11 +154,14 @@ export function buildTransactionImportPayload({
         continue
       }
 
-      // A create mapping reuses a category of the same name where one exists, so a source called
-      // Balance Adjustment lands on the system category that records no counterparty account
+      // A create mapping reuses a category of the same name where one exists, compared with
+      // capitals folded, so the row is judged against the category it will actually land on rather
+      // than against the name the file spells. That is what puts a source called BALANCE ADJUSTMENT
+      // on the system category recording no counterparty account, as Balance Adjustment already is
+      const reused = findReusedImportCategory(source, categoryById.values())
       recordsCounterpartyBySource[source] = doesTransferRecordCounterpartyAccount(
         kind,
-        source === BALANCE_ADJUSTMENT_CATEGORY_NAME,
+        (reused?.name ?? source) === BALANCE_ADJUSTMENT_CATEGORY_NAME,
       )
       kindByCategorySource[source] = kind
       categories.push({

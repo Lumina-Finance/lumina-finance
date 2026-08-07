@@ -21,6 +21,7 @@ from tests.routes.support import _create_user, _get_auth_header, _get_system_mer
 from tests.routes.transactions._helpers import (
     NONEXISTENT_ID,
     _create_account,
+    _create_category,
     _create_merchant,
     _create_tag,
     _get_system_category_id,
@@ -728,24 +729,70 @@ async def test_a_payee_spelled_differently_from_an_existing_merchant_reuses_it(c
     assert transaction["merchant_name"] == "Corner Cafe"
 
 
-async def test_a_payee_matching_two_stored_spellings_resolves_to_the_older_one(client):
-    """A database written before capitalisation stopped counting can hold both, so one has to win."""
+async def test_a_payee_matching_a_personal_and_a_shared_merchant_resolves_to_the_shared_one(client):
+    """A name a shared merchant holds is taken in every scope, so the shared one wins the match."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
-    first = await _create_merchant(client, headers, name="Corner Cafe")
-    # Written straight to the table, since the merchants route refuses the second spelling, and
-    # stamped a second later so the older row is unambiguous rather than settled by chance
-    await _insert_later_personal_merchant(first.json()["id"], "corner cafe")
+    self_merchant_id = await _get_system_merchant_id(client, headers, SELF_MERCHANT_NAME)
+    sibling = await _create_merchant(client, headers, name="Corner Cafe")
+    await _insert_personal_merchant_beside_a_shared_one(sibling.json()["id"], SELF_MERCHANT_NAME.lower())
 
     resp = await _import_rows(client, headers, account_id, category_id, [
-        {"merchant_name": "CORNER CAFE"},
-        {"merchant_name": "corner cafe"},
+        {"merchant_name": SELF_MERCHANT_NAME.upper()},
+        {"merchant_name": SELF_MERCHANT_NAME.lower()},
     ])
 
     assert resp.status_code == 201
     assert resp.json()["merchants_created"] == 0
     transactions = (await client.get("/transactions", headers=headers)).json()
-    # Both rows land on the same merchant, and it is the one stored first
-    assert {transaction["merchant_id"] for transaction in transactions} == {first.json()["id"]}
+    # Both rows land on the merchant that ships with the app rather than the personal one
+    assert {transaction["merchant_id"] for transaction in transactions} == {self_merchant_id}
+
+
+async def test_a_category_source_creating_a_name_the_user_already_has_reuses_it(client):
+    """Capitalisation does not make a second category, matching what the categories route refuses."""
+    headers, account_id, _ = await _setup_user_with_deps(client)
+    existing = await _create_category(client, headers, name="Hardware Store", kind="expense")
+
+    resp = await _import_transactions(client, headers, {
+        "accounts": [{"source": "Main Chequing", "account_id": account_id}],
+        "categories": [{"source": "HARDWARE STORE", "create": {"name": "HARDWARE STORE", "kind": "expense"}}],
+        "rows": [{
+            "account_source": "Main Chequing",
+            "category_source": "HARDWARE STORE",
+            "dt": "2026-04-10",
+            "amount": "-1.00",
+            "tag_names": [],
+        }],
+    })
+
+    assert resp.status_code == 201
+    assert (resp.json()["categories_created"], resp.json()["categories_reused"]) == (0, 1)
+    transaction = (await client.get("/transactions", headers=headers)).json()[0]
+    assert transaction["category_id"] == existing.json()["id"]
+
+
+async def test_a_category_source_creating_a_name_recording_the_other_direction_is_refused(client):
+    """One name records one direction, so the refusal says which and what to do about it."""
+    headers, account_id, _ = await _setup_user_with_deps(client)
+    await _create_category(client, headers, name="Bonus", kind="income")
+
+    resp = await _import_transactions(client, headers, {
+        "accounts": [{"source": "Main Chequing", "account_id": account_id}],
+        "categories": [{"source": "Bonus", "create": {"name": "Bonus", "kind": "expense"}}],
+        "rows": [{
+            "account_source": "Main Chequing",
+            "category_source": "Bonus",
+            "dt": "2026-04-10",
+            "amount": "-1.00",
+            "tag_names": [],
+        }],
+    })
+
+    assert resp.status_code == 422
+    detail = resp.json()["detail"]
+    assert "Bonus" in detail
+    assert "income" in detail
+    assert (await client.get("/transactions", headers=headers)).json() == []
 
 
 async def test_an_import_is_refused_when_a_shared_merchant_is_not_seeded(client):
@@ -890,12 +937,13 @@ def _category_mappings(indexes):
     ]
 
 
-async def _insert_later_personal_merchant(sibling_merchant_id, name):
-    """Write a second personal merchant for the same owner, stamped after the one given
+async def _insert_personal_merchant_beside_a_shared_one(sibling_merchant_id, name):
+    """Write a personal merchant holding a name a merchant shipping with the app already holds
 
-    The merchants route refuses a name differing only in capitalisation, so a database holding both
-    can only be built by writing straight to the table, which is what a database written before that
-    rule looks like
+    The merchants route refuses that name in every scope, so a database holding both can only be
+    built by writing straight to the table. The unique indexes still allow the pair, since each
+    scope has an index of its own, which is what a database looks like where someone had their own
+    merchant before the app shipped one reading the same
 
     Args:
         sibling_merchant_id: A merchant of the owner this one belongs to

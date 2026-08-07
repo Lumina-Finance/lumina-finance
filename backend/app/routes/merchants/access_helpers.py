@@ -139,18 +139,19 @@ async def require_merchant_name_available(
     else:
         scope_filter = scope_filter | ((Merchant.owner_id == user_id) & Merchant.group_id.is_(None))
 
-    # Compared without regard to capitalisation, so "myself" cannot sit beside the seeded "Myself"
-    # and read as a second merchant. Matches how the migration folded the existing ones
-    duplicate_query = select(Merchant.id).where(func.lower(Merchant.name) == name.lower(), scope_filter)
+    # Trimmed and compared without regard to capitalisation, so "myself" cannot sit beside the
+    # seeded "Myself" and read as a second merchant, and neither can "Amazon " beside "Amazon".
+    # Matches how the migration folded the existing ones and what the unique indexes are built on
+    duplicate_query = select(Merchant.id).where(func.lower(Merchant.name) == name.strip().lower(), scope_filter)
 
     # A rename measures the new name against everyone else, so changing only the capitalisation of a
     # merchant's own name does not read as a clash with itself
     if exclude_merchant_id is not None:
         duplicate_query = duplicate_query.where(Merchant.id != exclude_merchant_id)
 
-    # Check whether the target scope already has a merchant with the requested name. A database
-    # written before capitalisation stopped counting here can hold several merchants that differ
-    # only in capitalisation, so one match settles it rather than being the only result allowed
+    # Check whether the target scope already has a merchant with the requested name. A system
+    # merchant and a personal one can hold the same name, since each scope has a unique index of
+    # its own, so one match settles it rather than being the only result allowed
     has_duplicate = (await db.execute(duplicate_query.limit(1))).first() is not None
     if has_duplicate:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Merchant with this name already exists")

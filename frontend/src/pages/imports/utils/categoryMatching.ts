@@ -167,6 +167,39 @@ export function isExistingCategoryMatch(value: string) {
   return Boolean(value && value !== CREATE_CATEGORY_VALUE)
 }
 
+/**
+ * The key a category name is matched under, which is the name trimmed of surrounding spaces with
+ * its capitals folded, matching what the commit compares and what the database enforces
+ */
+export function getCategoryNameKey(name: string) {
+  return name.trim().toLowerCase()
+}
+
+/**
+ * Finds the category a source answered "create new" would actually land on
+ *
+ * The commit reuses a category of the same name rather than writing a second one, so a row answered
+ * create is judged against this rather than against the name in the file. Group categories are left
+ * out because the commit does not reuse them: a file naming one still creates a personal category.
+ * A user's own category wins over one that ships with the app, which is the order the commit reads
+ * its candidates in
+ *
+ * @param source - The category value as the file spells it
+ * @param categories - Every category the user has
+ */
+export function findReusedImportCategory(source: string, categories: Iterable<Category>) {
+  const key = getCategoryNameKey(source)
+  let systemMatch: Category | undefined
+
+  for (const category of categories) {
+    if (category.group_id || getCategoryNameKey(category.name) !== key) continue
+    if (!category.is_system) return category
+    systemMatch ??= category
+  }
+
+  return systemMatch
+}
+
 function getCategoryKindFromTypeLabel(categoryType: string | undefined): ImportCategoryKind | '' {
   if (categoryType === 'Transfer') return 'transfer'
   if (categoryType === 'Income') return 'income'

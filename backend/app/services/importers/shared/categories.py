@@ -2,7 +2,7 @@
 import uuid
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.base import CategoryKind
@@ -134,11 +134,13 @@ async def _get_or_create_personal_import_category(
     kind = parse_import_category_kind(create.kind)
     name = strip_import_text_or_raise(create.name, "Category name")
 
-    # Reuse a same-named system or personal category before inserting a new personal category
+    # Reuse a same-named system or personal category before inserting a new personal category.
+    # Compared with capitals folded, so a file spelling it GROCERIES reuses the user's Groceries
+    # rather than writing a second one the category routes would have refused
     result = await db.execute(
         select(Category)
         .where(
-            Category.name == name,
+            func.lower(Category.name) == name.lower(),
             Category.is_system.is_(True) | ((Category.owner_id == user_id) & (Category.group_id.is_(None))),
         )
         .order_by(Category.is_system.asc())
@@ -149,7 +151,11 @@ async def _get_or_create_personal_import_category(
         if existing.kind != kind:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=f"Category with this name already exists with a different type: {name}",
+                detail=(
+                    f"A category named {existing.name} already records {existing.kind.value}, "
+                    f"so this import cannot create it as {kind.value}. "
+                    f"Match this value to that category, or set its type to {existing.kind.value}."
+                ),
             )
         stats.reused_category_ids.add(existing.id)
         return existing

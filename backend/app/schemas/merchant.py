@@ -5,6 +5,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
+from app.schemas.names import TrimmedName
+
 
 class MerchantResponse(BaseModel):
     """Merchant returned by list and detail endpoints."""
@@ -25,7 +27,7 @@ class MerchantResponse(BaseModel):
 class CreateMerchantRequest(BaseModel):
     """Create a new merchant. Personal by default, or group-scoped if group_id is provided."""
 
-    name: str = Field(min_length=1, max_length=256)
+    name: TrimmedName = Field(min_length=1, max_length=256)
     default_category_id: uuid.UUID | None = None
     group_id: uuid.UUID | None = None
 
@@ -33,7 +35,7 @@ class CreateMerchantRequest(BaseModel):
 class UpdateMerchantRequest(BaseModel):
     """Partial update for a merchant. Only provided fields are changed."""
 
-    name: str | None = Field(None, min_length=1, max_length=256)
+    name: TrimmedName | None = Field(None, min_length=1, max_length=256)
     default_category_id: uuid.UUID | None = None
 
 
