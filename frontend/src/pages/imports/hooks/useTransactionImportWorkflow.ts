@@ -87,7 +87,8 @@ const IMPORT_OVERLAY_MIN_MS = 2000
  *
  * @param fixedAccount - The account this import was started from, null for an ordinary import. It
  *   answers the account question outright, so the column mapping neither offers nor keeps an account
- *   column while it holds
+ *   column while it holds, and every source rows are written to is that account rather than anything
+ *   resolved from the file. A transfer's counterparty is resolved as it always is
  */
 export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | null = null) {
   const inputRef = useRef<HTMLInputElement>(null)
@@ -477,14 +478,20 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   const autoFilledAccountSources = useMemo(
     () => new Set(
       accountMappingSources
-        .filter((source) => isAutoFilledAccountSource(
-          liveAccountMappings[source.id] ?? '',
-          resolvedAccountMappings[source.id] ?? '',
-          source.isCounterpartyOnly,
-        ))
+        .filter((source) => {
+          // The highlight means an account was recognised from what the file says, and the account
+          // an import was started from is neither recognised nor shown in a row of its own
+          if (isAccountFixed && !source.isCounterpartyOnly) return false
+
+          return isAutoFilledAccountSource(
+            liveAccountMappings[source.id] ?? '',
+            resolvedAccountMappings[source.id] ?? '',
+            source.isCounterpartyOnly,
+          )
+        })
         .map((source) => source.id),
     ),
-    [accountMappingSources, liveAccountMappings, resolvedAccountMappings],
+    [accountMappingSources, isAccountFixed, liveAccountMappings, resolvedAccountMappings],
   )
 
   const importedCategories = useMemo(

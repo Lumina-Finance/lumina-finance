@@ -132,6 +132,10 @@ export function dropVanishedAccountMappings(
  * creating an account, since `applyCreateAccountFallback` covers every row source with no answer,
  * so a tie between two of the user's accounts ends up creating a third one carrying that name
  *
+ * An import started from an account reaches neither of those. `applyFixedImportAccount` has already
+ * answered every source rows are written to, so this only ever settles a transfer's counterparty
+ * there
+ *
  * The two lists differ by which accounts each kind of source can be offered: a source no row is
  * written to can record an archived account, so matching it against the list the dropdown does not
  * offer would fill in a choice the user cannot see or change
@@ -196,6 +200,9 @@ export function applyFixedImportAccount(
  *
  * Kept out of `inferAccountMappings`, which the Firefly flow shares and which answers a different
  * question: which existing account a source is, with no answer being a legitimate result
+ *
+ * An import started from an account leaves nothing here to rest on create, since every source rows
+ * are written to is answered before this runs
  *
  * @param sources - Every mapping source, cleared ones included, since a cleared row still has to be
  *   answerable and this fallback can only ever offer it a new account
