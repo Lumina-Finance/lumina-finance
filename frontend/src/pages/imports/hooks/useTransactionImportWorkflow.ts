@@ -55,6 +55,7 @@ import {
 } from '@/pages/imports/utils'
 import { waitForMilliseconds } from '@/utils/timing'
 import { useImportAccountCreateState } from './useImportAccountCreateState'
+import { useImportMerchantMatches } from './useImportMerchantMatches'
 import { useImportReferenceData } from './useImportReferenceData'
 
 /**
@@ -108,6 +109,7 @@ export function useTransactionImportWorkflow() {
   const rowAccountAnswerScope = buildImportAnswerScope(columnMap.account_id, files)
   const counterpartyAnswerScope = buildImportAnswerScope(columnMap.counterparty_account_id, files)
   const categoryAnswerScope = buildImportAnswerScope(columnMap.category_id, files)
+  const merchantAnswerScope = buildImportAnswerScope(columnMap.merchant_id, files)
 
   const counterpartyOnlySourceIds = useMemo(
     () => new Set(accountMappingSources.filter((source) => source.isCounterpartyOnly).map((source) => source.id)),
@@ -124,6 +126,7 @@ export function useTransactionImportWorkflow() {
   )
 
   const getCategorySourceScope = useMemo(() => () => categoryAnswerScope, [categoryAnswerScope])
+  const getMerchantSourceScope = useMemo(() => () => merchantAnswerScope, [merchantAnswerScope])
 
   const accountMappings = useMemo(
     () => readScopedImportAnswers(scopedAccountMappings, getAccountSourceScope),
@@ -155,7 +158,6 @@ export function useTransactionImportWorkflow() {
     updateAccountMapping: updateSourceAccount,
     resetAccountCreateState,
   } = useImportAccountCreateState(setAccountMappings, getAccountSourceScope)
-  const [merchantHandlingOpen, setMerchantHandlingOpen] = useState(true)
   const [tagHandlingOpen, setTagHandlingOpen] = useState(true)
   const [columnValidationErrors, setColumnValidationErrors] = useState<ColumnValidationErrors>({})
 
@@ -163,6 +165,11 @@ export function useTransactionImportWorkflow() {
   const [scopedCategoryMappings, setScopedCategoryMappings] = useState<ScopedImportAnswers<string>>(emptyScopedImportAnswers)
   const [categoryAutoMatchKey, setCategoryAutoMatchKey] = useState('')
   const [scopedCategoryCreateKinds, setScopedCategoryCreateKinds] = useState<ScopedImportAnswers<ImportCategoryKind>>(emptyScopedImportAnswers)
+
+  // What the user answered for each payee value, and the name they wrote for one being created.
+  // Scoped like every other answer, so a second file's payees start unanswered
+  const [scopedMerchantMappings, setScopedMerchantMappings] = useState<ScopedImportAnswers<string>>(emptyScopedImportAnswers)
+  const [scopedMerchantCreateNames, setScopedMerchantCreateNames] = useState<ScopedImportAnswers<string>>(emptyScopedImportAnswers)
   const [importError, setImportError] = useState<string | null>(null)
   const [importResult, setImportResult] = useState<TransactionImportResponse | null>(null)
   const [importOverlayPhase, setImportOverlayPhase] = useState<ImportOverlayPhase>('idle')
@@ -214,6 +221,30 @@ export function useTransactionImportWorkflow() {
     setScopedCategoryCreateKinds((current) => {
       const answers = readScopedImportAnswers(current, getCategorySourceScope)
       return writeScopedImportAnswers(current, typeof update === 'function' ? update(answers) : update, getCategorySourceScope)
+    })
+  }
+
+  const merchantMappings = useMemo(
+    () => readScopedImportAnswers(scopedMerchantMappings, getMerchantSourceScope),
+    [getMerchantSourceScope, scopedMerchantMappings],
+  )
+
+  const merchantCreateNames = useMemo(
+    () => readScopedImportAnswers(scopedMerchantCreateNames, getMerchantSourceScope),
+    [getMerchantSourceScope, scopedMerchantCreateNames],
+  )
+
+  const setMerchantMappings: Dispatch<SetStateAction<Record<string, string>>> = (update) => {
+    setScopedMerchantMappings((current) => {
+      const answers = readScopedImportAnswers(current, getMerchantSourceScope)
+      return writeScopedImportAnswers(current, typeof update === 'function' ? update(answers) : update, getMerchantSourceScope)
+    })
+  }
+
+  const setMerchantCreateNames: Dispatch<SetStateAction<Record<string, string>>> = (update) => {
+    setScopedMerchantCreateNames((current) => {
+      const answers = readScopedImportAnswers(current, getMerchantSourceScope)
+      return writeScopedImportAnswers(current, typeof update === 'function' ? update(answers) : update, getMerchantSourceScope)
     })
   }
   const {
@@ -441,6 +472,20 @@ export function useTransactionImportWorkflow() {
     [columnMap.merchant_id, files],
   )
 
+  const {
+    matchedMerchantByKey,
+    matchesLoading,
+    matchesFailed,
+    refetchMatches,
+    merchantOptions,
+    rememberPickedMerchant,
+    merchantSearch,
+    setMerchantSearch,
+    merchantSearchLoading,
+    hasMoreMerchantResults,
+    loadMoreMerchantResults,
+  } = useImportMerchantMatches(importedMerchants)
+
   const categoryTypesBySource = useMemo(
     () => getImportedCategoryTypes(files, columnMap.category_id, columnMap.amount, importedCategories),
     [columnMap.amount, columnMap.category_id, importedCategories, files],
@@ -467,7 +512,7 @@ export function useTransactionImportWorkflow() {
       // until the user answers it
       const answerableCategories = importedCategories.filter((category) => !clearedCategorySources.has(category))
       const matched = canInferCategoryMappings
-        ? inferCategoryMappings(answerableCategories, liveCategoryMappings, categories ?? [], categoryTypesBySource)
+        ? inferCategoryMappings(answerableCategories, liveCategoryMappings, categories ?? [])
         : keepCurrentMatchMap(liveCategoryMappings, answerableCategories)
 
       // A cleared name still needs its row, just an unanswered one
@@ -479,7 +524,7 @@ export function useTransactionImportWorkflow() {
       }
       return resolved
     },
-    [canInferCategoryMappings, categories, categoryTypesBySource, clearedCategorySources, importedCategories, liveCategoryMappings],
+    [canInferCategoryMappings, categories, clearedCategorySources, importedCategories, liveCategoryMappings],
   )
 
   const autoFilledCategories = useMemo(
@@ -514,6 +559,12 @@ export function useTransactionImportWorkflow() {
       dateFormat,
       files,
       importedCategories,
+      merchantAnswers: {
+        importedMerchants,
+        matchedMerchantByKey,
+        merchantMappings,
+        merchantCreateNames,
+      },
     }),
     [
       accountById,
@@ -528,6 +579,10 @@ export function useTransactionImportWorkflow() {
       dateFormat,
       files,
       importedCategories,
+      importedMerchants,
+      matchedMerchantByKey,
+      merchantCreateNames,
+      merchantMappings,
       resolvedAccountCreateCurrencies,
       resolvedAccountMappings,
       resolvedCategoryMappings,
@@ -804,13 +859,14 @@ export function useTransactionImportWorkflow() {
     setScopedAccountMappings(emptyScopedImportAnswers)
     setAccountAutoMatchKey('')
     resetAccountCreateState()
-    setMerchantHandlingOpen(true)
     setTagHandlingOpen(true)
     setColumnValidationErrors({})
     setDateFormatChoice(null)
     setScopedCategoryMappings(emptyScopedImportAnswers)
     setCategoryAutoMatchKey('')
     setScopedCategoryCreateKinds(emptyScopedImportAnswers)
+    setScopedMerchantMappings(emptyScopedImportAnswers)
+    setScopedMerchantCreateNames(emptyScopedImportAnswers)
     setImportError(null)
     setImportResult(null)
     setOverlayPhase('idle')
@@ -840,7 +896,6 @@ export function useTransactionImportWorkflow() {
     batchAccountType,
     batchAccountCurrency,
     batchAccountInstitution,
-    merchantHandlingOpen,
     tagHandlingOpen,
     columnValidationErrors: resolvedColumnValidationErrors,
     dateFormat,
@@ -848,6 +903,18 @@ export function useTransactionImportWorkflow() {
     setDateFormat,
     categoryMappings: resolvedCategoryMappings,
     categoryCreateKinds,
+    merchantMappings,
+    merchantCreateNames,
+    matchedMerchantByKey,
+    merchantOptions,
+    rememberPickedMerchant,
+    merchantSearch,
+    merchantSearchLoading,
+    hasMoreMerchantResults,
+    loadMoreMerchantResults,
+    matchesLoading,
+    matchesFailed,
+    refetchMatches,
     importError,
     importResult,
     importOverlayPhase,
@@ -899,7 +966,9 @@ export function useTransactionImportWorkflow() {
     setBatchAccountInstitution,
     setCategoryMappings,
     setCategoryCreateKinds,
-    setMerchantHandlingOpen,
+    setMerchantMappings,
+    setMerchantCreateNames,
+    setMerchantSearch,
     setTagHandlingOpen,
     handleFileChange,
     removeFile,

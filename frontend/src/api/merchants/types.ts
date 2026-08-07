@@ -41,3 +41,9 @@ export interface MergeMerchantRequest {
   merchantId: string;
   payload: MergeMerchantPayload;
 }
+
+export interface MerchantNameMatch {
+  /** The payee value exactly as it was asked about, so the answer reads back against what was sent */
+  source: string;
+  merchant: Merchant;
+}

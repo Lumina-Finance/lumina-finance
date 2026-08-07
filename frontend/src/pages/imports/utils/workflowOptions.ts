@@ -15,6 +15,7 @@ import {
   KIND_LABELS,
   KIND_RANKS,
 } from '@/pages/imports/constants'
+import { getMerchantNameKey } from '@/api/shared/merchantNameKey'
 import type { ColumnMap, CsvRow, ImportAccountSource, ImportFileDraft, ImportUploadBlock } from '@/pages/imports/types'
 import { getImportAccountName } from './accountMapping'
 import { splitImportedValues } from './categoryMatching'
@@ -242,7 +243,20 @@ export function countRowsWithNoPayee(files: ImportFileDraft[], merchantHeader: s
  */
 export function getImportedMerchants(files: ImportFileDraft[], merchantHeader: string): string[] {
   if (!merchantHeader) return []
-  return getUniqueColumnValues(files, merchantHeader).sort((a, b) => a.localeCompare(b))
+
+  // One row per merchant the file resolves to rather than per spelling, since "Amazon" and "AMAZON"
+  // are one payee. Two rows would let one be answered create and the other skip, with nothing to
+  // say which answer the rows carrying either spelling should take
+  const seenKeys = new Set<string>()
+  const values: string[] = []
+  for (const value of getUniqueColumnValues(files, merchantHeader)) {
+    const key = getMerchantNameKey(value)
+    if (seenKeys.has(key)) continue
+    seenKeys.add(key)
+    values.push(value)
+  }
+
+  return values.sort((a, b) => a.localeCompare(b))
 }
 
 /**

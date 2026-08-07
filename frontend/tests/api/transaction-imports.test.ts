@@ -69,6 +69,7 @@ function buildImportPayload(rows: TransactionImportRow[]): TransactionImportPayl
         },
       },
     ],
+    merchants: [],
     rows,
   };
 }
@@ -151,7 +152,8 @@ describe('staging a transaction import', () => {
     expect(sentBody(1)).toMatchObject({
       accounts: payload.accounts,
       categories: payload.categories,
-      rows: payload.rows,
+      merchants: [],
+    rows: payload.rows,
       start_row_index: 0,
     });
   });

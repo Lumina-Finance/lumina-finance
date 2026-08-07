@@ -14,8 +14,16 @@ from app.routes.merchants.creation_helpers import create_merchant_for_user
 from app.routes.merchants.deletion_helpers import delete_merchant_for_user
 from app.routes.merchants.listing_helpers import get_merchants_for_user
 from app.routes.merchants.merge_helpers import merge_merchant_into_replacement_for_user
+from app.routes.merchants.name_match_helpers import get_merchants_matching_names
 from app.routes.merchants.update_helpers import update_merchant_for_user
-from app.schemas.merchant import CreateMerchantRequest, MerchantResponse, MergeMerchantRequest, UpdateMerchantRequest
+from app.schemas.merchant import (
+    CreateMerchantRequest,
+    MerchantNameMatch,
+    MerchantNameMatchRequest,
+    MerchantResponse,
+    MergeMerchantRequest,
+    UpdateMerchantRequest,
+)
 from app.utils.dates import resolve_timezone
 
 router = APIRouter(prefix="/merchants", tags=["merchants"])
@@ -51,6 +59,29 @@ async def list_merchants(
     today = datetime.now(resolve_timezone(user.tz)).date()
     merchants = await get_merchants_for_user(db, user.id, group_id, q, limit, offset, today)
     return merchants
+
+
+@router.post("/name-matches", response_model=list[MerchantNameMatch])
+async def match_merchant_names(
+    data: MerchantNameMatchRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Return which of the payee values given already have a merchant
+
+    A read rather than a write, sent as a POST because a file's worth of payee values does not fit
+    in a query string
+
+    Args:
+        data: Payee values from the file
+        user: Authenticated user asking
+        db: Active database session
+
+    Returns:
+        One entry per value that matched, leaving out the values that have no merchant yet
+    """
+    matches = await get_merchants_matching_names(db, user.id, data.names)
+    return [MerchantNameMatch(source=source, merchant=merchant) for source, merchant in matches]
 
 
 @router.get("/{merchant_id}", response_model=MerchantResponse)

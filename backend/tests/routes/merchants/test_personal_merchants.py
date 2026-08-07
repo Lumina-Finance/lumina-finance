@@ -1,7 +1,4 @@
-import uuid
-
-from app.models.merchant import Merchant
-from tests.conftest import TestSession
+from app.services.merchants.defaults import SELF_MERCHANT_NAME
 from tests.routes.merchants._helpers import (
     MERCHANT_PAYLOAD,
     NONEXISTENT_ID,
@@ -408,22 +405,86 @@ async def test_patch_merchant_recapitalises_its_own_name(client):
     assert resp.json()["name"] == "Corner Shop"
 
 
-async def test_creating_a_merchant_beside_two_stored_case_variants_returns_409(client):
-    """A database written before capitalisation stopped counting can hold both, and the check still answers cleanly."""
+async def test_creating_a_merchant_differing_only_in_surrounding_spaces_returns_409(client):
+    """A name is stored trimmed, so spaces around it cannot make a second merchant."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    await _create_merchant(client, headers, name="Corner Shop")
+
+    resp = await _create_merchant(client, headers, name="  Corner Shop  ")
+
+    assert resp.status_code == 409
+    assert "already exists" in resp.json()["detail"]
+
+
+async def test_creating_a_merchant_stores_its_name_without_surrounding_spaces(client):
+    """Trimming happens on the way in, so the stored name is what every comparison reads."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _create_merchant(client, headers, name="  Corner Shop  ")
+
+    assert resp.status_code == 201
+    assert resp.json()["name"] == "Corner Shop"
+
+
+async def test_creating_a_merchant_named_only_spaces_is_refused(client):
+    """Nothing is left after trimming, so it is refused rather than stored empty."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _create_merchant(client, headers, name="   ")
+
+    assert resp.status_code == 422
+
+
+async def test_name_matches_answers_which_payee_values_already_have_a_merchant(client):
+    """The import page asks about a file's values rather than holding every merchant a user has."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     created = (await _create_merchant(client, headers, name="Corner Shop")).json()
 
-    # Inserted past the route, which now refuses the second variant, to stand in for the pair a
-    # database from before this rule already holds
-    async with TestSession() as session:
-        session.add(Merchant(owner_id=uuid.UUID(created["owner_id"]), name="corner shop"))
-        await session.commit()
+    resp = await client.post(
+        "/merchants/name-matches",
+        json={"names": ["  CORNER SHOP ", "SQ *COFFEE 4471"]},
+        headers=headers,
+    )
 
-    resp = await _create_merchant(client, headers, name="CORNER SHOP")
+    assert resp.status_code == 200
 
-    assert resp.status_code == 409
-    assert "already exists" in resp.json()["detail"]
+    # The value is answered exactly as it was asked about, and one with no merchant is left out
+    assert resp.json() == [{"source": "CORNER SHOP", "merchant": created}]
+
+
+async def test_name_matches_answers_with_a_merchant_that_ships_with_the_app(client):
+    """A shared merchant's name is taken in every scope, so an import matches it too."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await client.post("/merchants/name-matches", json={"names": ["myself"]}, headers=headers)
+
+    assert resp.status_code == 200
+    assert [match["merchant"]["name"] for match in resp.json()] == [SELF_MERCHANT_NAME]
+
+
+async def test_name_matches_leaves_out_another_users_merchant(client):
+    """One user's merchants are not something another user's import can be told about."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    other_signup = await _create_second_user(client)
+    other_headers = _get_auth_header(other_signup)
+    await _create_merchant(client, other_headers, name="Their Cafe")
+
+    resp = await client.post("/merchants/name-matches", json={"names": ["Their Cafe"]}, headers=headers)
+
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+async def test_name_matches_without_auth_returns_401(client):
+    """POST /merchants/name-matches without an Authorization header returns 401."""
+    resp = await client.post("/merchants/name-matches", json={"names": ["Corner Shop"]})
+    assert resp.status_code == 401
 
 
 async def test_patch_merchant_without_auth_returns_401(client):

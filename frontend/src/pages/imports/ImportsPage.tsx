@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { Upload, X } from 'lucide-react'
-import { accountKeys, categoryKeys, institutionKeys } from '@/api/cache/queryKeys'
+import { accountKeys, categoryKeys, institutionKeys, merchantKeys } from '@/api/cache/queryKeys'
 import { ImportProgressOverlay } from './components'
 import { useFireflyImportWorkflow } from './firefly/hooks'
 import {
@@ -17,6 +17,7 @@ import { useTransactionImportWorkflow } from './hooks'
 import {
   ImportAccountMappingStep,
   ImportAutoCreateStep,
+  ImportMerchantMatchingStep,
   ImportCategoryMatchingStep,
   ImportColumnMappingStep,
   ImportCommitPanel,
@@ -66,6 +67,10 @@ export default function ImportsPage() {
     void queryClient.invalidateQueries({ queryKey: accountKeys.list(), exact: true })
     void queryClient.invalidateQueries({ queryKey: categoryKeys.list(), exact: true })
     void queryClient.invalidateQueries({ queryKey: institutionKeys.list(), exact: true })
+
+    // Asked again rather than read back, since a merchant created in another tab would otherwise
+    // leave a payee value reading as one with no merchant yet
+    void queryClient.invalidateQueries({ queryKey: merchantKeys.nameMatchesAll })
   }, [queryClient])
 
   const handleDataSourceChange = (next: ImportDataSource) => {
@@ -165,19 +170,7 @@ export default function ImportsPage() {
                       <ImportColumnMappingStep {...workflow} />
                       <ImportAccountMappingStep {...workflow} />
                       <ImportCategoryMatchingStep {...workflow} />
-                      <ImportAutoCreateStep
-                        index="05"
-                        title="Merchant Handling"
-                        description="Merchants are created when transactions are imported. If an imported merchant matches an existing merchant name, the transaction will use the existing merchant."
-                        expanded={workflow.merchantHandlingOpen}
-                        collapseLabel="Collapse merchant handling"
-                        expandLabel="Expand merchant handling"
-                        emptyTitle="No imported merchants detected"
-                        emptyDescription="Map a merchant column first."
-                        sourceLabel="Merchant From File"
-                        rows={workflow.importedMerchants}
-                        onToggle={() => workflow.setMerchantHandlingOpen((current) => !current)}
-                      />
+                      <ImportMerchantMatchingStep {...workflow} />
                       <ImportAutoCreateStep
                         index="06"
                         title="Tag Handling"

@@ -215,6 +215,39 @@ async def test_create_category_duplicate_name_case_insensitive_returns_409(clien
     assert "already exists" in resp.json()["detail"]
 
 
+async def test_create_category_differing_only_in_surrounding_spaces_returns_409(client):
+    """A name is stored trimmed, so spaces around it cannot make a second category."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    await _create_category(client, headers, name="Duplicate Test", kind="expense")
+    resp = await _create_category(client, headers, name="  Duplicate Test  ", kind="expense")
+
+    assert resp.status_code == 409
+    assert "already exists" in resp.json()["detail"]
+
+
+async def test_create_category_stores_its_name_without_surrounding_spaces(client):
+    """Trimming happens on the way in, so the stored name is what every comparison reads."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _create_category(client, headers, name="  Dining Out  ", kind="expense")
+
+    assert resp.status_code == 201
+    assert resp.json()["name"] == "Dining Out"
+
+
+async def test_create_category_named_only_spaces_is_refused(client):
+    """Nothing is left after trimming, so it is refused rather than stored empty."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _create_category(client, headers, name="   ", kind="expense")
+
+    assert resp.status_code == 422
+
+
 async def test_create_category_same_name_different_kind_returns_409(client):
     """Same name with a different kind is still a duplicate."""
     signup_resp = await _create_user(client)

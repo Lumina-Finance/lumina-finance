@@ -34,16 +34,19 @@ class Category(Base):
             """,
             name="ck_categories_scope",
         ),
+        # Built on the name with capitals folded, so the database refuses the pair the routes
+        # refuse: Groceries beside GROCERIES in one scope. Surrounding spaces are trimmed on the
+        # way in instead, so the stored name is already what these compare
         Index(
-            "uq_category_system_name", "name",
+            "uq_category_system_name", text("lower(name)"),
             unique=True, postgresql_where=text("is_system = true"),
         ),
         Index(
-            "uq_category_owner_name", "owner_id", "name",
+            "uq_category_owner_name", "owner_id", text("lower(name)"),
             unique=True, postgresql_where=text("owner_id IS NOT NULL AND group_id IS NULL"),
         ),
         Index(
-            "uq_category_group_name", "group_id", "name",
+            "uq_category_group_name", "group_id", text("lower(name)"),
             unique=True, postgresql_where=text("group_id IS NOT NULL"),
         ),
     )

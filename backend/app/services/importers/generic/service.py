@@ -41,6 +41,7 @@ async def import_transactions(
         db,
         user_id=user.id,
         rows=data.rows,
+        merchant_mappings=data.merchants,
         import_lookups=import_lookups,
         stats=stats,
     )

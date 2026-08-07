@@ -46,9 +46,32 @@ function buildPayload(categorySources: string[]): TransactionImportPayload {
       source,
       create: { name: source, kind: 'expense' },
     })),
+    merchants: [],
     rows: categorySources.map((source) => buildRow(source)),
   };
 }
+
+describe('the payee answers a staged batch carries', () => {
+  it('carries only the values the user answered, and no batch looks up one they did not', async () => {
+    const payload: TransactionImportPayload = {
+      accounts: [{ source: 'C', account_id: 'acc_1' }],
+      categories: [{ source: 'G', category_id: 'cat_1' }],
+      merchants: [{ source: 'SQ *COFFEE 4471', create: { name: 'Coffee Bar' } }],
+      rows: [
+        { ...buildRow(), merchant_name: 'SQ *COFFEE 4471' },
+        // Spelled differently, so it is found by what matches a payee rather than by the spelling
+        { ...buildRow(), merchant_name: 'sq *coffee 4471' },
+        // Never answered, so the batch carries nothing for it rather than failing to find one
+        { ...buildRow(), merchant_name: 'Bakery' },
+      ],
+    };
+
+    const batches = await buildStagedImportBatches(payload);
+
+    expect(batches).toHaveLength(1);
+    expect(batches[0].merchants).toEqual([{ source: 'SQ *COFFEE 4471', create: { name: 'Coffee Bar' } }]);
+  });
+});
 
 describe('the limits a staged batch is built against', () => {
   it('closes a batch on the mapping count, not only on its bytes', async () => {
@@ -70,6 +93,7 @@ describe('the limits a staged batch is built against', () => {
     const payload: TransactionImportPayload = {
       accounts: [{ source: 'C', account_id: 'acc_1' }],
       categories: [{ source: 'G', category_id: 'cat_1' }],
+      merchants: [],
       rows: Array.from({ length: MAX_IMPORT_BATCH_ROWS + 100 }, () => buildRow()),
     };
 

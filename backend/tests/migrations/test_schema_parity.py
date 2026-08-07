@@ -3,11 +3,14 @@
 import os
 import subprocess
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID
 
+import pytest
 from sqlalchemy import Enum as SqlaEnum
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 from sqlalchemy.pool import NullPool
 
@@ -35,6 +38,9 @@ _ALEMBIC_SYSTEM_MERCHANT_DB_NAME = f"{WORKER_DB_NAME}_alembic_system_merchant"
 _BEFORE_SYSTEM_MERCHANTS_REVISION = "cbf7ada87de3"
 _ALEMBIC_UNKNOWN_MERCHANT_DB_NAME = f"{WORKER_DB_NAME}_alembic_unknown_merchant"
 _BEFORE_UNKNOWN_MERCHANT_REVISION = "93e7aa96d2ae"
+_ALEMBIC_FOLDED_CATEGORY_DB_NAME = f"{WORKER_DB_NAME}_alembic_folded_categories"
+_ALEMBIC_FOLDED_MERCHANT_DB_NAME = f"{WORKER_DB_NAME}_alembic_folded_merchants"
+_BEFORE_FOLDED_NAMES_REVISION = "6a1f132b9da2"
 
 
 async def test_alembic_schema_columns_match_model_metadata() -> None:
@@ -478,6 +484,219 @@ async def _seed_own_unknown_merchants(database_name: str) -> dict[str, UUID]:
     }
 
 
+async def test_folded_name_migration_merges_categories_and_numbers_the_ones_recording_opposite_kinds() -> None:
+    """Verify the fold merges within a kind, numbers across kinds, trims, and leaves other scopes alone
+
+    Every case is seeded into one database and judged after a single upgrade, since each build of one
+    runs alembic through a subprocess and the cases do not interfere: they use separate names
+    """
+    await _recreate_database(_ALEMBIC_FOLDED_CATEGORY_DB_NAME)
+    try:
+        _run_alembic_upgrade(_ALEMBIC_FOLDED_CATEGORY_DB_NAME, revision=_BEFORE_FOLDED_NAMES_REVISION)
+        seeded = await _seed_categories_differing_only_in_capitals(_ALEMBIC_FOLDED_CATEGORY_DB_NAME)
+
+        _run_alembic_upgrade(_ALEMBIC_FOLDED_CATEGORY_DB_NAME)
+
+        engine = _create_engine_for_database(_ALEMBIC_FOLDED_CATEGORY_DB_NAME)
+        try:
+            async with engine.connect() as conn:
+                grocery_ids = (await conn.execute(
+                    text(
+                        "SELECT id FROM categories"
+                        " WHERE owner_id = :user_id AND group_id IS NULL AND lower(name) = 'groceries'",
+                    ),
+                    {"user_id": seeded["user_id"]},
+                )).scalars().all()
+                grocery_transaction_categories = (await conn.execute(
+                    text("SELECT category_id FROM transactions WHERE id = ANY(:ids)"),
+                    {"ids": [seeded["older_grocery_transaction_id"], seeded["newer_grocery_transaction_id"]]},
+                )).scalars().all()
+                active_tracked_rows = (await conn.execute(
+                    text(
+                        "SELECT base_budget_id, count(*) FROM budget_tracked_categories"
+                        " WHERE removed_at IS NULL GROUP BY base_budget_id",
+                    ),
+                )).all()
+                tabbed_name = (await conn.execute(
+                    text("SELECT name FROM categories WHERE id = :id"),
+                    {"id": seeded["tabbed_snacks_id"]},
+                )).scalar_one()
+                staged_category_id = (await conn.execute(
+                    text(
+                        "SELECT category_mappings->'GROCERIES'->>'category_id'"
+                        " FROM import_runs WHERE id = :id",
+                    ),
+                    {"id": seeded["import_run_id"]},
+                )).scalar_one()
+                bonus_names = dict((await conn.execute(
+                    text("SELECT id, name FROM categories WHERE id = ANY(:ids)"),
+                    {"ids": [seeded["income_bonus_id"], seeded["expense_bonus_id"]]},
+                )).all())
+                expense_bonus_transaction_category = (await conn.execute(
+                    text("SELECT category_id FROM transactions WHERE id = :id"),
+                    {"id": seeded["expense_bonus_transaction_id"]},
+                )).scalar_one()
+                dining = (await conn.execute(
+                    text(
+                        "SELECT id, name FROM categories"
+                        " WHERE owner_id = :user_id AND group_id IS NULL AND lower(name) = 'dining'",
+                    ),
+                    {"user_id": seeded["user_id"]},
+                )).all()
+                group_category_remaining = (await conn.execute(
+                    text("SELECT count(*) FROM categories WHERE id = :id"),
+                    {"id": seeded["group_grocery_id"]},
+                )).scalar_one()
+                adjustment_row = (await conn.execute(
+                    text(
+                        "SELECT category_id, counterparty_account_id, counterparty_account_scope"
+                        " FROM transactions WHERE id = :id",
+                    ),
+                    {"id": seeded["adjustment_transaction_id"]},
+                )).one()
+        finally:
+            await engine.dispose()
+
+        # Groceries and GROCERIES record the same kind, so the later one is merged into the older and
+        # both transactions follow it
+        assert grocery_ids == [seeded["older_grocery_id"]]
+        assert set(grocery_transaction_categories) == {seeded["older_grocery_id"]}
+
+        # One row each, whether the budget tracked the survivor beside its losers or the losers alone
+        assert dict(active_tracked_rows) == {
+            seeded["base_budget_id"]: 1,
+            seeded["losers_only_budget_id"]: 1,
+        }
+
+        # Trimming takes off every kind of surrounding whitespace, not the space character alone,
+        # or the routes would compare a trimmed name against one still holding a tab and never match
+        assert tabbed_name == "Snacks"
+
+        # An import staged before the upgrade now points at the category that survived, so its
+        # commit still resolves rather than refusing the whole file for a category that is gone
+        assert staged_category_id == str(seeded["older_grocery_id"])
+
+        # An income Bonus and an expense bonus mean different things, so both survive and the later
+        # one is numbered rather than merged, leaving its transactions where they were
+        assert bonus_names == {seeded["income_bonus_id"]: "Bonus", seeded["expense_bonus_id"]: "bonus (2)"}
+        assert expense_bonus_transaction_category == seeded["expense_bonus_id"]
+
+        # Trimming happens first, so a name stored with a trailing space collides with the plain one
+        # and is folded like any other pair
+        assert dining == [(seeded["spaced_dining_id"], "Dining")]
+
+        # A group's category shares no scope with a personal one, so it is untouched
+        assert group_category_remaining == 1
+
+        # Balance Adjustment records no counterparty account, so a transaction moving onto it loses
+        # the account it recorded, exactly as editing one onto that category by hand does
+        assert adjustment_row == (seeded["older_adjustment_id"], None, None)
+
+        await _assert_second_category_differing_only_in_capitals_is_refused(
+            _ALEMBIC_FOLDED_CATEGORY_DB_NAME,
+            seeded["user_id"],
+        )
+    finally:
+        await _drop_database(_ALEMBIC_FOLDED_CATEGORY_DB_NAME)
+
+
+async def test_folded_name_migration_merges_merchants_differing_only_in_capitals() -> None:
+    """Verify merchants fold onto the oldest and the index then refuses a second spelling"""
+    await _recreate_database(_ALEMBIC_FOLDED_MERCHANT_DB_NAME)
+    try:
+        _run_alembic_upgrade(_ALEMBIC_FOLDED_MERCHANT_DB_NAME, revision=_BEFORE_FOLDED_NAMES_REVISION)
+        seeded = await _seed_merchants_differing_only_in_capitals(_ALEMBIC_FOLDED_MERCHANT_DB_NAME)
+
+        _run_alembic_upgrade(_ALEMBIC_FOLDED_MERCHANT_DB_NAME)
+
+        engine = _create_engine_for_database(_ALEMBIC_FOLDED_MERCHANT_DB_NAME)
+        try:
+            async with engine.connect() as conn:
+                remaining = (await conn.execute(
+                    text(
+                        "SELECT id, name FROM merchants"
+                        " WHERE owner_id = :user_id AND group_id IS NULL AND lower(name) = 'amazon'",
+                    ),
+                    {"user_id": seeded["user_id"]},
+                )).all()
+                group_remaining = (await conn.execute(
+                    text("SELECT id, name FROM merchants WHERE group_id = :group_id"),
+                    {"group_id": seeded["group_id"]},
+                )).all()
+                group_transaction_merchant = (await conn.execute(
+                    text("SELECT merchant_id FROM transactions WHERE id = :id"),
+                    {"id": seeded["group_transaction_id"]},
+                )).scalar_one()
+                merchants_on_transactions = (await conn.execute(
+                    text("SELECT merchant_id FROM transactions WHERE id = ANY(:ids)"),
+                    {"ids": [seeded["older_transaction_id"], seeded["newer_transaction_id"]]},
+                )).scalars().all()
+        finally:
+            await engine.dispose()
+
+        # The later spelling is gone and both transactions point at the one that was there first
+        assert remaining == [(seeded["older_merchant_id"], "Amazon")]
+        assert set(merchants_on_transactions) == {seeded["older_merchant_id"]}
+
+        # A group's merchants are unique per group whoever owns them, so two members' spellings fold
+        # into one. Grouping them by owner instead would leave the pair the group index forbids and
+        # the upgrade would fail building it
+        assert group_remaining == [(seeded["older_group_merchant_id"], "Hardware")]
+        assert group_transaction_merchant == seeded["older_group_merchant_id"]
+
+        await _assert_second_merchant_differing_only_in_capitals_is_refused(
+            _ALEMBIC_FOLDED_MERCHANT_DB_NAME,
+            seeded["user_id"],
+        )
+    finally:
+        await _drop_database(_ALEMBIC_FOLDED_MERCHANT_DB_NAME)
+
+
+async def _assert_second_category_differing_only_in_capitals_is_refused(
+    database_name: str,
+    user_id: UUID,
+) -> None:
+    """Check the database itself refuses the pair, not only the routes
+
+    Written straight to the table, since this is about what the index allows rather than what a
+    route checks. Without it the migration could fold correctly and build no index at all, and every
+    other assertion here would still pass
+    """
+    engine = _create_engine_for_database(database_name)
+    try:
+        with pytest.raises(IntegrityError):
+            async with engine.begin() as conn:
+                await conn.execute(
+                    text(
+                        "INSERT INTO categories (id, owner_id, name, kind, is_system)"
+                        " VALUES (gen_random_uuid(), :user_id, 'GROCERIES', 'EXPENSE', false)",
+                    ),
+                    {"user_id": user_id},
+                )
+    finally:
+        await engine.dispose()
+
+
+async def _assert_second_merchant_differing_only_in_capitals_is_refused(
+    database_name: str,
+    user_id: UUID,
+) -> None:
+    """Check the database itself refuses the pair, not only the routes"""
+    engine = _create_engine_for_database(database_name)
+    try:
+        with pytest.raises(IntegrityError):
+            async with engine.begin() as conn:
+                await conn.execute(
+                    text(
+                        "INSERT INTO merchants (id, owner_id, name)"
+                        " VALUES (gen_random_uuid(), :user_id, 'amazon')",
+                    ),
+                    {"user_id": user_id},
+                )
+    finally:
+        await engine.dispose()
+
+
 async def _seed_own_myself_merchant(database_name: str) -> UUID:
     """Insert a user-owned merchant spelled MYSELF, carrying one transaction
 
@@ -545,3 +764,326 @@ async def _seed_own_myself_merchant(database_name: str) -> UUID:
     finally:
         await engine.dispose()
     return transaction_id
+
+
+async def _seed_categories_differing_only_in_capitals(database_name: str) -> dict[str, UUID]:
+    """Insert every shape of category collision the fold has to settle
+
+    Four pairs, each a case of its own: two expense categories spelled differently, an income and an
+    expense sharing a name, one stored with a trailing space beside the plain spelling, and a
+    personal category beside a group's of the same name. The Balance Adjustment pair carries a
+    transaction recording a counterparty account, which moving onto that category has to drop
+
+    Returns:
+        The identifiers the fold is judged against
+    """
+    ids = {
+        "user_id": UUID("aaaaaaaa-1111-4111-8111-111111111111"),
+        "group_id": UUID("aaaaaaaa-2222-4222-8222-222222222222"),
+        "account_id": UUID("aaaaaaaa-3333-4333-8333-333333333333"),
+        "counterparty_account_id": UUID("aaaaaaaa-4444-4444-8444-444444444444"),
+        "older_grocery_id": UUID("bbbbbbbb-1111-4111-8111-111111111111"),
+        "newer_grocery_id": UUID("bbbbbbbb-2222-4222-8222-222222222222"),
+        "income_bonus_id": UUID("bbbbbbbb-3333-4333-8333-333333333333"),
+        "expense_bonus_id": UUID("bbbbbbbb-4444-4444-8444-444444444444"),
+        "spaced_dining_id": UUID("bbbbbbbb-5555-4555-8555-555555555555"),
+        "third_grocery_id": UUID("bbbbbbbb-aaaa-4aaa-8aaa-aaaaaaaaaaaa"),
+        "tabbed_snacks_id": UUID("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"),
+        "plain_dining_id": UUID("bbbbbbbb-6666-4666-8666-666666666666"),
+        "group_grocery_id": UUID("bbbbbbbb-7777-4777-8777-777777777777"),
+        "older_adjustment_id": UUID("bbbbbbbb-8888-4888-8888-888888888888"),
+        "newer_adjustment_id": UUID("bbbbbbbb-9999-4999-8999-999999999999"),
+        "older_grocery_transaction_id": UUID("cccccccc-1111-4111-8111-111111111111"),
+        "newer_grocery_transaction_id": UUID("cccccccc-2222-4222-8222-222222222222"),
+        "income_bonus_transaction_id": UUID("cccccccc-3333-4333-8333-333333333333"),
+        "expense_bonus_transaction_id": UUID("cccccccc-4444-4444-8444-444444444444"),
+        "adjustment_transaction_id": UUID("cccccccc-5555-4555-8555-555555555555"),
+        "base_budget_id": UUID("dddddddd-1111-4111-8111-111111111111"),
+        "losers_only_budget_id": UUID("dddddddd-2222-4222-8222-222222222222"),
+        "import_run_id": UUID("dddddddd-3333-4333-8333-333333333333"),
+    }
+
+    # Each pair is stamped a day apart, so which one the fold keeps is settled by the data rather
+    # than by the order the rows happen to come back in
+    first_day = datetime(2026, 1, 1, tzinfo=UTC)
+    second_day = datetime(2026, 1, 2, tzinfo=UTC)
+    third_day = datetime(2026, 1, 3, tzinfo=UTC)
+    categories = [
+        (ids["older_grocery_id"], ids["user_id"], None, "Groceries", "EXPENSE", first_day),
+        (ids["newer_grocery_id"], ids["user_id"], None, "GROCERIES", "EXPENSE", second_day),
+        (ids["third_grocery_id"], ids["user_id"], None, "groceries", "EXPENSE", third_day),
+        # Stored with a tab on the end, which btrim with no character set would leave in place
+        (ids["tabbed_snacks_id"], ids["user_id"], None, "Snacks\t", "EXPENSE", first_day),
+        (ids["income_bonus_id"], ids["user_id"], None, "Bonus", "INCOME", first_day),
+        (ids["expense_bonus_id"], ids["user_id"], None, "bonus", "EXPENSE", second_day),
+        (ids["spaced_dining_id"], ids["user_id"], None, "Dining ", "EXPENSE", first_day),
+        (ids["plain_dining_id"], ids["user_id"], None, "Dining", "EXPENSE", second_day),
+        (ids["group_grocery_id"], None, ids["group_id"], "Groceries", "EXPENSE", first_day),
+        (ids["older_adjustment_id"], ids["user_id"], None, "Balance Adjustment", "TRANSFER", first_day),
+        (ids["newer_adjustment_id"], ids["user_id"], None, "BALANCE ADJUSTMENT", "TRANSFER", second_day),
+    ]
+
+    engine = _create_engine_for_database(database_name)
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text(
+                "INSERT INTO currencies (id, name, symbol, minor_unit_exponent)"
+                " VALUES ('CAD', 'Canadian Dollar', '$', 2)",
+            ))
+            await conn.execute(
+                text(
+                    "INSERT INTO users (id, email, first_name, tz, base_currency)"
+                    " VALUES (:user_id, 'migration-folded@example.com', 'Migration', 'America/Toronto', 'CAD')",
+                ),
+                {"user_id": ids["user_id"]},
+            )
+            await conn.execute(
+                text("INSERT INTO groups (id, owner_id, name) VALUES (:group_id, :user_id, 'Household')"),
+                {"group_id": ids["group_id"], "user_id": ids["user_id"]},
+            )
+            for account_id, account_name in (
+                (ids["account_id"], "Chequing"),
+                (ids["counterparty_account_id"], "Savings"),
+            ):
+                await conn.execute(
+                    text(
+                        "INSERT INTO accounts"
+                        " (id, owner_id, account_kind, account_type, name, currency, is_archived)"
+                        " VALUES (:account_id, :user_id, 'ASSET', 'CHECKING', :name, 'CAD', false)",
+                    ),
+                    {"account_id": account_id, "user_id": ids["user_id"], "name": account_name},
+                )
+
+            for category_id, owner_id, group_id, name, kind, created_at in categories:
+                await conn.execute(
+                    text(
+                        "INSERT INTO categories (id, owner_id, group_id, name, kind, is_system, created_at)"
+                        " VALUES (:id, :owner_id, :group_id, :name, :kind, false, :created_at)",
+                    ),
+                    {
+                        "id": category_id,
+                        "owner_id": owner_id,
+                        "group_id": group_id,
+                        "name": name,
+                        "kind": kind,
+                        "created_at": created_at,
+                    },
+                )
+
+            for transaction_id, category_id in (
+                (ids["older_grocery_transaction_id"], ids["older_grocery_id"]),
+                (ids["newer_grocery_transaction_id"], ids["newer_grocery_id"]),
+                (ids["income_bonus_transaction_id"], ids["income_bonus_id"]),
+                (ids["expense_bonus_transaction_id"], ids["expense_bonus_id"]),
+            ):
+                await conn.execute(
+                    text(
+                        "INSERT INTO transactions"
+                        " (id, created_by_user_id, account_id, dt, category_id, amount, currency)"
+                        " VALUES (:id, :user_id, :account_id, '2026-03-15', :category_id, -2500, 'CAD')",
+                    ),
+                    {
+                        "id": transaction_id,
+                        "user_id": ids["user_id"],
+                        "account_id": ids["account_id"],
+                        "category_id": category_id,
+                    },
+                )
+
+            # Filed under the later spelling of Balance Adjustment, which does record a counterparty
+            # account because its name is not the one the rule names
+            await conn.execute(
+                text(
+                    "INSERT INTO transactions"
+                    " (id, created_by_user_id, account_id, dt, category_id, amount, currency,"
+                    " counterparty_account_id, counterparty_account_scope)"
+                    " VALUES (:id, :user_id, :account_id, '2026-03-16', :category_id, -1000, 'CAD',"
+                    " :counterparty_account_id, 'TRACKED')",
+                ),
+                {
+                    "id": ids["adjustment_transaction_id"],
+                    "user_id": ids["user_id"],
+                    "account_id": ids["account_id"],
+                    "category_id": ids["newer_adjustment_id"],
+                    "counterparty_account_id": ids["counterparty_account_id"],
+                },
+            )
+
+            for budget_id, budget_name in (
+                (ids["base_budget_id"], "Monthly"),
+                (ids["losers_only_budget_id"], "Groceries only"),
+            ):
+                await conn.execute(
+                    text(
+                        "INSERT INTO base_budgets"
+                        " (id, owner_id, name, currency, recurrence_freq, instance_length, recurs, is_archived)"
+                        " VALUES (:id, :user_id, :name, 'CAD', 'MONTHLY', 1, true, false)",
+                    ),
+                    {"id": budget_id, "user_id": ids["user_id"], "name": budget_name},
+                )
+
+            # One budget tracks the survivor and both losers, the other tracks the two losers alone.
+            # Either way the survivor can only be tracked once, so the fold has to drop rows rather
+            # than move every one of them
+            tracked = [
+                (ids["base_budget_id"], ids["older_grocery_id"]),
+                (ids["base_budget_id"], ids["newer_grocery_id"]),
+                (ids["base_budget_id"], ids["third_grocery_id"]),
+                (ids["losers_only_budget_id"], ids["newer_grocery_id"]),
+                (ids["losers_only_budget_id"], ids["third_grocery_id"]),
+            ]
+            for budget_id, category_id in tracked:
+                await conn.execute(
+                    text(
+                        "INSERT INTO budget_tracked_categories (id, base_budget_id, category_id, added_at)"
+                        " VALUES (gen_random_uuid(), :budget_id, :category_id, '2026-01-01')",
+                    ),
+                    {"budget_id": budget_id, "category_id": category_id},
+                )
+
+            # An import staged before the upgrade, holding the id of a category the fold removes.
+            # Nothing links this to the categories table, so only the migration can keep it usable
+            await conn.execute(
+                text(
+                    "INSERT INTO import_runs"
+                    " (id, owner_id, expected_transaction_count, account_mappings, category_mappings)"
+                    " VALUES (:id, :user_id, 1, '{}'::jsonb, CAST(:category_mappings AS jsonb))",
+                ),
+                {
+                    "id": ids["import_run_id"],
+                    "user_id": ids["user_id"],
+                    "category_mappings": (
+                        '{"GROCERIES": {"source": "GROCERIES", "category_id": "'
+                        + str(ids["newer_grocery_id"])
+                        + '"}}'
+                    ),
+                },
+            )
+    finally:
+        await engine.dispose()
+
+    return ids
+
+
+async def _seed_merchants_differing_only_in_capitals(database_name: str) -> dict[str, UUID]:
+    """Insert two personal merchants spelled differently, each carrying a transaction
+
+    Returns:
+        The identifiers the fold is judged against
+    """
+    ids = {
+        "user_id": UUID("eeeeeeee-1111-4111-8111-111111111111"),
+        "other_user_id": UUID("eeeeeeee-5555-4555-8555-555555555555"),
+        "group_id": UUID("eeeeeeee-6666-4666-8666-666666666666"),
+        "account_id": UUID("eeeeeeee-2222-4222-8222-222222222222"),
+        "category_id": UUID("eeeeeeee-3333-4333-8333-333333333333"),
+        "older_merchant_id": UUID("ffffffff-1111-4111-8111-111111111111"),
+        "newer_merchant_id": UUID("ffffffff-2222-4222-8222-222222222222"),
+        "older_transaction_id": UUID("ffffffff-3333-4333-8333-333333333333"),
+        "newer_transaction_id": UUID("ffffffff-4444-4444-8444-444444444444"),
+        "older_group_merchant_id": UUID("ffffffff-5555-4555-8555-555555555555"),
+        "newer_group_merchant_id": UUID("ffffffff-6666-4666-8666-666666666666"),
+        "group_transaction_id": UUID("ffffffff-7777-4777-8777-777777777777"),
+    }
+
+    engine = _create_engine_for_database(database_name)
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text(
+                "INSERT INTO currencies (id, name, symbol, minor_unit_exponent)"
+                " VALUES ('CAD', 'Canadian Dollar', '$', 2)",
+            ))
+            await conn.execute(
+                text(
+                    "INSERT INTO users (id, email, first_name, tz, base_currency)"
+                    " VALUES (:user_id, 'migration-folded-merchant@example.com', 'Migration',"
+                    " 'America/Toronto', 'CAD')",
+                ),
+                {"user_id": ids["user_id"]},
+            )
+            await conn.execute(
+                text(
+                    "INSERT INTO accounts"
+                    " (id, owner_id, account_kind, account_type, name, currency, is_archived)"
+                    " VALUES (:account_id, :user_id, 'ASSET', 'CHECKING', 'Chequing', 'CAD', false)",
+                ),
+                {"account_id": ids["account_id"], "user_id": ids["user_id"]},
+            )
+            await conn.execute(
+                text(
+                    "INSERT INTO categories (id, owner_id, name, kind, is_system)"
+                    " VALUES (:category_id, :user_id, 'Shopping', 'EXPENSE', false)",
+                ),
+                {"category_id": ids["category_id"], "user_id": ids["user_id"]},
+            )
+
+            # A day apart, so the older spelling is the one the fold keeps rather than whichever row
+            # the database returns first
+            for merchant_id, name, created_at in (
+                (ids["older_merchant_id"], "Amazon", datetime(2026, 1, 1, tzinfo=UTC)),
+                (ids["newer_merchant_id"], "AMAZON", datetime(2026, 1, 2, tzinfo=UTC)),
+            ):
+                await conn.execute(
+                    text(
+                        "INSERT INTO merchants (id, owner_id, name, created_at)"
+                        " VALUES (:id, :user_id, :name, :created_at)",
+                    ),
+                    {"id": merchant_id, "user_id": ids["user_id"], "name": name, "created_at": created_at},
+                )
+
+            # A second member of the same group, since a group's merchant carries an owner as well
+            # as its group and the two members' merchants are what the group index measures together
+            await conn.execute(
+                text(
+                    "INSERT INTO users (id, email, first_name, tz, base_currency)"
+                    " VALUES (:user_id, 'migration-folded-member@example.com', 'Member',"
+                    " 'America/Toronto', 'CAD')",
+                ),
+                {"user_id": ids["other_user_id"]},
+            )
+            await conn.execute(
+                text("INSERT INTO groups (id, owner_id, name) VALUES (:group_id, :user_id, 'Household')"),
+                {"group_id": ids["group_id"], "user_id": ids["user_id"]},
+            )
+            for merchant_id, owner_id, name, created_at in (
+                (ids["older_group_merchant_id"], ids["user_id"], "Hardware", datetime(2026, 1, 1, tzinfo=UTC)),
+                (ids["newer_group_merchant_id"], ids["other_user_id"], "HARDWARE", datetime(2026, 1, 2, tzinfo=UTC)),
+            ):
+                await conn.execute(
+                    text(
+                        "INSERT INTO merchants (id, owner_id, group_id, name, created_at)"
+                        " VALUES (:id, :owner_id, :group_id, :name, :created_at)",
+                    ),
+                    {
+                        "id": merchant_id,
+                        "owner_id": owner_id,
+                        "group_id": ids["group_id"],
+                        "name": name,
+                        "created_at": created_at,
+                    },
+                )
+
+            for transaction_id, merchant_id in (
+                (ids["older_transaction_id"], ids["older_merchant_id"]),
+                (ids["newer_transaction_id"], ids["newer_merchant_id"]),
+                (ids["group_transaction_id"], ids["newer_group_merchant_id"]),
+            ):
+                await conn.execute(
+                    text(
+                        "INSERT INTO transactions"
+                        " (id, created_by_user_id, account_id, dt, merchant_id, category_id, amount, currency)"
+                        " VALUES (:id, :user_id, :account_id, '2026-03-15', :merchant_id, :category_id,"
+                        " -2500, 'CAD')",
+                    ),
+                    {
+                        "id": transaction_id,
+                        "user_id": ids["user_id"],
+                        "account_id": ids["account_id"],
+                        "merchant_id": merchant_id,
+                        "category_id": ids["category_id"],
+                    },
+                )
+    finally:
+        await engine.dispose()
+
+    return ids

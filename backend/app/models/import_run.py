@@ -16,8 +16,8 @@ class ImportRun(Base):
 
     A file too large for one request is staged over several, and none of it reaches the ledger
     until the commit writes the whole run in a single transaction. The run holds what every batch
-    shares: who it belongs to, how many rows the file will write, and the account and category
-    mappings each batch merges into
+    shares: who it belongs to, how many rows the file will write, and the account, category and
+    merchant mappings each batch merges into
     """
 
     __tablename__ = "import_runs"
@@ -33,6 +33,13 @@ class ImportRun(Base):
     # commit resolves every row against one set of answers
     account_mappings: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
     category_mappings: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+
+    # Only the payee values the user answered by hand, so a run whose merchants were all left to
+    # match or be created by name holds none. Defaulted in the database as well, so a run staged
+    # before this column existed reads as one that answered nothing
+    merchant_mappings: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}",
+    )
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 

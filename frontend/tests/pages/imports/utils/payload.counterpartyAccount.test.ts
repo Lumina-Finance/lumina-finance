@@ -9,12 +9,13 @@ import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import {
   CREATE_ACCOUNT_VALUE,
+  CREATE_CATEGORY_VALUE,
   EMPTY_COLUMN_MAP,
   ROW_COUNTERPARTY_IS_OWN_ACCOUNT_REASON,
   ROW_COUNTERPARTY_NOT_A_TRANSFER_REASON,
 } from '@/pages/imports/constants'
 import { OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
-import type { ColumnMap, ImportAccountSource, ImportFileDraft } from '@/pages/imports/types'
+import type { ColumnMap, ImportAccountSource, ImportCategoryKind, ImportFileDraft } from '@/pages/imports/types'
 import { buildImportAccountMappingSources, buildImportPreviewRows, buildTransactionImportPayload } from '@/pages/imports/utils'
 
 const currencies: Currency[] = [
@@ -111,6 +112,7 @@ function buildPayload({
   accountCreateCurrencies = {},
   categoryById = new Map([[TRANSFER.id, TRANSFER]]),
   categoryMappings = { Transfer: TRANSFER.id },
+  categoryCreateKinds = {},
   categorySource = 'Transfer',
   counterpartyAccountSource = 'Savings',
   accountSources = createSources('Savings'),
@@ -120,6 +122,7 @@ function buildPayload({
   accountCreateCurrencies?: Record<string, string>
   categoryById?: Map<string, Category>
   categoryMappings?: Record<string, string>
+  categoryCreateKinds?: Record<string, ImportCategoryKind>
   categorySource?: string
   counterpartyAccountSource?: string
   accountSources?: ImportAccountSource[]
@@ -133,7 +136,7 @@ function buildPayload({
     accountSources,
     currencies,
     categoryById,
-    categoryCreateKinds: {},
+    categoryCreateKinds,
     categoryMappings,
     categoryTypesBySource: {},
     columnMap: COLUMN_MAP,
@@ -243,6 +246,22 @@ describe('CSV import counterparty account', () => {
       categoryById: new Map([[BALANCE_ADJUSTMENT.id, BALANCE_ADJUSTMENT]]),
       categoryMappings: { 'Balance Adjustment': BALANCE_ADJUSTMENT.id },
       categorySource: 'Balance Adjustment',
+    })
+
+    expect(payload).toBeNull()
+    expect(rowProblems.map((problem) => problem.reason)).toEqual([ROW_COUNTERPARTY_NOT_A_TRANSFER_REASON])
+  })
+
+  it('refuses a counterparty account on a balance adjustment reached under a different capitalisation', () => {
+    // The commit reuses a category of the same name whatever its capitals, so a file spelling it
+    // BALANCE ADJUSTMENT lands on the one that records no counterparty account. Judging the row
+    // against the name in the file instead let it through here and had the commit refuse the file
+    const { payload, rowProblems } = buildPayload({
+      accountMappings: { Chequing: CHEQUING.id, Savings: SAVINGS.id },
+      categoryById: new Map([[BALANCE_ADJUSTMENT.id, BALANCE_ADJUSTMENT]]),
+      categoryMappings: { 'BALANCE ADJUSTMENT': CREATE_CATEGORY_VALUE },
+      categoryCreateKinds: { 'BALANCE ADJUSTMENT': 'transfer' },
+      categorySource: 'BALANCE ADJUSTMENT',
     })
 
     expect(payload).toBeNull()

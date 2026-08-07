@@ -113,26 +113,23 @@ export function keepCurrentMatchMap(
  * Guesses which existing category each imported category name belongs to, filling only the names the
  * user has not already matched by hand
  *
- * Candidates are limited to categories of the kind read from the imported amounts, so an expense
- * called Groceries is never matched to an income category of the same name, and a name is left
- * unmatched when two categories score equally well rather than picking one of them
+ * Matched on the name alone. The direction read from the amounts does not narrow the candidates,
+ * because a category's direction does not bound the signs of the rows filed under it: a refund sits
+ * in an expense category and a clawback in an income one. Where several categories score equally,
+ * the user's own wins over a group's and a group's over one that ships with the app, and a name
+ * still tied after that is left unmatched rather than settled by chance
  */
 export function inferCategoryMappings(
   importedCategories: string[],
   current: Record<string, string>,
   categories: Category[],
-  categoryTypesBySource: Record<string, string>,
 ) {
   const next = { ...keepCurrentMatchMap(current, importedCategories) }
 
   for (const source of importedCategories) {
     if (next[source]) continue
 
-    const match = findBestCategoryNameMatch(
-      source,
-      categories,
-      getCategoryKindFromTypeLabel(categoryTypesBySource[source]),
-    )
+    const match = findBestCategoryNameMatch(source, categories)
     if (match) next[source] = match.id
   }
 
@@ -167,6 +164,39 @@ export function isExistingCategoryMatch(value: string) {
   return Boolean(value && value !== CREATE_CATEGORY_VALUE)
 }
 
+/**
+ * The key a category name is matched under, which is the name trimmed of surrounding spaces with
+ * its capitals folded, matching what the commit compares and what the database enforces
+ */
+export function getCategoryNameKey(name: string) {
+  return name.trim().toLowerCase()
+}
+
+/**
+ * Finds the category a source answered "create new" would actually land on
+ *
+ * The commit reuses a category of the same name rather than writing a second one, so a row answered
+ * create is judged against this rather than against the name in the file. Group categories are left
+ * out because the commit does not reuse them: a file naming one still creates a personal category.
+ * A user's own category wins over one that ships with the app, which is the order the commit reads
+ * its candidates in
+ *
+ * @param source - The category value as the file spells it
+ * @param categories - Every category the user has
+ */
+export function findReusedImportCategory(source: string, categories: Iterable<Category>) {
+  const key = getCategoryNameKey(source)
+  let systemMatch: Category | undefined
+
+  for (const category of categories) {
+    if (category.group_id || getCategoryNameKey(category.name) !== key) continue
+    if (!category.is_system) return category
+    systemMatch ??= category
+  }
+
+  return systemMatch
+}
+
 function getCategoryKindFromTypeLabel(categoryType: string | undefined): ImportCategoryKind | '' {
   if (categoryType === 'Transfer') return 'transfer'
   if (categoryType === 'Income') return 'income'
@@ -174,30 +204,44 @@ function getCategoryKindFromTypeLabel(categoryType: string | undefined): ImportC
   return ''
 }
 
-function findBestCategoryNameMatch(
-  source: string,
-  categories: Category[],
-  expectedKind: ImportCategoryKind | '',
-) {
-  let bestMatch: { category: Category; score: number } | null = null
+function findBestCategoryNameMatch(source: string, categories: Category[]) {
+  let bestMatch: { category: Category; score: number; scopeRank: number } | null = null
   let tied = false
 
   for (const category of categories) {
-    if (expectedKind && category.kind !== expectedKind) continue
-
     const score = scoreCategoryNameMatch(source, category.name)
     if (score <= 0) continue
 
+    const scopeRank = getCategoryScopeRank(category)
     if (!bestMatch || score > bestMatch.score) {
-      bestMatch = { category, score }
+      bestMatch = { category, score, scopeRank }
       tied = false
       continue
     }
 
-    if (score === bestMatch.score) tied = true
+    if (score < bestMatch.score) continue
+
+    // Two categories can share a name across scopes, since each scope is unique on its own, so the
+    // closer one settles it rather than the row being left unanswered
+    if (scopeRank < bestMatch.scopeRank) {
+      bestMatch = { category, score, scopeRank }
+      tied = false
+      continue
+    }
+
+    if (scopeRank === bestMatch.scopeRank) tied = true
   }
 
   return bestMatch && !tied ? bestMatch.category : null
+}
+
+/**
+ * How close a category is to the user, which settles a match two categories score equally on: their
+ * own first, then one their group shares, then one that ships with the app
+ */
+function getCategoryScopeRank(category: Category) {
+  if (category.is_system) return 2
+  return category.group_id ? 1 : 0
 }
 
 function scoreCategoryNameMatch(source: string, categoryName: string) {
@@ -205,9 +249,14 @@ function scoreCategoryNameMatch(source: string, categoryName: string) {
   const normalizedCategory = normalizeCategoryName(categoryName)
   if (!normalizedSource || !normalizedCategory) return 0
 
+  if (normalizedSource === normalizedCategory) return 100
+
+  // Below an exact match rather than equal to it, so a value reading "Pet Care" takes the category
+  // spelled that way over one spelled "Petcare". Scored the same, the two would tie and the value
+  // would be left unanswered, which is what the direction read off the amounts used to prevent
   const compactSource = normalizedSource.replace(/\s/g, '')
   const compactCategory = normalizedCategory.replace(/\s/g, '')
-  if (normalizedSource === normalizedCategory || compactSource === compactCategory) return 100
+  if (compactSource === compactCategory) return 95
 
   const shorterLength = Math.min(normalizedSource.length, normalizedCategory.length)
   if (shorterLength >= 4 && (normalizedSource.includes(normalizedCategory) || normalizedCategory.includes(normalizedSource))) {

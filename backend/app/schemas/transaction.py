@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 from app.models.base import TransferCounterpartyScope
 from app.schemas.fx import FxStatus
+from app.schemas.names import TrimmedName
 
 # Rows one import may carry, matching the cap the file reader applies before a file is staged. A
 # run is refused past it here as well, since the reader runs in the browser
@@ -198,6 +199,30 @@ class TransactionImportCategoryMapping(BaseModel):
     create: TransactionImportCreateCategory | None = None
 
 
+class TransactionImportCreateMerchant(BaseModel):
+    """New personal merchant to create during a transaction import."""
+
+    name: TrimmedName = Field(min_length=1, max_length=MAX_IMPORT_MERCHANT_NAME_LENGTH)
+
+
+class TransactionImportMerchantMapping(BaseModel):
+    """Resolve one payee value found in the file to a merchant, to a new one, or to none.
+
+    Only the values the user answered by hand are declared. A payee left alone keeps what the
+    importer does without being asked, matching an existing merchant by name and creating one where
+    nothing matches, so a file carrying thousands of distinct descriptors is not refused for
+    declaring more mappings than an import may carry.
+    """
+
+    source: str = Field(min_length=1, max_length=MAX_IMPORT_MERCHANT_NAME_LENGTH)
+    merchant_id: uuid.UUID | None = None
+    create: TransactionImportCreateMerchant | None = None
+
+    # Answered skip, so the rows carrying this payee are filed under the merchant the app stamps on
+    # a row stating no payee at all
+    skip: bool = False
+
+
 class TransactionImportRow(BaseModel):
     """One frontend-compiled import row. Amount is the raw CSV value, not minor units."""
 
@@ -219,6 +244,10 @@ class TransactionImportRequest(BaseModel):
 
     accounts: list[TransactionImportAccountMapping] = Field(min_length=1)
     categories: list[TransactionImportCategoryMapping] = Field(min_length=1)
+
+    # Only the payee values the user answered by hand, so this is empty for a file whose merchants
+    # were all left to match or be created by name
+    merchants: list[TransactionImportMerchantMapping] = Field(default=[])
     rows: list[TransactionImportRow] = Field(min_length=1)
 
 
@@ -239,6 +268,10 @@ class TransactionImportStageRequest(BaseModel):
 
     accounts: list[TransactionImportAccountMapping] = Field(min_length=1, max_length=MAX_IMPORT_MAPPINGS)
     categories: list[TransactionImportCategoryMapping] = Field(min_length=1, max_length=MAX_IMPORT_MAPPINGS)
+
+    # Carries no minimum, unlike the other two, because a batch whose payees were all left alone
+    # declares none of them
+    merchants: list[TransactionImportMerchantMapping] = Field(default=[], max_length=MAX_IMPORT_MAPPINGS)
     rows: list[TransactionImportRow] = Field(min_length=1, max_length=MAX_IMPORT_BATCH_ROWS)
 
     # Where this batch starts in the file, so a batch sent twice stages the same positions and the

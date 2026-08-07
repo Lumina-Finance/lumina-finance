@@ -1,10 +1,12 @@
 import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
+import type { Merchant } from '@/api/merchants'
 import type { TransactionImportPayload, TransactionImportResponse } from '@/api/transaction-imports'
 import {
   CREATE_ACCOUNT_VALUE,
   CREATE_CATEGORY_VALUE,
   DEFAULT_CATEGORY_ICON,
+  getCategoryDirectionClashError,
   getTooManyMappingsError,
   MAX_IMPORT_MAPPINGS,
   NO_OUTFLOWS_WARNING,
@@ -22,7 +24,8 @@ import type {
 } from '@/pages/imports/types'
 import { isImportAccountType } from '@/pages/imports/accountTypeGuard'
 import type { Currency } from '@/api/currency'
-import { getCategoryMatchKind } from './categoryMatching'
+import { findReusedImportCategory, getCategoryMatchKind } from './categoryMatching'
+import { buildImportMerchantMappings } from './merchantMatching'
 import { getImportRowId } from './common'
 import { getMissingRequiredColumnLabels } from './workflowOptions'
 import {
@@ -59,6 +62,7 @@ export function buildTransactionImportPayload({
   dateFormat,
   files,
   importedCategories,
+  merchantAnswers,
 }: {
   accountById: Map<string, AccountsOverview>
   accountCreateCurrencies: Record<string, string>
@@ -76,6 +80,17 @@ export function buildTransactionImportPayload({
   dateFormat: ImportDateFormat | null
   files: ImportFileDraft[]
   importedCategories: string[]
+
+  /**
+   * What the user answered about the file's payee values, absent where no merchant column is
+   * mapped and there are none to answer
+   */
+  merchantAnswers?: {
+    importedMerchants: string[]
+    matchedMerchantByKey: Map<string, Merchant>
+    merchantMappings: Record<string, string>
+    merchantCreateNames: Record<string, string>
+  }
 }): ImportBuildResult {
   // Two kinds of problem, kept apart because only one of them makes judging a row meaningless. An
   // unanswered mapping question leaves every row looking broken for want of the answer, while a
@@ -154,11 +169,22 @@ export function buildTransactionImportPayload({
         continue
       }
 
-      // A create mapping reuses a category of the same name where one exists, so a source called
-      // Balance Adjustment lands on the system category that records no counterparty account
+      // A create mapping reuses a category of the same name where one exists, compared with
+      // capitals folded, so the row is judged against the category it will actually land on rather
+      // than against the name the file spells. That is what puts a source called BALANCE ADJUSTMENT
+      // on the system category recording no counterparty account, as Balance Adjustment already is
+      const reused = findReusedImportCategory(source, categoryById.values())
+
+      // One name records one direction, so reusing it under the other is what the commit refuses.
+      // Caught here instead, where the step can say which value to go and answer differently
+      if (reused && reused.kind !== kind) {
+        addError(getCategoryDirectionClashError(source, reused.name, reused.kind))
+        continue
+      }
+
       recordsCounterpartyBySource[source] = doesTransferRecordCounterpartyAccount(
         kind,
-        source === BALANCE_ADJUSTMENT_CATEGORY_NAME,
+        (reused?.name ?? source) === BALANCE_ADJUSTMENT_CATEGORY_NAME,
       )
       kindByCategorySource[source] = kind
       categories.push({
@@ -180,6 +206,15 @@ export function buildTransactionImportPayload({
       : false
     if (category) kindByCategorySource[source] = category.kind
     categories.push({ source, category_id: choice })
+  }
+
+  // Only the payee values answered differently from what the commit would do unasked are carried,
+  // so a file with thousands of distinct descriptors nobody touched declares none of them
+  const merchants: TransactionImportPayload['merchants'] = []
+  if (merchantAnswers) {
+    const built = buildImportMerchantMappings(merchantAnswers)
+    merchants.push(...built.mappings)
+    for (const message of built.errors) addError(message)
   }
 
   // Judging rows before every mapping they depend on is answered blames them for the answer being
@@ -250,7 +285,7 @@ export function buildTransactionImportPayload({
     rowProblems: [],
     warnings,
     rowWarnings,
-    payload: { accounts, categories, rows },
+    payload: { accounts, categories, merchants, rows },
   }
 }
 

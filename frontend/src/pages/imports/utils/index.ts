@@ -1,6 +1,7 @@
 export * from './accountMapping'
 export * from './autoColumnMapping'
 export * from './categoryMatching'
+export * from './merchantMatching'
 export * from './columnMapping'
 export * from './commitFailure'
 export * from './common'

@@ -3,6 +3,8 @@ export type {
   TransactionImportCategoryMapping,
   TransactionImportCreateAccount,
   TransactionImportCreateCategory,
+  TransactionImportCreateMerchant,
+  TransactionImportMerchantMapping,
   TransactionImportPayload,
   TransactionImportResponse,
   TransactionImportRow,

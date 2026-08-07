@@ -2,7 +2,7 @@
 import uuid
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, literal_column, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.base import CategoryKind
@@ -10,6 +10,7 @@ from app.models.category import Category
 from app.models.group import GroupMember
 from app.models.user import User
 from app.schemas.transaction import TransactionImportCategoryMapping, TransactionImportCreateCategory
+from app.services.importers.shared.insertion_helpers import insert_import_records_if_absent
 from app.services.importers.shared.stats import ImportStats
 from app.services.importers.shared.validation_helpers import strip_import_text_or_raise
 
@@ -134,38 +135,87 @@ async def _get_or_create_personal_import_category(
     kind = parse_import_category_kind(create.kind)
     name = strip_import_text_or_raise(create.name, "Category name")
 
-    # Reuse a same-named system or personal category before inserting a new personal category
+    existing = await _select_reusable_import_category(db, user_id, name)
+    if existing is not None:
+        return _reuse_import_category(existing, kind, name, stats)
+
+    inserted = await insert_import_records_if_absent(
+        db,
+        Category,
+        [{"owner_id": user_id, "group_id": None, "name": name, "kind": kind, "icon": create.icon}],
+        index_elements=[Category.owner_id, literal_column("lower(name)")],
+        index_where=text("owner_id IS NOT NULL AND group_id IS NULL"),
+    )
+    if inserted:
+        category = inserted[0]
+        stats.categories_created += 1
+        stats.created_category_ids.append(category.id)
+        return category
+
+    # Nothing was written, so this name was taken between the lookup above and the insert, by
+    # another import or by the user in another tab. It is reused exactly as it would have been had
+    # it been there all along, the kind check included, rather than the insert failing the file
+    created_elsewhere = await _select_reusable_import_category(db, user_id, name)
+    if created_elsewhere is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Category could not be created or found: {name}",
+        )
+    return _reuse_import_category(created_elsewhere, kind, name, stats)
+
+
+async def _select_reusable_import_category(db: AsyncSession, user_id: uuid.UUID, name: str) -> Category | None:
+    """Return the category an import create mapping would reuse rather than write
+
+    Args:
+        db: Active database session
+        user_id: Identifier for the user running the import
+        name: Trimmed name the mapping asked to create
+
+    Returns:
+        The category to reuse, or None where the name is free
+    """
+    # Compared with capitals folded, so a file spelling it GROCERIES reuses the user's Groceries
+    # rather than writing a second one the category routes would have refused. A user's own category
+    # wins over one that ships with the app, which is what the ordering settles
     result = await db.execute(
         select(Category)
         .where(
-            Category.name == name,
+            func.lower(Category.name) == name.lower(),
             Category.is_system.is_(True) | ((Category.owner_id == user_id) & (Category.group_id.is_(None))),
         )
         .order_by(Category.is_system.asc())
         .limit(1),
     )
-    existing = result.scalar_one_or_none()
-    if existing is not None:
-        if existing.kind != kind:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=f"Category with this name already exists with a different type: {name}",
-            )
-        stats.reused_category_ids.add(existing.id)
-        return existing
+    return result.scalar_one_or_none()
 
-    category = Category(
-        owner_id=user_id,
-        group_id=None,
-        name=name,
-        kind=kind,
-        icon=create.icon,
-    )
-    db.add(category)
-    await db.flush()
-    stats.categories_created += 1
-    stats.created_category_ids.append(category.id)
-    return category
+
+def _reuse_import_category(existing: Category, kind: CategoryKind, name: str, stats: ImportStats) -> Category:
+    """Take an existing category for an import source, refusing one recording the other direction
+
+    Args:
+        existing: Category found for the name the mapping asked to create
+        kind: Kind the mapping asked for
+        name: Trimmed name the mapping asked to create
+        stats: Import summary counters updated when a category is reused
+
+    Returns:
+        The category to file the source's rows under
+
+    Raises:
+        HTTPException: Raised with 422 when the existing category records the other direction
+    """
+    if existing.kind != kind:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=(
+                f"A category named {existing.name} already records {existing.kind.value}, "
+                f"so this import cannot create {name} as {kind.value}. "
+                f"Match this value to that category, or set its type to {existing.kind.value}."
+            ),
+        )
+    stats.reused_category_ids.add(existing.id)
+    return existing
 
 
 def parse_import_category_kind(value: str) -> CategoryKind:
