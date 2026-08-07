@@ -42,8 +42,9 @@ _MERCHANT_NAME_SCOPE = """
 # What is taken off both ends of a name. btrim with no character set removes spaces alone, which
 # would leave a name ending in a tab stored untrimmed while every comparison trims it, so no typed
 # name could ever match that row again. This covers the whitespace a file or a paste actually
-# carries, and not the rest of what Python's str.strip() removes, such as U+2000 to U+200A, so a
-# name ending in one of those is left as it is and still reads as its own name
+# carries, and not the rest of what Python's str.strip() removes, such as U+2000 to U+200A. A name
+# ending in one of those keeps it here, and the application folds it anyway, so the pair is left for
+# an import to resolve to whichever of the two the ordering puts first
 _TRIMMED_CHARACTERS = " \t\n\r\f\v "
 
 

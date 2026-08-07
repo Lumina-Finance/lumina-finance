@@ -82,8 +82,8 @@ class ImportMerchants:
     name, and what let a payee value reading "Unknown" take the shared merchant out of the lookup
 
     Attributes:
-        existing_by_name_key: What merchants there are, keyed by their own name. Extended only by
-            the merchants this import creates, never by an answer
+        existing_by_name_key: What merchants there are, keyed by their own name. Extended by what
+            this import writes and by what it finds another request has written, never by an answer
         system_by_key: The merchants that ship with the app, keyed by their own name, which is what
             a row stating no payee is stamped from
         resolved_by_payee_key: What each payee value in the file resolves to, keyed by the value
@@ -160,7 +160,8 @@ async def create_missing_import_merchants(
     Raises:
         HTTPException: Raised with 422 when a merchant name is too long, when an answer states no
             single action, when one payee value is answered twice, and when an answer points at a
-            merchant the import cannot use
+            merchant the import cannot use. Raised with 500 when a name the insert skipped cannot
+            then be found, which takes another request creating it and then rolling back
     """
     answers = _index_import_merchant_answers(mappings)
     merchants.skipped_keys.update(key for key, answer in answers.items() if answer.skip)
@@ -200,8 +201,9 @@ async def create_missing_import_merchants(
             merchants.resolved_by_payee_key[payee_key] = existing
             continue
 
-        # The first spelling the file uses is the one stored, so a file carrying both "Amazon" and
-        # "AMAZON" produces one merchant rather than two
+        # The first spelling wins, so two payee values whose stored names differ only in capitals
+        # make one merchant: "SQ *AMZN 88" created as "Amazon" beside "AMZN MKTP" created as
+        # "AMAZON" writes Amazon alone, and both values resolve to it
         names_by_key.setdefault(name_key, stored_name)
         name_key_by_payee_key[payee_key] = name_key
 
@@ -414,14 +416,16 @@ def get_import_merchant(
 class NoPayeeMerchants:
     """The shared merchants an import stamps on a row that states no payee
 
-    Neither is counted as created or reused, because the summary reports what the file's own values
-    matched and a stamped merchant matched nothing
+    Stamping one counts as neither created nor reused, because the summary reports what the file's
+    own values matched and a stamped merchant matched nothing. A file whose payee column happens to
+    read "Unknown" is a different thing: that value matched the shared merchant on its own name, and
+    the summary counts it as reused like any other match
 
     Attributes:
-        transfer: Stamped where the importer itself settled that there is no payee, meaning any
-            transfer-kind row, which is what the app puts on the balance adjustments it writes for
-            itself when an account is created by hand
-        other: Stamped where the file had a payee to state and left it blank
+        transfer: Stamped on a transfer-kind row that resolved to no merchant, which is what the app
+            puts on the balance adjustments it writes for itself when an account is created by hand
+        other: Stamped on every other row that resolved to none, meaning one whose payee cell is
+            blank and one whose payee the user answered skip
     """
 
     transfer: Merchant
@@ -461,10 +465,11 @@ def get_no_payee_merchants(merchants: ImportMerchants) -> NoPayeeMerchants:
 def _require_system_merchant(system_by_key: dict[str, Merchant], name: str) -> Merchant:
     """Return one merchant that ships with the app, refusing the import when it is absent
 
-    Read from the merchants that ship with the app rather than from the whole lookup, since a payee
-    value reading "Unknown" that the user answered by hand replaces that key in the lookup. A
-    personal merchant is not accepted in place of a shared one either way, so a database that never
-    ran the seeding fails here rather than quietly stamping one user's own merchant on their rows
+    Read from the merchants that ship with the app rather than from what the file's payee values
+    resolved to, so a value reading "Unknown" answered by hand cannot decide what a row stating no
+    payee is stamped with. A personal merchant is not accepted in place of a shared one either way,
+    so a database that never ran the seeding fails here rather than quietly stamping one user's own
+    merchant on their rows
 
     Args:
         system_by_key: The merchants that ship with the app, keyed by what matches them
