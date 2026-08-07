@@ -68,6 +68,15 @@ export function getTooManyMappingsError(kind: 'account' | 'category', count: num
 }
 
 /**
+ * Says a value queued as a new category carries a name the user already has, recording the other
+ * direction, which the commit refuses because one name records one direction
+ */
+export function getCategoryDirectionClashError(source: string, existingName: string, existingKind: Category['kind']) {
+  const direction = KIND_LABELS[existingKind].toLowerCase()
+  return `${existingName} already records ${direction}, so ${source} cannot be created. Match it to that category, or set its type to ${direction}.`
+}
+
+/**
  * Says a row's notes are longer than the importer stores
  */
 export function getRowNotesTooLongReason(length: number) {

@@ -5,6 +5,7 @@ import {
   CREATE_ACCOUNT_VALUE,
   CREATE_CATEGORY_VALUE,
   DEFAULT_CATEGORY_ICON,
+  getCategoryDirectionClashError,
   getTooManyMappingsError,
   MAX_IMPORT_MAPPINGS,
   NO_OUTFLOWS_WARNING,
@@ -159,6 +160,14 @@ export function buildTransactionImportPayload({
       // than against the name the file spells. That is what puts a source called BALANCE ADJUSTMENT
       // on the system category recording no counterparty account, as Balance Adjustment already is
       const reused = findReusedImportCategory(source, categoryById.values())
+
+      // One name records one direction, so reusing it under the other is what the commit refuses.
+      // Caught here instead, where the step can say which value to go and answer differently
+      if (reused && reused.kind !== kind) {
+        addError(getCategoryDirectionClashError(source, reused.name, reused.kind))
+        continue
+      }
+
       recordsCounterpartyBySource[source] = doesTransferRecordCounterpartyAccount(
         kind,
         (reused?.name ?? source) === BALANCE_ADJUSTMENT_CATEGORY_NAME,

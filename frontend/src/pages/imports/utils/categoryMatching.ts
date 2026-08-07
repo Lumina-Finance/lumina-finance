@@ -113,26 +113,23 @@ export function keepCurrentMatchMap(
  * Guesses which existing category each imported category name belongs to, filling only the names the
  * user has not already matched by hand
  *
- * Candidates are limited to categories of the kind read from the imported amounts, so an expense
- * called Groceries is never matched to an income category of the same name, and a name is left
- * unmatched when two categories score equally well rather than picking one of them
+ * Matched on the name alone. The direction read from the amounts does not narrow the candidates,
+ * because a category's direction does not bound the signs of the rows filed under it: a refund sits
+ * in an expense category and a clawback in an income one. Where several categories score equally,
+ * the user's own wins over a group's and a group's over one that ships with the app, and a name
+ * still tied after that is left unmatched rather than settled by chance
  */
 export function inferCategoryMappings(
   importedCategories: string[],
   current: Record<string, string>,
   categories: Category[],
-  categoryTypesBySource: Record<string, string>,
 ) {
   const next = { ...keepCurrentMatchMap(current, importedCategories) }
 
   for (const source of importedCategories) {
     if (next[source]) continue
 
-    const match = findBestCategoryNameMatch(
-      source,
-      categories,
-      getCategoryKindFromTypeLabel(categoryTypesBySource[source]),
-    )
+    const match = findBestCategoryNameMatch(source, categories)
     if (match) next[source] = match.id
   }
 
@@ -207,30 +204,44 @@ function getCategoryKindFromTypeLabel(categoryType: string | undefined): ImportC
   return ''
 }
 
-function findBestCategoryNameMatch(
-  source: string,
-  categories: Category[],
-  expectedKind: ImportCategoryKind | '',
-) {
-  let bestMatch: { category: Category; score: number } | null = null
+function findBestCategoryNameMatch(source: string, categories: Category[]) {
+  let bestMatch: { category: Category; score: number; scopeRank: number } | null = null
   let tied = false
 
   for (const category of categories) {
-    if (expectedKind && category.kind !== expectedKind) continue
-
     const score = scoreCategoryNameMatch(source, category.name)
     if (score <= 0) continue
 
+    const scopeRank = getCategoryScopeRank(category)
     if (!bestMatch || score > bestMatch.score) {
-      bestMatch = { category, score }
+      bestMatch = { category, score, scopeRank }
       tied = false
       continue
     }
 
-    if (score === bestMatch.score) tied = true
+    if (score < bestMatch.score) continue
+
+    // Two categories can share a name across scopes, since each scope is unique on its own, so the
+    // closer one settles it rather than the row being left unanswered
+    if (scopeRank < bestMatch.scopeRank) {
+      bestMatch = { category, score, scopeRank }
+      tied = false
+      continue
+    }
+
+    if (scopeRank === bestMatch.scopeRank) tied = true
   }
 
   return bestMatch && !tied ? bestMatch.category : null
+}
+
+/**
+ * How close a category is to the user, which settles a match two categories score equally on: their
+ * own first, then one their group shares, then one that ships with the app
+ */
+function getCategoryScopeRank(category: Category) {
+  if (category.is_system) return 2
+  return category.group_id ? 1 : 0
 }
 
 function scoreCategoryNameMatch(source: string, categoryName: string) {

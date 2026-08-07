@@ -467,7 +467,7 @@ export function useTransactionImportWorkflow() {
       // until the user answers it
       const answerableCategories = importedCategories.filter((category) => !clearedCategorySources.has(category))
       const matched = canInferCategoryMappings
-        ? inferCategoryMappings(answerableCategories, liveCategoryMappings, categories ?? [], categoryTypesBySource)
+        ? inferCategoryMappings(answerableCategories, liveCategoryMappings, categories ?? [])
         : keepCurrentMatchMap(liveCategoryMappings, answerableCategories)
 
       // A cleared name still needs its row, just an unanswered one
@@ -479,7 +479,7 @@ export function useTransactionImportWorkflow() {
       }
       return resolved
     },
-    [canInferCategoryMappings, categories, categoryTypesBySource, clearedCategorySources, importedCategories, liveCategoryMappings],
+    [canInferCategoryMappings, categories, clearedCategorySources, importedCategories, liveCategoryMappings],
   )
 
   const autoFilledCategories = useMemo(
