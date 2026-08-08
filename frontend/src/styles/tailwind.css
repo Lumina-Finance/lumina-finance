@@ -298,8 +298,15 @@
     transition: opacity 0.2s ease, max-width 0.28s ease;
   }
 
-  .app-nav-link-label,
-  .app-nav-user-meta {
+  .app-nav-link-label {
+    max-width: 12rem;
+  }
+
+  /* Only the sidebar folds, and this cap is the property that animates to zero as it does, so it is
+     scoped to the sidebar. The mobile panel is as wide as the screen, where a capped name block stops
+     growing with room to spare and the row's leftover width collects after the last child, leaving
+     the logout button stranded mid-row rather than against the right edge */
+  .app-desktop-nav .app-nav-user-meta {
     max-width: 12rem;
   }
 

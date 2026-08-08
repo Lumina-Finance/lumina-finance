@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { parseIsoDate } from '@/components/date-field/dateSegments'
+import { STACKING_LEVELS } from '@/constants/stackingLevels'
 import { useAuth } from '@/hooks/useAuth'
 import { formatYmd, getTodayYmd, getWeekdayIndex } from '@/utils/date'
 import { FLOATING_LAYER_PROPS } from '@/utils/floatingLayer'
@@ -18,9 +19,6 @@ interface CalendarPopoverProps {
 
 const POPOVER_WIDTH = 264
 
-// The popover portals to the body, so it has to clear the full-screen sheets and modals at 100 to
-// draw above whatever opened it. Nothing in the app renders above this
-const POPOVER_Z_INDEX = 110
 const POPOVER_ESTIMATED_HEIGHT = 320
 const VIEWPORT_MARGIN = 8
 const WEEKDAY_LABELS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su']
@@ -229,7 +227,7 @@ export default function CalendarPopover({ open, anchorRef, value, onSelect, onCl
             top: position.top,
             left: position.left,
             width: POPOVER_WIDTH,
-            zIndex: POPOVER_Z_INDEX,
+            zIndex: STACKING_LEVELS.popover,
             background: 'var(--app-input-bg)',
             border: '1px solid var(--app-border-strong)',
             boxShadow: 'var(--app-shadow-soft)',

@@ -47,6 +47,10 @@ export function DesktopToolbarControls({
         {filterPanel}
       </div>
 
+      {/* Deliberately a step under the 44px the search field and the collapsed filter pill take. The
+          row is tuned to look even rather than to measure even, so this is a compromise and not an
+          oversight: do not square it up with the rest. The invisible twin below is measured by the
+          toolbar to decide when the row wraps, so any height change has to happen on both */}
       <button
         type="button"
         className={`app-glass-button-primary h-10 shrink-0 ${desktopCreateStacked ? 'basis-full justify-center' : 'w-auto'}`}

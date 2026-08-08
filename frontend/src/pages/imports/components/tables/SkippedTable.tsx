@@ -22,6 +22,12 @@ const SKIPPED_TABLE_MAX_HEIGHT = '21rem'
 // visibly slide beneath them
 const FROZEN_COLUMN_BACKGROUND = IMPORT_INSET_STYLE.background
 
+// The three layers inside this table's own scroller, in order. They order the table's cells against
+// each other and reach nothing outside it, so they are not levels on the app's stacking scale
+const FROZEN_COLUMN_Z_INDEX = 1
+const HEADER_ROW_Z_INDEX = 2
+const FROZEN_HEADER_Z_INDEX = 3
+
 /**
  * Builds the frozen lead cell style, whose width doubles as the sticky
  * offset of the frozen Reason column beside it
@@ -34,7 +40,7 @@ function buildFrozenLeadCellStyle(leadColumnWidth: string): CSSProperties {
     minWidth: leadColumnWidth,
     maxWidth: leadColumnWidth,
     background: FROZEN_COLUMN_BACKGROUND,
-    zIndex: 1,
+    zIndex: FROZEN_COLUMN_Z_INDEX,
   }
 }
 
@@ -48,7 +54,7 @@ function buildFrozenReasonCellStyle(leadColumnWidth: string): CSSProperties {
     left: leadColumnWidth,
     background: FROZEN_COLUMN_BACKGROUND,
     borderRight: '1px solid var(--app-border)',
-    zIndex: 1,
+    zIndex: FROZEN_COLUMN_Z_INDEX,
   }
 }
 
@@ -59,10 +65,8 @@ const HEADER_CELL_STYLE: CSSProperties = {
   top: 0,
   background: FROZEN_COLUMN_BACKGROUND,
   borderBottom: '1px solid var(--app-border)',
-  zIndex: 2,
+  zIndex: HEADER_ROW_Z_INDEX,
 }
-
-const FROZEN_HEADER_Z_INDEX = 3
 
 /**
  * Sizes the reason content, asking for the longest reason on one line and

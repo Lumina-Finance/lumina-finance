@@ -35,7 +35,7 @@ export default function Toast({ toast, onDismiss }: ToastProps) {
           <motion.div
             role={toast.status === 'error' ? 'alert' : 'status'}
             aria-live={toast.status === 'error' ? 'assertive' : 'polite'}
-            className="fixed bottom-5 right-5 z-[110] flex max-w-[min(24rem,calc(100vw-2.5rem))] items-start gap-3 rounded-xl px-4 py-3 text-left text-sm font-medium shadow-lg"
+            className="fixed bottom-5 right-5 z-toast flex max-w-[min(24rem,calc(100vw-2.5rem))] items-start gap-3 rounded-xl px-4 py-3 text-left text-sm font-medium shadow-lg"
             style={{
               background: 'var(--app-bg)',
               border: '1px solid var(--app-border-strong)',

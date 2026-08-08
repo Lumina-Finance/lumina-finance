@@ -9,6 +9,14 @@ const OVERLAY_MUTED_TEXT = 'var(--app-text-muted)'
 const OVERLAY_ACCENT = 'var(--app-accent)'
 const OVERLAY_SUCCESS = 'var(--app-positive)'
 const OVERLAY_ERROR = 'var(--app-negative)'
+/**
+ * Covers the imports page and nothing else, so this orders it only against the rest of that page and
+ * competes with nothing outside it, which is why it is not a level on the app's stacking scale.
+ * app-page-content is a stacking context twice over on this route, through the isolation it always
+ * carries and through the `fixed inset-0 z-focused-page` the imports page takes
+ */
+const OVERLAY_Z_INDEX = 90
+
 const OVERLAY_EASE: [number, number, number, number] = [0.25, 0.1, 0.25, 1]
 const OVERLAY_SPRING_EASE: [number, number, number, number] = [0.16, 1, 0.3, 1]
 const overlayButtonClass = 'h-10 w-full box-border whitespace-nowrap leading-none sm:w-auto'
@@ -192,8 +200,8 @@ export function ImportProgressOverlay({
         // to how a value dropped from the target is treated
         <motion.div
           key="import-progress-overlay"
-          className="fixed inset-0 z-[90] flex items-center justify-center px-5 py-8"
-          style={{ background: OVERLAY_BACKGROUND, color: OVERLAY_TEXT }}
+          className="fixed inset-0 flex items-center justify-center px-5 py-8"
+          style={{ background: OVERLAY_BACKGROUND, color: OVERLAY_TEXT, zIndex: OVERLAY_Z_INDEX }}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1, pointerEvents: 'auto' }}
           exit={{ opacity: 0, pointerEvents: 'none' }}

@@ -18,6 +18,11 @@ import {
 // transaction facets, so the tabs are laid out three across
 const FACET_GRID_COLUMNS = 'repeat(3, minmax(0, 1fr))'
 
+// Says the badge belongs over the sliding highlight behind it rather than among the tab's own
+// content. It would land there from document order alone, being the last child and absolutely
+// positioned, so this states the intent rather than achieving it
+const FACET_COUNT_BADGE_Z_INDEX = 1
+
 /**
  * Renders the shared filter panel body: the facet tabs, the active facet checklist, the removable
  * active-filter chips, and the apply and clear actions, driven by the shared draft
@@ -91,7 +96,7 @@ export function FilterPanelBody({
                 {facetCount > 0 && (
                   <span
                     className="absolute flex h-[14px] min-w-[14px] items-center justify-center rounded-full px-1 text-[9px] font-medium"
-                    style={{ top: 2, right: 2, zIndex: 1, background: 'var(--app-accent)', color: 'var(--app-button-primary-text)' }}
+                    style={{ top: 2, right: 2, zIndex: FACET_COUNT_BADGE_Z_INDEX, background: 'var(--app-accent)', color: 'var(--app-button-primary-text)' }}
                   >
                     {facetCount}
                   </span>

@@ -31,6 +31,11 @@ const NO_DISABLED_FACETS = new Set<string>()
 // The account facet is disabled on an account's own transaction list, where the scope is fixed
 const ACCOUNT_DISABLED_FACETS = new Set(['accounts'])
 
+// Says the badge belongs over the sliding highlight behind it rather than among the tab's own
+// content. It would land there from document order alone, being the last child and absolutely
+// positioned, so this states the intent rather than achieving it
+const FACET_COUNT_BADGE_Z_INDEX = 1
+
 /**
  * Names why the amount range cannot be shown or changed, for the line the currency note usually holds
  *
@@ -143,7 +148,7 @@ export function FilterPanelBody({
                 {!isDisabled && facetCount > 0 && (
                   <span
                     className="absolute flex h-[14px] min-w-[14px] items-center justify-center rounded-full px-1 text-[9px] font-medium"
-                    style={{ top: 2, right: 2, zIndex: 1, background: 'var(--app-accent)', color: 'var(--app-button-primary-text)' }}
+                    style={{ top: 2, right: 2, zIndex: FACET_COUNT_BADGE_Z_INDEX, background: 'var(--app-accent)', color: 'var(--app-button-primary-text)' }}
                   >
                     {facetCount}
                   </span>

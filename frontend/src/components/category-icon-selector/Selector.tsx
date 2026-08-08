@@ -309,7 +309,7 @@ function EmojiMartIconPicker({
 
   return createPortal(
     <div
-      className="fixed z-[110] inline-block pb-2 pl-1 pr-1 pt-1"
+      className="fixed z-popover inline-block pb-2 pl-1 pr-1 pt-1"
       data-category-emoji-picker="true"
       role="dialog"
       aria-label={`Select ${categoryName} icon`}

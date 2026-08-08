@@ -178,7 +178,7 @@ export default function TaxAdvantagedCategoryModal({
             <motion.div
               role={autosaveNotice.status === 'error' ? 'alert' : 'status'}
               aria-live={autosaveNotice.status === 'error' ? 'assertive' : 'polite'}
-              className="fixed bottom-5 right-5 z-[70] flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium shadow-lg"
+              className="fixed bottom-5 right-5 z-notice flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium shadow-lg"
               style={{
                 background: 'var(--app-bg)',
                 border: '1px solid var(--app-border-strong)',

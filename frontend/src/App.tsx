@@ -199,9 +199,17 @@ function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase, 
           <AnimatePresence>
             {routeLoading && routeLoaderDelayElapsed && !isInitialLoad && <LoadingScreen key="route-loader" variant="main" />}
           </AnimatePresence>
+          {/* isolate makes this a stacking context for good, so a level set on an element that stays
+              in the page orders only against the rest of the page and never against the navigation, a
+              dialog or a toast. An overlay portalled out to the body is a sibling of those instead, so
+              it still competes with them and takes its level from the scale. Without this the
+              transform on the wrapper below is the only thing containing the in-page ones, and that
+              exists just while a route transition animates, so one could reach the top of the page at
+              rest and paint over chrome it belongs under. It scopes painting alone: a fixed child
+              still measures against the viewport, which keeps an open drop-down where it was placed */}
           <main
             id="app-page-content"
-            className={`min-w-0 flex-1 ${isFocusedPage ? 'fixed inset-0 z-[60] p-0' : `relative px-4 pb-8 pt-6 ${navOffsetClass} min-[1050px]:px-6 ${desktopBottomPadding} min-[1050px]:pt-10 transition-[margin] duration-[450ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none`}`}
+            className={`min-w-0 flex-1 isolate ${isFocusedPage ? 'fixed inset-0 z-focused-page p-0' : `relative px-4 pb-8 pt-6 ${navOffsetClass} min-[1050px]:px-6 ${desktopBottomPadding} min-[1050px]:pt-10 transition-[margin] duration-[450ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none`}`}
             aria-busy={pageTransitioning}
           >
             <motion.div

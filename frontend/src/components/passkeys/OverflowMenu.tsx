@@ -102,7 +102,7 @@ export function OverflowMenu({ label, items, disabled = false }: OverflowMenuPro
             <motion.div
               ref={menuRef}
               role="menu"
-              className="app-modal-panel fixed z-[80] overflow-hidden rounded-lg"
+              className="app-modal-panel fixed z-menu overflow-hidden rounded-lg"
               style={{
                 top: position.top,
                 left: position.left,

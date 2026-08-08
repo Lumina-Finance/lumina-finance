@@ -51,7 +51,7 @@ export function DesktopNavigation({
     <motion.nav
       aria-label="Primary"
       className={joinClassNames(
-        'app-desktop-nav fixed left-5 z-40 hidden flex-col rounded-2xl px-4 pb-4 pt-7 min-[1050px]:flex',
+        'app-desktop-nav fixed left-5 z-navigation hidden flex-col rounded-2xl px-4 pb-4 pt-7 min-[1050px]:flex',
         !navExpanded && 'app-desktop-nav-glass',
         !expanded && 'app-desktop-nav-collapsed',
       )}

@@ -11,8 +11,10 @@ const EASE = [0.25, 0.1, 0.25, 1] as const
 // reads as the content settling rather than as the panel animating again
 const LAYOUT_TRANSITION = { duration: 0.22, ease: EASE } as const
 
-// A modal opened from the page and a modal opened from another modal. The stacked level sits above every
-// page-level modal and settles a little faster so the second one never feels slower to arrive than the first
+// A modal opened from the page and a modal opened from another modal. Both take their stacking level from
+// the named scale in constants/stackingLevels.ts, where the stacked one sits above every page-level modal
+// and above the full-screen filter sheet. It also settles a little faster, so the second modal never feels
+// slower to arrive than the first
 //
 // Neither level filters its own backdrop. The frosting comes from blurring whatever the dialog covers, the
 // page in app-behind-modal and the panel underneath in app-modal-panel-covered, both of which are inert and
@@ -20,13 +22,13 @@ const LAYOUT_TRANSITION = { duration: 0.22, ease: EASE } as const
 // anything above it moves, which took the GPU to saturation whenever a chart in a modal tracked the pointer
 const LEVELS = {
   page: {
-    className: 'z-[60]',
+    className: 'z-modal',
     backdropDuration: 0.2,
     panelOffset: { opacity: 0, scale: 0.96, y: 12 },
     panelTransition: { duration: 0.25, ease: EASE },
   },
   stacked: {
-    className: 'z-[100]',
+    className: 'z-stacked-modal',
     backdropDuration: 0.15,
     panelOffset: { opacity: 0, scale: 0.94, y: 16 },
     panelTransition: { duration: 0.22, ease: EASE },
@@ -42,7 +44,7 @@ interface ModalShellProps {
   titleId: string
   /** Size and layout classes for the panel. Its background, border and shadow come from app-modal-panel */
   panelClassName: string
-  /** Whether the modal was opened from the page or from another modal, which sets its z-index, backdrop blur and timing */
+  /** Whether the modal was opened from the page or from another modal, which sets its stacking level and its entrance timing */
   level?: ModalLevel
   /** Blocks Escape and backdrop dismissal while an action is in flight */
   closeDisabled?: boolean
