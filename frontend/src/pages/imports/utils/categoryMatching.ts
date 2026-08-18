@@ -1,11 +1,6 @@
 import type { Category } from '@/api/categories'
 import { CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
-import type {
-  ColumnMap,
-  ImportAmountSignConventions,
-  ImportCategoryKind,
-  ImportFileDraft,
-} from '@/pages/imports/types'
+import type { ColumnMap, ImportCategoryKind, ImportFileDraft } from '@/pages/imports/types'
 import { resolveImportAmount } from './columnMapping'
 import { parseImportNumber } from './valueParsers'
 
@@ -35,7 +30,6 @@ export function splitImportedValues(value: string) {
 export function getImportedCategoryTypes(
   files: ImportFileDraft[],
   columnMap: ColumnMap,
-  signConventions: ImportAmountSignConventions,
   importedCategories: string[],
 ) {
   const signsByCategory = new Map<string, Set<'expense' | 'income'>>()
@@ -54,7 +48,7 @@ export function getImportedCategoryTypes(
       const category = row[categoryHeader]?.trim()
       if (!category) continue
 
-      const amount = parseImportNumber(resolveImportAmount(row, columnMap, signConventions).amount)
+      const amount = parseImportNumber(resolveImportAmount(row, columnMap).amount)
       if (amount === null || amount === 0) continue
 
       const signs = signsByCategory.get(category) ?? new Set<'expense' | 'income'>()

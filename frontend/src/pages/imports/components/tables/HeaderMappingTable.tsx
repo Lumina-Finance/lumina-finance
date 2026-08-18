@@ -1,14 +1,7 @@
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
 import IconTooltip from '@/components/tooltips/IconTooltip'
-import { AMOUNT_SIGN_CONVENTION_LABELS, IMPORT_DATE_FORMAT_LABELS } from '@/pages/imports/constants'
-import type {
-  ColumnMap,
-  ColumnValidationErrors,
-  ImportAmountSideTarget,
-  ImportAmountSignConvention,
-  ImportAmountSignConventions,
-  ImportFileDraft,
-} from '@/pages/imports/types'
+import { IMPORT_DATE_FORMAT_LABELS } from '@/pages/imports/constants'
+import type { ColumnMap, ColumnValidationErrors, ImportFileDraft } from '@/pages/imports/types'
 import {
   IMPORT_DATE_FORMATS,
   type ImportDateFormat,
@@ -20,17 +13,6 @@ import {
 // Marks a format the column cannot be read in, kept short because it renders as a pill beside the
 // option label. Choosing it anyway is allowed, and the column error then quotes the value that broke
 const UNREADABLE_FORMAT_BADGE = 'Does not fit'
-
-// The order the two sign answers are offered in, with the one a column starts on first
-const AMOUNT_SIGN_CONVENTIONS: ImportAmountSignConvention[] = ['positive', 'negative']
-
-/**
- * Reports whether a mapped field is one of the two amount sides, which are the fields carrying a
- * sign convention of their own
- */
-function isAmountSide(target: string): target is ImportAmountSideTarget {
-  return target === 'amount_out' || target === 'amount_in'
-}
 
 /**
  * Table mapping each column header found in the uploaded files to an app field, showing sample
@@ -48,10 +30,8 @@ export function ImportHeaderMappingTable({
   validationErrors,
   dateFormat,
   dateFormatScan,
-  amountSignConventions,
   onChange,
   onDateFormatChange,
-  onAmountSignConventionChange,
 }: {
   headers: string[]
   files: ImportFileDraft[]
@@ -61,20 +41,13 @@ export function ImportHeaderMappingTable({
   validationErrors: ColumnValidationErrors
   dateFormat: ImportDateFormat | null
   dateFormatScan: ImportDateFormatScan
-  amountSignConventions: ImportAmountSignConventions
   onChange: (header: string, target: string) => void
   onDateFormatChange: (dateFormat: ImportDateFormat) => void
-  onAmountSignConventionChange: (side: ImportAmountSideTarget, convention: ImportAmountSignConvention) => void
 }) {
   const dateFormatOptions: DropdownOption[] = IMPORT_DATE_FORMATS.map((format) => ({
     value: format,
     label: `${IMPORT_DATE_FORMAT_LABELS[format].label} (${IMPORT_DATE_FORMAT_LABELS[format].example})`,
     badge: dateFormatScan.rejectedBy[format] ? UNREADABLE_FORMAT_BADGE : undefined,
-  }))
-
-  const amountSignOptions: DropdownOption[] = AMOUNT_SIGN_CONVENTIONS.map((convention) => ({
-    value: convention,
-    label: AMOUNT_SIGN_CONVENTION_LABELS[convention],
   }))
 
   // The wrapper scrolls sideways only while the table is wider than the viewport. Past that it stops
@@ -151,18 +124,6 @@ export function ImportHeaderMappingTable({
                           value={dateFormat ?? ''}
                           onChange={(nextValue) => onDateFormatChange(nextValue as ImportDateFormat)}
                           placeholder="Choose the date format"
-                          size="compact"
-                        />
-                      </div>
-                    )}
-                    {isAmountSide(selectedTarget) && (
-                      <div className="min-w-0 flex-[1.4]">
-                        <Dropdown
-                          options={amountSignOptions}
-                          value={amountSignConventions[selectedTarget]}
-                          onChange={(nextValue) => (
-                            onAmountSignConventionChange(selectedTarget, nextValue as ImportAmountSignConvention)
-                          )}
                           size="compact"
                         />
                       </div>

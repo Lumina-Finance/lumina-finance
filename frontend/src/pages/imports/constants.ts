@@ -2,14 +2,7 @@ import type { CSSProperties } from 'react'
 import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
-import type {
-  ColumnMap,
-  ColumnTarget,
-  ColumnTargetGroup,
-  ImportAmountSignConvention,
-  ImportAmountSignConventions,
-  ImportCategoryKind,
-} from './types'
+import type { ColumnMap, ColumnTarget, ColumnTargetGroup, ImportCategoryKind } from './types'
 import type { ImportDateFormat } from './utils/valueParsers'
 
 export const EMPTY_COLUMN_MAP: ColumnMap = {
@@ -48,8 +41,8 @@ export const COLUMN_TARGETS: Array<{
   // The three ways a file can carry the amount, one arrangement of which every import needs. The two
   // sides follow the single column they are an alternative to
   { id: 'amount', label: 'Amount', hint: 'One column carrying the whole transaction, negative for money out and positive for money in. Map this, or map the two sides below where the file writes them separately.', group: 'amount' },
-  { id: 'amount_out', label: 'Money out', hint: 'A column holding only the money leaving the account. Say beside it whether the file writes those values as positive numbers or with a minus sign, and a value carrying the other sign is read as a refund. Map it beside Money in, or on its own where the file holds nothing but money going out.', group: 'amount' },
-  { id: 'amount_in', label: 'Money in', hint: 'A column holding only the money coming into the account. Say beside it whether the file writes those values as positive numbers or with a minus sign, and a value carrying the other sign is read as a reversal. Map it beside Money out, or on its own where the file holds nothing but money coming in.', group: 'amount' },
+  { id: 'amount_out', label: 'Money out', hint: 'A column holding only the money leaving the account, written either unsigned or with a minus sign. A plus sign there is refused, since money coming in belongs in the Money in column. Map it beside Money in, or on its own where the file holds nothing but money going out.', group: 'amount' },
+  { id: 'amount_in', label: 'Money in', hint: 'A column holding only the money coming into the account, written either unsigned or with a plus sign. A minus sign there is refused, since money going out belongs in the Money out column. Map it beside Money out, or on its own where the file holds nothing but money coming in.', group: 'amount' },
   { id: 'currency', label: 'Currency', hint: 'ISO currency code. Checked against the account each row is written to.', group: 'optional' },
   { id: 'merchant_id', label: 'Merchant', hint: 'Resolved from imported merchant text.', group: 'optional' },
   { id: 'notes', label: 'Notes', hint: 'Optional transaction notes.', group: 'optional' },
@@ -71,21 +64,6 @@ export const COLUMN_TARGET_GROUP_RANKS: Record<ColumnTargetGroup, number> = {
   required: 0,
   amount: 1,
   optional: 2,
-}
-
-// What each amount side starts on, which is what almost every statement does: a column of purchases
-// and a column of deposits, both written as positive numbers, with the column saying which way the
-// money went
-export const DEFAULT_AMOUNT_SIGN_CONVENTIONS: ImportAmountSignConventions = {
-  amount_out: 'positive',
-  amount_in: 'positive',
-}
-
-// How each side's second dropdown reads. Both sides offer the same two answers, since either column
-// can be the one a file writes with a minus sign
-export const AMOUNT_SIGN_CONVENTION_LABELS: Record<ImportAmountSignConvention, string> = {
-  positive: 'Written as positive numbers',
-  negative: 'Written with a minus sign',
 }
 
 // Reported as missing where no arrangement carrying the amount is mapped. It offers all three rather
@@ -206,16 +184,23 @@ export const ROW_AMOUNT_BLANK_REASON = 'The amount cell is blank.'
 export const ROW_AMOUNT_UNREADABLE_REASON = 'The amount is not a number.'
 export const ROW_AMOUNT_TOO_LARGE_REASON = 'The amount is larger than this app can store.'
 
-// The three ways a row cannot be read from the columns holding money out and money in. The first
-// needs both mapped to happen at all, since one side alone leaves the other empty. The other two
-// each send the user to map the column holding the other direction, which is the fix whichever way
-// the file leaves the unstated side. A sign running against its column is not among them, since
-// that is a refund or a reversal and is read rather than refused
+// The five ways a row cannot be read from the columns holding money out and money in. The first
+// needs both mapped to happen at all, since one side alone leaves the other empty. The next two each
+// send the user to map the column holding the other direction, which is the fix whichever way the
+// file leaves the unstated side
 export const ROW_AMOUNT_BOTH_SIDES_REASON = 'This row states a money out and a money in amount, so which way it runs is not clear.'
 export const ROW_AMOUNT_NO_SIDE_REASON = 'This row leaves every amount column mapped for this file blank. If the file holds the other direction in a column of its own, map that column too.'
 // Told apart from the reason above because the row is not empty and the table shows the user the
 // zero it holds, so being told it states nothing would contradict what is in front of them
 export const ROW_AMOUNT_SIDE_STATES_ZERO_REASON = 'The one amount column mapped states zero on this row, so its money went the other way. If the file holds that direction in a column of its own, map that column too.'
+
+// The last two are a sign the column cannot mean. Each says which column it found the sign in and
+// which one that value belongs in, because the fix is moving the value rather than editing its sign:
+// the file has a column for the other direction and this row did not use it. They are separate
+// constants rather than one, since the reason is looked up by problem alone and a single sentence
+// could not say which of the two columns it meant
+export const ROW_AMOUNT_OUT_SIDE_PLUS_REASON = 'The money out column carries a plus sign on this row. A value there is money leaving the account, so write it unsigned or with a minus sign. Money coming in belongs in the money in column.'
+export const ROW_AMOUNT_IN_SIDE_MINUS_REASON = 'The money in column carries a minus sign on this row. A value there is money coming into the account, so write it unsigned or with a plus sign. Money going out belongs in the money out column.'
 
 /**
  * Says an amount carries decimal places its currency does not have
@@ -248,7 +233,7 @@ export const ROW_SIGN_DISAGREES_WITH_CATEGORY_REASON = 'The amount runs the oppo
 // Shown once for the whole file where every amount reads as money coming in, which is either a file
 // of nothing but income or one being read backwards. It cannot tell those apart, so it says what the
 // rows come to and lists what to check, rather than asserting which of the two this is
-export const NO_OUTFLOWS_WARNING = 'Every row in this file reads as money coming in. If that is right, there is nothing to do. If it is not, check three things: that the money going out is mapped to the column actually holding it, that the answer beside Money out matches how the file writes those values, and that a file using one Amount column writes its money out with a minus sign.'
+export const NO_OUTFLOWS_WARNING = 'Every row in this file reads as money coming in. If that is right, there is nothing to do. If it is not, check two things: that the money going out is mapped to the column actually holding it, and that a file using one Amount column writes its money out with a minus sign.'
 
 /**
  * Shown above the column mapping table, saying how the importer reads an amount
@@ -257,7 +242,7 @@ export const NO_OUTFLOWS_WARNING = 'Every row in this file reads as money coming
  * instruction stays for the one arrangement there is no mapping for, a column of words saying which
  * way a row runs
  */
-export const AMOUNT_CONVENTION_NOTE = 'Imported amounts carry their own direction. Map one Amount column, negative for money out and positive for money in, or map Money out and Money in where the file keeps the two apart, or just one of those two where the file holds money going only one way. An expense category normally holds money going out and an income category money coming in. The other way round is accepted for a refund or a loss, and those rows are listed for you to check before the import runs. A file that says which way a row runs in a column of words has to be corrected before it is uploaded.'
+export const AMOUNT_CONVENTION_NOTE = 'Imported amounts carry their own direction. Map one Amount column, negative for money out and positive for money in, or map Money out and Money in where the file keeps the two apart, or just one of those two where the file holds money going only one way. A Money out or Money in column states its own direction, so a value there may only carry a sign that agrees with it, and a row breaking that is listed rather than read the other way. An expense category normally holds money going out and an income category money coming in. The other way round is accepted for a refund or a loss, and those rows are listed for you to check before the import runs. A file that says which way a row runs in a column of words has to be corrected before it is uploaded.'
 
 // Shown where a source rows are written to matches an account the user has archived, which is the
 // one account that source is not offered. The matched account names follow it

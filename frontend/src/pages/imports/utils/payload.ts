@@ -18,7 +18,6 @@ import type {
   ColumnMap,
   ColumnValidationErrors,
   ImportAccountSource,
-  ImportAmountSignConventions,
   ImportBuildResult,
   ImportCategoryKind,
   ImportFileDraft,
@@ -61,7 +60,6 @@ export function buildTransactionImportPayload({
   columnMap,
   columnValidationErrors,
   currencies,
-  amountSignConventions,
   dateFormat,
   files,
   importedCategories,
@@ -80,7 +78,6 @@ export function buildTransactionImportPayload({
   columnMap: ColumnMap
   columnValidationErrors: ColumnValidationErrors
   currencies: Currency[]
-  amountSignConventions: ImportAmountSignConventions
   dateFormat: ImportDateFormat | null
   files: ImportFileDraft[]
   importedCategories: string[]
@@ -239,7 +236,6 @@ export function buildTransactionImportPayload({
   const rowContext: ImportRowContext = {
     columnMap,
     dateFormat,
-    amountSignConventions,
     currencyByAccountSource: getCurrencyByAccountSource(accountMappings, accountById, accountCreateCurrencies),
   }
   const rowJudgement: ImportRowJudgement = { currencies, accountMappings, recordsCounterpartyBySource }

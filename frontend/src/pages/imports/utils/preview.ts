@@ -12,7 +12,6 @@ import {
 import { BALANCE_ADJUSTMENT_CATEGORY_NAME, doesTransferRecordCounterpartyAccount, OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 import type {
   ColumnMap,
-  ImportAmountSignConventions,
   ImportCategoryKind,
   ImportFileDraft,
   ImportRowProblem,
@@ -34,7 +33,6 @@ import {
 interface BuildImportPreviewRowsOptions {
   files: ImportFileDraft[]
   columnMap: ColumnMap
-  amountSignConventions: ImportAmountSignConventions
   dateFormat: ImportDateFormat | null
   missingRequiredColumnLabels: string[]
   currencies: Currency[]
@@ -75,7 +73,6 @@ export function groupPreviewRowsByDate(rows: PreviewTransactionRow[]) {
 export function buildImportPreviewRows({
   files,
   columnMap,
-  amountSignConventions,
   dateFormat,
   missingRequiredColumnLabels,
   currencies,
@@ -110,7 +107,6 @@ export function buildImportPreviewRows({
   const rowContext: ImportRowContext = {
     columnMap,
     dateFormat,
-    amountSignConventions,
     currencyByAccountSource: getCurrencyByAccountSource(resolvedAccountMappings, accountById, accountCreateCurrencies),
   }
 

@@ -11,7 +11,9 @@ import {
   ROW_ACCOUNT_BLANK_REASON,
   ROW_AMOUNT_BLANK_REASON,
   ROW_AMOUNT_BOTH_SIDES_REASON,
+  ROW_AMOUNT_IN_SIDE_MINUS_REASON,
   ROW_AMOUNT_NO_SIDE_REASON,
+  ROW_AMOUNT_OUT_SIDE_PLUS_REASON,
   ROW_AMOUNT_SIDE_STATES_ZERO_REASON,
   ROW_AMOUNT_TOO_LARGE_REASON,
   ROW_AMOUNT_UNREADABLE_REASON,
@@ -21,12 +23,7 @@ import {
   ROW_DATE_BLANK_REASON,
   ROW_DATE_UNREADABLE_REASON,
 } from '@/pages/imports/constants'
-import type {
-  ColumnMap,
-  CsvRow,
-  ImportAmountSideProblem,
-  ImportAmountSignConventions,
-} from '@/pages/imports/types'
+import type { ColumnMap, CsvRow, ImportAmountSideProblem } from '@/pages/imports/types'
 import { findCurrencyExponent } from '@/utils/moneyInput'
 import { splitImportedValues } from './categoryMatching'
 import { getMappedValue, resolveImportAmount } from './columnMapping'
@@ -39,6 +36,8 @@ const AMOUNT_SIDE_PROBLEM_REASONS: Record<ImportAmountSideProblem, string> = {
   bothFilled: ROW_AMOUNT_BOTH_SIDES_REASON,
   neitherFilled: ROW_AMOUNT_NO_SIDE_REASON,
   sideStatesZero: ROW_AMOUNT_SIDE_STATES_ZERO_REASON,
+  outSideStatesPlus: ROW_AMOUNT_OUT_SIDE_PLUS_REASON,
+  inSideStatesMinus: ROW_AMOUNT_IN_SIDE_MINUS_REASON,
 }
 
 /**
@@ -84,9 +83,6 @@ export interface ImportRowContext {
   columnMap: ColumnMap
   dateFormat: ImportDateFormat | null
 
-  /** Which sign each amount side writes its own direction with, answered per side in the mapping step */
-  amountSignConventions: ImportAmountSignConventions
-
   /** Settled once per build and read back per row, since it answers a question about a source */
   currencyByAccountSource: Record<string, string>
 }
@@ -117,7 +113,7 @@ export function resolveImportRow(row: CsvRow, fileId: string, context: ImportRow
 
   const accountSource = columnMap.account_id ? getMappedValue(row, columnMap.account_id) : fileId
   const importedDate = getMappedValue(row, columnMap.dt)
-  const { amount, amountSideProblem } = resolveImportAmount(row, columnMap, context.amountSignConventions)
+  const { amount, amountSideProblem } = resolveImportAmount(row, columnMap)
   return {
     accountSource,
     categorySource: getMappedValue(row, columnMap.category_id),

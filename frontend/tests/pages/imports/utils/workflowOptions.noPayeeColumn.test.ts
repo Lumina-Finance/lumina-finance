@@ -7,7 +7,6 @@ import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import {
-  DEFAULT_AMOUNT_SIGN_CONVENTIONS,
   EMPTY_COLUMN_MAP,
   getRowsWithNoPayeeExplanation,
   SELF_MERCHANT_NAME,
@@ -85,7 +84,6 @@ function build({ payeeMapped = true }: { payeeMapped?: boolean } = {}) {
     },
     columnValidationErrors: {},
     currencies: CURRENCIES,
-    amountSignConventions: DEFAULT_AMOUNT_SIGN_CONVENTIONS,
     dateFormat: 'yearFirst',
     files: [createFile(ROWS)],
     importedCategories: ['Groceries'],
@@ -101,7 +99,6 @@ function preview(kind: Category['kind']) {
   return buildImportPreviewRows({
     files: [createFile(ROWS)],
     columnMap: { ...EMPTY_COLUMN_MAP, dt: 'Date', category_id: 'Category', amount: 'Amount' },
-    amountSignConventions: DEFAULT_AMOUNT_SIGN_CONVENTIONS,
     dateFormat: 'yearFirst',
     missingRequiredColumnLabels: [],
     currencies: CURRENCIES,

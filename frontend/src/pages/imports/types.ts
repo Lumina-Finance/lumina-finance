@@ -32,22 +32,15 @@ export type ColumnTargetGroup = 'required' | 'amount' | 'optional'
  * A fact about the row's cells rather than a message, since reading a row and judging it are kept
  * apart and only the judgement puts words to it
  */
-export type ImportAmountSideProblem = 'bothFilled' | 'neitherFilled' | 'sideStatesZero'
-
-/**
- * Which sign a column writes its own direction with
- *
- * A money out column is usually a column of positive numbers, with the column itself saying the
- * money left, but some files write it negative instead. Whichever way it goes, a value carrying the
- * other sign runs the other way, which is how a refund appears in a column of purchases
- */
-export type ImportAmountSignConvention = 'positive' | 'negative'
+export type ImportAmountSideProblem =
+  | 'bothFilled'
+  | 'neitherFilled'
+  | 'sideStatesZero'
+  | 'outSideStatesPlus'
+  | 'inSideStatesMinus'
 
 /** The two fields a file uses when it keeps its money going out and its money coming in apart */
 export type ImportAmountSideTarget = 'amount_out' | 'amount_in'
-
-/** The convention answered for each side, which every row of that column is read under */
-export type ImportAmountSignConventions = Record<ImportAmountSideTarget, ImportAmountSignConvention>
 
 export type ColumnMap = Record<ColumnTarget, string>
 export type ColumnValidationErrors = Record<string, string>

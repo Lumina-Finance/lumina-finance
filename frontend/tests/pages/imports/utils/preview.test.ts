@@ -6,7 +6,7 @@ import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import type { Institution } from '@/api/institutions'
-import { DEFAULT_AMOUNT_SIGN_CONVENTIONS, CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, EMPTY_COLUMN_MAP } from '@/pages/imports/constants'
+import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, EMPTY_COLUMN_MAP } from '@/pages/imports/constants'
 import type { ImportFileDraft } from '@/pages/imports/types'
 import { buildImportPreviewRows } from '@/pages/imports/utils'
 
@@ -85,7 +85,6 @@ describe('import preview rows', () => {
     expect(buildImportPreviewRows({
       files: [createFile([])],
       columnMap: EMPTY_COLUMN_MAP,
-      amountSignConventions: DEFAULT_AMOUNT_SIGN_CONVENTIONS,
       dateFormat: null,
       missingRequiredColumnLabels: ['Date'],
       currencies,
@@ -123,7 +122,6 @@ describe('import preview rows', () => {
         tag_ids: 'Tags',
         currency: 'Currency',
       },
-      amountSignConventions: DEFAULT_AMOUNT_SIGN_CONVENTIONS,
       dateFormat: 'monthFirst',
       missingRequiredColumnLabels: [],
       currencies,
@@ -182,7 +180,6 @@ describe('import preview rows', () => {
         amount: 'Amount',
         category_id: 'Category',
       },
-      amountSignConventions: DEFAULT_AMOUNT_SIGN_CONVENTIONS,
       dateFormat: 'yearFirst',
       missingRequiredColumnLabels: [],
       currencies,
@@ -221,7 +218,6 @@ describe('import preview rows', () => {
         amount: 'Amount',
         category_id: 'Category',
       },
-      amountSignConventions: DEFAULT_AMOUNT_SIGN_CONVENTIONS,
       dateFormat: 'yearFirst',
       missingRequiredColumnLabels: [],
       currencies,
@@ -258,7 +254,6 @@ describe('import preview rows', () => {
         amount: 'Amount',
         category_id: 'Category',
       },
-      amountSignConventions: DEFAULT_AMOUNT_SIGN_CONVENTIONS,
       dateFormat: 'yearFirst',
       missingRequiredColumnLabels: [],
       currencies,
@@ -297,7 +292,6 @@ describe('import preview rows', () => {
         amount: 'Amount',
         category_id: 'Category',
       },
-      amountSignConventions: DEFAULT_AMOUNT_SIGN_CONVENTIONS,
       dateFormat: 'yearFirst',
       missingRequiredColumnLabels: [],
       currencies,

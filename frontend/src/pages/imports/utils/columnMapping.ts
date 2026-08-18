@@ -5,12 +5,12 @@ import type {
   ColumnValidationErrors,
   CsvRow,
   ImportAmountSideProblem,
-  ImportAmountSignConventions,
   ImportFileDraft,
 } from '@/pages/imports/types'
 import { unique } from './common'
 import {
   applyImportAmountDirection,
+  doesImportAmountSignDisagreeWithColumn,
   type ImportDateFormat,
   isSupportedCurrency,
   isValidAmountValue,
@@ -268,16 +268,14 @@ export function getMappedValue(row: CsvRow, header: string) {
  * Reads a row's amount from whichever arrangement the file is mapped as using
  *
  * A single Amount column is taken as it comes. Where either side is mapped instead, the row states
- * its amount on one side and leaves the other blank or zero, and which side carries it settles which
- * way the row runs unless the value's own sign says otherwise
+ * its amount on one side and leaves the other blank or zero, and the side carrying it settles which
+ * way the row runs
  *
- * @param signConventions - Which sign each side writes its own direction with
- * @returns The amount as the payload carries it, and why there is none where the row breaks the rule
+ * @returns The amount as the payload carries it, and why there is none where the row breaks a rule
  */
 export function resolveImportAmount(
   row: CsvRow,
   columnMap: ColumnMap,
-  signConventions: ImportAmountSignConventions,
 ): {
   amount: string
   amountSideProblem: ImportAmountSideProblem | null
@@ -299,6 +297,16 @@ export function resolveImportAmount(
   if (outCell && outValue === null) return { amount: outCell, amountSideProblem: null }
   if (inCell && inValue === null) return { amount: inCell, amountSideProblem: null }
 
+  // Asked of each filled cell before the rules below, so a row carrying a contradicting sign on one
+  // side and a real amount on the other is reported against the cell to fix rather than as a row
+  // stating two amounts
+  if (doesImportAmountSignDisagreeWithColumn(outCell, 'out')) {
+    return { amount: '', amountSideProblem: 'outSideStatesPlus' }
+  }
+  if (doesImportAmountSignDisagreeWithColumn(inCell, 'in')) {
+    return { amount: '', amountSideProblem: 'inSideStatesMinus' }
+  }
+
   // A zero states no money moved either way, so it never claims its side against the other
   const doesOutState = outValue !== null && outValue !== 0
   const doesInState = inValue !== null && inValue !== 0
@@ -317,10 +325,8 @@ export function resolveImportAmount(
   // read gives the same answer
   const direction = doesOutState || !inCell ? 'out' : 'in'
 
-  const side = direction === 'out' ? 'amount_out' : 'amount_in'
-
   return {
-    amount: applyImportAmountDirection(direction === 'out' ? outCell : inCell, direction, signConventions[side]),
+    amount: applyImportAmountDirection(direction === 'out' ? outCell : inCell, direction),
     amountSideProblem: null,
   }
 }

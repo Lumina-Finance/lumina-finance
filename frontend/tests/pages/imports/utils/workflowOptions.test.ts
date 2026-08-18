@@ -34,8 +34,6 @@ import {
   getSupportedCurrencyCodes,
   hasAmountArrangementClash,
   inferAccountMappings,
-  buildImportAnswerScope,
-  readAmountSignConvention,
 } from '@/pages/imports/utils'
 
 /**
@@ -361,34 +359,5 @@ describe('the three ways a file can carry its amount', () => {
     expect(hasAmountArrangementClash({ ...MAPPED_ELSEWHERE, amount: 'Amount' })).toBe(false)
     expect(hasAmountArrangementClash({ ...MAPPED_ELSEWHERE, amount_out: 'Debit', amount_in: 'Credit' })).toBe(false)
     expect(hasAmountArrangementClash(MAPPED_ELSEWHERE)).toBe(false)
-  })
-})
-
-describe('which sign an amount side writes its own direction with', () => {
-  const FILES = [createFile({ id: 'file-1', name: 'Chequing.csv', headers: ['Debit', 'Credit'], rows: [] })]
-  const OTHER_FILES = [createFile({ id: 'file-2', name: 'Visa.csv', headers: ['Debit', 'Credit'], rows: [] })]
-
-  it('starts a column on values written as positive numbers', () => {
-    expect(readAmountSignConvention(undefined, 'Debit', FILES)).toBe('positive')
-  })
-
-  it('reads back the answer while it is still about the same column and files', () => {
-    const answered = { scope: buildImportAnswerScope('Debit', FILES), convention: 'negative' as const }
-
-    expect(readAmountSignConvention(answered, 'Debit', FILES)).toBe('negative')
-  })
-
-  // Moving the field to another column asks about values the answer was never given for, so it goes
-  // back to the default rather than following the field across
-  it('drops the answer when the field moves to another column', () => {
-    const answered = { scope: buildImportAnswerScope('Debit', FILES), convention: 'negative' as const }
-
-    expect(readAmountSignConvention(answered, 'Credit', FILES)).toBe('positive')
-  })
-
-  it('drops the answer when a different file is staged under the same heading', () => {
-    const answered = { scope: buildImportAnswerScope('Debit', FILES), convention: 'negative' as const }
-
-    expect(readAmountSignConvention(answered, 'Debit', OTHER_FILES)).toBe('positive')
   })
 })

@@ -3,13 +3,8 @@
  * amounts filed against it, whichever arrangement the file writes those amounts in
  */
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_AMOUNT_SIGN_CONVENTIONS, EMPTY_COLUMN_MAP } from '@/pages/imports/constants'
-import type {
-  ColumnMap,
-  CsvRow,
-  ImportAmountSignConventions,
-  ImportFileDraft,
-} from '@/pages/imports/types'
+import { EMPTY_COLUMN_MAP } from '@/pages/imports/constants'
+import type { ColumnMap, CsvRow, ImportFileDraft } from '@/pages/imports/types'
 import { getImportedCategoryTypes } from '@/pages/imports/utils'
 
 /**
@@ -44,7 +39,7 @@ describe('suggesting a type from a single signed amount column', () => {
   ])]
 
   it('reads each name off the direction of its rows', () => {
-    expect(getImportedCategoryTypes(files, SIGNED_MAP, DEFAULT_AMOUNT_SIGN_CONVENTIONS, ['Groceries', 'Salary', 'Travel'])).toEqual({
+    expect(getImportedCategoryTypes(files, SIGNED_MAP, ['Groceries', 'Salary', 'Travel'])).toEqual({
       Groceries: 'Expense',
       Salary: 'Income',
       Travel: 'Mixed',
@@ -54,7 +49,7 @@ describe('suggesting a type from a single signed amount column', () => {
   it('leaves a name blank until an arrangement carrying the amount is mapped', () => {
     const withoutAmount = { ...EMPTY_COLUMN_MAP, category_id: 'Category' }
 
-    expect(getImportedCategoryTypes(files, withoutAmount, DEFAULT_AMOUNT_SIGN_CONVENTIONS, ['Groceries'])).toEqual({ Groceries: '' })
+    expect(getImportedCategoryTypes(files, withoutAmount, ['Groceries'])).toEqual({ Groceries: '' })
   })
 })
 
@@ -69,7 +64,7 @@ describe('suggesting a type from money out and money in columns', () => {
       { Category: 'Travel', Debit: '', Credit: '15.00' },
     ])]
 
-    expect(getImportedCategoryTypes(files, BOTH_SIDES_MAP, DEFAULT_AMOUNT_SIGN_CONVENTIONS, ['Groceries', 'Salary', 'Travel'])).toEqual({
+    expect(getImportedCategoryTypes(files, BOTH_SIDES_MAP, ['Groceries', 'Salary', 'Travel'])).toEqual({
       Groceries: 'Expense',
       Salary: 'Income',
       Travel: 'Mixed',
@@ -85,7 +80,7 @@ describe('suggesting a type from money out and money in columns', () => {
       { Category: 'Groceries', Debit: '5.00', Credit: '9.00' },
     ])]
 
-    expect(getImportedCategoryTypes(files, BOTH_SIDES_MAP, DEFAULT_AMOUNT_SIGN_CONVENTIONS, ['Groceries'])).toEqual({ Groceries: 'Expense' })
+    expect(getImportedCategoryTypes(files, BOTH_SIDES_MAP, ['Groceries'])).toEqual({ Groceries: 'Expense' })
   })
 
   it('reads a file that maps only the money out side', () => {
@@ -94,31 +89,31 @@ describe('suggesting a type from money out and money in columns', () => {
     ])]
     const columnMap: ColumnMap = { ...EMPTY_COLUMN_MAP, category_id: 'Category', amount_out: 'Debit' }
 
-    expect(getImportedCategoryTypes(files, columnMap, DEFAULT_AMOUNT_SIGN_CONVENTIONS, ['Groceries'])).toEqual({ Groceries: 'Expense' })
+    expect(getImportedCategoryTypes(files, columnMap, ['Groceries'])).toEqual({ Groceries: 'Expense' })
   })
 
-  // A refund in the debit column runs the other way, so the name it is filed under holds both
-  // directions. Reading the raw cells instead would call it an expense and hide the refund
-  it('reads a refund in the money out column as the other direction', () => {
+  // Both signs a money out column may carry mean money out, so a column mixing them holds one
+  // direction rather than two. Reading the sign as the direction would call this name Mixed
+  it('reads both signs of a money out column as the one direction', () => {
     const files = [createFile(['Category', 'Debit', 'Credit'], [
       { Category: 'Groceries', Debit: '12.34', Credit: '' },
       { Category: 'Groceries', Debit: '-4.00', Credit: '' },
     ])]
 
-    expect(getImportedCategoryTypes(files, BOTH_SIDES_MAP, DEFAULT_AMOUNT_SIGN_CONVENTIONS, ['Groceries']))
-      .toEqual({ Groceries: 'Mixed' })
+    expect(getImportedCategoryTypes(files, BOTH_SIDES_MAP, ['Groceries']))
+      .toEqual({ Groceries: 'Expense' })
   })
 
-  // The convention reaches this reading too, so a column answered as written with a minus is not
-  // read as a column of refunds
-  it('reads a side answered as written with a minus sign under that answer', () => {
+  // The row is refused later against its row number, so counting it here would suggest a type from
+  // an amount the import never writes. Travel carries nothing else, which is what makes its answer
+  // the exclusion rather than the row beside it
+  it('ignores a row whose sign its column cannot mean', () => {
     const files = [createFile(['Category', 'Debit', 'Credit'], [
-      { Category: 'Groceries', Debit: '-12.34', Credit: '' },
-      { Category: 'Groceries', Debit: '-4.00', Credit: '' },
+      { Category: 'Groceries', Debit: '12.34', Credit: '' },
+      { Category: 'Travel', Debit: '', Credit: '-30.00' },
     ])]
-    const signedOut: ImportAmountSignConventions = { amount_out: 'negative', amount_in: 'positive' }
 
-    expect(getImportedCategoryTypes(files, BOTH_SIDES_MAP, signedOut, ['Groceries']))
-      .toEqual({ Groceries: 'Expense' })
+    expect(getImportedCategoryTypes(files, BOTH_SIDES_MAP, ['Groceries', 'Travel']))
+      .toEqual({ Groceries: 'Expense', Travel: '' })
   })
 })

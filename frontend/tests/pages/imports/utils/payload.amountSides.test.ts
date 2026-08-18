@@ -7,16 +7,18 @@ import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import {
   AMOUNT_ARRANGEMENT_CLASH_ERROR,
-  DEFAULT_AMOUNT_SIGN_CONVENTIONS,
   EMPTY_COLUMN_MAP,
   MISSING_AMOUNT_COLUMN_LABEL,
   NO_OUTFLOWS_WARNING,
+  ROW_AMOUNT_BLANK_REASON,
   ROW_AMOUNT_BOTH_SIDES_REASON,
+  ROW_AMOUNT_IN_SIDE_MINUS_REASON,
   ROW_AMOUNT_NO_SIDE_REASON,
+  ROW_AMOUNT_OUT_SIDE_PLUS_REASON,
   ROW_AMOUNT_SIDE_STATES_ZERO_REASON,
   ROW_AMOUNT_UNREADABLE_REASON,
 } from '@/pages/imports/constants'
-import type { ColumnMap, CsvRow, ImportAmountSignConventions, ImportFileDraft } from '@/pages/imports/types'
+import type { ColumnMap, CsvRow, ImportFileDraft } from '@/pages/imports/types'
 import { buildTransactionImportPayload } from '@/pages/imports/utils'
 
 const CURRENCIES: Currency[] = [
@@ -54,7 +56,6 @@ function build(
   sides: Array<[string, string]>,
   columnMap: ColumnMap = BOTH_SIDES_MAP,
   columnValidationErrors: Record<string, string> = {},
-  amountSignConventions: ImportAmountSignConventions = DEFAULT_AMOUNT_SIGN_CONVENTIONS,
 ) {
   // The signed column carries what the two sides come to, so a map naming all three is the state a
   // real file reaches rather than one invented for the test
@@ -90,7 +91,6 @@ function build(
     columnMap,
     columnValidationErrors,
     currencies: CURRENCIES,
-    amountSignConventions,
     dateFormat: 'yearFirst',
     files: [file],
     importedCategories: ['Groceries'],
@@ -115,24 +115,20 @@ describe('reading a row from the side that carries its amount', () => {
     expect(committedAmounts(build([['0.00', '45.00'], ['12.34', '0.00']]))).toEqual(['45.00', '-12.34'])
   })
 
-  // The column is written as positive numbers, so a minus on one value runs against it and that row
-  // is a refund. The sign is replaced rather than added in front, which would give --45.00
-  it('reads a minus in the money out column as a refund', () => {
-    expect(committedAmounts(build([['-45.00', '']]))).toEqual(['45.00'])
+  // A minus agrees with a column of money out, so the row is money out and the file needs no answer
+  // about how it writes that column. The sign is replaced rather than added in front, which would
+  // give --45.00
+  it('reads a minus in the money out column as money going out', () => {
+    expect(committedAmounts(build([['-45.00', '']]))).toEqual(['-45.00'])
   })
 
-  // The mirror of the row above, and the reason each side answers for itself: a minus in a column of
-  // deposits is a reversal, money leaving the account
-  it('reads a minus in the money in column as a reversal', () => {
-    expect(committedAmounts(build([['', '-30.00']]))).toEqual(['-30.00'])
+  it('reads a plus in the money in column as money coming in', () => {
+    expect(committedAmounts(build([['', '+2450.00']]))).toEqual(['2450.00'])
   })
 
-  it('reads a value written +45.00 the same way as one written 45.00', () => {
-    expect(committedAmounts(build([['+45.00', '']]))).toEqual(['-45.00'])
-  })
-
-  it('leaves thousands separators as the file wrote them', () => {
+  it('leaves thousands separators as the file wrote them, signed or not', () => {
     expect(committedAmounts(build([['1,234.56', '']]))).toEqual(['-1,234.56'])
+    expect(committedAmounts(build([['-1,234.56', '']]))).toEqual(['-1,234.56'])
   })
 
   // Zero runs neither way, so it is committed without a sign rather than as -0.00. Both sides being
@@ -146,7 +142,7 @@ describe('reading a row from the side that carries its amount', () => {
   it('reads a file that maps only the money out side', () => {
     const columnMap: ColumnMap = { ...EMPTY_COLUMN_MAP, dt: 'Date', category_id: 'Category', amount_out: 'Debit' }
 
-    expect(committedAmounts(build([['45.00', ''], ['12.34', '']], columnMap))).toEqual(['-45.00', '-12.34'])
+    expect(committedAmounts(build([['45.00', ''], ['-12.34', '']], columnMap))).toEqual(['-45.00', '-12.34'])
   })
 
   // With one column to state it in, every row has to state its amount there, so a zero is a row
@@ -208,56 +204,63 @@ describe('refusing a row the two sides cannot be read from', () => {
   })
 })
 
-describe('reading a side written with a minus sign', () => {
-  const SIGNED_OUT: ImportAmountSignConventions = { amount_out: 'negative', amount_in: 'positive' }
-  const SIGNED_IN: ImportAmountSignConventions = { amount_out: 'positive', amount_in: 'negative' }
+describe('refusing a sign the column cannot mean', () => {
+  /**
+   * Reads why each refused row was refused, against the row it was refused on
+   */
+  function refusals(result: ReturnType<typeof build>) {
+    return result.rowProblems.map((problem) => [problem.rowNumber, problem.reason])
+  }
 
-  // Answered on the column rather than guessed, so a statement writing every purchase as a negative
-  // imports as purchases rather than as income
-  it('takes a negative money out value as money going out', () => {
-    expect(committedAmounts(build([['-84.31', '']], BOTH_SIDES_MAP, {}, SIGNED_OUT))).toEqual(['-84.31'])
+  // The file has a column for money coming in and this row did not use it, so the plus is an entry
+  // to correct rather than a direction to read
+  it('refuses a plus in the money out column', () => {
+    expect(refusals(build([['+45.00', '']]))).toEqual([[1, ROW_AMOUNT_OUT_SIDE_PLUS_REASON]])
   })
 
-  // The flipped entry under this convention, which is the one the column does not write with a minus
-  it('takes an unsigned money out value as a refund', () => {
-    expect(committedAmounts(build([['35.00', '']], BOTH_SIDES_MAP, {}, SIGNED_OUT))).toEqual(['35.00'])
+  it('refuses a minus in the money in column', () => {
+    expect(refusals(build([['', '-30.00']]))).toEqual([[1, ROW_AMOUNT_IN_SIDE_MINUS_REASON]])
   })
 
-  it('takes a negative money in value as money coming in', () => {
-    expect(committedAmounts(build([['', '-2100.00']], BOTH_SIDES_MAP, {}, SIGNED_IN))).toEqual(['2100.00'])
+  // Judged before the row is asked which sides state an amount, so the user is sent to the cell
+  // carrying the bad sign rather than told the row states two amounts
+  it('refuses the bad sign ahead of the row stating both sides', () => {
+    expect(refusals(build([['+45.00', '2450.00']]))).toEqual([[1, ROW_AMOUNT_OUT_SIDE_PLUS_REASON]])
   })
 
-  it('takes an unsigned money in value as a reversal', () => {
-    expect(committedAmounts(build([['', '30.00']], BOTH_SIDES_MAP, {}, SIGNED_IN))).toEqual(['-30.00'])
+  // The sign check only ever looks at a value the number pattern accepts, and that is the same
+  // pattern the unreadable check uses, so a value failing it can never be reported as a sign problem
+  // however it is spelled. This records that, rather than pinning the order the two are asked in
+  it('reports a value that is not a number as unreadable even when it carries a sign', () => {
+    expect(refusals(build([['+1.2.3', '']]))).toEqual([[1, ROW_AMOUNT_UNREADABLE_REASON]])
   })
 
-  // Each side answers for itself, which is why the two controls are separate rather than shared
-  it('reads each side under its own answer', () => {
-    const mixed: ImportAmountSignConventions = { amount_out: 'negative', amount_in: 'positive' }
-    const amounts = committedAmounts(build([['-84.31', ''], ['', '2100.00']], BOTH_SIDES_MAP, {}, mixed))
+  // A row refused for its sign has no amount either, so the blank check would otherwise claim it and
+  // send the user to fill in a cell that is not empty
+  it('refuses the bad sign rather than calling the row blank', () => {
+    const columnMap: ColumnMap = { ...EMPTY_COLUMN_MAP, dt: 'Date', category_id: 'Category', amount_out: 'Debit' }
 
-    expect(amounts).toEqual(['-84.31', '2100.00'])
+    expect(refusals(build([['+45.00', '']], columnMap))).toEqual([[1, ROW_AMOUNT_OUT_SIDE_PLUS_REASON]])
+    expect(refusals(build([['+45.00', '']], columnMap))[0][1]).not.toEqual(ROW_AMOUNT_BLANK_REASON)
   })
 
-  it('leaves thousands separators alone whichever way the row runs', () => {
-    expect(committedAmounts(build([['-1,234.56', '']]))).toEqual(['1,234.56'])
+  // A zero carries no direction for a sign to contradict, which is what lets a bank pad the side a
+  // row does not use with -0.00 rather than having every row refused
+  it('reads a signed zero on the unused side as the pad it is', () => {
+    expect(committedAmounts(build([['45.00', '-0.00']]))).toEqual(['-45.00'])
+    expect(committedAmounts(build([['+0.00', '2450.00']]))).toEqual(['2450.00'])
   })
 
-  // The one thing left standing between a wrongly answered convention and a file imported backwards,
-  // now that a sign carrying the other direction is read rather than refused. The suggested category
-  // kinds come off these same amounts, so nothing else in the flow disagrees with the reading
-  it('warns where the answer leaves every row reading as money coming in', () => {
-    const result = build([['-84.31', ''], ['-12.40', '']])
+  // The same exemption where the zero is the only thing the row states, which is still a row whose
+  // money went the way this file has no mapped column for rather than a bad sign
+  it('reads a signed zero on a lone mapped side as stating zero', () => {
+    const columnMap: ColumnMap = { ...EMPTY_COLUMN_MAP, dt: 'Date', category_id: 'Category', amount_out: 'Debit' }
 
-    expect(committedAmounts(result)).toEqual(['84.31', '12.40'])
-    expect(result.warnings).toContain(NO_OUTFLOWS_WARNING)
-    expect(result.payload).not.toBeNull()
+    expect(refusals(build([['+0.00', '']], columnMap))).toEqual([[1, ROW_AMOUNT_SIDE_STATES_ZERO_REASON]])
   })
+})
 
-  it('says nothing once the convention is answered and the rows read as money going out', () => {
-    expect(build([['-84.31', '']], BOTH_SIDES_MAP, {}, SIGNED_OUT).warnings).toEqual([])
-  })
-
+describe('warning that a two-sided file reads as all money coming in', () => {
   // A month of nothing but deposits and the two sides mapped the wrong way round hold identical
   // columns, so this asks about both. A warning nobody needed costs less than a month of spending
   // imported as income
@@ -277,9 +280,10 @@ describe('reading a side written with a minus sign', () => {
     expect(build([['', '2100.00'], ['', '50.00']], columnMap).warnings).toEqual([])
   })
 
-  // Zero runs neither way, so no convention gives it a sign
-  it('writes a zero unsigned under either answer', () => {
-    expect(committedAmounts(build([['0.00', '']], BOTH_SIDES_MAP, {}, SIGNED_OUT))).toEqual(['0.00'])
+  // Money out states its own direction now, so a column of negatives reads as spending and nothing
+  // is warned about
+  it('says nothing where the money out column carries the file\'s minus signs', () => {
+    expect(build([['-84.31', ''], ['-12.40', '']]).warnings).toEqual([])
   })
 })
 

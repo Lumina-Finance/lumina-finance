@@ -19,10 +19,8 @@ type ImportColumnMappingStepProps = Pick<
   | 'columnValidationErrors'
   | 'dateFormat'
   | 'dateFormatScan'
-  | 'amountSignConventions'
   | 'rowsWithNoPayeeCount'
   | 'setDateFormat'
-  | 'setAmountSignConvention'
   | 'updateColumnTarget'
 >
 
@@ -44,10 +42,8 @@ export function ImportColumnMappingStep({
   columnValidationErrors,
   dateFormat,
   dateFormatScan,
-  amountSignConventions,
   rowsWithNoPayeeCount,
   setDateFormat,
-  setAmountSignConvention,
   updateColumnTarget,
 }: ImportColumnMappingStepProps) {
   return (
@@ -74,10 +70,8 @@ export function ImportColumnMappingStep({
           validationErrors={columnValidationErrors}
           dateFormat={dateFormat}
           dateFormatScan={dateFormatScan}
-          amountSignConventions={amountSignConventions}
           onChange={updateColumnTarget}
           onDateFormatChange={setDateFormat}
-          onAmountSignConventionChange={setAmountSignConvention}
         />
       )}
       {hasAmountArrangementClash(columnMap) && (

@@ -173,15 +173,17 @@ describe('checking one side of a file that writes money out and money in separat
     expect(message).not.toContain('every row must have a value')
   })
 
-  // The sign a value carries is read rather than refused, since it is what tells a refund in a column
-  // of purchases from the purchases around it. Which sign the column writes its own direction with
-  // is answered beside the column instead
+  // The column check asks only whether every value is a number, since a sign is judged against the
+  // column it sits in and that is a question about one row rather than about the column. Both signs
+  // mean money out here, so this column is readable throughout
   it('accepts a money out column carrying negative and positive amounts together', () => {
     const files = createColumn('Debit', ['-45.00', '1200.00'])
 
     expect(validateColumnValues(files, 'Debit', 'amount_out', SUPPORTED_CURRENCY_CODES).valid).toBe(true)
   })
 
+  // The column passes and the row carrying the minus is refused afterwards, against its own row
+  // number, which is where the user can see which value to move
   it('accepts a money in column carrying a negative', () => {
     const files = createColumn('Credit', ['-30.00', '45.00'])
 

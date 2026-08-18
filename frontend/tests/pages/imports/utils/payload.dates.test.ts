@@ -6,7 +6,6 @@ import { describe, expect, it } from 'vitest'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import {
-  DEFAULT_AMOUNT_SIGN_CONVENTIONS,
   EMPTY_COLUMN_MAP,
   ROW_DATE_BLANK_REASON,
   ROW_DATE_UNREADABLE_REASON,
@@ -72,7 +71,6 @@ function build(dates: string[], dateFormat: ImportDateFormat | null, columnValid
     categoryTypesBySource: {},
     columnMap: COLUMN_MAP,
     columnValidationErrors,
-    amountSignConventions: DEFAULT_AMOUNT_SIGN_CONVENTIONS,
     dateFormat,
     files: [createFile(dates)],
     importedCategories: ['Groceries'],

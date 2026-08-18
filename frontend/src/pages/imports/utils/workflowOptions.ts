@@ -23,12 +23,10 @@ import type {
   ColumnMap,
   CsvRow,
   ImportAccountSource,
-  ImportAmountSignConvention,
   ImportFileDraft,
   ImportUploadBlock,
 } from '@/pages/imports/types'
 import { getImportAccountName } from './accountMapping'
-import { buildImportAnswerScope } from './scopedAnswers'
 import { splitImportedValues } from './categoryMatching'
 import { unique } from './common'
 
@@ -195,25 +193,6 @@ export function getMissingRequiredColumnLabels(columnMap: ColumnMap): string[] {
   if (!hasAmountArrangement) missing.push(MISSING_AMOUNT_COLUMN_LABEL)
 
   return missing
-}
-
-/**
- * Reads back an amount side's sign convention while it still applies, otherwise the default
- *
- * A convention is answered about one column in one set of files, so moving the field to another
- * column, or staging a different file, leaves the answer behind rather than carrying it onto values
- * it was never given for. Almost every statement writes both sides as positive numbers, so that is
- * what a column starts on
- *
- * @param choice - The answer as stored, against what it was answered about
- * @param header - The column that side is mapped to now
- */
-export function readAmountSignConvention(
-  choice: { scope: string; convention: ImportAmountSignConvention } | undefined,
-  header: string,
-  files: ImportFileDraft[],
-): ImportAmountSignConvention {
-  return choice?.scope === buildImportAnswerScope(header, files) ? choice.convention : 'positive'
 }
 
 /**
