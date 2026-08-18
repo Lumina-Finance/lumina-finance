@@ -130,3 +130,88 @@ describe('promising only the checks that run', () => {
     expect(validateColumnValues(files, 'Anything', 'notes', SUPPORTED_CURRENCY_CODES).valid).toBe(true)
   })
 })
+
+describe('checking one side of a file that writes money out and money in separately', () => {
+  // Blanks are the shape of this arrangement rather than a fault in it, since a row states its
+  // amount on one side and leaves the other empty. Held to the single Amount field's rule, the
+  // column would be refused for the very thing that makes it one side of a pair
+  it('accepts a column left blank on the rows carrying money the other way', () => {
+    for (const target of ['amount_out', 'amount_in'] as const) {
+      const files = createColumn('Debit', ['45.00', '', '12.00'])
+
+      expect(validateColumnValues(files, 'Debit', target, SUPPORTED_CURRENCY_CODES).valid).toBe(true)
+    }
+  })
+
+  it('accepts a column padded with zeros on those rows', () => {
+    const files = createColumn('Debit', ['45.00', '0.00', '12.00'])
+
+    expect(validateColumnValues(files, 'Debit', 'amount_out', SUPPORTED_CURRENCY_CODES).valid).toBe(true)
+  })
+
+  // Refused here, before any row is judged, which is why the row rule only ever sees blanks and
+  // numbers
+  it('refuses a value that is not a number, and gives the row it sits on', () => {
+    const files = createColumn('Debit', ['45.00', 'pending', '12.00'])
+    const result = validateColumnValues(files, 'Debit', 'amount_out', SUPPORTED_CURRENCY_CODES)
+
+    expect(result.valid).toBe(false)
+    expect(result.message).toContain('Row 2')
+    expect(result.message).toContain('pending')
+  })
+
+  // The single Amount field says every row must have a value, and repeating that against a side
+  // would describe the opposite of what the field takes
+  it('does not promise a value in every row', () => {
+    const message = validateColumnValues(
+      [createFile(['Debit'], [])],
+      'Debit',
+      'amount_out',
+      SUPPORTED_CURRENCY_CODES,
+    ).message
+
+    expect(message).not.toContain('every row must have a value')
+  })
+
+  // The column check asks only whether every value is a number, since a sign is judged against the
+  // column it sits in and that is a question about one row rather than about the column. Both signs
+  // mean money out here, so this column is readable throughout
+  it('accepts a money out column carrying negative and positive amounts together', () => {
+    const files = createColumn('Debit', ['-45.00', '1200.00'])
+
+    expect(validateColumnValues(files, 'Debit', 'amount_out', SUPPORTED_CURRENCY_CODES).valid).toBe(true)
+  })
+
+  // The column passes and the row carrying the minus is refused afterwards, against its own row
+  // number, which is where the user can see which value to move
+  it('accepts a money in column carrying a negative', () => {
+    const files = createColumn('Credit', ['-30.00', '45.00'])
+
+    expect(validateColumnValues(files, 'Credit', 'amount_in', SUPPORTED_CURRENCY_CODES).valid).toBe(true)
+  })
+
+  // A statement period where every transaction went one way leaves the other side empty, and that is
+  // the file as the bank wrote it rather than a mapping mistake. Refusing the column would block an
+  // import the two sides read perfectly well
+  it.each([['amount_out'], ['amount_in']] as const)('accepts a %s column left blank on every row', (target) => {
+    const files = createColumn('Debit', ['', '', ''])
+
+    expect(validateColumnValues(files, 'Debit', target, SUPPORTED_CURRENCY_CODES).valid).toBe(true)
+  })
+
+  // The unused side of a file that pads rather than leaves blank, which is a real mapping and the
+  // shape this arrangement was built for
+  it('accepts a side holding nothing but zeros', () => {
+    const files = createColumn('Credit', ['0.00', '0.00'])
+
+    expect(validateColumnValues(files, 'Credit', 'amount_in', SUPPORTED_CURRENCY_CODES).valid).toBe(true)
+  })
+
+  // A zero runs neither way, and padding the unused side with one is the layout this arrangement was
+  // built for, so a zero among negatives is not a column mixing directions
+  it('does not read a zero as the positive half of a mixed column', () => {
+    const files = createColumn('Debit', ['-45.00', '0.00', '-12.00'])
+
+    expect(validateColumnValues(files, 'Debit', 'amount_out', SUPPORTED_CURRENCY_CODES).valid).toBe(true)
+  })
+})

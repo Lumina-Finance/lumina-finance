@@ -13,6 +13,7 @@ import {
   CURRENCIES_FAILED_UPLOAD_BLOCK,
   CURRENCIES_LOADING_UPLOAD_BLOCK,
   EMPTY_COLUMN_MAP,
+  MISSING_AMOUNT_COLUMN_LABEL,
   UNSET_BATCH_INSTITUTION,
 } from '@/pages/imports/constants'
 import type { ImportFileDraft } from '@/pages/imports/types'
@@ -31,6 +32,7 @@ import {
   getImportUploadBlockReason,
   getMissingRequiredColumnLabels,
   getSupportedCurrencyCodes,
+  hasAmountArrangementClash,
   inferAccountMappings,
 } from '@/pages/imports/utils'
 
@@ -158,7 +160,7 @@ describe('import workflow option helpers', () => {
     ]
 
     expect(getImportHeaders(files)).toEqual(['Account', 'Category', 'Tags', 'Merchant'])
-    expect(getMissingRequiredColumnLabels({ ...EMPTY_COLUMN_MAP, dt: 'Date' })).toContain('Amount')
+    expect(getMissingRequiredColumnLabels({ ...EMPTY_COLUMN_MAP, dt: 'Date' })).toContain(MISSING_AMOUNT_COLUMN_LABEL)
     expect(buildImportAccountMappingSources(files, '', '')).toEqual([
       { id: 'checking-file', label: 'Chequing Activity', matchText: 'Chequing Activity.csv', isCounterpartyOnly: false },
       { id: 'visa-file', label: 'Visa', matchText: 'Visa.csv', isCounterpartyOnly: false },
@@ -175,16 +177,19 @@ describe('import workflow option helpers', () => {
   it('carries every field explanation into the column target options', () => {
     const options = buildColumnTargetOptions()
 
-    // Ignoring a column explains itself, and it is the only entry outside the two groups
+    // Ignoring a column explains itself, and it is the only entry outside the three groups
     expect(options[0]).toEqual({ value: '', label: 'Do not import' })
     expect(options.slice(1).every((option) => Boolean(option.description))).toBe(true)
     expect(options.find((option) => option.value === 'merchant_id')?.description).toBe(
       COLUMN_TARGETS.find((target) => target.id === 'merchant_id')?.hint,
     )
 
-    // Required fields are gathered ahead of the optional ones rather than following declaration order
+    // The three groups run in a fixed order rather than following declaration order, and each one is
+    // headed once, since the dropdown opens a heading every time the group changes going down
     const groups = options.slice(1).map((option) => option.group)
-    expect(groups.indexOf('Optional fields')).toBeGreaterThan(groups.lastIndexOf('Required fields'))
+    const headings = groups.filter((group, index) => group !== groups[index - 1])
+
+    expect(headings).toEqual(['Required fields', 'Required, at least one of these', 'Optional fields'])
   })
 
   // An import started from an account has its answer already, so no column may contradict it
@@ -311,5 +316,48 @@ describe('collecting the supported currency codes', () => {
     expect(codes.has('JPY')).toBe(true)
     expect(codes.has('ZZZ')).toBe(false)
     expect(codes.size).toBe(2)
+  })
+})
+
+describe('the three ways a file can carry its amount', () => {
+  const MAPPED_ELSEWHERE = { ...EMPTY_COLUMN_MAP, dt: 'Date', category_id: 'Category' }
+
+  it('asks for an amount where no arrangement is mapped', () => {
+    expect(getMissingRequiredColumnLabels(MAPPED_ELSEWHERE)).toEqual([MISSING_AMOUNT_COLUMN_LABEL])
+  })
+
+  // Any one of the three answers it, so a file writing its two sides separately is not told it is
+  // missing a single Amount column it was never going to have
+  it('is answered by any one of the three', () => {
+    for (const target of ['amount', 'amount_out', 'amount_in'] as const) {
+      expect(getMissingRequiredColumnLabels({ ...MAPPED_ELSEWHERE, [target]: 'Debit' })).toEqual([])
+    }
+  })
+
+  // Two callers join these with commas, so a label carrying one would read as two missing columns
+  it('asks for it as one label carrying no comma', () => {
+    expect(MISSING_AMOUNT_COLUMN_LABEL).not.toContain(',')
+  })
+
+  it('heads the three under one group of their own', () => {
+    const options = buildColumnTargetOptions()
+    const amountGroups = ['amount', 'amount_out', 'amount_in']
+      .map((value) => options.find((option) => option.value === value)?.group)
+
+    expect(new Set(amountGroups).size).toBe(1)
+    expect(amountGroups[0]).not.toBe('Optional fields')
+  })
+
+  // A single signed column and the two sides are alternatives, so a map holding both states the
+  // amount twice with nothing to say which reading wins
+  it('reports a map stating the amount two ways at once', () => {
+    expect(hasAmountArrangementClash({ ...MAPPED_ELSEWHERE, amount: 'Amount', amount_out: 'Debit' })).toBe(true)
+    expect(hasAmountArrangementClash({ ...MAPPED_ELSEWHERE, amount: 'Amount', amount_in: 'Credit' })).toBe(true)
+  })
+
+  it('says nothing about a map using one arrangement or none', () => {
+    expect(hasAmountArrangementClash({ ...MAPPED_ELSEWHERE, amount: 'Amount' })).toBe(false)
+    expect(hasAmountArrangementClash({ ...MAPPED_ELSEWHERE, amount_out: 'Debit', amount_in: 'Credit' })).toBe(false)
+    expect(hasAmountArrangementClash(MAPPED_ELSEWHERE)).toBe(false)
   })
 })

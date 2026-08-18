@@ -336,9 +336,9 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     [columnMap.dt, files],
   )
 
-  // Names what the scan was run against, so a format chosen for one column and set of files is
+  // Says what the scan was run against, so a format chosen for one column and set of files is
   // dropped rather than carried onto another
-  const dateFormatScope = `${columnMap.dt}:${files.map((file) => file.id).join(',')}`
+  const dateFormatScope = buildImportAnswerScope(columnMap.dt, files)
 
   // The user's answer while it still applies, otherwise the only format the column can be read in.
   // More than one survivor leaves it unanswered, because choosing between them is exactly the guess
@@ -540,8 +540,8 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   } = useImportMerchantMatches(importedMerchants)
 
   const categoryTypesBySource = useMemo(
-    () => getImportedCategoryTypes(files, columnMap.category_id, columnMap.amount, importedCategories),
-    [columnMap.amount, columnMap.category_id, importedCategories, files],
+    () => getImportedCategoryTypes(files, columnMap, importedCategories),
+    [columnMap, importedCategories, files],
   )
 
   const importedTags = useMemo(

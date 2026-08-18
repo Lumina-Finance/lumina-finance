@@ -11,7 +11,7 @@ import {
 } from '@/pages/imports/utils'
 
 // Marks a format the column cannot be read in, kept short because it renders as a pill beside the
-// option label. Choosing it anyway is allowed, and the column error then names the value that broke
+// option label. Choosing it anyway is allowed, and the column error then quotes the value that broke
 const UNREADABLE_FORMAT_BADGE = 'Does not fit'
 
 /**

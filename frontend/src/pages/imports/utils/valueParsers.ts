@@ -240,6 +240,60 @@ export function parseImportNumber(value: string) {
 }
 
 /**
+ * Rewrites an amount cell to run the way its column says, without touching its digits
+ *
+ * The column settles the direction on its own, so the cell's own sign is dropped and the one its
+ * column calls for is written instead. Callers reject a sign that contradicts the column before
+ * reaching here, which is what makes dropping it safe
+ *
+ * The sign is replaced rather than added in front, because prefixing a minus onto a cell that
+ * already carries one gives `--12.00`, and onto a cell written `+5.00` gives `-+5.00`, neither of
+ * which this module's pattern nor the backend's matching one reads. Everything after the sign is
+ * left exactly as the file wrote it, thousands separators included, since the commit sends the
+ * string for the API to parse with exact decimals
+ *
+ * A zero is written without a sign, because it runs neither way
+ *
+ * @param value - The raw cell value, which the caller has already read as an amount
+ * @param direction - Which way the column the cell sits in holds money
+ * @returns The amount as the payload carries it. An empty string where the value is not an amount
+ * after all, which the type needs and no caller can reach
+ */
+export function applyImportAmountDirection(value: string, direction: 'out' | 'in') {
+  const match = IMPORT_NUMBER_PATTERN.exec(value.trim())
+  if (!match) return ''
+
+  const [, , whole, fraction] = match
+  const digits = fraction === undefined ? whole : `${whole}.${fraction}`
+
+  return direction === 'out' && parseImportNumber(value) !== 0 ? `-${digits}` : digits
+}
+
+/**
+ * Reports whether an amount cell carries a sign its column cannot mean
+ *
+ * A column of money out is money leaving whether its values are written `45.00` or `-45.00`, so only
+ * an explicit plus contradicts it. A column of money in is the mirror, where only a minus does. The
+ * contradicting value is refused rather than read the other way, because the file has a column for
+ * that direction already and did not use it
+ *
+ * A zero carries no direction to contradict, which is what lets a file pad its unused side with
+ * `-0.00` rather than having every row refused
+ *
+ * @param value - The raw cell value, which the caller has already read as an amount
+ * @param direction - Which way the column the cell sits in holds money
+ */
+export function doesImportAmountSignDisagreeWithColumn(value: string, direction: 'out' | 'in') {
+  const match = IMPORT_NUMBER_PATTERN.exec(value.trim())
+  if (!match) return false
+
+  const [, sign] = match
+  if (!sign || parseImportNumber(value) === 0) return false
+
+  return direction === 'out' ? sign === '+' : sign === '-'
+}
+
+/**
  * Shortens a cell value for display, keeping the first 25 characters and adding an ellipsis once the
  * value runs past 28 characters so table columns stay an even width
  */

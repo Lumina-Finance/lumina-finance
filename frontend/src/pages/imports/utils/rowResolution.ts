@@ -10,6 +10,11 @@ import {
   MAX_IMPORT_TAGS_PER_ROW,
   ROW_ACCOUNT_BLANK_REASON,
   ROW_AMOUNT_BLANK_REASON,
+  ROW_AMOUNT_BOTH_SIDES_REASON,
+  ROW_AMOUNT_IN_SIDE_MINUS_REASON,
+  ROW_AMOUNT_NO_SIDE_REASON,
+  ROW_AMOUNT_OUT_SIDE_PLUS_REASON,
+  ROW_AMOUNT_SIDE_STATES_ZERO_REASON,
   ROW_AMOUNT_TOO_LARGE_REASON,
   ROW_AMOUNT_UNREADABLE_REASON,
   ROW_CATEGORY_BLANK_REASON,
@@ -18,18 +23,30 @@ import {
   ROW_DATE_BLANK_REASON,
   ROW_DATE_UNREADABLE_REASON,
 } from '@/pages/imports/constants'
-import type { ColumnMap, CsvRow } from '@/pages/imports/types'
+import type { ColumnMap, CsvRow, ImportAmountSideProblem } from '@/pages/imports/types'
 import { findCurrencyExponent } from '@/utils/moneyInput'
 import { splitImportedValues } from './categoryMatching'
-import { getMappedValue } from './columnMapping'
+import { getMappedValue, resolveImportAmount } from './columnMapping'
 import { unique } from './common'
 import { type ImportDateFormat, parseImportNumber, readImportDate, toImportMinorUnits } from './valueParsers'
+
+// What each way of breaking the two-sided amount rule is reported as, kept beside the reading rather
+// than inside it so resolving a row states facts and judging it puts the words to them
+const AMOUNT_SIDE_PROBLEM_REASONS: Record<ImportAmountSideProblem, string> = {
+  bothFilled: ROW_AMOUNT_BOTH_SIDES_REASON,
+  neitherFilled: ROW_AMOUNT_NO_SIDE_REASON,
+  sideStatesZero: ROW_AMOUNT_SIDE_STATES_ZERO_REASON,
+  outSideStatesPlus: ROW_AMOUNT_OUT_SIDE_PLUS_REASON,
+  inSideStatesMinus: ROW_AMOUNT_IN_SIDE_MINUS_REASON,
+}
 
 /**
  * Everything one row resolves to, which is what the commit sends and what the preview renders
  *
- * The amount stays the cell's own text rather than a converted number, because the API parses it
- * with exact decimals and converting here would be a second opinion about the same digits
+ * The amount's digits are always the cell's own rather than a converted number, because the API
+ * parses them with exact decimals and converting here would be a second opinion about the same
+ * digits. Where the file writes the two sides separately only the sign in front of them is this
+ * module's, since the column the cell sat in is what states the direction
  */
 export interface ResolvedImportRow {
   accountSource: string
@@ -37,6 +54,9 @@ export interface ResolvedImportRow {
   importedDate: string
   dt: string
   amount: string
+
+  /** Why `amount` is empty, where the file states the two sides separately and the row breaks the rule */
+  amountSideProblem: ImportAmountSideProblem | null
   merchantName: string | null
   notes: string | null
   tagNames: string[]
@@ -93,12 +113,14 @@ export function resolveImportRow(row: CsvRow, fileId: string, context: ImportRow
 
   const accountSource = columnMap.account_id ? getMappedValue(row, columnMap.account_id) : fileId
   const importedDate = getMappedValue(row, columnMap.dt)
+  const { amount, amountSideProblem } = resolveImportAmount(row, columnMap)
   return {
     accountSource,
     categorySource: getMappedValue(row, columnMap.category_id),
     importedDate,
     dt: dateFormat ? readImportDate(importedDate, dateFormat) : '',
-    amount: getMappedValue(row, columnMap.amount),
+    amount,
+    amountSideProblem,
     merchantName: cleanOptional(getMappedValue(row, columnMap.merchant_id)),
     notes: cleanOptional(getMappedValue(row, columnMap.notes)),
     // Deduplicated here rather than left to the API, which keeps one of each anyway, so the count
@@ -126,6 +148,10 @@ export function getImportRowProblem(row: ResolvedImportRow, judgement: ImportRow
   // jobs, and both parsers answer the same way for an empty string, so the raw cell is asked first
   if (!row.importedDate) return ROW_DATE_BLANK_REASON
   if (!row.dt) return ROW_DATE_UNREADABLE_REASON
+
+  // Asked ahead of the blank check, since a row breaking the two-sided rule has no amount either and
+  // would otherwise be sent to fill in a cell that is not the problem
+  if (row.amountSideProblem) return AMOUNT_SIDE_PROBLEM_REASONS[row.amountSideProblem]
   if (!row.amount) return ROW_AMOUNT_BLANK_REASON
   if (parseImportNumber(row.amount) === null) return ROW_AMOUNT_UNREADABLE_REASON
 

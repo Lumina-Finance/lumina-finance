@@ -3,6 +3,7 @@ import type { Category } from '@/api/categories'
 import type { Merchant } from '@/api/merchants'
 import type { TransactionImportPayload, TransactionImportResponse } from '@/api/transaction-imports'
 import {
+  AMOUNT_ARRANGEMENT_CLASH_ERROR,
   CREATE_ACCOUNT_VALUE,
   CREATE_CATEGORY_VALUE,
   DEFAULT_CATEGORY_ICON,
@@ -27,7 +28,7 @@ import type { Currency } from '@/api/currency'
 import { findReusedImportCategory, getCategoryMatchKind } from './categoryMatching'
 import { buildImportMerchantMappings } from './merchantMatching'
 import { getImportRowId } from './common'
-import { getMissingRequiredColumnLabels } from './workflowOptions'
+import { getMissingRequiredColumnLabels, hasAmountArrangementClash } from './workflowOptions'
 import {
   getCurrencyByAccountSource,
   getImportRowProblem,
@@ -111,6 +112,8 @@ export function buildTransactionImportPayload({
 
   const missingRequired = getMissingRequiredColumnLabels(columnMap)
   if (missingRequired.length > 0) addError(`Missing required columns: ${missingRequired.join(', ')}`)
+
+  if (hasAmountArrangementClash(columnMap)) addError(AMOUNT_ARRANGEMENT_CLASH_ERROR)
 
   // Counted off the distinct values the files hold rather than the mappings answered so far, so the
   // refusal does not wait for answers that cannot change it. Mapping a thousand categories by hand
@@ -275,7 +278,7 @@ export function buildTransactionImportPayload({
   // message is kept for the case it was written for
   if (rows.length === 0 && rowProblems.length === 0) addError('No transaction rows are available to import.')
 
-  const warnings = getImportWarnings(rows)
+  const warnings = getImportWarnings(rows, columnMap)
   const allErrors = [...columnErrors, ...errors]
   if (allErrors.length > 0 || rowProblems.length > 0) {
     return { errors: allErrors, rowProblems, warnings, rowWarnings, payload: null }
@@ -327,12 +330,22 @@ function doesSignDisagreeWithCategoryKind(amount: string, kind: ImportCategoryKi
 /**
  * Collects what is worth saying about an import that is otherwise ready to go
  *
- * A file where nothing is negative has almost certainly written its money out without a minus sign,
- * so every expense would import as income. It is a warning rather than a refusal because a file of
- * nothing but income is a real thing to import
+ * A file where nothing is negative has almost certainly been read the wrong way round, so every
+ * expense would import as income. It is a warning rather than a refusal because a file of nothing
+ * but income is a real thing to import
+ *
+ * Skipped only where money in is the one amount column mapped, since every row of such a file is
+ * positive whatever the data says and the warning would fire on every one of them. Every other
+ * arrangement is asked, including a two-sided file whose money out column happens to be empty: that
+ * is indistinguishable from the two sides being mapped the wrong way round, and a warning nobody
+ * needed costs less than a month of spending imported as income
+ *
+ * What it cannot do is tell a file read backwards from a file that really is all inflows, so it
+ * describes what the rows say rather than diagnosing which of the two it is
  */
-function getImportWarnings(rows: TransactionImportPayload['rows']) {
+function getImportWarnings(rows: TransactionImportPayload['rows'], columnMap: ColumnMap) {
   if (rows.length === 0) return []
+  if (columnMap.amount_in && !columnMap.amount_out && !columnMap.amount) return []
 
   const hasOutflow = rows.some((row) => (parseImportNumber(row.amount) ?? 0) < 0)
   return hasOutflow ? [] : [NO_OUTFLOWS_WARNING]

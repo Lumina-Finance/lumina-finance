@@ -8,11 +8,39 @@ export type ColumnTarget =
   | 'dt'
   | 'category_id'
   | 'amount'
+  | 'amount_out'
+  | 'amount_in'
   | 'currency'
   | 'merchant_id'
   | 'notes'
   | 'tag_ids'
   | 'counterparty_account_id'
+
+/**
+ * How a column target is required, which is also what heads it in the mapping dropdown
+ *
+ * The amount group is its own answer because the three fields in it share one requirement between
+ * them: an import needs at least one of them mapped. The two sides go together, or either one alone
+ * where the file holds money going only one way, and the single signed column never sits beside a
+ * side, since a file states its amounts one way or the other
+ */
+export type ColumnTargetGroup = 'required' | 'amount' | 'optional'
+
+/**
+ * Why a row cannot be read from the columns holding money out and money in
+ *
+ * A fact about the row's cells rather than a message, since reading a row and judging it are kept
+ * apart and only the judgement puts words to it
+ */
+export type ImportAmountSideProblem =
+  | 'bothFilled'
+  | 'neitherFilled'
+  | 'sideStatesZero'
+  | 'outSideStatesPlus'
+  | 'inSideStatesMinus'
+
+/** The two fields a file uses when it keeps its money going out and its money coming in apart */
+export type ImportAmountSideTarget = 'amount_out' | 'amount_in'
 
 export type ColumnMap = Record<ColumnTarget, string>
 export type ColumnValidationErrors = Record<string, string>
