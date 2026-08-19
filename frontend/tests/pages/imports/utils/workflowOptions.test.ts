@@ -8,9 +8,6 @@ import type { Currency } from '@/api/currency'
 import type { Institution } from '@/api/institutions'
 import {
   AMOUNT_ARRANGEMENT_CLASH_ERROR,
-  AMOUNT_ARRANGEMENT_OPTIONS,
-  AMOUNT_CONVENTION_NOTE,
-  AMOUNT_SIGN_RULE_NOTE,
   COLUMN_TARGETS,
   CREATE_ACCOUNT_VALUE,
   CREATE_CATEGORY_VALUE,
@@ -350,15 +347,28 @@ describe('the three ways a file can carry its amount', () => {
     expect(MISSING_AMOUNT_COLUMN_LABEL).not.toContain(',')
   })
 
-  // How a category's kind reads against an amount's direction belongs against the rows it is about,
-  // five steps further down, so the note over the mapping table stops at what the columns hold. Kept
-  // in one place rather than two, since a rule stated twice drifts
-  it('leaves the category direction rule out of the note over the mapping table', () => {
-    // Every part of that notice, since it renders as a lead, a list of arrangements and a closing
-    // rule, and checking only the lead would miss the sentence moving into one of the others
-    const wholeNotice = [AMOUNT_CONVENTION_NOTE, ...AMOUNT_ARRANGEMENT_OPTIONS, AMOUNT_SIGN_RULE_NOTE].join(' ')
+  // There is no notice over the mapping table saying how an amount is read, so each option's own
+  // sentence is the only place the arrangements and the sign rule are stated. Stripping one of these
+  // would leave a user choosing between Amount, Money out and Money in with nothing saying what a
+  // sign in each one means
+  it('states every amount arrangement and the sign rule in the dropdown options', () => {
+    const options = buildColumnTargetOptions()
+    const hintFor = (value: string) => options.find((option) => option.value === value)?.description ?? ''
 
-    expect(wholeNotice).not.toContain('expense category')
+    expect(hintFor('amount')).toContain('negative for money out')
+    expect(hintFor('amount_out')).toContain('A plus sign there is refused')
+    expect(hintFor('amount_in')).toContain('A minus sign there is refused')
+    expect(hintFor('amount_direction')).toContain('unsigned amounts')
+  })
+
+  // How a category's kind reads against an amount's direction belongs against the rows it is about,
+  // five steps further down. Kept in one place rather than two, since a rule stated twice drifts
+  it('leaves the category direction rule to the rows it is about', () => {
+    const options = buildColumnTargetOptions()
+    const amountHints = ['amount', 'amount_out', 'amount_in', 'amount_direction']
+      .map((value) => options.find((option) => option.value === value)?.description ?? '')
+
+    for (const hint of amountHints) expect(hint).not.toContain('category')
     expect(getRowSignDisagreesWithCategoryReason('expense')).toContain('expense category')
   })
 

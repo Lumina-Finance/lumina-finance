@@ -1,8 +1,5 @@
 import { EmptyState, ImportDirectionValueTable, ImportHeaderMappingTable, ImportNotice, ImportStep } from '@/pages/imports/components'
 import {
-  AMOUNT_ARRANGEMENT_OPTIONS,
-  AMOUNT_CONVENTION_NOTE,
-  AMOUNT_SIGN_RULE_NOTE,
   CURRENCY_HANDLING_NOTE,
   CURRENCY_HANDLING_TITLE,
   DIRECTION_VALUES_EXPLANATION,
@@ -39,10 +36,12 @@ type ImportColumnMappingStepProps = Pick<
  * Column mapping step of the generic CSV import flow, matching each header found in the uploaded
  * file to an app field
  *
- * The amount convention is stated above the table rather than offered as a choice, because which
- * arrangement a file uses is answered by mapping its columns rather than by a question of its own.
- * The currency note sits under it, since what an amount is worth and what currency it lands in are
- * one question to a reader looking at a column of numbers, and the Currency column is mapped here
+ * How an amount is read is left to the mapping dropdown, whose every option carries a sentence
+ * saying what that field holds and what a sign in it means. Those sentences are read at the moment
+ * of choosing, so a notice above the table restating them was one level less specific and said
+ * nothing the dropdown did not
+ *
+ * The currency note stays, because nothing in the dropdown says which currency an amount lands in
  *
  * A file mapping a Direction column has one more question, which words in that column mean money
  * leaving the account. It is asked here rather than in a separate step, so the column and what its
@@ -81,13 +80,6 @@ export function ImportColumnMappingStep({
       title="Column Mapping"
       description="Specify what each column in your file holds."
     >
-      <ImportNotice
-        title="How amounts are read"
-        items={AMOUNT_ARRANGEMENT_OPTIONS}
-        footer={AMOUNT_SIGN_RULE_NOTE}
-      >
-        {AMOUNT_CONVENTION_NOTE}
-      </ImportNotice>
       {!accountsFailed && (
         <ImportNotice title={CURRENCY_HANDLING_TITLE}>
           {fixedAccount

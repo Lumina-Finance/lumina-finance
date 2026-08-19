@@ -178,9 +178,6 @@ export function ImportLoadFailure({
  *   browser rearranges on its own, and gives every notice that lists something the same shape. The
  *   marker is set back on, since Tailwind's reset takes it off. A notice with nothing to list omits
  *   the list and renders as it always did
- * @param footer - A closing line under the list, for a notice whose list is a set of choices and
- *   which has a rule to state about all of them. Without it that rule would have to lead, ahead of
- *   the choices it is about, or sit in the list as though it were one of them
  * @param tone - How much the notice is asking of the reader. The danger tone is for the one a user
  *   has to act on before importing, rather than the ordinary ones saying what the import will do,
  *   and it takes the same colours the load failure already uses. The question tone is for a notice
@@ -191,13 +188,11 @@ export function ImportNotice({
   title,
   children,
   items,
-  footer,
   tone = 'warning',
 }: {
   title: string
   children: ReactNode
   items?: ReactNode[]
-  footer?: ReactNode
   tone?: 'warning' | 'danger' | 'question'
 }) {
   const isDanger = tone === 'danger'
@@ -240,7 +235,6 @@ export function ImportNotice({
             ))}
           </ul>
         )}
-        {footer && <p className="mt-1 text-sm leading-5">{footer}</p>}
       </div>
     </div>
   )

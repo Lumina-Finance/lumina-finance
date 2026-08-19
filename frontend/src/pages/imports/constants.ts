@@ -33,7 +33,7 @@ export const COLUMN_TARGETS: Array<{
   {
     id: 'counterparty_account_id',
     label: 'Counterparty account',
-    hint: 'Says which account a transfer\'s money went to, or came from, without writing a transaction into that account. Only transfer rows can use it, and a blank cell records the transfer as going outside this app.',
+    hint: 'Specifies which account a transfer\'s money went to, or came from, without writing a transaction into that account. Only transfer rows can use it, and a blank cell records the transfer as going outside this app.',
     group: 'optional',
   },
   { id: 'dt', label: 'Date', hint: 'Transaction date.', group: 'required' },
@@ -337,31 +337,6 @@ export function getRowSignDisagreesWithCategoryReason(kind: 'expense' | 'income'
 // of nothing but income or one being read backwards. It cannot tell those apart, so it says what the
 // rows come to and lists what to check, rather than asserting which of the two this is
 export const NO_OUTFLOWS_WARNING = 'Every row in this file reads as money coming in. If that is right, there is nothing to do. If it is not, check three things: that the money going out is mapped to the column actually holding it, that a file using one Amount column writes its money out with a minus sign, and that a file using a Direction column has its words set the way round the file means them.'
-
-/**
- * Shown above the column mapping table, saying how the importer reads an amount
- *
- * Three parts rather than one paragraph: the question, the arrangements that answer it, and the rule
- * holding across them. Every arrangement is offered because a file can be mapped any of these ways,
- * and each is answered by mapping columns rather than by a question of its own, so they are a list of
- * choices rather than steps to work through
- *
- * It stops at what the columns have to hold. How a category's kind reads against an amount's
- * direction is said against the rows it is about, in getRowSignDisagreesWithCategoryReason, since a
- * rule stated here would be read five steps before those rows appear
- */
-export const AMOUNT_CONVENTION_NOTE = 'Every imported row carries a direction. Map whichever of these your file uses:'
-export const AMOUNT_ARRANGEMENT_OPTIONS = [
-  'One Amount column, written negative for money out and positive for money in',
-  'A Money out and a Money in column, where the file keeps the two apart',
-  'Just one of those two, where the file holds money going only one way',
-  'An Amount column of unsigned amounts beside a Direction column of words, whose meanings you answer below the table',
-]
-
-// Closes the notice above, because it holds across every arrangement in it rather than belonging to
-// one of them. Stated after the choices rather than before, since it speaks of the columns by the
-// labels the list has just given them
-export const AMOUNT_SIGN_RULE_NOTE = 'Money out, Money in and Direction each specify the direction themselves, so an amount beside one may only carry a sign that agrees. A row breaking that is listed rather than read the other way.'
 
 // Shown where a source rows are written to matches an account the user has archived, which is the
 // one account that source is not offered. The matched account names follow it
