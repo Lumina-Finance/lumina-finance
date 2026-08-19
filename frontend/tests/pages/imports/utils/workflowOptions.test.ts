@@ -18,8 +18,8 @@ import {
   CURRENCIES_LOADING_UPLOAD_BLOCK,
   DIRECTION_ARRANGEMENT_CLASH_ERROR,
   EMPTY_COLUMN_MAP,
+  getRowSignDisagreesWithCategoryReason,
   MISSING_AMOUNT_COLUMN_LABEL,
-  ROW_SIGN_DISAGREES_WITH_CATEGORY_REASON,
   UNSET_BATCH_INSTITUTION,
 } from '@/pages/imports/constants'
 import type { ImportFileDraft } from '@/pages/imports/types'
@@ -359,7 +359,7 @@ describe('the three ways a file can carry its amount', () => {
     const wholeNotice = [AMOUNT_CONVENTION_NOTE, ...AMOUNT_ARRANGEMENT_OPTIONS, AMOUNT_SIGN_RULE_NOTE].join(' ')
 
     expect(wholeNotice).not.toContain('expense category')
-    expect(ROW_SIGN_DISAGREES_WITH_CATEGORY_REASON).toContain('category')
+    expect(getRowSignDisagreesWithCategoryReason('expense')).toContain('expense category')
   })
 
   it('heads the three under one group of their own', () => {

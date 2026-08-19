@@ -7,8 +7,8 @@ import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import {
   EMPTY_COLUMN_MAP,
+  getRowSignDisagreesWithCategoryReason,
   NO_OUTFLOWS_WARNING,
-  ROW_SIGN_DISAGREES_WITH_CATEGORY_REASON,
 } from '@/pages/imports/constants'
 import type { CsvRow, ImportFileDraft } from '@/pages/imports/types'
 import { buildTransactionImportPayload } from '@/pages/imports/utils'
@@ -200,15 +200,27 @@ describe('warning about a row filed against its category\'s direction', () => {
     expect(result.payload?.rows).toHaveLength(2)
     expect(result.rowWarnings).toHaveLength(1)
     expect(result.rowWarnings[0].rowNumber).toBe(2)
-    expect(result.rowWarnings[0].reason).toBe(ROW_SIGN_DISAGREES_WITH_CATEGORY_REASON)
+    expect(result.rowWarnings[0].reason).toBe(getRowSignDisagreesWithCategoryReason('expense'))
   })
 
   // The heading over this table offers a look and no longer says the rows are taken, so the note
   // against each row is the only place that fact is left. It sits in one table cell repeated per
   // row, inside a column capped at a share of the panel width, so it also has a length to keep to
   it('says on the row itself that the import takes it, in a note short enough for the column', () => {
-    expect(ROW_SIGN_DISAGREES_WITH_CATEGORY_REASON).toContain('imports')
-    expect(ROW_SIGN_DISAGREES_WITH_CATEGORY_REASON.length).toBeLessThan(160)
+    for (const kind of ['expense', 'income'] as const) {
+      expect(getRowSignDisagreesWithCategoryReason(kind)).toContain('imports')
+      expect(getRowSignDisagreesWithCategoryReason(kind).length).toBeLessThan(160)
+    }
+  })
+
+  // Each kind gets its own note, so the row is told what it is and what it is filed under rather
+  // than how the two relate. Getting the pair the wrong way round would tell a refund it is money
+  // going out
+  it('says which direction the row is and which kind it sits under', () => {
+    expect(getRowSignDisagreesWithCategoryReason('expense')).toContain('Money coming in')
+    expect(getRowSignDisagreesWithCategoryReason('expense')).toContain('expense category')
+    expect(getRowSignDisagreesWithCategoryReason('income')).toContain('Money going out')
+    expect(getRowSignDisagreesWithCategoryReason('income')).toContain('income category')
   })
 
   it('lists a negative row inside an income category', () => {
@@ -216,6 +228,7 @@ describe('warning about a row filed against its category\'s direction', () => {
 
     expect(result.rowWarnings).toHaveLength(1)
     expect(result.rowWarnings[0].rowNumber).toBe(2)
+    expect(result.rowWarnings[0].reason).toBe(getRowSignDisagreesWithCategoryReason('income'))
   })
 
   it('says nothing where every row runs the way its category does', () => {

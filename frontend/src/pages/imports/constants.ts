@@ -266,7 +266,7 @@ export const ROW_AMOUNT_BOTH_SIDES_REASON = 'This row states both a money out an
 export const ROW_AMOUNT_NO_SIDE_REASON = 'This row leaves every amount column mapped for this file blank. If the file holds the other direction in a column of its own, map that column too.'
 // Told apart from the reason above because the row is not empty and the table shows the user the
 // zero it holds, so being told it states nothing would contradict what is in front of them
-export const ROW_AMOUNT_SIDE_STATES_ZERO_REASON = 'The one amount column mapped states zero on this row, so its money went the other way. If the file holds that direction in a column of its own, map that column too.'
+export const ROW_AMOUNT_SIDE_STATES_ZERO_REASON = 'The one amount column mapped states zero on this row, so this row is the direction that column does not hold. If the file states that direction in a separate column, map that column too.'
 
 // The last two are a sign the column cannot mean. Both fixes are offered because either one can be
 // what happened: the sign was written where the column already states the direction, or the value
@@ -308,19 +308,30 @@ export const ROW_COUNTERPARTY_IS_OWN_ACCOUNT_REASON = 'This row states its own a
 export function getRowCurrencyMismatchReason(rowCurrency: string, accountCurrency: string) {
   return `This row is in ${rowCurrency} but the account it would be written to is kept in ${accountCurrency}. Amounts are stored in the account's currency and are not converted, so write these rows to a ${rowCurrency} account, or set the Currency column to Do not import to bring them in as ${accountCurrency}.`
 }
-// Said against a row whose amount moves the opposite way to the kind of the category it is filed
-// under. It states what was noticed, then the ordinary reason for it, then that the row is taken, in
-// that order, because a refund inside an expense category is exactly what this fires on and reading
-// it as a fault the user introduced would be wrong. That the row is taken is stated here rather than
-// in the heading above the table, which offers a look and cannot also carry it
-//
-// Worth saying at all because the app then counts the row two ways: cash flow reads the sign while
-// the category total reads the kind
-//
-// This is the one place the direction rule between an amount and a category kind is stated, since it
-// sits with the rows it is about. The note above the column mapping table covers the arrangements
-// and the sign rule and leaves this to it
-export const ROW_SIGN_DISAGREES_WITH_CATEGORY_REASON = 'The amount moves the opposite way to the kind of category this row is filed under, which is what a refund or a loss looks like. It imports as it stands.'
+/**
+ * Says a row is money going the way its category does not usually record
+ *
+ * Written per kind rather than as one sentence, so it can state what the row is and what it is filed
+ * under. One sentence covering both had to describe the relation between them instead, and a
+ * category kind is a classification rather than a direction, so an amount cannot move against it
+ *
+ * It states what the row is, then the ordinary thing that looks like this, then that it is taken, in
+ * that order, because a refund inside an expense category is exactly what this fires on and reading
+ * it as a fault the user introduced would be wrong. That the row is taken is stated here rather than
+ * in the heading above the table, which offers a look and cannot also carry it
+ *
+ * Worth saying at all because the app then counts the row two ways: cash flow reads the sign while
+ * the category total reads the kind
+ *
+ * This is the one place the direction rule between an amount and a category kind is stated, since it
+ * sits with the rows it is about. The note above the column mapping table covers the arrangements
+ * and the sign rule and leaves this to it
+ */
+export function getRowSignDisagreesWithCategoryReason(kind: 'expense' | 'income') {
+  return kind === 'expense'
+    ? 'Money coming in, filed under an expense category. That is what a refund looks like, so the row imports as it stands.'
+    : 'Money going out, filed under an income category. That is what returning money you were paid looks like, so the row imports as it stands.'
+}
 
 // Shown once for the whole file where every amount reads as money coming in, which is either a file
 // of nothing but income or one being read backwards. It cannot tell those apart, so it says what the
@@ -336,8 +347,8 @@ export const NO_OUTFLOWS_WARNING = 'Every row in this file reads as money coming
  * choices rather than steps to work through
  *
  * It stops at what the columns have to hold. How a category's kind reads against an amount's
- * direction is said against the rows it is about, in ROW_SIGN_DISAGREES_WITH_CATEGORY_REASON, since
- * a rule stated here would be read five steps before those rows appear
+ * direction is said against the rows it is about, in getRowSignDisagreesWithCategoryReason, since a
+ * rule stated here would be read five steps before those rows appear
  */
 export const AMOUNT_CONVENTION_NOTE = 'Every imported row carries a direction. Map whichever of these your file uses:'
 export const AMOUNT_ARRANGEMENT_OPTIONS = [

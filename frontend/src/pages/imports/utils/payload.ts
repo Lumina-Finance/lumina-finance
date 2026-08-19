@@ -9,10 +9,10 @@ import {
   getCategoryDirectionClashError,
   getDirectionValuesAgreeError,
   getTooManyMappingsError,
+  getRowSignDisagreesWithCategoryReason,
   getUnansweredDirectionValuesError,
   MAX_IMPORT_MAPPINGS,
   NO_OUTFLOWS_WARNING,
-  ROW_SIGN_DISAGREES_WITH_CATEGORY_REASON,
 } from '@/pages/imports/constants'
 import { BALANCE_ADJUSTMENT_CATEGORY_NAME, doesTransferRecordCounterpartyAccount, OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 import type {
@@ -287,12 +287,15 @@ export function buildTransactionImportPayload({
 
       // A row can be worth a second look for more than one reason, and each is listed on its own so
       // the table says every thing that is odd about it rather than only the first
-      if (doesSignDisagreeWithCategoryKind(resolved.amount, kindByCategorySource[resolved.categorySource])) {
+      const categoryKind = kindByCategorySource[resolved.categorySource]
+      if (doesSignDisagreeWithCategoryKind(resolved.amount, categoryKind)) {
         rowWarnings.push({
           id: getImportRowId(file.id, rowIndex),
           rowNumber: rowIndex + 1,
           cells: row,
-          reason: ROW_SIGN_DISAGREES_WITH_CATEGORY_REASON,
+          // Only an expense or an income category reaches here, since the check above judges no
+          // other kind, so the note can say which of the two this row is filed under
+          reason: getRowSignDisagreesWithCategoryReason(categoryKind as 'expense' | 'income'),
         })
       }
 
@@ -335,7 +338,7 @@ function toPayloadRow(resolved: ReturnType<typeof resolveImportRow>): Transactio
 }
 
 /**
- * Reports whether a row's amount moves the opposite way to the kind of category it is filed under
+ * Reports whether a row is money going the way its category does not usually record
  *
  * A refund inside an expense category is real data, so this is only ever a warning. It is worth
  * saying because the app then counts the row two ways: cash flow reads the sign, while the category
