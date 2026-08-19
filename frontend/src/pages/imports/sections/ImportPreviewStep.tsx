@@ -1,12 +1,19 @@
-import { TriangleAlert } from 'lucide-react'
-import { EmptyState, ImportPreviewList, ImportRowProblemsTable, ImportStep } from '@/pages/imports/components'
-import { IMPORT_INSET_STYLE, IMPORT_SAMPLE_PREVIEW_LIMIT } from '@/pages/imports/constants'
+import { EmptyState, ImportNotice, ImportPreviewList, ImportRowProblemsTable, ImportStep } from '@/pages/imports/components'
+import { IMPORT_SAMPLE_PREVIEW_LIMIT } from '@/pages/imports/constants'
 import type { TransactionImportWorkflow } from '@/pages/imports/hooks'
 
-// Heads the reasons the import cannot go ahead, so a list of red lines reads as one panel about the
-// import rather than as loose text under the preview. Worded as the step before importing rather
-// than as a count, since the list is capped and its own last line carries what was left off
-const BLOCKING_ERRORS_TITLE = 'Answer these before importing'
+// Said under the count, because the count alone leaves what happens next unstated
+const BLOCKING_ERRORS_EXPLANATION = 'The import cannot go ahead until each one is answered.'
+
+/**
+ * Heads the reasons the import cannot go ahead
+ *
+ * Counted off the whole list rather than the part shown, since the list is capped and its last line
+ * carries the remainder
+ */
+function getBlockingErrorsTitle(count: number) {
+  return `We found ${count} error${count === 1 ? '' : 's'}`
+}
 
 type ImportPreviewStepProps = Pick<
   TransactionImportWorkflow,
@@ -108,24 +115,13 @@ export function ImportPreviewStep({
         </p>
       ))}
       {hasBlockingErrors ? (
-        <div className="rounded-lg px-4 py-3" style={IMPORT_INSET_STYLE}>
-          <span className="flex items-center gap-2">
-            <TriangleAlert
-              size={16}
-              strokeWidth={2.25}
-              className="shrink-0"
-              style={{ color: 'var(--app-negative)' }}
-              aria-hidden
-            />
-            <p className="text-sm font-semibold">{BLOCKING_ERRORS_TITLE}</p>
-          </span>
-          <ul className="mt-2 list-disc space-y-1 pl-4 text-sm leading-5" style={{ color: 'var(--app-text-muted)' }}>
-            {visibleErrors.map((error) => (
-              <li key={error}>{error}</li>
-            ))}
-            {hiddenErrorCount > 0 && <li>{getHiddenErrorSummary(hiddenErrorCount)}</li>}
-          </ul>
-        </div>
+        <ImportNotice
+          tone="danger"
+          title={getBlockingErrorsTitle(importBuild.errors.length)}
+          items={hiddenErrorCount > 0 ? [...visibleErrors, getHiddenErrorSummary(hiddenErrorCount)] : visibleErrors}
+        >
+          {BLOCKING_ERRORS_EXPLANATION}
+        </ImportNotice>
       ) : previewRows.length === 0 ? (
         <EmptyState
           title="No preview rows"
