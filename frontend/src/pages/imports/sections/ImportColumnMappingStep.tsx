@@ -70,15 +70,15 @@ export function ImportColumnMappingStep({
     <ImportStep
       index="02"
       title="Column Mapping"
-      description="Map each file column to an app field."
+      description="Specify what each column in your file holds."
     >
-      <ImportNotice title="Amount Handling">
+      <ImportNotice title="How amounts are read">
         {AMOUNT_CONVENTION_NOTE}
       </ImportNotice>
       {headers.length === 0 ? (
         <EmptyState
-          title="No columns available"
-          description="Upload a CSV file to map columns."
+          title="No columns yet"
+          description="Upload a CSV file and its columns appear here."
         />
       ) : (
         <ImportHeaderMappingTable

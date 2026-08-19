@@ -68,7 +68,7 @@ export function ImportFilesStep({
               replacement share, and the file refused above it or on any null character. It says the
               other encodings are unsupported rather than unreadable, since supporting them is open
               rather than ruled out */}
-          <ImportInfoCard title="Files Are Read As UTF-8">
+          <ImportInfoCard title="Files are read as UTF-8">
             Other encodings are not supported yet, so a file saved as ISO-8859-1 or UTF-16 may not import correctly. Look for a UTF-8 option when saving your file as CSV.
           </ImportInfoCard>
 

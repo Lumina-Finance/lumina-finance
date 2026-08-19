@@ -240,6 +240,10 @@ export const CURRENCIES_FAILED_UPLOAD_BLOCK = 'Currencies could not be loaded, a
 // built on it: refused rows in both import flows, and the Firefly budgets it cannot bring in
 export const SKIPPED_TABLE_VISIBLE_LIMIT = 20
 
+// How many compiled transactions the preview shows. Read by the builder that stops at it and by the
+// step description that states it, so the two cannot disagree about what is on screen
+export const IMPORT_SAMPLE_PREVIEW_LIMIT = 5
+
 // Why one row cannot be converted, listed against that row in the preview step. They read as one
 // family: what is wrong with this row, then what to do about it where there is a choice about that.
 // Each speaks of the row itself, since the entry carries the row number and the row's own cells, and
@@ -341,16 +345,16 @@ export const ARCHIVED_ACCOUNT_MATCH_EXPLANATION = 'An archived account takes no 
 
 // Shown once any source on either table is answered create, since nothing else in the flow says
 // what an account made this way is and is not given
-export const CREATED_ACCOUNT_TITLE = 'New Accounts'
-export const CREATED_ACCOUNT_EXPLANATION = 'Accounts imported as new accounts (by selecting "Create New Account" in the "Existing Account" column) won\'t create starting balance nor credit limits automatically:'
+export const CREATED_ACCOUNT_TITLE = 'New accounts'
+export const CREATED_ACCOUNT_EXPLANATION = 'These will be created as new accounts, each starting with no opening balance and no credit limit:'
 // A balance adjustment rather than a field, because an account that already exists has no starting
 // balance to set. Left to the user to want one rather than told to enter one, since a Firefly
 // export carries its own opening balances and the import writes those as balance adjustments
 // already
-export const CREATED_ACCOUNT_BALANCE_NOTE = 'If you\'d like to enter a starting balance of an imported account, please create a balance adjustment transaction in that account'
+export const CREATED_ACCOUNT_BALANCE_NOTE = 'To give one an opening balance, add a balance adjustment transaction in that account'
 // The edit button this describes is the pencil on the account's own card, which is the only place a
 // credit limit can be set once the account exists
-export const CREATED_ACCOUNT_CREDIT_LIMIT_NOTE = 'If you\'d like to set a credit limit for that account, you can do so by opening it from Accounts and using the edit button on its card'
+export const CREATED_ACCOUNT_CREDIT_LIMIT_NOTE = 'To set a credit limit, open the account from Accounts and use the edit button on its card'
 
 // Shown in place of a mapping step whose list could not be fetched at all, since answering one
 // against nothing maps every value to a new record and duplicates what the user already has
@@ -424,7 +428,7 @@ export function getFixedAccountWarning(accountName: string) {
 
 // Shown over the accounts that appear only as a counterparty, which the import writes nothing to
 export const COUNTERPARTY_ONLY_TABLE_TITLE = 'Counterparty accounts'
-export const COUNTERPARTY_ONLY_EXPLANATION = 'These accounts only ever appeared as the counterparty of a transfer. Matching one to an account of your own records where the money came from or went to and writes no transaction into that account, which is why an account you have archived can be chosen here and stays archived. Leaving one unmatched records the transfer as going outside this app. To bring a name in as an account of your own instead, select Create New Account in its Existing Account column.'
+export const COUNTERPARTY_ONLY_EXPLANATION = 'These only ever appeared as the other side of a transfer. Matching one records where the money came from or went to without writing a transaction into that account, which is why an archived account can be chosen here and stays archived. Leave one unmatched and the transfer is recorded as going outside this app. To bring a name in as an account of your own, choose Create New Account in its Existing Account column.'
 
 // Each format is named by an example of its shape rather than by a standard, because the year-first
 // option deliberately takes a slash and an unpadded part, which ISO 8601 does not. Keyed by format

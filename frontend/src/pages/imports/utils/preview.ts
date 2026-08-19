@@ -6,6 +6,7 @@ import {
   CREATE_ACCOUNT_VALUE,
   CREATE_CATEGORY_VALUE,
   DEFAULT_CATEGORY_ICON,
+  IMPORT_SAMPLE_PREVIEW_LIMIT,
   SELF_MERCHANT_NAME,
   UNKNOWN_MERCHANT_NAME,
 } from '@/pages/imports/constants'
@@ -223,7 +224,7 @@ export function buildImportPreviewRows({
         },
       })
 
-      if (rows.length >= 5) return rows
+      if (rows.length >= IMPORT_SAMPLE_PREVIEW_LIMIT) return rows
     }
   }
 

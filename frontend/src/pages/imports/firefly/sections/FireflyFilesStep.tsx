@@ -80,7 +80,7 @@ export function FireflyFilesStep({
           onFileChange={handleFireflyFileChange}
           onRemove={removeFireflyFile}
           note={slot.kind === 'budgets' ? (
-            <ImportInfoCard title="No Budgets Export?">
+            <ImportInfoCard title="No budgets export?">
               Budgets can be backdated and their historical spending is rebuilt automatically from the imported transactions. If you skip this export, it is easy to create budgets by hand after the import with a past start date.
             </ImportInfoCard>
           ) : undefined}

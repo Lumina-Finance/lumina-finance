@@ -1,4 +1,5 @@
 import { EmptyState, ImportPreviewList, ImportRowProblemsTable, ImportStep } from '@/pages/imports/components'
+import { IMPORT_SAMPLE_PREVIEW_LIMIT } from '@/pages/imports/constants'
 import type { TransactionImportWorkflow } from '@/pages/imports/hooks'
 
 type ImportPreviewStepProps = Pick<
@@ -69,7 +70,7 @@ export function ImportPreviewStep({
     <ImportStep
       index="07"
       title="Imported Data Preview"
-      description="Showing the first 5 compiled transactions."
+      description={`The first ${IMPORT_SAMPLE_PREVIEW_LIMIT} transactions as they will appear in your ledger.`}
     >
       {importBuild.rowProblems.length > 0 && (
         <div className="mb-4">

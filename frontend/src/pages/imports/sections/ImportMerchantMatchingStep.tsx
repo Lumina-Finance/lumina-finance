@@ -56,7 +56,7 @@ export function ImportMerchantMatchingStep({
     <ImportStep
       index="05"
       title="Merchant Matching"
-      description="Every payee value in the file, against the merchant its rows will be filed under."
+      description="Match each payee in the file to the merchant its rows will be filed under."
     >
       {matchesFailed ? (
         <ImportLoadFailure
@@ -66,8 +66,8 @@ export function ImportMerchantMatchingStep({
         />
       ) : importedMerchants.length === 0 ? (
         <EmptyState
-          title="No imported merchants detected"
-          description="Map a merchant column first."
+          title="No payees yet"
+          description="Map the column holding the payee first."
         />
       ) : (
         <ImportValueMatchTable
