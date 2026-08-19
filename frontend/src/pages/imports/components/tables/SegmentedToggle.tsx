@@ -1,27 +1,33 @@
 import { useRef, type KeyboardEvent } from 'react'
 import { motion, useReducedMotion } from 'motion/react'
-import { IMPORT_CATEGORY_KIND_OPTIONS } from '@/pages/imports/constants'
-import type { ImportCategoryKind } from '@/pages/imports/types'
 import { getSegmentedControlKeyAction } from '@/pages/imports/utils'
 
 /**
- * Segmented control for picking the kind of a category being created during import, with an
- * animated highlight that slides to the selected option
+ * Segmented control for picking one answer out of a short fixed set during import, with an animated
+ * highlight that slides to the selected option
  *
  * It is a set of radio buttons rather than a tab list: nothing here reveals a panel, and the arrow
  * keys move between the options with one stop for the whole set in the tab order
+ *
+ * @param options - The answers on offer, which the caller supplies so one control serves the kind of
+ * a category being created and the direction a word in a file states
+ * @param label - What the whole set is asked about, read out in place of the options themselves
  */
-export function ImportCategoryTypeToggle({
+export function ImportSegmentedToggle<T extends string>({
+  options,
   value,
+  label,
   onChange,
   disabled,
 }: {
-  value: ImportCategoryKind | ''
-  onChange: (value: ImportCategoryKind) => void
+  options: Array<{ value: T; label: string }>
+  value: T | ''
+  label: string
+  onChange: (value: T) => void
   disabled?: boolean
 }) {
   const shouldReduceMotion = useReducedMotion()
-  const selectedIndex = IMPORT_CATEGORY_KIND_OPTIONS.findIndex((option) => option.value === value)
+  const selectedIndex = options.findIndex((option) => option.value === value)
   const optionRefs = useRef<Array<HTMLButtonElement | null>>([])
 
   // Nothing is checked until the user answers, and a set with no checked option puts its first
@@ -34,12 +40,12 @@ export function ImportCategoryTypeToggle({
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (disabled) return
 
-    const action = getSegmentedControlKeyAction(event.key, selectedIndex, IMPORT_CATEGORY_KIND_OPTIONS.length)
+    const action = getSegmentedControlKeyAction(event.key, selectedIndex, options.length)
     if (action.kind === 'none') return
 
     // Held back so an arrow inside the control does not also scroll the page behind it
     event.preventDefault()
-    onChange(IMPORT_CATEGORY_KIND_OPTIONS[action.index].value)
+    onChange(options[action.index].value)
     optionRefs.current[action.index]?.focus()
   }
 
@@ -47,7 +53,7 @@ export function ImportCategoryTypeToggle({
     <div
       className={`app-segmented-control relative w-full overflow-hidden ${disabled ? 'opacity-60' : ''}`}
       role="radiogroup"
-      aria-label="Category type"
+      aria-label={label}
       onKeyDown={handleKeyDown}
     >
       {selectedIndex >= 0 && (
@@ -57,7 +63,7 @@ export function ImportCategoryTypeToggle({
             top: '0.125rem',
             bottom: '0.125rem',
             left: '0.125rem',
-            width: `calc((100% - 0.25rem) / ${IMPORT_CATEGORY_KIND_OPTIONS.length})`,
+            width: `calc((100% - 0.25rem) / ${options.length})`,
             background: 'var(--app-accent-soft)',
             border: '1px solid var(--app-accent-border)',
           }}
@@ -66,7 +72,7 @@ export function ImportCategoryTypeToggle({
           aria-hidden
         />
       )}
-      {IMPORT_CATEGORY_KIND_OPTIONS.map((option, index) => {
+      {options.map((option, index) => {
         const active = value === option.value
 
         return (
@@ -77,8 +83,10 @@ export function ImportCategoryTypeToggle({
             role="radio"
             aria-checked={active}
             tabIndex={index === tabStopIndex ? 0 : -1}
-            className={`app-segmented-option relative z-10 w-1/3 px-0 text-center text-sm ${active ? 'app-segmented-option-active' : ''}`}
-            style={active ? { background: 'transparent' } : undefined}
+            // Widths are shared evenly rather than fixed, so the highlight above lines up with the
+            // option under it whatever the caller offers
+            style={{ width: `${100 / options.length}%`, ...(active ? { background: 'transparent' } : {}) }}
+            className={`app-segmented-option relative z-10 px-0 text-center text-sm ${active ? 'app-segmented-option-active' : ''}`}
             onClick={() => onChange(option.value)}
             disabled={disabled}
           >

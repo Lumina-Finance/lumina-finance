@@ -39,7 +39,7 @@ describe('suggesting a type from a single signed amount column', () => {
   ])]
 
   it('reads each name off the direction of its rows', () => {
-    expect(getImportedCategoryTypes(files, SIGNED_MAP, ['Groceries', 'Salary', 'Travel'])).toEqual({
+    expect(getImportedCategoryTypes(files, SIGNED_MAP, ['Groceries', 'Salary', 'Travel'], {})).toEqual({
       Groceries: 'Expense',
       Salary: 'Income',
       Travel: 'Mixed',
@@ -49,7 +49,7 @@ describe('suggesting a type from a single signed amount column', () => {
   it('leaves a name blank until an arrangement carrying the amount is mapped', () => {
     const withoutAmount = { ...EMPTY_COLUMN_MAP, category_id: 'Category' }
 
-    expect(getImportedCategoryTypes(files, withoutAmount, ['Groceries'])).toEqual({ Groceries: '' })
+    expect(getImportedCategoryTypes(files, withoutAmount, ['Groceries'], {})).toEqual({ Groceries: '' })
   })
 })
 
@@ -64,7 +64,7 @@ describe('suggesting a type from money out and money in columns', () => {
       { Category: 'Travel', Debit: '', Credit: '15.00' },
     ])]
 
-    expect(getImportedCategoryTypes(files, BOTH_SIDES_MAP, ['Groceries', 'Salary', 'Travel'])).toEqual({
+    expect(getImportedCategoryTypes(files, BOTH_SIDES_MAP, ['Groceries', 'Salary', 'Travel'], {})).toEqual({
       Groceries: 'Expense',
       Salary: 'Income',
       Travel: 'Mixed',
@@ -80,7 +80,7 @@ describe('suggesting a type from money out and money in columns', () => {
       { Category: 'Groceries', Debit: '5.00', Credit: '9.00' },
     ])]
 
-    expect(getImportedCategoryTypes(files, BOTH_SIDES_MAP, ['Groceries'])).toEqual({ Groceries: 'Expense' })
+    expect(getImportedCategoryTypes(files, BOTH_SIDES_MAP, ['Groceries'], {})).toEqual({ Groceries: 'Expense' })
   })
 
   it('reads a file that maps only the money out side', () => {
@@ -89,7 +89,7 @@ describe('suggesting a type from money out and money in columns', () => {
     ])]
     const columnMap: ColumnMap = { ...EMPTY_COLUMN_MAP, category_id: 'Category', amount_out: 'Debit' }
 
-    expect(getImportedCategoryTypes(files, columnMap, ['Groceries'])).toEqual({ Groceries: 'Expense' })
+    expect(getImportedCategoryTypes(files, columnMap, ['Groceries'], {})).toEqual({ Groceries: 'Expense' })
   })
 
   // Both signs a money out column may carry mean money out, so a column mixing them holds one
@@ -100,7 +100,7 @@ describe('suggesting a type from money out and money in columns', () => {
       { Category: 'Groceries', Debit: '-4.00', Credit: '' },
     ])]
 
-    expect(getImportedCategoryTypes(files, BOTH_SIDES_MAP, ['Groceries']))
+    expect(getImportedCategoryTypes(files, BOTH_SIDES_MAP, ['Groceries'], {}))
       .toEqual({ Groceries: 'Expense' })
   })
 
@@ -113,7 +113,35 @@ describe('suggesting a type from money out and money in columns', () => {
       { Category: 'Travel', Debit: '', Credit: '-30.00' },
     ])]
 
-    expect(getImportedCategoryTypes(files, BOTH_SIDES_MAP, ['Groceries', 'Travel']))
+    expect(getImportedCategoryTypes(files, BOTH_SIDES_MAP, ['Groceries', 'Travel'], {}))
       .toEqual({ Groceries: 'Expense', Travel: '' })
+  })
+})
+
+describe('suggesting a type from a file whose direction is a column of words', () => {
+  const DIRECTION_MAP: ColumnMap = {
+    ...EMPTY_COLUMN_MAP,
+    category_id: 'Category',
+    amount: 'Amount',
+    amount_direction: 'Type',
+  }
+
+  const files = [createFile(['Category', 'Amount', 'Type'], [
+    { Category: 'Groceries', Amount: '84.20', Type: 'DEBIT' },
+    { Category: 'Salary', Amount: '2100.00', Type: 'CREDIT' },
+  ])]
+
+  // Every amount in such a file is positive, so reading the sign alone offers both names as income
+  // and a new category created from that step records the wrong direction
+  it('reads each name off the direction its rows state rather than off the unsigned amount', () => {
+    expect(getImportedCategoryTypes(files, DIRECTION_MAP, ['Groceries', 'Salary'], { debit: 'out', credit: 'in' }))
+      .toEqual({ Groceries: 'Expense', Salary: 'Income' })
+  })
+
+  // Until the words are answered no row carries a direction, and offering a type from an amount that
+  // has none is exactly the wrong suggestion this arrangement exists to remove
+  it('leaves every name blank until the words are answered', () => {
+    expect(getImportedCategoryTypes(files, DIRECTION_MAP, ['Groceries', 'Salary'], {}))
+      .toEqual({ Groceries: '', Salary: '' })
   })
 })

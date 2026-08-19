@@ -112,6 +112,7 @@ function buildPayload(amount: string, accountCurrency: string, importedCurrency 
     columnValidationErrors: {},
     currencies: CURRENCIES,
     dateFormat: 'yearFirst',
+    directionAnswers: {},
     files: [createFile(amount, importedCurrency)],
     importedCategories: ['Groceries'],
   })
@@ -137,6 +138,7 @@ function buildCreateAccountPayload(amount: string, createCurrency: string, impor
     columnValidationErrors: {},
     currencies: CURRENCIES,
     dateFormat: 'yearFirst',
+    directionAnswers: {},
     files: [createFile(amount, importedCurrency)],
     importedCategories: ['Groceries'],
   })
@@ -150,6 +152,7 @@ function buildPreview(amount: string, accountCurrency: string, importedCurrency 
     files: [createFile(amount, importedCurrency)],
     columnMap: COLUMN_MAP,
     dateFormat: 'yearFirst',
+    directionAnswers: {},
     missingRequiredColumnLabels: [],
     currencies: CURRENCIES,
     accountById: new Map([['account-1', createAccount(accountCurrency)]]),

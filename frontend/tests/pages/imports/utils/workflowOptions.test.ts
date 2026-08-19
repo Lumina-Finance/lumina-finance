@@ -7,11 +7,13 @@ import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import type { Institution } from '@/api/institutions'
 import {
+  AMOUNT_ARRANGEMENT_CLASH_ERROR,
   COLUMN_TARGETS,
   CREATE_ACCOUNT_VALUE,
   CREATE_CATEGORY_VALUE,
   CURRENCIES_FAILED_UPLOAD_BLOCK,
   CURRENCIES_LOADING_UPLOAD_BLOCK,
+  DIRECTION_ARRANGEMENT_CLASH_ERROR,
   EMPTY_COLUMN_MAP,
   MISSING_AMOUNT_COLUMN_LABEL,
   UNSET_BATCH_INSTITUTION,
@@ -24,6 +26,7 @@ import {
   buildImportCategoryMatchOptions,
   buildImportCurrencyOptions,
   buildImportInstitutionOptions,
+  getAmountArrangementClashError,
   getArchivedAccountMatches,
   getImportedCategories,
   getImportedMerchants,
@@ -32,7 +35,6 @@ import {
   getImportUploadBlockReason,
   getMissingRequiredColumnLabels,
   getSupportedCurrencyCodes,
-  hasAmountArrangementClash,
   inferAccountMappings,
 } from '@/pages/imports/utils'
 
@@ -184,12 +186,17 @@ describe('import workflow option helpers', () => {
       COLUMN_TARGETS.find((target) => target.id === 'merchant_id')?.hint,
     )
 
-    // The three groups run in a fixed order rather than following declaration order, and each one is
+    // The groups run in a fixed order rather than following declaration order, and each one is
     // headed once, since the dropdown opens a heading every time the group changes going down
     const groups = options.slice(1).map((option) => option.group)
     const headings = groups.filter((group, index) => group !== groups[index - 1])
 
-    expect(headings).toEqual(['Required fields', 'Required, at least one of these', 'Optional fields'])
+    expect(headings).toEqual([
+      'Required fields',
+      'Required, at least one of these',
+      'Optional, beside a single Amount column',
+      'Optional fields',
+    ])
   })
 
   // An import started from an account has its answer already, so no column may contradict it
@@ -351,13 +358,36 @@ describe('the three ways a file can carry its amount', () => {
   // A single signed column and the two sides are alternatives, so a map holding both states the
   // amount twice with nothing to say which reading wins
   it('reports a map stating the amount two ways at once', () => {
-    expect(hasAmountArrangementClash({ ...MAPPED_ELSEWHERE, amount: 'Amount', amount_out: 'Debit' })).toBe(true)
-    expect(hasAmountArrangementClash({ ...MAPPED_ELSEWHERE, amount: 'Amount', amount_in: 'Credit' })).toBe(true)
+    expect(getAmountArrangementClashError({ ...MAPPED_ELSEWHERE, amount: 'Amount', amount_out: 'Debit' })?.message)
+      .toBe(AMOUNT_ARRANGEMENT_CLASH_ERROR)
+    expect(getAmountArrangementClashError({ ...MAPPED_ELSEWHERE, amount: 'Amount', amount_in: 'Credit' })?.message)
+      .toBe(AMOUNT_ARRANGEMENT_CLASH_ERROR)
   })
 
   it('says nothing about a map using one arrangement or none', () => {
-    expect(hasAmountArrangementClash({ ...MAPPED_ELSEWHERE, amount: 'Amount' })).toBe(false)
-    expect(hasAmountArrangementClash({ ...MAPPED_ELSEWHERE, amount_out: 'Debit', amount_in: 'Credit' })).toBe(false)
-    expect(hasAmountArrangementClash(MAPPED_ELSEWHERE)).toBe(false)
+    expect(getAmountArrangementClashError({ ...MAPPED_ELSEWHERE, amount: 'Amount' })).toBeNull()
+    expect(getAmountArrangementClashError({ ...MAPPED_ELSEWHERE, amount_out: 'Debit', amount_in: 'Credit' })).toBeNull()
+    expect(getAmountArrangementClashError(MAPPED_ELSEWHERE)).toBeNull()
+  })
+
+  // A side column already carries its own direction, so a Direction column beside one specifies it
+  // twice. The message has to be the direction one rather than the amount one, since the fix is
+  // different: this map has no second amount to drop
+  it('reports a Direction column mapped beside a side', () => {
+    expect(getAmountArrangementClashError({ ...MAPPED_ELSEWHERE, amount_direction: 'Type', amount_out: 'Debit' })?.message)
+      .toBe(DIRECTION_ARRANGEMENT_CLASH_ERROR)
+    expect(getAmountArrangementClashError({ ...MAPPED_ELSEWHERE, amount_direction: 'Type', amount_in: 'Credit' })?.message)
+      .toBe(DIRECTION_ARRANGEMENT_CLASH_ERROR)
+  })
+
+  it('reports nothing about a Direction column beside a single Amount column', () => {
+    expect(getAmountArrangementClashError({ ...MAPPED_ELSEWHERE, amount: 'Amount', amount_direction: 'Type' })).toBeNull()
+  })
+
+  // The Direction column carries no money, so mapping it answers nothing about how the file states
+  // its amount and the missing-amount error still stands
+  it('still asks for an amount where only a Direction column is mapped', () => {
+    expect(getMissingRequiredColumnLabels({ ...MAPPED_ELSEWHERE, amount_direction: 'Type' }))
+      .toEqual([MISSING_AMOUNT_COLUMN_LABEL])
   })
 })

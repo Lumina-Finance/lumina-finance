@@ -10,6 +10,7 @@ export type ColumnTarget =
   | 'amount'
   | 'amount_out'
   | 'amount_in'
+  | 'amount_direction'
   | 'currency'
   | 'merchant_id'
   | 'notes'
@@ -23,21 +24,36 @@ export type ColumnTarget =
  * them: an import needs at least one of them mapped. The two sides go together, or either one alone
  * where the file holds money going only one way, and the single signed column never sits beside a
  * side, since a file states its amounts one way or the other
+ *
+ * The direction group holds one field and is required by nothing, but it heads itself rather than
+ * sitting among the optional fields, because it only means anything beside the single Amount column
+ * and the heading is where that belongs
  */
-export type ColumnTargetGroup = 'required' | 'amount' | 'optional'
+export type ColumnTargetGroup = 'required' | 'amount' | 'direction' | 'optional'
 
 /**
- * Why a row cannot be read from the columns holding money out and money in
+ * Whether money is leaving the account or arriving in it
+ */
+export type ImportAmountDirection = 'out' | 'in'
+
+/**
+ * Why a row cannot be read from the columns carrying its amount
  *
  * A fact about the row's cells rather than a message, since reading a row and judging it are kept
  * apart and only the judgement puts words to it
+ *
+ * The first five are the file writing money out and money in in separate columns. The last two
+ * are the file carrying its direction in a column of words, read alongside a single Amount column.
+ * A file uses one arrangement or the other, so only one of these can ever be reached
  */
-export type ImportAmountSideProblem =
+export type ImportAmountProblem =
   | 'bothFilled'
   | 'neitherFilled'
   | 'sideStatesZero'
   | 'outSideStatesPlus'
   | 'inSideStatesMinus'
+  | 'directionBlank'
+  | 'directionSignDisagrees'
 
 /** The two fields a file uses when it keeps its money going out and its money coming in apart */
 export type ImportAmountSideTarget = 'amount_out' | 'amount_in'

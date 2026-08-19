@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
+import { IMPORT_CATEGORY_KIND_OPTIONS } from '@/pages/imports/constants'
 import type { ImportCategoryKind } from '@/pages/imports/types'
-import { ImportCategoryTypeToggle } from './CategoryTypeToggle'
+import { ImportSegmentedToggle } from './SegmentedToggle'
 
 /**
  * Table matching source values found in an import to an existing target or a new one, with an
@@ -88,8 +89,10 @@ export function ImportValueMatchTable({
                         inside is not a pill */}
                     <div className={row.detailAutoFilled ? 'import-auto-fill-field rounded-lg' : undefined}>
                       {row.detailNode ?? (row.onDetailKindChange ? (
-                        <ImportCategoryTypeToggle
+                        <ImportSegmentedToggle
+                          options={IMPORT_CATEGORY_KIND_OPTIONS}
                           value={row.detailKind ?? ''}
+                          label="Category type"
                           onChange={row.onDetailKindChange}
                           disabled={disabled || row.detailDisabled}
                         />

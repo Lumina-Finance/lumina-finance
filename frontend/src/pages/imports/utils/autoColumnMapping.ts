@@ -1,8 +1,8 @@
 import { COLUMN_TARGETS } from '@/pages/imports/constants'
 import type { ColumnMap, ColumnTarget, ImportAmountSideTarget, ImportFileDraft } from '@/pages/imports/types'
 import { unique } from './common'
-import { validateColumnMap, validateColumnValues } from './columnMapping'
-import { isSupportedCurrency, isValidAmountValue, isValidDateValue } from './valueParsers'
+import { getImportDirectionValues, validateColumnMap, validateColumnValues } from './columnMapping'
+import { guessImportDirectionAnswers, isSupportedCurrency, isValidAmountValue, isValidDateValue } from './valueParsers'
 
 const HEADER_ALIAS_SCORES: Record<ColumnTarget, Record<string, number>> = {
   account_id: {
@@ -65,6 +65,26 @@ const HEADER_ALIAS_SCORES: Record<ColumnTarget, Record<string, number>> = {
     inflow: 90,
     incoming: 90,
     in: 70,
+  },
+
+  // What a column of words carrying the direction is called. The money fields leave every one
+  // of these alone, for two different reasons: a heading naming both directions at once is one each
+  // of them is barred from, since each is barred from any heading another recognises, and a heading
+  // like Type or Direction is simply absent from all three of their tables
+  amount_direction: {
+    type: 90,
+    transactiontype: 100,
+    drcr: 100,
+    crdr: 100,
+    debitcredit: 100,
+    creditdebit: 100,
+    debitorcredit: 100,
+    debitcreditindicator: 100,
+    direction: 100,
+    transactionindicator: 90,
+    indicator: 80,
+    dc: 70,
+    cd: 70,
   },
   currency: {
     currency: 100,
@@ -156,6 +176,16 @@ const HEADER_CONTAINS_SCORES: Record<ColumnTarget, Array<{ value: string; score:
     { value: 'credit', score: 85 },
     { value: 'deposit', score: 85 },
   ],
+  amount_direction: [
+    { value: 'transaction type', score: 95 },
+    { value: 'debit credit', score: 95 },
+    { value: 'credit debit', score: 95 },
+    { value: 'dr cr', score: 95 },
+    { value: 'cr dr', score: 95 },
+    { value: 'direction', score: 90 },
+    { value: 'indicator', score: 80 },
+    { value: 'type', score: 60 },
+  ],
   currency: [
     { value: 'currency code', score: 90 },
     { value: 'currency', score: 75 },
@@ -207,10 +237,15 @@ const EXCLUDED_HEADER_PARTS: Partial<Record<ColumnTarget, string[]>> = {
 // Amount field is barred from any heading either side recognises, because such a heading states one
 // direction and reading it as the whole transaction signs half the file wrongly. Each side is barred
 // from the other's headings, which is what leaves a lone column called "Debit/Credit Amount" to be
-// answered by hand: stating both directions, it is claimable by neither side
+// answered by hand: stating both directions, it is claimable by neither side, and the Direction
+// field cannot take it either because a column of money holds far more values than a direction has
 //
 // Asked of the scoring tables rather than repeated as its own word list, since a list would have to
 // be extended every time a wording was added to those tables and is wrong in the meantime
+//
+// The Direction field is deliberately absent from this table. Its own headings name both directions,
+// so barring it from anything either side recognises would bar it from every heading it exists for.
+// What keeps it off a column of money is the shape check instead
 const RIVAL_AMOUNT_TARGETS: Partial<Record<ColumnTarget, ColumnTarget[]>> = {
   amount: ['amount_out', 'amount_in'],
   amount_out: ['amount_in'],
@@ -294,8 +329,14 @@ export function inferColumnMap(
       if (isSide && (!areSidesInferable || inferredMap.amount)) continue
       if (target.id === 'amount' && AMOUNT_SIDE_TARGETS.every((side) => inferredMap[side])) continue
 
+      // A file writing its two directions in separate columns carries the direction already, so
+      // nothing is left for a Direction column to add. The sides are declared above this field and so
+      // have already had their turn by the time it is asked
+      if (target.id === 'amount_direction' && AMOUNT_SIDE_TARGETS.some((side) => inferredMap[side])) continue
+
       const header = getBestHeaderMatch(files, headers, usedHeaders, target.id, supportedCurrencyCodes, byHeadingOnly)
       if (!header) continue
+      if (target.id === 'amount_direction' && !isDirectionColumnReadable(files, header)) continue
 
       inferredMap[target.id] = header
       usedHeaders.add(header)
@@ -344,6 +385,19 @@ function getBestHeaderMatch(
   }
 
   return bestMatch?.header ?? ''
+}
+
+/**
+ * Reports whether a column's own words settle the direction of each of its rows
+ *
+ * The heading alone is not enough to claim this field. A column of two values headed Type is as
+ * likely to hold `Personal` and `Business` as it is `DEBIT` and `CREDIT`, and claiming the first
+ * would block the commit on a question about a column that imports cleanly today. Where the words do
+ * settle it the answers arrive filled in as well, so a DEBIT and CREDIT file needs no clicks
+ */
+function isDirectionColumnReadable(files: ImportFileDraft[], header: string) {
+  const values = getImportDirectionValues(files, header).map((value) => value.label)
+  return values.length > 0 && Object.keys(guessImportDirectionAnswers(values)).length > 0
 }
 
 function isHeaderExcludedForTarget(header: string, target: ColumnTarget) {

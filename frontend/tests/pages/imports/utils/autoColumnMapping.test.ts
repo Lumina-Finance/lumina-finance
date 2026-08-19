@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest'
 import { EMPTY_COLUMN_MAP } from '@/pages/imports/constants'
 import type { ImportFileDraft } from '@/pages/imports/types'
-import { inferColumnMap } from '@/pages/imports/utils'
+import { guessImportDirectionAnswers, inferColumnMap } from '@/pages/imports/utils'
 
 /**
  * Creates a one-file draft from the given headers and rows
@@ -156,8 +156,9 @@ describe('import column inference', () => {
   })
 
   // Repetitive short text scored for the category field on the values alone, so a direction column
-  // was pre-filled as the category and the user had to notice and undo it
-  it('leaves a direction column alone rather than reading it as the category', () => {
+  // was pre-filled as the category and the user had to notice and undo it. It now goes to the field
+  // that reads it, which is the same column claimed by the right one rather than the wrong one
+  it('reads a direction column as the direction rather than as the category', () => {
     const files = [createFile(
       ['Date', 'Amount', 'Type'],
       [
@@ -173,7 +174,7 @@ describe('import column inference', () => {
     const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
 
     expect(map.category_id).toBe('')
-    expect(Object.values(map)).not.toContain('Type')
+    expect(map.amount_direction).toBe('Type')
   })
 
   // An import started from an account has no account field to fill, and the column that would have
@@ -524,5 +525,138 @@ describe('a file writing money out and money in in columns of their own', () => 
     const { map } = inferColumnMap(answered, files, SUPPORTED_CURRENCY_CODES, new Set(['Debit']))
 
     expect(map.amount_out).toBe('Debit')
+  })
+})
+
+describe('guessing the column that specifies money in or money out', () => {
+  /**
+   * Builds a file whose Type column holds the values given, one row each, with a positive amount
+   *
+   * @param types - What each row's Type cell holds, in file order
+   */
+  function createTypedFile(types: string[]) {
+    return [createFile(
+      ['Date', 'Description', 'Amount', 'Type'],
+      types.map((type, index) => ({
+        Date: `2026-04-${String(index + 1).padStart(2, '0')}`,
+        Description: 'Corner store',
+        Amount: `${index + 1}2.00`,
+        Type: type,
+      })),
+    )]
+  }
+
+  // The file the whole arrangement exists for, and it needs no clicks: the column is claimed and its
+  // two words are filled in from what they mean
+  it('claims a Type column of two words it recognises', () => {
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, createTypedFile(['DEBIT', 'CREDIT', 'DEBIT']), SUPPORTED_CURRENCY_CODES)
+
+    expect(map.amount_direction).toBe('Type')
+    expect(map.amount).toBe('Amount')
+  })
+
+  // Every word here is one this app knows, so the count is the only thing ruling the column out.
+  // Words it does not know would rule it out as well, and a column failing for two reasons at once
+  // cannot show which of them is doing the work
+  it('leaves a Type column of more words than a direction has, though it knows them all', () => {
+    const files = createTypedFile(['DEBIT', 'CREDIT', 'DEPOSIT'])
+
+    expect(guessImportDirectionAnswers(['DEBIT', 'CREDIT', 'DEPOSIT'])).not.toEqual({})
+    expect(inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES).map.amount_direction).toBe('')
+  })
+
+  // A card statement of nothing but purchases carries one word throughout, and that word states the
+  // direction of every row. Nothing else claims such a column either, since a single value repeated
+  // scores for neither the category nor the merchant field
+  it('claims a Type column stating one direction throughout', () => {
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, createTypedFile(['DEBIT', 'DEBIT', 'DEBIT']), SUPPORTED_CURRENCY_CODES)
+
+    expect(map.amount_direction).toBe('Type')
+    expect(map.amount).toBe('Amount')
+  })
+
+  // The payment method column a real statement carries, which fails on the count and on the words
+  it('leaves a Type column naming payment methods', () => {
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, createTypedFile(['POS', 'ATM', 'CHQ']), SUPPORTED_CURRENCY_CODES)
+
+    expect(map.amount_direction).toBe('')
+  })
+
+  // Two values under a heading like Type are as likely to be something else entirely, and claiming
+  // one would block the commit on a question about a file that imports cleanly today
+  it('leaves a Type column of two words it does not recognise', () => {
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, createTypedFile(['Personal', 'Business']), SUPPORTED_CURRENCY_CODES)
+
+    expect(map.amount_direction).toBe('')
+  })
+
+  // A heading naming both directions is claimable by neither side, so without this field it went
+  // unmapped and every row of the file imported as money coming in
+  it('claims a column headed with both directions at once', () => {
+    const files = [createFile(
+      ['Date', 'Amount', 'Debit/Credit'],
+      [
+        { Date: '2026-04-11', Amount: '84.20', 'Debit/Credit': 'DEBIT' },
+        { Date: '2026-04-12', Amount: '1200.00', 'Debit/Credit': 'CREDIT' },
+      ],
+    )]
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(map.amount_direction).toBe('Debit/Credit')
+  })
+
+  // A file writing its two directions in separate columns carries the direction already, so
+  // a Direction column beside them would be the same claim twice and the commit refuses that
+  it('leaves the direction unmapped where the two sides are claimed', () => {
+    const files = [createFile(
+      ['Date', 'Category', 'Debit', 'Credit', 'Type'],
+      [
+        { Date: '2026-04-11', Category: 'Groceries', Debit: '84.20', Credit: '', Type: 'DEBIT' },
+        { Date: '2026-04-12', Category: 'Salary', Debit: '', Credit: '1200.00', Type: 'CREDIT' },
+      ],
+    )]
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(map.amount_out).toBe('Debit')
+    expect(map.amount_in).toBe('Credit')
+    expect(map.amount_direction).toBe('')
+  })
+
+  // A Type column of Payment and Deposit used to fall to the category field, which scores a column
+  // of short repeated text and counts Payment as a category word, so the import created categories
+  // called Payment and Deposit out of a column stating direction. It now goes to the field that
+  // reads it, and the file arrives asking for a category column instead of inventing one
+  it('takes a direction column the category field used to score on its values', () => {
+    const files = [createFile(
+      ['Date', 'Description', 'Amount', 'Type'],
+      [
+        { Date: '2026-04-11', Description: 'Rent', Amount: '1200.00', Type: 'Payment' },
+        { Date: '2026-04-12', Description: 'Invoice 12', Amount: '900.00', Type: 'Deposit' },
+      ],
+    )]
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(map.amount_direction).toBe('Type')
+    expect(map.category_id).toBe('')
+  })
+
+  // A column of money holds far more different values than a direction, which is what keeps this
+  // field off one whose heading it half recognises
+  it('leaves a money column headed with both directions to be answered by hand', () => {
+    const files = [createFile(
+      ['Date', 'Debit/Credit Amount'],
+      [
+        { Date: '2026-04-11', 'Debit/Credit Amount': '-84.20' },
+        { Date: '2026-04-12', 'Debit/Credit Amount': '1200.00' },
+        { Date: '2026-04-13', 'Debit/Credit Amount': '-12.00' },
+      ],
+    )]
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(map.amount_direction).toBe('')
   })
 })

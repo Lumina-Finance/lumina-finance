@@ -1,3 +1,4 @@
+import type { ImportAmountDirection } from '@/pages/imports/types'
 import { DATE_FORMATS, formatDate, parseYmd } from '@/utils/date'
 
 /**
@@ -240,11 +241,12 @@ export function parseImportNumber(value: string) {
 }
 
 /**
- * Rewrites an amount cell to run the way its column says, without touching its digits
+ * Rewrites an amount cell to carry the direction it was given, without touching its digits
  *
- * The column settles the direction on its own, so the cell's own sign is dropped and the one its
- * column calls for is written instead. Callers reject a sign that contradicts the column before
- * reaching here, which is what makes dropping it safe
+ * The direction is settled outside the cell, by the column it sits in or by the word a column of
+ * directions carries on that row, so the cell's own sign is dropped and the one the direction calls
+ * for is written instead. Callers reject a sign that contradicts the direction before reaching here,
+ * which is what makes dropping it safe
  *
  * The sign is replaced rather than added in front, because prefixing a minus onto a cell that
  * already carries one gives `--12.00`, and onto a cell written `+5.00` gives `-+5.00`, neither of
@@ -255,11 +257,11 @@ export function parseImportNumber(value: string) {
  * A zero is written without a sign, because it runs neither way
  *
  * @param value - The raw cell value, which the caller has already read as an amount
- * @param direction - Which way the column the cell sits in holds money
+ * @param direction - Whether this row's money is leaving the account or arriving in it
  * @returns The amount as the payload carries it. An empty string where the value is not an amount
  * after all, which the type needs and no caller can reach
  */
-export function applyImportAmountDirection(value: string, direction: 'out' | 'in') {
+export function applyImportAmountDirection(value: string, direction: ImportAmountDirection) {
   const match = IMPORT_NUMBER_PATTERN.exec(value.trim())
   if (!match) return ''
 
@@ -270,20 +272,20 @@ export function applyImportAmountDirection(value: string, direction: 'out' | 'in
 }
 
 /**
- * Reports whether an amount cell carries a sign its column cannot mean
+ * Reports whether an amount cell carries a sign the direction settled for its row cannot mean
  *
- * A column of money out is money leaving whether its values are written `45.00` or `-45.00`, so only
- * an explicit plus contradicts it. A column of money in is the mirror, where only a minus does. The
- * contradicting value is refused rather than read the other way, because the file has a column for
- * that direction already and did not use it
+ * Money out is money leaving whether the cell is written `45.00` or `-45.00`, so only an explicit
+ * plus contradicts it, and money in is the mirror, where only a minus does. The contradicting value
+ * is refused rather than read the other way, because the file stated the direction elsewhere and the
+ * cell disagreeing with it is a file to go and correct
  *
  * A zero carries no direction to contradict, which is what lets a file pad its unused side with
  * `-0.00` rather than having every row refused
  *
  * @param value - The raw cell value, which the caller has already read as an amount
- * @param direction - Which way the column the cell sits in holds money
+ * @param direction - Whether this row's money is leaving the account or arriving in it
  */
-export function doesImportAmountSignDisagreeWithColumn(value: string, direction: 'out' | 'in') {
+export function doesImportAmountSignDisagreeWithDirection(value: string, direction: ImportAmountDirection) {
   const match = IMPORT_NUMBER_PATTERN.exec(value.trim())
   if (!match) return false
 
@@ -291,6 +293,84 @@ export function doesImportAmountSignDisagreeWithColumn(value: string, direction:
   if (!sign || parseImportNumber(value) === 0) return false
 
   return direction === 'out' ? sign === '+' : sign === '-'
+}
+
+// Every word a direction column is known to use, filed under the direction it carries. Matched
+// after capitals are folded and punctuation is stripped, so `Dr.` and `DR` are the same answer. The
+// list only pre-fills the panel where each value in the file is given its meaning, so a word outside
+// it costs a click rather than refusing the column, which is what makes an open-ended vocabulary
+// survivable
+const IMPORT_DIRECTION_WORDS: Record<string, ImportAmountDirection> = {
+  d: 'out', db: 'out', dr: 'out', debit: 'out', debits: 'out',
+  w: 'out', wd: 'out', withdraw: 'out', withdrawal: 'out', withdrawals: 'out', withdrawn: 'out',
+  out: 'out', outflow: 'out', outgoing: 'out', moneyout: 'out', paidout: 'out',
+  payment: 'out', spend: 'out', expense: 'out', purchase: 'out',
+  c: 'in', cr: 'in', credit: 'in', credits: 'in',
+  dep: 'in', deposit: 'in', deposits: 'in', deposited: 'in',
+  in: 'in', inflow: 'in', incoming: 'in', moneyin: 'in', paidin: 'in',
+  receipt: 'in', income: 'in', refund: 'in',
+}
+
+// A file that writes its direction as a bare sign rather than a word. Read before punctuation is
+// stripped, since stripping would leave nothing to match
+const IMPORT_DIRECTION_SIGNS: Record<string, ImportAmountDirection> = { '-': 'out', '+': 'in' }
+
+/**
+ * Reads one value from a direction column as the direction it carries, or null when the word is not
+ * one this app knows
+ *
+ * @param value - The raw cell value
+ */
+export function readImportDirectionWord(value: string): ImportAmountDirection | null {
+  const trimmed = value.trim()
+  if (Object.hasOwn(IMPORT_DIRECTION_SIGNS, trimmed)) return IMPORT_DIRECTION_SIGNS[trimmed]
+
+  // Asked of the table's own keys rather than by reading the property, because a value spelled
+  // constructor would otherwise return the function every object inherits
+  const key = trimmed.toLowerCase().replace(/[^a-z0-9]+/g, '')
+  return Object.hasOwn(IMPORT_DIRECTION_WORDS, key) ? IMPORT_DIRECTION_WORDS[key] : null
+}
+
+/**
+ * Reduces a direction value to what two spellings of the same word share, which is what decides how
+ * many directions a column states and which answer a row is read under
+ *
+ * Capitals and spacing are all that is folded away, and no character is dropped for being one this
+ * app does not recognise. A value made entirely of such characters would otherwise come back empty,
+ * and every such value in a file would then be one question carrying one answer: a column stating
+ * its direction as a bare `-` and `+`, or in any script other than the Latin alphabet, would have
+ * half its rows committed backwards with nothing on screen to show it
+ */
+export function foldImportDirectionValue(value: string) {
+  return value.trim().toLowerCase().replace(/\s+/g, ' ')
+}
+
+/**
+ * Fills in a direction column from the words it holds, where the words settle it on their own
+ *
+ * A column of two values is only filled in when the two read as opposite directions. Two values that
+ * both read as money out cannot be the two answers of a direction column, so the whole column is
+ * left for the user rather than half filled in with a reading that is wrong about one of them. A
+ * column of one value is read from that value alone, which is what a statement of nothing but
+ * purchases needs
+ *
+ * @param values - The column's distinct values, already folded
+ * @returns The direction of each value it could answer, keyed by the folded value. Empty where the
+ * words settle nothing
+ */
+export function guessImportDirectionAnswers(values: string[]): Record<string, ImportAmountDirection> {
+  const answers: Record<string, ImportAmountDirection> = {}
+
+  for (const value of values) {
+    const direction = readImportDirectionWord(value)
+    if (direction) answers[foldImportDirectionValue(value)] = direction
+  }
+
+  const answered = Object.values(answers)
+  if (answered.length !== values.length) return {}
+  if (answered.length === 2 && answered[0] === answered[1]) return {}
+
+  return answers
 }
 
 /**

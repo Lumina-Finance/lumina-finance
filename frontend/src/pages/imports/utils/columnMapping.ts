@@ -1,16 +1,24 @@
-import { COLUMN_TARGETS, EMPTY_COLUMN_MAP, IMPORT_DATE_FORMAT_LABELS } from '@/pages/imports/constants'
+import {
+  COLUMN_TARGETS,
+  EMPTY_COLUMN_MAP,
+  getTooManyDirectionValuesError,
+  IMPORT_DATE_FORMAT_LABELS,
+  MAX_DIRECTION_COLUMN_VALUES,
+} from '@/pages/imports/constants'
 import type {
   ColumnMap,
   ColumnTarget,
   ColumnValidationErrors,
   CsvRow,
-  ImportAmountSideProblem,
+  ImportAmountDirection,
+  ImportAmountProblem,
   ImportFileDraft,
 } from '@/pages/imports/types'
 import { unique } from './common'
 import {
   applyImportAmountDirection,
-  doesImportAmountSignDisagreeWithColumn,
+  doesImportAmountSignDisagreeWithDirection,
+  foldImportDirectionValue,
   type ImportDateFormat,
   isSupportedCurrency,
   isValidAmountValue,
@@ -66,6 +74,15 @@ const COLUMN_VALIDATION_RULES: Record<ColumnTarget, {
   amount_in: {
     expected: 'a raw number such as 45.00 or 1,234.56, with the rows this column says nothing about left blank or zero',
     accepts: isValidAmountValue,
+  },
+
+  // No value is wrong on its own here, since the words a file uses are its own. What rules the
+  // column out is holding more of them than a direction has. Values are not required either, because
+  // a row leaving the cell blank is judged as that row rather than as a fault in the column
+  amount_direction: {
+    expected: 'one or two words specifying money in or money out, such as DEBIT and CREDIT',
+    accepts: acceptsAnyValue,
+    refusesColumn: refuseColumnOfTooManyDirections,
   },
   currency: {
     expected: 'ISO currency codes this app supports, such as CAD or USD',
@@ -200,6 +217,19 @@ function refuseColumnOfOnlyNumbersOrDates(values: string[]) {
 }
 
 /**
+ * Refuses a column mapped as the Direction that holds more words than two directions need
+ *
+ * Spellings that differ only in capitals or spacing count once, since the panel asks
+ * about them once. Blanks are left out, because a row saying nothing is judged as that row
+ */
+function refuseColumnOfTooManyDirections(values: string[]) {
+  const distinct = unique(values.filter(Boolean).map(foldImportDirectionValue))
+  if (distinct.length <= MAX_DIRECTION_COLUMN_VALUES) return null
+
+  return getTooManyDirectionValuesError(distinct.length)
+}
+
+/**
  * Reports whether a value is written the way money is written, rather than merely being digits
  *
  * A run of bare digits is an identifier as often as it is an amount, and an account, a counterparty
@@ -269,24 +299,32 @@ export function getMappedValue(row: CsvRow, header: string) {
  *
  * A single Amount column is taken as it comes. Where either side is mapped instead, the row states
  * its amount on one side and leaves the other blank or zero, and the side carrying it settles which
- * way the row runs
+ * direction of the row. Where a Direction column is mapped instead, the Amount column carries the
+ * size and the word in the direction cell settles the direction
  *
+ * @param directionAnswers - What each word in the Direction column means, keyed by the folded value.
+ * Empty where no Direction column is mapped, and short of an answer where the user has not given one
+ * yet, which the commit refuses before it judges any row
  * @returns The amount as the payload carries it, and why there is none where the row breaks a rule
  */
 export function resolveImportAmount(
   row: CsvRow,
   columnMap: ColumnMap,
+  directionAnswers: Record<string, ImportAmountDirection>,
 ): {
   amount: string
-  amountSideProblem: ImportAmountSideProblem | null
+  amountProblem: ImportAmountProblem | null
 } {
   if (!columnMap.amount_out && !columnMap.amount_in) {
-    return { amount: getMappedValue(row, columnMap.amount), amountSideProblem: null }
+    const amountCell = getMappedValue(row, columnMap.amount)
+    return columnMap.amount_direction
+      ? resolveDirectedImportAmount(amountCell, getMappedValue(row, columnMap.amount_direction), directionAnswers)
+      : { amount: amountCell, amountProblem: null }
   }
 
   const outCell = getMappedValue(row, columnMap.amount_out)
   const inCell = getMappedValue(row, columnMap.amount_in)
-  if (!outCell && !inCell) return { amount: '', amountSideProblem: 'neitherFilled' }
+  if (!outCell && !inCell) return { amount: '', amountProblem: 'neitherFilled' }
 
   const outValue = outCell ? parseImportNumber(outCell) : null
   const inValue = inCell ? parseImportNumber(inCell) : null
@@ -294,31 +332,31 @@ export function resolveImportAmount(
   // Handed back as it stands, ahead of every rule below, so the row is judged unreadable against the
   // cell the user has to go and fix. Asking which side states an amount first would report a row
   // holding one bad cell and one good one as a row stating two amounts
-  if (outCell && outValue === null) return { amount: outCell, amountSideProblem: null }
-  if (inCell && inValue === null) return { amount: inCell, amountSideProblem: null }
+  if (outCell && outValue === null) return { amount: outCell, amountProblem: null }
+  if (inCell && inValue === null) return { amount: inCell, amountProblem: null }
 
   // Asked of each filled cell before the rules below, so a row carrying a contradicting sign on one
   // side and a real amount on the other is reported against the cell to fix rather than as a row
   // stating two amounts
-  if (doesImportAmountSignDisagreeWithColumn(outCell, 'out')) {
-    return { amount: '', amountSideProblem: 'outSideStatesPlus' }
+  if (doesImportAmountSignDisagreeWithDirection(outCell, 'out')) {
+    return { amount: '', amountProblem: 'outSideStatesPlus' }
   }
-  if (doesImportAmountSignDisagreeWithColumn(inCell, 'in')) {
-    return { amount: '', amountSideProblem: 'inSideStatesMinus' }
+  if (doesImportAmountSignDisagreeWithDirection(inCell, 'in')) {
+    return { amount: '', amountProblem: 'inSideStatesMinus' }
   }
 
   // A zero states no money moved either way, so it never claims its side against the other
   const doesOutState = outValue !== null && outValue !== 0
   const doesInState = inValue !== null && inValue !== 0
 
-  if (doesOutState && doesInState) return { amount: '', amountSideProblem: 'bothFilled' }
+  if (doesOutState && doesInState) return { amount: '', amountProblem: 'bothFilled' }
 
   // Where only one side is mapped every row has to state its amount there, so a zero means this
   // row's money went the way the file has no mapped column for. With both sides mapped the same row
   // is one where no money moved either way, which is a real thing to import
   const isOneSided = !columnMap.amount_out || !columnMap.amount_in
   if (!doesOutState && !doesInState && isOneSided) {
-    return { amount: '', amountSideProblem: 'sideStatesZero' }
+    return { amount: '', amountProblem: 'sideStatesZero' }
   }
 
   // Where neither side states an amount, every cell the row did fill is a zero, so whichever side is
@@ -327,8 +365,59 @@ export function resolveImportAmount(
 
   return {
     amount: applyImportAmountDirection(direction === 'out' ? outCell : inCell, direction),
-    amountSideProblem: null,
+    amountProblem: null,
   }
+}
+
+/**
+ * Reads a row from a file writing its amount unsigned beside a column of words carrying the direction
+ *
+ * @param amountCell - The raw Amount cell, which carries the size and may carry an agreeing sign
+ * @param directionCell - The raw Direction cell, whose word the user has said the meaning of
+ * @param directionAnswers - What each word means, keyed by the folded value
+ */
+function resolveDirectedImportAmount(
+  amountCell: string,
+  directionCell: string,
+  directionAnswers: Record<string, ImportAmountDirection>,
+): { amount: string; amountProblem: ImportAmountProblem | null } {
+  // Handed back as it stands, ahead of every rule below, so a row whose amount is blank or cannot be
+  // read is judged against that cell rather than against a direction that was never the problem
+  if (!amountCell || parseImportNumber(amountCell) === null) {
+    return { amount: amountCell, amountProblem: null }
+  }
+
+  if (!directionCell) return { amount: '', amountProblem: 'directionBlank' }
+
+  // A word nobody has answered yet stops the whole commit before any row is judged, so the row is
+  // left with no amount rather than given a problem naming a fault that is not its own
+  const direction = directionAnswers[foldImportDirectionValue(directionCell)]
+  if (!direction) return { amount: '', amountProblem: null }
+
+  if (doesImportAmountSignDisagreeWithDirection(amountCell, direction)) {
+    return { amount: '', amountProblem: 'directionSignDisagrees' }
+  }
+
+  return { amount: applyImportAmountDirection(amountCell, direction), amountProblem: null }
+}
+
+/**
+ * Lists the distinct words a column mapped as the Direction holds, in the order the file first
+ * states each one, against the folded value the answers are keyed by
+ *
+ * Spellings differing only in capitals or spacing are one question, and the spelling kept
+ * is the first the file used, so the panel shows the user what is actually in their file
+ */
+export function getImportDirectionValues(files: ImportFileDraft[], header: string) {
+  const seen = new Map<string, string>()
+
+  for (const value of getColumnValues(files, header)) {
+    if (!value) continue
+    const key = foldImportDirectionValue(value)
+    if (!seen.has(key)) seen.set(key, value)
+  }
+
+  return [...seen].map(([key, label]) => ({ key, label }))
 }
 
 /**

@@ -92,6 +92,7 @@ function build(
     columnValidationErrors,
     currencies: CURRENCIES,
     dateFormat: 'yearFirst',
+    directionAnswers: {},
     files: [file],
     importedCategories: ['Groceries'],
   })

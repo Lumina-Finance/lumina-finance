@@ -8,7 +8,7 @@ import {
 } from '@/api/transaction-imports'
 import { EMPTY_COLUMN_MAP } from '@/pages/imports/constants'
 import { OUTSIDE_ACCOUNT_LABEL, OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
-import type { ColumnMap, ColumnTarget, ColumnValidationErrors, ImportCategoryKind, ImportFileDraft, ImportOverlayPhase, PreviewTransactionRow } from '@/pages/imports/types'
+import type { ColumnMap, ColumnTarget, ColumnValidationErrors, ImportAmountDirection, ImportCategoryKind, ImportFileDraft, ImportOverlayPhase, PreviewTransactionRow } from '@/pages/imports/types'
 import {
   applyCreateAccountFallback,
   applyFixedImportAccount,
@@ -23,6 +23,7 @@ import {
   getArchivedAccountMatches,
   dropVanishedAccountMappings,
   dropVanishedCategoryMappings,
+  getImportDirectionValues,
   getImportedCategoryTypes,
   getImportedCategories,
   getImportedMerchants,
@@ -43,6 +44,7 @@ import {
   isAutoFilledAccountSource,
   isColumnMappingComplete,
   groupPreviewRowsByDate,
+  guessImportDirectionAnswers,
   inferColumnMap,
   type ImportDateFormat,
   keepCurrentMatchMap,
@@ -185,6 +187,11 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   const [columnValidationErrors, setColumnValidationErrors] = useState<ColumnValidationErrors>({})
 
   const [dateFormatChoice, setDateFormatChoice] = useState<DateFormatChoice | null>(null)
+
+  // What the user said each word in the Direction column means. Scoped like every other per-value
+  // answer, so setting that column to Do not import and mapping it back is not the same as answering
+  // the question again, and a different column's words start unanswered
+  const [scopedDirectionAnswers, setScopedDirectionAnswers] = useState<ScopedImportAnswers<ImportAmountDirection>>(emptyScopedImportAnswers)
   const [scopedCategoryMappings, setScopedCategoryMappings] = useState<ScopedImportAnswers<string>>(emptyScopedImportAnswers)
   const [categoryAutoMatchKey, setCategoryAutoMatchKey] = useState('')
   const [scopedCategoryCreateKinds, setScopedCategoryCreateKinds] = useState<ScopedImportAnswers<ImportCategoryKind>>(emptyScopedImportAnswers)
@@ -368,6 +375,49 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     setDateFormatChoice({ scope: dateFormatScope, format })
   }
 
+  // Every distinct word the mapped Direction column holds, which is what the panel asks about and
+  // what the commit checks has been answered. Empty where no such column is mapped
+  const directionValues = useMemo(
+    () => (columnMap.amount_direction ? getImportDirectionValues(files, columnMap.amount_direction) : []),
+    [columnMap.amount_direction, files],
+  )
+
+  // Answers belong to the column they were given for, the way the date format choice does, so the
+  // scope is that column and the staged file
+  const directionAnswerScope = buildImportAnswerScope(columnMap.amount_direction, files)
+  const getDirectionValueScope = useMemo(() => () => directionAnswerScope, [directionAnswerScope])
+
+  const chosenDirectionAnswers = useMemo(
+    () => readScopedImportAnswers(scopedDirectionAnswers, getDirectionValueScope),
+    [getDirectionValueScope, scopedDirectionAnswers],
+  )
+
+  // What the words settle on their own, which is nothing unless they settle the whole column. Laid
+  // under the user's answers rather than over them, so answering one word by hand keeps that answer
+  const guessedDirectionAnswers = useMemo(
+    () => guessImportDirectionAnswers(directionValues.map((value) => value.label)),
+    [directionValues],
+  )
+
+  const directionAnswers = useMemo(
+    () => ({ ...guessedDirectionAnswers, ...chosenDirectionAnswers }),
+    [chosenDirectionAnswers, guessedDirectionAnswers],
+  )
+
+  // Glowed as filled in by the app until the user answers that word themselves
+  const autoFilledDirectionValues = useMemo(
+    () => new Set(Object.keys(guessedDirectionAnswers).filter((key) => !(key in chosenDirectionAnswers))),
+    [chosenDirectionAnswers, guessedDirectionAnswers],
+  )
+
+  const setDirectionAnswer = (value: string, direction: ImportAmountDirection) => {
+    setScopedDirectionAnswers((current) => writeScopedImportAnswers(
+      current,
+      { ...readScopedImportAnswers(current, getDirectionValueScope), [value]: direction },
+      getDirectionValueScope,
+    ))
+  }
+
   // Only a source no row is written to can answer that the money left the tracked accounts, so the
   // extra choice is kept off every other row's dropdown, and the same reason is why an archived
   // account is offered here and nowhere else in the flow
@@ -540,8 +590,8 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   } = useImportMerchantMatches(importedMerchants)
 
   const categoryTypesBySource = useMemo(
-    () => getImportedCategoryTypes(files, columnMap, importedCategories),
-    [columnMap, importedCategories, files],
+    () => getImportedCategoryTypes(files, columnMap, importedCategories, directionAnswers),
+    [columnMap, directionAnswers, importedCategories, files],
   )
 
   const importedTags = useMemo(
@@ -610,6 +660,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
       columnValidationErrors: resolvedColumnValidationErrors,
       currencies,
       dateFormat,
+      directionAnswers,
       files,
       importedCategories,
       merchantAnswers: {
@@ -630,6 +681,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
       currencies,
       columnMap,
       dateFormat,
+      directionAnswers,
       files,
       importedCategories,
       importedMerchants,
@@ -650,6 +702,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
       files,
       columnMap,
       dateFormat,
+      directionAnswers,
       missingRequiredColumnLabels,
       currencies,
       accountById,
@@ -663,7 +716,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
       resolvedCategoryMappings,
       rowProblems: importBuild.rowProblems,
     }),
-    [accountById, accountCreateInstitutions, categoryById, categoryCreateKinds, categoryTypesBySource, columnMap, currencies, dateFormat, files, importBuild.rowProblems, institutionById, missingRequiredColumnLabels, resolvedAccountCreateCurrencies, resolvedAccountMappings, resolvedCategoryMappings],
+    [accountById, accountCreateInstitutions, categoryById, categoryCreateKinds, categoryTypesBySource, columnMap, currencies, dateFormat, directionAnswers, files, importBuild.rowProblems, institutionById, missingRequiredColumnLabels, resolvedAccountCreateCurrencies, resolvedAccountMappings, resolvedCategoryMappings],
   )
 
   const previewGroups = useMemo(
@@ -917,6 +970,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     setTagHandlingOpen(true)
     setColumnValidationErrors({})
     setDateFormatChoice(null)
+    setScopedDirectionAnswers(emptyScopedImportAnswers)
     setScopedCategoryMappings(emptyScopedImportAnswers)
     setCategoryAutoMatchKey('')
     setScopedCategoryCreateKinds(emptyScopedImportAnswers)
@@ -957,6 +1011,10 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     dateFormat,
     dateFormatScan,
     setDateFormat,
+    directionValues,
+    directionAnswers,
+    autoFilledDirectionValues,
+    setDirectionAnswer,
     categoryMappings: resolvedCategoryMappings,
     categoryCreateKinds,
     merchantMappings,
