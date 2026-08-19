@@ -72,6 +72,7 @@ function build(dates: string[], dateFormat: ImportDateFormat | null, columnValid
     columnMap: COLUMN_MAP,
     columnValidationErrors,
     dateFormat,
+    directionAnswers: {},
     files: [createFile(dates)],
     importedCategories: ['Groceries'],
   })

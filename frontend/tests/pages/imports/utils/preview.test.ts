@@ -67,13 +67,19 @@ function createCategory(overrides: Partial<Category> = {}): Category {
 
 /**
  * Creates an import file draft with mapped CSV headers
+ *
+ * @param headers - What the file's columns are called, for a file carrying one the usual set does
+ * not, since a column absent from this list is invisible to everything that reads a row
  */
-function createFile(rows: ImportFileDraft['rows']): ImportFileDraft {
+function createFile(
+  rows: ImportFileDraft['rows'],
+  headers = ['Date', 'Amount', 'Category', 'Merchant', 'Notes', 'Tags', 'Currency'],
+): ImportFileDraft {
   return {
     id: 'file-1',
     name: 'Checking.csv',
     size: 1024,
-    headers: ['Date', 'Amount', 'Category', 'Merchant', 'Notes', 'Tags', 'Currency'],
+    headers,
     hasHeaderRow: true,
     rows,
     error: null,
@@ -86,6 +92,7 @@ describe('import preview rows', () => {
       files: [createFile([])],
       columnMap: EMPTY_COLUMN_MAP,
       dateFormat: null,
+      directionAnswers: {},
       missingRequiredColumnLabels: ['Date'],
       currencies,
       accountById: new Map(),
@@ -123,6 +130,7 @@ describe('import preview rows', () => {
         currency: 'Currency',
       },
       dateFormat: 'monthFirst',
+      directionAnswers: {},
       missingRequiredColumnLabels: [],
       currencies,
       accountById: new Map(),
@@ -160,6 +168,49 @@ describe('import preview rows', () => {
     })
   })
 
+  // The preview and the commit read a row the same way, so a file whose direction is a column of
+  // words has to be shown signed here or the user would approve rows the import writes differently
+  it('shows a row signed from the word its direction column carries', () => {
+    const category = createCategory()
+    const account = createAccount()
+    const rows = buildImportPreviewRows({
+      files: [createFile([{
+        Date: '2026-06-11',
+        Amount: '84.20',
+        Category: 'Groceries',
+        Merchant: '',
+        Notes: '',
+        Tags: '',
+        Currency: '',
+        Type: 'DEBIT',
+      }], ['Date', 'Amount', 'Category', 'Merchant', 'Notes', 'Tags', 'Currency', 'Type'])],
+      columnMap: {
+        ...EMPTY_COLUMN_MAP,
+        dt: 'Date',
+        amount: 'Amount',
+        category_id: 'Category',
+        amount_direction: 'Type',
+      },
+      dateFormat: 'yearFirst',
+      directionAnswers: { debit: 'out' },
+      missingRequiredColumnLabels: [],
+      currencies,
+      accountById: new Map([[account.id, account]]),
+      accountCreateCurrencies: {},
+      accountCreateInstitutions: {},
+      categoryById: new Map([[category.id, category]]),
+      categoryCreateKinds: {},
+      categoryTypesBySource: {},
+      institutionById: new Map(),
+      resolvedAccountMappings: { 'file-1': account.id },
+      resolvedCategoryMappings: { Groceries: category.id },
+      rowProblems: [],
+    })
+
+    expect(rows).toHaveLength(1)
+    expect(rows[0].transaction.amount).toBe(-8420)
+  })
+
   it('caps preview rows to the first five mapped transactions', () => {
     const category = createCategory()
     const file = createFile(Array.from({ length: 6 }, (_, index) => ({
@@ -181,6 +232,7 @@ describe('import preview rows', () => {
         category_id: 'Category',
       },
       dateFormat: 'yearFirst',
+      directionAnswers: {},
       missingRequiredColumnLabels: [],
       currencies,
       accountById: new Map([['checking', createAccount()]]),
@@ -219,6 +271,7 @@ describe('import preview rows', () => {
         category_id: 'Category',
       },
       dateFormat: 'yearFirst',
+      directionAnswers: {},
       missingRequiredColumnLabels: [],
       currencies,
       accountById: new Map([['checking', createAccount()]]),
@@ -255,6 +308,7 @@ describe('import preview rows', () => {
         category_id: 'Category',
       },
       dateFormat: 'yearFirst',
+      directionAnswers: {},
       missingRequiredColumnLabels: [],
       currencies,
       accountById: new Map([['checking', createAccount()]]),
@@ -293,6 +347,7 @@ describe('import preview rows', () => {
         category_id: 'Category',
       },
       dateFormat: 'yearFirst',
+      directionAnswers: {},
       missingRequiredColumnLabels: [],
       currencies,
       accountById: new Map([['checking', createAccount()]]),

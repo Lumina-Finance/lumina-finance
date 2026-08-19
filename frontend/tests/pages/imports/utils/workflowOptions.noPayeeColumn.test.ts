@@ -85,6 +85,7 @@ function build({ payeeMapped = true }: { payeeMapped?: boolean } = {}) {
     columnValidationErrors: {},
     currencies: CURRENCIES,
     dateFormat: 'yearFirst',
+    directionAnswers: {},
     files: [createFile(ROWS)],
     importedCategories: ['Groceries'],
   })
@@ -100,6 +101,7 @@ function preview(kind: Category['kind']) {
     files: [createFile(ROWS)],
     columnMap: { ...EMPTY_COLUMN_MAP, dt: 'Date', category_id: 'Category', amount: 'Amount' },
     dateFormat: 'yearFirst',
+    directionAnswers: {},
     missingRequiredColumnLabels: [],
     currencies: CURRENCIES,
     accountById: new Map([[ACCOUNT.id, ACCOUNT]]),

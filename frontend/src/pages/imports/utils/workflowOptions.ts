@@ -6,6 +6,8 @@ import type { DropdownOption } from '@/components/dropdown/Dropdown'
 import {
   ACCOUNT_KIND_LABELS,
   ACCOUNT_KIND_RANKS,
+  AMOUNT_ARRANGEMENT_CLASH_ERROR,
+  AMOUNT_ARRANGEMENT_CLASH_TITLE,
   COLUMN_TARGET_GROUP_LABELS,
   COLUMN_TARGET_GROUP_RANKS,
   COLUMN_TARGETS,
@@ -14,6 +16,8 @@ import {
   CURRENCIES_FAILED_UPLOAD_BLOCK,
   CURRENCIES_LOADING_UPLOAD_BLOCK,
   DEFAULT_CATEGORY_ICON,
+  DIRECTION_ARRANGEMENT_CLASH_ERROR,
+  DIRECTION_ARRANGEMENT_CLASH_TITLE,
   KIND_LABELS,
   KIND_RANKS,
   MISSING_AMOUNT_COLUMN_LABEL,
@@ -196,13 +200,28 @@ export function getMissingRequiredColumnLabels(columnMap: ColumnMap): string[] {
 }
 
 /**
- * Reports whether a file is mapped as carrying its amount two ways at once
+ * Reports why a file's amount mapping contradicts itself, or null where it does not
  *
  * A single signed column and the two sides written separately are alternatives, so a map holding
- * both states the amount twice and there is nothing to say which reading wins
+ * both states the amount twice with nothing to settle which reading wins. A Direction column beside
+ * either side is the same fault about the direction rather than the amount, since a side already
+ * carries its own direction
+ *
+ * @returns The title and message of the clash it found, both shown on the mapping step and the
+ * message alone over the commit button
  */
-export function hasAmountArrangementClash(columnMap: ColumnMap): boolean {
-  return Boolean(columnMap.amount && (columnMap.amount_out || columnMap.amount_in))
+export function getAmountArrangementClashError(columnMap: ColumnMap): { title: string; message: string } | null {
+  const hasSide = Boolean(columnMap.amount_out || columnMap.amount_in)
+  if (!hasSide) return null
+
+  if (columnMap.amount) {
+    return { title: AMOUNT_ARRANGEMENT_CLASH_TITLE, message: AMOUNT_ARRANGEMENT_CLASH_ERROR }
+  }
+  if (columnMap.amount_direction) {
+    return { title: DIRECTION_ARRANGEMENT_CLASH_TITLE, message: DIRECTION_ARRANGEMENT_CLASH_ERROR }
+  }
+
+  return null
 }
 
 /**

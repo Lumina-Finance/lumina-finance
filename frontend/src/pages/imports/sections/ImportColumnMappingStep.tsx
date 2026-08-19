@@ -1,13 +1,13 @@
-import { EmptyState, ImportHeaderMappingTable, ImportNotice, ImportStep } from '@/pages/imports/components'
+import { EmptyState, ImportDirectionValueTable, ImportHeaderMappingTable, ImportNotice, ImportStep } from '@/pages/imports/components'
 import {
-  AMOUNT_ARRANGEMENT_CLASH_ERROR,
-  AMOUNT_ARRANGEMENT_CLASH_TITLE,
   AMOUNT_CONVENTION_NOTE,
+  DIRECTION_VALUES_EXPLANATION,
+  DIRECTION_VALUES_TITLE,
   getRowsWithNoPayeeExplanation,
   ROWS_WITH_NO_PAYEE_TITLE,
 } from '@/pages/imports/constants'
 import type { TransactionImportWorkflow } from '@/pages/imports/hooks'
-import { hasAmountArrangementClash } from '@/pages/imports/utils'
+import { getAmountArrangementClashError } from '@/pages/imports/utils'
 
 type ImportColumnMappingStepProps = Pick<
   TransactionImportWorkflow,
@@ -19,8 +19,12 @@ type ImportColumnMappingStepProps = Pick<
   | 'columnValidationErrors'
   | 'dateFormat'
   | 'dateFormatScan'
+  | 'directionValues'
+  | 'directionAnswers'
+  | 'autoFilledDirectionValues'
   | 'rowsWithNoPayeeCount'
   | 'setDateFormat'
+  | 'setDirectionAnswer'
   | 'updateColumnTarget'
 >
 
@@ -32,6 +36,10 @@ type ImportColumnMappingStepProps = Pick<
  * arrangement a file uses is answered by mapping its columns rather than by a question of its own.
  * It sits where the account step states its own currency handling, since both say what the import
  * will do with a number rather than asking anything
+ *
+ * A file mapping a Direction column has one more question, which words in that column mean money
+ * leaving the account. It is asked here rather than in a separate step, so the column and what its
+ * words mean stay on one screen
  */
 export function ImportColumnMappingStep({
   headers,
@@ -42,10 +50,22 @@ export function ImportColumnMappingStep({
   columnValidationErrors,
   dateFormat,
   dateFormatScan,
+  directionValues,
+  directionAnswers,
+  autoFilledDirectionValues,
   rowsWithNoPayeeCount,
   setDateFormat,
+  setDirectionAnswer,
   updateColumnTarget,
 }: ImportColumnMappingStepProps) {
+  const arrangementClash = getAmountArrangementClashError(columnMap)
+
+  // The panel is held back while the column itself is refused, which is what a column of more words
+  // than a direction has gets. Asking what six words mean under a message saying six is too many
+  // would ask the user to answer a question the app has already refused
+  const isDirectionColumnRefused = Boolean(columnMap.amount_direction && columnValidationErrors[columnMap.amount_direction])
+  const showsDirectionValues = directionValues.length > 0 && !isDirectionColumnRefused && !arrangementClash
+
   return (
     <ImportStep
       index="02"
@@ -74,10 +94,23 @@ export function ImportColumnMappingStep({
           onDateFormatChange={setDateFormat}
         />
       )}
-      {hasAmountArrangementClash(columnMap) && (
+      {showsDirectionValues && (
+        <div className="mt-4 space-y-3">
+          <ImportNotice title={DIRECTION_VALUES_TITLE}>
+            {DIRECTION_VALUES_EXPLANATION}
+          </ImportNotice>
+          <ImportDirectionValueTable
+            values={directionValues}
+            answers={directionAnswers}
+            autoFilledValues={autoFilledDirectionValues}
+            onChange={setDirectionAnswer}
+          />
+        </div>
+      )}
+      {arrangementClash && (
         <div className="mt-4">
-          <ImportNotice title={AMOUNT_ARRANGEMENT_CLASH_TITLE} tone="danger">
-            {AMOUNT_ARRANGEMENT_CLASH_ERROR}
+          <ImportNotice title={arrangementClash.title} tone="danger">
+            {arrangementClash.message}
           </ImportNotice>
         </div>
       )}

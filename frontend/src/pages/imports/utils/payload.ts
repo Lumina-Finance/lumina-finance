@@ -3,12 +3,13 @@ import type { Category } from '@/api/categories'
 import type { Merchant } from '@/api/merchants'
 import type { TransactionImportPayload, TransactionImportResponse } from '@/api/transaction-imports'
 import {
-  AMOUNT_ARRANGEMENT_CLASH_ERROR,
   CREATE_ACCOUNT_VALUE,
   CREATE_CATEGORY_VALUE,
   DEFAULT_CATEGORY_ICON,
   getCategoryDirectionClashError,
+  getDirectionValuesAgreeError,
   getTooManyMappingsError,
+  getUnansweredDirectionValuesError,
   MAX_IMPORT_MAPPINGS,
   NO_OUTFLOWS_WARNING,
   ROW_SIGN_DISAGREES_WITH_CATEGORY_REASON,
@@ -18,6 +19,7 @@ import type {
   ColumnMap,
   ColumnValidationErrors,
   ImportAccountSource,
+  ImportAmountDirection,
   ImportBuildResult,
   ImportCategoryKind,
   ImportFileDraft,
@@ -27,8 +29,9 @@ import { isImportAccountType } from '@/pages/imports/accountTypeGuard'
 import type { Currency } from '@/api/currency'
 import { findReusedImportCategory, getCategoryMatchKind } from './categoryMatching'
 import { buildImportMerchantMappings } from './merchantMatching'
+import { getImportDirectionValues } from './columnMapping'
 import { getImportRowId } from './common'
-import { getMissingRequiredColumnLabels, hasAmountArrangementClash } from './workflowOptions'
+import { getAmountArrangementClashError, getMissingRequiredColumnLabels } from './workflowOptions'
 import {
   getCurrencyByAccountSource,
   getImportRowProblem,
@@ -61,6 +64,7 @@ export function buildTransactionImportPayload({
   columnValidationErrors,
   currencies,
   dateFormat,
+  directionAnswers,
   files,
   importedCategories,
   merchantAnswers,
@@ -79,6 +83,9 @@ export function buildTransactionImportPayload({
   columnValidationErrors: ColumnValidationErrors
   currencies: Currency[]
   dateFormat: ImportDateFormat | null
+
+  /** What each word in a mapped Direction column means, keyed by the folded value */
+  directionAnswers: Record<string, ImportAmountDirection>
   files: ImportFileDraft[]
   importedCategories: string[]
 
@@ -113,7 +120,21 @@ export function buildTransactionImportPayload({
   const missingRequired = getMissingRequiredColumnLabels(columnMap)
   if (missingRequired.length > 0) addError(`Missing required columns: ${missingRequired.join(', ')}`)
 
-  if (hasAmountArrangementClash(columnMap)) addError(AMOUNT_ARRANGEMENT_CLASH_ERROR)
+  const arrangementClash = getAmountArrangementClashError(columnMap)
+  if (arrangementClash) addError(arrangementClash.message)
+
+  // A Direction column the mapping step has already refused, or one contradicting a side column,
+  // gives no row a direction. Both are reported in their own right, and neither leaves the panel
+  // where the words are answered on screen, so nothing here asks for an answer the user cannot give
+  const isDirectionColumnUnusable = Boolean(columnMap.amount_direction)
+    && (Boolean(columnValidationErrors[columnMap.amount_direction]) || arrangementClash !== null)
+
+  // Asked before any row is judged, for the reason the date format is: without an answer every row
+  // reads as one with no amount, which is a file full of broken rows rather than one question
+  // waiting on the mapping step
+  if (!isDirectionColumnUnusable) {
+    for (const message of getDirectionAnswerErrors(files, columnMap, directionAnswers)) addError(message)
+  }
 
   // Counted off the distinct values the files hold rather than the mappings answered so far, so the
   // refusal does not wait for answers that cannot change it. Mapping a thousand categories by hand
@@ -223,7 +244,11 @@ export function buildTransactionImportPayload({
   // Judging rows before every mapping they depend on is answered blames them for the answer being
   // missing: with no category column mapped, every row reads as one with a blank category, and with
   // no date format settled, every row reads as one whose date does not fit
-  if (errors.length > 0) {
+  //
+  // An unusable Direction column is the same case reached without an entry in `errors`, since what
+  // is wrong with it is reported against the column instead. Judging rows against it would list
+  // every one of them as an amount that is blank, beside the Amount cells holding those amounts
+  if (errors.length > 0 || isDirectionColumnUnusable) {
     return {
       errors: [...columnErrors, ...errors],
       rowProblems: [],
@@ -236,6 +261,7 @@ export function buildTransactionImportPayload({
   const rowContext: ImportRowContext = {
     columnMap,
     dateFormat,
+    directionAnswers,
     currencyByAccountSource: getCurrencyByAccountSource(accountMappings, accountById, accountCreateCurrencies),
   }
   const rowJudgement: ImportRowJudgement = { currencies, accountMappings, recordsCounterpartyBySource }
@@ -325,6 +351,33 @@ function doesSignDisagreeWithCategoryKind(amount: string, kind: ImportCategoryKi
   if (kind === 'expense') return value > 0
   if (kind === 'income') return value < 0
   return false
+}
+
+/**
+ * Reports what is still wrong with the answers given for a mapped Direction column
+ *
+ * A word nobody answered leaves its rows with no direction, and two words answered the same way
+ * leave the file with no direction at all, so both stop the commit. Neither is checked where no
+ * Direction column is mapped, since there is nothing to answer, nor where the caller has already
+ * found the column unusable
+ */
+function getDirectionAnswerErrors(
+  files: ImportFileDraft[],
+  columnMap: ColumnMap,
+  directionAnswers: Record<string, ImportAmountDirection>,
+) {
+  if (!columnMap.amount_direction) return []
+
+  const values = getImportDirectionValues(files, columnMap.amount_direction)
+  if (values.length === 0) return []
+
+  const unanswered = values.filter((value) => !directionAnswers[value.key])
+  if (unanswered.length > 0) return [getUnansweredDirectionValuesError(unanswered.map((value) => value.label))]
+
+  const answered = values.map((value) => directionAnswers[value.key])
+  if (answered.length === 2 && answered[0] === answered[1]) return [getDirectionValuesAgreeError(answered[0])]
+
+  return []
 }
 
 /**

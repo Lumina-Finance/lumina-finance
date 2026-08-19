@@ -97,4 +97,19 @@ describe('import workflow state helpers', () => {
     expect(isColumnMappingComplete(clashingMap, {}, [createFile()])).toBe(false)
     expect(isColumnMappingComplete({ ...clashingMap, amount: '' }, {}, [createFile()])).toBe(true)
   })
+
+  // A side column already carries its own direction, so a Direction column beside one is the same
+  // contradiction and the commit refuses it for the same reason
+  it('does not call a mapping complete while a Direction column sits beside a side', () => {
+    const clashingMap = {
+      ...EMPTY_COLUMN_MAP,
+      dt: 'Date',
+      amount_in: 'Credit',
+      amount_direction: 'Type',
+      category_id: 'Category',
+    }
+
+    expect(isColumnMappingComplete(clashingMap, {}, [createFile()])).toBe(false)
+    expect(isColumnMappingComplete({ ...clashingMap, amount_direction: '' }, {}, [createFile()])).toBe(true)
+  })
 })

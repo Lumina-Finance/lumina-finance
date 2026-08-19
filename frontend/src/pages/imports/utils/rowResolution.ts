@@ -22,22 +22,26 @@ import {
   ROW_COUNTERPARTY_NOT_A_TRANSFER_REASON,
   ROW_DATE_BLANK_REASON,
   ROW_DATE_UNREADABLE_REASON,
+  ROW_DIRECTION_BLANK_REASON,
+  ROW_DIRECTION_SIGN_DISAGREES_REASON,
 } from '@/pages/imports/constants'
-import type { ColumnMap, CsvRow, ImportAmountSideProblem } from '@/pages/imports/types'
+import type { ColumnMap, CsvRow, ImportAmountDirection, ImportAmountProblem } from '@/pages/imports/types'
 import { findCurrencyExponent } from '@/utils/moneyInput'
 import { splitImportedValues } from './categoryMatching'
 import { getMappedValue, resolveImportAmount } from './columnMapping'
 import { unique } from './common'
 import { type ImportDateFormat, parseImportNumber, readImportDate, toImportMinorUnits } from './valueParsers'
 
-// What each way of breaking the two-sided amount rule is reported as, kept beside the reading rather
-// than inside it so resolving a row states facts and judging it puts the words to them
-const AMOUNT_SIDE_PROBLEM_REASONS: Record<ImportAmountSideProblem, string> = {
+// What each way of breaking an amount arrangement's rules is reported as, kept beside the reading
+// rather than inside it so resolving a row states facts and judging it puts the words to them
+const AMOUNT_PROBLEM_REASONS: Record<ImportAmountProblem, string> = {
   bothFilled: ROW_AMOUNT_BOTH_SIDES_REASON,
   neitherFilled: ROW_AMOUNT_NO_SIDE_REASON,
   sideStatesZero: ROW_AMOUNT_SIDE_STATES_ZERO_REASON,
   outSideStatesPlus: ROW_AMOUNT_OUT_SIDE_PLUS_REASON,
   inSideStatesMinus: ROW_AMOUNT_IN_SIDE_MINUS_REASON,
+  directionBlank: ROW_DIRECTION_BLANK_REASON,
+  directionSignDisagrees: ROW_DIRECTION_SIGN_DISAGREES_REASON,
 }
 
 /**
@@ -45,8 +49,8 @@ const AMOUNT_SIDE_PROBLEM_REASONS: Record<ImportAmountSideProblem, string> = {
  *
  * The amount's digits are always the cell's own rather than a converted number, because the API
  * parses them with exact decimals and converting here would be a second opinion about the same
- * digits. Where the file writes the two sides separately only the sign in front of them is this
- * module's, since the column the cell sat in is what states the direction
+ * digits. Where the file states its direction outside the amount, in two separate columns or in a
+ * column of words, only the sign in front of the digits is this module's
  */
 export interface ResolvedImportRow {
   accountSource: string
@@ -55,8 +59,8 @@ export interface ResolvedImportRow {
   dt: string
   amount: string
 
-  /** Why `amount` is empty, where the file states the two sides separately and the row breaks the rule */
-  amountSideProblem: ImportAmountSideProblem | null
+  /** Why `amount` is empty, where the file states its direction outside the amount and the row breaks the rule */
+  amountProblem: ImportAmountProblem | null
   merchantName: string | null
   notes: string | null
   tagNames: string[]
@@ -82,6 +86,15 @@ export interface ResolvedImportRow {
 export interface ImportRowContext {
   columnMap: ColumnMap
   dateFormat: ImportDateFormat | null
+
+  /**
+   * What each word in a mapped Direction column means, keyed by the folded value
+   *
+   * Empty where the file states its direction some other way, which every caller still passes rather
+   * than leaving out, so a build that forgot it fails the type-check instead of quietly reading every
+   * row as though the file had no Direction column
+   */
+  directionAnswers: Record<string, ImportAmountDirection>
 
   /** Settled once per build and read back per row, since it answers a question about a source */
   currencyByAccountSource: Record<string, string>
@@ -113,14 +126,14 @@ export function resolveImportRow(row: CsvRow, fileId: string, context: ImportRow
 
   const accountSource = columnMap.account_id ? getMappedValue(row, columnMap.account_id) : fileId
   const importedDate = getMappedValue(row, columnMap.dt)
-  const { amount, amountSideProblem } = resolveImportAmount(row, columnMap)
+  const { amount, amountProblem } = resolveImportAmount(row, columnMap, context.directionAnswers)
   return {
     accountSource,
     categorySource: getMappedValue(row, columnMap.category_id),
     importedDate,
     dt: dateFormat ? readImportDate(importedDate, dateFormat) : '',
     amount,
-    amountSideProblem,
+    amountProblem,
     merchantName: cleanOptional(getMappedValue(row, columnMap.merchant_id)),
     notes: cleanOptional(getMappedValue(row, columnMap.notes)),
     // Deduplicated here rather than left to the API, which keeps one of each anyway, so the count
@@ -149,9 +162,9 @@ export function getImportRowProblem(row: ResolvedImportRow, judgement: ImportRow
   if (!row.importedDate) return ROW_DATE_BLANK_REASON
   if (!row.dt) return ROW_DATE_UNREADABLE_REASON
 
-  // Asked ahead of the blank check, since a row breaking the two-sided rule has no amount either and
-  // would otherwise be sent to fill in a cell that is not the problem
-  if (row.amountSideProblem) return AMOUNT_SIDE_PROBLEM_REASONS[row.amountSideProblem]
+  // Asked ahead of the blank check, since a row breaking its arrangement's rules has no amount either
+  // and would otherwise be sent to fill in a cell that is not the problem
+  if (row.amountProblem) return AMOUNT_PROBLEM_REASONS[row.amountProblem]
   if (!row.amount) return ROW_AMOUNT_BLANK_REASON
   if (parseImportNumber(row.amount) === null) return ROW_AMOUNT_UNREADABLE_REASON
 
@@ -161,8 +174,8 @@ export function getImportRowProblem(row: ResolvedImportRow, judgement: ImportRow
     return getRowCurrencyMismatchReason(row.importedCurrency, row.currency)
   }
 
-  const amountProblem = getImportRowAmountProblem(row.amount, row.currency, judgement.currencies)
-  if (amountProblem) return amountProblem
+  const storageProblem = getImportRowAmountProblem(row.amount, row.currency, judgement.currencies)
+  if (storageProblem) return storageProblem
 
   // Asked here so a row the API would refuse is named against its row number before the upload
   // begins, rather than failing part-way through it with a position nobody can find in the file

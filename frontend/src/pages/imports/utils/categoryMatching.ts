@@ -1,6 +1,6 @@
 import type { Category } from '@/api/categories'
 import { CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
-import type { ColumnMap, ImportCategoryKind, ImportFileDraft } from '@/pages/imports/types'
+import type { ColumnMap, ImportAmountDirection, ImportCategoryKind, ImportFileDraft } from '@/pages/imports/types'
 import { resolveImportAmount } from './columnMapping'
 import { parseImportNumber } from './valueParsers'
 
@@ -23,14 +23,19 @@ export function splitImportedValues(value: string) {
  * anything about direction, and every name is left blank until both the category column and an
  * arrangement carrying the amount have been mapped
  *
- * Each row's amount is read the same way the commit reads it, so a file writing money out and money
- * in in columns of their own is judged on the direction those columns state rather than left with
- * every category unlabelled
+ * Each row's amount is read the same way the commit reads it, so a file stating its direction
+ * outside the amount, in separate columns or in a column of words, is judged on the direction it
+ * states rather than left with every category unlabelled or labelled from an unsigned number
+ *
+ * @param directionAnswers - What each word in a mapped Direction column means, keyed by the folded
+ * value. Empty until the user has answered, which leaves every name blank rather than labelling the
+ * file from amounts that carry no direction yet
  */
 export function getImportedCategoryTypes(
   files: ImportFileDraft[],
   columnMap: ColumnMap,
   importedCategories: string[],
+  directionAnswers: Record<string, ImportAmountDirection>,
 ) {
   const signsByCategory = new Map<string, Set<'expense' | 'income'>>()
   const categoryHeader = columnMap.category_id
@@ -48,7 +53,7 @@ export function getImportedCategoryTypes(
       const category = row[categoryHeader]?.trim()
       if (!category) continue
 
-      const amount = parseImportNumber(resolveImportAmount(row, columnMap).amount)
+      const amount = parseImportNumber(resolveImportAmount(row, columnMap, directionAnswers).amount)
       if (amount === null || amount === 0) continue
 
       const signs = signsByCategory.get(category) ?? new Set<'expense' | 'income'>()

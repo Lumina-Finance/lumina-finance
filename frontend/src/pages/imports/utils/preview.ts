@@ -12,6 +12,7 @@ import {
 import { BALANCE_ADJUSTMENT_CATEGORY_NAME, doesTransferRecordCounterpartyAccount, OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 import type {
   ColumnMap,
+  ImportAmountDirection,
   ImportCategoryKind,
   ImportFileDraft,
   ImportRowProblem,
@@ -22,7 +23,7 @@ import { getImportRowId } from './common'
 import { getCategoryMatchKind } from './categoryMatching'
 import { findCurrencyExponent } from '@/utils/moneyInput'
 import { getCurrencyByAccountSource, type ImportRowContext, resolveImportRow } from './rowResolution'
-import { getSupportedCurrencyCodes, hasAmountArrangementClash } from './workflowOptions'
+import { getAmountArrangementClashError, getSupportedCurrencyCodes } from './workflowOptions'
 import {
   type ImportDateFormat,
   getPreviewDateLabel,
@@ -34,6 +35,7 @@ interface BuildImportPreviewRowsOptions {
   files: ImportFileDraft[]
   columnMap: ColumnMap
   dateFormat: ImportDateFormat | null
+  directionAnswers: Record<string, ImportAmountDirection>
   missingRequiredColumnLabels: string[]
   currencies: Currency[]
   accountById: Map<string, AccountsOverview>
@@ -74,6 +76,7 @@ export function buildImportPreviewRows({
   files,
   columnMap,
   dateFormat,
+  directionAnswers,
   missingRequiredColumnLabels,
   currencies,
   accountById,
@@ -89,10 +92,11 @@ export function buildImportPreviewRows({
 }: BuildImportPreviewRowsOptions): PreviewTransactionRow[] {
   if (missingRequiredColumnLabels.length > 0) return []
 
-  // A map stating the amount two ways at once satisfies the required-column check, since any one of
-  // the three answers it, and reading a row then picks the sides and ignores the Amount column. That
-  // is a reading the commit refuses, so previewing it would show rows the import will never write
-  if (hasAmountArrangementClash(columnMap)) return []
+  // A map contradicting itself about the amount satisfies the required-column check, since any one
+  // of the three fields answers it, and reading a row then picks the sides and ignores both the
+  // Amount and the Direction column. That is a reading the commit refuses, so previewing it would
+  // show rows the import will never write
+  if (getAmountArrangementClashError(columnMap)) return []
 
   // A row that cannot be converted is listed with its reason instead, so previewing it as well
   // would show an amount of zero or a blank date beside the entry saying why it was refused
@@ -107,6 +111,7 @@ export function buildImportPreviewRows({
   const rowContext: ImportRowContext = {
     columnMap,
     dateFormat,
+    directionAnswers,
     currencyByAccountSource: getCurrencyByAccountSource(resolvedAccountMappings, accountById, accountCreateCurrencies),
   }
 

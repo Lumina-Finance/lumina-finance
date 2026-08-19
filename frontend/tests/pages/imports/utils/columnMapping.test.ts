@@ -215,3 +215,71 @@ describe('checking one side of a file that writes money out and money in separat
     expect(validateColumnValues(files, 'Debit', 'amount_out', SUPPORTED_CURRENCY_CODES).valid).toBe(true)
   })
 })
+
+describe('what a column mapped as the direction may hold', () => {
+  it('accepts the two words a direction column states', () => {
+    const files = createColumn('Type', ['DEBIT', 'CREDIT', 'DEBIT'])
+
+    expect(validateColumnValues(files, 'Type', 'amount_direction', SUPPORTED_CURRENCY_CODES).valid).toBe(true)
+  })
+
+  // A card statement of nothing but purchases states its direction perfectly well with one word, so
+  // refusing it would refuse a file this arrangement was built for
+  it('accepts a column stating one direction throughout', () => {
+    const files = createColumn('Type', ['DEBIT', 'DEBIT'])
+
+    expect(validateColumnValues(files, 'Type', 'amount_direction', SUPPORTED_CURRENCY_CODES).valid).toBe(true)
+  })
+
+  // A direction has two answers and no more, so a column naming more things than that is a payment
+  // method or a category rather than the direction
+  it('refuses a column of more words than a direction has, with the count', () => {
+    const files = createColumn('Type', ['DEBIT', 'CREDIT', 'FEE'])
+    const validation = validateColumnValues(files, 'Type', 'amount_direction', SUPPORTED_CURRENCY_CODES)
+
+    expect(validation.valid).toBe(false)
+    expect(validation.message).toContain('3 different values')
+  })
+
+  // The panel asks about each word once, so two spellings of one word are one question rather than
+  // two of the two the column is allowed
+  it('counts two capitalisations of one word once', () => {
+    const files = createColumn('Type', ['Debit', 'DEBIT', 'credit', 'Credit'])
+
+    expect(validateColumnValues(files, 'Type', 'amount_direction', SUPPORTED_CURRENCY_CODES).valid).toBe(true)
+  })
+
+  // A blank states no direction, and that row is listed against its own row number in the preview,
+  // so counting it here would refuse the whole column for one unfilled cell
+  it('does not count a blank cell among the words', () => {
+    const files = createColumn('Type', ['DEBIT', 'CREDIT', ''])
+
+    expect(validateColumnValues(files, 'Type', 'amount_direction', SUPPORTED_CURRENCY_CODES).valid).toBe(true)
+  })
+
+  // The words a file uses are its own, so nothing here judges one value against a list. Only how
+  // many different ones there are rules the column out
+  it('accepts words in any language', () => {
+    const files = createColumn('Sens', ['Sortie', 'Entrée'])
+
+    expect(validateColumnValues(files, 'Sens', 'amount_direction', SUPPORTED_CURRENCY_CODES).valid).toBe(true)
+  })
+
+  // Counted on a fold that dropped every character outside the Latin alphabet, these came back empty
+  // and were then dropped from the count entirely, so a column of any number of them passed
+  it('counts words written in another script', () => {
+    const files = createColumn('Тип', ['Дебет', 'Кредит', 'Перевод'])
+    const validation = validateColumnValues(files, 'Тип', 'amount_direction', SUPPORTED_CURRENCY_CODES)
+
+    expect(validation.valid).toBe(false)
+    expect(validation.message).toContain('3 different values')
+  })
+
+  it('counts values written as bare signs', () => {
+    const files = createColumn('Type', ['-', '+', '='])
+    const validation = validateColumnValues(files, 'Type', 'amount_direction', SUPPORTED_CURRENCY_CODES)
+
+    expect(validation.valid).toBe(false)
+    expect(validation.message).toContain('3 different values')
+  })
+})

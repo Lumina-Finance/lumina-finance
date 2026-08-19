@@ -79,6 +79,7 @@ function build(notes: string, tags: string) {
     columnValidationErrors: {},
     currencies: CURRENCIES,
     dateFormat: 'yearFirst',
+    directionAnswers: {},
     files: [file],
     importedCategories: ['Groceries'],
   })
@@ -201,6 +202,7 @@ function buildWithManyCategories(count: number, { mapped }: { mapped: boolean })
     columnValidationErrors: {},
     currencies: CURRENCIES,
     dateFormat: 'yearFirst',
+    directionAnswers: {},
     files: [file],
     importedCategories: sources,
   })

@@ -66,6 +66,7 @@ function build(amounts: string[], kind: Category['kind'] = 'expense') {
     columnValidationErrors: {},
     currencies: CURRENCIES,
     dateFormat: 'yearFirst',
+    directionAnswers: {},
     files: [createFile(amounts.map((amount, index) => ({
       Date: `2026-04-${String(index + 1).padStart(2, '0')}`,
       Category: 'Groceries',
@@ -121,12 +122,72 @@ describe('warning that a file reads as all money coming in', () => {
       columnValidationErrors: {},
       currencies: CURRENCIES,
       dateFormat: 'yearFirst',
+      directionAnswers: {},
       files: [file],
       importedCategories: ['Groceries'],
     })
 
     expect(result.warnings).toEqual([])
     expect(result.payload).not.toBeNull()
+  })
+
+  /**
+   * Builds a payload for a file whose amounts are unsigned and whose direction is a column of words
+   *
+   * @param types - What each row's Type cell holds, against an unsigned amount
+   * @param directionAnswers - What the user said each word means
+   */
+  function buildDirected(types: string[], directionAnswers: Record<string, 'out' | 'in'>) {
+    const file: ImportFileDraft = {
+      id: 'file-1',
+      name: 'Chequing.csv',
+      size: 512,
+      headers: ['Date', 'Category', 'Amount', 'Type'],
+      hasHeaderRow: true,
+      rows: types.map((type, index) => ({
+        Date: `2026-04-0${index + 1}`,
+        Category: 'Groceries',
+        Amount: '12.34',
+        Type: type,
+      })),
+      error: null,
+    }
+
+    return buildTransactionImportPayload({
+      accountById: new Map(),
+      accountCreateCurrencies: {},
+      accountCreateInstitutions: {},
+      accountCreateTypes: {},
+      accountMappings: { 'file-1': 'account-1' },
+      accountSources: [{ id: 'file-1', label: 'Chequing.csv', matchText: 'Chequing.csv', isCounterpartyOnly: false }],
+      categoryById: new Map([[CATEGORY.id, { ...CATEGORY, kind: 'transfer' as const }]]),
+      categoryCreateKinds: {},
+      categoryMappings: { Groceries: CATEGORY.id },
+      categoryTypesBySource: {},
+      columnMap: { ...EMPTY_COLUMN_MAP, dt: 'Date', category_id: 'Category', amount: 'Amount', amount_direction: 'Type' },
+      columnValidationErrors: {},
+      currencies: CURRENCIES,
+      dateFormat: 'yearFirst',
+      directionAnswers,
+      files: [file],
+      importedCategories: ['Groceries'],
+    })
+  }
+
+  // The two words can be answered the wrong way round, so a file read through a Direction column is
+  // asked like any other. Both answers pointing the same way is refused outright rather than warned
+  // about, so this is the case where the file really does read as all money coming in
+  it('warns about a direction-mapped file whose rows all read as money coming in', () => {
+    expect(buildDirected(['CREDIT', 'CREDIT'], { credit: 'in' }).warnings).toContain(NO_OUTFLOWS_WARNING)
+  })
+
+  // The cells are unsigned, so what silences the warning is the direction column and nothing else.
+  // A build ignoring that column would read both rows as money coming in and warn
+  it('reports nothing about a direction-mapped file whose words make its rows money going out', () => {
+    const result = buildDirected(['DEBIT', 'DEBIT'], { debit: 'out' })
+
+    expect(result.warnings).toEqual([])
+    expect(result.payload?.rows.map((row) => row.amount)).toEqual(['-12.34', '-12.34'])
   })
 })
 

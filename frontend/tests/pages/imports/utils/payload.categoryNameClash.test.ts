@@ -70,6 +70,7 @@ function build(categorySource: string, kind: ImportCategoryKind, categories: Cat
     columnValidationErrors: {},
     currencies: CURRENCIES,
     dateFormat: 'yearFirst',
+    directionAnswers: {},
     files: [createFile(categorySource)],
     importedCategories: [categorySource],
   })

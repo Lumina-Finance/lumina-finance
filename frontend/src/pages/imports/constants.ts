@@ -2,7 +2,7 @@ import type { CSSProperties } from 'react'
 import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
-import type { ColumnMap, ColumnTarget, ColumnTargetGroup, ImportCategoryKind } from './types'
+import type { ColumnMap, ColumnTarget, ColumnTargetGroup, ImportAmountDirection, ImportCategoryKind } from './types'
 import type { ImportDateFormat } from './utils/valueParsers'
 
 export const EMPTY_COLUMN_MAP: ColumnMap = {
@@ -12,6 +12,7 @@ export const EMPTY_COLUMN_MAP: ColumnMap = {
   amount: '',
   amount_out: '',
   amount_in: '',
+  amount_direction: '',
   currency: '',
   merchant_id: '',
   notes: '',
@@ -40,9 +41,14 @@ export const COLUMN_TARGETS: Array<{
 
   // The three ways a file can carry the amount, one arrangement of which every import needs. The two
   // sides follow the single column they are an alternative to
-  { id: 'amount', label: 'Amount', hint: 'One column carrying the whole transaction, negative for money out and positive for money in. Map this, or map the two sides below where the file writes them separately.', group: 'amount' },
+  { id: 'amount', label: 'Amount', hint: 'One column carrying the whole transaction, negative for money out and positive for money in. Map this, or map the two sides below where the file writes them separately. An unsigned column belongs here too when a Direction column specifies whether each row is money in or money out.', group: 'amount' },
   { id: 'amount_out', label: 'Money out', hint: 'A column holding only the money leaving the account, written either unsigned or with a minus sign. A plus sign there is refused, since money coming in belongs in the Money in column. Map it beside Money in, or on its own where the file holds nothing but money going out.', group: 'amount' },
   { id: 'amount_in', label: 'Money in', hint: 'A column holding only the money coming into the account, written either unsigned or with a plus sign. A minus sign there is refused, since money going out belongs in the Money out column. Map it beside Money out, or on its own where the file holds nothing but money coming in.', group: 'amount' },
+
+  // Declared after the three fields carrying money so those pick their columns first while the file
+  // is being read. Where it sits in the dropdown is settled by its group instead, which is why it
+  // has a separate one rather than sitting among the optional fields
+  { id: 'amount_direction', label: 'Direction', hint: 'A column of words specifying whether each row is money in or money out, such as DEBIT and CREDIT. Map it beside an Amount column of unsigned amounts, then specify below the table what each word means. It holds two words, or one where the file only covers money moving one way.', group: 'direction' },
   { id: 'currency', label: 'Currency', hint: 'ISO currency code. Checked against the account each row is written to.', group: 'optional' },
   { id: 'merchant_id', label: 'Merchant', hint: 'Resolved from imported merchant text.', group: 'optional' },
   { id: 'notes', label: 'Notes', hint: 'Optional transaction notes.', group: 'optional' },
@@ -58,18 +64,23 @@ export const COLUMN_TARGET_GROUP_LABELS: Record<ColumnTargetGroup, string> = {
   // group headed Required fields and would otherwise read as optional. It cannot repeat the Amount
   // label either, which is the first entry underneath it
   amount: 'Required, at least one of these',
+  // Heads its one field rather than letting it sit among the optional ones, since it is optional
+  // only in the sense that most files do not need it, and useless without the field above it
+  direction: 'Optional, beside a single Amount column',
   optional: 'Optional fields',
 }
 export const COLUMN_TARGET_GROUP_RANKS: Record<ColumnTargetGroup, number> = {
   required: 0,
   amount: 1,
-  optional: 2,
+  direction: 2,
+  optional: 3,
 }
 
-// Reported as missing where no arrangement carrying the amount is mapped. It offers all three rather
-// than the single column, since a two-sided file sent to a field called Amount imports every
-// purchase as money coming in. No comma in it, because two callers join the missing labels with one
-// and a label carrying its own would read as two columns
+// Reported as missing where no field carrying the amount is mapped. It offers all three rather than
+// the single column, since a two-sided file sent to a field called Amount imports every purchase as
+// money coming in. The Direction column is left out, since it carries no money and mapping it
+// answers nothing here. No comma in it, because two callers join the missing labels with one and a
+// label carrying its own would read as two columns
 export const MISSING_AMOUNT_COLUMN_LABEL = 'Amount (or Money out / Money in)'
 
 // Said where a file is mapped as carrying its amount both ways at once, which states it twice with
@@ -77,6 +88,63 @@ export const MISSING_AMOUNT_COLUMN_LABEL = 'Amount (or Money out / Money in)'
 // as well as over the commit button, since the mapping step is where it can be answered
 export const AMOUNT_ARRANGEMENT_CLASH_TITLE = 'Amount mapped twice'
 export const AMOUNT_ARRANGEMENT_CLASH_ERROR = 'This file is mapped with an Amount column and with a Money out or Money in column. Map one or the other: a single Amount column carrying its own sign, or the two sides in columns of their own.'
+
+// Said where a file is mapped with a Direction column beside Money out or Money in, which specifies
+// the direction twice over. A Direction column only means anything beside the single Amount column,
+// since the two sides already carry their own direction
+export const DIRECTION_ARRANGEMENT_CLASH_TITLE = 'Direction stated twice'
+export const DIRECTION_ARRANGEMENT_CLASH_ERROR = 'This file is mapped with a Direction column and with a Money out or Money in column. Money out and Money in already specify their own direction, so either map the Direction column beside a single Amount column, or set it to Do not import.'
+
+// Shown above the panel where each word in the Direction column is given its meaning. It settles
+// whose point of view the two answers take, which is the one thing the panel cannot show: a bank
+// writes DEBIT and CREDIT from its own side, and the user is answering from theirs. That a
+// recognised word arrives filled in is left to the glow on the row, which is how every other field
+// the app filled in says so
+export const DIRECTION_VALUES_TITLE = 'What this file\'s direction words mean'
+export const DIRECTION_VALUES_EXPLANATION = 'Specify what each word in the Direction column means. Money out is money leaving your account, money in is money arriving in it.'
+
+// How many different words a Direction column may hold. Two, because it separates money in from
+// money out and does nothing else: a column naming more things than that is a category, a payment
+// method or a description, and answering it value by value would become a second category step
+export const MAX_DIRECTION_COLUMN_VALUES = 2
+
+/**
+ * Says a column mapped as the Direction holds more words than two directions need
+ *
+ * The count is given because it is what rules the column out, and there is no answer inside the app:
+ * either this is not the column separating money in from money out, or the file has to be corrected
+ * before it is uploaded
+ */
+export function getTooManyDirectionValuesError(count: number) {
+  return `This column has ${count.toLocaleString()} different values. A Direction column holds at most ${MAX_DIRECTION_COLUMN_VALUES}, one for money out and one for money in.`
+}
+
+/**
+ * Says which words in the Direction column have not been answered yet
+ *
+ * The words are spelled out because the panel shows them as the file writes them, and a message
+ * saying only that something is unanswered leaves the user hunting for which
+ */
+export function getUnansweredDirectionValuesError(values: string[]) {
+  const isOne = values.length === 1
+  return `Specify what ${values.join(' and ')} ${isOne ? 'means' : 'mean'} in the Direction column above.`
+}
+
+/**
+ * Says both words in the Direction column were given the same meaning
+ *
+ * Refused rather than imported, because the two answers cannot distinguish a file that really does
+ * hold money moving one way only from one whose words were answered the wrong way round, and
+ * importing the second silently commits a month of income as spending
+ *
+ * Both ways out are offered, because the one-directional file is real. It does not need this column
+ * at all: mapping its Amount column as the single side it holds is the arrangement built for it.
+ * Offering only the flip would have the user correct a right answer into a wrong one
+ */
+export function getDirectionValuesAgreeError(direction: 'out' | 'in') {
+  const label = direction === 'out' ? 'Money out' : 'Money in'
+  return `Both words in the Direction column are set to ${label}, so nothing in this file separates the two directions. If every row really is ${label.toLowerCase()}, map the Amount column as ${label} and set the Direction column to Do not import. Otherwise set one of the two words to the other direction.`
+}
 
 // The merchant an imported row is filed under when its file states no payee, and the one a transfer
 // row gets, since a transfer has no payee of its own. Both ship with the app, and these have to stay
@@ -202,6 +270,12 @@ export const ROW_AMOUNT_SIDE_STATES_ZERO_REASON = 'The one amount column mapped 
 export const ROW_AMOUNT_OUT_SIDE_PLUS_REASON = 'The money out column carries a plus sign on this row. A value there is money leaving the account, so write it unsigned or with a minus sign. Money coming in belongs in the money in column.'
 export const ROW_AMOUNT_IN_SIDE_MINUS_REASON = 'The money in column carries a minus sign on this row. A value there is money coming into the account, so write it unsigned or with a plus sign. Money going out belongs in the money out column.'
 
+// The two ways a row cannot be read from a file carrying its direction in a column of words. Neither
+// can be answered in the app, since one is a cell nobody filled in and the other is two cells of the
+// same row contradicting each other, so both send the user to the file
+export const ROW_DIRECTION_BLANK_REASON = 'The direction cell is blank, so this row does not specify whether it is money in or money out.'
+export const ROW_DIRECTION_SIGN_DISAGREES_REASON = 'The sign on this row\'s amount contradicts its direction column. Write the amount unsigned, or give it the sign matching its direction.'
+
 /**
  * Says an amount carries decimal places its currency does not have
  *
@@ -233,16 +307,15 @@ export const ROW_SIGN_DISAGREES_WITH_CATEGORY_REASON = 'The amount runs the oppo
 // Shown once for the whole file where every amount reads as money coming in, which is either a file
 // of nothing but income or one being read backwards. It cannot tell those apart, so it says what the
 // rows come to and lists what to check, rather than asserting which of the two this is
-export const NO_OUTFLOWS_WARNING = 'Every row in this file reads as money coming in. If that is right, there is nothing to do. If it is not, check two things: that the money going out is mapped to the column actually holding it, and that a file using one Amount column writes its money out with a minus sign.'
+export const NO_OUTFLOWS_WARNING = 'Every row in this file reads as money coming in. If that is right, there is nothing to do. If it is not, check three things: that the money going out is mapped to the column actually holding it, that a file using one Amount column writes its money out with a minus sign, and that a file using a Direction column has its words set the way round the file means them.'
 
 /**
  * Shown above the column mapping table, saying how the importer reads an amount
  *
- * Both arrangements are stated because a file can be mapped either way, and the correct-it-first
- * instruction stays for the one arrangement there is no mapping for, a column of words saying which
- * way a row runs
+ * All three arrangements are stated because a file can be mapped any of the three ways, and each one
+ * is answered by mapping columns rather than by a separate question
  */
-export const AMOUNT_CONVENTION_NOTE = 'Imported amounts carry their own direction. Map one Amount column, negative for money out and positive for money in, or map Money out and Money in where the file keeps the two apart, or just one of those two where the file holds money going only one way. A Money out or Money in column states its own direction, so a value there may only carry a sign that agrees with it, and a row breaking that is listed rather than read the other way. An expense category normally holds money going out and an income category money coming in. The other way round is accepted for a refund or a loss, and those rows are listed for you to check before the import runs. A file that says which way a row runs in a column of words has to be corrected before it is uploaded.'
+export const AMOUNT_CONVENTION_NOTE = 'Every imported row carries a direction. Map one Amount column, negative for money out and positive for money in, or map Money out and Money in where the file keeps the two apart, or just one of those two where the file holds money going only one way. Where the amounts are unsigned and a column of words specifies the direction, map that column as the Direction and specify below the table what its words mean. A Money out, Money in or Direction column states the direction on its own, so an amount may only carry a sign that agrees with it, and a row breaking that is listed rather than read the other way. An expense category normally holds money going out and an income category money coming in. The other way round is accepted for a refund or a loss, and those rows are listed for you to check before the import runs.'
 
 // Shown where a source rows are written to matches an account the user has archived, which is the
 // one account that source is not offered. The matched account names follow it
@@ -371,6 +444,13 @@ export const CREATE_CATEGORY_VALUE = '__create_category__'
 // no institution, so nothing chosen needs a value of its own. Absent from the options list, which
 // is what leaves the control showing its placeholder rather than the first option's label
 export const UNSET_BATCH_INSTITUTION = '__unset_institution__'
+// The two answers a word in a Direction column can be given, worded from the account's point of view
+// rather than as debit and credit, which are the bookkeeping terms the file itself may or may not use
+export const IMPORT_DIRECTION_OPTIONS: Array<{ value: ImportAmountDirection; label: string }> = [
+  { value: 'out', label: 'Money out' },
+  { value: 'in', label: 'Money in' },
+]
+
 export const IMPORT_CATEGORY_KIND_OPTIONS: Array<{ value: ImportCategoryKind; label: string }> = [
   { value: 'expense', label: 'Expense' },
   { value: 'income', label: 'Income' },
