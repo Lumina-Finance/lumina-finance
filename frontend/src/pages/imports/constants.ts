@@ -330,14 +330,27 @@ export const NO_OUTFLOWS_WARNING = 'Every row in this file reads as money coming
 /**
  * Shown above the column mapping table, saying how the importer reads an amount
  *
- * All three arrangements are stated because a file can be mapped any of the three ways, and each one
- * is answered by mapping columns rather than by a separate question
+ * Three parts rather than one paragraph: the question, the arrangements that answer it, and the rule
+ * holding across them. Every arrangement is offered because a file can be mapped any of these ways,
+ * and each is answered by mapping columns rather than by a question of its own, so they are a list of
+ * choices rather than steps to work through
  *
  * It stops at what the columns have to hold. How a category's kind reads against an amount's
  * direction is said against the rows it is about, in ROW_SIGN_DISAGREES_WITH_CATEGORY_REASON, since
  * a rule stated here would be read five steps before those rows appear
  */
-export const AMOUNT_CONVENTION_NOTE = 'Every imported row carries a direction. Map one Amount column, negative for money out and positive for money in, or a Money out and a Money in column where the file keeps them apart, or just one of those where the file only holds money going one way. Where the amounts are unsigned and a column of words specifies the direction, map that column as the Direction and answer below the table what its words mean. Money out, Money in and Direction each specify the direction themselves, so an amount beside one may only carry a sign that agrees, and a row breaking that is listed rather than read the other way.'
+export const AMOUNT_CONVENTION_NOTE = 'Every imported row carries a direction. Map whichever of these your file uses:'
+export const AMOUNT_ARRANGEMENT_OPTIONS = [
+  'One Amount column, written negative for money out and positive for money in',
+  'A Money out and a Money in column, where the file keeps the two apart',
+  'Just one of those two, where the file holds money going only one way',
+  'An Amount column of unsigned amounts beside a Direction column of words, whose meanings you answer below the table',
+]
+
+// Closes the notice above, because it holds across every arrangement in it rather than belonging to
+// one of them. Stated after the choices rather than before, since it speaks of the columns by the
+// labels the list has just given them
+export const AMOUNT_SIGN_RULE_NOTE = 'Money out, Money in and Direction each specify the direction themselves, so an amount beside one may only carry a sign that agrees. A row breaking that is listed rather than read the other way.'
 
 // Shown where a source rows are written to matches an account the user has archived, which is the
 // one account that source is not offered. The matched account names follow it
@@ -396,6 +409,13 @@ export const IMPORT_NOT_PERMITTED_EXPLANATION = 'Transactions can only be import
 // question this page never reaches
 export const IMPORT_SCOPE_FAILURE_TITLE = 'Your accounts could not be loaded'
 export const IMPORT_SCOPE_FAILURE_EXPLANATION = 'Without them this import cannot tell whether it may write to the account it was started from.'
+
+// Shown above the column mapping table, under the note about amounts, because what currency an
+// amount lands in is the other half of how a number is read and the Currency column is mapped here.
+// It speaks of the account each source is mapped to, which is the step after this one, since that is
+// where the answer comes from even though the question arises while the columns are being chosen
+export const CURRENCY_HANDLING_TITLE = 'How currencies are read'
+export const CURRENCY_HANDLING_NOTE = 'Imported amounts are treated as raw values. Each one is assigned the currency of the account its row is mapped to, or the currency shown against a new account, which is taken from the file where it states one and can be changed on any row.'
 
 /**
  * Says what a scoped import does with the currency of the account it writes to

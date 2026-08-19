@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react'
-import { Check, ChevronDown, Info, TriangleAlert } from 'lucide-react'
+import { Check, ChevronDown, CircleHelp, Info, TriangleAlert } from 'lucide-react'
 import { IMPORT_INSET_STYLE } from '@/pages/imports/constants'
 
 /**
@@ -178,22 +178,31 @@ export function ImportLoadFailure({
  *   browser rearranges on its own, and gives every notice that lists something the same shape. The
  *   marker is set back on, since Tailwind's reset takes it off. A notice with nothing to list omits
  *   the list and renders as it always did
+ * @param footer - A closing line under the list, for a notice whose list is a set of choices and
+ *   which has a rule to state about all of them. Without it that rule would have to lead, ahead of
+ *   the choices it is about, or sit in the list as though it were one of them
  * @param tone - How much the notice is asking of the reader. The danger tone is for the one a user
  *   has to act on before importing, rather than the ordinary ones saying what the import will do,
- *   and it takes the same colours the load failure already uses
+ *   and it takes the same colours the load failure already uses. The question tone is for a notice
+ *   that asks something rather than reporting anything, where a warning triangle would state a
+ *   fault that does not exist
  */
 export function ImportNotice({
   title,
   children,
   items,
+  footer,
   tone = 'warning',
 }: {
   title: string
   children: ReactNode
   items?: ReactNode[]
-  tone?: 'warning' | 'danger'
+  footer?: ReactNode
+  tone?: 'warning' | 'danger' | 'question'
 }) {
   const isDanger = tone === 'danger'
+  const isQuestion = tone === 'question'
+  const NoticeIcon = isQuestion ? CircleHelp : TriangleAlert
 
   return (
     <div
@@ -209,10 +218,10 @@ export function ImportNotice({
     >
       <span
         className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center"
-        style={{ color: isDanger ? 'var(--app-negative)' : 'var(--app-warning-text)' }}
+        style={{ color: isDanger ? 'var(--app-negative)' : isQuestion ? 'var(--app-accent)' : 'var(--app-warning-text)' }}
         aria-hidden
       >
-        <TriangleAlert size={16} strokeWidth={2.25} />
+        <NoticeIcon size={16} strokeWidth={2.25} />
       </span>
       <div className="min-w-0">
         <p
@@ -231,6 +240,7 @@ export function ImportNotice({
             ))}
           </ul>
         )}
+        {footer && <p className="mt-1 text-sm leading-5">{footer}</p>}
       </div>
     </div>
   )

@@ -18,7 +18,6 @@ import {
   FIXED_ACCOUNT_WARNING_LINK_LABEL,
   FIXED_ACCOUNT_WARNING_TITLE,
   UNSET_BATCH_INSTITUTION,
-  getFixedAccountCurrencyNote,
   getFixedAccountWarning,
 } from '@/pages/imports/constants'
 import type { ImportAccountSource } from '@/pages/imports/types'
@@ -196,13 +195,6 @@ export function ImportAccountMappingStep({
 
   return (
     <ImportStep index="03" title="Account Mapping">
-      {!accountsFailed && (
-        <ImportNotice title="How currencies are read">
-          {fixedAccount
-            ? getFixedAccountCurrencyNote(fixedAccount.name, fixedAccount.currency)
-            : 'Imported amounts are treated as raw values. During import, each amount will be assigned the base currency of the mapped account, or the currency shown against a new account, which is taken from the file where it states one and can be changed on any row.'}
-        </ImportNotice>
-      )}
       {/* Says what this page will do with a file whether or not one is staged, since a file covering
           more than one account has to be sent elsewhere before it is uploaded rather than after */}
       {fixedAccount && (

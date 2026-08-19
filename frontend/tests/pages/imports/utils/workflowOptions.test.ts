@@ -8,7 +8,9 @@ import type { Currency } from '@/api/currency'
 import type { Institution } from '@/api/institutions'
 import {
   AMOUNT_ARRANGEMENT_CLASH_ERROR,
+  AMOUNT_ARRANGEMENT_OPTIONS,
   AMOUNT_CONVENTION_NOTE,
+  AMOUNT_SIGN_RULE_NOTE,
   COLUMN_TARGETS,
   CREATE_ACCOUNT_VALUE,
   CREATE_CATEGORY_VALUE,
@@ -352,7 +354,11 @@ describe('the three ways a file can carry its amount', () => {
   // five steps further down, so the note over the mapping table stops at what the columns hold. Kept
   // in one place rather than two, since a rule stated twice drifts
   it('leaves the category direction rule out of the note over the mapping table', () => {
-    expect(AMOUNT_CONVENTION_NOTE).not.toContain('expense category')
+    // Every part of that notice, since it renders as a lead, a list of arrangements and a closing
+    // rule, and checking only the lead would miss the sentence moving into one of the others
+    const wholeNotice = [AMOUNT_CONVENTION_NOTE, ...AMOUNT_ARRANGEMENT_OPTIONS, AMOUNT_SIGN_RULE_NOTE].join(' ')
+
+    expect(wholeNotice).not.toContain('expense category')
     expect(ROW_SIGN_DISAGREES_WITH_CATEGORY_REASON).toContain('category')
   })
 

@@ -1,8 +1,13 @@
 import { EmptyState, ImportDirectionValueTable, ImportHeaderMappingTable, ImportNotice, ImportStep } from '@/pages/imports/components'
 import {
+  AMOUNT_ARRANGEMENT_OPTIONS,
   AMOUNT_CONVENTION_NOTE,
+  AMOUNT_SIGN_RULE_NOTE,
+  CURRENCY_HANDLING_NOTE,
+  CURRENCY_HANDLING_TITLE,
   DIRECTION_VALUES_EXPLANATION,
   DIRECTION_VALUES_TITLE,
+  getFixedAccountCurrencyNote,
   getRowsWithNoPayeeExplanation,
   ROWS_WITH_NO_PAYEE_TITLE,
 } from '@/pages/imports/constants'
@@ -23,6 +28,8 @@ type ImportColumnMappingStepProps = Pick<
   | 'directionAnswers'
   | 'autoFilledDirectionValues'
   | 'rowsWithNoPayeeCount'
+  | 'fixedAccount'
+  | 'accountsFailed'
   | 'setDateFormat'
   | 'setDirectionAnswer'
   | 'updateColumnTarget'
@@ -34,8 +41,8 @@ type ImportColumnMappingStepProps = Pick<
  *
  * The amount convention is stated above the table rather than offered as a choice, because which
  * arrangement a file uses is answered by mapping its columns rather than by a question of its own.
- * It sits where the account step states its own currency handling, since both say what the import
- * will do with a number rather than asking anything
+ * The currency note sits under it, since what an amount is worth and what currency it lands in are
+ * one question to a reader looking at a column of numbers, and the Currency column is mapped here
  *
  * A file mapping a Direction column has one more question, which words in that column mean money
  * leaving the account. It is asked here rather than in a separate step, so the column and what its
@@ -54,6 +61,8 @@ export function ImportColumnMappingStep({
   directionAnswers,
   autoFilledDirectionValues,
   rowsWithNoPayeeCount,
+  fixedAccount,
+  accountsFailed,
   setDateFormat,
   setDirectionAnswer,
   updateColumnTarget,
@@ -72,9 +81,20 @@ export function ImportColumnMappingStep({
       title="Column Mapping"
       description="Specify what each column in your file holds."
     >
-      <ImportNotice title="How amounts are read">
+      <ImportNotice
+        title="How amounts are read"
+        items={AMOUNT_ARRANGEMENT_OPTIONS}
+        footer={AMOUNT_SIGN_RULE_NOTE}
+      >
         {AMOUNT_CONVENTION_NOTE}
       </ImportNotice>
+      {!accountsFailed && (
+        <ImportNotice title={CURRENCY_HANDLING_TITLE}>
+          {fixedAccount
+            ? getFixedAccountCurrencyNote(fixedAccount.name, fixedAccount.currency)
+            : CURRENCY_HANDLING_NOTE}
+        </ImportNotice>
+      )}
       {headers.length === 0 ? (
         <EmptyState
           title="No columns yet"
@@ -96,7 +116,7 @@ export function ImportColumnMappingStep({
       )}
       {showsDirectionValues && (
         <div className="mt-4 space-y-3">
-          <ImportNotice title={DIRECTION_VALUES_TITLE}>
+          <ImportNotice title={DIRECTION_VALUES_TITLE} tone="question">
             {DIRECTION_VALUES_EXPLANATION}
           </ImportNotice>
           <ImportDirectionValueTable
