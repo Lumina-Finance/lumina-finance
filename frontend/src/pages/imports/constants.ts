@@ -240,14 +240,16 @@ export const CURRENCIES_FAILED_UPLOAD_BLOCK = 'Currencies could not be loaded, a
 // built on it: refused rows in both import flows, and the Firefly budgets it cannot bring in
 export const SKIPPED_TABLE_VISIBLE_LIMIT = 20
 
-// Why one row cannot be converted, listed against that row in the preview step. Each says what is
-// wrong with the row itself, since the entry carries the row number and the row's own cells. A
-// blank cell is told apart from an unreadable one, because filling it in and correcting the whole
-// column's format are different jobs
-export const ROW_ACCOUNT_BLANK_REASON = 'The account source is blank.'
-export const ROW_CATEGORY_BLANK_REASON = 'The category source is blank.'
+// Why one row cannot be converted, listed against that row in the preview step. They read as one
+// family: what is wrong with this row, then what to do about it where there is a choice about that.
+// Each speaks of the row itself, since the entry carries the row number and the row's own cells, and
+// each speaks of a cell rather than a source, which is the word the mapping step uses for the values
+// a column holds. A blank cell is told apart from an unreadable one, because filling it in and
+// correcting the whole column's format are different jobs
+export const ROW_ACCOUNT_BLANK_REASON = 'The account cell is blank.'
+export const ROW_CATEGORY_BLANK_REASON = 'The category cell is blank.'
 export const ROW_DATE_BLANK_REASON = 'The date cell is blank.'
-export const ROW_DATE_UNREADABLE_REASON = 'The date does not match the chosen format.'
+export const ROW_DATE_UNREADABLE_REASON = 'The date does not match the date format chosen above.'
 export const ROW_AMOUNT_BLANK_REASON = 'The amount cell is blank.'
 export const ROW_AMOUNT_UNREADABLE_REASON = 'The amount is not a number.'
 export const ROW_AMOUNT_TOO_LARGE_REASON = 'The amount is larger than this app can store.'
@@ -262,13 +264,13 @@ export const ROW_AMOUNT_NO_SIDE_REASON = 'This row leaves every amount column ma
 // zero it holds, so being told it states nothing would contradict what is in front of them
 export const ROW_AMOUNT_SIDE_STATES_ZERO_REASON = 'The one amount column mapped states zero on this row, so its money went the other way. If the file holds that direction in a column of its own, map that column too.'
 
-// The last two are a sign the column cannot mean. Each says which column it found the sign in and
-// which one that value belongs in, because the fix is moving the value rather than editing its sign:
-// the file has a column for the other direction and this row did not use it. They are separate
+// The last two are a sign the column cannot mean. Both fixes are offered because either one can be
+// what happened: the sign was written where the column already states the direction, or the value
+// belongs in the column for the other direction and this row did not use it. They are separate
 // constants rather than one, since the reason is looked up by problem alone and a single sentence
 // could not say which of the two columns it meant
-export const ROW_AMOUNT_OUT_SIDE_PLUS_REASON = 'The money out column carries a plus sign on this row. A value there is money leaving the account, so write it unsigned or with a minus sign. Money coming in belongs in the money in column.'
-export const ROW_AMOUNT_IN_SIDE_MINUS_REASON = 'The money in column carries a minus sign on this row. A value there is money coming into the account, so write it unsigned or with a plus sign. Money going out belongs in the money out column.'
+export const ROW_AMOUNT_OUT_SIDE_PLUS_REASON = 'The money out column carries a plus sign on this row. Write it unsigned or with a minus sign, or move it to the money in column where it is money arriving.'
+export const ROW_AMOUNT_IN_SIDE_MINUS_REASON = 'The money in column carries a minus sign on this row. Write it unsigned or with a plus sign, or move it to the money out column where it is money leaving.'
 
 // The two ways a row cannot be read from a file carrying its direction in a column of words. Neither
 // can be answered in the app, since one is a cell nobody filled in and the other is two cells of the
@@ -287,8 +289,11 @@ export const ROW_DIRECTION_SIGN_DISAGREES_REASON = 'The sign on this row\'s amou
 export function getRowAmountTooPreciseReason(currency: string) {
   return `The amount has more decimal places than ${currency} has. A period is read as a decimal point, never as a separator between thousands.`
 }
-export const ROW_COUNTERPARTY_NOT_A_TRANSFER_REASON = 'A non-transfer transaction should not have a counterparty account recorded.'
-export const ROW_COUNTERPARTY_IS_OWN_ACCOUNT_REASON = 'A transfer cannot record its own account as its counterparty.'
+// The two ways the counterparty column contradicts the rest of the row. Both open with what this row
+// states rather than with the rule it breaks, since a rule leaves the user working out which of
+// their cells it was about
+export const ROW_COUNTERPARTY_NOT_A_TRANSFER_REASON = 'This row states a counterparty account but is not filed under a transfer category. Only a transfer records where the money went, so clear that cell or change the category.'
+export const ROW_COUNTERPARTY_IS_OWN_ACCOUNT_REASON = 'This row states its own account as the counterparty, so the transfer would go nowhere. That cell holds the account on the other side of the transfer.'
 
 /**
  * Says a row states a currency its account is not kept in
