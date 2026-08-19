@@ -1,6 +1,12 @@
+import { TriangleAlert } from 'lucide-react'
 import { EmptyState, ImportPreviewList, ImportRowProblemsTable, ImportStep } from '@/pages/imports/components'
-import { IMPORT_SAMPLE_PREVIEW_LIMIT } from '@/pages/imports/constants'
+import { IMPORT_INSET_STYLE, IMPORT_SAMPLE_PREVIEW_LIMIT } from '@/pages/imports/constants'
 import type { TransactionImportWorkflow } from '@/pages/imports/hooks'
+
+// Heads the reasons the import cannot go ahead, so a list of red lines reads as one panel about the
+// import rather than as loose text under the preview. Worded as the step before importing rather
+// than as a count, since the list is capped and its own last line carries what was left off
+const BLOCKING_ERRORS_TITLE = 'Answer these before importing'
 
 type ImportPreviewStepProps = Pick<
   TransactionImportWorkflow,
@@ -102,17 +108,23 @@ export function ImportPreviewStep({
         </p>
       ))}
       {hasBlockingErrors ? (
-        <div className="flex flex-col gap-2">
-          {visibleErrors.map((error) => (
-            <p key={error} className="text-sm font-medium" style={{ color: 'var(--app-negative)' }}>
-              {error}
-            </p>
-          ))}
-          {hiddenErrorCount > 0 && (
-            <p className="text-sm font-medium" style={{ color: 'var(--app-negative)' }}>
-              {getHiddenErrorSummary(hiddenErrorCount)}
-            </p>
-          )}
+        <div className="rounded-lg px-4 py-3" style={IMPORT_INSET_STYLE}>
+          <span className="flex items-center gap-2">
+            <TriangleAlert
+              size={16}
+              strokeWidth={2.25}
+              className="shrink-0"
+              style={{ color: 'var(--app-negative)' }}
+              aria-hidden
+            />
+            <p className="text-sm font-semibold">{BLOCKING_ERRORS_TITLE}</p>
+          </span>
+          <ul className="mt-2 list-disc space-y-1 pl-4 text-sm leading-5" style={{ color: 'var(--app-text-muted)' }}>
+            {visibleErrors.map((error) => (
+              <li key={error}>{error}</li>
+            ))}
+            {hiddenErrorCount > 0 && <li>{getHiddenErrorSummary(hiddenErrorCount)}</li>}
+          </ul>
         </div>
       ) : previewRows.length === 0 ? (
         <EmptyState
