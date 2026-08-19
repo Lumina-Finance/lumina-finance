@@ -21,11 +21,14 @@ function getRowProblemsTitle(count: number) {
 }
 
 /**
- * Builds the heading over the rows that will import but are worth a look, which says they are not
- * blocking so the two tables are not read as the same thing
+ * Builds the heading over the rows that import as they are but are worth a second look
+ *
+ * It offers a look rather than stating a fault, since nothing is wrong with these rows. That they
+ * are taken is left to the note against each one, which the heading cannot also carry without
+ * reading like the refusal heading above it
  */
 function getRowWarningsTitle(count: number) {
-  return `${count} row${count === 1 ? '' : 's'} will import but may not be what you meant`
+  return `${count} row${count === 1 ? '' : 's'} worth a look`
 }
 
 /**
@@ -83,7 +86,9 @@ export function ImportPreviewStep({
             title={getRowWarningsTitle(importBuild.rowWarnings.length)}
             rowProblems={importBuild.rowWarnings}
             headers={headers}
-            toggleLabel="rows to check"
+            toggleLabel="rows worth a look"
+            tone="warning"
+            reasonHeader="Note"
           />
         </div>
       )}

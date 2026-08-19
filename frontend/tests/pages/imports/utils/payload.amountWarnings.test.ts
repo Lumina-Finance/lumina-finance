@@ -203,6 +203,14 @@ describe('warning about a row filed against its category\'s direction', () => {
     expect(result.rowWarnings[0].reason).toBe(ROW_SIGN_DISAGREES_WITH_CATEGORY_REASON)
   })
 
+  // The heading over this table offers a look and no longer says the rows are taken, so the note
+  // against each row is the only place that fact is left. It sits in one table cell repeated per
+  // row, inside a column capped at a share of the panel width, so it also has a length to keep to
+  it('says on the row itself that the import takes it, in a note short enough for the column', () => {
+    expect(ROW_SIGN_DISAGREES_WITH_CATEGORY_REASON).toContain('imports')
+    expect(ROW_SIGN_DISAGREES_WITH_CATEGORY_REASON.length).toBeLessThan(160)
+  })
+
   it('lists a negative row inside an income category', () => {
     const result = build(['2400.00', '-50.00'], 'income')
 

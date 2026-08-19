@@ -335,7 +335,7 @@ function toPayloadRow(resolved: ReturnType<typeof resolveImportRow>): Transactio
 }
 
 /**
- * Reports whether a row's amount runs the opposite way to the kind of category it is filed under
+ * Reports whether a row's amount moves the opposite way to the kind of category it is filed under
  *
  * A refund inside an expense category is real data, so this is only ever a warning. It is worth
  * saying because the app then counts the row two ways: cash flow reads the sign, while the category

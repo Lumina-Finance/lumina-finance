@@ -299,10 +299,19 @@ export const ROW_COUNTERPARTY_IS_OWN_ACCOUNT_REASON = 'A transfer cannot record 
 export function getRowCurrencyMismatchReason(rowCurrency: string, accountCurrency: string) {
   return `This row is in ${rowCurrency} but the account it would be written to is kept in ${accountCurrency}. Amounts are stored in the account's currency and are not converted, so write these rows to a ${rowCurrency} account, or set the Currency column to Do not import to bring them in as ${accountCurrency}.`
 }
-// Said against a row whose amount runs the opposite way to the kind of the category it is filed
-// under. It imports, because a refund inside an expense category is real, but the app counts such a
-// row two ways: cash flow reads the sign while the category total reads the kind
-export const ROW_SIGN_DISAGREES_WITH_CATEGORY_REASON = 'The amount runs the opposite way to the kind of category this row is filed under.'
+// Said against a row whose amount moves the opposite way to the kind of the category it is filed
+// under. It states what was noticed, then the ordinary reason for it, then that the row is taken, in
+// that order, because a refund inside an expense category is exactly what this fires on and reading
+// it as a fault the user introduced would be wrong. That the row is taken is stated here rather than
+// in the heading above the table, which offers a look and cannot also carry it
+//
+// Worth saying at all because the app then counts the row two ways: cash flow reads the sign while
+// the category total reads the kind
+//
+// This is the one place the direction rule between an amount and a category kind is stated, since it
+// sits with the rows it is about. The note above the column mapping table covers the arrangements
+// and the sign rule and leaves this to it
+export const ROW_SIGN_DISAGREES_WITH_CATEGORY_REASON = 'The amount moves the opposite way to the kind of category this row is filed under, which is what a refund or a loss looks like. It imports as it stands.'
 
 // Shown once for the whole file where every amount reads as money coming in, which is either a file
 // of nothing but income or one being read backwards. It cannot tell those apart, so it says what the
