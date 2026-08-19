@@ -176,7 +176,7 @@ export function buildTransactionImportPayload({
   // source once and read back for every row using it
   const recordsCounterpartyBySource: Record<string, boolean> = {}
 
-  // The kind each category source settles on, read back per row to spot an amount running the other
+  // The kind each category source settles on, read back per row to spot an amount moving the other
   // way. A source mapped to an existing category takes that category's kind
   const kindByCategorySource: Record<string, ImportCategoryKind> = {}
   for (const source of importedCategories) {

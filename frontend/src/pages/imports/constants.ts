@@ -256,7 +256,7 @@ export const ROW_AMOUNT_TOO_LARGE_REASON = 'The amount is larger than this app c
 // needs both mapped to happen at all, since one side alone leaves the other empty. The next two each
 // send the user to map the column holding the other direction, which is the fix whichever way the
 // file leaves the unstated side
-export const ROW_AMOUNT_BOTH_SIDES_REASON = 'This row states a money out and a money in amount, so which way it runs is not clear.'
+export const ROW_AMOUNT_BOTH_SIDES_REASON = 'This row states both a money out and a money in amount, so its direction is unclear.'
 export const ROW_AMOUNT_NO_SIDE_REASON = 'This row leaves every amount column mapped for this file blank. If the file holds the other direction in a column of its own, map that column too.'
 // Told apart from the reason above because the row is not empty and the table shows the user the
 // zero it holds, so being told it states nothing would contradict what is in front of them

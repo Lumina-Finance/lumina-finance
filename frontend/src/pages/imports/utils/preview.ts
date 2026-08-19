@@ -310,7 +310,7 @@ export function getPreviewCurrency(
  * category queued to be created and looking up an existing one otherwise
  *
  * The kind comes from the same reading the commit uses, so the two cannot disagree. Where that
- * reading has no answer yet, which is a source whose amounts run both ways or one with no readable
+ * reading has no answer yet, which is a source whose amounts move both ways or one with no readable
  * amounts, the row previews without a category rather than being shown a kind guessed from its own
  * sign that the commit would then refuse
  */
