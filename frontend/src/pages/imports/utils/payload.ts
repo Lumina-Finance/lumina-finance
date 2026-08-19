@@ -112,13 +112,13 @@ export function buildTransactionImportPayload({
     if (!errors.includes(message)) errors.push(message)
   }
 
-  if (files.length === 0) addError('Upload at least one CSV file.')
+  if (files.length === 0) addError('Upload a CSV file.')
   for (const file of files) {
     if (file.error) addError(`${file.name}: ${file.error}`)
   }
 
   const missingRequired = getMissingRequiredColumnLabels(columnMap)
-  if (missingRequired.length > 0) addError(`Missing required columns: ${missingRequired.join(', ')}`)
+  if (missingRequired.length > 0) addError(`Map the required columns: ${missingRequired.join(', ')}`)
 
   const arrangementClash = getAmountArrangementClashError(columnMap)
   if (arrangementClash) addError(arrangementClash.message)
@@ -302,7 +302,7 @@ export function buildTransactionImportPayload({
 
   // A file whose every row has a problem is described by the list of problems, so the empty-file
   // message is kept for the case it was written for
-  if (rows.length === 0 && rowProblems.length === 0) addError('No transaction rows are available to import.')
+  if (rows.length === 0 && rowProblems.length === 0) addError('This file has no transaction rows to import.')
 
   const warnings = getImportWarnings(rows, columnMap)
   const allErrors = [...columnErrors, ...errors]
@@ -429,7 +429,7 @@ function appendAccountMapping(
     // The dropdown only offers this answer where no row is written to the source, so it survives
     // here when a file added later carries rows for a name that was answered this way
     if (!accountSource.isCounterpartyOnly) {
-      addError(`Rows cannot be written to an account source that is outside the tracked accounts: ${createName}`)
+      addError(`Map to one of your accounts: ${createName} has rows of its own, so it cannot be answered as outside.`)
       return
     }
 
@@ -442,7 +442,7 @@ function appendAccountMapping(
     // that same column afterwards turns it into a source rows are written to while its answer
     // stands, which the dropdown no longer offers and the API refuses
     if (!accountSource.isCounterpartyOnly && accountById.get(choice)?.is_archived) {
-      addError(`Rows cannot be written to an archived account: ${createName}`)
+      addError(`Map to an account that is not archived: ${createName}`)
       return
     }
 
@@ -455,7 +455,7 @@ function appendAccountMapping(
   if (!createType || !createCurrency) return
 
   if (!isImportAccountType(createType)) {
-    addError(`Invalid account type: ${createName}`)
+    addError(`Choose an account type this app supports: ${createName}`)
     return
   }
 

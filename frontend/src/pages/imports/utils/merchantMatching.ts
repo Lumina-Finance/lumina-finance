@@ -96,7 +96,7 @@ export function buildImportMerchantMappings({
     if (answer === CREATE_MERCHANT_VALUE) {
       const name = (merchantCreateNames[value] ?? value).trim()
       if (!name) {
-        errors.push(`Name the merchant being created for: ${value}`)
+        errors.push(`Choose a name for the new merchant: ${value}`)
         continue
       }
 

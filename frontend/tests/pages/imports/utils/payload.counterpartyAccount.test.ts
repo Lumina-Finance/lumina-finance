@@ -217,7 +217,7 @@ describe('CSV import counterparty account', () => {
     })
 
     expect(rowAccount.payload).toBeNull()
-    expect(rowAccount.errors).toContain('Rows cannot be written to an archived account: Chequing')
+    expect(rowAccount.errors).toContain('Map to an account that is not archived: Chequing')
   })
 
   it('refuses the outside answer for a source rows are written to', () => {
@@ -226,7 +226,7 @@ describe('CSV import counterparty account', () => {
     })
 
     expect(payload).toBeNull()
-    expect(errors).toContain('Rows cannot be written to an account source that is outside the tracked accounts: Chequing')
+    expect(errors).toContain('Map to one of your accounts: Chequing has rows of its own, so it cannot be answered as outside.')
   })
 
   it('refuses a counterparty account on a row that is not a transfer', () => {
