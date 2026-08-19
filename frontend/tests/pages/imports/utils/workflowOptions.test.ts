@@ -8,6 +8,7 @@ import type { Currency } from '@/api/currency'
 import type { Institution } from '@/api/institutions'
 import {
   AMOUNT_ARRANGEMENT_CLASH_ERROR,
+  AMOUNT_CONVENTION_NOTE,
   COLUMN_TARGETS,
   CREATE_ACCOUNT_VALUE,
   CREATE_CATEGORY_VALUE,
@@ -16,6 +17,7 @@ import {
   DIRECTION_ARRANGEMENT_CLASH_ERROR,
   EMPTY_COLUMN_MAP,
   MISSING_AMOUNT_COLUMN_LABEL,
+  ROW_SIGN_DISAGREES_WITH_CATEGORY_REASON,
   UNSET_BATCH_INSTITUTION,
 } from '@/pages/imports/constants'
 import type { ImportFileDraft } from '@/pages/imports/types'
@@ -344,6 +346,14 @@ describe('the three ways a file can carry its amount', () => {
   // Two callers join these with commas, so a label carrying one would read as two missing columns
   it('asks for it as one label carrying no comma', () => {
     expect(MISSING_AMOUNT_COLUMN_LABEL).not.toContain(',')
+  })
+
+  // How a category's kind reads against an amount's direction belongs against the rows it is about,
+  // five steps further down, so the note over the mapping table stops at what the columns hold. Kept
+  // in one place rather than two, since a rule stated twice drifts
+  it('leaves the category direction rule out of the note over the mapping table', () => {
+    expect(AMOUNT_CONVENTION_NOTE).not.toContain('expense category')
+    expect(ROW_SIGN_DISAGREES_WITH_CATEGORY_REASON).toContain('category')
   })
 
   it('heads the three under one group of their own', () => {

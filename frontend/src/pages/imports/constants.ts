@@ -323,8 +323,12 @@ export const NO_OUTFLOWS_WARNING = 'Every row in this file reads as money coming
  *
  * All three arrangements are stated because a file can be mapped any of the three ways, and each one
  * is answered by mapping columns rather than by a separate question
+ *
+ * It stops at what the columns have to hold. How a category's kind reads against an amount's
+ * direction is said against the rows it is about, in ROW_SIGN_DISAGREES_WITH_CATEGORY_REASON, since
+ * a rule stated here would be read five steps before those rows appear
  */
-export const AMOUNT_CONVENTION_NOTE = 'Every imported row carries a direction. Map one Amount column, negative for money out and positive for money in, or map Money out and Money in where the file keeps the two apart, or just one of those two where the file holds money going only one way. Where the amounts are unsigned and a column of words specifies the direction, map that column as the Direction and specify below the table what its words mean. A Money out, Money in or Direction column states the direction on its own, so an amount may only carry a sign that agrees with it, and a row breaking that is listed rather than read the other way. An expense category normally holds money going out and an income category money coming in. The other way round is accepted for a refund or a loss, and those rows are listed for you to check before the import runs.'
+export const AMOUNT_CONVENTION_NOTE = 'Every imported row carries a direction. Map one Amount column, negative for money out and positive for money in, or a Money out and a Money in column where the file keeps them apart, or just one of those where the file only holds money going one way. Where the amounts are unsigned and a column of words specifies the direction, map that column as the Direction and answer below the table what its words mean. Money out, Money in and Direction each specify the direction themselves, so an amount beside one may only carry a sign that agrees, and a row breaking that is listed rather than read the other way.'
 
 // Shown where a source rows are written to matches an account the user has archived, which is the
 // one account that source is not offered. The matched account names follow it
