@@ -93,7 +93,9 @@ export function ImportPreviewStep({
           />
         </div>
       )}
-      {/* Amber, and above the block below, because none of these stops the commit */}
+      {/* Last of the three notices about the data, which run refusals first and then the things that
+          hold nothing up. What follows is the preview itself rather than a fourth notice, so a red
+          error list below this amber one is the body starting rather than the order breaking */}
       {importBuild.warnings.map((warning) => (
         <p key={warning} className="mb-4 text-sm font-medium" style={{ color: 'var(--app-warning-text)' }}>
           {warning}
