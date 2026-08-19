@@ -1,4 +1,4 @@
-import { EmptyState, ImportStagedFileList, ImportStat, ImportStep, ImportUploadCard } from '@/pages/imports/components'
+import { EmptyState, ImportInfoCard, ImportStagedFileList, ImportStat, ImportStep, ImportUploadCard } from '@/pages/imports/components'
 import type { TransactionImportWorkflow } from '@/pages/imports/hooks'
 
 type ImportFilesStepProps = Pick<
@@ -39,6 +39,15 @@ export function ImportFilesStep({
       className="xl:h-full"
       contentClassName="flex min-h-0 flex-col gap-3"
     >
+      {/* Stated before a file is chosen, since re-exporting is the only thing that answers it. The
+          wording stays loose about what goes wrong on purpose, because readCsvFile has two outcomes
+          for a file it cannot read as UTF-8: accented characters lost below the replacement share,
+          and the file refused above it or on any null character. It says the other encodings are
+          unsupported rather than unreadable, since supporting them is open rather than ruled out */}
+      <ImportInfoCard title="Files Are Read As UTF-8">
+        Other encodings are not supported yet, so a file saved as ISO-8859-1 or UTF-16 may not import correctly. Look for a UTF-8 option when saving your file as CSV.
+      </ImportInfoCard>
+
       <input
         ref={inputRef}
         type="file"
