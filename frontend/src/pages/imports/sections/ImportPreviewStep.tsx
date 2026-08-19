@@ -3,8 +3,14 @@ import type { TransactionImportWorkflow } from '@/pages/imports/hooks'
 
 type ImportPreviewStepProps = Pick<
   TransactionImportWorkflow,
-  'missingRequiredColumnLabels' | 'previewRows' | 'previewGroups' | 'importBuild' | 'headers'
+  'files' | 'previewRows' | 'previewGroups' | 'importBuild' | 'headers'
 >
+
+// How many reasons the step spells out before counting the rest. A file of unmatched categories
+// produces one per category, each of them a blank dropdown already visible in the step it belongs
+// to, so a full list would bury the preview to repeat what those steps show. The build puts column
+// problems first, which is what the cap keeps
+const VISIBLE_ERROR_LIMIT = 5
 
 /**
  * Builds the heading over the rows that cannot be converted, which says what has to happen rather
@@ -23,20 +29,39 @@ function getRowWarningsTitle(count: number) {
 }
 
 /**
+ * Says how many reasons were left off the list
+ *
+ * Worded against the reasons rather than as a bare count, because the refused rows table in this
+ * same step ends with its own overflow line counting rows, and two lines reading alike would leave
+ * the numbers meaning whichever one the reader took first
+ */
+function getHiddenErrorSummary(count: number) {
+  return `and ${count} more to answer`
+}
+
+/**
  * Preview step of the generic CSV import flow, showing a sample of the compiled transactions or,
- * when required columns are still unmapped, which ones are missing instead
+ * while anything still stands between the mappings and a commit, the reasons instead
  *
  * Rows that cannot be converted are listed above the sample with the reason each was refused, and
  * the import stays refused until every one of them is gone. Rows that will import but are probably
  * not what the user meant are listed under them, and hold nothing up
+ *
+ * The reasons take the place of the sample rather than sitting over it, since a half-built preview
+ * shown beside a list of reasons it is wrong invites reading it as the real result. They wait for a
+ * file, so the step does not open by listing what the user has not done yet
  */
 export function ImportPreviewStep({
-  missingRequiredColumnLabels,
+  files,
   previewRows,
   previewGroups,
   importBuild,
   headers,
 }: ImportPreviewStepProps) {
+  const visibleErrors = importBuild.errors.slice(0, VISIBLE_ERROR_LIMIT)
+  const hiddenErrorCount = importBuild.errors.length - visibleErrors.length
+  const hasBlockingErrors = files.length > 0 && importBuild.errors.length > 0
+
   return (
     <ImportStep
       index="07"
@@ -62,11 +87,25 @@ export function ImportPreviewStep({
           />
         </div>
       )}
-      {missingRequiredColumnLabels.length > 0 ? (
-        <EmptyState
-          title="Missing required columns"
-          description={missingRequiredColumnLabels.join(', ')}
-        />
+      {/* Amber, and above the block below, because none of these stops the commit */}
+      {importBuild.warnings.map((warning) => (
+        <p key={warning} className="mb-4 text-sm font-medium" style={{ color: 'var(--app-warning-text)' }}>
+          {warning}
+        </p>
+      ))}
+      {hasBlockingErrors ? (
+        <div className="flex flex-col gap-2">
+          {visibleErrors.map((error) => (
+            <p key={error} className="text-sm font-medium" style={{ color: 'var(--app-negative)' }}>
+              {error}
+            </p>
+          ))}
+          {hiddenErrorCount > 0 && (
+            <p className="text-sm font-medium" style={{ color: 'var(--app-negative)' }}>
+              {getHiddenErrorSummary(hiddenErrorCount)}
+            </p>
+          )}
+        </div>
       ) : previewRows.length === 0 ? (
         <EmptyState
           title="No preview rows"

@@ -134,8 +134,9 @@ export function buildImportPreviewRows({
       const dt = resolved.dt
 
       // The currency the commit will store the row in, and the display fallback only where the
-      // account step has not been answered yet, which is a state the preview runs in and the
-      // commit does not
+      // account step has not been answered yet. Rows are still built in that state and the preview
+      // step shows the unanswered mappings instead of them, so the fallback is what keeps building
+      // a row from failing rather than something the user reads
       const currency = getPreviewCurrency(
         resolved.currency,
         account?.currency,
