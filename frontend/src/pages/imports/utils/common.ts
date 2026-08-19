@@ -1,3 +1,5 @@
+import type { ImportFileDraft } from '@/pages/imports/types'
+
 /**
  * Returns a copy of a record without the given key, or the original record when the key was never
  * present, so state that did not actually change keeps the same identity and skips a re-render
@@ -36,6 +38,17 @@ export function unique(values: string[]) {
  */
 export function getImportRowId(fileId: string, rowIndex: number) {
   return `${fileId}-${rowIndex}`
+}
+
+/**
+ * Reports whether a file the import can go ahead with is staged
+ *
+ * A file the reader refused is still staged, carrying its reason and no rows, because that is what
+ * puts the reason in front of the user. Only a draft with no error counts, so the upload control
+ * stays on offer for exactly the file that has to be replaced
+ */
+export function hasAcceptedFile(files: ImportFileDraft[]) {
+  return files.some((file) => !file.error)
 }
 
 /**
