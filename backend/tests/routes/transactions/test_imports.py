@@ -1382,3 +1382,45 @@ async def test_holding_a_run_does_not_bound_the_locks_taken_after_it(client):
     # Left in place, this bound would cancel any later lock the same transaction waited on, which
     # for a commit is every account snapshot and cache row the import touches
     assert lock_timeout == "0"
+
+
+async def test_an_import_across_two_accounts_recomputes_each_from_its_own_earliest_row(client):
+    """Each account rebuilds from the earliest row it received, not from the first row of the file."""
+    headers, chequing_id, category_id = await _setup_user_with_deps(client)
+    savings_resp = await _create_account(client, headers, name="Main Savings", account_type="savings")
+    savings_id = savings_resp.json()["id"]
+
+    # The rows for each account are given latest first, so an import that kept the first date it saw
+    # would rebuild from the later one and never write a snapshot for the earlier row at all
+    rows = [
+        {"account_source": "Chequing", "category_source": "Groceries", "dt": "2026-04-20", "amount": "-10.00"},
+        {"account_source": "Chequing", "category_source": "Groceries", "dt": "2026-04-10", "amount": "-5.00"},
+        {"account_source": "Savings", "category_source": "Groceries", "dt": "2026-04-22", "amount": "-20.00"},
+        {"account_source": "Savings", "category_source": "Groceries", "dt": "2026-04-12", "amount": "-30.00"},
+    ]
+
+    # Whichever account sorts later is named first, so the order the accounts are reached in is the
+    # reverse of the sorted order and dropping the sort fails this rather than passing on the ids
+    # that happened to come up
+    if chequing_id < savings_id:
+        rows = rows[2:] + rows[:2]
+
+    resp = await _import_transactions(client, headers, {
+        "accounts": [
+            {"source": "Chequing", "account_id": chequing_id},
+            {"source": "Savings", "account_id": savings_id},
+        ],
+        "categories": [{"source": "Groceries", "category_id": category_id}],
+        "rows": rows,
+    })
+
+    assert resp.status_code == 201
+    assert resp.json()["affected_account_ids"] == sorted([chequing_id, savings_id])
+
+    chequing_snapshots = (await client.get(f"/accounts/{chequing_id}/snapshots", headers=headers)).json()
+    savings_snapshots = (await client.get(f"/accounts/{savings_id}/snapshots", headers=headers)).json()
+
+    assert {"account_id": chequing_id, "dt": "2026-04-10", "balance": -500} in chequing_snapshots
+    assert {"account_id": chequing_id, "dt": "2026-04-20", "balance": -1500} in chequing_snapshots
+    assert {"account_id": savings_id, "dt": "2026-04-12", "balance": -3000} in savings_snapshots
+    assert {"account_id": savings_id, "dt": "2026-04-22", "balance": -5000} in savings_snapshots
