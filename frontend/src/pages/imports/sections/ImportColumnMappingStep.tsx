@@ -1,8 +1,10 @@
 import { EmptyState, ImportDirectionValueTable, ImportHeaderMappingTable, ImportNotice, ImportStep } from '@/pages/imports/components'
 import {
-  AMOUNT_CONVENTION_NOTE,
+  CURRENCY_HANDLING_NOTE,
+  CURRENCY_HANDLING_TITLE,
   DIRECTION_VALUES_EXPLANATION,
   DIRECTION_VALUES_TITLE,
+  getFixedAccountCurrencyNote,
   getRowsWithNoPayeeExplanation,
   ROWS_WITH_NO_PAYEE_TITLE,
 } from '@/pages/imports/constants'
@@ -23,6 +25,8 @@ type ImportColumnMappingStepProps = Pick<
   | 'directionAnswers'
   | 'autoFilledDirectionValues'
   | 'rowsWithNoPayeeCount'
+  | 'fixedAccount'
+  | 'accountsFailed'
   | 'setDateFormat'
   | 'setDirectionAnswer'
   | 'updateColumnTarget'
@@ -32,10 +36,12 @@ type ImportColumnMappingStepProps = Pick<
  * Column mapping step of the generic CSV import flow, matching each header found in the uploaded
  * file to an app field
  *
- * The amount convention is stated above the table rather than offered as a choice, because which
- * arrangement a file uses is answered by mapping its columns rather than by a question of its own.
- * It sits where the account step states its own currency handling, since both say what the import
- * will do with a number rather than asking anything
+ * How an amount is read is left to the mapping dropdown, whose every option carries a sentence
+ * saying what that field holds and what a sign in it means. Those sentences are read at the moment
+ * of choosing, so a notice above the table restating them was one level less specific and said
+ * nothing the dropdown did not
+ *
+ * The currency note stays, because nothing in the dropdown says which currency an amount lands in
  *
  * A file mapping a Direction column has one more question, which words in that column mean money
  * leaving the account. It is asked here rather than in a separate step, so the column and what its
@@ -54,6 +60,8 @@ export function ImportColumnMappingStep({
   directionAnswers,
   autoFilledDirectionValues,
   rowsWithNoPayeeCount,
+  fixedAccount,
+  accountsFailed,
   setDateFormat,
   setDirectionAnswer,
   updateColumnTarget,
@@ -70,15 +78,19 @@ export function ImportColumnMappingStep({
     <ImportStep
       index="02"
       title="Column Mapping"
-      description="Map each file column to an app field."
+      description="Specify what each column in your file holds."
     >
-      <ImportNotice title="Amount Handling">
-        {AMOUNT_CONVENTION_NOTE}
-      </ImportNotice>
+      {!accountsFailed && (
+        <ImportNotice title={CURRENCY_HANDLING_TITLE}>
+          {fixedAccount
+            ? getFixedAccountCurrencyNote(fixedAccount.name, fixedAccount.currency)
+            : CURRENCY_HANDLING_NOTE}
+        </ImportNotice>
+      )}
       {headers.length === 0 ? (
         <EmptyState
-          title="No columns available"
-          description="Upload a CSV file to map columns."
+          title="No columns yet"
+          description="Upload a CSV file and its columns appear here."
         />
       ) : (
         <ImportHeaderMappingTable
@@ -96,7 +108,7 @@ export function ImportColumnMappingStep({
       )}
       {showsDirectionValues && (
         <div className="mt-4 space-y-3">
-          <ImportNotice title={DIRECTION_VALUES_TITLE}>
+          <ImportNotice title={DIRECTION_VALUES_TITLE} tone="question">
             {DIRECTION_VALUES_EXPLANATION}
           </ImportNotice>
           <ImportDirectionValueTable

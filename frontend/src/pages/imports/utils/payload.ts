@@ -9,10 +9,10 @@ import {
   getCategoryDirectionClashError,
   getDirectionValuesAgreeError,
   getTooManyMappingsError,
+  getRowSignDisagreesWithCategoryReason,
   getUnansweredDirectionValuesError,
   MAX_IMPORT_MAPPINGS,
   NO_OUTFLOWS_WARNING,
-  ROW_SIGN_DISAGREES_WITH_CATEGORY_REASON,
 } from '@/pages/imports/constants'
 import { BALANCE_ADJUSTMENT_CATEGORY_NAME, doesTransferRecordCounterpartyAccount, OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 import type {
@@ -112,13 +112,13 @@ export function buildTransactionImportPayload({
     if (!errors.includes(message)) errors.push(message)
   }
 
-  if (files.length === 0) addError('Upload at least one CSV file.')
+  if (files.length === 0) addError('Upload a CSV file.')
   for (const file of files) {
     if (file.error) addError(`${file.name}: ${file.error}`)
   }
 
   const missingRequired = getMissingRequiredColumnLabels(columnMap)
-  if (missingRequired.length > 0) addError(`Missing required columns: ${missingRequired.join(', ')}`)
+  if (missingRequired.length > 0) addError(`Map the required columns: ${missingRequired.join(', ')}`)
 
   const arrangementClash = getAmountArrangementClashError(columnMap)
   if (arrangementClash) addError(arrangementClash.message)
@@ -176,7 +176,7 @@ export function buildTransactionImportPayload({
   // source once and read back for every row using it
   const recordsCounterpartyBySource: Record<string, boolean> = {}
 
-  // The kind each category source settles on, read back per row to spot an amount running the other
+  // The kind each category source settles on, read back per row to spot an amount moving the other
   // way. A source mapped to an existing category takes that category's kind
   const kindByCategorySource: Record<string, ImportCategoryKind> = {}
   for (const source of importedCategories) {
@@ -287,12 +287,15 @@ export function buildTransactionImportPayload({
 
       // A row can be worth a second look for more than one reason, and each is listed on its own so
       // the table says every thing that is odd about it rather than only the first
-      if (doesSignDisagreeWithCategoryKind(resolved.amount, kindByCategorySource[resolved.categorySource])) {
+      const categoryKind = kindByCategorySource[resolved.categorySource]
+      if (doesSignDisagreeWithCategoryKind(resolved.amount, categoryKind)) {
         rowWarnings.push({
           id: getImportRowId(file.id, rowIndex),
           rowNumber: rowIndex + 1,
           cells: row,
-          reason: ROW_SIGN_DISAGREES_WITH_CATEGORY_REASON,
+          // Only an expense or an income category reaches here, since the check above judges no
+          // other kind, so the note can say which of the two this row is filed under
+          reason: getRowSignDisagreesWithCategoryReason(categoryKind as 'expense' | 'income'),
         })
       }
 
@@ -302,7 +305,7 @@ export function buildTransactionImportPayload({
 
   // A file whose every row has a problem is described by the list of problems, so the empty-file
   // message is kept for the case it was written for
-  if (rows.length === 0 && rowProblems.length === 0) addError('No transaction rows are available to import.')
+  if (rows.length === 0 && rowProblems.length === 0) addError('This file has no transaction rows to import.')
 
   const warnings = getImportWarnings(rows, columnMap)
   const allErrors = [...columnErrors, ...errors]
@@ -335,7 +338,7 @@ function toPayloadRow(resolved: ReturnType<typeof resolveImportRow>): Transactio
 }
 
 /**
- * Reports whether a row's amount runs the opposite way to the kind of category it is filed under
+ * Reports whether a row is money going the way its category does not usually record
  *
  * A refund inside an expense category is real data, so this is only ever a warning. It is worth
  * saying because the app then counts the row two ways: cash flow reads the sign, while the category
@@ -429,7 +432,7 @@ function appendAccountMapping(
     // The dropdown only offers this answer where no row is written to the source, so it survives
     // here when a file added later carries rows for a name that was answered this way
     if (!accountSource.isCounterpartyOnly) {
-      addError(`Rows cannot be written to an account source that is outside the tracked accounts: ${createName}`)
+      addError(`Map to one of your accounts: ${createName} has rows of its own, so it cannot be answered as outside.`)
       return
     }
 
@@ -442,7 +445,7 @@ function appendAccountMapping(
     // that same column afterwards turns it into a source rows are written to while its answer
     // stands, which the dropdown no longer offers and the API refuses
     if (!accountSource.isCounterpartyOnly && accountById.get(choice)?.is_archived) {
-      addError(`Rows cannot be written to an archived account: ${createName}`)
+      addError(`Map to an account that is not archived: ${createName}`)
       return
     }
 
@@ -455,7 +458,7 @@ function appendAccountMapping(
   if (!createType || !createCurrency) return
 
   if (!isImportAccountType(createType)) {
-    addError(`Invalid account type: ${createName}`)
+    addError(`Choose an account type this app supports: ${createName}`)
     return
   }
 

@@ -30,7 +30,7 @@ const FROZEN_HEADER_Z_INDEX = 3
 
 /**
  * Builds the frozen lead cell style, whose width doubles as the sticky
- * offset of the frozen Reason column beside it
+ * offset of the frozen reason column beside it
  */
 function buildFrozenLeadCellStyle(leadColumnWidth: string): CSSProperties {
   return {
@@ -114,9 +114,9 @@ function RawCellValue({ value }: { value: string }) {
 }
 
 /**
- * Collapsible panel listing items the import will not or did not bring in,
- * keeping only the count headline visible until expanded, then freezing the
- * lead cell and skip reason on the left while every other column scrolls
+ * Collapsible panel listing rows the import has something to say about, keeping
+ * only the count headline visible until expanded, then freezing the lead cell
+ * and the note beside it on the left while every other column scrolls
  * horizontally beside them, capped to a visible sample with the hidden
  * remainder summarized underneath
  */
@@ -129,19 +129,34 @@ export function ImportSkippedTable({
   headers,
   rows,
   totalCount,
+  tone = 'danger',
+  reasonHeader = 'Reason',
 }: {
   title: string
 
-  /** Names what expands and collapses for the toggle's accessible label */
+  /** What the expand and collapse control calls the rows in its accessible label */
   toggleLabel: string
   leadHeader: string
 
-  /** Fixed width of the frozen lead column, which sets the Reason offset */
+  /** Fixed width of the frozen lead column, which sets the note column's offset */
   leadColumnWidth: string
   leadCellClassName: string
   headers: string[]
   rows: ImportSkippedTableRow[]
   totalCount: number
+
+  /**
+   * Whether the rows are refused or merely worth a look, which is the icon's colour. Defaults to
+   * the refusal this table was written for, so a caller listing rows the import will not take says
+   * nothing. Takes the same two words `ImportNotice` uses
+   */
+  tone?: 'warning' | 'danger'
+
+  /**
+   * What the frozen second column is headed. Reason is the right word for a refusal and the wrong
+   * one for a note against a row that imports as it stands
+   */
+  reasonHeader?: string
 }) {
   // Expanded by default so skipped items are in view before the commit
   const [expanded, setExpanded] = useState(true)
@@ -172,7 +187,7 @@ export function ImportSkippedTable({
             size={16}
             strokeWidth={2.25}
             className="shrink-0"
-            style={{ color: 'var(--app-negative)' }}
+            style={{ color: tone === 'danger' ? 'var(--app-negative)' : 'var(--app-warning-text)' }}
             aria-hidden
           />
           <p className="text-sm font-semibold">{title}</p>
@@ -203,7 +218,7 @@ export function ImportSkippedTable({
                     className="py-1.5 pr-4 align-top font-medium"
                     style={{ ...frozenReasonCellStyle, ...HEADER_CELL_STYLE, zIndex: FROZEN_HEADER_Z_INDEX }}
                   >
-                    Reason
+                    {reasonHeader}
                   </th>
                   {headers.map((header, headerIndex) => (
                     <th

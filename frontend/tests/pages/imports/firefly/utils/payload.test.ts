@@ -59,13 +59,13 @@ describe('a Firefly account archived after it was mapped', () => {
     const result = buildWithMapping(ARCHIVED.id, [CHEQUING, ARCHIVED])
 
     expect(result.payload).toBeNull()
-    expect(result.errors).toContain('Rows cannot be written to an archived account: Chequing')
+    expect(result.errors).toContain('Map to an account that is not archived: Chequing')
   })
 
   it('accepts the same mapping while the account is not archived', () => {
     const result = buildWithMapping(CHEQUING.id, [CHEQUING, ARCHIVED])
 
-    expect(result.errors).not.toContain('Rows cannot be written to an archived account: Chequing')
+    expect(result.errors).not.toContain('Map to an account that is not archived: Chequing')
     expect(result.payload?.accounts).toEqual([{ source: 'Chequing', account_id: CHEQUING.id }])
   })
 })

@@ -15,6 +15,7 @@ import {
   CURRENCIES_LOADING_UPLOAD_BLOCK,
   DIRECTION_ARRANGEMENT_CLASH_ERROR,
   EMPTY_COLUMN_MAP,
+  getRowSignDisagreesWithCategoryReason,
   MISSING_AMOUNT_COLUMN_LABEL,
   UNSET_BATCH_INSTITUTION,
 } from '@/pages/imports/constants'
@@ -344,6 +345,31 @@ describe('the three ways a file can carry its amount', () => {
   // Two callers join these with commas, so a label carrying one would read as two missing columns
   it('asks for it as one label carrying no comma', () => {
     expect(MISSING_AMOUNT_COLUMN_LABEL).not.toContain(',')
+  })
+
+  // There is no notice over the mapping table saying how an amount is read, so each option's own
+  // sentence is the only place the arrangements and the sign rule are stated. Stripping one of these
+  // would leave a user choosing between Amount, Money out and Money in with nothing saying what a
+  // sign in each one means
+  it('states every amount arrangement and the sign rule in the dropdown options', () => {
+    const options = buildColumnTargetOptions()
+    const hintFor = (value: string) => options.find((option) => option.value === value)?.description ?? ''
+
+    expect(hintFor('amount')).toContain('negative for money out')
+    expect(hintFor('amount_out')).toContain('A plus sign there is refused')
+    expect(hintFor('amount_in')).toContain('A minus sign there is refused')
+    expect(hintFor('amount_direction')).toContain('unsigned amounts')
+  })
+
+  // How a category's kind reads against an amount's direction belongs against the rows it is about,
+  // five steps further down. Kept in one place rather than two, since a rule stated twice drifts
+  it('leaves the category direction rule to the rows it is about', () => {
+    const options = buildColumnTargetOptions()
+    const amountHints = ['amount', 'amount_out', 'amount_in', 'amount_direction']
+      .map((value) => options.find((option) => option.value === value)?.description ?? '')
+
+    for (const hint of amountHints) expect(hint).not.toContain('category')
+    expect(getRowSignDisagreesWithCategoryReason('expense')).toContain('expense category')
   })
 
   it('heads the three under one group of their own', () => {

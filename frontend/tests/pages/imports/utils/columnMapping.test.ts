@@ -3,8 +3,8 @@
  * refusal tells the user about where the problem is
  */
 import { describe, expect, it } from 'vitest'
-import type { CsvRow, ImportFileDraft } from '@/pages/imports/types'
-import { validateColumnValues } from '@/pages/imports/utils'
+import type { CsvRow, ImportAmountDirection, ImportFileDraft } from '@/pages/imports/types'
+import { answerImportDirectionValue, validateColumnValues } from '@/pages/imports/utils'
 
 const SUPPORTED_CURRENCY_CODES = new Set(['CAD', 'USD'])
 
@@ -281,5 +281,41 @@ describe('what a column mapped as the direction may hold', () => {
 
     expect(validation.valid).toBe(false)
     expect(validation.message).toContain('3 different values')
+  })
+})
+
+describe('answering what one word in the Direction column means', () => {
+  const PAIR = [{ key: 'sortie' }, { key: 'entrée' }]
+
+  // The column separates money in from money out, so its two words cannot mean the same thing and
+  // the second click was always either redundant or a mistake
+  it('answers the other word with the other direction', () => {
+    expect(answerImportDirectionValue({}, PAIR, 'sortie', 'out')).toEqual({ sortie: 'out', 'entrée': 'in' })
+    expect(answerImportDirectionValue({}, PAIR, 'entrée', 'out')).toEqual({ 'entrée': 'out', sortie: 'in' })
+  })
+
+  it('flips the other word when an answered pair changes', () => {
+    const answered: Record<string, ImportAmountDirection> = { sortie: 'out', 'entrée': 'in' }
+
+    expect(answerImportDirectionValue(answered, PAIR, 'sortie', 'in')).toEqual({ sortie: 'in', 'entrée': 'out' })
+  })
+
+  // Reachable from an answer stored before the pairing existed. Touching either word repairs it
+  // rather than leaving the user to correct both
+  it('repairs a stored pair that already agreed', () => {
+    const agreed: Record<string, ImportAmountDirection> = { sortie: 'out', 'entrée': 'out' }
+
+    expect(answerImportDirectionValue(agreed, PAIR, 'sortie', 'out')).toEqual({ sortie: 'out', 'entrée': 'in' })
+  })
+
+  // A file holding money going only one way has nothing for its single word to be the opposite of
+  it('answers a lone word without inventing a second', () => {
+    expect(answerImportDirectionValue({}, [{ key: 'debit' }], 'debit', 'out')).toEqual({ debit: 'out' })
+  })
+
+  // Pairing against a word this column does not hold would answer whichever of the two came first,
+  // rewriting a word the user had already settled
+  it('leaves the pair alone when the answered word is not one of them', () => {
+    expect(answerImportDirectionValue({}, PAIR, 'debit', 'out')).toEqual({ debit: 'out' })
   })
 })

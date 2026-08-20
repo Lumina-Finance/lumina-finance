@@ -18,7 +18,6 @@ import {
   FIXED_ACCOUNT_WARNING_LINK_LABEL,
   FIXED_ACCOUNT_WARNING_TITLE,
   UNSET_BATCH_INSTITUTION,
-  getFixedAccountCurrencyNote,
   getFixedAccountWarning,
 } from '@/pages/imports/constants'
 import type { ImportAccountSource } from '@/pages/imports/types'
@@ -196,13 +195,6 @@ export function ImportAccountMappingStep({
 
   return (
     <ImportStep index="03" title="Account Mapping">
-      {!accountsFailed && (
-        <ImportNotice title="Currency Handling">
-          {fixedAccount
-            ? getFixedAccountCurrencyNote(fixedAccount.name, fixedAccount.currency)
-            : 'Imported amounts are treated as raw values. During import, each amount will be assigned the base currency of the mapped account, or the currency shown against a new account, which is taken from the file where it states one and can be changed on any row.'}
-        </ImportNotice>
-      )}
       {/* Says what this page will do with a file whether or not one is staged, since a file covering
           more than one account has to be sent elsewhere before it is uploaded rather than after */}
       {fixedAccount && (
@@ -229,8 +221,8 @@ export function ImportAccountMappingStep({
         // asks it for a file a second time
         fixedAccount ? null : (
           <EmptyState
-            title="No account sources detected"
-            description="Upload a file or check the mapped account column."
+            title="No accounts yet"
+            description="Upload a file, or check which column is mapped as the account."
           />
         )
       ) : (
@@ -242,7 +234,7 @@ export function ImportAccountMappingStep({
           )}
           {archivedAccountMatches.length > 0 && (
             <ImportNotice
-              title="Archived Accounts"
+              title="Archived accounts"
               items={archivedAccountMatches.map((match) => (
                 // The visible text is the account name, so the label is what says where following
                 // it goes, which is all a screen reader's list of links would otherwise show

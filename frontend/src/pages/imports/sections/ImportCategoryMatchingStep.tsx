@@ -49,7 +49,7 @@ export function ImportCategoryMatchingStep({
     <ImportStep
       index="04"
       title="Category Matching"
-      description="Manually match imported category values to existing categories, or queue new ones."
+      description="Match each category in the file to one of yours, or queue a new one."
     >
       {categoriesFailed ? (
         <ImportLoadFailure
@@ -59,8 +59,8 @@ export function ImportCategoryMatchingStep({
         />
       ) : importedCategories.length === 0 ? (
         <EmptyState
-          title="No imported categories detected"
-          description="Map a category column first."
+          title="No categories yet"
+          description="Map the column holding the category first."
         />
       ) : (
         <>

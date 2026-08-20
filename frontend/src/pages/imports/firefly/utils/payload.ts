@@ -67,7 +67,7 @@ export function buildFireflyImportPayload({
       // Every Firefly source takes rows, and an archived account takes none, so an account archived
       // after it was chosen is refused here rather than by the server part way through the import
       if (accountById.get(choice)?.is_archived) {
-        addError(`Rows cannot be written to an archived account: ${name}`)
+        addError(`Map to an account that is not archived: ${name}`)
         continue
       }
 
@@ -81,7 +81,7 @@ export function buildFireflyImportPayload({
     if (!details?.accountType || !details.currency) continue
 
     if (!isImportAccountType(details.accountType)) {
-      addError(`Invalid account type: ${name}`)
+      addError(`Choose an account type this app supports: ${name}`)
       continue
     }
 
@@ -97,7 +97,7 @@ export function buildFireflyImportPayload({
   }
 
   if (trackedAccountNames.length === 0 && rows.length > 0) {
-    addError('No asset or liability accounts were found in the transactions file.')
+    addError('This export has no asset or liability accounts to import into.')
   }
 
   const categories: FireflyTransactionImportPayload['categories'] = []
@@ -130,7 +130,7 @@ export function buildFireflyImportPayload({
   }
 
   const payloadRows = buildFireflyImportRows(rows)
-  if (payloadRows.length === 0) addError('No transaction rows are available to import.')
+  if (payloadRows.length === 0) addError('This export has no transaction rows to import.')
 
   if (errors.length > 0) return { errors, payload: null }
   return { errors: [], payload: { accounts, categories, rows: payloadRows } }

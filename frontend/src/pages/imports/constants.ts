@@ -33,7 +33,7 @@ export const COLUMN_TARGETS: Array<{
   {
     id: 'counterparty_account_id',
     label: 'Counterparty account',
-    hint: 'Says which account a transfer\'s money went to, or came from, without writing a transaction into that account. Only transfer rows can use it, and a blank cell records the transfer as going outside this app.',
+    hint: 'Specifies which account a transfer\'s money went to, or came from, without writing a transaction into that account. Only transfer rows can use it, and a blank cell records the transfer as going outside this app.',
     group: 'optional',
   },
   { id: 'dt', label: 'Date', hint: 'Transaction date.', group: 'required' },
@@ -240,14 +240,20 @@ export const CURRENCIES_FAILED_UPLOAD_BLOCK = 'Currencies could not be loaded, a
 // built on it: refused rows in both import flows, and the Firefly budgets it cannot bring in
 export const SKIPPED_TABLE_VISIBLE_LIMIT = 20
 
-// Why one row cannot be converted, listed against that row in the preview step. Each says what is
-// wrong with the row itself, since the entry carries the row number and the row's own cells. A
-// blank cell is told apart from an unreadable one, because filling it in and correcting the whole
-// column's format are different jobs
-export const ROW_ACCOUNT_BLANK_REASON = 'The account source is blank.'
-export const ROW_CATEGORY_BLANK_REASON = 'The category source is blank.'
+// How many compiled transactions the preview shows. Read by the builder that stops at it and by the
+// step description that states it, so the two cannot disagree about what is on screen
+export const IMPORT_SAMPLE_PREVIEW_LIMIT = 5
+
+// Why one row cannot be converted, listed against that row in the preview step. They read as one
+// family: what is wrong with this row, then what to do about it where there is a choice about that.
+// Each speaks of the row itself, since the entry carries the row number and the row's own cells, and
+// each speaks of a cell rather than a source, which is the word the mapping step uses for the values
+// a column holds. A blank cell is told apart from an unreadable one, because filling it in and
+// correcting the whole column's format are different jobs
+export const ROW_ACCOUNT_BLANK_REASON = 'The account cell is blank.'
+export const ROW_CATEGORY_BLANK_REASON = 'The category cell is blank.'
 export const ROW_DATE_BLANK_REASON = 'The date cell is blank.'
-export const ROW_DATE_UNREADABLE_REASON = 'The date does not match the chosen format.'
+export const ROW_DATE_UNREADABLE_REASON = 'The date does not match the date format chosen above.'
 export const ROW_AMOUNT_BLANK_REASON = 'The amount cell is blank.'
 export const ROW_AMOUNT_UNREADABLE_REASON = 'The amount is not a number.'
 export const ROW_AMOUNT_TOO_LARGE_REASON = 'The amount is larger than this app can store.'
@@ -256,19 +262,19 @@ export const ROW_AMOUNT_TOO_LARGE_REASON = 'The amount is larger than this app c
 // needs both mapped to happen at all, since one side alone leaves the other empty. The next two each
 // send the user to map the column holding the other direction, which is the fix whichever way the
 // file leaves the unstated side
-export const ROW_AMOUNT_BOTH_SIDES_REASON = 'This row states a money out and a money in amount, so which way it runs is not clear.'
+export const ROW_AMOUNT_BOTH_SIDES_REASON = 'This row states both a money out and a money in amount, so its direction is unclear.'
 export const ROW_AMOUNT_NO_SIDE_REASON = 'This row leaves every amount column mapped for this file blank. If the file holds the other direction in a column of its own, map that column too.'
 // Told apart from the reason above because the row is not empty and the table shows the user the
 // zero it holds, so being told it states nothing would contradict what is in front of them
-export const ROW_AMOUNT_SIDE_STATES_ZERO_REASON = 'The one amount column mapped states zero on this row, so its money went the other way. If the file holds that direction in a column of its own, map that column too.'
+export const ROW_AMOUNT_SIDE_STATES_ZERO_REASON = 'The one amount column mapped states zero on this row, so this row is the direction that column does not hold. If the file states that direction in a separate column, map that column too.'
 
-// The last two are a sign the column cannot mean. Each says which column it found the sign in and
-// which one that value belongs in, because the fix is moving the value rather than editing its sign:
-// the file has a column for the other direction and this row did not use it. They are separate
+// The last two are a sign the column cannot mean. Both fixes are offered because either one can be
+// what happened: the sign was written where the column already states the direction, or the value
+// belongs in the column for the other direction and this row did not use it. They are separate
 // constants rather than one, since the reason is looked up by problem alone and a single sentence
 // could not say which of the two columns it meant
-export const ROW_AMOUNT_OUT_SIDE_PLUS_REASON = 'The money out column carries a plus sign on this row. A value there is money leaving the account, so write it unsigned or with a minus sign. Money coming in belongs in the money in column.'
-export const ROW_AMOUNT_IN_SIDE_MINUS_REASON = 'The money in column carries a minus sign on this row. A value there is money coming into the account, so write it unsigned or with a plus sign. Money going out belongs in the money out column.'
+export const ROW_AMOUNT_OUT_SIDE_PLUS_REASON = 'The money out column carries a plus sign on this row. Write it unsigned or with a minus sign, or move it to the money in column where it is money arriving.'
+export const ROW_AMOUNT_IN_SIDE_MINUS_REASON = 'The money in column carries a minus sign on this row. Write it unsigned or with a plus sign, or move it to the money out column where it is money leaving.'
 
 // The two ways a row cannot be read from a file carrying its direction in a column of words. Neither
 // can be answered in the app, since one is a cell nobody filled in and the other is two cells of the
@@ -287,8 +293,11 @@ export const ROW_DIRECTION_SIGN_DISAGREES_REASON = 'The sign on this row\'s amou
 export function getRowAmountTooPreciseReason(currency: string) {
   return `The amount has more decimal places than ${currency} has. A period is read as a decimal point, never as a separator between thousands.`
 }
-export const ROW_COUNTERPARTY_NOT_A_TRANSFER_REASON = 'A non-transfer transaction should not have a counterparty account recorded.'
-export const ROW_COUNTERPARTY_IS_OWN_ACCOUNT_REASON = 'A transfer cannot record its own account as its counterparty.'
+// The two ways the counterparty column contradicts the rest of the row. Both open with what this row
+// states rather than with the rule it breaks, since a rule leaves the user working out which of
+// their cells it was about
+export const ROW_COUNTERPARTY_NOT_A_TRANSFER_REASON = 'This row states a counterparty account but is not filed under a transfer category. Only a transfer records where the money went, so clear that cell or change the category.'
+export const ROW_COUNTERPARTY_IS_OWN_ACCOUNT_REASON = 'This row states its own account as the counterparty, so the transfer would go nowhere. That cell holds the account on the other side of the transfer.'
 
 /**
  * Says a row states a currency its account is not kept in
@@ -299,23 +308,35 @@ export const ROW_COUNTERPARTY_IS_OWN_ACCOUNT_REASON = 'A transfer cannot record 
 export function getRowCurrencyMismatchReason(rowCurrency: string, accountCurrency: string) {
   return `This row is in ${rowCurrency} but the account it would be written to is kept in ${accountCurrency}. Amounts are stored in the account's currency and are not converted, so write these rows to a ${rowCurrency} account, or set the Currency column to Do not import to bring them in as ${accountCurrency}.`
 }
-// Said against a row whose amount runs the opposite way to the kind of the category it is filed
-// under. It imports, because a refund inside an expense category is real, but the app counts such a
-// row two ways: cash flow reads the sign while the category total reads the kind
-export const ROW_SIGN_DISAGREES_WITH_CATEGORY_REASON = 'The amount runs the opposite way to the kind of category this row is filed under.'
+/**
+ * Says a row is money going the way its category does not usually record
+ *
+ * Written per kind rather than as one sentence, so it can state what the row is and what it is filed
+ * under. One sentence covering both had to describe the relation between them instead, and a
+ * category kind is a classification rather than a direction, so an amount cannot move against it
+ *
+ * It states what the row is, then the ordinary thing that looks like this, then that it is taken, in
+ * that order, because a refund inside an expense category is exactly what this fires on and reading
+ * it as a fault the user introduced would be wrong. That the row is taken is stated here rather than
+ * in the heading above the table, which offers a look and cannot also carry it
+ *
+ * Worth saying at all because the app then counts the row two ways: cash flow reads the sign while
+ * the category total reads the kind
+ *
+ * This is the one place the direction rule between an amount and a category kind is stated, since it
+ * sits with the rows it is about. The note above the column mapping table covers the arrangements
+ * and the sign rule and leaves this to it
+ */
+export function getRowSignDisagreesWithCategoryReason(kind: 'expense' | 'income') {
+  return kind === 'expense'
+    ? 'Money coming in, filed under an expense category. That is what a refund looks like, so the row imports as it stands.'
+    : 'Money going out, filed under an income category. That is what returning money you were paid looks like, so the row imports as it stands.'
+}
 
 // Shown once for the whole file where every amount reads as money coming in, which is either a file
 // of nothing but income or one being read backwards. It cannot tell those apart, so it says what the
 // rows come to and lists what to check, rather than asserting which of the two this is
 export const NO_OUTFLOWS_WARNING = 'Every row in this file reads as money coming in. If that is right, there is nothing to do. If it is not, check three things: that the money going out is mapped to the column actually holding it, that a file using one Amount column writes its money out with a minus sign, and that a file using a Direction column has its words set the way round the file means them.'
-
-/**
- * Shown above the column mapping table, saying how the importer reads an amount
- *
- * All three arrangements are stated because a file can be mapped any of the three ways, and each one
- * is answered by mapping columns rather than by a separate question
- */
-export const AMOUNT_CONVENTION_NOTE = 'Every imported row carries a direction. Map one Amount column, negative for money out and positive for money in, or map Money out and Money in where the file keeps the two apart, or just one of those two where the file holds money going only one way. Where the amounts are unsigned and a column of words specifies the direction, map that column as the Direction and specify below the table what its words mean. A Money out, Money in or Direction column states the direction on its own, so an amount may only carry a sign that agrees with it, and a row breaking that is listed rather than read the other way. An expense category normally holds money going out and an income category money coming in. The other way round is accepted for a refund or a loss, and those rows are listed for you to check before the import runs.'
 
 // Shown where a source rows are written to matches an account the user has archived, which is the
 // one account that source is not offered. The matched account names follow it
@@ -323,16 +344,16 @@ export const ARCHIVED_ACCOUNT_MATCH_EXPLANATION = 'An archived account takes no 
 
 // Shown once any source on either table is answered create, since nothing else in the flow says
 // what an account made this way is and is not given
-export const CREATED_ACCOUNT_TITLE = 'New Accounts'
-export const CREATED_ACCOUNT_EXPLANATION = 'Accounts imported as new accounts (by selecting "Create New Account" in the "Existing Account" column) won\'t create starting balance nor credit limits automatically:'
+export const CREATED_ACCOUNT_TITLE = 'New accounts'
+export const CREATED_ACCOUNT_EXPLANATION = 'These will be created as new accounts, each starting with no opening balance and no credit limit:'
 // A balance adjustment rather than a field, because an account that already exists has no starting
 // balance to set. Left to the user to want one rather than told to enter one, since a Firefly
 // export carries its own opening balances and the import writes those as balance adjustments
 // already
-export const CREATED_ACCOUNT_BALANCE_NOTE = 'If you\'d like to enter a starting balance of an imported account, please create a balance adjustment transaction in that account'
+export const CREATED_ACCOUNT_BALANCE_NOTE = 'To give one an opening balance, add a balance adjustment transaction in that account'
 // The edit button this describes is the pencil on the account's own card, which is the only place a
 // credit limit can be set once the account exists
-export const CREATED_ACCOUNT_CREDIT_LIMIT_NOTE = 'If you\'d like to set a credit limit for that account, you can do so by opening it from Accounts and using the edit button on its card'
+export const CREATED_ACCOUNT_CREDIT_LIMIT_NOTE = 'To set a credit limit, open the account from Accounts and use the edit button on its card'
 
 // Shown in place of a mapping step whose list could not be fetched at all, since answering one
 // against nothing maps every value to a new record and duplicates what the user already has
@@ -375,6 +396,13 @@ export const IMPORT_NOT_PERMITTED_EXPLANATION = 'Transactions can only be import
 export const IMPORT_SCOPE_FAILURE_TITLE = 'Your accounts could not be loaded'
 export const IMPORT_SCOPE_FAILURE_EXPLANATION = 'Without them this import cannot tell whether it may write to the account it was started from.'
 
+// Shown above the column mapping table, under the note about amounts, because what currency an
+// amount lands in is the other half of how a number is read and the Currency column is mapped here.
+// It speaks of the account each source is mapped to, which is the step after this one, since that is
+// where the answer comes from even though the question arises while the columns are being chosen
+export const CURRENCY_HANDLING_TITLE = 'How currencies are read'
+export const CURRENCY_HANDLING_NOTE = 'Imported amounts are treated as raw values. Each one is assigned the currency of the account its row is mapped to, or the currency shown against a new account, which is taken from the file where it states one and can be changed on any row.'
+
 /**
  * Says what a scoped import does with the currency of the account it writes to
  *
@@ -406,7 +434,7 @@ export function getFixedAccountWarning(accountName: string) {
 
 // Shown over the accounts that appear only as a counterparty, which the import writes nothing to
 export const COUNTERPARTY_ONLY_TABLE_TITLE = 'Counterparty accounts'
-export const COUNTERPARTY_ONLY_EXPLANATION = 'These accounts only ever appeared as the counterparty of a transfer. Matching one to an account of your own records where the money came from or went to and writes no transaction into that account, which is why an account you have archived can be chosen here and stays archived. Leaving one unmatched records the transfer as going outside this app. To bring a name in as an account of your own instead, select Create New Account in its Existing Account column.'
+export const COUNTERPARTY_ONLY_EXPLANATION = 'These only ever appeared as the other side of a transfer. Matching one records where the money came from or went to without writing a transaction into that account, which is why an archived account can be chosen here and stays archived. Leave one unmatched and the transfer is recorded as going outside this app. To bring a name in as an account of your own, choose Create New Account in its Existing Account column.'
 
 // Each format is named by an example of its shape rather than by a standard, because the year-first
 // option deliberately takes a slash and an unpadded part, which ISO 8601 does not. Keyed by format

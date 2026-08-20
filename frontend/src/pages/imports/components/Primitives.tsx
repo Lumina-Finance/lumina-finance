@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react'
-import { Check, ChevronDown, Info, TriangleAlert } from 'lucide-react'
+import { Check, ChevronDown, CircleHelp, Info, TriangleAlert } from 'lucide-react'
 import { IMPORT_INSET_STYLE } from '@/pages/imports/constants'
 
 /**
@@ -173,14 +173,20 @@ export function ImportLoadFailure({
  * The title says which of those it is about, since a step can carry more than one and they would
  * otherwise be told apart only by reading them
  *
+ * @param children - What the notice has to say before its list, omitted by a notice whose title and
+ *   list say the whole thing between them
  * @param items - The things the text is about, one bulleted line each under it. Passing them here
  *   rather than joining them into the text keeps a list out of the paragraph, which is markup the
  *   browser rearranges on its own, and gives every notice that lists something the same shape. The
  *   marker is set back on, since Tailwind's reset takes it off. A notice with nothing to list omits
- *   the list and renders as it always did
+ *   the list and renders as it always did. They carry the full-strength text colour rather than the
+ *   muted one the paragraph takes, because a list holds the particulars, whether those are account
+ *   names or the reasons an import cannot go ahead, and those are what the reader came for
  * @param tone - How much the notice is asking of the reader. The danger tone is for the one a user
  *   has to act on before importing, rather than the ordinary ones saying what the import will do,
- *   and it takes the same colours the load failure already uses
+ *   and it takes the same colours the load failure already uses. The question tone is for a notice
+ *   that asks something rather than reporting anything, where a warning triangle would state a
+ *   fault that does not exist
  */
 export function ImportNotice({
   title,
@@ -189,11 +195,13 @@ export function ImportNotice({
   tone = 'warning',
 }: {
   title: string
-  children: ReactNode
+  children?: ReactNode
   items?: ReactNode[]
-  tone?: 'warning' | 'danger'
+  tone?: 'warning' | 'danger' | 'question'
 }) {
   const isDanger = tone === 'danger'
+  const isQuestion = tone === 'question'
+  const NoticeIcon = isQuestion ? CircleHelp : TriangleAlert
 
   return (
     <div
@@ -209,10 +217,10 @@ export function ImportNotice({
     >
       <span
         className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center"
-        style={{ color: isDanger ? 'var(--app-negative)' : 'var(--app-warning-text)' }}
+        style={{ color: isDanger ? 'var(--app-negative)' : isQuestion ? 'var(--app-accent)' : 'var(--app-warning-text)' }}
         aria-hidden
       >
-        <TriangleAlert size={16} strokeWidth={2.25} />
+        <NoticeIcon size={16} strokeWidth={2.25} />
       </span>
       <div className="min-w-0">
         <p
@@ -221,11 +229,13 @@ export function ImportNotice({
         >
           {title}
         </p>
-        <p className="mt-1 text-sm leading-5">
-          {children}
-        </p>
+        {children && (
+          <p className="mt-1 text-sm leading-5">
+            {children}
+          </p>
+        )}
         {items && items.length > 0 && (
-          <ul className="mt-1 list-disc space-y-0.5 pl-4 text-sm leading-5">
+          <ul className="mt-1 list-disc space-y-0.5 pl-4 text-sm leading-5" style={{ color: 'var(--app-text)' }}>
             {items.map((item, index) => (
               <li key={index}>{item}</li>
             ))}

@@ -6,6 +6,7 @@ import {
   CREATE_ACCOUNT_VALUE,
   CREATE_CATEGORY_VALUE,
   DEFAULT_CATEGORY_ICON,
+  IMPORT_SAMPLE_PREVIEW_LIMIT,
   SELF_MERCHANT_NAME,
   UNKNOWN_MERCHANT_NAME,
 } from '@/pages/imports/constants'
@@ -134,8 +135,9 @@ export function buildImportPreviewRows({
       const dt = resolved.dt
 
       // The currency the commit will store the row in, and the display fallback only where the
-      // account step has not been answered yet, which is a state the preview runs in and the
-      // commit does not
+      // account step has not been answered yet. Rows are still built in that state and the preview
+      // step shows the unanswered mappings instead of them, so the fallback is what keeps building
+      // a row from failing rather than something the user reads
       const currency = getPreviewCurrency(
         resolved.currency,
         account?.currency,
@@ -222,7 +224,7 @@ export function buildImportPreviewRows({
         },
       })
 
-      if (rows.length >= 5) return rows
+      if (rows.length >= IMPORT_SAMPLE_PREVIEW_LIMIT) return rows
     }
   }
 
@@ -309,7 +311,7 @@ export function getPreviewCurrency(
  * category queued to be created and looking up an existing one otherwise
  *
  * The kind comes from the same reading the commit uses, so the two cannot disagree. Where that
- * reading has no answer yet, which is a source whose amounts run both ways or one with no readable
+ * reading has no answer yet, which is a source whose amounts move both ways or one with no readable
  * amounts, the row previews without a category rather than being shown a kind guessed from its own
  * sign that the commit would then refuse
  */

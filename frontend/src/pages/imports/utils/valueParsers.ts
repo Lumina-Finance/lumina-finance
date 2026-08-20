@@ -254,7 +254,7 @@ export function parseImportNumber(value: string) {
  * left exactly as the file wrote it, thousands separators included, since the commit sends the
  * string for the API to parse with exact decimals
  *
- * A zero is written without a sign, because it runs neither way
+ * A zero is written without a sign, because it moves neither way
  *
  * @param value - The raw cell value, which the caller has already read as an amount
  * @param direction - Whether this row's money is leaving the account or arriving in it
