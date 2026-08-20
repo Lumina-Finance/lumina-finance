@@ -21,7 +21,7 @@ type ImportPreviewStepProps = Pick<
 // produces one per category, each of them a blank dropdown already visible in the step it belongs
 // to, so a full list would bury the preview to repeat what those steps show. The build puts column
 // problems first, which is what the cap keeps
-const VISIBLE_ERROR_LIMIT = 5
+const VISIBLE_ERROR_LIMIT = 10
 
 /**
  * Builds the heading over the rows that cannot be converted, which says what has to happen rather
