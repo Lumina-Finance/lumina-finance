@@ -333,11 +333,6 @@ export function getRowSignDisagreesWithCategoryReason(kind: 'expense' | 'income'
     : 'Money going out, filed under an income category. That is what returning money you were paid looks like, so the row imports as it stands.'
 }
 
-// Shown when an import fails with nothing usable to show for it, which is a rejection carrying no
-// message and anything thrown that is not an error at all. It says nothing about which record failed,
-// so a caller matching a detail against its own records must leave this one out
-export const GENERIC_IMPORT_FAILURE = 'Import failed.'
-
 // Shown once for the whole file where every amount reads as money coming in, which is either a file
 // of nothing but income or one being read backwards. It cannot tell those apart, so it says what the
 // rows come to and lists what to check, rather than asserting which of the two this is

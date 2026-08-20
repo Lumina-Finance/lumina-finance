@@ -1,5 +1,5 @@
 import { TransactionImportRunError, isImportCommitWorthRepeating } from '@/api/transaction-imports'
-import { getErrorMessage } from '@/pages/imports/utils/payload'
+import { getImportFailureMessage } from '@/utils/importFailure'
 
 // What the user is told after stopping an import themselves, which reads differently either side of
 // the commit: before it nothing has been written, and during it the write may already have finished
@@ -35,7 +35,7 @@ export function getImportCommitFailure(error: unknown, cancelled: boolean): Impo
   return {
     message: cancelled
       ? (stoppedDuringCommit ? IMPORT_STOPPED_WHILE_COMMITTING_MESSAGE : IMPORT_STOPPED_WHILE_STAGING_MESSAGE)
-      : getErrorMessage(error),
+      : getImportFailureMessage(error),
     retryableRunId: worthRepeating ? runId : null,
     discardableRunId: worthRepeating ? null : runId,
   }

@@ -1,10 +1,9 @@
 /**
- * Tests the one-line summary shown once an import finishes, and the fallback message shown when it
- * fails with nothing usable to report
+ * Tests the one-line summary shown once an import finishes
  */
 import { describe, expect, it } from 'vitest'
 import type { TransactionImportResponse } from '@/api/transaction-imports'
-import { formatImportSummary, getErrorMessage } from '@/pages/imports/utils'
+import { formatImportSummary } from '@/pages/imports/utils'
 
 /**
  * Creates a completed import's response, defaulting every count to zero
@@ -51,17 +50,5 @@ describe('summarizing a completed import', () => {
     const summary = createSummary({ transactions_created: 1234, accounts_created: 2, categories_created: 7 })
 
     expect(formatImportSummary(summary)).toBe('1234 transactions imported · 2 accounts created · 7 categories created')
-  })
-})
-
-describe('falling back to a generic failure message', () => {
-  // An empty message used to reach the user as a blank failure notice, since nothing here caught it
-  it('falls back for an Error with no message', () => {
-    expect(getErrorMessage(new Error(''))).toBe('Import failed.')
-  })
-
-  it('falls back for a rejection that is not an Error', () => {
-    expect(getErrorMessage('boom')).toBe('Import failed.')
-    expect(getErrorMessage({ message: 'boom' })).toBe('Import failed.')
   })
 })

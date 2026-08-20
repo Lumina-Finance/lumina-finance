@@ -10,6 +10,7 @@ import type {
   TransactionImportPayload,
   TransactionImportResponse,
 } from '@/api/transaction-imports/types';
+import { getImportFailureMessage } from '@/utils/importFailure';
 
 /** Which half of the upload an import stopped in, which decides what can be done about it */
 export type TransactionImportPhase = 'staging' | 'commit';
@@ -63,7 +64,7 @@ export async function runTransactionImport(
       await stageTransactionImportRows(run.id, batch, signal);
     } catch (error) {
       await discardStagedRun(run.id);
-      throw new TransactionImportRunError(getImportErrorMessage(error), 'staging', null, { cause: error });
+      throw new TransactionImportRunError(getImportFailureMessage(error), 'staging', null, { cause: error });
     }
   }
 
@@ -86,7 +87,7 @@ export async function commitStagedImportRun(
   try {
     return await commitTransactionImportRun(runId, signal);
   } catch (error) {
-    throw new TransactionImportRunError(getImportErrorMessage(error), 'commit', runId, { cause: error });
+    throw new TransactionImportRunError(getImportFailureMessage(error), 'commit', runId, { cause: error });
   }
 }
 
@@ -120,8 +121,4 @@ export function isImportCommitWorthRepeating(error: unknown): boolean {
   const cause = error instanceof TransactionImportRunError ? error.cause : error;
   if (!(cause instanceof ApiError)) return true;
   return !PERMANENT_COMMIT_FAILURE_STATUSES.has(cause.status);
-}
-
-function getImportErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : 'Import failed.';
 }

@@ -6,7 +6,6 @@ import {
   CREATE_ACCOUNT_VALUE,
   CREATE_CATEGORY_VALUE,
   DEFAULT_CATEGORY_ICON,
-  GENERIC_IMPORT_FAILURE,
   getCategoryDirectionClashError,
   getDirectionValuesAgreeError,
   getTooManyMappingsError,
@@ -485,15 +484,4 @@ export function formatImportSummary(result: TransactionImportResponse) {
   ]
 
   return parts.join(' · ')
-}
-
-/**
- * Extracts a user-facing message from a failed import request, falling back to a generic message
- * where the rejection carries nothing to show
- *
- * A rejection that is not an error, and one carrying an empty message, both fall back, since an
- * empty message reaches the user as a failure notice with nothing in it
- */
-export function getErrorMessage(error: unknown) {
-  return error instanceof Error && error.message ? error.message : GENERIC_IMPORT_FAILURE
 }
