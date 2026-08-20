@@ -8,7 +8,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config.oidc import OIDC_PROVIDER_CONFIGS
 from app.config.runtime import ALLOWED_ORIGINS, RUNTIME
-from app.database import async_session, verify_app_role_is_unprivileged
+from app.database import async_session, engine, verify_app_role_is_unprivileged
+from app.db.encryption_key import verify_key_matches_data
 from app.request_security import RequestBodySizeLimitMiddleware
 from app.routes.accounts import router as account_router
 from app.routes.app_version import router as app_version_router
@@ -35,8 +36,14 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def _lifespan(_app: FastAPI):
-    """Verify the runtime cannot bypass row-level security, then seed OIDC providers before serving"""
+    """Verify the runtime and its encryption key, then seed OIDC providers before serving"""
     await verify_app_role_is_unprivileged()
+
+    # The seeding below rewrites the OIDC client secret under whatever key resolved, so a
+    # process holding the wrong one would mix two keys inside that column. The container
+    # entrypoint checks this too, and this covers every other way the app starts
+    async with engine.connect() as connection:
+        await verify_key_matches_data(connection)
 
     # Reconcile the provider table with the environment on every boot so credential
     # rotations and removals apply without a migration

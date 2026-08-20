@@ -48,8 +48,9 @@ ensure_private_key "Access" "$JWT_ACCESS_PRIVATE_KEY_PATH"
 ensure_private_key "Refresh" "$JWT_REFRESH_PRIVATE_KEY_PATH"
 
 # The encryption key protects TOTP secrets and OIDC client secrets at rest, generated
-# and persisted next to the role secrets when absent
-python -m app.encryption
+# and persisted next to the role secrets when absent. A database that already holds
+# encrypted secrets refuses here rather than starting under a key that cannot read them
+python -m app.db.encryption_key ensure-key
 
 # Create the migrator and app roles and hand them schema ownership while still
 # connected as the admin role, before migrations run as the migrator
@@ -64,6 +65,10 @@ alembic upgrade head
 # It is also what installs any policy that reads a column added after the bootstrap, since the
 # bootstrap replays against a schema without it, so a freshly migrated database needs this too
 python -m app.db.provision apply-rls
+
+# Bind the database to its encryption key, which an upgrading deployment records here for
+# the first time, and refuse to serve when the key in hand is not the one the data is under
+python -m app.db.encryption_key verify-fingerprint
 
 python -m scripts.seed_currencies
 python -m scripts.seed_categories
