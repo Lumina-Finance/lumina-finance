@@ -38,19 +38,20 @@ https://github.com/user-attachments/assets/84eda1e4-1b73-422b-be86-0b662add0949
 
 ## Features
 
-Lumina Finance gives you one place to track accounts, transactions, budgets, and financial trends while keeping the app under your control.
+Lumina Finance gives you one place to track accounts, transactions, budgets, and financial trends while you keep your data under your control.
 
-- **Accounts** - Track cash, credit, savings, and other account types with balance history, detail views, and hide archived accounts
-- **Multi-currency** - Track accounts and activity in different currencies with FX conversions across dashboards, budgets, runway, and insights
-- **Transactions** - Add transactions, then organise them with merchants, categories, tags, and notes
-- **Imports** - Upload CSV transaction files exported from any app, map columns to accounts and categories, preview rows, and create missing accounts or categories during import, or use the dedicated Firefly III importer to migrate transactions, accounts, categories, and budgets, with more app importers coming
-- **Budgets** - Create recurring or one-off budgets, attach them to categories, see current and historical utilization at a glance, and archive budgets you no longer use while keeping their history
-- **Dashboard** - Check net worth, credit usage, spending, savings rate, recent activity, and top budgets from one place
-- **Runway** - Choose the accounts that make up your cash cushion and see how many months they could cover based on your recent average spending in the worst case scenario
-- **Insights** - Review cash flow, income and expense breakdowns, net worth trends, savings-rate trends, and merchant patterns
-- **Account security** - Protect sign-in with two-factor authentication using an authenticator app or passkeys, fall back on recovery codes, and reset a forgotten password by email
-- **Single sign-on** - Sign in through your own OpenID Connect provider, or link one to an existing account and manage it from settings
-- **Self-hostable** - You have full control of your data, run it locally with Docker
+- **Accounts** - Track cash, credit, savings, and every other account type, each with its own balance history and detail view, and hide the ones you have archived.
+- **Multi-currency** - Track accounts and activity in different currencies with FX conversions across dashboards, budgets, runway, and insights.
+- **Transactions** - Add transactions, then organize them with merchants, categories, tags, and notes.
+- **Imports** - Bring your transaction history with you and import it easily with app-specific importers or a general importer.
+- **Tax-advantaged accounts** - Group accounts that share the same tax-advantaged structure and track their withdrawal and contribution limits in one place.
+- **Budgets** - Set recurring and one-time budgets by category, track spending against them, and keep a budget's history after you archive it.
+- **Dashboard** - Check net worth, credit usage, spending, savings rate, recent activity, and top budgets in one beautiful pane.
+- **Runway** - Know exactly how long your funds will last in the worst case scenario.
+- **Insights** - Review cash flow, income and expense breakdowns, net worth trends, savings-rate trends, and merchant patterns.
+- **Account security** - Protect sign-in with two-factor authentication using an authenticator app or passkeys, fall back on recovery codes, and reset a forgotten password by email.
+- **Single sign-on** - Sign in through your own OpenID Connect provider, or link one to an existing account and manage it from settings.
+- **Self-hostable** - You have full control of your data, run it locally with Docker.
 
 ### Roadmap
 
@@ -85,7 +86,7 @@ In no particular order:
 
 - [ ] Basic investment tracker (bring your own data)
 - [ ] Native iOS and macOS app
-- [ ] A few quite ambitious features we're not quite ready to spoil yet :)
+- [ ] A few quite ambitious features we are not quite ready to spoil yet :)
 
 ## Screenshots
 
@@ -144,7 +145,7 @@ Every page is fully optimized for desktop, tablet, and mobile.
 
 ### Docker
 
-If you'd like to deploy this with Docker, an example docker compose file is provided in [`docker/compose.yml`](docker/compose.yml) with an example [`.env`](docker/.env.example) file containing the required database variables and the most common optional settings, including email delivery and single sign-on. The compose file passes `.env` through to the app, so any variable from the [Environment Variables](#environment-variables) tables below can be set there.
+To deploy with Docker, use the example compose file at [`docker/compose.yml`](docker/compose.yml) and the example [`.env`](docker/.env.example) beside it, which holds the required database variables and the most common optional settings, including email delivery and single sign-on. The compose file passes `.env` through to the app, so you can set any variable from the [Environment Variables](#environment-variables) tables below there.
 
 To get a fresh instance running:
 
@@ -158,9 +159,9 @@ Before starting the stack, set `DB_PASSWORD` in `.env` to a password of your own
 
 ### Frankfurter (Foreign Currency Exchange Rates)
 
-Lumina uses [Frankfurter](https://github.com/lineofflight/frankfurter) for FX rates. By default, it uses the hosted API at `https://api.frankfurter.dev/v2`.
+Lumina Finance uses [Frankfurter](https://github.com/lineofflight/frankfurter) for FX rates. By default, it uses the hosted API at `https://api.frankfurter.dev/v2`.
 
-Frankfurter can also be self-hosted. To use a self-hosted instance, see Frankfurter's GitHub repository for details. After it's set up, set `FRANKFURTER_URL` to its versioned API URL, including the `/v2` path, for Lumina Finance to use your self-hosted instance.
+Frankfurter can also be self-hosted. To use a self-hosted instance, see Frankfurter's GitHub repository for details. After it is set up, set `FRANKFURTER_URL` to its versioned API URL, including the `/v2` path, for Lumina Finance to use your self-hosted instance.
 
 ## Environment Variables
 
@@ -231,11 +232,11 @@ Lumina Finance can accept sign-ins from any standards-compliant OpenID Connect p
 
 | Variable | Required | Expected Values | Default Value | Purpose |
 |-|-|-|-|-|
-| `APP_ENCRYPTION_KEY` | No | Fernet key | Auto-generated | Encrypts secrets stored in the database, such as two-factor secrets and the OIDC client secret. If unset, a key is generated on first start and persisted to `/data/secrets/app_encryption_key` on the data volume. Setting a value that differs from an already persisted key stops the container at startup, since the stored secrets could no longer be decrypted. Losing this key makes the stored secrets undecryptable, so back up the data volume alongside your database |
+| `APP_ENCRYPTION_KEY` | No | Fernet key | Auto-generated | Encrypts secrets stored in the database, such as two-factor secrets and the OIDC client secret. If unset, a key is generated on first start and persisted to `/data/secrets/app_encryption_key` on the data volume. Changing the encryption key stops the container at startup because existing secrets cannot be decrypted. Losing this key makes the stored secrets undecryptable, so back up the data volume alongside your database |
 
 ### [JWKS (JSON Web Key Set)](https://auth0.com/docs/secure/tokens/json-web-tokens/json-web-key-sets) and JWT Configs
 
-These are some advanced variables that you could also set. Lumina Finance provides an endpoint that exposes known RSA public keys used to verify the JWT tokens. However, you should only modify these settings if you set up an API gateway or a reverse proxy that validates JWT token signatures. If you'd like to verify the JWT tokens so that only validated requests go through your API gateway/reverse proxy, you can configure the options below:
+These are some advanced variables that you could also set. Lumina Finance provides an endpoint that exposes known RSA public keys used to verify the JWT tokens. However, you should only modify these settings if you set up an API gateway or a reverse proxy that validates JWT token signatures. If you want to verify the JWT tokens so that only validated requests go through your API gateway/reverse proxy, you can configure the options below:
 
 | Variable | Required | Expected Values | Default Value | Purpose |
 | --- | --- | --- | --- | --- |
@@ -251,15 +252,15 @@ These are some advanced variables that you could also set. Lumina Finance provid
 
 1. **Why are you building Lumina Finance when other personal finance tools already exist?**
 
-    There are already great personal finance tools out there, including some that are self-hostable, but many feel outdated, too simplistic, overly complicated, or too focused on one specific workflow.
+    Great personal finance tools already exist, including self-hostable options, but many feel outdated, too simplistic, overly complex, or too narrowly focused.
 
-    We are building Lumina Finance because we want a modern, feature-rich, and accessible alternative that helps people understand their finances more clearly without needing to fight the software. Our goal is to combine strong financial tracking, a clean and modern user experience, privacy conscious design, and practical insights in one product. Essentially, we want to build something that "just works."
+    We are building Lumina Finance because we want a modern, feature-rich, and accessible alternative that helps people understand their finances more clearly without fighting the software. Our goal is to combine strong financial tracking, a clean and modern user experience, privacy conscious design, and practical insights in one product. Essentially, we want to build something that "just works."
 
 2. **Is this open source, and will self-hosting be free?**
 
     We are committed to keeping Lumina Finance free to self-host for non-commercial personal use, excluding features and services that require external data, paid APIs, or external compute.
 
-    Our goal is to eventually make Lumina Finance open source, but because we may commercialize the project in the future, we are still evaluating the best licensing structure with legal professionals. We want to choose a license that supports community use while keeping the project sustainable.
+    Our goal is to eventually make Lumina Finance open source, but because we may commercialize the project in the future, we are still evaluating the best licensing structure with legal professionals. We want to choose a licence that supports community use while keeping the project sustainable.
 
     For now, any commercial, organizational, or business related use is not permitted unless explicitly authorized. This includes, but is not limited to, self-hosting Lumina Finance for employees, clients, customers, contractors, teams, or business operations.
 
