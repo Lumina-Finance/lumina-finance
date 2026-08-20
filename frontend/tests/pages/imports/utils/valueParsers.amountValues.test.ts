@@ -40,9 +40,12 @@ describe('shortening a value for display', () => {
     expect(truncateValue(value)).toBe('1234567890123456789012345...')
   })
 
-  it('returns a 25-character value whole, since the cut only touches a value longer than that', () => {
-    const value = '1234567890123456789012345'
+  // The cut is on longer than 28, not on longer than the 25 it keeps, so a value of 26, 27 or 28
+  // characters is left alone rather than shortened to something barely different
+  it('returns a 28-character value whole and shortens a 29-character one', () => {
+    const value = '12345678901234567890123456789'
 
-    expect(truncateValue(value)).toBe(value)
+    expect(truncateValue(value.slice(0, 28))).toBe('1234567890123456789012345678')
+    expect(truncateValue(value)).toBe('1234567890123456789012345...')
   })
 })

@@ -1,9 +1,11 @@
 """Which cached figures an import marks stale when it touches more than one account
 
-An import writes rows into every account its file names, and each of those accounts refreshes the
-scope that owns it: a personal account refreshes the user's cached figures, a group account the
-group's. Every import test before this one used a single personal account, so the loop over the
-affected accounts only ever went round once and the group branch never ran.
+An import writes rows into every account its file names, and walks those accounts marking the scope
+that owns each one. Every import test before this one used a single personal account, so the walk
+only ever went round once and never reached a group.
+
+The group mark is what this can check. The user's own figures are marked once before the walk starts,
+whatever the walk then does, so finding that mark says nothing about the accounts at all.
 
 The marking is called directly rather than through a committed import, because nothing the route
 returns says which scopes were marked, and the table holding them is not exposed by any endpoint.
@@ -16,7 +18,7 @@ from sqlalchemy import select
 
 from app.models.account import Account
 from app.models.base import AccountKind, AccountType
-from app.models.cache_state import GroupCacheState, UserCacheState
+from app.models.cache_state import GroupCacheState
 from app.models.currency import Currency
 from app.models.group import Group
 from app.models.user import User
@@ -45,8 +47,8 @@ async def _seed_user(session) -> uuid.UUID:
     return user.id
 
 
-async def test_an_import_across_a_personal_and_a_group_account_marks_both_scopes():
-    """Each affected account refreshes the scope that owns it, so both are marked from one import."""
+async def test_an_import_reaching_a_group_account_after_a_personal_one_marks_the_group():
+    """The walk carries on past the first account, so a group account behind one still refreshes."""
     async with TestSession() as session:
         user_id = await _seed_user(session)
         group = Group(owner_id=user_id, name="Household")
@@ -80,12 +82,8 @@ async def test_an_import_across_a_personal_and_a_group_account_marks_both_scopes
         )
         await session.flush()
 
-        user_marks = await session.execute(
-            select(UserCacheState).where(UserCacheState.user_id == user_id),
-        )
         group_marks = await session.execute(
             select(GroupCacheState).where(GroupCacheState.group_id == group.id),
         )
 
-        assert user_marks.scalar_one_or_none() is not None
         assert group_marks.scalar_one_or_none() is not None

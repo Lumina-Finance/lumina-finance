@@ -84,13 +84,15 @@ describe('one header mapped to two targets', () => {
   // stops overwriting the earlier target's entry with the later one's
   it('keeps only the later target\'s message', () => {
     const map: ColumnMap = { ...EMPTY_COLUMN_MAP, amount: 'SameCol', currency: 'SameCol' }
-    const files = [createFile(['SameCol'], [{ SameCol: '-12.34' }])]
+    // Refused by both targets, so Amount writes an entry the Currency pass then has to replace. A
+    // value only Currency refuses would leave nothing to overwrite and the case would prove nothing
+    const files = [createFile(['SameCol'], [{ SameCol: 'abc' }])]
 
     const result = validateColumnMap(map, files, SUPPORTED_CURRENCY_CODES)
 
     expect(Object.keys(result.errors)).toEqual(['SameCol'])
     expect(result.errors.SameCol).toBe(
-      'Expected ISO currency codes this app supports, such as CAD or USD. Row 1 has "-12.34", which does not match.',
+      'Expected ISO currency codes this app supports, such as CAD or USD. Row 1 has "abc", which does not match.',
     )
   })
 })
