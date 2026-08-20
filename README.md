@@ -232,7 +232,43 @@ Lumina Finance can accept sign-ins from any standards-compliant OpenID Connect p
 
 | Variable | Required | Expected Values | Default Value | Purpose |
 |-|-|-|-|-|
-| `APP_ENCRYPTION_KEY` | No | Fernet key | Auto-generated | Encrypts secrets stored in the database, such as two-factor secrets and the OIDC client secret. If unset, a key is generated on first start and persisted to `/data/secrets/app_encryption_key` on the data volume. Changing the encryption key stops the container at startup because existing secrets cannot be decrypted. Losing this key makes the stored secrets undecryptable, so back up the data volume alongside your database |
+| `APP_ENCRYPTION_KEY` | No | Fernet key | Auto-generated | Encrypts secrets stored in the database, such as two-factor secrets and the OIDC client secret. If unset, a key is generated on first start and persisted to `/data/secrets/app_encryption_key` on the data volume. Setting this to a key the stored secrets were not encrypted under stops the container at startup rather than making them unreadable. To change the key, follow [Rotating the encryption key](#rotating-the-encryption-key), which rewrites every stored secret under the new one. Losing this key makes the stored secrets undecryptable, so back up the data volume alongside your database |
+
+#### Rotating the encryption key
+
+Rotate the key if it has been exposed, or on whatever schedule your own policy sets. The app must be stopped while this runs: a serving container holds the old key for its lifetime, so a two-factor enrolment during the rotation is written under that key onto a row already rewritten, and nothing can read it afterwards. The rotation refuses to start while the app is still connected.
+
+1. Generate a key:
+
+   ```sh
+   docker compose run --rm app generate-app-encryption-key
+   ```
+
+   The key is printed and stored nowhere. It protects nothing yet, so generate another if you lose it at this point.
+
+2. Save the key in your password manager. From the next step on it is the only thing that reads your stored secrets.
+
+3. Stop the app, leaving PostgreSQL running:
+
+   ```sh
+   docker compose stop app
+   ```
+
+4. Rotate, passing the key on standard input:
+
+   ```sh
+   docker compose run --rm -T app rotate-app-encryption-key <<< "your-new-key"
+   ```
+
+   The rotation reports how many rows it rewrote per column. It rewrites every stored secret in one transaction, so a failure leaves the data exactly as it was, and it removes the old key file from the data volume when it succeeds.
+
+5. Set `APP_ENCRYPTION_KEY` in `.env` to the new key, then start the stack:
+
+   ```sh
+   docker compose up -d
+   ```
+
+If the rotation is interrupted after it commits, run step 4 again with the same key. It detects that the secrets already read under that key and clears what the interrupted run left behind.
 
 ### [JWKS (JSON Web Key Set)](https://auth0.com/docs/secure/tokens/json-web-tokens/json-web-key-sets) and JWT Configs
 
