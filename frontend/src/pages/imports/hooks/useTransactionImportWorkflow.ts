@@ -17,6 +17,7 @@ import {
   buildImportAccountMappingSources,
   buildImportAccountOptions,
   buildTransactionImportPayload,
+  answerImportDirectionValue,
   buildImportPreviewRows,
   countRowsWithNoPayee,
   formatImportSummary,
@@ -413,7 +414,12 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   const setDirectionAnswer = (value: string, direction: ImportAmountDirection) => {
     setScopedDirectionAnswers((current) => writeScopedImportAnswers(
       current,
-      { ...readScopedImportAnswers(current, getDirectionValueScope), [value]: direction },
+      answerImportDirectionValue(
+        readScopedImportAnswers(current, getDirectionValueScope),
+        directionValues,
+        value,
+        direction,
+      ),
       getDirectionValueScope,
     ))
   }

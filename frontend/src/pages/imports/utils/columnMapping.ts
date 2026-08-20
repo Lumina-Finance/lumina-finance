@@ -421,6 +421,41 @@ export function getImportDirectionValues(files: ImportFileDraft[], header: strin
 }
 
 /**
+ * Answers one word in the Direction column, and the other word with the other direction
+ *
+ * A column separating money in from money out holds two words that cannot mean the same thing, so
+ * answering one settles both. That makes the second click the user used to make either redundant or
+ * wrong, and it repairs a stored pair that already agreed rather than leaving it to be corrected
+ * word by word
+ *
+ * Only a column of exactly two words is paired. One word is a file holding money going one way, and
+ * it has nothing to be the opposite of
+ *
+ * @param answers - The answers as they stand, which the result replaces rather than edits
+ * @param values - Every distinct word in the column, which is what settles whether there is a pair
+ * @param key - The folded word being answered
+ * @param direction - What the user chose it means
+ */
+export function answerImportDirectionValue(
+  answers: Record<string, ImportAmountDirection>,
+  values: Array<{ key: string }>,
+  key: string,
+  direction: ImportAmountDirection,
+): Record<string, ImportAmountDirection> {
+  const next = { ...answers, [key]: direction }
+  if (values.length !== MAX_DIRECTION_COLUMN_VALUES) return next
+
+  // The answered word has to be one of the pair, or the other one is whichever came first and
+  // answering a word the column no longer holds would rewrite a word it does
+  if (!values.some((value) => value.key === key)) return next
+
+  const other = values.find((value) => value.key !== key)
+  if (other) next[other.key] = direction === 'out' ? 'in' : 'out'
+
+  return next
+}
+
+/**
  * Finds which transaction field a column has been mapped to, returning an empty string when the
  * column is not mapped to anything
  */
