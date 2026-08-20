@@ -2,9 +2,6 @@ import { EmptyState, ImportNotice, ImportPreviewList, ImportRowProblemsTable, Im
 import { IMPORT_SAMPLE_PREVIEW_LIMIT } from '@/pages/imports/constants'
 import type { TransactionImportWorkflow } from '@/pages/imports/hooks'
 
-// Said under the count, because the count alone leaves what happens next unstated
-const BLOCKING_ERRORS_EXPLANATION = 'The import cannot go ahead until each one is answered.'
-
 /**
  * Heads the reasons the import cannot go ahead
  *
@@ -119,9 +116,7 @@ export function ImportPreviewStep({
           tone="danger"
           title={getBlockingErrorsTitle(importBuild.errors.length)}
           items={hiddenErrorCount > 0 ? [...visibleErrors, getHiddenErrorSummary(hiddenErrorCount)] : visibleErrors}
-        >
-          {BLOCKING_ERRORS_EXPLANATION}
-        </ImportNotice>
+        />
       ) : previewRows.length === 0 ? (
         <EmptyState
           title="No preview rows"
