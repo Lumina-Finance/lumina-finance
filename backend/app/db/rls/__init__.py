@@ -13,6 +13,7 @@ from app.db.rls.policies import (
     apply_policies,
     drop_policies,
     grant_auth_table,
+    grant_global_read_table,
     secure_registered_table,
 )
 
@@ -21,6 +22,7 @@ __all__ = [
     "GLOBAL_READ_TABLES",
     "apply_rls",
     "grant_auth_table",
+    "grant_global_read_table",
     "revoke_rls",
     "secure_registered_table",
 ]
