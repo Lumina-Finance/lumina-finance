@@ -10,29 +10,13 @@ from app.config.env import require
 from app.database import stamp_request_identity
 from app.db.credentials import resolve_role_password
 from app.db.rls import apply_rls
-
-# Import all models so Base.metadata has the full schema
-from app.models import (  # noqa: F401
-    account,
-    auth,
-    auth_session,
-    auth_token,
-    budget,
-    cache_state,
-    category,
-    currency,
-    group,
-    import_run,
-    institution,
-    merchant,
-    saved_insights_range,
-    tag,
-    transaction,
-    user,
-)
+from app.models import import_all_models
 from app.models.base import Base
 from app.services.categories.defaults import seed_system_categories
 from app.services.merchants.defaults import seed_system_merchants
+
+# Import all models so Base.metadata has the full schema
+import_all_models()
 
 # Database credentials come from .env.test, which points at the isolated test database
 DB_HOST = require("DB_HOST")

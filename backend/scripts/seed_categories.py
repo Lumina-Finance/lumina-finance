@@ -3,9 +3,11 @@
 import asyncio
 
 from app.database import create_migration_sessionmaker
-from app.models import group as _group  # noqa: F401
-from app.models import user as _user  # noqa: F401
+from app.models import import_all_models
 from app.services.categories.defaults import SYSTEM_CATEGORY_DEFAULTS, seed_system_categories
+
+# Import all models so every mapper the seeded rows relate to is configured
+import_all_models()
 
 
 async def seed_categories() -> None:
