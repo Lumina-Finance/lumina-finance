@@ -144,7 +144,9 @@ export async function readCsvFile(
 
   try {
     const text = await file.text()
-    const replacementLimit = Math.floor(text.length * MAX_REPLACEMENT_CHARACTER_SHARE)
+    // One unreadable character is always allowed, since the share alone rounds down to none at all
+    // below twenty characters and would refuse a short file outright for a single accented name
+    const replacementLimit = Math.max(1, Math.floor(text.length * MAX_REPLACEMENT_CHARACTER_SHARE))
     const replacementCount = countReplacementCharacters(text, replacementLimit)
 
     // Text in a two-byte encoding decodes to characters the reader can read, every other one of them
