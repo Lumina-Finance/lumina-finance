@@ -86,3 +86,43 @@ describe('the category a create answer would land on', () => {
     expect(findReusedImportCategory('Bonus', [SYSTEM_INCOME, PERSONAL_EXPENSE])?.id).toBe('personal-expense')
   })
 })
+
+describe('scoring a source against a category by more than an exact match', () => {
+  // The contains rule needs four characters and the shared-word rule needs half of them, so a
+  // three-letter source matches nothing and the value comes up present but unanswered
+  it('leaves a three-letter source unmatched against a category it barely touches', () => {
+    const fuel: Category = { ...PERSONAL_EXPENSE, id: 'fuel', name: 'Gas & Fuel' }
+
+    expect(inferCategoryMappings(['Gas'], {}, [fuel])).toEqual({ Gas: '' })
+  })
+
+  it('matches a source punctuated with an ampersand against a category spelling it out', () => {
+    const category: Category = { ...PERSONAL_EXPENSE, id: 'household', name: 'Groceries and Household' }
+
+    expect(inferCategoryMappings(['Groceries & Household'], {}, [category]))
+      .toEqual({ 'Groceries & Household': 'household' })
+  })
+
+  it('matches a source carrying an accent against a category written without one', () => {
+    const category: Category = { ...PERSONAL_EXPENSE, id: 'cafe', name: 'Cafe' }
+
+    expect(inferCategoryMappings(['Café'], {}, [category])).toEqual({ 'Café': 'cafe' })
+  })
+
+  it('matches a source and a category naming the same words in a different order', () => {
+    const category: Category = { ...PERSONAL_EXPENSE, id: 'dining', name: 'Out Dining' }
+
+    expect(inferCategoryMappings(['Dining Out'], {}, [category])).toEqual({ 'Dining Out': 'dining' })
+  })
+
+  it('drops a stored answer for a source the file no longer carries', () => {
+    const result = inferCategoryMappings(['Bonus'], { Vanished: 'some-id' }, [PERSONAL_INCOME])
+
+    expect(result).not.toHaveProperty('Vanished')
+    expect(result).toEqual({ Bonus: 'personal-income' })
+  })
+
+  it('keeps a blank source present and unmatched', () => {
+    expect(inferCategoryMappings(['   '], {}, [PERSONAL_INCOME])).toEqual({ '   ': '' })
+  })
+})

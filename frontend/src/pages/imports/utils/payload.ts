@@ -485,11 +485,3 @@ export function formatImportSummary(result: TransactionImportResponse) {
 
   return parts.join(' · ')
 }
-
-/**
- * Extracts a user-facing message from a failed import request, falling back to a generic message
- * for a non-Error rejection
- */
-export function getErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : 'Import failed.'
-}

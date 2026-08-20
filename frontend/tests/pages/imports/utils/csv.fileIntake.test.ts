@@ -199,3 +199,82 @@ describe('keeping what the reader already handled', () => {
     expect(draft.headers).toEqual(['Date', 'Merchant', 'Amount'])
   })
 })
+
+describe('surfacing a failure the reader itself could not recover from', () => {
+  /**
+   * Stands in for a file whose read rejects, since a real File offers no way to make that happen
+   */
+  function stageUnreadableFile(rejection: unknown) {
+    const file = new File(['Date,Amount\n2026-01-01,-5.00\n'], 'statement.csv')
+    file.text = () => Promise.reject(rejection)
+
+    return readCsvFile(file, SUPPORTED_CURRENCY_CODES, { requireDataRows: true })
+  }
+
+  it('reports the underlying message when reading the file rejects', async () => {
+    const draft = await stageUnreadableFile(new Error('boom'))
+
+    expect(draft.error).toBe('Unable to parse CSV: boom')
+    expect(draft.rows).toEqual([])
+    expect(draft.headers).toEqual([])
+  })
+
+  it('falls back to a generic message when the rejection carries no Error', async () => {
+    const draft = await stageUnreadableFile('boom')
+
+    expect(draft.error).toBe('Unable to read file')
+  })
+})
+
+describe('allowing one unreadable character in a file too short for the share rule alone to catch it', () => {
+  // Math.floor(19 * 0.05) is 0, which used to refuse a 19-character file outright for a single
+  // unreadable character before the share rule could ever apply
+  it('stages a 19-character file carrying one replacement character', async () => {
+    const draft = await stage('Date,Amount\n2026,\uFFFD\n')
+
+    expect(draft.error).toBeNull()
+    expect(draft.notice).toBe('1 character could not be read')
+  })
+
+  it('counts more than one replacement character once the file is long enough for the share rule to govern', async () => {
+    const draft = await stage(
+      'Date,Merchant,Amount\n2026-01-01,Caf\uFFFD Bleu,-5.00\n2026-01-02,Bo\uFFFDte,-6.00\n',
+    )
+
+    expect(draft.error).toBeNull()
+    expect(draft.notice).toBe('2 characters could not be read')
+  })
+})
+
+describe('staging a file at exactly the row count it reads', () => {
+  it('accepts a file whose data rows equal the row limit', async () => {
+    const rows = Array.from({ length: MAX_IMPORT_ROWS }, (_, index) => `2026-01-01,${index}`)
+    const draft = await stage(`Date,Amount\n${rows.join('\n')}\n`)
+
+    expect(draft.error).toBeNull()
+  })
+})
+
+describe('carrying header detection onto a file actually read', () => {
+  it('marks a headerless file with generated column names', async () => {
+    // The detection rule itself is covered on the same input elsewhere; what is new here is that
+    // reading a real file carries both hasHeaderRow and the generated headers onto the draft
+    const draft = await stage('2026-01-01,-5.00\n2026-01-02,-6.00\n')
+
+    expect(draft.hasHeaderRow).toBe(false)
+    expect(draft.headers).toEqual(['Column 1', 'Column 2'])
+  })
+})
+
+describe('creating a fresh id for each read', () => {
+  it('gives two reads of the same file different ids, while keeping its name and size', async () => {
+    const file = new File(['Date,Amount\n2026-01-01,-5.00\n'], 'statement.csv')
+
+    const first = await readCsvFile(file, SUPPORTED_CURRENCY_CODES, { requireDataRows: true })
+    const second = await readCsvFile(file, SUPPORTED_CURRENCY_CODES, { requireDataRows: true })
+
+    expect(first.id).not.toBe(second.id)
+    expect(first.name).toBe('statement.csv')
+    expect(first.size).toBe(file.size)
+  })
+})

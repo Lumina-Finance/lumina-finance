@@ -154,12 +154,17 @@ describe('import preview rows', () => {
       category: {
         name: 'Groceries',
         kind: 'expense',
+        icon: '🏷️',
       },
       transaction: {
         account_id: CREATE_ACCOUNT_VALUE,
         amount: -1234,
+        account_amount: -1234,
+        fx_rate: null,
+        merchant_id: 'import-preview-merchant-file-1-0',
         merchant_name: 'Market',
         notes: 'Weekly shop',
+        tag_ids: ['file-1-0-tag-0-food', 'file-1-0-tag-1-essentials'],
         tags: [
           { name: 'food' },
           { name: 'essentials' },
@@ -249,6 +254,8 @@ describe('import preview rows', () => {
 
     expect(rows).toHaveLength(5)
     expect(rows.at(-1)?.transaction.dt).toBe('2026-06-05')
+    // The category lookup runs on every row, so the last row inside the cap has to carry one too
+    expect(rows.at(-1)?.category).toMatchObject({ id: 'groceries', name: 'Groceries', kind: 'expense' })
   })
 
   // The preview used to fall back to the row's own sign, so a refund inside a source going both ways

@@ -460,6 +460,9 @@ export function answerImportDirectionValue(
  * column is not mapped to anything
  */
 export function getTargetForHeader(columnMap: ColumnMap, header: string) {
+  // An unmapped field holds an empty string, so an empty header would match the first of them
+  if (!header) return ''
+
   return COLUMN_TARGETS.find((target) => columnMap[target.id] === header)?.id ?? ''
 }
 

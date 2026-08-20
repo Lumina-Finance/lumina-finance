@@ -2,6 +2,7 @@ import { AlertCircle, CheckCircle2, CircleStop, LoaderCircle } from 'lucide-reac
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import type { Variants } from 'motion/react'
 import type { ImportOverlayPhase, ImportProgressStep, ImportProgressStepStatus } from '@/pages/imports/types'
+import { GENERIC_IMPORT_FAILURE } from '@/utils/importFailure'
 
 const OVERLAY_BACKGROUND = 'var(--app-bg)'
 const OVERLAY_TEXT = 'var(--app-text)'
@@ -174,7 +175,7 @@ export function ImportProgressOverlay({
           ? 'Importing'
           : 'Importing transactions'
   const message = ended
-    ? error ?? (stopped ? 'Import stopped.' : 'Import failed.')
+    ? error ?? (stopped ? 'Import stopped.' : GENERIC_IMPORT_FAILURE)
     : complete
       ? summary || 'Your import is complete.'
       : 'Your import is being added to your ledger, and nothing is saved until it finishes.'

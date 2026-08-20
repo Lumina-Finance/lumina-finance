@@ -319,3 +319,19 @@ describe('answering what one word in the Direction column means', () => {
     expect(answerImportDirectionValue({}, PAIR, 'debit', 'out')).toEqual({ debit: 'out' })
   })
 })
+
+describe('checking a column mapped to the single amount field', () => {
+  it('refuses a column with a blank row, giving the count', () => {
+    const files = createColumn('Amount', ['12.34', '', '5.00'])
+    const result = validateColumnValues(files, 'Amount', 'amount', SUPPORTED_CURRENCY_CODES)
+
+    expect(result.valid).toBe(false)
+    expect(result.message).toContain('1 row is blank.')
+  })
+
+  it('refuses a column holding a value that is not a number', () => {
+    const files = createColumn('Amount', ['abc'])
+
+    expect(validateColumnValues(files, 'Amount', 'amount', SUPPORTED_CURRENCY_CODES).valid).toBe(false)
+  })
+})

@@ -136,7 +136,7 @@ describe('import workflow option helpers', () => {
       { value: CREATE_CATEGORY_VALUE, label: 'Create new category', group: 'Import action' },
       { value: 'food', label: 'Food', group: 'Expense' },
       { value: 'rent', label: 'Rent', group: 'Expense' },
-      { value: 'salary', label: 'Salary', group: 'Income' },
+      { value: 'salary', label: 'Salary', group: 'Income', icon: '💵' },
       { value: 'transfer', label: 'Between accounts', group: 'Transfer' },
     ])
   })

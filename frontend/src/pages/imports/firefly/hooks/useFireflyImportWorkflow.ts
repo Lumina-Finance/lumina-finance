@@ -7,6 +7,7 @@ import {
 import { waitForMilliseconds } from '@/utils/timing'
 import { BALANCE_ADJUSTMENT_CATEGORY_NAME } from '@/utils/transfers'
 import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
+import { GENERIC_IMPORT_FAILURE, getImportFailureMessage } from '@/utils/importFailure'
 import { useImportAccountCreateState, useImportReferenceData } from '@/pages/imports/hooks'
 import type {
   ImportCategoryKind,
@@ -17,7 +18,6 @@ import type {
 import {
   dropVanishedAccountMappings,
   dropVanishedCategoryMappings,
-  getErrorMessage,
   getImportUploadBlockReason,
   getSupportedCurrencyCodes,
   groupPreviewRowsByDate,
@@ -545,8 +545,12 @@ export function useFireflyImportWorkflow() {
     } catch (error) {
       // The batch is atomic, so nothing was imported and every row stays
       // retryable, with the backend detail landing on the budget it names
-      const detail = getErrorMessage(error)
-      const failedDraft = drafts.find((draft) => detail.startsWith(draft.name))
+      const detail = getImportFailureMessage(error)
+      // The generic failure names no budget, so a budget whose name it happens to start with must
+      // not be blamed for it and the rest told they were skipped for that budget's sake
+      const failedDraft = detail === GENERIC_IMPORT_FAILURE
+        ? undefined
+        : drafts.find((draft) => detail.startsWith(draft.name))
 
       setBudgetStageError(detail)
       setBudgetImportStatuses((current) => {
@@ -594,7 +598,7 @@ export function useFireflyImportWorkflow() {
       setImportResult(result)
     } catch (error) {
       await minimumOverlay
-      setImportError(getErrorMessage(error))
+      setImportError(getImportFailureMessage(error))
       setImportOverlayPhase('error')
       return
     }

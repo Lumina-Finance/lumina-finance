@@ -207,6 +207,26 @@ describe('staging a transaction import', () => {
     expect(authenticatedFetchMock.mock.calls[2][1].method).toBe('DELETE');
   });
 
+  // A commit rejected with nothing to say gave the run error an empty message, which the overlay
+  // then showed as a failure notice with no words in it
+  it('says an import failed when the commit is rejected with no message', async () => {
+    const payload = buildImportPayload([buildImportRow()]);
+    mockRunCalls(new Error(''));
+
+    const error = await runTransactionImport(payload).catch((thrown: unknown) => thrown);
+
+    expect((error as TransactionImportRunError).message).toBe('Import failed.');
+  });
+
+  it('keeps the message a rejected commit carries', async () => {
+    const payload = buildImportPayload([buildImportRow()]);
+    mockRunCalls(new ApiError('Invalid amount: $2.00', 422));
+
+    const error = await runTransactionImport(payload).catch((thrown: unknown) => thrown);
+
+    expect((error as TransactionImportRunError).message).toBe('Invalid amount: $2.00');
+  });
+
   it('keeps the run when the commit fails, so it can be committed again', async () => {
     const payload = buildImportPayload([buildImportRow()]);
     mockRunCalls(new ApiError('Request failed (503)', 503));

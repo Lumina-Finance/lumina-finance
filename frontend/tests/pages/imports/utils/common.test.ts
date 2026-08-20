@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { ImportFileDraft } from '@/pages/imports/types'
-import { hasAcceptedFile } from '@/pages/imports/utils'
+import { formatBytes, hasAcceptedFile, removeRecordKey, removeSetValue } from '@/pages/imports/utils'
 
 /**
  * Builds a staged draft, taking the error and notice the reader would have recorded on it
@@ -46,5 +46,50 @@ describe('whether a usable file is staged', () => {
     const noticed = createFile({ notice: 'Some characters could not be read.' })
 
     expect(hasAcceptedFile([noticed])).toBe(true)
+  })
+})
+
+describe('removing a value from a set that may not hold it', () => {
+  it('returns the same set when the value was never in it', () => {
+    const set = new Set(['a'])
+
+    expect(removeSetValue(set, 'b')).toBe(set)
+  })
+
+  it('returns a new set without the value, leaving the original untouched', () => {
+    const set = new Set(['a', 'b'])
+
+    expect(removeSetValue(set, 'a')).toEqual(new Set(['b']))
+    expect(set.has('a')).toBe(true)
+  })
+})
+
+describe('removing a key from a record that may not hold it', () => {
+  it('returns the same record when the key was never present', () => {
+    const record = { a: 'x' }
+
+    expect(removeRecordKey(record, 'b')).toBe(record)
+  })
+
+  it('returns a new record without the key, leaving the original untouched', () => {
+    const record = { a: 'x', b: 'y' }
+
+    expect(removeRecordKey(record, 'b')).toEqual({ a: 'x' })
+    expect(record.b).toBe('y')
+  })
+})
+
+describe('rendering a file size', () => {
+  it('stays in kilobytes one byte short of a megabyte', () => {
+    expect(formatBytes(1048575)).toBe('1024.0 KB')
+  })
+
+  it('switches from bytes to kilobytes exactly at 1024', () => {
+    expect(formatBytes(1023)).toBe('1023 B')
+    expect(formatBytes(1024)).toBe('1.0 KB')
+  })
+
+  it('renders the size the refusal message quotes', () => {
+    expect(formatBytes(26214400)).toBe('25.0 MB')
   })
 })
