@@ -660,3 +660,152 @@ describe('guessing the column that specifies money in or money out', () => {
     expect(map.amount_direction).toBe('')
   })
 })
+
+describe('reaching the branches only an unusual arrangement of columns exercises', () => {
+  it('skips a column whose values fail its own rule rather than mapping it with an error', () => {
+    const files = [createFile(
+      ['Date'],
+      [
+        { Date: '2026-01-01' },
+        { Date: '' },
+        { Date: '2026-01-03' },
+      ],
+    )]
+
+    const { map, errors } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(map.dt).toBe('')
+    expect(errors.Date).toBeUndefined()
+  })
+
+  // Inference cannot produce an error of its own, since each candidate is checked against the
+  // same rule before it is claimed, so only a mapping that arrived with the argument can come
+  // back flagged. Every other case in this file reads the map alone, so this is the first to
+  // observe that the errors half of the return is forwarded at all
+  it('carries an error the caller supplied through the return, not just what inference finds', () => {
+    const files = [createFile(
+      ['Date', 'Amount'],
+      [
+        { Date: '2026-04-11', Amount: '-12.34' },
+        { Date: '2026-04-12', Amount: '-8.00' },
+        { Date: '2026-04-13', Amount: '45.00' },
+      ],
+    )]
+    const columnMap = { ...EMPTY_COLUMN_MAP, category_id: 'Amount' }
+
+    const { errors } = inferColumnMap(columnMap, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(errors.Amount).toBeDefined()
+  })
+
+  it('returns the empty map by reference and no errors when there are no files', () => {
+    const { map, errors } = inferColumnMap(EMPTY_COLUMN_MAP, [], SUPPORTED_CURRENCY_CODES)
+
+    expect(map).toBe(EMPTY_COLUMN_MAP)
+    expect(errors).toEqual({})
+  })
+
+  it('maps fields from the union of headers across two files', () => {
+    const files = [
+      createFile(
+        ['Date', 'Amount'],
+        [
+          { Date: '2026-04-11', Amount: '-12.00' },
+          { Date: '2026-04-12', Amount: '-8.00' },
+        ],
+      ),
+      createFile(
+        ['Date', 'Category'],
+        [
+          { Date: '2026-04-11', Category: 'Groceries' },
+          { Date: '2026-04-12', Category: 'Transit' },
+        ],
+      ),
+    ]
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(map.dt).toBe('Date')
+    expect(map.amount).toBe('Amount')
+    expect(map.category_id).toBe('Category')
+  })
+
+  it('maps the currency field on its values alone when the heading gives it no score', () => {
+    const files = [createFile(
+      ['Date', 'Amount', 'Ccy'],
+      [
+        { Date: '2026-04-11', Amount: '-12.00', Ccy: 'CAD' },
+        { Date: '2026-04-12', Amount: '-8.00', Ccy: 'USD' },
+      ],
+    )]
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(map.currency).toBe('Ccy')
+  })
+
+  // Three rows of the plan's own example ('a;b' twice, 'c;d' once) still score merchant higher
+  // than tags, since a uniqueRatio of 0.667 clears the merchant field's 0.35 floor and merchant is
+  // asked first. Only once the repeat brings that ratio down to 0.35 or below does merchant stop
+  // scoring and leave the column for tags, which takes six rows split between the two values
+  it('claims a repetitive semicolon-separated column for tags rather than merchant', () => {
+    const files = [createFile(
+      ['Date', 'Amount', 'Misc'],
+      [
+        { Date: '2026-04-11', Amount: '-12.00', Misc: 'a;b' },
+        { Date: '2026-04-12', Amount: '-8.00', Misc: 'a;b' },
+        { Date: '2026-04-13', Amount: '-20.00', Misc: 'a;b' },
+        { Date: '2026-04-14', Amount: '-5.00', Misc: 'c;d' },
+        { Date: '2026-04-15', Amount: '-6.00', Misc: 'c;d' },
+        { Date: '2026-04-16', Amount: '-7.00', Misc: 'c;d' },
+      ],
+    )]
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(map.tag_ids).toBe('Misc')
+    expect(map.merchant_id).not.toBe('Misc')
+  })
+
+  describe('scoring a repetitive column of words no alias or contains table recognises', () => {
+    /**
+     * Builds a file whose Misc column repeats each of the given words three times, so the ratio of
+     * distinct to repeated values only depends on how many words are given
+     */
+    function createRepeatedWordFile(words: string[]) {
+      const misc = words.flatMap((word) => [word, word, word])
+      return [createFile(
+        ['Date', 'Amount', 'Misc'],
+        misc.map((word, index) => ({
+          Date: `2026-04-${String(index + 1).padStart(2, '0')}`,
+          Amount: `-${index + 1}.00`,
+          Misc: word,
+        })),
+      )]
+    }
+
+    it('leaves the column unmapped for category or merchant below the distinct-value floor', () => {
+      const { map } = inferColumnMap(
+        EMPTY_COLUMN_MAP,
+        createRepeatedWordFile(['Zeta', 'Eta', 'Theta']),
+        SUPPORTED_CURRENCY_CODES,
+      )
+
+      expect(map.category_id).toBe('')
+      expect(map.merchant_id).not.toBe('Misc')
+    })
+
+    // Asserting the category field alone would pass whether or not the merchant field had
+    // quietly taken the column instead, so both are checked
+    it('claims the column for category once it holds enough distinct words, still leaving merchant without it', () => {
+      const { map } = inferColumnMap(
+        EMPTY_COLUMN_MAP,
+        createRepeatedWordFile(['Zeta', 'Eta', 'Theta', 'Iota']),
+        SUPPORTED_CURRENCY_CODES,
+      )
+
+      expect(map.category_id).toBe('Misc')
+      expect(map.merchant_id).not.toBe('Misc')
+    })
+  })
+})
