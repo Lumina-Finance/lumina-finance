@@ -6,7 +6,7 @@ import {
 } from '@/api/firefly-imports'
 import { waitForMilliseconds } from '@/utils/timing'
 import { BALANCE_ADJUSTMENT_CATEGORY_NAME } from '@/utils/transfers'
-import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
+import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, GENERIC_IMPORT_FAILURE } from '@/pages/imports/constants'
 import { useImportAccountCreateState, useImportReferenceData } from '@/pages/imports/hooks'
 import type {
   ImportCategoryKind,
@@ -546,7 +546,11 @@ export function useFireflyImportWorkflow() {
       // The batch is atomic, so nothing was imported and every row stays
       // retryable, with the backend detail landing on the budget it names
       const detail = getErrorMessage(error)
-      const failedDraft = drafts.find((draft) => detail.startsWith(draft.name))
+      // The generic failure names no budget, so a budget whose name it happens to start with must
+      // not be blamed for it and the rest told they were skipped for that budget's sake
+      const failedDraft = detail === GENERIC_IMPORT_FAILURE
+        ? undefined
+        : drafts.find((draft) => detail.startsWith(draft.name))
 
       setBudgetStageError(detail)
       setBudgetImportStatuses((current) => {
