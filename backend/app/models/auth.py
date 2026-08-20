@@ -18,6 +18,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import AuthProvider, Base
+from app.models.types import EncryptedText
 
 
 class AuthIdentity(Base):
@@ -54,7 +55,7 @@ class TotpCredential(Base):
     __tablename__ = "totp_credentials"
 
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), primary_key=True)
-    secret_encrypted: Mapped[str] = mapped_column(Text, nullable=False)
+    secret_encrypted: Mapped[str] = mapped_column(EncryptedText, nullable=False)
     confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # Non-null once a code is verified
 
     # Highest TOTP time step already accepted, so a code cannot be replayed within its validity window

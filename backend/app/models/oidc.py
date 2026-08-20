@@ -7,6 +7,7 @@ from sqlalchemy import VARCHAR, Boolean, DateTime, ForeignKey, Text, UniqueConst
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
+from app.models.types import EncryptedText
 
 
 class OidcProvider(Base):
@@ -25,7 +26,7 @@ class OidcProvider(Base):
     client_id: Mapped[str] = mapped_column(Text, nullable=False)
 
     # Encrypted at rest so a leaked table cannot impersonate this client to the provider
-    client_secret_encrypted: Mapped[str] = mapped_column(Text, nullable=False)
+    client_secret_encrypted: Mapped[str] = mapped_column(EncryptedText, nullable=False)
     scopes: Mapped[str] = mapped_column(Text, nullable=False)  # space-separated OAuth scopes
 
     # Providers removed from the environment are disabled rather than deleted, so linked

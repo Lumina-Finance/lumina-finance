@@ -16,6 +16,7 @@ from sqlalchemy.pool import NullPool
 
 from app.config.database import MIGRATOR_DB_USER
 from app.models.base import Base
+from app.models.types import find_encrypted_columns
 from app.services.merchants.defaults import (
     SELF_MERCHANT_NAME,
     SYSTEM_MERCHANT_NAMES,
@@ -38,6 +39,7 @@ _ALEMBIC_SYSTEM_MERCHANT_DB_NAME = f"{WORKER_DB_NAME}_alembic_system_merchant"
 _BEFORE_SYSTEM_MERCHANTS_REVISION = "cbf7ada87de3"
 _ALEMBIC_UNKNOWN_MERCHANT_DB_NAME = f"{WORKER_DB_NAME}_alembic_unknown_merchant"
 _BEFORE_UNKNOWN_MERCHANT_REVISION = "93e7aa96d2ae"
+_ALEMBIC_ENCRYPTED_DB_NAME = f"{WORKER_DB_NAME}_alembic_encrypted_columns"
 _ALEMBIC_FOLDED_CATEGORY_DB_NAME = f"{WORKER_DB_NAME}_alembic_folded_categories"
 _ALEMBIC_FOLDED_MERCHANT_DB_NAME = f"{WORKER_DB_NAME}_alembic_folded_merchants"
 _BEFORE_FOLDED_NAMES_REVISION = "6a1f132b9da2"
@@ -53,6 +55,25 @@ async def test_alembic_schema_columns_match_model_metadata() -> None:
         assert actual_columns == expected_columns
     finally:
         await _drop_database(_ALEMBIC_TEST_DB_NAME)
+
+
+async def test_alembic_builds_encrypted_columns_as_text() -> None:
+    """Verify labelling a column as encrypted changes nothing about the built column type
+
+    EncryptedText decorates Text, so a database Alembic builds must still hold plain text
+    there and applying the label to an existing column needs no migration. The column
+    comparison above reads names only, so it cannot see a label that altered the DDL
+    """
+    expected_columns = find_encrypted_columns(Base.metadata)
+    assert expected_columns, "No encrypted columns found, so this test would prove nothing"
+
+    await _recreate_database(_ALEMBIC_ENCRYPTED_DB_NAME)
+    try:
+        _run_alembic_upgrade(_ALEMBIC_ENCRYPTED_DB_NAME)
+        built_types = await _get_column_types(_ALEMBIC_ENCRYPTED_DB_NAME, expected_columns)
+        assert built_types == dict.fromkeys(expected_columns, "text")
+    finally:
+        await _drop_database(_ALEMBIC_ENCRYPTED_DB_NAME)
 
 
 async def test_alembic_enum_labels_match_model_metadata() -> None:
@@ -261,6 +282,44 @@ async def _get_database_columns(database_name: str) -> dict[str, set[str]]:
             for row in result:
                 columns_by_table.setdefault(row.table_name, set()).add(row.column_name)
             return columns_by_table
+    finally:
+        await engine.dispose()
+
+
+async def _get_column_types(
+    database_name: str,
+    columns: list[tuple[str, str]],
+) -> dict[tuple[str, str], str]:
+    """Return the built type of each named column from a generated parity database
+
+    Args:
+        database_name: Parity database to read
+        columns: Table and column name pairs to look up
+
+    Returns:
+        The data type each pair resolves to, keyed by that pair
+    """
+    engine = _create_engine_for_database(database_name)
+    try:
+        async with engine.connect() as conn:
+
+            # Fetch every public column type, then keep the named pairs. Filtering here
+            # rather than in SQL avoids casting a pair of arrays into the predicate
+            result = await conn.execute(
+                text(
+                    """
+                    SELECT table_name, column_name, data_type
+                    FROM information_schema.columns
+                    WHERE table_schema = 'public'
+                    """,
+                ),
+            )
+            wanted = set(columns)
+            return {
+                (row.table_name, row.column_name): row.data_type
+                for row in result
+                if (row.table_name, row.column_name) in wanted
+            }
     finally:
         await engine.dispose()
 
