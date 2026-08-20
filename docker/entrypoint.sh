@@ -5,6 +5,26 @@ export RUNTIME="${RUNTIME:-server}"
 export JWT_ACCESS_PRIVATE_KEY_PATH="${JWT_ACCESS_PRIVATE_KEY_PATH:-/data/keys/access_private.pem}"
 export JWT_REFRESH_PRIVATE_KEY_PATH="${JWT_REFRESH_PRIVATE_KEY_PATH:-/data/keys/refresh_private.pem}"
 
+# Maintenance commands an operator runs against a stopped stack, as
+# `docker compose run --rm app <command>`. Matched against a fixed list rather than run as
+# given, since this container holds the admin database credentials and the data volume, and
+# passing arbitrary arguments through would make it a shell on both
+if [ "$#" -gt 0 ]; then
+	case "$1" in
+	generate-app-encryption-key)
+		exec python -m scripts.generate_app_encryption_key
+		;;
+	rotate-app-encryption-key)
+		exec python -m scripts.rotate_app_encryption_key
+		;;
+	*)
+		echo "Unknown command: $1" >&2
+		echo "Available: generate-app-encryption-key, rotate-app-encryption-key" >&2
+		exit 64
+		;;
+	esac
+fi
+
 ensure_private_key() {
 	key_name="$1"
 	key_path="$2"
