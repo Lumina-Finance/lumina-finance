@@ -1,5 +1,6 @@
 /**
- * Tests what an import shows the user when it fails with nothing usable to report
+ * Tests what an import shows the user when it fails, both where the failure says something and
+ * where it says nothing at all
  *
  * The request layer and the import pages both read a failure this way, so a rejection carrying no
  * message has to produce the same words wherever it is caught
