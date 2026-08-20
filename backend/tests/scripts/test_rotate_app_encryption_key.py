@@ -119,12 +119,49 @@ async def test_rotation_removes_the_stale_key_file(current_key, key_file):
     assert not key_file.exists()
 
 
+async def test_a_failure_part_way_through_rewrites_nothing(current_key):
+    """A column rewritten before the failure is rolled back with the rest
+
+    Columns are rewritten in sorted order, so the OIDC secret is already re-encrypted
+    inside the transaction by the time an unreadable TOTP row stops it. That is the case
+    the single transaction exists for, and the earlier refusals cannot reach it because
+    they all happen before the transaction opens
+    """
+    await _store_secrets(current_key)
+    async with engine.begin() as connection:
+        # A row the current key cannot read, which fails the rewrite rather than the checks
+        await connection.execute(
+            text(
+                "INSERT INTO users (id, email, first_name, tz, base_currency) "
+                "VALUES (gen_random_uuid(), 'corrupt@example.com', 'Corrupt', 'America/Toronto', 'CAD')"
+            )
+        )
+        await connection.execute(
+            text(
+                "INSERT INTO totp_credentials (user_id, secret_encrypted) "
+                "SELECT id, 'not-a-fernet-token' FROM users WHERE email = 'corrupt@example.com'"
+            )
+        )
+    oidc_before = await _read_stored("oidc_providers", "client_secret_encrypted")
+
+    with pytest.raises(InvalidToken):
+        await rotate_encryption_key(engine, generate_encryption_key())
+
+    assert await _read_stored("oidc_providers", "client_secret_encrypted") == oidc_before
+    assert Fernet(current_key.encode()).decrypt(oidc_before.encode()).decode() == _OIDC_SECRET
+    async with engine.begin() as connection:
+        assert await read_fingerprint(connection) is None
+
+
 async def test_rotation_refuses_a_key_equal_to_the_current_one(current_key):
     """Rotating onto the same key would report success while changing nothing"""
     await _store_secrets(current_key)
+    stored_before = await _read_stored("totp_credentials", "secret_encrypted")
 
     with pytest.raises(RotationError, match="already in use"):
         await rotate_encryption_key(engine, current_key)
+
+    assert await _read_stored("totp_credentials", "secret_encrypted") == stored_before
 
 
 async def test_rotation_refuses_a_malformed_key(current_key):

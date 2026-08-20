@@ -35,6 +35,21 @@ def configured_key(key_file, monkeypatch):
     return key
 
 
+@pytest.fixture
+async def built_schema():
+    """Add and then remove the table whose presence marks an already-built schema
+
+    Alembic creates this table outside the model metadata, so the suite's truncate
+    fixture never clears it and leaving it behind would make every later test in this
+    worker look like a deployment that has already been migrated
+    """
+    async with engine.begin() as connection:
+        await connection.execute(text("CREATE TABLE IF NOT EXISTS alembic_version (version_num varchar(32))"))
+    yield
+    async with engine.begin() as connection:
+        await connection.execute(text("DROP TABLE IF EXISTS alembic_version"))
+
+
 async def _store_totp_secret(connection, key: str) -> None:
     """Write one TOTP credential encrypted under a given key"""
     # The suite truncates reference data between tests, so the user's currency is inserted here
@@ -79,20 +94,17 @@ async def test_ensure_key_generates_a_key_on_a_first_install(key_file, monkeypat
     monkeypatch.delenv(encryption.KEY_ENV_VAR, raising=False)
 
     async with engine.begin() as connection:
-        # A connection whose schema has no alembic_version stands in for a first install
-        await connection.execute(text("DROP TABLE IF EXISTS alembic_version"))
         await ensure_key(connection)
 
     assert key_file.exists()
     assert key_file.read_text().strip()
 
 
-async def test_ensure_key_refuses_to_mint_over_existing_secrets(key_file, monkeypatch):
+async def test_ensure_key_refuses_to_mint_over_existing_secrets(key_file, monkeypatch, built_schema):
     """A removed key file on a deployment with data is refused rather than replaced"""
     monkeypatch.delenv(encryption.KEY_ENV_VAR, raising=False)
 
     async with engine.begin() as connection:
-        await connection.execute(text("CREATE TABLE IF NOT EXISTS alembic_version (version_num varchar(32))"))
         await _store_totp_secret(connection, generate_encryption_key())
 
         with pytest.raises(RuntimeError, match="already holds secrets"):
