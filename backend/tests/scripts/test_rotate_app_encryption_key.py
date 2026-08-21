@@ -6,8 +6,9 @@ from sqlalchemy import text
 
 from app import encryption
 from app.config.database import APP_DB_USER
-from app.db.encryption_key import read_fingerprint, record_fingerprint
+from app.db.encryption_key import FINGERPRINT_TABLE, read_fingerprint, record_fingerprint
 from app.encryption import generate_encryption_key, key_fingerprint
+from app.models.encryption_key import EncryptionKeyFingerprint
 from scripts.rotate_app_encryption_key import RotationError, rotate_encryption_key
 from tests.conftest import ScopedSession, engine
 
@@ -144,7 +145,7 @@ async def test_a_failure_part_way_through_rewrites_nothing(current_key):
         )
     oidc_before = await _read_stored("oidc_providers", "client_secret_encrypted")
 
-    with pytest.raises(InvalidToken):
+    with pytest.raises(RotationError, match="totp_credentials.secret_encrypted"):
         await rotate_encryption_key(engine, generate_encryption_key())
 
     assert await _read_stored("oidc_providers", "client_secret_encrypted") == oidc_before
@@ -227,20 +228,25 @@ async def test_rotation_finishes_an_interrupted_run(current_key, key_file):
     assert await _read_stored("totp_credentials", "secret_encrypted") == stored_before
 
 
-async def test_rotation_refuses_a_key_that_only_differs_by_whitespace(current_key, key_file, monkeypatch):
+async def test_rotation_refuses_a_key_that_only_differs_by_whitespace(key_file, monkeypatch):
     """The same key with a trailing newline is the same key, so rotating onto it is refused
 
     An env file or a mounted secret supplies the key that way, and the newline decodes to
-    the same bytes, so accepting it would re-encrypt everything under the key already in use
+    the same bytes, so accepting it would re-encrypt everything under the key already in
+    use. The deployment here configures the key through the environment alone, which is
+    the one that reaches this refusal rather than the resolver's conflict check
     """
-    await _store_secrets(current_key)
-    monkeypatch.setenv(encryption.KEY_ENV_VAR, f"{current_key}\n")
+    key = generate_encryption_key()
+    monkeypatch.setenv(encryption.KEY_ENV_VAR, f"{key}\n")
+    encryption._fernet.cache_clear()
+    await _store_secrets(key)
     stored_before = await _read_stored("totp_credentials", "secret_encrypted")
 
     with pytest.raises(RotationError, match="already in use"):
-        await rotate_encryption_key(engine, current_key)
+        await rotate_encryption_key(engine, key)
 
     assert await _read_stored("totp_credentials", "secret_encrypted") == stored_before
+    encryption._fernet.cache_clear()
 
 
 async def test_rotation_rewrites_nothing_on_an_empty_database(current_key):
@@ -251,3 +257,19 @@ async def test_rotation_rewrites_nothing_on_an_empty_database(current_key):
         ("oidc_providers", "client_secret_encrypted"): 0,
         ("totp_credentials", "secret_encrypted"): 0,
     }
+
+
+async def test_rotation_refuses_a_database_with_no_key_record(current_key):
+    """Rotating before the migrations run is refused rather than dying at the last write"""
+    await _store_secrets(current_key)
+    stored_before = await _read_stored("totp_credentials", "secret_encrypted")
+    async with engine.begin() as connection:
+        await connection.execute(text(f"DROP TABLE {FINGERPRINT_TABLE}"))
+    try:
+        with pytest.raises(RotationError, match="no encryption key record"):
+            await rotate_encryption_key(engine, generate_encryption_key())
+
+        assert await _read_stored("totp_credentials", "secret_encrypted") == stored_before
+    finally:
+        async with engine.begin() as connection:
+            await connection.run_sync(EncryptionKeyFingerprint.__table__.create)

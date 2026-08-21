@@ -3,18 +3,19 @@
 import asyncio
 import sys
 
-from cryptography.fernet import Fernet
+from cryptography.fernet import Fernet, InvalidToken
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, create_async_engine
 
 from app import encryption
 from app.config.database import APP_DB_USER, migration_database_url
 from app.db.encryption_key import (
+    FINGERPRINT_TABLE,
     decrypts,
-    fingerprint_table_exists,
     read_fingerprint,
     read_stored_secret,
     record_fingerprint,
+    table_exists,
 )
 from app.models import import_all_models
 from app.models.base import Base
@@ -88,7 +89,18 @@ async def _rewrite_column(
     ).all()
 
     for row in rows:
-        plaintext = current.decrypt(row.value.encode())
+        try:
+            plaintext = current.decrypt(row.value.encode())
+        except InvalidToken as error:
+
+            # InvalidToken carries no message, so raising it as it stands would give the
+            # operator a traceback naming neither the column nor the fact that the
+            # transaction takes every other rewrite back with it
+            raise RotationError(
+                f"Refusing to rotate: a value in {table}.{column} is not readable with the "
+                f"current key, so that column holds more than one key. Nothing was written"
+            ) from error
+
         await connection.execute(
             text(f"UPDATE public.{table} SET {column} = :value WHERE ctid = :ctid"),
             {"value": replacement.encrypt(plaintext).decode(), "ctid": row.ctid},
@@ -136,7 +148,7 @@ async def rotate_encryption_key(engine: AsyncEngine, new_key: str) -> dict[tuple
 
     Returns:
         How many rows were rewritten, keyed by table and column name, or None when the
-        rotation had already been applied and only the stale key file was cleared. A
+        secrets were already under the new key and there was nothing to rewrite. A
         rotation over empty tables returns a count of zero for each rather than None
 
     Raises:
@@ -154,7 +166,7 @@ async def rotate_encryption_key(engine: AsyncEngine, new_key: str) -> dict[tuple
 
         # Checked here rather than at the write, where a missing table would abort the
         # transaction with a bare database error after every row had been re-encrypted
-        if not await fingerprint_table_exists(connection):
+        if not await table_exists(connection, FINGERPRINT_TABLE):
             raise RotationError(
                 "Refusing to rotate: this database has no encryption key record. Start the app "
                 "once so the migrations run, then rotate"
@@ -194,13 +206,18 @@ async def rotate_encryption_key(engine: AsyncEngine, new_key: str) -> dict[tuple
     return rewritten
 
 
-def _delete_stale_key_file() -> None:
+def _delete_stale_key_file() -> bool:
     """Remove the persisted key, which the rotation has just made the old one
 
     Nothing writes the new key back. The operator holds it and configures it through the
     environment, so leaving the old file behind would only conflict with what they set
+
+    Returns:
+        Whether a key file was there to remove
     """
+    existed = encryption.KEY_FILE.exists()
     encryption.KEY_FILE.unlink(missing_ok=True)
+    return existed
 
 
 async def _run_rotation(new_key: str) -> None:
@@ -212,11 +229,11 @@ async def _run_rotation(new_key: str) -> None:
         await engine.dispose()
 
     if rewritten is None:
-        print("The rotation had already been applied. Removed the stale key file", file=sys.stderr)
-        return
+        print("The stored secrets were already under this key, so nothing was re-encrypted", file=sys.stderr)
+    else:
+        for (table, column), count in sorted(rewritten.items()):
+            print(f"{table}.{column}: {count} row(s) re-encrypted")
 
-    for (table, column), count in sorted(rewritten.items()):
-        print(f"{table}.{column}: {count} row(s) re-encrypted")
     print(
         f"Set {encryption.KEY_ENV_VAR} to the new key before starting the app again",
         file=sys.stderr,
