@@ -26,8 +26,9 @@ class EncryptionKeyFingerprint(Base):
     )
 
     # autoincrement is stated rather than inferred, so the metadata and the migration build
-    # the same column. An integer primary key is a sequence by default, and only the
-    # client-side default above would otherwise suppress it here but not in the migration
+    # the same column. An integer primary key is a sequence by default, and the default
+    # given here would otherwise suppress that on this side only, leaving the migration to
+    # build a sequence the models never declare
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False, default=SINGLETON_ID)
 
     # SHA-256 hex of the key rather than the key, so the row discloses nothing on its own
