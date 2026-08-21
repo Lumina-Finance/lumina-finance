@@ -1,5 +1,7 @@
 """Encryption key rotation tests"""
 
+import re
+
 import pytest
 from cryptography.fernet import Fernet, InvalidToken
 from sqlalchemy import text
@@ -77,7 +79,7 @@ async def _store_secrets(key: str) -> None:
 async def _read_stored(table: str, column: str) -> str:
     """Return the single stored token from a column"""
     async with engine.begin() as connection:
-        return await connection.scalar(text(f"SELECT {column} FROM {table} LIMIT 1"))
+        return await connection.scalar(text(f"SELECT {column} FROM {table} LIMIT 1"))  # noqa: S608
 
 
 async def test_rotation_re_encrypts_every_labelled_column(current_key):
@@ -146,7 +148,7 @@ async def test_a_failure_part_way_through_rewrites_nothing(current_key):
         )
     oidc_before = await _read_stored("oidc_providers", "client_secret_encrypted")
 
-    with pytest.raises(RotationError, match="totp_credentials.secret_encrypted"):
+    with pytest.raises(RotationError, match=re.escape("totp_credentials.secret_encrypted")):
         await rotate_encryption_key(engine, generate_encryption_key())
 
     assert await _read_stored("oidc_providers", "client_secret_encrypted") == oidc_before
@@ -283,4 +285,4 @@ async def test_rotation_refuses_a_database_with_no_key_record(current_key):
     # Startup reads the record as the app role, so prove the rebuild restored that read
     # rather than leaving the table unreadable for the rest of this worker's run
     async with ScopedSession() as app_session:
-        await app_session.execute(text(f"SELECT fingerprint FROM {FINGERPRINT_TABLE}"))
+        await app_session.execute(text(f"SELECT fingerprint FROM {FINGERPRINT_TABLE}"))  # noqa: S608

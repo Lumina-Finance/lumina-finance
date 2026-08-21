@@ -88,7 +88,7 @@ async def _rewrite_column(
     # ctid identifies each one without the rotation needing to know its primary key
     rows = (
         await connection.execute(
-            text(f"SELECT ctid, {column} AS value FROM public.{table} WHERE {column} IS NOT NULL FOR UPDATE")
+            text(f"SELECT ctid, {column} AS value FROM public.{table} WHERE {column} IS NOT NULL FOR UPDATE")  # noqa: S608
         )
     ).all()
 
@@ -107,7 +107,7 @@ async def _rewrite_column(
             ) from error
 
         await connection.execute(
-            text(f"UPDATE public.{table} SET {column} = :value WHERE ctid = :ctid"),
+            text(f"UPDATE public.{table} SET {column} = :value WHERE ctid = :ctid"),  # noqa: S608
             {"value": replacement.encrypt(plaintext).decode(), "ctid": row.ctid},
         )
     return len(rows)

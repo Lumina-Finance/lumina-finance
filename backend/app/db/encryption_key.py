@@ -42,7 +42,7 @@ async def read_fingerprint(connection: AsyncConnection) -> str | None:
 
     # Read the single row stating which key this database's secrets are under
     return await connection.scalar(
-        text(f"SELECT fingerprint FROM public.{FINGERPRINT_TABLE} WHERE id = :id"),
+        text(f"SELECT fingerprint FROM public.{FINGERPRINT_TABLE} WHERE id = :id"),  # noqa: S608
         {"id": SINGLETON_ID},
     )
 
@@ -57,7 +57,7 @@ async def record_fingerprint(connection: AsyncConnection, key: str) -> None:
     # Upsert the single row, so recording after a rotation replaces the previous key
     await connection.execute(
         text(
-            f"INSERT INTO public.{FINGERPRINT_TABLE} (id, fingerprint) VALUES (:id, :fingerprint) "
+            f"INSERT INTO public.{FINGERPRINT_TABLE} (id, fingerprint) VALUES (:id, :fingerprint) "  # noqa: S608
             f"ON CONFLICT (id) DO UPDATE SET fingerprint = EXCLUDED.fingerprint, updated_at = now()"
         ),
         {"id": SINGLETON_ID, "fingerprint": encryption.key_fingerprint(key)},
@@ -81,7 +81,7 @@ async def read_stored_secret(connection: AsyncConnection) -> str | None:
         # Table and column come from the model metadata rather than any caller, so they are
         # safe to interpolate, as the row-level security statements do with the same values
         value = await connection.scalar(
-            text(f"SELECT {column} FROM public.{table} WHERE {column} IS NOT NULL LIMIT 1")
+            text(f"SELECT {column} FROM public.{table} WHERE {column} IS NOT NULL LIMIT 1")  # noqa: S608
         )
         if value is not None:
             return value
