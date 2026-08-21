@@ -18,6 +18,14 @@ import { hasUncacheableFxStatus } from '@/api/shared/fxCache'
 
 const SIX_MONTHS_MS = 180 * 24 * 60 * 60 * 1000;
 
+// Throws away every persisted entry whenever a stored response changes shape, so the app cannot
+// restore a payload whose fields the code then looks for and fails to find. Persisted data
+// outlives a deploy by up to six months and a fresh one is not refetched while it is still
+// within its stale window, so without this the first render after such a change draws a card from
+// fields that are no longer there. Bump it on any shape change. Version 1 is the account spending
+// breakdown carrying a total per card in place of one shared figure
+const PERSISTED_CACHE_SHAPE = '1';
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -50,6 +58,7 @@ createRoot(document.getElementById('root')!).render(
         client={queryClient}
         persistOptions={{
           persister,
+          buster: PERSISTED_CACHE_SHAPE,
           maxAge: SIX_MONTHS_MS,
           dehydrateOptions: { shouldDehydrateQuery },
         }}
