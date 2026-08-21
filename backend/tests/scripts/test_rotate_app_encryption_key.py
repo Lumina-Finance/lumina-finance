@@ -7,7 +7,6 @@ from cryptography.fernet import Fernet, InvalidToken
 from sqlalchemy import text
 
 from app import encryption
-from app.config.database import APP_DB_USER
 from app.db.encryption_key import FINGERPRINT_TABLE, read_fingerprint, record_fingerprint
 from app.db.rls import grant_global_read_table
 from app.encryption import generate_encryption_key, key_fingerprint
@@ -206,7 +205,7 @@ async def test_rotation_refuses_while_the_app_role_is_connected(current_key):
     async with ScopedSession() as app_session:
         await app_session.execute(text("SELECT 1"))
 
-        with pytest.raises(RotationError, match=f"open as {APP_DB_USER}"):
+        with pytest.raises(RotationError, match="the main app appears to be running"):
             await rotate_encryption_key(engine, generate_encryption_key())
 
     assert await _read_stored("totp_credentials", "secret_encrypted") == stored_before

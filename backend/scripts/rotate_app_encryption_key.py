@@ -58,12 +58,11 @@ async def _refuse_while_the_app_is_running(connection: AsyncConnection) -> None:
         RotationError: The app is still connected, so a secret written during the rotation
             would be encrypted under the old key onto a row already rewritten
     """
-    open_connections = await _count_app_connections(connection)
-    if open_connections:
+    if await _count_app_connections(connection):
         raise RotationError(
-            f"Refusing to rotate: {open_connections} connection(s) open as {APP_DB_USER}. "
-            f"A secret written while this runs would be encrypted under the old key and "
-            f"lost. Run `docker compose stop app`, then try again"
+            "Refusing to rotate: the main app appears to be running. Main app must be stopped "
+            "before rotating any keys. If you are seeing this after stopping the app, restart "
+            "the pg database and try again with key rotation"
         )
 
 
@@ -227,6 +226,22 @@ def _delete_stale_key_file() -> None:
     print(f"Removed the stale key file at {encryption.KEY_FILE}", file=sys.stderr)
 
 
+def _print_banner(lines: list[str]) -> None:
+    """Print lines inside a block of hashes, so the step left to do is hard to scroll past
+
+    The rotation prints a row count per column, and the one instruction the operator still
+    has to act on would otherwise read as one more line among them
+
+    Args:
+        lines: Text to frame, one line each, with an empty string for a blank line
+    """
+    width = max(len(line) for line in lines) + 4
+    print("#" * width, file=sys.stderr)
+    for line in lines:
+        print(f"# {line.ljust(width - 4)} #", file=sys.stderr)
+    print("#" * width, file=sys.stderr)
+
+
 async def _run_rotation(new_key: str) -> None:
     """Rotate against the migrator role and report what was rewritten"""
     engine = create_async_engine(migration_database_url())
@@ -241,9 +256,14 @@ async def _run_rotation(new_key: str) -> None:
         for (table, column), count in sorted(rewritten.items()):
             print(f"{table}.{column}: {count} row(s) re-encrypted")
 
-    print(
-        f"Set {encryption.KEY_ENV_VAR} to the new key before starting the app again",
-        file=sys.stderr,
+    _print_banner(
+        [
+            f"Set {encryption.KEY_ENV_VAR} to the new key",
+            "before starting the app again.",
+            "",
+            "The app cannot read any stored secret",
+            "until you do, and refuses to start.",
+        ]
     )
 
 
