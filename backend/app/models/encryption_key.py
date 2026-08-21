@@ -25,7 +25,10 @@ class EncryptionKeyFingerprint(Base):
         CheckConstraint(f"id = {SINGLETON_ID}", name="ck_encryption_key_fingerprint_singleton"),
     )
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=SINGLETON_ID)
+    # autoincrement is stated rather than inferred, so the metadata and the migration build
+    # the same column. An integer primary key is a sequence by default, and only the
+    # client-side default above would otherwise suppress it here but not in the migration
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False, default=SINGLETON_ID)
 
     # SHA-256 hex of the key rather than the key, so the row discloses nothing on its own
     fingerprint: Mapped[str] = mapped_column(Text, nullable=False)

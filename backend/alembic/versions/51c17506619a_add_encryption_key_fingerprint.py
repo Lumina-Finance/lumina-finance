@@ -22,7 +22,9 @@ def upgrade() -> None:
     """Create the single row binding the database to its encryption key"""
     op.create_table(
         "encryption_key_fingerprint",
-        sa.Column("id", sa.Integer(), nullable=False),
+        # Not a sequence: the row is the fixed singleton id, and leaving autoincrement to
+        # be inferred would build a SERIAL here and a plain integer from the model metadata
+        sa.Column("id", sa.Integer(), autoincrement=False, nullable=False),
         sa.Column("fingerprint", sa.Text(), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.CheckConstraint("id = 1", name="ck_encryption_key_fingerprint_singleton"),
