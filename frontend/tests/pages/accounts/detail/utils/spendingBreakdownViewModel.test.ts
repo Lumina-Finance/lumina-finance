@@ -56,4 +56,36 @@ describe('spending breakdown view model helpers', () => {
       { key: 'other', name: 'Other (2)', total: 3_000, isOther: true },
     ])
   })
+
+  it('sizes the Other row from the total of the card it belongs to', () => {
+    const payload: AccountSpendingBreakdown = {
+      range: 'MTD',
+      top_categories: [
+        { category_id: 'food', name: 'Food', total: 7_000 },
+      ],
+      top_merchants: [
+        { merchant_id: 'grocer', name: 'Grocer', total: 4_000 },
+      ],
+      categories_total_spend: 10_000,
+      merchants_total_spend: 6_000,
+      other_categories_count: 1,
+      other_merchants_count: 1,
+    }
+
+    // Reading the categories total here instead would size this Other row at 6_000
+    expect(getBreakdownRows(
+      payload,
+      (breakdown) => breakdown.top_merchants.map((merchant) => ({
+        key: merchant.merchant_id,
+        name: merchant.name,
+        total: merchant.total,
+        isOther: false,
+      })),
+      (breakdown) => breakdown.other_merchants_count,
+      (breakdown) => breakdown.merchants_total_spend,
+    )).toEqual([
+      { key: 'grocer', name: 'Grocer', total: 4_000, isOther: false },
+      { key: 'other', name: 'Other (1)', total: 2_000, isOther: true },
+    ])
+  })
 })

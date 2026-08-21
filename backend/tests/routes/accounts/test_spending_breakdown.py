@@ -655,6 +655,39 @@ async def test_merchant_is_judged_on_its_own_net_across_categories(client):
     assert data["merchants_total_spend"] == 15_000
 
 
+async def test_both_cards_are_empty_when_everything_is_refunded_past_zero(client):
+    """A range whose every entry was refunded past zero reports the empty payload."""
+    headers, account_id = await _setup_account(client)
+    groceries = (await _create_category(client, headers, name="Test Groceries Cancelled")).json()
+    grocer = (await _create_merchant(client, headers, name="Refunding Grocer")).json()
+
+    today = _today_utc().isoformat()
+    await _create_transaction(
+        client, headers, account_id, groceries["id"],
+        dt=today, amount=-10_000, merchant_id=grocer["id"],
+    )
+    await _create_transaction(
+        client, headers, account_id, groceries["id"],
+        dt=today, amount=15_000, merchant_id=grocer["id"],
+    )
+
+    resp = await client.get(
+        f"/accounts/{account_id}/spending-breakdown",
+        params={"range": "MTD"},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+
+    # Transactions exist, so this reaches the guard rather than the no-activity path
+    assert data["top_categories"] == []
+    assert data["top_merchants"] == []
+    assert data["categories_total_spend"] == 0
+    assert data["merchants_total_spend"] == 0
+    assert data["other_categories_count"] == 0
+    assert data["other_merchants_count"] == 0
+
+
 async def test_merchant_card_survives_a_category_refunded_past_zero(client):
     """A merchant still netting spending is listed even where its only category is not."""
     headers, account_id = await _setup_account(client)
@@ -722,6 +755,9 @@ async def test_hidden_category_count_excludes_over_refunded_categories(client):
     # Six categories still net spending, so one sits behind the visible five
     assert data["other_categories_count"] == 1
 
+    # The total covers the hidden sixth as well, so it exceeds the five rows on screen
+    assert data["categories_total_spend"] == 21_000
+
 
 async def test_hidden_merchant_count_excludes_over_refunded_merchants(client):
     """The merchant "and N more" figure counts only merchants that still net spending."""
@@ -758,6 +794,11 @@ async def test_hidden_merchant_count_excludes_over_refunded_merchants(client):
 
     # Eight merchants still net spending, so three sit behind the visible five
     assert data["other_merchants_count"] == 3
+
+    # The merchant total covers the hidden three, while the category total also keeps the 8.00 the
+    # two refunded merchants left behind in a category that still nets spending
+    assert data["merchants_total_spend"] == 36_000
+    assert data["categories_total_spend"] == 35_200
 
 
 async def test_mixed_currency_transactions_are_summed_as_raw_minor_units(client):
