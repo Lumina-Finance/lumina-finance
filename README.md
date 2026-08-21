@@ -257,10 +257,10 @@ Rotate the key if it has been exposed, or on whatever schedule your own policy s
 4. Rotate, passing the key on standard input:
 
    ```sh
-   printf '%s' "your-new-key" | docker compose run --rm -T app rotate-app-encryption-key
+   docker compose run --rm app rotate-app-encryption-key "your-new-key"
    ```
 
-   The rotation reports how many rows it rewrote per column. It rewrites every stored secret in one transaction, so a failure leaves the data exactly as it was, and it removes the old key file from the data volume when it succeeds.
+   The key is visible in the process list while this runs, so rotate from a shell you trust. The rotation reports how many rows it rewrote per column. It rewrites every stored secret in one transaction, so a failure leaves the data exactly as it was, and it removes the old key file from the data volume when it succeeds.
 
 5. Set `APP_ENCRYPTION_KEY` in `.env` to the new key, then start the stack:
 

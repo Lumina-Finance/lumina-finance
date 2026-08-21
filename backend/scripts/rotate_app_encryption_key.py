@@ -25,10 +25,7 @@ from app.models.types import find_encrypted_columns
 _ROUND_TRIP_PROBE = "encryption key round trip"
 
 # Shown whenever the key does not arrive, since the command reads it from nowhere else
-_STDIN_USAGE = (
-    "No key on standard input. Pipe the new key in, as "
-    "`printf '%s' \"<key>\" | docker compose run --rm -T app rotate-app-encryption-key`"
-)
+_USAGE = "Usage: docker compose run --rm app rotate-app-encryption-key <new-key>"
 
 
 class RotationError(RuntimeError):
@@ -251,24 +248,15 @@ async def _run_rotation(new_key: str) -> None:
 
 
 def main() -> None:
-    """Read the new key from stdin and rotate every stored secret onto it
+    """Rotate every stored secret onto the new key given as the single argument
 
-    The key arrives on stdin rather than as an argument, which would sit in the container's
-    command for anything reading `docker inspect` or /proc to find
+    The key is visible in the process list while this runs, and in the container's recorded
+    command until the container is removed, which `docker compose run --rm` does on exit
     """
-    # Run with a terminal attached, the read below would wait for the operator to type a
-    # key and press Ctrl-D, showing nothing meanwhile. Refusing outright says what to do
-    if sys.stdin.isatty():
-        sys.exit(_STDIN_USAGE)
+    if len(sys.argv) != 2 or not sys.argv[1].strip():
+        sys.exit(_USAGE)
 
-    # Docker attaches stdin as an open pipe even with nothing feeding it, so a run with no
-    # input blocks here until the operator gives up. Saying what it waits for is what makes
-    # that a wait rather than a hang, since the empty check below is only reached on EOF
-    print("Reading the new encryption key from standard input", file=sys.stderr)
-
-    new_key = sys.stdin.read().strip()
-    if not new_key:
-        sys.exit(_STDIN_USAGE)
+    new_key = sys.argv[1].strip()
 
     try:
         asyncio.run(_run_rotation(new_key))

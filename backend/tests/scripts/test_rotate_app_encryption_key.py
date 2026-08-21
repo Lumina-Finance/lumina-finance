@@ -288,53 +288,35 @@ async def test_rotation_refuses_a_database_with_no_key_record(current_key):
         await app_session.execute(text(f"SELECT fingerprint FROM {FINGERPRINT_TABLE}"))  # noqa: S608
 
 
-class _FakeStdin:
-    """Stands in for standard input, reporting whether a terminal is attached"""
-
-    def __init__(self, text: str, *, tty: bool):
-        self._text = text
-        self._tty = tty
-
-    def isatty(self) -> bool:
-        """Whether a terminal is attached"""
-        return self._tty
-
-    def read(self) -> str:
-        """Return everything on standard input
-
-        A real terminal blocks here until the operator presses Ctrl-D, so reading one at
-        all is the defect. Raising is what makes a test notice it rather than seeing the
-        empty string a stand-in would otherwise hand back
-        """
-        if self._tty:
-            raise AssertionError("read from a terminal, which would block with no output")
-        return self._text
-
-
-def test_the_command_refuses_a_terminal_rather_than_waiting(monkeypatch, capsys):
-    """Run with a terminal attached, it says what to do instead of waiting silently
-
-    sys.stdin.read() on a terminal blocks until the operator presses Ctrl-D, showing
-    nothing at all, which reads as the command having hung
-    """
-    monkeypatch.setattr("sys.stdin", _FakeStdin("", tty=True))
+def test_the_command_refuses_no_key(monkeypatch):
+    """Run with nothing after the command name, it says how to call it"""
+    monkeypatch.setattr("sys.argv", ["rotate_app_encryption_key"])
 
     with pytest.raises(SystemExit) as raised:
         main()
 
-    assert "No key on standard input" in str(raised.value)
+    assert "Usage:" in str(raised.value)
 
 
-def test_the_command_says_what_it_is_waiting_for(monkeypatch, capsys):
-    """With no terminal and no input, it names what it wants before reading
+def test_the_command_refuses_a_blank_key(monkeypatch):
+    """An empty or whitespace argument is refused rather than treated as a key
 
-    Docker attaches standard input as an open pipe even with nothing feeding it, so the
-    read blocks with no output. The line printed first is what makes that a wait rather
-    than a hang
+    A shell expanding an unset variable produces exactly this, so it reaches the command
+    as an argument that is present but holds nothing
     """
-    monkeypatch.setattr("sys.stdin", _FakeStdin("", tty=False))
+    monkeypatch.setattr("sys.argv", ["rotate_app_encryption_key", "   "])
 
-    with pytest.raises(SystemExit):
+    with pytest.raises(SystemExit) as raised:
         main()
 
-    assert "Reading the new encryption key from standard input" in capsys.readouterr().err
+    assert "Usage:" in str(raised.value)
+
+
+def test_the_command_refuses_more_than_one_argument(monkeypatch):
+    """An unquoted key that the shell split is refused rather than half used"""
+    monkeypatch.setattr("sys.argv", ["rotate_app_encryption_key", "one", "two"])
+
+    with pytest.raises(SystemExit) as raised:
+        main()
+
+    assert "Usage:" in str(raised.value)

@@ -15,7 +15,10 @@ if [ "$#" -gt 0 ]; then
 		exec python -m scripts.generate_app_encryption_key
 		;;
 	rotate-app-encryption-key)
-		exec python -m scripts.rotate_app_encryption_key
+		# Forwards what follows the command name, which is the new key, and only for
+		# this one command so the others still take no arguments
+		shift
+		exec python -m scripts.rotate_app_encryption_key "$@"
 		;;
 	*)
 		echo "Unknown command: $1" >&2
