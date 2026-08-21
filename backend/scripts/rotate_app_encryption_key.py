@@ -61,8 +61,8 @@ async def _refuse_while_the_app_is_running(connection: AsyncConnection) -> None:
     if await _count_app_connections(connection):
         raise RotationError(
             "Refusing to rotate: the main app appears to be running. Main app must be stopped "
-            "before rotating any keys. If you are seeing this after stopping the app, restart "
-            "the pg database and try again with key rotation"
+            "before rotating any keys. If you are seeing this after stopping the app, please "
+            "restart the pg database and try again with key rotation"
         )
 
 
