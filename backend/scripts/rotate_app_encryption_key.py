@@ -24,6 +24,12 @@ from app.models.types import find_encrypted_columns
 # Proves a key both encrypts and decrypts before any stored secret depends on it
 _ROUND_TRIP_PROBE = "encryption key round trip"
 
+# Shown whenever the key does not arrive, since the command reads it from nowhere else
+_STDIN_USAGE = (
+    "No key on standard input. Pipe the new key in, as "
+    "`printf '%s' \"<key>\" | docker compose run --rm -T app rotate-app-encryption-key`"
+)
+
 
 class RotationError(RuntimeError):
     """A rotation was refused, leaving nothing committed
@@ -250,9 +256,19 @@ def main() -> None:
     The key arrives on stdin rather than as an argument, which would sit in the container's
     command for anything reading `docker inspect` or /proc to find
     """
+    # Run with a terminal attached, the read below would wait for the operator to type a
+    # key and press Ctrl-D, showing nothing meanwhile. Refusing outright says what to do
+    if sys.stdin.isatty():
+        sys.exit(_STDIN_USAGE)
+
+    # Docker attaches stdin as an open pipe even with nothing feeding it, so a run with no
+    # input blocks here until the operator gives up. Saying what it waits for is what makes
+    # that a wait rather than a hang, since the empty check below is only reached on EOF
+    print("Reading the new encryption key from standard input", file=sys.stderr)
+
     new_key = sys.stdin.read().strip()
     if not new_key:
-        sys.exit("No key on stdin. Pipe the new key in, as `... | rotate-app-encryption-key`")
+        sys.exit(_STDIN_USAGE)
 
     try:
         asyncio.run(_run_rotation(new_key))
