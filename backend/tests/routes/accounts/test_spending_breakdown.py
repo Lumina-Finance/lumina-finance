@@ -543,6 +543,173 @@ async def test_zero_sum_category_and_merchant_are_excluded(client):
     assert data["other_merchants_count"] == 0
 
 
+async def test_over_refunded_category_and_merchant_are_excluded(client):
+    """A category refunded past zero is not spending, so neither it nor its merchant is listed."""
+    headers, account_id = await _setup_account(client)
+    groceries = (await _create_category(client, headers, name="Test Groceries Refunded")).json()
+    rent = (await _create_category(client, headers, name="Test Rent")).json()
+    grocer = (await _create_merchant(client, headers, name="Sobeys")).json()
+    landlord = (await _create_merchant(client, headers, name="Landlord")).json()
+
+    today = _today_utc().isoformat()
+    await _create_transaction(
+        client, headers, account_id, groceries["id"],
+        dt=today, amount=-10_000, merchant_id=grocer["id"],
+    )
+    await _create_transaction(
+        client, headers, account_id, groceries["id"],
+        dt=today, amount=15_000, merchant_id=grocer["id"],
+    )
+    await _create_transaction(
+        client, headers, account_id, rent["id"],
+        dt=today, amount=-200_000, merchant_id=landlord["id"],
+    )
+
+    resp = await client.get(
+        f"/accounts/{account_id}/spending-breakdown",
+        params={"range": "MTD"},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert [c["category_id"] for c in data["top_categories"]] == [rent["id"]]
+    assert [m["merchant_id"] for m in data["top_merchants"]] == [landlord["id"]]
+
+
+async def test_over_refunded_merchant_inside_a_spending_category_is_excluded(client):
+    """A merchant refunded past zero drops out even while its category still nets spending."""
+    headers, account_id = await _setup_account(client)
+    dining = (await _create_category(client, headers, name="Test Dining")).json()
+    refunded_merchant = (await _create_merchant(client, headers, name="Returned Bistro")).json()
+    kept_merchant = (await _create_merchant(client, headers, name="Kept Bistro")).json()
+
+    today = _today_utc().isoformat()
+    await _create_transaction(
+        client, headers, account_id, dining["id"],
+        dt=today, amount=-5_000, merchant_id=refunded_merchant["id"],
+    )
+    await _create_transaction(
+        client, headers, account_id, dining["id"],
+        dt=today, amount=8_000, merchant_id=refunded_merchant["id"],
+    )
+    await _create_transaction(
+        client, headers, account_id, dining["id"],
+        dt=today, amount=-20_000, merchant_id=kept_merchant["id"],
+    )
+
+    resp = await client.get(
+        f"/accounts/{account_id}/spending-breakdown",
+        params={"range": "MTD"},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert [c["category_id"] for c in data["top_categories"]] == [dining["id"]]
+    assert data["top_categories"][0]["total"] == 17_000
+    assert [m["merchant_id"] for m in data["top_merchants"]] == [kept_merchant["id"]]
+
+
+async def test_merchant_is_judged_on_its_own_net_across_categories(client):
+    """A merchant qualifies on its own net, even where one category behind it was refunded past zero."""
+    headers, account_id = await _setup_account(client)
+    groceries = (await _create_category(client, headers, name="Test Groceries Crossover")).json()
+    dining = (await _create_category(client, headers, name="Test Dining Crossover")).json()
+    merchant = (await _create_merchant(client, headers, name="Sobeys")).json()
+
+    today = _today_utc().isoformat()
+    await _create_transaction(
+        client, headers, account_id, groceries["id"],
+        dt=today, amount=-10_000, merchant_id=merchant["id"],
+    )
+    await _create_transaction(
+        client, headers, account_id, groceries["id"],
+        dt=today, amount=15_000, merchant_id=merchant["id"],
+    )
+    await _create_transaction(
+        client, headers, account_id, dining["id"],
+        dt=today, amount=-20_000, merchant_id=merchant["id"],
+    )
+
+    resp = await client.get(
+        f"/accounts/{account_id}/spending-breakdown",
+        params={"range": "MTD"},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+
+    # Groceries netted positive and drops out, while the merchant keeps the 50.00 refund against
+    # its own 300.00 of purchases and is listed at 150.00
+    assert [c["category_id"] for c in data["top_categories"]] == [dining["id"]]
+    assert data["top_categories"][0]["total"] == 20_000
+    assert [m["merchant_id"] for m in data["top_merchants"]] == [merchant["id"]]
+    assert data["top_merchants"][0]["total"] == 15_000
+
+
+async def test_hidden_category_count_excludes_over_refunded_categories(client):
+    """The "and N more" figure counts only categories that still net spending."""
+    headers, account_id = await _setup_account(client)
+    today = _today_utc().isoformat()
+
+    for index, amount in enumerate((-6_000, -5_000, -4_000, -3_000, -2_000, -1_000)):
+        category = (await _create_category(client, headers, name=f"Test Spend {index}")).json()
+        await _create_transaction(client, headers, account_id, category["id"], dt=today, amount=amount)
+
+    for index in range(2):
+        refunded = (await _create_category(client, headers, name=f"Test Refunded {index}")).json()
+        await _create_transaction(client, headers, account_id, refunded["id"], dt=today, amount=-100)
+        await _create_transaction(client, headers, account_id, refunded["id"], dt=today, amount=500)
+
+    resp = await client.get(
+        f"/accounts/{account_id}/spending-breakdown",
+        params={"range": "MTD"},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert [c["total"] for c in data["top_categories"]] == [6_000, 5_000, 4_000, 3_000, 2_000]
+
+    # Six categories still net spending, so one sits behind the visible five
+    assert data["other_categories_count"] == 1
+
+
+async def test_hidden_merchant_count_excludes_over_refunded_merchants(client):
+    """The merchant "and N more" figure counts only merchants that still net spending."""
+    headers, account_id = await _setup_account(client)
+    category = (await _create_category(client, headers, name="Test Everything")).json()
+    today = _today_utc().isoformat()
+
+    for index, amount in enumerate((-8_000, -7_000, -6_000, -5_000, -4_000, -3_000, -2_000, -1_000)):
+        merchant = (await _create_merchant(client, headers, name=f"Spender {index}")).json()
+        await _create_transaction(
+            client, headers, account_id, category["id"],
+            dt=today, amount=amount, merchant_id=merchant["id"],
+        )
+
+    for index in range(2):
+        refunded = (await _create_merchant(client, headers, name=f"Returner {index}")).json()
+        await _create_transaction(
+            client, headers, account_id, category["id"],
+            dt=today, amount=-100, merchant_id=refunded["id"],
+        )
+        await _create_transaction(
+            client, headers, account_id, category["id"],
+            dt=today, amount=500, merchant_id=refunded["id"],
+        )
+
+    resp = await client.get(
+        f"/accounts/{account_id}/spending-breakdown",
+        params={"range": "MTD"},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert [m["total"] for m in data["top_merchants"]] == [8_000, 7_000, 6_000, 5_000, 4_000]
+
+    # Eight merchants still net spending, so three sit behind the visible five
+    assert data["other_merchants_count"] == 3
+
+
 async def test_mixed_currency_transactions_are_summed_as_raw_minor_units(client):
     """Endpoint sums all expense rows regardless of currency — no fx conversion
 
