@@ -11,8 +11,8 @@ from app.schemas.account import AccountTopCategory, AccountTopMerchant
 _TOP_SPENDING_ROWS_LIMIT = 5
 
 
-async def get_account_grand_total_spend(db: AsyncSession, expense_predicate) -> int:
-    """Return total account spend for an expense predicate
+async def get_account_categories_total_spend(db: AsyncSession, expense_predicate) -> int:
+    """Return total spending across the categories the category card lists
 
     Args:
         db: Active database session
@@ -21,14 +21,60 @@ async def get_account_grand_total_spend(db: AsyncSession, expense_predicate) -> 
     Returns:
         Positive total spending in minor units
     """
-    total_spend_query = (
-        select(func.coalesce(func.sum(Transaction.amount), 0))
-        .join(Category, Transaction.category_id == Category.id)
-        .where(expense_predicate)
+    return await _get_grouped_total_spend(db, expense_predicate, Transaction.category_id)
+
+
+async def get_account_merchants_total_spend(db: AsyncSession, expense_predicate) -> int:
+    """Return total spending across the merchants the merchant card lists
+
+    Args:
+        db: Active database session
+        expense_predicate: SQLAlchemy predicate for expense transactions
+
+    Returns:
+        Positive total spending in minor units
+    """
+    return await _get_grouped_total_spend(
+        db,
+        expense_predicate,
+        Transaction.merchant_id,
+
+        # The merchant card reaches its rows through an inner join, so spending on a transaction
+        # carrying no merchant belongs to no row and must stay out of the total above them
+        Transaction.merchant_id.is_not(None),
     )
 
-    # Sum all expense transactions in the period before ranking categories or merchants
-    total_result = await db.execute(total_spend_query)
+
+async def _get_grouped_total_spend(db: AsyncSession, expense_predicate, group_by, *extra_filters) -> int:
+    """Return total spending across the groups that still net spending
+
+    A card's total is the sum of the entries it lists, hidden ones included, so each card totals
+    its own grouping rather than sharing one figure. Netting per group before summing is what
+    keeps a group refunded past zero from crediting the total it was dropped from
+
+    Args:
+        db: Active database session
+        expense_predicate: SQLAlchemy predicate for expense transactions
+        group_by: Column the card groups its rows by
+        extra_filters: Further predicates narrowing the rows the card can reach
+
+    Returns:
+        Positive total spending in minor units
+    """
+    group_total = func.sum(Transaction.amount)
+    spending_groups = (
+        select(group_total.label("total"))
+        .join(Category, Transaction.category_id == Category.id)
+        .where(expense_predicate, *extra_filters)
+        .group_by(group_by)
+        .having(group_total < 0)
+        .subquery()
+    )
+
+    # Add up the netted groups, coalescing because a card with no spending sums to NULL
+    total_result = await db.execute(
+        select(func.coalesce(func.sum(spending_groups.c.total), 0)),
+    )
     total_spend = -int(total_result.scalar_one())
     return total_spend
 

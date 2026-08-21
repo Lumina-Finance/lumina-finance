@@ -10,7 +10,8 @@ from app.models.transaction import Transaction
 from app.schemas.account import AccountSpendingBreakdown
 from app.schemas.dashboard import RangeKind
 from app.services.accounts.spending_query_helpers import (
-    get_account_grand_total_spend,
+    get_account_categories_total_spend,
+    get_account_merchants_total_spend,
     get_account_top_categories,
     get_account_top_merchants,
 )
@@ -35,14 +36,19 @@ async def get_account_spending_breakdown(
     """
     start, end = _get_current_period_date_bounds(range_, now.date())
     expense_predicate = _build_expense_transaction_predicate(account_id, start, end)
-    grand_total_spend = await get_account_grand_total_spend(db, expense_predicate)
+    categories_total_spend = await get_account_categories_total_spend(db, expense_predicate)
+    merchants_total_spend = await get_account_merchants_total_spend(db, expense_predicate)
 
-    if grand_total_spend == 0:
+    # A card holds rows only where something netted spending, which leaves that card's total
+    # above zero, so two zero totals mean both cards are empty. One alone does not: a category
+    # refunded past zero can still hold a merchant that was not
+    if categories_total_spend == 0 and merchants_total_spend == 0:
         empty_breakdown = AccountSpendingBreakdown(
             range=range_,
             top_categories=[],
             top_merchants=[],
-            grand_total_spend=0,
+            categories_total_spend=0,
+            merchants_total_spend=0,
             other_categories_count=0,
             other_merchants_count=0,
         )
@@ -54,7 +60,8 @@ async def get_account_spending_breakdown(
         range=range_,
         top_categories=top_categories,
         top_merchants=top_merchants,
-        grand_total_spend=grand_total_spend,
+        categories_total_spend=categories_total_spend,
+        merchants_total_spend=merchants_total_spend,
         other_categories_count=other_categories_count,
         other_merchants_count=other_merchants_count,
     )
