@@ -12,6 +12,12 @@ export JWT_REFRESH_PRIVATE_KEY_PATH="${JWT_REFRESH_PRIVATE_KEY_PATH:-/data/keys/
 if [ "$#" -gt 0 ]; then
 	case "$1" in
 	generate-app-encryption-key)
+		# Rejects anything after the command name rather than dropping it, so a mistyped
+		# invocation does not print a fresh key and exit as though it had worked
+		if [ "$#" -gt 1 ]; then
+			echo "generate-app-encryption-key takes no arguments" >&2
+			exit 64
+		fi
 		exec python -m scripts.generate_app_encryption_key
 		;;
 	rotate-app-encryption-key)

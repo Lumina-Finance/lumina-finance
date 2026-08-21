@@ -8,8 +8,9 @@ from sqlalchemy import text
 
 from app import encryption
 from app.db.encryption_key import FINGERPRINT_TABLE, read_fingerprint, record_fingerprint
-from app.db.rls import grant_global_read_table
+from app.db.rls import grant_auth_table, grant_global_read_table
 from app.encryption import generate_encryption_key, key_fingerprint
+from app.models.auth import TotpCredential
 from app.models.encryption_key import EncryptionKeyFingerprint
 from scripts.rotate_app_encryption_key import RotationError, main, rotate_encryption_key
 from tests.conftest import ScopedSession, engine
@@ -268,7 +269,7 @@ async def test_rotation_refuses_a_database_with_no_key_record(current_key):
     async with engine.begin() as connection:
         await connection.execute(text(f"DROP TABLE {FINGERPRINT_TABLE}"))
     try:
-        with pytest.raises(RotationError, match="no encryption key record"):
+        with pytest.raises(RotationError, match="schema is behind this version"):
             await rotate_encryption_key(engine, generate_encryption_key())
 
         assert await _read_stored("totp_credentials", "secret_encrypted") == stored_before
@@ -319,3 +320,167 @@ def test_the_command_refuses_more_than_one_argument(monkeypatch):
         main()
 
     assert "Usage:" in str(raised.value)
+
+
+def _stand_in_rotation(recorder: dict, result=None, error: Exception | None = None):
+    """Return a stand-in for the rotation that records its key and returns a fixed result
+
+    Args:
+        recorder: Mapping the stand-in writes the key it received into
+        result: What the stand-in returns, standing for the rows it rewrote
+        error: Raised instead of returning, standing for a refused rotation
+    """
+
+    async def rotation(_engine, new_key):
+        recorder["key"] = new_key
+        if error is not None:
+            raise error
+        return result
+
+    return rotation
+
+
+def test_the_command_forwards_a_real_key_unchanged(monkeypatch, capsys):
+    """A real key reaches the rotation exactly as given
+
+    The placeholder arguments the refusal tests use would not catch a parse that mishandled
+    the url-safe base64 a Fernet key is made of, or its trailing padding
+    """
+    key = generate_encryption_key()
+    recorder: dict[str, str] = {}
+    monkeypatch.setattr(
+        "scripts.rotate_app_encryption_key.rotate_encryption_key",
+        _stand_in_rotation(recorder, result={}),
+    )
+    monkeypatch.setattr("sys.argv", ["rotate_app_encryption_key", key])
+
+    main()
+
+    assert recorder["key"] == key
+
+
+def test_a_successful_rotation_reports_the_counts_and_the_step_left(monkeypatch, capsys):
+    """The operator sees what changed, then the instruction framed so it is hard to miss"""
+    recorder: dict[str, str] = {}
+    monkeypatch.setattr(
+        "scripts.rotate_app_encryption_key.rotate_encryption_key",
+        _stand_in_rotation(recorder, result={("totp_credentials", "secret_encrypted"): 3}),
+    )
+    monkeypatch.setattr("sys.argv", ["rotate_app_encryption_key", generate_encryption_key()])
+
+    main()
+
+    printed = capsys.readouterr()
+    assert "totp_credentials.secret_encrypted: 3 row(s) re-encrypted" in printed.out
+    assert "Set APP_ENCRYPTION_KEY to the new key" in printed.err
+    assert "####" in printed.err
+
+
+def test_an_already_applied_rotation_says_nothing_was_re_encrypted(monkeypatch, capsys):
+    """Re-running after an interrupted rotation reports that, rather than a row count"""
+    recorder: dict[str, str] = {}
+    monkeypatch.setattr(
+        "scripts.rotate_app_encryption_key.rotate_encryption_key",
+        _stand_in_rotation(recorder, result=None),
+    )
+    monkeypatch.setattr("sys.argv", ["rotate_app_encryption_key", generate_encryption_key()])
+
+    main()
+
+    printed = capsys.readouterr()
+    assert "already under this key" in printed.err
+    assert "row(s) re-encrypted" not in printed.out
+
+
+def test_a_refused_rotation_is_framed_and_exits_nonzero(monkeypatch, capsys):
+    """A refusal is framed like the reminder, and the command fails rather than reporting success
+
+    The exit code is what a script wrapping this reads, so reporting zero here would make a
+    refused rotation look like a completed one
+    """
+    recorder: dict[str, str] = {}
+    monkeypatch.setattr(
+        "scripts.rotate_app_encryption_key.rotate_encryption_key",
+        _stand_in_rotation(recorder, error=RotationError("Refusing to rotate: a stated reason")),
+    )
+    monkeypatch.setattr("sys.argv", ["rotate_app_encryption_key", generate_encryption_key()])
+
+    with pytest.raises(SystemExit) as raised:
+        main()
+
+    assert raised.value.code == 1
+    printed = capsys.readouterr()
+    assert "Refusing to rotate: a stated reason" in printed.err
+    assert "####" in printed.err
+
+
+async def test_rotation_finishes_an_interrupted_run_after_the_new_key_is_set(key_file, monkeypatch):
+    """The cleanup is reachable once the operator has already set the new key
+
+    That is the state the instructions leave them in: the rotation committed, the stale key
+    file survived, and setting the variable makes the two key sources disagree. Deciding the
+    resume from the key sources rather than the database would refuse here
+    """
+    new_key = generate_encryption_key()
+    await _store_secrets(new_key)
+    async with engine.begin() as connection:
+        await record_fingerprint(connection, new_key)
+
+    key_file.write_text(generate_encryption_key())
+    monkeypatch.setenv(encryption.KEY_ENV_VAR, new_key)
+    encryption._fernet.cache_clear()
+    stored_before = await _read_stored("totp_credentials", "secret_encrypted")
+
+    rewritten = await rotate_encryption_key(engine, new_key)
+
+    assert rewritten is None
+    assert not key_file.exists()
+    assert await _read_stored("totp_credentials", "secret_encrypted") == stored_before
+    encryption._fernet.cache_clear()
+
+
+async def test_rotation_refuses_a_schema_missing_an_encrypted_table(current_key):
+    """A database behind this version is refused rather than aborting mid-transaction
+
+    Every other column would already have been re-encrypted by the time the missing one
+    raised, so the failure would arrive as a bare database error rather than a refusal
+    """
+    await _store_secrets(current_key)
+    stored_before = await _read_stored("oidc_providers", "client_secret_encrypted")
+    async with engine.begin() as connection:
+        await connection.execute(text("DROP TABLE totp_credentials"))
+    try:
+        with pytest.raises(RotationError, match="schema is behind this version"):
+            await rotate_encryption_key(engine, generate_encryption_key())
+
+        assert await _read_stored("oidc_providers", "client_secret_encrypted") == stored_before
+    finally:
+        async with engine.begin() as connection:
+            await connection.run_sync(TotpCredential.__table__.create)
+            await connection.run_sync(grant_auth_table, "totp_credentials")
+
+    # Startup and the auth flows read this table as the app role, so prove the rebuild
+    # restored that access rather than leaving it unreadable for the rest of this worker
+    async with ScopedSession() as app_session:
+        await app_session.execute(text("SELECT user_id FROM totp_credentials"))
+
+
+async def test_a_key_file_that_cannot_be_removed_still_reports_the_rotation(current_key, key_file, monkeypatch):
+    """A rotation that committed is reported even when the stale key file survives
+
+    Raising instead would lose the row counts and the closing instruction, and tell the
+    operator the run failed when the data has already moved
+    """
+    await _store_secrets(current_key)
+
+    def refuse_the_unlink(_self, **_kwargs):
+        raise PermissionError(13, "Permission denied")
+
+    monkeypatch.setattr("pathlib.Path.unlink", refuse_the_unlink)
+
+    rewritten = await rotate_encryption_key(engine, generate_encryption_key())
+
+    assert rewritten == {
+        ("oidc_providers", "client_secret_encrypted"): 1,
+        ("totp_credentials", "secret_encrypted"): 1,
+    }

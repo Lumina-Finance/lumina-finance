@@ -254,13 +254,13 @@ Rotate the key if it has been exposed, or on whatever schedule your own policy s
    docker compose stop app
    ```
 
-4. Rotate, passing the key on standard input:
+4. Rotate, giving the new key as the argument:
 
    ```sh
    docker compose run --rm app rotate-app-encryption-key "your-new-key"
    ```
 
-   The key is visible in the process list while this runs, so rotate from a shell you trust. The rotation reports how many rows it rewrote per column. It rewrites every stored secret in one transaction, so a failure leaves the data exactly as it was, and it removes the old key file from the data volume when it succeeds.
+   The key is visible in the process list while this runs, so rotate from a shell you trust. The rotation reports how many rows it rewrote per column, then frames the step left to do. It rewrites every stored secret in one transaction, so a failure leaves the data exactly as it was, and it removes the old key file from the data volume where the deployment had one.
 
 5. Set `APP_ENCRYPTION_KEY` in `.env` to the new key, then start the stack:
 
@@ -268,7 +268,7 @@ Rotate the key if it has been exposed, or on whatever schedule your own policy s
    docker compose up -d
    ```
 
-If the rotation is interrupted after it commits, run step 4 again with the same key. It detects that the secrets already read under that key and clears what the interrupted run left behind.
+If the rotation is interrupted after it commits, run step 4 again with the same key. It detects that the stored secrets are already encrypted under that key and clears what the interrupted run left behind. Check for a leftover container too, with `docker compose ps -a`, and remove it with `docker compose rm -f app`: the key is part of its recorded command, and an interrupted run is the case where `--rm` does not delete it.
 
 ### [JWKS (JSON Web Key Set)](https://auth0.com/docs/secure/tokens/json-web-tokens/json-web-key-sets) and JWT Configs
 

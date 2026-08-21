@@ -119,25 +119,21 @@ async def _rewrite_column(
     return len(rows)
 
 
-def _check_replacement_key(new_key: str, current_key: str) -> Fernet:
-    """Return the Fernet for a new key once it is known to be usable
+def _check_key_format(new_key: str) -> Fernet:
+    """Return the Fernet for a new key once it is known to work
+
+    Checked before anything reads the current key, so a mistyped key is refused without
+    depending on the deployment resolving a key at all
 
     Args:
         new_key: The key supplied by the operator
-        current_key: The key the stored secrets are under today
 
     Returns:
         A Fernet built from the new key
 
     Raises:
-        RotationError: The key is malformed, is the current key, or fails a round trip
+        RotationError: The key is malformed or fails a round trip
     """
-    if new_key == current_key:
-        raise RotationError(
-            "Refusing to rotate: the new key is the key already in use, so this would report "
-            "success while changing nothing"
-        )
-
     try:
         replacement = Fernet(new_key.encode())
     except (ValueError, TypeError) as error:
@@ -148,6 +144,67 @@ def _check_replacement_key(new_key: str, current_key: str) -> Fernet:
         raise RotationError("Refusing to rotate: the new key did not survive a round trip")
 
     return replacement
+
+
+def _resolve_current_key() -> str | None:
+    """Return the key the deployment resolves, or None when it cannot resolve one
+
+    A missing key, or a variable and a file that disagree, is not reported here. An
+    interrupted rotation leaves exactly that state, and the run may still be the one that
+    finishes it, which is decided against the database rather than against the key sources
+
+    Returns:
+        The resolved key, or None when no single key resolves
+    """
+    try:
+        return encryption.resolve_encryption_key(generate=False)
+    except RuntimeError:
+        return None
+
+
+async def _refuse_unless_the_schema_is_ready(connection: AsyncConnection, columns: list[tuple[str, str]]) -> None:
+    """Raise unless every table the rotation writes to is present
+
+    Checked before the transaction, where a missing table would otherwise abort it with a
+    bare database error after every other column had already been re-encrypted
+
+    Args:
+        connection: Open connection to the application database
+        columns: Table and column name pairs the rotation intends to rewrite
+
+    Raises:
+        RotationError: The key record or an encrypted table is missing
+    """
+    missing = [FINGERPRINT_TABLE] if not await table_exists(connection, FINGERPRINT_TABLE) else []
+    for table, _ in columns:
+        if table not in missing and not await table_exists(connection, table):
+            missing.append(table)
+
+    if missing:
+        raise RotationError(
+            f"Refusing to rotate: this database is missing {', '.join(sorted(missing))}, so its "
+            f"schema is behind this version. Start the app once so the migrations run, then rotate"
+        )
+
+
+async def _rotation_already_applied(connection: AsyncConnection, new_key: str) -> bool:
+    """Whether the stored secrets and the key record are already under the new key
+
+    An interrupted rotation commits and then fails to clear the stale key file, so re-running
+    it finds the work done. Deciding that from the database rather than from the resolved key
+    is what lets the operator finish the cleanup after they have already set the new key
+
+    Args:
+        connection: Open connection to the application database
+        new_key: The key the operator is rotating to
+
+    Returns:
+        Whether there is nothing left to re-encrypt
+    """
+    stored_secret = await read_stored_secret(connection)
+    if stored_secret is None or not decrypts(new_key, stored_secret):
+        return False
+    return await read_fingerprint(connection) == encryption.key_fingerprint(new_key)
 
 
 async def rotate_encryption_key(engine: AsyncEngine, new_key: str) -> dict[tuple[str, str], int] | None:
@@ -165,42 +222,41 @@ async def rotate_encryption_key(engine: AsyncEngine, new_key: str) -> dict[tuple
     Raises:
         RotationError: The rotation was refused, leaving nothing committed
     """
-    current_key = encryption.resolve_encryption_key(generate=False)
-    replacement = _check_replacement_key(new_key, current_key)
-    current = Fernet(current_key.encode())
+    replacement = _check_key_format(new_key)
+    current_key = _resolve_current_key()
+
+    if current_key is not None and current_key == new_key:
+        raise RotationError(
+            "Refusing to rotate: the new key is the key already in use, so this would report "
+            "success while changing nothing"
+        )
 
     import_all_models()
     columns = find_encrypted_columns(Base.metadata)
 
     async with engine.connect() as connection:
         await _refuse_while_the_app_is_running(connection)
+        await _refuse_unless_the_schema_is_ready(connection, columns)
 
-        # Checked here rather than at the write, where a missing table would abort the
-        # transaction with a bare database error after every row had been re-encrypted
-        if not await table_exists(connection, FINGERPRINT_TABLE):
-            raise RotationError(
-                "Refusing to rotate: this database has no encryption key record. Start the app "
-                "once so the migrations run, then rotate"
-            )
+        if await _rotation_already_applied(connection, new_key):
+            _delete_stale_key_file()
+            return None
+
+        if current_key is None:
+
+            # Reported here rather than where the key was resolved, so a run that turned out
+            # to be finishing an interrupted rotation is never stopped by it
+            encryption.resolve_encryption_key(generate=False)
 
         stored_secret = await read_stored_secret(connection)
         if stored_secret is not None and not decrypts(current_key, stored_secret):
-
-            # An interrupted rotation commits the data and then fails to clear the stale key
-            # file, so the key resolving now is the old one and cannot read anything. Where
-            # the new key reads it instead, the work is done and only the file is left
-            if decrypts(new_key, stored_secret) and await read_fingerprint(connection) == encryption.key_fingerprint(
-                new_key
-            ):
-                _delete_stale_key_file()
-                return None
-
             raise RotationError(
                 f"Refusing to rotate: the key resolved from {encryption.KEY_ENV_VAR} or "
                 f"{encryption.KEY_FILE} does not decrypt the stored secrets, so it is not the "
                 f"key they are under"
             )
 
+    current = Fernet(current_key.encode())
     async with engine.begin() as connection:
 
         # Re-checked inside the transaction, since the app can reconnect between the first
@@ -223,10 +279,19 @@ def _delete_stale_key_file() -> None:
     Nothing writes the new key back. The operator holds it and configures it through the
     environment, so leaving the old file behind would only conflict with what they set
     """
-    if not encryption.KEY_FILE.exists():
+    try:
+        encryption.KEY_FILE.unlink()
+    except FileNotFoundError:
+
+        # The deployment configures its key through the environment, so there is no file
+        return
+    except OSError as error:
+
+        # The rotation has already committed, so a file that cannot be removed is a note for
+        # the operator rather than a failure. Raising would report the whole run as failed
+        print(f"Could not remove the stale key file at {encryption.KEY_FILE}: {error}", file=sys.stderr)
         return
 
-    encryption.KEY_FILE.unlink()
     print(f"Removed the stale key file at {encryption.KEY_FILE}", file=sys.stderr)
 
 
@@ -286,10 +351,11 @@ def main() -> None:
 
     try:
         asyncio.run(_run_rotation(new_key))
-    except RotationError as error:
+    except RuntimeError as error:
 
-        # Framed for the same reason as the closing instruction: a refusal arriving among
-        # the compose output is the one thing the operator has to act on
+        # RotationError and the errors raised while resolving a key are both RuntimeError,
+        # and an operator has to act on either. Framed for the same reason as the closing
+        # instruction: a bare traceback among the compose output is the thing they miss
         _print_banner([str(error)])
         sys.exit(1)
 
