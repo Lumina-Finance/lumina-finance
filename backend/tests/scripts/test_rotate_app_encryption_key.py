@@ -7,6 +7,7 @@ from sqlalchemy import text
 from app import encryption
 from app.config.database import APP_DB_USER
 from app.db.encryption_key import FINGERPRINT_TABLE, read_fingerprint, record_fingerprint
+from app.db.rls import grant_global_read_table
 from app.encryption import generate_encryption_key, key_fingerprint
 from app.models.encryption_key import EncryptionKeyFingerprint
 from scripts.rotate_app_encryption_key import RotationError, rotate_encryption_key
@@ -271,5 +272,15 @@ async def test_rotation_refuses_a_database_with_no_key_record(current_key):
 
         assert await _read_stored("totp_credentials", "secret_encrypted") == stored_before
     finally:
+        # Postgres drops a table's privileges with the table, and creating it back from the
+        # model restores no grant, so the app role's read is re-granted the way the
+        # migration grants it. Without this the table stays unreadable to that role for
+        # every later test in this worker
         async with engine.begin() as connection:
             await connection.run_sync(EncryptionKeyFingerprint.__table__.create)
+            await connection.run_sync(grant_global_read_table, FINGERPRINT_TABLE)
+
+    # Startup reads the record as the app role, so prove the rebuild restored that read
+    # rather than leaving the table unreadable for the rest of this worker's run
+    async with ScopedSession() as app_session:
+        await app_session.execute(text(f"SELECT fingerprint FROM {FINGERPRINT_TABLE}"))

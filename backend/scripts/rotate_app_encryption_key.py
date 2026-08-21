@@ -26,7 +26,11 @@ _ROUND_TRIP_PROBE = "encryption key round trip"
 
 
 class RotationError(RuntimeError):
-    """A rotation was refused before anything was written"""
+    """A rotation was refused, leaving nothing committed
+
+    Most of these are raised before the transaction opens. The one raised on a value the
+    current key cannot read comes from inside it, after rewrites the rollback takes back
+    """
 
 
 async def _count_app_connections(connection: AsyncConnection) -> int:
@@ -98,7 +102,8 @@ async def _rewrite_column(
             # transaction takes every other rewrite back with it
             raise RotationError(
                 f"Refusing to rotate: a value in {table}.{column} is not readable with the "
-                f"current key, so that column holds more than one key. Nothing was written"
+                f"current key, so it is either encrypted under a different key or is not a "
+                f"Fernet token at all. Nothing was written"
             ) from error
 
         await connection.execute(
@@ -152,7 +157,7 @@ async def rotate_encryption_key(engine: AsyncEngine, new_key: str) -> dict[tuple
         rotation over empty tables returns a count of zero for each rather than None
 
     Raises:
-        RotationError: The rotation was refused, with nothing written
+        RotationError: The rotation was refused, leaving nothing committed
     """
     current_key = encryption.resolve_encryption_key(generate=False)
     replacement = _check_replacement_key(new_key, current_key)
@@ -206,18 +211,17 @@ async def rotate_encryption_key(engine: AsyncEngine, new_key: str) -> dict[tuple
     return rewritten
 
 
-def _delete_stale_key_file() -> bool:
+def _delete_stale_key_file() -> None:
     """Remove the persisted key, which the rotation has just made the old one
 
     Nothing writes the new key back. The operator holds it and configures it through the
     environment, so leaving the old file behind would only conflict with what they set
-
-    Returns:
-        Whether a key file was there to remove
     """
-    existed = encryption.KEY_FILE.exists()
-    encryption.KEY_FILE.unlink(missing_ok=True)
-    return existed
+    if not encryption.KEY_FILE.exists():
+        return
+
+    encryption.KEY_FILE.unlink()
+    print(f"Removed the stale key file at {encryption.KEY_FILE}", file=sys.stderr)
 
 
 async def _run_rotation(new_key: str) -> None:
