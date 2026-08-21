@@ -259,10 +259,7 @@ async def _run_rotation(new_key: str) -> None:
     _print_banner(
         [
             f"Set {encryption.KEY_ENV_VAR} to the new key",
-            "before starting the app again.",
-            "",
-            "The app cannot read any stored secret",
-            "until you do, and refuses to start.",
+            "before starting the app again!",
         ]
     )
 
