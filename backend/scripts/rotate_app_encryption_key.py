@@ -2,6 +2,7 @@
 
 import asyncio
 import sys
+import textwrap
 
 from cryptography.fernet import Fernet, InvalidToken
 from sqlalchemy import text
@@ -23,6 +24,9 @@ from app.models.types import find_encrypted_columns
 
 # Proves a key both encrypts and decrypts before any stored secret depends on it
 _ROUND_TRIP_PROBE = "encryption key round trip"
+
+# Wide enough to read as a paragraph, narrow enough to fit a default terminal
+_BANNER_TEXT_WIDTH = 68
 
 # Shown whenever the key does not arrive, since the command reads it from nowhere else
 _USAGE = "Usage: docker compose run --rm app rotate-app-encryption-key <new-key>"
@@ -227,17 +231,22 @@ def _delete_stale_key_file() -> None:
 
 
 def _print_banner(lines: list[str]) -> None:
-    """Print lines inside a block of hashes, so the step left to do is hard to scroll past
+    """Print lines inside a block of hashes, so what the operator must read is hard to miss
 
-    The rotation prints a row count per column, and the one instruction the operator still
-    has to act on would otherwise read as one more line among them
+    The rotation prints a row count per column, and both the instruction left to act on and
+    any refusal would otherwise read as one more line among them
 
     Args:
-        lines: Text to frame, one line each, with an empty string for a blank line
+        lines: Text to frame. Each is wrapped to the block width, and an empty string is
+            kept as a blank line
     """
-    width = max(len(line) for line in lines) + 4
-    print("#" * width, file=sys.stderr)
+    wrapped: list[str] = []
     for line in lines:
+        wrapped.extend(textwrap.wrap(line, _BANNER_TEXT_WIDTH) or [""])
+
+    width = max(len(line) for line in wrapped) + 4
+    print("#" * width, file=sys.stderr)
+    for line in wrapped:
         print(f"# {line.ljust(width - 4)} #", file=sys.stderr)
     print("#" * width, file=sys.stderr)
 
@@ -278,7 +287,11 @@ def main() -> None:
     try:
         asyncio.run(_run_rotation(new_key))
     except RotationError as error:
-        sys.exit(str(error))
+
+        # Framed for the same reason as the closing instruction: a refusal arriving among
+        # the compose output is the one thing the operator has to act on
+        _print_banner([str(error)])
+        sys.exit(1)
 
 
 if __name__ == "__main__":
