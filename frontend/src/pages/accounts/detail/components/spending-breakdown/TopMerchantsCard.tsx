@@ -55,7 +55,7 @@ export function TopMerchantsBySpendingCard({ account }: { account: Account }) {
       range={range}
       onRangeChange={handleRangeChange}
       rows={rows}
-      grandTotal={data?.merchants_total_spend ?? 0}
+      cardTotal={data?.merchants_total_spend ?? 0}
       currency={account.currency}
       emptyLabel="No merchant activity in this range"
       loading={isFetching}

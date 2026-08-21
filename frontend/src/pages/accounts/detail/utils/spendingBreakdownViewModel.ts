@@ -21,7 +21,7 @@ export type BreakdownRow = {
 
 export type BreakdownSnapshot = {
   rows: BreakdownRow[]
-  grandTotal: number
+  cardTotal: number
   currency: string
   emptyLabel: string
 }
@@ -32,19 +32,19 @@ export type BreakdownSnapshot = {
 export function appendOtherBreakdownRow(
   rows: BreakdownRow[],
   otherCount: number,
-  grandTotal: number,
+  cardTotal: number,
 ): BreakdownRow[] {
   if (otherCount <= 0) return rows
   const topSum = rows.reduce((sum, row) => sum + row.total, 0)
-  const otherTotal = Math.max(grandTotal - topSum, 0)
+  const otherTotal = Math.max(cardTotal - topSum, 0)
   return [...rows, { key: 'other', name: `Other (${otherCount})`, total: otherTotal, isOther: true }]
 }
 
 /**
  * Converts a row total into the proportional fill width shown behind the breakdown row
  */
-export function getBreakdownRowFillPercent(rowTotal: number, grandTotal: number): number {
-  const totalAbs = Math.abs(grandTotal)
+export function getBreakdownRowFillPercent(rowTotal: number, cardTotal: number): number {
+  const totalAbs = Math.abs(cardTotal)
   return totalAbs > 0 ? Math.max((Math.abs(rowTotal) / totalAbs) * 100, 4) : 0
 }
 

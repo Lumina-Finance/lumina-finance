@@ -20,7 +20,7 @@ type SpendingBreakdownCardProps = {
   range: SpendingRange
   onRangeChange: (range: SpendingRange) => void
   rows: BreakdownRow[]
-  grandTotal: number
+  cardTotal: number
   currency: string
   emptyLabel: string
   loading: boolean
@@ -36,7 +36,7 @@ export function SpendingBreakdownCard({
   range,
   onRangeChange,
   rows,
-  grandTotal,
+  cardTotal,
   currency,
   emptyLabel,
   loading,
@@ -45,10 +45,10 @@ export function SpendingBreakdownCard({
   const { formatCurrency } = useMoneyFormatters()
   const incomingSnapshot = useMemo<BreakdownSnapshot>(() => ({
     rows,
-    grandTotal,
+    cardTotal,
     currency,
     emptyLabel,
-  }), [currency, emptyLabel, grandTotal, rows])
+  }), [currency, emptyLabel, cardTotal, rows])
   const {
     displaySnapshot,
     contentConcealed,
@@ -102,7 +102,7 @@ export function SpendingBreakdownCard({
             <>
               <div className="flex flex-col gap-1.5" style={{ minHeight: BREAKDOWN_CARD_LIST_MIN_HEIGHT }}>
                 {displaySnapshot.rows.map((item) => {
-                  const barPct = getBreakdownRowFillPercent(item.total, displaySnapshot.grandTotal)
+                  const barPct = getBreakdownRowFillPercent(item.total, displaySnapshot.cardTotal)
                   const color = item.isOther ? BREAKDOWN_OTHER_COLOR : item.color ?? getDeterministicChartColor(item.key || item.name)
 
                   return (
@@ -146,7 +146,7 @@ export function SpendingBreakdownCard({
                   Total
                 </span>
                 <span className="font-financial font-semibold tabular-nums text-sm">
-                  {formatCurrency(displaySnapshot.grandTotal, displaySnapshot.currency)}
+                  {formatCurrency(displaySnapshot.cardTotal, displaySnapshot.currency)}
                 </span>
               </div>
             </>
