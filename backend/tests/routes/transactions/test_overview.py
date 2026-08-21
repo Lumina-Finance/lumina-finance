@@ -716,6 +716,86 @@ async def test_transactions_overview_outliers_rank_by_each_transactions_own_outf
     assert data["outliers_fx_status"] == {"state": "none", "missing_pairs": []}
 
 
+async def test_transactions_overview_outliers_break_amount_ties_by_recency(client):
+    """Equal outflows resolve to the most recent, so the panel holds still across reloads."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+
+    # Seeded oldest first, which is the order an unfixed query hands back
+    tied_dates = [date(2026, 3, 12), date(2026, 3, 13), date(2026, 3, 14), date(2026, 3, 15)]
+    for tied_date in tied_dates:
+        await _create_transaction(
+            client, headers, account_id, category_id,
+            dt=tied_date.isoformat(), amount=-10_000,
+        )
+
+    resp = await client.get("/transactions/overview", headers=headers)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert [row["dt"] for row in data["outliers"]] == ["2026-03-15", "2026-03-14", "2026-03-13"]
+
+
+async def test_transactions_overview_outliers_break_same_day_ties_by_id(client):
+    """Outflows tied on amount and date resolve by identifier, so repeated requests agree."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+
+    for _ in range(3):
+        await _create_transaction(
+            client, headers, account_id, category_id,
+            dt="2026-03-15", amount=-10_000,
+        )
+
+    first = await client.get("/transactions/overview", headers=headers)
+    second = await client.get("/transactions/overview", headers=headers)
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    shown_ids = [row["id"] for row in first.json()["outliers"]]
+
+    # Pins the rule rather than catching the old code, which identifiers being random leaves
+    # free to agree with this by chance
+    assert shown_ids == sorted(shown_ids)
+    assert [row["id"] for row in second.json()["outliers"]] == shown_ids
+
+
+async def test_transactions_overview_outliers_break_converted_ties_by_recency(client, monkeypatch):
+    """Two currencies landing on one converted outflow still resolve to the most recent."""
+    from app.services.fx import FrankfurterProvider
+
+    async def fake_get_rates(self, base, quote, start_date, end_date):
+        return {date(2026, 3, 14): Decimal("1.5"), date(2026, 3, 15): Decimal("1.5")}
+
+    monkeypatch.setattr(FrankfurterProvider, "get_rates", fake_get_rates)
+
+    await _seed_usd_currency()
+    headers, cad_account_id, category_id = await _setup_user_with_deps(client)
+    usd_account_id = (await _create_account(
+        client,
+        headers,
+        name="USD Chequing",
+        currency="USD",
+    )).json()["id"]
+
+    # -6,000 USD converts to -9,000 CAD, the same outflow as the CAD row, on a later date
+    cad_txn = await _create_transaction(
+        client, headers, cad_account_id, category_id,
+        dt="2026-03-14", amount=-9_000,
+    )
+    usd_txn = await _create_transaction(
+        client, headers, usd_account_id, category_id,
+        dt="2026-03-15", amount=-6_000, currency="USD",
+    )
+
+    resp = await client.get("/transactions/overview", headers=headers)
+
+    assert resp.status_code == 200
+    data = resp.json()
+
+    # Ordering on stored amounts would put the CAD row first, since -9,000 sorts below -6,000
+    assert [row["id"] for row in data["outliers"]] == [usd_txn.json()["id"], cad_txn.json()["id"]]
+    assert data["outliers_fx_status"] == {"state": "complete", "missing_pairs": []}
+
+
 async def test_transactions_overview_outliers_convert_and_rank_foreign_accounts(client, monkeypatch):
     """Most expensive transactions are ranked by converted base-currency amount."""
     from app.services.fx import FrankfurterProvider
