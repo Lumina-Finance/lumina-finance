@@ -6,6 +6,7 @@ import sys
 
 from cryptography.fernet import Fernet, InvalidToken
 from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 
 from app import encryption
@@ -26,6 +27,18 @@ async def _table_exists(connection: AsyncConnection, table: str) -> bool:
     """Whether a public table is present in the database"""
     qualified = await connection.scalar(text("SELECT to_regclass(:qualified)"), {"qualified": f"public.{table}"})
     return qualified is not None
+
+
+async def fingerprint_table_exists(connection: AsyncConnection) -> bool:
+    """Whether the key record table has been created by a migration yet
+
+    Args:
+        connection: Open connection to the application database
+
+    Returns:
+        Whether the table is present
+    """
+    return await _table_exists(connection, _FINGERPRINT_TABLE)
 
 
 async def read_fingerprint(connection: AsyncConnection) -> str | None:
@@ -148,14 +161,29 @@ async def ensure_key(connection: AsyncConnection) -> None:
 
     # A schema that exists means this is not a first install, so anything encrypted under
     # the missing key would be lost behind a freshly generated one
-    if await _table_exists(connection, _MIGRATION_TABLE) and (
-        await read_fingerprint(connection) is not None or await read_stored_secret(connection) is not None
-    ):
-        raise RuntimeError(
-            f"No application encryption key, but this database already holds secrets "
-            f"encrypted under one. Set {encryption.KEY_ENV_VAR} to that key. Generating "
-            f"one here would leave every stored secret unreadable with nothing reporting it"
-        )
+    if await _table_exists(connection, _MIGRATION_TABLE):
+        try:
+            already_encrypted = (
+                await read_fingerprint(connection) is not None or await read_stored_secret(connection) is not None
+            )
+        except SQLAlchemyError as error:
+
+            # This step runs as the admin role, which owns none of the tables it reads here,
+            # so a deployment whose admin role is not a superuser cannot see them. Refusing
+            # is the safe answer: minting a key is what destroys data, and proving the
+            # database empty is what would justify it
+            raise RuntimeError(
+                f"No application encryption key, and this database could not be checked for "
+                f"existing secrets ({error}). Set {encryption.KEY_ENV_VAR} rather than having "
+                f"one generated here"
+            ) from error
+
+        if already_encrypted:
+            raise RuntimeError(
+                f"No application encryption key, but this database already holds secrets "
+                f"encrypted under one. Set {encryption.KEY_ENV_VAR} to that key. Generating "
+                f"one here would leave every stored secret unreadable with nothing reporting it"
+            )
 
     encryption.resolve_encryption_key(generate=True)
     print(f"Generated application encryption key at {encryption.KEY_FILE}", file=sys.stderr)

@@ -222,8 +222,24 @@ async def test_rotation_finishes_an_interrupted_run(current_key, key_file):
 
     rewritten = await rotate_encryption_key(engine, new_key)
 
-    assert rewritten == {}
+    assert rewritten is None
     assert not key_file.exists()
+    assert await _read_stored("totp_credentials", "secret_encrypted") == stored_before
+
+
+async def test_rotation_refuses_a_key_that_only_differs_by_whitespace(current_key, key_file, monkeypatch):
+    """The same key with a trailing newline is the same key, so rotating onto it is refused
+
+    An env file or a mounted secret supplies the key that way, and the newline decodes to
+    the same bytes, so accepting it would re-encrypt everything under the key already in use
+    """
+    await _store_secrets(current_key)
+    monkeypatch.setenv(encryption.KEY_ENV_VAR, f"{current_key}\n")
+    stored_before = await _read_stored("totp_credentials", "secret_encrypted")
+
+    with pytest.raises(RotationError, match="already in use"):
+        await rotate_encryption_key(engine, current_key)
+
     assert await _read_stored("totp_credentials", "secret_encrypted") == stored_before
 
 

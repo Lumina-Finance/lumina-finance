@@ -9,7 +9,13 @@ from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, create_async_en
 
 from app import encryption
 from app.config.database import APP_DB_USER, migration_database_url
-from app.db.encryption_key import decrypts, read_fingerprint, read_stored_secret, record_fingerprint
+from app.db.encryption_key import (
+    decrypts,
+    fingerprint_table_exists,
+    read_fingerprint,
+    read_stored_secret,
+    record_fingerprint,
+)
 from app.models import import_all_models
 from app.models.base import Base
 from app.models.types import find_encrypted_columns
@@ -121,7 +127,7 @@ def _check_replacement_key(new_key: str, current_key: str) -> Fernet:
     return replacement
 
 
-async def rotate_encryption_key(engine: AsyncEngine, new_key: str) -> dict[tuple[str, str], int]:
+async def rotate_encryption_key(engine: AsyncEngine, new_key: str) -> dict[tuple[str, str], int] | None:
     """Re-encrypt every stored secret under a new key, in one transaction
 
     Args:
@@ -129,8 +135,9 @@ async def rotate_encryption_key(engine: AsyncEngine, new_key: str) -> dict[tuple
         new_key: The url-safe base64 Fernet key to re-encrypt under
 
     Returns:
-        How many rows were rewritten, keyed by table and column name. An empty mapping
-        means the rotation had already been applied and only the stale key file was cleared
+        How many rows were rewritten, keyed by table and column name, or None when the
+        rotation had already been applied and only the stale key file was cleared. A
+        rotation over empty tables returns a count of zero for each rather than None
 
     Raises:
         RotationError: The rotation was refused, with nothing written
@@ -145,6 +152,14 @@ async def rotate_encryption_key(engine: AsyncEngine, new_key: str) -> dict[tuple
     async with engine.connect() as connection:
         await _refuse_while_the_app_is_running(connection)
 
+        # Checked here rather than at the write, where a missing table would abort the
+        # transaction with a bare database error after every row had been re-encrypted
+        if not await fingerprint_table_exists(connection):
+            raise RotationError(
+                "Refusing to rotate: this database has no encryption key record. Start the app "
+                "once so the migrations run, then rotate"
+            )
+
         stored_secret = await read_stored_secret(connection)
         if stored_secret is not None and not decrypts(current_key, stored_secret):
 
@@ -155,7 +170,7 @@ async def rotate_encryption_key(engine: AsyncEngine, new_key: str) -> dict[tuple
                 new_key
             ):
                 _delete_stale_key_file()
-                return {}
+                return None
 
             raise RotationError(
                 f"Refusing to rotate: the key resolved from {encryption.KEY_ENV_VAR} or "
@@ -196,7 +211,7 @@ async def _run_rotation(new_key: str) -> None:
     finally:
         await engine.dispose()
 
-    if not rewritten:
+    if rewritten is None:
         print("The rotation had already been applied. Removed the stale key file", file=sys.stderr)
         return
 
