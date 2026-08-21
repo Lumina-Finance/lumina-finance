@@ -257,7 +257,7 @@ Rotate the key if it has been exposed, or on whatever schedule your own policy s
 4. Rotate, passing the key on standard input:
 
    ```sh
-   docker compose run --rm -T app rotate-app-encryption-key <<< "your-new-key"
+   printf '%s' "your-new-key" | docker compose run --rm -T app rotate-app-encryption-key
    ```
 
    The rotation reports how many rows it rewrote per column. It rewrites every stored secret in one transaction, so a failure leaves the data exactly as it was, and it removes the old key file from the data volume when it succeeds.
