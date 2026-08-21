@@ -3,6 +3,7 @@
 import pytest
 from cryptography.fernet import Fernet
 from sqlalchemy import text
+from sqlalchemy.exc import ProgrammingError
 
 from app import encryption
 from app.db.encryption_key import (
@@ -103,6 +104,44 @@ async def test_ensure_key_generates_a_key_on_a_first_install(key_file, monkeypat
 async def test_ensure_key_refuses_to_mint_over_existing_secrets(key_file, monkeypatch, built_schema):
     """A removed key file on a deployment with data is refused rather than replaced"""
     monkeypatch.delenv(encryption.KEY_ENV_VAR, raising=False)
+
+    async with engine.begin() as connection:
+        await _store_totp_secret(connection, generate_encryption_key())
+
+        with pytest.raises(RuntimeError, match="already holds secrets"):
+            await ensure_key(connection)
+
+    assert not key_file.exists()
+
+
+async def test_ensure_key_refuses_when_the_database_cannot_be_checked(key_file, monkeypatch, built_schema):
+    """A read the admin role is not allowed to make refuses rather than minting a key
+
+    The check runs as the admin role, which owns none of the tables it reads, so a
+    deployment whose admin role is not a superuser gets an error rather than an answer.
+    Minting is the destructive act, so an unanswerable check has to refuse
+    """
+    monkeypatch.delenv(encryption.KEY_ENV_VAR, raising=False)
+
+    async def refuse_the_read(_connection):
+        raise ProgrammingError("SELECT secret_encrypted FROM totp_credentials", {}, Exception("permission denied"))
+
+    monkeypatch.setattr("app.db.encryption_key.read_stored_secret", refuse_the_read)
+
+    async with engine.begin() as connection:
+        with pytest.raises(RuntimeError, match="could not be checked"):
+            await ensure_key(connection)
+
+    assert not key_file.exists()
+
+
+async def test_ensure_key_treats_a_whitespace_only_variable_as_unset(key_file, monkeypatch, built_schema):
+    """A blank value from an empty mounted secret must not count as a configured key
+
+    Reading the variable raw here while the resolver strips it would take the already
+    configured path, mint a key anyway, and skip the guard against minting over data
+    """
+    monkeypatch.setenv(encryption.KEY_ENV_VAR, "\n")
 
     async with engine.begin() as connection:
         await _store_totp_secret(connection, generate_encryption_key())

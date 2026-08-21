@@ -38,6 +38,22 @@ def key_fingerprint(key: str) -> str:
     return hashlib.sha256(key.encode()).hexdigest()
 
 
+def read_configured_key() -> str | None:
+    """Return the key configured through the environment, or None when none is set
+
+    Every caller asking whether a key is configured goes through this, so an all-whitespace
+    value counts as unset everywhere rather than as a key in one place and not in another.
+    A key carrying a trailing newline, which is what an env file or a mounted secret
+    produces, decodes to the same 32 bytes and decrypts everything, but compares unequal to
+    the same key without it, which would fail the fingerprint check and defeat the
+    rotation's refusal to rotate onto the key already in use
+
+    Returns:
+        The configured key with surrounding whitespace removed, or None
+    """
+    return os.getenv(KEY_ENV_VAR, "").strip() or None
+
+
 def resolve_encryption_key(*, generate: bool) -> str:
     """Return the application symmetric encryption key
 
@@ -54,13 +70,7 @@ def resolve_encryption_key(*, generate: bool) -> str:
         RuntimeError: The configured and persisted keys conflict, or no key is configured
             or persisted and generation is not allowed
     """
-    # Both sources are stripped so one key has one spelling everywhere. A key carrying a
-    # trailing newline, which is what an env file or a mounted secret produces, decodes to
-    # the same 32 bytes and decrypts everything, but compares unequal to the same key
-    # without it, which would fail the fingerprint check and defeat the rotation's
-    # refusal to rotate onto the key already in use
-    configured = os.getenv(KEY_ENV_VAR)
-    configured_key = configured.strip() if configured else None
+    configured_key = read_configured_key()
     persisted_key = KEY_FILE.read_text().strip() if KEY_FILE.exists() else None
 
     # A configured key that differs from the persisted one would silently win and every

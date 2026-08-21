@@ -1,7 +1,6 @@
 """Provision the encryption key and bind it to the data it protects"""
 
 import asyncio
-import os
 import sys
 
 from cryptography.fernet import Fernet, InvalidToken
@@ -16,29 +15,17 @@ from app.models.base import Base
 from app.models.encryption_key import SINGLETON_ID
 from app.models.types import find_encrypted_columns
 
-_FINGERPRINT_TABLE = "encryption_key_fingerprint"
+FINGERPRINT_TABLE = "encryption_key_fingerprint"
 
 # Present once the schema has been built, so its absence is what distinguishes a first
 # install from a deployment whose key file was removed
 _MIGRATION_TABLE = "alembic_version"
 
 
-async def _table_exists(connection: AsyncConnection, table: str) -> bool:
+async def table_exists(connection: AsyncConnection, table: str) -> bool:
     """Whether a public table is present in the database"""
     qualified = await connection.scalar(text("SELECT to_regclass(:qualified)"), {"qualified": f"public.{table}"})
     return qualified is not None
-
-
-async def fingerprint_table_exists(connection: AsyncConnection) -> bool:
-    """Whether the key record table has been created by a migration yet
-
-    Args:
-        connection: Open connection to the application database
-
-    Returns:
-        Whether the table is present
-    """
-    return await _table_exists(connection, _FINGERPRINT_TABLE)
 
 
 async def read_fingerprint(connection: AsyncConnection) -> str | None:
@@ -50,12 +37,12 @@ async def read_fingerprint(connection: AsyncConnection) -> str | None:
     Returns:
         The recorded SHA-256 hex digest, or None when the table or the row is absent
     """
-    if not await _table_exists(connection, _FINGERPRINT_TABLE):
+    if not await table_exists(connection, FINGERPRINT_TABLE):
         return None
 
     # Read the single row stating which key this database's secrets are under
     return await connection.scalar(
-        text(f"SELECT fingerprint FROM public.{_FINGERPRINT_TABLE} WHERE id = :id"),
+        text(f"SELECT fingerprint FROM public.{FINGERPRINT_TABLE} WHERE id = :id"),
         {"id": SINGLETON_ID},
     )
 
@@ -70,7 +57,7 @@ async def record_fingerprint(connection: AsyncConnection, key: str) -> None:
     # Upsert the single row, so recording after a rotation replaces the previous key
     await connection.execute(
         text(
-            f"INSERT INTO public.{_FINGERPRINT_TABLE} (id, fingerprint) VALUES (:id, :fingerprint) "
+            f"INSERT INTO public.{FINGERPRINT_TABLE} (id, fingerprint) VALUES (:id, :fingerprint) "
             f"ON CONFLICT (id) DO UPDATE SET fingerprint = EXCLUDED.fingerprint, updated_at = now()"
         ),
         {"id": SINGLETON_ID, "fingerprint": encryption.key_fingerprint(key)},
@@ -88,7 +75,7 @@ async def read_stored_secret(connection: AsyncConnection) -> str | None:
     """
     import_all_models()
     for table, column in find_encrypted_columns(Base.metadata):
-        if not await _table_exists(connection, table):
+        if not await table_exists(connection, table):
             continue
 
         # Table and column come from the model metadata rather than any caller, so they are
@@ -152,16 +139,17 @@ async def ensure_key(connection: AsyncConnection) -> None:
         connection: Open connection used to check whether anything is already encrypted
 
     Raises:
-        RuntimeError: No key is available and this database already holds encrypted secrets
+        RuntimeError: No key is available and this database either already holds encrypted
+            secrets or could not be checked for them
     """
-    if bool(os.getenv(encryption.KEY_ENV_VAR)) or encryption.KEY_FILE.exists():
+    if encryption.read_configured_key() is not None or encryption.KEY_FILE.exists():
         encryption.resolve_encryption_key(generate=True)
         print("Application encryption key already configured", file=sys.stderr)
         return
 
     # A schema that exists means this is not a first install, so anything encrypted under
     # the missing key would be lost behind a freshly generated one
-    if await _table_exists(connection, _MIGRATION_TABLE):
+    if await table_exists(connection, _MIGRATION_TABLE):
         try:
             already_encrypted = (
                 await read_fingerprint(connection) is not None or await read_stored_secret(connection) is not None
@@ -200,8 +188,8 @@ async def verify_fingerprint(connection: AsyncConnection) -> None:
             matches the record nor reads the stored secrets
     """
     key = encryption.resolve_encryption_key(generate=False)
-    if not await _table_exists(connection, _FINGERPRINT_TABLE):
-        raise RuntimeError(f"No {_FINGERPRINT_TABLE} table. Run the migrations before verifying the key")
+    if not await table_exists(connection, FINGERPRINT_TABLE):
+        raise RuntimeError(f"No {FINGERPRINT_TABLE} table. Run the migrations before verifying the key")
 
     if await read_fingerprint(connection) is not None:
         await verify_key_matches_data(connection)
