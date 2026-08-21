@@ -11,7 +11,7 @@ import {
 } from '@/pages/accounts/detail/utils/spendingBreakdownViewModel'
 
 describe('spending breakdown view model helpers', () => {
-  it('adds an Other row using the remaining grand total', () => {
+  it('adds an Other row from what the card total leaves over', () => {
     expect(appendOtherBreakdownRow([
       { key: 'groceries', name: 'Groceries', total: 6_000, isOther: false },
       { key: 'travel', name: 'Travel', total: 3_000, isOther: false },

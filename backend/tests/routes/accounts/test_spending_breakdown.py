@@ -273,7 +273,7 @@ async def test_ytd_includes_transactions_since_january_first_and_excludes_earlie
 
 
 async def test_transfer_and_income_transactions_do_not_contribute(client):
-    """Transfer- and income-kind transactions are excluded from both breakdowns and the grand total."""
+    """Transfer- and income-kind transactions are excluded from both breakdowns and both totals."""
     headers, account_id = await _setup_account(client)
 
     expense_cat = (await _create_category(client, headers, name="Test Groceries", kind="expense")).json()
@@ -679,7 +679,7 @@ async def test_both_cards_are_empty_when_everything_is_refunded_past_zero(client
     assert resp.status_code == 200
     data = resp.json()
 
-    # Transactions exist, so this reaches the guard rather than the no-activity path
+    # Both totals come out zero while transactions exist, which is the case the guard turns on
     assert data["top_categories"] == []
     assert data["top_merchants"] == []
     assert data["categories_total_spend"] == 0
@@ -795,8 +795,8 @@ async def test_hidden_merchant_count_excludes_over_refunded_merchants(client):
     # Eight merchants still net spending, so three sit behind the visible five
     assert data["other_merchants_count"] == 3
 
-    # The merchant total covers the hidden three, while the category total also keeps the 8.00 the
-    # two refunded merchants left behind in a category that still nets spending
+    # The merchant total covers the hidden three. The category total lands 8.00 below it, because
+    # the two refunded merchants leave their refunds inside a category that still nets spending
     assert data["merchants_total_spend"] == 36_000
     assert data["categories_total_spend"] == 35_200
 
