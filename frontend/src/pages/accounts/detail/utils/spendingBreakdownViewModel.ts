@@ -50,12 +50,16 @@ export function getBreakdownRowFillPercent(rowTotal: number, grandTotal: number)
 
 /**
  * Projects a backend breakdown payload into rows and optional Other row
+ *
+ * Each card carries its own total, so the caller says which one its rows belong to. Handing the
+ * other card's total here would size the Other row against spending these rows never held
  */
 export function getBreakdownRows(
   data: AccountSpendingBreakdown | undefined,
   toRows: (breakdown: AccountSpendingBreakdown) => BreakdownRow[],
   otherCount: (breakdown: AccountSpendingBreakdown) => number,
+  cardTotal: (breakdown: AccountSpendingBreakdown) => number,
 ): BreakdownRow[] {
   if (!data) return []
-  return appendOtherBreakdownRow(toRows(data), otherCount(data), data.grand_total_spend)
+  return appendOtherBreakdownRow(toRows(data), otherCount(data), cardTotal(data))
 }

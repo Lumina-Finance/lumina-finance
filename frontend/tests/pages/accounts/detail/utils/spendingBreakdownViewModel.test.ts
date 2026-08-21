@@ -35,7 +35,8 @@ describe('spending breakdown view model helpers', () => {
         { category_id: 'food', name: 'Food', total: 7_000 },
       ],
       top_merchants: [],
-      grand_total_spend: 10_000,
+      categories_total_spend: 10_000,
+      merchants_total_spend: 0,
       other_categories_count: 2,
       other_merchants_count: 0,
     }
@@ -49,6 +50,7 @@ describe('spending breakdown view model helpers', () => {
         isOther: false,
       })),
       (breakdown) => breakdown.other_categories_count,
+      (breakdown) => breakdown.categories_total_spend,
     )).toEqual([
       { key: 'food', name: 'Food', total: 7_000, isOther: false },
       { key: 'other', name: 'Other (2)', total: 3_000, isOther: true },

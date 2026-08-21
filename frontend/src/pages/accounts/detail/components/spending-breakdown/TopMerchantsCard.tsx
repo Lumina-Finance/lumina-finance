@@ -45,6 +45,7 @@ export function TopMerchantsBySpendingCard({ account }: { account: Account }) {
       }
     }),
     (breakdown) => breakdown.other_merchants_count,
+    (breakdown) => breakdown.merchants_total_spend,
   )
 
   return (
@@ -54,7 +55,7 @@ export function TopMerchantsBySpendingCard({ account }: { account: Account }) {
       range={range}
       onRangeChange={handleRangeChange}
       rows={rows}
-      grandTotal={data?.grand_total_spend ?? 0}
+      grandTotal={data?.merchants_total_spend ?? 0}
       currency={account.currency}
       emptyLabel="No merchant activity in this range"
       loading={isFetching}

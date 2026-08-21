@@ -137,7 +137,12 @@ export interface AccountSpendingBreakdown {
   range: SpendingRange;
   top_categories: AccountTopCategory[];
   top_merchants: AccountTopMerchant[];
-  grand_total_spend: number;
+
+  /** Spending across every category the card lists, hidden ones included */
+  categories_total_spend: number;
+
+  /** Spending across every merchant the card lists, which excludes spending carrying no merchant */
+  merchants_total_spend: number;
   other_categories_count: number;
   other_merchants_count: number;
 }
