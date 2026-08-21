@@ -1134,6 +1134,53 @@ async def test_group_member_with_explicit_read_permission_succeeds(client):
     assert resp.status_code == 200
 
 
+async def test_merchant_total_leaves_out_a_merchant_the_viewer_cannot_see(client):
+    """A merchant hidden from the viewer reaches neither the merchant rows nor the total above them.
+
+    The category is a seeded system one so it stays visible to both users, which leaves the
+    merchant as the only thing the member cannot see
+    """
+    signup_resp = await _create_user(client)
+    admin_headers = _get_auth_header(signup_resp)
+
+    group_id = await _create_group(client, admin_headers)
+    account_id = (await _create_account(client, admin_headers, group_id=group_id)).json()["id"]
+    categories = (await client.get("/categories", headers=admin_headers)).json()
+    shared_category = next(c for c in categories if c["is_system"] and c["kind"] == "expense")
+
+    # A merchant the admin owns personally, which row-level security keeps from the member
+    private_merchant = (await _create_merchant(client, admin_headers, name="Private Diner")).json()
+    create_resp = await _create_transaction(
+        client, admin_headers, account_id, shared_category["id"],
+        dt=_today_utc().isoformat(), amount=-5_000, merchant_id=private_merchant["id"],
+    )
+    assert create_resp.status_code == 201
+
+    member_headers, member_user_id = await _create_second_user(client)
+    await client.post(
+        f"/groups/{group_id}/members",
+        json={"user_id": member_user_id},
+        headers=admin_headers,
+    )
+    await _grant_account_permission(client, admin_headers, account_id, member_user_id, "read")
+
+    resp = await client.get(
+        f"/accounts/{account_id}/spending-breakdown",
+        params={"range": "MTD"},
+        headers=member_headers,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+
+    # The category is visible, so the spending reaches that card and its total
+    assert data["categories_total_spend"] == 5_000
+
+    # The merchant is not, so no merchant total may stand above an empty merchant card
+    assert data["top_merchants"] == []
+    assert data["other_merchants_count"] == 0
+    assert data["merchants_total_spend"] == 0
+
+
 async def test_closed_account_still_returns_breakdown(client):
     """Closed accounts remain readable — the handler does not require require_open."""
     headers, account_id = await _setup_account(client)

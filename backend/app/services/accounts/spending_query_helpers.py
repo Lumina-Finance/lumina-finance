@@ -34,18 +34,20 @@ async def get_account_merchants_total_spend(db: AsyncSession, expense_predicate)
     Returns:
         Positive total spending in minor units
     """
+    # Reaching merchants through the same join the card's rows use, rather than through the
+    # transaction column, keeps one set behind the rows, the hidden count and this total. The join
+    # drops spending that carries no merchant, and it is what puts row-level security on merchants
+    # in front of this query, so a merchant the viewer cannot see cannot reach the figure above
+    # rows they were never shown
     return await _get_grouped_total_spend(
         db,
         expense_predicate,
         Transaction.merchant_id,
-
-        # The merchant card reaches its rows through an inner join, so spending on a transaction
-        # carrying no merchant belongs to no row and must stay out of the total above them
-        Transaction.merchant_id.is_not(None),
+        (Merchant, Transaction.merchant_id == Merchant.id),
     )
 
 
-async def _get_grouped_total_spend(db: AsyncSession, expense_predicate, group_by, *extra_filters) -> int:
+async def _get_grouped_total_spend(db: AsyncSession, expense_predicate, group_by, *extra_joins) -> int:
     """Return total spending across the groups that still net spending
 
     A card's total is the sum of the entries it lists, hidden ones included, so each card totals
@@ -56,16 +58,19 @@ async def _get_grouped_total_spend(db: AsyncSession, expense_predicate, group_by
         db: Active database session
         expense_predicate: SQLAlchemy predicate for expense transactions
         group_by: Column the card groups its rows by
-        extra_filters: Further predicates narrowing the rows the card can reach
+        extra_joins: Further (model, condition) pairs the card's own rows join through
 
     Returns:
         Positive total spending in minor units
     """
     group_total = func.sum(Transaction.amount)
+    grouped_spend = select(group_total.label("total")).join(Category, Transaction.category_id == Category.id)
+    for model, condition in extra_joins:
+        grouped_spend = grouped_spend.join(model, condition)
+
     spending_groups = (
-        select(group_total.label("total"))
-        .join(Category, Transaction.category_id == Category.id)
-        .where(expense_predicate, *extra_filters)
+        grouped_spend
+        .where(expense_predicate)
         .group_by(group_by)
         .having(group_total < 0)
         .subquery()
@@ -200,8 +205,9 @@ async def _count_hidden_merchants(db: AsyncSession, expense_predicate, merchant_
     spending_merchants = (
         select(Transaction.merchant_id)
         .join(Category, Transaction.category_id == Category.id)
-        .where(expense_predicate, Transaction.merchant_id.is_not(None))
+        .join(Merchant, Transaction.merchant_id == Merchant.id)
         .group_by(Transaction.merchant_id)
+        .where(expense_predicate)
         .having(func.sum(Transaction.amount) < 0)
         .subquery()
     )
