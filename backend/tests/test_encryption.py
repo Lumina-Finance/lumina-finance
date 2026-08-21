@@ -73,6 +73,27 @@ def test_resolve_returns_the_key_when_configured_and_persisted_keys_match(key_fi
     assert resolve_encryption_key(generate=False) == key
 
 
+def test_resolve_strips_whitespace_around_a_configured_key(key_file, monkeypatch):
+    """An env file or a mounted secret adds a trailing newline, which must not change the key
+
+    The newline decodes to the same 32 bytes, so every stored secret still reads, but the
+    key would compare unequal to itself and fail the fingerprint check
+    """
+    key = generate_encryption_key()
+    monkeypatch.setenv("APP_ENCRYPTION_KEY", f"{key}\n")
+
+    assert resolve_encryption_key(generate=False) == key
+
+
+def test_a_configured_key_with_whitespace_is_not_a_conflict(key_file, monkeypatch):
+    """The same key through both sources stays one key when one copy carries a newline"""
+    key = generate_encryption_key()
+    key_file.write_text(key)
+    monkeypatch.setenv("APP_ENCRYPTION_KEY", f"  {key}\n")
+
+    assert resolve_encryption_key(generate=False) == key
+
+
 def test_resolve_returns_the_persisted_key_without_a_configured_key(key_file, monkeypatch):
     """The persisted key resolves on its own when the environment variable is absent"""
     key = generate_encryption_key()
