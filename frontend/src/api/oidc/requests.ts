@@ -40,7 +40,9 @@ async function requestOidc<T>(path: string, options: RequestInit = {}): Promise<
       throw new OidcEmailConflictError(detail.email);
     }
     const message = typeof detail === 'string' ? detail : `Request failed (${response.status})`;
-    throw new ApiError(message, response.status);
+    throw new ApiError(message, response.status, {
+      detail: typeof detail === 'string' ? detail : undefined,
+    });
   }
 
   return response.json() as Promise<T>;
