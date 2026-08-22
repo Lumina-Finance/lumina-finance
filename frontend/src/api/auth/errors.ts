@@ -20,6 +20,9 @@ export class ApiError extends Error {
 
   constructor(message: string, status: number, options: ApiErrorOptions = {}) {
     super(message);
+    // Without this the class inherits the plain Error name, so a copied bug report cannot tell a
+    // request the server refused from a render that threw
+    this.name = 'ApiError';
     this.status = status;
     this.attemptsRemaining = options.attemptsRemaining;
     this.detail = options.detail;
