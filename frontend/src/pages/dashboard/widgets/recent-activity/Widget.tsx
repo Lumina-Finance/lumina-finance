@@ -11,8 +11,18 @@ import { getRecentActivityRows } from '@/pages/dashboard/utils/getRecentActivity
  * Loads recent transactions and category metadata for the dashboard activity list
  */
 export function RecentActivityWidget() {
-  const { data: incomingDashboardRecentActivity, isFetching: recentActivityLoading } = useDashboardRecentActivity()
-  const { data: incomingCategories, isFetching: categoriesLoading } = useCategories()
+  const {
+    data: incomingDashboardRecentActivity,
+    error: recentActivityError,
+    isError: recentActivityFailed,
+    isFetching: recentActivityLoading,
+  } = useDashboardRecentActivity()
+  const {
+    data: incomingCategories,
+    error: categoriesError,
+    isError: categoriesFailed,
+    isFetching: categoriesLoading,
+  } = useCategories()
   const loadingSnapshot = useMemo(
     () => ({
       categories: incomingCategories,
@@ -37,11 +47,15 @@ export function RecentActivityWidget() {
   )
 
   return (
-    <div className="app-card h-[410px] flex flex-col">
+    <div className="app-card min-h-[410px] flex flex-col">
       <RecentActivityHeader />
 
       <DashboardWidgetLoadingBody
         contentConcealed={contentConcealed}
+        error={recentActivityError ?? categoriesError}
+        failed={recentActivityFailed || categoriesFailed}
+        hasContent={dashboardRecentActivity !== undefined}
+        subject="Recent activity"
         loadingVisible={loadingVisible}
         shouldReduceMotion={shouldReduceMotion}
         label="Loading recent activity"

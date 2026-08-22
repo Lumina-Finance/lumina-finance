@@ -11,7 +11,12 @@ import { getTopBudgets } from '@/pages/dashboard/utils/getTopBudgets'
  * Loads recent budget utilization data and composes the dashboard top budgets list
  */
 export function TopBudgetsWidget() {
-  const { data: incomingLatestBudgetUtilizations, isFetching: loading } = useLatestBudgetUtilizations()
+  const {
+    data: incomingLatestBudgetUtilizations,
+    error: budgetsError,
+    isError: budgetsFailed,
+    isFetching: loading,
+  } = useLatestBudgetUtilizations()
   const loadingSnapshot = useMemo(
     () => ({ latestBudgetUtilizations: incomingLatestBudgetUtilizations }),
     [incomingLatestBudgetUtilizations],
@@ -37,11 +42,15 @@ export function TopBudgetsWidget() {
   )
 
   return (
-    <div className="app-card h-[410px] flex flex-col">
+    <div className="app-card min-h-[410px] flex flex-col">
       <TopBudgetsHeader fxStatus={fxStatus} />
 
       <DashboardWidgetLoadingBody
         contentConcealed={contentConcealed}
+        error={budgetsError}
+        failed={budgetsFailed}
+        hasContent={latestBudgetUtilizations !== undefined}
+        subject="Top budgets"
         loadingVisible={loadingVisible}
         shouldReduceMotion={shouldReduceMotion}
         label="Loading top budgets"

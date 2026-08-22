@@ -17,7 +17,12 @@ type CreditWidgetProps = {
  * Loads credit utilization data and composes the active mode, header, progress ring, and amount
  */
 export function CreditWidget({ displayCurrency }: CreditWidgetProps) {
-  const { data: incomingDashboardCredit, isFetching: dashboardCreditLoading } = useDashboardCredit()
+  const {
+    data: incomingDashboardCredit,
+    error: creditError,
+    isError: creditFailed,
+    isFetching: dashboardCreditLoading,
+  } = useDashboardCredit()
   const [creditMode, setCreditMode] = useState<CreditMode>('used')
   const loadingSnapshot = useMemo(
     () => ({ dashboardCredit: incomingDashboardCredit }),
@@ -38,7 +43,7 @@ export function CreditWidget({ displayCurrency }: CreditWidgetProps) {
   const creditSummary = getCreditUsageSummary(dashboardCredit, creditMode)
 
   return (
-    <div className="app-card h-[14rem] flex flex-col">
+    <div className="app-card min-h-[14rem] flex flex-col">
       <CreditHeader
         creditMode={creditMode}
         hasCredit={creditSummary.hasCredit}
@@ -50,6 +55,10 @@ export function CreditWidget({ displayCurrency }: CreditWidgetProps) {
 
       <DashboardWidgetLoadingBody
         contentConcealed={contentConcealed}
+        error={creditError}
+        failed={creditFailed}
+        hasContent={dashboardCredit !== undefined}
+        subject="Credit usage"
         loadingVisible={loadingVisible}
         shouldReduceMotion={shouldReduceMotion}
         label="Loading credit"
