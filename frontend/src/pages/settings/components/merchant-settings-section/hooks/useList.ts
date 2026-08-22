@@ -20,9 +20,11 @@ import {
 export function useMerchantSettingsList(locallyDeletedMerchantIds: string[]) {
   const {
     activeSearch,
+    error,
     handleListMoreClick,
     handleListScroll,
     hasMore,
+    isError,
     listRef,
     search,
     setActiveSearch,
@@ -68,6 +70,8 @@ export function useMerchantSettingsList(locallyDeletedMerchantIds: string[]) {
     showInitialMerchantLoading: showInitialLoading,
     showMerchantListEnd: showListEnd,
     showMerchantListMoreIndicator: showListMoreIndicator,
+    merchantListError: error,
+    merchantListFailed: isError,
     merchantListRef: listRef,
     visibleMerchants,
   }

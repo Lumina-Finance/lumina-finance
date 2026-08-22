@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState, type RefObject, type UIEvent } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import type { Tag } from '@/api/tags'
+import LoadFailure from '@/components/errors/LoadFailure'
 import ScrollableListMoreButton from '@/components/list-controls/MoreButton'
 import TagRow from '@/pages/settings/components/tag-settings-section/list/Row'
 import { TAG_LIST_HEIGHT_TRANSITION } from '@/pages/settings/components/tag-settings-section/constants'
@@ -15,6 +16,8 @@ export default function TagSettingsList({
   deletingTagId,
   editingTagId,
   hasMoreTags,
+  listError,
+  listFailed,
   showFetchingMoreTags,
   showInitialTagLoading,
   showTagListEnd,
@@ -35,6 +38,8 @@ export default function TagSettingsList({
   deletingTagId: string | null
   editingTagId: string | null
   hasMoreTags: boolean
+  listError: unknown
+  listFailed: boolean
   showFetchingMoreTags: boolean
   showInitialTagLoading: boolean
   showTagListEnd: boolean
@@ -77,10 +82,14 @@ export default function TagSettingsList({
     }
   }, [])
 
-  const content = visibleTags.length === 0 && !showInitialTagLoading ? (
-    <p className="py-3 text-center text-sm italic" style={{ color: 'var(--app-text-subtle)' }}>
-      {activeSearch.trim() ? 'No tags match your search.' : 'No tags yet.'}
-    </p>
+  // With no rows in hand nothing about the list is known, so the failure takes the place of the
+  // empty text. With rows cached from an earlier session it sits above them and they stay
+  const rows = visibleTags.length === 0 && !showInitialTagLoading ? (
+    listFailed ? null : (
+      <p className="py-3 text-center text-sm italic" style={{ color: 'var(--app-text-subtle)' }}>
+        {activeSearch.trim() ? 'No tags match your search.' : 'No tags yet.'}
+      </p>
+    )
   ) : (
     <div className="relative">
       <div
@@ -163,6 +172,13 @@ export default function TagSettingsList({
         ariaLabel={hasMoreTags ? 'Show more tags' : 'Scroll tags down'}
       />
     </div>
+  )
+
+  const content = (
+    <>
+      {listFailed && <LoadFailure error={listError} subject="Tags" />}
+      {rows}
+    </>
   )
 
   return (

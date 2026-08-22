@@ -3,6 +3,7 @@ import { AnimatePresence, useReducedMotion } from 'motion/react'
 import type { Category } from '@/api/categories'
 import type { Merchant } from '@/api/merchants'
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
+import LoadFailure from '@/components/errors/LoadFailure'
 import ScrollableListMoreButton from '@/components/list-controls/MoreButton'
 import MerchantRow from '@/pages/settings/components/merchant-settings-section/list/Row'
 import MobileMerchantRow from '@/pages/settings/components/merchant-settings-section/list/MobileRow'
@@ -20,6 +21,8 @@ export default function MerchantSettingsList({
   deletingMerchantId,
   editingMerchantId,
   hasMoreMerchants,
+  listError,
+  listFailed,
   merchantListRef,
   shouldScrollMerchants,
   showFetchingMoreMerchants,
@@ -42,6 +45,8 @@ export default function MerchantSettingsList({
   deletingMerchantId: string | null
   editingMerchantId: string | null
   hasMoreMerchants: boolean
+  listError: unknown
+  listFailed: boolean
   merchantListRef: RefObject<HTMLDivElement | null>
   shouldScrollMerchants: boolean
   showFetchingMoreMerchants: boolean
@@ -58,9 +63,12 @@ export default function MerchantSettingsList({
   onListScroll: (event: UIEvent<HTMLDivElement>) => void
 }) {
   const shouldReduceMotion = useReducedMotion()
+  const failure = listFailed ? <LoadFailure error={listError} subject="Merchants" /> : null
 
+  // With no rows in hand nothing about the list is known, so the failure takes the place of the
+  // empty text. With rows cached from an earlier session it sits above them and they stay
   if (visibleMerchants.length === 0 && !showInitialMerchantLoading) {
-    return (
+    return failure ?? (
       <p className="py-3 text-center text-sm italic" style={{ color: 'var(--app-text-subtle)' }}>
         {activeSearch.trim() ? 'No merchants match your search.' : 'No merchants yet.'}
       </p>
@@ -68,86 +76,18 @@ export default function MerchantSettingsList({
   }
 
   return (
-    <div className="relative">
-      <div
-        ref={merchantListRef}
-        className={shouldScrollMerchants ? 'max-h-[35rem] min-w-0 overflow-x-auto overflow-y-auto pr-2' : 'min-w-0 overflow-x-auto'}
-        onScroll={shouldScrollMerchants ? onListScroll : undefined}
-      >
-        <div className="min-[750px]:hidden">
-          <AnimatePresence initial={false}>
-            {visibleMerchants.map((merchant, index) => (
-              <MobileMerchantRow
-                key={merchant.id}
-                categoryById={categoryById}
-                categoryOptions={categoryOptions}
-                confirmingDelete={confirmingDeleteMerchantId === merchant.id}
-                deleting={deletingMerchantId === merchant.id}
-                isEditing={editingMerchantId === merchant.id}
-                isLast={!showMerchantListEnd && !hasMoreMerchants && index === visibleMerchants.length - 1}
-                merchant={merchant}
-                shouldReduceMotion={shouldReduceMotion}
-                onDeleteCancel={onDeleteCancel}
-                onDeleteConfirm={onDeleteConfirm}
-                onDeleteRequest={onDeleteRequest}
-                onEdit={onEdit}
-                onEditCancel={onEditCancel}
-              />
-            ))}
-          </AnimatePresence>
-          {showMerchantListEnd && !showFetchingMoreMerchants && !showInitialMerchantLoading && (
-            <p
-              className="py-4 text-center text-sm italic"
-              style={{ color: 'var(--app-text-subtle)' }}
-            >
-              You've reached the end.
-            </p>
-          )}
-          {showFetchingMoreMerchants && visibleMerchants.length > 0 && (
-            <p
-              className="py-4 text-center text-sm italic"
-              style={{ color: 'var(--app-text-subtle)' }}
-            >
-              Fetching more
-            </p>
-          )}
-        </div>
-
-        <table className="hidden w-full table-auto text-left text-[0.9375rem] min-[750px]:table">
-          <colgroup>
-            <col style={{ width: '1%' }} />
-            <col />
-            <col style={{ width: '7rem' }} />
-          </colgroup>
-          <thead>
-            <tr style={{ color: 'var(--app-text-muted)', borderBottom: '1px solid var(--app-border)' }}>
-              <th
-                scope="col"
-                className={`app-label whitespace-nowrap py-3 pl-4 pr-6 ${shouldScrollMerchants ? 'sticky top-0 z-10' : ''}`}
-                style={{ background: 'var(--app-surface-soft)' }}
-              >
-                Merchant
-              </th>
-              <th
-                scope="col"
-                className={`app-label py-3 pr-4 ${shouldScrollMerchants ? 'sticky top-0 z-10' : ''}`}
-                style={{ background: 'var(--app-surface-soft)' }}
-              >
-                Default category
-              </th>
-              <th
-                scope="col"
-                className={`app-label py-3 pr-4 text-right ${shouldScrollMerchants ? 'sticky top-0 z-10' : ''}`}
-                style={{ background: 'var(--app-surface-soft)' }}
-              >
-                Actions
-              </th>
-            </tr>
-          </thead>
-          <tbody>
+    <>
+      {failure}
+      <div className="relative">
+        <div
+          ref={merchantListRef}
+          className={shouldScrollMerchants ? 'max-h-[35rem] min-w-0 overflow-x-auto overflow-y-auto pr-2' : 'min-w-0 overflow-x-auto'}
+          onScroll={shouldScrollMerchants ? onListScroll : undefined}
+        >
+          <div className="min-[750px]:hidden">
             <AnimatePresence initial={false}>
               {visibleMerchants.map((merchant, index) => (
-                <MerchantRow
+                <MobileMerchantRow
                   key={merchant.id}
                   categoryById={categoryById}
                   categoryOptions={categoryOptions}
@@ -166,37 +106,108 @@ export default function MerchantSettingsList({
               ))}
             </AnimatePresence>
             {showMerchantListEnd && !showFetchingMoreMerchants && !showInitialMerchantLoading && (
-              <tr>
-                <td colSpan={3}>
-                  <p
-                    className="py-4 text-center text-sm italic"
-                    style={{ color: 'var(--app-text-subtle)' }}
-                  >
-                    You've reached the end.
-                  </p>
-                </td>
-              </tr>
+              <p
+                className="py-4 text-center text-sm italic"
+                style={{ color: 'var(--app-text-subtle)' }}
+              >
+                You've reached the end.
+              </p>
             )}
             {showFetchingMoreMerchants && visibleMerchants.length > 0 && (
-              <tr>
-                <td colSpan={3}>
-                  <p
-                    className="py-4 text-center text-sm italic"
-                    style={{ color: 'var(--app-text-subtle)' }}
-                  >
-                    Fetching more
-                  </p>
-                </td>
-              </tr>
+              <p
+                className="py-4 text-center text-sm italic"
+                style={{ color: 'var(--app-text-subtle)' }}
+              >
+                Fetching more
+              </p>
             )}
-          </tbody>
-        </table>
+          </div>
+
+          <table className="hidden w-full table-auto text-left text-[0.9375rem] min-[750px]:table">
+            <colgroup>
+              <col style={{ width: '1%' }} />
+              <col />
+              <col style={{ width: '7rem' }} />
+            </colgroup>
+            <thead>
+              <tr style={{ color: 'var(--app-text-muted)', borderBottom: '1px solid var(--app-border)' }}>
+                <th
+                  scope="col"
+                  className={`app-label whitespace-nowrap py-3 pl-4 pr-6 ${shouldScrollMerchants ? 'sticky top-0 z-10' : ''}`}
+                  style={{ background: 'var(--app-surface-soft)' }}
+                >
+                  Merchant
+                </th>
+                <th
+                  scope="col"
+                  className={`app-label py-3 pr-4 ${shouldScrollMerchants ? 'sticky top-0 z-10' : ''}`}
+                  style={{ background: 'var(--app-surface-soft)' }}
+                >
+                  Default category
+                </th>
+                <th
+                  scope="col"
+                  className={`app-label py-3 pr-4 text-right ${shouldScrollMerchants ? 'sticky top-0 z-10' : ''}`}
+                  style={{ background: 'var(--app-surface-soft)' }}
+                >
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <AnimatePresence initial={false}>
+                {visibleMerchants.map((merchant, index) => (
+                  <MerchantRow
+                    key={merchant.id}
+                    categoryById={categoryById}
+                    categoryOptions={categoryOptions}
+                    confirmingDelete={confirmingDeleteMerchantId === merchant.id}
+                    deleting={deletingMerchantId === merchant.id}
+                    isEditing={editingMerchantId === merchant.id}
+                    isLast={!showMerchantListEnd && !hasMoreMerchants && index === visibleMerchants.length - 1}
+                    merchant={merchant}
+                    shouldReduceMotion={shouldReduceMotion}
+                    onDeleteCancel={onDeleteCancel}
+                    onDeleteConfirm={onDeleteConfirm}
+                    onDeleteRequest={onDeleteRequest}
+                    onEdit={onEdit}
+                    onEditCancel={onEditCancel}
+                  />
+                ))}
+              </AnimatePresence>
+              {showMerchantListEnd && !showFetchingMoreMerchants && !showInitialMerchantLoading && (
+                <tr>
+                  <td colSpan={3}>
+                    <p
+                      className="py-4 text-center text-sm italic"
+                      style={{ color: 'var(--app-text-subtle)' }}
+                    >
+                      You've reached the end.
+                    </p>
+                  </td>
+                </tr>
+              )}
+              {showFetchingMoreMerchants && visibleMerchants.length > 0 && (
+                <tr>
+                  <td colSpan={3}>
+                    <p
+                      className="py-4 text-center text-sm italic"
+                      style={{ color: 'var(--app-text-subtle)' }}
+                    >
+                      Fetching more
+                    </p>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        <ScrollableListMoreButton
+          show={showMerchantListMoreIndicator}
+          onClick={onListMoreClick}
+          ariaLabel={hasMoreMerchants ? 'Show more merchants' : 'Scroll merchants down'}
+        />
       </div>
-      <ScrollableListMoreButton
-        show={showMerchantListMoreIndicator}
-        onClick={onListMoreClick}
-        ariaLabel={hasMoreMerchants ? 'Show more merchants' : 'Scroll merchants down'}
-      />
-    </div>
+    </>
   )
 }

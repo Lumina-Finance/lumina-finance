@@ -155,6 +155,8 @@ export default function MerchantSettingsSection() {
                 deletingMerchantId={deletingMerchantId}
                 editingMerchantId={editingMerchantId}
                 hasMoreMerchants={shownMerchants.hasMore}
+                listError={merchantList.merchantListError}
+                listFailed={merchantList.merchantListFailed}
                 merchantListRef={merchantList.merchantListRef}
                 shouldScrollMerchants={shownMerchants.shouldScroll}
                 showFetchingMoreMerchants={merchantList.showFetchingMoreMerchants}

@@ -16,6 +16,8 @@ const LOAD_MORE_CLICK_SCROLL_FRACTION = 0.45
 
 interface InfiniteListQueryResult<TItem> {
   data?: { pages: TItem[][] }
+  error: unknown
+  isError: boolean
   isLoading: boolean
   isFetchingNextPage: boolean
   hasNextPage?: boolean
@@ -225,9 +227,13 @@ export function usePaginatedSettingsList<TItem extends { id: string }>({
 
   return {
     activeSearch,
+    // Passed out rather than handled here, since the section around the list is what decides
+    // whether the failure replaces the rows or sits above them
+    error: listQuery.error,
     handleListMoreClick,
     handleListScroll,
     hasMore,
+    isError: listQuery.isError,
     listRef,
     search,
     setActiveSearch,

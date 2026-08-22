@@ -16,9 +16,11 @@ import {
 export function useTagSettingsList(locallyDeletedTagIds: string[]) {
   const {
     activeSearch,
+    error,
     handleListMoreClick,
     handleListScroll,
     hasMore,
+    isError,
     listRef,
     search,
     setActiveSearch,
@@ -54,6 +56,8 @@ export function useTagSettingsList(locallyDeletedTagIds: string[]) {
     showInitialTagLoading: showInitialLoading,
     showTagListEnd: showListEnd,
     showTagListMoreIndicator: showListMoreIndicator,
+    tagListError: error,
+    tagListFailed: isError,
     tagListRef: listRef,
     visibleTags: visibleItems,
   }
