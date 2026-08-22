@@ -1,6 +1,7 @@
 import { useState, useMemo, type FormEvent } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import Dropdown from '@/components/dropdown/Dropdown';
+import LoadFailure from '@/components/errors/LoadFailure';
 import IconTooltip from '@/components/tooltips/IconTooltip';
 import CreateModalFieldLabelRow from '@/components/create-modal/FieldLabelRow';
 import CreateModalSectionFrame from '@/components/create-modal/SectionFrame';
@@ -62,7 +63,11 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
   const mutation = useCreateAccount();
   const { data: currencies = [] } = useCurrencies();
   const { data: institutions = [] } = useInstitutions();
-  const { data: taxAdvantagedCategories = [] } = useTaxAdvantagedCategories();
+  const {
+    data: taxAdvantagedCategories = [],
+    error: taxAdvantagedCategoriesError,
+    isError: taxAdvantagedCategoriesFailed,
+  } = useTaxAdvantagedCategories();
 
   const [form, setForm] = useState(() => buildInitialCreateAccountForm(user?.base_currency));
   const [fieldErrors, setFieldErrors] = useState<CreateAccountFieldErrors>({});
@@ -318,6 +323,15 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                           searchable
                           searchPlaceholder="Search categories..."
                         />
+                        {/* Beside the drop-down rather than in place of the form, since the
+                            category is optional and the account can still be created without one */}
+                        {taxAdvantagedCategoriesFailed && (
+                          <LoadFailure
+                            className="pt-3"
+                            error={taxAdvantagedCategoriesError}
+                            subject="Tax-advantaged categories"
+                          />
+                        )}
                       </div>
                     ) : (
                       <div>

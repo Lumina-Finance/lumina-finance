@@ -74,7 +74,11 @@ export default function EditAccountIdentityModal({
   const updateAccount = useUpdateAccount()
   const deleteAccount = useDeleteAccount({ minimumPendingMs: MIN_DELETE_SPINNER_MS })
   const { data: institutions = [] } = useInstitutions()
-  const { data: taxAdvantagedCategories = [] } = useTaxAdvantagedCategories()
+  const {
+    data: taxAdvantagedCategories = [],
+    error: taxAdvantagedCategoriesError,
+    isError: taxAdvantagedCategoriesFailed,
+  } = useTaxAdvantagedCategories()
   const [form, setForm] = useState<IdentityFormValues>(() => (
     createIdentityFormValues(account, currencies)
   ))
@@ -317,6 +321,8 @@ export default function EditAccountIdentityModal({
                   selectedCurrencySymbol={selectedCurrencySymbol}
                   creditLimitExponent={knownCreditLimitExponent ?? DEFAULT_MINOR_UNIT_EXPONENT}
                   taxAdvantagedCategoryOptions={taxAdvantagedCategoryOptions}
+                  taxAdvantagedCategoriesError={taxAdvantagedCategoriesError}
+                  taxAdvantagedCategoriesFailed={taxAdvantagedCategoriesFailed}
                   setField={setField}
                 />
               )}

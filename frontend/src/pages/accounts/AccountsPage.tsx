@@ -29,7 +29,11 @@ export default function AccountsPage() {
   const [createModalKey, setCreateModalKey] = useState(0)
   const { user } = useAuth()
   const { data: accounts, isFetching, error } = useAccounts()
-  const { data: taxAdvantagedCategories } = useTaxAdvantagedCategories()
+  const {
+    data: taxAdvantagedCategories,
+    error: taxAdvantagedCategoriesError,
+    isError: taxAdvantagedCategoriesFailed,
+  } = useTaxAdvantagedCategories()
 
   const allRows = useMemo(() => accounts ?? [], [accounts])
 
@@ -84,7 +88,14 @@ export default function AccountsPage() {
 
         <div>
           <MetricsBand metrics={accountMetrics} displayCurrency={displayCurrency} />
-          <TaxAdvantagedLimitsSection summaries={taxAdvantagedLimitSummaries} />
+          {/* The limits are built from the same accounts the statement above reports on, so a failed
+              accounts request already says so there and a second message here would report one
+              outage twice in two voices */}
+          <TaxAdvantagedLimitsSection
+            categoriesError={taxAdvantagedCategoriesError}
+            categoriesFailed={taxAdvantagedCategoriesFailed && !error}
+            summaries={taxAdvantagedLimitSummaries}
+          />
         </div>
       </div>
 

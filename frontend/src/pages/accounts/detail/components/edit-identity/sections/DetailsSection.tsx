@@ -1,5 +1,6 @@
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
 import Dropdown from '@/components/dropdown/Dropdown'
+import LoadFailure from '@/components/errors/LoadFailure'
 import IconTooltip from '@/components/tooltips/IconTooltip'
 import { useMoneyInput } from '@/hooks/useMoneyInput'
 import {
@@ -29,6 +30,8 @@ type AccountDetailsSectionProps = {
   // Decimal places of the account's currency, used to settle the credit limit field on blur
   creditLimitExponent: number
   taxAdvantagedCategoryOptions: DropdownOption[]
+  taxAdvantagedCategoriesError: unknown
+  taxAdvantagedCategoriesFailed: boolean
   setField: SetIdentityFormField
 }
 
@@ -44,6 +47,8 @@ export function AccountDetailsSection({
   selectedCurrencySymbol,
   creditLimitExponent,
   taxAdvantagedCategoryOptions,
+  taxAdvantagedCategoriesError,
+  taxAdvantagedCategoriesFailed,
   setField,
 }: AccountDetailsSectionProps) {
   const isCreditLimitLocked = currencyState !== 'ready'
@@ -67,6 +72,15 @@ export function AccountDetailsSection({
             searchable
             searchPlaceholder="Search categories..."
           />
+          {/* Beside the drop-down rather than in place of the form, since the category is optional
+              and the rest of the account can still be edited without it */}
+          {taxAdvantagedCategoriesFailed && (
+            <LoadFailure
+              className="pt-3"
+              error={taxAdvantagedCategoriesError}
+              subject="Tax-advantaged categories"
+            />
+          )}
         </div>
       )}
 
