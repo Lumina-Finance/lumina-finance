@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { CircleHelp } from 'lucide-react'
 import {
   useAccountSpendingBreakdown,
   type Account,
@@ -8,8 +9,33 @@ import {
   getDeterministicChartColor,
   getDeterministicChartColorMap,
 } from '@/utils/chartColor'
-import { getBreakdownRows } from '@/pages/accounts/detail/utils/spendingBreakdownViewModel'
+import {
+  getBreakdownRows,
+  shouldExplainMerchantsTotal,
+} from '@/pages/accounts/detail/utils/spendingBreakdownViewModel'
+import IconTooltip from '@/components/tooltips/IconTooltip'
 import { SpendingBreakdownCard } from './Card'
+
+/**
+ * Explains why this card's total differs from the one on the categories card beside it
+ *
+ * The two figures are built from different groupings and are both correct, so the difference needs
+ * saying rather than looking like an error
+ */
+function MerchantSpendingTotalTooltip() {
+  return (
+    <IconTooltip
+      label="Why this total differs from the categories total"
+      icon={CircleHelp}
+      placement="top"
+      widthClassName="w-64"
+      size={13}
+    >
+      A merchant refunded more than it charged is left out of this total. Its category can still
+      count as spending, so the Categories by Spending card can show a different figure.
+    </IconTooltip>
+  )
+}
 
 /**
  * Renders top spending merchants for one account and owns merchant colour mapping
@@ -56,6 +82,7 @@ export function TopMerchantsBySpendingCard({ account }: { account: Account }) {
       onRangeChange={handleRangeChange}
       rows={rows}
       cardTotal={data?.merchants_total_spend ?? 0}
+      totalTooltip={shouldExplainMerchantsTotal(data) ? <MerchantSpendingTotalTooltip /> : undefined}
       currency={account.currency}
       emptyLabel="No merchant activity in this range"
       loading={isFetching}

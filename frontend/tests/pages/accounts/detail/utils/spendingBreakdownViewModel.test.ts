@@ -1,6 +1,7 @@
 /**
- * Tests the account spending breakdown view model so the Other row, the bar fills and the rows built
- * from a backend payload cannot drift from the totals they are derived from
+ * Tests the account spending breakdown view model so the Other row, the bar fills, the rows built
+ * from a backend payload and the merchant total explanation cannot drift from the totals they are
+ * derived from
  */
 import { describe, expect, it } from 'vitest'
 import type { AccountSpendingBreakdown } from '@/api/accounts'
@@ -8,6 +9,7 @@ import {
   appendOtherBreakdownRow,
   getBreakdownRowFillPercent,
   getBreakdownRows,
+  shouldExplainMerchantsTotal,
 } from '@/pages/accounts/detail/utils/spendingBreakdownViewModel'
 
 describe('spending breakdown view model helpers', () => {
@@ -87,5 +89,21 @@ describe('spending breakdown view model helpers', () => {
       { key: 'grocer', name: 'Grocer', total: 4_000, isOther: false },
       { key: 'other', name: 'Other (1)', total: 2_000, isOther: true },
     ])
+  })
+
+  it('explains the merchant total only where it differs from the categories total', () => {
+    const payload: AccountSpendingBreakdown = {
+      range: 'MTD',
+      top_categories: [],
+      top_merchants: [],
+      categories_total_spend: 10_000,
+      merchants_total_spend: 6_000,
+      other_categories_count: 0,
+      other_merchants_count: 0,
+    }
+
+    expect(shouldExplainMerchantsTotal(payload)).toBe(true)
+    expect(shouldExplainMerchantsTotal({ ...payload, merchants_total_spend: 10_000 })).toBe(false)
+    expect(shouldExplainMerchantsTotal(undefined)).toBe(false)
   })
 })

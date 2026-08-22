@@ -63,3 +63,14 @@ export function getBreakdownRows(
   if (!data) return []
   return appendOtherBreakdownRow(toRows(data), otherCount(data), cardTotal(data))
 }
+
+/**
+ * Decides whether the merchants card explains its total
+ *
+ * The two cards cover the same account over the same range, so the explanation is only worth
+ * showing where their totals are not the same number
+ */
+export function shouldExplainMerchantsTotal(data: AccountSpendingBreakdown | undefined): boolean {
+  if (!data) return false
+  return data.categories_total_spend !== data.merchants_total_spend
+}
