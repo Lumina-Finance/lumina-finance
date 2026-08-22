@@ -66,8 +66,9 @@ SECURED_TABLES = (
      "AND EXISTS (SELECT 1 FROM public.tags g WHERE g.id = tag_id)"),
 )
 
-# Reference tables every authenticated user reads, with no per-row scoping
-GLOBAL_READ_TABLES = ("currencies", "institutions")
+# Tables the app role reads with no per-row scoping, either because every authenticated
+# user reads the same reference rows or because the row describes the deployment itself
+GLOBAL_READ_TABLES = ("currencies", "encryption_key_fingerprint", "institutions")
 
 # Auth tables stay out of RLS because the login and token flows query them before a
 # request identity exists, always by exact id, so the queries already scope them
@@ -104,6 +105,12 @@ def apply_policies(connection: Connection) -> None:
     _secure_groups(connection)
 
     for table in GLOBAL_READ_TABLES:
+
+        # A table added after the bootstrap RLS migration is created by its own later
+        # migration, so a from-scratch upgrade reaches this loop before that table exists.
+        # The apply-rls run after migrations is what grants it
+        if not _table_exists(connection, table):
+            continue
         connection.execute(text(f'GRANT SELECT ON public.{table} TO "{APP_DB_USER}"'))
     # Institutions are submitted and corrected by the users who read them, so the app role
     # writes the table as well, while the rest of the global-read tables stay read-only to it
@@ -161,6 +168,17 @@ def grant_auth_table(connection: Connection, table: str) -> None:
     if table not in AUTH_TABLES:
         raise KeyError(f"{table!r} is not a registered auth table")
     connection.execute(text(f'GRANT {APP_TABLE_PRIVILEGES} ON public.{table} TO "{APP_DB_USER}"'))
+
+
+def grant_global_read_table(connection: Connection, table: str) -> None:
+    """Grant the app role on one global-read table added after the bootstrap migration
+
+    Global-read tables carry no row-level policy, so an incremental migration that adds one
+    calls this to give the app role the read access the bootstrap grants the original ones
+    """
+    if table not in GLOBAL_READ_TABLES:
+        raise KeyError(f"{table!r} is not a registered global-read table")
+    connection.execute(text(f'GRANT SELECT ON public.{table} TO "{APP_DB_USER}"'))
 
 
 def drop_policies(connection: Connection) -> None:

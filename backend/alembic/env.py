@@ -9,27 +9,11 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from alembic import context
 from app.config.database import migration_database_url
 
-# Import all models so Alembic can detect them for autogenerate
-from app.models import (  # noqa: F401
-    account,
-    auth,
-    auth_session,
-    auth_token,
-    budget,
-    cache_state,
-    category,
-    currency,
-    group,
-    import_run,
-    institution,
-    merchant,
-    oidc,
-    saved_insights_range,
-    tag,
-    transaction,
-    user,
-)
+from app.models import import_all_models
 from app.models.base import Base
+
+# Import all models so Alembic can detect them for autogenerate
+import_all_models()
 
 config = context.config
 

@@ -16,6 +16,7 @@ from sqlalchemy.pool import NullPool
 
 from app.config.database import MIGRATOR_DB_USER
 from app.models.base import Base
+from app.models.types import find_encrypted_columns
 from app.services.merchants.defaults import (
     SELF_MERCHANT_NAME,
     SYSTEM_MERCHANT_NAMES,
@@ -38,6 +39,7 @@ _ALEMBIC_SYSTEM_MERCHANT_DB_NAME = f"{WORKER_DB_NAME}_alembic_system_merchant"
 _BEFORE_SYSTEM_MERCHANTS_REVISION = "cbf7ada87de3"
 _ALEMBIC_UNKNOWN_MERCHANT_DB_NAME = f"{WORKER_DB_NAME}_alembic_unknown_merchant"
 _BEFORE_UNKNOWN_MERCHANT_REVISION = "93e7aa96d2ae"
+_ALEMBIC_ENCRYPTED_DB_NAME = f"{WORKER_DB_NAME}_alembic_encrypted_columns"
 _ALEMBIC_FOLDED_CATEGORY_DB_NAME = f"{WORKER_DB_NAME}_alembic_folded_categories"
 _ALEMBIC_FOLDED_MERCHANT_DB_NAME = f"{WORKER_DB_NAME}_alembic_folded_merchants"
 _BEFORE_FOLDED_NAMES_REVISION = "6a1f132b9da2"
@@ -53,6 +55,34 @@ async def test_alembic_schema_columns_match_model_metadata() -> None:
         assert actual_columns == expected_columns
     finally:
         await _drop_database(_ALEMBIC_TEST_DB_NAME)
+
+
+async def test_alembic_column_types_and_defaults_match_model_metadata() -> None:
+    """Verify Alembic builds every column with the type and default the models declare
+
+    The column comparison above reads names only, so a column whose migration and model
+    disagree on its type or its default passes there while the two schemas diverge. An
+    integer primary key is the usual way in: it builds as a sequence unless something
+    suppresses that, and a client-side default suppresses it on one side only
+
+    The encrypted columns are asserted by name as well, since EncryptedText decorating
+    Text is what lets an existing column be labelled with no migration at all
+    """
+    encrypted_columns = find_encrypted_columns(Base.metadata)
+    assert encrypted_columns, "No encrypted columns found, so this test would prove nothing"
+
+    await _recreate_database(_ALEMBIC_ENCRYPTED_DB_NAME)
+    try:
+        _run_alembic_upgrade(_ALEMBIC_ENCRYPTED_DB_NAME)
+        from_alembic = await _get_column_definitions(_ALEMBIC_ENCRYPTED_DB_NAME)
+        from_metadata = await _get_column_definitions(WORKER_DB_NAME)
+
+        assert from_alembic == from_metadata
+        assert {column: from_alembic[column][0] for column in encrypted_columns} == dict.fromkeys(
+            encrypted_columns, "text"
+        )
+    finally:
+        await _drop_database(_ALEMBIC_ENCRYPTED_DB_NAME)
 
 
 async def test_alembic_enum_labels_match_model_metadata() -> None:
@@ -261,6 +291,35 @@ async def _get_database_columns(database_name: str) -> dict[str, set[str]]:
             for row in result:
                 columns_by_table.setdefault(row.table_name, set()).add(row.column_name)
             return columns_by_table
+    finally:
+        await engine.dispose()
+
+
+async def _get_column_definitions(database_name: str) -> dict[tuple[str, str], tuple[str, str | None]]:
+    """Return the built type and default of every public column in a database
+
+    Args:
+        database_name: Database to read, either a parity database or the worker's own
+
+    Returns:
+        The data type and column default of each column, keyed by table and column name
+    """
+    engine = _create_engine_for_database(database_name)
+    try:
+        async with engine.connect() as conn:
+
+            # Fetch what the database actually built, rather than what either side declared
+            result = await conn.execute(
+                text(
+                    """
+                    SELECT table_name, column_name, data_type, column_default
+                    FROM information_schema.columns
+                    WHERE table_schema = 'public'
+                      AND table_name <> 'alembic_version'
+                    """,
+                ),
+            )
+            return {(row.table_name, row.column_name): (row.data_type, row.column_default) for row in result}
     finally:
         await engine.dispose()
 
