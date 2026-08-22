@@ -102,6 +102,8 @@ export default function InsightsPage() {
         draftFrom={range.draftInputDates.from}
         draftTo={range.draftInputDates.to}
         savedRanges={savedRangesQuery.data ?? []}
+        savedRangesError={savedRangesQuery.error}
+        savedRangesFailed={savedRangesQuery.isError}
         onSelectPreset={range.selectPreset}
         onRevertSelection={range.revertSelection}
         onDraftAmountChange={range.setDraftAmount}

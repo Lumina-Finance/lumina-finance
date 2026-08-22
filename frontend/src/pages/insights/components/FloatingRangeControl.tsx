@@ -50,6 +50,12 @@ type InsightsFloatingRangeControlProps = {
   draftFrom: string
   draftTo: string
   savedRanges: SavedInsightsRange[]
+
+  /** The rejection the saved-ranges request reported */
+  savedRangesError: unknown
+
+  savedRangesFailed: boolean
+
   onSelectPreset: (value: InsightsRangePreset) => void
   onRevertSelection: () => void
   onDraftAmountChange: (value: number) => void
@@ -87,6 +93,8 @@ function GlassRangeSelector({
   draftFrom,
   draftTo,
   savedRanges,
+  savedRangesError,
+  savedRangesFailed,
   onSelectPreset,
   onRevertSelection,
   onDraftAmountChange,
@@ -293,6 +301,8 @@ function GlassRangeSelector({
                 </motion.button>
                 <SavedRanges
                   savedRanges={savedRanges}
+                  savedRangesError={savedRangesError}
+                  savedRangesFailed={savedRangesFailed}
                   onSaveCurrentRange={handleSaveCurrentRange}
                   onApplySavedRange={handleApplySavedRange}
                   onDeleteSavedRange={onDeleteSavedRange}

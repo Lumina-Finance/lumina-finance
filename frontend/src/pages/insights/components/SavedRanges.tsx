@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { BookmarkPlus, X } from 'lucide-react'
 import type { SavedInsightsRange } from '@/api/insights'
+import LoadFailure from '@/components/errors/LoadFailure'
 import { getRelativeRangeLabel } from '@/pages/insights/utils/range'
 
 const SAVED_RANGE_NAME_MAX_LENGTH = 64
@@ -11,6 +12,12 @@ const savedRangeSpring = { type: 'spring', stiffness: 420, damping: 34, mass: 0.
 
 type SavedRangesProps = {
   savedRanges: SavedInsightsRange[]
+
+  /** The rejection the saved-ranges request reported */
+  savedRangesError: unknown
+
+  savedRangesFailed: boolean
+
   onSaveCurrentRange: (name: string) => Promise<void>
   onApplySavedRange: (range: SavedInsightsRange) => void
   onDeleteSavedRange: (rangeId: string) => void
@@ -21,6 +28,8 @@ type SavedRangesProps = {
  */
 export function SavedRanges({
   savedRanges,
+  savedRangesError,
+  savedRangesFailed,
   onSaveCurrentRange,
   onApplySavedRange,
   onDeleteSavedRange,
@@ -83,6 +92,12 @@ export function SavedRanges({
           Save
         </button>
       </form>
+
+      {/* Ranges cached from an earlier session survive a failed request, since the query cache is
+          persisted, so the message sits above them rather than throwing a readable list away. The
+          name field stays usable either way, because saving a new range is a write the failed read
+          says nothing about */}
+      {savedRangesFailed && <LoadFailure className="pt-2" error={savedRangesError} subject="Saved ranges" />}
 
       <ul className={savedRanges.length > 0 ? 'mt-2' : ''}>
         <AnimatePresence initial={false}>
