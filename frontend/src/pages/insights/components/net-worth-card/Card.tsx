@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { ArrowLeftRight, Minus, TrendingDown, TrendingUp, Wallet } from 'lucide-react'
 import type { FxStatus } from '@/api/shared/fx'
+import LoadFailure from '@/components/errors/LoadFailure'
 import {
   LoadingContent,
   LoadingOverlay,
@@ -32,6 +33,15 @@ type NetWorthCardProps = {
   series: NetWorthPoint[]
   fxStatus: FxStatus | undefined
   displayCurrency: string
+
+  /** The rejection this card's request reported */
+  error: unknown
+
+  failed: boolean
+
+  /** Whether the request has ever come back, since the ending figure reads zero either way */
+  hasContent: boolean
+
   loading?: boolean
   transitionKey: string
 }
@@ -44,6 +54,9 @@ type NetWorthSnapshot = {
   fxStatus: FxStatus | undefined
   displayCurrency: string
   emptyLabel: string
+  error: unknown
+  failed: boolean
+  hasContent: boolean
 }
 
 /**
@@ -66,10 +79,15 @@ export function NetWorthCard({
   series,
   fxStatus,
   displayCurrency,
+  error,
+  failed,
+  hasContent,
   loading = false,
   transitionKey,
 }: NetWorthCardProps) {
   const { currencies, formatCurrency } = useMoneyFormatters()
+  // The failure travels in the snapshot rather than beside it, so the box arrives with the reveal
+  // instead of growing the card while the spinner is still turning
   const incomingSnapshot = useMemo<NetWorthSnapshot>(() => ({
     mode,
     groups,
@@ -78,7 +96,10 @@ export function NetWorthCard({
     fxStatus,
     displayCurrency,
     emptyLabel: loading ? 'Loading net worth history...' : 'No net worth history in this range.',
-  }), [baseline, displayCurrency, fxStatus, groups, loading, mode, series])
+    error,
+    failed,
+    hasContent,
+  }), [baseline, displayCurrency, error, failed, fxStatus, groups, hasContent, loading, mode, series])
   const {
     displaySnapshot,
     contentConcealed,
@@ -138,38 +159,44 @@ export function NetWorthCard({
       />
       <div className="relative overflow-visible" data-tooltip-bounds>
         <LoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
-          <div className="flex h-[360px] flex-col">
-            <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
-              <div>
-                <p className="app-label app-label-compact inline-flex items-center gap-2">
-                  Ending Net Worth
-                  <InsightCalculationTooltip
-                    label="Ending Net Worth"
-                    calculation="Ending net worth value as of the last date in the chosen time period"
-                  />
-                </p>
-                <div className="mt-1 flex flex-wrap items-end gap-x-2 gap-y-1">
-                  <p className="font-financial text-3xl leading-none tracking-tight">
-                    {formatCurrency(latest?.total ?? 0, displaySnapshot.displayCurrency)}
+          {displaySnapshot.failed && (
+            <LoadFailure error={displaySnapshot.error} subject="Net worth" />
+          )}
+
+          {(!displaySnapshot.failed || displaySnapshot.hasContent) && (
+            <div className="flex h-[360px] flex-col">
+              <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <p className="app-label app-label-compact inline-flex items-center gap-2">
+                    Ending Net Worth
+                    <InsightCalculationTooltip
+                      label="Ending Net Worth"
+                      calculation="Ending net worth value as of the last date in the chosen time period"
+                    />
                   </p>
-                  <div className="flex items-center gap-1.5 text-sm font-medium leading-none" style={{ color: netWorthTrendColor }}>
-                    <NetWorthTrendIcon size={14} aria-hidden />
-                    <span className="font-financial">{formatSignedNetWorthCurrency(latestChange, displaySnapshot.displayCurrency, currencies)}</span>
-                    <span style={{ color: 'var(--app-text-subtle)' }}>since start</span>
+                  <div className="mt-1 flex flex-wrap items-end gap-x-2 gap-y-1">
+                    <p className="font-financial text-3xl leading-none tracking-tight">
+                      {formatCurrency(latest?.total ?? 0, displaySnapshot.displayCurrency)}
+                    </p>
+                    <div className="flex items-center gap-1.5 text-sm font-medium leading-none" style={{ color: netWorthTrendColor }}>
+                      <NetWorthTrendIcon size={14} aria-hidden />
+                      <span className="font-financial">{formatSignedNetWorthCurrency(latestChange, displaySnapshot.displayCurrency, currencies)}</span>
+                      <span style={{ color: 'var(--app-text-subtle)' }}>since start</span>
+                    </div>
                   </div>
                 </div>
               </div>
+              <NetWorthChart
+                mode={displaySnapshot.mode}
+                groups={displaySnapshot.groups}
+                chartItems={chartItems}
+                deltaSeries={deltaSeries}
+                displayCurrency={displaySnapshot.displayCurrency}
+                emptyLabel={displaySnapshot.emptyLabel}
+                shouldReduceMotion={shouldReduceMotion}
+              />
             </div>
-            <NetWorthChart
-              mode={displaySnapshot.mode}
-              groups={displaySnapshot.groups}
-              chartItems={chartItems}
-              deltaSeries={deltaSeries}
-              displayCurrency={displaySnapshot.displayCurrency}
-              emptyLabel={displaySnapshot.emptyLabel}
-              shouldReduceMotion={shouldReduceMotion}
-            />
-          </div>
+          )}
         </LoadingContent>
 
         <LoadingOverlay

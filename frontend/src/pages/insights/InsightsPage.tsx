@@ -122,6 +122,9 @@ export default function InsightsPage() {
             expenses={cardData.periodGlanceData.expenses}
             incomeExpenseFxStatus={queries.periodGlance.data?.income_expense_fx_status}
             displayCurrency={displayCurrency}
+            error={queries.periodGlance.error}
+            failed={queries.periodGlance.isError}
+            hasContent={queries.periodGlance.data !== undefined}
             loading={queries.periodGlance.isFetching}
             transitionKey={range.cardTransitionKey}
           />
@@ -138,6 +141,9 @@ export default function InsightsPage() {
             expenseCategoryCount={cardData.fundFlowData.expenseCategoryCount}
             fxStatus={queries.fundFlow.data?.fx_status}
             displayCurrency={displayCurrency}
+            error={queries.fundFlow.error}
+            failed={queries.fundFlow.isError}
+            hasContent={queries.fundFlow.data !== undefined}
             loading={queries.fundFlow.isFetching}
             transitionKey={range.cardTransitionKey}
           />
@@ -153,6 +159,9 @@ export default function InsightsPage() {
             fxStatus={queries.incomeExpenseBreakdown.data?.fx_status}
             displayCurrency={displayCurrency}
             animationKey={`${breakdownMode}-${range.cardTransitionKey}`}
+            error={queries.incomeExpenseBreakdown.error}
+            failed={queries.incomeExpenseBreakdown.isError}
+            hasContent={queries.incomeExpenseBreakdown.data !== undefined}
             loading={queries.incomeExpenseBreakdown.isFetching}
             transitionKey={range.cardTransitionKey}
           />
@@ -167,6 +176,9 @@ export default function InsightsPage() {
             series={cardData.netWorthCardData.series}
             fxStatus={queries.netWorth.data?.fx_status}
             displayCurrency={displayCurrency}
+            error={queries.netWorth.error}
+            failed={queries.netWorth.isError}
+            hasContent={queries.netWorth.data !== undefined}
             loading={queries.netWorth.isFetching}
             transitionKey={range.cardTransitionKey}
           />
@@ -178,6 +190,9 @@ export default function InsightsPage() {
             buckets={cardData.cashFlowBars.buckets}
             fxStatus={queries.cashFlow.data?.fx_status}
             displayCurrency={displayCurrency}
+            error={queries.cashFlow.error}
+            failed={queries.cashFlow.isError}
+            hasContent={queries.cashFlow.data !== undefined}
             loading={queries.cashFlow.isFetching}
             transitionKey={range.cardTransitionKey}
           />
@@ -190,6 +205,9 @@ export default function InsightsPage() {
             displayCurrency={displayCurrency}
             capRates={capSavingsRateChart}
             onCapRatesToggle={() => setCapSavingsRateChart((current) => !current)}
+            error={queries.savingsRateTrend.error}
+            failed={queries.savingsRateTrend.isError}
+            hasContent={queries.savingsRateTrend.data !== undefined}
             loading={queries.savingsRateTrend.isFetching}
             transitionKey="savings-rate-trend"
           />
@@ -201,6 +219,9 @@ export default function InsightsPage() {
               merchants={cardData.merchantDistributionMerchants}
               fxStatus={queries.merchants.data?.fx_status}
               currency={displayCurrency}
+              error={queries.merchants.error}
+              failed={queries.merchants.isError}
+              hasContent={queries.merchants.data !== undefined}
               loading={queries.merchants.isFetching}
               transitionKey={range.cardTransitionKey}
             />
@@ -211,6 +232,9 @@ export default function InsightsPage() {
               merchants={cardData.rankedMerchants}
               fxStatus={queries.merchants.data?.fx_status}
               currency={displayCurrency}
+              error={queries.merchants.error}
+              failed={queries.merchants.isError}
+              hasContent={queries.merchants.data !== undefined}
               loading={queries.merchants.isFetching}
               transitionKey={range.cardTransitionKey}
             />

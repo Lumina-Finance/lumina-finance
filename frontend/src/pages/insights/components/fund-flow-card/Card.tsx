@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react'
 import { Network } from 'lucide-react'
 import type { InsightsFlowEntry } from '@/api/insights'
 import type { FxStatus } from '@/api/shared/fx'
+import LoadFailure from '@/components/errors/LoadFailure'
+import { LoadingContent } from '@/components/loading/Transition'
 import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
 import type { FundFlowData } from '@/pages/insights/types/fundFlow'
 import { getFundFlowChartHeight } from '@/pages/insights/utils/fundFlowChart'
@@ -25,6 +27,9 @@ type FundFlowSnapshot = {
   displayCurrency: string
   emptyLabel: string
   chartHeight: number
+  error: unknown
+  failed: boolean
+  hasContent: boolean
 }
 
 type FundFlowCardProps = {
@@ -37,6 +42,15 @@ type FundFlowCardProps = {
   expenseCategoryCount: number
   fxStatus: FxStatus | undefined
   displayCurrency: string
+
+  /** The rejection this card's request reported */
+  error: unknown
+
+  failed: boolean
+
+  /** Whether the request has ever come back, since an empty chart looks the same either way */
+  hasContent: boolean
+
   loading?: boolean
   transitionKey: string
 }
@@ -54,9 +68,14 @@ export function FundFlowCard({
   expenseCategoryCount,
   fxStatus,
   displayCurrency,
+  error,
+  failed,
+  hasContent,
   loading = false,
   transitionKey,
 }: FundFlowCardProps) {
+  // The failure travels in the snapshot rather than beside it, so the box arrives with the reveal
+  // instead of growing the card while the spinner is still turning
   const incomingSnapshot = useMemo<FundFlowSnapshot>(() => ({
     flowData,
     incomeSources,
@@ -69,13 +88,19 @@ export function FundFlowCard({
     displayCurrency,
     emptyLabel: loading ? 'Loading fund flow...' : 'No income or expenses in this range.',
     chartHeight: getFundFlowChartHeight(incomeSourceCount, expenseCategoryCount),
+    error,
+    failed,
+    hasContent,
   }), [
     displayCurrency,
+    error,
     expenseCategories,
     expenseCategoryCount,
     expenseInflows,
+    failed,
     fxStatus,
     flowData,
+    hasContent,
     incomeOutflows,
     incomeSourceCount,
     incomeSources,
@@ -123,39 +148,51 @@ export function FundFlowCard({
           </span>
         )}
       />
-      <div className="mb-3 grid items-start gap-3 min-[720px]:grid-cols-2">
-        <FundFlowCategoryList
-          title="Income Sources"
-          normalEntries={normalIncomeSources}
-          flippedEntries={displaySnapshot.expenseInflows}
-          flippedLabel="Expense Inflow"
-          normalLabel="Income Source"
-          calculation="Refunds reduce spending first before flipping into an income source. +x means categories that flipped"
+      {/* Its own concealment, since this card hands the loading transition down to the chart rather
+          than wrapping the whole body in one */}
+      {displaySnapshot.failed && (
+        <LoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
+          <LoadFailure error={displaySnapshot.error} subject="Fund flow" />
+        </LoadingContent>
+      )}
+
+      {(!displaySnapshot.failed || displaySnapshot.hasContent) && (
+        <>
+        <div className="mb-3 grid items-start gap-3 min-[720px]:grid-cols-2">
+          <FundFlowCategoryList
+            title="Income Sources"
+            normalEntries={normalIncomeSources}
+            flippedEntries={displaySnapshot.expenseInflows}
+            flippedLabel="Expense Inflow"
+            normalLabel="Income Source"
+            calculation="Refunds reduce spending first before flipping into an income source. +x means categories that flipped"
+            displayCurrency={displaySnapshot.displayCurrency}
+            open={incomeListOpen}
+            onToggle={() => setIncomeListOpen((current) => !current)}
+          />
+          <FundFlowCategoryList
+            title="Expense Categories"
+            normalEntries={normalExpenseCategories}
+            flippedEntries={displaySnapshot.incomeOutflows}
+            flippedLabel="Income Outflow"
+            normalLabel="Expense Category"
+            calculation="Reversals reduce income first before flipping into an expense category. +x means categories that flipped"
+            displayCurrency={displaySnapshot.displayCurrency}
+            open={expenseListOpen}
+            onToggle={() => setExpenseListOpen((current) => !current)}
+          />
+        </div>
+        <FundFlowChart
+          flowData={displaySnapshot.flowData}
+          chartHeight={displaySnapshot.chartHeight}
           displayCurrency={displaySnapshot.displayCurrency}
-          open={incomeListOpen}
-          onToggle={() => setIncomeListOpen((current) => !current)}
+          emptyLabel={displaySnapshot.emptyLabel}
+          contentConcealed={contentConcealed}
+          loadingVisible={loadingVisible}
+          shouldReduceMotion={shouldReduceMotion}
         />
-        <FundFlowCategoryList
-          title="Expense Categories"
-          normalEntries={normalExpenseCategories}
-          flippedEntries={displaySnapshot.incomeOutflows}
-          flippedLabel="Income Outflow"
-          normalLabel="Expense Category"
-          calculation="Reversals reduce income first before flipping into an expense category. +x means categories that flipped"
-          displayCurrency={displaySnapshot.displayCurrency}
-          open={expenseListOpen}
-          onToggle={() => setExpenseListOpen((current) => !current)}
-        />
-      </div>
-      <FundFlowChart
-        flowData={displaySnapshot.flowData}
-        chartHeight={displaySnapshot.chartHeight}
-        displayCurrency={displaySnapshot.displayCurrency}
-        emptyLabel={displaySnapshot.emptyLabel}
-        contentConcealed={contentConcealed}
-        loadingVisible={loadingVisible}
-        shouldReduceMotion={shouldReduceMotion}
-      />
+        </>
+      )}
     </section>
   )
 }
