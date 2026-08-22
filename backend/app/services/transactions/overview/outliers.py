@@ -44,8 +44,14 @@ async def convert_overview_outliers(
 
         converted_outlier_candidates.append((row, converted_amount))
 
-    # Rank by each transaction's own converted outflow, so a purchase refunded later still counts
-    converted_outlier_candidates.sort(key=lambda candidate: candidate[1])
+    # Rank by each transaction's own converted outflow, so a purchase refunded later still counts.
+    # Equal outflows go to the most recent, then to the identifier, because the database promises
+    # no order of its own and the panel would otherwise change under a reload that changed no data.
+    # The tie has to break here rather than in the query, which orders on amounts as stored: two
+    # rows in different currencies can differ there and still land on one converted outflow
+    converted_outlier_candidates.sort(
+        key=lambda candidate: (candidate[1], -candidate[0].date.toordinal(), str(candidate[0].id)),
+    )
     outliers = [
         OutlierTransaction(
             id=row.id,

@@ -125,9 +125,14 @@ class AccountSpendingBreakdown(BaseModel):
     don't leak into either breakdown; merchants are further narrowed by an
     inner join (transactions without a merchant are dropped)
 
-    ``grand_total_spend`` sums every expense transaction in the range — the
-    frontend divides each row's total by it to draw the proportional fills and
-    displays it on the "Total" row. ``other_categories_count`` and
+    A category and a merchant each qualify on their own net, so each card carries
+    its own total rather than sharing one. ``categories_total_spend`` and
+    ``merchants_total_spend`` sum the entries that still net spending, hidden ones
+    included, so each card's rows always add up to its own total and the two
+    totals can differ. The frontend divides each row by its card's total to draw
+    the proportional fills and displays that total on the "Total" row. An entry
+    whose refunds outweigh its purchases is not spending, so it is absent from
+    both the rows and the total. ``other_categories_count`` and
     ``other_merchants_count`` are the number of distinct categories/merchants
     with spend *beyond* the top 5, so the frontend can render an "Other (N)"
     row without a second request. They are ``0`` when ≤ 5 distinct entries exist
@@ -136,6 +141,7 @@ class AccountSpendingBreakdown(BaseModel):
     range: RangeKind
     top_categories: list[AccountTopCategory]
     top_merchants: list[AccountTopMerchant]
-    grand_total_spend: int
+    categories_total_spend: int
+    merchants_total_spend: int
     other_categories_count: int
     other_merchants_count: int

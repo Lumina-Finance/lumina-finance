@@ -11,8 +11,8 @@ from app.schemas.account import AccountTopCategory, AccountTopMerchant
 _TOP_SPENDING_ROWS_LIMIT = 5
 
 
-async def get_account_grand_total_spend(db: AsyncSession, expense_predicate) -> int:
-    """Return total account spend for an expense predicate
+async def get_account_categories_total_spend(db: AsyncSession, expense_predicate) -> int:
+    """Return total spending across the categories the category card lists
 
     Args:
         db: Active database session
@@ -21,14 +21,65 @@ async def get_account_grand_total_spend(db: AsyncSession, expense_predicate) -> 
     Returns:
         Positive total spending in minor units
     """
-    total_spend_query = (
-        select(func.coalesce(func.sum(Transaction.amount), 0))
-        .join(Category, Transaction.category_id == Category.id)
-        .where(expense_predicate)
+    return await _get_grouped_total_spend(db, expense_predicate, Transaction.category_id)
+
+
+async def get_account_merchants_total_spend(db: AsyncSession, expense_predicate) -> int:
+    """Return total spending across the merchants the merchant card lists
+
+    Args:
+        db: Active database session
+        expense_predicate: SQLAlchemy predicate for expense transactions
+
+    Returns:
+        Positive total spending in minor units
+    """
+    # Reaching merchants through the same join the card's rows use, rather than through the
+    # transaction column, keeps one set behind the rows, the hidden count and this total. The join
+    # drops spending that carries no merchant, and it is what puts row-level security on merchants
+    # in front of this query, so a merchant the viewer cannot see cannot reach the figure above
+    # rows they were never shown
+    return await _get_grouped_total_spend(
+        db,
+        expense_predicate,
+        Transaction.merchant_id,
+        (Merchant, Transaction.merchant_id == Merchant.id),
     )
 
-    # Sum all expense transactions in the period before ranking categories or merchants
-    total_result = await db.execute(total_spend_query)
+
+async def _get_grouped_total_spend(db: AsyncSession, expense_predicate, group_by, *extra_joins) -> int:
+    """Return total spending across the groups that still net spending
+
+    A card's total is the sum of the entries it lists, hidden ones included, so each card totals
+    its own grouping rather than sharing one figure. Netting per group before summing is what
+    keeps a group refunded past zero from crediting the total it was dropped from
+
+    Args:
+        db: Active database session
+        expense_predicate: SQLAlchemy predicate for expense transactions
+        group_by: Column the card groups its rows by
+        extra_joins: Further (model, condition) pairs the card's own rows join through
+
+    Returns:
+        Positive total spending in minor units
+    """
+    group_total = func.sum(Transaction.amount)
+    grouped_spend = select(group_total.label("total")).join(Category, Transaction.category_id == Category.id)
+    for model, condition in extra_joins:
+        grouped_spend = grouped_spend.join(model, condition)
+
+    spending_groups = (
+        grouped_spend
+        .where(expense_predicate)
+        .group_by(group_by)
+        .having(group_total < 0)
+        .subquery()
+    )
+
+    # Add up the netted groups, coalescing because a card with no spending sums to NULL
+    total_result = await db.execute(
+        select(func.coalesce(func.sum(spending_groups.c.total), 0)),
+    )
     total_spend = -int(total_result.scalar_one())
     return total_spend
 
@@ -41,11 +92,12 @@ async def get_account_top_categories(db: AsyncSession, expense_predicate) -> tup
         expense_predicate: SQLAlchemy predicate for expense transactions
 
     Returns:
-        Top category rows and count of hidden nonzero categories
+        Top category rows and count of hidden spending categories
     """
     category_total = func.sum(Transaction.amount)
 
-    # Fetch the largest spending categories plus one extra row to detect hidden results
+    # Fetch the largest spending categories plus one extra row to detect hidden results. A
+    # category whose refunds outweigh its purchases is not spending, so it never reaches the list
     category_result = await db.execute(
         select(
             Category.id,
@@ -55,7 +107,7 @@ async def get_account_top_categories(db: AsyncSession, expense_predicate) -> tup
         .join(Category, Transaction.category_id == Category.id)
         .where(expense_predicate)
         .group_by(Category.id, Category.name)
-        .having(category_total != 0)
+        .having(category_total < 0)
         .order_by(category_total.asc())
         .limit(_TOP_SPENDING_ROWS_LIMIT + 1),
     )
@@ -69,7 +121,7 @@ async def get_account_top_categories(db: AsyncSession, expense_predicate) -> tup
 
 
 async def _count_hidden_categories(db: AsyncSession, expense_predicate, category_rows) -> int:
-    """Return count of nonzero categories beyond the visible limit
+    """Return count of spending categories beyond the visible limit
 
     Args:
         db: Active database session
@@ -77,23 +129,23 @@ async def _count_hidden_categories(db: AsyncSession, expense_predicate, category
         category_rows: Limited category result rows
 
     Returns:
-        Count of nonzero categories hidden behind the visible limit
+        Count of spending categories hidden behind the visible limit
     """
     if len(category_rows) <= _TOP_SPENDING_ROWS_LIMIT:
         return 0
 
-    nonzero_categories = (
+    spending_categories = (
         select(Transaction.category_id)
         .join(Category, Transaction.category_id == Category.id)
         .where(expense_predicate)
         .group_by(Transaction.category_id)
-        .having(func.sum(Transaction.amount) != 0)
+        .having(func.sum(Transaction.amount) < 0)
         .subquery()
     )
 
-    # Count all nonzero categories so the response can report how many are hidden
+    # Count every spending category so the response can report how many are hidden
     total_categories = (await db.execute(
-        select(func.count()).select_from(nonzero_categories),
+        select(func.count()).select_from(spending_categories),
     )).scalar_one()
     hidden_count = int(total_categories) - _TOP_SPENDING_ROWS_LIMIT
     return hidden_count
@@ -107,11 +159,12 @@ async def get_account_top_merchants(db: AsyncSession, expense_predicate) -> tupl
         expense_predicate: SQLAlchemy predicate for expense transactions
 
     Returns:
-        Top merchant rows and count of hidden nonzero merchants
+        Top merchant rows and count of hidden spending merchants
     """
     merchant_total = func.sum(Transaction.amount)
 
-    # Fetch the largest spending merchants plus one extra row to detect hidden results
+    # Fetch the largest spending merchants plus one extra row to detect hidden results. A
+    # merchant whose refunds outweigh its purchases is not spending, so it never reaches the list
     merchant_result = await db.execute(
         select(
             Merchant.id,
@@ -122,7 +175,7 @@ async def get_account_top_merchants(db: AsyncSession, expense_predicate) -> tupl
         .join(Merchant, Transaction.merchant_id == Merchant.id)
         .where(expense_predicate)
         .group_by(Merchant.id, Merchant.name)
-        .having(merchant_total != 0)
+        .having(merchant_total < 0)
         .order_by(merchant_total.asc())
         .limit(_TOP_SPENDING_ROWS_LIMIT + 1),
     )
@@ -136,7 +189,7 @@ async def get_account_top_merchants(db: AsyncSession, expense_predicate) -> tupl
 
 
 async def _count_hidden_merchants(db: AsyncSession, expense_predicate, merchant_rows) -> int:
-    """Return count of nonzero merchants beyond the visible limit
+    """Return count of spending merchants beyond the visible limit
 
     Args:
         db: Active database session
@@ -144,23 +197,24 @@ async def _count_hidden_merchants(db: AsyncSession, expense_predicate, merchant_
         merchant_rows: Limited merchant result rows
 
     Returns:
-        Count of nonzero merchants hidden behind the visible limit
+        Count of spending merchants hidden behind the visible limit
     """
     if len(merchant_rows) <= _TOP_SPENDING_ROWS_LIMIT:
         return 0
 
-    nonzero_merchants = (
+    spending_merchants = (
         select(Transaction.merchant_id)
         .join(Category, Transaction.category_id == Category.id)
-        .where(expense_predicate, Transaction.merchant_id.is_not(None))
+        .join(Merchant, Transaction.merchant_id == Merchant.id)
         .group_by(Transaction.merchant_id)
-        .having(func.sum(Transaction.amount) != 0)
+        .where(expense_predicate)
+        .having(func.sum(Transaction.amount) < 0)
         .subquery()
     )
 
-    # Count all nonzero merchants so the response can report how many are hidden
+    # Count every spending merchant so the response can report how many are hidden
     total_merchants = (await db.execute(
-        select(func.count()).select_from(nonzero_merchants),
+        select(func.count()).select_from(spending_merchants),
     )).scalar_one()
     hidden_count = int(total_merchants) - _TOP_SPENDING_ROWS_LIMIT
     return hidden_count

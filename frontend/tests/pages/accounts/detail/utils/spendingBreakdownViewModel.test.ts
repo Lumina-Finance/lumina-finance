@@ -1,6 +1,7 @@
 /**
- * Tests the account spending breakdown view model so the Other row, the bar fills and the rows built
- * from a backend payload cannot drift from the totals they are derived from
+ * Tests the account spending breakdown view model so the Other row, the bar fills, the rows built
+ * from a backend payload and the merchant total explanation cannot drift from the totals they are
+ * derived from
  */
 import { describe, expect, it } from 'vitest'
 import type { AccountSpendingBreakdown } from '@/api/accounts'
@@ -8,10 +9,11 @@ import {
   appendOtherBreakdownRow,
   getBreakdownRowFillPercent,
   getBreakdownRows,
+  shouldExplainMerchantsTotal,
 } from '@/pages/accounts/detail/utils/spendingBreakdownViewModel'
 
 describe('spending breakdown view model helpers', () => {
-  it('adds an Other row using the remaining grand total', () => {
+  it('adds an Other row from what the card total leaves over', () => {
     expect(appendOtherBreakdownRow([
       { key: 'groceries', name: 'Groceries', total: 6_000, isOther: false },
       { key: 'travel', name: 'Travel', total: 3_000, isOther: false },
@@ -35,7 +37,8 @@ describe('spending breakdown view model helpers', () => {
         { category_id: 'food', name: 'Food', total: 7_000 },
       ],
       top_merchants: [],
-      grand_total_spend: 10_000,
+      categories_total_spend: 10_000,
+      merchants_total_spend: 0,
       other_categories_count: 2,
       other_merchants_count: 0,
     }
@@ -49,9 +52,58 @@ describe('spending breakdown view model helpers', () => {
         isOther: false,
       })),
       (breakdown) => breakdown.other_categories_count,
+      (breakdown) => breakdown.categories_total_spend,
     )).toEqual([
       { key: 'food', name: 'Food', total: 7_000, isOther: false },
       { key: 'other', name: 'Other (2)', total: 3_000, isOther: true },
     ])
+  })
+
+  it('sizes the Other row from the total of the card it belongs to', () => {
+    const payload: AccountSpendingBreakdown = {
+      range: 'MTD',
+      top_categories: [
+        { category_id: 'food', name: 'Food', total: 7_000 },
+      ],
+      top_merchants: [
+        { merchant_id: 'grocer', name: 'Grocer', total: 4_000 },
+      ],
+      categories_total_spend: 10_000,
+      merchants_total_spend: 6_000,
+      other_categories_count: 1,
+      other_merchants_count: 1,
+    }
+
+    // Reading the categories total here instead would size this Other row at 6_000
+    expect(getBreakdownRows(
+      payload,
+      (breakdown) => breakdown.top_merchants.map((merchant) => ({
+        key: merchant.merchant_id,
+        name: merchant.name,
+        total: merchant.total,
+        isOther: false,
+      })),
+      (breakdown) => breakdown.other_merchants_count,
+      (breakdown) => breakdown.merchants_total_spend,
+    )).toEqual([
+      { key: 'grocer', name: 'Grocer', total: 4_000, isOther: false },
+      { key: 'other', name: 'Other (1)', total: 2_000, isOther: true },
+    ])
+  })
+
+  it('explains the merchant total only where it differs from the categories total', () => {
+    const payload: AccountSpendingBreakdown = {
+      range: 'MTD',
+      top_categories: [],
+      top_merchants: [],
+      categories_total_spend: 10_000,
+      merchants_total_spend: 6_000,
+      other_categories_count: 0,
+      other_merchants_count: 0,
+    }
+
+    expect(shouldExplainMerchantsTotal(payload)).toBe(true)
+    expect(shouldExplainMerchantsTotal({ ...payload, merchants_total_spend: 10_000 })).toBe(false)
+    expect(shouldExplainMerchantsTotal(undefined)).toBe(false)
   })
 })

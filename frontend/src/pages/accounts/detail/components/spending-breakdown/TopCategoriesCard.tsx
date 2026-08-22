@@ -42,6 +42,7 @@ export function TopCategoriesBySpendingCard({ account }: { account: Account }) {
       }),
     })),
     (breakdown) => breakdown.other_categories_count,
+    (breakdown) => breakdown.categories_total_spend,
   )
 
   return (
@@ -51,7 +52,7 @@ export function TopCategoriesBySpendingCard({ account }: { account: Account }) {
       range={range}
       onRangeChange={handleRangeChange}
       rows={rows}
-      grandTotal={data?.grand_total_spend ?? 0}
+      cardTotal={data?.categories_total_spend ?? 0}
       currency={account.currency}
       emptyLabel="No spending in this range"
       loading={isFetching}

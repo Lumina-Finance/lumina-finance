@@ -21,7 +21,7 @@ export type BreakdownRow = {
 
 export type BreakdownSnapshot = {
   rows: BreakdownRow[]
-  grandTotal: number
+  cardTotal: number
   currency: string
   emptyLabel: string
 }
@@ -32,30 +32,45 @@ export type BreakdownSnapshot = {
 export function appendOtherBreakdownRow(
   rows: BreakdownRow[],
   otherCount: number,
-  grandTotal: number,
+  cardTotal: number,
 ): BreakdownRow[] {
   if (otherCount <= 0) return rows
   const topSum = rows.reduce((sum, row) => sum + row.total, 0)
-  const otherTotal = Math.max(grandTotal - topSum, 0)
+  const otherTotal = Math.max(cardTotal - topSum, 0)
   return [...rows, { key: 'other', name: `Other (${otherCount})`, total: otherTotal, isOther: true }]
 }
 
 /**
  * Converts a row total into the proportional fill width shown behind the breakdown row
  */
-export function getBreakdownRowFillPercent(rowTotal: number, grandTotal: number): number {
-  const totalAbs = Math.abs(grandTotal)
+export function getBreakdownRowFillPercent(rowTotal: number, cardTotal: number): number {
+  const totalAbs = Math.abs(cardTotal)
   return totalAbs > 0 ? Math.max((Math.abs(rowTotal) / totalAbs) * 100, 4) : 0
 }
 
 /**
  * Projects a backend breakdown payload into rows and optional Other row
+ *
+ * Each card carries its own total, so the caller says which one its rows belong to. Handing the
+ * other card's total here would size the Other row against spending these rows never held
  */
 export function getBreakdownRows(
   data: AccountSpendingBreakdown | undefined,
   toRows: (breakdown: AccountSpendingBreakdown) => BreakdownRow[],
   otherCount: (breakdown: AccountSpendingBreakdown) => number,
+  cardTotal: (breakdown: AccountSpendingBreakdown) => number,
 ): BreakdownRow[] {
   if (!data) return []
-  return appendOtherBreakdownRow(toRows(data), otherCount(data), data.grand_total_spend)
+  return appendOtherBreakdownRow(toRows(data), otherCount(data), cardTotal(data))
+}
+
+/**
+ * Decides whether the merchants card explains its total
+ *
+ * The two cards cover the same account over the same range, so the explanation is only worth
+ * showing where their totals are not the same number
+ */
+export function shouldExplainMerchantsTotal(data: AccountSpendingBreakdown | undefined): boolean {
+  if (!data) return false
+  return data.categories_total_spend !== data.merchants_total_spend
 }

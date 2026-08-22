@@ -146,7 +146,7 @@ async def test_wtd_includes_transactions_since_monday_and_excludes_earlier(clien
     assert resp.status_code == 200
     data = resp.json()
     assert data["range"] == "WTD"
-    assert data["grand_total_spend"] == 1000
+    assert data["categories_total_spend"] == 1000
     assert len(data["top_categories"]) == 1
     assert data["top_categories"][0]["total"] == 1000
 
@@ -176,7 +176,7 @@ async def test_mtd_includes_transactions_since_first_of_month_and_excludes_earli
     assert resp.status_code == 200
     data = resp.json()
     assert data["range"] == "MTD"
-    assert data["grand_total_spend"] == 2000
+    assert data["categories_total_spend"] == 2000
     assert len(data["top_categories"]) == 1
     assert data["top_categories"][0]["total"] == 2000
 
@@ -206,7 +206,7 @@ async def test_mtd_uses_viewer_timezone_at_utc_year_boundary(client, monkeypatch
     )
 
     assert resp.status_code == 200
-    assert resp.json()["grand_total_spend"] == 3100
+    assert resp.json()["categories_total_spend"] == 3100
 
 
 async def test_qtd_includes_transactions_since_first_of_quarter_and_excludes_earlier(client):
@@ -234,7 +234,7 @@ async def test_qtd_includes_transactions_since_first_of_quarter_and_excludes_ear
     assert resp.status_code == 200
     data = resp.json()
     assert data["range"] == "QTD"
-    assert data["grand_total_spend"] == 3000
+    assert data["categories_total_spend"] == 3000
     assert len(data["top_categories"]) == 1
     assert data["top_categories"][0]["total"] == 3000
 
@@ -264,7 +264,7 @@ async def test_ytd_includes_transactions_since_january_first_and_excludes_earlie
     assert resp.status_code == 200
     data = resp.json()
     assert data["range"] == "YTD"
-    assert data["grand_total_spend"] == 4000
+    assert data["categories_total_spend"] == 4000
     assert len(data["top_categories"]) == 1
     assert data["top_categories"][0]["total"] == 4000
 
@@ -273,7 +273,7 @@ async def test_ytd_includes_transactions_since_january_first_and_excludes_earlie
 
 
 async def test_transfer_and_income_transactions_do_not_contribute(client):
-    """Transfer- and income-kind transactions are excluded from both breakdowns and the grand total."""
+    """Transfer- and income-kind transactions are excluded from both breakdowns and both totals."""
     headers, account_id = await _setup_account(client)
 
     expense_cat = (await _create_category(client, headers, name="Test Groceries", kind="expense")).json()
@@ -310,7 +310,7 @@ async def test_transfer_and_income_transactions_do_not_contribute(client):
     data = resp.json()
 
     # Only the expense transaction contributes
-    assert data["grand_total_spend"] == 1500
+    assert data["categories_total_spend"] == 1500
     assert len(data["top_categories"]) == 1
     assert data["top_categories"][0]["category_id"] == expense_cat["id"]
     assert data["top_categories"][0]["name"] == "Test Groceries"
@@ -325,8 +325,8 @@ async def test_transfer_and_income_transactions_do_not_contribute(client):
 # --- Merchant inner-join: category-only expense contributes to categories/total but not merchants ---
 
 
-async def test_expense_without_merchant_contributes_to_categories_and_total_only(client):
-    """An expense with merchant_id=None shows up in top_categories and grand_total but NOT top_merchants."""
+async def test_expense_without_merchant_stays_out_of_the_merchants_total(client):
+    """An expense with merchant_id=None reaches the category card only, total included."""
     headers, account_id = await _setup_account(client)
     category = (await _create_category(client, headers)).json()
     merchant = (await _create_merchant(client, headers)).json()
@@ -360,8 +360,10 @@ async def test_expense_without_merchant_contributes_to_categories_and_total_only
     assert resp.status_code == 200
     data = resp.json()
 
-    # Grand total includes both expenses
-    assert data["grand_total_spend"] == 1400
+    # The category card counts both expenses, while the merchant card counts neither the
+    # merchant-less one nor its spending, so the two cards carry different totals
+    assert data["categories_total_spend"] == 1400
+    assert data["merchants_total_spend"] == 1000
     # Category total includes both — category id is the same for both rows
     assert len(data["top_categories"]) == 1
     assert data["top_categories"][0]["category_id"] == category["id"]
@@ -471,12 +473,11 @@ async def test_exactly_five_entries_yields_zero_other_counts(client):
 
 
 async def test_positive_amount_on_expense_category_subtracts_from_total(client):
-    """A refund (positive amount on an expense category) reduces grand_total_spend
+    """A refund on an expense category reduces what that category reports as spending
 
-    The service flips the raw SUM's sign, so a -1000 expense plus a +200 refund
-    sums to -800 in the DB and returns 800 — the net expense. This locks in the
-    refund semantics and documents that grand_total_spend can go negative if
-    refunds exceed charges
+    A -1000 expense plus a +200 refund nets to -800 and reports 800, the spending left
+    once the refund is taken off. A category refunded past zero drops out instead of
+    reporting a credit, so neither total can go negative
     """
     headers, account_id = await _setup_account(client)
     category = (await _create_category(client, headers)).json()
@@ -500,7 +501,7 @@ async def test_positive_amount_on_expense_category_subtracts_from_total(client):
     )
     assert resp.status_code == 200
     data = resp.json()
-    assert data["grand_total_spend"] == 800
+    assert data["categories_total_spend"] == 800
     assert data["top_categories"][0]["total"] == 800
     assert data["top_merchants"][0]["total"] == 800
 
@@ -534,7 +535,7 @@ async def test_zero_sum_category_and_merchant_are_excluded(client):
     )
     assert resp.status_code == 200
     data = resp.json()
-    assert data["grand_total_spend"] == 1200
+    assert data["categories_total_spend"] == 1200
     assert [c["category_id"] for c in data["top_categories"]] == [spend_category["id"]]
     assert [m["merchant_id"] for m in data["top_merchants"]] == [spend_merchant["id"]]
     assert data["top_categories"][0]["total"] == 1200
@@ -543,13 +544,270 @@ async def test_zero_sum_category_and_merchant_are_excluded(client):
     assert data["other_merchants_count"] == 0
 
 
+async def test_over_refunded_category_and_merchant_are_excluded(client):
+    """A category refunded past zero is not spending, so neither it nor its merchant is listed."""
+    headers, account_id = await _setup_account(client)
+    groceries = (await _create_category(client, headers, name="Test Groceries Refunded")).json()
+    rent = (await _create_category(client, headers, name="Test Rent")).json()
+    grocer = (await _create_merchant(client, headers, name="Sobeys")).json()
+    landlord = (await _create_merchant(client, headers, name="Landlord")).json()
+
+    today = _today_utc().isoformat()
+    await _create_transaction(
+        client, headers, account_id, groceries["id"],
+        dt=today, amount=-10_000, merchant_id=grocer["id"],
+    )
+    await _create_transaction(
+        client, headers, account_id, groceries["id"],
+        dt=today, amount=15_000, merchant_id=grocer["id"],
+    )
+    await _create_transaction(
+        client, headers, account_id, rent["id"],
+        dt=today, amount=-200_000, merchant_id=landlord["id"],
+    )
+
+    resp = await client.get(
+        f"/accounts/{account_id}/spending-breakdown",
+        params={"range": "MTD"},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert [c["category_id"] for c in data["top_categories"]] == [rent["id"]]
+    assert [m["merchant_id"] for m in data["top_merchants"]] == [landlord["id"]]
+
+    # The 50.00 the groceries refund left over credits neither total
+    assert data["categories_total_spend"] == 200_000
+    assert data["merchants_total_spend"] == 200_000
+
+
+async def test_over_refunded_merchant_inside_a_spending_category_is_excluded(client):
+    """A merchant refunded past zero drops out even while its category still nets spending."""
+    headers, account_id = await _setup_account(client)
+    dining = (await _create_category(client, headers, name="Test Dining")).json()
+    refunded_merchant = (await _create_merchant(client, headers, name="Returned Bistro")).json()
+    kept_merchant = (await _create_merchant(client, headers, name="Kept Bistro")).json()
+
+    today = _today_utc().isoformat()
+    await _create_transaction(
+        client, headers, account_id, dining["id"],
+        dt=today, amount=-5_000, merchant_id=refunded_merchant["id"],
+    )
+    await _create_transaction(
+        client, headers, account_id, dining["id"],
+        dt=today, amount=8_000, merchant_id=refunded_merchant["id"],
+    )
+    await _create_transaction(
+        client, headers, account_id, dining["id"],
+        dt=today, amount=-20_000, merchant_id=kept_merchant["id"],
+    )
+
+    resp = await client.get(
+        f"/accounts/{account_id}/spending-breakdown",
+        params={"range": "MTD"},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert [c["category_id"] for c in data["top_categories"]] == [dining["id"]]
+    assert data["top_categories"][0]["total"] == 17_000
+    assert [m["merchant_id"] for m in data["top_merchants"]] == [kept_merchant["id"]]
+
+
+async def test_merchant_is_judged_on_its_own_net_across_categories(client):
+    """A merchant qualifies on its own net, even where one category behind it was refunded past zero."""
+    headers, account_id = await _setup_account(client)
+    groceries = (await _create_category(client, headers, name="Test Groceries Crossover")).json()
+    dining = (await _create_category(client, headers, name="Test Dining Crossover")).json()
+    merchant = (await _create_merchant(client, headers, name="Sobeys")).json()
+
+    today = _today_utc().isoformat()
+    await _create_transaction(
+        client, headers, account_id, groceries["id"],
+        dt=today, amount=-10_000, merchant_id=merchant["id"],
+    )
+    await _create_transaction(
+        client, headers, account_id, groceries["id"],
+        dt=today, amount=15_000, merchant_id=merchant["id"],
+    )
+    await _create_transaction(
+        client, headers, account_id, dining["id"],
+        dt=today, amount=-20_000, merchant_id=merchant["id"],
+    )
+
+    resp = await client.get(
+        f"/accounts/{account_id}/spending-breakdown",
+        params={"range": "MTD"},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+
+    # Groceries netted positive and drops out, while the merchant keeps the 50.00 refund against
+    # its own 300.00 of purchases and is listed at 150.00
+    assert [c["category_id"] for c in data["top_categories"]] == [dining["id"]]
+    assert data["top_categories"][0]["total"] == 20_000
+    assert [m["merchant_id"] for m in data["top_merchants"]] == [merchant["id"]]
+    assert data["top_merchants"][0]["total"] == 15_000
+
+    # Each card totals its own rows, so the two legitimately disagree
+    assert data["categories_total_spend"] == 20_000
+    assert data["merchants_total_spend"] == 15_000
+
+
+async def test_both_cards_are_empty_when_everything_is_refunded_past_zero(client):
+    """A range whose every entry was refunded past zero reports the empty payload."""
+    headers, account_id = await _setup_account(client)
+    groceries = (await _create_category(client, headers, name="Test Groceries Cancelled")).json()
+    grocer = (await _create_merchant(client, headers, name="Refunding Grocer")).json()
+
+    today = _today_utc().isoformat()
+    await _create_transaction(
+        client, headers, account_id, groceries["id"],
+        dt=today, amount=-10_000, merchant_id=grocer["id"],
+    )
+    await _create_transaction(
+        client, headers, account_id, groceries["id"],
+        dt=today, amount=15_000, merchant_id=grocer["id"],
+    )
+
+    resp = await client.get(
+        f"/accounts/{account_id}/spending-breakdown",
+        params={"range": "MTD"},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+
+    # Both totals come out zero while transactions exist, which is the case the guard turns on
+    assert data["top_categories"] == []
+    assert data["top_merchants"] == []
+    assert data["categories_total_spend"] == 0
+    assert data["merchants_total_spend"] == 0
+    assert data["other_categories_count"] == 0
+    assert data["other_merchants_count"] == 0
+
+
+async def test_merchant_card_survives_a_category_refunded_past_zero(client):
+    """A merchant still netting spending is listed even where its only category is not."""
+    headers, account_id = await _setup_account(client)
+    groceries = (await _create_category(client, headers, name="Test Groceries Reversed")).json()
+    merchant = (await _create_merchant(client, headers, name="Sobeys")).json()
+
+    today = _today_utc()
+    purchase = await _create_transaction(
+        client, headers, account_id, groceries["id"],
+        dt=today.isoformat(), amount=-10_000, merchant_id=merchant["id"],
+    )
+
+    # The refund carries no merchant, so it lands on the category without touching the merchant
+    async with TestSession() as session:
+        session.add(Transaction(
+            created_by_user_id=uuid.UUID(purchase.json()["created_by_user_id"]),
+            account_id=uuid.UUID(account_id),
+            dt=today,
+            category_id=uuid.UUID(groceries["id"]),
+            merchant_id=None,
+            amount=15_000,
+            currency="CAD",
+        ))
+        await session.commit()
+
+    resp = await client.get(
+        f"/accounts/{account_id}/spending-breakdown",
+        params={"range": "MTD"},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+
+    # An empty category card must not blank the merchant card beside it
+    assert data["top_categories"] == []
+    assert data["categories_total_spend"] == 0
+    assert [m["merchant_id"] for m in data["top_merchants"]] == [merchant["id"]]
+    assert data["top_merchants"][0]["total"] == 10_000
+    assert data["merchants_total_spend"] == 10_000
+
+
+async def test_hidden_category_count_excludes_over_refunded_categories(client):
+    """The "and N more" figure counts only categories that still net spending."""
+    headers, account_id = await _setup_account(client)
+    today = _today_utc().isoformat()
+
+    for index, amount in enumerate((-6_000, -5_000, -4_000, -3_000, -2_000, -1_000)):
+        category = (await _create_category(client, headers, name=f"Test Spend {index}")).json()
+        await _create_transaction(client, headers, account_id, category["id"], dt=today, amount=amount)
+
+    for index in range(2):
+        refunded = (await _create_category(client, headers, name=f"Test Refunded {index}")).json()
+        await _create_transaction(client, headers, account_id, refunded["id"], dt=today, amount=-100)
+        await _create_transaction(client, headers, account_id, refunded["id"], dt=today, amount=500)
+
+    resp = await client.get(
+        f"/accounts/{account_id}/spending-breakdown",
+        params={"range": "MTD"},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert [c["total"] for c in data["top_categories"]] == [6_000, 5_000, 4_000, 3_000, 2_000]
+
+    # Six categories still net spending, so one sits behind the visible five
+    assert data["other_categories_count"] == 1
+
+    # The total covers the hidden sixth as well, so it exceeds the five rows on screen
+    assert data["categories_total_spend"] == 21_000
+
+
+async def test_hidden_merchant_count_excludes_over_refunded_merchants(client):
+    """The merchant "and N more" figure counts only merchants that still net spending."""
+    headers, account_id = await _setup_account(client)
+    category = (await _create_category(client, headers, name="Test Everything")).json()
+    today = _today_utc().isoformat()
+
+    for index, amount in enumerate((-8_000, -7_000, -6_000, -5_000, -4_000, -3_000, -2_000, -1_000)):
+        merchant = (await _create_merchant(client, headers, name=f"Spender {index}")).json()
+        await _create_transaction(
+            client, headers, account_id, category["id"],
+            dt=today, amount=amount, merchant_id=merchant["id"],
+        )
+
+    for index in range(2):
+        refunded = (await _create_merchant(client, headers, name=f"Returner {index}")).json()
+        await _create_transaction(
+            client, headers, account_id, category["id"],
+            dt=today, amount=-100, merchant_id=refunded["id"],
+        )
+        await _create_transaction(
+            client, headers, account_id, category["id"],
+            dt=today, amount=500, merchant_id=refunded["id"],
+        )
+
+    resp = await client.get(
+        f"/accounts/{account_id}/spending-breakdown",
+        params={"range": "MTD"},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert [m["total"] for m in data["top_merchants"]] == [8_000, 7_000, 6_000, 5_000, 4_000]
+
+    # Eight merchants still net spending, so three sit behind the visible five
+    assert data["other_merchants_count"] == 3
+
+    # The merchant total covers the hidden three. The category total lands 8.00 below it, because
+    # the two refunded merchants leave their refunds inside a category that still nets spending
+    assert data["merchants_total_spend"] == 36_000
+    assert data["categories_total_spend"] == 35_200
+
+
 async def test_mixed_currency_transactions_are_summed_as_raw_minor_units(client):
     """Endpoint sums all expense rows regardless of currency — no fx conversion
 
     Locks in current behaviour for a future fx-aware change to catch. The account
     is CAD and a USD transaction (with fx_rate to satisfy POST /transactions'
     cross-currency guard) is posted alongside a CAD one; both contribute their
-    raw minor-unit amounts to grand_total_spend
+    raw minor-unit amounts to categories_total_spend
     """
     await _seed_usd_currency()
 
@@ -574,7 +832,7 @@ async def test_mixed_currency_transactions_are_summed_as_raw_minor_units(client)
     assert resp.status_code == 200
     data = resp.json()
     # Raw mix: 1000 + 500 = 1500 (no fx applied)
-    assert data["grand_total_spend"] == 1500
+    assert data["categories_total_spend"] == 1500
     assert data["top_categories"][0]["total"] == 1500
 
 
@@ -604,7 +862,7 @@ async def test_future_dated_transaction_is_excluded_from_range(client):
     )
     assert resp.status_code == 200
     data = resp.json()
-    assert data["grand_total_spend"] == 1000
+    assert data["categories_total_spend"] == 1000
     assert data["top_categories"][0]["total"] == 1000
 
 
@@ -639,7 +897,7 @@ async def test_transactions_on_other_accounts_are_excluded(client):
     )
     assert resp.status_code == 200
     data = resp.json()
-    assert data["grand_total_spend"] == 1000
+    assert data["categories_total_spend"] == 1000
     assert len(data["top_categories"]) == 1
     assert data["top_categories"][0]["total"] == 1000
     assert len(data["top_merchants"]) == 1
@@ -741,7 +999,8 @@ async def test_empty_state_returns_200_with_zeros_and_empty_lists(client):
     assert data["range"] == "MTD"
     assert data["top_categories"] == []
     assert data["top_merchants"] == []
-    assert data["grand_total_spend"] == 0
+    assert data["categories_total_spend"] == 0
+    assert data["merchants_total_spend"] == 0
     assert data["other_categories_count"] == 0
     assert data["other_merchants_count"] == 0
 
@@ -773,7 +1032,7 @@ async def test_missing_range_param_defaults_to_mtd(client):
     assert resp.status_code == 200
     data = resp.json()
     assert data["range"] == "MTD"
-    assert data["grand_total_spend"] == 1000
+    assert data["categories_total_spend"] == 1000
 
 
 async def test_invalid_range_param_returns_422(client):
@@ -875,6 +1134,53 @@ async def test_group_member_with_explicit_read_permission_succeeds(client):
     assert resp.status_code == 200
 
 
+async def test_merchant_total_leaves_out_a_merchant_the_viewer_cannot_see(client):
+    """A merchant hidden from the viewer reaches neither the merchant rows nor the total above them.
+
+    The category is a seeded system one so it stays visible to both users, which leaves the
+    merchant as the only thing the member cannot see
+    """
+    signup_resp = await _create_user(client)
+    admin_headers = _get_auth_header(signup_resp)
+
+    group_id = await _create_group(client, admin_headers)
+    account_id = (await _create_account(client, admin_headers, group_id=group_id)).json()["id"]
+    categories = (await client.get("/categories", headers=admin_headers)).json()
+    shared_category = next(c for c in categories if c["is_system"] and c["kind"] == "expense")
+
+    # A merchant the admin owns personally, which row-level security keeps from the member
+    private_merchant = (await _create_merchant(client, admin_headers, name="Private Diner")).json()
+    create_resp = await _create_transaction(
+        client, admin_headers, account_id, shared_category["id"],
+        dt=_today_utc().isoformat(), amount=-5_000, merchant_id=private_merchant["id"],
+    )
+    assert create_resp.status_code == 201
+
+    member_headers, member_user_id = await _create_second_user(client)
+    await client.post(
+        f"/groups/{group_id}/members",
+        json={"user_id": member_user_id},
+        headers=admin_headers,
+    )
+    await _grant_account_permission(client, admin_headers, account_id, member_user_id, "read")
+
+    resp = await client.get(
+        f"/accounts/{account_id}/spending-breakdown",
+        params={"range": "MTD"},
+        headers=member_headers,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+
+    # The category is visible, so the spending reaches that card and its total
+    assert data["categories_total_spend"] == 5_000
+
+    # The merchant is not, so no merchant total may stand above an empty merchant card
+    assert data["top_merchants"] == []
+    assert data["other_merchants_count"] == 0
+    assert data["merchants_total_spend"] == 0
+
+
 async def test_closed_account_still_returns_breakdown(client):
     """Closed accounts remain readable — the handler does not require require_open."""
     headers, account_id = await _setup_account(client)
@@ -898,4 +1204,4 @@ async def test_closed_account_still_returns_breakdown(client):
         headers=headers,
     )
     assert resp.status_code == 200
-    assert resp.json()["grand_total_spend"] == 1000
+    assert resp.json()["categories_total_spend"] == 1000

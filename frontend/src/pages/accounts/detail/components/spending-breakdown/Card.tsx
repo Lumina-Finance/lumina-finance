@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import type { SpendingRange } from '@/api/accounts'
 import { LoadingContent, LoadingOverlay } from '@/components/loading/Transition'
 import { TimeRangeSelector } from '@/components/time-range/Selector'
@@ -20,11 +20,14 @@ type SpendingBreakdownCardProps = {
   range: SpendingRange
   onRangeChange: (range: SpendingRange) => void
   rows: BreakdownRow[]
-  grandTotal: number
+  cardTotal: number
   currency: string
   emptyLabel: string
   loading: boolean
   transitionKey: string
+
+  /** Explanation shown after the total amount, for a card whose figure needs one */
+  totalTooltip?: ReactNode
 }
 
 /**
@@ -36,19 +39,20 @@ export function SpendingBreakdownCard({
   range,
   onRangeChange,
   rows,
-  grandTotal,
+  cardTotal,
   currency,
   emptyLabel,
   loading,
   transitionKey,
+  totalTooltip,
 }: SpendingBreakdownCardProps) {
   const { formatCurrency } = useMoneyFormatters()
   const incomingSnapshot = useMemo<BreakdownSnapshot>(() => ({
     rows,
-    grandTotal,
+    cardTotal,
     currency,
     emptyLabel,
-  }), [currency, emptyLabel, grandTotal, rows])
+  }), [currency, emptyLabel, cardTotal, rows])
   const {
     displaySnapshot,
     contentConcealed,
@@ -102,7 +106,7 @@ export function SpendingBreakdownCard({
             <>
               <div className="flex flex-col gap-1.5" style={{ minHeight: BREAKDOWN_CARD_LIST_MIN_HEIGHT }}>
                 {displaySnapshot.rows.map((item) => {
-                  const barPct = getBreakdownRowFillPercent(item.total, displaySnapshot.grandTotal)
+                  const barPct = getBreakdownRowFillPercent(item.total, displaySnapshot.cardTotal)
                   const color = item.isOther ? BREAKDOWN_OTHER_COLOR : item.color ?? getDeterministicChartColor(item.key || item.name)
 
                   return (
@@ -138,15 +142,17 @@ export function SpendingBreakdownCard({
                 className="flex items-center gap-3 pt-3"
                 style={{ borderTop: '1px solid var(--app-border)' }}
               >
-                <div className="w-2 shrink-0" />
                 <span
                   className="flex-1 text-xs font-semibold uppercase tracking-wide"
                   style={{ color: 'var(--app-text-muted)' }}
                 >
                   Total
                 </span>
-                <span className="font-financial font-semibold tabular-nums text-sm">
-                  {formatCurrency(displaySnapshot.grandTotal, displaySnapshot.currency)}
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="font-financial font-semibold tabular-nums text-sm">
+                    {formatCurrency(displaySnapshot.cardTotal, displaySnapshot.currency)}
+                  </span>
+                  {totalTooltip}
                 </span>
               </div>
             </>
