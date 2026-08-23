@@ -8,16 +8,18 @@ import { LoadingContent, LoadingOverlay } from '@/components/loading/Transition'
  *
  * A widget holding nothing does not render blank: net worth renders $0.00, and runway, credit and
  * spending comparison each render a zero of their own. So the box takes the place of the content
- * where the widget has nothing to show, rather than sitting over a confident figure no request
- * produced. Where something did load earlier the box sits above it and that reading stays, since the
- * query cache is persisted and a failure that passes must not throw away a figure worth seeing
+ * rather than sitting over a confident figure no request produced. It takes the place of a figure
+ * that did load earlier too. Every widget holds a height its row sets and clips to it, and on the
+ * shortest row the box fills that height, so a figure kept underneath would render where nobody
+ * could see it. The two taller rows have room for both and drop the figure anyway, since one rule
+ * across the eight is what keeps a failed widget reading the same wherever it sits. The figure is
+ * still in the cache and comes back with the next request that succeeds
  */
 export function DashboardWidgetLoadingBody({
   children,
   contentConcealed,
   error,
   failed,
-  hasContent,
   loadingVisible,
   shouldReduceMotion,
   label,
@@ -33,11 +35,6 @@ export function DashboardWidgetLoadingBody({
 
   failed: boolean
 
-  // Read from the snapshot the reveal is held against rather than from the live query, or the box
-  // and the content would disagree for as long as that hold lasts
-  /** Whether the widget has a figure or a list to show */
-  hasContent: boolean
-
   loadingVisible: boolean
   shouldReduceMotion: boolean
   label: string
@@ -48,25 +45,16 @@ export function DashboardWidgetLoadingBody({
   className?: string
   contentClassName?: string
 }) {
-  // Clipping and the zero minimum height are what stop the content stretching a widget whose height
-  // is otherwise the one its row sets. Both come off while the box is up, so the widget grows to
-  // hold it and the rest of its row grows with it
-  const containment = failed ? '' : 'min-h-0 overflow-hidden'
-
-  // With nothing else in the widget the box sits in the middle of the space. Where a figure survived
-  // the failure it stays full width above that figure, since moving it to the middle would put it
-  // over the figure it belongs above
-  const boxAlone = failed && !hasContent
-
   return (
-    <div className={`relative ${containment} ${className}`}>
+    <div className={`relative min-h-0 overflow-hidden ${className}`}>
       <LoadingContent
         concealed={contentConcealed}
         shouldReduceMotion={shouldReduceMotion}
-        className={boxAlone ? 'flex h-full flex-col' : contentClassName}
+        className={failed ? 'flex h-full flex-col' : contentClassName}
       >
-        {failed && <LoadFailure error={error} standalone={boxAlone} subject={subject} />}
-        {(!failed || hasContent) && children}
+        {failed ? (
+          <LoadFailure compact error={error} standalone subject={subject} />
+        ) : children}
       </LoadingContent>
       <LoadingOverlay
         visible={loadingVisible}

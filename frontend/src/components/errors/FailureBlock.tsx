@@ -44,6 +44,11 @@ const CONTROLS_SPACING_CLASS: Record<FailureBlockSize, string> = {
   inline: 'mt-4',
 };
 
+// Two lines is what the shortest widget on the dashboard has room for once its heading and its
+// Reload button are placed. A server message runs to whatever length the server chose, so without
+// this the button is pushed out of a card that cannot grow to follow it
+const COMPACT_MESSAGE_CAP_CLASS = 'line-clamp-2';
+
 interface FailureBlockProps {
   componentStack?: string | null;
 
@@ -52,6 +57,14 @@ interface FailureBlockProps {
 
   error: unknown;
   heading: ReactNode;
+
+  // Set by the container rather than taken from the size, because every caller of the inline size
+  // asks for the same size while only some of them sit somewhere that cannot grow
+  /**
+   * Draws the box for a container whose height is fixed before its contents are known: shorter
+   * wording, and a quoted server message cut off after two lines
+   */
+  compact?: boolean;
 
   // Keeps the reload from emptying this browser's storage. Set it where the failure is known to be a
   // request that failed rather than saved state that broke a render, since the wipe exists to clear
@@ -69,13 +82,20 @@ interface FailureBlockProps {
  * The heading, explanation and recovery controls shown wherever something did not load
  *
  * The crash screen and the smaller box a working page puts beside a failed list render the same
- * block, so the wording and the controls exist once. What differs is the heading the caller passes,
- * how large the block is drawn, and whether reloading keeps this browser's storage
+ * block, so the controls exist once. What differs is the heading the caller passes, how large the
+ * block is drawn, and whether reloading keeps this browser's storage
+ *
+ * A caller whose container cannot grow asks for the compact wording instead. The usual sentence
+ * runs to five lines in a dashboard widget, which would leave no room for the Reload button, and
+ * the compact one drops the bug report link with it. That is asked for rather than taken from the
+ * size, since every caller of the inline size asks for the same size while only the dashboard sits
+ * somewhere with a height decided before the wording is known
  *
  * It returns a fragment rather than its own container, since the three callers each need a
  * different one: a full window, a centred card, or a strip inside a section that is already there
  */
 export default function FailureBlock({
+  compact = false,
   componentStack = null,
   detail = null,
   error,
@@ -143,18 +163,21 @@ export default function FailureBlock({
       </div>
 
       <p
-        className={`${MESSAGE_SPACING_CLASS[size]} text-sm leading-relaxed`}
+        className={`${MESSAGE_SPACING_CLASS[size]} text-sm leading-relaxed ${compact && detail ? COMPACT_MESSAGE_CAP_CLASS : ''}`}
         style={{ color: 'var(--app-text-muted)' }}
       >
-        {detail ?? (serverUnreachable ? (
+        {detail ?? (compact ? (
+          serverUnreachable
+            ? <>The app can&apos;t reach the server right now.</>
+            : <>Something went wrong. Please try reloading the application.</>
+        ) : serverUnreachable ? (
           <>
-            The app can&apos;t reach the server right now. Your data is fine. Reload once your
-            connection is back.
+            The app can&apos;t reach the server right now. Reload once your connection is back.
           </>
         ) : (
           <>
-            The app ran into an issue while trying to respond to your request. Your data is fine,
-            and reloading usually fixes it. If it persists, please try again in a bit and submit a{' '}
+            Something went wrong while the app was responding to your request. Reloading usually
+            fixes it. If it keeps happening, please submit a{' '}
             <a
               href={BUG_REPORT_URL}
               target="_blank"
@@ -163,8 +186,7 @@ export default function FailureBlock({
               style={{ color: 'var(--app-accent)' }}
             >
               bug report
-            </a>{' '}
-            if it still doesn&apos;t resolve.
+            </a>.
           </>
         ))}
       </p>

@@ -47,14 +47,13 @@ export function RecentActivityWidget() {
   )
 
   return (
-    <div className="app-card min-h-[410px] flex flex-col">
+    <div className="app-card h-[410px] flex flex-col">
       <RecentActivityHeader />
 
       <DashboardWidgetLoadingBody
         contentConcealed={contentConcealed}
         error={recentActivityError ?? categoriesError}
         failed={recentActivityFailed || categoriesFailed}
-        hasContent={dashboardRecentActivity !== undefined}
         subject="Recent activity"
         loadingVisible={loadingVisible}
         shouldReduceMotion={shouldReduceMotion}

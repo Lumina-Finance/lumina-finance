@@ -67,7 +67,7 @@ export function RunwayWidget({ displayCurrency }: RunwayWidgetProps) {
   )
 
   return (
-    <div ref={runwayCardRef} className="app-card relative min-h-[14rem] flex flex-col">
+    <div ref={runwayCardRef} className="app-card relative h-[15.5rem] flex flex-col">
       <RunwayHeader
         fxStatus={fxStatus}
         runwayStyle={runwayStyle}
@@ -76,7 +76,6 @@ export function RunwayWidget({ displayCurrency }: RunwayWidgetProps) {
         contentConcealed={contentConcealed}
         error={runwayError ?? runwayAccountsError ?? accountsError}
         failed={runwayFailed || runwayAccountsFailed || accountsFailed}
-        hasContent={runway !== undefined}
         subject="Runway"
         loadingVisible={loadingVisible}
         shouldReduceMotion={shouldReduceMotion}
