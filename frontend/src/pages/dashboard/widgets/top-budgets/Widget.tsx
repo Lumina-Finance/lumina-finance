@@ -42,14 +42,13 @@ export function TopBudgetsWidget() {
   )
 
   return (
-    <div className="app-card min-h-[410px] flex flex-col">
+    <div className="app-card h-[410px] flex flex-col">
       <TopBudgetsHeader fxStatus={fxStatus} />
 
       <DashboardWidgetLoadingBody
         contentConcealed={contentConcealed}
         error={budgetsError}
         failed={budgetsFailed}
-        hasContent={latestBudgetUtilizations !== undefined}
         subject="Top budgets"
         loadingVisible={loadingVisible}
         shouldReduceMotion={shouldReduceMotion}

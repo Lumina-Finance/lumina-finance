@@ -61,7 +61,7 @@ export function SpendingComparisonWidget({ displayCurrency }: SpendingComparison
     [displaySpendingRange, spendingComparison],
   )
   return (
-    <div className="app-card min-h-[470px] flex flex-col">
+    <div className="app-card h-[470px] flex flex-col">
       <SpendingComparisonHeader
         spendingRange={spendingRange}
         fxStatus={fxStatus}
@@ -71,7 +71,6 @@ export function SpendingComparisonWidget({ displayCurrency }: SpendingComparison
         contentConcealed={contentConcealed}
         error={spendingComparisonError}
         failed={spendingComparisonFailed}
-        hasContent={spendingComparison !== undefined}
         subject="Spending comparison"
         loadingVisible={loadingVisible}
         shouldReduceMotion={shouldReduceMotion}

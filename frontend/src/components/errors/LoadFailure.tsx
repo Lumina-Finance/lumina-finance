@@ -19,11 +19,19 @@ const STANDALONE_WIDTH_CLASS = 'w-full max-w-sm';
  */
 export default function LoadFailure({
   className = 'py-3',
+  compact = false,
   error,
   standalone = false,
   subject,
 }: {
   className?: string
+
+  /**
+   * Draws the box for a container whose height is fixed before its contents are known: shorter
+   * wording, and a quoted server message cut off after two lines
+   */
+  compact?: boolean
+
   error: unknown
   standalone?: boolean
   subject: string
@@ -35,6 +43,7 @@ export default function LoadFailure({
 
   const block = (
     <FailureBlock
+      compact={compact}
       detail={serverAnswered ? error.detail ?? null : null}
       error={error}
       heading={`${subject} could not load`}
@@ -49,10 +58,16 @@ export default function LoadFailure({
 
   // The wording stays left-aligned, so the width is capped and that capped block is what moves to
   // the middle. A block spanning the whole card would start at the left edge with nothing to centre
+  //
+  // The middle is found with an automatic margin rather than by centring the column, because a
+  // container that cannot grow can be shorter than the block. An automatic margin falls back to
+  // zero once there is no space left over, which leaves the block at the top and loses only its
+  // tail. Centring divides the shortfall between both ends instead, cutting the heading off the top
+  // and the Reload button off the bottom and leaving the middle of a sentence with no way to retry
   if (standalone) {
     return (
-      <div className="flex h-full w-full flex-1 flex-col items-center justify-center py-3" role="alert">
-        <div className={STANDALONE_WIDTH_CLASS}>{block}</div>
+      <div className="flex h-full w-full flex-1 flex-col items-center py-3" role="alert">
+        <div className={`my-auto ${STANDALONE_WIDTH_CLASS}`}>{block}</div>
       </div>
     )
   }

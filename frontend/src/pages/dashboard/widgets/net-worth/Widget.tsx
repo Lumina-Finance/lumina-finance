@@ -47,13 +47,12 @@ export function NetWorthWidget({ displayCurrency }: NetWorthWidgetProps) {
   const fxStatus = dashboardNetWorth?.fx_status
 
   return (
-    <div className="app-card min-h-[14rem] pb-2 flex flex-col">
+    <div className="app-card h-[15.5rem] pb-2 flex flex-col">
       <NetWorthHeader fxStatus={fxStatus} />
       <DashboardWidgetLoadingBody
         contentConcealed={contentConcealed}
         error={netWorthError}
         failed={netWorthFailed}
-        hasContent={dashboardNetWorth !== undefined}
         subject="Net worth"
         loadingVisible={loadingVisible}
         shouldReduceMotion={shouldReduceMotion}

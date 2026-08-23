@@ -24,7 +24,6 @@ type PeriodGlanceSnapshot = {
   displayCurrency: string
   error: unknown
   failed: boolean
-  hasContent: boolean
 }
 
 type PeriodGlanceCardProps = {
@@ -39,9 +38,6 @@ type PeriodGlanceCardProps = {
   error: unknown
 
   failed: boolean
-
-  /** Whether the request has ever come back, since the metrics read zero either way */
-  hasContent: boolean
 
   loading?: boolean
   transitionKey: string
@@ -59,7 +55,6 @@ export function PeriodGlanceCard({
   displayCurrency,
   error,
   failed,
-  hasContent,
   loading = false,
   transitionKey,
 }: PeriodGlanceCardProps) {
@@ -74,8 +69,7 @@ export function PeriodGlanceCard({
     displayCurrency,
     error,
     failed,
-    hasContent,
-  }), [displayCurrency, error, expenses, failed, hasContent, income, incomeExpenseFxStatus, primaryMetric, supportItems])
+  }), [displayCurrency, error, expenses, failed, income, incomeExpenseFxStatus, primaryMetric, supportItems])
   const {
     displaySnapshot,
     contentConcealed,
@@ -96,12 +90,12 @@ export function PeriodGlanceCard({
           {displaySnapshot.failed && (
             <LoadFailure
               error={displaySnapshot.error}
-              standalone={!displaySnapshot.hasContent}
+              standalone
               subject="This period at a glance"
             />
           )}
 
-          {(!displaySnapshot.failed || displaySnapshot.hasContent) && (
+          {!displaySnapshot.failed && (
             <div className="grid gap-4 min-[1500px]:grid-cols-[minmax(0,40fr)_minmax(0,60fr)]">
               <PeriodGlancePrimaryPanel
                 primaryMetric={displaySnapshot.primaryMetric}

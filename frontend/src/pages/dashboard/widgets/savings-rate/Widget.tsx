@@ -44,7 +44,7 @@ export function SavingsRateWidget() {
   )
 
   return (
-    <div className="app-card min-h-[14rem] pb-2 flex flex-col">
+    <div className="app-card h-[15.5rem] pb-2 flex flex-col">
       <SavingsRateHeader
         fxStatus={fxStatus}
         capSavingsRateChart={capSavingsRateChart}
@@ -54,7 +54,6 @@ export function SavingsRateWidget() {
         contentConcealed={contentConcealed}
         error={savingsRateError}
         failed={savingsRateFailed}
-        hasContent={dashboardSavingsRate !== undefined}
         subject="Savings rate"
         loadingVisible={loadingVisible}
         shouldReduceMotion={shouldReduceMotion}

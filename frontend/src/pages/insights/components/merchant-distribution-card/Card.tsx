@@ -25,9 +25,6 @@ type MerchantDistributionCardProps = {
 
   failed: boolean
 
-  /** Whether the request has ever come back, since an empty map looks the same either way */
-  hasContent: boolean
-
   loading?: boolean
   transitionKey: string
 }
@@ -39,7 +36,6 @@ type MerchantDistributionSnapshot = {
   emptyLabel: string
   error: unknown
   failed: boolean
-  hasContent: boolean
 }
 
 /**
@@ -51,7 +47,6 @@ export function MerchantDistributionCard({
   currency,
   error,
   failed,
-  hasContent,
   loading = false,
   transitionKey,
 }: MerchantDistributionCardProps) {
@@ -64,8 +59,7 @@ export function MerchantDistributionCard({
     emptyLabel: loading ? 'Loading merchant spending...' : 'No merchant spending in this range',
     error,
     failed,
-    hasContent,
-  }), [currency, error, failed, fxStatus, hasContent, loading, merchants])
+  }), [currency, error, failed, fxStatus, loading, merchants])
   const {
     displaySnapshot,
     contentConcealed,
@@ -107,12 +101,12 @@ export function MerchantDistributionCard({
           {displaySnapshot.failed && (
             <LoadFailure
               error={displaySnapshot.error}
-              standalone={!displaySnapshot.hasContent}
+              standalone
               subject="Spending distribution by merchant"
             />
           )}
 
-          {(!displaySnapshot.failed || displaySnapshot.hasContent) && (
+          {!displaySnapshot.failed && (
             <>
               {displaySnapshot.merchants.length > 0 ? (
                 <MerchantMarketMap merchants={displaySnapshot.merchants} currency={displaySnapshot.currency} />

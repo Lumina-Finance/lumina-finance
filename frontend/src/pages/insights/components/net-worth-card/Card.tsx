@@ -39,9 +39,6 @@ type NetWorthCardProps = {
 
   failed: boolean
 
-  /** Whether the request has ever come back, since the ending figure reads zero either way */
-  hasContent: boolean
-
   loading?: boolean
   transitionKey: string
 }
@@ -56,8 +53,11 @@ type NetWorthSnapshot = {
   emptyLabel: string
   error: unknown
   failed: boolean
-  hasContent: boolean
 }
+
+// The card holds this height whether it is drawing the chart or saying the request failed, so a
+// failure does not resize it
+const BODY_CLASS = 'flex h-[360px] flex-col'
 
 /**
  * Describes the calculation currently shown by the net-worth card mode
@@ -81,7 +81,6 @@ export function NetWorthCard({
   displayCurrency,
   error,
   failed,
-  hasContent,
   loading = false,
   transitionKey,
 }: NetWorthCardProps) {
@@ -98,8 +97,7 @@ export function NetWorthCard({
     emptyLabel: loading ? 'Loading net worth history...' : 'No net worth history in this range.',
     error,
     failed,
-    hasContent,
-  }), [baseline, displayCurrency, error, failed, fxStatus, groups, hasContent, loading, mode, series])
+  }), [baseline, displayCurrency, error, failed, fxStatus, groups, loading, mode, series])
   const {
     displaySnapshot,
     contentConcealed,
@@ -160,15 +158,17 @@ export function NetWorthCard({
       <div className="relative overflow-visible" data-tooltip-bounds>
         <LoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
           {displaySnapshot.failed && (
-            <LoadFailure
-              error={displaySnapshot.error}
-              standalone={!displaySnapshot.hasContent}
-              subject="Net worth"
-            />
+            <div className={BODY_CLASS}>
+              <LoadFailure
+                error={displaySnapshot.error}
+                standalone
+                subject="Net worth"
+              />
+            </div>
           )}
 
-          {(!displaySnapshot.failed || displaySnapshot.hasContent) && (
-            <div className="flex h-[360px] flex-col">
+          {!displaySnapshot.failed && (
+            <div className={BODY_CLASS}>
               <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
                 <div>
                   <p className="app-label app-label-compact inline-flex items-center gap-2">

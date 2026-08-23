@@ -43,7 +43,7 @@ export function CreditWidget({ displayCurrency }: CreditWidgetProps) {
   const creditSummary = getCreditUsageSummary(dashboardCredit, creditMode)
 
   return (
-    <div className="app-card min-h-[14rem] flex flex-col">
+    <div className="app-card h-[15.5rem] flex flex-col">
       <CreditHeader
         creditMode={creditMode}
         hasCredit={creditSummary.hasCredit}
@@ -57,7 +57,6 @@ export function CreditWidget({ displayCurrency }: CreditWidgetProps) {
         contentConcealed={contentConcealed}
         error={creditError}
         failed={creditFailed}
-        hasContent={dashboardCredit !== undefined}
         subject="Credit usage"
         loadingVisible={loadingVisible}
         shouldReduceMotion={shouldReduceMotion}
