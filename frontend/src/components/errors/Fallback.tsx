@@ -31,7 +31,16 @@ export default function Fallback({ componentStack, error, preserveStoredData = f
     <FailureBlock
       componentStack={componentStack}
       error={error}
-      heading={<>OK this was not in the plan <span aria-hidden>:(</span></>}
+      // The last word and the face are held together, or a narrow screen breaks between them and
+      // leaves the bracket opening the next line as stray punctuation
+      heading={(
+        <>
+          OK this was not in the{' '}
+          <span className="whitespace-nowrap">
+            plan <span aria-hidden>:(</span>
+          </span>
+        </>
+      )}
       preserveStoredData={preserveStoredData}
       serverUnreachable={serverUnreachable}
       size={variant}
