@@ -7,10 +7,6 @@ import { useBodyScrollLock } from '@/hooks/useBodyScrollLock'
 
 const EASE = [0.25, 0.1, 0.25, 1] as const
 
-// Slightly quicker than the panel's own entrance, so a height change that happens while the modal is open
-// reads as the content settling rather than as the panel animating again
-const LAYOUT_TRANSITION = { duration: 0.22, ease: EASE } as const
-
 // A modal opened from the page and a modal opened from another modal. Both take their stacking level from
 // the named scale in constants/stackingLevels.ts, where the stacked one sits above every page-level modal
 // and above the full-screen filter sheet. It also settles a little faster, so the second modal never feels
@@ -50,8 +46,6 @@ interface ModalShellProps {
   closeDisabled?: boolean
   /** Runs once the exit animation has finished, for work that must wait until the modal is fully gone */
   onExitComplete?: () => void
-  /** Animates the panel's height as its content grows, for a form that reveals whole rows as it is filled in */
-  animateHeight?: boolean
   /** Keeps tooltips opened inside the panel within its edges, for one whose content would otherwise push them off */
   boundsTooltips?: boolean
   children: ReactNode
@@ -70,7 +64,6 @@ export function ModalShell({
   level = 'page',
   closeDisabled = false,
   onExitComplete,
-  animateHeight = false,
   boundsTooltips = false,
   children,
 }: ModalShellProps) {
@@ -187,11 +180,17 @@ export function ModalShell({
             data-tooltip-bounds={boundsTooltips ? true : undefined}
             className={`app-modal-panel ${covered ? 'app-modal-panel-covered' : ''} ${panelClassName}`}
             onClick={(event) => event.stopPropagation()}
-            layout={animateHeight}
+            // No layout animation, and nothing else may put a settled transform or a filter on this
+            // panel either. Motion animates a layout change by scaling the element, and a scaled or
+            // filtered box becomes what its `position: fixed` descendants measure themselves from,
+            // which throws the open drop-down box hundreds of pixels out of place and clips it to
+            // the panel for as long as the animation runs. The panel is sized by its content, so it
+            // follows anything inside it that animates its own height, which is how a form that
+            // reveals whole rows grows
             initial={appearance.panelOffset}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={appearance.panelOffset}
-            transition={animateHeight ? { ...appearance.panelTransition, layout: LAYOUT_TRANSITION } : appearance.panelTransition}
+            transition={appearance.panelTransition}
           >
             {children}
           </motion.div>

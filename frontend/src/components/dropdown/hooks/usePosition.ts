@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import {
   DEFAULT_DROPDOWN_BOX_POSITION,
   getDropdownBoxPosition,
+  isSameDropdownBoxPosition,
   type DropdownBoxDirection,
   type DropdownBoxPosition,
   type DropdownViewport,
@@ -74,7 +75,10 @@ export function useDropdownPosition({
     })
 
     heldDirection.current = { openAbove: next.openAbove, openLeftward: next.openLeftward }
-    setBoxPosition(next)
+
+    // Kept as it is where the measurement landed in the same place, so a frame that found nothing
+    // moved costs a measurement rather than a render of the whole control and its list
+    setBoxPosition((current) => isSameDropdownBoxPosition(current, next) ? current : next)
   }, [searchable, wrapperRef])
 
   useEffect(() => {
@@ -86,24 +90,19 @@ export function useDropdownPosition({
       return
     }
 
-    let frame = 0
-    const updateOnFrame = () => {
-      window.cancelAnimationFrame(frame)
-      frame = window.requestAnimationFrame(updateBoxPosition)
-    }
+    // Measured every frame the box is open rather than on scroll and resize, because those two
+    // events miss the case that moves the box furthest: a modal growing around it re-centres itself
+    // and slides the head, without the page scrolling or the window changing size. A box that opened
+    // upward is pinned by its lower edge and one that opened downward by its upper edge, so the two
+    // drift apart from their head in opposite directions, and neither corrects itself until the next
+    // scroll. The measurement is one getBoundingClientRect, and a frame that finds nothing moved
+    // re-renders nothing
+    let frame = window.requestAnimationFrame(function track() {
+      updateBoxPosition()
+      frame = window.requestAnimationFrame(track)
+    })
 
-    updateOnFrame()
-    window.addEventListener('resize', updateOnFrame)
-    window.addEventListener('scroll', updateOnFrame, true)
-    window.visualViewport?.addEventListener('resize', updateOnFrame)
-    window.visualViewport?.addEventListener('scroll', updateOnFrame)
-    return () => {
-      window.cancelAnimationFrame(frame)
-      window.removeEventListener('resize', updateOnFrame)
-      window.removeEventListener('scroll', updateOnFrame, true)
-      window.visualViewport?.removeEventListener('resize', updateOnFrame)
-      window.visualViewport?.removeEventListener('scroll', updateOnFrame)
-    }
+    return () => window.cancelAnimationFrame(frame)
   }, [placed, updateBoxPosition])
 
   return { boxPosition, updateBoxPosition }

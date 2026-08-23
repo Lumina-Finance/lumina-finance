@@ -19,7 +19,6 @@ import {
   fromMinorUnits,
 } from '@/utils/moneyInput'
 import { waitForMilliseconds } from '@/utils/timing'
-import { EASE } from '@/pages/accounts/detail/constants/accountDetail'
 import {
   createIdentityFormValues,
   getIdentityFieldErrors,
@@ -283,16 +282,16 @@ export default function EditAccountIdentityModal({
         titleId={EDIT_ACCOUNT_IDENTITY_TITLE_ID}
         panelClassName="flex max-h-[84vh] w-full max-w-2xl overflow-hidden"
         level="stacked"
-        animateHeight
       >
         <EditModalSideRail />
 
-        <motion.form
-          layout
+        {/* No layout animation here, for the reason given beside the panel in components/modal/Shell.tsx.
+            The sections that appear and disappear animate their own height instead, and this form follows
+            them because it is sized by what it holds */}
+        <form
           onSubmit={handleSubmit}
           className="flex min-h-0 w-full flex-col"
           noValidate
-          transition={{ layout: { duration: 0.28, ease: EASE } }}
         >
           <EditModalHeader
             accountType={account.account_type}
@@ -379,7 +378,7 @@ export default function EditAccountIdentityModal({
             onCancel={requestClose}
             onStartDelete={handleStartDeleteAccount}
           />
-        </motion.form>
+        </form>
       </ModalShell>
       <InstitutionModal
         key={institutionModal.key}

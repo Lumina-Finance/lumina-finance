@@ -251,7 +251,6 @@ export default function CreateTransactionModal({
         headerStatus={readOnly ? 'Archived account' : undefined}
         RailIcon={ReceiptText}
         railLabel="Transaction"
-        animateHeight
         onClose={closeModal}
         onExitComplete={applyPendingDeletion}
         onSubmit={handleSubmit}
