@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { Store } from 'lucide-react'
 import type { FxStatus } from '@/api/shared/fx'
+import LoadFailure from '@/components/errors/LoadFailure'
 import {
   LoadingContent,
   LoadingOverlay,
@@ -18,6 +19,15 @@ type MerchantDistributionCardProps = {
   merchants: MerchantMarketMerchant[]
   fxStatus: FxStatus | undefined
   currency: string
+
+  /** The rejection this card's request reported */
+  error: unknown
+
+  failed: boolean
+
+  /** Whether the request has ever come back, since an empty map looks the same either way */
+  hasContent: boolean
+
   loading?: boolean
   transitionKey: string
 }
@@ -27,6 +37,9 @@ type MerchantDistributionSnapshot = {
   fxStatus: FxStatus | undefined
   currency: string
   emptyLabel: string
+  error: unknown
+  failed: boolean
+  hasContent: boolean
 }
 
 /**
@@ -36,15 +49,23 @@ export function MerchantDistributionCard({
   merchants,
   fxStatus,
   currency,
+  error,
+  failed,
+  hasContent,
   loading = false,
   transitionKey,
 }: MerchantDistributionCardProps) {
+  // The failure travels in the snapshot rather than beside it, so the box arrives with the reveal
+  // instead of replacing the map while the spinner is still turning
   const incomingSnapshot = useMemo<MerchantDistributionSnapshot>(() => ({
     merchants,
     fxStatus,
     currency,
     emptyLabel: loading ? 'Loading merchant spending...' : 'No merchant spending in this range',
-  }), [currency, fxStatus, loading, merchants])
+    error,
+    failed,
+    hasContent,
+  }), [currency, error, failed, fxStatus, hasContent, loading, merchants])
   const {
     displaySnapshot,
     contentConcealed,
@@ -83,17 +104,29 @@ export function MerchantDistributionCard({
           concealed={contentConcealed}
           shouldReduceMotion={shouldReduceMotion}
         >
-          {displaySnapshot.merchants.length > 0 ? (
-            <MerchantMarketMap merchants={displaySnapshot.merchants} currency={displaySnapshot.currency} />
-          ) : (
-            <div className="flex min-h-0 flex-1 items-center justify-center rounded-lg border border-dashed border-[var(--app-border)] text-sm" style={{ color: 'var(--app-text-muted)' }}>
-              {displaySnapshot.emptyLabel}
-            </div>
+          {displaySnapshot.failed && (
+            <LoadFailure
+              error={displaySnapshot.error}
+              standalone={!displaySnapshot.hasContent}
+              subject="Spending distribution by merchant"
+            />
           )}
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs" style={{ color: 'var(--app-text-muted)' }}>
-            <span>Tile size shows total spend. Dots mark tiny tiles with details available on hover</span>
-            <MerchantDistributionLegend />
-          </div>
+
+          {(!displaySnapshot.failed || displaySnapshot.hasContent) && (
+            <>
+              {displaySnapshot.merchants.length > 0 ? (
+                <MerchantMarketMap merchants={displaySnapshot.merchants} currency={displaySnapshot.currency} />
+              ) : (
+                <div className="flex min-h-0 flex-1 items-center justify-center rounded-lg border border-dashed border-[var(--app-border)] text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                  {displaySnapshot.emptyLabel}
+                </div>
+              )}
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                <span>Tile size shows total spend. Dots mark tiny tiles with details available on hover</span>
+                <MerchantDistributionLegend />
+              </div>
+            </>
+          )}
         </LoadingContent>
 
         <LoadingOverlay

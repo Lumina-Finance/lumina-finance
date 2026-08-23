@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { ListChecks } from 'lucide-react'
 import type { FxStatus } from '@/api/shared/fx'
+import LoadFailure from '@/components/errors/LoadFailure'
 import {
   LoadingContent,
   LoadingOverlay,
@@ -17,6 +18,15 @@ type MerchantRankingCardProps = {
   merchants: MerchantRankingRow[]
   fxStatus: FxStatus | undefined
   currency: string
+
+  /** The rejection this card's request reported */
+  error: unknown
+
+  failed: boolean
+
+  /** Whether the request has ever come back, since an empty ranking looks the same either way */
+  hasContent: boolean
+
   loading?: boolean
   transitionKey: string
 }
@@ -26,6 +36,9 @@ type MerchantRankingSnapshot = {
   fxStatus: FxStatus | undefined
   currency: string
   emptyLabel: string
+  error: unknown
+  failed: boolean
+  hasContent: boolean
 }
 
 function getChangeColor(changePct: number | null) {
@@ -48,16 +61,24 @@ export function MerchantRankingCard({
   merchants,
   fxStatus,
   currency,
+  error,
+  failed,
+  hasContent,
   loading = false,
   transitionKey,
 }: MerchantRankingCardProps) {
   const { formatCurrency } = useMoneyFormatters()
+  // The failure travels in the snapshot rather than beside it, so the box arrives with the reveal
+  // instead of replacing the list while the spinner is still turning
   const incomingSnapshot = useMemo<MerchantRankingSnapshot>(() => ({
     merchants,
     fxStatus,
     currency,
     emptyLabel: loading ? 'Loading merchant ranking...' : 'No merchant spending in this range',
-  }), [currency, fxStatus, loading, merchants])
+    error,
+    failed,
+    hasContent,
+  }), [currency, error, failed, fxStatus, hasContent, loading, merchants])
   const {
     displaySnapshot,
     contentConcealed,
@@ -69,8 +90,12 @@ export function MerchantRankingCard({
     transitionKey,
   })
 
+  // Nothing else is left in the card, so the body has to fill the card's height for the box to have
+  // a middle to sit in. The ranking's own layout is left alone, since it sizes to its rows
+  const boxAlone = displaySnapshot.failed && !displaySnapshot.hasContent
+
   return (
-    <div className="app-card min-[1300px]:h-[560px]">
+    <div className="app-card flex flex-col min-[1300px]:h-[560px]">
       <InsightSectionHeader
         icon={ListChecks}
         label={(
@@ -90,44 +115,58 @@ export function MerchantRankingCard({
           </span>
         )}
       />
-      <div className="relative overflow-hidden">
-        <LoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
-          {displaySnapshot.merchants.length > 0 ? (
-            <div className="space-y-3">
-              {displaySnapshot.merchants.map((merchant, index) => (
-                <div key={merchant.id} className="flex items-center gap-3">
-                  <span
-                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold"
-                    style={{ background: 'var(--app-accent-soft)', color: 'var(--app-accent)' }}
-                  >
-                    {index + 1}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold">
-                      {merchant.name}
-                    </p>
-                    <p className="text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                      {merchant.transactionCount} transactions | avg {formatCurrency(merchant.averageAmount, displaySnapshot.currency)}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-financial text-sm">
-                      {formatCurrency(merchant.totalAmount, displaySnapshot.currency)}
-                    </p>
-                    <p
-                      className="font-financial text-xs"
-                      style={{ color: getChangeColor(merchant.changePct) }}
+      <div className={`relative overflow-hidden ${boxAlone ? 'flex min-h-0 flex-1 flex-col' : ''}`}>
+        <LoadingContent
+          className={boxAlone ? 'flex min-h-0 flex-1 flex-col' : undefined}
+          concealed={contentConcealed}
+          shouldReduceMotion={shouldReduceMotion}
+        >
+          {displaySnapshot.failed && (
+            <LoadFailure
+              error={displaySnapshot.error}
+              standalone={!displaySnapshot.hasContent}
+              subject="Merchant ranking"
+            />
+          )}
+
+          {(!displaySnapshot.failed || displaySnapshot.hasContent) && (
+            displaySnapshot.merchants.length > 0 ? (
+              <div className="space-y-3">
+                {displaySnapshot.merchants.map((merchant, index) => (
+                  <div key={merchant.id} className="flex items-center gap-3">
+                    <span
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold"
+                      style={{ background: 'var(--app-accent-soft)', color: 'var(--app-accent)' }}
                     >
-                      {getChangeLabel(merchant.changePct)}
-                    </p>
+                      {index + 1}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold">
+                        {merchant.name}
+                      </p>
+                      <p className="text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                        {merchant.transactionCount} transactions | avg {formatCurrency(merchant.averageAmount, displaySnapshot.currency)}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-financial text-sm">
+                        {formatCurrency(merchant.totalAmount, displaySnapshot.currency)}
+                      </p>
+                      <p
+                        className="font-financial text-xs"
+                        style={{ color: getChangeColor(merchant.changePct) }}
+                      >
+                        {getChangeLabel(merchant.changePct)}
+                      </p>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="flex min-h-24 items-center justify-center rounded-lg border border-dashed border-[var(--app-border)] text-sm" style={{ color: 'var(--app-text-muted)' }}>
-              {displaySnapshot.emptyLabel}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex min-h-24 items-center justify-center rounded-lg border border-dashed border-[var(--app-border)] text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                {displaySnapshot.emptyLabel}
+              </div>
+            )
           )}
         </LoadingContent>
 

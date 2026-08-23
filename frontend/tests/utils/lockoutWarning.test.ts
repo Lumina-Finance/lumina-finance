@@ -7,11 +7,11 @@ import { buildLockoutWarning, describeStepUpFailure, getAttemptsRemaining } from
 
 describe('getAttemptsRemaining', () => {
   it('returns the count from a step-up error that carries it', () => {
-    expect(getAttemptsRemaining(new ApiError('Invalid credentials', 401, 3))).toBe(3)
+    expect(getAttemptsRemaining(new ApiError('Invalid credentials', 401, { attemptsRemaining: 3 }))).toBe(3)
   })
 
   it('returns zero when the failure just tripped the lock', () => {
-    expect(getAttemptsRemaining(new ApiError('Invalid credentials', 401, 0))).toBe(0)
+    expect(getAttemptsRemaining(new ApiError('Invalid credentials', 401, { attemptsRemaining: 0 }))).toBe(0)
   })
 
   it('returns null for an error without the attempts signal', () => {

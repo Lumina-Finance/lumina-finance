@@ -23,7 +23,12 @@ type SpendingBreakdownWidgetProps = {
 export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWidgetProps) {
   const [breakdownMode, setBreakdownMode] = useState<BreakdownMode>('spending')
   const [breakdownRange, setBreakdownRange] = useState<SpendingRange>('MTD')
-  const { data: incomingSpendingBreakdown, isFetching: spendingBreakdownLoading } = useSpendingBreakdown(breakdownRange)
+  const {
+    data: incomingSpendingBreakdown,
+    error: spendingBreakdownError,
+    isError: spendingBreakdownFailed,
+    isFetching: spendingBreakdownLoading,
+  } = useSpendingBreakdown(breakdownRange)
   const loadingSnapshot = useMemo(
     () => ({ spendingBreakdown: incomingSpendingBreakdown }),
     [incomingSpendingBreakdown],
@@ -51,7 +56,7 @@ export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWi
   } = breakdownSummary
 
   return (
-    <div className="app-card h-[470px] flex flex-col">
+    <div className="app-card min-h-[470px] flex flex-col">
       <SpendingBreakdownHeader
         breakdownMode={breakdownMode}
         breakdownRange={breakdownRange}
@@ -62,6 +67,10 @@ export function SpendingBreakdownWidget({ displayCurrency }: SpendingBreakdownWi
 
       <DashboardWidgetLoadingBody
         contentConcealed={contentConcealed}
+        error={spendingBreakdownError}
+        failed={spendingBreakdownFailed}
+        hasContent={spendingBreakdown !== undefined}
+        subject="Spending breakdown"
         loadingVisible={loadingVisible}
         shouldReduceMotion={shouldReduceMotion}
         label="Loading spending breakdown"

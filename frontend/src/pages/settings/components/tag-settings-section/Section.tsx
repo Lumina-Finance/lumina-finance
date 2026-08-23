@@ -149,6 +149,8 @@ export default function TagSettingsSection() {
                 deletingTagId={deletingTagId}
                 editingTagId={editingTagId}
                 hasMoreTags={shownTags.hasMore}
+                listError={tagList.tagListError}
+                listFailed={tagList.tagListFailed}
                 showFetchingMoreTags={tagList.showFetchingMoreTags}
                 showInitialTagLoading={tagList.showInitialTagLoading}
                 showTagListEnd={shownTags.showListEnd}

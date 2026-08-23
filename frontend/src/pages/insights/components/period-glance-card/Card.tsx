@@ -5,6 +5,7 @@ import type {
   PeriodGlancePrimaryMetric,
   PeriodGlanceSupportItem,
 } from '@/pages/insights/types/periodGlance'
+import LoadFailure from '@/components/errors/LoadFailure'
 import {
   LoadingContent,
   LoadingOverlay,
@@ -21,6 +22,9 @@ type PeriodGlanceSnapshot = {
   expenses: number
   incomeExpenseFxStatus: FxStatus | undefined
   displayCurrency: string
+  error: unknown
+  failed: boolean
+  hasContent: boolean
 }
 
 type PeriodGlanceCardProps = {
@@ -30,6 +34,15 @@ type PeriodGlanceCardProps = {
   expenses: number
   incomeExpenseFxStatus: FxStatus | undefined
   displayCurrency: string
+
+  /** The rejection this card's request reported */
+  error: unknown
+
+  failed: boolean
+
+  /** Whether the request has ever come back, since the metrics read zero either way */
+  hasContent: boolean
+
   loading?: boolean
   transitionKey: string
 }
@@ -44,9 +57,14 @@ export function PeriodGlanceCard({
   expenses,
   incomeExpenseFxStatus,
   displayCurrency,
+  error,
+  failed,
+  hasContent,
   loading = false,
   transitionKey,
 }: PeriodGlanceCardProps) {
+  // The failure travels in the snapshot rather than beside it, so the box arrives with the reveal
+  // instead of growing the card while the spinner is still turning
   const incomingSnapshot = useMemo<PeriodGlanceSnapshot>(() => ({
     primaryMetric,
     supportItems,
@@ -54,7 +72,10 @@ export function PeriodGlanceCard({
     expenses,
     incomeExpenseFxStatus,
     displayCurrency,
-  }), [displayCurrency, expenses, income, incomeExpenseFxStatus, primaryMetric, supportItems])
+    error,
+    failed,
+    hasContent,
+  }), [displayCurrency, error, expenses, failed, hasContent, income, incomeExpenseFxStatus, primaryMetric, supportItems])
   const {
     displaySnapshot,
     contentConcealed,
@@ -72,16 +93,26 @@ export function PeriodGlanceCard({
 
       <div className="relative overflow-hidden" data-tooltip-bounds>
         <LoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
-          <div className="grid gap-4 min-[1500px]:grid-cols-[minmax(0,40fr)_minmax(0,60fr)]">
-            <PeriodGlancePrimaryPanel
-              primaryMetric={displaySnapshot.primaryMetric}
-              income={displaySnapshot.income}
-              expenses={displaySnapshot.expenses}
-              incomeExpenseFxStatus={displaySnapshot.incomeExpenseFxStatus}
-              displayCurrency={displaySnapshot.displayCurrency}
+          {displaySnapshot.failed && (
+            <LoadFailure
+              error={displaySnapshot.error}
+              standalone={!displaySnapshot.hasContent}
+              subject="This period at a glance"
             />
-            <PeriodGlanceSupportGrid supportItems={displaySnapshot.supportItems} />
-          </div>
+          )}
+
+          {(!displaySnapshot.failed || displaySnapshot.hasContent) && (
+            <div className="grid gap-4 min-[1500px]:grid-cols-[minmax(0,40fr)_minmax(0,60fr)]">
+              <PeriodGlancePrimaryPanel
+                primaryMetric={displaySnapshot.primaryMetric}
+                income={displaySnapshot.income}
+                expenses={displaySnapshot.expenses}
+                incomeExpenseFxStatus={displaySnapshot.incomeExpenseFxStatus}
+                displayCurrency={displaySnapshot.displayCurrency}
+              />
+              <PeriodGlanceSupportGrid supportItems={displaySnapshot.supportItems} />
+            </div>
+          )}
         </LoadingContent>
 
         <LoadingOverlay

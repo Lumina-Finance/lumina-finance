@@ -85,7 +85,10 @@ export async function authenticatedFetch<T>(path: string, options: RequestInit =
     const message = body?.detail ?? `Request failed (${res.status})`;
     const attemptsHeader = res.headers.get(ATTEMPTS_REMAINING_HEADER);
     const attemptsRemaining = attemptsHeader !== null ? Number(attemptsHeader) : undefined;
-    throw new ApiError(message, res.status, Number.isNaN(attemptsRemaining) ? undefined : attemptsRemaining);
+    throw new ApiError(message, res.status, {
+      attemptsRemaining: Number.isNaN(attemptsRemaining) ? undefined : attemptsRemaining,
+      detail: body?.detail,
+    });
   }
 
   // 204 No Content responses have an empty body, so res.json would fail

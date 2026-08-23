@@ -1,3 +1,5 @@
+import { ApiError } from '@/api/auth';
+
 interface ErrorReportDetails {
   componentStack: string | null;
   error: unknown;
@@ -25,8 +27,17 @@ export function buildErrorReport({ componentStack, error, occurredAt, path, user
     `Time: ${occurredAt.toISOString()}`,
     `Page: ${path}`,
     `Error: ${description}`,
-    `Browser: ${userAgent}`,
   ];
+
+  // A failed request carries its status and the backend's own explanation as fields, and neither is
+  // reliably in the message: the client invents a sentence from the status only when the body had no
+  // explanation, so quoting one hides the other
+  if (error instanceof ApiError) {
+    lines.push(`Status: ${error.status}`);
+    if (error.detail) lines.push(`Server said: ${error.detail}`);
+  }
+
+  lines.push(`Browser: ${userAgent}`);
 
   if (error instanceof Error && error.stack) {
     lines.push('', 'Stack:', error.stack.trim());

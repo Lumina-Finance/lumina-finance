@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { CalendarDays } from 'lucide-react'
 import type { FxStatus } from '@/api/shared/fx'
+import LoadFailure from '@/components/errors/LoadFailure'
 import {
   LoadingContent,
   LoadingOverlay,
@@ -20,6 +21,15 @@ type CashFlowCardProps = {
   buckets: CashFlowBarBucket[]
   fxStatus: FxStatus | undefined
   displayCurrency: string
+
+  /** The rejection this card's request reported */
+  error: unknown
+
+  failed: boolean
+
+  /** Whether the request has ever come back, since the net figure reads zero either way */
+  hasContent: boolean
+
   loading?: boolean
   transitionKey: string
 }
@@ -29,6 +39,9 @@ type CashFlowSnapshot = {
   buckets: CashFlowBarBucket[]
   fxStatus: FxStatus | undefined
   displayCurrency: string
+  error: unknown
+  failed: boolean
+  hasContent: boolean
 }
 
 const cashFlowCalculation = 'Bars group money moving in and out by period. Net equals inflow minus outflow. Transfers are included. Balance adjustments are excluded'
@@ -42,16 +55,24 @@ export function CashFlowCard({
   buckets,
   fxStatus,
   displayCurrency,
+  error,
+  failed,
+  hasContent,
   loading = false,
   transitionKey,
 }: CashFlowCardProps) {
   const { currencies } = useMoneyFormatters()
+  // The failure travels in the snapshot rather than beside it, so the box arrives with the reveal
+  // instead of growing the card while the spinner is still turning
   const incomingSnapshot = useMemo<CashFlowSnapshot>(() => ({
     granularity,
     buckets,
     fxStatus,
     displayCurrency,
-  }), [buckets, displayCurrency, fxStatus, granularity])
+    error,
+    failed,
+    hasContent,
+  }), [buckets, displayCurrency, error, failed, fxStatus, granularity, hasContent])
   const {
     displaySnapshot,
     contentConcealed,
@@ -90,43 +111,53 @@ export function CashFlowCard({
       />
       <div className="relative overflow-visible" data-tooltip-bounds>
         <LoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
-          <div className="flex h-[390px] flex-col">
-            <div className="mb-3">
-              <p className="app-label app-label-compact inline-flex items-center gap-2">
-                Net Cash Flow
-                <InsightCalculationTooltip
-                  label="Net Cash Flow"
-                  calculation={netCashFlowCalculation}
-                />
-              </p>
-              <p
-                className="mt-1 font-financial text-3xl leading-none tracking-tight"
-                style={{ color: getSignedAmountColor(totalNet) }}
-              >
-                {formatSignedCurrency(totalNet, displaySnapshot.displayCurrency, currencies)}
-              </p>
-            </div>
-            <CashFlowBarChart
-              buckets={displaySnapshot.buckets}
-              displayCurrency={displaySnapshot.displayCurrency}
-              emptyLabel="No cash flow in this range"
+          {displaySnapshot.failed && (
+            <LoadFailure
+              error={displaySnapshot.error}
+              standalone={!displaySnapshot.hasContent}
+              subject="Cash flow"
             />
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--app-border)] pt-3">
-              <p className="text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                {label} net cash flow. Hover a bar for inflow, outflow, and net
-              </p>
-              <div className="flex items-center gap-4 text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                <span className="flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-sm" style={{ background: 'var(--app-chart-positive)' }} />
-                  Net positive
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-sm" style={{ background: 'var(--app-chart-negative)' }} />
-                  Net negative
-                </span>
+          )}
+
+          {(!displaySnapshot.failed || displaySnapshot.hasContent) && (
+            <div className="flex h-[390px] flex-col">
+              <div className="mb-3">
+                <p className="app-label app-label-compact inline-flex items-center gap-2">
+                  Net Cash Flow
+                  <InsightCalculationTooltip
+                    label="Net Cash Flow"
+                    calculation={netCashFlowCalculation}
+                  />
+                </p>
+                <p
+                  className="mt-1 font-financial text-3xl leading-none tracking-tight"
+                  style={{ color: getSignedAmountColor(totalNet) }}
+                >
+                  {formatSignedCurrency(totalNet, displaySnapshot.displayCurrency, currencies)}
+                </p>
+              </div>
+              <CashFlowBarChart
+                buckets={displaySnapshot.buckets}
+                displayCurrency={displaySnapshot.displayCurrency}
+                emptyLabel="No cash flow in this range"
+              />
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--app-border)] pt-3">
+                <p className="text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                  {label} net cash flow. Hover a bar for inflow, outflow, and net
+                </p>
+                <div className="flex items-center gap-4 text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-sm" style={{ background: 'var(--app-chart-positive)' }} />
+                    Net positive
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-sm" style={{ background: 'var(--app-chart-negative)' }} />
+                    Net negative
+                  </span>
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </LoadingContent>
 
         <LoadingOverlay

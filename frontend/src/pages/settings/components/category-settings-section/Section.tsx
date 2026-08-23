@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Plus } from 'lucide-react'
 import { ApiError } from '@/api/auth'
+import LoadFailure from '@/components/errors/LoadFailure'
 import { GlassSearchField } from '@/components/list-controls/GlassSearchField'
 import {
   useCategories,
@@ -29,7 +30,7 @@ import { waitForMilliseconds } from '@/utils/timing'
  * transactions should move instead
  */
 export default function CategorySettingsSection() {
-  const { data: categories = [], isLoading } = useCategories()
+  const { data: categories = [], isLoading, isError, error } = useCategories()
   const deleteCategory = useDeleteCategory()
   const forgetCategory = useForgetCategory()
   const mergeCategory = useMergeCategory()
@@ -132,7 +133,12 @@ export default function CategorySettingsSection() {
             overlayClassName={SETTINGS_LIST_LOADING_OVERLAY_CLASS}
             animateLoadingHeight
           >
-            {categories.length === 0 ? (
+            {/* Categories cached from an earlier session survive a failed request, since the query
+                cache is persisted, so the message sits above them rather than throwing a readable
+                list away */}
+            {isError && <LoadFailure error={error} subject="Categories" />}
+
+            {isError && categories.length === 0 ? null : categories.length === 0 ? (
               <p className="py-3 text-center text-sm italic" style={{ color: 'var(--app-text-subtle)' }}>
                 No categories yet.
               </p>

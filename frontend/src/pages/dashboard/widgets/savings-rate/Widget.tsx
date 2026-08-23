@@ -12,7 +12,12 @@ import { getSavingsRateSeries } from '@/pages/dashboard/utils/getSavingsRateSeri
  */
 export function SavingsRateWidget() {
   const [capSavingsRateChart, setCapSavingsRateChart] = useState(false)
-  const { data: incomingDashboardSavingsRate, isFetching: dashboardSavingsRateLoading } = useDashboardSavingsRate()
+  const {
+    data: incomingDashboardSavingsRate,
+    error: savingsRateError,
+    isError: savingsRateFailed,
+    isFetching: dashboardSavingsRateLoading,
+  } = useDashboardSavingsRate()
   const loadingSnapshot = useMemo(
     () => ({ dashboardSavingsRate: incomingDashboardSavingsRate }),
     [incomingDashboardSavingsRate],
@@ -39,7 +44,7 @@ export function SavingsRateWidget() {
   )
 
   return (
-    <div className="app-card h-[14rem] pb-2 flex flex-col">
+    <div className="app-card min-h-[14rem] pb-2 flex flex-col">
       <SavingsRateHeader
         fxStatus={fxStatus}
         capSavingsRateChart={capSavingsRateChart}
@@ -47,6 +52,10 @@ export function SavingsRateWidget() {
       />
       <DashboardWidgetLoadingBody
         contentConcealed={contentConcealed}
+        error={savingsRateError}
+        failed={savingsRateFailed}
+        hasContent={dashboardSavingsRate !== undefined}
+        subject="Savings rate"
         loadingVisible={loadingVisible}
         shouldReduceMotion={shouldReduceMotion}
         label="Loading savings rate"

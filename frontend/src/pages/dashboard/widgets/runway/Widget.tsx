@@ -24,9 +24,19 @@ type RunwayWidgetProps = {
 export function RunwayWidget({ displayCurrency }: RunwayWidgetProps) {
   const runwayCardRef = useRef<HTMLDivElement>(null)
   const { currencies } = useMoneyFormatters()
-  const { data: incomingRunway, isFetching: runwayLoading } = useRunway()
-  const { data: incomingRunwayAccountIds, isFetching: runwayAccountsLoading } = useRunwayAccounts()
-  const { data: incomingAccounts, isFetching: accountsLoading } = useAccounts()
+  const { data: incomingRunway, error: runwayError, isError: runwayFailed, isFetching: runwayLoading } = useRunway()
+  const {
+    data: incomingRunwayAccountIds,
+    error: runwayAccountsError,
+    isError: runwayAccountsFailed,
+    isFetching: runwayAccountsLoading,
+  } = useRunwayAccounts()
+  const {
+    data: incomingAccounts,
+    error: accountsError,
+    isError: accountsFailed,
+    isFetching: accountsLoading,
+  } = useAccounts()
   const loadingSnapshot = useMemo(
     () => ({
       accounts: incomingAccounts,
@@ -57,13 +67,17 @@ export function RunwayWidget({ displayCurrency }: RunwayWidgetProps) {
   )
 
   return (
-    <div ref={runwayCardRef} className="app-card relative h-[14rem] flex flex-col">
+    <div ref={runwayCardRef} className="app-card relative min-h-[14rem] flex flex-col">
       <RunwayHeader
         fxStatus={fxStatus}
         runwayStyle={runwayStyle}
       />
       <DashboardWidgetLoadingBody
         contentConcealed={contentConcealed}
+        error={runwayError ?? runwayAccountsError ?? accountsError}
+        failed={runwayFailed || runwayAccountsFailed || accountsFailed}
+        hasContent={runway !== undefined}
+        subject="Runway"
         loadingVisible={loadingVisible}
         shouldReduceMotion={shouldReduceMotion}
         label="Loading runway"

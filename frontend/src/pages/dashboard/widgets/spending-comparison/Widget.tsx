@@ -20,7 +20,12 @@ type SpendingComparisonWidgetProps = {
  */
 export function SpendingComparisonWidget({ displayCurrency }: SpendingComparisonWidgetProps) {
   const [spendingRange, setSpendingRange] = useState<SpendingRange>('MTD')
-  const { data: incomingSpendingComparison, isFetching: spendingComparisonLoading } = useSpendingComparison(spendingRange)
+  const {
+    data: incomingSpendingComparison,
+    error: spendingComparisonError,
+    isError: spendingComparisonFailed,
+    isFetching: spendingComparisonLoading,
+  } = useSpendingComparison(spendingRange)
   const loadingSnapshot = useMemo(
     () => ({
       spendingComparison: incomingSpendingComparison,
@@ -56,7 +61,7 @@ export function SpendingComparisonWidget({ displayCurrency }: SpendingComparison
     [displaySpendingRange, spendingComparison],
   )
   return (
-    <div className="app-card h-[470px] flex flex-col">
+    <div className="app-card min-h-[470px] flex flex-col">
       <SpendingComparisonHeader
         spendingRange={spendingRange}
         fxStatus={fxStatus}
@@ -64,6 +69,10 @@ export function SpendingComparisonWidget({ displayCurrency }: SpendingComparison
       />
       <DashboardWidgetLoadingBody
         contentConcealed={contentConcealed}
+        error={spendingComparisonError}
+        failed={spendingComparisonFailed}
+        hasContent={spendingComparison !== undefined}
+        subject="Spending comparison"
         loadingVisible={loadingVisible}
         shouldReduceMotion={shouldReduceMotion}
         label="Loading spending comparison"

@@ -54,7 +54,11 @@ export async function authenticatePasskey(credential: AuthenticationResponseJSON
   });
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as { detail?: string } | null;
-    throw new ApiError(body?.detail ?? `Passkey sign-in failed (${response.status})`, response.status);
+    throw new ApiError(
+      body?.detail ?? `Passkey sign-in failed (${response.status})`,
+      response.status,
+      { detail: body?.detail },
+    );
   }
   return response.json();
 }
@@ -90,7 +94,11 @@ export async function fetchPasskeyMfaOptions(mfaToken: string): Promise<PublicKe
   });
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as { detail?: string } | null;
-    throw new ApiError(body?.detail ?? `Failed to start passkey verification (${response.status})`, response.status);
+    throw new ApiError(
+      body?.detail ?? `Failed to start passkey verification (${response.status})`,
+      response.status,
+      { detail: body?.detail },
+    );
   }
   return response.json();
 }
@@ -110,7 +118,11 @@ export async function verifyPasskeyMfa(
   });
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as { detail?: string } | null;
-    throw new ApiError(body?.detail ?? `Passkey verification failed (${response.status})`, response.status);
+    throw new ApiError(
+      body?.detail ?? `Passkey verification failed (${response.status})`,
+      response.status,
+      { detail: body?.detail },
+    );
   }
   return response.json();
 }
@@ -127,7 +139,11 @@ export async function fetchPasskeyResetOptions(mfaToken: string): Promise<Public
   });
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as { detail?: string } | null;
-    throw new ApiError(body?.detail ?? `Failed to start passkey verification (${response.status})`, response.status);
+    throw new ApiError(
+      body?.detail ?? `Failed to start passkey verification (${response.status})`,
+      response.status,
+      { detail: body?.detail },
+    );
   }
   return response.json();
 }
@@ -147,7 +163,11 @@ export async function verifyPasskeyReset(
   });
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as { detail?: string } | null;
-    throw new ApiError(body?.detail ?? `Passkey verification failed (${response.status})`, response.status);
+    throw new ApiError(
+      body?.detail ?? `Passkey verification failed (${response.status})`,
+      response.status,
+      { detail: body?.detail },
+    );
   }
 }
 

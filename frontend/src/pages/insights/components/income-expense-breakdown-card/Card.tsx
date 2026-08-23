@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { PieChart as PieChartIcon, Repeat } from 'lucide-react'
 import type { InsightsBreakdownCategoryKind } from '@/api/insights'
 import type { FxStatus } from '@/api/shared/fx'
+import LoadFailure from '@/components/errors/LoadFailure'
 import {
   LoadingContent,
   LoadingOverlay,
@@ -32,6 +33,15 @@ type IncomeExpenseBreakdownCardProps = {
   fxStatus: FxStatus | undefined
   displayCurrency: string
   animationKey: string
+
+  /** The rejection this card's request reported */
+  error: unknown
+
+  failed: boolean
+
+  /** Whether the request has ever come back, since the chart reads empty either way */
+  hasContent: boolean
+
   loading?: boolean
   transitionKey: string
 }
@@ -44,6 +54,9 @@ type IncomeExpenseBreakdownSnapshot = {
   fxStatus: FxStatus | undefined
   displayCurrency: string
   animationKey: string
+  error: unknown
+  failed: boolean
+  hasContent: boolean
 }
 
 /**
@@ -58,9 +71,14 @@ export function IncomeExpenseBreakdownCard({
   fxStatus,
   displayCurrency,
   animationKey,
+  error,
+  failed,
+  hasContent,
   loading = false,
   transitionKey,
 }: IncomeExpenseBreakdownCardProps) {
+  // The failure travels in the snapshot rather than beside it, so the box arrives with the reveal
+  // instead of growing the card while the spinner is still turning
   const incomingSnapshot = useMemo<IncomeExpenseBreakdownSnapshot>(() => ({
     mode,
     entries,
@@ -69,7 +87,10 @@ export function IncomeExpenseBreakdownCard({
     fxStatus,
     displayCurrency,
     animationKey,
-  }), [animationKey, displayCurrency, entries, fxStatus, mode, total, trendSections])
+    error,
+    failed,
+    hasContent,
+  }), [animationKey, displayCurrency, entries, error, failed, fxStatus, hasContent, mode, total, trendSections])
   const {
     displaySnapshot,
     contentConcealed,
@@ -116,23 +137,33 @@ export function IncomeExpenseBreakdownCard({
       />
       <div className="relative overflow-visible" data-tooltip-bounds>
         <LoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
-          <div className="grid gap-6 min-[1350px]:grid-cols-[minmax(0,0.95fr)_minmax(360px,1.05fr)]">
-            <IncomeExpensePieChart
-              mode={displaySnapshot.mode}
-              entries={displaySnapshot.entries}
-              total={displaySnapshot.total}
-              displayCurrency={displaySnapshot.displayCurrency}
-              animationKey={displaySnapshot.animationKey}
-              shouldReduceMotion={shouldReduceMotion}
+          {displaySnapshot.failed && (
+            <LoadFailure
+              error={displaySnapshot.error}
+              standalone={!displaySnapshot.hasContent}
+              subject={displaySnapshot.mode === 'expense' ? 'Expense breakdown' : 'Income breakdown'}
             />
-            <IncomeExpenseTrendSections
-              mode={displaySnapshot.mode}
-              sections={displaySnapshot.trendSections}
-              displayCurrency={displaySnapshot.displayCurrency}
-              animationKey={displaySnapshot.animationKey}
-              shouldReduceMotion={shouldReduceMotion}
-            />
-          </div>
+          )}
+
+          {(!displaySnapshot.failed || displaySnapshot.hasContent) && (
+            <div className="grid gap-6 min-[1350px]:grid-cols-[minmax(0,0.95fr)_minmax(360px,1.05fr)]">
+              <IncomeExpensePieChart
+                mode={displaySnapshot.mode}
+                entries={displaySnapshot.entries}
+                total={displaySnapshot.total}
+                displayCurrency={displaySnapshot.displayCurrency}
+                animationKey={displaySnapshot.animationKey}
+                shouldReduceMotion={shouldReduceMotion}
+              />
+              <IncomeExpenseTrendSections
+                mode={displaySnapshot.mode}
+                sections={displaySnapshot.trendSections}
+                displayCurrency={displaySnapshot.displayCurrency}
+                animationKey={displaySnapshot.animationKey}
+                shouldReduceMotion={shouldReduceMotion}
+              />
+            </div>
+          )}
         </LoadingContent>
 
         <LoadingOverlay
