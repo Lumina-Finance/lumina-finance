@@ -160,7 +160,11 @@ export function NetWorthCard({
       <div className="relative overflow-visible" data-tooltip-bounds>
         <LoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
           {displaySnapshot.failed && (
-            <LoadFailure error={displaySnapshot.error} subject="Net worth" />
+            <LoadFailure
+              error={displaySnapshot.error}
+              standalone={!displaySnapshot.hasContent}
+              subject="Net worth"
+            />
           )}
 
           {(!displaySnapshot.failed || displaySnapshot.hasContent) && (

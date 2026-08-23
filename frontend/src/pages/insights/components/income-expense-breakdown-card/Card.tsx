@@ -140,6 +140,7 @@ export function IncomeExpenseBreakdownCard({
           {displaySnapshot.failed && (
             <LoadFailure
               error={displaySnapshot.error}
+              standalone={!displaySnapshot.hasContent}
               subject={displaySnapshot.mode === 'expense' ? 'Expense breakdown' : 'Income breakdown'}
             />
           )}

@@ -94,7 +94,11 @@ export function PeriodGlanceCard({
       <div className="relative overflow-hidden" data-tooltip-bounds>
         <LoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
           {displaySnapshot.failed && (
-            <LoadFailure error={displaySnapshot.error} subject="This period at a glance" />
+            <LoadFailure
+              error={displaySnapshot.error}
+              standalone={!displaySnapshot.hasContent}
+              subject="This period at a glance"
+            />
           )}
 
           {(!displaySnapshot.failed || displaySnapshot.hasContent) && (

@@ -152,7 +152,11 @@ export function FundFlowCard({
           than wrapping the whole body in one */}
       {displaySnapshot.failed && (
         <LoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
-          <LoadFailure error={displaySnapshot.error} subject="Fund flow" />
+          <LoadFailure
+            error={displaySnapshot.error}
+            standalone={!displaySnapshot.hasContent}
+            subject="Fund flow"
+          />
         </LoadingContent>
       )}
 

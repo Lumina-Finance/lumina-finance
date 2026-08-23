@@ -53,12 +53,9 @@ export function DashboardWidgetLoadingBody({
   // hold it and the rest of its row grows with it
   const containment = failed ? '' : 'min-h-0 overflow-hidden'
 
-  // With nothing else in the widget the box sits in the middle of the space rather than in the top
-  // corner of it. Its own wording stays left-aligned, so the width is capped: a block spanning the
-  // whole widget would start at the left edge and there would be nothing to centre
-  //
-  // Where a figure survived the failure the box stays full width above that figure, since moving it
-  // to the middle would put it over the figure it belongs above
+  // With nothing else in the widget the box sits in the middle of the space. Where a figure survived
+  // the failure it stays full width above that figure, since moving it to the middle would put it
+  // over the figure it belongs above
   const boxAlone = failed && !hasContent
 
   return (
@@ -66,15 +63,9 @@ export function DashboardWidgetLoadingBody({
       <LoadingContent
         concealed={contentConcealed}
         shouldReduceMotion={shouldReduceMotion}
-        className={boxAlone ? 'flex h-full flex-col items-center justify-center' : contentClassName}
+        className={boxAlone ? 'flex h-full flex-col' : contentClassName}
       >
-        {failed && (
-          <LoadFailure
-            className={boxAlone ? 'w-full max-w-sm py-3' : 'py-3'}
-            error={error}
-            subject={subject}
-          />
-        )}
+        {failed && <LoadFailure error={error} standalone={boxAlone} subject={subject} />}
         {(!failed || hasContent) && children}
       </LoadingContent>
       <LoadingOverlay

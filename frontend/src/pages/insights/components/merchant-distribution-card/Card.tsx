@@ -105,7 +105,11 @@ export function MerchantDistributionCard({
           shouldReduceMotion={shouldReduceMotion}
         >
           {displaySnapshot.failed && (
-            <LoadFailure error={displaySnapshot.error} subject="Spending distribution by merchant" />
+            <LoadFailure
+              error={displaySnapshot.error}
+              standalone={!displaySnapshot.hasContent}
+              subject="Spending distribution by merchant"
+            />
           )}
 
           {(!displaySnapshot.failed || displaySnapshot.hasContent) && (

@@ -136,7 +136,11 @@ export function SavingsRateTrendCard({
       <div className="relative overflow-visible" data-tooltip-bounds>
         <LoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
           {displaySnapshot.failed && (
-            <LoadFailure error={displaySnapshot.error} subject="Savings rate trend" />
+            <LoadFailure
+              error={displaySnapshot.error}
+              standalone={!displaySnapshot.hasContent}
+              subject="Savings rate trend"
+            />
           )}
 
           {(!displaySnapshot.failed || displaySnapshot.hasContent) && (

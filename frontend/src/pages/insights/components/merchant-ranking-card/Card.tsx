@@ -90,8 +90,12 @@ export function MerchantRankingCard({
     transitionKey,
   })
 
+  // Nothing else is left in the card, so the body has to fill the card's height for the box to have
+  // a middle to sit in. The ranking's own layout is left alone, since it sizes to its rows
+  const boxAlone = displaySnapshot.failed && !displaySnapshot.hasContent
+
   return (
-    <div className="app-card min-[1300px]:h-[560px]">
+    <div className="app-card flex flex-col min-[1300px]:h-[560px]">
       <InsightSectionHeader
         icon={ListChecks}
         label={(
@@ -111,10 +115,18 @@ export function MerchantRankingCard({
           </span>
         )}
       />
-      <div className="relative overflow-hidden">
-        <LoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
+      <div className={`relative overflow-hidden ${boxAlone ? 'flex min-h-0 flex-1 flex-col' : ''}`}>
+        <LoadingContent
+          className={boxAlone ? 'flex min-h-0 flex-1 flex-col' : undefined}
+          concealed={contentConcealed}
+          shouldReduceMotion={shouldReduceMotion}
+        >
           {displaySnapshot.failed && (
-            <LoadFailure error={displaySnapshot.error} subject="Merchant ranking" />
+            <LoadFailure
+              error={displaySnapshot.error}
+              standalone={!displaySnapshot.hasContent}
+              subject="Merchant ranking"
+            />
           )}
 
           {(!displaySnapshot.failed || displaySnapshot.hasContent) && (

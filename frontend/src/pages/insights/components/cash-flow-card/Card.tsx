@@ -112,7 +112,11 @@ export function CashFlowCard({
       <div className="relative overflow-visible" data-tooltip-bounds>
         <LoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
           {displaySnapshot.failed && (
-            <LoadFailure error={displaySnapshot.error} subject="Cash flow" />
+            <LoadFailure
+              error={displaySnapshot.error}
+              standalone={!displaySnapshot.hasContent}
+              subject="Cash flow"
+            />
           )}
 
           {(!displaySnapshot.failed || displaySnapshot.hasContent) && (
