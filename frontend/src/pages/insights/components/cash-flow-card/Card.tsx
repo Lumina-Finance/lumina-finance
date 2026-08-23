@@ -27,9 +27,6 @@ type CashFlowCardProps = {
 
   failed: boolean
 
-  /** Whether the request has ever come back, since the net figure reads zero either way */
-  hasContent: boolean
-
   loading?: boolean
   transitionKey: string
 }
@@ -41,8 +38,11 @@ type CashFlowSnapshot = {
   displayCurrency: string
   error: unknown
   failed: boolean
-  hasContent: boolean
 }
+
+// The card holds this height whether it is drawing the chart or saying the request failed, so a
+// failure does not resize it
+const BODY_CLASS = 'flex h-[390px] flex-col'
 
 const cashFlowCalculation = 'Bars group money moving in and out by period. Net equals inflow minus outflow. Transfers are included. Balance adjustments are excluded'
 const netCashFlowCalculation = 'The cumulative net cash flow at the end of the chosen time range'
@@ -57,7 +57,6 @@ export function CashFlowCard({
   displayCurrency,
   error,
   failed,
-  hasContent,
   loading = false,
   transitionKey,
 }: CashFlowCardProps) {
@@ -71,8 +70,7 @@ export function CashFlowCard({
     displayCurrency,
     error,
     failed,
-    hasContent,
-  }), [buckets, displayCurrency, error, failed, fxStatus, granularity, hasContent])
+  }), [buckets, displayCurrency, error, failed, fxStatus, granularity])
   const {
     displaySnapshot,
     contentConcealed,
@@ -112,15 +110,17 @@ export function CashFlowCard({
       <div className="relative overflow-visible" data-tooltip-bounds>
         <LoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
           {displaySnapshot.failed && (
-            <LoadFailure
-              error={displaySnapshot.error}
-              standalone={!displaySnapshot.hasContent}
-              subject="Cash flow"
-            />
+            <div className={BODY_CLASS}>
+              <LoadFailure
+                error={displaySnapshot.error}
+                standalone
+                subject="Cash flow"
+              />
+            </div>
           )}
 
-          {(!displaySnapshot.failed || displaySnapshot.hasContent) && (
-            <div className="flex h-[390px] flex-col">
+          {!displaySnapshot.failed && (
+            <div className={BODY_CLASS}>
               <div className="mb-3">
                 <p className="app-label app-label-compact inline-flex items-center gap-2">
                   Net Cash Flow

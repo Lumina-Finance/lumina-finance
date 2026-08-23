@@ -30,9 +30,6 @@ type SavingsRateTrendCardProps = {
 
   failed: boolean
 
-  /** Whether the request has ever come back, since the summary metrics read empty either way */
-  hasContent: boolean
-
   loading?: boolean
   transitionKey: string
 }
@@ -45,8 +42,11 @@ type SavingsRateTrendSnapshot = {
   emptyLabel: string
   error: unknown
   failed: boolean
-  hasContent: boolean
 }
+
+// Above 750px the card holds this height whether it is drawing the chart or saying the request
+// failed, so a failure does not resize it. Below that the card sizes to whichever is showing
+const BODY_CLASS = 'flex flex-col min-[750px]:h-[430px]'
 
 const savingsRateCalculation = 'Monthly savings rate is income minus expenses, divided by income. Income and expense categories are netted first. Transfers are excluded'
 const latestSavingsRateCalculation = 'Savings rate for the latest available month. The current month may be partial. Shows −∞% when expenses exist without income because the calculation divides by zero'
@@ -67,7 +67,6 @@ export function SavingsRateTrendCard({
   onCapRatesToggle,
   error,
   failed,
-  hasContent,
   loading = false,
   transitionKey,
 }: SavingsRateTrendCardProps) {
@@ -81,8 +80,7 @@ export function SavingsRateTrendCard({
     emptyLabel: loading ? 'Loading savings-rate history...' : 'No savings-rate history available',
     error,
     failed,
-    hasContent,
-  }), [capRates, displayCurrency, error, failed, fxStatus, hasContent, loading, series])
+  }), [capRates, displayCurrency, error, failed, fxStatus, loading, series])
   const {
     displaySnapshot,
     contentConcealed,
@@ -136,15 +134,17 @@ export function SavingsRateTrendCard({
       <div className="relative overflow-visible" data-tooltip-bounds>
         <LoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
           {displaySnapshot.failed && (
-            <LoadFailure
-              error={displaySnapshot.error}
-              standalone={!displaySnapshot.hasContent}
-              subject="Savings rate trend"
-            />
+            <div className={BODY_CLASS}>
+              <LoadFailure
+                error={displaySnapshot.error}
+                standalone
+                subject="Savings rate trend"
+              />
+            </div>
           )}
 
-          {(!displaySnapshot.failed || displaySnapshot.hasContent) && (
-            <div className="flex flex-col min-[750px]:h-[430px]">
+          {!displaySnapshot.failed && (
+            <div className={BODY_CLASS}>
               <div className="mb-4 grid gap-4 border-b border-[var(--app-border)] pb-4 min-[750px]:grid-cols-[minmax(0,1.15fr)_minmax(0,1.85fr)] min-[750px]:items-center min-[750px]:gap-6">
                 <div className="min-w-0">
                   <p className="app-label inline-flex items-center gap-2">

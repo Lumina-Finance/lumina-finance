@@ -24,9 +24,6 @@ type MerchantRankingCardProps = {
 
   failed: boolean
 
-  /** Whether the request has ever come back, since an empty ranking looks the same either way */
-  hasContent: boolean
-
   loading?: boolean
   transitionKey: string
 }
@@ -38,7 +35,6 @@ type MerchantRankingSnapshot = {
   emptyLabel: string
   error: unknown
   failed: boolean
-  hasContent: boolean
 }
 
 function getChangeColor(changePct: number | null) {
@@ -63,7 +59,6 @@ export function MerchantRankingCard({
   currency,
   error,
   failed,
-  hasContent,
   loading = false,
   transitionKey,
 }: MerchantRankingCardProps) {
@@ -77,8 +72,7 @@ export function MerchantRankingCard({
     emptyLabel: loading ? 'Loading merchant ranking...' : 'No merchant spending in this range',
     error,
     failed,
-    hasContent,
-  }), [currency, error, failed, fxStatus, hasContent, loading, merchants])
+  }), [currency, error, failed, fxStatus, loading, merchants])
   const {
     displaySnapshot,
     contentConcealed,
@@ -90,9 +84,11 @@ export function MerchantRankingCard({
     transitionKey,
   })
 
-  // Nothing else is left in the card, so the body has to fill the card's height for the box to have
-  // a middle to sit in. The ranking's own layout is left alone, since it sizes to its rows
-  const boxAlone = displaySnapshot.failed && !displaySnapshot.hasContent
+  // The box takes the place of the ranking, so the body has to fill the card's height for the box
+  // to have a middle to sit in. Content-sized, it would sit at the top of a card still holding
+  // 560px above 1300px, with the rest of that height empty beneath it. The ranking's own layout is
+  // left alone, since it sizes to its rows
+  const boxAlone = displaySnapshot.failed
 
   return (
     <div className="app-card flex flex-col min-[1300px]:h-[560px]">
@@ -124,12 +120,12 @@ export function MerchantRankingCard({
           {displaySnapshot.failed && (
             <LoadFailure
               error={displaySnapshot.error}
-              standalone={!displaySnapshot.hasContent}
+              standalone
               subject="Merchant ranking"
             />
           )}
 
-          {(!displaySnapshot.failed || displaySnapshot.hasContent) && (
+          {!displaySnapshot.failed && (
             displaySnapshot.merchants.length > 0 ? (
               <div className="space-y-3">
                 {displaySnapshot.merchants.map((merchant, index) => (

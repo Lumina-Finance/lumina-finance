@@ -85,11 +85,12 @@ interface FailureBlockProps {
  * block, so the controls exist once. What differs is the heading the caller passes, how large the
  * block is drawn, and whether reloading keeps this browser's storage
  *
- * A caller whose container cannot grow asks for the compact wording instead. The usual sentence
- * runs to five lines in a dashboard widget, which would leave no room for the Reload button, and
- * the compact one drops the bug report link with it. That is asked for rather than taken from the
- * size, since every caller of the inline size asks for the same size while only the dashboard sits
- * somewhere with a height decided before the wording is known
+ * A caller whose container is too short for the usual sentence asks for the compact wording
+ * instead. That sentence runs to five lines in a dashboard widget, which would leave no room for
+ * the Reload button, and the compact one drops the bug report link with it. It is asked for rather
+ * than taken from the size, since every caller of the inline size asks for the same size while the
+ * space each of them has differs: a dashboard widget gives the box about 174px, while an insights
+ * card, which holds a height too, has 360px or more and takes the usual wording
  *
  * It returns a fragment rather than its own container, since the three callers each need a
  * different one: a full window, a centred card, or a strip inside a section that is already there

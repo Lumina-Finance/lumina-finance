@@ -3,7 +3,7 @@ import { Network } from 'lucide-react'
 import type { InsightsFlowEntry } from '@/api/insights'
 import type { FxStatus } from '@/api/shared/fx'
 import LoadFailure from '@/components/errors/LoadFailure'
-import { LoadingContent } from '@/components/loading/Transition'
+import { LoadingContent, LoadingOverlay } from '@/components/loading/Transition'
 import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
 import type { FundFlowData } from '@/pages/insights/types/fundFlow'
 import { getFundFlowChartHeight } from '@/pages/insights/utils/fundFlowChart'
@@ -29,7 +29,6 @@ type FundFlowSnapshot = {
   chartHeight: number
   error: unknown
   failed: boolean
-  hasContent: boolean
 }
 
 type FundFlowCardProps = {
@@ -47,9 +46,6 @@ type FundFlowCardProps = {
   error: unknown
 
   failed: boolean
-
-  /** Whether the request has ever come back, since an empty chart looks the same either way */
-  hasContent: boolean
 
   loading?: boolean
   transitionKey: string
@@ -70,7 +66,6 @@ export function FundFlowCard({
   displayCurrency,
   error,
   failed,
-  hasContent,
   loading = false,
   transitionKey,
 }: FundFlowCardProps) {
@@ -90,7 +85,6 @@ export function FundFlowCard({
     chartHeight: getFundFlowChartHeight(incomeSourceCount, expenseCategoryCount),
     error,
     failed,
-    hasContent,
   }), [
     displayCurrency,
     error,
@@ -100,7 +94,6 @@ export function FundFlowCard({
     failed,
     fxStatus,
     flowData,
-    hasContent,
     incomeOutflows,
     incomeSourceCount,
     incomeSources,
@@ -148,19 +141,28 @@ export function FundFlowCard({
           </span>
         )}
       />
-      {/* Its own concealment, since this card hands the loading transition down to the chart rather
-          than wrapping the whole body in one */}
+      {/* Its own concealment and its own spinner, since this card hands the loading transition down
+          to the chart rather than wrapping the whole body in one, and the chart is not rendered
+          while the box is up. Without the spinner here, retrying a failed range would sit on a
+          blank card until the answer came back */}
       {displaySnapshot.failed && (
-        <LoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
-          <LoadFailure
-            error={displaySnapshot.error}
-            standalone={!displaySnapshot.hasContent}
-            subject="Fund flow"
+        <div className="relative">
+          <LoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion}>
+            <LoadFailure
+              error={displaySnapshot.error}
+              standalone
+              subject="Fund flow"
+            />
+          </LoadingContent>
+          <LoadingOverlay
+            visible={loadingVisible}
+            shouldReduceMotion={shouldReduceMotion}
+            label="Loading fund flow"
           />
-        </LoadingContent>
+        </div>
       )}
 
-      {(!displaySnapshot.failed || displaySnapshot.hasContent) && (
+      {!displaySnapshot.failed && (
         <>
         <div className="mb-3 grid items-start gap-3 min-[720px]:grid-cols-2">
           <FundFlowCategoryList

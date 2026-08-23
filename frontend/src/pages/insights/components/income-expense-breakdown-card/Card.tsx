@@ -39,9 +39,6 @@ type IncomeExpenseBreakdownCardProps = {
 
   failed: boolean
 
-  /** Whether the request has ever come back, since the chart reads empty either way */
-  hasContent: boolean
-
   loading?: boolean
   transitionKey: string
 }
@@ -56,7 +53,6 @@ type IncomeExpenseBreakdownSnapshot = {
   animationKey: string
   error: unknown
   failed: boolean
-  hasContent: boolean
 }
 
 /**
@@ -73,7 +69,6 @@ export function IncomeExpenseBreakdownCard({
   animationKey,
   error,
   failed,
-  hasContent,
   loading = false,
   transitionKey,
 }: IncomeExpenseBreakdownCardProps) {
@@ -89,8 +84,7 @@ export function IncomeExpenseBreakdownCard({
     animationKey,
     error,
     failed,
-    hasContent,
-  }), [animationKey, displayCurrency, entries, error, failed, fxStatus, hasContent, mode, total, trendSections])
+  }), [animationKey, displayCurrency, entries, error, failed, fxStatus, mode, total, trendSections])
   const {
     displaySnapshot,
     contentConcealed,
@@ -140,12 +134,12 @@ export function IncomeExpenseBreakdownCard({
           {displaySnapshot.failed && (
             <LoadFailure
               error={displaySnapshot.error}
-              standalone={!displaySnapshot.hasContent}
+              standalone
               subject={displaySnapshot.mode === 'expense' ? 'Expense breakdown' : 'Income breakdown'}
             />
           )}
 
-          {(!displaySnapshot.failed || displaySnapshot.hasContent) && (
+          {!displaySnapshot.failed && (
             <div className="grid gap-6 min-[1350px]:grid-cols-[minmax(0,0.95fr)_minmax(360px,1.05fr)]">
               <IncomeExpensePieChart
                 mode={displaySnapshot.mode}
