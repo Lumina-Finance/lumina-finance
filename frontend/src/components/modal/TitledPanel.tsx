@@ -53,8 +53,6 @@ interface ModalTitledPanelProps {
   closeDisabled?: boolean
   /** Runs once the exit animation has finished, for work that must wait until the modal is fully gone */
   onExitComplete?: () => void
-  /** Animates the panel's height as the form grows, for one that reveals whole rows as it is filled in */
-  animateHeight?: boolean
   footer: ReactNode
   children: ReactNode
 }
@@ -77,7 +75,6 @@ export function ModalTitledPanel({
   level = 'page',
   closeDisabled = false,
   onExitComplete,
-  animateHeight = false,
   footer,
   children,
 }: ModalTitledPanelProps) {
@@ -133,7 +130,6 @@ export function ModalTitledPanel({
       level={level}
       closeDisabled={closeDisabled}
       onExitComplete={onExitComplete}
-      animateHeight={animateHeight}
     >
       {RailIcon && railLabel && (
         <div className={chrome.railClassName} style={chrome.railStyle} aria-hidden>

@@ -71,6 +71,30 @@ export interface DropdownBoxPosition {
   width: number
 }
 
+/**
+ * Whether two placements would put the box in exactly the same spot at exactly the same size
+ *
+ * The box is re-measured on every frame it is open, because the page under it can move without
+ * scrolling or resizing: a modal that grows re-centres itself, which slides every field in it. Most
+ * of those frames find nothing changed, and this is what lets the drop-down keep the placement
+ * object it already has rather than re-rendering the whole control sixty times a second.
+ */
+export function isSameDropdownBoxPosition(
+  a: DropdownBoxPosition,
+  b: DropdownBoxPosition,
+): boolean {
+  return a.bottom === b.bottom
+    && a.boxMaxHeight === b.boxMaxHeight
+    && a.left === b.left
+    && a.listMaxHeight === b.listMaxHeight
+    && a.openAbove === b.openAbove
+    && a.openLeftward === b.openLeftward
+    && a.openWidth === b.openWidth
+    && a.right === b.right
+    && a.top === b.top
+    && a.width === b.width
+}
+
 /** Which way the box is growing, held for as long as one opening lasts */
 export interface DropdownBoxDirection {
   openAbove: boolean

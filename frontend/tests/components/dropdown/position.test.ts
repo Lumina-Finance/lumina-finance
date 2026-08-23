@@ -4,7 +4,7 @@
  * clipped by its own box
  */
 import { describe, expect, it } from 'vitest'
-import { getDropdownBoxPosition } from '@/components/dropdown/position'
+import { getDropdownBoxPosition, isSameDropdownBoxPosition } from '@/components/dropdown/position'
 
 const viewport = {
   height: 600,
@@ -295,5 +295,92 @@ describe('drop-down box placement', () => {
 
     // Still 54px short of the far edge, so a grown box on a phone is nowhere near it
     expect(390 - (compact.left + compact.openWidth)).toBe(54)
+  })
+
+  describe('a box following its head while the page moves under it', () => {
+    // A modal that grows re-centres itself, which slides every field in it without the page
+    // scrolling. These pin that the placement actually changes when that happens, since the box is
+    // re-measured every frame precisely to catch it
+    const downward = { openAbove: false, openLeftward: false }
+    const upward = { openAbove: true, openLeftward: false }
+
+    it('moves the upper edge of a box that opened downward when its head rises', () => {
+      const before = getDropdownBoxPosition({
+        ...head,
+        held: downward,
+        anchorRect: { bottom: 140, left: 20, top: 100, width: 200 },
+        viewport,
+      })
+      const after = getDropdownBoxPosition({
+        ...head,
+        held: downward,
+        anchorRect: { bottom: 130, left: 20, top: 90, width: 200 },
+        viewport,
+      })
+
+      expect(before.top).toBe(100)
+      expect(after.top).toBe(90)
+      expect(isSameDropdownBoxPosition(before, after)).toBe(false)
+    })
+
+    it('moves the lower edge of a box that opened upward when its head rises', () => {
+      const before = getDropdownBoxPosition({
+        ...head,
+        held: upward,
+        anchorRect: { bottom: 140, left: 20, top: 100, width: 200 },
+        viewport,
+      })
+      const after = getDropdownBoxPosition({
+        ...head,
+        held: upward,
+        anchorRect: { bottom: 130, left: 20, top: 90, width: 200 },
+        viewport,
+      })
+
+      // Measured from the bottom of the page, so a head that rises by 10 puts this edge 10 further up
+      expect(before.bottom).toBe(460)
+      expect(after.bottom).toBe(470)
+      expect(isSameDropdownBoxPosition(before, after)).toBe(false)
+    })
+
+    it('reports a head that has not moved as the same placement', () => {
+      const anchorRect = { bottom: 140, left: 20, top: 100, width: 200 }
+      const first = getDropdownBoxPosition({ ...head, held: downward, anchorRect, viewport })
+      const second = getDropdownBoxPosition({ ...head, held: downward, anchorRect, viewport })
+
+      expect(first).not.toBe(second)
+      expect(isSameDropdownBoxPosition(first, second)).toBe(true)
+    })
+
+    // Every field, one at a time. A comparison left out of isSameDropdownBoxPosition would let the
+    // box keep a placement that has actually moved, and nothing else in the suite would notice
+    it('reports a difference in any single field', () => {
+      const base = getDropdownBoxPosition({
+        ...head,
+        held: downward,
+        anchorRect: { bottom: 140, left: 20, top: 100, width: 200 },
+        viewport,
+      })
+
+      const changes: Array<Partial<typeof base>> = [
+        { bottom: base.bottom + 1 },
+        { boxMaxHeight: base.boxMaxHeight + 1 },
+        { left: base.left + 1 },
+        { listMaxHeight: base.listMaxHeight + 1 },
+        { openAbove: !base.openAbove },
+        { openLeftward: !base.openLeftward },
+        { openWidth: base.openWidth + 1 },
+        { right: base.right + 1 },
+        { top: base.top + 1 },
+        { width: base.width + 1 },
+      ]
+
+      // One entry per field, so a field added to the placement without being compared shows up here
+      expect(changes).toHaveLength(Object.keys(base).length)
+
+      for (const change of changes) {
+        expect(isSameDropdownBoxPosition(base, { ...base, ...change })).toBe(false)
+      }
+    })
   })
 })
