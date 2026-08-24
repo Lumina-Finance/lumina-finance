@@ -779,6 +779,17 @@
     }
   }
 
+  /* Holds the options and scrolls them, with its height set from position.ts rather than here.
+
+     The clip is stated outright rather than left to the overflow, which is what a scroll container
+     is meant to give on its own. Firefox paints the row straddling the upper edge outside the list
+     while still clipping that row for hit testing, and the sliver it leaves lands in the gap above
+     the pinned group heading, where a reader takes it for part of the list */
+  .app-dropdown-list {
+    overflow: auto;
+    clip-path: inset(0);
+  }
+
   .app-dropdown-row {
     display: flex;
     align-items: center;

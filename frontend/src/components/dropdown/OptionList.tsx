@@ -136,7 +136,7 @@ export function DropdownOptionList({
       ref={listRef}
       id={listId}
       role="listbox"
-      className="overflow-auto"
+      className="app-dropdown-list"
       style={{ maxHeight: listMaxHeight }}
       onScroll={onScroll}
     >
