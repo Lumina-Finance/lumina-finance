@@ -4,6 +4,13 @@ import type { Category } from '@/api/categories'
 // excludes them from cash flow
 export const BALANCE_ADJUSTMENT_CATEGORY_NAME = 'Balance Adjustment'
 
+// The system expense category a repayment is most often filed under. Correct for a loan or a
+// mortgage, and a double count for a credit account, whose purchases were expensed when they were made
+export const DEBT_PAYMENT_CATEGORY_NAME = 'Debt Payment'
+
+// The system transfer category that records a credit account repayment without expensing it again
+export const CREDIT_CARD_PAYMENT_CATEGORY_NAME = 'Credit Card Payment'
+
 // Sentinel dropdown value for money that left the tracked accounts, distinct from any real account
 // id, and the one label every dropdown offering that answer uses
 export const OUTSIDE_ACCOUNT_VALUE = '__outside__'
