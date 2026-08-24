@@ -107,6 +107,7 @@ export default function CreateTransactionModal({
 
   const categoryField = useCategoryField({
     categories,
+    readOnly,
     form,
     applyKindChange,
     clearError,
@@ -309,6 +310,7 @@ export default function CreateTransactionModal({
             categoryValue={form.category_id}
             categoryError={showError('category_id')}
             isBalanceAdjustmentCategory={categoryField.isBalanceAdjustmentCategory}
+            creditRepaymentSteer={categoryField.creditRepaymentSteer}
             showMerchantDefaultCategoryAction={merchantField.showMerchantDefaultCategoryAction}
             merchantDefaultCategoryActionLabel={merchantField.merchantDefaultCategoryActionLabel}
             merchantDefaultCategoryPending={merchantField.merchantDefaultCategoryPending}
