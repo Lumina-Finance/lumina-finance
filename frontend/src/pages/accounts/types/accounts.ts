@@ -21,7 +21,12 @@ export interface AccountsMetricsViewModel {
     net: number
     income: number
     progress: number
+
+    /** Colour of the figure */
     color: string
+
+    /** Colour of the bar under it, drawn from the chart colours rather than the text ones */
+    barColor: string
     fxStatus: FxStatus | undefined
   }
   creditUsage: {
@@ -32,7 +37,12 @@ export interface AccountsMetricsViewModel {
     utilization: number
     totalUsed: number
     totalLimit: number
+
+    /** Colour of the figure */
     color: string
+
+    /** Colour of the bar under it, drawn from the chart colours rather than the text ones */
+    barColor: string
     fxStatus: FxStatus | undefined
   }
   runway: {

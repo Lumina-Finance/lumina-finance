@@ -28,9 +28,9 @@ import {
 } from '@/pages/insights/utils/savingsRateChart'
 import {
   getSavingsRateTier,
-  getSavingsRateTierColor,
   SAVINGS_RATE_TIERS,
 } from '@/utils/savingsRateTier'
+import { getValueMarkColor } from '@/utils/valueMarkColor'
 import { formatSavingsRateValue } from '@/pages/insights/utils/money'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 
@@ -226,7 +226,7 @@ export function SavingsRateChart({
                   <rect
                     width={3}
                     height={6}
-                    style={{ fill: getSavingsRateTierColor(tier) }}
+                    style={{ fill: getValueMarkColor(tier) }}
                   />
                 </pattern>
               ))}
@@ -277,7 +277,7 @@ export function SavingsRateChart({
                       fill={
                         entry.isCurrent
                           ? `url(#insights-savings-stripes-${tier})`
-                          : getSavingsRateTierColor(tier)
+                          : getValueMarkColor(tier)
                       }
                     />
                   )

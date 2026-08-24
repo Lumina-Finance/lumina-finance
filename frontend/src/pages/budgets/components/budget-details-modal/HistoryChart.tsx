@@ -32,10 +32,11 @@ import CurrentPeriodBoundary from '@/pages/budgets/components/budget-details-mod
 import StackedBarSegment from '@/pages/budgets/components/budget-details-modal/StackedBarSegment'
 import BudgetUtilizationBar from '@/pages/budgets/components/budget-details-modal/UtilizationBar'
 import BudgetChartAxisTick from '@/pages/budgets/components/budget-details-modal/XAxisTick'
-import BudgetChartYAxisTick, {
+import BudgetChartYAxisTick from '@/pages/budgets/components/budget-details-modal/YAxisTick'
+import {
   OVER_BUDGET_LIMIT_LINE_COLOR,
   OVER_BUDGET_LIMIT_LINE_PCT,
-} from '@/pages/budgets/components/budget-details-modal/YAxisTick'
+} from '@/pages/budgets/components/budget-details-modal/budgetChartAxis'
 import { MODAL_SURFACE_TRANSITION_MS } from '@/pages/budgets/constants'
 import {
   BUDGET_CHART_HOVER_HIGHLIGHT_WIDTH,

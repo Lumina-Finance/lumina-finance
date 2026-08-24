@@ -1,3 +1,15 @@
+import { getValueMarkColor } from '@/utils/valueMarkColor'
+
+// The utilization the dashed limit line is drawn across the plot at, and the tick the label bolds
+export const OVER_BUDGET_LIMIT_LINE_PCT = 100
+
+// Colour of that dashed line
+export const OVER_BUDGET_LIMIT_LINE_COLOR = getValueMarkColor('negative')
+
+// Colour of the label at the same threshold. A label is read rather than measured, so it takes the
+// red that carries contrast against the page instead of the one the line uses
+export const OVER_BUDGET_LIMIT_LABEL_COLOR = 'var(--app-negative)'
+
 // The Y axis always shows at least this much so the 100% budget threshold stays on the visible axis
 const BUDGET_CHART_MIN_AXIS_MAX_PCT = 100
 

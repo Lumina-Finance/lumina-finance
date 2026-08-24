@@ -11,7 +11,7 @@ import {
   clampTaxAdvantagedPercent,
   formatTaxAdvantagedMeterMoney,
   getTaxAdvantagedRemainingColor,
-  getTaxAdvantagedUsageColor,
+  getTaxAdvantagedUsageBarColor,
   getTaxAdvantagedUsagePercent,
 } from '@/pages/accounts/utils/taxAdvantagedLimits'
 import { TaxAdvantagedLimitMeterTooltipContent } from './LimitMeterTooltipContent'
@@ -66,7 +66,7 @@ export function TaxAdvantagedCompactLimitMeter({
     )
   }
 
-  const color = getTaxAdvantagedUsageColor(used, limit)
+  const color = getTaxAdvantagedUsageBarColor(used, limit)
   const barWidth = getTaxAdvantagedUsagePercent(used, limit)
   const usageLabel = `${formatTaxAdvantagedMeterMoney(used, currency, currencies)} / ${formatTaxAdvantagedMeterMoney(limit, currency, currencies)}`
   const remaining = limit - used

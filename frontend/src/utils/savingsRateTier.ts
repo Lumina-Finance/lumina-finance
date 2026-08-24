@@ -11,12 +11,6 @@ const SAVINGS_RATE_POSITIVE_TIER_MIN_PERCENT = 20
 // A month that keeps less than this reads the same as one that kept nothing at all
 const SAVINGS_RATE_ACCENT_TIER_MIN_PERCENT = 10
 
-const SAVINGS_RATE_TIER_COLORS: Record<SavingsRateTier, string> = {
-  positive: 'var(--app-chart-positive)',
-  accent: 'var(--app-accent)',
-  negative: 'var(--app-chart-negative)',
-}
-
 /**
  * The band each tier covers, worded the way the legend shows it
  */
@@ -37,11 +31,4 @@ export function getSavingsRateTier(rate: number | null): SavingsRateTier {
   if (rate >= SAVINGS_RATE_POSITIVE_TIER_MIN_PERCENT) return 'positive'
   if (rate >= SAVINGS_RATE_ACCENT_TIER_MIN_PERCENT) return 'accent'
   return 'negative'
-}
-
-/**
- * Resolves the colour a tier is drawn in, the same shade in both themes
- */
-export function getSavingsRateTierColor(tier: SavingsRateTier) {
-  return SAVINGS_RATE_TIER_COLORS[tier]
 }

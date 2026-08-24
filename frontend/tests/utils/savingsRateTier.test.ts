@@ -5,7 +5,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   getSavingsRateTier,
-  getSavingsRateTierColor,
   SAVINGS_RATE_TIER_LABELS,
   SAVINGS_RATE_TIERS,
   type SavingsRateTier,
@@ -45,12 +44,6 @@ describe('savings rate tiers', () => {
     expect(getSavingsRateTier(null)).toBe('negative')
     expect(getSavingsRateTier(Number.NEGATIVE_INFINITY)).toBe('negative')
     expect(getSavingsRateTier(Number.POSITIVE_INFINITY)).toBe('positive')
-  })
-
-  it('paints each band its own colour', () => {
-    expect(getSavingsRateTierColor('positive')).toBe('var(--app-chart-positive)')
-    expect(getSavingsRateTierColor('accent')).toBe('var(--app-accent)')
-    expect(getSavingsRateTierColor('negative')).toBe('var(--app-chart-negative)')
   })
 
   it('lists the bands from the highest down, which is the order the legend and the stripes follow', () => {

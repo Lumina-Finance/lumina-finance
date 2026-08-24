@@ -45,6 +45,7 @@ import {
   type DailyCashFlowPoint,
 } from '@/pages/transactions/utils/dailyCashFlowChart'
 import { getCashFlowFxStatusMessage } from '@/pages/transactions/utils/fxTooltipMessages'
+import { getValueMarkColor } from '@/utils/valueMarkColor'
 
 export type { DailyCashFlowChartMode } from '@/pages/transactions/utils/dailyCashFlowChart'
 
@@ -353,12 +354,12 @@ export default function DailyCashFlowChart({
                 <stop offset="100%" stopColor="var(--app-text-muted)" stopOpacity={0.02} />
               </linearGradient>
               <linearGradient id="inflowGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="var(--app-positive)" stopOpacity={0.25} />
-                <stop offset="100%" stopColor="var(--app-positive)" stopOpacity={0.02} />
+                <stop offset="0%" stopColor={getValueMarkColor('positive')} stopOpacity={0.25} />
+                <stop offset="100%" stopColor={getValueMarkColor('positive')} stopOpacity={0.02} />
               </linearGradient>
               <linearGradient id="outflowGrad" x1="0" y1="1" x2="0" y2="0">
-                <stop offset="0%" stopColor="var(--app-negative)" stopOpacity={0.25} />
-                <stop offset="100%" stopColor="var(--app-negative)" stopOpacity={0.02} />
+                <stop offset="0%" stopColor={getValueMarkColor('negative')} stopOpacity={0.25} />
+                <stop offset="100%" stopColor={getValueMarkColor('negative')} stopOpacity={0.02} />
               </linearGradient>
             </defs>
             <XAxis
@@ -393,7 +394,7 @@ export default function DailyCashFlowChart({
                 <Area
                   type="monotone"
                   dataKey="inflow"
-                  stroke="var(--app-positive)"
+                  stroke={getValueMarkColor('positive')}
                   fill="url(#inflowGrad)"
                   strokeWidth={1.5}
                   isAnimationActive={false}
@@ -401,7 +402,7 @@ export default function DailyCashFlowChart({
                 <Area
                   type="monotone"
                   dataKey="outflow"
-                  stroke="var(--app-negative)"
+                  stroke={getValueMarkColor('negative')}
                   fill="url(#outflowGrad)"
                   strokeWidth={1.5}
                   isAnimationActive={false}

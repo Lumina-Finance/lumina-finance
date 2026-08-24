@@ -20,6 +20,7 @@ import {
   useChartEntranceAnimation,
 } from '@/components/charts/useChartEntranceAnimation'
 import type { CashFlowBar } from '@/pages/accounts/detail/utils/cashFlowChartViewModel'
+import { getValueMarkColor } from '@/utils/valueMarkColor'
 import { MonthlyCashFlowTooltipContent } from './TooltipContent'
 
 const cashFlowChartMargin = { top: 8, right: 0, bottom: 0, left: 0 } as const
@@ -117,7 +118,7 @@ export function MonthlyCashFlowBarChart({
           <YAxis hide domain={domain} />
           <Bar
             dataKey="income"
-            fill="var(--app-positive)"
+            fill={getValueMarkColor('positive')}
             radius={[4, 4, 0, 0]}
             maxBarSize={24}
             opacity={0.85}
@@ -125,7 +126,7 @@ export function MonthlyCashFlowBarChart({
           />
           <Bar
             dataKey="expense"
-            fill="var(--app-negative)"
+            fill={getValueMarkColor('negative')}
             radius={[4, 4, 0, 0]}
             maxBarSize={24}
             opacity={0.85}

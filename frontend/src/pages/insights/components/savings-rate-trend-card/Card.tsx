@@ -13,10 +13,10 @@ import { getSavingsRateTrendFxStatusMessage } from '@/pages/insights/utils/fxToo
 import { formatSavingsRateValue } from '@/pages/insights/utils/money'
 import { getSavingsRateSummary } from '@/pages/insights/utils/savingsRateChart'
 import {
-  getSavingsRateTierColor,
   SAVINGS_RATE_TIER_LABELS,
   SAVINGS_RATE_TIERS,
 } from '@/utils/savingsRateTier'
+import { getValueMarkColor } from '@/utils/valueMarkColor'
 import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
 import { InsightCalculationTooltip } from '@/pages/insights/components/CalculationTooltip'
 import { InsightActionButton } from '@/pages/insights/components/ActionButton'
@@ -248,7 +248,7 @@ export function SavingsRateTrendCard({
                 <div className="flex w-full items-center justify-center gap-4 text-xs min-[750px]:w-auto" style={{ color: 'var(--app-text-muted)' }}>
                   {SAVINGS_RATE_TIERS.map((tier) => (
                     <span key={tier} className="flex items-center gap-1.5">
-                      <span className="h-2 w-2 rounded-sm" style={{ background: getSavingsRateTierColor(tier) }} />
+                      <span className="h-2 w-2 rounded-sm" style={{ background: getValueMarkColor(tier) }} />
                       {SAVINGS_RATE_TIER_LABELS[tier]}
                     </span>
                   ))}

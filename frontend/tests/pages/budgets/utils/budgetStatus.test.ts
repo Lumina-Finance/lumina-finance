@@ -71,4 +71,23 @@ describe('budget attention status', () => {
   it('classifies full utilization as needing attention', () => {
     expect(attentionState(createBudget(), createUtilization(100000)).label).toBe('Needs attention')
   })
+
+  it('colours the strip and the bar apart from the words, and leaves the amber state alone', () => {
+    expect(attentionState(createBudget(), createUtilization(50000))).toMatchObject({
+      textColor: 'var(--app-positive)',
+      indicatorColor: 'var(--app-chart-positive)',
+    })
+    expect(attentionState(createBudget(), createUtilization(100000))).toMatchObject({
+      textColor: 'var(--app-negative)',
+      indicatorColor: 'var(--app-chart-negative)',
+    })
+    expect(attentionState(createBudget(), createUtilization(80000))).toMatchObject({
+      textColor: 'var(--app-warning-text)',
+      indicatorColor: 'var(--app-warning)',
+    })
+  })
+
+  it('returns no colour nothing reads', () => {
+    expect(attentionState(createBudget(), createUtilization(50000))).not.toHaveProperty('color')
+  })
 })
