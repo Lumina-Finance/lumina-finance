@@ -2,6 +2,10 @@ import { useMemo } from 'react'
 import type { Category } from '@/api/categories'
 import { BALANCE_ADJUSTMENT_CATEGORY_NAME, doesTransferRecordCounterpartyAccount } from '@/utils/transfers'
 import { buildCategoryOptions } from '@/pages/transactions/components/transaction-modal/utils/categories'
+import {
+  getCreditRepaymentSteer,
+  type CreditRepaymentSteer,
+} from '@/pages/transactions/components/transaction-modal/utils/creditRepayment'
 import type {
   TransactionFormFieldErrors,
   TransactionFormValues,
@@ -10,6 +14,7 @@ import type {
 
 interface UseCategoryFieldOptions {
   categories: Category[]
+  readOnly: boolean
   form: TransactionFormValues
   applyKindChange: (nextKind: TransactionModalKind, fields?: Partial<TransactionFormValues>) => void
   clearError: (field: keyof TransactionFormFieldErrors) => void
@@ -21,6 +26,7 @@ interface CategoryFieldState {
   categoryOptions: ReturnType<typeof buildCategoryOptions>
   selectedCategory: Category | undefined
   isBalanceAdjustmentCategory: boolean
+  creditRepaymentSteer: CreditRepaymentSteer
   handleCategoryChange: (categoryId: string) => void
   handleCategoryCreated: (category: Category) => void
 }
@@ -30,6 +36,7 @@ interface CategoryFieldState {
  */
 export function useCategoryField({
   categories,
+  readOnly,
   form,
   applyKindChange,
   clearError,
@@ -53,6 +60,8 @@ export function useCategoryField({
     selectedCategory?.is_system &&
     selectedCategory.name === BALANCE_ADJUSTMENT_CATEGORY_NAME
   )
+
+  const creditRepaymentSteer = getCreditRepaymentSteer(selectedCategory, categories, readOnly)
 
   const handleCategoryChange = (categoryId: string) => {
     const category = categoryById.get(categoryId)
@@ -81,6 +90,7 @@ export function useCategoryField({
     categoryOptions,
     selectedCategory,
     isBalanceAdjustmentCategory,
+    creditRepaymentSteer,
     handleCategoryChange,
     handleCategoryCreated,
   }

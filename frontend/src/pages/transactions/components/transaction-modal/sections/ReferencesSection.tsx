@@ -8,7 +8,9 @@ import {
   EASE,
   TRANSACTION_MODAL_FIELD_IDS,
 } from '@/pages/transactions/components/transaction-modal/constants'
+import CreditRepaymentNotice from '@/pages/transactions/components/transaction-modal/controls/CreditRepaymentNotice'
 import TransferCashFlowNotice from '@/pages/transactions/components/transaction-modal/controls/TransferCashFlowNotice'
+import type { CreditRepaymentSteer } from '@/pages/transactions/components/transaction-modal/utils/creditRepayment'
 import { doesTransferRecordCounterpartyAccount } from '@/utils/transfers'
 import type {
   TransactionDirection,
@@ -67,6 +69,10 @@ interface TransactionReferencesSectionProps {
 
   // True when the chosen category is the synthetic balance adjustment, which is excluded from cash flow
   isBalanceAdjustmentCategory: boolean
+
+  // Whether to ask the user to check that a payment filed under Debt Payment is really an expense,
+  // and which category the offered switch sets
+  creditRepaymentSteer: CreditRepaymentSteer
   showMerchantDefaultCategoryAction: boolean
   merchantDefaultCategoryActionLabel: string
   merchantDefaultCategoryPending: boolean
@@ -163,6 +169,7 @@ export default function TransactionReferencesSection({
   categoryValue,
   categoryError,
   isBalanceAdjustmentCategory,
+  creditRepaymentSteer,
   showMerchantDefaultCategoryAction,
   merchantDefaultCategoryActionLabel,
   merchantDefaultCategoryPending,
@@ -196,6 +203,13 @@ export default function TransactionReferencesSection({
   // Every transfer-kind category except Balance Adjustment records which counterparty account the
   // money touched
   const recordsCounterpartyAccount = doesTransferRecordCounterpartyAccount(kind, isBalanceAdjustmentCategory)
+
+  // Goes through the same handler the dropdown does, so the switch behaves exactly as picking the
+  // category by hand. Left undefined where no switch is offered, which is what hides the button
+  const switchTargetId = creditRepaymentSteer.switchTargetId
+  const useCreditCardPayment = switchTargetId
+    ? () => onCategoryChange(switchTargetId)
+    : undefined
 
   // Ticking the checkbox writes a transaction in both accounts, so neither one is the single account
   // it was recorded in. The two fields then read source first, which is why the one below says the
@@ -390,6 +404,10 @@ export default function TransactionReferencesSection({
           disabled={readOnly}
         />
         <TransferCashFlowNotice show={isBalanceAdjustmentCategory} />
+        <CreditRepaymentNotice
+          show={creditRepaymentSteer.show}
+          onUseCreditCardPayment={useCreditCardPayment}
+        />
       </div>
 
       <div>
