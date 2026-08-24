@@ -24,9 +24,13 @@ import { SavingsCurrentBoundary } from '@/pages/dashboard/components/SavingsCurr
 import { DASHBOARD_X_AXIS_TICK_FONT_SIZE } from '@/pages/dashboard/constants/chart'
 import {
   getSavingsRateDisplay,
-  getSavingsRateTier,
   type SavingsRateChartPoint,
 } from '@/pages/dashboard/utils/getSavingsRateChartData'
+import {
+  getSavingsRateTier,
+  getSavingsRateTierColor,
+  SAVINGS_RATE_TIERS,
+} from '@/utils/savingsRateTier'
 import {
   getRechartsTooltipPoint,
   getRechartsTooltipPointer,
@@ -121,7 +125,7 @@ export function SavingsRateChart({
       {/* Recharts resolves pattern fills reliably when definitions share the chart SVG context */}
       <svg width={0} height={0} style={{ position: 'absolute' }} aria-hidden>
         <defs>
-          {(['positive', 'accent', 'negative'] as const).map((tier) => (
+          {SAVINGS_RATE_TIERS.map((tier) => (
             <pattern
               key={tier}
               id={`savings-stripes-${tier}`}
@@ -133,7 +137,7 @@ export function SavingsRateChart({
               <rect
                 width={3}
                 height={6}
-                style={{ fill: `var(--app-${tier})` }}
+                style={{ fill: getSavingsRateTierColor(tier) }}
               />
             </pattern>
           ))}
@@ -174,7 +178,7 @@ export function SavingsRateChart({
                   fill={
                     entry.isCurrent
                       ? `url(#savings-stripes-${tier})`
-                      : `var(--app-${tier})`
+                      : getSavingsRateTierColor(tier)
                   }
                 />
               )

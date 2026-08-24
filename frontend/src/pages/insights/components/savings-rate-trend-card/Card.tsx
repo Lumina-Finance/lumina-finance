@@ -12,6 +12,11 @@ import type { SavingsRateHistoryPoint } from '@/pages/insights/types/savingsRate
 import { getSavingsRateTrendFxStatusMessage } from '@/pages/insights/utils/fxTooltipMessages'
 import { formatSavingsRateValue } from '@/pages/insights/utils/money'
 import { getSavingsRateSummary } from '@/pages/insights/utils/savingsRateChart'
+import {
+  getSavingsRateTierColor,
+  SAVINGS_RATE_TIER_LABELS,
+  SAVINGS_RATE_TIERS,
+} from '@/utils/savingsRateTier'
 import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
 import { InsightCalculationTooltip } from '@/pages/insights/components/CalculationTooltip'
 import { InsightActionButton } from '@/pages/insights/components/ActionButton'
@@ -241,18 +246,12 @@ export function SavingsRateTrendCard({
                   </AnimatePresence>
                 </p>
                 <div className="flex w-full items-center justify-center gap-4 text-xs min-[750px]:w-auto" style={{ color: 'var(--app-text-muted)' }}>
-                  <span className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-sm" style={{ background: 'var(--app-chart-positive)' }} />
-                    20%+
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-sm" style={{ background: 'var(--app-accent)' }} />
-                    1-19%
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-sm" style={{ background: 'var(--app-chart-negative)' }} />
-                    0% or less
-                  </span>
+                  {SAVINGS_RATE_TIERS.map((tier) => (
+                    <span key={tier} className="flex items-center gap-1.5">
+                      <span className="h-2 w-2 rounded-sm" style={{ background: getSavingsRateTierColor(tier) }} />
+                      {SAVINGS_RATE_TIER_LABELS[tier]}
+                    </span>
+                  ))}
                 </div>
               </div>
             </div>
