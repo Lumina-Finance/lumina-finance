@@ -37,10 +37,16 @@ type MerchantRankingSnapshot = {
   failed: boolean
 }
 
+/**
+ * Chooses the colour of a merchant's change figure, where spending more reads as the bad direction
+ *
+ * These are the colours text is written in rather than the ones a chart mark is drawn in, since a
+ * figure has to hold up against the page behind it
+ */
 function getChangeColor(changePct: number | null) {
   if (changePct === null) return 'var(--app-text-muted)'
-  if (changePct > 0) return 'var(--app-chart-negative)'
-  if (changePct < 0) return 'var(--app-chart-positive)'
+  if (changePct > 0) return 'var(--app-negative)'
+  if (changePct < 0) return 'var(--app-positive)'
   return 'var(--app-text-muted)'
 }
 

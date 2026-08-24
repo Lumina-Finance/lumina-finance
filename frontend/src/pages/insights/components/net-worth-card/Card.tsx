@@ -118,10 +118,12 @@ export function NetWorthCard({
     [chartItems, displaySnapshot.baseline, displaySnapshot.mode, displaySnapshot.series],
   )
   const latestChange = deltaSeries.at(-1)?.totalChange ?? 0
+  // The text colours rather than the chart ones, since this is a figure and its arrow rather than
+  // anything drawn in the plot
   const netWorthTrendColor = latestChange > 0
-    ? 'var(--app-chart-positive)'
+    ? 'var(--app-positive)'
     : latestChange < 0
-      ? 'var(--app-chart-negative)'
+      ? 'var(--app-negative)'
       : 'var(--app-text-muted)'
   const NetWorthTrendIcon = latestChange > 0 ? TrendingUp : latestChange < 0 ? TrendingDown : Minus
 
