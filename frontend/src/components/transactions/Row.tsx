@@ -4,6 +4,8 @@ import { StickyNote, Tag as TagIcon } from 'lucide-react'
 import type { Institution } from '@/api/institutions'
 import type { Category } from '@/api/categories'
 import type { Transaction } from '@/api/transactions'
+import { Checkbox } from '@/components/forms/Checkbox'
+import type { RowSelectionMark } from '@/pages/transactions/components/bulk-edit/selection'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { resolveInstitutionLogoUrl } from '@/utils/institutionLogo'
 
@@ -31,6 +33,23 @@ function describeTransferCounterparty(
   return transaction.amount < 0 ? `To ${counterparty}` : `From ${counterparty}`
 }
 
+/**
+ * What the row needs while the list is in selection mode
+ *
+ * Absent everywhere else, including the import preview, which renders the same row and offers no
+ * selection at all
+ */
+export interface TransactionRowSelection {
+  /** How the row is marked once any pending shift-click is taken into account */
+  mark: RowSelectionMark
+
+  /** False for a row the app does not allow editing, such as one on an archived account */
+  isSelectable: boolean
+
+  onToggle: (withShift: boolean) => void
+  onPointerEnter: () => void
+}
+
 interface TransactionRowProps {
   accountName?: string
 
@@ -46,6 +65,7 @@ interface TransactionRowProps {
   prefersReducedMotion?: boolean | null
   // Makes the row appear without the grow in, used for a lazy loaded batch that would otherwise all grow at once
   skipEnterAnimation?: boolean
+  selection?: TransactionRowSelection
   onOpen: (transaction: Transaction) => void
 }
 
@@ -150,6 +170,7 @@ export default function TransactionRow({
   transaction,
   prefersReducedMotion,
   skipEnterAnimation = false,
+  selection,
   onOpen,
 }: TransactionRowProps) {
   // The row clips its content only while the height animates, so the grow and collapse read cleanly
@@ -178,10 +199,15 @@ export default function TransactionRow({
   const formattedAmount = `${transaction.amount >= 0 ? '+' : '-'}${formatCurrency(Math.abs(transaction.amount), currency)}`
   const transactionAmountColor = amountColor(category, transaction.amount)
 
+  // A ticked row is marked with a background rather than with opacity, which already says the row
+  // cannot be edited
+  const selectionBackground = selection?.mark === 'selected'
+    ? 'var(--app-accent-soft)'
+    : selection?.mark === 'pending' ? 'var(--app-surface-soft)' : undefined
+
   return (
-    <motion.button
-      type="button"
-      onClick={() => onOpen(transaction)}
+    <motion.div
+      onMouseEnter={selection?.onPointerEnter}
       initial={skipEnterAnimation ? false : prefersReducedMotion ? { opacity: 0 } : { opacity: 0, height: 0, paddingTop: 0, paddingBottom: 0 }}
       // The padding targets mirror the py-2.5 class so the row grows from a fully collapsed height
       animate={{ opacity: readOnly ? 0.68 : 1, height: 'auto', paddingTop: '0.625rem', paddingBottom: '0.625rem' }}
@@ -200,13 +226,47 @@ export default function TransactionRow({
       transition={{ duration: prefersReducedMotion ? 0 : 0.24, ease: ROW_EXIT_EASE }}
       onAnimationStart={() => setIsAnimatingHeight(true)}
       onAnimationComplete={() => setIsAnimatingHeight(false)}
-      className="block w-full cursor-pointer px-3 py-2.5 text-left transition-colors duration-100 hover:bg-[var(--app-surface-soft)] focus-visible:bg-[var(--app-surface-soft)] focus-visible:outline-none min-[1300px]:col-span-full min-[1300px]:grid min-[1300px]:grid-cols-subgrid min-[1300px]:items-center min-[1300px]:gap-x-3"
-      style={{ borderBottom: '1px solid var(--app-border)', overflow: isAnimatingHeight ? 'hidden' : 'visible' }}
+      className={`${selection ? 'flex items-center' : 'block'} w-full transition-colors duration-100 hover:bg-[var(--app-surface-soft)] min-[1300px]:col-span-full min-[1300px]:grid min-[1300px]:grid-cols-subgrid min-[1300px]:items-center min-[1300px]:gap-x-3`}
+      style={{
+        borderBottom: '1px solid var(--app-border)',
+        overflow: isAnimatingHeight ? 'hidden' : 'visible',
+        background: selectionBackground,
+      }}
     >
-      {/* Desktop row: each cell is a direct child of the row's subgrid, so every row shares the same
-          column tracks and stays aligned. The category and account tracks grow to their widest content
-          across all rows, showing long names while there is room and truncating only when there is not,
-          with notes as the flexible filler that compresses first */}
+      {selection && (
+        <span className="flex shrink-0 items-center justify-center pl-3 min-[1300px]:pl-0">
+          <Checkbox
+            checked={selection.mark === 'selected'}
+            disabled={!selection.isSelectable}
+            label={`Select ${title} on ${transaction.dt}`}
+            onChange={(event) => selection.onToggle(event.shiftKey)}
+          />
+        </span>
+      )}
+
+      {/* The row's own click target. It is a button nested inside the row rather than the row
+          itself, because a checkbox is a button too and one cannot contain the other. On a wide
+          screen it declares a subgrid of its own so the cells inside it still line up against the
+          tracks the list declares */}
+      <button
+        type="button"
+        // In selection mode the checkbox is the row's single stop, so the same row does not offer
+        // two controls doing the same thing
+        tabIndex={selection ? -1 : undefined}
+        onClick={(event) => {
+          if (!selection) {
+            onOpen(transaction)
+            return
+          }
+          if (selection.isSelectable) selection.onToggle(event.shiftKey)
+        }}
+        className="block w-full min-w-0 flex-1 cursor-pointer px-3 text-left focus-visible:bg-[var(--app-surface-soft)] focus-visible:outline-none min-[1300px]:col-span-6 min-[1300px]:grid min-[1300px]:grid-cols-subgrid min-[1300px]:items-center min-[1300px]:gap-x-3"
+      >
+      {/* Desktop row: each cell is a direct child of this button's subgrid, which spans the list's
+          content tracks, so every row shares the same column tracks and stays aligned. The category
+          and account tracks grow to their widest content across all rows, showing long names while
+          there is room and truncating only when there is not, with notes as the flexible filler
+          that compresses first */}
       <span className="hidden text-2xl leading-none min-[1300px]:block" aria-hidden>
         {categoryIcon}
       </span>
@@ -412,6 +472,7 @@ export default function TransactionRow({
           </span>
         )}
       </span>
-    </motion.button>
+      </button>
+    </motion.div>
   )
 }

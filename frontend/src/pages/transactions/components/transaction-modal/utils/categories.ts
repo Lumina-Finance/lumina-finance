@@ -13,12 +13,14 @@ const CATEGORY_KIND_ORDER: TransactionModalKind[] = ['expense', 'income', 'trans
 
 /**
  * Builds category dropdown options with the selected transaction kind shown first
+ *
+ * @param selectedKind Kind to put first, omitted where the caller edits several transactions at
+ *   once and so has no one kind to lead with
  */
-export function buildCategoryOptions(categories: Category[], selectedKind: TransactionModalKind) {
-  const sortedKinds = [
-    selectedKind,
-    ...CATEGORY_KIND_ORDER.filter((kind) => kind !== selectedKind),
-  ]
+export function buildCategoryOptions(categories: Category[], selectedKind?: TransactionModalKind) {
+  const sortedKinds = selectedKind
+    ? [selectedKind, ...CATEGORY_KIND_ORDER.filter((kind) => kind !== selectedKind)]
+    : CATEGORY_KIND_ORDER
 
   return sortedKinds.flatMap((kind) => buildOptionsForKind(categories, kind))
 }

@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { Upload } from 'lucide-react'
+import { ListChecks, Upload } from 'lucide-react'
 import { DesktopToolbarControls } from '@/components/list-controls/DesktopToolbarControls'
 import { GlassSearchField } from '@/components/list-controls/GlassSearchField'
 import { MobileToolbarActions } from '@/components/list-controls/MobileToolbarActions'
@@ -36,6 +36,8 @@ export default function TransactionListToolbar({
   importDisabled = false,
   importDisabledReason,
   onStickyOffsetChange,
+  isSelecting = false,
+  onToggleSelecting,
 }: TransactionListToolbarProps) {
   const shell = useToolbarShellState()
   useToolbarStickyOffset(shell.toolbarRef, onStickyOffsetChange)
@@ -61,6 +63,21 @@ export default function TransactionListToolbar({
       {/* The word is dropped on a phone, where the row is three controls wide and the filters button
           needs the space it would take. The accessible name carries it at both widths */}
       <span className="hidden min-[750px]:inline">Import</span>
+    </button>
+  ) : undefined
+
+  // Follows the import button's shape: square on a phone, widening for its word on a desktop, at the
+  // same 44px height as everything else on the row
+  const selectAction = onToggleSelecting ? (
+    <button
+      type="button"
+      className="app-glass-button h-11 w-11 shrink-0 px-0 min-[750px]:w-auto min-[750px]:px-4"
+      onClick={onToggleSelecting}
+      aria-pressed={isSelecting}
+      aria-label={isSelecting ? 'Stop selecting transactions' : 'Select transactions'}
+    >
+      <ListChecks size={18} aria-hidden />
+      <span className="hidden min-[750px]:inline">{isSelecting ? 'Done' : 'Select'}</span>
     </button>
   ) : undefined
 
@@ -98,7 +115,12 @@ export default function TransactionListToolbar({
           primaryLabel="Add transaction"
           primaryDisabled={createDisabled}
           primaryDisabledReason={createDisabledReason}
-          secondaryAction={importAction}
+          secondaryAction={
+            <>
+              {selectAction}
+              {importAction}
+            </>
+          }
         />
 
         <DesktopToolbarControls
@@ -114,6 +136,7 @@ export default function TransactionListToolbar({
             // narrower than it draws and stay on one line where it no longer fits. Wrapped as one
             // child, since the group spreads its children apart once the create button stacks
             <div className="flex min-w-0 items-center gap-3">
+              {selectAction}
               {importAction}
               <TransactionFilterPanel
                 accountOptions={accountOptions}

@@ -1,10 +1,18 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useCategories } from '@/api/categories'
+import { ApiError } from '@/api/auth'
 import {
+  useBulkUpdateTransactions,
   useInfiniteTransactions,
+  type BulkUpdateTransactionsPayload,
   type Transaction,
 } from '@/api/transactions'
+import { useToast } from '@/hooks/useToast'
+import { BulkEditBar } from '@/pages/transactions/components/bulk-edit/BulkEditBar'
+import { BulkEditConfirm } from '@/pages/transactions/components/bulk-edit/BulkEditConfirm'
+import { useBulkSelection } from '@/pages/transactions/components/bulk-edit/useBulkSelection'
+import { getTransactionReadOnlyReason } from '@/pages/transactions/utils/rowEditability'
 import { getImportBlockReason, isImportableAccount } from '@/pages/imports/utils'
 import { TRANSACTION_FILTER_KEYS, TRANSACTION_LIST_EASE } from '@/pages/transactions/constants/transactionList'
 import TransactionDateGroupList from '@/pages/transactions/components/DateGroupList'
@@ -18,6 +26,9 @@ import { groupTransactionsByDate } from '@/pages/transactions/utils/transactionD
 import { normalizeTransactionFilters } from '@/pages/transactions/utils/normalizeTransactionFilters'
 
 const DEFAULT_DATE_HEADER_STICKY_TOP = 72
+
+/** What the bar sets, which is everything in a bulk request except the transactions it covers */
+type BulkEditFields = Omit<BulkUpdateTransactionsPayload, 'transaction_ids'>
 
 /**
  * Compares two filter values, treating arrays as equal when they hold the same members so
@@ -137,6 +148,75 @@ export default function TransactionListSection({
   const createDisabled = Boolean(fixedAccount?.is_archived)
   const createDisabledReason = createDisabled ? 'Archived accounts are read-only' : undefined
 
+  const [isSelecting, setIsSelecting] = useState(false)
+  const [pendingChange, setPendingChange] = useState<BulkEditFields | null>(null)
+  const [applyError, setApplyError] = useState<string | null>(null)
+  const { showToast } = useToast()
+  const bulkUpdate = useBulkUpdateTransactions()
+
+  // The rows a range runs along, in the order they appear, carrying the same editable rule the row
+  // itself shows
+  const selectableRows = useMemo(
+    () => displayedTransactions.map((transaction) => ({
+      id: transaction.id,
+      isReadOnly: Boolean(getTransactionReadOnlyReason(transaction, accountMap, fixedAccount)),
+    })),
+    [displayedTransactions, accountMap, fixedAccount],
+  )
+
+  // The search text is not part of the filters, so both go into the key that empties a selection
+  const requestKey = useMemo(
+    () => `${JSON.stringify(filters)}|${activeSearch}`,
+    [filters, activeSearch],
+  )
+
+  const selection = useBulkSelection(selectableRows, requestKey, !filterListLoading)
+  const { clear: clearSelection } = selection
+
+  const buildRowSelection = useCallback(
+    (transactionId: string, isReadOnly: boolean) => ({
+      mark: selection.markFor(transactionId),
+      isSelectable: !isReadOnly,
+      onToggle: (withShift: boolean) => selection.toggle(transactionId, withShift),
+      onPointerEnter: () => selection.handlePointerEnter(transactionId),
+    }),
+    [selection],
+  )
+
+  /**
+   * Leaves selection mode, dropping the ticks and the anchor with it
+   */
+  const stopSelecting = useCallback(() => {
+    setIsSelecting(false)
+    setPendingChange(null)
+    setApplyError(null)
+    clearSelection()
+  }, [clearSelection])
+
+  /**
+   * Writes the change the bar holds, keeping the confirmation open when the server refuses it
+   */
+  function applyPendingChange() {
+    if (!pendingChange) return
+    setApplyError(null)
+    bulkUpdate.mutate(
+      { transaction_ids: selection.selectedIds, ...pendingChange },
+      {
+        onSuccess: (result) => {
+          setPendingChange(null)
+          clearSelection()
+          showToast({
+            status: 'success',
+            text: `${result.transactions_updated} ${result.transactions_updated === 1 ? 'transaction' : 'transactions'} updated.`,
+          })
+        },
+        onError: (error) => {
+          setApplyError(error instanceof ApiError ? error.message : 'Something went wrong. Please try again.')
+        },
+      },
+    )
+  }
+
   // Only a list fixed to one account can be blocked, since only that one writes rows to an account
   // of its own. On the list of every account the button is the way to the import page and is always
   // offered. Where it is blocked it stays on the row, greyed out with the reason, rather than
@@ -187,9 +267,15 @@ export default function TransactionListSection({
         importDisabled={importDisabled}
         importDisabledReason={importDisabledReason}
         onStickyOffsetChange={setDateHeaderStickyTop}
+        isSelecting={isSelecting}
+        onToggleSelecting={() => (isSelecting ? stopSelecting() : setIsSelecting(true))}
       />
 
-      <div className="relative" aria-busy={filterListLoading}>
+      <div
+        className="relative"
+        aria-busy={filterListLoading}
+        onMouseLeave={selection.handlePointerLeaveList}
+      >
         <AnimatePresence>
           {filterListLoading && <TransactionFilterLoadingOverlay reducedMotion={prefersReducedMotion} />}
         </AnimatePresence>
@@ -235,6 +321,8 @@ export default function TransactionListSection({
                 stickyTop={dateHeaderStickyTop}
                 prefersReducedMotion={prefersReducedMotion}
                 skipEnterAnimation={skipAppendedEnter}
+                isSelecting={isSelecting}
+                buildRowSelection={isSelecting ? buildRowSelection : undefined}
                 onEditTransaction={onEditTransaction}
               />
 
@@ -252,6 +340,26 @@ export default function TransactionListSection({
           ) : null}
         </AnimatePresence>
       </div>
+
+      {isSelecting && selection.selectedIds.length > 0 && (
+        <BulkEditBar
+          selectedIds={selection.selectedIds}
+          onApply={setPendingChange}
+          onCancel={stopSelecting}
+        />
+      )}
+
+      <BulkEditConfirm
+        open={pendingChange !== null}
+        count={selection.selectedIds.length}
+        error={applyError}
+        isApplying={bulkUpdate.isPending}
+        onConfirm={applyPendingChange}
+        onCancel={() => {
+          setPendingChange(null)
+          setApplyError(null)
+        }}
+      />
     </section>
   )
 }

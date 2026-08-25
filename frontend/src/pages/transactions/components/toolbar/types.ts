@@ -24,4 +24,8 @@ export type TransactionListToolbarProps = {
   importDisabled?: boolean
   importDisabledReason?: string
   onStickyOffsetChange?: (offset: number) => void
+
+  // Whether the list is showing a checkbox on every row, so a bulk edit can pick rows out
+  isSelecting?: boolean
+  onToggleSelecting?: () => void
 }
