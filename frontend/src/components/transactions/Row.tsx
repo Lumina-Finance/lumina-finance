@@ -209,7 +209,8 @@ export default function TransactionRow({
     <motion.div
       onMouseEnter={selection?.onPointerEnter}
       initial={skipEnterAnimation ? false : prefersReducedMotion ? { opacity: 0 } : { opacity: 0, height: 0, paddingTop: 0, paddingBottom: 0 }}
-      // The padding targets mirror the py-2.5 class so the row grows from a fully collapsed height
+      // The row's whole vertical padding, set here rather than in a class, so it can animate from
+      // zero and the row grows from a fully collapsed height
       animate={{ opacity: readOnly ? 0.68 : 1, height: 'auto', paddingTop: '0.625rem', paddingBottom: '0.625rem' }}
       exit={
         prefersReducedMotion
@@ -258,7 +259,11 @@ export default function TransactionRow({
             onOpen(transaction)
             return
           }
-          if (selection.isSelectable) selection.onToggle(event.shiftKey)
+
+          // A shift-click lands on a row the app will not edit as readily as on any other, and the
+          // range it takes steps over that row, so it runs anyway rather than doing nothing under a
+          // pointer the highlight has already answered
+          if (selection.isSelectable || event.shiftKey) selection.onToggle(event.shiftKey)
         }}
         className="block w-full min-w-0 flex-1 cursor-pointer px-3 text-left focus-visible:bg-[var(--app-surface-soft)] focus-visible:outline-none min-[1300px]:col-span-6 min-[1300px]:grid min-[1300px]:grid-cols-subgrid min-[1300px]:items-center min-[1300px]:gap-x-3"
       >

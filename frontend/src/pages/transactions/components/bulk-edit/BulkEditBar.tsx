@@ -12,6 +12,10 @@ import {
 } from '@/pages/transactions/components/bulk-edit/selection'
 import { useDebouncedReferenceSearch } from '@/pages/transactions/components/transaction-modal/hooks/useDebouncedReferenceSearch'
 import { buildCategoryOptions } from '@/pages/transactions/components/transaction-modal/utils/categories'
+import {
+  BALANCE_ADJUSTMENT_CATEGORY_NAME,
+  doesTransferRecordCounterpartyAccount,
+} from '@/utils/transfers'
 
 const REFERENCE_SEARCH_DEBOUNCE_MS = 250
 const REFERENCE_PAGE_SIZE = 20
@@ -23,23 +27,37 @@ interface BulkEditBarProps {
 }
 
 /**
- * The controls for a bulk edit, docked to the bottom of the viewport
+ * The controls for a bulk edit, held at the bottom of the list
  *
- * Docked there rather than in the toolbar, because the toolbar publishes its height to every sticky
- * date heading and a bar added to it would move all of them.
+ * At the bottom rather than in the toolbar, because the toolbar publishes its height to every
+ * sticky date heading and a bar added to it would move all of them.
  */
 export function BulkEditBar({ selectedIds, onApply, onCancel }: BulkEditBarProps) {
   const [categoryId, setCategoryId] = useState('')
-  const [merchantId, setMerchantId] = useState('')
-  const [tagIds, setTagIds] = useState<string[]>([])
+
+  // The chosen merchant and tags are held with the label they were picked under. Closing a dropdown
+  // resets its search, which refetches the first page of records, and a record the search had found
+  // is not in it, so a label read back off the loaded page would turn into an identifier
+  const [merchant, setMerchant] = useState<{ value: string; label: string } | null>(null)
+  const [chosenTags, setChosenTags] = useState<{ value: string; label: string }[]>([])
+  const merchantId = merchant?.value ?? ''
+  const tagIds = chosenTags.map((tag) => tag.value)
 
   const { data: categories } = useCategories()
 
-  // Transfer categories are left out. A transfer has to record the account on its other side, this
-  // request carries no field for one, and a row that does not already record one is refused, so
-  // offering the choice would mostly produce a refused batch
+  // A category recording a counterparty account is left out. This request carries no field for one,
+  // and a row that does not already record one is refused, so offering the choice would mostly
+  // produce a refused batch. Balance Adjustment stays, being the one transfer category that records
+  // no counterparty and so applies to any row
   const categoryOptions = useMemo(
-    () => buildCategoryOptions((categories ?? []).filter((category) => category.kind !== 'transfer')),
+    () => buildCategoryOptions(
+      (categories ?? []).filter(
+        (category) => !doesTransferRecordCounterpartyAccount(
+          category.kind,
+          category.name === BALANCE_ADJUSTMENT_CATEGORY_NAME,
+        ),
+      ),
+    ),
     [categories],
   )
 
@@ -49,7 +67,7 @@ export function BulkEditBar({ selectedIds, onApply, onCancel }: BulkEditBarProps
     REFERENCE_PAGE_SIZE,
   )
   const merchants = merchantQuery.data?.pages.flat() ?? []
-  const merchantOptions = merchants.map((merchant) => ({ value: merchant.id, label: merchant.name }))
+  const merchantOptions = merchants.map((record) => ({ value: record.id, label: record.name }))
 
   const tagSearch = useDebouncedReferenceSearch(REFERENCE_SEARCH_DEBOUNCE_MS)
   const tagQuery = useInfiniteTags({ q: tagSearch.activeSearchText || undefined }, REFERENCE_PAGE_SIZE)
@@ -57,7 +75,6 @@ export function BulkEditBar({ selectedIds, onApply, onCancel }: BulkEditBarProps
   const tagOptions = tags
     .filter((tag) => !tagIds.includes(tag.id))
     .map((tag) => ({ value: tag.id, label: tag.name }))
-  const tagNamesById = new Map(tags.map((tag) => [tag.id, tag.name]))
 
   const choice = { categoryId, merchantId, tagIds }
   const overCap = selectedIds.length > MAX_BULK_EDIT_TRANSACTIONS
@@ -89,7 +106,10 @@ export function BulkEditBar({ selectedIds, onApply, onCancel }: BulkEditBarProps
         <Dropdown
           options={merchantOptions}
           value={merchantId}
-          onChange={setMerchantId}
+          selectedOption={merchant ?? undefined}
+          onChange={(value) => setMerchant(
+            merchantOptions.find((option) => option.value === value) ?? null,
+          )}
           placeholder="Merchant"
           searchable
           filterOptions={false}
@@ -104,7 +124,10 @@ export function BulkEditBar({ selectedIds, onApply, onCancel }: BulkEditBarProps
         <Dropdown
           options={tagOptions}
           value=""
-          onChange={(value) => setTagIds((current) => [...current, value])}
+          onChange={(value) => {
+            const picked = tagOptions.find((option) => option.value === value)
+            if (picked) setChosenTags((current) => [...current, picked])
+          }}
           placeholder="Add a tag"
           searchable
           filterOptions={false}
@@ -130,19 +153,19 @@ export function BulkEditBar({ selectedIds, onApply, onCancel }: BulkEditBarProps
         </button>
       </div>
 
-      {tagIds.length > 0 && (
+      {chosenTags.length > 0 && (
         <div className="mx-auto mt-2 flex max-w-6xl flex-wrap gap-1">
-          {tagIds.map((tagId) => (
+          {chosenTags.map((tag) => (
             <span
-              key={tagId}
+              key={tag.value}
               className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs"
               style={{ background: 'var(--app-accent-soft)' }}
             >
-              {tagNamesById.get(tagId) ?? tagId}
+              {tag.label}
               <button
                 type="button"
-                aria-label={`Remove ${tagNamesById.get(tagId) ?? tagId}`}
-                onClick={() => setTagIds((current) => current.filter((id) => id !== tagId))}
+                aria-label={`Remove ${tag.label}`}
+                onClick={() => setChosenTags((current) => current.filter((item) => item.value !== tag.value))}
               >
                 <X size={12} aria-hidden />
               </button>
