@@ -1,11 +1,13 @@
 import { useMemo } from 'react'
-import { ListChecks, Upload } from 'lucide-react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { Check, ListChecks, Upload } from 'lucide-react'
 import { DesktopToolbarControls } from '@/components/list-controls/DesktopToolbarControls'
 import { GlassSearchField } from '@/components/list-controls/GlassSearchField'
 import { MobileToolbarActions } from '@/components/list-controls/MobileToolbarActions'
 import { ToolbarStickyShell } from '@/components/list-controls/ToolbarStickyShell'
 import { getSearchFieldWrapperClassName } from '@/components/list-controls/toolbarStyles'
 import { useToolbarShellState } from '@/components/list-controls/useToolbarShellState'
+import { TRANSACTION_LIST_EASE } from '@/pages/transactions/constants/transactionList'
 import type { TransactionListToolbarProps } from '@/pages/transactions/components/toolbar/types'
 import { TransactionFilterPanel } from '@/pages/transactions/components/toolbar/FilterPanel'
 import { MobileFilterPanel } from '@/pages/transactions/components/toolbar/MobileFilterPanel'
@@ -39,6 +41,7 @@ export default function TransactionListToolbar({
   isSelecting = false,
   onToggleSelecting,
 }: TransactionListToolbarProps) {
+  const prefersReducedMotion = useReducedMotion()
   const shell = useToolbarShellState()
   useToolbarStickyOffset(shell.toolbarRef, onStickyOffsetChange)
 
@@ -67,17 +70,35 @@ export default function TransactionListToolbar({
   ) : undefined
 
   // Follows the import button's shape: square on a phone, widening for its word on a desktop, at the
-  // same 44px height as everything else on the row
+  // same 44px height as everything else on the row.
+  //
+  // The icon and the word rise out and the next pair rises in, so pressing it reads as one control
+  // changing state. The label reserves the width of the longer of the two words at both states, so
+  // the button itself never resizes: the desktop toolbar measures its children to decide when the
+  // create button stacks, and a width easing under it could flip that decision mid-animation
   const selectAction = onToggleSelecting ? (
     <button
       type="button"
-      className="app-glass-button h-11 w-11 shrink-0 px-0 min-[750px]:w-auto min-[750px]:px-4"
+      className="app-glass-button h-11 w-11 shrink-0 overflow-hidden px-0 min-[750px]:w-auto min-[750px]:px-4"
       onClick={onToggleSelecting}
       aria-pressed={isSelecting}
       aria-label={isSelecting ? 'Stop selecting transactions' : 'Select transactions'}
     >
-      <ListChecks size={18} aria-hidden />
-      <span className="hidden min-[750px]:inline">{isSelecting ? 'Done' : 'Select'}</span>
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.span
+          key={isSelecting ? 'done' : 'select'}
+          className="flex items-center gap-2"
+          initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 7 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -7 }}
+          transition={{ duration: prefersReducedMotion ? 0 : 0.16, ease: TRANSACTION_LIST_EASE }}
+        >
+          {isSelecting ? <Check size={18} aria-hidden /> : <ListChecks size={18} aria-hidden />}
+          <span className="hidden text-center min-[750px]:inline min-[750px]:w-10">
+            {isSelecting ? 'Done' : 'Select'}
+          </span>
+        </motion.span>
+      </AnimatePresence>
     </button>
   ) : undefined
 

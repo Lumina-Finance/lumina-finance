@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { motion } from 'motion/react'
+import { AnimatePresence, motion } from 'motion/react'
 import { StickyNote, Tag as TagIcon } from 'lucide-react'
 import type { Institution } from '@/api/institutions'
 import type { Category } from '@/api/categories'
@@ -227,23 +227,37 @@ export default function TransactionRow({
       transition={{ duration: prefersReducedMotion ? 0 : 0.24, ease: ROW_EXIT_EASE }}
       onAnimationStart={() => setIsAnimatingHeight(true)}
       onAnimationComplete={() => setIsAnimatingHeight(false)}
-      className={`${selection ? 'flex items-center' : 'block'} w-full transition-colors duration-100 hover:bg-[var(--app-surface-soft)] min-[1300px]:col-span-full min-[1300px]:grid min-[1300px]:grid-cols-subgrid min-[1300px]:items-center min-[1300px]:gap-x-3`}
+      // Always a flex row, whether or not a checkbox is in it, so turning selection mode on and off
+      // does not switch layout mode underneath the checkbox while it animates
+      className="flex w-full items-center transition-colors duration-100 hover:bg-[var(--app-surface-soft)] min-[1300px]:col-span-full min-[1300px]:grid min-[1300px]:grid-cols-subgrid min-[1300px]:items-center min-[1300px]:gap-x-3"
       style={{
         borderBottom: '1px solid var(--app-border)',
         overflow: isAnimatingHeight ? 'hidden' : 'visible',
         background: selectionBackground,
       }}
     >
-      {selection && (
-        <span className="flex shrink-0 items-center justify-center pl-3 min-[1300px]:pl-0">
-          <Checkbox
-            checked={selection.mark === 'selected'}
-            disabled={!selection.isSelectable}
-            label={`Select ${title} on ${transaction.dt}`}
-            onChange={(event) => selection.onToggle(event.shiftKey)}
-          />
-        </span>
-      )}
+      {/* initial={false} so a row scrolling into view while selection mode is already on shows its
+          checkbox rather than growing one. AnimatePresence keeps the last rendered checkbox mounted
+          through its exit, which is why it can still read the selection that has just gone */}
+      <AnimatePresence initial={false}>
+        {selection && (
+          <motion.span
+            key="row-checkbox"
+            className="flex shrink-0 items-center justify-center overflow-hidden"
+            initial={prefersReducedMotion ? { opacity: 0 } : { width: 0, opacity: 0, paddingLeft: 0 }}
+            animate={{ width: 'auto', opacity: 1, paddingLeft: '0.75rem' }}
+            exit={prefersReducedMotion ? { opacity: 0 } : { width: 0, opacity: 0, paddingLeft: 0 }}
+            transition={{ duration: prefersReducedMotion ? 0 : 0.22, ease: ROW_EXIT_EASE }}
+          >
+            <Checkbox
+              checked={selection.mark === 'selected'}
+              disabled={!selection.isSelectable}
+              label={`Select ${title} on ${transaction.dt}`}
+              onChange={(event) => selection.onToggle(event.shiftKey)}
+            />
+          </motion.span>
+        )}
+      </AnimatePresence>
 
       {/* The row's own click target. It is a button nested inside the row rather than the row
           itself, because a checkbox is a button too and one cannot contain the other. On a wide
