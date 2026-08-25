@@ -4,7 +4,7 @@ import uuid
 from datetime import date, datetime
 from typing import Annotated
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.models.base import TransferCounterpartyScope
 from app.schemas.fx import FxStatus
@@ -40,6 +40,11 @@ MAX_IMPORT_TAG_NAME_LENGTH = 64
 
 # Characters a payee may carry, matching the column merchants are stored in
 MAX_IMPORT_MERCHANT_NAME_LENGTH = 256
+
+# Transactions one bulk edit may carry, matching the mapping cap above, since both bound an id list
+# a single request checks row by row against the database. The list loads 15 rows at a time and a
+# selection is built from rows already loaded, so reaching this takes roughly 67 pages of scrolling
+MAX_BULK_UPDATE_TRANSACTIONS = 1_000
 
 # One imported tag name, bounded so that the count and the length are stated in one place for both
 # importers
@@ -160,6 +165,35 @@ class UpdateTransactionRequest(BaseModel):
     tag_ids: list[uuid.UUID] | None = None
     counterparty_account_id: uuid.UUID | None = None
     counterparty_account_scope: TransferCounterpartyScope | None = None
+
+
+class BulkUpdateTransactionsRequest(BaseModel):
+    """Set a category, a merchant or extra tags on several transactions at once."""
+
+    transaction_ids: list[uuid.UUID] = Field(min_length=1, max_length=MAX_BULK_UPDATE_TRANSACTIONS)
+    category_id: uuid.UUID | None = None
+    merchant_id: uuid.UUID | None = None
+    # Added to whatever each transaction already carries, unlike the single-transaction update,
+    # which replaces the whole list
+    add_tag_ids: list[uuid.UUID] = []
+
+    @model_validator(mode="after")
+    def check_request_changes_something(self) -> BulkUpdateTransactionsRequest:
+        """Reject a request that would report a count for a write it never made.
+
+        Raises:
+            ValueError: No category, merchant or tag was supplied
+        """
+        if self.category_id is None and self.merchant_id is None and not self.add_tag_ids:
+            raise ValueError("A bulk edit must set a category, a merchant or at least one tag")
+        return self
+
+
+class BulkUpdateTransactionsResponse(BaseModel):
+    """Summary of a bulk transaction edit."""
+
+    transactions_updated: int
+    affected_account_ids: list[uuid.UUID]
 
 
 class TransactionImportCreateAccount(BaseModel):

@@ -606,3 +606,87 @@ async def test_move_transaction_to_closed_group_account_returns_422(client):
 
     assert resp.status_code == 422
     assert resp.json()["detail"] == "Account is closed"
+
+
+# --- PATCH /transactions/bulk across group boundaries ---
+
+
+async def test_bulk_update_on_group_account_requires_write(client):
+    """Member with read-only permission cannot bulk edit a group transaction."""
+    admin_headers, member_headers, member_user_id, _, account_id, category_id, _ = (
+        await _setup_group_with_shared_account(client)
+    )
+    await _grant_account_permission(client, admin_headers, account_id, member_user_id, "read")
+
+    create_resp = await _create_transaction(client, admin_headers, account_id, category_id)
+    txn_id = create_resp.json()["id"]
+
+    resp = await client.patch(
+        "/transactions/bulk",
+        json={"transaction_ids": [txn_id], "category_id": category_id},
+        headers=member_headers,
+    )
+
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "Insufficient permissions"
+
+
+async def test_bulk_update_with_group_category_on_personal_transaction_returns_422(client):
+    """A group category does not reach a transaction recorded in a personal account."""
+    admin_headers, _, _, _, _, group_category_id, _ = await _setup_group_with_shared_account(client)
+    personal_account_id = (
+        await _create_account(client, admin_headers, name="Personal Chequing")
+    ).json()["id"]
+    personal_category_id = (
+        await _create_category(client, admin_headers, name="Personal Groceries", kind="expense")
+    ).json()["id"]
+    txn_id = (
+        await _create_transaction(client, admin_headers, personal_account_id, personal_category_id)
+    ).json()["id"]
+
+    resp = await client.patch(
+        "/transactions/bulk",
+        json={"transaction_ids": [txn_id], "category_id": group_category_id},
+        headers=admin_headers,
+    )
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "Category not found"
+
+
+async def test_bulk_update_refuses_a_transfer_recording_an_account_now_out_of_reach(client):
+    """Losing access to the account a transfer records refuses the edit, as a single edit does."""
+    admin_headers, member_headers, member_user_id, group_id, group_account_id, _, _ = (
+        await _setup_group_with_shared_account(client)
+    )
+    await _grant_account_permission(client, admin_headers, group_account_id, member_user_id, "read")
+    member_account_id = (
+        await _create_account(client, member_headers, name="Member Chequing")
+    ).json()["id"]
+    categories = await client.get("/categories", headers=member_headers)
+    transfer_id = next(row["id"] for row in categories.json() if row["name"] == "Transfer")
+    txn_id = (
+        await _create_transaction(
+            client,
+            member_headers,
+            member_account_id,
+            transfer_id,
+            counterparty_account_scope="tracked",
+            counterparty_account_id=group_account_id,
+        )
+    ).json()["id"]
+    merchant_id = (await _create_merchant(client, member_headers, name="Member Costco")).json()["id"]
+
+    remove_resp = await client.delete(
+        f"/groups/{group_id}/members/{member_user_id}", headers=admin_headers,
+    )
+    assert remove_resp.status_code in (200, 204)
+
+    resp = await client.patch(
+        "/transactions/bulk",
+        json={"transaction_ids": [txn_id], "merchant_id": merchant_id},
+        headers=member_headers,
+    )
+
+    assert resp.status_code == 422
+    assert "no longer open" in resp.json()["detail"]
