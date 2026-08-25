@@ -176,8 +176,7 @@ export function useUpdateTransaction() {
 }
 
 /**
- * Applies one category, merchant or tag change across several transactions and refreshes the views
- * those fields feed
+ * Applies one set of details across several transactions and refreshes the views those fields feed
  */
 export function useBulkUpdateTransactions() {
   const queryClient = useQueryClient();
