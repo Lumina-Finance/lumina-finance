@@ -93,7 +93,7 @@ export function useBulkSelection(rows: SelectableRow[], requestKey: string, isSe
   )
 
   const toggle = useCallback((id: string, withShift: boolean) => {
-    dispatch(withShift ? { type: 'extend', id, rows: rowsRef.current } : { type: 'toggle', id })
+    dispatch({ type: withShift ? 'extend' : 'toggle', id, rows: rowsRef.current })
   }, [])
 
   const handlePointerEnter = useCallback((id: string) => {

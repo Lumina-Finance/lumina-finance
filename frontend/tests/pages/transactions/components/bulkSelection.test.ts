@@ -25,8 +25,12 @@ const rows: SelectableRow[] = [
 
 /** Applies a run of clicks, so each test reads as the sequence a user would perform */
 function click(state: BulkSelectionState, id: string, withShift = false, over = rows) {
-  return bulkSelectionReducer(state, withShift ? { type: 'extend', id, rows: over } : { type: 'toggle', id })
+  return bulkSelectionReducer(state, { type: withShift ? 'extend' : 'toggle', id, rows: over })
 }
+
+const withReadOnlyC: SelectableRow[] = rows.map((row) =>
+  row.id === 'c' ? { ...row, isReadOnly: true } : row,
+)
 
 describe('the range a shift-click takes', () => {
   it('takes every row between the two, both ends included', () => {
@@ -67,13 +71,33 @@ describe('the range a shift-click takes', () => {
   })
 
   it('steps over a row the app does not allow editing', () => {
-    const withReadOnly: SelectableRow[] = rows.map((row) =>
-      row.id === 'c' ? { ...row, isReadOnly: true } : row,
-    )
-    let state = click(emptyBulkSelection, 'b', false, withReadOnly)
-    state = click(state, 'e', true, withReadOnly)
+    let state = click(emptyBulkSelection, 'b', false, withReadOnlyC)
+    state = click(state, 'e', true, withReadOnlyC)
 
     expect([...state.selectedIds].sort()).toEqual(['b', 'd', 'e'])
+  })
+})
+
+describe('a row the app does not allow editing', () => {
+  it('cannot be ticked by a plain click', () => {
+    const state = click(emptyBulkSelection, 'c', false, withReadOnlyC)
+
+    expect(state.selectedIds.size).toBe(0)
+    expect(state.anchorId).toBeNull()
+  })
+
+  it('cannot be ticked by a shift-click made before any anchor is set', () => {
+    const state = click(emptyBulkSelection, 'c', true, withReadOnlyC)
+
+    expect(state.selectedIds.size).toBe(0)
+    expect(state.anchorId).toBeNull()
+  })
+
+  it('still ends a range that runs through it', () => {
+    let state = click(emptyBulkSelection, 'a', false, withReadOnlyC)
+    state = click(state, 'c', true, withReadOnlyC)
+
+    expect([...state.selectedIds].sort()).toEqual(['a', 'b'])
   })
 })
 

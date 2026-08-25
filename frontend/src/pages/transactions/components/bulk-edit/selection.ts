@@ -63,7 +63,7 @@ export interface BulkSelectionState {
 }
 
 export type BulkSelectionAction =
-  | { type: 'toggle'; id: string }
+  | { type: 'toggle'; id: string; rows: SelectableRow[] }
   | { type: 'extend'; id: string; rows: SelectableRow[] }
   | { type: 'hover'; id: string | null }
   | { type: 'keepDisplayed'; ids: string[] }
@@ -152,6 +152,10 @@ export function bulkSelectionReducer(
 ): BulkSelectionState {
   switch (action.type) {
     case 'toggle': {
+      // Whether a row can be ticked is decided here rather than by each caller, so no route into
+      // the state can put a row the app will not edit into the selection
+      if (action.rows.find((row) => row.id === action.id)?.isReadOnly !== false) return state;
+
       const selectedIds = new Set(state.selectedIds);
       if (selectedIds.has(action.id)) selectedIds.delete(action.id);
       else selectedIds.add(action.id);
@@ -163,7 +167,9 @@ export function bulkSelectionReducer(
 
     case 'extend': {
       const resulting = resultingSelection(state, action.id, action.rows);
-      if (resulting === null) return bulkSelectionReducer(state, { type: 'toggle', id: action.id });
+      if (resulting === null) {
+        return bulkSelectionReducer(state, { type: 'toggle', id: action.id, rows: action.rows });
+      }
       return { ...state, selectedIds: resulting, hoveredId: null };
     }
 
