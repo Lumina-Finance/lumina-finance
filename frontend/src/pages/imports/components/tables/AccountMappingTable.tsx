@@ -2,7 +2,7 @@ import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
 import { CREATE_ACCOUNT_VALUE, IMPORT_INSET_STYLE, UNSET_BATCH_INSTITUTION } from '@/pages/imports/constants'
 import { OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 import { canApplyBatchEditToRow, countImportAccountRowStates } from '@/pages/imports/utils'
-import { ImportCheckbox } from '@/pages/imports/components/Primitives'
+import { Checkbox } from '@/components/forms/Checkbox'
 
 /**
  * Table mapping every source account found in an import to an existing account or a new one, with a
@@ -147,11 +147,13 @@ export function ImportAccountMappingTable({
     return (
       <tr key={row.id} className={row.autoFilled ? 'import-auto-fill-row' : undefined}>
         <td className="px-4 py-3 align-middle">
-          <ImportCheckbox
-            checked={selectedRowIds.has(row.id)}
-            onChange={() => toggleRow(row)}
-            label={`Select ${row.source}`}
-          />
+          <span className="flex justify-center">
+            <Checkbox
+              checked={selectedRowIds.has(row.id)}
+              onChange={() => toggleRow(row)}
+              label={`Select ${row.source}`}
+            />
+          </span>
         </td>
         <td className="px-4 py-3 align-middle">
           <div className="flex min-w-0 items-center gap-2">
@@ -304,13 +306,15 @@ export function ImportAccountMappingTable({
           <thead style={{ color: 'var(--app-text-subtle)', background: 'var(--app-input-bg)' }}>
             <tr>
               <th className="w-12 px-4 py-3 font-medium">
-                <ImportCheckbox
-                  checked={allRowsSelected}
-                  indeterminate={someRowsSelected}
-                  onChange={toggleAllRows}
-                  disabled={rows.length === 0}
-                  label={allRowsSelected ? 'Deselect all accounts' : 'Select all accounts'}
-                />
+                <span className="flex justify-center">
+                  <Checkbox
+                    checked={allRowsSelected}
+                    indeterminate={someRowsSelected}
+                    onChange={toggleAllRows}
+                    disabled={rows.length === 0}
+                    label={allRowsSelected ? 'Deselect all accounts' : 'Select all accounts'}
+                  />
+                </span>
               </th>
               <th className="px-4 py-3 font-medium">Source Account</th>
               <th className="px-4 py-3 font-medium">Existing Account</th>

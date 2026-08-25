@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react'
-import { Check, ChevronDown, CircleHelp, Info, TriangleAlert } from 'lucide-react'
+import { ChevronDown, CircleHelp, Info, TriangleAlert } from 'lucide-react'
 import { IMPORT_INSET_STYLE } from '@/pages/imports/constants'
 
 /**
@@ -278,45 +278,4 @@ export function ImportInfoCard({ title, children }: { title: string; children: R
   )
 }
 
-/**
- * Checkbox button used across import tables, supporting a mixed state for a row selection that is
- * only partially checked
- */
-export function ImportCheckbox({
-  checked,
-  disabled,
-  indeterminate = false,
-  label,
-  onChange,
-}: {
-  checked: boolean
-  disabled?: boolean
-  indeterminate?: boolean
-  label: string
-  onChange: () => void
-}) {
-  return (
-    <button
-      type="button"
-      role="checkbox"
-      aria-checked={indeterminate ? 'mixed' : checked}
-      aria-label={label}
-      className="mx-auto flex h-5 w-5 items-center justify-center rounded-lg transition-opacity duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
-      style={{
-        background: checked || indeterminate ? 'var(--app-accent)' : 'var(--app-input-bg)',
-        border: `1px solid ${checked || indeterminate ? 'var(--app-accent)' : 'var(--app-border-strong)'}`,
-        color: 'var(--app-button-primary-text)',
-        opacity: disabled ? 0.38 : 1,
-        cursor: disabled ? 'not-allowed' : 'pointer',
-      }}
-      onClick={onChange}
-      disabled={disabled}
-    >
-      {checked && <Check size={13} strokeWidth={3} aria-hidden />}
-      {!checked && indeterminate && (
-        <span className="h-0.5 w-2.5 rounded-full" style={{ background: 'currentColor' }} aria-hidden />
-      )}
-    </button>
-  )
-}
 
