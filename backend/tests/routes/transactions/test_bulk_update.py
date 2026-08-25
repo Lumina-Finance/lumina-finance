@@ -2,6 +2,7 @@ import uuid
 
 from sqlalchemy import select
 
+from app.models.account import AccountBalanceSnapshot
 from app.models.base import TransferCounterpartyScope
 from app.models.tag import TransactionTag
 from app.models.transaction import Transaction
@@ -40,6 +41,17 @@ async def _read_transaction(transaction_id):
     """Return a transaction row straight from the database."""
     async with TestSession() as session:
         return await session.get(Transaction, uuid.UUID(transaction_id))
+
+
+async def _read_snapshots(account_id):
+    """Return an account's stored running balances, oldest first."""
+    async with TestSession() as session:
+        rows = await session.execute(
+            select(AccountBalanceSnapshot.dt, AccountBalanceSnapshot.balance)
+            .where(AccountBalanceSnapshot.account_id == uuid.UUID(account_id))
+            .order_by(AccountBalanceSnapshot.dt),
+        )
+        return list(rows.all())
 
 
 async def _setup_transfer_user(client):
@@ -126,6 +138,7 @@ async def test_bulk_update_refuses_a_transfer_that_records_no_other_account(clie
         await _create_transaction(client, headers, account_id, transfer_id, counterparty_account_scope="outside")
     ).json()["id"]
     await _clear_counterparty(transfer)
+    merchant_before = (await _read_transaction(transfer)).merchant_id
     merchant_id = (await _create_merchant(client, headers, name="Costco")).json()["id"]
 
     resp = await client.patch(
@@ -136,7 +149,9 @@ async def test_bulk_update_refuses_a_transfer_that_records_no_other_account(clie
 
     assert resp.status_code == 422
     assert "other account of a transfer" in resp.json()["detail"]
-    assert (await _read_transaction(transfer)).merchant_id is not None
+
+    # The row keeps the merchant it had, which is what proves the refusal ran before any write
+    assert (await _read_transaction(transfer)).merchant_id == merchant_before
 
 
 async def test_bulk_update_refuses_a_transfer_category_over_a_row_recording_nothing(client):
@@ -356,18 +371,13 @@ async def test_bulk_update_refuses_a_request_carrying_only_an_empty_tag_list(cli
     assert resp.status_code == 422
 
 
-async def test_bulk_update_does_not_rebuild_balance_snapshots(client, monkeypatch):
-    """Category, merchant and tags move no balance, so no snapshot is rebuilt."""
+async def test_bulk_update_leaves_the_account_balances_where_they_were(client):
+    """Category, merchant and tags move no money, so every stored balance stays as it was."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
     txn = (await _create_transaction(client, headers, account_id, category_id)).json()["id"]
     dining_id = (await _create_category(client, headers, name="Bulk Dining", kind="expense")).json()["id"]
-
-    calls = []
-
-    async def _record_call(*args, **kwargs):
-        calls.append(args)
-
-    monkeypatch.setattr("app.services.accounts.snapshots.recompute_snapshots_from", _record_call)
+    before = await _read_snapshots(account_id)
+    assert before, "the account should carry balances before the edit, or this proves nothing"
 
     resp = await client.patch(
         "/transactions/bulk",
@@ -376,4 +386,4 @@ async def test_bulk_update_does_not_rebuild_balance_snapshots(client, monkeypatc
     )
 
     assert resp.status_code == 200
-    assert calls == []
+    assert await _read_snapshots(account_id) == before

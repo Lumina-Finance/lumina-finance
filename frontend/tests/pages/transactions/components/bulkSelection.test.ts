@@ -4,8 +4,10 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  buildBulkEditFields,
   bulkSelectionReducer,
   emptyBulkSelection,
+  hasBulkEditChoice,
   previewSelection,
   rowSelectionMark,
   type BulkSelectionState,
@@ -108,6 +110,31 @@ describe('the preview shown while shift is held', () => {
     const state = click(emptyBulkSelection, 'b')
 
     expect(previewSelection(state, rows)).toBeNull()
+  })
+})
+
+describe('the fields the bar sends', () => {
+  it('leaves out a control the user did not touch', () => {
+    const fields = buildBulkEditFields({ categoryId: 'cat_1', merchantId: '', tagIds: [] })
+
+    expect(fields).toEqual({ category_id: 'cat_1' })
+  })
+
+  it('sends every control the user did fill in', () => {
+    const fields = buildBulkEditFields({ categoryId: 'cat_1', merchantId: 'mer_1', tagIds: ['tag_1'] })
+
+    expect(fields).toEqual({ category_id: 'cat_1', merchant_id: 'mer_1', add_tag_ids: ['tag_1'] })
+  })
+
+  it('sends nothing at all when every control is untouched', () => {
+    const choice = { categoryId: '', merchantId: '', tagIds: [] }
+
+    expect(buildBulkEditFields(choice)).toEqual({})
+    expect(hasBulkEditChoice(choice)).toBe(false)
+  })
+
+  it('counts one filled control as something to apply', () => {
+    expect(hasBulkEditChoice({ categoryId: '', merchantId: '', tagIds: ['tag_1'] })).toBe(true)
   })
 })
 
