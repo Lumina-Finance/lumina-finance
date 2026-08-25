@@ -13,6 +13,10 @@ const MAX_VISIBLE_TAGS = 1
 const DEFAULT_CATEGORY_ICON = '🏷️'
 const ROW_EXIT_EASE = [0.25, 0.1, 0.25, 1] as const
 
+// Comfortably past the checkbox and its padding, so the cap never decides how wide the cell sits,
+// only how it opens and closes
+const CHECKBOX_CELL_MAX_WIDTH = 64
+
 /**
  * Describes the counterparty of a transfer for the line that shows a merchant on other kinds
  *
@@ -244,9 +248,14 @@ export default function TransactionRow({
           <motion.span
             key="row-checkbox"
             className="flex shrink-0 items-center justify-center overflow-hidden"
-            initial={prefersReducedMotion ? { opacity: 0 } : { width: 0, opacity: 0 }}
-            animate={{ width: 'auto', opacity: 1 }}
-            exit={prefersReducedMotion ? { opacity: 0 } : { width: 0, opacity: 0 }}
+            // The cap rather than the width, because a width can only be animated between two
+            // concrete values. Animating to auto leaves the box at auto, and the exit back to zero
+            // then has nothing to start from, so the space holds for the whole duration and snaps
+            // shut at the end. The cap starts and ends at a real number and never stretches the box
+            // past what the checkbox needs
+            initial={prefersReducedMotion ? { opacity: 0 } : { maxWidth: 0, opacity: 0 }}
+            animate={{ maxWidth: CHECKBOX_CELL_MAX_WIDTH, opacity: 1 }}
+            exit={prefersReducedMotion ? { opacity: 0 } : { maxWidth: 0, opacity: 0 }}
             transition={{ duration: prefersReducedMotion ? 0 : 0.22, ease: ROW_EXIT_EASE }}
           >
             {/* The padding sits inside the collapsing wrapper so it goes with the width, and it is
