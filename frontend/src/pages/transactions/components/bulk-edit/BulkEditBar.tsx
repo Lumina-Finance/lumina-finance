@@ -6,6 +6,10 @@ import { useInfiniteTags } from '@/api/tags'
 import type { BulkUpdateTransactionsPayload } from '@/api/transactions'
 import Dropdown from '@/components/dropdown/Dropdown'
 import { MAX_BULK_EDIT_TRANSACTIONS } from '@/pages/transactions/components/bulk-edit/constants'
+import {
+  buildBulkEditFields,
+  hasBulkEditChoice,
+} from '@/pages/transactions/components/bulk-edit/selection'
 import { useDebouncedReferenceSearch } from '@/pages/transactions/components/transaction-modal/hooks/useDebouncedReferenceSearch'
 import { buildCategoryOptions } from '@/pages/transactions/components/transaction-modal/utils/categories'
 
@@ -30,7 +34,14 @@ export function BulkEditBar({ selectedIds, onApply, onCancel }: BulkEditBarProps
   const [tagIds, setTagIds] = useState<string[]>([])
 
   const { data: categories } = useCategories()
-  const categoryOptions = useMemo(() => buildCategoryOptions(categories ?? []), [categories])
+
+  // Transfer categories are left out. A transfer has to record the account on its other side, this
+  // request carries no field for one, and a row that does not already record one is refused, so
+  // offering the choice would mostly produce a refused batch
+  const categoryOptions = useMemo(
+    () => buildCategoryOptions((categories ?? []).filter((category) => category.kind !== 'transfer')),
+    [categories],
+  )
 
   const merchantSearch = useDebouncedReferenceSearch(REFERENCE_SEARCH_DEBOUNCE_MS)
   const merchantQuery = useInfiniteMerchants(
@@ -48,12 +59,15 @@ export function BulkEditBar({ selectedIds, onApply, onCancel }: BulkEditBarProps
     .map((tag) => ({ value: tag.id, label: tag.name }))
   const tagNamesById = new Map(tags.map((tag) => [tag.id, tag.name]))
 
+  const choice = { categoryId, merchantId, tagIds }
   const overCap = selectedIds.length > MAX_BULK_EDIT_TRANSACTIONS
-  const setsSomething = Boolean(categoryId) || Boolean(merchantId) || tagIds.length > 0
+  const setsSomething = hasBulkEditChoice(choice)
 
   return (
     <div
-      className="fixed inset-x-0 bottom-0 z-40 border-t px-3 py-3"
+      // Sticky rather than fixed, so it takes the width of the page content instead of the whole
+      // viewport, keeps clear of the sidebar, and lands after the last row rather than covering it
+      className="sticky bottom-0 z-30 border-t px-3 py-3"
       style={{ background: 'var(--app-surface-soft)', borderColor: 'var(--app-border)' }}
       role="region"
       aria-label="Edit the selected transactions"
@@ -106,13 +120,7 @@ export function BulkEditBar({ selectedIds, onApply, onCancel }: BulkEditBarProps
           type="button"
           className="app-primary-button h-9 px-4 text-sm"
           disabled={!setsSomething || overCap}
-          onClick={() =>
-            onApply({
-              ...(categoryId ? { category_id: categoryId } : {}),
-              ...(merchantId ? { merchant_id: merchantId } : {}),
-              ...(tagIds.length ? { add_tag_ids: tagIds } : {}),
-            })
-          }
+          onClick={() => onApply(buildBulkEditFields(choice))}
         >
           Apply
         </button>

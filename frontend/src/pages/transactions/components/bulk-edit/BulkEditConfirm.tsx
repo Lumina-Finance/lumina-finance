@@ -63,7 +63,7 @@ export function BulkEditConfirm({
           onClick={onConfirm}
           disabled={isApplying}
         >
-          {isApplying ? <div className="app-spinner" /> : 'Change them'}
+          {isApplying ? <div className="app-spinner" /> : count === 1 ? 'Change it' : 'Change them'}
         </button>
       </div>
     </ModalShell>

@@ -5,6 +5,39 @@
  * and the pointer preview can be checked without rendering anything.
  */
 
+/** What the bar holds, before it becomes a request */
+export interface BulkEditChoice {
+  categoryId: string
+  merchantId: string
+  tagIds: string[]
+}
+
+/** The fields a bulk request carries, which is everything in it except the transactions it covers */
+export interface BulkEditFields {
+  category_id?: string
+  merchant_id?: string
+  add_tag_ids?: string[]
+}
+
+/**
+ * Turns what the bar holds into the fields a request carries.
+ *
+ * A control left alone is left out rather than sent empty, since an empty value would read as a
+ * change to make.
+ */
+export function buildBulkEditFields({ categoryId, merchantId, tagIds }: BulkEditChoice): BulkEditFields {
+  return {
+    ...(categoryId ? { category_id: categoryId } : {}),
+    ...(merchantId ? { merchant_id: merchantId } : {}),
+    ...(tagIds.length ? { add_tag_ids: tagIds } : {}),
+  }
+}
+
+/** Whether the bar holds anything to apply, which is what an apply needs before it can run */
+export function hasBulkEditChoice(choice: BulkEditChoice): boolean {
+  return Object.keys(buildBulkEditFields(choice)).length > 0
+}
+
 /** One row as the selection sees it: an identifier, and whether the app allows editing it */
 export interface SelectableRow {
   id: string;
