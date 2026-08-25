@@ -338,18 +338,18 @@ async def bulk_update_transactions_route(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Set a category, a merchant or extra tags across several transactions
+    """Set shared details across several transactions
 
     Declared above the single-transaction route because a path parameter would otherwise read
     "bulk" as a transaction identifier
 
     Args:
-        data: Transactions to change and the fields to set
+        data: Transactions to change and the details to set
         user: Authenticated user applying the change
         db: Active database session
 
     Returns:
-        The number of transactions changed and the accounts they belong to
+        The number of transactions changed and the accounts affected
     """
     return await bulk_update_transactions(db, user, data)
 

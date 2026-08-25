@@ -4,7 +4,7 @@ import uuid
 from datetime import date, datetime
 from typing import Annotated
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
 
 from app.models.base import TransferCounterpartyScope
 from app.schemas.fx import FxStatus
@@ -167,25 +167,83 @@ class UpdateTransactionRequest(BaseModel):
     counterparty_account_scope: TransferCounterpartyScope | None = None
 
 
+# Fields a bulk edit may leave out but may never send as null, because each one writes a column
+# that has no null. Sending null would otherwise reach the database as an integrity error, and a
+# null merchant would take the merchant off a row the edit rules require to have one
+_BULK_UPDATE_NON_NULLABLE_FIELDS = ("account_id", "dt", "category_id", "merchant_id")
+
+
 class BulkUpdateTransactionsRequest(BaseModel):
-    """Set a category, a merchant or extra tags on several transactions at once."""
+    """Set shared details on several transactions at once.
+
+    A field left out is left alone on every transaction. That is why the service reads which fields
+    the request carried rather than which are non-null: `notes` and the counterparty pair each take
+    null as a real answer, meaning clear it.
+    """
 
     transaction_ids: list[uuid.UUID] = Field(min_length=1, max_length=MAX_BULK_UPDATE_TRANSACTIONS)
+    account_id: uuid.UUID | None = None
+    dt: date | None = None
     category_id: uuid.UUID | None = None
     merchant_id: uuid.UUID | None = None
+
+    # Bounded here although the single-transaction update is not, which LF-387 covers
+    notes: str | None = Field(None, max_length=MAX_IMPORT_NOTES_LENGTH)
+
     # Added to whatever each transaction already carries, unlike the single-transaction update,
     # which replaces the whole list
     add_tag_ids: list[uuid.UUID] = []
+
+    counterparty_account_id: uuid.UUID | None = None
+    counterparty_account_scope: TransferCounterpartyScope | None = None
+
+    @field_validator(*_BULK_UPDATE_NON_NULLABLE_FIELDS, mode="before")
+    @classmethod
+    def reject_explicit_null(cls, value: object, info: ValidationInfo) -> object:
+        """Reject a field sent as null that has no null to write.
+
+        Runs only on a field the request carried, since a field taking its default is not validated.
+
+        Raises:
+            ValueError: The field was sent as null
+        """
+        if value is None:
+            raise ValueError(f"{info.field_name} cannot be null")
+        return value
 
     @model_validator(mode="after")
     def check_request_changes_something(self) -> BulkUpdateTransactionsRequest:
         """Reject a request that would report a count for a write it never made.
 
         Raises:
-            ValueError: No category, merchant or tag was supplied
+            ValueError: The request carried no field to set, or only an empty tag list
         """
-        if self.category_id is None and self.merchant_id is None and not self.add_tag_ids:
-            raise ValueError("A bulk edit must set a category, a merchant or at least one tag")
+        sent = self.model_fields_set - {"transaction_ids"}
+
+        # An empty tag list adds no tag, so a request carrying only that changes nothing
+        if not self.add_tag_ids:
+            sent -= {"add_tag_ids"}
+        if not sent:
+            raise ValueError("A bulk edit must set at least one detail")
+        return self
+
+    @model_validator(mode="after")
+    def check_counterparty_answer_agrees_with_itself(self) -> BulkUpdateTransactionsRequest:
+        """Reject a counterparty answer that contradicts itself.
+
+        The account and the scope are one answer, so they travel together.
+
+        Raises:
+            ValueError: A tracked scope names no account, or another scope names one
+        """
+        if not {"counterparty_account_id", "counterparty_account_scope"} & self.model_fields_set:
+            return self
+
+        tracked = self.counterparty_account_scope == TransferCounterpartyScope.TRACKED
+        if tracked and self.counterparty_account_id is None:
+            raise ValueError("counterparty_account_id is required when the counterparty is a tracked account")
+        if not tracked and self.counterparty_account_id is not None:
+            raise ValueError("counterparty_account_id is not allowed unless the counterparty is a tracked account")
         return self
 
 

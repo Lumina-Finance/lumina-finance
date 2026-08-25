@@ -678,6 +678,33 @@ async def test_bulk_update_refuses_a_row_using_a_category_the_caller_cannot_read
     assert "cannot open" in resp.json()["detail"]
 
 
+async def test_bulk_update_validates_the_chosen_category_against_the_account_moved_into(client):
+    """After a move the rows sit in the target's scope, so that is what the category has to reach."""
+    admin_headers, _, _, _, group_account_id, group_category_id, _ = (
+        await _setup_group_with_shared_account(client)
+    )
+    personal_account_id = (
+        await _create_account(client, admin_headers, name="Personal Chequing")
+    ).json()["id"]
+    txn_id = (
+        await _create_transaction(client, admin_headers, group_account_id, group_category_id)
+    ).json()["id"]
+
+    # The group's own category does not reach a personal account, which is where the move lands it
+    resp = await client.patch(
+        "/transactions/bulk",
+        json={
+            "transaction_ids": [txn_id],
+            "account_id": personal_account_id,
+            "category_id": group_category_id,
+        },
+        headers=admin_headers,
+    )
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "Category not found"
+
+
 async def test_bulk_update_refuses_a_transfer_recording_an_account_now_out_of_reach(client):
     """Losing access to the account a transfer records refuses the edit, as a single edit does."""
     admin_headers, member_headers, member_user_id, group_id, group_account_id, _, _ = (
