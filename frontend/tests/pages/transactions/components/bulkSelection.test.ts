@@ -10,6 +10,7 @@ import {
   hasBulkEditChoice,
   previewSelection,
   rowSelectionMark,
+  type BulkEditChoice,
   type BulkSelectionState,
   type SelectableRow,
 } from '@/pages/transactions/components/bulk-edit/selection'
@@ -137,28 +138,99 @@ describe('the preview shown while shift is held', () => {
   })
 })
 
-describe('the fields the bar sends', () => {
-  it('leaves out a control the user did not touch', () => {
-    const fields = buildBulkEditFields({ categoryId: 'cat_1', merchantId: '', tagIds: [] })
+/** A panel with every control untouched, so each test states only the one it fills in */
+function untouched(overrides: Partial<BulkEditChoice> = {}): BulkEditChoice {
+  return {
+    categoryId: '',
+    merchantId: '',
+    tagIds: [],
+    accountId: '',
+    date: '',
+    note: '',
+    clearsNote: false,
+    transferTarget: null,
+    categoryRecordsTransferTarget: false,
+    ...overrides,
+  }
+}
 
-    expect(fields).toEqual({ category_id: 'cat_1' })
+describe('the details the panel sends', () => {
+  it('leaves out a control the user did not touch', () => {
+    expect(buildBulkEditFields(untouched({ categoryId: 'cat_1' }))).toEqual({ category_id: 'cat_1' })
   })
 
   it('sends every control the user did fill in', () => {
-    const fields = buildBulkEditFields({ categoryId: 'cat_1', merchantId: 'mer_1', tagIds: ['tag_1'] })
+    const fields = buildBulkEditFields(untouched({
+      categoryId: 'cat_1',
+      merchantId: 'mer_1',
+      tagIds: ['tag_1'],
+      accountId: 'acc_1',
+      date: '2026-08-14',
+      note: 'Corrected',
+    }))
 
-    expect(fields).toEqual({ category_id: 'cat_1', merchant_id: 'mer_1', add_tag_ids: ['tag_1'] })
+    expect(fields).toEqual({
+      category_id: 'cat_1',
+      merchant_id: 'mer_1',
+      add_tag_ids: ['tag_1'],
+      account_id: 'acc_1',
+      dt: '2026-08-14',
+      notes: 'Corrected',
+    })
   })
 
   it('sends nothing at all when every control is untouched', () => {
-    const choice = { categoryId: '', merchantId: '', tagIds: [] }
-
-    expect(buildBulkEditFields(choice)).toEqual({})
-    expect(hasBulkEditChoice(choice)).toBe(false)
+    expect(buildBulkEditFields(untouched())).toEqual({})
+    expect(hasBulkEditChoice(untouched())).toBe(false)
   })
 
   it('counts one filled control as something to apply', () => {
-    expect(hasBulkEditChoice({ categoryId: '', merchantId: '', tagIds: ['tag_1'] })).toBe(true)
+    expect(hasBulkEditChoice(untouched({ tagIds: ['tag_1'] }))).toBe(true)
+  })
+
+  it('clears a note with null rather than an empty string', () => {
+    expect(buildBulkEditFields(untouched({ clearsNote: true }))).toEqual({ notes: null })
+  })
+
+  it('leaves the note alone when the box is empty and nothing asked to clear it', () => {
+    expect(buildBulkEditFields(untouched({ note: '' }))).toEqual({})
+  })
+
+  it('sends a tracked transfer target as an account and a scope', () => {
+    const fields = buildBulkEditFields(untouched({
+      transferTarget: { scope: 'tracked', accountId: 'acc_2' },
+    }))
+
+    expect(fields).toEqual({
+      counterparty_account_scope: 'tracked',
+      counterparty_account_id: 'acc_2',
+    })
+  })
+
+  it('sends money that left the tracked accounts with no account', () => {
+    const fields = buildBulkEditFields(untouched({ transferTarget: { scope: 'outside' } }))
+
+    expect(fields).toEqual({
+      counterparty_account_scope: 'outside',
+      counterparty_account_id: null,
+    })
+  })
+
+  it('has nothing to apply while a transfer category has no transfer target', () => {
+    const choice = untouched({ categoryId: 'cat_1', categoryRecordsTransferTarget: true })
+
+    expect(buildBulkEditFields(choice)).toEqual({ category_id: 'cat_1' })
+    expect(hasBulkEditChoice(choice)).toBe(false)
+  })
+
+  it('has something to apply once the transfer target is answered', () => {
+    const choice = untouched({
+      categoryId: 'cat_1',
+      categoryRecordsTransferTarget: true,
+      transferTarget: { scope: 'outside' },
+    })
+
+    expect(hasBulkEditChoice(choice)).toBe(true)
   })
 })
 

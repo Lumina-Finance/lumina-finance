@@ -3,18 +3,22 @@ import { X } from 'lucide-react'
 import { useCategories } from '@/api/categories'
 import { useInfiniteMerchants } from '@/api/merchants'
 import { useInfiniteTags } from '@/api/tags'
-import type { BulkUpdateTransactionsPayload } from '@/api/transactions'
 import Dropdown from '@/components/dropdown/Dropdown'
 import { MAX_BULK_EDIT_TRANSACTIONS } from '@/pages/transactions/components/bulk-edit/constants'
 import {
   buildBulkEditFields,
   hasBulkEditChoice,
+  type BulkEditFields,
+  type TransferTargetChoice,
 } from '@/pages/transactions/components/bulk-edit/selection'
+import type { TransactionListAccount } from '@/pages/transactions/types/transactionList'
 import { useDebouncedReferenceSearch } from '@/pages/transactions/components/transaction-modal/hooks/useDebouncedReferenceSearch'
 import { buildCategoryOptions } from '@/pages/transactions/components/transaction-modal/utils/categories'
 import {
   BALANCE_ADJUSTMENT_CATEGORY_NAME,
   doesTransferRecordCounterpartyAccount,
+  OUTSIDE_ACCOUNT_LABEL,
+  OUTSIDE_ACCOUNT_VALUE,
 } from '@/utils/transfers'
 
 const REFERENCE_SEARCH_DEBOUNCE_MS = 250
@@ -22,7 +26,12 @@ const REFERENCE_PAGE_SIZE = 20
 
 interface BulkEditBarProps {
   selectedIds: string[]
-  onApply: (payload: Omit<BulkUpdateTransactionsPayload, 'transaction_ids'>) => void
+
+  /** Currencies of the selected transactions, which is what limits where they can move to */
+  selectedCurrencies: string[]
+
+  accounts: TransactionListAccount[]
+  onApply: (payload: BulkEditFields) => void
   onCancel: () => void
 }
 
@@ -30,10 +39,21 @@ interface BulkEditBarProps {
  * The controls for a bulk edit, held at the bottom of the list
  *
  * At the bottom rather than in the toolbar, because the toolbar publishes its height to every
- * sticky date heading and a bar added to it would move all of them.
+ * sticky date heading and a panel added to it would move all of them.
  */
-export function BulkEditBar({ selectedIds, onApply, onCancel }: BulkEditBarProps) {
+export function BulkEditBar({
+  selectedIds,
+  selectedCurrencies,
+  accounts,
+  onApply,
+  onCancel,
+}: BulkEditBarProps) {
   const [categoryId, setCategoryId] = useState('')
+  const [accountId, setAccountId] = useState('')
+  const [date, setDate] = useState('')
+  const [note, setNote] = useState('')
+  const [clearsNote, setClearsNote] = useState(false)
+  const [transferTarget, setTransferTarget] = useState<TransferTargetChoice | null>(null)
 
   // The chosen merchant and tags are held with the label they were picked under. Closing a dropdown
   // resets its search, which refetches the first page of records, and a record the search had found
@@ -44,22 +64,38 @@ export function BulkEditBar({ selectedIds, onApply, onCancel }: BulkEditBarProps
   const tagIds = chosenTags.map((tag) => tag.value)
 
   const { data: categories } = useCategories()
+  const categoryOptions = useMemo(() => buildCategoryOptions(categories ?? []), [categories])
 
-  // A category recording a counterparty account is left out. This request carries no field for one,
-  // and a row that does not already record one is refused, so offering the choice would mostly
-  // produce a refused batch. Balance Adjustment stays, being the one transfer category that records
-  // no counterparty and so applies to any row
-  const categoryOptions = useMemo(
-    () => buildCategoryOptions(
-      (categories ?? []).filter(
-        (category) => !doesTransferRecordCounterpartyAccount(
-          category.kind,
-          category.name === BALANCE_ADJUSTMENT_CATEGORY_NAME,
-        ),
-      ),
+  const chosenCategory = categories?.find((category) => category.id === categoryId)
+  const categoryRecordsTransferTarget = Boolean(
+    chosenCategory
+    && doesTransferRecordCounterpartyAccount(
+      chosenCategory.kind,
+      chosenCategory.name === BALANCE_ADJUSTMENT_CATEGORY_NAME,
     ),
-    [categories],
   )
+
+  // A move keeps each row's stored exchange rate, and almost no imported row has one, so an account
+  // in another currency would refuse the whole batch. Offering only the ones that fit turns that
+  // refusal into a choice the user can see is unavailable
+  const moveTargets = useMemo(
+    () => accounts.filter(
+      (account) => !account.is_archived
+        && !account.closed_at
+        && selectedCurrencies.length === 1
+        && account.currency === selectedCurrencies[0],
+    ),
+    [accounts, selectedCurrencies],
+  )
+  const accountOptions = moveTargets.map((account) => ({ value: account.id, label: account.name ?? 'Account' }))
+
+  const transferTargetOptions = [
+    { value: OUTSIDE_ACCOUNT_VALUE, label: OUTSIDE_ACCOUNT_LABEL },
+    ...accounts.map((account) => ({ value: account.id, label: account.name ?? 'Account' })),
+  ]
+  const transferTargetValue = transferTarget === null
+    ? ''
+    : transferTarget.scope === 'outside' ? OUTSIDE_ACCOUNT_VALUE : transferTarget.accountId
 
   const merchantSearch = useDebouncedReferenceSearch(REFERENCE_SEARCH_DEBOUNCE_MS)
   const merchantQuery = useInfiniteMerchants(
@@ -76,7 +112,17 @@ export function BulkEditBar({ selectedIds, onApply, onCancel }: BulkEditBarProps
     .filter((tag) => !tagIds.includes(tag.id))
     .map((tag) => ({ value: tag.id, label: tag.name }))
 
-  const choice = { categoryId, merchantId, tagIds }
+  const choice = {
+    categoryId,
+    merchantId,
+    tagIds,
+    accountId,
+    date,
+    note,
+    clearsNote,
+    transferTarget,
+    categoryRecordsTransferTarget,
+  }
   const overCap = selectedIds.length > MAX_BULK_EDIT_TRANSACTIONS
   const setsSomething = hasBulkEditChoice(choice)
 
@@ -89,96 +135,159 @@ export function BulkEditBar({ selectedIds, onApply, onCancel }: BulkEditBarProps
       role="region"
       aria-label="Edit the selected transactions"
     >
-      <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-2">
-        <p className="text-sm font-medium">
-          {selectedIds.length} selected
-        </p>
+      <div className="mx-auto flex max-w-6xl flex-col gap-2">
+        <div className="grid gap-2 min-[750px]:grid-cols-2">
+          <Dropdown
+            options={categoryOptions}
+            value={categoryId}
+            onChange={setCategoryId}
+            placeholder="Category"
+            searchable
+          />
 
-        <Dropdown
-          options={categoryOptions}
-          value={categoryId}
-          onChange={setCategoryId}
-          placeholder="Category"
-          searchable
-          className="min-w-40 flex-1"
-        />
+          <Dropdown
+            options={merchantOptions}
+            value={merchantId}
+            selectedOption={merchant ?? undefined}
+            onChange={(value) => setMerchant(
+              merchantOptions.find((option) => option.value === value) ?? null,
+            )}
+            placeholder="Merchant"
+            searchable
+            filterOptions={false}
+            searchValue={merchantSearch.search}
+            onSearchChange={merchantSearch.setSearch}
+            isLoading={merchantQuery.isFetching}
+            hasMore={merchantQuery.hasNextPage}
+            onLoadMore={merchantQuery.fetchNextPage}
+          />
 
-        <Dropdown
-          options={merchantOptions}
-          value={merchantId}
-          selectedOption={merchant ?? undefined}
-          onChange={(value) => setMerchant(
-            merchantOptions.find((option) => option.value === value) ?? null,
+          <Dropdown
+            options={tagOptions}
+            value=""
+            onChange={(value) => {
+              const picked = tagOptions.find((option) => option.value === value)
+              if (picked) setChosenTags((current) => [...current, picked])
+            }}
+            placeholder="Add a tag"
+            searchable
+            filterOptions={false}
+            searchValue={tagSearch.search}
+            onSearchChange={tagSearch.setSearch}
+            isLoading={tagQuery.isFetching}
+            hasMore={tagQuery.hasNextPage}
+            onLoadMore={tagQuery.fetchNextPage}
+          />
+
+          <Dropdown
+            options={accountOptions}
+            value={accountId}
+            onChange={setAccountId}
+            placeholder="Move to account"
+            searchable
+            disabled={accountOptions.length === 0}
+          />
+
+          <input
+            type="date"
+            className="app-input app-date-field h-9"
+            aria-label="Set the date"
+            value={date}
+            onChange={(event) => setDate(event.target.value)}
+          />
+
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              className="app-input h-9 min-w-0 flex-1"
+              aria-label="Set the note"
+              placeholder="Note"
+              value={note}
+              disabled={clearsNote}
+              onChange={(event) => setNote(event.target.value)}
+            />
+            <label className="flex shrink-0 items-center gap-1 text-xs">
+              <input
+                type="checkbox"
+                checked={clearsNote}
+                onChange={(event) => setClearsNote(event.target.checked)}
+              />
+              Clear
+            </label>
+          </div>
+
+          {categoryRecordsTransferTarget && (
+            <Dropdown
+              options={transferTargetOptions}
+              value={transferTargetValue}
+              onChange={(value) => setTransferTarget(
+                value === OUTSIDE_ACCOUNT_VALUE
+                  ? { scope: 'outside' }
+                  : { scope: 'tracked', accountId: value },
+              )}
+              placeholder="Where the money went"
+              searchable
+            />
           )}
-          placeholder="Merchant"
-          searchable
-          filterOptions={false}
-          searchValue={merchantSearch.search}
-          onSearchChange={merchantSearch.setSearch}
-          isLoading={merchantQuery.isFetching}
-          hasMore={merchantQuery.hasNextPage}
-          onLoadMore={merchantQuery.fetchNextPage}
-          className="min-w-40 flex-1"
-        />
-
-        <Dropdown
-          options={tagOptions}
-          value=""
-          onChange={(value) => {
-            const picked = tagOptions.find((option) => option.value === value)
-            if (picked) setChosenTags((current) => [...current, picked])
-          }}
-          placeholder="Add a tag"
-          searchable
-          filterOptions={false}
-          searchValue={tagSearch.search}
-          onSearchChange={tagSearch.setSearch}
-          isLoading={tagQuery.isFetching}
-          hasMore={tagQuery.hasNextPage}
-          onLoadMore={tagQuery.fetchNextPage}
-          className="min-w-40 flex-1"
-        />
-
-        <button
-          type="button"
-          className="app-primary-button h-9 px-4 text-sm"
-          disabled={!setsSomething || overCap}
-          onClick={() => onApply(buildBulkEditFields(choice))}
-        >
-          Apply
-        </button>
-
-        <button type="button" className="app-secondary-button h-9 px-3 text-sm" onClick={onCancel}>
-          Cancel
-        </button>
-      </div>
-
-      {chosenTags.length > 0 && (
-        <div className="mx-auto mt-2 flex max-w-6xl flex-wrap gap-1">
-          {chosenTags.map((tag) => (
-            <span
-              key={tag.value}
-              className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs"
-              style={{ background: 'var(--app-accent-soft)' }}
-            >
-              {tag.label}
-              <button
-                type="button"
-                aria-label={`Remove ${tag.label}`}
-                onClick={() => setChosenTags((current) => current.filter((item) => item.value !== tag.value))}
-              >
-                <X size={12} aria-hidden />
-              </button>
-            </span>
-          ))}
         </div>
-      )}
 
-      {overCap && (
-        <p className="mx-auto mt-2 max-w-6xl text-xs" style={{ color: 'var(--app-negative)' }}>
-          One edit covers at most {MAX_BULK_EDIT_TRANSACTIONS} transactions. Deselect some to continue.
-        </p>
-      )}
+        {chosenTags.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {chosenTags.map((tag) => (
+              <span
+                key={tag.value}
+                className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs"
+                style={{ background: 'var(--app-accent-soft)' }}
+              >
+                {tag.label}
+                <button
+                  type="button"
+                  aria-label={`Remove ${tag.label}`}
+                  onClick={() => setChosenTags((current) => current.filter((item) => item.value !== tag.value))}
+                >
+                  <X size={12} aria-hidden />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+
+        {selectedCurrencies.length > 1 && (
+          <p className="text-xs" style={{ color: 'var(--app-text-subtle)' }}>
+            The selected transactions are in more than one currency, so they cannot move to another
+            account together. Narrow the selection to one currency first.
+          </p>
+        )}
+
+        {categoryRecordsTransferTarget && transferTarget === null && (
+          <p className="text-xs" style={{ color: 'var(--app-text-subtle)' }}>
+            A transfer records where the money went, so answer that before applying.
+          </p>
+        )}
+
+        {overCap && (
+          <p className="text-xs" style={{ color: 'var(--app-negative)' }}>
+            One edit covers at most {MAX_BULK_EDIT_TRANSACTIONS} transactions. Deselect some to continue.
+          </p>
+        )}
+
+        <div className="flex items-center gap-2">
+          <p className="mr-auto text-sm font-medium">{selectedIds.length} selected</p>
+
+          <button
+            type="button"
+            className="app-primary-button h-9 px-4 text-sm"
+            disabled={!setsSomething || overCap}
+            onClick={() => onApply(buildBulkEditFields(choice))}
+          >
+            Apply
+          </button>
+
+          <button type="button" className="app-secondary-button h-9 px-3 text-sm" onClick={onCancel}>
+            Cancel
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

@@ -326,7 +326,8 @@ export function invalidatePatchedTransactionData(
  *
  * The field sets above are written against a single-transaction patch, so the bulk request has to
  * be read in those terms first. Its tag field is named differently and would otherwise match
- * nothing, leaving the rows on screen showing their old tags
+ * nothing, and a move or a date change would match neither the balances nor the account activity,
+ * leaving the figures on the Accounts page wrong until something else refetched them
  */
 export function invalidateBulkUpdatedTransactionData(
   queryClient: QueryClient,
@@ -336,6 +337,9 @@ export function invalidateBulkUpdatedTransactionData(
   const patch: UpdateTransactionPayload = {};
   if (payload.category_id !== undefined) patch.category_id = payload.category_id;
   if (payload.merchant_id !== undefined) patch.merchant_id = payload.merchant_id;
+  if (payload.account_id !== undefined) patch.account_id = payload.account_id;
+  if (payload.dt !== undefined) patch.dt = payload.dt;
+  if (payload.notes !== undefined) patch.notes = payload.notes;
   if (payload.add_tag_ids?.length) patch.tag_ids = payload.add_tag_ids;
 
   // Every bulk edit drops a counterparty account left recorded under a category that does not

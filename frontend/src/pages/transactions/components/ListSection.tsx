@@ -164,6 +164,11 @@ export default function TransactionListSection({
     [displayedTransactions, accountMap, fixedAccount],
   )
 
+  const transactionCurrencyById = useMemo(
+    () => new Map(displayedTransactions.map((transaction) => [transaction.id, transaction.currency])),
+    [displayedTransactions],
+  )
+
   // The search text is not part of the filters, so both go into the key that empties a selection
   const requestKey = useMemo(
     () => `${JSON.stringify(filters)}|${activeSearch}`,
@@ -344,6 +349,14 @@ export default function TransactionListSection({
       {isSelecting && selection.selectedIds.length > 0 && (
         <BulkEditBar
           selectedIds={selection.selectedIds}
+          selectedCurrencies={[
+            ...new Set(
+              selection.selectedIds
+                .map((id) => transactionCurrencyById.get(id))
+                .filter((currency): currency is string => Boolean(currency)),
+            ),
+          ]}
+          accounts={fixedAccount ? [fixedAccount, ...accounts] : accounts}
           onApply={setPendingChange}
           onCancel={stopSelecting}
         />

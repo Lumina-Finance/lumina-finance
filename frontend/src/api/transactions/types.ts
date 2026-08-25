@@ -143,16 +143,28 @@ export interface UpdateTransactionPayload {
   counterparty_account_scope?: TransferCounterpartyScope | null;
 }
 
+/**
+ * Details to set across several transactions.
+ *
+ * A field left out is left alone on every transaction, which is why `notes` and the counterparty
+ * pair distinguish absent from null: null clears, absent does not touch.
+ */
 export interface BulkUpdateTransactionsPayload {
   transaction_ids: string[];
+  account_id?: string;
+  dt?: string;
   category_id?: string;
   merchant_id?: string;
+  notes?: string | null;
 
   /**
    * Attached on top of the tags each transaction already carries, unlike `tag_ids` on a single
    * update, which replaces the whole list
    */
   add_tag_ids?: string[];
+
+  counterparty_account_id?: string | null;
+  counterparty_account_scope?: TransferCounterpartyScope | null;
 }
 
 export interface BulkUpdateTransactionsResult {

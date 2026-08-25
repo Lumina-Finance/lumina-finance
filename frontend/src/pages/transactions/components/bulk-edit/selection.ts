@@ -5,36 +5,78 @@
  * and the pointer preview can be checked without rendering anything.
  */
 
-/** What the bar holds, before it becomes a request */
+/** Where the other side of a transfer sits, or null when the panel has not been asked */
+export type TransferTargetChoice =
+  | { scope: 'tracked'; accountId: string }
+  | { scope: 'outside' }
+
+/** What the panel holds, before it becomes a request */
 export interface BulkEditChoice {
   categoryId: string
   merchantId: string
   tagIds: string[]
+  accountId: string
+  date: string
+
+  /** The text typed into the note box, which is empty both before typing and after clearing */
+  note: string
+
+  /** True when the note box is meant to take the note off rather than set one */
+  clearsNote: boolean
+
+  transferTarget: TransferTargetChoice | null
+
+  /** True when the chosen category records the account on the other side of a transfer */
+  categoryRecordsTransferTarget: boolean
 }
 
-/** The fields a bulk request carries, which is everything in it except the transactions it covers */
+/** The details a bulk request carries, which is everything in it except the transactions it covers */
 export interface BulkEditFields {
   category_id?: string
   merchant_id?: string
   add_tag_ids?: string[]
+  account_id?: string
+  dt?: string
+  notes?: string | null
+  counterparty_account_id?: string | null
+  counterparty_account_scope?: 'tracked' | 'outside' | null
 }
 
 /**
- * Turns what the bar holds into the fields a request carries.
+ * Turns what the panel holds into the details a request carries.
  *
- * A control left alone is left out rather than sent empty, since an empty value would read as a
- * change to make.
+ * A control left alone is left out rather than sent empty, because the server applies a field it
+ * was sent and leaves out a field it was not. That is also why clearing the note sends null rather
+ * than an empty string.
  */
-export function buildBulkEditFields({ categoryId, merchantId, tagIds }: BulkEditChoice): BulkEditFields {
+export function buildBulkEditFields(choice: BulkEditChoice): BulkEditFields {
+  const { categoryId, merchantId, tagIds, accountId, date, note, clearsNote, transferTarget } = choice
+
   return {
     ...(categoryId ? { category_id: categoryId } : {}),
     ...(merchantId ? { merchant_id: merchantId } : {}),
     ...(tagIds.length ? { add_tag_ids: tagIds } : {}),
+    ...(accountId ? { account_id: accountId } : {}),
+    ...(date ? { dt: date } : {}),
+    ...(clearsNote ? { notes: null } : note ? { notes: note } : {}),
+    ...(transferTarget
+      ? {
+          counterparty_account_scope: transferTarget.scope,
+          counterparty_account_id: transferTarget.scope === 'tracked' ? transferTarget.accountId : null,
+        }
+      : {}),
   }
 }
 
-/** Whether the bar holds anything to apply, which is what an apply needs before it can run */
+/**
+ * Returns whether the panel holds something the server would accept.
+ *
+ * Not derived from the fields alone: a category that records the other side of a transfer is a
+ * field, but on its own it is a request the server refuses, so it does not count until the transfer
+ * target is answered.
+ */
 export function hasBulkEditChoice(choice: BulkEditChoice): boolean {
+  if (choice.categoryRecordsTransferTarget && choice.transferTarget === null) return false
   return Object.keys(buildBulkEditFields(choice)).length > 0
 }
 
