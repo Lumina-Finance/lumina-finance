@@ -20,7 +20,11 @@ import {
 import { accountKeys, transactionKeys } from '@/api/cache/queryKeys';
 import { uniqueIds } from '@/api/cache/invalidation/types';
 import type { Account, AccountKind, AccountsOverview } from '@/api/accounts/types';
-import type { Transaction, UpdateTransactionPayload } from '@/api/transactions/types';
+import type {
+  BulkUpdateTransactionsPayload,
+  Transaction,
+  UpdateTransactionPayload,
+} from '@/api/transactions/types';
 
 const TRANSACTION_LIST_FIELDS = new Set<keyof UpdateTransactionPayload>([
   'account_id',
@@ -315,4 +319,28 @@ export function invalidatePatchedTransactionData(
   if (patchTouches(patch, TAX_ADVANTAGED_FIELDS)) invalidateTaxAdvantagedActivity(queryClient, accountIds);
   if (patchTouches(patch, CREDIT_ACTIVITY_FIELDS)) invalidateCreditActivity(queryClient, accountIds);
   if (patchTouches(patch, MERCHANT_ACTIVITY_FIELDS)) invalidateInsightsMerchants(queryClient);
+}
+
+/**
+ * Invalidates the cached views a bulk transaction edit changed
+ *
+ * The field sets above are written against a single-transaction patch, so the bulk request has to
+ * be read in those terms first. Its tag field is named differently and would otherwise match
+ * nothing, leaving the rows on screen showing their old tags
+ */
+export function invalidateBulkUpdatedTransactionData(
+  queryClient: QueryClient,
+  payload: BulkUpdateTransactionsPayload,
+  accountIds: string[],
+) {
+  const patch: UpdateTransactionPayload = {};
+  if (payload.category_id !== undefined) patch.category_id = payload.category_id;
+  if (payload.merchant_id !== undefined) patch.merchant_id = payload.merchant_id;
+  if (payload.add_tag_ids?.length) patch.tag_ids = payload.add_tag_ids;
+
+  // Every bulk edit drops a counterparty account left recorded under a category that does not
+  // record one, so the totals reading that field are refreshed whatever the request set
+  patch.counterparty_account_id = null;
+
+  invalidatePatchedTransactionData(queryClient, patch, accountIds);
 }

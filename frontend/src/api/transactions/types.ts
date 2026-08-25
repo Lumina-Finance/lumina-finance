@@ -142,3 +142,22 @@ export interface UpdateTransactionPayload {
   counterparty_account_id?: string | null;
   counterparty_account_scope?: TransferCounterpartyScope | null;
 }
+
+export interface BulkUpdateTransactionsPayload {
+  transaction_ids: string[];
+  category_id?: string;
+  merchant_id?: string;
+
+  /**
+   * Attached on top of the tags each transaction already carries, unlike `tag_ids` on a single
+   * update, which replaces the whole list
+   */
+  add_tag_ids?: string[];
+}
+
+export interface BulkUpdateTransactionsResult {
+  transactions_updated: number;
+
+  /** Accounts behind the changed transactions, used to refresh only the views they feed */
+  affected_account_ids: string[];
+}

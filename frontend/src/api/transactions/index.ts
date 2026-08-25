@@ -1,4 +1,6 @@
 export type {
+  BulkUpdateTransactionsPayload,
+  BulkUpdateTransactionsResult,
   CreateTransactionPayload,
   DailyCashFlow,
   OutlierTransaction,
@@ -13,6 +15,7 @@ export type {
 } from '@/api/transactions/types';
 
 export {
+  bulkUpdateTransactions,
   createTransaction,
   deleteTransaction,
   fetchTransaction,
@@ -24,6 +27,7 @@ export {
 
 export {
   applyTransactionDeletion,
+  useBulkUpdateTransactions,
   useCreateTransaction,
   useDeleteTransaction,
   useInfiniteTransactions,

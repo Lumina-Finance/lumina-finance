@@ -1,6 +1,8 @@
 import { authenticatedFetch } from '@/api/client';
 import { buildQueryString, type QueryStringValue } from '@/api/utils/queryString';
 import type {
+  BulkUpdateTransactionsPayload,
+  BulkUpdateTransactionsResult,
   CreateTransactionPayload,
   OverviewFilters,
   Transaction,
@@ -66,6 +68,16 @@ export function updateTransaction({ id, patch }: { id: string; patch: UpdateTran
   return authenticatedFetch<Transaction>(`/transactions/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(patch),
+  });
+}
+
+/**
+ * Sets a category, a merchant or extra tags across several transactions in one request
+ */
+export function bulkUpdateTransactions(payload: BulkUpdateTransactionsPayload) {
+  return authenticatedFetch<BulkUpdateTransactionsResult>('/transactions/bulk', {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
   });
 }
 
