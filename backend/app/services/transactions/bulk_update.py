@@ -170,10 +170,26 @@ async def _load_current_categories(
 
     Returns:
         Category rows keyed by identifier
+
+    Raises:
+        HTTPException: A row uses a category the caller cannot read
     """
     category_ids = {transaction.category_id for transaction in transactions}
     result = await db.execute(select(Category).where(Category.id.in_(category_ids)))
-    return {category.id: category for category in result.scalars().all()}
+    categories_by_id = {category.id: category for category in result.scalars().all()}
+
+    # A row on a shared account can use the personal category of whoever recorded it, which nobody
+    # else can read. Refusing says so, where indexing the missing key would answer 500
+    missing = category_ids - categories_by_id.keys()
+    if missing:
+        refused = sum(1 for transaction in transactions if transaction.category_id in missing)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"{refused} of these transactions cannot be changed: "
+            f"{refused} using a category you cannot open",
+        )
+
+    return categories_by_id
 
 
 def _resulting_category(

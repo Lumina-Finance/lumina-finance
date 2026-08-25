@@ -654,6 +654,30 @@ async def test_bulk_update_with_group_category_on_personal_transaction_returns_4
     assert resp.json()["detail"] == "Category not found"
 
 
+async def test_bulk_update_refuses_a_row_using_a_category_the_caller_cannot_read(client):
+    """A shared row can carry the personal category of whoever recorded it, which nobody else reads."""
+    admin_headers, member_headers, member_user_id, _, account_id, _, _ = (
+        await _setup_group_with_shared_account(client)
+    )
+    await _grant_account_permission(client, admin_headers, account_id, member_user_id, "write")
+    admin_personal_category = (
+        await _create_category(client, admin_headers, name="Admin Only", kind="expense")
+    ).json()["id"]
+    txn_id = (
+        await _create_transaction(client, admin_headers, account_id, admin_personal_category)
+    ).json()["id"]
+    merchant_id = (await _create_merchant(client, member_headers, name="Member Costco")).json()["id"]
+
+    resp = await client.patch(
+        "/transactions/bulk",
+        json={"transaction_ids": [txn_id], "merchant_id": merchant_id},
+        headers=member_headers,
+    )
+
+    assert resp.status_code == 422
+    assert "cannot open" in resp.json()["detail"]
+
+
 async def test_bulk_update_refuses_a_transfer_recording_an_account_now_out_of_reach(client):
     """Losing access to the account a transfer records refuses the edit, as a single edit does."""
     admin_headers, member_headers, member_user_id, group_id, group_account_id, _, _ = (
