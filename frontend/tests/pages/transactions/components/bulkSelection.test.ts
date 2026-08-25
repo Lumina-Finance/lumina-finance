@@ -3,8 +3,11 @@
  * from, and the preview shown while the pointer moves with shift held
  */
 import { describe, expect, it } from 'vitest'
+import type { Category } from '@/api/categories'
 import {
   buildBulkEditFields,
+  doesChosenCategoryRecordTransferTarget,
+  getBulkMoveTargets,
   bulkSelectionReducer,
   emptyBulkSelection,
   hasBulkEditChoice,
@@ -192,12 +195,14 @@ describe('the details the panel sends', () => {
     expect(buildBulkEditFields(untouched({ clearsNote: true }))).toEqual({ notes: null })
   })
 
-  it('leaves the note alone when the box is empty and nothing asked to clear it', () => {
+  it('needs the clear box to take a note off, since an empty note box sends nothing', () => {
     expect(buildBulkEditFields(untouched({ note: '' }))).toEqual({})
+    expect(buildBulkEditFields(untouched({ note: '', clearsNote: true }))).toEqual({ notes: null })
   })
 
   it('sends a tracked transfer target as an account and a scope', () => {
     const fields = buildBulkEditFields(untouched({
+      categoryRecordsTransferTarget: true,
       transferTarget: { scope: 'tracked', accountId: 'acc_2' },
     }))
 
@@ -208,7 +213,10 @@ describe('the details the panel sends', () => {
   })
 
   it('sends money that left the tracked accounts with no account', () => {
-    const fields = buildBulkEditFields(untouched({ transferTarget: { scope: 'outside' } }))
+    const fields = buildBulkEditFields(untouched({
+      categoryRecordsTransferTarget: true,
+      transferTarget: { scope: 'outside' },
+    }))
 
     expect(fields).toEqual({
       counterparty_account_scope: 'outside',
@@ -223,6 +231,18 @@ describe('the details the panel sends', () => {
     expect(hasBulkEditChoice(choice)).toBe(false)
   })
 
+  it('drops a transfer target left behind by a category the user changed away from', () => {
+    const choice = untouched({
+      categoryId: 'cat_1',
+      categoryRecordsTransferTarget: false,
+      transferTarget: { scope: 'tracked', accountId: 'acc_2' },
+    })
+
+    // The control is off screen under this category, so sending it would refuse the whole batch
+    // over something the user cannot see to undo
+    expect(buildBulkEditFields(choice)).toEqual({ category_id: 'cat_1' })
+  })
+
   it('has something to apply once the transfer target is answered', () => {
     const choice = untouched({
       categoryId: 'cat_1',
@@ -231,6 +251,66 @@ describe('the details the panel sends', () => {
     })
 
     expect(hasBulkEditChoice(choice)).toBe(true)
+  })
+})
+
+describe('whether a chosen category records the other side of a transfer', () => {
+  const category = (overrides: Partial<Category>): Category => ({
+    id: 'cat_1',
+    name: 'Groceries',
+    kind: 'expense',
+    icon: null,
+    is_system: true,
+    owner_id: null,
+    group_id: null,
+    ...overrides,
+  } as Category)
+
+  it('says no while nothing is chosen', () => {
+    expect(doesChosenCategoryRecordTransferTarget(undefined)).toBe(false)
+  })
+
+  it('says no for an expense', () => {
+    expect(doesChosenCategoryRecordTransferTarget(category({}))).toBe(false)
+  })
+
+  it('says yes for a transfer', () => {
+    expect(doesChosenCategoryRecordTransferTarget(category({ kind: 'transfer', name: 'Transfer' }))).toBe(true)
+  })
+
+  it('says no for a balance adjustment, which corrects a balance rather than moving money', () => {
+    expect(
+      doesChosenCategoryRecordTransferTarget(category({ kind: 'transfer', name: 'Balance Adjustment' })),
+    ).toBe(false)
+  })
+
+  it('reads the name alone, so one the user made themselves counts the same', () => {
+    expect(
+      doesChosenCategoryRecordTransferTarget(
+        category({ kind: 'transfer', name: 'Balance Adjustment', is_system: false }),
+      ),
+    ).toBe(false)
+  })
+})
+
+describe('the accounts a selection can move to', () => {
+  const accounts = [
+    { id: 'acc_1', currency: 'CAD' },
+    { id: 'acc_2', currency: 'CAD', is_archived: true },
+    { id: 'acc_3', currency: 'CAD', closed_at: '2026-03-01' },
+    { id: 'acc_4', currency: 'USD' },
+  ]
+
+  it('offers the open accounts in the currency the selection uses', () => {
+    expect(getBulkMoveTargets(accounts, ['CAD']).map((account) => account.id)).toEqual(['acc_1'])
+  })
+
+  it('offers nothing when the selection spans currencies', () => {
+    expect(getBulkMoveTargets(accounts, ['CAD', 'USD'])).toEqual([])
+  })
+
+  it('offers nothing before anything is selected', () => {
+    expect(getBulkMoveTargets(accounts, [])).toEqual([])
   })
 })
 

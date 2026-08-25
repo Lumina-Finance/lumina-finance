@@ -356,7 +356,11 @@ export default function TransactionListSection({
                 .filter((currency): currency is string => Boolean(currency)),
             ),
           ]}
-          accounts={fixedAccount ? [fixedAccount, ...accounts] : accounts}
+          accounts={
+            fixedAccount && !accounts.some((account) => account.id === fixedAccount.id)
+              ? [fixedAccount, ...accounts]
+              : accounts
+          }
           onApply={setPendingChange}
           onCancel={stopSelecting}
         />

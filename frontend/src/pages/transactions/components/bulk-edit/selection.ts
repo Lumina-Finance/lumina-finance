@@ -1,9 +1,52 @@
 /**
- * Which transactions a bulk edit covers, and what a pending shift-click would change it to.
+ * Which transactions a bulk edit covers, what a pending shift-click would change it to, and what
+ * the panel sends once the user presses Apply.
  *
- * Every transition is a pure function of the state and the rows on screen, so the range, the anchor
- * and the pointer preview can be checked without rendering anything.
+ * Every transition is a pure function of the state and the rows on screen, so the range, the anchor,
+ * the pointer preview and the request body can all be checked without rendering anything.
  */
+import type { Category } from '@/api/categories'
+import {
+  BALANCE_ADJUSTMENT_CATEGORY_NAME,
+  doesTransferRecordCounterpartyAccount,
+} from '@/utils/transfers'
+
+/**
+ * Returns whether a chosen category records the account on the other side of a transfer.
+ *
+ * Reads the rule the server reads, which turns on the category's name alone. The transaction
+ * modal's own field hooks add a test for whether the category is a built-in one, so following
+ * those would offer a control for a request the server refuses.
+ *
+ * @param category The category the panel has chosen, or undefined while none is chosen
+ */
+export function doesChosenCategoryRecordTransferTarget(category: Category | undefined): boolean {
+  if (!category) return false
+  return doesTransferRecordCounterpartyAccount(
+    category.kind,
+    category.name === BALANCE_ADJUSTMENT_CATEGORY_NAME,
+  )
+}
+
+/**
+ * Returns the accounts a selection can move to.
+ *
+ * A move keeps each transaction's stored exchange rate, and almost no imported transaction has one,
+ * so an account in another currency would refuse the whole batch. A selection spanning currencies
+ * can move nowhere at all, which the panel says rather than leaving a refusal to be discovered.
+ *
+ * @param accounts Every account the list knows about
+ * @param selectedCurrencies Currencies of the selected transactions, deduplicated
+ */
+export function getBulkMoveTargets<T extends { is_archived?: boolean; closed_at?: string | null; currency?: string }>(
+  accounts: T[],
+  selectedCurrencies: string[],
+): T[] {
+  if (selectedCurrencies.length !== 1) return []
+  return accounts.filter(
+    (account) => !account.is_archived && !account.closed_at && account.currency === selectedCurrencies[0],
+  )
+}
 
 /** Where the other side of a transfer sits, or null when the panel has not been asked */
 export type TransferTargetChoice =
@@ -59,7 +102,9 @@ export function buildBulkEditFields(choice: BulkEditChoice): BulkEditFields {
     ...(accountId ? { account_id: accountId } : {}),
     ...(date ? { dt: date } : {}),
     ...(clearsNote ? { notes: null } : note ? { notes: note } : {}),
-    ...(transferTarget
+    // Only sent under a category that records one. A target picked before the category was changed
+    // is otherwise still in the panel's state, invisible, and refuses the whole batch
+    ...(transferTarget && choice.categoryRecordsTransferTarget
       ? {
           counterparty_account_scope: transferTarget.scope,
           counterparty_account_id: transferTarget.scope === 'tracked' ? transferTarget.accountId : null,

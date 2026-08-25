@@ -374,7 +374,7 @@ async def test_bulk_update_refuses_a_request_carrying_only_an_empty_tag_list(cli
 
 
 async def test_bulk_update_leaves_the_account_balances_where_they_were(client):
-    """Category, merchant, tags and notes move no money, so every stored balance stays as it was."""
+    """A category or a note moves no money, so every stored balance stays as it was."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
     txn = (await _create_transaction(client, headers, account_id, category_id)).json()["id"]
     dining_id = (await _create_category(client, headers, name="Bulk Dining", kind="expense")).json()["id"]
@@ -384,6 +384,25 @@ async def test_bulk_update_leaves_the_account_balances_where_they_were(client):
     resp = await client.patch(
         "/transactions/bulk",
         json={"transaction_ids": [txn], "category_id": dining_id, "notes": "Corrected"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    assert await _read_snapshots(account_id) == before
+
+
+async def test_bulk_update_leaves_the_balances_alone_for_a_merchant_and_tag_edit(client):
+    """A merchant and a tag move no money either, and they are the most common bulk edit there is."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    txn = (await _create_transaction(client, headers, account_id, category_id)).json()["id"]
+    merchant_id = (await _create_merchant(client, headers, name="Costco")).json()["id"]
+    tag_id = (await _create_tag(client, headers, name="vacation")).json()["id"]
+    before = await _read_snapshots(account_id)
+    assert before, "the account should carry balances before the edit, or this proves nothing"
+
+    resp = await client.patch(
+        "/transactions/bulk",
+        json={"transaction_ids": [txn], "merchant_id": merchant_id, "add_tag_ids": [tag_id]},
         headers=headers,
     )
 
@@ -696,6 +715,21 @@ async def test_bulk_update_refuses_an_other_account_under_a_category_that_record
             "counterparty_account_scope": "tracked",
             "counterparty_account_id": other_account_id,
         },
+        headers=headers,
+    )
+
+    assert resp.status_code == 422
+    assert "records no other account" in resp.json()["detail"]
+
+
+async def test_bulk_update_refuses_a_scope_alone_under_a_category_that_records_none(client):
+    """Either half of the answer is an answer, so a scope on its own is refused as an account is."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    txn = (await _create_transaction(client, headers, account_id, category_id)).json()["id"]
+
+    resp = await client.patch(
+        "/transactions/bulk",
+        json={"transaction_ids": [txn], "counterparty_account_scope": "outside"},
         headers=headers,
     )
 

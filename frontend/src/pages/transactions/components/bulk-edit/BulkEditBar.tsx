@@ -7,6 +7,8 @@ import Dropdown from '@/components/dropdown/Dropdown'
 import { MAX_BULK_EDIT_TRANSACTIONS } from '@/pages/transactions/components/bulk-edit/constants'
 import {
   buildBulkEditFields,
+  doesChosenCategoryRecordTransferTarget,
+  getBulkMoveTargets,
   hasBulkEditChoice,
   type BulkEditFields,
   type TransferTargetChoice,
@@ -14,12 +16,7 @@ import {
 import type { TransactionListAccount } from '@/pages/transactions/types/transactionList'
 import { useDebouncedReferenceSearch } from '@/pages/transactions/components/transaction-modal/hooks/useDebouncedReferenceSearch'
 import { buildCategoryOptions } from '@/pages/transactions/components/transaction-modal/utils/categories'
-import {
-  BALANCE_ADJUSTMENT_CATEGORY_NAME,
-  doesTransferRecordCounterpartyAccount,
-  OUTSIDE_ACCOUNT_LABEL,
-  OUTSIDE_ACCOUNT_VALUE,
-} from '@/utils/transfers'
+import { OUTSIDE_ACCOUNT_LABEL, OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 
 const REFERENCE_SEARCH_DEBOUNCE_MS = 250
 const REFERENCE_PAGE_SIZE = 20
@@ -67,24 +64,10 @@ export function BulkEditBar({
   const categoryOptions = useMemo(() => buildCategoryOptions(categories ?? []), [categories])
 
   const chosenCategory = categories?.find((category) => category.id === categoryId)
-  const categoryRecordsTransferTarget = Boolean(
-    chosenCategory
-    && doesTransferRecordCounterpartyAccount(
-      chosenCategory.kind,
-      chosenCategory.name === BALANCE_ADJUSTMENT_CATEGORY_NAME,
-    ),
-  )
+  const categoryRecordsTransferTarget = doesChosenCategoryRecordTransferTarget(chosenCategory)
 
-  // A move keeps each row's stored exchange rate, and almost no imported row has one, so an account
-  // in another currency would refuse the whole batch. Offering only the ones that fit turns that
-  // refusal into a choice the user can see is unavailable
   const moveTargets = useMemo(
-    () => accounts.filter(
-      (account) => !account.is_archived
-        && !account.closed_at
-        && selectedCurrencies.length === 1
-        && account.currency === selectedCurrencies[0],
-    ),
+    () => getBulkMoveTargets(accounts, selectedCurrencies),
     [accounts, selectedCurrencies],
   )
   const accountOptions = moveTargets.map((account) => ({ value: account.id, label: account.name ?? 'Account' }))

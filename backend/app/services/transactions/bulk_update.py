@@ -15,7 +15,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
-from app.models.base import PermissionLevel
+from app.models.base import PermissionLevel, TransferCounterpartyScope
 from app.models.category import Category
 from app.models.transaction import Transaction
 from app.models.user import User
@@ -270,7 +270,7 @@ def _resulting_counterparty(
     transaction: Transaction,
     data: BulkUpdateTransactionsRequest,
     sent: set[str],
-) -> tuple[uuid.UUID | None, object]:
+) -> tuple[uuid.UUID | None, TransferCounterpartyScope | None]:
     """Return the counterparty account and scope a transaction ends up with.
 
     Args:
@@ -341,7 +341,11 @@ async def _refuse_rows_breaking_single_edit_rules(
         resulting_account_id = target_account.id if target_account is not None else transaction.account_id
 
         if not does_category_record_counterparty_account(category):
-            if _COUNTERPARTY_FIELDS & sent and data.counterparty_account_id is not None:
+            # Either half of the answer is an answer, so a scope on its own is refused as the
+            # account is, matching update.py:127-134
+            if _COUNTERPARTY_FIELDS & sent and (
+                data.counterparty_account_id is not None or data.counterparty_account_scope is not None
+            ):
                 counterparty_not_allowed.append(transaction.id)
             continue
 
