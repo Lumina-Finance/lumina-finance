@@ -8,13 +8,16 @@ import type { TransactionDateGroup, TransactionListAccount } from '@/pages/trans
 import { getTransactionDateGroupTotal } from '@/pages/transactions/utils/transactionDateGroups'
 import { getTransactionReadOnlyReason } from '@/pages/transactions/utils/rowEditability'
 
-// The six content tracks every row lines its cells up against, behind a seventh holding the
-// checkbox. The checkbox track is always declared and collapses to nothing outside selection mode,
-// because a browser interpolates grid-template-columns only while the track count holds still, and
-// swapping between a six-track and a seven-track template would snap instead of easing
+// The six content tracks every row lines its cells up against
 const LIST_COLUMNS =
-  'min-[1300px]:grid-cols-[0rem_2.5rem_fit-content(24rem)_fit-content(18rem)_minmax(0,1fr)_max-content_max-content]'
+  'min-[1300px]:grid-cols-[2.5rem_fit-content(24rem)_fit-content(18rem)_minmax(0,1fr)_max-content_max-content]'
 
+// The same six, behind a track holding the checkbox, so selection mode adds a column rather than
+// squeezing the ones already there.
+//
+// A collapsed seventh track would let the browser ease the column open, but the row's column gap
+// applies after it whether or not it has any width, so every row outside selection mode would lose
+// that much space and start truncating text it fits today
 const SELECTING_COLUMNS =
   'min-[1300px]:grid-cols-[1.75rem_2.5rem_fit-content(24rem)_fit-content(18rem)_minmax(0,1fr)_max-content_max-content]'
 
@@ -53,9 +56,7 @@ export default function TransactionDateGroupList({
   const { formatCurrency } = useMoneyFormatters()
 
   return (
-    <div
-      className={`min-[1300px]:grid min-[1300px]:gap-x-3 motion-reduce:transition-none min-[1300px]:transition-[grid-template-columns] min-[1300px]:duration-[220ms] min-[1300px]:ease-[cubic-bezier(0.25,0.1,0.25,1)] ${isSelecting ? SELECTING_COLUMNS : LIST_COLUMNS}`}
-    >
+    <div className={`min-[1300px]:grid min-[1300px]:gap-x-3 ${isSelecting ? SELECTING_COLUMNS : LIST_COLUMNS}`}>
       {/* initial={false} suppresses the first render and the whole-list swap on filter changes, so a
           group only animates here when it is genuinely added (a new day's first transaction) or removed
           (its last transaction deleted) while the list stays mounted */}

@@ -244,17 +244,22 @@ export default function TransactionRow({
           <motion.span
             key="row-checkbox"
             className="flex shrink-0 items-center justify-center overflow-hidden"
-            initial={prefersReducedMotion ? { opacity: 0 } : { width: 0, opacity: 0, paddingLeft: 0 }}
-            animate={{ width: 'auto', opacity: 1, paddingLeft: '0.75rem' }}
-            exit={prefersReducedMotion ? { opacity: 0 } : { width: 0, opacity: 0, paddingLeft: 0 }}
+            initial={prefersReducedMotion ? { opacity: 0 } : { width: 0, opacity: 0 }}
+            animate={{ width: 'auto', opacity: 1 }}
+            exit={prefersReducedMotion ? { opacity: 0 } : { width: 0, opacity: 0 }}
             transition={{ duration: prefersReducedMotion ? 0 : 0.22, ease: ROW_EXIT_EASE }}
           >
-            <Checkbox
-              checked={selection.mark === 'selected'}
-              disabled={!selection.isSelectable}
-              label={`Select ${title} on ${transaction.dt}`}
-              onChange={(event) => selection.onToggle(event.shiftKey)}
-            />
+            {/* The padding sits inside the collapsing wrapper so it goes with the width, and it is
+                dropped on a wide screen, where the column track is the only room the checkbox has
+                and padding on top of it would push the box out of the track and clip it square */}
+            <span className="flex items-center pl-3 min-[1300px]:pl-0">
+              <Checkbox
+                checked={selection.mark === 'selected'}
+                disabled={!selection.isSelectable}
+                label={`Select ${title} on ${transaction.dt}`}
+                onChange={(event) => selection.onToggle(event.shiftKey)}
+              />
+            </span>
           </motion.span>
         )}
       </AnimatePresence>
