@@ -1,0 +1,143 @@
+/**
+ * Tests which transactions a bulk edit covers: the range a shift-click takes, the anchor it runs
+ * from, and the preview shown while the pointer moves with shift held
+ */
+import { describe, expect, it } from 'vitest'
+import {
+  bulkSelectionReducer,
+  emptyBulkSelection,
+  previewSelection,
+  rowSelectionMark,
+  type BulkSelectionState,
+  type SelectableRow,
+} from '@/pages/transactions/components/bulk-edit/selection'
+
+const rows: SelectableRow[] = [
+  { id: 'a', isReadOnly: false },
+  { id: 'b', isReadOnly: false },
+  { id: 'c', isReadOnly: false },
+  { id: 'd', isReadOnly: false },
+  { id: 'e', isReadOnly: false },
+  { id: 'f', isReadOnly: false },
+]
+
+/** Applies a run of clicks, so each test reads as the sequence a user would perform */
+function click(state: BulkSelectionState, id: string, withShift = false, over = rows) {
+  return bulkSelectionReducer(state, withShift ? { type: 'extend', id, rows: over } : { type: 'toggle', id })
+}
+
+describe('the range a shift-click takes', () => {
+  it('takes every row between the two, both ends included', () => {
+    let state = click(emptyBulkSelection, 'b')
+    state = click(state, 'e', true)
+
+    expect([...state.selectedIds].sort()).toEqual(['b', 'c', 'd', 'e'])
+  })
+
+  it('takes the same rows when aimed upward', () => {
+    let state = click(emptyBulkSelection, 'e')
+    state = click(state, 'b', true)
+
+    expect([...state.selectedIds].sort()).toEqual(['b', 'c', 'd', 'e'])
+  })
+
+  it('leaves a tick made before the anchor in place', () => {
+    let state = click(emptyBulkSelection, 'a')
+    state = click(state, 'f')
+    state = click(state, 'b')
+    state = click(state, 'd', true)
+
+    expect([...state.selectedIds].sort()).toEqual(['a', 'b', 'c', 'd', 'f'])
+  })
+
+  it('drops what the previous range took when re-aimed from the same anchor', () => {
+    let state = click(emptyBulkSelection, 'b')
+    state = click(state, 'e', true)
+    state = click(state, 'c', true)
+
+    expect([...state.selectedIds].sort()).toEqual(['b', 'c'])
+  })
+
+  it('ticks one row when no anchor has been set', () => {
+    const state = click(emptyBulkSelection, 'd', true)
+
+    expect([...state.selectedIds]).toEqual(['d'])
+  })
+
+  it('steps over a row the app does not allow editing', () => {
+    const withReadOnly: SelectableRow[] = rows.map((row) =>
+      row.id === 'c' ? { ...row, isReadOnly: true } : row,
+    )
+    let state = click(emptyBulkSelection, 'b', false, withReadOnly)
+    state = click(state, 'e', true, withReadOnly)
+
+    expect([...state.selectedIds].sort()).toEqual(['b', 'd', 'e'])
+  })
+})
+
+describe('the preview shown while shift is held', () => {
+  it('is the whole set the click would produce, not only what it would add', () => {
+    let state = click(emptyBulkSelection, 'b')
+    state = click(state, 'e', true)
+    state = bulkSelectionReducer(state, { type: 'hover', id: 'c' })
+
+    const preview = previewSelection(state, rows)
+
+    expect(preview && [...preview].sort()).toEqual(['b', 'c'])
+  })
+
+  it('marks a ticked row the click would drop as no longer selected', () => {
+    let state = click(emptyBulkSelection, 'b')
+    state = click(state, 'e', true)
+    state = bulkSelectionReducer(state, { type: 'hover', id: 'c' })
+    const preview = previewSelection(state, rows)
+
+    expect(rowSelectionMark('e', state.selectedIds, preview)).toBe('none')
+    expect(rowSelectionMark('b', state.selectedIds, preview)).toBe('selected')
+  })
+
+  it('marks a row the click would add as pending', () => {
+    let state = click(emptyBulkSelection, 'b')
+    state = bulkSelectionReducer(state, { type: 'hover', id: 'd' })
+    const preview = previewSelection(state, rows)
+
+    expect(rowSelectionMark('d', state.selectedIds, preview)).toBe('pending')
+  })
+
+  it('is absent when the pointer is over nothing', () => {
+    const state = click(emptyBulkSelection, 'b')
+
+    expect(previewSelection(state, rows)).toBeNull()
+  })
+})
+
+describe('what empties the selection', () => {
+  it('clears the ticks, the anchor and the baseline', () => {
+    let state = click(emptyBulkSelection, 'b')
+    state = click(state, 'e', true)
+    state = bulkSelectionReducer(state, { type: 'clear' })
+
+    expect(state.selectedIds.size).toBe(0)
+    expect(state.anchorId).toBeNull()
+    expect(state.baselineIds.size).toBe(0)
+  })
+
+  it('drops a tick whose row has left the list', () => {
+    let state = click(emptyBulkSelection, 'b')
+    state = click(state, 'd')
+    state = bulkSelectionReducer(state, { type: 'keepDisplayed', ids: ['a', 'b', 'c'] })
+
+    expect([...state.selectedIds]).toEqual(['b'])
+  })
+
+  it('leaves the state untouched when every ticked row is still displayed', () => {
+    let state = click(emptyBulkSelection, 'b')
+    state = click(state, 'd')
+    const settled = bulkSelectionReducer(state, {
+      type: 'keepDisplayed',
+      ids: rows.map((row) => row.id),
+    })
+
+    expect(settled).toBe(state)
+  })
+})
