@@ -30,6 +30,7 @@ describe('account metric helpers', () => {
       income: 2_000,
       progress: 25,
       color: 'var(--app-positive)',
+      barColor: 'var(--app-chart-positive)',
     })
 
     expect(getSavingsRateMetric({
@@ -42,6 +43,59 @@ describe('account metric helpers', () => {
       hasExpenses: true,
       progress: 100,
       color: 'var(--app-negative)',
+      barColor: 'var(--app-chart-negative)',
+    })
+  })
+
+  it('places the savings rate tile in the same band as the savings rate charts', () => {
+    const getTileColors = (income: number, expenses: number) => {
+      const metric = getSavingsRateMetric({
+        savings_rate_history: [{ month: '2026-06-01', income, expenses }],
+        fx_status: { state: 'complete', missing_pairs: [] },
+      }, false)
+
+      return { value: metric.value, color: metric.color, barColor: metric.barColor }
+    }
+
+    expect(getTileColors(100, 80)).toEqual({
+      value: 20,
+      color: 'var(--app-positive)',
+      barColor: 'var(--app-chart-positive)',
+    })
+    expect(getTileColors(100, 81)).toEqual({
+      value: 19,
+      color: 'var(--app-accent)',
+      barColor: 'var(--app-accent)',
+    })
+    expect(getTileColors(100, 90)).toEqual({
+      value: 10,
+      color: 'var(--app-accent)',
+      barColor: 'var(--app-accent)',
+    })
+    expect(getTileColors(100, 91)).toEqual({
+      value: 9,
+      color: 'var(--app-negative)',
+      barColor: 'var(--app-chart-negative)',
+    })
+  })
+
+  it('leaves an empty or still-loading savings rate tile grey rather than red', () => {
+    expect(getSavingsRateMetric({
+      savings_rate_history: [{ month: '2026-06-01', income: 0, expenses: 0 }],
+      fx_status: { state: 'none', missing_pairs: [] },
+    }, false)).toMatchObject({
+      value: null,
+      hasExpenses: false,
+      color: 'var(--app-text-subtle)',
+      barColor: 'var(--app-text-subtle)',
+    })
+
+    expect(getSavingsRateMetric({
+      savings_rate_history: [{ month: '2026-06-01', income: 1_000, expenses: 100 }],
+      fx_status: { state: 'complete', missing_pairs: [] },
+    }, true)).toMatchObject({
+      color: 'var(--app-text-subtle)',
+      barColor: 'var(--app-text-subtle)',
     })
   })
 
@@ -72,6 +126,46 @@ describe('account metric helpers', () => {
       totalUsed: 250,
       totalLimit: 1_000,
       color: 'var(--app-positive)',
+      barColor: 'var(--app-chart-positive)',
+    })
+  })
+
+  it('splits the credit usage figure from its bar across all three bands', () => {
+    const rows = [createAccount({
+      id: 'card',
+      account_kind: 'revolving',
+      account_type: 'credit_card',
+      credit_limit: 1_000,
+    })]
+    const getTileColors = (creditUsed: number) => {
+      const metric = getCreditUsageMetric(rows, {
+        credit_used: creditUsed,
+        credit_limit_total: 1_000,
+        fx_status: { state: 'complete', missing_pairs: [] },
+      }, false)
+
+      return { utilization: metric.utilization, color: metric.color, barColor: metric.barColor }
+    }
+
+    expect(getTileColors(300)).toEqual({
+      utilization: 30,
+      color: 'var(--app-positive)',
+      barColor: 'var(--app-chart-positive)',
+    })
+    expect(getTileColors(500)).toEqual({
+      utilization: 50,
+      color: 'var(--app-accent)',
+      barColor: 'var(--app-accent)',
+    })
+    expect(getTileColors(800)).toEqual({
+      utilization: 80,
+      color: 'var(--app-negative)',
+      barColor: 'var(--app-chart-negative)',
+    })
+
+    expect(getCreditUsageMetric(rows, undefined, false)).toMatchObject({
+      color: 'var(--app-text-subtle)',
+      barColor: 'var(--app-text-subtle)',
     })
   })
 

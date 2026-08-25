@@ -16,6 +16,7 @@ import {
   getTaxAdvantagedUsageColor,
   getTaxAdvantagedUsagePercent,
   hasTaxAdvantagedLimitTracking,
+  getTaxAdvantagedUsageBarColor,
 } from '@/pages/accounts/utils/taxAdvantagedLimits'
 import { createAccount, createInstitution, createTaxAdvantagedCategory, testCurrencies } from './fixtures'
 
@@ -25,6 +26,19 @@ describe('tax-advantaged limit helpers', () => {
     expect(getTaxAdvantagedUsagePercent(-25, 100)).toBe(0)
     expect(getTaxAdvantagedUsageColor(125, 100)).toBe('var(--app-negative)')
     expect(getTaxAdvantagedUsageColor(100, 100)).toBe('var(--app-text-muted)')
+  })
+
+  it('draws the meter bar in the chart colours while its percentage keeps the text ones', () => {
+    expect(getTaxAdvantagedUsageBarColor(125, 100)).toBe('var(--app-chart-negative)')
+    expect(getTaxAdvantagedUsageBarColor(50, 100)).toBe('var(--app-accent)')
+    expect(getTaxAdvantagedUsageColor(50, 100)).toBe('var(--app-accent)')
+
+    // The two agree on which band the usage is in, so only the shade differs
+    expect(getTaxAdvantagedUsageBarColor(100, 100)).toBe('var(--app-text-muted)')
+    expect(getTaxAdvantagedUsageBarColor(0, 0)).toBe('var(--app-text-muted)')
+    expect(getTaxAdvantagedUsageColor(0, 0)).toBe('var(--app-text-muted)')
+    expect(getTaxAdvantagedUsageBarColor(10, 0)).toBe('var(--app-chart-negative)')
+    expect(getTaxAdvantagedUsageColor(10, 0)).toBe('var(--app-negative)')
   })
 
   it('formats compact meter values without losing the currency sign', () => {

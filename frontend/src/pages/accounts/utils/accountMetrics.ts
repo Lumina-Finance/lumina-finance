@@ -7,6 +7,8 @@ import type { RunwayResult } from '@/api/user'
 import type { Currency } from '@/api/currency'
 import type { AccountsMetricsViewModel } from '@/pages/accounts/types/accounts'
 import { formatCurrency } from '@/utils/formatCurrency'
+import { getSavingsRateTier } from '@/utils/savingsRateTier'
+import { getValueMarkColor, type ValueMarkTone } from '@/utils/valueMarkColor'
 import {
   RUNWAY_BAND_STYLE,
   RUNWAY_TARGET_MONTHS,
@@ -14,6 +16,31 @@ import {
   formatRunwayBasis,
   runwayBand,
 } from '@/utils/runway'
+
+// Colour of the figure on a metric tile. A number needs more contrast against the tile than the
+// bar under it does, so the two are not drawn from the same pair
+const METRIC_TEXT_COLORS: Record<ValueMarkTone, string> = {
+  positive: 'var(--app-positive)',
+  accent: 'var(--app-accent)',
+  negative: 'var(--app-negative)',
+}
+
+// What a tile shows before its figure arrives, and where there is no figure to show
+const METRIC_UNSET_COLOR = 'var(--app-text-subtle)'
+
+/**
+ * Resolves the colour of a metric tile's figure, or the resting grey when it has none
+ */
+function getMetricTextColor(tone: ValueMarkTone | null) {
+  return tone === null ? METRIC_UNSET_COLOR : METRIC_TEXT_COLORS[tone]
+}
+
+/**
+ * Resolves the colour of a metric tile's bar, or the resting grey when it has no figure
+ */
+function getMetricBarColor(tone: ValueMarkTone | null) {
+  return tone === null ? METRIC_UNSET_COLOR : getValueMarkColor(tone)
+}
 
 /**
  * Builds the savings rate metric from the most recent dashboard savings period
@@ -36,18 +63,15 @@ export function getSavingsRateMetric(
         : value <= 0
           ? 100
           : Math.min(value, 100)
-  const color =
-    isLoading
-      ? 'var(--app-text-subtle)'
-      : value !== null
-      ? value >= 20
-        ? 'var(--app-positive)'
-        : value >= 10
-          ? 'var(--app-accent)'
-          : 'var(--app-negative)'
+  // A month with no income and no expenses has no rate to show, so the tile stays grey rather than
+  // taking the tier a null rate falls in
+  const tone = isLoading
+    ? null
+    : value !== null
+      ? getSavingsRateTier(value)
       : hasExpenses
-        ? 'var(--app-negative)'
-        : 'var(--app-text-subtle)'
+        ? 'negative'
+        : null
 
   return {
     value,
@@ -56,7 +80,8 @@ export function getSavingsRateMetric(
     net,
     income,
     progress,
-    color,
+    color: getMetricTextColor(tone),
+    barColor: getMetricBarColor(tone),
     fxStatus: dashboardSavingsRate?.fx_status,
   }
 }
@@ -75,13 +100,13 @@ export function getCreditUsageMetric(
   const totalLimit = dashboardCredit?.credit_limit_total ?? 0
   const hasCreditData = Boolean(dashboardCredit) && totalLimit > 0
   const utilization = totalLimit > 0 ? Math.round((totalUsed / totalLimit) * 100) : 0
-  const color = isLoading || !hasCreditData
-    ? 'var(--app-text-subtle)'
+  const tone = isLoading || !hasCreditData
+    ? null
     : utilization <= 30
-      ? 'var(--app-positive)'
+      ? 'positive'
       : utilization <= 70
-        ? 'var(--app-accent)'
-        : 'var(--app-negative)'
+        ? 'accent'
+        : 'negative'
 
   return {
     hasCreditAccounts: revolvingAccounts.length > 0,
@@ -91,7 +116,8 @@ export function getCreditUsageMetric(
     utilization,
     totalUsed,
     totalLimit,
-    color,
+    color: getMetricTextColor(tone),
+    barColor: getMetricBarColor(tone),
     fxStatus: dashboardCredit?.fx_status,
   }
 }

@@ -24,6 +24,7 @@ import {
   DASHBOARD_X_AXIS_TICK_FONT_SIZE,
 } from '@/pages/dashboard/constants/chart'
 import type { NetWorthSeriesPoint } from '@/pages/dashboard/types/dashboard'
+import { getValueMarkColor } from '@/utils/valueMarkColor'
 import {
   getRechartsTooltipPoint,
   getRechartsTooltipPointer,
@@ -111,7 +112,7 @@ function getNetWorthLineColor(data: NetWorthSeriesPoint[]) {
     data.length >= 2 &&
     data[data.length - 1].value >= data[0].value
 
-  return netWorthTrendUp ? 'var(--app-positive)' : 'var(--app-negative)'
+  return getValueMarkColor(netWorthTrendUp ? 'positive' : 'negative')
 }
 
 /**

@@ -1,7 +1,5 @@
 import type { SavingsRateHistoryPoint } from '@/pages/insights/types/savingsRate'
 
-export type SavingsRateTier = 'positive' | 'accent' | 'negative'
-
 export type SavingsRateSummary = {
   latestPoint: SavingsRateHistoryPoint | undefined
   averageRate: number | null
@@ -26,16 +24,6 @@ function hasFiniteSavingsRate(point: SavingsRateHistoryPoint): point is SavingsR
 function clampSavingsRate(rate: number | null) {
   if (rate === null) return null
   return Math.max(-100, Math.min(100, rate))
-}
-
-/**
- * Returns the display tier used by the savings-rate chart and legend
- */
-export function getSavingsRateTier(rate: number | null): SavingsRateTier {
-  if (rate === null) return 'negative'
-  if (rate >= 20) return 'positive'
-  if (rate > 0) return 'accent'
-  return 'negative'
 }
 
 /**

@@ -1,17 +1,20 @@
 import type { Budget, BudgetUtilization } from '@/api/budgets'
 import { getBudgetUtilizationPercent } from '@/pages/budgets/utils/utilization'
+import { getValueMarkColor } from '@/utils/valueMarkColor'
 
 /**
  * Classifies the latest budget period into the status used by cards and details summaries
+ *
+ * The badge text and the shapes beside it take different colours: text keeps the contrast a
+ * reader needs, while the strip and the bar match every other shape drawn from a value
  */
 export function attentionState(latestPeriod: Budget | undefined, utilization: BudgetUtilization | undefined) {
   if (!latestPeriod) {
     return {
       label: 'Needs attention',
       background: 'var(--app-negative-soft)',
-      color: 'var(--app-negative)',
       textColor: 'var(--app-negative)',
-      indicatorColor: 'var(--app-negative)',
+      indicatorColor: getValueMarkColor('negative'),
     }
   }
 
@@ -20,16 +23,14 @@ export function attentionState(latestPeriod: Budget | undefined, utilization: Bu
     return {
       label: 'Needs attention',
       background: 'var(--app-negative-soft)',
-      color: 'var(--app-negative)',
       textColor: 'var(--app-negative)',
-      indicatorColor: 'var(--app-negative)',
+      indicatorColor: getValueMarkColor('negative'),
     }
   }
   if (usedPercent >= 80) {
     return {
       label: 'Watch',
       background: 'var(--app-warning-soft)',
-      color: 'var(--app-warning)',
       textColor: 'var(--app-warning-text)',
       indicatorColor: 'var(--app-warning)',
     }
@@ -37,8 +38,7 @@ export function attentionState(latestPeriod: Budget | undefined, utilization: Bu
   return {
     label: 'On track',
     background: 'var(--app-positive-soft)',
-    color: 'var(--app-positive)',
     textColor: 'var(--app-positive)',
-    indicatorColor: 'var(--app-positive)',
+    indicatorColor: getValueMarkColor('positive'),
   }
 }

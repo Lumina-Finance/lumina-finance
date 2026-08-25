@@ -24,10 +24,13 @@ import type { SavingsRateHistoryPoint } from '@/pages/insights/types/savingsRate
 import {
   getSavingsRateAxisConfig,
   getSavingsRateChartPoints,
-  getSavingsRateTier,
   type SavingsRateChartPoint,
-  type SavingsRateTier,
 } from '@/pages/insights/utils/savingsRateChart'
+import {
+  getSavingsRateTier,
+  SAVINGS_RATE_TIERS,
+} from '@/utils/savingsRateTier'
+import { getValueMarkColor } from '@/utils/valueMarkColor'
 import { formatSavingsRateValue } from '@/pages/insights/utils/money'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 
@@ -73,12 +76,6 @@ function getSavingsRateTooltipPointer(
     clientY: event.clientY,
     chartX: typeof state.activeCoordinate?.x === 'number' ? state.activeCoordinate.x : undefined,
   }
-}
-
-function getSavingsRateTierColor(tier: SavingsRateTier) {
-  if (tier === 'positive') return 'var(--app-chart-positive)'
-  if (tier === 'negative') return 'var(--app-chart-negative)'
-  return 'var(--app-accent)'
 }
 
 /**
@@ -217,7 +214,7 @@ export function SavingsRateChart({
         >
           <svg width={0} height={0} style={{ position: 'absolute' }} aria-hidden>
             <defs>
-              {(['positive', 'accent', 'negative'] as const).map((tier) => (
+              {SAVINGS_RATE_TIERS.map((tier) => (
                 <pattern
                   key={tier}
                   id={`insights-savings-stripes-${tier}`}
@@ -229,7 +226,7 @@ export function SavingsRateChart({
                   <rect
                     width={3}
                     height={6}
-                    style={{ fill: getSavingsRateTierColor(tier) }}
+                    style={{ fill: getValueMarkColor(tier) }}
                   />
                 </pattern>
               ))}
@@ -280,7 +277,7 @@ export function SavingsRateChart({
                       fill={
                         entry.isCurrent
                           ? `url(#insights-savings-stripes-${tier})`
-                          : getSavingsRateTierColor(tier)
+                          : getValueMarkColor(tier)
                       }
                     />
                   )

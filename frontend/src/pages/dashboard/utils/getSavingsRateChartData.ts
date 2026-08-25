@@ -4,18 +4,6 @@ export type SavingsRateChartPoint = SavingsRateSeriesPoint & {
   chartRate: number | null
 }
 
-export type SavingsRateTier = 'positive' | 'accent' | 'negative'
-
-/**
- * Converts a savings rate into the colour tier used by the dashboard chart
- */
-export function getSavingsRateTier(rate: number | null): SavingsRateTier {
-  if (rate === null) return 'negative'
-  if (rate >= 20) return 'positive'
-  if (rate >= 10) return 'accent'
-  return 'negative'
-}
-
 /**
  * Caps outlier savings rates so the optional bounded chart remains readable
  */

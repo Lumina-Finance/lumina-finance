@@ -12,6 +12,7 @@ import {
   type BalanceChartPoint,
 } from '@/pages/accounts/detail/utils/balanceChartSeries'
 import { getTodayDate } from '@/utils/date'
+import { getValueMarkColor } from '@/utils/valueMarkColor'
 
 export type BalanceChartDataPoint = BalanceChartPoint & {
   periodBalance?: number
@@ -127,12 +128,18 @@ export function getBalanceChartSnapshot({
   const chartSeries = chartMode === 'balance' ? series : periodSeries
   const periodDelta = getBalancePeriodDelta(series)
   const trendUp = periodDelta !== null && periodDelta.absolute >= 0
-  const lineColor = currentBalance < 0 ? 'var(--app-negative)' : 'var(--app-accent)'
+  const lineColor = currentBalance < 0 ? getValueMarkColor('negative') : getValueMarkColor('accent')
+  const deltaTone = trendUp ? 'positive' : 'negative'
+
+  // The period change is written out as a figure and drawn as the line in change mode, so it
+  // carries a colour for each: the figure keeps the contrast a number needs, the line matches
+  // every other chart
   const deltaColor = periodDelta === null
     ? 'var(--app-text-muted)'
     : trendUp
       ? 'var(--app-positive)'
       : 'var(--app-negative)'
+  const deltaMarkColor = periodDelta === null ? 'var(--app-text-muted)' : getValueMarkColor(deltaTone)
 
   return {
     range,
@@ -142,7 +149,7 @@ export function getBalanceChartSnapshot({
     periodDelta,
     trendUp,
     deltaColor,
-    chartLineColor: chartMode === 'change' && periodDelta !== null ? deltaColor : lineColor,
+    chartLineColor: chartMode === 'change' && periodDelta !== null ? deltaMarkColor : lineColor,
     chartSeries,
     chartDataKey: chartMode === 'balance' ? 'balance' : 'periodBalance',
     axisStartMs: calendarDateMs(fromDate),

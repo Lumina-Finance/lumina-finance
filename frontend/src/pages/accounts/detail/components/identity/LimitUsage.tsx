@@ -1,5 +1,6 @@
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import {
+  getTaxAdvantagedUsageBarColor,
   getTaxAdvantagedUsageColor,
   getTaxAdvantagedUsagePercent,
 } from '@/pages/accounts/utils/taxAdvantagedLimits'
@@ -38,6 +39,7 @@ export function DetailLimitUsage({
   }
 
   const color = getTaxAdvantagedUsageColor(used, limit)
+  const barColor = getTaxAdvantagedUsageBarColor(used, limit)
   const usageLabel = `${formatCurrency(used, currency)} / ${formatCurrency(limit, currency)}`
   const usagePercent = getTaxAdvantagedUsagePercent(used, limit)
 
@@ -65,7 +67,7 @@ export function DetailLimitUsage({
           <div
             className="h-full rounded-full"
             style={{
-              background: color,
+              background: barColor,
               width: `${usagePercent}%`,
             }}
           />

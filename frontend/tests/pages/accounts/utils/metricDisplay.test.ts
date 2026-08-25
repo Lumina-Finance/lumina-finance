@@ -20,6 +20,7 @@ describe('account metric display helpers', () => {
       income: 0,
       progress: 0,
       color: 'var(--app-negative)',
+      barColor: 'var(--app-chart-negative)',
       fxStatus: undefined,
     }
 
@@ -39,6 +40,7 @@ describe('account metric display helpers', () => {
       totalUsed: 0,
       totalLimit: 0,
       color: 'var(--app-text-subtle)',
+      barColor: 'var(--app-text-subtle)',
       fxStatus: { state: 'unavailable', missing_pairs: [] },
     }
 

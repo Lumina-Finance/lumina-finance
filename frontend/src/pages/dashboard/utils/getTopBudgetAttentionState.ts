@@ -1,6 +1,12 @@
+import { getValueMarkColor } from '@/utils/valueMarkColor'
+
 export type TopBudgetAttentionState = {
   label: string
+
+  /** Colour of the written status, which needs contrast against the widget behind it */
   textColor: string
+
+  /** Colour of the dot beside it, which is a shape and matches every other shape reading a value */
   indicatorColor: string
 }
 
@@ -12,7 +18,7 @@ export function getTopBudgetAttentionState(usagePct: number): TopBudgetAttention
     return {
       label: 'Needs attention',
       textColor: 'var(--app-negative)',
-      indicatorColor: 'var(--app-negative)',
+      indicatorColor: getValueMarkColor('negative'),
     }
   }
 
@@ -27,6 +33,6 @@ export function getTopBudgetAttentionState(usagePct: number): TopBudgetAttention
   return {
     label: 'On track',
     textColor: 'var(--app-positive)',
-    indicatorColor: 'var(--app-positive)',
+    indicatorColor: getValueMarkColor('positive'),
   }
 }

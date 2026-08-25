@@ -4,16 +4,36 @@ import type { TaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
 import type { TaxAdvantagedLimitSummary } from '@/pages/accounts/types/accounts'
 import { type CompactMoneyRule, formatCompactMoney } from '@/utils/formatCompactMoney'
 import { formatMajorUnits, toMajorUnits } from '@/utils/formatCurrency'
+import { getValueMarkColor, type ValueMarkTone } from '@/utils/valueMarkColor'
 
 /**
- * Chooses the usage colour for tax-advantaged contribution and withdrawal meters
+ * Places tax-advantaged usage in a band, or reports that there is no band to place it in
+ *
+ * Room used up exactly is not over the limit, so it reads as spent rather than as a problem
+ */
+function getTaxAdvantagedUsageTone(used: number, limit: number): ValueMarkTone | null {
+  if (limit <= 0) return used > 0 ? 'negative' : null
+  if (used / limit > 1) return 'negative'
+  if (limit - used === 0) return null
+  return 'accent'
+}
+
+/**
+ * Chooses the colour of the percentage written beside a tax-advantaged meter
  */
 export function getTaxAdvantagedUsageColor(used: number, limit: number): string {
-  if (limit <= 0) return used > 0 ? 'var(--app-negative)' : 'var(--app-text-muted)'
-  const ratio = used / limit
-  if (ratio > 1) return 'var(--app-negative)'
-  if (limit - used === 0) return 'var(--app-text-muted)'
-  return 'var(--app-accent)'
+  const tone = getTaxAdvantagedUsageTone(used, limit)
+  if (tone === null) return 'var(--app-text-muted)'
+  return tone === 'negative' ? 'var(--app-negative)' : 'var(--app-accent)'
+}
+
+/**
+ * Chooses the colour of the meter bar itself, which is a shape rather than a figure
+ */
+export function getTaxAdvantagedUsageBarColor(used: number, limit: number): string {
+  const tone = getTaxAdvantagedUsageTone(used, limit)
+  if (tone === null) return 'var(--app-text-muted)'
+  return getValueMarkColor(tone)
 }
 
 /**

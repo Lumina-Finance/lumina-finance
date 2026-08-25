@@ -10,6 +10,7 @@ import {
   getRunwayFxStatusMessage,
   getSavingsRateFxStatusMessage,
 } from '@/utils/fxTooltipMessages'
+import { getValueMarkColor } from '@/utils/valueMarkColor'
 import { MetricPanel } from './Panel'
 
 type MetricsBandProps = {
@@ -53,7 +54,7 @@ export default function MetricsBand({
           value={savingsRateDisplay.value}
           valueColor={savingsRate.color}
           progress={savingsRate.progress}
-          progressColor={savingsRate.color}
+          progressColor={savingsRate.barColor}
           caption={savingsRateDisplay.caption}
         />
 
@@ -68,7 +69,7 @@ export default function MetricsBand({
           value={creditUsageDisplay.value}
           valueColor={creditUsage.color}
           progress={creditUsage.hasCreditData ? Math.max(0, Math.min(creditUsage.utilization, 100)) : 0}
-          progressColor={creditUsage.color}
+          progressColor={creditUsage.barColor}
           caption={creditUsageDisplay.caption}
         />
 
@@ -83,7 +84,7 @@ export default function MetricsBand({
           value={runway.label}
           valueColor={runway.months === null ? 'var(--app-text-subtle)' : 'var(--app-text)'}
           progress={runway.progress}
-          progressColor="linear-gradient(to right, var(--app-positive), var(--app-accent))"
+          progressColor={`linear-gradient(to right, ${getValueMarkColor('positive')}, ${getValueMarkColor('accent')})`}
           caption={runway.caption}
           help={<RunwayHelpTooltip />}
           headerClassName="pr-20"
