@@ -13,12 +13,17 @@ export function Checkbox({
   disabled,
   indeterminate = false,
   label,
+  uncheckedBackground = 'var(--app-input-bg)',
   onChange,
 }: {
   checked: boolean
   disabled?: boolean
   indeterminate?: boolean
   label: string
+
+  // What an empty box is filled with. The default reads against the page, and a caller putting a box
+  // on a surface of that same colour passes something else so the box does not disappear into it
+  uncheckedBackground?: string
 
   // Takes the click so a caller can read a held modifier key from it, which a range selection needs
   onChange: (event: React.MouseEvent) => void
@@ -31,7 +36,7 @@ export function Checkbox({
       aria-label={label}
       className="flex h-5 w-5 items-center justify-center rounded-lg transition-opacity duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
       style={{
-        background: checked || indeterminate ? 'var(--app-accent)' : 'var(--app-input-bg)',
+        background: checked || indeterminate ? 'var(--app-accent)' : uncheckedBackground,
         border: `1px solid ${checked || indeterminate ? 'var(--app-accent)' : 'var(--app-border-strong)'}`,
         color: 'var(--app-button-primary-text)',
         opacity: disabled ? 0.38 : 1,

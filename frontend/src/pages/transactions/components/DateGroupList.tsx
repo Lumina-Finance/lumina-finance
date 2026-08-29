@@ -115,19 +115,19 @@ export default function TransactionDateGroupList({
               transition={{ duration: prefersReducedMotion ? 0 : 0.28, ease: TRANSACTION_LIST_EASE }}
             >
             <div
-              className="sticky z-20 min-[1300px]:col-span-full"
+              className="sticky z-20 flex items-center justify-between rounded-lg py-2 pr-3 min-[1300px]:col-span-full"
               style={{
                 top: stickyTop,
-                // The page colour, which shows only in the rail beside the pill. It has to be
-                // opaque, since rows scroll underneath a heading once it has stuck
-                background: 'var(--app-bg)',
+                background: 'var(--app-input-bg)',
+                borderBottom: '1px solid var(--app-border)',
                 ...REACHES_ACROSS_TRANSACTION_CHECKBOX_RAIL,
-                paddingLeft: TRANSACTION_CHECKBOX_RAIL,
+                // The rail on top of the same padding the other side carries as pr-3, so the label
+                // starts level with the category icon under it
+                paddingLeft: `calc(0.75rem + ${TRANSACTION_CHECKBOX_RAIL})`,
               }}
             >
-              {/* Laid over the rail the way a row's tick is, so it takes none of the list's columns.
-                  It sits on the page colour rather than on the pill, whose own colour is the one an
-                  unticked box fills with and against which it would not read */}
+              {/* Laid over the rail the way a row's tick is, so it takes none of the list's columns
+                  and lines up with the ticks below it, while staying inside the heading's own bar */}
               <AnimatePresence initial={false}>
                 {headingSelection && (
                   <motion.span
@@ -150,6 +150,9 @@ export default function TransactionDateGroupList({
                       checked={headingSelection.mark === 'all'}
                       indeterminate={headingSelection.mark === 'some'}
                       disabled={headingSelection.mark === 'unselectable'}
+                      // The heading's bar is the colour an empty box fills with by default, so the
+                      // box takes the page colour instead and reads as a well cut into the bar
+                      uncheckedBackground="var(--app-bg)"
                       // Says the rows it covers rather than the day, since the list loads a page at
                       // a time and the last heading usually stands over only part of its day
                       label={`Select the transactions shown on ${dateLabel}`}
@@ -159,26 +162,18 @@ export default function TransactionDateGroupList({
                 )}
               </AnimatePresence>
 
-              <div
-                className="flex items-center justify-between rounded-lg px-3 py-2"
-                style={{
-                  background: 'var(--app-input-bg)',
-                  borderBottom: '1px solid var(--app-border)',
-                }}
+              <p
+                className="text-sm font-semibold uppercase tracking-wide"
+                style={{ color: 'var(--app-text-subtle)' }}
               >
-                <p
-                  className="text-sm font-semibold uppercase tracking-wide"
-                  style={{ color: 'var(--app-text-subtle)' }}
-                >
-                  {dateLabel}
-                </p>
-                <p
-                  className="font-financial text-sm font-medium"
-                  style={{ color: dailyColor }}
-                >
-                  {formatCurrency(dailyTotal, currency)}
-                </p>
-              </div>
+                {dateLabel}
+              </p>
+              <p
+                className="font-financial text-sm font-medium"
+                style={{ color: dailyColor }}
+              >
+                {formatCurrency(dailyTotal, currency)}
+              </p>
             </div>
 
             <AnimatePresence initial={false}>
