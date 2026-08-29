@@ -1,6 +1,6 @@
 /**
- * Which transactions a bulk edit covers, what a pending shift-click would change it to, and what
- * the panel sends once the user presses Apply.
+ * Which transactions a bulk edit covers, what a pending shift-click or day tick would change it to,
+ * and what the panel sends once the user presses Apply.
  *
  * Every transition is a pure function of the state and the rows on screen, so the range, the anchor,
  * the pointer preview and the request body can all be checked without rendering anything.
@@ -147,12 +147,21 @@ export interface BulkSelectionState {
 
   /** The row the pointer is over while shift is held, or null when nothing is being previewed */
   hoveredId: string | null;
+
+  /**
+   * The transactions shown under the day heading the pointer is over, or null when no heading is
+   * being previewed. Held whether or not shift is down, since a day tick takes everything under one
+   * heading rather than a range with a far end to aim
+   */
+  hoveredGroupIds: string[] | null;
 }
 
 export type BulkSelectionAction =
   | { type: 'toggle'; id: string; rows: SelectableRow[] }
   | { type: 'extend'; id: string; rows: SelectableRow[] }
+  | { type: 'toggleGroup'; ids: string[]; rows: SelectableRow[] }
   | { type: 'hover'; id: string | null }
+  | { type: 'hoverGroup'; ids: string[] | null }
   | { type: 'keepDisplayed'; ids: string[] }
   | { type: 'clear' };
 
@@ -161,6 +170,7 @@ export const emptyBulkSelection: BulkSelectionState = {
   anchorId: null,
   baselineIds: new Set(),
   hoveredId: null,
+  hoveredGroupIds: null,
 };
 
 /**
@@ -197,8 +207,68 @@ export function resultingSelection(
 }
 
 /**
- * Returns what the selection would become if the pending shift-click happened, or null when nothing
- * is pending.
+ * Returns the transactions under one day heading that the app allows editing, in the order the
+ * heading shows them.
+ *
+ * @param ids The transactions shown under one heading
+ * @param rows Every row on screen, which is what says whether one can be edited
+ */
+function editableGroupIds(ids: string[], rows: SelectableRow[]): string[] {
+  return ids.filter((id) => rows.find((row) => row.id === id)?.isReadOnly === false);
+}
+
+/**
+ * Returns what the selection becomes when a day heading's tick is clicked, or null when the day
+ * shows nothing the app allows editing and the click changes nothing.
+ *
+ * A day already taken whole is dropped whole, and anything else is taken. Either way the ticks in
+ * other days are left as they are.
+ */
+export function groupResultingSelection(
+  selectedIds: Set<string>,
+  ids: string[],
+  rows: SelectableRow[],
+): Set<string> | null {
+  const editable = editableGroupIds(ids, rows);
+  if (editable.length === 0) return null;
+
+  const dropsTheDay = editable.every((id) => selectedIds.has(id));
+  const resulting = new Set(selectedIds);
+  for (const id of editable) {
+    if (dropsTheDay) resulting.delete(id);
+    else resulting.add(id);
+  }
+  return resulting;
+}
+
+/** How a day heading is marked, read against the rows it shows that the app allows editing */
+export type GroupSelectionMark = 'none' | 'some' | 'all' | 'unselectable';
+
+/**
+ * Returns how a day heading's tick is marked.
+ *
+ * Read against the transactions the heading shows rather than the whole calendar day, since the list
+ * loads a page at a time and the last heading on screen usually stands over only part of its day.
+ * Once a later page adds more of that day, a heading that read all falls back to some.
+ *
+ * A day showing nothing the app allows editing is unselectable rather than unticked, so the heading
+ * can offer a tick that is plainly off rather than one that refuses when clicked.
+ */
+export function groupSelectionMark(
+  ids: string[],
+  rows: SelectableRow[],
+  selectedIds: Set<string>,
+): GroupSelectionMark {
+  const editable = editableGroupIds(ids, rows);
+  if (editable.length === 0) return 'unselectable';
+  if (editable.every((id) => selectedIds.has(id))) return 'all';
+  if (editable.some((id) => selectedIds.has(id))) return 'some';
+  return 'none';
+}
+
+/**
+ * Returns what the selection would become if the pending click happened, or null when nothing is
+ * pending.
  *
  * This is the whole resulting set rather than only the rows a click would add, so the highlight can
  * show a row the click would drop losing its mark before anything is clicked.
@@ -207,11 +277,22 @@ export function previewSelection(
   state: BulkSelectionState,
   rows: SelectableRow[],
 ): Set<string> | null {
+  // The pointer is over a day heading or over a row, never both, so only one of these is ever set
+  if (state.hoveredGroupIds !== null) {
+    return groupResultingSelection(state.selectedIds, state.hoveredGroupIds, rows);
+  }
+
   if (state.hoveredId === null) return null;
   return resultingSelection(state, state.hoveredId, rows);
 }
 
-/** How one row is marked, once any pending shift-click is taken into account */
+/** Returns whether two hovered headings are the same one, so a repeated move changes no state */
+function isSameGroup(current: string[] | null, next: string[] | null): boolean {
+  if (current === null || next === null) return current === next;
+  return current.length === next.length && current.every((id, index) => id === next[index]);
+}
+
+/** How one row is marked, once any pending shift-click or day tick is taken into account */
 export type RowSelectionMark = 'none' | 'selected' | 'pending';
 
 /**
@@ -249,7 +330,13 @@ export function bulkSelectionReducer(
 
       // The clicked row becomes the anchor whichever way it went, and the ticks left behind become
       // the baseline the next range builds on
-      return { selectedIds, anchorId: action.id, baselineIds: new Set(selectedIds), hoveredId: null };
+      return {
+        selectedIds,
+        anchorId: action.id,
+        baselineIds: new Set(selectedIds),
+        hoveredId: null,
+        hoveredGroupIds: null,
+      };
     }
 
     case 'extend': {
@@ -257,12 +344,41 @@ export function bulkSelectionReducer(
       if (resulting === null) {
         return bulkSelectionReducer(state, { type: 'toggle', id: action.id, rows: action.rows });
       }
-      return { ...state, selectedIds: resulting, hoveredId: null };
+      return { ...state, selectedIds: resulting, hoveredId: null, hoveredGroupIds: null };
     }
 
-    case 'hover':
-      if (state.hoveredId === action.id) return state;
-      return { ...state, hoveredId: action.id };
+    case 'toggleGroup': {
+      const resulting = groupResultingSelection(state.selectedIds, action.ids, action.rows);
+      if (resulting === null) return state;
+
+      // No single row was clicked, so there is no anchor for a following shift-click to run from.
+      // The baseline goes with it rather than being left behind pointing at ticks that have gone
+      return {
+        selectedIds: resulting,
+        anchorId: null,
+        baselineIds: new Set(resulting),
+        hoveredId: null,
+        hoveredGroupIds: null,
+      };
+    }
+
+    case 'hover': {
+      // A row under the pointer means no day heading is under it, so a heading preview left behind
+      // goes with it. Clearing the row hover leaves the heading preview alone, since releasing shift
+      // clears the row hover and a day preview never depended on shift
+      const hoveredGroupIds = action.id === null ? state.hoveredGroupIds : null;
+      if (state.hoveredId === action.id && state.hoveredGroupIds === hoveredGroupIds) return state;
+      return { ...state, hoveredId: action.id, hoveredGroupIds };
+    }
+
+    case 'hoverGroup': {
+      // A heading under the pointer means no row is under it, so a row preview left behind goes with
+      // it. Without that, moving off the small tick onto the heading's own label would put the old
+      // range back up over rows the pointer is nowhere near
+      const hoveredId = action.ids === null ? state.hoveredId : null;
+      if (isSameGroup(state.hoveredGroupIds, action.ids) && state.hoveredId === hoveredId) return state;
+      return { ...state, hoveredGroupIds: action.ids, hoveredId };
+    }
 
     case 'keepDisplayed': {
       const displayed = new Set(action.ids);

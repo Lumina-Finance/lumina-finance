@@ -46,7 +46,7 @@ function describeTransferCounterparty(
  * selection at all
  */
 export interface TransactionRowSelection {
-  /** How the row is marked once any pending shift-click is taken into account */
+  /** How the row is marked once any pending shift-click or day tick is taken into account */
   mark: RowSelectionMark
 
   /** False for a row the app does not allow editing, such as one on an archived account */

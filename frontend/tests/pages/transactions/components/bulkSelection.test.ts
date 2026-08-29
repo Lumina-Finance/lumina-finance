@@ -1,6 +1,6 @@
 /**
  * Tests which transactions a bulk edit covers: the range a shift-click takes, the anchor it runs
- * from, and the preview shown while the pointer moves with shift held
+ * from, the rows a day heading's tick takes, and the preview shown before either one is clicked
  */
 import { describe, expect, it } from 'vitest'
 import type { Category } from '@/api/categories'
@@ -10,6 +10,7 @@ import {
   getBulkMoveTargets,
   bulkSelectionReducer,
   emptyBulkSelection,
+  groupSelectionMark,
   hasBulkEditChoice,
   previewSelection,
   rowSelectionMark,
@@ -156,6 +157,149 @@ function untouched(overrides: Partial<BulkEditChoice> = {}): BulkEditChoice {
     ...overrides,
   }
 }
+
+// The two days a heading tick works over. Day one holds a read-only row, so a tick that took every
+// row rather than every editable one shows up in the result
+const dayOne = ['a', 'b', 'c']
+const dayTwo = ['d', 'e']
+
+/** Ticks a whole day heading, the way clicking its tick does */
+function clickDay(state: BulkSelectionState, ids: string[], over = withReadOnlyC) {
+  return bulkSelectionReducer(state, { type: 'toggleGroup', ids, rows: over })
+}
+
+/** Rests the pointer on a day heading's tick */
+function hoverDay(state: BulkSelectionState, ids: string[] | null) {
+  return bulkSelectionReducer(state, { type: 'hoverGroup', ids })
+}
+
+/** Rests the pointer on a row with shift held */
+function hoverRow(state: BulkSelectionState, id: string | null) {
+  return bulkSelectionReducer(state, { type: 'hover', id })
+}
+
+/** Marks one row against whatever preview the state is showing */
+function markOf(state: BulkSelectionState, id: string, over = withReadOnlyC) {
+  return rowSelectionMark(id, state.selectedIds, previewSelection(state, over))
+}
+
+describe("the rows a day heading's tick takes", () => {
+  it('takes only the rows the app allows editing', () => {
+    expect([...clickDay(emptyBulkSelection, dayOne).selectedIds]).toEqual(['a', 'b'])
+  })
+
+  it('keeps the ticks made in other days', () => {
+    const withD = click(emptyBulkSelection, 'd', false, withReadOnlyC)
+    expect([...clickDay(withD, dayOne).selectedIds].sort()).toEqual(['a', 'b', 'd'])
+  })
+
+  it('drops the day again once all of it is ticked, leaving the other days alone', () => {
+    const both = clickDay(clickDay(emptyBulkSelection, dayOne), dayTwo)
+    expect([...both.selectedIds].sort()).toEqual(['a', 'b', 'd', 'e'])
+    expect([...clickDay(both, dayOne).selectedIds].sort()).toEqual(['d', 'e'])
+  })
+
+  it('offers nothing on a day with no row the app allows editing', () => {
+    const readOnlyDay = ['c']
+    expect(groupSelectionMark(readOnlyDay, withReadOnlyC, new Set())).toBe('unselectable')
+    expect(clickDay(emptyBulkSelection, readOnlyDay)).toBe(emptyBulkSelection)
+  })
+
+  it('sets no anchor, so a shift-click straight after it ticks the one row it lands on', () => {
+    const afterDay = clickDay(emptyBulkSelection, dayOne)
+    expect([...click(afterDay, 'e', true, withReadOnlyC).selectedIds].sort()).toEqual(['a', 'b', 'e'])
+  })
+})
+
+describe('how a day heading is marked', () => {
+  it('reads mixed while only some of its rows are ticked', () => {
+    expect(groupSelectionMark(dayOne, withReadOnlyC, new Set(['a']))).toBe('some')
+  })
+
+  it('reads ticked once every row the app allows editing is ticked', () => {
+    expect(groupSelectionMark(dayOne, withReadOnlyC, new Set(['a', 'b']))).toBe('all')
+  })
+
+  it('reads mixed again once a later page adds more of that day', () => {
+    expect(groupSelectionMark(['a', 'b'], withReadOnlyC, new Set(['a', 'b']))).toBe('all')
+    expect(groupSelectionMark(['a', 'b', 'f'], withReadOnlyC, new Set(['a', 'b']))).toBe('some')
+  })
+
+  it('reads unticked while none of its rows are ticked', () => {
+    expect(groupSelectionMark(dayOne, withReadOnlyC, new Set(['d']))).toBe('none')
+  })
+})
+
+describe('the preview shown while the pointer rests on a day heading', () => {
+  it('shows the whole day taken, keeping the ticks made in other days', () => {
+    const ticked = click(click(emptyBulkSelection, 'a', false, withReadOnlyC), 'd', false, withReadOnlyC)
+    const state = hoverDay(ticked, dayOne)
+    expect(markOf(state, 'a')).toBe('selected')
+    expect(markOf(state, 'b')).toBe('pending')
+    expect(markOf(state, 'c')).toBe('none')
+    expect(markOf(state, 'd')).toBe('selected')
+  })
+
+  it('shows a fully ticked day dropped, keeping the ticks made in other days', () => {
+    const ticked = click(clickDay(emptyBulkSelection, dayOne), 'd', false, withReadOnlyC)
+    const state = hoverDay(ticked, dayOne)
+    expect(markOf(state, 'a')).toBe('none')
+    expect(markOf(state, 'b')).toBe('none')
+    expect(markOf(state, 'd')).toBe('selected')
+  })
+
+  it('replaces a range the pointer left pending', () => {
+    const pendingRange = hoverRow(click(emptyBulkSelection, 'b', false, withReadOnlyC), 'e')
+    expect(markOf(pendingRange, 'd')).toBe('pending')
+
+    const state = hoverDay(pendingRange, dayTwo)
+    expect(markOf(state, 'b')).toBe('selected')
+    expect(markOf(state, 'c')).toBe('none')
+    expect(markOf(state, 'd')).toBe('pending')
+    expect(markOf(state, 'e')).toBe('pending')
+  })
+  it('drops the pending range outright, so moving off the heading leaves nothing lit', () => {
+    const pendingRange = hoverRow(click(emptyBulkSelection, 'b', false, withReadOnlyC), 'e')
+    const onHeading = hoverDay(pendingRange, dayTwo)
+    expect(onHeading.hoveredId).toBeNull()
+
+    // Leaving the tick for the heading's own label, which is still neither a row nor outside the list
+    const offHeading = hoverDay(onHeading, null)
+    expect(previewSelection(offHeading, withReadOnlyC)).toBeNull()
+    expect(markOf(offHeading, 'e')).toBe('none')
+  })
+
+  it('moves to the day the pointer moved to, even where both days show the same number of rows', () => {
+    const state = hoverDay(hoverDay(emptyBulkSelection, ['a', 'b']), ['d', 'e'])
+    expect(state.hoveredGroupIds).toEqual(['d', 'e'])
+  })
+
+  it('goes when the pointer moves onto a row, letting a pending range show instead', () => {
+    const onARow = hoverRow(hoverDay(click(emptyBulkSelection, 'b', false, withReadOnlyC), dayOne), 'e')
+    expect(onARow.hoveredGroupIds).toBeNull()
+    expect(markOf(onARow, 'e')).toBe('pending')
+  })
+
+  it('stays up when shift is released, which only takes the row preview', () => {
+    const afterShiftRelease = hoverRow(hoverDay(emptyBulkSelection, dayOne), null)
+    expect(afterShiftRelease.hoveredGroupIds).toEqual(dayOne)
+  })
+
+
+  it('goes once the day is ticked, so its rows read as ticked rather than as about to be dropped', () => {
+    const state = clickDay(hoverDay(emptyBulkSelection, dayOne), dayOne)
+    expect(previewSelection(state, withReadOnlyC)).toBeNull()
+    expect(markOf(state, 'a')).toBe('selected')
+    expect(markOf(state, 'b')).toBe('selected')
+  })
+
+  it('takes a pending range with it when a day is ticked', () => {
+    const pendingRange = hoverRow(click(emptyBulkSelection, 'b', false, withReadOnlyC), 'e')
+    const state = clickDay(pendingRange, dayTwo)
+    expect(state.hoveredId).toBeNull()
+    expect(markOf(state, 'c')).toBe('none')
+  })
+})
 
 describe('the details the panel sends', () => {
   it('leaves out a control the user did not touch', () => {

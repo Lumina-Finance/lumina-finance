@@ -188,8 +188,20 @@ export default function TransactionListSection({
     [selection],
   )
 
+  // Takes the transactions one day heading shows, which is what its tick covers. Whether any of them
+  // can be edited is decided inside the selection, so nothing is filtered here
+  const buildHeadingSelection = useCallback(
+    (shownTransactionIds: string[]) => ({
+      mark: selection.groupMarkFor(shownTransactionIds),
+      onToggle: () => selection.toggleGroup(shownTransactionIds),
+      onPointerMove: () => selection.handleGroupPointerMove(shownTransactionIds),
+      onPointerLeave: () => selection.handleGroupPointerLeave(),
+    }),
+    [selection],
+  )
+
   /**
-   * Leaves selection mode, dropping the ticks and the anchor with it
+   * Leaves selection mode, dropping the ticks, the anchor and any preview with them
    */
   const stopSelecting = useCallback(() => {
     setIsSelecting(false)
@@ -328,6 +340,7 @@ export default function TransactionListSection({
                 skipEnterAnimation={skipAppendedEnter}
                 isSelecting={isSelecting}
                 buildRowSelection={isSelecting ? buildRowSelection : undefined}
+                buildHeadingSelection={isSelecting ? buildHeadingSelection : undefined}
                 onEditTransaction={onEditTransaction}
               />
 

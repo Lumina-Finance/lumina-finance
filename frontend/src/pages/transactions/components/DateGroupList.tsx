@@ -2,7 +2,9 @@ import { AnimatePresence, motion } from 'motion/react'
 import type { Category } from '@/api/categories'
 import type { Transaction } from '@/api/transactions'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
+import { Checkbox } from '@/components/forms/Checkbox'
 import TransactionRow, { type TransactionRowSelection } from '@/components/transactions/Row'
+import type { GroupSelectionMark } from '@/pages/transactions/components/bulk-edit/selection'
 import {
   REACHES_ACROSS_TRANSACTION_CHECKBOX_RAIL,
   TRANSACTION_CHECKBOX_RAIL,
@@ -23,6 +25,20 @@ const LIST_COLUMNS =
   'min-[1300px]:grid-cols-[2.5rem_fit-content(24rem)_fit-content(18rem)_minmax(0,1fr)_max-content_max-content]'
 
 /**
+ * What a day heading needs while the list is in selection mode
+ *
+ * Absent outside it, which is also how the heading knows whether to offer a tick at all
+ */
+export interface TransactionDateHeadingSelection {
+  /** How the tick is marked, read against the rows the heading shows that the app allows editing */
+  mark: GroupSelectionMark
+
+  onToggle: () => void
+  onPointerMove: () => void
+  onPointerLeave: () => void
+}
+
+/**
  * Renders grouped transaction rows with sticky date totals
  */
 export default function TransactionDateGroupList({
@@ -37,6 +53,7 @@ export default function TransactionDateGroupList({
   skipEnterAnimation = false,
   isSelecting = false,
   buildRowSelection,
+  buildHeadingSelection,
   onEditTransaction,
 }: {
   dateGroups: TransactionDateGroup[]
@@ -52,6 +69,8 @@ export default function TransactionDateGroupList({
   // Opens the rail the checkbox sits in, which the import preview never asks for
   isSelecting?: boolean
   buildRowSelection?: (transactionId: string, isReadOnly: boolean) => TransactionRowSelection
+  // Takes the transactions one heading shows, which is what its tick covers
+  buildHeadingSelection?: (shownTransactionIds: string[]) => TransactionDateHeadingSelection
   onEditTransaction: (transaction: Transaction) => void
 }) {
   const { formatCurrency } = useMoneyFormatters()
@@ -76,6 +95,7 @@ export default function TransactionDateGroupList({
         {dateGroups.map(({ dateLabel, transactions }) => {
           const dailyTotal = getTransactionDateGroupTotal(transactions, fixedAccount)
           const dailyColor = dailyTotal >= 0 ? 'var(--app-positive)' : 'var(--app-negative)'
+          const headingSelection = buildHeadingSelection?.(transactions.map((transaction) => transaction.id))
           return (
             <motion.div
               key={`${dateLabel}-${listRevealKey}`}
@@ -95,27 +115,70 @@ export default function TransactionDateGroupList({
               transition={{ duration: prefersReducedMotion ? 0 : 0.28, ease: TRANSACTION_LIST_EASE }}
             >
             <div
-              className="sticky z-20 flex items-center justify-between rounded-lg py-2 pr-3 min-[1300px]:col-span-full"
+              className="sticky z-20 min-[1300px]:col-span-full"
               style={{
                 top: stickyTop,
-                background: 'var(--app-input-bg)',
-                borderBottom: '1px solid var(--app-border)',
+                // The page colour, which shows only in the rail beside the pill. It has to be
+                // opaque, since rows scroll underneath a heading once it has stuck
+                background: 'var(--app-bg)',
                 ...REACHES_ACROSS_TRANSACTION_CHECKBOX_RAIL,
-                paddingLeft: `calc(0.75rem + ${TRANSACTION_CHECKBOX_RAIL})`,
+                paddingLeft: TRANSACTION_CHECKBOX_RAIL,
               }}
             >
-              <p
-                className="text-sm font-semibold uppercase tracking-wide"
-                style={{ color: 'var(--app-text-subtle)' }}
+              {/* Laid over the rail the way a row's tick is, so it takes none of the list's columns.
+                  It sits on the page colour rather than on the pill, whose own colour is the one an
+                  unticked box fills with and against which it would not read */}
+              <AnimatePresence initial={false}>
+                {headingSelection && (
+                  <motion.span
+                    key="heading-checkbox"
+                    className="absolute inset-y-0 left-0 flex items-center justify-center"
+                    style={{ width: TRANSACTION_CHECKBOX_RAIL_WIDTH }}
+                    initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.72 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.72 }}
+                    transition={{
+                      duration: prefersReducedMotion ? 0 : TRANSACTION_CHECKBOX_RAIL_DURATION_S,
+                      ease: TRANSACTION_LIST_EASE,
+                    }}
+                    // On a move rather than on entry, since a stuck heading travels under a still
+                    // pointer as the list scrolls and would otherwise light each day it passed
+                    onMouseMove={headingSelection.onPointerMove}
+                    onMouseLeave={headingSelection.onPointerLeave}
+                  >
+                    <Checkbox
+                      checked={headingSelection.mark === 'all'}
+                      indeterminate={headingSelection.mark === 'some'}
+                      disabled={headingSelection.mark === 'unselectable'}
+                      // Says the rows it covers rather than the day, since the list loads a page at
+                      // a time and the last heading usually stands over only part of its day
+                      label={`Select the transactions shown on ${dateLabel}`}
+                      onChange={headingSelection.onToggle}
+                    />
+                  </motion.span>
+                )}
+              </AnimatePresence>
+
+              <div
+                className="flex items-center justify-between rounded-lg px-3 py-2"
+                style={{
+                  background: 'var(--app-input-bg)',
+                  borderBottom: '1px solid var(--app-border)',
+                }}
               >
-                {dateLabel}
-              </p>
-              <p
-                className="font-financial text-sm font-medium"
-                style={{ color: dailyColor }}
-              >
-                {formatCurrency(dailyTotal, currency)}
-              </p>
+                <p
+                  className="text-sm font-semibold uppercase tracking-wide"
+                  style={{ color: 'var(--app-text-subtle)' }}
+                >
+                  {dateLabel}
+                </p>
+                <p
+                  className="font-financial text-sm font-medium"
+                  style={{ color: dailyColor }}
+                >
+                  {formatCurrency(dailyTotal, currency)}
+                </p>
+              </div>
             </div>
 
             <AnimatePresence initial={false}>

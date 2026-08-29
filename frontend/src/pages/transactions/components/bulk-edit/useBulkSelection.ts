@@ -2,14 +2,17 @@ import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react'
 import {
   bulkSelectionReducer,
   emptyBulkSelection,
+  groupSelectionMark,
   previewSelection,
   rowSelectionMark,
+  type GroupSelectionMark,
   type RowSelectionMark,
   type SelectableRow,
 } from '@/pages/transactions/components/bulk-edit/selection'
 
 /**
- * Holds which transactions a bulk edit covers, and lights the rows a pending shift-click would take.
+ * Holds which transactions a bulk edit covers, and lights the rows a pending shift-click or day tick
+ * would take.
  *
  * @param rows The rows on screen, in the order they appear, which is what a range runs along
  * @param requestKey Identifies the list being shown, so the selection empties when the list changes
@@ -43,9 +46,16 @@ export function useBulkSelection(rows: SelectableRow[], requestKey: string, isSe
   }, [displayedIds, isSettled])
 
   useEffect(() => {
-    function clearPreview() {
+    function clearRangePreview() {
       shiftHeldRef.current = false
       dispatch({ type: 'hover', id: null })
+    }
+
+    // Leaving the page takes the pointer with it, so the day heading it was resting on stops being
+    // hovered as well. Releasing shift does not, since a day preview never depended on shift
+    function clearEveryPreview() {
+      clearRangePreview()
+      dispatch({ type: 'hoverGroup', ids: null })
     }
 
     // The search box sits directly above the list, so a capital letter typed there would otherwise
@@ -66,7 +76,7 @@ export function useBulkSelection(rows: SelectableRow[], requestKey: string, isSe
 
     function handleKeyUp(event: KeyboardEvent) {
       if (event.key !== 'Shift') return
-      clearPreview()
+      clearRangePreview()
     }
 
     window.addEventListener('keydown', handleKeyDown)
@@ -74,14 +84,14 @@ export function useBulkSelection(rows: SelectableRow[], requestKey: string, isSe
 
     // A shift released in another application never reaches this page, so the flag would otherwise
     // stay set and promise a range the click would not take
-    window.addEventListener('blur', clearPreview)
-    document.addEventListener('visibilitychange', clearPreview)
+    window.addEventListener('blur', clearEveryPreview)
+    document.addEventListener('visibilitychange', clearEveryPreview)
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
       window.removeEventListener('keyup', handleKeyUp)
-      window.removeEventListener('blur', clearPreview)
-      document.removeEventListener('visibilitychange', clearPreview)
+      window.removeEventListener('blur', clearEveryPreview)
+      document.removeEventListener('visibilitychange', clearEveryPreview)
     }
   }, [])
 
@@ -92,8 +102,19 @@ export function useBulkSelection(rows: SelectableRow[], requestKey: string, isSe
     [state.selectedIds, preview],
   )
 
+  // Read against the ticks as they stand rather than against the preview, so resting the pointer on
+  // a day heading does not show its tick already taken
+  const groupMarkFor = useCallback(
+    (ids: string[]): GroupSelectionMark => groupSelectionMark(ids, rows, state.selectedIds),
+    [rows, state.selectedIds],
+  )
+
   const toggle = useCallback((id: string, withShift: boolean) => {
     dispatch({ type: withShift ? 'extend' : 'toggle', id, rows: rowsRef.current })
+  }, [])
+
+  const toggleGroup = useCallback((ids: string[]) => {
+    dispatch({ type: 'toggleGroup', ids, rows: rowsRef.current })
   }, [])
 
   const handlePointerEnter = useCallback((id: string) => {
@@ -101,9 +122,21 @@ export function useBulkSelection(rows: SelectableRow[], requestKey: string, isSe
     if (shiftHeldRef.current) dispatch({ type: 'hover', id })
   }, [])
 
+  // Taken on a move rather than on entry, because a sticky heading travels under a still pointer
+  // while the list scrolls, and every day it passed would otherwise light its rows in turn
+  const handleGroupPointerMove = useCallback((ids: string[]) => {
+    pointerRowRef.current = null
+    dispatch({ type: 'hoverGroup', ids })
+  }, [])
+
+  const handleGroupPointerLeave = useCallback(() => {
+    dispatch({ type: 'hoverGroup', ids: null })
+  }, [])
+
   const handlePointerLeaveList = useCallback(() => {
     pointerRowRef.current = null
     dispatch({ type: 'hover', id: null })
+    dispatch({ type: 'hoverGroup', ids: null })
   }, [])
 
   const clear = useCallback(() => {
@@ -114,5 +147,16 @@ export function useBulkSelection(rows: SelectableRow[], requestKey: string, isSe
 
   const selectedIds = useMemo(() => [...state.selectedIds], [state.selectedIds])
 
-  return { selectedIds, markFor, toggle, handlePointerEnter, handlePointerLeaveList, clear }
+  return {
+    selectedIds,
+    markFor,
+    groupMarkFor,
+    toggle,
+    toggleGroup,
+    handlePointerEnter,
+    handleGroupPointerMove,
+    handleGroupPointerLeave,
+    handlePointerLeaveList,
+    clear,
+  }
 }
