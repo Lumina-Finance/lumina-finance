@@ -17,8 +17,12 @@ export type DesktopToolbarLayoutState = DesktopToolbarRefs & {
 
 /**
  * Measures the desktop toolbar so the search field, filter group, and create button wrap before they collide
+ *
+ * @param actionsKey Changes whenever the toolbar swaps its own controls, which re-measures. The observers
+ *     watch boxes rather than contents, and a wrapped filter group is already stretched to the row, so a
+ *     button appearing inside it changes nothing any of them would see
  */
-export function useDesktopToolbarLayout(): DesktopToolbarLayoutState {
+export function useDesktopToolbarLayout(actionsKey = ''): DesktopToolbarLayoutState {
   const toolbarRef = useRef<HTMLDivElement>(null)
   const controlsRef = useRef<HTMLDivElement>(null)
   const filterGroupRef = useRef<HTMLDivElement>(null)
@@ -77,7 +81,7 @@ export function useDesktopToolbarLayout(): DesktopToolbarLayoutState {
       resizeObserver.disconnect()
       window.removeEventListener('resize', updateCreateLayout)
     }
-  }, [])
+  }, [actionsKey])
 
   return {
     toolbarRef,

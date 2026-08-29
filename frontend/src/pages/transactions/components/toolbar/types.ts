@@ -27,5 +27,14 @@ export type TransactionListToolbarProps = {
 
   // Whether the list is showing a checkbox on every row, so a bulk edit can pick rows out
   isSelecting?: boolean
+
+  // How many rows are ticked, which is what decides whether the edit button can be pressed
+  selectedCount?: number
+
+  // Shown as the edit button's title while it is off for a reason other than nothing being ticked
+  editDisabledReason?: string
+
+  // Opens the bulk edit modal. Absent on a list that offers no selection at all
+  onEditSelection?: () => void
   onToggleSelecting?: () => void
 }

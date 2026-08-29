@@ -21,9 +21,11 @@ export type ToolbarShellState = DesktopToolbarLayoutState & MobileSearchStuckSta
  * Combines the desktop wrap layout, the mobile sticky search state, the toolbar dock state, and the
  * mobile filter sheet's open and mounted lifecycle shared by the account and transaction list
  * toolbars
+ *
+ * @param actionsKey Changes whenever the toolbar swaps its own controls, so the wrap layout re-measures
  */
-export function useToolbarShellState(): ToolbarShellState {
-  const desktopLayout = useDesktopToolbarLayout()
+export function useToolbarShellState(actionsKey?: string): ToolbarShellState {
+  const desktopLayout = useDesktopToolbarLayout(actionsKey)
   const mobileSearchStuck = useMobileSearchStuck()
   const toolbarStuck = useToolbarStuck()
   const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(false)

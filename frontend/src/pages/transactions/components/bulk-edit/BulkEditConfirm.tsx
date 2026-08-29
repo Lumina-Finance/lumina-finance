@@ -11,7 +11,7 @@ interface BulkEditConfirmProps {
 }
 
 /**
- * Asks before a bulk edit is written, whatever the size of the selection
+ * Asks before a bulk edit is written, whatever the size of the selection, over the edit modal
  *
  * A refusal keeps this open and shows what the server said, since the batch is applied whole or not
  * at all and the user has to know that nothing changed.
@@ -32,6 +32,9 @@ export function BulkEditConfirm({
       onClose={onCancel}
       titleId={titleId}
       panelClassName="app-modal-panel w-full max-w-md p-5"
+      // Opened from the edit modal rather than from the page, so it stacks above it rather than
+      // landing on top only because its portal node was appended later
+      level="stacked"
       closeDisabled={isApplying}
     >
       <h2 id={titleId} className="text-lg font-semibold">

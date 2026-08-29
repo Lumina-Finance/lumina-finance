@@ -6,6 +6,7 @@
  * the pointer preview and the request body can all be checked without rendering anything.
  */
 import type { Category } from '@/api/categories'
+import { MAX_BULK_EDIT_TRANSACTIONS } from '@/pages/transactions/components/bulk-edit/constants'
 import {
   BALANCE_ADJUSTMENT_CATEGORY_NAME,
   doesTransferRecordCounterpartyAccount,
@@ -69,8 +70,11 @@ export interface BulkEditChoice {
 
   transferTarget: TransferTargetChoice | null
 
-  /** True when the chosen category records the account on the other side of a transfer */
-  categoryRecordsTransferTarget: boolean
+  /**
+   * True when every selected transaction ends up under a category that records the account on the
+   * other side of a transfer, which is what decides whether the answer can be sent at all
+   */
+  resultingCategoriesRecordTransferTarget: boolean
 }
 
 /** The details a bulk request carries, which is everything in it except the transactions it covers */
@@ -102,9 +106,9 @@ export function buildBulkEditFields(choice: BulkEditChoice): BulkEditFields {
     ...(accountId ? { account_id: accountId } : {}),
     ...(date ? { dt: date } : {}),
     ...(clearsNote ? { notes: null } : note ? { notes: note } : {}),
-    // Only sent under a category that records one. A target picked before the category was changed
-    // is otherwise still in the panel's state, invisible, and refuses the whole batch
-    ...(transferTarget && choice.categoryRecordsTransferTarget
+    // Only sent where every row ends up recording one. A target picked before the category was
+    // changed is otherwise still in the panel's state, invisible, and refuses the whole batch
+    ...(transferTarget && choice.resultingCategoriesRecordTransferTarget
       ? {
           counterparty_account_scope: transferTarget.scope,
           counterparty_account_id: transferTarget.scope === 'tracked' ? transferTarget.accountId : null,
@@ -114,15 +118,143 @@ export function buildBulkEditFields(choice: BulkEditChoice): BulkEditFields {
 }
 
 /**
- * Returns whether the panel holds something the server would accept.
+ * Returns whether the edit fills in anything at all.
  *
- * Not derived from the fields alone: a category that records the other side of a transfer is a
- * field, but on its own it is a request the server refuses, so it does not count until the transfer
- * target is answered.
+ * Only that. Whether the server would take what it holds is a separate question, answered by
+ * getBulkEditBlockers against the rows the edit covers rather than against the edit alone.
  */
 export function hasBulkEditChoice(choice: BulkEditChoice): boolean {
-  if (choice.categoryRecordsTransferTarget && choice.transferTarget === null) return false
   return Object.keys(buildBulkEditFields(choice)).length > 0
+}
+
+/** One selected transaction, as the rules about what an edit may do to it see it */
+export interface SelectedTransactionFacts {
+  id: string;
+
+  /** The account it sits in, which a move changes */
+  accountId: string;
+
+  /** False for a row recorded before a merchant was required, which the server refuses to edit */
+  hasMerchant: boolean;
+
+  /** Whether its own category records the account on the other side of a transfer */
+  recordsFarSide: boolean;
+
+  /**
+   * Whether it has an answer for that other side. Read off the scope rather than off the account, the
+   * way the server reads it, so one recorded as going outside the tracked accounts is answered
+   */
+  hasFarSideRecorded: boolean;
+
+  /** The account recorded as the other side, absent where the money went outside the tracked accounts */
+  farSideAccountId: string | null;
+}
+
+/**
+ * Returns whether every selected transaction ends up under a category that records the account on the
+ * other side of a transfer.
+ *
+ * The category a row ends up with is the chosen one where the edit sets one and its own otherwise. The
+ * server sends the whole batch back where one row ends up recording no other side and the request
+ * carries an answer for one, so the control is offered only where every row qualifies.
+ *
+ * @param chosenCategory The category the edit sets, or undefined while it sets none
+ * @param rows The selected transactions
+ */
+export function doEveryResultingCategoryRecordTransferTarget(
+  chosenCategory: Category | undefined,
+  rows: SelectedTransactionFacts[],
+): boolean {
+  if (chosenCategory) return doesChosenCategoryRecordTransferTarget(chosenCategory);
+  return rows.length > 0 && rows.every((row) => row.recordsFarSide);
+}
+
+/** The selected transactions an edit would have the server refuse the whole batch over */
+export interface BulkEditBlockers {
+  /** Rows with no merchant recorded, which the server refuses to edit at all until one is set */
+  withoutMerchant: string[];
+
+  /** Transfers with no record of where the money went, which the edit has to answer */
+  unansweredFarSide: string[];
+
+  /** Rows that would end up recording the account they sit in as their own other side */
+  ownAccountFarSide: string[];
+}
+
+/**
+ * Returns the selected transactions the server would refuse, so the edit can be corrected before it is
+ * confirmed rather than after.
+ *
+ * Each of these refuses the whole batch, and each is reachable without the user doing anything wrong:
+ * a row recorded before merchants were required, a transfer recorded before the far account was, and a
+ * row whose far account and own account end up the same.
+ *
+ * Not every refusal is modelled. A transfer pointing at an account the user can no longer open is one
+ * the server alone can see, since a list fixed to one account carries no others to test against.
+ *
+ * @param rows The selected transactions
+ * @param choice What the edit holds
+ * @param chosenCategoryRecordsTransferTarget Whether the category the edit sets records the other side,
+ *     or undefined while the edit sets no category and each row keeps its own
+ */
+export function getBulkEditBlockers(
+  rows: SelectedTransactionFacts[],
+  choice: BulkEditChoice,
+  chosenCategoryRecordsTransferTarget: boolean | undefined,
+): BulkEditBlockers {
+  const sendsFarSide = choice.transferTarget !== null && choice.resultingCategoriesRecordTransferTarget;
+  const chosenFarSideAccountId = sendsFarSide && choice.transferTarget?.scope === 'tracked'
+    ? choice.transferTarget.accountId
+    : null;
+
+  const withoutMerchant: string[] = [];
+  const unansweredFarSide: string[] = [];
+  const ownAccountFarSide: string[] = [];
+
+  for (const row of rows) {
+    if (!row.hasMerchant && !choice.merchantId) withoutMerchant.push(row.id);
+
+    const endsUpRecordingFarSide = chosenCategoryRecordsTransferTarget ?? row.recordsFarSide;
+    if (!endsUpRecordingFarSide) continue;
+
+    if (!sendsFarSide && !row.hasFarSideRecorded) {
+      unansweredFarSide.push(row.id);
+      continue;
+    }
+
+    const resultingFarSideAccountId = sendsFarSide ? chosenFarSideAccountId : row.farSideAccountId;
+    const resultingAccountId = choice.accountId || row.accountId;
+    if (resultingFarSideAccountId !== null && resultingFarSideAccountId === resultingAccountId) {
+      ownAccountFarSide.push(row.id);
+    }
+  }
+
+  return { withoutMerchant, unansweredFarSide, ownAccountFarSide };
+}
+
+/**
+ * Returns whether the edit can be written.
+ *
+ * The empty case matters as much as the cap: a refetch that no longer carries the selected rows empties
+ * the selection, which can happen while the edit is open.
+ *
+ * @param rows The selected transactions
+ * @param choice What the edit holds
+ * @param blockers What the server would refuse, from getBulkEditBlockers
+ */
+export function canApplyBulkEdit(
+  rows: SelectedTransactionFacts[],
+  choice: BulkEditChoice,
+  blockers: BulkEditBlockers,
+): boolean {
+  if (rows.length === 0 || rows.length > MAX_BULK_EDIT_TRANSACTIONS) return false;
+  if (!hasBulkEditChoice(choice)) return false;
+
+  return (
+    blockers.withoutMerchant.length === 0
+    && blockers.unansweredFarSide.length === 0
+    && blockers.ownAccountFarSide.length === 0
+  );
 }
 
 /** One row as the selection sees it: an identifier, and whether the app allows editing it */

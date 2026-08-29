@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import { Check, ListChecks, Upload } from 'lucide-react'
+import { Check, ListChecks, PencilLine, Upload } from 'lucide-react'
 import { DesktopToolbarControls } from '@/components/list-controls/DesktopToolbarControls'
 import { GlassSearchField } from '@/components/list-controls/GlassSearchField'
 import { MobileToolbarActions } from '@/components/list-controls/MobileToolbarActions'
@@ -39,10 +39,16 @@ export default function TransactionListToolbar({
   importDisabledReason,
   onStickyOffsetChange,
   isSelecting = false,
+  selectedCount = 0,
+  editDisabledReason,
+  onEditSelection,
   onToggleSelecting,
 }: TransactionListToolbarProps) {
   const prefersReducedMotion = useReducedMotion()
-  const shell = useToolbarShellState()
+
+  // Selection mode swaps the row's own controls, and the wrap layout measures boxes rather than
+  // contents, so it is told rather than left to notice
+  const shell = useToolbarShellState(isSelecting ? 'selecting' : 'browsing')
   useToolbarStickyOffset(shell.toolbarRef, onStickyOffsetChange)
 
   // One node for both widths, at the 44px control height the row is built on, which the search field
@@ -102,6 +108,30 @@ export default function TransactionListToolbar({
     </button>
   ) : undefined
 
+  // Built to the shape of the row it sits in: square beside the other actions, and stretched on a
+  // phone in selection mode, where it and Done are the only two controls on the row
+  function renderEditAction(className: string) {
+    if (!onEditSelection) return undefined
+    const reason = editDisabledReason ?? (selectedCount === 0 ? 'Tick a transaction first' : undefined)
+    return (
+      <button
+        type="button"
+        className={className}
+        onClick={onEditSelection}
+        disabled={Boolean(reason)}
+        title={reason}
+        aria-label="Edit the selected transactions"
+      >
+        <PencilLine size={18} aria-hidden />
+        <span className="hidden min-[750px]:inline">Edit</span>
+      </button>
+    )
+  }
+
+  const editAction = isSelecting
+    ? renderEditAction('app-glass-button h-11 w-11 shrink-0 px-0 min-[750px]:w-auto min-[750px]:px-4')
+    : undefined
+
   const accountOptions = useMemo(
     () => getAccountOptions(accounts),
     [accounts],
@@ -129,20 +159,29 @@ export default function TransactionListToolbar({
           wrapperClassName={getSearchFieldWrapperClassName(shell.mobileSearchStuck, shell.desktopInlineLayout)}
         />
 
-        <MobileToolbarActions
-          activeFilterCount={activeFilterCount}
-          onOpenFilters={shell.openMobileSheet}
-          onPrimaryAction={onCreateTransaction}
-          primaryLabel="Add transaction"
-          primaryDisabled={createDisabled}
-          primaryDisabledReason={createDisabledReason}
-          secondaryAction={
-            <>
-              {selectAction}
-              {importAction}
-            </>
-          }
-        />
+        {/* Selection mode takes the phone row down to the two controls it is for. Filtering or adding
+            a transaction mid-selection empties the selection anyway, so neither is worth the width */}
+        {isSelecting ? (
+          <div className="flex w-full items-center gap-3 min-[750px]:hidden">
+            {renderEditAction('app-glass-button h-11 min-w-0 flex-1 gap-2')}
+            {selectAction}
+          </div>
+        ) : (
+          <MobileToolbarActions
+            activeFilterCount={activeFilterCount}
+            onOpenFilters={shell.openMobileSheet}
+            onPrimaryAction={onCreateTransaction}
+            primaryLabel="Add transaction"
+            primaryDisabled={createDisabled}
+            primaryDisabledReason={createDisabledReason}
+            secondaryAction={
+              <>
+                {selectAction}
+                {importAction}
+              </>
+            }
+          />
+        )}
 
         <DesktopToolbarControls
           controlsRef={shell.controlsRef}
@@ -157,6 +196,7 @@ export default function TransactionListToolbar({
             // narrower than it draws and stay on one line where it no longer fits. Wrapped as one
             // child, since the group spreads its children apart once the create button stacks
             <div className="flex min-w-0 items-center gap-3">
+              {editAction}
               {selectAction}
               {importAction}
               <TransactionFilterPanel
