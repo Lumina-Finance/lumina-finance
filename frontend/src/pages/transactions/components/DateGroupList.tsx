@@ -3,23 +3,24 @@ import type { Category } from '@/api/categories'
 import type { Transaction } from '@/api/transactions'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import TransactionRow, { type TransactionRowSelection } from '@/components/transactions/Row'
-import { TRANSACTION_LIST_EASE } from '@/pages/transactions/constants/transactionList'
+import {
+  REACHES_ACROSS_TRANSACTION_CHECKBOX_RAIL,
+  TRANSACTION_CHECKBOX_RAIL,
+  TRANSACTION_CHECKBOX_RAIL_DURATION_S,
+  TRANSACTION_CHECKBOX_RAIL_VARIABLE,
+  TRANSACTION_CHECKBOX_RAIL_WIDTH,
+  TRANSACTION_LIST_EASE,
+} from '@/pages/transactions/constants/transactionList'
 import type { TransactionDateGroup, TransactionListAccount } from '@/pages/transactions/types/transactionList'
 import { getTransactionDateGroupTotal } from '@/pages/transactions/utils/transactionDateGroups'
 import { getTransactionReadOnlyReason } from '@/pages/transactions/utils/rowEditability'
 
-// The six content tracks every row lines its cells up against
+// The six content tracks every row lines its cells up against, declared once and never added to.
+// Selection mode opens a rail beside them instead, because a checkbox column would have to appear
+// and disappear with the checkbox, and a row still animating one out against a list that has
+// already dropped the column has nowhere to put its content but a second line
 const LIST_COLUMNS =
   'min-[1300px]:grid-cols-[2.5rem_fit-content(24rem)_fit-content(18rem)_minmax(0,1fr)_max-content_max-content]'
-
-// The same six, behind a track holding the checkbox, so selection mode adds a column rather than
-// squeezing the ones already there.
-//
-// A collapsed seventh track would let the browser ease the column open, but the row's column gap
-// applies after it whether or not it has any width, so every row outside selection mode would lose
-// that much space and start truncating text it fits today
-const SELECTING_COLUMNS =
-  'min-[1300px]:grid-cols-[1.75rem_2.5rem_fit-content(24rem)_fit-content(18rem)_minmax(0,1fr)_max-content_max-content]'
 
 /**
  * Renders grouped transaction rows with sticky date totals
@@ -48,7 +49,7 @@ export default function TransactionDateGroupList({
   prefersReducedMotion: boolean | null
   // Makes a newly added row or group appear without the grow in, used for a lazy loaded page of rows
   skipEnterAnimation?: boolean
-  // Adds the checkbox column, which the import preview never asks for
+  // Opens the rail the checkbox sits in, which the import preview never asks for
   isSelecting?: boolean
   buildRowSelection?: (transactionId: string, isReadOnly: boolean) => TransactionRowSelection
   onEditTransaction: (transaction: Transaction) => void
@@ -56,7 +57,18 @@ export default function TransactionDateGroupList({
   const { formatCurrency } = useMoneyFormatters()
 
   return (
-    <div className={`min-[1300px]:grid min-[1300px]:gap-x-3 ${isSelecting ? SELECTING_COLUMNS : LIST_COLUMNS}`}>
+    <motion.div
+      className={`min-[1300px]:grid min-[1300px]:gap-x-3 ${LIST_COLUMNS}`}
+      style={{ paddingLeft: TRANSACTION_CHECKBOX_RAIL }}
+      initial={false}
+      animate={{
+        [TRANSACTION_CHECKBOX_RAIL_VARIABLE]: isSelecting ? TRANSACTION_CHECKBOX_RAIL_WIDTH : '0rem',
+      }}
+      transition={{
+        duration: prefersReducedMotion ? 0 : TRANSACTION_CHECKBOX_RAIL_DURATION_S,
+        ease: TRANSACTION_LIST_EASE,
+      }}
+    >
       {/* initial={false} suppresses the first render and the whole-list swap on filter changes, so a
           group only animates here when it is genuinely added (a new day's first transaction) or removed
           (its last transaction deleted) while the list stays mounted */}
@@ -83,11 +95,13 @@ export default function TransactionDateGroupList({
               transition={{ duration: prefersReducedMotion ? 0 : 0.28, ease: TRANSACTION_LIST_EASE }}
             >
             <div
-              className="sticky z-20 flex items-center justify-between rounded-lg px-3 py-2 min-[1300px]:col-span-full"
+              className="sticky z-20 flex items-center justify-between rounded-lg py-2 pr-3 min-[1300px]:col-span-full"
               style={{
                 top: stickyTop,
                 background: 'var(--app-input-bg)',
                 borderBottom: '1px solid var(--app-border)',
+                ...REACHES_ACROSS_TRANSACTION_CHECKBOX_RAIL,
+                paddingLeft: `calc(0.75rem + ${TRANSACTION_CHECKBOX_RAIL})`,
               }}
             >
               <p
@@ -137,6 +151,6 @@ export default function TransactionDateGroupList({
           )
         })}
       </AnimatePresence>
-    </div>
+    </motion.div>
   )
 }

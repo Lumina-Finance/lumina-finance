@@ -6,16 +6,18 @@ import type { Category } from '@/api/categories'
 import type { Transaction } from '@/api/transactions'
 import { Checkbox } from '@/components/forms/Checkbox'
 import type { RowSelectionMark } from '@/pages/transactions/components/bulk-edit/selection'
+import {
+  REACHES_ACROSS_TRANSACTION_CHECKBOX_RAIL,
+  TRANSACTION_CHECKBOX_RAIL,
+  TRANSACTION_CHECKBOX_RAIL_DURATION_S,
+  TRANSACTION_CHECKBOX_RAIL_WIDTH,
+} from '@/pages/transactions/constants/transactionList'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { resolveInstitutionLogoUrl } from '@/utils/institutionLogo'
 
 const MAX_VISIBLE_TAGS = 1
 const DEFAULT_CATEGORY_ICON = '🏷️'
 const ROW_EXIT_EASE = [0.25, 0.1, 0.25, 1] as const
-
-// Comfortably past the checkbox and its padding, so the cap never decides how wide the cell sits,
-// only how it opens and closes
-const CHECKBOX_CELL_MAX_WIDTH = 64
 
 /**
  * Describes the counterparty of a transfer for the line that shows a merchant on other kinds
@@ -231,13 +233,15 @@ export default function TransactionRow({
       transition={{ duration: prefersReducedMotion ? 0 : 0.24, ease: ROW_EXIT_EASE }}
       onAnimationStart={() => setIsAnimatingHeight(true)}
       onAnimationComplete={() => setIsAnimatingHeight(false)}
-      // Always a flex row, whether or not a checkbox is in it, so turning selection mode on and off
-      // does not switch layout mode underneath the checkbox while it animates
-      className="flex w-full items-center transition-colors duration-100 hover:bg-[var(--app-surface-soft)] min-[1300px]:col-span-full min-[1300px]:grid min-[1300px]:grid-cols-subgrid min-[1300px]:items-center min-[1300px]:gap-x-3"
+      className="relative flex items-center transition-colors duration-100 hover:bg-[var(--app-surface-soft)] min-[1300px]:col-span-full min-[1300px]:grid min-[1300px]:grid-cols-subgrid min-[1300px]:items-center min-[1300px]:gap-x-3"
       style={{
         borderBottom: '1px solid var(--app-border)',
         overflow: isAnimatingHeight ? 'hidden' : 'visible',
         background: selectionBackground,
+        // The row starts at the left edge of the rail rather than after it, so its background and its
+        // separator cover the checkbox as well, while the padding puts its cells back on the tracks
+        ...REACHES_ACROSS_TRANSACTION_CHECKBOX_RAIL,
+        paddingLeft: TRANSACTION_CHECKBOX_RAIL,
       }}
     >
       {/* initial={false} so a row scrolling into view while selection mode is already on shows its
@@ -247,28 +251,26 @@ export default function TransactionRow({
         {selection && (
           <motion.span
             key="row-checkbox"
-            className="flex shrink-0 items-center justify-center overflow-hidden"
-            // The cap rather than the width, because a width can only be animated between two
-            // concrete values. Animating to auto leaves the box at auto, and the exit back to zero
-            // then has nothing to start from, so the space holds for the whole duration and snaps
-            // shut at the end. The cap starts and ends at a real number and never stretches the box
-            // past what the checkbox needs
-            initial={prefersReducedMotion ? { opacity: 0 } : { maxWidth: 0, opacity: 0 }}
-            animate={{ maxWidth: CHECKBOX_CELL_MAX_WIDTH, opacity: 1 }}
-            exit={prefersReducedMotion ? { opacity: 0 } : { maxWidth: 0, opacity: 0 }}
-            transition={{ duration: prefersReducedMotion ? 0 : 0.22, ease: ROW_EXIT_EASE }}
+            // Laid over the rail rather than placed in the row, because a cell of the row would take
+            // one of the list's columns, and the button beside it asks for all six of them. The rail
+            // is the row's own left padding, so the box sits still at the list's edge while the rail
+            // opens and closes underneath the rest of the row
+            className="absolute inset-y-0 left-0 flex items-center justify-center"
+            style={{ width: TRANSACTION_CHECKBOX_RAIL_WIDTH }}
+            initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.72 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.72 }}
+            transition={{
+              duration: prefersReducedMotion ? 0 : TRANSACTION_CHECKBOX_RAIL_DURATION_S,
+              ease: ROW_EXIT_EASE,
+            }}
           >
-            {/* The padding sits inside the collapsing wrapper so it goes with the width, and it is
-                dropped on a wide screen, where the column track is the only room the checkbox has
-                and padding on top of it would push the box out of the track and clip it square */}
-            <span className="flex items-center pl-3 min-[1300px]:pl-0">
-              <Checkbox
-                checked={selection.mark === 'selected'}
-                disabled={!selection.isSelectable}
-                label={`Select ${title} on ${transaction.dt}`}
-                onChange={(event) => selection.onToggle(event.shiftKey)}
-              />
-            </span>
+            <Checkbox
+              checked={selection.mark === 'selected'}
+              disabled={!selection.isSelectable}
+              label={`Select ${title} on ${transaction.dt}`}
+              onChange={(event) => selection.onToggle(event.shiftKey)}
+            />
           </motion.span>
         )}
       </AnimatePresence>
