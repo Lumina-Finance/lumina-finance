@@ -3,8 +3,12 @@ import { PencilLine, X } from 'lucide-react'
 import { useCategories } from '@/api/categories'
 import { useInfiniteMerchants } from '@/api/merchants'
 import { useInfiniteTags } from '@/api/tags'
+import CreateModalFieldLabelRow from '@/components/create-modal/FieldLabelRow'
+import CreateModalSectionFrame from '@/components/create-modal/SectionFrame'
+import DateField from '@/components/date-field/DateField'
 import Dropdown from '@/components/dropdown/Dropdown'
 import { ModalTitledPanel } from '@/components/modal/TitledPanel'
+import CategoryNoticeLine from '@/pages/transactions/components/transaction-modal/controls/CategoryNoticeLine'
 import { MAX_BULK_EDIT_TRANSACTIONS } from '@/pages/transactions/components/bulk-edit/constants'
 import {
   buildBulkEditFields,
@@ -24,6 +28,10 @@ import { OUTSIDE_ACCOUNT_LABEL, OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 
 const REFERENCE_SEARCH_DEBOUNCE_MS = 250
 const REFERENCE_PAGE_SIZE = 20
+
+// The cap the single-transaction form puts on the same field, so one edit cannot write a note the
+// other screen would refuse
+const MAX_NOTE_LENGTH = 500
 
 interface BulkEditModalProps {
   open: boolean
@@ -161,166 +169,194 @@ export function BulkEditModal({
         </div>
       }
     >
-      <div className="flex flex-col gap-3">
+      <div className="space-y-5">
         <p className="text-sm" style={{ color: 'var(--app-text-subtle)' }}>
           A control left alone leaves that detail as it is on every selected transaction.
         </p>
 
-        <div className="grid gap-3 min-[750px]:grid-cols-2">
-          <Dropdown
-            options={categoryOptions}
-            value={categoryId}
-            onChange={setCategoryId}
-            placeholder="Category"
-            searchable
-          />
+        <CreateModalSectionFrame step="01" title="Source/Destination">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <CreateModalFieldLabelRow htmlFor="bulk-account" label="Move to account" />
+              <Dropdown
+                id="bulk-account"
+                options={accountOptions}
+                value={accountId}
+                onChange={setAccountId}
+                placeholder={accountOptions.length === 0 ? 'No account it can move to' : 'Leave as it is'}
+                searchable
+                disabled={accountOptions.length === 0}
+              />
+              <CategoryNoticeLine show={selectedCurrencies.length > 1}>
+                These transactions are in more than one currency, so they cannot move to one account
+                together. Narrow the selection to a single currency first.
+              </CategoryNoticeLine>
+            </div>
 
-          <Dropdown
-            options={merchantOptions}
-            value={merchantId}
-            selectedOption={merchant ?? undefined}
-            onChange={(value) => setMerchant(
-              merchantOptions.find((option) => option.value === value) ?? null,
+            <div>
+              <CreateModalFieldLabelRow htmlFor="bulk-merchant" label="Merchant" />
+              <Dropdown
+                id="bulk-merchant"
+                options={merchantOptions}
+                value={merchantId}
+                selectedOption={merchant ?? undefined}
+                onChange={(value) => setMerchant(
+                  merchantOptions.find((option) => option.value === value) ?? null,
+                )}
+                placeholder="Leave as it is"
+                searchable
+                filterOptions={false}
+                searchValue={merchantSearch.search}
+                onSearchChange={merchantSearch.setSearch}
+                isLoading={merchantQuery.isFetching}
+                hasMore={merchantQuery.hasNextPage}
+                onLoadMore={merchantQuery.fetchNextPage}
+              />
+              <CategoryNoticeLine show={blockers.withoutMerchant.length > 0}>
+                {blockers.withoutMerchant.length}
+                {blockers.withoutMerchant.length === 1
+                  ? ' selected transaction has no merchant recorded, and cannot be changed until it does. Set one here, or close this and untick it.'
+                  : ' selected transactions have no merchant recorded, and cannot be changed until they do. Set one here, or close this and untick them.'}
+              </CategoryNoticeLine>
+            </div>
+
+            <div>
+              <CreateModalFieldLabelRow htmlFor="bulk-category" label="Category" />
+              <Dropdown
+                id="bulk-category"
+                options={categoryOptions}
+                value={categoryId}
+                onChange={setCategoryId}
+                placeholder="Leave as it is"
+                searchable
+              />
+            </div>
+
+            <div>
+              <CreateModalFieldLabelRow htmlFor="bulk-tags" label="Add a tag" />
+              <Dropdown
+                id="bulk-tags"
+                options={tagOptions}
+                value=""
+                onChange={(value) => {
+                  const picked = tagOptions.find((option) => option.value === value)
+                  if (picked) setChosenTags((current) => [...current, picked])
+                }}
+                placeholder="Leave them as they are"
+                searchable
+                filterOptions={false}
+                searchValue={tagSearch.search}
+                onSearchChange={tagSearch.setSearch}
+                isLoading={tagQuery.isFetching}
+                hasMore={tagQuery.hasNextPage}
+                onLoadMore={tagQuery.fetchNextPage}
+              />
+              {chosenTags.length > 0 && (
+                <div className="flex flex-wrap gap-1 pt-2">
+                  {chosenTags.map((tag) => (
+                    <span
+                      key={tag.value}
+                      className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs"
+                      style={{ background: 'var(--app-accent-soft)' }}
+                    >
+                      {tag.label}
+                      <button
+                        type="button"
+                        aria-label={`Remove ${tag.label}`}
+                        onClick={() => setChosenTags((current) => current.filter((item) => item.value !== tag.value))}
+                      >
+                        <X size={12} aria-hidden />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {resultingCategoriesRecordTransferTarget && (
+              <div className="sm:col-span-2">
+                <CreateModalFieldLabelRow htmlFor="bulk-transfer-target" label="Where the money went" />
+                <Dropdown
+                  id="bulk-transfer-target"
+                  options={transferTargetOptions}
+                  value={transferTargetValue}
+                  onChange={(value) => setTransferTarget(
+                    value === OUTSIDE_ACCOUNT_VALUE
+                      ? { scope: 'outside' }
+                      : { scope: 'tracked', accountId: value },
+                  )}
+                  placeholder="Leave it as it is"
+                  searchable
+                />
+              </div>
             )}
-            placeholder="Merchant"
-            searchable
-            filterOptions={false}
-            searchValue={merchantSearch.search}
-            onSearchChange={merchantSearch.setSearch}
-            isLoading={merchantQuery.isFetching}
-            hasMore={merchantQuery.hasNextPage}
-            onLoadMore={merchantQuery.fetchNextPage}
-          />
 
-          <Dropdown
-            options={tagOptions}
-            value=""
-            onChange={(value) => {
-              const picked = tagOptions.find((option) => option.value === value)
-              if (picked) setChosenTags((current) => [...current, picked])
-            }}
-            placeholder="Add a tag"
-            searchable
-            filterOptions={false}
-            searchValue={tagSearch.search}
-            onSearchChange={tagSearch.setSearch}
-            isLoading={tagQuery.isFetching}
-            hasMore={tagQuery.hasNextPage}
-            onLoadMore={tagQuery.fetchNextPage}
-          />
+            {/* Outside the field above, since the rows that need an answer are counted whether or not
+                that field is offered, and it is offered only where every selected row records one */}
+            <div className="sm:col-span-2">
+              <CategoryNoticeLine show={blockers.unansweredFarSide.length > 0}>
+                {blockers.unansweredFarSide.length}
+                {blockers.unansweredFarSide.length === 1
+                  ? ' selected transfer does not record where the money went.'
+                  : ' selected transfers do not record where the money went.'}
+                {resultingCategoriesRecordTransferTarget
+                  ? ' Answer that here, or close this and untick them.'
+                  : ' Close this and untick them, since the rest of this selection are not transfers.'}
+              </CategoryNoticeLine>
 
-          <Dropdown
-            options={accountOptions}
-            value={accountId}
-            onChange={setAccountId}
-            placeholder="Move to account"
-            searchable
-            disabled={accountOptions.length === 0}
-          />
+              <CategoryNoticeLine show={blockers.ownAccountFarSide.length > 0}>
+                {blockers.ownAccountFarSide.length}
+                {blockers.ownAccountFarSide.length === 1
+                  ? ' selected transaction would end up recording the account it already sits in.'
+                  : ' selected transactions would end up recording the account they already sit in.'}
+                {' Pick a different account, or close this and untick them.'}
+              </CategoryNoticeLine>
+            </div>
+          </div>
+        </CreateModalSectionFrame>
 
-          <input
-            type="date"
-            className="app-input app-date-field h-9"
-            aria-label="Set the date"
-            value={date}
-            onChange={(event) => setDate(event.target.value)}
-          />
+        <CreateModalSectionFrame step="02" title="Details">
+          <div className="sm:max-w-[11rem]">
+            <CreateModalFieldLabelRow htmlFor="bulk-date" label="Date" />
+            <DateField
+              id="bulk-date"
+              ariaLabel="Date"
+              value={date}
+              onChange={setDate}
+            />
+          </div>
 
-          <div className="flex items-center gap-2">
+          <div>
+            <CreateModalFieldLabelRow
+              htmlFor="bulk-note"
+              label="Note"
+              action={(
+                <label className="flex items-center gap-1.5 text-xs">
+                  <input
+                    type="checkbox"
+                    checked={clearsNote}
+                    onChange={(event) => setClearsNote(event.target.checked)}
+                  />
+                  Take the note off instead
+                </label>
+              )}
+            />
             <input
+              id="bulk-note"
               type="text"
-              className="app-input h-9 min-w-0 flex-1"
-              aria-label="Set the note"
-              placeholder="Note"
+              className="app-input disabled:cursor-not-allowed disabled:opacity-60"
+              placeholder={clearsNote ? 'The note comes off' : 'Leave it as it is'}
               value={note}
               disabled={clearsNote}
               onChange={(event) => setNote(event.target.value)}
+              maxLength={MAX_NOTE_LENGTH}
             />
-            <label className="flex shrink-0 items-center gap-1 text-xs">
-              <input
-                type="checkbox"
-                checked={clearsNote}
-                onChange={(event) => setClearsNote(event.target.checked)}
-              />
-              Clear
-            </label>
           </div>
+        </CreateModalSectionFrame>
 
-          {resultingCategoriesRecordTransferTarget && (
-            <Dropdown
-              options={transferTargetOptions}
-              value={transferTargetValue}
-              onChange={(value) => setTransferTarget(
-                value === OUTSIDE_ACCOUNT_VALUE
-                  ? { scope: 'outside' }
-                  : { scope: 'tracked', accountId: value },
-              )}
-              placeholder="Where the money went"
-              searchable
-            />
-          )}
-        </div>
-
-        {chosenTags.length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            {chosenTags.map((tag) => (
-              <span
-                key={tag.value}
-                className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs"
-                style={{ background: 'var(--app-accent-soft)' }}
-              >
-                {tag.label}
-                <button
-                  type="button"
-                  aria-label={`Remove ${tag.label}`}
-                  onClick={() => setChosenTags((current) => current.filter((item) => item.value !== tag.value))}
-                >
-                  <X size={12} aria-hidden />
-                </button>
-              </span>
-            ))}
-          </div>
-        )}
-
-        {/* Each of these is a refusal the server answers for the whole batch, so it says what to do
-            about it here. Unticking a row is not one of the options, since every row behind this panel
-            is out of reach while it is open */}
-        {blockers.withoutMerchant.length > 0 && (
-          <p className="text-xs" style={{ color: 'var(--app-text-subtle)' }}>
-            {blockers.withoutMerchant.length} selected {blockers.withoutMerchant.length === 1 ? 'transaction has' : 'transactions have'} no
-            merchant recorded. Set one here, or close this and untick them.
-          </p>
-        )}
-
-        {blockers.unansweredFarSide.length > 0 && (
-          <p className="text-xs" style={{ color: 'var(--app-text-subtle)' }}>
-            {blockers.unansweredFarSide.length} selected {blockers.unansweredFarSide.length === 1 ? 'transfer does' : 'transfers do'} not
-            record where the money went.{' '}
-            {resultingCategoriesRecordTransferTarget
-              ? 'Answer that here, or close this and untick them.'
-              : 'Close this and untick them, since the others in this selection are not transfers.'}
-          </p>
-        )}
-
-        {blockers.ownAccountFarSide.length > 0 && (
-          <p className="text-xs" style={{ color: 'var(--app-text-subtle)' }}>
-            {blockers.ownAccountFarSide.length} selected {blockers.ownAccountFarSide.length === 1 ? 'transaction would' : 'transactions would'} end
-            up recording the account it already sits in. Pick a different account, or close this and untick them.
-          </p>
-        )}
-
-        {selectedCurrencies.length > 1 && (
-          <p className="text-xs" style={{ color: 'var(--app-text-subtle)' }}>
-            The selected transactions are in more than one currency, so they cannot move to another
-            account together. Narrow the selection to one currency first.
-          </p>
-        )}
-
-        {overCap && (
-          <p className="text-xs" style={{ color: 'var(--app-negative)' }}>
-            One edit covers at most {MAX_BULK_EDIT_TRANSACTIONS} transactions. Deselect some to continue.
-          </p>
-        )}
+        <CategoryNoticeLine show={overCap}>
+          One edit covers at most {MAX_BULK_EDIT_TRANSACTIONS} transactions. Untick some to continue.
+        </CategoryNoticeLine>
       </div>
     </ModalTitledPanel>
   )
