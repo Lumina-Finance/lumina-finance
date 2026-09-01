@@ -21,11 +21,22 @@ import {
   previewSelection,
   resolveTransferEnds,
   rowSelectionMark,
-  type BulkEditChoice,
   type BulkSelectionState,
   type SelectableRow,
-  type SelectedTransactionFacts,
 } from '@/pages/transactions/components/bulk-edit/selection'
+import {
+  chequingHalf,
+  groceries,
+  groceriesCategory,
+  oldImport,
+  pair,
+  savingsHalf,
+  toOutside,
+  toSavings,
+  transferCategory,
+  unanswered,
+  untouched,
+} from './bulkEditFixtures'
 
 const rows: SelectableRow[] = [
   { id: 'a', isReadOnly: false },
@@ -149,24 +160,6 @@ describe('the preview shown while shift is held', () => {
     expect(previewSelection(state, rows)).toBeNull()
   })
 })
-
-/** A panel with every control untouched, so each test states only the one it fills in */
-function untouched(overrides: Partial<BulkEditChoice> = {}): BulkEditChoice {
-  return {
-    categoryId: '',
-    merchantId: '',
-    tagIds: [],
-    accountId: '',
-    date: '',
-    note: '',
-    clearsNote: false,
-    transferFrom: null,
-    transferTo: null,
-    direction: null,
-    endsAreOffered: false,
-    ...overrides,
-  }
-}
 
 // The two days a heading tick works over. Day one holds a read-only row, so a tick that took every
 // row rather than every editable one shows up in the result
@@ -422,49 +415,6 @@ describe('the details the panel sends', () => {
 })
 
 describe('what a bulk edit may do to the rows it covers', () => {
-  const transferCategory = {
-    id: 'cat_t', name: 'Transfer', kind: 'transfer', icon: null,
-    is_system: true, owner_id: null, group_id: null,
-  } as Category
-
-  const groceriesCategory = {
-    id: 'cat_g', name: 'Groceries', kind: 'expense', icon: null,
-    is_system: true, owner_id: null, group_id: null,
-  } as Category
-
-  const groceries: SelectedTransactionFacts = {
-    id: 'a', accountId: 'chequing', hasMerchant: true,
-    recordsFarSide: false, hasFarSideRecorded: false, farSideAccountId: null, currency: 'CAD', direction: 'debit',
-  }
-  const oldImport: SelectedTransactionFacts = {
-    id: 'b', accountId: 'chequing', hasMerchant: false,
-    recordsFarSide: false, hasFarSideRecorded: false, farSideAccountId: null, currency: 'CAD', direction: 'debit',
-  }
-  const toSavings: SelectedTransactionFacts = {
-    id: 'c', accountId: 'chequing', hasMerchant: true,
-    recordsFarSide: true, hasFarSideRecorded: true, farSideAccountId: 'savings', currency: 'CAD', direction: 'debit',
-  }
-  const toOutside: SelectedTransactionFacts = {
-    id: 'd', accountId: 'chequing', hasMerchant: true,
-    recordsFarSide: true, hasFarSideRecorded: true, farSideAccountId: null, currency: 'CAD', direction: 'debit',
-  }
-  const unanswered: SelectedTransactionFacts = {
-    id: 'e', accountId: 'chequing', hasMerchant: true,
-    recordsFarSide: true, hasFarSideRecorded: false, farSideAccountId: null, currency: 'CAD', direction: 'debit',
-  }
-
-  // The two halves a transfer pair makes: the money-out half sitting in Chequing and recording
-  // Savings, and the money-in half sitting in Savings and recording Chequing back
-  const chequingHalf: SelectedTransactionFacts = {
-    id: 'chequing_half', accountId: 'chequing', hasMerchant: true,
-    recordsFarSide: true, hasFarSideRecorded: true, farSideAccountId: 'savings', currency: 'CAD', direction: 'debit',
-  }
-  const savingsHalf: SelectedTransactionFacts = {
-    id: 'savings_half', accountId: 'savings', hasMerchant: true,
-    recordsFarSide: true, hasFarSideRecorded: true, farSideAccountId: 'chequing', currency: 'CAD', direction: 'credit',
-  }
-  const pair = [chequingHalf, savingsHalf]
-
   /** An edit that sets a note and nothing else, which is the smallest thing a user can ask for */
   const noteOnly = untouched({ note: 'Corrected' })
   const noBlockers = {
