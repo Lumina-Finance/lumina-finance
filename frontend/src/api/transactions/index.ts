@@ -1,4 +1,6 @@
 export type {
+  BulkDirectionChange,
+  BulkTransferEnd,
   BulkUpdateTransactionsPayload,
   BulkUpdateTransactionsResult,
   CreateTransactionPayload,
@@ -10,6 +12,7 @@ export type {
   TransactionFilters,
   TransactionTag,
   TransactionsOverview,
+  TransactionDirection,
   TransferCounterpartyScope,
   UpdateTransactionPayload,
 } from '@/api/transactions/types';

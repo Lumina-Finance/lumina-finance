@@ -6,6 +6,7 @@
  * the pointer preview and the request body can all be checked without rendering anything.
  */
 import type { Category } from '@/api/categories'
+import type { BulkDirectionChange, BulkTransferEnd, TransactionDirection } from '@/api/transactions'
 import { MAX_BULK_EDIT_TRANSACTIONS } from '@/pages/transactions/components/bulk-edit/constants'
 import {
   BALANCE_ADJUSTMENT_CATEGORY_NAME,
@@ -49,9 +50,28 @@ export function getBulkMoveTargets<T extends { is_archived?: boolean; closed_at?
   )
 }
 
-/** Where the other side of a transfer sits, or null when the panel has not been asked */
-export type TransferTargetChoice =
-  | { scope: 'tracked'; accountId: string }
+/**
+ * Returns the accounts a transfer's ends can be set to.
+ *
+ * Unlike a move, an end is not held to the selection's currency: the far end only records a fact,
+ * and the own end is checked against each row's own currency separately, in
+ * ownSideInAnotherCurrency below.
+ *
+ * @param accounts Every account the list knows about
+ */
+export function getTransferEndTargets<T extends { is_archived?: boolean; closed_at?: string | null }>(
+  accounts: T[],
+): T[] {
+  return accounts.filter((account) => !account.is_archived && !account.closed_at)
+}
+
+/**
+ * Where one end of a transfer sits, as the panel holds it. The currency travels with a tracked
+ * account so the blockers can compare it against each row without a separate account lookup;
+ * buildBulkEditFields strips it before the request is sent
+ */
+export type TransferEndChoice =
+  | { scope: 'tracked'; accountId: string; currency: string }
   | { scope: 'outside' }
 
 /** What the panel holds, before it becomes a request */
@@ -68,13 +88,22 @@ export interface BulkEditChoice {
   /** True when the note box is meant to take the note off rather than set one */
   clearsNote: boolean
 
-  transferTarget: TransferTargetChoice | null
+  /** Where the transfer's From end sits, or null to leave it as it is */
+  transferFrom: TransferEndChoice | null
+
+  /** Where the transfer's To end sits, or null to leave it as it is */
+  transferTo: TransferEndChoice | null
+
+  /** Which way every selected transaction should end up pointing, or null to leave each as it is */
+  direction: BulkDirectionChange | null
 
   /**
-   * True when every selected transaction ends up under a category that records the account on the
-   * other side of a transfer, which is what decides whether the answer can be sent at all
+   * True while any selected row ends up under a category that records the account on the other side
+   * of a transfer, which is what offers the From and To controls at all. Held beside the ends so a
+   * choice made before the selection or the category changed cannot be sent once the controls have
+   * gone
    */
-  resultingCategoriesRecordTransferTarget: boolean
+  endsAreOffered: boolean
 }
 
 /** The details a bulk request carries, which is everything in it except the transactions it covers */
@@ -85,8 +114,16 @@ export interface BulkEditFields {
   account_id?: string
   dt?: string
   notes?: string | null
-  counterparty_account_id?: string | null
-  counterparty_account_scope?: 'tracked' | 'outside' | null
+  transfer_from?: BulkTransferEnd
+  transfer_to?: BulkTransferEnd
+  direction?: BulkDirectionChange
+}
+
+/** Turns a panel-held end choice into the shape the request sends, dropping the currency it carries */
+function toBulkTransferEnd(choice: TransferEndChoice): BulkTransferEnd {
+  return choice.scope === 'tracked'
+    ? { scope: 'tracked', account_id: choice.accountId }
+    : { scope: 'outside' }
 }
 
 /**
@@ -97,23 +134,26 @@ export interface BulkEditFields {
  * than an empty string.
  */
 export function buildBulkEditFields(choice: BulkEditChoice): BulkEditFields {
-  const { categoryId, merchantId, tagIds, accountId, date, note, clearsNote, transferTarget } = choice
+  const { categoryId, merchantId, tagIds, accountId, date, note, clearsNote } = choice
+  const { transferFrom, transferTo, endsAreOffered, direction } = choice
+
+  // An end and a move both write account_id, on whichever rows resolve to be their own, so sending
+  // both would be two answers for the one column
+  const sendsAnEnd = endsAreOffered && (transferFrom !== null || transferTo !== null)
 
   return {
     ...(categoryId ? { category_id: categoryId } : {}),
     ...(merchantId ? { merchant_id: merchantId } : {}),
     ...(tagIds.length ? { add_tag_ids: tagIds } : {}),
-    ...(accountId ? { account_id: accountId } : {}),
+    ...(accountId && !sendsAnEnd ? { account_id: accountId } : {}),
     ...(date ? { dt: date } : {}),
     ...(clearsNote ? { notes: null } : note ? { notes: note } : {}),
-    // Only sent where every row ends up recording one. A target picked before the category was
-    // changed is otherwise still in the panel's state, invisible, and refuses the whole batch
-    ...(transferTarget && choice.resultingCategoriesRecordTransferTarget
-      ? {
-          counterparty_account_scope: transferTarget.scope,
-          counterparty_account_id: transferTarget.scope === 'tracked' ? transferTarget.accountId : null,
-        }
-      : {}),
+    ...(direction ? { direction } : {}),
+
+    // Only sent while the controls are on screen. An end picked before the category was changed
+    // away is otherwise still in the panel's state, invisible, and would refuse the whole batch
+    ...(endsAreOffered && transferFrom ? { transfer_from: toBulkTransferEnd(transferFrom) } : {}),
+    ...(endsAreOffered && transferTo ? { transfer_to: toBulkTransferEnd(transferTo) } : {}),
   }
 }
 
@@ -131,7 +171,7 @@ export function hasBulkEditChoice(choice: BulkEditChoice): boolean {
 export interface SelectedTransactionFacts {
   id: string;
 
-  /** The account it sits in, which a move changes */
+  /** The account it sits in, which an own end or a move would carry it out of */
   accountId: string;
 
   /** False for a row recorded before a merchant was required, which the server refuses to edit */
@@ -148,25 +188,139 @@ export interface SelectedTransactionFacts {
 
   /** The account recorded as the other side, absent where the money went outside the tracked accounts */
   farSideAccountId: string | null;
+
+  /** The currency the amount is denominated in */
+  currency: string;
+
+  /** Money out when its amount is negative, money in otherwise, on the server and in the browser alike */
+  direction: TransactionDirection;
 }
 
 /**
- * Returns whether every selected transaction ends up under a category that records the account on the
+ * Returns whether any selected transaction ends up under a category that records the account on the
  * other side of a transfer.
  *
- * The category a row ends up with is the chosen one where the edit sets one and its own otherwise. The
- * server sends the whole batch back where one row ends up recording no other side and the request
- * carries an answer for one, so the control is offered only where every row qualifies.
+ * The category a row ends up with is the chosen one where the edit sets one and its own otherwise.
+ * One row alone recording a far side is enough to offer the From and To controls, since a mixed
+ * selection still has to answer for the rows that need them and leaves the rest alone.
  *
  * @param chosenCategory The category the edit sets, or undefined while it sets none
  * @param rows The selected transactions
  */
-export function doEveryResultingCategoryRecordTransferTarget(
+export function doesAnyResultingCategoryRecordTransferTarget(
   chosenCategory: Category | undefined,
   rows: SelectedTransactionFacts[],
 ): boolean {
   if (chosenCategory) return doesChosenCategoryRecordTransferTarget(chosenCategory);
-  return rows.length > 0 && rows.every((row) => row.recordsFarSide);
+  return rows.some((row) => row.recordsFarSide);
+}
+
+/** Returns the opposite of a transaction's own direction, for an edit that turns a row around */
+function flipDirection(direction: TransactionDirection): TransactionDirection {
+  return direction === 'debit' ? 'credit' : 'debit';
+}
+
+/**
+ * Returns what a row ends up pointing, mirroring the service's resolution: the edit's direction
+ * where it sets one, the row's own flipped where the edit says reverse, the row's own otherwise
+ */
+function resultingDirectionFor(row: SelectedTransactionFacts, choice: BulkEditChoice): TransactionDirection {
+  if (choice.direction === 'reverse') return flipDirection(row.direction);
+  return choice.direction ?? row.direction;
+}
+
+/** What a row's own end and far end resolve to under an edit */
+export interface ResolvedTransferEnds {
+  ownEnd: TransferEndChoice | null;
+  farEnd: TransferEndChoice | null;
+}
+
+/**
+ * Returns what a row's own end and far end resolve to, mirroring the service's per-row resolution.
+ *
+ * Resulting direction decides which control answers which side: money out puts the row's own
+ * account on From and the far side on To, money in reverses that. A row whose resulting category
+ * records no far side ignores both ends, and an end the edit leaves unset leaves that side as it is.
+ *
+ * @param row The selected transaction
+ * @param choice What the edit holds
+ * @param endsUpRecordingFarSide Whether the row's resulting category records a far side at all
+ */
+export function resolveTransferEnds(
+  row: SelectedTransactionFacts,
+  choice: BulkEditChoice,
+  endsUpRecordingFarSide: boolean,
+): ResolvedTransferEnds {
+  if (!endsUpRecordingFarSide) return { ownEnd: null, farEnd: null };
+
+  return resultingDirectionFor(row, choice) === 'debit'
+    ? { ownEnd: choice.transferFrom, farEnd: choice.transferTo }
+    : { ownEnd: choice.transferTo, farEnd: choice.transferFrom };
+}
+
+/** How many selected rows one end of a transfer edit moves into it, or only records it on */
+export interface TransferEndEffect {
+  /** Rows whose own account this end sets, so the row itself moves */
+  moves: number;
+
+  /** Rows whose far side this end sets, without moving the row itself */
+  recordsOnly: number;
+}
+
+/** What a transfer end edit would do to the rows it covers, for the notice under each control */
+export interface TransferEndEffects {
+  from: TransferEndEffect;
+  to: TransferEndEffect;
+
+  /** Rows whose resulting category records no far side at all, which the ends cannot touch */
+  leftAlone: number;
+}
+
+/**
+ * Counts what a transfer end edit would do to each selected row.
+ *
+ * Each row's resulting direction decides which control answers its own side and which its far
+ * side, the same way resolveTransferEnds does. A control set on its own therefore still touches
+ * every transfer row: once as the move for the rows whose own side it answers, once as the record
+ * for the rest.
+ *
+ * @param rows The selected transactions
+ * @param choice What the edit holds
+ * @param chosenCategoryRecordsTransferTarget Whether the category the edit sets records the other
+ *     side, or undefined while the edit sets no category and each row keeps its own
+ */
+export function countTransferEndEffects(
+  rows: SelectedTransactionFacts[],
+  choice: BulkEditChoice,
+  chosenCategoryRecordsTransferTarget: boolean | undefined,
+): TransferEndEffects {
+  const effects: TransferEndEffects = {
+    from: { moves: 0, recordsOnly: 0 },
+    to: { moves: 0, recordsOnly: 0 },
+    leftAlone: 0,
+  };
+
+  for (const row of rows) {
+    const endsUpRecordingFarSide = chosenCategoryRecordsTransferTarget ?? row.recordsFarSide;
+    if (!endsUpRecordingFarSide) {
+      effects.leftAlone += 1;
+      continue;
+    }
+
+    // Money out puts From on the row's own account and To on the far side, money in the reverse
+    const fromIsOwn = resultingDirectionFor(row, choice) === 'debit';
+
+    if (choice.transferFrom !== null) {
+      if (fromIsOwn) effects.from.moves += 1;
+      else effects.from.recordsOnly += 1;
+    }
+    if (choice.transferTo !== null) {
+      if (fromIsOwn) effects.to.recordsOnly += 1;
+      else effects.to.moves += 1;
+    }
+  }
+
+  return effects;
 }
 
 /** The selected transactions an edit would have the server refuse the whole batch over */
@@ -179,6 +333,12 @@ export interface BulkEditBlockers {
 
   /** Rows that would end up recording the account they sit in as their own other side */
   ownAccountFarSide: string[];
+
+  /** Rows whose own end would resolve to outside the tracked accounts, where only a far end may sit */
+  sitsOutside: string[];
+
+  /** Rows whose own end would resolve to an account in another currency than the row's own */
+  ownSideInAnotherCurrency: string[];
 }
 
 /**
@@ -186,8 +346,9 @@ export interface BulkEditBlockers {
  * confirmed rather than after.
  *
  * Each of these refuses the whole batch, and each is reachable without the user doing anything wrong:
- * a row recorded before merchants were required, a transfer recorded before the far account was, and a
- * row whose far account and own account end up the same.
+ * a row recorded before merchants were required, a transfer recorded before the far account was, a row
+ * whose far account and own account end up the same, an own end that would leave the row outside the
+ * tracked accounts, and an own end in a currency the row does not hold.
  *
  * Not every refusal is modelled. A transfer pointing at an account the user can no longer open is one
  * the server alone can see, since a list fixed to one account carries no others to test against.
@@ -202,14 +363,11 @@ export function getBulkEditBlockers(
   choice: BulkEditChoice,
   chosenCategoryRecordsTransferTarget: boolean | undefined,
 ): BulkEditBlockers {
-  const sendsFarSide = choice.transferTarget !== null && choice.resultingCategoriesRecordTransferTarget;
-  const chosenFarSideAccountId = sendsFarSide && choice.transferTarget?.scope === 'tracked'
-    ? choice.transferTarget.accountId
-    : null;
-
   const withoutMerchant: string[] = [];
   const unansweredFarSide: string[] = [];
   const ownAccountFarSide: string[] = [];
+  const sitsOutside: string[] = [];
+  const ownSideInAnotherCurrency: string[] = [];
 
   for (const row of rows) {
     if (!row.hasMerchant && !choice.merchantId) withoutMerchant.push(row.id);
@@ -217,19 +375,37 @@ export function getBulkEditBlockers(
     const endsUpRecordingFarSide = chosenCategoryRecordsTransferTarget ?? row.recordsFarSide;
     if (!endsUpRecordingFarSide) continue;
 
-    if (!sendsFarSide && !row.hasFarSideRecorded) {
+    const { ownEnd, farEnd } = resolveTransferEnds(row, choice, endsUpRecordingFarSide);
+
+    // Read in the order the service refuses them: an own end outside the tracked accounts, then
+    // one in the wrong currency, then a far side still unanswered. Checking unanswered first would
+    // tell the user to answer a far side the server would refuse over the own end regardless
+    if (ownEnd?.scope === 'outside') {
+      sitsOutside.push(row.id);
+      continue;
+    }
+
+    if (ownEnd?.scope === 'tracked' && ownEnd.currency !== row.currency) {
+      ownSideInAnotherCurrency.push(row.id);
+      continue;
+    }
+
+    if (farEnd === null && !row.hasFarSideRecorded) {
       unansweredFarSide.push(row.id);
       continue;
     }
 
-    const resultingFarSideAccountId = sendsFarSide ? chosenFarSideAccountId : row.farSideAccountId;
-    const resultingAccountId = choice.accountId || row.accountId;
-    if (resultingFarSideAccountId !== null && resultingFarSideAccountId === resultingAccountId) {
+    const resultingOwnAccountId = ownEnd?.scope === 'tracked' ? ownEnd.accountId : (choice.accountId || row.accountId);
+    const resultingFarSideAccountId = farEnd === null
+      ? row.farSideAccountId
+      : farEnd.scope === 'tracked' ? farEnd.accountId : null;
+
+    if (resultingFarSideAccountId !== null && resultingFarSideAccountId === resultingOwnAccountId) {
       ownAccountFarSide.push(row.id);
     }
   }
 
-  return { withoutMerchant, unansweredFarSide, ownAccountFarSide };
+  return { withoutMerchant, unansweredFarSide, ownAccountFarSide, sitsOutside, ownSideInAnotherCurrency };
 }
 
 /**
@@ -254,6 +430,8 @@ export function canApplyBulkEdit(
     blockers.withoutMerchant.length === 0
     && blockers.unansweredFarSide.length === 0
     && blockers.ownAccountFarSide.length === 0
+    && blockers.sitsOutside.length === 0
+    && blockers.ownSideInAnotherCurrency.length === 0
   );
 }
 

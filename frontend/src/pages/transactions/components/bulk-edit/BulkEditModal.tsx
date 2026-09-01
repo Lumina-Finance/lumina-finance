@@ -9,18 +9,25 @@ import DateField from '@/components/date-field/DateField'
 import Dropdown from '@/components/dropdown/Dropdown'
 import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import CategoryNoticeLine from '@/pages/transactions/components/transaction-modal/controls/CategoryNoticeLine'
+import TransactionModalPillSelector from '@/pages/transactions/components/transaction-modal/controls/PillSelector'
 import { MAX_BULK_EDIT_TRANSACTIONS } from '@/pages/transactions/components/bulk-edit/constants'
 import {
   buildBulkEditFields,
   canApplyBulkEdit,
+  countTransferEndEffects,
+  doesAnyResultingCategoryRecordTransferTarget,
   doesChosenCategoryRecordTransferTarget,
-  doEveryResultingCategoryRecordTransferTarget,
   getBulkEditBlockers,
   getBulkMoveTargets,
+  getTransferEndTargets,
+  resolveTransferEnds,
+  type BulkEditChoice,
   type BulkEditFields,
   type SelectedTransactionFacts,
-  type TransferTargetChoice,
+  type TransferEndChoice,
+  type TransferEndEffect,
 } from '@/pages/transactions/components/bulk-edit/selection'
+import type { BulkDirectionChange } from '@/api/transactions'
 import type { TransactionListAccount } from '@/pages/transactions/types/transactionList'
 import { useDebouncedReferenceSearch } from '@/pages/transactions/components/transaction-modal/hooks/useDebouncedReferenceSearch'
 import { buildCategoryOptions } from '@/pages/transactions/components/transaction-modal/utils/categories'
@@ -32,6 +39,103 @@ const REFERENCE_PAGE_SIZE = 20
 // The cap the single-transaction form puts on the same field, so one edit cannot write a note the
 // other screen would refuse
 const MAX_NOTE_LENGTH = 500
+
+// Leaving it alone is an option of its own here, unlike on the single-transaction form, where every
+// transaction points one way or the other and none of them can abstain
+const DIRECTION_OPTIONS = [
+  { value: 'unchanged', label: 'Leave as it is' },
+  { value: 'debit', label: 'Money out' },
+  { value: 'credit', label: 'Money in' },
+  { value: 'reverse', label: 'Turn around' },
+] as const
+
+/** Turns a dropdown's raw string value into the end choice the panel holds */
+function parseTransferEndValue(value: string, accounts: TransactionListAccount[]): TransferEndChoice | null {
+  if (value === '') return null
+  if (value === OUTSIDE_ACCOUNT_VALUE) return { scope: 'outside' }
+  const currency = accounts.find((account) => account.id === value)?.currency ?? ''
+  return { scope: 'tracked', accountId: value, currency }
+}
+
+/** Turns an end choice back into the string a dropdown shows as selected */
+function transferEndValue(choice: TransferEndChoice | null): string {
+  if (choice === null) return ''
+  return choice.scope === 'outside' ? OUTSIDE_ACCOUNT_VALUE : choice.accountId
+}
+
+/**
+ * Renders the move and record-only notice lines for one end of a transfer edit, in the singular or
+ * plural the count calls for
+ *
+ * A move notice only makes sense for a tracked account, since a row can never move into "outside
+ * this app"; a row whose own end resolves to outside is refused instead, by the sitsOutside blocker
+ */
+function TransferEndEffectNotice({
+  effect,
+  choice,
+  accountName,
+}: {
+  effect: TransferEndEffect
+  choice: TransferEndChoice | null
+  accountName: string
+}) {
+  return (
+    <>
+      <CategoryNoticeLine show={choice?.scope === 'tracked' && effect.moves > 0}>
+        {effect.moves}
+        {effect.moves === 1 ? ' selected transaction moves into ' : ' selected transactions move into '}
+        {accountName}.
+      </CategoryNoticeLine>
+      <CategoryNoticeLine show={effect.recordsOnly > 0}>
+        {effect.recordsOnly}
+        {effect.recordsOnly === 1 ? ' selected transaction records ' : ' selected transactions record '}
+        {choice?.scope === 'outside' ? 'the other side as outside this app.' : `${accountName} as the other side.`}
+      </CategoryNoticeLine>
+    </>
+  )
+}
+
+/** One currency an own end would move blocked rows into, and how many rows share the pairing */
+interface CurrencyMismatch {
+  rowCurrency: string
+  targetCurrency: string
+  count: number
+}
+
+/**
+ * Groups the rows blocked for sitting in another currency than the end they would move into, by the
+ * pair of currencies involved, so the notice can name the right ones rather than assuming the
+ * selection holds only one
+ *
+ * @param rows The selected transactions
+ * @param blockedIds The row ids getBulkEditBlockers listed as ownSideInAnotherCurrency
+ * @param choice What the edit holds
+ * @param chosenCategoryRecordsTransferTarget Whether the category the edit sets records the other
+ *     side, or undefined while the edit sets no category and each row keeps its own
+ */
+function groupCurrencyMismatches(
+  rows: SelectedTransactionFacts[],
+  blockedIds: string[],
+  choice: BulkEditChoice,
+  chosenCategoryRecordsTransferTarget: boolean | undefined,
+): CurrencyMismatch[] {
+  const blocked = new Set(blockedIds)
+  const groups = new Map<string, CurrencyMismatch>()
+
+  for (const row of rows) {
+    if (!blocked.has(row.id)) continue
+    const endsUpRecordingFarSide = chosenCategoryRecordsTransferTarget ?? row.recordsFarSide
+    const { ownEnd } = resolveTransferEnds(row, choice, endsUpRecordingFarSide)
+    if (ownEnd?.scope !== 'tracked') continue
+
+    const key = `${row.currency}-${ownEnd.currency}`
+    const existing = groups.get(key)
+    if (existing) existing.count += 1
+    else groups.set(key, { rowCurrency: row.currency, targetCurrency: ownEnd.currency, count: 1 })
+  }
+
+  return [...groups.values()]
+}
 
 interface BulkEditModalProps {
   open: boolean
@@ -72,7 +176,9 @@ export function BulkEditModal({
   const [date, setDate] = useState('')
   const [note, setNote] = useState('')
   const [clearsNote, setClearsNote] = useState(false)
-  const [transferTarget, setTransferTarget] = useState<TransferTargetChoice | null>(null)
+  const [transferFrom, setTransferFrom] = useState<TransferEndChoice | null>(null)
+  const [transferTo, setTransferTo] = useState<TransferEndChoice | null>(null)
+  const [direction, setDirection] = useState<BulkDirectionChange | null>(null)
 
   // The chosen merchant and tags are held with the label they were picked under. Closing a dropdown
   // resets its search, which refetches the first page of records, and a record the search had found
@@ -91,8 +197,7 @@ export function BulkEditModal({
   const chosenCategoryRecordsTransferTarget = chosenCategory
     ? doesChosenCategoryRecordTransferTarget(chosenCategory)
     : undefined
-  const resultingCategoriesRecordTransferTarget =
-    doEveryResultingCategoryRecordTransferTarget(chosenCategory, rows)
+  const endsAreOffered = doesAnyResultingCategoryRecordTransferTarget(chosenCategory, rows)
 
   const moveTargets = useMemo(
     () => getBulkMoveTargets(accounts, selectedCurrencies),
@@ -100,13 +205,40 @@ export function BulkEditModal({
   )
   const accountOptions = moveTargets.map((account) => ({ value: account.id, label: account.name ?? 'Account' }))
 
-  const transferTargetOptions = [
+  const endTargets = useMemo(() => getTransferEndTargets(accounts), [accounts])
+  const endOptions = [
+    { value: '', label: 'Leave it as it is' },
     { value: OUTSIDE_ACCOUNT_VALUE, label: OUTSIDE_ACCOUNT_LABEL },
-    ...accounts.map((account) => ({ value: account.id, label: account.name ?? 'Account' })),
+    ...endTargets.map((account) => ({ value: account.id, label: account.name ?? 'Account' })),
   ]
-  const transferTargetValue = transferTarget === null
-    ? ''
-    : transferTarget.scope === 'outside' ? OUTSIDE_ACCOUNT_VALUE : transferTarget.accountId
+  // Read alongside endsAreOffered rather than on its own, so an end chosen under a category that
+  // no longer offers the controls cannot hold the move field disabled with no way on screen to
+  // clear it
+  const sendsAnEnd = endsAreOffered && (transferFrom !== null || transferTo !== null)
+
+  /**
+   * Applies a From or To dropdown's new value, moving the account picker out of the way once either
+   * end holds a real answer
+   */
+  function changeTransferEnd(setEnd: (choice: TransferEndChoice | null) => void, value: string) {
+    const next = parseTransferEndValue(value, accounts)
+    setEnd(next)
+    if (next !== null) setAccountId('')
+  }
+
+  /**
+   * Applies the Move to account picker's new value, clearing both ends so the two controls cannot
+   * disagree about which account a row moves into
+   */
+  function changeMoveAccount(value: string) {
+    setAccountId(value)
+    if (value) {
+      setTransferFrom(null)
+      setTransferTo(null)
+    }
+  }
+
+  const accountName = (id: string) => accounts.find((account) => account.id === id)?.name ?? 'Account'
 
   const merchantSearch = useDebouncedReferenceSearch(REFERENCE_SEARCH_DEBOUNCE_MS)
   const merchantQuery = useInfiniteMerchants(
@@ -123,7 +255,7 @@ export function BulkEditModal({
     .filter((tag) => !tagIds.includes(tag.id))
     .map((tag) => ({ value: tag.id, label: tag.name }))
 
-  const choice = {
+  const choice: BulkEditChoice = {
     categoryId,
     merchantId,
     tagIds,
@@ -131,10 +263,19 @@ export function BulkEditModal({
     date,
     note,
     clearsNote,
-    transferTarget,
-    resultingCategoriesRecordTransferTarget,
+    transferFrom,
+    transferTo,
+    direction,
+    endsAreOffered,
   }
   const blockers = getBulkEditBlockers(rows, choice, chosenCategoryRecordsTransferTarget)
+  const endEffects = countTransferEndEffects(rows, choice, chosenCategoryRecordsTransferTarget)
+  const currencyMismatches = groupCurrencyMismatches(
+    rows,
+    blockers.ownSideInAnotherCurrency,
+    choice,
+    chosenCategoryRecordsTransferTarget,
+  )
   const overCap = rows.length > MAX_BULK_EDIT_TRANSACTIONS
   const canApply = canApplyBulkEdit(rows, choice, blockers)
 
@@ -174,7 +315,22 @@ export function BulkEditModal({
           A control left alone leaves that detail as it is on every selected transaction.
         </p>
 
-        <CreateModalSectionFrame step="01" title="Source/Destination">
+        <CreateModalSectionFrame step="01" title="Type & Direction">
+          <div>
+            <CreateModalFieldLabelRow label="Which way the money moves" />
+            <TransactionModalPillSelector
+              value={direction ?? 'unchanged'}
+              options={DIRECTION_OPTIONS}
+              ariaLabel="Set which way the money moves"
+              onChange={(value) => setDirection(value === 'unchanged' ? null : value)}
+            />
+            <CategoryNoticeLine show={endsAreOffered}>
+              A transfer&apos;s other half is a separate row. This changes only the rows selected.
+            </CategoryNoticeLine>
+          </div>
+        </CreateModalSectionFrame>
+
+        <CreateModalSectionFrame step="02" title="Source/Destination">
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <CreateModalFieldLabelRow htmlFor="bulk-account" label="Move to account" />
@@ -182,10 +338,10 @@ export function BulkEditModal({
                 id="bulk-account"
                 options={accountOptions}
                 value={accountId}
-                onChange={setAccountId}
+                onChange={changeMoveAccount}
                 placeholder={accountOptions.length === 0 ? 'No account it can move to' : 'Leave as it is'}
                 searchable
-                disabled={accountOptions.length === 0}
+                disabled={accountOptions.length === 0 || sendsAnEnd}
               />
               <CategoryNoticeLine show={selectedCurrencies.length > 1}>
                 These transactions are in more than one currency, so they cannot move to one account
@@ -273,49 +429,90 @@ export function BulkEditModal({
               )}
             </div>
 
-            {resultingCategoriesRecordTransferTarget && (
-              <div className="sm:col-span-2">
-                <CreateModalFieldLabelRow htmlFor="bulk-transfer-target" label="Where the money went" />
-                <Dropdown
-                  id="bulk-transfer-target"
-                  options={transferTargetOptions}
-                  value={transferTargetValue}
-                  onChange={(value) => setTransferTarget(
-                    value === OUTSIDE_ACCOUNT_VALUE
-                      ? { scope: 'outside' }
-                      : { scope: 'tracked', accountId: value },
-                  )}
-                  placeholder="Leave it as it is"
-                  searchable
-                />
-              </div>
+            {endsAreOffered && (
+              <>
+                <div>
+                  <CreateModalFieldLabelRow htmlFor="bulk-transfer-from" label="From" />
+                  <Dropdown
+                    id="bulk-transfer-from"
+                    options={endOptions}
+                    value={transferEndValue(transferFrom)}
+                    onChange={(value) => changeTransferEnd(setTransferFrom, value)}
+                    placeholder="Leave it as it is"
+                    searchable
+                    disabled={Boolean(accountId)}
+                  />
+                </div>
+
+                <div>
+                  <CreateModalFieldLabelRow htmlFor="bulk-transfer-to" label="To" />
+                  <Dropdown
+                    id="bulk-transfer-to"
+                    options={endOptions}
+                    value={transferEndValue(transferTo)}
+                    onChange={(value) => changeTransferEnd(setTransferTo, value)}
+                    placeholder="Leave it as it is"
+                    searchable
+                    disabled={Boolean(accountId)}
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <TransferEndEffectNotice
+                    effect={endEffects.from}
+                    choice={transferFrom}
+                    accountName={transferFrom?.scope === 'tracked' ? accountName(transferFrom.accountId) : ''}
+                  />
+                  <TransferEndEffectNotice
+                    effect={endEffects.to}
+                    choice={transferTo}
+                    accountName={transferTo?.scope === 'tracked' ? accountName(transferTo.accountId) : ''}
+                  />
+                  <CategoryNoticeLine show={sendsAnEnd && endEffects.leftAlone > 0}>
+                    {endEffects.leftAlone}
+                    {endEffects.leftAlone === 1
+                      ? ' selected transaction is not a transfer and is left as it is.'
+                      : ' selected transactions are not transfers and are left as they are.'}
+                  </CategoryNoticeLine>
+                </div>
+              </>
             )}
 
-            {/* Outside the field above, since the rows that need an answer are counted whether or not
-                that field is offered, and it is offered only where every selected row records one */}
             <div className="sm:col-span-2">
+              <CategoryNoticeLine show={blockers.sitsOutside.length > 0}>
+                {blockers.sitsOutside.length}
+                {blockers.sitsOutside.length === 1
+                  ? ' selected transaction would sit outside this app. Money leaves from or arrives in one of your accounts, so pick one, or close this and untick it.'
+                  : ' selected transactions would sit outside this app. Money leaves from or arrives in one of your accounts, so pick one, or close this and untick them.'}
+              </CategoryNoticeLine>
+
+              {currencyMismatches.map((mismatch) => (
+                <CategoryNoticeLine key={`${mismatch.rowCurrency}-${mismatch.targetCurrency}`} show>
+                  {mismatch.count}
+                  {mismatch.count === 1
+                    ? ` selected transaction is in ${mismatch.rowCurrency} and would move into an account in ${mismatch.targetCurrency}. Pick an account in ${mismatch.rowCurrency}, or close this and untick it.`
+                    : ` selected transactions are in ${mismatch.rowCurrency} and would move into an account in ${mismatch.targetCurrency}. Pick an account in ${mismatch.rowCurrency}, or close this and untick them.`}
+                </CategoryNoticeLine>
+              ))}
+
               <CategoryNoticeLine show={blockers.unansweredFarSide.length > 0}>
                 {blockers.unansweredFarSide.length}
                 {blockers.unansweredFarSide.length === 1
-                  ? ' selected transfer does not record where the money went.'
-                  : ' selected transfers do not record where the money went.'}
-                {resultingCategoriesRecordTransferTarget
-                  ? ' Answer that here, or close this and untick them.'
-                  : ' Close this and untick them, since the rest of this selection are not transfers.'}
+                  ? ' selected transfer does not record where the money went. Answer that here, or close this and untick it.'
+                  : ' selected transfers do not record where the money went. Answer that here, or close this and untick them.'}
               </CategoryNoticeLine>
 
               <CategoryNoticeLine show={blockers.ownAccountFarSide.length > 0}>
                 {blockers.ownAccountFarSide.length}
                 {blockers.ownAccountFarSide.length === 1
-                  ? ' selected transaction would end up recording the account it already sits in.'
-                  : ' selected transactions would end up recording the account they already sit in.'}
-                {' Pick a different account, or close this and untick them.'}
+                  ? ' selected transaction would end up recording the account it already sits in. Pick a different account, or close this and untick it.'
+                  : ' selected transactions would end up recording the account they already sit in. Pick a different account, or close this and untick them.'}
               </CategoryNoticeLine>
             </div>
           </div>
         </CreateModalSectionFrame>
 
-        <CreateModalSectionFrame step="02" title="Details">
+        <CreateModalSectionFrame step="03" title="Details">
           <div className="sm:max-w-[11rem]">
             <CreateModalFieldLabelRow htmlFor="bulk-date" label="Date" />
             <DateField

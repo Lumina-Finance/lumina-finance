@@ -227,6 +227,8 @@ export default function TransactionListSection({
         recordsFarSide: doesChosenCategoryRecordTransferTarget(categoryMap.get(transaction.category_id)),
         hasFarSideRecorded: transaction.counterparty_account_scope !== null,
         farSideAccountId: transaction.counterparty_account_id,
+        currency: transaction.currency,
+        direction: transaction.amount < 0 ? 'debit' : 'credit',
       }))
   }, [displayedTransactions, selection.selectedIds, categoryMap])
 

@@ -7,16 +7,19 @@ import type { Category } from '@/api/categories'
 import { MAX_BULK_EDIT_TRANSACTIONS } from '@/pages/transactions/components/bulk-edit/constants'
 import {
   buildBulkEditFields,
+  doesAnyResultingCategoryRecordTransferTarget,
   doesChosenCategoryRecordTransferTarget,
   getBulkMoveTargets,
+  getTransferEndTargets,
   bulkSelectionReducer,
   canApplyBulkEdit,
-  doEveryResultingCategoryRecordTransferTarget,
+  countTransferEndEffects,
   emptyBulkSelection,
   getBulkEditBlockers,
   groupSelectionMark,
   hasBulkEditChoice,
   previewSelection,
+  resolveTransferEnds,
   rowSelectionMark,
   type BulkEditChoice,
   type BulkSelectionState,
@@ -157,8 +160,10 @@ function untouched(overrides: Partial<BulkEditChoice> = {}): BulkEditChoice {
     date: '',
     note: '',
     clearsNote: false,
-    transferTarget: null,
-    resultingCategoriesRecordTransferTarget: false,
+    transferFrom: null,
+    transferTo: null,
+    direction: null,
+    endsAreOffered: false,
     ...overrides,
   }
 }
@@ -349,54 +354,67 @@ describe('the details the panel sends', () => {
     expect(buildBulkEditFields(untouched({ note: '', clearsNote: true }))).toEqual({ notes: null })
   })
 
-  it('sends a tracked transfer target as an account and a scope', () => {
+  it('sends a tracked end as an account, dropping the currency it carries', () => {
     const fields = buildBulkEditFields(untouched({
-      resultingCategoriesRecordTransferTarget: true,
-      transferTarget: { scope: 'tracked', accountId: 'acc_2' },
+      endsAreOffered: true,
+      transferFrom: { scope: 'tracked', accountId: 'acc_2', currency: 'CAD' },
     }))
 
-    expect(fields).toEqual({
-      counterparty_account_scope: 'tracked',
-      counterparty_account_id: 'acc_2',
-    })
+    expect(fields).toEqual({ transfer_from: { scope: 'tracked', account_id: 'acc_2' } })
   })
 
-  it('sends money that left the tracked accounts with no account', () => {
+  it('sends the other end the same way', () => {
     const fields = buildBulkEditFields(untouched({
-      resultingCategoriesRecordTransferTarget: true,
-      transferTarget: { scope: 'outside' },
+      endsAreOffered: true,
+      transferTo: { scope: 'tracked', accountId: 'acc_3', currency: 'USD' },
     }))
 
-    expect(fields).toEqual({
-      counterparty_account_scope: 'outside',
-      counterparty_account_id: null,
+    expect(fields).toEqual({ transfer_to: { scope: 'tracked', account_id: 'acc_3' } })
+  })
+
+  it('sends an end set to outside this app with no account', () => {
+    const fields = buildBulkEditFields(untouched({
+      endsAreOffered: true,
+      transferTo: { scope: 'outside' },
+    }))
+
+    expect(fields).toEqual({ transfer_to: { scope: 'outside' } })
+  })
+
+  it('drops the move once an end is answered', () => {
+    const choice = untouched({
+      accountId: 'acc_1',
+      endsAreOffered: true,
+      transferFrom: { scope: 'tracked', accountId: 'acc_2', currency: 'CAD' },
     })
+
+    expect(buildBulkEditFields(choice)).toEqual({ transfer_from: { scope: 'tracked', account_id: 'acc_2' } })
   })
 
   it('counts a category on its own as something to apply, whatever it is', () => {
-    const choice = untouched({ categoryId: 'cat_1', resultingCategoriesRecordTransferTarget: true })
+    const choice = untouched({ categoryId: 'cat_1', endsAreOffered: true })
 
     expect(buildBulkEditFields(choice)).toEqual({ category_id: 'cat_1' })
     expect(hasBulkEditChoice(choice)).toBe(true)
   })
 
-  it('drops a transfer target left behind by a category the user changed away from', () => {
+  it('drops an end left behind by a category the user changed away from', () => {
     const choice = untouched({
       categoryId: 'cat_1',
-      resultingCategoriesRecordTransferTarget: false,
-      transferTarget: { scope: 'tracked', accountId: 'acc_2' },
+      endsAreOffered: false,
+      transferFrom: { scope: 'tracked', accountId: 'acc_2', currency: 'CAD' },
     })
 
-    // The control is off screen under this category, so sending it would refuse the whole batch
-    // over something the user cannot see to undo
+    // The controls are off screen under this category, so sending the end would refuse the whole
+    // batch over something the user cannot see to undo
     expect(buildBulkEditFields(choice)).toEqual({ category_id: 'cat_1' })
   })
 
-  it('has something to apply once the transfer target is answered', () => {
+  it('has something to apply once an end is answered', () => {
     const choice = untouched({
       categoryId: 'cat_1',
-      resultingCategoriesRecordTransferTarget: true,
-      transferTarget: { scope: 'outside' },
+      endsAreOffered: true,
+      transferTo: { scope: 'outside' },
     })
 
     expect(hasBulkEditChoice(choice)).toBe(true)
@@ -409,59 +427,80 @@ describe('what a bulk edit may do to the rows it covers', () => {
     is_system: true, owner_id: null, group_id: null,
   } as Category
 
+  const groceriesCategory = {
+    id: 'cat_g', name: 'Groceries', kind: 'expense', icon: null,
+    is_system: true, owner_id: null, group_id: null,
+  } as Category
+
   const groceries: SelectedTransactionFacts = {
     id: 'a', accountId: 'chequing', hasMerchant: true,
-    recordsFarSide: false, hasFarSideRecorded: false, farSideAccountId: null,
+    recordsFarSide: false, hasFarSideRecorded: false, farSideAccountId: null, currency: 'CAD', direction: 'debit',
   }
   const oldImport: SelectedTransactionFacts = {
     id: 'b', accountId: 'chequing', hasMerchant: false,
-    recordsFarSide: false, hasFarSideRecorded: false, farSideAccountId: null,
+    recordsFarSide: false, hasFarSideRecorded: false, farSideAccountId: null, currency: 'CAD', direction: 'debit',
   }
   const toSavings: SelectedTransactionFacts = {
     id: 'c', accountId: 'chequing', hasMerchant: true,
-    recordsFarSide: true, hasFarSideRecorded: true, farSideAccountId: 'savings',
+    recordsFarSide: true, hasFarSideRecorded: true, farSideAccountId: 'savings', currency: 'CAD', direction: 'debit',
   }
   const toOutside: SelectedTransactionFacts = {
     id: 'd', accountId: 'chequing', hasMerchant: true,
-    recordsFarSide: true, hasFarSideRecorded: true, farSideAccountId: null,
+    recordsFarSide: true, hasFarSideRecorded: true, farSideAccountId: null, currency: 'CAD', direction: 'debit',
   }
   const unanswered: SelectedTransactionFacts = {
     id: 'e', accountId: 'chequing', hasMerchant: true,
-    recordsFarSide: true, hasFarSideRecorded: false, farSideAccountId: null,
+    recordsFarSide: true, hasFarSideRecorded: false, farSideAccountId: null, currency: 'CAD', direction: 'debit',
   }
+
+  // The two halves a transfer pair makes: the money-out half sitting in Chequing and recording
+  // Savings, and the money-in half sitting in Savings and recording Chequing back
+  const chequingHalf: SelectedTransactionFacts = {
+    id: 'chequing_half', accountId: 'chequing', hasMerchant: true,
+    recordsFarSide: true, hasFarSideRecorded: true, farSideAccountId: 'savings', currency: 'CAD', direction: 'debit',
+  }
+  const savingsHalf: SelectedTransactionFacts = {
+    id: 'savings_half', accountId: 'savings', hasMerchant: true,
+    recordsFarSide: true, hasFarSideRecorded: true, farSideAccountId: 'chequing', currency: 'CAD', direction: 'credit',
+  }
+  const pair = [chequingHalf, savingsHalf]
 
   /** An edit that sets a note and nothing else, which is the smallest thing a user can ask for */
   const noteOnly = untouched({ note: 'Corrected' })
-  const noBlockers = { withoutMerchant: [], unansweredFarSide: [], ownAccountFarSide: [] }
+  const noBlockers = {
+    withoutMerchant: [], unansweredFarSide: [], ownAccountFarSide: [], sitsOutside: [], ownSideInAnotherCurrency: [],
+  }
 
-  describe('whether the far account can be set', () => {
+  describe('whether the ends can be set', () => {
     it('sends it for a selection of transfers under no new category', () => {
       const choice = untouched({
-        transferTarget: { scope: 'tracked', accountId: 'savings2' },
-        resultingCategoriesRecordTransferTarget:
-          doEveryResultingCategoryRecordTransferTarget(undefined, [toSavings]),
+        transferTo: { scope: 'tracked', accountId: 'savings2', currency: 'CAD' },
+        endsAreOffered: doesAnyResultingCategoryRecordTransferTarget(undefined, [toSavings]),
       })
 
       expect(buildBulkEditFields(choice)).toEqual({
-        counterparty_account_scope: 'tracked',
-        counterparty_account_id: 'savings2',
+        transfer_to: { scope: 'tracked', account_id: 'savings2' },
       })
     })
 
     it('does not offer it where no selected row records one', () => {
-      expect(doEveryResultingCategoryRecordTransferTarget(undefined, [groceries])).toBe(false)
+      expect(doesAnyResultingCategoryRecordTransferTarget(undefined, [groceries])).toBe(false)
     })
 
-    it('does not offer it where only some selected rows record one', () => {
-      expect(doEveryResultingCategoryRecordTransferTarget(undefined, [groceries, toSavings])).toBe(false)
+    it('offers it where only some selected rows record one', () => {
+      expect(doesAnyResultingCategoryRecordTransferTarget(undefined, [groceries, toSavings])).toBe(true)
     })
 
     it('offers it once the chosen category records one, whatever the rows were', () => {
-      expect(doEveryResultingCategoryRecordTransferTarget(transferCategory, [groceries, toSavings])).toBe(true)
+      expect(doesAnyResultingCategoryRecordTransferTarget(transferCategory, [groceries, toSavings])).toBe(true)
+    })
+
+    it('does not offer it once the chosen category is changed away from a transfer, whatever the rows were', () => {
+      expect(doesAnyResultingCategoryRecordTransferTarget(groceriesCategory, pair)).toBe(false)
     })
 
     it('does not offer it against an empty selection', () => {
-      expect(doEveryResultingCategoryRecordTransferTarget(undefined, [])).toBe(false)
+      expect(doesAnyResultingCategoryRecordTransferTarget(undefined, [])).toBe(false)
     })
   })
 
@@ -489,10 +528,24 @@ describe('what a bulk edit may do to the rows it covers', () => {
       expect(getBulkEditBlockers([toOutside], noteOnly, undefined)).toEqual(noBlockers)
     })
 
-    it('counts a row whose chosen far account is the one it sits in', () => {
+    it('answers an unanswered money-out row once To is set, but not while only From is set', () => {
+      const withTo = untouched({
+        transferTo: { scope: 'tracked', accountId: 'savings', currency: 'CAD' },
+        endsAreOffered: true,
+      })
+      expect(getBulkEditBlockers([unanswered], withTo, undefined).unansweredFarSide).toEqual([])
+
+      const withFrom = untouched({
+        transferFrom: { scope: 'tracked', accountId: 'cash', currency: 'CAD' },
+        endsAreOffered: true,
+      })
+      expect(getBulkEditBlockers([unanswered], withFrom, undefined).unansweredFarSide).toEqual(['e'])
+    })
+
+    it('counts a row whose chosen far end is the one it sits in', () => {
       const choice = untouched({
-        transferTarget: { scope: 'tracked', accountId: 'chequing' },
-        resultingCategoriesRecordTransferTarget: true,
+        transferTo: { scope: 'tracked', accountId: 'chequing', currency: 'CAD' },
+        endsAreOffered: true,
       })
 
       expect(getBulkEditBlockers([toSavings], choice, undefined)).toEqual({
@@ -509,11 +562,85 @@ describe('what a bulk edit may do to the rows it covers', () => {
       })
     })
 
+    it('counts both rows of a pair once the chosen own end matches what each already records', () => {
+      const choice = untouched({
+        transferFrom: { scope: 'tracked', accountId: 'savings', currency: 'CAD' },
+        endsAreOffered: true,
+      })
+
+      expect(getBulkEditBlockers(pair, choice, undefined).ownAccountFarSide.sort()).toEqual([
+        'chequing_half', 'savings_half',
+      ])
+    })
+
+    it('counts a row whose own end would sit outside the tracked accounts', () => {
+      const choice = untouched({ transferFrom: { scope: 'outside' }, endsAreOffered: true })
+      expect(getBulkEditBlockers([toSavings], choice, undefined)).toEqual({
+        ...noBlockers,
+        sitsOutside: ['c'],
+      })
+    })
+
+    it('counts a money-in row whose own end would sit outside the tracked accounts the same way', () => {
+      const choice = untouched({ transferTo: { scope: 'outside' }, endsAreOffered: true })
+      expect(getBulkEditBlockers([savingsHalf], choice, undefined)).toEqual({
+        ...noBlockers,
+        sitsOutside: ['savings_half'],
+      })
+    })
+
+    it('counts a row with no far side recorded as sitting outside rather than as unanswered, once its own end is set to outside', () => {
+      // The server checks the own end before it ever asks whether the far side was answered, so a
+      // row missing both is refused for the one reason the user can act on without touching To
+      const choice = untouched({ transferFrom: { scope: 'outside' }, endsAreOffered: true })
+      expect(getBulkEditBlockers([unanswered], choice, undefined)).toEqual({
+        ...noBlockers,
+        sitsOutside: ['e'],
+      })
+    })
+
+    it('counts a row with no far side recorded as another currency rather than as unanswered, once its own end is set that way', () => {
+      // The currency check reads the same resolved own end the unanswered check would otherwise
+      // fall through to, and comes first, so a row missing both is refused for the currency alone
+      const choice = untouched({
+        transferFrom: { scope: 'tracked', accountId: 'us_savings', currency: 'USD' },
+        endsAreOffered: true,
+      })
+      expect(getBulkEditBlockers([unanswered], choice, undefined)).toEqual({
+        ...noBlockers,
+        ownSideInAnotherCurrency: ['e'],
+      })
+    })
+
+    it('counts a row whose own end would land in another currency, whatever its exchange rate', () => {
+      const choice = untouched({
+        transferFrom: { scope: 'tracked', accountId: 'us_savings', currency: 'USD' },
+        endsAreOffered: true,
+      })
+
+      expect(getBulkEditBlockers([toSavings], choice, undefined)).toEqual({
+        ...noBlockers,
+        ownSideInAnotherCurrency: ['c'],
+      })
+    })
+
     it('counts a row recategorized into a transfer with no far side to fall back on', () => {
       expect(getBulkEditBlockers([groceries], untouched({ categoryId: 'cat_t' }), true)).toEqual({
         ...noBlockers,
         unansweredFarSide: ['a'],
       })
+    })
+
+    it('answers an expense recategorized into a transfer once To is set, but not without it', () => {
+      const withTo = untouched({
+        categoryId: 'cat_t',
+        transferTo: { scope: 'tracked', accountId: 'savings', currency: 'CAD' },
+        endsAreOffered: true,
+      })
+      expect(getBulkEditBlockers([groceries], withTo, true).unansweredFarSide).toEqual([])
+
+      const withoutTo = untouched({ categoryId: 'cat_t', endsAreOffered: true })
+      expect(getBulkEditBlockers([groceries], withoutTo, true).unansweredFarSide).toEqual(['a'])
     })
 
     it('stops asking for a far side once the row is recategorized away from a transfer', () => {
@@ -523,10 +650,92 @@ describe('what a bulk edit may do to the rows it covers', () => {
 
     it('counts each kind of blocking row separately', () => {
       expect(getBulkEditBlockers([oldImport, unanswered], noteOnly, undefined)).toEqual({
+        ...noBlockers,
         withoutMerchant: ['b'],
         unansweredFarSide: ['e'],
-        ownAccountFarSide: [],
       })
+    })
+  })
+
+  describe("resolving a transfer's ends", () => {
+    it('resolves both ends of a pair the way the service would', () => {
+      const choice = untouched({
+        transferFrom: { scope: 'tracked', accountId: 'cash', currency: 'CAD' },
+        transferTo: { scope: 'tracked', accountId: 'savings', currency: 'CAD' },
+        endsAreOffered: true,
+      })
+
+      expect(resolveTransferEnds(chequingHalf, choice, true)).toEqual({
+        ownEnd: choice.transferFrom,
+        farEnd: choice.transferTo,
+      })
+      expect(resolveTransferEnds(savingsHalf, choice, true)).toEqual({
+        ownEnd: choice.transferTo,
+        farEnd: choice.transferFrom,
+      })
+    })
+
+    it("resolves the own end under reverse by flipping the row's own direction", () => {
+      const choice = untouched({
+        transferFrom: { scope: 'tracked', accountId: 'cash', currency: 'CAD' },
+        transferTo: { scope: 'tracked', accountId: 'savings', currency: 'CAD' },
+        direction: 'reverse',
+        endsAreOffered: true,
+      })
+
+      // The Chequing half is money out on its own, so reverse makes it money in, which turns the
+      // own and far ends around from the non-reversed case above
+      expect(resolveTransferEnds(chequingHalf, choice, true)).toEqual({
+        ownEnd: choice.transferTo,
+        farEnd: choice.transferFrom,
+      })
+    })
+
+    it('ignores both ends on a row whose resulting category records no far side', () => {
+      const choice = untouched({
+        transferFrom: { scope: 'tracked', accountId: 'cash', currency: 'CAD' },
+        endsAreOffered: true,
+      })
+
+      expect(resolveTransferEnds(groceries, choice, false)).toEqual({ ownEnd: null, farEnd: null })
+    })
+  })
+
+  describe('counting what an end edit would do', () => {
+    it('reports one end moving the money-out half of a pair and recording on the money-in half', () => {
+      const choice = untouched({
+        transferFrom: { scope: 'tracked', accountId: 'cash', currency: 'CAD' },
+        endsAreOffered: true,
+      })
+
+      expect(countTransferEndEffects(pair, choice, undefined).from).toEqual({ moves: 1, recordsOnly: 1 })
+    })
+
+    it('reports a non-transfer row as left alone alongside a moved transfer', () => {
+      const choice = untouched({
+        transferFrom: { scope: 'tracked', accountId: 'cash', currency: 'CAD' },
+        endsAreOffered: true,
+      })
+
+      const effects = countTransferEndEffects([groceries, toSavings], choice, undefined)
+      expect(effects.leftAlone).toBe(1)
+      expect(effects.from.moves).toBe(1)
+    })
+  })
+
+  describe('which way the money moves', () => {
+    it('sends the direction the edit picked', () => {
+      expect(buildBulkEditFields(untouched({ direction: 'debit' }))).toEqual({ direction: 'debit' })
+      expect(buildBulkEditFields(untouched({ direction: 'credit' }))).toEqual({ direction: 'credit' })
+      expect(buildBulkEditFields(untouched({ direction: 'reverse' }))).toEqual({ direction: 'reverse' })
+    })
+
+    it('sends nothing while the edit leaves it alone', () => {
+      expect(buildBulkEditFields(untouched({ direction: null }))).toEqual({})
+    })
+
+    it('counts a direction on its own as something to apply', () => {
+      expect(hasBulkEditChoice(untouched({ direction: 'debit' }))).toBe(true)
     })
   })
 
@@ -564,19 +773,35 @@ describe('what a bulk edit may do to the rows it covers', () => {
 
     it('refuses while a row would end up recording the account it sits in', () => {
       const choice = untouched({
-        transferTarget: { scope: 'tracked', accountId: 'chequing' },
-        resultingCategoriesRecordTransferTarget: true,
+        transferTo: { scope: 'tracked', accountId: 'chequing', currency: 'CAD' },
+        endsAreOffered: true,
       })
       const blockers = getBulkEditBlockers([toSavings], choice, undefined)
 
       expect(canApplyBulkEdit([toSavings], choice, blockers)).toBe(false)
     })
 
-    it('writes a note across a selection of transfers without touching their far side', () => {
+    it('refuses while an own end would sit outside the tracked accounts', () => {
+      const choice = untouched({ transferFrom: { scope: 'outside' }, endsAreOffered: true })
+      const blockers = getBulkEditBlockers([toSavings], choice, undefined)
+
+      expect(canApplyBulkEdit([toSavings], choice, blockers)).toBe(false)
+    })
+
+    it('refuses while an own end would land in another currency', () => {
+      const choice = untouched({
+        transferFrom: { scope: 'tracked', accountId: 'us_savings', currency: 'USD' },
+        endsAreOffered: true,
+      })
+      const blockers = getBulkEditBlockers([toSavings], choice, undefined)
+
+      expect(canApplyBulkEdit([toSavings], choice, blockers)).toBe(false)
+    })
+
+    it('writes a note across a selection of transfers without touching their ends', () => {
       const choice = untouched({
         note: 'Reconciled',
-        resultingCategoriesRecordTransferTarget:
-          doEveryResultingCategoryRecordTransferTarget(undefined, [toSavings]),
+        endsAreOffered: doesAnyResultingCategoryRecordTransferTarget(undefined, [toSavings]),
       })
       const blockers = getBulkEditBlockers([toSavings], choice, undefined)
 
@@ -585,7 +810,7 @@ describe('what a bulk edit may do to the rows it covers', () => {
     })
 
     it('refuses a recategorization into a transfer that leaves the far side unanswered', () => {
-      const choice = untouched({ categoryId: 'cat_t', resultingCategoriesRecordTransferTarget: true })
+      const choice = untouched({ categoryId: 'cat_t', endsAreOffered: true })
       const blockers = getBulkEditBlockers([groceries], choice, true)
 
       // The category on its own is something to apply, so the refusal is the unanswered far side
@@ -663,6 +888,25 @@ describe('the accounts a selection can move to', () => {
 
   it('offers nothing before anything is selected', () => {
     expect(getBulkMoveTargets(accounts, [])).toEqual([])
+  })
+})
+
+describe("the accounts a transfer's ends can be set to", () => {
+  const accounts = [
+    { id: 'acc_1', currency: 'CAD' },
+    { id: 'acc_2', currency: 'CAD', is_archived: true },
+    { id: 'acc_3', currency: 'CAD', closed_at: '2026-03-01' },
+    { id: 'acc_4', currency: 'USD' },
+  ]
+
+  it('offers every open account, whatever its currency', () => {
+    expect(getTransferEndTargets(accounts).map((account) => account.id)).toEqual(['acc_1', 'acc_4'])
+  })
+
+  it('leaves out an archived or a closed account', () => {
+    const ids = getTransferEndTargets(accounts).map((account) => account.id)
+    expect(ids).not.toContain('acc_2')
+    expect(ids).not.toContain('acc_3')
   })
 })
 

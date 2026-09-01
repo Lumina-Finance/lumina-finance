@@ -1,8 +1,8 @@
-import type { Transaction } from '@/api/transactions'
+import type { Transaction, TransactionDirection } from '@/api/transactions'
 
 export type TransactionModalKind = 'expense' | 'income' | 'transfer'
 
-export type TransactionDirection = 'debit' | 'credit'
+export type { TransactionDirection }
 
 export interface TransactionFormValues {
   kind: TransactionModalKind

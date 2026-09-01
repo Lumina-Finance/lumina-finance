@@ -1,5 +1,6 @@
 """Transaction schemas"""
 
+import enum
 import uuid
 from datetime import date, datetime
 from typing import Annotated
@@ -167,18 +168,57 @@ class UpdateTransactionRequest(BaseModel):
     counterparty_account_scope: TransferCounterpartyScope | None = None
 
 
-# Fields a bulk edit may leave out but may never send as null, because each one writes a column
-# that has no null. Sending null would otherwise reach the database as an integrity error, and a
-# null merchant would take the merchant off a row the edit rules require to have one
-_BULK_UPDATE_NON_NULLABLE_FIELDS = ("account_id", "dt", "category_id", "merchant_id")
+class TransferEnd(BaseModel):
+    """One side of a transfer: an account tracked in this app, or outside it.
+
+    Either end may answer outside, since this model does not know which end a row's own direction
+    will make it. The bulk service refuses an end resolved as a row's own when it answers outside,
+    since a row cannot sit outside this app itself.
+    """
+
+    scope: TransferCounterpartyScope
+    account_id: uuid.UUID | None = None
+
+    @model_validator(mode="after")
+    def check_account_agrees_with_scope(self) -> TransferEnd:
+        """Reject an end whose account contradicts its scope.
+
+        Raises:
+            ValueError: A tracked scope names no account, or another scope names one
+        """
+        tracked = self.scope == TransferCounterpartyScope.TRACKED
+        if tracked and self.account_id is None:
+            raise ValueError("account_id is required when the scope is tracked")
+        if not tracked and self.account_id is not None:
+            raise ValueError("account_id is not allowed unless the scope is tracked")
+        return self
+
+
+class BulkDirectionChange(enum.StrEnum):
+    """Which way a bulk edit turns a transaction, applied as the sign of its amount."""
+
+    DEBIT = "debit"  # Money out, a negative amount
+    CREDIT = "credit"  # Money in, a positive amount
+    REVERSE = "reverse"  # The opposite of whatever each row already points, judged per row
+
+
+# Fields a bulk edit may leave out but may never send as null. Most of them write a column that has
+# no null, where sending one would reach the database as an integrity error, and a null merchant
+# would take the merchant off a row the edit rules require to have one. Direction writes no column
+# at all, and is here because a null would still count as asked for and turn every row outward.
+# Either transfer end is the same: a null end still counts as asked for and has no account or scope
+# of its own to resolve
+_BULK_UPDATE_NON_NULLABLE_FIELDS = (
+    "account_id", "dt", "category_id", "merchant_id", "direction", "transfer_from", "transfer_to",
+)
 
 
 class BulkUpdateTransactionsRequest(BaseModel):
     """Set shared details on several transactions at once.
 
     A field left out is left alone on every transaction. That is why the service reads which fields
-    the request carried rather than which are non-null: `notes` and the counterparty pair each take
-    null as a real answer, meaning clear it.
+    the request carried rather than which are non-null: `notes` takes null as a real answer, meaning
+    clear it.
     """
 
     transaction_ids: list[uuid.UUID] = Field(min_length=1, max_length=MAX_BULK_UPDATE_TRANSACTIONS)
@@ -194,8 +234,15 @@ class BulkUpdateTransactionsRequest(BaseModel):
     # which replaces the whole list
     add_tag_ids: list[uuid.UUID] = []
 
-    counterparty_account_id: uuid.UUID | None = None
-    counterparty_account_scope: TransferCounterpartyScope | None = None
+    # Where a row's own account sits and what it records as the other side, once resolved against
+    # its own resulting direction. Which of the two an unset field leaves alone is not fixed by name
+    transfer_from: TransferEnd | None = None
+    transfer_to: TransferEnd | None = None
+
+    # Which way every transaction should end up pointing, applied as the sign of its amount. Reverse
+    # flips each row's own direction rather than naming an absolute one, and a row already pointing
+    # the way debit or credit asks for is left as it is
+    direction: BulkDirectionChange | None = None
 
     @field_validator(*_BULK_UPDATE_NON_NULLABLE_FIELDS, mode="before")
     @classmethod
@@ -228,22 +275,20 @@ class BulkUpdateTransactionsRequest(BaseModel):
         return self
 
     @model_validator(mode="after")
-    def check_counterparty_answer_agrees_with_itself(self) -> BulkUpdateTransactionsRequest:
-        """Reject a counterparty answer that contradicts itself.
+    def check_ends_have_the_account_column_to_themselves(self) -> BulkUpdateTransactionsRequest:
+        """Reject account_id sent together with either transfer end.
 
-        The account and the scope are one answer, so they travel together.
+        An end writes account_id on every row whose resulting direction makes it that row's own end,
+        and the request cannot tell which rows those are, so account_id beside an end is two answers
+        for the same column.
 
         Raises:
-            ValueError: A tracked scope names no account, or another scope names one
+            ValueError: account_id was sent with transfer_from or transfer_to
         """
-        if not {"counterparty_account_id", "counterparty_account_scope"} & self.model_fields_set:
+        if "account_id" not in self.model_fields_set:
             return self
-
-        tracked = self.counterparty_account_scope == TransferCounterpartyScope.TRACKED
-        if tracked and self.counterparty_account_id is None:
-            raise ValueError("counterparty_account_id is required when the counterparty is a tracked account")
-        if not tracked and self.counterparty_account_id is not None:
-            raise ValueError("counterparty_account_id is not allowed unless the counterparty is a tracked account")
+        if {"transfer_from", "transfer_to"} & self.model_fields_set:
+            raise ValueError("account_id cannot be sent with transfer_from or transfer_to")
         return self
 
 
