@@ -90,17 +90,26 @@ export interface BulkEditSummaryLabels {
   tagLabels: string[]
 }
 
+/**
+ * One note or warning line, keyed by what it is about rather than by its current text, so a count
+ * changing rewrites the text in place instead of the animated list treating it as a new line
+ */
+export interface BulkEditSummaryMessage {
+  key: string
+  text: string
+}
+
 /** What the summary panel shows for one edit: the rows it sends, notes, and warnings to settle */
 export interface BulkEditSummary {
   rows: BulkEditSummaryRow[]
-  notes: string[]
-  warnings: string[]
+  notes: BulkEditSummaryMessage[]
+  warnings: BulkEditSummaryMessage[]
 }
 
 const DIRECTION_ROW_VALUES: Record<BulkDirectionChange, string> = {
   debit: 'Money out',
   credit: 'Money in',
-  reverse: 'Turned around',
+  reverse: 'Reversed',
 }
 
 /**
@@ -238,51 +247,59 @@ export function describeBulkEdit(
     summaryRows.push({ label: 'Note', value: fields.notes === null ? 'Removed' : fields.notes })
   }
 
-  const notes: string[] = []
+  const notes: BulkEditSummaryMessage[] = []
   if (choice.endsAreOffered) {
-    notes.push("A transfer's other half is a separate row. This changes only the rows selected.")
+    notes.push({
+      key: 'other-half',
+      text: "A transfer's other half is a separate row. This changes only the rows selected.",
+    })
   }
   const sendsAnEnd = choice.endsAreOffered && (choice.transferFrom !== null || choice.transferTo !== null)
   if (sendsAnEnd && effects.leftAlone > 0) {
-    notes.push(
-      effects.leftAlone === 1
+    notes.push({
+      key: 'left-alone',
+      text: effects.leftAlone === 1
         ? '1 selected transaction is not a transfer and is left as it is.'
         : `${effects.leftAlone} selected transactions are not transfers and are left as they are.`,
-    )
+    })
   }
 
-  const warnings: string[] = []
+  const warnings: BulkEditSummaryMessage[] = []
   if (blockers.withoutMerchant.length > 0) {
     const count = blockers.withoutMerchant.length
-    warnings.push(
-      count === 1
+    warnings.push({
+      key: 'without-merchant',
+      text: count === 1
         ? '1 selected transaction has no merchant recorded. Set a merchant above, or close this and untick it.'
         : `${count} selected transactions have no merchant recorded. Set a merchant above, or close this and untick them.`,
-    )
+    })
   }
   if (blockers.unansweredFarSide.length > 0) {
     const count = blockers.unansweredFarSide.length
-    warnings.push(
-      count === 1
+    warnings.push({
+      key: 'unanswered',
+      text: count === 1
         ? '1 selected transfer does not record where the money went. Set From or To above, or close this and untick it.'
         : `${count} selected transfers do not record where the money went. Set From or To above, or close this and untick them.`,
-    )
+    })
   }
   if (blockers.ownAccountFarSide.length > 0) {
     const count = blockers.ownAccountFarSide.length
-    warnings.push(
-      count === 1
+    warnings.push({
+      key: 'own-account',
+      text: count === 1
         ? '1 selected transaction would end up recording the account it already sits in. Change From, To or Move to account, or close this and untick it.'
         : `${count} selected transactions would end up recording the account they already sit in. Change From, To or Move to account, or close this and untick them.`,
-    )
+    })
   }
   if (blockers.sitsOutside.length > 0) {
     const count = blockers.sitsOutside.length
-    warnings.push(
-      count === 1
+    warnings.push({
+      key: 'sits-outside',
+      text: count === 1
         ? '1 selected transaction would sit outside this app. Money leaves from or arrives in one of your accounts, so pick one for From or To, or close this and untick it.'
         : `${count} selected transactions would sit outside this app. Money leaves from or arrives in one of your accounts, so pick one for From or To, or close this and untick them.`,
-    )
+    })
   }
   const currencyMismatches = groupCurrencyMismatches(
     rows,
@@ -291,14 +308,18 @@ export function describeBulkEdit(
     chosenCategoryRecordsTransferTarget,
   )
   for (const mismatch of currencyMismatches) {
-    warnings.push(
-      mismatch.count === 1
+    warnings.push({
+      key: `currency-${mismatch.rowCurrency}-${mismatch.targetCurrency}`,
+      text: mismatch.count === 1
         ? `1 selected transaction is in ${mismatch.rowCurrency} and would move into an account in ${mismatch.targetCurrency}. Pick an account in ${mismatch.rowCurrency}, or close this and untick it.`
         : `${mismatch.count} selected transactions are in ${mismatch.rowCurrency} and would move into an account in ${mismatch.targetCurrency}. Pick an account in ${mismatch.rowCurrency}, or close this and untick them.`,
-    )
+    })
   }
   if (rows.length > MAX_BULK_EDIT_TRANSACTIONS) {
-    warnings.push(`One edit covers at most ${MAX_BULK_EDIT_TRANSACTIONS} transactions. Untick some to continue.`)
+    warnings.push({
+      key: 'over-cap',
+      text: `One edit covers at most ${MAX_BULK_EDIT_TRANSACTIONS} transactions. Untick some to continue.`,
+    })
   }
 
   return { rows: summaryRows, notes, warnings }

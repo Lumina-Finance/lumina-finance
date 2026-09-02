@@ -2,7 +2,7 @@ import { Fragment, type MouseEvent, type RefObject, type UIEvent } from 'react'
 import { Check, Pencil } from 'lucide-react'
 import { joinClassNames } from '@/utils/classNames'
 import { DropdownBadge, DropdownCount } from './Badge'
-import { canEditDropdownOption } from './options'
+import { canEditDropdownOption, isDropdownOptionSelected } from './options'
 import type { DropdownOption, DropdownOptionGroup } from './types'
 
 interface DropdownOptionListProps {
@@ -14,6 +14,9 @@ interface DropdownOptionListProps {
   loadingText: string
   options: DropdownOption[]
   selectedValue: string
+
+  /** Ticks every listed option whose value is in this list, instead of the single selected value */
+  selectedValues: string[] | undefined
   showLoading: boolean
   editOptionLabel: string | undefined
   onHighlight: (index: number) => void
@@ -124,6 +127,7 @@ export function DropdownOptionList({
   loadingText,
   options,
   selectedValue,
+  selectedValues,
   showLoading,
   editOptionLabel,
   onHighlight,
@@ -154,7 +158,7 @@ export function DropdownOptionList({
                 flatIndex={flatIndex}
                 highlighted={flatIndex === effectiveHighlightedIndex}
                 option={option}
-                selected={option.value === selectedValue}
+                selected={isDropdownOptionSelected(option, selectedValue, selectedValues)}
                 editOptionLabel={editOptionLabel}
                 onHighlight={onHighlight}
                 onSelect={onSelect}
@@ -170,7 +174,7 @@ export function DropdownOptionList({
             flatIndex={index}
             highlighted={index === effectiveHighlightedIndex}
             option={option}
-            selected={option.value === selectedValue}
+            selected={isDropdownOptionSelected(option, selectedValue, selectedValues)}
             editOptionLabel={editOptionLabel}
             onHighlight={onHighlight}
             onSelect={onSelect}

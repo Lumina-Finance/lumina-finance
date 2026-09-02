@@ -1,5 +1,5 @@
 import { useId, useMemo, useState, type ReactNode } from 'react'
-import { PencilLine, X } from 'lucide-react'
+import { PencilLine } from 'lucide-react'
 import { useCategories } from '@/api/categories'
 import { useInfiniteMerchants } from '@/api/merchants'
 import { useInfiniteTags } from '@/api/tags'
@@ -20,8 +20,10 @@ import {
   getBulkEditBlockers,
   getBulkMoveTargets,
   getTransferEndTargets,
+  toggleChosenTag,
   type BulkEditChoice,
   type BulkEditFields,
+  type ChosenTagOption,
   type SelectedTransactionFacts,
   type TransferEndChoice,
 } from '@/pages/transactions/components/bulk-edit/selection'
@@ -42,10 +44,10 @@ const MAX_NOTE_LENGTH = 500
 // Leaving it alone is an option of its own here, unlike on the single-transaction form, where every
 // transaction points one way or the other and none of them can abstain
 const DIRECTION_OPTIONS = [
-  { value: 'unchanged', label: 'Leave as it is' },
+  { value: 'unchanged', label: 'Leave as is' },
   { value: 'debit', label: 'Money out' },
   { value: 'credit', label: 'Money in' },
-  { value: 'reverse', label: 'Turn around' },
+  { value: 'reverse', label: 'Reverse' },
 ] as const
 
 /** Turns a dropdown's raw string value into the end choice the panel holds */
@@ -109,7 +111,7 @@ export function BulkEditModal({
   // resets its search, which refetches the first page of records, and a record the search had found
   // is not in it, so a label read back off the loaded page would turn into an identifier
   const [merchant, setMerchant] = useState<{ value: string; label: string } | null>(null)
-  const [chosenTags, setChosenTags] = useState<{ value: string; label: string }[]>([])
+  const [chosenTags, setChosenTags] = useState<ChosenTagOption[]>([])
   const merchantId = merchant?.value ?? ''
   const tagIds = chosenTags.map((tag) => tag.value)
 
@@ -132,7 +134,7 @@ export function BulkEditModal({
 
   const endTargets = useMemo(() => getTransferEndTargets(accounts), [accounts])
   const endOptions = [
-    { value: '', label: 'Leave it as it is' },
+    { value: '', label: 'Leave as is' },
     { value: OUTSIDE_ACCOUNT_VALUE, label: OUTSIDE_ACCOUNT_LABEL },
     ...endTargets.map((account) => ({ value: account.id, label: account.name ?? 'Account' })),
   ]
@@ -176,9 +178,21 @@ export function BulkEditModal({
   const tagSearch = useDebouncedReferenceSearch(REFERENCE_SEARCH_DEBOUNCE_MS)
   const tagQuery = useInfiniteTags({ q: tagSearch.activeSearchText || undefined }, REFERENCE_PAGE_SIZE)
   const tags = tagQuery.data?.pages.flat() ?? []
-  const tagOptions = tags
-    .filter((tag) => !tagIds.includes(tag.id))
-    .map((tag) => ({ value: tag.id, label: tag.name }))
+
+  // Chosen tags lead the list, ticked, ahead of the search results, so one can always be unticked
+  // whatever the search box holds. Search results already chosen are dropped rather than repeated
+  const tagOptions = [
+    ...chosenTags,
+    ...tags.filter((tag) => !tagIds.includes(tag.id)).map((tag) => ({ value: tag.id, label: tag.name })),
+  ]
+
+  // The trigger shows this while any tag is chosen, since the dropdown's own value stays blank so
+  // a pick never closes the list. getSelectedDropdownOption only keeps it when its value matches
+  // the blank value passed below, which is also why it goes undefined rather than an empty label
+  // once every tag is unticked
+  const chosenTagsOption = chosenTags.length > 0
+    ? { value: '', label: chosenTags.map((tag) => tag.label).join(', ') }
+    : undefined
 
   const choice: BulkEditChoice = {
     categoryId,
@@ -296,7 +310,7 @@ export function BulkEditModal({
                 options={accountOptions}
                 value={accountId}
                 onChange={changeMoveAccount}
-                placeholder={accountOptions.length === 0 ? 'No account it can move to' : 'Leave as it is'}
+                placeholder={accountOptions.length === 0 ? 'No account it can move to' : 'Leave as is'}
                 searchable
                 disabled={accountOptions.length === 0 || sendsAnEnd}
               />
@@ -312,7 +326,7 @@ export function BulkEditModal({
                 onChange={(value) => setMerchant(
                   merchantOptions.find((option) => option.value === value) ?? null,
                 )}
-                placeholder="Leave as it is"
+                placeholder="Leave as is"
                 searchable
                 filterOptions={false}
                 searchValue={merchantSearch.search}
@@ -330,7 +344,7 @@ export function BulkEditModal({
                 options={categoryOptions}
                 value={categoryId}
                 onChange={setCategoryId}
-                placeholder="Leave as it is"
+                placeholder="Leave as is"
                 searchable
               />
             </div>
@@ -341,11 +355,14 @@ export function BulkEditModal({
                 id="bulk-tags"
                 options={tagOptions}
                 value=""
+                selectedOption={chosenTagsOption}
+                selectedValues={tagIds}
+                closeOnSelect={false}
                 onChange={(value) => {
                   const picked = tagOptions.find((option) => option.value === value)
-                  if (picked) setChosenTags((current) => [...current, picked])
+                  if (picked) setChosenTags((current) => toggleChosenTag(current, picked))
                 }}
-                placeholder="Leave them as they are"
+                placeholder="Leave as is"
                 searchable
                 filterOptions={false}
                 searchValue={tagSearch.search}
@@ -354,26 +371,6 @@ export function BulkEditModal({
                 hasMore={tagQuery.hasNextPage}
                 onLoadMore={tagQuery.fetchNextPage}
               />
-              {chosenTags.length > 0 && (
-                <div className="flex flex-wrap gap-1 pt-2">
-                  {chosenTags.map((tag) => (
-                    <span
-                      key={tag.value}
-                      className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs"
-                      style={{ background: 'var(--app-accent-soft)' }}
-                    >
-                      {tag.label}
-                      <button
-                        type="button"
-                        aria-label={`Remove ${tag.label}`}
-                        onClick={() => setChosenTags((current) => current.filter((item) => item.value !== tag.value))}
-                      >
-                        <X size={12} aria-hidden />
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              )}
             </div>
 
             {endsAreOffered && (
@@ -385,7 +382,8 @@ export function BulkEditModal({
                     options={endOptions}
                     value={transferEndValue(transferFrom)}
                     onChange={(value) => changeTransferEnd(setTransferFrom, value)}
-                    placeholder="Leave it as it is"
+                    placeholder="Leave as is"
+                    blankOptionIsPlaceholder
                     searchable
                     disabled={Boolean(accountId)}
                   />
@@ -398,7 +396,8 @@ export function BulkEditModal({
                     options={endOptions}
                     value={transferEndValue(transferTo)}
                     onChange={(value) => changeTransferEnd(setTransferTo, value)}
-                    placeholder="Leave it as it is"
+                    placeholder="Leave as is"
+                    blankOptionIsPlaceholder
                     searchable
                     disabled={Boolean(accountId)}
                   />
@@ -440,7 +439,7 @@ export function BulkEditModal({
               id="bulk-note"
               type="text"
               className="app-input disabled:cursor-not-allowed disabled:opacity-60"
-              placeholder={clearsNote ? 'The note comes off' : 'Leave it as it is'}
+              placeholder={clearsNote ? 'The note comes off' : 'Leave as is'}
               value={note}
               disabled={clearsNote}
               onChange={(event) => setNote(event.target.value)}

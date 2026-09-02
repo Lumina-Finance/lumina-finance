@@ -194,7 +194,11 @@ export default function TransactionListSection({
   const buildHeadingSelection = useCallback(
     (shownTransactionIds: string[]) => ({
       mark: selection.groupMarkFor(shownTransactionIds),
-      onToggle: () => selection.toggleGroup(shownTransactionIds),
+
+      // A touch tap or a keyboard activation leaves no pointer resting on the heading afterward to
+      // clear the preview the way a mouse leaving the tick does, so the heading passes that along
+      // from the click itself
+      onToggle: (clearsHover: boolean) => selection.toggleGroup(shownTransactionIds, { clearsHover }),
       onPointerMove: () => selection.handleGroupPointerMove(shownTransactionIds),
       onPointerLeave: () => selection.handleGroupPointerLeave(),
     }),

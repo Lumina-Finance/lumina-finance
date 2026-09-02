@@ -1,3 +1,4 @@
+import type React from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import type { Category } from '@/api/categories'
 import type { Transaction } from '@/api/transactions'
@@ -33,9 +34,20 @@ export interface TransactionDateHeadingSelection {
   /** How the tick is marked, read against the rows the heading shows that the app allows editing */
   mark: GroupSelectionMark
 
-  onToggle: () => void
+  // Takes whether the click that toggled the tick should clear the hover afterward, which the
+  // heading decides off the raw event since only it has that
+  onToggle: (clearsHover: boolean) => void
   onPointerMove: () => void
   onPointerLeave: () => void
+}
+
+/**
+ * Returns whether a click came from an actual mouse, which is the only input that leaves a pointer
+ * resting on the heading afterward for a later move to clear the hover preview. A touch tap and a
+ * keyboard activation both lack that, so the heading clears the hover itself for either one
+ */
+function isMouseClick(event: React.MouseEvent): boolean {
+  return event.nativeEvent instanceof PointerEvent && event.nativeEvent.pointerType === 'mouse'
 }
 
 /**
@@ -156,7 +168,7 @@ export default function TransactionDateGroupList({
                       // Says the rows it covers rather than the day, since the list loads a page at
                       // a time and the last heading usually stands over only part of its day
                       label={`Select the transactions shown on ${dateLabel}`}
-                      onChange={headingSelection.onToggle}
+                      onChange={(event) => headingSelection.onToggle(!isMouseClick(event))}
                     />
                   </motion.span>
                 )}

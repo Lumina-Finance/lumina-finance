@@ -41,7 +41,7 @@ export function BulkEditConfirm({
         Change {count} {count === 1 ? 'transaction' : 'transactions'}?
       </h2>
 
-      <p className="mt-2 text-sm" style={{ color: 'var(--app-text-subtle)' }}>
+      <p className="mt-2 text-sm" style={{ color: 'var(--app-negative)' }}>
         This cannot be undone.
       </p>
 
@@ -51,7 +51,9 @@ export function BulkEditConfirm({
         </p>
       )}
 
-      <div className="mt-5 flex justify-end gap-2">
+      {/* Row-reverse keeps Cancel first in the DOM, so it is still the first Tab stop and Tab then
+          Enter abandons the batch, while drawing it at the bottom-right beside the primary button */}
+      <div className="mt-5 flex flex-row-reverse justify-between gap-2">
         <button
           type="button"
           className="app-secondary-button h-9 px-3 text-sm"
@@ -66,7 +68,7 @@ export function BulkEditConfirm({
           onClick={onConfirm}
           disabled={isApplying}
         >
-          {isApplying ? <div className="app-spinner" /> : count === 1 ? 'Change it' : 'Change them'}
+          {isApplying ? <div className="app-spinner" /> : 'Confirm'}
         </button>
       </div>
     </ModalShell>

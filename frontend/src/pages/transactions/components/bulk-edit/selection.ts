@@ -215,6 +215,26 @@ export function doesAnyResultingCategoryRecordTransferTarget(
   return rows.some((row) => row.recordsFarSide);
 }
 
+/** One tag choice as the bulk edit panel holds it, with the label it was picked under */
+export interface ChosenTagOption {
+  value: string;
+  label: string;
+}
+
+/**
+ * Returns the chosen tags with one pick toggled: adds a tag that was not chosen and removes one
+ * that was, leaving the order of the rest as it stood
+ *
+ * @param chosen The tags chosen so far, in the order they were added
+ * @param option The tag the dropdown's pick resolved to
+ */
+export function toggleChosenTag(chosen: ChosenTagOption[], option: ChosenTagOption): ChosenTagOption[] {
+  if (chosen.some((tag) => tag.value === option.value)) {
+    return chosen.filter((tag) => tag.value !== option.value);
+  }
+  return [...chosen, option];
+}
+
 /** Returns the opposite of a transaction's own direction, for an edit that turns a row around */
 function flipDirection(direction: TransactionDirection): TransactionDirection {
   return direction === 'debit' ? 'credit' : 'debit';
@@ -469,7 +489,11 @@ export interface BulkSelectionState {
 export type BulkSelectionAction =
   | { type: 'toggle'; id: string; rows: SelectableRow[] }
   | { type: 'extend'; id: string; rows: SelectableRow[] }
-  | { type: 'toggleGroup'; ids: string[]; rows: SelectableRow[] }
+
+  // clearsHover is set for anything but a mouse click, such as a touch tap or a keyboard
+  // activation, since only a mouse leaves a pointer resting on the heading afterward for a later
+  // move to clear the preview
+  | { type: 'toggleGroup'; ids: string[]; rows: SelectableRow[]; clearsHover?: boolean }
   | { type: 'hover'; id: string | null }
   | { type: 'hoverGroup'; ids: string[] | null }
   | { type: 'keepDisplayed'; ids: string[] }
@@ -580,8 +604,10 @@ export function groupSelectionMark(
  * Returns what the selection would become if the pending click happened, or null when nothing is
  * pending.
  *
- * This is the whole resulting set rather than only the rows a click would add, so the highlight can
- * show a row the click would drop losing its mark before anything is clicked.
+ * The whole resulting set rather than only the rows a click would add, since rowSelectionMark reads
+ * it to tell an unselected row the click would add from one it would leave alone. A row already
+ * selected reads selected whatever the set holds for it, so the set need not distinguish a kept
+ * tick from one the click would drop.
  */
 export function previewSelection(
   state: BulkSelectionState,
@@ -608,17 +634,19 @@ export type RowSelectionMark = 'none' | 'selected' | 'pending';
 /**
  * Returns how a row is marked while a preview may be up.
  *
- * With a preview up the row is marked against the set the click would produce, so a ticked row the
- * click would drop is marked none rather than staying selected.
+ * A selected row always reads selected, whatever a pending shift-click or day tick would do to it,
+ * so what it reads changes only once a click actually lands rather than while the pointer merely
+ * rests nearby. The preview only lifts an unselected row to pending, for the one a pending click
+ * would add.
  */
 export function rowSelectionMark(
   id: string,
   selectedIds: Set<string>,
   preview: Set<string> | null,
 ): RowSelectionMark {
-  if (preview === null) return selectedIds.has(id) ? 'selected' : 'none';
-  if (!preview.has(id)) return 'none';
-  return selectedIds.has(id) ? 'selected' : 'pending';
+  if (selectedIds.has(id)) return 'selected';
+  if (preview !== null && preview.has(id)) return 'pending';
+  return 'none';
 }
 
 /**
@@ -662,13 +690,18 @@ export function bulkSelectionReducer(
       if (resulting === null) return state;
 
       // No single row was clicked, so there is no anchor for a following shift-click to run from.
-      // The baseline goes with it rather than being left behind pointing at ticks that have gone
+      // The baseline goes with it rather than being left behind pointing at ticks that have gone.
+      // The heading preview is kept and refreshed to the ids just toggled rather than cleared, so
+      // the rows the click just settled read against the tick's new state while the pointer keeps
+      // resting there, rather than losing their mark until the next pointer move sets it again. A
+      // touch tap or a keyboard activation has no such move to wait for, so either one clears the
+      // preview outright instead
       return {
         selectedIds: resulting,
         anchorId: null,
         baselineIds: new Set(resulting),
         hoveredId: null,
-        hoveredGroupIds: null,
+        hoveredGroupIds: action.clearsHover ? null : action.ids,
       };
     }
 

@@ -50,9 +50,24 @@ describe('the rows, notes and warnings a bulk edit choice produces', () => {
     const result = summarize([oldImport], untouched())
 
     expect(result.rows).toEqual([])
-    expect(result.warnings).toEqual([
-      '1 selected transaction has no merchant recorded. Set a merchant above, or close this and untick it.',
-    ])
+    expect(result.warnings).toEqual([{
+      key: 'without-merchant',
+      text: '1 selected transaction has no merchant recorded. Set a merchant above, or close this and untick it.',
+    }])
+  })
+
+  it('keeps the without-merchant key stable while its text moves from singular to plural', () => {
+    const one = summarize([oldImport], untouched())
+    expect(one.warnings).toEqual([{
+      key: 'without-merchant',
+      text: '1 selected transaction has no merchant recorded. Set a merchant above, or close this and untick it.',
+    }])
+
+    const two = summarize([oldImport, { ...oldImport, id: 'old_import_2' }], untouched())
+    expect(two.warnings).toEqual([{
+      key: 'without-merchant',
+      text: '2 selected transactions have no merchant recorded. Set a merchant above, or close this and untick them.',
+    }])
   })
 
   it('shows the direction row and the other-half note over a transfer selection', () => {
@@ -60,17 +75,18 @@ describe('the rows, notes and warnings a bulk edit choice produces', () => {
     const result = summarize(pair, choice)
 
     expect(result.rows).toEqual([{ label: 'Direction', value: 'Money out' }])
-    expect(result.notes).toEqual([
-      "A transfer's other half is a separate row. This changes only the rows selected.",
-    ])
+    expect(result.notes).toEqual([{
+      key: 'other-half',
+      text: "A transfer's other half is a separate row. This changes only the rows selected.",
+    }])
   })
 
-  it('shows the direction row with no note over a plain expense selection', () => {
+  it('shows the direction row reversed with no note over a plain expense selection', () => {
     const expenses = [groceries, { ...groceries, id: 'expense_2' }, { ...groceries, id: 'expense_3' }]
     const choice = untouched({ direction: 'reverse', endsAreOffered: false })
     const result = summarize(expenses, choice)
 
-    expect(result.rows).toEqual([{ label: 'Direction', value: 'Turned around' }])
+    expect(result.rows).toEqual([{ label: 'Direction', value: 'Reversed' }])
     expect(result.notes).toEqual([])
   })
 
@@ -95,9 +111,10 @@ describe('the rows, notes and warnings a bulk edit choice produces', () => {
     }])
     // Both rows are transfers whose own account it moves or records, so leftAlone stays at zero and
     // only the other-half note, not the not-a-transfer note, is left standing
-    expect(result.notes).toEqual([
-      "A transfer's other half is a separate row. This changes only the rows selected.",
-    ])
+    expect(result.notes).toEqual([{
+      key: 'other-half',
+      text: "A transfer's other half is a separate row. This changes only the rows selected.",
+    }])
   })
 
   it('shows only a records clause once the From end is outside this app', () => {
@@ -117,9 +134,10 @@ describe('the rows, notes and warnings a bulk edit choice produces', () => {
     const result = summarize([chequingHalf], choice)
 
     expect(result.rows).toEqual([{ label: 'From', value: 'Outside this app' }])
-    expect(result.warnings).toEqual([
-      '1 selected transaction would sit outside this app. Money leaves from or arrives in one of your accounts, so pick one for From or To, or close this and untick it.',
-    ])
+    expect(result.warnings).toEqual([{
+      key: 'sits-outside',
+      text: '1 selected transaction would sit outside this app. Money leaves from or arrives in one of your accounts, so pick one for From or To, or close this and untick it.',
+    }])
   })
 
   it('answers a To end across a transfer pair and leaves a plain expense to its own note', () => {
@@ -136,8 +154,8 @@ describe('the rows, notes and warnings a bulk edit choice produces', () => {
       detail: '1 moves into Savings, 1 records Savings as the other side',
     }])
     expect(result.notes).toEqual([
-      "A transfer's other half is a separate row. This changes only the rows selected.",
-      '1 selected transaction is not a transfer and is left as it is.',
+      { key: 'other-half', text: "A transfer's other half is a separate row. This changes only the rows selected." },
+      { key: 'left-alone', text: '1 selected transaction is not a transfer and is left as it is.' },
     ])
   })
 
@@ -153,9 +171,10 @@ describe('the rows, notes and warnings a bulk edit choice produces', () => {
       { label: 'Direction', value: 'Money in' },
       { label: 'From', value: 'Chequing', detail: '2 record Chequing as the other side' },
     ])
-    expect(result.warnings).toEqual([
-      '1 selected transaction would end up recording the account it already sits in. Change From, To or Move to account, or close this and untick it.',
-    ])
+    expect(result.warnings).toEqual([{
+      key: 'own-account',
+      text: '1 selected transaction would end up recording the account it already sits in. Change From, To or Move to account, or close this and untick it.',
+    }])
   })
 
   it('joins chosen tag names with commas', () => {
@@ -186,9 +205,10 @@ describe('the rows, notes and warnings a bulk edit choice produces', () => {
   it('warns about an unanswered far side even with no end chosen', () => {
     const result = summarize([unanswered], untouched())
 
-    expect(result.warnings).toEqual([
-      '1 selected transfer does not record where the money went. Set From or To above, or close this and untick it.',
-    ])
+    expect(result.warnings).toEqual([{
+      key: 'unanswered',
+      text: '1 selected transfer does not record where the money went. Set From or To above, or close this and untick it.',
+    }])
   })
 
   it('warns once the selection is over the cap', () => {
@@ -198,9 +218,10 @@ describe('the rows, notes and warnings a bulk edit choice produces', () => {
     }))
     const result = summarize(overCap, untouched())
 
-    expect(result.warnings).toEqual([
-      `One edit covers at most ${MAX_BULK_EDIT_TRANSACTIONS} transactions. Untick some to continue.`,
-    ])
+    expect(result.warnings).toEqual([{
+      key: 'over-cap',
+      text: `One edit covers at most ${MAX_BULK_EDIT_TRANSACTIONS} transactions. Untick some to continue.`,
+    }])
   })
 
   it('drops a stale From end once endsAreOffered goes false', () => {
@@ -220,7 +241,7 @@ describe('the rows, notes and warnings a bulk edit choice produces', () => {
     expect(result.rows).toEqual([{ label: 'Move to account', value: 'Account', detail: '1 move' }])
   })
 
-  it('warns once per currency pair when a tracked end mismatches more than one row currency', () => {
+  it('warns once per currency pair, each keyed by its own pair, when a tracked end mismatches more than one row currency', () => {
     const choice = untouched({
       transferFrom: { scope: 'tracked', accountId: 'us_savings', currency: 'USD' },
       endsAreOffered: true,
@@ -228,8 +249,14 @@ describe('the rows, notes and warnings a bulk edit choice produces', () => {
     const result = summarize([chequingHalf, eurExpense], choice)
 
     expect(result.warnings).toEqual([
-      '1 selected transaction is in CAD and would move into an account in USD. Pick an account in CAD, or close this and untick it.',
-      '1 selected transaction is in EUR and would move into an account in USD. Pick an account in EUR, or close this and untick it.',
+      {
+        key: 'currency-CAD-USD',
+        text: '1 selected transaction is in CAD and would move into an account in USD. Pick an account in CAD, or close this and untick it.',
+      },
+      {
+        key: 'currency-EUR-USD',
+        text: '1 selected transaction is in EUR and would move into an account in USD. Pick an account in EUR, or close this and untick it.',
+      },
     ])
   })
 

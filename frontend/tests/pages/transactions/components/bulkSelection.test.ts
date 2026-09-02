@@ -21,7 +21,9 @@ import {
   previewSelection,
   resolveTransferEnds,
   rowSelectionMark,
+  toggleChosenTag,
   type BulkSelectionState,
+  type ChosenTagOption,
   type SelectableRow,
 } from '@/pages/transactions/components/bulk-edit/selection'
 import {
@@ -136,13 +138,13 @@ describe('the preview shown while shift is held', () => {
     expect(preview && [...preview].sort()).toEqual(['b', 'c'])
   })
 
-  it('marks a ticked row the click would drop as no longer selected', () => {
+  it('keeps a ticked row selected even while a re-aimed range would drop it', () => {
     let state = click(emptyBulkSelection, 'b')
     state = click(state, 'e', true)
     state = bulkSelectionReducer(state, { type: 'hover', id: 'c' })
     const preview = previewSelection(state, rows)
 
-    expect(rowSelectionMark('e', state.selectedIds, preview)).toBe('none')
+    expect(rowSelectionMark('e', state.selectedIds, preview)).toBe('selected')
     expect(rowSelectionMark('b', state.selectedIds, preview)).toBe('selected')
   })
 
@@ -243,11 +245,11 @@ describe('the preview shown while the pointer rests on a day heading', () => {
     expect(markOf(state, 'd')).toBe('selected')
   })
 
-  it('shows a fully ticked day dropped, keeping the ticks made in other days', () => {
+  it('keeps a fully ticked day selected while the tick previews dropping it, keeping the ticks made in other days', () => {
     const ticked = click(clickDay(emptyBulkSelection, dayOne), 'd', false, withReadOnlyC)
     const state = hoverDay(ticked, dayOne)
-    expect(markOf(state, 'a')).toBe('none')
-    expect(markOf(state, 'b')).toBe('none')
+    expect(markOf(state, 'a')).toBe('selected')
+    expect(markOf(state, 'b')).toBe('selected')
     expect(markOf(state, 'd')).toBe('selected')
   })
 
@@ -289,9 +291,9 @@ describe('the preview shown while the pointer rests on a day heading', () => {
   })
 
 
-  it('goes once the day is ticked, so its rows read as ticked rather than as about to be dropped', () => {
+  it('stays up once the day is ticked, refreshed to the ids just toggled, so its rows read as ticked rather than as about to be dropped', () => {
     const state = clickDay(hoverDay(emptyBulkSelection, dayOne), dayOne)
-    expect(previewSelection(state, withReadOnlyC)).toBeNull()
+    expect(state.hoveredGroupIds).toEqual(dayOne)
     expect(markOf(state, 'a')).toBe('selected')
     expect(markOf(state, 'b')).toBe('selected')
   })
@@ -301,6 +303,82 @@ describe('the preview shown while the pointer rests on a day heading', () => {
     const state = clickDay(pendingRange, dayTwo)
     expect(state.hoveredId).toBeNull()
     expect(markOf(state, 'c')).toBe('none')
+  })
+})
+
+describe('toggling a day heading keeps its hover refreshed to the ids it just toggled', () => {
+  it('selects a fully unticked day and keeps both rows reading selected under the still-hovered tick', () => {
+    const hovering: BulkSelectionState = { ...emptyBulkSelection, hoveredGroupIds: ['a', 'b'] }
+    const state = bulkSelectionReducer(hovering, { type: 'toggleGroup', ids: ['a', 'b'], rows })
+
+    expect([...state.selectedIds].sort()).toEqual(['a', 'b'])
+    expect(state.hoveredGroupIds).toEqual(['a', 'b'])
+    expect(state.hoveredId).toBeNull()
+    expect(rowSelectionMark('a', state.selectedIds, previewSelection(state, rows))).toBe('selected')
+    expect(rowSelectionMark('b', state.selectedIds, previewSelection(state, rows))).toBe('selected')
+  })
+
+  it('drops a fully ticked day and marks both rows pending under the still-hovered tick', () => {
+    const hovering: BulkSelectionState = {
+      ...emptyBulkSelection,
+      selectedIds: new Set(['a', 'b']),
+      hoveredGroupIds: ['a', 'b'],
+    }
+    const state = bulkSelectionReducer(hovering, { type: 'toggleGroup', ids: ['a', 'b'], rows })
+
+    expect(state.selectedIds.size).toBe(0)
+    expect(state.hoveredGroupIds).toEqual(['a', 'b'])
+    expect(rowSelectionMark('a', state.selectedIds, previewSelection(state, rows))).toBe('pending')
+    expect(rowSelectionMark('b', state.selectedIds, previewSelection(state, rows))).toBe('pending')
+  })
+
+  it('reads a fully ticked day as still selected while the tick merely previews dropping it, with no click yet', () => {
+    const state: BulkSelectionState = {
+      ...emptyBulkSelection,
+      selectedIds: new Set(['a', 'b']),
+      hoveredGroupIds: ['a', 'b'],
+    }
+
+    expect(rowSelectionMark('a', state.selectedIds, previewSelection(state, rows))).toBe('selected')
+    expect(rowSelectionMark('b', state.selectedIds, previewSelection(state, rows))).toBe('selected')
+  })
+
+  it('refreshes the hovered ids to the ones just toggled rather than the ones hovered before', () => {
+    const threeRows: SelectableRow[] = [
+      { id: 'r1', isReadOnly: false },
+      { id: 'r2', isReadOnly: false },
+      { id: 'r3', isReadOnly: false },
+    ]
+    const hovering: BulkSelectionState = { ...emptyBulkSelection, hoveredGroupIds: ['r1', 'r2'] }
+    const state = bulkSelectionReducer(hovering, { type: 'toggleGroup', ids: ['r1', 'r2', 'r3'], rows: threeRows })
+
+    expect([...state.selectedIds].sort()).toEqual(['r1', 'r2', 'r3'])
+    expect(state.hoveredGroupIds).toEqual(['r1', 'r2', 'r3'])
+  })
+
+  it('nulls the hover only when the toggle is told to clear it, and always nulls the single-row hover', () => {
+    const state = bulkSelectionReducer(emptyBulkSelection, {
+      type: 'toggleGroup',
+      ids: ['a', 'b'],
+      rows,
+      clearsHover: true,
+    })
+
+    expect(state.hoveredGroupIds).toBeNull()
+    expect(state.hoveredId).toBeNull()
+  })
+})
+
+describe('choosing a tag in the bulk edit panel', () => {
+  const holiday: ChosenTagOption = { value: 'tag_holiday', label: 'Holiday' }
+  const cash: ChosenTagOption = { value: 'tag_cash', label: 'Cash' }
+
+  it('adds a tag that was not chosen yet', () => {
+    expect(toggleChosenTag([], holiday)).toEqual([holiday])
+  })
+
+  it('removes a chosen tag, leaving the order of the rest as it stood', () => {
+    expect(toggleChosenTag([holiday, cash], holiday)).toEqual([cash])
   })
 })
 

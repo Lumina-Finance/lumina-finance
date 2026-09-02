@@ -9,6 +9,7 @@ import {
   getGroupedDropdownOptions,
   getSelectedDropdownOption,
   getVisibleDropdownOptions,
+  isDropdownOptionSelected,
 } from '@/components/dropdown/options'
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
 
@@ -85,6 +86,19 @@ describe('dropdown option helpers', () => {
     expect(canEditDropdownOption({ value: '', label: 'None' }, true)).toBe(false)
     expect(canEditDropdownOption({ value: 'inst-1', label: 'Alpha Bank', disabled: true }, true)).toBe(false)
     expect(canEditDropdownOption({ value: 'inst-1', label: 'Alpha Bank' }, false)).toBe(false)
+  })
+
+  it('ticks the single selected value while no selected values list is given', () => {
+    expect(isDropdownOptionSelected(options[0], 'chequing', undefined)).toBe(true)
+    expect(isDropdownOptionSelected(options[1], 'chequing', undefined)).toBe(false)
+  })
+
+  it('ticks every option in the selected values list instead, ignoring the single value', () => {
+    // The single value names savings, which would tick it under the fallback rule, but the list
+    // does not carry it and wins instead
+    expect(isDropdownOptionSelected(options[0], 'savings', ['chequing', 'visa'])).toBe(true)
+    expect(isDropdownOptionSelected(options[2], 'savings', ['chequing', 'visa'])).toBe(true)
+    expect(isDropdownOptionSelected(options[1], 'savings', ['chequing', 'visa'])).toBe(false)
   })
 })
 
