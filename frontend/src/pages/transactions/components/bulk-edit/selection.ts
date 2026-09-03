@@ -302,7 +302,8 @@ export interface TransferEndEffects {
  * Each row's resulting direction decides which control answers its own side and which its far
  * side, the same way resolveTransferEnds does. A control set on its own therefore still touches
  * every transfer row: once as the move for the rows whose own side it answers, once as the record
- * for the rest.
+ * for the rest. An own end set to the account the row already sits in neither moves nor records it,
+ * since the row is already there and the edit changes nothing about it.
  *
  * @param rows The selected transactions
  * @param choice What the edit holds
@@ -329,18 +330,89 @@ export function countTransferEndEffects(
 
     // Money out puts From on the row's own account and To on the far side, money in the reverse
     const fromIsOwn = resultingDirectionFor(row, choice) === 'debit';
+    const ownChoice = fromIsOwn ? choice.transferFrom : choice.transferTo;
+    const farChoice = fromIsOwn ? choice.transferTo : choice.transferFrom;
+    const ownEffect = fromIsOwn ? effects.from : effects.to;
+    const farEffect = fromIsOwn ? effects.to : effects.from;
 
-    if (choice.transferFrom !== null) {
-      if (fromIsOwn) effects.from.moves += 1;
-      else effects.from.recordsOnly += 1;
-    }
-    if (choice.transferTo !== null) {
-      if (fromIsOwn) effects.to.recordsOnly += 1;
-      else effects.to.moves += 1;
-    }
+    const ownEndStaysPut = ownChoice?.scope === 'tracked' && ownChoice.accountId === row.accountId;
+    if (ownChoice !== null && !ownEndStaysPut) ownEffect.moves += 1;
+    if (farChoice !== null) farEffect.recordsOnly += 1;
   }
 
   return effects;
+}
+
+/** Where the direction pills' value came from: a pill the user clicked, or the rule reading the ends */
+export type BulkDirectionSource = 'user' | 'implied';
+
+/** The direction the panel holds, together with what set it */
+export interface BulkDirectionChoice {
+  value: BulkDirectionChange | null;
+  source: BulkDirectionSource;
+}
+
+/**
+ * Returns the direction the From and To ends imply, or null where they imply nothing.
+ *
+ * A direction is sent to every row in the batch, so this only answers once every selected row
+ * would end up recording a far side under the edit, the chosen category's rule where one is chosen
+ * and the row's own otherwise; a selection holding even one row that would not is left with nothing
+ * implied. Home is the one account every selected row sits in, so a selection with no rows, or
+ * spanning more than one account, has no home and implies nothing either. From there, To resolving
+ * to home with From not implies money in, since the account records its own money arriving, From
+ * resolving to home with To not implies money out the same way round, and any other pairing, both
+ * ends resolving to home included, implies nothing: an implied direction never moves a row out of
+ * the account it already sits in.
+ *
+ * @param rows The selected transactions
+ * @param transferFrom Where the edit sets the From end, or null to leave it as it is
+ * @param transferTo Where the edit sets the To end, or null to leave it as it is
+ * @param chosenCategoryRecordsTransferTarget Whether the category the edit sets records the other
+ *     side, or undefined while the edit sets no category and each row keeps its own
+ */
+export function impliedDirection(
+  rows: SelectedTransactionFacts[],
+  transferFrom: TransferEndChoice | null,
+  transferTo: TransferEndChoice | null,
+  chosenCategoryRecordsTransferTarget: boolean | undefined,
+): BulkDirectionChange | null {
+  if (rows.length === 0) return null;
+
+  const everyRowRecordsFarSide = rows.every(
+    (row) => chosenCategoryRecordsTransferTarget ?? row.recordsFarSide,
+  );
+  if (!everyRowRecordsFarSide) return null;
+
+  const home = rows[0].accountId;
+  if (!rows.every((row) => row.accountId === home)) return null;
+
+  const toIsHome = transferTo?.scope === 'tracked' && transferTo.accountId === home;
+  const fromIsHome = transferFrom?.scope === 'tracked' && transferFrom.accountId === home;
+
+  if (toIsHome && !fromIsHome) return 'credit';
+  if (fromIsHome && !toIsHome) return 'debit';
+  return null;
+}
+
+/**
+ * Returns what the direction pills hold after a transfer end changes.
+ *
+ * An implication from the new pairing of ends replaces whatever the pills held, from any source and
+ * Reverse included, and is marked implied so a later change knows it was the rule and not the user
+ * that set it. No implication leaves a choice the user made alone, and clears an implied one back to
+ * nothing set, since the pairing that produced it no longer holds.
+ *
+ * @param current What the pills hold now
+ * @param implied What the changed pairing of ends implies, from impliedDirection
+ */
+export function nextDirectionAfterEndChange(
+  current: BulkDirectionChoice,
+  implied: BulkDirectionChange | null,
+): BulkDirectionChoice {
+  if (implied !== null) return { value: implied, source: 'implied' };
+  if (current.source === 'user') return current;
+  return { value: null, source: 'implied' };
 }
 
 /** The selected transactions an edit would have the server refuse the whole batch over */

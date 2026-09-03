@@ -148,10 +148,12 @@ describe('the rows, notes and warnings a bulk edit choice produces', () => {
     })
     const result = summarize(rows, choice)
 
+    // The Savings half's own end already sits in Savings, so it neither moves nor records and the
+    // detail carries only the Chequing half's records clause
     expect(result.rows).toEqual([{
       label: 'To',
       value: 'Savings',
-      detail: '1 moves into Savings, 1 records Savings as the other side',
+      detail: '1 records Savings as the other side',
     }])
     expect(result.notes).toEqual([
       { key: 'other-half', text: "A transfer's other half is a separate row. This changes only the rows selected." },

@@ -129,7 +129,8 @@ function formatBulkEditDate(ymd: string): string {
  *
  * A move clause only makes sense for a tracked account, since a row can never move into "outside
  * this app"; a row whose own end resolves to outside is refused instead, by the sitsOutside blocker,
- * so its detail carries only what it records
+ * so its detail carries only what it records. A row whose own end already sits in the account named
+ * carries no clause at all, since countTransferEndEffects counts it as neither a move nor a record
  *
  * @param effect What the end would move and record, from countTransferEndEffects
  * @param choice What the control holds

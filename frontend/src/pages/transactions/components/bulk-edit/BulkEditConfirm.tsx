@@ -1,4 +1,6 @@
 import { useId } from 'react'
+import { PencilLine } from 'lucide-react'
+import { ModalFormFooter } from '@/components/modal/FormFooter'
 import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import { WarningCallout } from '@/components/WarningCallout'
 
@@ -15,7 +17,9 @@ interface BulkEditConfirmProps {
  * Asks before a bulk edit is written, whatever the size of the selection, over the edit modal
  *
  * A refusal keeps this open and shows what the server said, since the batch is applied whole or not
- * at all and the user has to know that nothing changed.
+ * at all and the user has to know that nothing changed. Styled like the Add Merchant dialog opened
+ * from the transaction form, down to its footer, so a second confirmation stacked over an edit modal
+ * reads as the same kind of dialog rather than a different one.
  */
 export function BulkEditConfirm({
   open,
@@ -34,43 +38,24 @@ export function BulkEditConfirm({
       titleId={titleId}
       eyebrow="Bulk edit"
       title={`Change ${count} ${count === 1 ? 'transaction' : 'transactions'}?`}
-      widthClassName="max-w-md"
+      RailIcon={PencilLine}
+      railLabel="Bulk edit"
       level="stacked"
       closeDisabled={isApplying}
       footer={(
-        // Row-reverse keeps Cancel ahead of Confirm in the DOM, so the first stops a Tab reaches,
-        // the close button and then Cancel, both abandon the batch, while drawing Cancel at the
-        // right beside the primary button
-        <div
-          className="flex shrink-0 flex-row-reverse justify-between gap-2 px-4 py-4 min-[1050px]:px-7"
-          style={{ borderTop: '1px solid var(--app-border)' }}
-        >
-          <button
-            type="button"
-            className="app-secondary-button h-9 px-3 text-sm"
-            onClick={onCancel}
-            disabled={isApplying}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            className="app-primary-button h-9 px-4 text-sm"
-            onClick={onConfirm}
-            disabled={isApplying}
-          >
-            {isApplying ? <div className="app-spinner" /> : 'Confirm'}
-          </button>
-        </div>
+        <ModalFormFooter
+          submitLabel="Confirm"
+          submitDisabled={isApplying}
+          submitWidthClassName="w-full sm:w-32"
+          error={error}
+          level="stacked"
+          onCancel={onCancel}
+          onPrimary={onConfirm}
+          primaryOnLeft
+        />
       )}
     >
       <WarningCallout>This cannot be undone.</WarningCallout>
-
-      {error && (
-        <p className="mt-3 text-sm" role="alert" style={{ color: 'var(--app-negative)' }}>
-          {error}
-        </p>
-      )}
     </ModalTitledPanel>
   )
 }

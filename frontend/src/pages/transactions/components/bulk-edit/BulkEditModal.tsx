@@ -1,4 +1,5 @@
 import { useId, useMemo, useState, type ReactNode } from 'react'
+import { AnimatePresence, motion } from 'motion/react'
 import { PencilLine } from 'lucide-react'
 import { useCategories } from '@/api/categories'
 import { useInfiniteMerchants } from '@/api/merchants'
@@ -10,6 +11,7 @@ import DateField from '@/components/date-field/DateField'
 import Dropdown from '@/components/dropdown/Dropdown'
 import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import IconTooltip from '@/components/tooltips/IconTooltip'
+import { EASE } from '@/pages/transactions/components/transaction-modal/constants'
 import TransactionModalPillSelector from '@/pages/transactions/components/transaction-modal/controls/PillSelector'
 import BulkEditSummaryPanel from '@/pages/transactions/components/bulk-edit/BulkEditSummary'
 import {
@@ -20,7 +22,10 @@ import {
   getBulkEditBlockers,
   getBulkMoveTargets,
   getTransferEndTargets,
+  impliedDirection,
+  nextDirectionAfterEndChange,
   toggleChosenTag,
+  type BulkDirectionChoice,
   type BulkEditChoice,
   type BulkEditFields,
   type ChosenTagOption,
@@ -105,7 +110,14 @@ export function BulkEditModal({
   const [clearsNote, setClearsNote] = useState(false)
   const [transferFrom, setTransferFrom] = useState<TransferEndChoice | null>(null)
   const [transferTo, setTransferTo] = useState<TransferEndChoice | null>(null)
-  const [direction, setDirection] = useState<BulkDirectionChange | null>(null)
+
+  // Nothing set reads as implied, so the first end change to imply a direction lands the same way a
+  // later one clearing it does, rather than the initial state needing its own case
+  const [direction, setDirection] = useState<BulkDirectionChoice>({ value: null, source: 'implied' })
+
+  // Bumped whenever the rule, rather than a pill the user clicked, changes what the pills show, so
+  // the pulse below only draws the eye to a change the user did not make themselves
+  const [directionHighlightKey, setDirectionHighlightKey] = useState(0)
 
   // The chosen merchant and tags are held with the label they were picked under. Closing a dropdown
   // resets its search, which refetches the first page of records, and a record the search had found
@@ -144,24 +156,43 @@ export function BulkEditModal({
   const sendsAnEnd = endsAreOffered && (transferFrom !== null || transferTo !== null)
 
   /**
-   * Applies a From or To dropdown's new value, moving the account picker out of the way once either
-   * end holds a real answer
+   * Applies what the changed pairing of ends implies to the direction pills, pulsing them when the
+   * rule actually moves what they show
    */
-  function changeTransferEnd(setEnd: (choice: TransferEndChoice | null) => void, value: string) {
+  function applyDirectionChange(implied: BulkDirectionChange | null) {
+    const next = nextDirectionAfterEndChange(direction, implied)
+    if (next.value !== direction.value) setDirectionHighlightKey((key) => key + 1)
+    setDirection(next)
+  }
+
+  /**
+   * Applies a From or To dropdown's new value, moving the account picker out of the way once either
+   * end holds a real answer, then updates the direction pills against the new pairing. The
+   * implication reads the end just changed and the other end's current value rather than state that
+   * has not updated yet
+   */
+  function changeTransferEnd(end: 'from' | 'to', value: string) {
     const next = parseTransferEndValue(value, accounts)
-    setEnd(next)
+    if (end === 'from') setTransferFrom(next)
+    else setTransferTo(next)
     if (next !== null) setAccountId('')
+
+    const nextFrom = end === 'from' ? next : transferFrom
+    const nextTo = end === 'to' ? next : transferTo
+    applyDirectionChange(impliedDirection(rows, nextFrom, nextTo, chosenCategoryRecordsTransferTarget))
   }
 
   /**
    * Applies the Move to account picker's new value, clearing both ends so the two controls cannot
-   * disagree about which account a row moves into
+   * disagree about which account a row moves into, and running the clear through the same direction
+   * rule as an end change, with nothing implied
    */
   function changeMoveAccount(value: string) {
     setAccountId(value)
     if (value) {
       setTransferFrom(null)
       setTransferTo(null)
+      applyDirectionChange(null)
     }
   }
 
@@ -194,6 +225,13 @@ export function BulkEditModal({
     ? { value: '', label: chosenTags.map((tag) => tag.label).join(', ') }
     : undefined
 
+  // An implied direction is tied to the pairing of ends that produced it, so it drops out once
+  // endsAreOffered goes false, as when a category change turns the controls off, rather than
+  // outliving the controls it came from. A direction the user picked has no such tie and stays
+  const effectiveDirection: BulkDirectionChange | null = direction.source === 'implied' && !endsAreOffered
+    ? null
+    : direction.value
+
   const choice: BulkEditChoice = {
     categoryId,
     merchantId,
@@ -204,7 +242,7 @@ export function BulkEditModal({
     clearsNote,
     transferFrom,
     transferTo,
-    direction,
+    direction: effectiveDirection,
     endsAreOffered,
   }
   const blockers = getBulkEditBlockers(rows, choice, chosenCategoryRecordsTransferTarget)
@@ -290,20 +328,8 @@ export function BulkEditModal({
     >
       <div className="space-y-5">
         <CreateModalSectionFrame step="01" title="Type & Direction">
-          <div>
-            <CreateModalFieldLabelRow label="Which way the money moves" />
-            <TransactionModalPillSelector
-              value={direction ?? 'unchanged'}
-              options={DIRECTION_OPTIONS}
-              ariaLabel="Set which way the money moves"
-              onChange={(value) => setDirection(value === 'unchanged' ? null : value)}
-            />
-          </div>
-        </CreateModalSectionFrame>
-
-        <CreateModalSectionFrame step="02" title="Source/Destination">
           <div className="grid gap-3 sm:grid-cols-2">
-            <div>
+            <div className="sm:col-span-2">
               <CreateModalFieldLabelRow htmlFor="bulk-account" label="Move to account" accessory={moveAccountIcon} />
               <Dropdown
                 id="bulk-account"
@@ -313,6 +339,77 @@ export function BulkEditModal({
                 placeholder={accountOptions.length === 0 ? 'No account it can move to' : 'Leave as is'}
                 searchable
                 disabled={accountOptions.length === 0 || sendsAnEnd}
+              />
+            </div>
+
+            <div className="sm:col-span-2">
+              <CreateModalFieldLabelRow label="Which way the money moves" />
+              <div className="relative rounded-lg">
+                <AnimatePresence initial={false}>
+                  {directionHighlightKey > 0 && (
+                    <motion.span
+                      key={directionHighlightKey}
+                      className="pointer-events-none absolute inset-0 rounded-lg"
+                      initial={{ boxShadow: '0 0 0 0 var(--app-accent-soft)' }}
+                      animate={{ boxShadow: ['0 0 0 0 var(--app-accent-soft)', '0 0 0 3px var(--app-accent-soft)', '0 0 0 0 var(--app-accent-soft)'] }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.45, ease: EASE }}
+                      aria-hidden
+                    />
+                  )}
+                </AnimatePresence>
+                <TransactionModalPillSelector
+                  value={effectiveDirection ?? 'unchanged'}
+                  options={DIRECTION_OPTIONS}
+                  ariaLabel="Set which way the money moves"
+                  onChange={(value) => setDirection({ value: value === 'unchanged' ? null : value, source: 'user' })}
+                />
+              </div>
+            </div>
+
+            {endsAreOffered && (
+              <>
+                <div>
+                  <CreateModalFieldLabelRow htmlFor="bulk-transfer-from" label="From" accessory={clearedByMoveAccountIcon} />
+                  <Dropdown
+                    id="bulk-transfer-from"
+                    options={endOptions}
+                    value={transferEndValue(transferFrom)}
+                    onChange={(value) => changeTransferEnd('from', value)}
+                    placeholder="Leave as is"
+                    blankOptionIsPlaceholder
+                    searchable
+                    disabled={Boolean(accountId)}
+                  />
+                </div>
+
+                <div>
+                  <CreateModalFieldLabelRow htmlFor="bulk-transfer-to" label="To" accessory={clearedByMoveAccountIcon} />
+                  <Dropdown
+                    id="bulk-transfer-to"
+                    options={endOptions}
+                    value={transferEndValue(transferTo)}
+                    onChange={(value) => changeTransferEnd('to', value)}
+                    placeholder="Leave as is"
+                    blankOptionIsPlaceholder
+                    searchable
+                    disabled={Boolean(accountId)}
+                  />
+                </div>
+              </>
+            )}
+          </div>
+        </CreateModalSectionFrame>
+
+        <CreateModalSectionFrame step="02" title="Details">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <CreateModalFieldLabelRow htmlFor="bulk-date" label="Date" />
+              <DateField
+                id="bulk-date"
+                ariaLabel="Date"
+                value={date}
+                onChange={setDate}
               />
             </div>
 
@@ -373,82 +470,38 @@ export function BulkEditModal({
               />
             </div>
 
-            {endsAreOffered && (
-              <>
-                <div>
-                  <CreateModalFieldLabelRow htmlFor="bulk-transfer-from" label="From" accessory={clearedByMoveAccountIcon} />
-                  <Dropdown
-                    id="bulk-transfer-from"
-                    options={endOptions}
-                    value={transferEndValue(transferFrom)}
-                    onChange={(value) => changeTransferEnd(setTransferFrom, value)}
-                    placeholder="Leave as is"
-                    blankOptionIsPlaceholder
-                    searchable
-                    disabled={Boolean(accountId)}
-                  />
-                </div>
-
-                <div>
-                  <CreateModalFieldLabelRow htmlFor="bulk-transfer-to" label="To" accessory={clearedByMoveAccountIcon} />
-                  <Dropdown
-                    id="bulk-transfer-to"
-                    options={endOptions}
-                    value={transferEndValue(transferTo)}
-                    onChange={(value) => changeTransferEnd(setTransferTo, value)}
-                    placeholder="Leave as is"
-                    blankOptionIsPlaceholder
-                    searchable
-                    disabled={Boolean(accountId)}
-                  />
-                </div>
-              </>
-            )}
+            <div className="sm:col-span-2">
+              <CreateModalFieldLabelRow
+                htmlFor="bulk-note"
+                label="Note"
+                action={(
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <Checkbox
+                      checked={clearsNote}
+                      label="Take the note off instead"
+                      onChange={() => setClearsNote((current) => !current)}
+                    />
+                    <span aria-hidden onClick={() => setClearsNote((current) => !current)}>
+                      Take the note off instead
+                    </span>
+                  </div>
+                )}
+              />
+              <input
+                id="bulk-note"
+                type="text"
+                className="app-input disabled:cursor-not-allowed disabled:opacity-60"
+                placeholder={clearsNote ? 'The note comes off' : 'Leave as is'}
+                value={note}
+                disabled={clearsNote}
+                onChange={(event) => setNote(event.target.value)}
+                maxLength={MAX_NOTE_LENGTH}
+              />
+            </div>
           </div>
         </CreateModalSectionFrame>
 
-        <CreateModalSectionFrame step="03" title="Details">
-          <div className="sm:max-w-[11rem]">
-            <CreateModalFieldLabelRow htmlFor="bulk-date" label="Date" />
-            <DateField
-              id="bulk-date"
-              ariaLabel="Date"
-              value={date}
-              onChange={setDate}
-            />
-          </div>
-
-          <div>
-            <CreateModalFieldLabelRow
-              htmlFor="bulk-note"
-              label="Note"
-              action={(
-                <div className="flex items-center gap-1.5 text-xs">
-                  <Checkbox
-                    checked={clearsNote}
-                    label="Take the note off instead"
-                    onChange={() => setClearsNote((current) => !current)}
-                  />
-                  <span aria-hidden onClick={() => setClearsNote((current) => !current)}>
-                    Take the note off instead
-                  </span>
-                </div>
-              )}
-            />
-            <input
-              id="bulk-note"
-              type="text"
-              className="app-input disabled:cursor-not-allowed disabled:opacity-60"
-              placeholder={clearsNote ? 'The note comes off' : 'Leave as is'}
-              value={note}
-              disabled={clearsNote}
-              onChange={(event) => setNote(event.target.value)}
-              maxLength={MAX_NOTE_LENGTH}
-            />
-          </div>
-        </CreateModalSectionFrame>
-
-        <CreateModalSectionFrame step="04" title="What changes">
+        <CreateModalSectionFrame step="03" title="What changes">
           <BulkEditSummaryPanel summary={summary} />
         </CreateModalSectionFrame>
       </div>

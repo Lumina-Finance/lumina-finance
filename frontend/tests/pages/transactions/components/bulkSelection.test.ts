@@ -18,10 +18,13 @@ import {
   getBulkEditBlockers,
   groupSelectionMark,
   hasBulkEditChoice,
+  impliedDirection,
+  nextDirectionAfterEndChange,
   previewSelection,
   resolveTransferEnds,
   rowSelectionMark,
   toggleChosenTag,
+  type BulkDirectionChoice,
   type BulkSelectionState,
   type ChosenTagOption,
   type SelectableRow,
@@ -39,6 +42,10 @@ import {
   unanswered,
   untouched,
 } from './bulkEditFixtures'
+
+// A second money-out transfer in Chequing recording Savings, alongside chequingHalf, for the
+// direction-implying cases below, which need more than one row already sitting in the same account
+const chequingHalf2 = { ...chequingHalf, id: 'chequing_half_2' }
 
 const rows: SelectableRow[] = [
   { id: 'a', isReadOnly: false },
@@ -683,6 +690,16 @@ describe('what a bulk edit may do to the rows it covers', () => {
         unansweredFarSide: ['e'],
       })
     })
+
+    it('refuses nothing over two Chequing rows given the direction and To their own implication would set', () => {
+      const choice = untouched({
+        direction: 'credit',
+        transferTo: { scope: 'tracked', accountId: 'chequing', currency: 'CAD' },
+        endsAreOffered: true,
+      })
+
+      expect(getBulkEditBlockers([chequingHalf, chequingHalf2], choice, undefined)).toEqual(noBlockers)
+    })
   })
 
   describe("resolving a transfer's ends", () => {
@@ -748,6 +765,88 @@ describe('what a bulk edit may do to the rows it covers', () => {
       const effects = countTransferEndEffects([groceries, toSavings], choice, undefined)
       expect(effects.leftAlone).toBe(1)
       expect(effects.from.moves).toBe(1)
+    })
+
+    it('counts no move and no record for an own end that already sits in the account it points to', () => {
+      const choice = untouched({
+        direction: 'credit',
+        transferTo: { scope: 'tracked', accountId: 'chequing', currency: 'CAD' },
+        endsAreOffered: true,
+      })
+
+      expect(countTransferEndEffects([chequingHalf, chequingHalf2], choice, undefined).to).toEqual({
+        moves: 0, recordsOnly: 0,
+      })
+    })
+
+    it('still counts a far end normally alongside an own end that stays put', () => {
+      const choice = untouched({
+        direction: 'credit',
+        transferTo: { scope: 'tracked', accountId: 'chequing', currency: 'CAD' },
+        transferFrom: { scope: 'tracked', accountId: 'savings', currency: 'CAD' },
+        endsAreOffered: true,
+      })
+
+      expect(countTransferEndEffects([chequingHalf, chequingHalf2], choice, undefined).from.recordsOnly).toBe(2)
+    })
+  })
+
+  describe('the direction the ends imply', () => {
+    // The tracked Chequing account, as an end value, passed as From or To depending on the case
+    const chequing = { scope: 'tracked' as const, accountId: 'chequing', currency: 'CAD' }
+    const outside = { scope: 'outside' as const }
+
+    it('implies money in once every selected row already sits in the account To is set to', () => {
+      expect(impliedDirection([chequingHalf, chequingHalf2], null, chequing, undefined)).toBe('credit')
+    })
+
+    it('implies money out once every selected row already sits in the account From is set to', () => {
+      expect(impliedDirection([chequingHalf, chequingHalf2], chequing, null, undefined)).toBe('debit')
+    })
+
+    it('implies nothing once the selected rows sit in more than one account', () => {
+      expect(impliedDirection(pair, null, chequing, undefined)).toBeNull()
+    })
+
+    it('implies nothing once both ends resolve to the same home account', () => {
+      expect(impliedDirection([chequingHalf, chequingHalf2], chequing, chequing, undefined)).toBeNull()
+    })
+
+    it('implies nothing from an outside end, and nothing at all with no rows selected', () => {
+      expect(impliedDirection([chequingHalf, chequingHalf2], null, outside, undefined)).toBeNull()
+      expect(impliedDirection([], null, chequing, undefined)).toBeNull()
+    })
+
+    it('implies nothing while a selected row would not end up recording a far side, and money in once a chosen transfer category makes every row record one', () => {
+      expect(impliedDirection([chequingHalf, groceries], null, chequing, undefined)).toBeNull()
+      expect(impliedDirection([chequingHalf, groceries], null, chequing, true)).toBe('credit')
+    })
+  })
+
+  describe('what the direction pills hold after an end changes', () => {
+    const nothingSet: BulkDirectionChoice = { value: null, source: 'implied' }
+    const moneyInFromRule: BulkDirectionChoice = { value: 'credit', source: 'implied' }
+    const moneyOutByUser: BulkDirectionChoice = { value: 'debit', source: 'user' }
+    const reverseByUser: BulkDirectionChoice = { value: 'reverse', source: 'user' }
+
+    it('takes an implication over nothing set', () => {
+      expect(nextDirectionAfterEndChange(nothingSet, 'credit')).toEqual(moneyInFromRule)
+    })
+
+    it('clears an implied direction back to nothing set once nothing is implied', () => {
+      expect(nextDirectionAfterEndChange(moneyInFromRule, null)).toEqual(nothingSet)
+    })
+
+    it('leaves a user choice alone once nothing is implied', () => {
+      expect(nextDirectionAfterEndChange(moneyOutByUser, null)).toEqual(moneyOutByUser)
+    })
+
+    it('replaces a user choice once an implication lands', () => {
+      expect(nextDirectionAfterEndChange(moneyOutByUser, 'credit')).toEqual(moneyInFromRule)
+    })
+
+    it('replaces Reverse by the user the same way', () => {
+      expect(nextDirectionAfterEndChange(reverseByUser, 'credit')).toEqual(moneyInFromRule)
     })
   })
 

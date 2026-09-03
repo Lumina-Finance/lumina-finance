@@ -134,7 +134,7 @@ export default function BulkEditSummary({ summary }: BulkEditSummaryProps) {
       onAnimationStart={() => setIsEasingHeight(true)}
       onAnimationComplete={() => setIsEasingHeight(false)}
     >
-      <div ref={contentRef} className="relative flex flex-col gap-3">
+      <div ref={contentRef} className="relative flex flex-col gap-3" aria-live="polite">
         <AnimatePresence initial={false} mode="popLayout">
           {items.map((item) => (
             <motion.div
