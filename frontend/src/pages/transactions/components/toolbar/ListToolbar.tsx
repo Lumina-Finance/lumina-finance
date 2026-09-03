@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { Check, ListChecks, PencilLine, Upload } from 'lucide-react'
 import { DesktopToolbarControls } from '@/components/list-controls/DesktopToolbarControls'
@@ -46,9 +46,13 @@ export default function TransactionListToolbar({
 }: TransactionListToolbarProps) {
   const prefersReducedMotion = useReducedMotion()
 
+  // Set from the desktop edit button's own onAnimationStart and onAnimationComplete, so the wrap
+  // layout hook holds its measurement still for exactly the span its width is changing
+  const [isEditActionAnimating, setIsEditActionAnimating] = useState(false)
+
   // Selection mode swaps the row's own controls, and the wrap layout measures boxes rather than
   // contents, so it is told rather than left to notice
-  const shell = useToolbarShellState(isSelecting ? 'selecting' : 'browsing')
+  const shell = useToolbarShellState(isSelecting ? 'selecting' : 'browsing', isEditActionAnimating)
   useToolbarStickyOffset(shell.toolbarRef, onStickyOffsetChange)
 
   // One node for both widths, at the 44px control height the row is built on, which the search field
@@ -128,9 +132,29 @@ export default function TransactionListToolbar({
     )
   }
 
-  const editAction = isSelecting
-    ? renderEditAction('app-glass-button h-11 w-11 shrink-0 px-0 min-[750px]:w-auto min-[750px]:px-4')
-    : undefined
+  // Animates in beside Done rather than appearing in one frame. The always-present actions keep the
+  // row's own gap-3 among themselves in a group of their own; this button's trailing space instead
+  // lives inside the animated box, as a margin on the button that the width animation carries along
+  // with it, so the space closes with the button instead of sitting at a fixed width until the box
+  // unmounts and the row's gap snaps shut behind it
+  const desktopEditAction = (
+    <AnimatePresence initial={false}>
+      {isSelecting && onEditSelection && (
+        <motion.div
+          key="edit-action"
+          className="overflow-hidden"
+          initial={{ width: 0, opacity: 0 }}
+          animate={{ width: 'auto', opacity: 1 }}
+          exit={{ width: 0, opacity: 0 }}
+          transition={{ duration: prefersReducedMotion ? 0 : 0.16, ease: TRANSACTION_LIST_EASE }}
+          onAnimationStart={() => setIsEditActionAnimating(true)}
+          onAnimationComplete={() => setIsEditActionAnimating(false)}
+        >
+          {renderEditAction('app-glass-button h-11 w-11 shrink-0 px-0 mr-3 min-[750px]:w-auto min-[750px]:px-4')}
+        </motion.div>
+      )}
+    </AnimatePresence>
+  )
 
   const accountOptions = useMemo(
     () => getAccountOptions(accounts),
@@ -195,18 +219,20 @@ export default function TransactionListToolbar({
             // group instead would need its own measured twin, or the row would report itself
             // narrower than it draws and stay on one line where it no longer fits. Wrapped as one
             // child, since the group spreads its children apart once the create button stacks
-            <div className="flex min-w-0 items-center gap-3">
-              {editAction}
-              {selectAction}
-              {importAction}
-              <TransactionFilterPanel
-                accountOptions={accountOptions}
-                categoryOptions={categoryOptions}
-                filters={filters}
-                setFilter={setFilter}
-                showAccountFilter={showAccountFilter}
-                lockedCurrency={lockedCurrency}
-              />
+            <div className="flex min-w-0 items-center">
+              {desktopEditAction}
+              <div className="flex min-w-0 items-center gap-3">
+                {selectAction}
+                {importAction}
+                <TransactionFilterPanel
+                  accountOptions={accountOptions}
+                  categoryOptions={categoryOptions}
+                  filters={filters}
+                  setFilter={setFilter}
+                  showAccountFilter={showAccountFilter}
+                  lockedCurrency={lockedCurrency}
+                />
+              </div>
             </div>
           }
           createLabel="Add Transaction"

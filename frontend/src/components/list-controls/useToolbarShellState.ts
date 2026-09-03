@@ -23,9 +23,11 @@ export type ToolbarShellState = DesktopToolbarLayoutState & MobileSearchStuckSta
  * toolbars
  *
  * @param actionsKey Changes whenever the toolbar swaps its own controls, so the wrap layout re-measures
+ * @param pauseMeasuring Forwarded to the desktop wrap layout hook so a caller can hold its measuring
+ *     still while something it does not control, such as a button's own width animation, is in motion
  */
-export function useToolbarShellState(actionsKey?: string): ToolbarShellState {
-  const desktopLayout = useDesktopToolbarLayout(actionsKey)
+export function useToolbarShellState(actionsKey?: string, pauseMeasuring?: boolean): ToolbarShellState {
+  const desktopLayout = useDesktopToolbarLayout(actionsKey, pauseMeasuring)
   const mobileSearchStuck = useMobileSearchStuck()
   const toolbarStuck = useToolbarStuck()
   const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(false)
