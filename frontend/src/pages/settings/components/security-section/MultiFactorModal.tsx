@@ -7,7 +7,7 @@ import { ModalTitledPanel } from '@/components/modal/TitledPanel';
 import { RecoveryCodesModal } from '@/components/two-factor/RecoveryCodesModal';
 import { StepUpModal, type StepUpCredentials } from '@/components/two-factor/StepUpModal';
 import { TotpEnrollmentModal } from '@/components/two-factor/TotpEnrollmentModal';
-import { WarningCallout } from '@/components/two-factor/WarningCallout';
+import { WarningCallout } from '@/components/WarningCallout';
 import { usePasskeyManagement } from '@/pages/settings/hooks/usePasskeyManagement';
 import { useTwoFactorManagement } from '@/pages/settings/hooks/useTwoFactorManagement';
 import { ApiError } from '@/api/auth';

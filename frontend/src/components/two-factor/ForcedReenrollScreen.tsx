@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { usePasskeyConfig } from '@/api/passkeys';
 import { PasskeyReenrollment } from '@/components/two-factor/PasskeyReenrollment';
 import { TotpEnrollment } from '@/components/two-factor/TotpEnrollment';
-import { WarningCallout } from '@/components/two-factor/WarningCallout';
+import { WarningCallout } from '@/components/WarningCallout';
 import { useAuth } from '@/hooks/useAuth';
 import { assessPasskeySupport } from '@/utils/passkeySupport';
 

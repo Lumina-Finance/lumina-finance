@@ -6,6 +6,11 @@
     /* Light — warm parchment */
     --app-bg: #F2EDE4;
     --app-surface-soft: #FBF8F0;
+    /* A row's own hover, pending mark and focus background. Kept apart from
+       .app-dropdown-row-highlighted, which mixes the same proportion in both themes rather than
+       taking this token, since pointing that rule at this token would carry the flat light value
+       below into the dropdown and lose the mix it depends on there */
+    --app-hover-soft: #FBF8F0;
 
     --app-border: #4b37231c;
     --app-border-strong: #4b372333;
@@ -92,6 +97,7 @@
     /* Dark — warm charcoal */
     --app-bg: #0F0E0C;
     --app-surface-soft: #13100E;
+    --app-hover-soft: color-mix(in srgb, var(--app-text) 6%, transparent);
 
     --app-border: #d2b47817;
     --app-border-strong: #d2b4782b;

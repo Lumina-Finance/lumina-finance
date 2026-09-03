@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { ArrowRight, Info, TriangleAlert } from 'lucide-react'
 import { EASE } from '@/pages/transactions/components/transaction-modal/constants'
@@ -51,15 +51,34 @@ function SummaryRow({ label, value, detail }: { label: string; value: string; de
  * Renders what a bulk edit would do to the selected transactions: a row per detail it sends, a note
  * for anything it passes over, and a warning for anything the server would refuse
  *
- * Every row, note and warning is one item of a single animated list, so a detail appearing or
- * settling grows and shrinks the panel around it rather than snapping to its new height. Rows are
- * keyed by their label and notes and warnings by their kind, so a count changing in place rewrites
- * a line's text without replaying its entrance. Warnings sit under a rule below the rows and notes,
- * since they are what holds Apply disabled rather than a description of what the edit does
+ * The box eases between its own measured heights as a row appears, settles or leaves, rather than
+ * jumping in one frame, and the content-sized panel around it follows along. The panel itself is
+ * never animated, since the drop-downs inside it track their trigger while it is open and a moving
+ * panel would carry them out of place. Rows are keyed by their label and notes and warnings by
+ * their kind, so a count changing in place rewrites a line's text without replaying its entrance.
+ * Warnings sit under a rule below the rows and notes, since they are what holds Apply disabled
+ * rather than a description of what the edit does
  */
 export default function BulkEditSummary({ summary }: BulkEditSummaryProps) {
   const { rows, notes, warnings } = summary
   const isEmpty = rows.length === 0 && warnings.length === 0
+
+  const contentRef = useRef<HTMLDivElement>(null)
+  // Null until the first measurement lands, which is what lets the box render unconstrained at
+  // mount. That first measurement then reports the same height the unconstrained box already has,
+  // so easing to it moves nothing, and only a later measurement, taken after a row changes the
+  // content, actually has a different height to ease towards
+  const [measuredHeight, setMeasuredHeight] = useState<number | null>(null)
+  const [isEasingHeight, setIsEasingHeight] = useState(false)
+
+  useLayoutEffect(() => {
+    const node = contentRef.current
+    if (!node) return undefined
+
+    const observer = new ResizeObserver(() => setMeasuredHeight(node.offsetHeight))
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [])
 
   const items: SummaryListItem[] = isEmpty
     ? [{
@@ -108,8 +127,14 @@ export default function BulkEditSummary({ summary }: BulkEditSummaryProps) {
       ]
 
   return (
-    <motion.div layout animate={{ height: 'auto' }} transition={ITEM_TRANSITION} style={{ overflow: 'hidden' }}>
-      <div className="relative flex flex-col gap-3">
+    <motion.div
+      animate={{ height: measuredHeight ?? 'auto' }}
+      transition={ITEM_TRANSITION}
+      style={{ overflow: isEasingHeight ? 'hidden' : 'visible' }}
+      onAnimationStart={() => setIsEasingHeight(true)}
+      onAnimationComplete={() => setIsEasingHeight(false)}
+    >
+      <div ref={contentRef} className="relative flex flex-col gap-3">
         <AnimatePresence initial={false} mode="popLayout">
           {items.map((item) => (
             <motion.div

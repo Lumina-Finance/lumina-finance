@@ -6,8 +6,9 @@ interface WarningCalloutProps {
 }
 
 /**
- * Red caution banner with an alert icon, used to flag irreversible or lockout-risk two-factor actions
- * The text is sized to match the modal body copy while staying in the warning colour
+ * Red caution banner with an alert icon, used to flag an action a modal cannot undo or that could
+ * lock the user out. The text is sized to match the modal body's own text while staying in the
+ * warning colour
  */
 export function WarningCallout({ children }: WarningCalloutProps) {
   return (

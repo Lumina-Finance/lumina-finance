@@ -1,7 +1,7 @@
 import type { FormEvent } from 'react';
 import { KeyRound } from 'lucide-react';
 import { OtpInput, OTP_LENGTH } from '@/components/OtpInput';
-import { WarningCallout } from '@/components/two-factor/WarningCallout';
+import { WarningCallout } from '@/components/WarningCallout';
 
 /**
  * What this screen may offer for a second-factor challenge

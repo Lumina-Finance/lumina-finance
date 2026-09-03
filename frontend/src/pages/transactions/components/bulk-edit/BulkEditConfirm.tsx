@@ -1,5 +1,6 @@
 import { useId } from 'react'
-import { ModalShell } from '@/components/modal/Shell'
+import { ModalTitledPanel } from '@/components/modal/TitledPanel'
+import { WarningCallout } from '@/components/WarningCallout'
 
 interface BulkEditConfirmProps {
   open: boolean
@@ -27,50 +28,49 @@ export function BulkEditConfirm({
   const titleId = useId()
 
   return (
-    <ModalShell
+    <ModalTitledPanel
       open={open}
       onClose={onCancel}
       titleId={titleId}
-      panelClassName="app-modal-panel w-full max-w-md p-5"
-      // Opened from the edit modal rather than from the page, so it stacks above it rather than
-      // landing on top only because its portal node was appended later
+      eyebrow="Bulk edit"
+      title={`Change ${count} ${count === 1 ? 'transaction' : 'transactions'}?`}
+      widthClassName="max-w-md"
       level="stacked"
       closeDisabled={isApplying}
+      footer={(
+        // Row-reverse keeps Cancel ahead of Confirm in the DOM, so the first stops a Tab reaches,
+        // the close button and then Cancel, both abandon the batch, while drawing Cancel at the
+        // right beside the primary button
+        <div
+          className="flex shrink-0 flex-row-reverse justify-between gap-2 px-4 py-4 min-[1050px]:px-7"
+          style={{ borderTop: '1px solid var(--app-border)' }}
+        >
+          <button
+            type="button"
+            className="app-secondary-button h-9 px-3 text-sm"
+            onClick={onCancel}
+            disabled={isApplying}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="app-primary-button h-9 px-4 text-sm"
+            onClick={onConfirm}
+            disabled={isApplying}
+          >
+            {isApplying ? <div className="app-spinner" /> : 'Confirm'}
+          </button>
+        </div>
+      )}
     >
-      <h2 id={titleId} className="text-lg font-semibold">
-        Change {count} {count === 1 ? 'transaction' : 'transactions'}?
-      </h2>
-
-      <p className="mt-2 text-sm" style={{ color: 'var(--app-negative)' }}>
-        This cannot be undone.
-      </p>
+      <WarningCallout>This cannot be undone.</WarningCallout>
 
       {error && (
-        <p className="mt-3 text-sm" style={{ color: 'var(--app-negative)' }}>
+        <p className="mt-3 text-sm" role="alert" style={{ color: 'var(--app-negative)' }}>
           {error}
         </p>
       )}
-
-      {/* Row-reverse keeps Cancel first in the DOM, so it is still the first Tab stop and Tab then
-          Enter abandons the batch, while drawing it at the bottom-right beside the primary button */}
-      <div className="mt-5 flex flex-row-reverse justify-between gap-2">
-        <button
-          type="button"
-          className="app-secondary-button h-9 px-3 text-sm"
-          onClick={onCancel}
-          disabled={isApplying}
-        >
-          Cancel
-        </button>
-        <button
-          type="button"
-          className="app-primary-button h-9 px-4 text-sm"
-          onClick={onConfirm}
-          disabled={isApplying}
-        >
-          {isApplying ? <div className="app-spinner" /> : 'Confirm'}
-        </button>
-      </div>
-    </ModalShell>
+    </ModalTitledPanel>
   )
 }

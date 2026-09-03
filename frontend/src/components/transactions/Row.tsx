@@ -209,7 +209,7 @@ export default function TransactionRow({
   // cannot be edited
   const selectionBackground = selection?.mark === 'selected'
     ? 'var(--app-accent-soft)'
-    : selection?.mark === 'pending' ? 'var(--app-surface-soft)' : undefined
+    : selection?.mark === 'pending' ? 'var(--app-hover-soft)' : undefined
 
   return (
     <motion.div
@@ -233,7 +233,7 @@ export default function TransactionRow({
       transition={{ duration: prefersReducedMotion ? 0 : 0.24, ease: ROW_EXIT_EASE }}
       onAnimationStart={() => setIsAnimatingHeight(true)}
       onAnimationComplete={() => setIsAnimatingHeight(false)}
-      className="relative flex items-center transition-colors duration-100 hover:bg-[var(--app-surface-soft)] min-[1300px]:col-span-full min-[1300px]:grid min-[1300px]:grid-cols-subgrid min-[1300px]:items-center min-[1300px]:gap-x-3"
+      className="relative flex items-center transition-colors duration-100 hover:bg-[var(--app-hover-soft)] min-[1300px]:col-span-full min-[1300px]:grid min-[1300px]:grid-cols-subgrid min-[1300px]:items-center min-[1300px]:gap-x-3"
       style={{
         borderBottom: '1px solid var(--app-border)',
         overflow: isAnimatingHeight ? 'hidden' : 'visible',
@@ -295,7 +295,7 @@ export default function TransactionRow({
           // pointer the highlight has already answered
           if (selection.isSelectable || event.shiftKey) selection.onToggle(event.shiftKey)
         }}
-        className="block w-full min-w-0 flex-1 cursor-pointer px-3 text-left focus-visible:bg-[var(--app-surface-soft)] focus-visible:outline-none min-[1300px]:col-span-6 min-[1300px]:grid min-[1300px]:grid-cols-subgrid min-[1300px]:items-center min-[1300px]:gap-x-3"
+        className="block w-full min-w-0 flex-1 cursor-pointer px-3 text-left focus-visible:bg-[var(--app-hover-soft)] focus-visible:outline-none min-[1300px]:col-span-6 min-[1300px]:grid min-[1300px]:grid-cols-subgrid min-[1300px]:items-center min-[1300px]:gap-x-3"
       >
       {/* Desktop row: each cell is a direct child of this button's subgrid, which spans the list's
           content tracks, so every row shares the same column tracks and stays aligned. The category
