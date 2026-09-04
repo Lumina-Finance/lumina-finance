@@ -116,14 +116,16 @@ export default function BulkEditSummary({ summary }: BulkEditSummaryProps) {
             })),
 
             // Only the first warning carries the rule that sets the group apart from the rows and
-            // notes above it, since later ones sit directly under the one before
+            // notes above it, since later ones sit directly under the one before. Every warning
+            // describeBulkEdit produces backs a blocker that holds Apply disabled, so all of them
+            // draw in the same negative colour as the icon beside them
             ...warnings.map((warning, index) => ({
               key: warning.key,
               node: (
                 <div
                   className="flex items-start gap-1.5 text-sm"
                   style={{
-                    color: 'var(--app-warning-text)',
+                    color: 'var(--app-negative)',
                     ...(index === 0 ? { borderTop: '1px solid var(--app-border)', paddingTop: '0.75rem' } : {}),
                   }}
                 >
