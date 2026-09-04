@@ -106,8 +106,8 @@ export interface BulkEditSummary {
 }
 
 const DIRECTION_ROW_VALUES: Record<BulkDirectionChange, string> = {
-  debit: 'Money out',
-  credit: 'Money in',
+  debit: 'Debit',
+  credit: 'Credit',
   reverse: 'Reversed',
 }
 

@@ -88,7 +88,7 @@ describe('the rows, notes and warnings a bulk edit choice produces', () => {
     const choice = untouched({ direction: 'debit', endsAreOffered: true })
     const result = summarize(pair, choice)
 
-    expect(result.rows).toEqual([{ label: 'Direction', value: 'Money out' }])
+    expect(result.rows).toEqual([{ label: 'Direction', value: 'Debit' }])
     expect(result.notes).toEqual([{
       key: 'other-half',
       text: 'Adjustments to a transfer affect the selected transaction only and do not update its counterpart.',
@@ -180,7 +180,7 @@ describe('the rows, notes and warnings a bulk edit choice produces', () => {
     const result = summarize(pair, choice)
 
     expect(result.rows).toEqual([
-      { label: 'Direction', value: 'Money in' },
+      { label: 'Direction', value: 'Credit' },
       { label: 'From', value: 'Chequing' },
     ])
     expect(result.warnings).toEqual([{
@@ -353,10 +353,10 @@ describe('the rows, notes and warnings a bulk edit choice produces', () => {
 
     const implied = summarize(rows, untouched({ direction: 'credit', directionIsImplied: true, endsAreOffered: true }))
     expect(implied.rows).toEqual([
-      { label: 'Direction', value: 'Money in', detail: 'applies to 2 out of 3 selected transactions' },
+      { label: 'Direction', value: 'Credit', detail: 'applies to 2 out of 3 selected transactions' },
     ])
 
     const picked = summarize(rows, untouched({ direction: 'credit', directionIsImplied: false, endsAreOffered: true }))
-    expect(picked.rows).toEqual([{ label: 'Direction', value: 'Money in' }])
+    expect(picked.rows).toEqual([{ label: 'Direction', value: 'Credit' }])
   })
 })

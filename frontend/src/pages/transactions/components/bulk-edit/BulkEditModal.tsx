@@ -11,7 +11,7 @@ import DateField from '@/components/date-field/DateField'
 import Dropdown from '@/components/dropdown/Dropdown'
 import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import IconTooltip from '@/components/tooltips/IconTooltip'
-import { EASE } from '@/pages/transactions/components/transaction-modal/constants'
+import { DIRECTION_OPTIONS, EASE } from '@/pages/transactions/components/transaction-modal/constants'
 import TransactionModalPillSelector from '@/pages/transactions/components/transaction-modal/controls/PillSelector'
 import BulkEditSummaryPanel from '@/pages/transactions/components/bulk-edit/BulkEditSummary'
 import {
@@ -49,13 +49,14 @@ const REFERENCE_PAGE_SIZE = 20
 const MAX_NOTE_LENGTH = 500
 
 // Leaving it alone is an option of its own here, unlike on the single-transaction form, where every
-// transaction points one way or the other and none of them can abstain
-const DIRECTION_OPTIONS = [
+// transaction points one way or the other and none of them can abstain. Debit and Credit come from
+// the single-transaction form's own list, so the two pill sets cannot end up naming the same values
+// differently
+const BULK_DIRECTION_OPTIONS: { value: BulkDirectionChange | 'unchanged'; label: string }[] = [
   { value: 'unchanged', label: 'Leave as is' },
-  { value: 'debit', label: 'Money out' },
-  { value: 'credit', label: 'Money in' },
+  ...DIRECTION_OPTIONS,
   { value: 'reverse', label: 'Reverse' },
-] as const
+]
 
 /** Turns a dropdown's raw string value into the end choice the panel holds */
 function parseTransferEndValue(value: string, accounts: TransactionListAccount[]): TransferEndChoice | null {
@@ -364,7 +365,7 @@ export function BulkEditModal({
       }
     >
       <div className="space-y-5">
-        <CreateModalSectionFrame step="01" title="Type & Direction">
+        <CreateModalSectionFrame step="01" title="Account & Direction">
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="sm:col-span-2">
               <CreateModalFieldLabelRow htmlFor="bulk-account" label="Move to account" accessory={moveAccountIcon} />
@@ -380,7 +381,7 @@ export function BulkEditModal({
             </div>
 
             <div className="sm:col-span-2">
-              <CreateModalFieldLabelRow label="Which way the money moves" />
+              <CreateModalFieldLabelRow label="Direction" />
               <div className="relative rounded-lg">
                 <AnimatePresence initial={false}>
                   {directionHighlightKey > 0 && (
@@ -397,8 +398,8 @@ export function BulkEditModal({
                 </AnimatePresence>
                 <TransactionModalPillSelector
                   value={effectiveDirection ?? 'unchanged'}
-                  options={DIRECTION_OPTIONS}
-                  ariaLabel="Set which way the money moves"
+                  options={BULK_DIRECTION_OPTIONS}
+                  ariaLabel="Transaction direction"
                   onChange={changeDirection}
                 />
               </div>

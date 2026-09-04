@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { ArrowRight, Info, TriangleAlert } from 'lucide-react'
 import { EASE } from '@/pages/transactions/components/transaction-modal/constants'
@@ -65,74 +65,83 @@ export default function BulkEditSummary({ summary }: BulkEditSummaryProps) {
 
   const contentRef = useRef<HTMLDivElement>(null)
   // Null until the first measurement lands, which is what lets the box render unconstrained at
-  // mount. That first measurement then reports the same height the unconstrained box already has,
-  // so easing to it moves nothing, and only a later measurement, taken after a row changes the
-  // content, actually has a different height to ease towards
+  // mount, then the same pixels the unconstrained box already had, so nothing visibly moves
   const [measuredHeight, setMeasuredHeight] = useState<number | null>(null)
-  const [isEasingHeight, setIsEasingHeight] = useState(false)
 
+  // Tracks size changes React did not cause, such as text wrapping at a narrower viewport
   useLayoutEffect(() => {
     const node = contentRef.current
     if (!node) return undefined
 
-    const observer = new ResizeObserver(() => setMeasuredHeight(node.offsetHeight))
+    const observer = new ResizeObserver(() => setMeasuredHeight(node.getBoundingClientRect().height))
     observer.observe(node)
     return () => observer.disconnect()
   }, [])
 
-  const items: SummaryListItem[] = isEmpty
-    ? [{
-        key: 'empty',
-        node: (
-          <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-            You will see a preview of what changes once you make the selections above.
-          </p>
-        ),
-      }]
-    : [
-        ...rows.map((row) => ({
-          key: row.label,
-          node: <SummaryRow label={row.label} value={row.value} detail={row.detail} />,
-        })),
+  const items: SummaryListItem[] = useMemo(
+    () =>
+      isEmpty
+        ? [{
+            key: 'empty',
+            node: (
+              <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                You will see a preview of what changes once you make the selections above.
+              </p>
+            ),
+          }]
+        : [
+            ...rows.map((row) => ({
+              key: row.label,
+              node: <SummaryRow label={row.label} value={row.value} detail={row.detail} />,
+            })),
 
-        // Reaching this branch already means a row or a warning is standing, which is the same
-        // gate a note needs, so nothing further conditions it here
-        ...notes.map((note) => ({
-          key: note.key,
-          node: (
-            <div className="flex items-start gap-1.5 text-sm" style={{ color: 'var(--app-text-muted)' }}>
-              <Info size={15} strokeWidth={2.5} className="mt-0.5 shrink-0" aria-hidden />
-              <span>{note.text}</span>
-            </div>
-          ),
-        })),
+            // Reaching this branch already means a row or a warning is standing, which is the same
+            // gate a note needs, so nothing further conditions it here
+            ...notes.map((note) => ({
+              key: note.key,
+              node: (
+                <div className="flex items-start gap-1.5 text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                  <Info size={15} strokeWidth={2.5} className="mt-0.5 shrink-0" aria-hidden />
+                  <span>{note.text}</span>
+                </div>
+              ),
+            })),
 
-        // Only the first warning carries the rule that sets the group apart from the rows and
-        // notes above it, since later ones sit directly under the one before
-        ...warnings.map((warning, index) => ({
-          key: warning.key,
-          node: (
-            <div
-              className="flex items-start gap-1.5 text-sm"
-              style={{
-                color: 'var(--app-warning-text)',
-                ...(index === 0 ? { borderTop: '1px solid var(--app-border)', paddingTop: '0.75rem' } : {}),
-              }}
-            >
-              <TriangleAlert size={15} strokeWidth={2.5} className="mt-0.5 shrink-0" aria-hidden />
-              <span>{warning.text}</span>
-            </div>
-          ),
-        })),
-      ]
+            // Only the first warning carries the rule that sets the group apart from the rows and
+            // notes above it, since later ones sit directly under the one before
+            ...warnings.map((warning, index) => ({
+              key: warning.key,
+              node: (
+                <div
+                  className="flex items-start gap-1.5 text-sm"
+                  style={{
+                    color: 'var(--app-warning-text)',
+                    ...(index === 0 ? { borderTop: '1px solid var(--app-border)', paddingTop: '0.75rem' } : {}),
+                  }}
+                >
+                  <TriangleAlert size={15} strokeWidth={2.5} className="mt-0.5 shrink-0" aria-hidden />
+                  <span>{warning.text}</span>
+                </div>
+              ),
+            })),
+          ],
+    [isEmpty, rows, notes, warnings],
+  )
+
+  // Re-measures whenever the rendered list changes, landing the new target before the browser
+  // paints the frame that changed the content, so the tween starts on the very next frame rather
+  // than one paint later
+  useLayoutEffect(() => {
+    const node = contentRef.current
+    if (!node) return
+    setMeasuredHeight(node.getBoundingClientRect().height)
+  }, [items])
 
   return (
     <motion.div
       animate={{ height: measuredHeight ?? 'auto' }}
       transition={ITEM_TRANSITION}
-      style={{ overflow: isEasingHeight ? 'hidden' : 'visible' }}
-      onAnimationStart={() => setIsEasingHeight(true)}
-      onAnimationComplete={() => setIsEasingHeight(false)}
+      style={{ overflow: 'hidden' }}
     >
       <div ref={contentRef} className="relative flex flex-col gap-3" aria-live="polite">
         <AnimatePresence initial={false} mode="popLayout">
