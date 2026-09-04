@@ -204,12 +204,14 @@ class BulkDirectionChange(enum.StrEnum):
 
 # Fields a bulk edit may leave out but may never send as null. Most of them write a column that has
 # no null, where sending one would reach the database as an integrity error, and a null merchant
-# would take the merchant off a row the edit rules require to have one. Direction writes no column
-# at all, and is here because a null would still count as asked for and turn every row outward.
-# Either transfer end is the same: a null end still counts as asked for and has no account or scope
-# of its own to resolve
+# would take the merchant off a row the edit rules require to have one. Direction and
+# transfer_direction are not columns of their own that a null could be written into, both writing
+# the amount column instead, and are here because a null would still count as asked for and turn
+# every row either of them reaches outward. Either transfer end is the same: a null end still
+# counts as asked for and has no account or scope of its own to resolve
 _BULK_UPDATE_NON_NULLABLE_FIELDS = (
-    "account_id", "dt", "category_id", "merchant_id", "direction", "transfer_from", "transfer_to",
+    "account_id", "dt", "category_id", "merchant_id", "direction", "transfer_direction",
+    "transfer_from", "transfer_to",
 )
 
 
@@ -243,6 +245,10 @@ class BulkUpdateTransactionsRequest(BaseModel):
     # flips each row's own direction rather than naming an absolute one, and a row already pointing
     # the way debit or credit asks for is left as it is
     direction: BulkDirectionChange | None = None
+
+    # Applied exactly as direction is, but only to the rows whose resulting category records a far
+    # side. Refused beside direction, since both set the sign of the same amount
+    transfer_direction: BulkDirectionChange | None = None
 
     @field_validator(*_BULK_UPDATE_NON_NULLABLE_FIELDS, mode="before")
     @classmethod
@@ -289,6 +295,20 @@ class BulkUpdateTransactionsRequest(BaseModel):
             return self
         if {"transfer_from", "transfer_to"} & self.model_fields_set:
             raise ValueError("account_id cannot be sent with transfer_from or transfer_to")
+        return self
+
+    @model_validator(mode="after")
+    def check_direction_has_the_amount_sign_to_itself(self) -> BulkUpdateTransactionsRequest:
+        """Reject direction sent together with transfer_direction.
+
+        Both set the sign of the same amount, one for every row and the other for the rows whose
+        resulting category records a far side, so sending both is two answers for that sign.
+
+        Raises:
+            ValueError: direction and transfer_direction were both sent
+        """
+        if {"direction", "transfer_direction"} <= self.model_fields_set:
+            raise ValueError("direction cannot be sent with transfer_direction")
         return self
 
 

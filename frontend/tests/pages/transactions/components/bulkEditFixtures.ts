@@ -48,6 +48,10 @@ export const savingsHalf: SelectedTransactionFacts = {
 }
 export const pair = [chequingHalf, savingsHalf]
 
+// A second money-out transfer in Chequing recording Savings, alongside chequingHalf, for the
+// direction-implying cases, which need more than one row already sitting in the same account
+export const chequingHalf2: SelectedTransactionFacts = { ...chequingHalf, id: 'chequing_half_2' }
+
 // A transfer recording outside in EUR, its far side already answered so the only blocker it can
 // trip is the own-currency check. Sits alongside the Chequing half so a From set to a tracked USD
 // account produces two distinct currency-mismatch warnings rather than the one pair either row
@@ -70,6 +74,7 @@ export function untouched(overrides: Partial<BulkEditChoice> = {}): BulkEditChoi
     transferFrom: null,
     transferTo: null,
     direction: null,
+    directionIsImplied: false,
     endsAreOffered: false,
     ...overrides,
   }

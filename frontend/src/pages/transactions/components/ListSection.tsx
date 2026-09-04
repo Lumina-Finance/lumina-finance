@@ -12,6 +12,7 @@ import { BulkEditModal } from '@/pages/transactions/components/bulk-edit/BulkEdi
 import { BulkEditConfirm } from '@/pages/transactions/components/bulk-edit/BulkEditConfirm'
 import {
   doesChosenCategoryRecordTransferTarget,
+  isRowSelectable,
   type BulkEditFields,
   type SelectedTransactionFacts,
 } from '@/pages/transactions/components/bulk-edit/selection'
@@ -179,14 +180,18 @@ export default function TransactionListSection({
   const selection = useBulkSelection(selectableRows, requestKey, !filterListLoading)
   const { clear: clearSelection } = selection
 
+  // A Set rather than the array useBulkSelection returns, since isRowSelectable does a membership
+  // check per row and a fresh array scan for each one would be quadratic in the list's length
+  const selectedIdsSet = useMemo(() => new Set(selection.selectedIds), [selection.selectedIds])
+
   const buildRowSelection = useCallback(
     (transactionId: string, isReadOnly: boolean) => ({
       mark: selection.markFor(transactionId),
-      isSelectable: !isReadOnly,
+      isSelectable: isRowSelectable(transactionId, selectedIdsSet, isReadOnly),
       onToggle: (withShift: boolean) => selection.toggle(transactionId, withShift),
       onPointerEnter: () => selection.handlePointerEnter(transactionId),
     }),
-    [selection],
+    [selection, selectedIdsSet],
   )
 
   // Takes the transactions one day heading shows, which is what its tick covers. Whether any of them

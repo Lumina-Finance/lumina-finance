@@ -15,10 +15,13 @@ import {
   canApplyBulkEdit,
   countTransferEndEffects,
   emptyBulkSelection,
+  endsAfterDirectionClick,
+  endsAfterEndPick,
   getBulkEditBlockers,
   groupSelectionMark,
   hasBulkEditChoice,
   impliedDirection,
+  isRowSelectable,
   nextDirectionAfterEndChange,
   previewSelection,
   resolveTransferEnds,
@@ -31,6 +34,7 @@ import {
 } from '@/pages/transactions/components/bulk-edit/selection'
 import {
   chequingHalf,
+  chequingHalf2,
   groceries,
   groceriesCategory,
   oldImport,
@@ -42,10 +46,6 @@ import {
   unanswered,
   untouched,
 } from './bulkEditFixtures'
-
-// A second money-out transfer in Chequing recording Savings, alongside chequingHalf, for the
-// direction-implying cases below, which need more than one row already sitting in the same account
-const chequingHalf2 = { ...chequingHalf, id: 'chequing_half_2' }
 
 const rows: SelectableRow[] = [
   { id: 'a', isReadOnly: false },
@@ -796,15 +796,15 @@ describe('what a bulk edit may do to the rows it covers', () => {
     const chequing = { scope: 'tracked' as const, accountId: 'chequing', currency: 'CAD' }
     const outside = { scope: 'outside' as const }
 
-    it('implies money in once every selected row already sits in the account To is set to', () => {
+    it('implies money in once every transfer row already sits in the account To is set to', () => {
       expect(impliedDirection([chequingHalf, chequingHalf2], null, chequing, undefined)).toBe('credit')
     })
 
-    it('implies money out once every selected row already sits in the account From is set to', () => {
+    it('implies money out once every transfer row already sits in the account From is set to', () => {
       expect(impliedDirection([chequingHalf, chequingHalf2], chequing, null, undefined)).toBe('debit')
     })
 
-    it('implies nothing once the selected rows sit in more than one account', () => {
+    it('implies nothing once the transfer rows sit in more than one account', () => {
       expect(impliedDirection(pair, null, chequing, undefined)).toBeNull()
     })
 
@@ -812,14 +812,74 @@ describe('what a bulk edit may do to the rows it covers', () => {
       expect(impliedDirection([chequingHalf, chequingHalf2], chequing, chequing, undefined)).toBeNull()
     })
 
-    it('implies nothing from an outside end, and nothing at all with no rows selected', () => {
-      expect(impliedDirection([chequingHalf, chequingHalf2], null, outside, undefined)).toBeNull()
+    it('implies nothing while no row is selected, since there is no transfer row to read', () => {
       expect(impliedDirection([], null, chequing, undefined)).toBeNull()
     })
 
-    it('implies nothing while a selected row would not end up recording a far side, and money in once a chosen transfer category makes every row record one', () => {
-      expect(impliedDirection([chequingHalf, groceries], null, chequing, undefined)).toBeNull()
+    it('reads the transfer rows alone, ignoring a selected row that is not one of them', () => {
+      expect(impliedDirection([chequingHalf, groceries], null, chequing, undefined)).toBe('credit')
       expect(impliedDirection([chequingHalf, groceries], null, chequing, true)).toBe('credit')
+    })
+
+    it('implies money in once From is set to outside, whichever accounts the transfer rows sit in', () => {
+      expect(impliedDirection(pair, outside, null, undefined)).toBe('credit')
+    })
+
+    it('implies money out once To is set to outside the same way', () => {
+      expect(impliedDirection(pair, null, outside, undefined)).toBe('debit')
+    })
+
+    it('implies nothing once both ends are set to outside', () => {
+      expect(impliedDirection(pair, outside, outside, undefined)).toBeNull()
+    })
+
+    it('reads To = outside over a mixed selection with no category chosen, ignoring the row that is not a transfer', () => {
+      expect(impliedDirection([...pair, groceries], null, outside, undefined)).toBe('debit')
+    })
+  })
+
+  describe('keeping the ends legal after an end pick or a direction click', () => {
+    it('reverts the other end to null once the just-picked end and the other are both outside', () => {
+      const outside = { scope: 'outside' as const }
+      expect(endsAfterEndPick(outside, outside, 'to')).toEqual({ from: null, to: outside })
+    })
+
+    it('leaves the other end alone once it is not outside', () => {
+      const outside = { scope: 'outside' as const }
+      const cash = { scope: 'tracked' as const, accountId: 'cash', currency: 'CAD' }
+      expect(endsAfterEndPick(outside, cash, 'to')).toEqual({ from: outside, to: cash })
+    })
+
+    it('reverts whichever end the clicked direction would make an outside own side', () => {
+      const outside = { scope: 'outside' as const }
+      const cash = { scope: 'tracked' as const, accountId: 'cash', currency: 'CAD' }
+
+      expect(endsAfterDirectionClick('debit', outside, cash, [chequingHalf, chequingHalf2], undefined))
+        .toEqual({ from: null, to: cash })
+      expect(endsAfterDirectionClick('credit', cash, outside, [chequingHalf, chequingHalf2], undefined))
+        .toEqual({ from: cash, to: null })
+    })
+
+    it('keeps an outside end through Reverse while every transfer row reverses onto the other side', () => {
+      const outside = { scope: 'outside' as const }
+      expect(endsAfterDirectionClick('reverse', outside, null, [chequingHalf, chequingHalf2], undefined))
+        .toEqual({ from: outside, to: null })
+    })
+
+    it('reverts an outside end once a mixed-direction selection puts it on some row\'s own side', () => {
+      const outside = { scope: 'outside' as const }
+      expect(endsAfterDirectionClick('reverse', outside, null, pair, undefined)).toEqual({ from: null, to: null })
+      expect(endsAfterDirectionClick(null, outside, null, pair, undefined)).toEqual({ from: null, to: null })
+    })
+
+    it('keeps an outside end while leaving it as is over a selection that resolves it to the far side alone', () => {
+      const outside = { scope: 'outside' as const }
+      expect(endsAfterDirectionClick(null, outside, null, [savingsHalf], undefined)).toEqual({ from: outside, to: null })
+    })
+
+    it('reverts an outside end once the chosen category turns another row into a transfer resolving money out', () => {
+      const outside = { scope: 'outside' as const }
+      expect(endsAfterDirectionClick(null, outside, null, [savingsHalf, groceries], true)).toEqual({ from: null, to: null })
     })
   })
 
@@ -863,6 +923,13 @@ describe('what a bulk edit may do to the rows it covers', () => {
 
     it('counts a direction on its own as something to apply', () => {
       expect(hasBulkEditChoice(untouched({ direction: 'debit' }))).toBe(true)
+    })
+
+    it('sends transfer_direction rather than direction once the source is implied', () => {
+      expect(buildBulkEditFields(untouched({ direction: 'credit', directionIsImplied: true })))
+        .toEqual({ transfer_direction: 'credit' })
+      expect(buildBulkEditFields(untouched({ direction: 'credit', directionIsImplied: false })))
+        .toEqual({ direction: 'credit' })
     })
   })
 
@@ -1065,5 +1132,94 @@ describe('what empties the selection', () => {
     })
 
     expect(settled).toBe(state)
+  })
+})
+
+describe("a row's tick at the selection limit", () => {
+  it('is false for an unselected row once the limit is reached, true for one already selected', () => {
+    const selected = new Set(['x', 'y', 'z'])
+    expect(isRowSelectable('w', selected, false, 3)).toBe(false)
+    expect(isRowSelectable('x', selected, false, 3)).toBe(true)
+  })
+
+  it('is false for a read-only row whether or not the limit is reached', () => {
+    expect(isRowSelectable('w', new Set(['x', 'y', 'z']), true, 3)).toBe(false)
+    expect(isRowSelectable('w', new Set(['x', 'y']), true, 3)).toBe(false)
+  })
+
+  it('is true for an unselected row while the limit still has room', () => {
+    expect(isRowSelectable('w', new Set(['x', 'y']), false, 3)).toBe(true)
+  })
+})
+
+describe('the selection limit', () => {
+  const limitedRows: SelectableRow[] = [
+    { id: 'a', isReadOnly: false },
+    { id: 'b', isReadOnly: false },
+    { id: 'c', isReadOnly: false },
+    { id: 'd', isReadOnly: false },
+    { id: 'e', isReadOnly: false },
+  ]
+
+  /** Ticks a row through the reducer at a given limit, the way a plain click does */
+  function toggleAt(state: BulkSelectionState, id: string, limit: number, over = limitedRows) {
+    return bulkSelectionReducer(state, { type: 'toggle', id, rows: over }, limit)
+  }
+
+  it('selects rows up to the limit and refuses to add past it, freeing a slot once one is unticked', () => {
+    let state = toggleAt(emptyBulkSelection, 'a', 3)
+    state = toggleAt(state, 'b', 3)
+    state = toggleAt(state, 'c', 3)
+    state = toggleAt(state, 'd', 3)
+
+    expect([...state.selectedIds].sort()).toEqual(['a', 'b', 'c'])
+
+    state = toggleAt(state, 'b', 3)
+    state = toggleAt(state, 'd', 3)
+    expect([...state.selectedIds].sort()).toEqual(['a', 'c', 'd'])
+  })
+
+  it('joins a day up to the limit, reads it as part-filled, and drops just the part that joined', () => {
+    const withOneElsewhere: BulkSelectionState = { ...emptyBulkSelection, selectedIds: new Set(['elsewhere']) }
+    const day = ['a', 'b', 'c', 'd']
+
+    const joined = bulkSelectionReducer(
+      withOneElsewhere,
+      { type: 'toggleGroup', ids: day, rows: limitedRows },
+      3,
+    )
+    expect([...joined.selectedIds].sort()).toEqual(['a', 'b', 'elsewhere'])
+    expect(groupSelectionMark(day, limitedRows, joined.selectedIds, 3)).toBe('some')
+
+    const dropped = bulkSelectionReducer(joined, { type: 'toggleGroup', ids: day, rows: limitedRows }, 3)
+    expect([...dropped.selectedIds]).toEqual(['elsewhere'])
+  })
+
+  it('reads a day whose rows are all selected as all, whatever the limit', () => {
+    const allTicked = new Set(['a', 'b', 'c'])
+    expect(groupSelectionMark(['a', 'b', 'c'], limitedRows, allTicked, 3)).toBe('all')
+  })
+
+  it('reads a day with none of its rows selected as unselectable once the limit is reached', () => {
+    const atLimit = new Set(['x', 'y', 'z'])
+    expect(groupSelectionMark(['a', 'b'], limitedRows, atLimit, 3)).toBe('unselectable')
+  })
+
+  it('takes a shift-click range in list order up to the limit', () => {
+    let state = toggleAt(emptyBulkSelection, 'a', 3)
+    state = bulkSelectionReducer(state, { type: 'extend', id: 'e', rows: limitedRows }, 3)
+
+    expect([...state.selectedIds].sort()).toEqual(['a', 'b', 'c'])
+  })
+
+  it('previews pending only on the rows a hovered day has room for', () => {
+    const state: BulkSelectionState = {
+      ...emptyBulkSelection,
+      selectedIds: new Set(['elsewhere']),
+      hoveredGroupIds: ['a', 'b', 'c', 'd'],
+    }
+    const preview = previewSelection(state, limitedRows, 3)
+
+    expect(preview && [...preview].sort()).toEqual(['a', 'b', 'elsewhere'])
   })
 })

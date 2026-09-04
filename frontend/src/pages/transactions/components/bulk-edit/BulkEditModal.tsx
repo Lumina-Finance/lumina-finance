@@ -19,6 +19,8 @@ import {
   canApplyBulkEdit,
   doesAnyResultingCategoryRecordTransferTarget,
   doesChosenCategoryRecordTransferTarget,
+  endsAfterDirectionClick,
+  endsAfterEndPick,
   getBulkEditBlockers,
   getBulkMoveTargets,
   getTransferEndTargets,
@@ -138,6 +140,22 @@ export function BulkEditModal({
     : undefined
   const endsAreOffered = doesAnyResultingCategoryRecordTransferTarget(chosenCategory, rows)
 
+  // Adjusted during render rather than in an effect, following React's own guidance for state that
+  // has to change in response to a prop, since a setState call in an effect body would cost this
+  // component an extra commit for every category change. A category change can turn a row into a
+  // transfer row or out of one, which is what decides each row's own side, so an outside end already
+  // on screen is re-checked against the new pairing the moment the category settles rather than
+  // waiting for the user to touch a pill or an end again
+  const [lastCheckedCategoryRule, setLastCheckedCategoryRule] = useState(chosenCategoryRecordsTransferTarget)
+  if (chosenCategoryRecordsTransferTarget !== lastCheckedCategoryRule) {
+    setLastCheckedCategoryRule(chosenCategoryRecordsTransferTarget)
+    const { from: nextFrom, to: nextTo } = endsAfterDirectionClick(
+      direction.value, transferFrom, transferTo, rows, chosenCategoryRecordsTransferTarget,
+    )
+    if (nextFrom !== transferFrom) setTransferFrom(nextFrom)
+    if (nextTo !== transferTo) setTransferTo(nextTo)
+  }
+
   const moveTargets = useMemo(
     () => getBulkMoveTargets(accounts, selectedCurrencies),
     [accounts, selectedCurrencies],
@@ -169,17 +187,35 @@ export function BulkEditModal({
    * Applies a From or To dropdown's new value, moving the account picker out of the way once either
    * end holds a real answer, then updates the direction pills against the new pairing. The
    * implication reads the end just changed and the other end's current value rather than state that
-   * has not updated yet
+   * has not updated yet. Routed through endsAfterEndPick first, so picking outside on the end still
+   * left as it is drops that one back to Leave as is rather than leaving both sides untracked
    */
   function changeTransferEnd(end: 'from' | 'to', value: string) {
-    const next = parseTransferEndValue(value, accounts)
-    if (end === 'from') setTransferFrom(next)
-    else setTransferTo(next)
-    if (next !== null) setAccountId('')
+    const picked = parseTransferEndValue(value, accounts)
+    const pickedFrom = end === 'from' ? picked : transferFrom
+    const pickedTo = end === 'to' ? picked : transferTo
+    const { from: nextFrom, to: nextTo } = endsAfterEndPick(pickedFrom, pickedTo, end)
 
-    const nextFrom = end === 'from' ? next : transferFrom
-    const nextTo = end === 'to' ? next : transferTo
+    setTransferFrom(nextFrom)
+    setTransferTo(nextTo)
+    if (picked !== null) setAccountId('')
+
     applyDirectionChange(impliedDirection(rows, nextFrom, nextTo, chosenCategoryRecordsTransferTarget))
+  }
+
+  /**
+   * Applies a direction pill's new value, first reverting whichever end the new direction would put
+   * outside the tracked accounts on some transfer row's own side, since a pick made from a stale
+   * pairing of ends could otherwise leave one of them with nowhere real to sit
+   */
+  function changeDirection(value: BulkDirectionChange | 'unchanged') {
+    const nextValue = value === 'unchanged' ? null : value
+    const { from: nextFrom, to: nextTo } = endsAfterDirectionClick(
+      nextValue, transferFrom, transferTo, rows, chosenCategoryRecordsTransferTarget,
+    )
+    setTransferFrom(nextFrom)
+    setTransferTo(nextTo)
+    setDirection({ value: nextValue, source: 'user' })
   }
 
   /**
@@ -243,6 +279,7 @@ export function BulkEditModal({
     transferFrom,
     transferTo,
     direction: effectiveDirection,
+    directionIsImplied: direction.source === 'implied',
     endsAreOffered,
   }
   const blockers = getBulkEditBlockers(rows, choice, chosenCategoryRecordsTransferTarget)
@@ -271,8 +308,8 @@ export function BulkEditModal({
   if (spansMultipleCurrencies) {
     moveAccountIcon = (
       <IconTooltip label="Multiple currencies" level="warn" widthClassName="w-72">
-        These transactions are in more than one currency, so they cannot move to one account
-        together. Narrow the selection to a single currency first.
+        The selected transactions span more than one currency, so they cannot move to one account
+        together.
       </IconTooltip>
     )
   } else if (hasNoAccountForCurrency) {
@@ -336,7 +373,7 @@ export function BulkEditModal({
                 options={accountOptions}
                 value={accountId}
                 onChange={changeMoveAccount}
-                placeholder={accountOptions.length === 0 ? 'No account it can move to' : 'Leave as is'}
+                placeholder={accountOptions.length === 0 ? 'No account to move to' : 'Leave as is'}
                 searchable
                 disabled={accountOptions.length === 0 || sendsAnEnd}
               />
@@ -362,7 +399,7 @@ export function BulkEditModal({
                   value={effectiveDirection ?? 'unchanged'}
                   options={DIRECTION_OPTIONS}
                   ariaLabel="Set which way the money moves"
-                  onChange={(value) => setDirection({ value: value === 'unchanged' ? null : value, source: 'user' })}
+                  onChange={changeDirection}
                 />
               </div>
             </div>

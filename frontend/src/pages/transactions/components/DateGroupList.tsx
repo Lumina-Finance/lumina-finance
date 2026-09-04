@@ -31,7 +31,11 @@ const LIST_COLUMNS =
  * Absent outside it, which is also how the heading knows whether to offer a tick at all
  */
 export interface TransactionDateHeadingSelection {
-  /** How the tick is marked, read against the rows the heading shows that the app allows editing */
+  /**
+   * How the tick is marked, read against the rows the heading shows that the app allows editing.
+   * Greyed as unselectable both when none of them can be edited at all and, with none of them
+   * ticked, when the limit leaves no room to add any
+   */
   mark: GroupSelectionMark
 
   // Takes whether the click that toggled the tick should clear the hover afterward, which the

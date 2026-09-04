@@ -5,6 +5,7 @@ import type { Institution } from '@/api/institutions'
 import type { Category } from '@/api/categories'
 import type { Transaction } from '@/api/transactions'
 import { Checkbox } from '@/components/forms/Checkbox'
+import { MAX_BULK_EDIT_TRANSACTIONS } from '@/pages/transactions/components/bulk-edit/constants'
 import type { RowSelectionMark } from '@/pages/transactions/components/bulk-edit/selection'
 import {
   REACHES_ACROSS_TRANSACTION_CHECKBOX_RAIL,
@@ -205,6 +206,12 @@ export default function TransactionRow({
   const formattedAmount = `${transaction.amount >= 0 ? '+' : '-'}${formatCurrency(Math.abs(transaction.amount), currency)}`
   const transactionAmountColor = amountColor(category, transaction.amount)
 
+  // Only the limit gets a title here, since a read-only row already explains itself through the
+  // pill beside its account name
+  const tickTitle = selection && !selection.isSelectable && !readOnly
+    ? `Up to ${MAX_BULK_EDIT_TRANSACTIONS} transactions can be ticked at once`
+    : undefined
+
   // A ticked row is marked with a background rather than with opacity, which already says the row
   // cannot be edited
   const selectionBackground = selection?.mark === 'selected'
@@ -257,6 +264,7 @@ export default function TransactionRow({
             // opens and closes underneath the rest of the row
             className="absolute inset-y-0 left-0 flex items-center justify-center"
             style={{ width: TRANSACTION_CHECKBOX_RAIL_WIDTH }}
+            title={tickTitle}
             initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.72 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.72 }}

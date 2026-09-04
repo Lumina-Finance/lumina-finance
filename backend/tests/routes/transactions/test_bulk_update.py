@@ -111,7 +111,7 @@ async def test_bulk_update_refuses_a_set_holding_a_transaction_with_no_merchant(
     )
 
     assert resp.status_code == 422
-    assert "no merchant recorded" in resp.json()["detail"]
+    assert "missing merchant information" in resp.json()["detail"]
     assert str((await _read_transaction(second)).category_id) == category_id
 
 
@@ -162,7 +162,7 @@ async def test_bulk_update_refuses_a_transfer_that_records_no_other_account(clie
     )
 
     assert resp.status_code == 422
-    assert "other account of a transfer" in resp.json()["detail"]
+    assert "missing the To or From account" in resp.json()["detail"]
 
     # The row keeps the merchant it had, which is what proves the refusal ran before any write
     assert (await _read_transaction(transfer)).merchant_id == merchant_before
@@ -732,7 +732,9 @@ async def test_bulk_transfer_from_refuses_a_selection_with_no_transfer(client):
     )
 
     assert resp.status_code == 422
-    assert resp.json()["detail"] == "None of these transactions record the other side of a transfer"
+    assert resp.json()["detail"] == (
+        "From and To apply to transfers only, and none of the selected transactions end up as one"
+    )
 
 
 async def test_bulk_transfer_to_refuses_a_selection_with_no_transfer(client):
@@ -752,7 +754,9 @@ async def test_bulk_transfer_to_refuses_a_selection_with_no_transfer(client):
     )
 
     assert resp.status_code == 422
-    assert resp.json()["detail"] == "None of these transactions record the other side of a transfer"
+    assert resp.json()["detail"] == (
+        "From and To apply to transfers only, and none of the selected transactions end up as one"
+    )
 
 
 async def test_bulk_transfer_from_reads_each_rows_resulting_category_not_its_stored_one(client):
@@ -773,7 +777,9 @@ async def test_bulk_transfer_from_reads_each_rows_resulting_category_not_its_sto
     )
 
     assert resp.status_code == 422
-    assert resp.json()["detail"] == "None of these transactions record the other side of a transfer"
+    assert resp.json()["detail"] == (
+        "From and To apply to transfers only, and none of the selected transactions end up as one"
+    )
 
 
 async def test_bulk_update_refuses_a_move_into_the_account_a_transfer_already_records(client):
@@ -797,7 +803,7 @@ async def test_bulk_update_refuses_a_move_into_the_account_a_transfer_already_re
     )
 
     assert resp.status_code == 422
-    assert "their own account" in resp.json()["detail"]
+    assert "with the same account on both sides" in resp.json()["detail"]
     assert str((await _read_transaction(txn)).account_id) == account_id
 
 
@@ -1214,7 +1220,7 @@ async def test_bulk_transfer_from_refuses_a_row_that_would_record_its_own_accoun
 
     assert resp.status_code == 422
     assert "2 of these transactions cannot be changed" in resp.json()["detail"]
-    assert "their own account" in resp.json()["detail"]
+    assert "with the same account on both sides" in resp.json()["detail"]
     assert str((await _read_transaction(out_id)).account_id) == chequing_id
     assert str((await _read_transaction(in_id)).account_id) == savings_id
 
@@ -1616,3 +1622,105 @@ async def test_bulk_direction_leaves_the_accounts_alone(client):
     assert str(row.account_id) == account_id
     assert str(row.counterparty_account_id) == other_account_id
     assert row.counterparty_account_scope is TransferCounterpartyScope.TRACKED
+
+
+# --- transfer_direction, applied only to the rows recording a far side ---
+
+
+async def test_bulk_transfer_direction_turns_only_the_transfer_and_leaves_the_expense(client):
+    """transfer_direction reaches the transfer and skips a plain expense in the same selection."""
+    headers, chequing_id, category_id, savings_id, transfer_id = await _setup_transfer_user(client)
+    transfer = (await _make_transfer(
+        client, headers, chequing_id, transfer_id, savings_id, dt="2026-08-23", amount=-20000,
+    )).json()["id"]
+    expense = (
+        await _create_transaction(client, headers, savings_id, category_id, dt="2026-08-22", amount=-1200)
+    ).json()["id"]
+
+    resp = await client.patch(
+        "/transactions/bulk",
+        json={"transaction_ids": [transfer, expense], "transfer_direction": "credit"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    assert (await _read_transaction(transfer)).amount == 20000
+    assert (await _read_transaction(expense)).amount == -1200
+    assert dict(await _read_snapshots(chequing_id))[date(2026, 8, 23)] == 20000
+
+
+async def test_bulk_transfer_direction_combines_with_an_end_on_the_row_it_reaches(client):
+    """transfer_from sets the far side transfer_direction resolves to, and stays off the expense."""
+    headers, chequing_id, category_id, savings_id, transfer_id = await _setup_transfer_user(client)
+    cash_id = (await _create_account(client, headers, name="Cash")).json()["id"]
+    transfer = (await _make_transfer(
+        client, headers, chequing_id, transfer_id, savings_id, dt="2026-08-23", amount=-20000,
+    )).json()["id"]
+    expense = (
+        await _create_transaction(client, headers, savings_id, category_id, dt="2026-08-22", amount=-1200)
+    ).json()["id"]
+
+    resp = await client.patch(
+        "/transactions/bulk",
+        json={
+            "transaction_ids": [transfer, expense],
+            "transfer_direction": "credit",
+            "transfer_from": {"scope": "tracked", "account_id": cash_id},
+        },
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    transfer_row = await _read_transaction(transfer)
+    assert transfer_row.amount == 20000
+    assert str(transfer_row.account_id) == chequing_id
+    assert str(transfer_row.counterparty_account_id) == cash_id
+    expense_row = await _read_transaction(expense)
+    assert expense_row.amount == -1200
+    assert str(expense_row.account_id) == savings_id
+
+
+async def test_bulk_update_refuses_direction_and_transfer_direction_together(client):
+    """Both set the sign of the same amount, so sending both is two answers for one column."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    txn = (await _create_transaction(client, headers, account_id, category_id)).json()["id"]
+
+    resp = await client.patch(
+        "/transactions/bulk",
+        json={"transaction_ids": [txn], "direction": "credit", "transfer_direction": "credit"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 422
+
+
+async def test_bulk_update_refuses_a_null_transfer_direction(client):
+    """transfer_direction writes a sign like direction does, so it has no null to write."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    txn = (await _create_transaction(client, headers, account_id, category_id)).json()["id"]
+
+    resp = await client.patch(
+        "/transactions/bulk",
+        json={"transaction_ids": [txn], "transfer_direction": None},
+        headers=headers,
+    )
+
+    assert resp.status_code == 422
+
+
+async def test_bulk_transfer_direction_refuses_a_selection_with_no_transfer(client):
+    """transfer_direction reaches only rows recording a far side, so two expenses reach none."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    first = (await _create_transaction(client, headers, account_id, category_id)).json()["id"]
+    second = (await _create_transaction(client, headers, account_id, category_id)).json()["id"]
+
+    resp = await client.patch(
+        "/transactions/bulk",
+        json={"transaction_ids": [first, second], "transfer_direction": "credit"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == (
+        "From and To apply to transfers only, and none of the selected transactions end up as one"
+    )

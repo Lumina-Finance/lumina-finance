@@ -14,7 +14,7 @@ from datetime import date
 from typing import NamedTuple
 
 from fastapi import HTTPException, status
-from sqlalchemy import func, select, update
+from sqlalchemy import ColumnElement, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
@@ -232,7 +232,10 @@ def _resulting_direction(transaction: Transaction, data: BulkUpdateTransactionsR
 
     A set direction overrides the row's own outright, and reverse flips it instead of naming an
     absolute answer. Neither changes what the row's own direction was, which is what a concurrent
-    change to the stored amount would disturb
+    change to the stored amount would disturb. transfer_direction stands in for direction wherever
+    the request sent that instead, which every caller may do safely because each already calls this
+    only for a row whose resulting category records a far side, the same rows transfer_direction
+    reaches
 
     Args:
         transaction: Transaction the request covers
@@ -242,11 +245,31 @@ def _resulting_direction(transaction: Transaction, data: BulkUpdateTransactionsR
         DEBIT for a row that ends up negative, CREDIT for one that ends up positive
     """
     own = _own_direction(transaction)
-    if data.direction == BulkDirectionChange.REVERSE:
+    chosen_direction = data.direction if data.direction is not None else data.transfer_direction
+    if chosen_direction == BulkDirectionChange.REVERSE:
         return BulkDirectionChange.CREDIT if own == BulkDirectionChange.DEBIT else BulkDirectionChange.DEBIT
-    if data.direction is not None:
-        return data.direction
+    if chosen_direction is not None:
+        return chosen_direction
     return own
+
+
+def _direction_amount_expression(direction: BulkDirectionChange) -> ColumnElement[int]:
+    """Return the amount a direction turns every row it reaches into, as a SQL expression
+
+    Reverse gives no absolute sign, so it flips the stored amount rather than replacing it. Debit and
+    credit each give an absolute sign, so they replace the amount with its magnitude, negated for
+    debit
+
+    Args:
+        direction: Absolute or reverse direction being written
+
+    Returns:
+        A SQL expression assignable to the amount column
+    """
+    if direction == BulkDirectionChange.REVERSE:
+        return -Transaction.amount
+    magnitude = func.abs(Transaction.amount)
+    return magnitude if direction == BulkDirectionChange.CREDIT else -magnitude
 
 
 def _own_end(data: BulkUpdateTransactionsRequest, resulting_direction: BulkDirectionChange) -> TransferEnd | None:
@@ -562,25 +585,31 @@ def _refuse_ends_reaching_no_row(
     data: BulkUpdateTransactionsRequest,
     resolutions: dict[uuid.UUID, _RowResolution],
 ) -> None:
-    """Reject a request whose transfer ends land on no row at all
+    """Reject a request whose transfer fields land on no row at all
 
-    An end reaches only the rows whose resulting category records a far side, and a selection
-    holding none of those would otherwise report a count for a write it never made
+    An end or transfer_direction reaches only the rows whose resulting category records a far side,
+    and a selection holding none of those would otherwise report a count for a write it never made.
+    Tested on the category rather than on `resolution.ends`, since a request sending
+    transfer_direction alone resolves no end for any row and would otherwise always read as reaching
+    none
 
     Args:
         data: Transactions to change and the details to set
         resolutions: Every transaction's resolution, keyed by identifier
 
     Raises:
-        HTTPException: The request set a transfer end but no row in the selection resolves one
+        HTTPException: The request set transfer_from, transfer_to or transfer_direction but no row
+            in the selection has a resulting category that records a far side
     """
-    if not {"transfer_from", "transfer_to"} & data.model_fields_set:
+    if not {"transfer_from", "transfer_to", "transfer_direction"} & data.model_fields_set:
         return
-    if any(resolution.ends is not None for resolution in resolutions.values()):
+    if any(
+        does_category_record_counterparty_account(resolution.category) for resolution in resolutions.values()
+    ):
         return
     raise HTTPException(
         status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-        detail="None of these transactions record the other side of a transfer",
+        detail="From and To apply to transfers only, and none of the selected transactions end up as one",
     )
 
 
@@ -658,15 +687,15 @@ async def _refuse_rows_breaking_single_edit_rules(
 
     reasons = []
     if without_merchant:
-        reasons.append(f"{len(without_merchant)} with no merchant recorded")
+        reasons.append(f"{len(without_merchant)} missing merchant information")
     if missing_fx_rate:
         reasons.append(f"{len(missing_fx_rate)} in another currency with no exchange rate recorded")
     if sits_outside:
         reasons.append(f"{len(sits_outside)} that would sit outside this app")
     if unanswered_transfers:
-        reasons.append(f"{len(unanswered_transfers)} not recording the other account of a transfer")
+        reasons.append(f"{len(unanswered_transfers)} missing the To or From account")
     if own_account_counterparty:
-        reasons.append(f"{len(own_account_counterparty)} that would record their own account")
+        reasons.append(f"{len(own_account_counterparty)} with the same account on both sides")
     if unreachable_counterparties:
         reasons.append(f"{len(unreachable_counterparties)} recording an account you can no longer open")
     if not reasons:
@@ -748,7 +777,7 @@ def _collect_snapshot_starts(
     Returns:
         The earliest date to rebuild from, keyed by account
     """
-    if not ({"account_id", "dt", "direction", "transfer_from", "transfer_to"} & sent):
+    if not ({"account_id", "dt", "direction", "transfer_direction", "transfer_from", "transfer_to"} & sent):
         return {}
 
     starts: dict[uuid.UUID, date] = {}
@@ -795,13 +824,20 @@ async def _apply_changes(
     if column_values:
         await db.execute(update(Transaction).where(Transaction.id.in_(transaction_ids)).values(**column_values))
 
+    records_counterparty = [
+        transaction.id
+        for transaction in transactions
+        if does_category_record_counterparty_account(resolutions[transaction.id].category)
+    ]
+
     # Split into at most two buckets, keyed by each row's own sign rather than by its resulting
-    # direction, since a race is a change to that stored sign specifically. Direction is one value
-    # for the whole request, so every row sharing a sign also shares the resulting direction that
-    # produced its own and far ends, and the bucket can use either row's ends for the whole group.
-    # The WHERE clause re-reads the sign at write time, so a row whose sign changed between the
-    # checks and here drops out of its bucket's count and the whole request is turned down rather
-    # than written for a direction the row no longer has
+    # direction, since a race is a change to that stored sign specifically. Direction or
+    # transfer_direction is one value for the whole request, whichever the request sent, so every
+    # row sharing a sign also shares the resulting direction that produced its own and far ends, and
+    # the bucket can use either row's ends for the whole group. The WHERE clause re-reads the sign at
+    # write time, so a row whose sign changed between the checks and here drops out of its bucket's
+    # count and the whole request is turned down rather than written for a direction the row no
+    # longer has
     for own_direction in (BulkDirectionChange.DEBIT, BulkDirectionChange.CREDIT):
         bucket_ids = [
             transaction.id
@@ -832,25 +868,20 @@ async def _apply_changes(
             )
 
     if "direction" in sent:
-        magnitude = func.abs(Transaction.amount)
-        if data.direction == BulkDirectionChange.REVERSE:
-            new_amount = -Transaction.amount
-        elif data.direction == BulkDirectionChange.CREDIT:
-            new_amount = magnitude
-        else:
-            new_amount = -magnitude
         await db.execute(
             update(Transaction)
             .where(Transaction.id.in_(transaction_ids))
-            .values(amount=new_amount)
+            .values(amount=_direction_amount_expression(data.direction))
             .execution_options(synchronize_session=False),
         )
 
-    records_counterparty = [
-        transaction.id
-        for transaction in transactions
-        if does_category_record_counterparty_account(resolutions[transaction.id].category)
-    ]
+    if "transfer_direction" in sent:
+        await db.execute(
+            update(Transaction)
+            .where(Transaction.id.in_(records_counterparty))
+            .values(amount=_direction_amount_expression(data.transfer_direction))
+            .execution_options(synchronize_session=False),
+        )
 
     # A category that records no counterparty account drops whatever the previous one recorded, on
     # every edit rather than only on one that changes the category, matching the single-transaction

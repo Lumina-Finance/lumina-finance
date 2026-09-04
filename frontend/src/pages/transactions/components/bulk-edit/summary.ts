@@ -7,7 +7,6 @@
  * and the Apply button can never disagree about what the server would refuse.
  */
 import type { BulkDirectionChange } from '@/api/transactions'
-import { MAX_BULK_EDIT_TRANSACTIONS } from '@/pages/transactions/components/bulk-edit/constants'
 import {
   buildBulkEditFields,
   countTransferEndEffects,
@@ -113,6 +112,20 @@ const DIRECTION_ROW_VALUES: Record<BulkDirectionChange, string> = {
 }
 
 /**
+ * Returns the opening clause of a warning sentence: naming the whole selection once the count fills
+ * it, naming both numbers otherwise, and dropping the count entirely once only one row is selected,
+ * since "1 out of 1" says nothing "the selected" would not already
+ *
+ * @param count The rows the sentence is about
+ * @param total Every selected row
+ */
+export function shareOpening(count: number, total: number): string {
+  if (total === 1) return 'The selected'
+  if (count === total) return `All ${total} selected`
+  return `${count} out of ${total} selected`
+}
+
+/**
  * Renders the date the day headings would show for a "YYYY-MM-DD" string, falling back to the raw
  * string for one the calendar cannot parse, the same way a broken date still appears in the list
  * rather than disappearing behind it
@@ -123,32 +136,45 @@ function formatBulkEditDate(ymd: string): string {
 }
 
 /**
- * Renders one transfer end's detail line: what it moves and what it only records, in the singular
- * or plural the count calls for, mirroring the notice the modal showed under the control before it
- * moved into the panel
+ * Renders one transfer end's detail line: what it moves and what it only records, mirroring the
+ * notice the modal showed under the control before it moved into the panel
  *
- * A move clause only makes sense for a tracked account, since a row can never move into "outside
- * this app"; a row whose own end resolves to outside is refused instead, by the sitsOutside blocker,
- * so its detail carries only what it records. A row whose own end already sits in the account named
- * carries no clause at all, since countTransferEndEffects counts it as neither a move nor a record
+ * Each clause is hidden once its count reaches every selected row, since a change true of the whole
+ * selection needs no line singling any of it out. A move clause only makes sense for a tracked
+ * account, since a row can never move into "outside this app"; a row whose own end resolves to
+ * outside is refused instead, by the sitsOutside blocker, so its detail carries only what it
+ * records. A row whose own end already sits in the account named carries no clause at all, since
+ * countTransferEndEffects counts it as neither a move nor a record. The record clause reads which
+ * way the money crosses the far side this control just set: To reads as where it now goes, From as
+ * where it now comes from
  *
+ * @param end Which control this detail belongs to, since From and To phrase the record clause
+ *     differently
  * @param effect What the end would move and record, from countTransferEndEffects
  * @param choice What the control holds
  * @param accountLabel The tracked account's name, meaningless while the control is set to outside
+ * @param total Every selected row, which is what a clause matching in full is hidden against
  */
 function transferEndDetail(
+  end: 'from' | 'to',
   effect: TransferEndEffect,
   choice: TransferEndChoice | null,
   accountLabel: string,
+  total: number,
 ): string | undefined {
   const clauses: string[] = []
 
-  if (choice?.scope === 'tracked' && effect.moves > 0) {
-    clauses.push(`${effect.moves} ${effect.moves === 1 ? 'moves' : 'move'} into ${accountLabel}`)
+  if (choice?.scope === 'tracked' && effect.moves > 0 && effect.moves < total) {
+    clauses.push(`${effect.moves} out of ${total} ${effect.moves === 1 ? 'moves' : 'move'} into ${accountLabel}`)
   }
-  if (effect.recordsOnly > 0) {
-    const target = choice?.scope === 'outside' ? 'the other side as outside this app' : `${accountLabel} as the other side`
-    clauses.push(`${effect.recordsOnly} ${effect.recordsOnly === 1 ? 'records' : 'record'} ${target}`)
+  if (effect.recordsOnly > 0 && effect.recordsOnly < total) {
+    const verb = end === 'to'
+      ? (effect.recordsOnly === 1 ? 'goes' : 'go')
+      : (effect.recordsOnly === 1 ? 'comes' : 'come')
+    const target = end === 'to'
+      ? (choice?.scope === 'outside' ? 'outside this app' : `to ${accountLabel}`)
+      : (choice?.scope === 'outside' ? 'from outside this app' : `from ${accountLabel}`)
+    clauses.push(`${effect.recordsOnly} out of ${total} now ${verb} ${target}`)
   }
 
   return clauses.length > 0 ? clauses.join(', ') : undefined
@@ -173,8 +199,10 @@ function transferEndValueLabel(
  *
  * Row presence matches buildBulkEditFields exactly, built by reading its result rather than
  * re-deriving which controls are live, so a stale end held while endsAreOffered is false stays
- * absent here the same way it stays absent from the request. A row's detail says what the edit
- * would do; whether the row is then refused is the warnings' job instead.
+ * absent here the same way it stays absent from the request. The Direction row reads whichever of
+ * direction and the transfer-only direction the request carries, since either one means the pills
+ * show a value. A row's detail says what the edit would do; whether the row is then refused is the
+ * warnings' job instead.
  *
  * @param choice What the edit holds
  * @param rows The selected transactions
@@ -197,11 +225,20 @@ export function describeBulkEdit(
 
   const fields = buildBulkEditFields(choice)
   const effects = countTransferEndEffects(rows, choice, chosenCategoryRecordsTransferTarget)
+  const transferRowCount = rows.length - effects.leftAlone
 
   const summaryRows: BulkEditSummaryRow[] = []
 
-  if (fields.direction) {
-    summaryRows.push({ label: 'Direction', value: DIRECTION_ROW_VALUES[fields.direction] })
+  const directionValue = fields.direction ?? fields.transfer_direction
+  if (directionValue) {
+    const directionIsImplied = fields.transfer_direction !== undefined
+    summaryRows.push({
+      label: 'Direction',
+      value: DIRECTION_ROW_VALUES[directionValue],
+      detail: directionIsImplied && transferRowCount < rows.length
+        ? `applies to ${transferRowCount} out of ${rows.length} selected transactions`
+        : undefined,
+    })
   }
   if (fields.account_id !== undefined) {
     summaryRows.push({
@@ -224,9 +261,11 @@ export function describeBulkEdit(
       label: 'From',
       value: transferEndValueLabel(choice.transferFrom, labels.accountLabelById) ?? OUTSIDE_ACCOUNT_LABEL,
       detail: transferEndDetail(
+        'from',
         effects.from,
         choice.transferFrom,
         choice.transferFrom?.scope === 'tracked' ? labels.accountLabelById(choice.transferFrom.accountId) : '',
+        rows.length,
       ),
     })
   }
@@ -235,9 +274,11 @@ export function describeBulkEdit(
       label: 'To',
       value: transferEndValueLabel(choice.transferTo, labels.accountLabelById) ?? OUTSIDE_ACCOUNT_LABEL,
       detail: transferEndDetail(
+        'to',
         effects.to,
         choice.transferTo,
         choice.transferTo?.scope === 'tracked' ? labels.accountLabelById(choice.transferTo.accountId) : '',
+        rows.length,
       ),
     })
   }
@@ -249,57 +290,45 @@ export function describeBulkEdit(
   }
 
   const notes: BulkEditSummaryMessage[] = []
-  if (choice.endsAreOffered) {
+  const sendsAnEnd = choice.endsAreOffered && (choice.transferFrom !== null || choice.transferTo !== null)
+  if ((sendsAnEnd || directionValue !== undefined) && transferRowCount > 0) {
     notes.push({
       key: 'other-half',
-      text: "A transfer's other half is a separate row. This changes only the rows selected.",
+      text: 'Adjustments to a transfer affect the selected transaction only and do not update its counterpart.',
     })
   }
-  const sendsAnEnd = choice.endsAreOffered && (choice.transferFrom !== null || choice.transferTo !== null)
   if (sendsAnEnd && effects.leftAlone > 0) {
     notes.push({
       key: 'left-alone',
-      text: effects.leftAlone === 1
-        ? '1 selected transaction is not a transfer and is left as it is.'
-        : `${effects.leftAlone} selected transactions are not transfers and are left as they are.`,
+      text: `Changes to From and To apply only to ${transferRowCount} out of ${rows.length} selected transactions.`,
     })
   }
 
   const warnings: BulkEditSummaryMessage[] = []
   if (blockers.withoutMerchant.length > 0) {
     const count = blockers.withoutMerchant.length
+    const noun = rows.length === 1 ? 'transaction' : 'transactions'
+    const verb = count === 1 ? 'is' : 'are'
     warnings.push({
       key: 'without-merchant',
-      text: count === 1
-        ? '1 selected transaction has no merchant recorded. Set a merchant above, or close this and untick it.'
-        : `${count} selected transactions have no merchant recorded. Set a merchant above, or close this and untick them.`,
+      text: `${shareOpening(count, rows.length)} ${noun} ${verb} missing merchant information.`,
     })
   }
   if (blockers.unansweredFarSide.length > 0) {
     const count = blockers.unansweredFarSide.length
+    const noun = rows.length === 1 ? 'transfer' : 'transfers'
+    const verb = count === 1 ? 'is' : 'are'
     warnings.push({
       key: 'unanswered',
-      text: count === 1
-        ? '1 selected transfer does not record where the money went. Set From or To above, or close this and untick it.'
-        : `${count} selected transfers do not record where the money went. Set From or To above, or close this and untick them.`,
+      text: `${shareOpening(count, rows.length)} ${noun} ${verb} missing the To or From account.`,
     })
   }
   if (blockers.ownAccountFarSide.length > 0) {
     const count = blockers.ownAccountFarSide.length
+    const noun = rows.length === 1 ? 'transfer' : 'transfers'
     warnings.push({
       key: 'own-account',
-      text: count === 1
-        ? '1 selected transaction would end up recording the account it already sits in. Change From, To or Move to account, or close this and untick it.'
-        : `${count} selected transactions would end up recording the account they already sit in. Change From, To or Move to account, or close this and untick them.`,
-    })
-  }
-  if (blockers.sitsOutside.length > 0) {
-    const count = blockers.sitsOutside.length
-    warnings.push({
-      key: 'sits-outside',
-      text: count === 1
-        ? '1 selected transaction would sit outside this app. Money leaves from or arrives in one of your accounts, so pick one for From or To, or close this and untick it.'
-        : `${count} selected transactions would sit outside this app. Money leaves from or arrives in one of your accounts, so pick one for From or To, or close this and untick them.`,
+      text: `${shareOpening(count, rows.length)} ${noun} can't have the same account on both sides.`,
     })
   }
   const currencyMismatches = groupCurrencyMismatches(
@@ -309,17 +338,11 @@ export function describeBulkEdit(
     chosenCategoryRecordsTransferTarget,
   )
   for (const mismatch of currencyMismatches) {
+    const noun = rows.length === 1 ? 'transaction' : 'transactions'
     warnings.push({
       key: `currency-${mismatch.rowCurrency}-${mismatch.targetCurrency}`,
-      text: mismatch.count === 1
-        ? `1 selected transaction is in ${mismatch.rowCurrency} and would move into an account in ${mismatch.targetCurrency}. Pick an account in ${mismatch.rowCurrency}, or close this and untick it.`
-        : `${mismatch.count} selected transactions are in ${mismatch.rowCurrency} and would move into an account in ${mismatch.targetCurrency}. Pick an account in ${mismatch.rowCurrency}, or close this and untick them.`,
-    })
-  }
-  if (rows.length > MAX_BULK_EDIT_TRANSACTIONS) {
-    warnings.push({
-      key: 'over-cap',
-      text: `One edit covers at most ${MAX_BULK_EDIT_TRANSACTIONS} transactions. Untick some to continue.`,
+      text: `${shareOpening(mismatch.count, rows.length)} ${noun} in ${mismatch.rowCurrency} `
+        + `can't move to a ${mismatch.targetCurrency} account.`,
     })
   }
 

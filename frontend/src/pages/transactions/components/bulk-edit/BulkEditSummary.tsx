@@ -85,7 +85,7 @@ export default function BulkEditSummary({ summary }: BulkEditSummaryProps) {
         key: 'empty',
         node: (
           <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-            Nothing changes yet. Set a detail above.
+            You will see a preview of what changes once you make the selections above.
           </p>
         ),
       }]

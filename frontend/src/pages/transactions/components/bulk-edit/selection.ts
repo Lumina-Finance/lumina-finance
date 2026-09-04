@@ -98,6 +98,13 @@ export interface BulkEditChoice {
   direction: BulkDirectionChange | null
 
   /**
+   * True while direction came from the From and To pairing rather than from a pill the user
+   * clicked, which is what decides whether the request sends transfer_direction, reaching only the
+   * transfer rows, or direction, reaching every selected row
+   */
+  directionIsImplied: boolean
+
+  /**
    * True while any selected row ends up under a category that records the account on the other side
    * of a transfer, which is what offers the From and To controls at all. Held beside the ends so a
    * choice made before the selection or the category changed cannot be sent once the controls have
@@ -117,6 +124,9 @@ export interface BulkEditFields {
   transfer_from?: BulkTransferEnd
   transfer_to?: BulkTransferEnd
   direction?: BulkDirectionChange
+
+  /** Which way the transfer rows in the batch should end up pointing, never sent beside direction */
+  transfer_direction?: BulkDirectionChange
 }
 
 /** Turns a panel-held end choice into the shape the request sends, dropping the currency it carries */
@@ -135,7 +145,7 @@ function toBulkTransferEnd(choice: TransferEndChoice): BulkTransferEnd {
  */
 export function buildBulkEditFields(choice: BulkEditChoice): BulkEditFields {
   const { categoryId, merchantId, tagIds, accountId, date, note, clearsNote } = choice
-  const { transferFrom, transferTo, endsAreOffered, direction } = choice
+  const { transferFrom, transferTo, endsAreOffered, direction, directionIsImplied } = choice
 
   // An end and a move both write account_id, on whichever rows resolve to be their own, so sending
   // both would be two answers for the one column
@@ -148,7 +158,12 @@ export function buildBulkEditFields(choice: BulkEditChoice): BulkEditFields {
     ...(accountId && !sendsAnEnd ? { account_id: accountId } : {}),
     ...(date ? { dt: date } : {}),
     ...(clearsNote ? { notes: null } : note ? { notes: note } : {}),
-    ...(direction ? { direction } : {}),
+
+    // An implied direction reaches only the transfer rows, as transfer_direction, so it cannot
+    // touch the rows the ends leave alone, while a direction the user picked reaches every
+    // selected row
+    ...(direction && directionIsImplied ? { transfer_direction: direction } : {}),
+    ...(direction && !directionIsImplied ? { direction } : {}),
 
     // Only sent while the controls are on screen. An end picked before the category was changed
     // away is otherwise still in the panel's state, invisible, and would refuse the whole batch
@@ -241,12 +256,12 @@ function flipDirection(direction: TransactionDirection): TransactionDirection {
 }
 
 /**
- * Returns what a row ends up pointing, mirroring the service's resolution: the edit's direction
- * where it sets one, the row's own flipped where the edit says reverse, the row's own otherwise
+ * Returns what a row ends up pointing, mirroring the service's resolution: the direction given
+ * where it sets one, the row's own flipped where it says reverse, the row's own otherwise
  */
-function resultingDirectionFor(row: SelectedTransactionFacts, choice: BulkEditChoice): TransactionDirection {
-  if (choice.direction === 'reverse') return flipDirection(row.direction);
-  return choice.direction ?? row.direction;
+function resultingDirectionFor(row: SelectedTransactionFacts, direction: BulkDirectionChange | null): TransactionDirection {
+  if (direction === 'reverse') return flipDirection(row.direction);
+  return direction ?? row.direction;
 }
 
 /** What a row's own end and far end resolve to under an edit */
@@ -273,7 +288,7 @@ export function resolveTransferEnds(
 ): ResolvedTransferEnds {
   if (!endsUpRecordingFarSide) return { ownEnd: null, farEnd: null };
 
-  return resultingDirectionFor(row, choice) === 'debit'
+  return resultingDirectionFor(row, choice.direction) === 'debit'
     ? { ownEnd: choice.transferFrom, farEnd: choice.transferTo }
     : { ownEnd: choice.transferTo, farEnd: choice.transferFrom };
 }
@@ -329,7 +344,7 @@ export function countTransferEndEffects(
     }
 
     // Money out puts From on the row's own account and To on the far side, money in the reverse
-    const fromIsOwn = resultingDirectionFor(row, choice) === 'debit';
+    const fromIsOwn = resultingDirectionFor(row, choice.direction) === 'debit';
     const ownChoice = fromIsOwn ? choice.transferFrom : choice.transferTo;
     const farChoice = fromIsOwn ? choice.transferTo : choice.transferFrom;
     const ownEffect = fromIsOwn ? effects.from : effects.to;
@@ -355,15 +370,16 @@ export interface BulkDirectionChoice {
 /**
  * Returns the direction the From and To ends imply, or null where they imply nothing.
  *
- * A direction is sent to every row in the batch, so this only answers once every selected row
- * would end up recording a far side under the edit, the chosen category's rule where one is chosen
- * and the row's own otherwise; a selection holding even one row that would not is left with nothing
- * implied. Home is the one account every selected row sits in, so a selection with no rows, or
- * spanning more than one account, has no home and implies nothing either. From there, To resolving
- * to home with From not implies money in, since the account records its own money arriving, From
- * resolving to home with To not implies money out the same way round, and any other pairing, both
- * ends resolving to home included, implies nothing: an implied direction never moves a row out of
- * the account it already sits in.
+ * transfer_direction reaches only the transfer rows, so this reads the transfer rows alone, the
+ * chosen category's rule where one is chosen and each row's own otherwise, and a selection with
+ * none of those implies nothing. An outside end says which way the money goes on its own, the same
+ * way a home end does: From set to outside implies money in, To set to outside implies money out,
+ * whether or not the transfer rows share a home account, and both ends outside implies nothing.
+ * Failing that, home is the one account every transfer row sits in, so a selection spanning more
+ * than one account has no home and implies nothing either. From there, To resolving to home with
+ * From not implies money in, since the account records its own money arriving, From resolving to
+ * home with To not implies money out the same way round, and any other pairing, both ends
+ * resolving to home included, implies nothing.
  *
  * @param rows The selected transactions
  * @param transferFrom Where the edit sets the From end, or null to leave it as it is
@@ -377,15 +393,17 @@ export function impliedDirection(
   transferTo: TransferEndChoice | null,
   chosenCategoryRecordsTransferTarget: boolean | undefined,
 ): BulkDirectionChange | null {
-  if (rows.length === 0) return null;
+  const transferRows = rows.filter((row) => chosenCategoryRecordsTransferTarget ?? row.recordsFarSide);
+  if (transferRows.length === 0) return null;
 
-  const everyRowRecordsFarSide = rows.every(
-    (row) => chosenCategoryRecordsTransferTarget ?? row.recordsFarSide,
-  );
-  if (!everyRowRecordsFarSide) return null;
+  const fromIsOutside = transferFrom?.scope === 'outside';
+  const toIsOutside = transferTo?.scope === 'outside';
+  if (fromIsOutside && toIsOutside) return null;
+  if (fromIsOutside) return 'credit';
+  if (toIsOutside) return 'debit';
 
-  const home = rows[0].accountId;
-  if (!rows.every((row) => row.accountId === home)) return null;
+  const home = transferRows[0].accountId;
+  if (!transferRows.every((row) => row.accountId === home)) return null;
 
   const toIsHome = transferTo?.scope === 'tracked' && transferTo.accountId === home;
   const fromIsHome = transferFrom?.scope === 'tracked' && transferFrom.accountId === home;
@@ -393,6 +411,66 @@ export function impliedDirection(
   if (toIsHome && !fromIsHome) return 'credit';
   if (fromIsHome && !toIsHome) return 'debit';
   return null;
+}
+
+/**
+ * Returns the ends after a From or To pick, reverting the other end to null once both would sit
+ * outside the tracked accounts, since a transfer with nothing tracked on either side has no account
+ * left to check a currency against or record a real far side on
+ *
+ * @param from Where the From end sits after the pick
+ * @param to Where the To end sits after the pick
+ * @param picked Which end the user just changed
+ */
+export function endsAfterEndPick(
+  from: TransferEndChoice | null,
+  to: TransferEndChoice | null,
+  picked: 'from' | 'to',
+): { from: TransferEndChoice | null; to: TransferEndChoice | null } {
+  const justPicked = picked === 'from' ? from : to;
+  const other = picked === 'from' ? to : from;
+  if (justPicked?.scope !== 'outside' || other?.scope !== 'outside') return { from, to };
+  return picked === 'from' ? { from, to: null } : { from: null, to };
+}
+
+/**
+ * Returns the ends after a direction pill is clicked or a category change reshapes which rows are
+ * transfers, reverting whichever end an outside choice would become a transfer row's own side,
+ * since an own side has to be a real account for the row to sit in.
+ *
+ * Each transfer row resolves its own side the way the service would: the clicked direction where
+ * it sets one, the row's own flipped for Reverse, the row's own for Leave as is. A selection whose
+ * rows resolve to different own sides can revert both ends where each is outside and is some row's
+ * own side.
+ *
+ * @param direction The direction just clicked, or the one already held while a category change is
+ *     what reshaped the transfer rows
+ * @param from Where the From end sits
+ * @param to Where the To end sits
+ * @param rows The selected transactions
+ * @param chosenCategoryRecordsTransferTarget Whether the category the edit sets records the other
+ *     side, or undefined while the edit sets no category and each row keeps its own
+ */
+export function endsAfterDirectionClick(
+  direction: BulkDirectionChange | null,
+  from: TransferEndChoice | null,
+  to: TransferEndChoice | null,
+  rows: SelectedTransactionFacts[],
+  chosenCategoryRecordsTransferTarget: boolean | undefined,
+): { from: TransferEndChoice | null; to: TransferEndChoice | null } {
+  let nextFrom = from;
+  let nextTo = to;
+
+  for (const row of rows) {
+    const endsUpRecordingFarSide = chosenCategoryRecordsTransferTarget ?? row.recordsFarSide;
+    if (!endsUpRecordingFarSide) continue;
+
+    const ownSideIsFrom = resultingDirectionFor(row, direction) === 'debit';
+    if (ownSideIsFrom && nextFrom?.scope === 'outside') nextFrom = null;
+    if (!ownSideIsFrom && nextTo?.scope === 'outside') nextTo = null;
+  }
+
+  return { from: nextFrom, to: nextTo };
 }
 
 /**
@@ -533,6 +611,27 @@ export interface SelectableRow {
   isReadOnly: boolean;
 }
 
+/**
+ * Returns whether a row's tick can be changed: never for a read-only row, and never to add an
+ * unselected row once the limit is reached. An already selected row stays changeable at the limit,
+ * since the tick still has to let it be dropped.
+ *
+ * @param id The row's id
+ * @param selectedIds Every row currently ticked
+ * @param isReadOnly Whether the app allows editing this row at all
+ * @param limit How many rows one bulk edit may cover
+ */
+export function isRowSelectable(
+  id: string,
+  selectedIds: Set<string>,
+  isReadOnly: boolean,
+  limit: number = MAX_BULK_EDIT_TRANSACTIONS,
+): boolean {
+  if (isReadOnly) return false;
+  if (!selectedIds.has(id) && selectedIds.size >= limit) return false;
+  return true;
+}
+
 export interface BulkSelectionState {
   /** Transactions the user has ticked */
   selectedIds: Set<string>;
@@ -599,16 +698,26 @@ function spanBetween(rows: SelectableRow[], anchorId: string, targetId: string):
 
 /**
  * Returns what the selection becomes when a shift-click lands on a row, or null with no anchor set.
+ *
+ * Takes the span in list order until the limit is reached, so a range longer than the room left
+ * simply stops rather than being refused outright.
+ *
+ * @param limit How many rows one bulk edit may cover
  */
 export function resultingSelection(
   state: BulkSelectionState,
   targetId: string,
   rows: SelectableRow[],
+  limit: number = MAX_BULK_EDIT_TRANSACTIONS,
 ): Set<string> | null {
   if (state.anchorId === null) return null;
 
   const resulting = new Set(state.baselineIds);
-  for (const id of spanBetween(rows, state.anchorId, targetId)) resulting.add(id);
+  for (const id of spanBetween(rows, state.anchorId, targetId)) {
+    if (resulting.has(id)) continue;
+    if (resulting.size >= limit) break;
+    resulting.add(id);
+  }
   return resulting;
 }
 
@@ -627,22 +736,37 @@ function editableGroupIds(ids: string[], rows: SelectableRow[]): string[] {
  * Returns what the selection becomes when a day heading's tick is clicked, or null when the day
  * shows nothing the app allows editing and the click changes nothing.
  *
- * A day already taken whole is dropped whole, and anything else is taken. Either way the ticks in
- * other days are left as they are.
+ * A day already taken whole is dropped whole. At the limit, a day with no room left for the rest of
+ * it is dropped down to the part that made it in instead, since that part is all the click can take
+ * back; a day with room left takes its rows in list order until the limit is reached. Either way the
+ * ticks in other days are left as they are.
+ *
+ * @param limit How many rows one bulk edit may cover
  */
 export function groupResultingSelection(
   selectedIds: Set<string>,
   ids: string[],
   rows: SelectableRow[],
+  limit: number = MAX_BULK_EDIT_TRANSACTIONS,
 ): Set<string> | null {
   const editable = editableGroupIds(ids, rows);
   if (editable.length === 0) return null;
 
-  const dropsTheDay = editable.every((id) => selectedIds.has(id));
+  const unselected = editable.filter((id) => !selectedIds.has(id));
+  const atLimit = selectedIds.size >= limit;
+  const someOfTheDayIsIn = editable.some((id) => selectedIds.has(id));
+
+  if (unselected.length === 0 || (atLimit && someOfTheDayIsIn)) {
+    const resulting = new Set(selectedIds);
+    for (const id of editable) resulting.delete(id);
+    return resulting;
+  }
+  if (atLimit) return null;
+
   const resulting = new Set(selectedIds);
-  for (const id of editable) {
-    if (dropsTheDay) resulting.delete(id);
-    else resulting.add(id);
+  for (const id of unselected) {
+    if (resulting.size >= limit) break;
+    resulting.add(id);
   }
   return resulting;
 }
@@ -658,17 +782,23 @@ export type GroupSelectionMark = 'none' | 'some' | 'all' | 'unselectable';
  * Once a later page adds more of that day, a heading that read all falls back to some.
  *
  * A day showing nothing the app allows editing is unselectable rather than unticked, so the heading
- * can offer a tick that is plainly off rather than one that refuses when clicked.
+ * can offer a tick that is plainly off rather than one that refuses when clicked. A day with none of
+ * its rows ticked reads unselectable the same way once the limit leaves no room to add any of them,
+ * since a click would refuse there too.
+ *
+ * @param limit How many rows one bulk edit may cover
  */
 export function groupSelectionMark(
   ids: string[],
   rows: SelectableRow[],
   selectedIds: Set<string>,
+  limit: number = MAX_BULK_EDIT_TRANSACTIONS,
 ): GroupSelectionMark {
   const editable = editableGroupIds(ids, rows);
   if (editable.length === 0) return 'unselectable';
   if (editable.every((id) => selectedIds.has(id))) return 'all';
   if (editable.some((id) => selectedIds.has(id))) return 'some';
+  if (selectedIds.size >= limit) return 'unselectable';
   return 'none';
 }
 
@@ -679,19 +809,23 @@ export function groupSelectionMark(
  * The whole resulting set rather than only the rows a click would add, since rowSelectionMark reads
  * it to tell an unselected row the click would add from one it would leave alone. A row already
  * selected reads selected whatever the set holds for it, so the set need not distinguish a kept
- * tick from one the click would drop.
+ * tick from one the click would drop. Marks pending only the rows the limit leaves room for, the
+ * same way the click itself would settle them.
+ *
+ * @param limit How many rows one bulk edit may cover
  */
 export function previewSelection(
   state: BulkSelectionState,
   rows: SelectableRow[],
+  limit: number = MAX_BULK_EDIT_TRANSACTIONS,
 ): Set<string> | null {
   // The pointer is over a day heading or over a row, never both, so only one of these is ever set
   if (state.hoveredGroupIds !== null) {
-    return groupResultingSelection(state.selectedIds, state.hoveredGroupIds, rows);
+    return groupResultingSelection(state.selectedIds, state.hoveredGroupIds, rows, limit);
   }
 
   if (state.hoveredId === null) return null;
-  return resultingSelection(state, state.hoveredId, rows);
+  return resultingSelection(state, state.hoveredId, rows, limit);
 }
 
 /** Returns whether two hovered headings are the same one, so a repeated move changes no state */
@@ -723,16 +857,23 @@ export function rowSelectionMark(
 
 /**
  * Applies one selection change.
+ *
+ * @param limit How many rows one bulk edit may cover
  */
 export function bulkSelectionReducer(
   state: BulkSelectionState,
   action: BulkSelectionAction,
+  limit: number = MAX_BULK_EDIT_TRANSACTIONS,
 ): BulkSelectionState {
   switch (action.type) {
     case 'toggle': {
       // Whether a row can be ticked is decided here rather than by each caller, so no route into
       // the state can put a row the app will not edit into the selection
       if (action.rows.find((row) => row.id === action.id)?.isReadOnly !== false) return state;
+
+      // Ticking a row already selected always frees a slot, so only adding a new one is held at
+      // the limit
+      if (!state.selectedIds.has(action.id) && state.selectedIds.size >= limit) return state;
 
       const selectedIds = new Set(state.selectedIds);
       if (selectedIds.has(action.id)) selectedIds.delete(action.id);
@@ -750,15 +891,15 @@ export function bulkSelectionReducer(
     }
 
     case 'extend': {
-      const resulting = resultingSelection(state, action.id, action.rows);
+      const resulting = resultingSelection(state, action.id, action.rows, limit);
       if (resulting === null) {
-        return bulkSelectionReducer(state, { type: 'toggle', id: action.id, rows: action.rows });
+        return bulkSelectionReducer(state, { type: 'toggle', id: action.id, rows: action.rows }, limit);
       }
       return { ...state, selectedIds: resulting, hoveredId: null, hoveredGroupIds: null };
     }
 
     case 'toggleGroup': {
-      const resulting = groupResultingSelection(state.selectedIds, action.ids, action.rows);
+      const resulting = groupResultingSelection(state.selectedIds, action.ids, action.rows, limit);
       if (resulting === null) return state;
 
       // No single row was clicked, so there is no anchor for a following shift-click to run from.

@@ -5,10 +5,13 @@ import {
   groupSelectionMark,
   previewSelection,
   rowSelectionMark,
+  type BulkSelectionAction,
+  type BulkSelectionState,
   type GroupSelectionMark,
   type RowSelectionMark,
   type SelectableRow,
 } from '@/pages/transactions/components/bulk-edit/selection'
+import { MAX_BULK_EDIT_TRANSACTIONS } from '@/pages/transactions/components/bulk-edit/constants'
 
 /**
  * Holds which transactions a bulk edit covers, and lights the rows a pending shift-click or day tick
@@ -17,9 +20,18 @@ import {
  * @param rows The rows on screen, in the order they appear, which is what a range runs along
  * @param requestKey Identifies the list being shown, so the selection empties when the list changes
  * @param isSettled False while the list is mid-change and still showing its previous rows
+ * @param limit How many rows one bulk edit may cover, so a test can use a small one
  */
-export function useBulkSelection(rows: SelectableRow[], requestKey: string, isSettled: boolean) {
-  const [state, dispatch] = useReducer(bulkSelectionReducer, emptyBulkSelection)
+export function useBulkSelection(
+  rows: SelectableRow[],
+  requestKey: string,
+  isSettled: boolean,
+  limit: number = MAX_BULK_EDIT_TRANSACTIONS,
+) {
+  const [state, dispatch] = useReducer(
+    (current: BulkSelectionState, action: BulkSelectionAction) => bulkSelectionReducer(current, action, limit),
+    emptyBulkSelection,
+  )
 
   // Read at dispatch time rather than closed over, so a range always runs along the rows on screen
   const rowsRef = useRef(rows)
@@ -95,7 +107,7 @@ export function useBulkSelection(rows: SelectableRow[], requestKey: string, isSe
     }
   }, [])
 
-  const preview = useMemo(() => previewSelection(state, rows), [state, rows])
+  const preview = useMemo(() => previewSelection(state, rows, limit), [state, rows, limit])
 
   const markFor = useCallback(
     (id: string): RowSelectionMark => rowSelectionMark(id, state.selectedIds, preview),
@@ -105,8 +117,8 @@ export function useBulkSelection(rows: SelectableRow[], requestKey: string, isSe
   // Read against the ticks as they stand rather than against the preview, so resting the pointer on
   // a day heading does not show its tick already taken
   const groupMarkFor = useCallback(
-    (ids: string[]): GroupSelectionMark => groupSelectionMark(ids, rows, state.selectedIds),
-    [rows, state.selectedIds],
+    (ids: string[]): GroupSelectionMark => groupSelectionMark(ids, rows, state.selectedIds, limit),
+    [rows, state.selectedIds, limit],
   )
 
   const toggle = useCallback((id: string, withShift: boolean) => {

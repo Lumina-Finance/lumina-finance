@@ -198,6 +198,12 @@ export interface BulkUpdateTransactionsPayload {
 
   /** Which way every covered transaction should end up pointing, applied as the sign of its amount */
   direction?: BulkDirectionChange;
+
+  /**
+   * Which way the covered transactions that resolve to a transfer recording a far side should end
+   * up pointing, leaving every other covered row untouched. Never sent alongside direction
+   */
+  transfer_direction?: BulkDirectionChange;
 }
 
 export interface BulkUpdateTransactionsResult {
