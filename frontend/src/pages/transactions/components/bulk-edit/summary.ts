@@ -114,7 +114,7 @@ const DIRECTION_ROW_VALUES: Record<BulkDirectionChange, string> = {
 /**
  * Returns the opening clause of a warning sentence: naming the whole selection once the count fills
  * it, naming both numbers otherwise, and dropping the count entirely once only one row is selected,
- * since "1 out of 1" says nothing "the selected" would not already
+ * since "1 of the 1" says nothing "the selected" would not already
  *
  * @param count The rows the sentence is about
  * @param total Every selected row
@@ -122,7 +122,7 @@ const DIRECTION_ROW_VALUES: Record<BulkDirectionChange, string> = {
 export function shareOpening(count: number, total: number): string {
   if (total === 1) return 'The selected'
   if (count === total) return `All ${total} selected`
-  return `${count} out of ${total} selected`
+  return `${count} of the ${total} selected`
 }
 
 /**
@@ -165,7 +165,7 @@ function transferEndDetail(
   const clauses: string[] = []
 
   if (choice?.scope === 'tracked' && effect.moves > 0 && effect.moves < total) {
-    clauses.push(`${effect.moves} out of ${total} ${effect.moves === 1 ? 'moves' : 'move'} into ${accountLabel}`)
+    clauses.push(`${effect.moves} of the ${total} ${effect.moves === 1 ? 'moves' : 'move'} into ${accountLabel}`)
   }
   if (effect.recordsOnly > 0 && effect.recordsOnly < total) {
     const verb = end === 'to'
@@ -174,7 +174,7 @@ function transferEndDetail(
     const target = end === 'to'
       ? (choice?.scope === 'outside' ? 'outside this app' : `to ${accountLabel}`)
       : (choice?.scope === 'outside' ? 'from outside this app' : `from ${accountLabel}`)
-    clauses.push(`${effect.recordsOnly} out of ${total} now ${verb} ${target}`)
+    clauses.push(`${effect.recordsOnly} of the ${total} now ${verb} ${target}`)
   }
 
   return clauses.length > 0 ? clauses.join(', ') : undefined
@@ -236,7 +236,7 @@ export function describeBulkEdit(
       label: 'Direction',
       value: DIRECTION_ROW_VALUES[directionValue],
       detail: directionIsImplied && transferRowCount < rows.length
-        ? `applies to ${transferRowCount} out of ${rows.length} selected transactions`
+        ? `applies to ${transferRowCount} of the ${rows.length} selected transactions`
         : undefined,
     })
   }
@@ -300,7 +300,7 @@ export function describeBulkEdit(
   if (sendsAnEnd && effects.leftAlone > 0) {
     notes.push({
       key: 'left-alone',
-      text: `Changes to From and To apply only to ${transferRowCount} out of ${rows.length} selected transactions.`,
+      text: `Changes to From and To apply only to ${transferRowCount} of the ${rows.length} selected transactions.`,
     })
   }
 

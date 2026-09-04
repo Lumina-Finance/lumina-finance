@@ -46,8 +46,8 @@ describe('the opening clause of a warning sentence', () => {
   })
 
   it('states both numbers otherwise', () => {
-    expect(shareOpening(1, 5)).toBe('1 out of 5 selected')
-    expect(shareOpening(3, 5)).toBe('3 out of 5 selected')
+    expect(shareOpening(1, 5)).toBe('1 of the 5 selected')
+    expect(shareOpening(3, 5)).toBe('3 of the 5 selected')
   })
 
   it('drops the count entirely once only one row is selected', () => {
@@ -121,7 +121,7 @@ describe('the rows, notes and warnings a bulk edit choice produces', () => {
     expect(result.rows).toEqual([{
       label: 'From',
       value: 'Cash',
-      detail: '1 out of 2 moves into Cash, 1 out of 2 now comes from Cash',
+      detail: '1 of the 2 moves into Cash, 1 of the 2 now comes from Cash',
     }])
     // Both rows are transfers whose own account it moves or records, so leftAlone stays at zero and
     // only the other-half note, not the not-a-transfer note, is left standing
@@ -160,14 +160,14 @@ describe('the rows, notes and warnings a bulk edit choice produces', () => {
     expect(result.rows).toEqual([{
       label: 'To',
       value: 'Savings',
-      detail: '1 out of 3 now goes to Savings',
+      detail: '1 of the 3 now goes to Savings',
     }])
     expect(result.notes).toEqual([
       {
         key: 'other-half',
         text: 'Adjustments to a transfer affect the selected transaction only and do not update its counterpart.',
       },
-      { key: 'left-alone', text: 'Changes to From and To apply only to 2 out of 3 selected transactions.' },
+      { key: 'left-alone', text: 'Changes to From and To apply only to 2 of the 3 selected transactions.' },
     ])
   })
 
@@ -185,7 +185,7 @@ describe('the rows, notes and warnings a bulk edit choice produces', () => {
     ])
     expect(result.warnings).toEqual([{
       key: 'own-account',
-      text: '1 out of 2 selected transfers can\'t have the same account on both sides.',
+      text: '1 of the 2 selected transfers can\'t have the same account on both sides.',
     }])
   })
 
@@ -250,11 +250,11 @@ describe('the rows, notes and warnings a bulk edit choice produces', () => {
     expect(result.warnings).toEqual([
       {
         key: 'currency-CAD-USD',
-        text: "1 out of 2 selected transactions in CAD can't move to a USD account.",
+        text: "1 of the 2 selected transactions in CAD can't move to a USD account.",
       },
       {
         key: 'currency-EUR-USD',
-        text: "1 out of 2 selected transactions in EUR can't move to a USD account.",
+        text: "1 of the 2 selected transactions in EUR can't move to a USD account.",
       },
     ])
   })
@@ -270,7 +270,7 @@ describe('the rows, notes and warnings a bulk edit choice produces', () => {
 
     expect(result.warnings).toEqual([{
       key: 'without-merchant',
-      text: '1 out of 2 selected transactions is missing merchant information.',
+      text: '1 of the 2 selected transactions is missing merchant information.',
     }])
   })
 
@@ -286,7 +286,7 @@ describe('the rows, notes and warnings a bulk edit choice produces', () => {
 
     expect(result.warnings).toEqual([{
       key: 'unanswered',
-      text: '3 out of 5 selected transfers are missing the To or From account.',
+      text: '3 of the 5 selected transfers are missing the To or From account.',
     }])
   })
 
@@ -301,14 +301,14 @@ describe('the rows, notes and warnings a bulk edit choice produces', () => {
     expect(result.rows).toEqual([{
       label: 'To',
       value: 'Cash',
-      detail: '1 out of 3 moves into Cash, 1 out of 3 now goes to Cash',
+      detail: '1 of the 3 moves into Cash, 1 of the 3 now goes to Cash',
     }])
     expect(result.notes).toEqual([
       {
         key: 'other-half',
         text: 'Adjustments to a transfer affect the selected transaction only and do not update its counterpart.',
       },
-      { key: 'left-alone', text: 'Changes to From and To apply only to 2 out of 3 selected transactions.' },
+      { key: 'left-alone', text: 'Changes to From and To apply only to 2 of the 3 selected transactions.' },
     ])
   })
 
@@ -333,7 +333,7 @@ describe('the rows, notes and warnings a bulk edit choice produces', () => {
     expect(result.rows).toEqual([{
       label: 'To',
       value: 'Cash',
-      detail: '1 out of 2 moves into Cash, 1 out of 2 now goes to Cash',
+      detail: '1 of the 2 moves into Cash, 1 of the 2 now goes to Cash',
     }])
   })
 
@@ -353,7 +353,7 @@ describe('the rows, notes and warnings a bulk edit choice produces', () => {
 
     const implied = summarize(rows, untouched({ direction: 'credit', directionIsImplied: true, endsAreOffered: true }))
     expect(implied.rows).toEqual([
-      { label: 'Direction', value: 'Credit', detail: 'applies to 2 out of 3 selected transactions' },
+      { label: 'Direction', value: 'Credit', detail: 'applies to 2 of the 3 selected transactions' },
     ])
 
     const picked = summarize(rows, untouched({ direction: 'credit', directionIsImplied: false, endsAreOffered: true }))
