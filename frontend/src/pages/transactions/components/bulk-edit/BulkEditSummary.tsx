@@ -1,5 +1,5 @@
 import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { AnimatePresence, motion } from 'motion/react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { ArrowRight, CornerDownRight, Info, TriangleAlert } from 'lucide-react'
 import { EASE } from '@/pages/transactions/components/transaction-modal/constants'
 import type { BulkEditSummary as BulkEditSummaryResult } from '@/pages/transactions/components/bulk-edit/summary'
@@ -65,11 +65,17 @@ function SummaryRow({ label, value, detail }: { label: string; value: string; de
  * panel would carry them out of place. Rows are keyed by their label and notes and warnings by
  * their kind, so a count changing in place rewrites a line's text without replaying its entrance.
  * Warnings sit under a rule below the rows and notes, since they are what holds Apply disabled
- * rather than a description of what the edit does
+ * rather than a description of what the edit does. A viewer who asks the system for reduced
+ * motion gets the same rows with the height tween, the fade and the layout shift all skipped
  */
 export default function BulkEditSummary({ summary }: BulkEditSummaryProps) {
   const { rows, notes, warnings } = summary
   const isEmpty = rows.length === 0 && warnings.length === 0
+
+  // Reduced motion drops the tween entirely rather than merely shortening it, matching how the
+  // toolbar and fund flow lists gate their own height animations
+  const shouldReduceMotion = useReducedMotion()
+  const itemTransition = shouldReduceMotion ? { duration: 0 } : ITEM_TRANSITION
 
   const contentRef = useRef<HTMLDivElement>(null)
   // Null until the first measurement lands, which is what lets the box render unconstrained at
@@ -150,7 +156,7 @@ export default function BulkEditSummary({ summary }: BulkEditSummaryProps) {
   return (
     <motion.div
       animate={{ height: measuredHeight ?? 'auto' }}
-      transition={ITEM_TRANSITION}
+      transition={itemTransition}
       style={{ overflow: 'hidden' }}
     >
       <div ref={contentRef} className="relative flex flex-col gap-3" aria-live="polite">
@@ -158,11 +164,11 @@ export default function BulkEditSummary({ summary }: BulkEditSummaryProps) {
           {items.map((item) => (
             <motion.div
               key={item.key}
-              layout
-              initial={{ opacity: 0, y: -4 }}
+              layout={!shouldReduceMotion}
+              initial={shouldReduceMotion ? false : { opacity: 0, y: -4 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -4 }}
-              transition={ITEM_TRANSITION}
+              exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -4 }}
+              transition={itemTransition}
             >
               {item.node}
             </motion.div>
