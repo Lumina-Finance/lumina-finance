@@ -1,6 +1,6 @@
 import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { ArrowRight, Info, TriangleAlert } from 'lucide-react'
+import { ArrowRight, CornerDownRight, Info, TriangleAlert } from 'lucide-react'
 import { EASE } from '@/pages/transactions/components/transaction-modal/constants'
 import type { BulkEditSummary as BulkEditSummaryResult } from '@/pages/transactions/components/bulk-edit/summary'
 
@@ -39,9 +39,17 @@ function SummaryRow({ label, value, detail }: { label: string; value: string; de
         </span>
       </div>
       {detail && (
-        <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-          {detail}
-        </p>
+        <div className="flex items-start gap-1.5 pl-3">
+          <CornerDownRight
+            size={12}
+            className="mt-0.5 shrink-0"
+            aria-hidden
+            style={{ color: 'var(--app-text-muted)' }}
+          />
+          <p className="text-sm italic" style={{ color: 'var(--app-text-muted)' }}>
+            {detail}
+          </p>
+        </div>
       )}
     </div>
   )
