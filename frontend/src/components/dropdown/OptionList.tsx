@@ -149,9 +149,13 @@ export function DropdownOptionList({
       ) : groupedOptions ? (
         groupedOptions.map((group, groupIndex) => (
           <Fragment key={`${group.label}-${groupIndex}`}>
-            <li role="presentation" className="app-dropdown-group">
-              {group.label}
-            </li>
+            {/* An option with no group of its own, such as a leading blank entry, sits ahead of
+                the real groups without a header bar of its own */}
+            {group.label && (
+              <li role="presentation" className="app-dropdown-group">
+                {group.label}
+              </li>
+            )}
             {group.items.map(({ option, flatIndex }) => (
               <DropdownOptionRow
                 key={option.value}

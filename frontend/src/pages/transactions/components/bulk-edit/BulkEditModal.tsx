@@ -133,6 +133,12 @@ export function BulkEditModal({
   const { data: categories } = useCategories()
   const categoryOptions = useMemo(() => buildCategoryOptions(categories ?? []), [categories])
 
+  // Leading blank entry lets a pick be undone without closing the modal, ahead of every kind group
+  const categoryDropdownOptions = useMemo(
+    () => [{ value: '', label: 'Leave as is' }, ...categoryOptions],
+    [categoryOptions],
+  )
+
   const chosenCategory = categories?.find((category) => category.id === categoryId)
 
   // Undefined while no category is chosen, which is what says each row keeps its own
@@ -162,6 +168,14 @@ export function BulkEditModal({
     [accounts, selectedCurrencies],
   )
   const accountOptions = moveTargets.map((account) => ({ value: account.id, label: account.name ?? 'Account' }))
+
+  // Leading blank entry lets a pick be undone without closing the modal, matching From and To, but
+  // only when there is an account to move to. Adding it unconditionally would give an empty
+  // accountOptions a blank entry that matches the trigger's empty value, hiding the placeholder
+  // computed below for a currency with no other open account
+  const moveAccountOptions = accountOptions.length > 0
+    ? [{ value: '', label: 'Leave as is' }, ...accountOptions]
+    : []
 
   const endTargets = useMemo(() => getTransferEndTargets(accounts), [accounts])
   const endOptions = [
@@ -242,6 +256,10 @@ export function BulkEditModal({
   )
   const merchants = merchantQuery.data?.pages.flat() ?? []
   const merchantOptions = merchants.map((record) => ({ value: record.id, label: record.name }))
+
+  // Leading blank entry lets a pick be undone without closing the modal, ahead of the search
+  // results whatever the search text holds
+  const merchantDropdownOptions = [{ value: '', label: 'Leave as is' }, ...merchantOptions]
 
   const tagSearch = useDebouncedReferenceSearch(REFERENCE_SEARCH_DEBOUNCE_MS)
   const tagQuery = useInfiniteTags({ q: tagSearch.activeSearchText || undefined }, REFERENCE_PAGE_SIZE)
@@ -371,10 +389,11 @@ export function BulkEditModal({
               <CreateModalFieldLabelRow htmlFor="bulk-account" label="Move to account" accessory={moveAccountIcon} />
               <Dropdown
                 id="bulk-account"
-                options={accountOptions}
+                options={moveAccountOptions}
                 value={accountId}
                 onChange={changeMoveAccount}
                 placeholder={accountOptions.length === 0 ? 'No account to move to' : 'Leave as is'}
+                blankOptionIsPlaceholder
                 searchable
                 disabled={accountOptions.length === 0 || sendsAnEnd}
               />
@@ -455,13 +474,14 @@ export function BulkEditModal({
               <CreateModalFieldLabelRow htmlFor="bulk-merchant" label="Merchant" />
               <Dropdown
                 id="bulk-merchant"
-                options={merchantOptions}
+                options={merchantDropdownOptions}
                 value={merchantId}
                 selectedOption={merchant ?? undefined}
                 onChange={(value) => setMerchant(
-                  merchantOptions.find((option) => option.value === value) ?? null,
+                  value === '' ? null : merchantOptions.find((option) => option.value === value) ?? null,
                 )}
                 placeholder="Leave as is"
+                blankOptionIsPlaceholder
                 searchable
                 filterOptions={false}
                 searchValue={merchantSearch.search}
@@ -476,10 +496,11 @@ export function BulkEditModal({
               <CreateModalFieldLabelRow htmlFor="bulk-category" label="Category" />
               <Dropdown
                 id="bulk-category"
-                options={categoryOptions}
+                options={categoryDropdownOptions}
                 value={categoryId}
                 onChange={setCategoryId}
                 placeholder="Leave as is"
+                blankOptionIsPlaceholder
                 searchable
               />
             </div>
