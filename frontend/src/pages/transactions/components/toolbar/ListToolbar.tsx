@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import { Check, ListChecks, PencilLine, Upload } from 'lucide-react'
+import { Check, ListChecks, PencilLine, SlidersHorizontal, Upload } from 'lucide-react'
 import { DesktopToolbarControls } from '@/components/list-controls/DesktopToolbarControls'
 import { GlassSearchField } from '@/components/list-controls/GlassSearchField'
 import { MobileToolbarActions } from '@/components/list-controls/MobileToolbarActions'
@@ -79,17 +79,17 @@ export default function TransactionListToolbar({
     </button>
   ) : undefined
 
-  // Follows the import button's shape: square on a phone, widening for its word on a desktop, at the
-  // same 44px height as everything else on the row.
+  // Follows the import button's shape while browsing. In the mobile selection row, Done gains its
+  // word once Edit has enough room; the named container leaves the desktop layout independent.
   //
   // The icon and the word rise out and the next pair rises in, so pressing it reads as one control
-  // changing state. The label reserves the width of the longer of the two words at both states, so
+  // changing state. On desktop, the label reserves the longer word's width at both states, so
   // the button itself never resizes: the desktop toolbar measures its children to decide when the
   // create button stacks, and a width easing under it could flip that decision mid-animation
   const selectAction = onToggleSelecting ? (
     <button
       type="button"
-      className="app-glass-button h-11 w-11 shrink-0 overflow-hidden px-0 min-[750px]:w-auto min-[750px]:px-4"
+      className="app-glass-button h-11 w-11 shrink-0 overflow-hidden px-0 @min-[16rem]/bulk-actions:w-auto @min-[16rem]/bulk-actions:px-4 min-[750px]:w-auto min-[750px]:px-4"
       onClick={onToggleSelecting}
       aria-pressed={isSelecting}
       aria-label={isSelecting ? 'Stop selecting transactions' : 'Select transactions'}
@@ -104,7 +104,7 @@ export default function TransactionListToolbar({
           transition={{ duration: prefersReducedMotion ? 0 : 0.16, ease: TRANSACTION_LIST_EASE }}
         >
           {isSelecting ? <Check size={18} aria-hidden /> : <ListChecks size={18} aria-hidden />}
-          <span className="hidden text-center min-[750px]:inline min-[750px]:w-10">
+          <span className="hidden text-center @min-[16rem]/bulk-actions:inline min-[750px]:inline min-[750px]:w-10">
             {isSelecting ? 'Done' : 'Select'}
           </span>
         </motion.span>
@@ -112,9 +112,8 @@ export default function TransactionListToolbar({
     </button>
   ) : undefined
 
-  // Built to the shape of the row it sits in: square beside the other actions, and stretched on a
-  // phone in selection mode, where it and Done are the only two controls on the row
-  function renderEditAction(className: string) {
+  // Edit takes the remaining mobile space, retaining its word longer than Done and Filters.
+  function renderEditAction(className: string, labelClassName = 'hidden min-[750px]:inline') {
     if (!onEditSelection) return undefined
     const reason = editDisabledReason ?? (selectedCount === 0 ? 'Tick a transaction first' : undefined)
     return (
@@ -127,7 +126,7 @@ export default function TransactionListToolbar({
         aria-label="Edit the selected transactions"
       >
         <PencilLine size={18} aria-hidden />
-        <span className="hidden min-[750px]:inline">Edit</span>
+        <span className={labelClassName}>Edit</span>
       </button>
     )
   }
@@ -183,12 +182,33 @@ export default function TransactionListToolbar({
           wrapperClassName={getSearchFieldWrapperClassName(shell.mobileSearchStuck, shell.desktopInlineLayout)}
         />
 
-        {/* Selection mode takes the phone row down to the two controls it is for. Filtering or adding
-            a transaction mid-selection empties the selection anyway, so neither is worth the width */}
+        {/* Query this row's available width, including on an account page. Each threshold reserves
+            room for the higher-priority labels and all three 44px controls before adding a word. */}
         {isSelecting ? (
-          <div className="flex w-full items-center gap-3 min-[750px]:hidden">
-            {renderEditAction('app-glass-button h-11 min-w-0 flex-1 gap-2')}
+          <div className="@container/bulk-actions flex w-full items-center gap-3 min-[750px]:hidden">
+            {renderEditAction(
+              'app-glass-button h-11 min-w-11 flex-1 gap-2 px-0 @min-[12.5rem]/bulk-actions:px-4',
+              'hidden @min-[12.5rem]/bulk-actions:inline',
+            )}
             {selectAction}
+            <button
+              type="button"
+              className="app-glass-button relative h-11 w-11 shrink-0 px-0 @min-[20rem]/bulk-actions:w-auto @min-[20rem]/bulk-actions:px-4"
+              onClick={shell.openMobileSheet}
+              aria-label={activeFilterCount > 0 ? `Filters, ${activeFilterCount} active` : 'Filters'}
+            >
+              <SlidersHorizontal size={17} aria-hidden />
+              <span className="hidden @min-[20rem]/bulk-actions:inline">Filters</span>
+              {activeFilterCount > 0 && (
+                <span
+                  aria-hidden
+                  className="absolute right-0 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-xs font-semibold"
+                  style={{ background: 'var(--app-accent-soft)', color: 'var(--app-accent)' }}
+                >
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
           </div>
         ) : (
           <MobileToolbarActions
