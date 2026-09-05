@@ -335,7 +335,7 @@ export function BulkEditModal({
     directionIsImplied: direction.source === 'implied',
     endsAreOffered,
   }
-  const blockers = getBulkEditBlockers(rows, choice, chosenCategoryRecordsTransferTarget)
+  const blockers = getBulkEditBlockers(rows, choice, chosenCategoryRecordsTransferTarget, accounts)
   const canApply = canApplyBulkEdit(rows, choice, blockers)
 
   const transactionsWord = rows.length === 1 ? 'transaction' : 'transactions'

@@ -612,23 +612,103 @@ async def test_move_transaction_to_closed_group_account_returns_422(client):
 
 
 async def test_bulk_update_on_group_account_requires_write(client):
-    """Member with read-only permission cannot bulk edit a group transaction."""
+    """One read-only group row refuses the whole request before a writable row changes."""
     admin_headers, member_headers, member_user_id, _, account_id, category_id, _ = (
         await _setup_group_with_shared_account(client)
     )
     await _grant_account_permission(client, admin_headers, account_id, member_user_id, "read")
 
-    create_resp = await _create_transaction(client, admin_headers, account_id, category_id)
-    txn_id = create_resp.json()["id"]
+    read_only_id = (
+        await _create_transaction(client, admin_headers, account_id, category_id, amount=-1200)
+    ).json()["id"]
+    personal_account_id = (
+        await _create_account(client, member_headers, name="Member Chequing")
+    ).json()["id"]
+    personal_category_id = (
+        await _create_category(client, member_headers, name="Member Groceries", kind="expense")
+    ).json()["id"]
+    writable_id = (
+        await _create_transaction(
+            client, member_headers, personal_account_id, personal_category_id, amount=-1200,
+        )
+    ).json()["id"]
 
     resp = await client.patch(
         "/transactions/bulk",
-        json={"transaction_ids": [txn_id], "category_id": category_id},
+        json={"transaction_ids": [writable_id, read_only_id], "notes": "Should not be saved"},
         headers=member_headers,
     )
 
     assert resp.status_code == 403
     assert resp.json()["detail"] == "Insufficient permissions"
+    assert (await client.get(f"/transactions/{writable_id}", headers=member_headers)).json()["notes"] is None
+    assert (await client.get(f"/transactions/{read_only_id}", headers=member_headers)).json()["notes"] is None
+
+
+async def test_bulk_update_refuses_a_move_into_a_read_only_group_account(client):
+    """A readable account cannot receive a transaction without write permission."""
+    admin_headers, member_headers, member_user_id, _, group_account_id, _, _ = (
+        await _setup_group_with_shared_account(client)
+    )
+    await _grant_account_permission(client, admin_headers, group_account_id, member_user_id, "read")
+    personal_account_id = (
+        await _create_account(client, member_headers, name="Member Chequing")
+    ).json()["id"]
+    personal_category_id = (
+        await _create_category(client, member_headers, name="Member Groceries", kind="expense")
+    ).json()["id"]
+    transaction_id = (
+        await _create_transaction(
+            client, member_headers, personal_account_id, personal_category_id, amount=-1200,
+        )
+    ).json()["id"]
+
+    resp = await client.patch(
+        "/transactions/bulk",
+        json={"transaction_ids": [transaction_id], "account_id": group_account_id},
+        headers=member_headers,
+    )
+
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "Insufficient permissions"
+    detail = await client.get(f"/transactions/{transaction_id}", headers=member_headers)
+    assert detail.json()["account_id"] == personal_account_id
+
+
+async def test_bulk_update_allows_a_read_only_group_account_as_the_far_side(client):
+    """A readable account may be recorded as From when the writable row remains where it is."""
+    admin_headers, member_headers, member_user_id, _, group_account_id, _, _ = (
+        await _setup_group_with_shared_account(client)
+    )
+    await _grant_account_permission(client, admin_headers, group_account_id, member_user_id, "read")
+    personal_account_id = (
+        await _create_account(client, member_headers, name="Member Chequing")
+    ).json()["id"]
+    transfer_category_id = await _get_system_category_id(client, member_headers, "Transfer")
+    transaction_id = (
+        await _create_transaction(
+            client,
+            member_headers,
+            personal_account_id,
+            transfer_category_id,
+            amount=4000,
+            counterparty_account_scope="outside",
+        )
+    ).json()["id"]
+
+    resp = await client.patch(
+        "/transactions/bulk",
+        json={
+            "transaction_ids": [transaction_id],
+            "transfer_from": {"scope": "tracked", "account_id": group_account_id},
+        },
+        headers=member_headers,
+    )
+
+    assert resp.status_code == 200
+    detail = await client.get(f"/transactions/{transaction_id}", headers=member_headers)
+    assert detail.json()["account_id"] == personal_account_id
+    assert detail.json()["counterparty_account_id"] == group_account_id
 
 
 async def test_bulk_update_with_group_category_on_personal_transaction_returns_422(client):

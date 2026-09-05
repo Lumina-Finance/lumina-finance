@@ -34,6 +34,7 @@ function createAccount(overrides: Partial<AccountsOverview> = {}): AccountsOverv
     base_currency_current_balance: 0,
     current_balance_fx_status: { state: 'complete', missing_pairs: [] },
     credit_limit: null,
+    can_write: true,
     is_archived: false,
     closed_at: null,
     ...overrides,

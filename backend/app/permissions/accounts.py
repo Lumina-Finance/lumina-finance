@@ -2,7 +2,7 @@
 import uuid
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -10,6 +10,56 @@ from app.models.account import Account, AccountPermission
 from app.models.base import PermissionLevel
 from app.models.group import GroupMember
 from app.permissions.levels import is_permission_level_at_least
+
+
+async def attach_account_write_capabilities(
+    db: AsyncSession,
+    accounts: list[Account],
+    user_id: uuid.UUID,
+) -> None:
+    """Attach the caller's effective write capability to account response rows
+
+    Args:
+        db: Active database session
+        accounts: Account rows being prepared for a response
+        user_id: User receiving the response
+    """
+    if not accounts:
+        return
+
+    account_ids = [account.id for account in accounts]
+    capability_query = (
+        select(Account.id, GroupMember.is_admin, AccountPermission.level)
+        .outerjoin(
+            GroupMember,
+            and_(
+                GroupMember.group_id == Account.group_id,
+                GroupMember.user_id == user_id,
+            ),
+        )
+        .outerjoin(
+            AccountPermission,
+            and_(
+                AccountPermission.account_id == Account.id,
+                AccountPermission.group_id == Account.group_id,
+                AccountPermission.user_id == user_id,
+            ),
+        )
+        .where(Account.id.in_(account_ids))
+    )
+
+    # Read every capability in one caller-bound query so account lists do not add one query per row
+    result = await db.execute(capability_query)
+    capability_rows = {
+        account_id: bool(is_group_admin)
+        or (
+            permission_level is not None
+            and is_permission_level_at_least(permission_level, PermissionLevel.WRITE)
+        )
+        for account_id, is_group_admin, permission_level in result.all()
+    }
+    for account in accounts:
+        account.can_write = account.owner_id == user_id or capability_rows.get(account.id, False)
 
 
 async def check_account_access(

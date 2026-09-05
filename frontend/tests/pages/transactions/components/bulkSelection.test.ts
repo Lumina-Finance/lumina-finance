@@ -15,6 +15,7 @@ import {
   canApplyBulkEdit,
   countTransferEndEffects,
   emptyBulkSelection,
+  eligibleSelectionIds,
   endsAfterDirectionClick,
   endsAfterEndPick,
   getBulkEditBlockers,
@@ -48,6 +49,8 @@ import {
   unanswered,
   untouched,
   usdTransferInChequing,
+  writableAccounts,
+  zeroTransfer,
 } from './bulkEditFixtures'
 
 const rows: SelectableRow[] = [
@@ -515,6 +518,7 @@ describe('what a bulk edit may do to the rows it covers', () => {
   const noteOnly = untouched({ note: 'Corrected' })
   const noBlockers = {
     withoutMerchant: [], unansweredFarSide: [], ownAccountFarSide: [], sitsOutside: [], ownSideInAnotherCurrency: [],
+    unavailableOwnAccount: [],
   }
 
   describe('whether the ends can be set', () => {
@@ -748,6 +752,70 @@ describe('what a bulk edit may do to the rows it covers', () => {
 
       expect(getBulkEditBlockers([chequingHalf, chequingHalf2], choice, undefined)).toEqual(noBlockers)
     })
+
+    it('blocks a stale Move destination after it becomes read-only or disappears', () => {
+      const choice = untouched({ accountId: 'cash' })
+      const readOnlyCash = writableAccounts.map((account) =>
+        account.id === 'cash' ? { ...account, can_write: false } : account,
+      )
+
+      expect(getBulkEditBlockers([groceries], choice, undefined, readOnlyCash).unavailableOwnAccount).toEqual(['a'])
+      expect(getBulkEditBlockers(
+        [groceries],
+        choice,
+        undefined,
+        writableAccounts.filter((account) => account.id !== 'cash'),
+      ).unavailableOwnAccount).toEqual(['a'])
+    })
+
+    it('allows a read-only account only while From resolves to the far side', () => {
+      const readOnlyCash = writableAccounts.map((account) =>
+        account.id === 'cash' ? { ...account, can_write: false } : account,
+      )
+      const choice = untouched({
+        transferFrom: { scope: 'tracked', accountId: 'cash', currency: 'CAD' },
+        endsAreOffered: true,
+      })
+
+      const farSideOnly = getBulkEditBlockers([savingsHalf], choice, undefined, readOnlyCash)
+      expect(farSideOnly.unavailableOwnAccount).toEqual([])
+      expect(canApplyBulkEdit([savingsHalf], choice, farSideOnly)).toBe(true)
+      expect(getBulkEditBlockers([chequingHalf], choice, undefined, readOnlyCash).unavailableOwnAccount)
+        .toEqual(['chequing_half'])
+      expect(getBulkEditBlockers(pair, choice, undefined, readOnlyCash).unavailableOwnAccount)
+        .toEqual(['chequing_half'])
+    })
+
+    it('recomputes a read-only transfer end after Reverse and category conversion', () => {
+      const readOnlyCash = writableAccounts.map((account) =>
+        account.id === 'cash' ? { ...account, can_write: false } : account,
+      )
+      const reversed = untouched({
+        direction: 'reverse',
+        transferFrom: { scope: 'tracked', accountId: 'cash', currency: 'CAD' },
+        endsAreOffered: true,
+      })
+      expect(getBulkEditBlockers([savingsHalf], reversed, undefined, readOnlyCash).unavailableOwnAccount)
+        .toEqual(['savings_half'])
+
+      const converted = untouched({
+        categoryId: transferCategory.id,
+        transferFrom: { scope: 'tracked', accountId: 'cash', currency: 'CAD' },
+        transferTo: { scope: 'outside' },
+        endsAreOffered: true,
+      })
+      expect(getBulkEditBlockers([groceries], converted, true, readOnlyCash).unavailableOwnAccount).toEqual(['a'])
+    })
+
+    it('blocks a selected source after its current capability is downgraded', () => {
+      const downgraded = writableAccounts.map((account) =>
+        account.id === 'chequing' ? { ...account, can_write: false } : account,
+      )
+      const blockers = getBulkEditBlockers([groceries], noteOnly, undefined, downgraded)
+
+      expect(blockers.unavailableOwnAccount).toEqual(['a'])
+      expect(canApplyBulkEdit([groceries], noteOnly, blockers)).toBe(false)
+    })
   })
 
   describe("resolving a transfer's ends", () => {
@@ -765,6 +833,31 @@ describe('what a bulk edit may do to the rows it covers', () => {
       expect(resolveTransferEnds(savingsHalf, choice, true)).toEqual({
         ownEnd: choice.transferTo,
         farEnd: choice.transferFrom,
+      })
+    })
+
+    it('keeps zero credit-facing for Debit and Reverse when resolving From and To', () => {
+      const fromCash = untouched({
+        direction: 'debit',
+        transferFrom: { scope: 'tracked', accountId: 'cash', currency: 'CAD' },
+        endsAreOffered: true,
+      })
+      expect(resolveTransferEnds(zeroTransfer, fromCash, true)).toEqual({ ownEnd: null, farEnd: fromCash.transferFrom })
+
+      const toCash = untouched({
+        direction: 'reverse',
+        transferTo: { scope: 'tracked', accountId: 'cash', currency: 'CAD' },
+        endsAreOffered: true,
+      })
+      expect(resolveTransferEnds(zeroTransfer, toCash, true)).toEqual({ ownEnd: toCash.transferTo, farEnd: null })
+
+      expect(countTransferEndEffects([zeroTransfer], fromCash, undefined).from).toEqual({
+        moves: 0,
+        recordsOnly: 1,
+      })
+      expect(countTransferEndEffects([zeroTransfer], toCash, undefined).to).toEqual({
+        moves: 1,
+        recordsOnly: 0,
       })
     })
 
@@ -975,6 +1068,10 @@ describe('what a bulk edit may do to the rows it covers', () => {
       expect(rowFactsKey([toSavings])).not.toBe(rowFactsKey([{ ...toSavings, direction: 'credit' }]))
     })
 
+    it("differs once a row's zero state changes", () => {
+      expect(rowFactsKey([toSavings])).not.toBe(rowFactsKey([{ ...toSavings, isZeroAmount: true }]))
+    })
+
     it("differs once a row's currency changes", () => {
       expect(rowFactsKey([toSavings])).not.toBe(rowFactsKey([{ ...toSavings, currency: 'USD' }]))
     })
@@ -1148,10 +1245,12 @@ describe('whether a chosen category records the other side of a transfer', () =>
 
 describe('the accounts a selection can move to', () => {
   const accounts = [
-    { id: 'acc_1', currency: 'CAD' },
-    { id: 'acc_2', currency: 'CAD', is_archived: true },
-    { id: 'acc_3', currency: 'CAD', closed_at: '2026-03-01' },
-    { id: 'acc_4', currency: 'USD' },
+    { id: 'acc_1', currency: 'CAD', can_write: true },
+    { id: 'acc_2', currency: 'CAD', can_write: true, is_archived: true },
+    { id: 'acc_3', currency: 'CAD', can_write: true, closed_at: '2026-03-01' },
+    { id: 'acc_4', currency: 'USD', can_write: true },
+    { id: 'acc_5', currency: 'CAD', can_write: false },
+    { id: 'acc_6', currency: 'CAD' },
   ]
 
   it('offers the open accounts in the currency the selection uses', () => {
@@ -1169,10 +1268,10 @@ describe('the accounts a selection can move to', () => {
 
 describe("the accounts a transfer's ends can be set to", () => {
   const accounts = [
-    { id: 'acc_1', currency: 'CAD' },
-    { id: 'acc_2', currency: 'CAD', is_archived: true },
-    { id: 'acc_3', currency: 'CAD', closed_at: '2026-03-01' },
-    { id: 'acc_4', currency: 'USD' },
+    { id: 'acc_1', currency: 'CAD', can_write: true },
+    { id: 'acc_2', currency: 'CAD', can_write: true, is_archived: true },
+    { id: 'acc_3', currency: 'CAD', can_write: true, closed_at: '2026-03-01' },
+    { id: 'acc_4', currency: 'USD', can_write: false },
   ]
 
   it('offers every open account, whatever its currency', () => {
@@ -1183,6 +1282,10 @@ describe("the accounts a transfer's ends can be set to", () => {
     const ids = getTransferEndTargets(accounts).map((account) => account.id)
     expect(ids).not.toContain('acc_2')
     expect(ids).not.toContain('acc_3')
+  })
+
+  it('keeps a read-only account because it can be recorded as the far side', () => {
+    expect(getTransferEndTargets(accounts).map((account) => account.id)).toContain('acc_4')
   })
 })
 
@@ -1232,6 +1335,20 @@ describe('what empties the selection', () => {
     })
 
     expect(settled).toBe(state)
+  })
+
+  it('prunes selected ids, the baseline and the anchor after capability changes', () => {
+    let state = click(emptyBulkSelection, 'b')
+    state = click(state, 'd')
+    const refreshedRows = rows.map((row) => row.id === 'd' ? { ...row, isReadOnly: true } : row)
+
+    expect(eligibleSelectionIds(rows)).toContain('d')
+    expect(eligibleSelectionIds(refreshedRows)).not.toContain('d')
+    state = bulkSelectionReducer(state, { type: 'keepDisplayed', ids: eligibleSelectionIds(refreshedRows) })
+
+    expect([...state.selectedIds]).toEqual(['b'])
+    expect([...state.baselineIds]).toEqual(['b'])
+    expect(state.anchorId).toBeNull()
   })
 })
 

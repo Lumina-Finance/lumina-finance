@@ -242,6 +242,7 @@ export default function TransactionListSection({
         hasFarSideRecorded: transaction.counterparty_account_scope !== null,
         farSideAccountId: transaction.counterparty_account_id,
         currency: transaction.currency,
+        isZeroAmount: transaction.amount === 0,
         direction: transaction.amount < 0 ? 'debit' : 'credit',
       }))
   }, [displayedTransactions, selection.selectedIds, categoryMap])
@@ -260,8 +261,8 @@ export default function TransactionListSection({
   // A list fixed to one account is often showing an account the account list does not carry, and both
   // the move targets and the far account options have to be able to name it
   const accountsForBulkEdit = useMemo(
-    () => (fixedAccount && !accounts.some((account) => account.id === fixedAccount.id)
-      ? [fixedAccount, ...accounts]
+    () => (fixedAccount
+      ? [fixedAccount, ...accounts.filter((account) => account.id !== fixedAccount.id)]
       : accounts),
     [fixedAccount, accounts],
   )

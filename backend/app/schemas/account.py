@@ -29,6 +29,9 @@ class AccountsOverview(BaseModel):
     base_currency_current_balance: int | None = None
     current_balance_fx_status: FxStatus = Field(default_factory=FxStatus)
     credit_limit: int | None
+
+    # Effective transaction write permission for the caller, independent of lifecycle state
+    can_write: bool
     is_archived: bool
     closed_at: datetime | None
 
@@ -51,6 +54,9 @@ class AccountResponse(BaseModel):
     base_currency_current_balance: int | None = None
     current_balance_fx_status: FxStatus = Field(default_factory=FxStatus)
     credit_limit: int | None
+
+    # Effective transaction write permission for the caller, independent of lifecycle state
+    can_write: bool
     is_archived: bool
     closed_at: datetime | None
     created_at: datetime

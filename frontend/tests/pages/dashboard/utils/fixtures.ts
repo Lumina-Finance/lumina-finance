@@ -36,6 +36,7 @@ export function createAccount(overrides: Partial<AccountsOverview>): AccountsOve
     base_currency_current_balance: null,
     current_balance_fx_status: fxStatus,
     credit_limit: null,
+    can_write: true,
     is_archived: false,
     closed_at: null,
     ...overrides,

@@ -190,8 +190,8 @@ function transferEndValueLabel(
 
 /**
  * Returns what the summary panel shows for a bulk edit: one row per detail it sends, in the modal's
- * control order, a note for anything the edit passes over, and a warning per blocker the server
- * would refuse it over.
+ * control order, a note for anything the edit passes over, and a warning for each client-side
+ * eligibility blocker found for the current rows and account data.
  *
  * Row presence matches buildBulkEditFields exactly, built by reading its result rather than
  * re-deriving which controls are live, so a stale end held while endsAreOffered is false stays
@@ -202,7 +202,7 @@ function transferEndValueLabel(
  *
  * @param choice What the edit holds
  * @param rows The selected transactions
- * @param blockers What the server would refuse, from getBulkEditBlockers against this same choice
+ * @param blockers Current client-side eligibility blockers for this choice
  * @param labels Display text the modal has already resolved for the chosen ids
  * @param chosenCategoryRecordsTransferTarget Whether the category the edit sets records the other
  *     side, or undefined while the edit sets no category and each row keeps its own
@@ -228,11 +228,15 @@ export function describeBulkEdit(
   const directionValue = fields.direction ?? fields.transfer_direction
   if (directionValue) {
     const directionIsImplied = fields.transfer_direction !== undefined
+    const directionRowCount = rows.filter((row) =>
+      !row.isZeroAmount
+        && (!directionIsImplied || (chosenCategoryRecordsTransferTarget ?? row.recordsFarSide)),
+    ).length
     summaryRows.push({
       label: 'Direction',
-      value: DIRECTION_ROW_VALUES[directionValue],
-      detail: directionIsImplied && transferRowCount < rows.length
-        ? `applies to ${transferRowCount} of the ${rows.length} selected transactions`
+      value: directionRowCount === 0 ? 'Unchanged' : DIRECTION_ROW_VALUES[directionValue],
+      detail: directionRowCount < rows.length
+        ? `applies to ${directionRowCount} of the ${rows.length} selected transactions`
         : undefined,
     })
   }
@@ -313,6 +317,17 @@ export function describeBulkEdit(
       text: `Changes to From and To apply only to ${transferRowCount} of the ${rows.length} selected transactions.`,
     })
   }
+  if (directionValue !== undefined) {
+    const zeroCount = rows.filter((row) => row.isZeroAmount).length
+    if (zeroCount > 0) {
+      notes.push({
+        key: 'zero-direction',
+        text: zeroCount === 1
+          ? 'The zero amount remains Credit.'
+          : `${zeroCount} zero amounts remain Credit.`,
+      })
+    }
+  }
 
   const warnings: BulkEditSummaryMessage[] = []
   if (blockers.withoutMerchant.length > 0) {
@@ -353,6 +368,15 @@ export function describeBulkEdit(
       key: `currency-${mismatch.rowCurrency}-${mismatch.targetCurrency}`,
       text: `${shareOpening(mismatch.count, rows.length)} ${noun} in ${mismatch.rowCurrency} `
         + `can't move to a ${mismatch.targetCurrency} account.`,
+    })
+  }
+  if (blockers.unavailableOwnAccount.length > 0) {
+    const count = blockers.unavailableOwnAccount.length
+    const noun = rows.length === 1 ? 'transaction' : 'transactions'
+    const accountClause = count === 1 ? "its account isn't" : "their accounts aren't"
+    warnings.push({
+      key: 'unavailable-account',
+      text: `${shareOpening(count, rows.length)} ${noun} can't be edited because ${accountClause} available for editing.`,
     })
   }
 

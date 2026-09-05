@@ -9,8 +9,8 @@ import type { Transaction } from '@/api/transactions'
 import type { TransactionListAccount } from '@/pages/transactions/types/transactionList'
 import { getTransactionReadOnlyReason } from '@/pages/transactions/utils/rowEditability'
 
-const openAccount: TransactionListAccount = { id: 'chequing', is_archived: false }
-const archivedAccount: TransactionListAccount = { id: 'old_account', is_archived: true }
+const openAccount: TransactionListAccount = { id: 'chequing', is_archived: false, can_write: true }
+const archivedAccount: TransactionListAccount = { id: 'old_account', is_archived: true, can_write: true }
 const accountMap = new Map([[openAccount.id, openAccount], [archivedAccount.id, archivedAccount]])
 
 const groceriesCategory: Category = {
@@ -57,6 +57,36 @@ describe('getTransactionReadOnlyReason', () => {
   it('still marks an archived account row read-only for its own reason', () => {
     expect(getTransactionReadOnlyReason(transaction({ account_id: archivedAccount.id }), accountMap, categoryMap))
       .toBe('Archived · Read-only')
+  })
+
+  it('marks a read-only account row and an account with unknown capability as read-only', () => {
+    const readOnly = { ...openAccount, id: 'shared', can_write: false }
+    const unknown = { id: 'unknown' } as TransactionListAccount
+    const accounts = new Map([...accountMap, [readOnly.id, readOnly], [unknown.id, unknown]])
+
+    expect(getTransactionReadOnlyReason(transaction({ account_id: readOnly.id }), accounts, categoryMap))
+      .toBe('Read-only access')
+    expect(getTransactionReadOnlyReason(transaction({ account_id: unknown.id }), accounts, categoryMap))
+      .toBe('Read-only access')
+  })
+
+  it('keeps writable closed history editable', () => {
+    const closed = { ...openAccount, id: 'closed', closed_at: '2026-03-01T14:00:00Z' }
+    expect(getTransactionReadOnlyReason(
+      transaction({ account_id: closed.id }),
+      new Map([[closed.id, closed]]),
+      categoryMap,
+    )).toBeUndefined()
+  })
+
+  it('uses the fixed account capability over a duplicate general account entry', () => {
+    const fixed = { ...openAccount, can_write: false }
+    expect(getTransactionReadOnlyReason(transaction(), accountMap, categoryMap, fixed)).toBe('Read-only access')
+  })
+
+  it('fails closed when the fixed account omits capability despite a writable general entry', () => {
+    const fixed = { id: 'chequing' } as TransactionListAccount
+    expect(getTransactionReadOnlyReason(transaction(), accountMap, categoryMap, fixed)).toBe('Read-only access')
   })
 
   it('gives the archived reason over the category reason when a row trips both', () => {

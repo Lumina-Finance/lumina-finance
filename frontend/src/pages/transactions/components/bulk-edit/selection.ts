@@ -7,6 +7,7 @@
  */
 import type { Category } from '@/api/categories'
 import type { BulkDirectionChange, BulkTransferEnd, TransactionDirection } from '@/api/transactions'
+import type { TransactionListAccount } from '@/pages/transactions/types/transactionList'
 import { MAX_BULK_EDIT_TRANSACTIONS } from '@/pages/transactions/components/bulk-edit/constants'
 import {
   BALANCE_ADJUSTMENT_CATEGORY_NAME,
@@ -40,13 +41,16 @@ export function doesChosenCategoryRecordTransferTarget(category: Category | unde
  * @param accounts Every account the list knows about
  * @param selectedCurrencies Currencies of the selected transactions, deduplicated
  */
-export function getBulkMoveTargets<T extends { is_archived?: boolean; closed_at?: string | null; currency?: string }>(
+export function getBulkMoveTargets<T extends { can_write?: boolean; is_archived?: boolean; closed_at?: string | null; currency?: string }>(
   accounts: T[],
   selectedCurrencies: string[],
 ): T[] {
   if (selectedCurrencies.length !== 1) return []
   return accounts.filter(
-    (account) => !account.is_archived && !account.closed_at && account.currency === selectedCurrencies[0],
+    (account) => account.can_write === true
+      && !account.is_archived
+      && !account.closed_at
+      && account.currency === selectedCurrencies[0],
   )
 }
 
@@ -211,6 +215,9 @@ export interface SelectedTransactionFacts {
   /** The currency the amount is denominated in */
   currency: string;
 
+  /** Whether the stored amount is zero, whose canonical direction remains credit under every edit */
+  isZeroAmount: boolean;
+
   /** Money out when its amount is negative, money in otherwise, on the server and in the browser alike */
   direction: TransactionDirection;
 }
@@ -221,9 +228,9 @@ export interface SelectedTransactionFacts {
  * change. `rows` itself is a new array reference on every refetch even when nothing here moved, so
  * comparing this key across renders is what tells a real change in the facts apart from that.
  *
- * Covers id, accountId, currency, recordsFarSide, hasFarSideRecorded, farSideAccountId and
- * direction, which is every field impliedDirection, endsAfterDirectionClick, resolveTransferEnds
- * and resultingDirectionFor read off a row.
+ * Covers id, accountId, currency, recordsFarSide, hasFarSideRecorded, farSideAccountId, zero state
+ * and direction, which is every field impliedDirection, endsAfterDirectionClick,
+ * resolveTransferEnds and resultingDirectionFor read off a row.
  *
  * @param rows The selected transactions
  */
@@ -237,6 +244,7 @@ export function rowFactsKey(rows: SelectedTransactionFacts[]): string {
         row.recordsFarSide,
         row.hasFarSideRecorded,
         row.farSideAccountId ?? '',
+        row.isZeroAmount,
         row.direction,
       ].join('|'),
     )
@@ -297,6 +305,7 @@ function flipDirection(direction: TransactionDirection): TransactionDirection {
  * where it sets one, the row's own flipped where it says reverse, the row's own otherwise
  */
 function resultingDirectionFor(row: SelectedTransactionFacts, direction: BulkDirectionChange | null): TransactionDirection {
+  if (row.isZeroAmount) return 'credit';
   if (direction === 'reverse') return flipDirection(row.direction);
   return direction ?? row.direction;
 }
@@ -546,23 +555,19 @@ export interface BulkEditBlockers {
 
   /** Rows whose own end would resolve to an account in another currency than the row's own */
   ownSideInAnotherCurrency: string[];
+
+  /** Rows whose source or resulting own account is no longer available for editing */
+  unavailableOwnAccount: string[];
 }
 
 /**
- * Returns the selected transactions the server would refuse, so the edit can be corrected before it is
- * confirmed rather than after.
+ * Returns selected transactions that fail the client-side eligibility checks represented here, so
+ * the edit can be corrected before confirmation.
  *
- * Each of these refuses the whole batch, and each is reachable without the user doing anything wrong:
- * a row recorded before merchants were required, a transfer recorded before the far account was, a row
- * whose far account and own account end up the same, an own end that would leave the row outside the
- * tracked accounts, and an own end in a currency the row does not hold. An own end that resolves to the
- * account the row already sits in is exempt from that last one, since nothing moves and the server never
- * touches the exchange rate for it; a real cross-currency move is refused here even for a row that
- * already carries a rate the server would accept, a deliberate narrowing tighter than the server's own
- * check.
- *
- * Not every refusal is modelled. A transfer pointing at an account the user can no longer open is one
- * the server alone can see, since a list fixed to one account carries no others to test against.
+ * These checks cover missing merchants or transfer ends, matching own and far accounts, an own end
+ * outside the tracked accounts, client-enforced currency limits, and source or destination accounts
+ * that current account data does not allow editing. An own end that resolves to the row's current
+ * account is exempt from the currency check because it does not move the row.
  *
  * @param rows The selected transactions
  * @param choice What the edit holds
@@ -573,12 +578,17 @@ export function getBulkEditBlockers(
   rows: SelectedTransactionFacts[],
   choice: BulkEditChoice,
   chosenCategoryRecordsTransferTarget: boolean | undefined,
+  currentAccounts?: TransactionListAccount[],
 ): BulkEditBlockers {
   const withoutMerchant: string[] = [];
   const unansweredFarSide: string[] = [];
   const ownAccountFarSide: string[] = [];
   const sitsOutside: string[] = [];
   const ownSideInAnotherCurrency: string[] = [];
+  const unavailableOwnAccount: string[] = [];
+  const accountMap = currentAccounts === undefined
+    ? null
+    : new Map(currentAccounts.map((account) => [account.id, account]))
 
   // An end and a move both write account_id, on whichever rows resolve to be their own, so a stray
   // Move to account choice never actually reaches the request once an end is set, the same rule
@@ -587,6 +597,18 @@ export function getBulkEditBlockers(
 
   for (const row of rows) {
     if (!row.hasMerchant && !choice.merchantId) withoutMerchant.push(row.id);
+
+    const sourceAccount = accountMap?.get(row.accountId)
+    if (accountMap && (sourceAccount?.can_write !== true || sourceAccount?.is_archived)) {
+      unavailableOwnAccount.push(row.id)
+    }
+
+    if (!sendsAnEnd && choice.accountId && accountMap) {
+      const destination = accountMap.get(choice.accountId)
+      if (destination?.can_write !== true || destination?.is_archived || Boolean(destination?.closed_at)) {
+        if (!unavailableOwnAccount.includes(row.id)) unavailableOwnAccount.push(row.id)
+      }
+    }
 
     const endsUpRecordingFarSide = chosenCategoryRecordsTransferTarget ?? row.recordsFarSide;
     if (!endsUpRecordingFarSide) continue;
@@ -609,6 +631,13 @@ export function getBulkEditBlockers(
       continue;
     }
 
+    if (ownEnd?.scope === 'tracked' && accountMap) {
+      const ownAccount = accountMap.get(ownEnd.accountId)
+      if (ownAccount?.can_write !== true || ownAccount?.is_archived || Boolean(ownAccount?.closed_at)) {
+        if (!unavailableOwnAccount.includes(row.id)) unavailableOwnAccount.push(row.id)
+      }
+    }
+
     if (farEnd === null && !row.hasFarSideRecorded) {
       unansweredFarSide.push(row.id);
       continue;
@@ -626,7 +655,14 @@ export function getBulkEditBlockers(
     }
   }
 
-  return { withoutMerchant, unansweredFarSide, ownAccountFarSide, sitsOutside, ownSideInAnotherCurrency };
+  return {
+    withoutMerchant,
+    unansweredFarSide,
+    ownAccountFarSide,
+    sitsOutside,
+    ownSideInAnotherCurrency,
+    unavailableOwnAccount,
+  };
 }
 
 /**
@@ -653,6 +689,7 @@ export function canApplyBulkEdit(
     && blockers.ownAccountFarSide.length === 0
     && blockers.sitsOutside.length === 0
     && blockers.ownSideInAnotherCurrency.length === 0
+    && blockers.unavailableOwnAccount.length === 0
   );
 }
 
@@ -660,6 +697,11 @@ export function canApplyBulkEdit(
 export interface SelectableRow {
   id: string;
   isReadOnly: boolean;
+}
+
+/** Returns the row ids that may remain in a selection after current account data is applied. */
+export function eligibleSelectionIds(rows: SelectableRow[]): string[] {
+  return rows.filter((row) => !row.isReadOnly).map((row) => row.id)
 }
 
 /**
@@ -991,13 +1033,20 @@ export function bulkSelectionReducer(
       const displayed = new Set(action.ids);
       const selectedIds = new Set([...state.selectedIds].filter((id) => displayed.has(id)));
 
-      // Returning the same state when nothing left the list keeps this safe to call on every settle
-      if (selectedIds.size === state.selectedIds.size) return state;
+      const baselineIds = new Set([...state.baselineIds].filter((id) => displayed.has(id)));
+      const anchorId = state.anchorId !== null && displayed.has(state.anchorId) ? state.anchorId : null;
+
+      // Eligibility can remove an unselected anchor or baseline entry without changing the tick count
+      if (
+        selectedIds.size === state.selectedIds.size
+        && baselineIds.size === state.baselineIds.size
+        && anchorId === state.anchorId
+      ) return state;
       return {
         ...state,
         selectedIds,
-        baselineIds: new Set([...state.baselineIds].filter((id) => displayed.has(id))),
-        anchorId: state.anchorId !== null && displayed.has(state.anchorId) ? state.anchorId : null,
+        baselineIds,
+        anchorId,
       };
     }
 

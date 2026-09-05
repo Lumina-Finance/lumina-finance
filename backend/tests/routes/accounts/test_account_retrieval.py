@@ -31,6 +31,7 @@ async def test_get_account_returns_account(client):
     assert data["currency"] == ACCOUNT_PAYLOAD["currency"]
     assert data["current_balance"] == 0
     assert data["credit_limit"] is None
+    assert data["can_write"] is True
     for field in (
         "tax_treatment",
         "lifetime_contribution_limit",

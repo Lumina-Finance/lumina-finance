@@ -29,6 +29,7 @@ export function createAccount(overrides: Partial<AccountsOverview>): AccountsOve
     base_currency_current_balance: overrides.base_currency_current_balance ?? null,
     current_balance_fx_status: overrides.current_balance_fx_status ?? { state: 'none', missing_pairs: [] },
     credit_limit: overrides.credit_limit ?? null,
+    can_write: overrides.can_write ?? true,
     is_archived: overrides.is_archived ?? false,
     closed_at: null,
     ...overrides,

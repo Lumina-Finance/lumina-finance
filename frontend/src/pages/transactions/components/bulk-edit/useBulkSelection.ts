@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react'
 import {
   bulkSelectionReducer,
   emptyBulkSelection,
+  eligibleSelectionIds,
   groupSelectionMark,
   previewSelection,
   rowSelectionMark,
@@ -50,12 +51,12 @@ export function useBulkSelection(
     dispatch({ type: 'clear' })
   }, [requestKey])
 
-  const displayedIds = useMemo(() => rows.map((row) => row.id), [rows])
+  const eligibleIds = useMemo(() => eligibleSelectionIds(rows), [rows])
 
   useEffect(() => {
     if (!isSettled) return
-    dispatch({ type: 'keepDisplayed', ids: displayedIds })
-  }, [displayedIds, isSettled])
+    dispatch({ type: 'keepDisplayed', ids: eligibleIds })
+  }, [eligibleIds, isSettled])
 
   useEffect(() => {
     function clearRangePreview() {

@@ -4,6 +4,15 @@
  */
 import type { Category } from '@/api/categories'
 import type { BulkEditChoice, SelectedTransactionFacts } from '@/pages/transactions/components/bulk-edit/selection'
+import type { TransactionListAccount } from '@/pages/transactions/types/transactionList'
+
+export const writableAccounts: TransactionListAccount[] = [
+  { id: 'chequing', name: 'Chequing', currency: 'CAD', can_write: true },
+  { id: 'savings', name: 'Savings', currency: 'CAD', can_write: true },
+  { id: 'cash', name: 'Cash', currency: 'CAD', can_write: true },
+  { id: 'us_savings', name: 'US Savings', currency: 'USD', can_write: true },
+  { id: 'eur_account', name: 'Euro account', currency: 'EUR', can_write: true },
+]
 
 export const transferCategory = {
   id: 'cat_t', name: 'Transfer', kind: 'transfer', icon: null,
@@ -18,22 +27,27 @@ export const groceriesCategory = {
 export const groceries: SelectedTransactionFacts = {
   id: 'a', accountId: 'chequing', hasMerchant: true,
   recordsFarSide: false, hasFarSideRecorded: false, farSideAccountId: null, currency: 'CAD', direction: 'debit',
+  isZeroAmount: false,
 }
 export const oldImport: SelectedTransactionFacts = {
   id: 'b', accountId: 'chequing', hasMerchant: false,
   recordsFarSide: false, hasFarSideRecorded: false, farSideAccountId: null, currency: 'CAD', direction: 'debit',
+  isZeroAmount: false,
 }
 export const toSavings: SelectedTransactionFacts = {
   id: 'c', accountId: 'chequing', hasMerchant: true,
   recordsFarSide: true, hasFarSideRecorded: true, farSideAccountId: 'savings', currency: 'CAD', direction: 'debit',
+  isZeroAmount: false,
 }
 export const toOutside: SelectedTransactionFacts = {
   id: 'd', accountId: 'chequing', hasMerchant: true,
   recordsFarSide: true, hasFarSideRecorded: true, farSideAccountId: null, currency: 'CAD', direction: 'debit',
+  isZeroAmount: false,
 }
 export const unanswered: SelectedTransactionFacts = {
   id: 'e', accountId: 'chequing', hasMerchant: true,
   recordsFarSide: true, hasFarSideRecorded: false, farSideAccountId: null, currency: 'CAD', direction: 'debit',
+  isZeroAmount: false,
 }
 
 // The two halves a transfer pair makes: the money-out half sitting in Chequing and recording
@@ -41,10 +55,12 @@ export const unanswered: SelectedTransactionFacts = {
 export const chequingHalf: SelectedTransactionFacts = {
   id: 'chequing_half', accountId: 'chequing', hasMerchant: true,
   recordsFarSide: true, hasFarSideRecorded: true, farSideAccountId: 'savings', currency: 'CAD', direction: 'debit',
+  isZeroAmount: false,
 }
 export const savingsHalf: SelectedTransactionFacts = {
   id: 'savings_half', accountId: 'savings', hasMerchant: true,
   recordsFarSide: true, hasFarSideRecorded: true, farSideAccountId: 'chequing', currency: 'CAD', direction: 'credit',
+  isZeroAmount: false,
 }
 export const pair = [chequingHalf, savingsHalf]
 
@@ -59,6 +75,7 @@ export const chequingHalf2: SelectedTransactionFacts = { ...chequingHalf, id: 'c
 export const eurExpense: SelectedTransactionFacts = {
   id: 'eur_expense', accountId: 'eur_account', hasMerchant: true,
   recordsFarSide: true, hasFarSideRecorded: true, farSideAccountId: null, currency: 'EUR', direction: 'debit',
+  isZeroAmount: false,
 }
 
 // A transfer in USD recorded in Chequing, a CAD account, the way an exchange-rate transfer sits
@@ -67,6 +84,14 @@ export const eurExpense: SelectedTransactionFacts = {
 export const usdTransferInChequing: SelectedTransactionFacts = {
   id: 'usd_in_chequing', accountId: 'chequing', hasMerchant: true,
   recordsFarSide: true, hasFarSideRecorded: true, farSideAccountId: 'savings', currency: 'USD', direction: 'debit',
+  isZeroAmount: false,
+}
+
+export const zeroTransfer: SelectedTransactionFacts = {
+  ...chequingHalf,
+  id: 'zero_transfer',
+  direction: 'credit',
+  isZeroAmount: true,
 }
 
 /** A panel with every control untouched, so each test states only the one it fills in */

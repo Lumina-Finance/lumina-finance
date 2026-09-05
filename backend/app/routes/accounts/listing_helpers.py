@@ -9,6 +9,7 @@ from sqlalchemy.orm import selectinload
 from app.models.account import Account, AccountPermission
 from app.models.group import GroupMember
 from app.models.user import User
+from app.permissions.accounts import attach_account_write_capabilities
 from app.routes.accounts.balance_field_helpers import attach_account_balance_fields
 
 
@@ -28,6 +29,7 @@ async def get_account_overviews_for_user(
         Accounts visible to the user with derived balance fields attached
     """
     accounts = await get_accounts_visible_to_user(db, user.id)
+    await attach_account_write_capabilities(db, accounts, user.id)
 
     # Attach balance fields after access filtering so each account has overview totals
     await attach_account_balance_fields(db, accounts, user, as_of_date)

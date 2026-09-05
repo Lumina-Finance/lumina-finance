@@ -3,9 +3,10 @@
  * beside them, and the warnings that hold Apply disabled
  */
 import { describe, expect, it } from 'vitest'
-import { getBulkEditBlockers, type BulkEditChoice, type SelectedTransactionFacts } from '@/pages/transactions/components/bulk-edit/selection'
+import { canApplyBulkEdit, getBulkEditBlockers, type BulkEditChoice, type SelectedTransactionFacts } from '@/pages/transactions/components/bulk-edit/selection'
 import { describeBulkEdit, shareOpening, type BulkEditSummary, type BulkEditSummaryLabels } from '@/pages/transactions/components/bulk-edit/summary'
-import { chequingHalf, chequingHalf2, eurExpense, groceries, oldImport, pair, savingsHalf, unanswered, untouched } from './bulkEditFixtures'
+import type { TransactionListAccount } from '@/pages/transactions/types/transactionList'
+import { chequingHalf, chequingHalf2, eurExpense, groceries, oldImport, pair, savingsHalf, unanswered, untouched, writableAccounts, zeroTransfer } from './bulkEditFixtures'
 
 const ACCOUNT_NAMES: Record<string, string> = {
   chequing: 'Chequing',
@@ -35,8 +36,9 @@ function summarize(
   choice: BulkEditChoice,
   labelOverrides: Partial<BulkEditSummaryLabels> = {},
   chosenCategoryRecordsTransferTarget: boolean | undefined = undefined,
+  currentAccounts?: TransactionListAccount[],
 ): BulkEditSummary {
-  const blockers = getBulkEditBlockers(rows, choice, chosenCategoryRecordsTransferTarget)
+  const blockers = getBulkEditBlockers(rows, choice, chosenCategoryRecordsTransferTarget, currentAccounts)
   return describeBulkEdit(choice, rows, blockers, { ...labels, ...labelOverrides }, chosenCategoryRecordsTransferTarget)
 }
 
@@ -102,6 +104,31 @@ describe('the rows, notes and warnings a bulk edit choice produces', () => {
 
     expect(result.rows).toEqual([{ label: 'Direction', value: 'Reversed' }])
     expect(result.notes).toEqual([])
+  })
+
+  it('states that zero directions remain Credit and applies Reverse only to a nonzero row', () => {
+    const result = summarize(
+      [zeroTransfer, { ...savingsHalf, id: 'income_4000' }],
+      untouched({ direction: 'reverse', endsAreOffered: true }),
+    )
+
+    expect(result.rows[0]).toEqual({
+      label: 'Direction',
+      value: 'Reversed',
+      detail: 'applies to 1 of the 2 selected transactions',
+    })
+    expect(result.notes).toContainEqual({ key: 'zero-direction', text: 'The zero amount remains Credit.' })
+  })
+
+  it('does not promise Debit when every selected amount is zero', () => {
+    const result = summarize([zeroTransfer], untouched({ direction: 'debit', endsAreOffered: true }))
+
+    expect(result.rows[0]).toEqual({
+      label: 'Direction',
+      value: 'Unchanged',
+      detail: 'applies to 0 of the 1 selected transactions',
+    })
+    expect(result.notes).toContainEqual({ key: 'zero-direction', text: 'The zero amount remains Credit.' })
   })
 
   it('hides the move detail once every selected row moves, since none of them stay behind', () => {
@@ -256,6 +283,21 @@ describe('the rows, notes and warnings a bulk edit choice produces', () => {
     const result = summarize([groceries], untouched({ accountId: 'unknown_account' }))
 
     expect(result.rows).toEqual([{ label: 'Move to account', value: 'Account' }])
+  })
+
+  it('warns and disables Apply when a chosen Move account becomes unavailable', () => {
+    const choice = untouched({ accountId: 'cash' })
+    const currentAccounts = writableAccounts.map((account) =>
+      account.id === 'cash' ? { ...account, can_write: false } : account,
+    )
+    const blockers = getBulkEditBlockers([groceries], choice, undefined, currentAccounts)
+    const result = describeBulkEdit(choice, [groceries], blockers, labels, undefined)
+
+    expect(result.warnings).toContainEqual({
+      key: 'unavailable-account',
+      text: "The selected transaction can't be edited because its account isn't available for editing.",
+    })
+    expect(canApplyBulkEdit([groceries], choice, blockers)).toBe(false)
   })
 
   it('warns once per currency pair, each keyed by its own pair, when a tracked end mismatches more than one row currency', () => {
