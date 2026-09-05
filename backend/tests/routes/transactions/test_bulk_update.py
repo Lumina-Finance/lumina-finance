@@ -1,9 +1,8 @@
 import asyncio
-import threading
 import uuid
 from datetime import date
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from app.models.account import AccountBalanceSnapshot
 from app.models.base import TransferCounterpartyScope
@@ -40,14 +39,6 @@ async def _clear_counterparty(transaction_id):
         txn = await session.get(Transaction, uuid.UUID(transaction_id))
         txn.counterparty_account_id = None
         txn.counterparty_account_scope = None
-        await session.commit()
-
-
-async def _flip_sign(transaction_id):
-    """Flip a transaction's amount directly, standing in for a concurrent session's edit."""
-    async with TestSession() as session:
-        txn = await session.get(Transaction, uuid.UUID(transaction_id))
-        txn.amount = -txn.amount
         await session.commit()
 
 
@@ -309,11 +300,28 @@ async def test_bulk_update_adding_a_tag_the_transaction_already_has_changes_noth
     )
 
     assert resp.status_code == 200
+    # The request still reached this row, so it counts even though nothing about it changed
+    assert resp.json()["transactions_updated"] == 1
     async with TestSession() as session:
         rows = await session.execute(
             select(TransactionTag).where(TransactionTag.transaction_id == uuid.UUID(txn)),
         )
         assert len(list(rows.scalars().all())) == 1
+
+
+async def test_bulk_update_refuses_more_tags_than_one_request_may_add(client):
+    """add_tag_ids is bounded, since past a few dozen tags.py would issue one statement per id."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    txn = (await _create_transaction(client, headers, account_id, category_id)).json()["id"]
+    tag_ids = [(await _create_tag(client, headers, name=f"tag{i}")).json()["id"] for i in range(33)]
+
+    resp = await client.patch(
+        "/transactions/bulk",
+        json={"transaction_ids": [txn], "add_tag_ids": tag_ids},
+        headers=headers,
+    )
+
+    assert resp.status_code == 422
 
 
 async def test_bulk_update_accepts_the_same_transaction_named_twice(client):
@@ -708,11 +716,60 @@ async def test_bulk_transfer_to_answers_a_transfer_category_change(client):
     )
 
     assert resp.status_code == 200
+    # Written twice each, once for the category and once for the end, but a row counts once
+    assert resp.json()["transactions_updated"] == 2
     for txn in (first, second):
         row = await _read_transaction(txn)
         assert str(row.category_id) == transfer_id
         assert str(row.account_id) == chequing_id
         assert str(row.counterparty_account_id) == savings_id
+
+
+async def test_bulk_transfer_to_outside_over_a_mixed_selection_counts_only_the_transfer(client):
+    """A count built from a plain rowcount would report every selected row, not just the one written."""
+    headers, chequing_id, category_id, savings_id, transfer_id = await _setup_transfer_user(client)
+    transfer = (await _make_transfer(
+        client, headers, chequing_id, transfer_id, savings_id, amount=-1000,
+    )).json()["id"]
+    first_expense = (await _create_transaction(client, headers, chequing_id, category_id)).json()["id"]
+    second_expense = (await _create_transaction(client, headers, chequing_id, category_id)).json()["id"]
+
+    resp = await client.patch(
+        "/transactions/bulk",
+        json={
+            "transaction_ids": [transfer, first_expense, second_expense],
+            "transfer_to": {"scope": "outside"},
+        },
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["transactions_updated"] == 1
+    assert (await _read_transaction(transfer)).counterparty_account_scope == TransferCounterpartyScope.OUTSIDE
+
+
+async def test_bulk_transfer_to_reports_the_previous_and_new_far_side_accounts(client):
+    """Moving a transfer's far side affects both the account it left and the one it now records."""
+    headers, chequing_id, _category_id, savings_id, transfer_id = await _setup_transfer_user(client)
+    rrsp_id = (await _create_account(client, headers, name="RRSP")).json()["id"]
+    first = (await _make_transfer(
+        client, headers, chequing_id, transfer_id, savings_id, amount=-2000,
+    )).json()["id"]
+    second = (await _make_transfer(
+        client, headers, chequing_id, transfer_id, savings_id, amount=-3000,
+    )).json()["id"]
+
+    resp = await client.patch(
+        "/transactions/bulk",
+        json={
+            "transaction_ids": [first, second],
+            "transfer_to": {"scope": "tracked", "account_id": rrsp_id},
+        },
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["affected_account_ids"] == sorted([chequing_id, savings_id, rrsp_id])
 
 
 async def test_bulk_transfer_from_refuses_a_selection_with_no_transfer(client):
@@ -1365,41 +1422,77 @@ async def test_bulk_transfer_from_leaves_an_expense_out_of_the_group_write_check
     assert str(expense_row.category_id) == category_id
 
 
-async def test_bulk_update_refuses_a_row_whose_sign_changed_between_the_checks_and_the_write(client, monkeypatch):
-    """A sign flipped by another session between the checks and the write is caught, not written over."""
+async def test_bulk_transfer_from_refuses_a_row_another_session_holds(client, monkeypatch):
+    """A row another session already holds answers 409 rather than waiting behind it."""
+    monkeypatch.setattr(bulk_update_module, "_BULK_UPDATE_LOCK_WAIT", "100ms")
     headers, chequing_id, _category_id, savings_id, transfer_id = await _setup_transfer_user(client)
     cash_id = (await _create_account(client, headers, name="Cash")).json()["id"]
     transfer = (await _make_transfer(
         client, headers, chequing_id, transfer_id, savings_id, amount=-4000,
     )).json()["id"]
 
-    original = bulk_update_module._collect_snapshot_starts
+    # Held open for the length of the request below, which is what the request has to wait on. The
+    # request is bounded so that a wait that never gives up fails this test rather than hanging it
+    async with TestSession() as holder:
+        await holder.execute(
+            text("SELECT id FROM transactions WHERE id = :id FOR UPDATE"), {"id": uuid.UUID(transfer)},
+        )
+        async with asyncio.timeout(5):
+            resp = await client.patch(
+                "/transactions/bulk",
+                json={
+                    "transaction_ids": [transfer],
+                    "transfer_from": {"scope": "tracked", "account_id": cash_id},
+                },
+                headers=headers,
+            )
+        await holder.rollback()
 
-    def _flip_sign_between_checks_and_write(*args, **kwargs):
-        """Run the real snapshot collection, then flip the row's sign on a separate connection.
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "Another change reached one of these transactions first"
+    assert str((await _read_transaction(transfer)).account_id) == chequing_id
 
-        Stands in for another session racing in after the checks pass but before the write, so the
-        sign the write's guard reads no longer matches the one the checks judged.
-        """
-        starts = original(*args, **kwargs)
-        thread = threading.Thread(target=lambda: asyncio.run(_flip_sign(transfer)))
-        thread.start()
-        thread.join()
-        return starts
 
-    monkeypatch.setattr(bulk_update_module, "_collect_snapshot_starts", _flip_sign_between_checks_and_write)
+async def test_bulk_direction_reverse_refuses_a_row_another_session_holds(client, monkeypatch):
+    """Reverse, which names no absolute answer, still cannot write onto a row another session holds."""
+    monkeypatch.setattr(bulk_update_module, "_BULK_UPDATE_LOCK_WAIT", "100ms")
+    headers, chequing_id, _category_id, savings_id, transfer_id = await _setup_transfer_user(client)
+    transfer = (await _make_transfer(
+        client, headers, chequing_id, transfer_id, savings_id, amount=-4000,
+    )).json()["id"]
+
+    async with TestSession() as holder:
+        await holder.execute(
+            text("SELECT id FROM transactions WHERE id = :id FOR UPDATE"), {"id": uuid.UUID(transfer)},
+        )
+        async with asyncio.timeout(5):
+            resp = await client.patch(
+                "/transactions/bulk",
+                json={"transaction_ids": [transfer], "direction": "reverse"},
+                headers=headers,
+            )
+        await holder.rollback()
+
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "Another change reached one of these transactions first"
+    assert (await _read_transaction(transfer)).amount == -4000
+
+
+async def test_bulk_direction_reverse_with_no_other_session_flips_the_stored_amount(client):
+    """With nothing else holding the row, reverse still flips its stored amount as it always did."""
+    headers, chequing_id, _category_id, savings_id, transfer_id = await _setup_transfer_user(client)
+    transfer = (await _make_transfer(
+        client, headers, chequing_id, transfer_id, savings_id, amount=-20000,
+    )).json()["id"]
 
     resp = await client.patch(
         "/transactions/bulk",
-        json={
-            "transaction_ids": [transfer],
-            "transfer_from": {"scope": "tracked", "account_id": cash_id},
-        },
+        json={"transaction_ids": [transfer], "direction": "reverse"},
         headers=headers,
     )
 
-    assert resp.status_code == 409
-    assert str((await _read_transaction(transfer)).account_id) == chequing_id
+    assert resp.status_code == 200
+    assert (await _read_transaction(transfer)).amount == 20000
 
 
 async def _setup_transfer_into_a_group_account(client):
@@ -1717,6 +1810,29 @@ async def test_bulk_transfer_direction_refuses_a_selection_with_no_transfer(clie
     resp = await client.patch(
         "/transactions/bulk",
         json={"transaction_ids": [first, second], "transfer_direction": "credit"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == (
+        "The direction applies to transfers only, and none of the selected transactions end up as one"
+    )
+
+
+async def test_bulk_transfer_direction_with_an_end_refuses_a_selection_with_no_transfer(client):
+    """An end sent alongside the direction keeps the From and To wording, since an end was sent."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    cash_id = (await _create_account(client, headers, name="Cash")).json()["id"]
+    first = (await _create_transaction(client, headers, account_id, category_id)).json()["id"]
+    second = (await _create_transaction(client, headers, account_id, category_id)).json()["id"]
+
+    resp = await client.patch(
+        "/transactions/bulk",
+        json={
+            "transaction_ids": [first, second],
+            "transfer_direction": "credit",
+            "transfer_from": {"scope": "tracked", "account_id": cash_id},
+        },
         headers=headers,
     )
 

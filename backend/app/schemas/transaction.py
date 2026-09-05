@@ -233,8 +233,10 @@ class BulkUpdateTransactionsRequest(BaseModel):
     notes: str | None = Field(None, max_length=MAX_IMPORT_NOTES_LENGTH)
 
     # Added to whatever each transaction already carries, unlike the single-transaction update,
-    # which replaces the whole list
-    add_tag_ids: list[uuid.UUID] = []
+    # which replaces the whole list. Bounded to the cap tag_names already carries, since tags.py
+    # issues one statement per id at any count, so this cap is what bounds how many statements a
+    # request can cause while it still holds its locked rows
+    add_tag_ids: list[uuid.UUID] = Field(default=[], max_length=MAX_IMPORT_TAGS_PER_ROW)
 
     # Where a row's own account sits and what it records as the other side, once resolved against
     # its own resulting direction. Which of the two an unset field leaves alone is not fixed by name

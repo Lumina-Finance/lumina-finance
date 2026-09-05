@@ -349,7 +349,8 @@ async def bulk_update_transactions_route(
         db: Active database session
 
     Returns:
-        The number of transactions changed and the accounts affected
+        The count of rows the request reached, whether or not a value on any of them changed, and
+        the accounts affected, including a transfer's far side account before and after the edit
     """
     return await bulk_update_transactions(db, user, data)
 

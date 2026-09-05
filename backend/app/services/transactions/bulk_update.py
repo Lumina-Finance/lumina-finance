@@ -14,7 +14,8 @@ from datetime import date
 from typing import NamedTuple
 
 from fastapi import HTTPException, status
-from sqlalchemy import ColumnElement, func, select, update
+from sqlalchemy import ColumnElement, func, select, text, update
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
@@ -48,6 +49,15 @@ _DIRECT_COLUMN_FIELDS = ("account_id", "dt", "category_id", "merchant_id", "note
 # The own and far ends resolved for one row, either one None where that side is left alone
 _TransferEndPair = tuple[TransferEnd | None, TransferEnd | None]
 
+# Postgres raises this for a lock the caller waited out
+_LOCK_NOT_AVAILABLE_SQLSTATE = "55P03"
+
+# The most one lock attempt waits before the statement gives up, matching the wait load_locked_run
+# in run_locking.py gives an import run. Postgres acquires a multi-row SELECT ... FOR UPDATE's locks
+# one row at a time, so a selection whose rows are held by several sessions can wait this long per
+# held row rather than once for the whole statement
+_BULK_UPDATE_LOCK_WAIT = "10s"
+
 
 class _RowResolution(NamedTuple):
     """What one transaction ends up with once the request is applied."""
@@ -75,23 +85,50 @@ async def bulk_update_transactions(
         data: Transactions to change and the details to set
 
     Returns:
-        The number of transactions changed and the accounts affected
+        The count of rows the request reached, whether or not a value on any of them changed, and
+        the accounts affected, including a transfer's far side account before and after the edit
 
     Raises:
         HTTPException: A transaction was not found, an account refuses the write, a transfer end
-            reached no row, or a row breaks a rule the single-transaction path enforces
+            reached no row, a row breaks a rule the single-transaction path enforces, or another
+            change reached one of the transactions first
     """
     sent = data.model_fields_set
     requested_ids = list(dict.fromkeys(data.transaction_ids))
 
+    # Bounded for this statement alone, following load_locked_run in run_locking.py. The setting
+    # lasts the whole transaction, so leaving it in place would put the same bound on every lock
+    # the commit takes afterwards, including the balance snapshot rebuild
+    await db.execute(text(f"SET LOCAL lock_timeout = '{_BULK_UPDATE_LOCK_WAIT}'"))
+
     # Load the requested rows inside the caller's readable scope, so an id belonging to someone else
-    # is missing from the result rather than silently changing nothing
-    result = await db.execute(
-        select(Transaction).where(
+    # is missing from the result rather than silently changing nothing. Locked in id order so two
+    # bulk edits over overlapping rows queue behind each other in the same order rather than
+    # deadlocking, and held until this transaction commits so no other writer can change a row
+    # between this read and the write below. The accessible-accounts filter stays the scalar
+    # subquery it is; a join would put the lock on the nullable side of an outer join, which
+    # Postgres refuses
+    query = (
+        select(Transaction)
+        .where(
             Transaction.id.in_(requested_ids),
             Transaction.account_id.in_(accessible_account_ids_subquery(user.id)),
-        ),
+        )
+        .order_by(Transaction.id)
+        .with_for_update()
     )
+    try:
+        result = await db.execute(query)
+    except DBAPIError as exc:
+        if getattr(exc.orig, "sqlstate", None) != _LOCK_NOT_AVAILABLE_SQLSTATE:
+            raise
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Another change reached one of these transactions first",
+        ) from exc
+    await db.execute(text("SET LOCAL lock_timeout = DEFAULT"))
+
     transactions = list(result.scalars().all())
     if len(transactions) != len(requested_ids):
         raise HTTPException(
@@ -131,7 +168,7 @@ async def bulk_update_transactions(
     await _validate_chosen_scope(db, user, data, sent, group_ids)
 
     resolutions = _resolve_rows(transactions, data, chosen_category, categories_by_id, target_account)
-    _refuse_ends_reaching_no_row(data, resolutions)
+    _refuse_transfer_fields_reaching_no_row(data, resolutions)
 
     accounts_by_id = {**source_accounts_by_id, **own_end_accounts}
     if target_account is not None:
@@ -139,10 +176,11 @@ async def bulk_update_transactions(
     await _refuse_rows_breaking_single_edit_rules(db, user, data, transactions, resolutions, accounts_by_id)
 
     # Collected before the update, because SQLAlchemy writes the new values back onto the loaded
-    # rows and a date read afterwards is the new one
+    # rows and a date or a counterparty read afterwards is the new one
     snapshot_starts = _collect_snapshot_starts(data, sent, transactions, resolutions)
+    far_side_account_ids = _collect_far_side_account_ids(transactions, resolutions)
 
-    await _apply_changes(db, data, sent, transactions, transaction_ids, resolutions)
+    written_ids = await _apply_changes(db, data, sent, transactions, transaction_ids, resolutions)
 
     for account_id, from_date in snapshot_starts.items():
         await recompute_snapshots_from(db, account_id, from_date)
@@ -160,9 +198,14 @@ async def bulk_update_transactions(
 
     await db.commit()
 
+    # Built apart from affected_accounts above, which only carries Account rows loaded for the
+    # write-access and archived checks. A far side is never loaded as one, so it reaches the
+    # response's id list without a query of its own
+    affected_account_ids = {account.id for account in affected_accounts} | far_side_account_ids
+
     return BulkUpdateTransactionsResponse(
-        transactions_updated=len(transaction_ids),
-        affected_account_ids=sorted({account.id for account in affected_accounts}),
+        transactions_updated=len(written_ids),
+        affected_account_ids=sorted(affected_account_ids),
     )
 
 
@@ -231,11 +274,9 @@ def _resulting_direction(transaction: Transaction, data: BulkUpdateTransactionsR
     """Return the direction a transaction ends up pointing once the request is applied
 
     A set direction overrides the row's own outright, and reverse flips it instead of naming an
-    absolute answer. Neither changes what the row's own direction was, which is what a concurrent
-    change to the stored amount would disturb. transfer_direction stands in for direction wherever
-    the request sent that instead, which every caller may do safely because each already calls this
-    only for a row whose resulting category records a far side, the same rows transfer_direction
-    reaches
+    absolute answer. transfer_direction stands in for direction wherever the request sent that
+    instead, which every caller may do safely because each already calls this only for a row whose
+    resulting category records a far side, the same rows transfer_direction reaches
 
     Args:
         transaction: Transaction the request covers
@@ -581,7 +622,7 @@ def _resolve_rows(
     return resolutions
 
 
-def _refuse_ends_reaching_no_row(
+def _refuse_transfer_fields_reaching_no_row(
     data: BulkUpdateTransactionsRequest,
     resolutions: dict[uuid.UUID, _RowResolution],
 ) -> None:
@@ -591,7 +632,9 @@ def _refuse_ends_reaching_no_row(
     and a selection holding none of those would otherwise report a count for a write it never made.
     Tested on the category rather than on `resolution.ends`, since a request sending
     transfer_direction alone resolves no end for any row and would otherwise always read as reaching
-    none
+    none. The message mentions From and To whenever either was sent, since that is the field the
+    request actually carried; a request sending transfer_direction alone mentions the direction
+    instead
 
     Args:
         data: Transactions to change and the details to set
@@ -601,16 +644,19 @@ def _refuse_ends_reaching_no_row(
         HTTPException: The request set transfer_from, transfer_to or transfer_direction but no row
             in the selection has a resulting category that records a far side
     """
-    if not {"transfer_from", "transfer_to", "transfer_direction"} & data.model_fields_set:
+    sent_ends = {"transfer_from", "transfer_to"} & data.model_fields_set
+    if not sent_ends and "transfer_direction" not in data.model_fields_set:
         return
     if any(
         does_category_record_counterparty_account(resolution.category) for resolution in resolutions.values()
     ):
         return
-    raise HTTPException(
-        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-        detail="From and To apply to transfers only, and none of the selected transactions end up as one",
+    detail = (
+        "From and To apply to transfers only, and none of the selected transactions end up as one"
+        if sent_ends
+        else "The direction applies to transfers only, and none of the selected transactions end up as one"
     )
+    raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=detail)
 
 
 async def _refuse_rows_breaking_single_edit_rules(
@@ -796,6 +842,43 @@ def _collect_snapshot_starts(
     return starts
 
 
+def _collect_far_side_account_ids(
+    transactions: list[Transaction],
+    resolutions: dict[uuid.UUID, _RowResolution],
+) -> set[uuid.UUID]:
+    """Return every tracked account a row records as its far side, before or after the edit
+
+    A far side is read straight off the loaded rows and the already-resolved ends rather than
+    queried again, since the own and move-target accounts loaded elsewhere already cover every
+    write-access and archived check a far side does not need
+
+    Read before the change is written, since SQLAlchemy writes the new values back onto the loaded
+    rows and a counterparty read afterwards is the new one rather than the one this collection needs
+
+    Args:
+        transactions: Transactions the request covers
+        resolutions: Every transaction's resolution, keyed by identifier
+
+    Returns:
+        Identifiers of every tracked account a row recorded as its far side, before the edit or once
+        it is applied
+    """
+    far_side_ids: set[uuid.UUID] = set()
+    for transaction in transactions:
+        if (
+            transaction.counterparty_account_scope == TransferCounterpartyScope.TRACKED
+            and transaction.counterparty_account_id is not None
+        ):
+            far_side_ids.add(transaction.counterparty_account_id)
+
+        ends = resolutions[transaction.id].ends
+        far_end = ends[1] if ends is not None else None
+        if far_end is not None and far_end.scope == TransferCounterpartyScope.TRACKED:
+            far_side_ids.add(far_end.account_id)
+
+    return far_side_ids
+
+
 async def _apply_changes(
     db: AsyncSession,
     data: BulkUpdateTransactionsRequest,
@@ -803,7 +886,7 @@ async def _apply_changes(
     transactions: list[Transaction],
     transaction_ids: list[uuid.UUID],
     resolutions: dict[uuid.UUID, _RowResolution],
-) -> None:
+) -> set[uuid.UUID]:
     """Write the requested change and normalise what the change invalidates
 
     Args:
@@ -815,10 +898,9 @@ async def _apply_changes(
         resolutions: Every transaction's resolution, keyed by identifier
 
     Returns:
-        None
-
-    Raises:
-        HTTPException: A row's sign no longer matches the one its transfer ends were resolved for
+        Identifiers of the rows a write below actually reached. A row can be written twice, once
+        by the direct-column update and again by the clearing update below it, for example a
+        transfer row set to Groceries, so a plain rowcount would count it twice
     """
     column_values = {field: getattr(data, field) for field in _DIRECT_COLUMN_FIELDS if field in sent}
     if column_values:
@@ -830,24 +912,21 @@ async def _apply_changes(
         if does_category_record_counterparty_account(resolutions[transaction.id].category)
     ]
 
-    # Split into at most two buckets, keyed by each row's own sign rather than by its resulting
-    # direction, since a race is a change to that stored sign specifically. Direction or
+    # Split into at most two buckets, keyed by each row's own sign, since direction or
     # transfer_direction is one value for the whole request, whichever the request sent, so every
     # row sharing a sign also shares the resulting direction that produced its own and far ends, and
-    # the bucket can use either row's ends for the whole group. The WHERE clause re-reads the sign at
-    # write time, so a row whose sign changed between the checks and here drops out of its bucket's
-    # count and the whole request is turned down rather than written for a direction the row no
-    # longer has
+    # the bucket can use either row's ends for the whole group
+    bucket_ids: set[uuid.UUID] = set()
     for own_direction in (BulkDirectionChange.DEBIT, BulkDirectionChange.CREDIT):
-        bucket_ids = [
+        ids_for_direction = [
             transaction.id
             for transaction in transactions
             if _own_direction(transaction) == own_direction and resolutions[transaction.id].ends is not None
         ]
-        if not bucket_ids:
+        if not ids_for_direction:
             continue
 
-        own_end, far_end = resolutions[bucket_ids[0]].ends
+        own_end, far_end = resolutions[ids_for_direction[0]].ends
         values: dict[str, object] = {}
         if own_end is not None:
             values["account_id"] = own_end.account_id
@@ -855,17 +934,8 @@ async def _apply_changes(
             values["counterparty_account_scope"] = far_end.scope
             values["counterparty_account_id"] = far_end.account_id
 
-        sign_condition = (
-            Transaction.amount < 0 if own_direction == BulkDirectionChange.DEBIT else Transaction.amount >= 0
-        )
-        written = await db.execute(
-            update(Transaction).where(Transaction.id.in_(bucket_ids), sign_condition).values(**values),
-        )
-        if written.rowcount != len(bucket_ids):
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Another change reached one of these transactions first. Try again.",
-            )
+        await db.execute(update(Transaction).where(Transaction.id.in_(ids_for_direction)).values(**values))
+        bucket_ids.update(ids_for_direction)
 
     if "direction" in sent:
         await db.execute(
@@ -875,6 +945,7 @@ async def _apply_changes(
             .execution_options(synchronize_session=False),
         )
 
+    recording_ids: set[uuid.UUID] = set()
     if "transfer_direction" in sent:
         await db.execute(
             update(Transaction)
@@ -882,16 +953,17 @@ async def _apply_changes(
             .values(amount=_direction_amount_expression(data.transfer_direction))
             .execution_options(synchronize_session=False),
         )
+        recording_ids.update(records_counterparty)
 
     # A category that records no counterparty account drops whatever the previous one recorded, on
     # every edit rather than only on one that changes the category, matching the single-transaction
     # path. Picked row by row because the category a row ends up under is its own whenever the
     # request sets none, and clearing the whole set would take the counterparty off every transfer
-    clearable_ids = [
+    clearable_ids = {
         transaction.id
         for transaction in transactions
         if transaction.counterparty_account_scope is not None and transaction.id not in set(records_counterparty)
-    ]
+    }
     if clearable_ids:
         await db.execute(
             update(Transaction)
@@ -899,5 +971,12 @@ async def _apply_changes(
             .values(counterparty_account_id=None, counterparty_account_scope=None),
         )
 
+    # A column written straight onto every selected row, a direction of any kind, and an added tag
+    # all write across the whole selection rather than a filtered subset, so each counts as reaching
+    # every row the request carried, whether or not a given row already held that value
+    direct_ids = set(transaction_ids) if column_values or "direction" in sent or data.add_tag_ids else set()
+
     if data.add_tag_ids:
         await add_transaction_tag_assignments(db, transaction_ids, list(dict.fromkeys(data.add_tag_ids)))
+
+    return direct_ids | bucket_ids | recording_ids | clearable_ids
