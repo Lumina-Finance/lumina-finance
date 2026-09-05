@@ -66,7 +66,11 @@ function SummaryRow({ label, value, detail }: { label: string; value: string; de
  * their kind, so a count changing in place rewrites a line's text without replaying its entrance.
  * Warnings sit under a rule below the rows and notes, since they are what holds Apply disabled
  * rather than a description of what the edit does. A viewer who asks the system for reduced
- * motion gets the same rows with the height tween, the fade and the layout shift all skipped
+ * motion gets the same rows with the height tween, the fade and the layout shift all skipped.
+ *
+ * Only the note and warning lines announce themselves, on their own wrappers rather than one live
+ * region around the whole list, since a plain row's value changing on every keystroke in Note or
+ * Date is not something a screen reader needs read out
  */
 export default function BulkEditSummary({ summary }: BulkEditSummaryProps) {
   const { rows, notes, warnings } = summary
@@ -114,7 +118,11 @@ export default function BulkEditSummary({ summary }: BulkEditSummaryProps) {
             ...notes.map((note) => ({
               key: note.key,
               node: (
-                <div className="flex items-start gap-1.5 text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                <div
+                  className="flex items-start gap-1.5 text-sm"
+                  style={{ color: 'var(--app-text-muted)' }}
+                  aria-live="polite"
+                >
                   <Info size={15} strokeWidth={2.5} className="mt-0.5 shrink-0" aria-hidden />
                   <span>{note.text}</span>
                 </div>
@@ -134,6 +142,7 @@ export default function BulkEditSummary({ summary }: BulkEditSummaryProps) {
                     color: 'var(--app-negative)',
                     ...(index === 0 ? { borderTop: '1px solid var(--app-border)', paddingTop: '0.75rem' } : {}),
                   }}
+                  aria-live="polite"
                 >
                   <TriangleAlert size={15} strokeWidth={2.5} className="mt-0.5 shrink-0" aria-hidden />
                   <span>{warning.text}</span>
@@ -159,7 +168,7 @@ export default function BulkEditSummary({ summary }: BulkEditSummaryProps) {
       transition={itemTransition}
       style={{ overflow: 'hidden' }}
     >
-      <div ref={contentRef} className="relative flex flex-col gap-3" aria-live="polite">
+      <div ref={contentRef} className="relative flex flex-col gap-3">
         <AnimatePresence initial={false} mode="popLayout">
           {items.map((item) => (
             <motion.div

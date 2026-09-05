@@ -343,11 +343,12 @@ export function invalidateBulkUpdatedTransactionData(
   if (payload.notes !== undefined) patch.notes = payload.notes;
   if (payload.add_tag_ids?.length) patch.tag_ids = payload.add_tag_ids;
 
-  // A direction change writes the sign of the amount column, and a set end writes account_id on
-  // whichever rows resolve to be their own. The request cannot say which rows those are, so a sent
-  // direction or end marks the column it could touch rather than the column it always does. The
-  // placeholder values below are read only for their key, never for what they hold
-  if (payload.direction !== undefined) patch.amount ??= 0;
+  // A direction change, whether it reaches every row or only the transfer rows, writes the sign of
+  // the amount column, and a set end writes account_id on whichever rows resolve to be their own.
+  // The request cannot say which rows those are, so a sent direction or end marks the column it
+  // could touch rather than the column it always does. The placeholder values below are read only
+  // for their key, never for what they hold
+  if (payload.direction !== undefined || payload.transfer_direction !== undefined) patch.amount ??= 0;
   if (payload.transfer_from !== undefined || payload.transfer_to !== undefined) patch.account_id ??= '';
 
   // Every bulk edit drops a counterparty account left recorded under a category that does not

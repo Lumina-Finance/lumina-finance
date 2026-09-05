@@ -28,6 +28,7 @@ import {
   impliedDirection,
   isMixedSelection,
   nextDirectionAfterEndChange,
+  rowFactsKey,
   toggleChosenTag,
   type BulkDirectionChoice,
   type BulkEditChoice,
@@ -154,15 +155,28 @@ export function BulkEditModal({
   // component an extra commit for every category change. A category change can turn a row into a
   // transfer row or out of one, which is what decides each row's own side, so an outside end already
   // on screen is re-checked against the new pairing the moment the category settles rather than
-  // waiting for the user to touch a pill or an end again
+  // waiting for the user to touch a pill or an end again. Keyed on rowFactsKey rather than on rows
+  // itself, since rows is a useMemo in ListSection.tsx over the displayed transactions and any
+  // refetch, an unrelated window focus included, rebuilds it with a new reference even when every
+  // fact the rules below read is unchanged. Keying on the reference would rerun this correction on
+  // that refetch and let an implied direction overwrite a direction the user had chosen
   const [lastCheckedCategoryRule, setLastCheckedCategoryRule] = useState(chosenCategoryRecordsTransferTarget)
-  if (chosenCategoryRecordsTransferTarget !== lastCheckedCategoryRule) {
+  const rowsKey = useMemo(() => rowFactsKey(rows), [rows])
+  const [lastCheckedRowsKey, setLastCheckedRowsKey] = useState(rowsKey)
+  if (chosenCategoryRecordsTransferTarget !== lastCheckedCategoryRule || rowsKey !== lastCheckedRowsKey) {
     setLastCheckedCategoryRule(chosenCategoryRecordsTransferTarget)
-    const { from: nextFrom, to: nextTo } = endsAfterDirectionClick(
+    setLastCheckedRowsKey(rowsKey)
+
+    const { from: correctedFrom, to: correctedTo } = endsAfterDirectionClick(
       direction.value, transferFrom, transferTo, rows, chosenCategoryRecordsTransferTarget,
     )
-    if (nextFrom !== transferFrom) setTransferFrom(nextFrom)
-    if (nextTo !== transferTo) setTransferTo(nextTo)
+    const impliedByCorrectedEnds = impliedDirection(rows, correctedFrom, correctedTo, chosenCategoryRecordsTransferTarget)
+    const nextDirection = nextDirectionAfterEndChange(direction, impliedByCorrectedEnds)
+    if (nextDirection.value !== direction.value) setDirectionHighlightKey((key) => key + 1)
+
+    if (correctedFrom !== transferFrom) setTransferFrom(correctedFrom)
+    if (correctedTo !== transferTo) setTransferTo(correctedTo)
+    setDirection(nextDirection)
   }
 
   const moveTargets = useMemo(
@@ -223,9 +237,17 @@ export function BulkEditModal({
   /**
    * Applies a direction pill's new value, first reverting whichever end the new direction would put
    * outside the tracked accounts on some transfer row's own side, since a pick made from a stale
-   * pairing of ends could otherwise leave one of them with nowhere real to sit
+   * pairing of ends could otherwise leave one of them with nowhere real to sit.
+   *
+   * A click on the value the pills already show is a no-op, read off effectiveDirection rather than
+   * off the held direction, since an implied direction whose controls have gone displays Leave as
+   * is and a click there has nothing to widen. Without the guard, clicking a lit pill again would
+   * turn an implied direction, which only reaches the transfer rows, into one the user chose, which
+   * reaches every selected row, with nothing on screen to show the change
    */
   function changeDirection(value: BulkDirectionChange | 'unchanged') {
+    if (value === (effectiveDirection ?? 'unchanged')) return
+
     const nextValue = value === 'unchanged' ? null : value
     const { from: nextFrom, to: nextTo } = endsAfterDirectionClick(
       nextValue, transferFrom, transferTo, rows, chosenCategoryRecordsTransferTarget,
@@ -247,6 +269,16 @@ export function BulkEditModal({
       setTransferTo(null)
       applyDirectionChange(null)
     }
+  }
+
+  /**
+   * Flips whether the note comes off, clearing any typed text along with it so the disabled input
+   * cannot keep showing text the edit no longer sends
+   */
+  function toggleClearsNote() {
+    const next = !clearsNote
+    setClearsNote(next)
+    if (next) setNote('')
   }
 
   const accountName = (id: string) => accounts.find((account) => account.id === id)?.name ?? 'Account'
@@ -547,9 +579,9 @@ export function BulkEditModal({
                     <Checkbox
                       checked={clearsNote}
                       label="Take the note off instead"
-                      onChange={() => setClearsNote((current) => !current)}
+                      onChange={toggleClearsNote}
                     />
-                    <span aria-hidden onClick={() => setClearsNote((current) => !current)}>
+                    <span aria-hidden onClick={toggleClearsNote}>
                       Take the note off instead
                     </span>
                   </div>

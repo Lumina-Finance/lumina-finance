@@ -151,13 +151,17 @@ export function buildBulkEditFields(choice: BulkEditChoice): BulkEditFields {
   // both would be two answers for the one column
   const sendsAnEnd = endsAreOffered && (transferFrom !== null || transferTo !== null)
 
+  // Trimmed before the emptiness check, so a note of only spaces reads the same as one never typed
+  // rather than sending whitespace the single-transaction form would refuse
+  const trimmedNote = note.trim()
+
   return {
     ...(categoryId ? { category_id: categoryId } : {}),
     ...(merchantId ? { merchant_id: merchantId } : {}),
     ...(tagIds.length ? { add_tag_ids: tagIds } : {}),
     ...(accountId && !sendsAnEnd ? { account_id: accountId } : {}),
     ...(date ? { dt: date } : {}),
-    ...(clearsNote ? { notes: null } : note ? { notes: note } : {}),
+    ...(clearsNote ? { notes: null } : trimmedNote ? { notes: trimmedNote } : {}),
 
     // An implied direction reaches only the transfer rows, as transfer_direction, so it cannot
     // touch the rows the ends leave alone, while a direction the user picked reaches every
@@ -209,6 +213,34 @@ export interface SelectedTransactionFacts {
 
   /** Money out when its amount is negative, money in otherwise, on the server and in the browser alike */
   direction: TransactionDirection;
+}
+
+/**
+ * Returns a string that changes only when a fact the implied-direction and end rules read on some
+ * row changes, id included so a row swapped for another with the same facts still counts as a
+ * change. `rows` itself is a new array reference on every refetch even when nothing here moved, so
+ * comparing this key across renders is what tells a real change in the facts apart from that.
+ *
+ * Covers id, accountId, currency, recordsFarSide, hasFarSideRecorded, farSideAccountId and
+ * direction, which is every field impliedDirection, endsAfterDirectionClick, resolveTransferEnds
+ * and resultingDirectionFor read off a row.
+ *
+ * @param rows The selected transactions
+ */
+export function rowFactsKey(rows: SelectedTransactionFacts[]): string {
+  return rows
+    .map((row) =>
+      [
+        row.id,
+        row.accountId,
+        row.currency,
+        row.recordsFarSide,
+        row.hasFarSideRecorded,
+        row.farSideAccountId ?? '',
+        row.direction,
+      ].join('|'),
+    )
+    .join(';');
 }
 
 /**
@@ -523,7 +555,11 @@ export interface BulkEditBlockers {
  * Each of these refuses the whole batch, and each is reachable without the user doing anything wrong:
  * a row recorded before merchants were required, a transfer recorded before the far account was, a row
  * whose far account and own account end up the same, an own end that would leave the row outside the
- * tracked accounts, and an own end in a currency the row does not hold.
+ * tracked accounts, and an own end in a currency the row does not hold. An own end that resolves to the
+ * account the row already sits in is exempt from that last one, since nothing moves and the server never
+ * touches the exchange rate for it; a real cross-currency move is refused here even for a row that
+ * already carries a rate the server would accept, a deliberate narrowing tighter than the server's own
+ * check.
  *
  * Not every refusal is modelled. A transfer pointing at an account the user can no longer open is one
  * the server alone can see, since a list fixed to one account carries no others to test against.
@@ -544,6 +580,11 @@ export function getBulkEditBlockers(
   const sitsOutside: string[] = [];
   const ownSideInAnotherCurrency: string[] = [];
 
+  // An end and a move both write account_id, on whichever rows resolve to be their own, so a stray
+  // Move to account choice never actually reaches the request once an end is set, the same rule
+  // buildBulkEditFields applies
+  const sendsAnEnd = choice.endsAreOffered && (choice.transferFrom !== null || choice.transferTo !== null);
+
   for (const row of rows) {
     if (!row.hasMerchant && !choice.merchantId) withoutMerchant.push(row.id);
 
@@ -560,7 +601,10 @@ export function getBulkEditBlockers(
       continue;
     }
 
-    if (ownEnd?.scope === 'tracked' && ownEnd.currency !== row.currency) {
+    // An own end that resolves to the row's own account moves nothing, so a currency mismatch here
+    // is never actually written and would only tell the user to fix a move that was never happening
+    const ownEndStaysPut = ownEnd?.scope === 'tracked' && ownEnd.accountId === row.accountId;
+    if (ownEnd?.scope === 'tracked' && ownEnd.currency !== row.currency && !ownEndStaysPut) {
       ownSideInAnotherCurrency.push(row.id);
       continue;
     }
@@ -570,7 +614,9 @@ export function getBulkEditBlockers(
       continue;
     }
 
-    const resultingOwnAccountId = ownEnd?.scope === 'tracked' ? ownEnd.accountId : (choice.accountId || row.accountId);
+    const resultingOwnAccountId = ownEnd?.scope === 'tracked'
+      ? ownEnd.accountId
+      : (!sendsAnEnd && choice.accountId ? choice.accountId : row.accountId);
     const resultingFarSideAccountId = farEnd === null
       ? row.farSideAccountId
       : farEnd.scope === 'tracked' ? farEnd.accountId : null;

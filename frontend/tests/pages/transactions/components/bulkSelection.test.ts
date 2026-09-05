@@ -26,6 +26,7 @@ import {
   nextDirectionAfterEndChange,
   previewSelection,
   resolveTransferEnds,
+  rowFactsKey,
   rowSelectionMark,
   toggleChosenTag,
   type BulkDirectionChoice,
@@ -46,6 +47,7 @@ import {
   transferCategory,
   unanswered,
   untouched,
+  usdTransferInChequing,
 } from './bulkEditFixtures'
 
 const rows: SelectableRow[] = [
@@ -433,6 +435,14 @@ describe('the details the panel sends', () => {
     expect(buildBulkEditFields(untouched({ note: '', clearsNote: true }))).toEqual({ notes: null })
   })
 
+  it('trims the note, so a note of only spaces sends nothing', () => {
+    expect(buildBulkEditFields(untouched({ note: '  ' }))).toEqual({})
+  })
+
+  it('trims surrounding space off a note that has one', () => {
+    expect(buildBulkEditFields(untouched({ note: '  paid back  ' }))).toEqual({ notes: 'paid back' })
+  })
+
   it('sends a tracked end as an account, dropping the currency it carries', () => {
     const fields = buildBulkEditFields(untouched({
       endsAreOffered: true,
@@ -590,6 +600,22 @@ describe('what a bulk edit may do to the rows it covers', () => {
       })
     })
 
+    it('reads the account an end actually sends rather than a stray Move to account choice, once both are set', () => {
+      // Move to account is disabled in the panel whenever an end is set, but the choice this
+      // function reads can still carry both, and only the end reaches the request then. The own
+      // side this row resolves to is left as its own account, not the accountId, since sendsAnEnd
+      // is what actually decides whether account_id is ever sent
+      const choice = untouched({
+        accountId: 'unrelated',
+        transferTo: { scope: 'tracked', accountId: 'chequing', currency: 'CAD' },
+        endsAreOffered: true,
+      })
+      expect(getBulkEditBlockers([toSavings], choice, undefined)).toEqual({
+        ...noBlockers,
+        ownAccountFarSide: ['c'],
+      })
+    })
+
     it('counts a move into the account a row already records as its far side', () => {
       const choice = untouched({ accountId: 'savings' })
       expect(getBulkEditBlockers([toSavings], choice, undefined)).toEqual({
@@ -657,6 +683,27 @@ describe('what a bulk edit may do to the rows it covers', () => {
       expect(getBulkEditBlockers([toSavings], choice, undefined)).toEqual({
         ...noBlockers,
         ownSideInAnotherCurrency: ['c'],
+      })
+    })
+
+    it('skips the currency check once the own end resolves to the account the row already sits in', () => {
+      // The row already sits in Chequing, so setting From back to Chequing moves nothing and the
+      // server never touches the exchange rate for it, whatever currency the row is denominated in
+      const choice = untouched({
+        transferFrom: { scope: 'tracked', accountId: 'chequing', currency: 'CAD' },
+        endsAreOffered: true,
+      })
+      expect(getBulkEditBlockers([usdTransferInChequing], choice, undefined)).toEqual(noBlockers)
+    })
+
+    it('still counts the currency mismatch once the own end resolves to a different CAD account', () => {
+      const choice = untouched({
+        transferFrom: { scope: 'tracked', accountId: 'savings', currency: 'CAD' },
+        endsAreOffered: true,
+      })
+      expect(getBulkEditBlockers([usdTransferInChequing], choice, undefined)).toEqual({
+        ...noBlockers,
+        ownSideInAnotherCurrency: ['usd_in_chequing'],
       })
     })
 
@@ -908,6 +955,40 @@ describe('what a bulk edit may do to the rows it covers', () => {
 
     it('replaces Reverse by the user the same way', () => {
       expect(nextDirectionAfterEndChange(reverseByUser, 'credit')).toEqual(moneyInFromRule)
+    })
+  })
+
+  describe('the key that changes only when a fact the direction and end rules read changes', () => {
+    it('matches across two fresh arrays holding the same facts', () => {
+      expect(rowFactsKey([{ ...toSavings }, { ...groceries }])).toBe(rowFactsKey([{ ...toSavings }, { ...groceries }]))
+    })
+
+    it('differs once a row drops out of the selection', () => {
+      expect(rowFactsKey([toSavings, groceries])).not.toBe(rowFactsKey([toSavings]))
+    })
+
+    it("differs once a row's account changes", () => {
+      expect(rowFactsKey([toSavings])).not.toBe(rowFactsKey([{ ...toSavings, accountId: 'savings' }]))
+    })
+
+    it("differs once a row's direction changes", () => {
+      expect(rowFactsKey([toSavings])).not.toBe(rowFactsKey([{ ...toSavings, direction: 'credit' }]))
+    })
+
+    it("differs once a row's currency changes", () => {
+      expect(rowFactsKey([toSavings])).not.toBe(rowFactsKey([{ ...toSavings, currency: 'USD' }]))
+    })
+
+    it("differs once whether a row records a far side changes", () => {
+      expect(rowFactsKey([toSavings])).not.toBe(rowFactsKey([{ ...toSavings, recordsFarSide: false }]))
+    })
+
+    it("differs once whether a row's far side is recorded changes", () => {
+      expect(rowFactsKey([toSavings])).not.toBe(rowFactsKey([{ ...toSavings, hasFarSideRecorded: false }]))
+    })
+
+    it("differs once a row's far side account changes", () => {
+      expect(rowFactsKey([toSavings])).not.toBe(rowFactsKey([{ ...toSavings, farSideAccountId: 'chequing' }]))
     })
   })
 

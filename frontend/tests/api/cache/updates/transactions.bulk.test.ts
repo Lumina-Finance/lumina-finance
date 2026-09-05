@@ -17,6 +17,7 @@ function seedCache() {
   queryClient.setQueryData(transactionKeys.list({}), []);
   queryClient.setQueryData(budgetKeys.latestUtilizations(), []);
   queryClient.setQueryData(accountKeys.list(), []);
+  queryClient.setQueryData(accountKeys.cashFlowAll('acc_1'), []);
   return queryClient;
 }
 
@@ -121,5 +122,18 @@ describe('invalidateBulkUpdatedTransactionData', () => {
     );
 
     expect(isStale(queryClient, accountKeys.list())).toBe(true);
+  });
+
+  it('refreshes the account balances and activity after a transfer-only direction change', () => {
+    const queryClient = seedCache();
+
+    invalidateBulkUpdatedTransactionData(
+      queryClient,
+      { transaction_ids: ['txn_1'], transfer_direction: 'reverse' },
+      ['acc_1'],
+    );
+
+    expect(isStale(queryClient, accountKeys.list())).toBe(true);
+    expect(isStale(queryClient, accountKeys.cashFlowAll('acc_1'))).toBe(true);
   });
 });

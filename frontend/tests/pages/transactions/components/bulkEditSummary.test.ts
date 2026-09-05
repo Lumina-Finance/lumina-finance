@@ -104,11 +104,29 @@ describe('the rows, notes and warnings a bulk edit choice produces', () => {
     expect(result.notes).toEqual([])
   })
 
-  it('shows the account a move sends every selected row to', () => {
+  it('hides the move detail once every selected row moves, since none of them stay behind', () => {
     const rows = [groceries, { ...groceries, id: 'expense_2' }, { ...groceries, id: 'expense_3' }]
     const result = summarize(rows, untouched({ accountId: 'cash' }))
 
-    expect(result.rows).toEqual([{ label: 'Move to account', value: 'Cash', detail: '3 move' }])
+    expect(result.rows).toEqual([{ label: 'Move to account', value: 'Cash' }])
+  })
+
+  it('hides the move detail when every selected row already sits in the target account', () => {
+    const rows = [groceries, { ...groceries, id: 'expense_2' }, { ...groceries, id: 'expense_3' }]
+    const result = summarize(rows, untouched({ accountId: 'chequing' }))
+
+    expect(result.rows).toEqual([{ label: 'Move to account', value: 'Chequing' }])
+  })
+
+  it('shows how many of the selected rows actually move when only some of them sit elsewhere', () => {
+    const rows = [
+      { ...groceries, id: 'chequing_1' },
+      { ...groceries, id: 'chequing_2' },
+      { ...groceries, id: 'cash_1', accountId: 'cash' },
+    ]
+    const result = summarize(rows, untouched({ accountId: 'cash' }))
+
+    expect(result.rows).toEqual([{ label: 'Move to account', value: 'Cash', detail: '2 of the 3 move into Cash' }])
   })
 
   it('shows what a tracked From end moves and records across a transfer pair', () => {
@@ -237,7 +255,7 @@ describe('the rows, notes and warnings a bulk edit choice produces', () => {
   it('falls back to Account for an id the label lookup does not know', () => {
     const result = summarize([groceries], untouched({ accountId: 'unknown_account' }))
 
-    expect(result.rows).toEqual([{ label: 'Move to account', value: 'Account', detail: '1 move' }])
+    expect(result.rows).toEqual([{ label: 'Move to account', value: 'Account' }])
   })
 
   it('warns once per currency pair, each keyed by its own pair, when a tracked end mismatches more than one row currency', () => {

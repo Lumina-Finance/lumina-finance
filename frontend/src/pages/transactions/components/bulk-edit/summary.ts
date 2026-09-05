@@ -180,15 +180,11 @@ function transferEndDetail(
   return clauses.length > 0 ? clauses.join(', ') : undefined
 }
 
-/**
- * Returns the account's label or "Outside this app" for a transfer end choice, or undefined for one
- * the edit leaves unset
- */
+/** Returns the account's label or "Outside this app" for a transfer end choice that is actually set */
 function transferEndValueLabel(
-  choice: TransferEndChoice | null,
+  choice: TransferEndChoice,
   accountLabelById: (accountId: string) => string,
-): string | undefined {
-  if (choice === null) return undefined
+): string {
   return choice.scope === 'outside' ? OUTSIDE_ACCOUNT_LABEL : accountLabelById(choice.accountId)
 }
 
@@ -241,10 +237,18 @@ export function describeBulkEdit(
     })
   }
   if (fields.account_id !== undefined) {
+    const moveAccountLabel = labels.accountLabelById(fields.account_id)
+    const moveCount = rows.filter((row) => row.accountId !== fields.account_id).length
+
     summaryRows.push({
       label: 'Move to account',
-      value: labels.accountLabelById(fields.account_id),
-      detail: `${rows.length} move`,
+      value: moveAccountLabel,
+
+      // Hidden once every row moves or none does, the same rule the end details use below, since
+      // only a partial move needs to say how many of the selection actually goes
+      detail: moveCount > 0 && moveCount < rows.length
+        ? `${moveCount} of the ${rows.length} ${moveCount === 1 ? 'moves' : 'move'} into ${moveAccountLabel}`
+        : undefined,
     })
   }
   if (fields.merchant_id !== undefined) {
@@ -257,27 +261,33 @@ export function describeBulkEdit(
     summaryRows.push({ label: 'Tags added', value: labels.tagLabels.join(', ') })
   }
   if (fields.transfer_from !== undefined) {
+    // buildBulkEditFields only sends transfer_from when choice.transferFrom is set, so it is never
+    // null here
+    const transferFrom = choice.transferFrom as TransferEndChoice
     summaryRows.push({
       label: 'From',
-      value: transferEndValueLabel(choice.transferFrom, labels.accountLabelById) ?? OUTSIDE_ACCOUNT_LABEL,
+      value: transferEndValueLabel(transferFrom, labels.accountLabelById),
       detail: transferEndDetail(
         'from',
         effects.from,
-        choice.transferFrom,
-        choice.transferFrom?.scope === 'tracked' ? labels.accountLabelById(choice.transferFrom.accountId) : '',
+        transferFrom,
+        transferFrom.scope === 'tracked' ? labels.accountLabelById(transferFrom.accountId) : '',
         rows.length,
       ),
     })
   }
   if (fields.transfer_to !== undefined) {
+    // buildBulkEditFields only sends transfer_to when choice.transferTo is set, so it is never null
+    // here
+    const transferTo = choice.transferTo as TransferEndChoice
     summaryRows.push({
       label: 'To',
-      value: transferEndValueLabel(choice.transferTo, labels.accountLabelById) ?? OUTSIDE_ACCOUNT_LABEL,
+      value: transferEndValueLabel(transferTo, labels.accountLabelById),
       detail: transferEndDetail(
         'to',
         effects.to,
-        choice.transferTo,
-        choice.transferTo?.scope === 'tracked' ? labels.accountLabelById(choice.transferTo.accountId) : '',
+        transferTo,
+        transferTo.scope === 'tracked' ? labels.accountLabelById(transferTo.accountId) : '',
         rows.length,
       ),
     })

@@ -152,6 +152,11 @@ export default function TransactionListSection({
 
   const [isSelecting, setIsSelecting] = useState(false)
   const [pendingChange, setPendingChange] = useState<BulkEditFields | null>(null)
+
+  // The ids the change was validated against at Apply, frozen alongside pendingChange rather than
+  // read fresh off the live selection at Confirm, since the two have to agree on the same rows the
+  // panel's blockers were computed for
+  const [pendingChangeIds, setPendingChangeIds] = useState<string[]>([])
   const [applyError, setApplyError] = useState<string | null>(null)
   const { showToast } = useToast()
   const bulkUpdate = useBulkUpdateTransactions()
@@ -161,9 +166,9 @@ export default function TransactionListSection({
   const selectableRows = useMemo(
     () => displayedTransactions.map((transaction) => ({
       id: transaction.id,
-      isReadOnly: Boolean(getTransactionReadOnlyReason(transaction, accountMap, fixedAccount)),
+      isReadOnly: Boolean(getTransactionReadOnlyReason(transaction, accountMap, categoryMap, fixedAccount)),
     })),
-    [displayedTransactions, accountMap, fixedAccount],
+    [displayedTransactions, accountMap, categoryMap, fixedAccount],
   )
 
   const transactionCurrencyById = useMemo(
@@ -272,6 +277,26 @@ export default function TransactionListSection({
     // A write already sent keeps its confirmation, which is where its refusal has to land
     if (!bulkUpdate.isPending) {
       setPendingChange(null)
+      setPendingChangeIds([])
+      setApplyError(null)
+    }
+  }
+
+  // A refetch that changes which rows are selected, such as one dropping the only transfer among
+  // them, can land while the confirmation is open and holding ids the panel's blockers were
+  // validated against. Read by identity rather than by content, the same way the selection's own
+  // array is a new one on every dispatch that changes it, so this only fires on an actual change.
+  // The edit modal stays open underneath and picks up the new rows in its own preview, since only
+  // the confirmation, not the edit itself, was tied to the ids that just moved
+  const [lastCheckedSelectedIds, setLastCheckedSelectedIds] = useState(selection.selectedIds)
+  if (selection.selectedIds !== lastCheckedSelectedIds) {
+    setLastCheckedSelectedIds(selection.selectedIds)
+
+    // A write already sent keeps its confirmation, which is where its result has to land, whatever
+    // shrank the list while it was in flight
+    if (pendingChange !== null && !bulkUpdate.isPending) {
+      setPendingChange(null)
+      setPendingChangeIds([])
       setApplyError(null)
     }
   }
@@ -282,9 +307,19 @@ export default function TransactionListSection({
   const stopSelecting = useCallback(() => {
     setIsSelecting(false)
     setPendingChange(null)
+    setPendingChangeIds([])
     setApplyError(null)
     clearSelection()
   }, [clearSelection])
+
+  /**
+   * Freezes the modal's change together with the ids it was validated against, so a selection that
+   * moves before Confirm cannot pair a stale change with a different set of rows
+   */
+  function applyBulkEdit(fields: BulkEditFields) {
+    setPendingChangeIds(selection.selectedIds)
+    setPendingChange(fields)
+  }
 
   /**
    * Writes the change the modal holds, keeping the confirmation open when the server refuses it
@@ -293,7 +328,7 @@ export default function TransactionListSection({
     if (!pendingChange) return
     setApplyError(null)
     bulkUpdate.mutate(
-      { transaction_ids: selection.selectedIds, ...pendingChange },
+      { transaction_ids: pendingChangeIds, ...pendingChange },
       {
         onSuccess: (result) => {
           setPendingChange(null)
@@ -449,25 +484,31 @@ export default function TransactionListSection({
         <BulkEditModal
           key={editOpenings}
           open={isEditOpen}
-          onClose={() => setIsEditOpen(false)}
+          onClose={() => {
+            setIsEditOpen(false)
+            setPendingChange(null)
+            setPendingChangeIds([])
+            setApplyError(null)
+          }}
           onExitComplete={() => {
             if (!isEditOpen) setIsEditMounted(false)
           }}
           rows={selectedFacts}
           selectedCurrencies={selectedCurrencies}
           accounts={accountsForBulkEdit}
-          onApply={setPendingChange}
+          onApply={applyBulkEdit}
         />
       )}
 
       <BulkEditConfirm
         open={pendingChange !== null}
-        count={selection.selectedIds.length}
+        count={pendingChangeIds.length}
         error={applyError}
         isApplying={bulkUpdate.isPending}
         onConfirm={applyPendingChange}
         onCancel={() => {
           setPendingChange(null)
+          setPendingChangeIds([])
           setApplyError(null)
         }}
       />

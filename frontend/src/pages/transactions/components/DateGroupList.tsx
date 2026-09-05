@@ -202,7 +202,7 @@ export default function TransactionDateGroupList({
                 const counterpartyAccount = transaction.counterparty_account_id
                   ? accountMap.get(transaction.counterparty_account_id)
                   : undefined
-                const readOnlyReason = getTransactionReadOnlyReason(transaction, accountMap, fixedAccount)
+                const readOnlyReason = getTransactionReadOnlyReason(transaction, accountMap, categoryMap, fixedAccount)
                 return (
                   <TransactionRow
                     key={transaction.id}

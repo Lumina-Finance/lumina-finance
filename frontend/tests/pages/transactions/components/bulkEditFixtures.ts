@@ -61,6 +61,14 @@ export const eurExpense: SelectedTransactionFacts = {
   recordsFarSide: true, hasFarSideRecorded: true, farSideAccountId: null, currency: 'EUR', direction: 'debit',
 }
 
+// A transfer in USD recorded in Chequing, a CAD account, the way an exchange-rate transfer sits
+// once it is imported. Its own end already answers to Chequing, so setting From back to Chequing
+// moves nothing and should trip no currency blocker, unlike setting it to another CAD account
+export const usdTransferInChequing: SelectedTransactionFacts = {
+  id: 'usd_in_chequing', accountId: 'chequing', hasMerchant: true,
+  recordsFarSide: true, hasFarSideRecorded: true, farSideAccountId: 'savings', currency: 'USD', direction: 'debit',
+}
+
 /** A panel with every control untouched, so each test states only the one it fills in */
 export function untouched(overrides: Partial<BulkEditChoice> = {}): BulkEditChoice {
   return {
