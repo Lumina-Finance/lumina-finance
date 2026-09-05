@@ -230,6 +230,11 @@ export function doesAnyResultingCategoryRecordTransferTarget(
   return rows.some((row) => row.recordsFarSide);
 }
 
+/** Returns whether the selection holds at least one transfer and at least one other transaction */
+export function isMixedSelection(rows: SelectedTransactionFacts[]): boolean {
+  return rows.some((row) => row.recordsFarSide) && rows.some((row) => !row.recordsFarSide);
+}
+
 /** One tag choice as the bulk edit panel holds it, with the label it was picked under */
 export interface ChosenTagOption {
   value: string;

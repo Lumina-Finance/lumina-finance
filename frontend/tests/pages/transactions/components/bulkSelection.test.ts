@@ -21,6 +21,7 @@ import {
   groupSelectionMark,
   hasBulkEditChoice,
   impliedDirection,
+  isMixedSelection,
   isRowSelectable,
   nextDirectionAfterEndChange,
   previewSelection,
@@ -1101,6 +1102,24 @@ describe("the accounts a transfer's ends can be set to", () => {
     const ids = getTransferEndTargets(accounts).map((account) => account.id)
     expect(ids).not.toContain('acc_2')
     expect(ids).not.toContain('acc_3')
+  })
+})
+
+describe('whether a selection mixes transfers with other transactions', () => {
+  it('reads false for a pair of transfer halves alone', () => {
+    expect(isMixedSelection(pair)).toBe(false)
+  })
+
+  it('reads false for an ordinary transaction alone', () => {
+    expect(isMixedSelection([groceries])).toBe(false)
+  })
+
+  it('reads true once a transfer and an ordinary transaction sit in the same selection', () => {
+    expect(isMixedSelection([chequingHalf, groceries])).toBe(true)
+  })
+
+  it('reads false for an empty selection', () => {
+    expect(isMixedSelection([])).toBe(false)
   })
 })
 

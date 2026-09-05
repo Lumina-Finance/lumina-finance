@@ -9,6 +9,7 @@ import CreateModalFieldLabelRow from '@/components/create-modal/FieldLabelRow'
 import CreateModalSectionFrame from '@/components/create-modal/SectionFrame'
 import DateField from '@/components/date-field/DateField'
 import Dropdown from '@/components/dropdown/Dropdown'
+import { InfoCallout } from '@/components/InfoCallout'
 import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import IconTooltip from '@/components/tooltips/IconTooltip'
 import { DIRECTION_OPTIONS, EASE } from '@/pages/transactions/components/transaction-modal/constants'
@@ -25,6 +26,7 @@ import {
   getBulkMoveTargets,
   getTransferEndTargets,
   impliedDirection,
+  isMixedSelection,
   nextDirectionAfterEndChange,
   toggleChosenTag,
   type BulkDirectionChoice,
@@ -383,6 +385,13 @@ export function BulkEditModal({
       }
     >
       <div className="space-y-5">
+        {isMixedSelection(rows) && (
+          <InfoCallout>
+            You selected both transfers and other transactions. We recommend editing them separately
+            to avoid unintended changes to either kind.
+          </InfoCallout>
+        )}
+
         <CreateModalSectionFrame step="01" title="Account & Direction">
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="sm:col-span-2">
