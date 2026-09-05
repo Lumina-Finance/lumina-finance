@@ -7,10 +7,11 @@
 import { describe, expect, it } from 'vitest';
 import { QueryClient } from '@tanstack/react-query';
 import { accountKeys, budgetKeys, transactionKeys } from '@/api/cache/queryKeys';
+import type { BulkUpdateTransactionsPayload } from '@/api/transactions';
 import { invalidateBulkUpdatedTransactionData } from '@/api/cache/updates/transactions';
 
 /**
- * Seeds the two query families these tests read back, so each one exists to be marked stale
+ * Seeds the shared queries these tests read back, so each one exists to be marked stale
  */
 function seedCache() {
   const queryClient = new QueryClient();
@@ -26,6 +27,47 @@ function isStale(queryClient: QueryClient, queryKey: readonly unknown[]) {
 }
 
 describe('invalidateBulkUpdatedTransactionData', () => {
+  it.each([
+    { name: 'moving transactions', fields: { account_id: 'destination' } },
+    { name: 'changing From', fields: { transfer_from: { scope: 'tracked', account_id: 'destination' } } },
+    { name: 'changing To', fields: { transfer_to: { scope: 'tracked', account_id: 'replacement_counterparty' } } },
+    {
+      name: 'changing both transfer ends',
+      fields: {
+        transfer_from: { scope: 'tracked', account_id: 'destination' },
+        transfer_to: { scope: 'tracked', account_id: 'replacement_counterparty' },
+      },
+    },
+  ] satisfies { name: string; fields: Omit<BulkUpdateTransactionsPayload, 'transaction_ids'> }[])(
+    'refreshes every affected account after $name, leaving unrelated accounts fresh',
+    ({ fields }) => {
+      const queryClient = seedCache();
+      // A mixed selection can reach accounts absent from the request, including old counterparties.
+      const affectedAccountIds = ['source', 'destination', 'previous_counterparty', 'replacement_counterparty'];
+      const accountViews = [...affectedAccountIds, 'unrelated'].flatMap((accountId) => [
+        { accountId, key: accountKeys.detail(accountId) },
+        { accountId, key: accountKeys.snapshots(accountId, { fromDate: '2026-08-01', granularity: 'day' }) },
+        { accountId, key: accountKeys.snapshots(accountId, { fromDate: '2026-01-01', granularity: 'month' }) },
+        { accountId, key: accountKeys.spendingBreakdown(accountId, 'month') },
+        { accountId, key: accountKeys.spendingBreakdown(accountId, 'year') },
+        { accountId, key: accountKeys.cashFlow(accountId, 3) },
+        { accountId, key: accountKeys.cashFlow(accountId, 12) },
+      ]);
+      for (const { key } of accountViews) queryClient.setQueryData(key, {});
+
+      invalidateBulkUpdatedTransactionData(
+        queryClient,
+        { transaction_ids: ['txn_1', 'txn_2'], ...fields },
+        affectedAccountIds,
+      );
+
+      expect(isStale(queryClient, accountKeys.list())).toBe(true);
+      for (const { accountId, key } of accountViews) {
+        expect(queryClient.getQueryState(key)?.isInvalidated, JSON.stringify(key)).toBe(accountId !== 'unrelated');
+      }
+    },
+  );
+
   it('refreshes the transaction lists after a tags-only edit', () => {
     const queryClient = seedCache();
 
