@@ -1592,6 +1592,81 @@ async def test_bulk_direction_reverse_refuses_a_row_another_session_holds(client
     assert (await _read_transaction(transfer)).amount == -4000
 
 
+async def test_bulk_edits_to_different_rows_in_one_account_preserve_both_balances(client, monkeypatch):
+    """Overlapping edits to different rows must both save and rebuild the shared balance correctly."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    transaction_ids = []
+    for amount in (-1000, -2000):
+        response = await _create_transaction(
+            client, headers, account_id, category_id, amount=amount, dt="2026-08-01",
+        )
+        assert response.status_code == 201
+        transaction_ids.append(response.json()["id"])
+    assert await _read_snapshots(account_id) == [(date(2026, 8, 1), -3000)]
+
+    original_recompute = bulk_update_module.recompute_snapshots_from
+    first_rebuilt = asyncio.Event()
+    release_first = asyncio.Event()
+    second_started = asyncio.Event()
+    backend_pids = []
+
+    async def hold_first_rebuild(db, rebuild_account_id, from_dt):
+        """Keep the first rebuild uncommitted until the other request waits on its database lock."""
+        backend_pids.append(await db.scalar(text("SELECT pg_backend_pid()")))
+        if len(backend_pids) == 1:
+            await original_recompute(db, rebuild_account_id, from_dt)
+            first_rebuilt.set()
+            await release_first.wait()
+        else:
+            second_started.set()
+            await original_recompute(db, rebuild_account_id, from_dt)
+
+    monkeypatch.setattr(bulk_update_module, "recompute_snapshots_from", hold_first_rebuild)
+    requests = []
+    try:
+        async with asyncio.timeout(10):
+            requests.append(asyncio.create_task(client.patch(
+                "/transactions/bulk",
+                json={"transaction_ids": [transaction_ids[0]], "direction": "credit"},
+                headers=headers,
+            )))
+            await first_rebuilt.wait()
+            requests.append(asyncio.create_task(client.patch(
+                "/transactions/bulk",
+                json={"transaction_ids": [transaction_ids[1]], "direction": "credit"},
+                headers=headers,
+            )))
+            await second_started.wait()
+
+            # Observe a real database wait rather than relying on scheduler timing or a fixed delay.
+            async with TestSession() as observer:
+                while backend_pids[0] not in await observer.scalar(
+                    text("SELECT pg_blocking_pids(:pid)"), {"pid": backend_pids[1]},
+                ):
+                    await asyncio.sleep(0.01)
+            release_first.set()
+            results = await asyncio.gather(*requests, return_exceptions=True)
+    finally:
+        release_first.set()
+        for request in requests:
+            if not request.done():
+                request.cancel()
+        await asyncio.gather(*requests, return_exceptions=True)
+
+    assert len(set(backend_pids)) == 2
+    for result in results:
+        assert not isinstance(result, BaseException), repr(result)
+        assert result.status_code == 200, result.text
+        assert result.json()["transactions_updated"] == 1
+        assert result.json()["affected_account_ids"] == [account_id]
+    assert (await _read_transaction(transaction_ids[0])).amount == 1000
+    assert (await _read_transaction(transaction_ids[1])).amount == 2000
+    assert await _read_snapshots(account_id) == [(date(2026, 8, 1), 3000)]
+    response = await client.get(f"/accounts/{account_id}", headers=headers)
+    assert response.status_code == 200
+    assert response.json()["current_balance"] == 3000
+
+
 async def test_bulk_direction_reverse_with_no_other_session_flips_the_stored_amount(client):
     """With nothing else holding the row, reverse still flips its stored amount as it always did."""
     headers, chequing_id, _category_id, savings_id, transfer_id = await _setup_transfer_user(client)
