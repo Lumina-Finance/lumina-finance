@@ -186,11 +186,6 @@ export default function TransactionListToolbar({
             room for the higher-priority labels and all three 44px controls before adding a word. */}
         {isSelecting ? (
           <div className="@container/bulk-actions flex w-full items-center gap-3 min-[750px]:hidden">
-            {renderEditAction(
-              'app-glass-button h-11 min-w-11 flex-1 gap-2 px-0 @min-[12.5rem]/bulk-actions:px-4',
-              'hidden @min-[12.5rem]/bulk-actions:inline',
-            )}
-            {selectAction}
             <button
               type="button"
               className="app-glass-button relative h-11 w-11 shrink-0 px-0 @min-[20rem]/bulk-actions:w-auto @min-[20rem]/bulk-actions:px-4"
@@ -209,6 +204,11 @@ export default function TransactionListToolbar({
                 </span>
               )}
             </button>
+            {renderEditAction(
+              'app-glass-button h-11 min-w-11 flex-1 gap-2 px-0 @min-[12.5rem]/bulk-actions:px-4',
+              'hidden @min-[12.5rem]/bulk-actions:inline',
+            )}
+            {selectAction}
           </div>
         ) : (
           <MobileToolbarActions
