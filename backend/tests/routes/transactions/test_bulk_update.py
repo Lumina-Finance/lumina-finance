@@ -2,6 +2,7 @@ import asyncio
 import uuid
 from datetime import date
 
+import pytest
 from sqlalchemy import select, text
 
 from app.models.account import AccountBalanceSnapshot
@@ -1323,6 +1324,119 @@ async def test_bulk_transfer_from_on_a_zero_amount_row_records_it_as_the_far_sid
     row = await _read_transaction(transfer)
     assert str(row.account_id) == chequing_id
     assert str(row.counterparty_account_id) == cash_id
+
+
+@pytest.mark.parametrize("direction_field", ["direction", "transfer_direction"])
+@pytest.mark.parametrize("direction", ["debit", "reverse"])
+async def test_bulk_zero_amount_keeps_credit_end_resolution_with_a_direction(
+    client,
+    direction_field,
+    direction,
+):
+    """Debit and reverse leave zero credit for resolving From, whichever direction field carries it."""
+    headers, chequing_id, _category_id, savings_id, transfer_id = await _setup_transfer_user(client)
+    cash_id = (await _create_account(client, headers, name="Cash")).json()["id"]
+    transfer = (await _make_transfer(
+        client, headers, chequing_id, transfer_id, savings_id, amount=0,
+    )).json()["id"]
+
+    resp = await client.patch(
+        "/transactions/bulk",
+        json={
+            "transaction_ids": [transfer],
+            direction_field: direction,
+            "transfer_from": {"scope": "tracked", "account_id": cash_id},
+        },
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    row = await _read_transaction(transfer)
+    assert row.amount == 0
+    assert str(row.account_id) == chequing_id
+    assert str(row.counterparty_account_id) == cash_id
+
+
+@pytest.mark.parametrize("zero_sorts_first", [True, False])
+@pytest.mark.parametrize("direction_field", ["direction", "transfer_direction"])
+@pytest.mark.parametrize("direction", ["debit", "reverse"])
+async def test_bulk_zero_and_positive_transfers_apply_their_own_resulting_ends(
+    client,
+    zero_sorts_first,
+    direction_field,
+    direction,
+):
+    """A batched end write keeps each row's result when zero and positive started as credit."""
+    headers, chequing_id, _category_id, savings_id, transfer_id = await _setup_transfer_user(client)
+    cash_id = (await _create_account(client, headers, name="Cash")).json()["id"]
+    zero_id = (await _make_transfer(
+        client, headers, chequing_id, transfer_id, savings_id, amount=0,
+    )).json()["id"]
+    positive_id = (await _make_transfer(
+        client, headers, chequing_id, transfer_id, savings_id, amount=4000,
+    )).json()["id"]
+    case_offset = (
+        (0 if direction_field == "direction" else 4)
+        + (0 if direction == "debit" else 2)
+        + (0 if zero_sorts_first else 1)
+    )
+    low_id = uuid.UUID(int=10_000 + case_offset)
+    high_id = uuid.UUID(int=20_000 + case_offset)
+    fixed_zero_id, fixed_positive_id = (
+        (low_id, high_id) if zero_sorts_first else (high_id, low_id)
+    )
+    async with TestSession() as session:
+        zero_row = await session.get(Transaction, uuid.UUID(zero_id))
+        positive_row = await session.get(Transaction, uuid.UUID(positive_id))
+        zero_row.id = fixed_zero_id
+        positive_row.id = fixed_positive_id
+        await session.commit()
+
+    resp = await client.patch(
+        "/transactions/bulk",
+        json={
+            "transaction_ids": [str(fixed_zero_id), str(fixed_positive_id)],
+            direction_field: direction,
+            "transfer_from": {"scope": "tracked", "account_id": cash_id},
+        },
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["transactions_updated"] == 2
+    assert resp.json()["affected_account_ids"] == sorted([chequing_id, savings_id, cash_id])
+    zero_row = await _read_transaction(str(fixed_zero_id))
+    assert zero_row.amount == 0
+    assert str(zero_row.account_id) == chequing_id
+    assert str(zero_row.counterparty_account_id) == cash_id
+    positive_row = await _read_transaction(str(fixed_positive_id))
+    assert positive_row.amount == -4000
+    assert str(positive_row.account_id) == cash_id
+    assert str(positive_row.counterparty_account_id) == savings_id
+
+
+async def test_bulk_transfer_to_on_a_zero_amount_row_moves_it_and_keeps_its_far_side(client):
+    """Zero is money in, so To changes its own account and leaves the recorded From account alone."""
+    headers, chequing_id, _category_id, savings_id, transfer_id = await _setup_transfer_user(client)
+    cash_id = (await _create_account(client, headers, name="Cash")).json()["id"]
+    transfer = (await _make_transfer(
+        client, headers, chequing_id, transfer_id, savings_id, amount=0,
+    )).json()["id"]
+
+    resp = await client.patch(
+        "/transactions/bulk",
+        json={
+            "transaction_ids": [transfer],
+            "transfer_to": {"scope": "tracked", "account_id": cash_id},
+        },
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    row = await _read_transaction(transfer)
+    assert row.amount == 0
+    assert str(row.account_id) == cash_id
+    assert str(row.counterparty_account_id) == savings_id
 
 
 async def test_bulk_transfer_from_records_a_read_only_account_without_moving_into_it(client):

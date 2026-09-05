@@ -273,8 +273,9 @@ def _own_direction(transaction: Transaction) -> BulkDirectionChange:
 def _resulting_direction(transaction: Transaction, data: BulkUpdateTransactionsRequest) -> BulkDirectionChange:
     """Return the direction a transaction ends up pointing once the request is applied
 
-    A set direction overrides the row's own outright, and reverse flips it instead of naming an
-    absolute answer. transfer_direction stands in for direction wherever the request sent that
+    Zero remains credit because changing its sign leaves the stored amount at zero. For nonzero
+    rows, a set direction overrides the row's own outright, and reverse flips it instead of naming
+    an absolute answer. transfer_direction stands in for direction wherever the request sent that
     instead, which every caller may do safely because each already calls this only for a row whose
     resulting category records a far side, the same rows transfer_direction reaches
 
@@ -283,8 +284,11 @@ def _resulting_direction(transaction: Transaction, data: BulkUpdateTransactionsR
         data: Transactions to change and the details to set
 
     Returns:
-        DEBIT for a row that ends up negative, CREDIT for one that ends up positive
+        DEBIT for a row that ends up negative, CREDIT for one that ends up positive or zero
     """
+    if transaction.amount == 0:
+        return BulkDirectionChange.CREDIT
+
     own = _own_direction(transaction)
     chosen_direction = data.direction if data.direction is not None else data.transfer_direction
     if chosen_direction == BulkDirectionChange.REVERSE:
@@ -912,21 +916,23 @@ async def _apply_changes(
         if does_category_record_counterparty_account(resolutions[transaction.id].category)
     ]
 
-    # Split into at most two buckets, keyed by each row's own sign, since direction or
-    # transfer_direction is one value for the whole request, whichever the request sent, so every
-    # row sharing a sign also shares the resulting direction that produced its own and far ends, and
-    # the bucket can use either row's ends for the whole group
-    bucket_ids: set[uuid.UUID] = set()
-    for own_direction in (BulkDirectionChange.DEBIT, BulkDirectionChange.CREDIT):
-        ids_for_direction = [
-            transaction.id
-            for transaction in transactions
-            if _own_direction(transaction) == own_direction and resolutions[transaction.id].ends is not None
-        ]
-        if not ids_for_direction:
+    # Split into at most two buckets by the ends each row already resolved. A stored zero stays
+    # credit even when Debit or Reverse is requested, so it can share an original sign with a
+    # positive row while resolving From and To differently
+    end_buckets: list[tuple[_TransferEndPair, list[uuid.UUID]]] = []
+    for transaction in transactions:
+        ends = resolutions[transaction.id].ends
+        if ends is None:
             continue
+        for bucket_ends, bucket_ids in end_buckets:
+            if bucket_ends == ends:
+                bucket_ids.append(transaction.id)
+                break
+        else:
+            end_buckets.append((ends, [transaction.id]))
 
-        own_end, far_end = resolutions[ids_for_direction[0]].ends
+    bucket_ids: set[uuid.UUID] = set()
+    for (own_end, far_end), ids_for_ends in end_buckets:
         values: dict[str, object] = {}
         if own_end is not None:
             values["account_id"] = own_end.account_id
@@ -934,8 +940,8 @@ async def _apply_changes(
             values["counterparty_account_scope"] = far_end.scope
             values["counterparty_account_id"] = far_end.account_id
 
-        await db.execute(update(Transaction).where(Transaction.id.in_(ids_for_direction)).values(**values))
-        bucket_ids.update(ids_for_direction)
+        await db.execute(update(Transaction).where(Transaction.id.in_(ids_for_ends)).values(**values))
+        bucket_ids.update(ids_for_ends)
 
     if "direction" in sent:
         await db.execute(
