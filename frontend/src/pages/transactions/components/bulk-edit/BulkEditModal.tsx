@@ -460,6 +460,7 @@ export function BulkEditModal({
                   value={effectiveDirection ?? 'unchanged'}
                   options={BULK_DIRECTION_OPTIONS}
                   ariaLabel="Transaction direction"
+                  compactOnMobile
                   onChange={changeDirection}
                 />
               </div>
