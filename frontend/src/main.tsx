@@ -23,8 +23,9 @@ const SIX_MONTHS_MS = 180 * 24 * 60 * 60 * 1000;
 // outlives a deploy by up to six months and a fresh one is not refetched while it is still
 // within its stale window, so without this the first render after such a change draws a card from
 // fields that are no longer there. Bump it on any shape change. Version 1 is the account spending
-// breakdown carrying a total per card in place of one shared figure
-const PERSISTED_CACHE_SHAPE = '1';
+// breakdown carrying a total per card in place of one shared figure. Version 2 adds the caller's
+// write capability to every account response
+const PERSISTED_CACHE_SHAPE = '2';
 
 const queryClient = new QueryClient({
   defaultOptions: {

@@ -40,7 +40,18 @@ interface DropdownProps {
   options: DropdownOption[];
   selectedOption?: DropdownOption;
   value: string;
+
+  /** Ticks every listed option whose value is in this list, instead of the single selected value */
+  selectedValues?: string[];
+
   onChange: (value: string) => void;
+
+  /**
+   * Closes the list once a pick is made, the default. False leaves it open, keeps focus where it
+   * is, clears the highlighted option so a second Enter cannot repeat the pick, and keeps the
+   * search text, for a field that takes several picks from one search in a row
+   */
+  closeOnSelect?: boolean;
 
   /**
    * Classes for how the control sits among the things around it, and for anything drawn over it,
@@ -80,6 +91,15 @@ interface DropdownProps {
   onSearchCommit?: (value: string) => void;
   disabled?: boolean;
   blankWhenEmpty?: boolean;
+
+  /**
+   * Draws the trigger in the placeholder colour while the value is blank and resolves to a listed
+   * option, for a field whose blank entry (such as "Leave as is") should not read as a real choice
+   * sitting there already. A label built by the caller's own selectedOption still draws as a value,
+   * since that is a summary of a real choice rather than a placeholder-shaped entry
+   */
+  blankOptionIsPlaceholder?: boolean;
+
   /** Called when the user clicks the dropdown create action with the current search text */
   onCreateNew?: (query: string) => void;
   createNewLabel?: DropdownCreateLabel;
@@ -105,7 +125,9 @@ const Dropdown = ({
   options,
   selectedOption,
   value,
+  selectedValues,
   onChange,
+  closeOnSelect = true,
   className,
   size = 'field',
   hasError = false,
@@ -127,6 +149,7 @@ const Dropdown = ({
   onSearchCommit,
   disabled = false,
   blankWhenEmpty = false,
+  blankOptionIsPlaceholder = false,
   onCreateNew,
   createNewLabel,
   onEditOption,
@@ -161,6 +184,12 @@ const Dropdown = ({
     [options, selectedOption, value],
   );
   const emptySelectionIsBlank = blankWhenEmpty && value === '';
+
+  // getSelectedDropdownOption prefers a listed option over selectedOption, so a match here means
+  // the resolved label came from the list rather than from a caller-built summary
+  const blankOptionSelected = blankOptionIsPlaceholder
+    && value === ''
+    && options.some((option) => option.value === value);
   const searchText = searchValue ?? search;
   const heldLoading = useMinimumVisibleFlag(isLoading, loadingMinMs);
   const showLoading = loadingMinMs <= 0 ? isLoading : heldLoading;
@@ -292,6 +321,15 @@ const Dropdown = ({
 
   const handleSelect = (optionValue: string) => {
     onChange(optionValue);
+
+    if (!closeOnSelect) {
+      // Leaves the list open and the search text as it was, for a caller that lets several matches
+      // of one search be picked in turn. The highlight still clears, so a second Enter lands on
+      // nothing rather than repeating the pick it just made
+      setHighlightedIndex(-1);
+      return;
+    }
+
     close();
 
     // Closing unmounts the focused option or search input, so return focus to the trigger
@@ -436,6 +474,7 @@ const Dropdown = ({
           placeholder={placeholder}
           selected={selected}
           size={size}
+          blankOptionSelected={blankOptionSelected}
           onClick={handleTriggerClick}
           onKeyDown={handleKeyDown}
         />
@@ -484,6 +523,7 @@ const Dropdown = ({
                   loadingText={loadingText}
                   options={visibleFiltered}
                   selectedValue={value}
+                  selectedValues={selectedValues}
                   showLoading={showLoading}
                   editOptionLabel={editOptionLabel}
                   onEditOption={onEditOption && handleEditOption}

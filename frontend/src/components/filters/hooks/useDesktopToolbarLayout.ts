@@ -17,8 +17,15 @@ export type DesktopToolbarLayoutState = DesktopToolbarRefs & {
 
 /**
  * Measures the desktop toolbar so the search field, filter group, and create button wrap before they collide
+ *
+ * @param actionsKey Changes whenever the toolbar swaps its own controls, which re-measures. The observers
+ *     watch boxes rather than contents, and a wrapped filter group is already stretched to the row, so a
+ *     button appearing inside it changes nothing any of them would see
+ * @param pauseMeasuring While true, skips re-measuring so a width animation running elsewhere in the
+ *     actions row cannot flip the inline and stacked layouts mid-transition and flip them back once the
+ *     animation is closer to done. Measures once, immediately, when it turns back to false
  */
-export function useDesktopToolbarLayout(): DesktopToolbarLayoutState {
+export function useDesktopToolbarLayout(actionsKey = '', pauseMeasuring = false): DesktopToolbarLayoutState {
   const toolbarRef = useRef<HTMLDivElement>(null)
   const controlsRef = useRef<HTMLDivElement>(null)
   const filterGroupRef = useRef<HTMLDivElement>(null)
@@ -41,6 +48,7 @@ export function useDesktopToolbarLayout(): DesktopToolbarLayoutState {
      * Recomputes the inline and stacked layout against the rendered toolbar widths
      */
     function updateCreateLayout() {
+      if (pauseMeasuring) return
       if (!window.matchMedia('(min-width: 750px)').matches) {
         setDesktopInlineLayout(false)
         setDesktopCreateStacked(false)
@@ -77,7 +85,7 @@ export function useDesktopToolbarLayout(): DesktopToolbarLayoutState {
       resizeObserver.disconnect()
       window.removeEventListener('resize', updateCreateLayout)
     }
-  }, [])
+  }, [actionsKey, pauseMeasuring])
 
   return {
     toolbarRef,

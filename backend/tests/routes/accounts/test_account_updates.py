@@ -25,6 +25,7 @@ async def test_patch_account_updates_name(client):
 
     assert resp.status_code == 200
     assert resp.json()["name"] == "Renamed"
+    assert resp.json()["can_write"] is True
 
 
 async def test_patch_account_updates_is_archived(client):
@@ -38,6 +39,7 @@ async def test_patch_account_updates_is_archived(client):
 
     assert resp.status_code == 200
     assert resp.json()["is_archived"] is True
+    assert resp.json()["can_write"] is True
 
 
 async def test_patch_account_archiving_non_zero_balance_creates_balance_adjustment(client, monkeypatch):
@@ -149,6 +151,7 @@ async def test_patch_account_sets_closed_at(client):
 
     assert resp.status_code == 200
     assert resp.json()["closed_at"] is not None
+    assert resp.json()["can_write"] is True
 
 
 async def test_patch_account_empty_body_returns_unchanged(client):

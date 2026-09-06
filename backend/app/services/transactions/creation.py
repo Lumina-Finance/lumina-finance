@@ -6,7 +6,7 @@ from app.models.transaction import Transaction
 from app.models.user import User
 from app.permissions import check_account_access
 from app.schemas.transaction import CreateTransactionRequest, TransactionResponse
-from app.services.accounts.snapshots import recompute_snapshots_from
+from app.services.accounts.snapshots import recompute_account_snapshots
 from app.services.cache_state import mark_cache_changed_for_scope
 from app.services.transactions.accounts import validate_transaction_account_is_not_archived
 from app.services.transactions.response_helpers import get_transaction_response
@@ -94,7 +94,7 @@ async def create_transaction_and_get_response(
         await replace_transaction_tag_assignments(db, txn.id, validated_tag_ids)
 
     # Rebuild balance snapshots from this transaction's day forward
-    await recompute_snapshots_from(db, data.account_id, data.dt)
+    await recompute_account_snapshots(db, {data.account_id: data.dt})
 
     # Mark the affected user or group cache after all transaction writes are flushed
     await mark_cache_changed_for_scope(db, user_id=account.owner_id, group_id=account.group_id)

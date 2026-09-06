@@ -10,6 +10,7 @@ from app.models.account import Account
 from app.models.base import PermissionLevel
 from app.models.user import User
 from app.permissions import check_account_access
+from app.permissions.accounts import attach_account_write_capabilities
 from app.routes.accounts.balance_field_helpers import attach_account_balance_fields
 
 
@@ -34,6 +35,7 @@ async def get_account_response_for_user(
         HTTPException: User does not have read access
     """
     account = await check_account_access(db, account_id, user.id, PermissionLevel.READ)
+    await attach_account_write_capabilities(db, [account], user.id)
     await attach_account_balance_fields(db, [account], user, as_of_date)
     return account
 
@@ -69,5 +71,6 @@ async def get_account_for_response(
     # Fetch the account with response relationships and optional identity-map refresh
     result = await db.execute(query)
     account = result.scalar_one()
+    await attach_account_write_capabilities(db, [account], user.id)
     await attach_account_balance_fields(db, [account], user, as_of_date)
     return account

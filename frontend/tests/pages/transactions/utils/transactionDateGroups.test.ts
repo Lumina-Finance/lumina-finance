@@ -72,7 +72,7 @@ describe('transaction date-group helpers', () => {
       createTransaction({ base_currency_amount: 1200, account_amount: 1000 }),
       createTransaction({ base_currency_amount: -450, account_amount: -400 }),
     ]
-    const fixedAccount: TransactionListAccount = { id: 'account', name: 'Checking' }
+    const fixedAccount: TransactionListAccount = { id: 'account', name: 'Checking', can_write: true }
 
     expect(getTransactionDateGroupTotal(transactions)).toBe(750)
     expect(getTransactionDateGroupTotal(transactions, fixedAccount)).toBe(600)

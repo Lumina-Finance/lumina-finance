@@ -24,6 +24,7 @@ function createAccount(overrides: Partial<AccountsOverview> = {}): AccountsOverv
     base_currency_current_balance: 0,
     current_balance_fx_status: { state: 'complete', missing_pairs: [] },
     credit_limit: null,
+    can_write: true,
     is_archived: false,
     closed_at: null,
     ...overrides,
@@ -37,6 +38,7 @@ describe('the account the transaction list is handed', () => {
       name: 'Everyday Chequing',
       currency: 'CAD',
       institution: null,
+      can_write: true,
       is_archived: false,
       closed_at: null,
     })
@@ -52,5 +54,10 @@ describe('the account the transaction list is handed', () => {
 
   it('carries the archived state through', () => {
     expect(toTransactionListAccount(createAccount({ is_archived: true })).is_archived).toBe(true)
+  })
+
+  it('preserves both write capability values', () => {
+    expect(toTransactionListAccount(createAccount({ can_write: true })).can_write).toBe(true)
+    expect(toTransactionListAccount(createAccount({ can_write: false })).can_write).toBe(false)
   })
 })

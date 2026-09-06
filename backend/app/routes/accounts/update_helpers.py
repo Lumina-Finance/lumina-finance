@@ -11,7 +11,6 @@ from app.models.base import PermissionLevel
 from app.models.user import User
 from app.permissions import check_account_access
 from app.routes.accounts.balance_adjustment_helpers import zero_account_balance_for_archive
-from app.routes.accounts.balance_field_helpers import attach_account_balance_fields
 from app.routes.accounts.request_validation_helpers import validate_update_account_request
 from app.routes.accounts.response_loading_helpers import get_account_for_response
 from app.routes.accounts.tax_advantaged_category_link_helpers import validate_update_account_tax_advantaged_category_link
@@ -45,8 +44,7 @@ async def update_account_for_user(
 
     updates = data.model_dump(exclude_unset=True)
     if not updates:
-        await attach_account_balance_fields(db, [account], user, response_date)
-        return account
+        return await get_account_for_response(db, user, account_id, response_date)
 
     await validate_update_account_request(db, account, updates)
     await validate_update_account_tax_advantaged_category_link(db, account, updates, user.id)

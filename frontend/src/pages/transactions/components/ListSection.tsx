@@ -1,10 +1,24 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useCategories } from '@/api/categories'
+import { ApiError } from '@/api/auth'
 import {
+  useBulkUpdateTransactions,
   useInfiniteTransactions,
   type Transaction,
 } from '@/api/transactions'
+import { useToast } from '@/hooks/useToast'
+import { BulkEditModal } from '@/pages/transactions/components/bulk-edit/BulkEditModal'
+import { BulkEditConfirm } from '@/pages/transactions/components/bulk-edit/BulkEditConfirm'
+import { selectedTransactionsSignature } from '@/pages/transactions/components/bulk-edit/confirmation'
+import {
+  doesChosenCategoryRecordTransferTarget,
+  isRowSelectable,
+  type BulkEditFields,
+  type SelectedTransactionFacts,
+} from '@/pages/transactions/components/bulk-edit/selection'
+import { useBulkSelection } from '@/pages/transactions/components/bulk-edit/useBulkSelection'
+import { getTransactionReadOnlyReason } from '@/pages/transactions/utils/rowEditability'
 import { getImportBlockReason, isImportableAccount } from '@/pages/imports/utils'
 import { TRANSACTION_FILTER_KEYS, TRANSACTION_LIST_EASE } from '@/pages/transactions/constants/transactionList'
 import TransactionDateGroupList from '@/pages/transactions/components/DateGroupList'
@@ -137,6 +151,213 @@ export default function TransactionListSection({
   const createDisabled = Boolean(fixedAccount?.is_archived)
   const createDisabledReason = createDisabled ? 'Archived accounts are read-only' : undefined
 
+  const [isSelecting, setIsSelecting] = useState(false)
+  const [pendingChange, setPendingChange] = useState<BulkEditFields | null>(null)
+
+  // The ids and stored values the change was validated against at Apply, frozen alongside
+  // pendingChange so Confirm cannot apply an old preview to refreshed transaction data
+  const [pendingChangeIds, setPendingChangeIds] = useState<string[]>([])
+  const [pendingChangeSignature, setPendingChangeSignature] = useState<string | null>(null)
+  const [applyError, setApplyError] = useState<string | null>(null)
+  const { showToast } = useToast()
+  const bulkUpdate = useBulkUpdateTransactions()
+
+  // The rows a range runs along, in the order they appear, carrying the same editable rule the row
+  // itself shows
+  const selectableRows = useMemo(
+    () => displayedTransactions.map((transaction) => ({
+      id: transaction.id,
+      isReadOnly: Boolean(getTransactionReadOnlyReason(transaction, accountMap, categoryMap, fixedAccount)),
+    })),
+    [displayedTransactions, accountMap, categoryMap, fixedAccount],
+  )
+
+  const transactionCurrencyById = useMemo(
+    () => new Map(displayedTransactions.map((transaction) => [transaction.id, transaction.currency])),
+    [displayedTransactions],
+  )
+
+  // The search text is not part of the filters, so both go into the key that empties a selection
+  const requestKey = useMemo(
+    () => `${JSON.stringify(filters)}|${activeSearch}`,
+    [filters, activeSearch],
+  )
+
+  const selection = useBulkSelection(selectableRows, requestKey, !filterListLoading)
+  const { clear: clearSelection } = selection
+
+  // A Set rather than the array useBulkSelection returns, since isRowSelectable does a membership
+  // check per row and a fresh array scan for each one would be quadratic in the list's length
+  const selectedIdsSet = useMemo(() => new Set(selection.selectedIds), [selection.selectedIds])
+  const selectedChangeSignature = useMemo(
+    () => selectedTransactionsSignature(displayedTransactions, selection.selectedIds),
+    [displayedTransactions, selection.selectedIds],
+  )
+
+  const buildRowSelection = useCallback(
+    (transactionId: string, isReadOnly: boolean) => ({
+      mark: selection.markFor(transactionId),
+      isSelectable: isRowSelectable(transactionId, selectedIdsSet, isReadOnly),
+      onToggle: (withShift: boolean) => selection.toggle(transactionId, withShift),
+      onPointerEnter: () => selection.handlePointerEnter(transactionId),
+    }),
+    [selection, selectedIdsSet],
+  )
+
+  // Takes the transactions one day heading shows, which is what its tick covers. Whether any of them
+  // can be edited is decided inside the selection, so nothing is filtered here
+  const buildHeadingSelection = useCallback(
+    (shownTransactionIds: string[]) => ({
+      mark: selection.groupMarkFor(shownTransactionIds),
+
+      // A touch tap or a keyboard activation leaves no pointer resting on the heading afterward to
+      // clear the preview the way a mouse leaving the tick does, so the heading passes that along
+      // from the click itself
+      onToggle: (clearsHover: boolean) => selection.toggleGroup(shownTransactionIds, { clearsHover }),
+      onPointerMove: () => selection.handleGroupPointerMove(shownTransactionIds),
+      onPointerLeave: () => selection.handleGroupPointerLeave(),
+    }),
+    [selection],
+  )
+
+  const [isEditOpen, setIsEditOpen] = useState(false)
+
+  // Kept mounted only while the edit is up or closing, so each opening starts on a fresh set of
+  // controls. Left mounted throughout, it would come back holding what the last edit set, and applying
+  // that to a different set of transactions is a change nobody asked for. It would also keep loading
+  // merchants and tags on a page where nobody has asked to edit anything
+  const [isEditMounted, setIsEditMounted] = useState(false)
+
+  // Keys the modal, so a reopen inside the quarter second the last one takes to fade out still mounts a
+  // fresh instance rather than reusing the one still on its way off screen
+  const [editOpenings, setEditOpenings] = useState(0)
+
+  // What the bulk edit rules read about each ticked row. Whether a transfer has an answer for its
+  // other side is read off the scope rather than the account, the way the server reads it, so one
+  // recorded as going outside the tracked accounts counts as answered
+  const selectedFacts = useMemo<SelectedTransactionFacts[]>(() => {
+    const selected = new Set(selection.selectedIds)
+    return displayedTransactions
+      .filter((transaction) => selected.has(transaction.id))
+      .map((transaction) => ({
+        id: transaction.id,
+        accountId: transaction.account_id,
+        hasMerchant: Boolean(transaction.merchant_id),
+        recordsFarSide: doesChosenCategoryRecordTransferTarget(categoryMap.get(transaction.category_id)),
+        hasFarSideRecorded: transaction.counterparty_account_scope !== null,
+        farSideAccountId: transaction.counterparty_account_id,
+        currency: transaction.currency,
+        isZeroAmount: transaction.amount === 0,
+        direction: transaction.amount < 0 ? 'debit' : 'credit',
+      }))
+  }, [displayedTransactions, selection.selectedIds, categoryMap])
+
+  const selectedCurrencies = useMemo(
+    () => [
+      ...new Set(
+        selection.selectedIds
+          .map((id) => transactionCurrencyById.get(id))
+          .filter((currency): currency is string => Boolean(currency)),
+      ),
+    ],
+    [selection.selectedIds, transactionCurrencyById],
+  )
+
+  // A list fixed to one account is often showing an account the account list does not carry, and both
+  // the move targets and the far account options have to be able to name it
+  const accountsForBulkEdit = useMemo(
+    () => (fixedAccount
+      ? [fixedAccount, ...accounts.filter((account) => account.id !== fixedAccount.id)]
+      : accounts),
+    [fixedAccount, accounts],
+  )
+
+  // Losing the last ticked row ends the edit, which a refetch that no longer carries those rows can do
+  // while it is open. It goes rather than animating out, since what it would animate out is a panel
+  // relabelling itself to nothing on the way. Closed here rather than derived from the count, since a
+  // count the user then puts back would reopen a dialog they never asked for a second time
+  if (isEditMounted && selection.selectedIds.length === 0) {
+    setIsEditOpen(false)
+    setIsEditMounted(false)
+
+    // A write already sent keeps its confirmation, which is where its refusal has to land
+    if (!bulkUpdate.isPending) {
+      setPendingChange(null)
+      setPendingChangeIds([])
+      setPendingChangeSignature(null)
+      setApplyError(null)
+    }
+  }
+
+  // Keep a sent request visible until it settles. If its confirmation then remains open after a
+  // refusal, the refreshed values still invalidate it on that render
+  if (
+    pendingChange !== null
+    && pendingChangeSignature !== null
+    && pendingChangeSignature !== selectedChangeSignature
+    && !bulkUpdate.isPending
+  ) {
+    setPendingChange(null)
+    setPendingChangeIds([])
+    setPendingChangeSignature(null)
+    setApplyError(null)
+  }
+
+  /**
+   * Leaves selection mode, dropping the ticks, the anchor and any preview with them
+   */
+  const stopSelecting = useCallback(() => {
+    setIsSelecting(false)
+    setPendingChange(null)
+    setPendingChangeIds([])
+    setPendingChangeSignature(null)
+    setApplyError(null)
+    clearSelection()
+  }, [clearSelection])
+
+  /**
+   * Freezes the modal's change with the selected ids and their stored values at Apply
+   */
+  function applyBulkEdit(fields: BulkEditFields) {
+    setPendingChangeIds([...selection.selectedIds])
+    setPendingChangeSignature(selectedChangeSignature)
+    setPendingChange(fields)
+  }
+
+  /**
+   * Writes the change the modal holds, keeping a refusal open while the selected values still match
+   */
+  function applyPendingChange() {
+    if (!pendingChange) return
+    if (pendingChangeSignature !== selectedChangeSignature) {
+      setPendingChange(null)
+      setPendingChangeIds([])
+      setPendingChangeSignature(null)
+      setApplyError(null)
+      return
+    }
+    setApplyError(null)
+    bulkUpdate.mutate(
+      { transaction_ids: pendingChangeIds, ...pendingChange },
+      {
+        onSuccess: (result) => {
+          setPendingChange(null)
+
+          // Ends selection mode rather than only dropping the ticks, which would leave every checkbox
+          // on screen with nothing in them and read as though nothing had happened
+          stopSelecting()
+          showToast({
+            status: 'success',
+            text: `${result.transactions_updated} ${result.transactions_updated === 1 ? 'transaction' : 'transactions'} updated.`,
+          })
+        },
+        onError: (error) => {
+          setApplyError(error instanceof ApiError ? error.message : 'Something went wrong. Please try again.')
+        },
+      },
+    )
+  }
+
   // Only a list fixed to one account can be blocked, since only that one writes rows to an account
   // of its own. On the list of every account the button is the way to the import page and is always
   // offered. Where it is blocked it stays on the row, greyed out with the reason, rather than
@@ -187,9 +408,22 @@ export default function TransactionListSection({
         importDisabled={importDisabled}
         importDisabledReason={importDisabledReason}
         onStickyOffsetChange={setDateHeaderStickyTop}
+        isSelecting={isSelecting}
+        selectedCount={selection.selectedIds.length}
+        editDisabledReason={categories ? undefined : 'Categories have not loaded yet'}
+        onEditSelection={() => {
+          setEditOpenings((count) => count + 1)
+          setIsEditMounted(true)
+          setIsEditOpen(true)
+        }}
+        onToggleSelecting={() => (isSelecting ? stopSelecting() : setIsSelecting(true))}
       />
 
-      <div className="relative" aria-busy={filterListLoading}>
+      <div
+        className="relative"
+        aria-busy={filterListLoading}
+        onMouseLeave={selection.handlePointerLeaveList}
+      >
         <AnimatePresence>
           {filterListLoading && <TransactionFilterLoadingOverlay reducedMotion={prefersReducedMotion} />}
         </AnimatePresence>
@@ -235,6 +469,9 @@ export default function TransactionListSection({
                 stickyTop={dateHeaderStickyTop}
                 prefersReducedMotion={prefersReducedMotion}
                 skipEnterAnimation={skipAppendedEnter}
+                isSelecting={isSelecting}
+                buildRowSelection={isSelecting ? buildRowSelection : undefined}
+                buildHeadingSelection={isSelecting ? buildHeadingSelection : undefined}
                 onEditTransaction={onEditTransaction}
               />
 
@@ -252,6 +489,41 @@ export default function TransactionListSection({
           ) : null}
         </AnimatePresence>
       </div>
+
+      {isEditMounted && (
+        <BulkEditModal
+          key={editOpenings}
+          open={isEditOpen}
+          onClose={() => {
+            setIsEditOpen(false)
+            setPendingChange(null)
+            setPendingChangeIds([])
+            setPendingChangeSignature(null)
+            setApplyError(null)
+          }}
+          onExitComplete={() => {
+            if (!isEditOpen) setIsEditMounted(false)
+          }}
+          rows={selectedFacts}
+          selectedCurrencies={selectedCurrencies}
+          accounts={accountsForBulkEdit}
+          onApply={applyBulkEdit}
+        />
+      )}
+
+      <BulkEditConfirm
+        open={pendingChange !== null}
+        count={pendingChangeIds.length}
+        error={applyError}
+        isApplying={bulkUpdate.isPending}
+        onConfirm={applyPendingChange}
+        onCancel={() => {
+          setPendingChange(null)
+          setPendingChangeIds([])
+          setPendingChangeSignature(null)
+          setApplyError(null)
+        }}
+      />
     </section>
   )
 }

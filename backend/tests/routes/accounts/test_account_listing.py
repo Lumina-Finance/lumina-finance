@@ -54,6 +54,67 @@ async def test_list_accounts_returns_user_accounts(client):
     assert len(data) == 2
     names = {a["name"] for a in data}
     assert names == {"Account A", "Account B"}
+    assert all(account["can_write"] is True for account in data)
+
+
+async def test_list_accounts_keeps_write_capabilities_bound_to_the_caller_and_group(client):
+    """Admin access in one group does not raise a read grant from another group to write."""
+    await _seed_currency()
+    alice = await _signup_user(
+        client, email="capability-alice@example.com", first_name="Alice", tz="America/Toronto",
+    )
+    assert alice.status_code == 201, alice.json()
+    alice_headers = _get_auth_header(alice)
+    alice_id = alice.json()["user"]["id"]
+    household_a = (await client.post(
+        "/groups", json={"name": "Household A"}, headers=alice_headers,
+    )).json()["id"]
+    account_a = (await _create_account(
+        client, alice_headers, name="Household A Chequing", group_id=household_a,
+    )).json()["id"]
+
+    bob = await _signup_user(
+        client, email="capability-bob@example.com", first_name="Bob", tz="America/Toronto",
+    )
+    assert bob.status_code == 201, bob.json()
+    bob_headers = _get_auth_header(bob)
+    household_b = (await client.post(
+        "/groups", json={"name": "Household B"}, headers=bob_headers,
+    )).json()["id"]
+    await client.post(
+        f"/groups/{household_b}/members", json={"user_id": alice_id}, headers=bob_headers,
+    )
+    account_b = (await _create_account(
+        client, bob_headers, name="Household B Chequing", group_id=household_b,
+    )).json()["id"]
+    await client.post(
+        f"/accounts/{account_b}/permissions",
+        json={"user_id": alice_id, "level": "read"},
+        headers=bob_headers,
+    )
+    charlie = await _signup_user(
+        client, email="capability-charlie@example.com", first_name="Charlie", tz="America/Toronto",
+    )
+    assert charlie.status_code == 201, charlie.json()
+    charlie_id = charlie.json()["user"]["id"]
+    await client.post(
+        f"/groups/{household_b}/members", json={"user_id": charlie_id}, headers=bob_headers,
+    )
+    await client.post(
+        f"/accounts/{account_b}/permissions",
+        json={"user_id": charlie_id, "level": "write"},
+        headers=bob_headers,
+    )
+
+    resp = await client.get("/accounts", headers=alice_headers)
+
+    assert resp.status_code == 200
+    rows = {row["id"]: row for row in resp.json()}
+    listed_ids = [row["id"] for row in resp.json()]
+    assert listed_ids.count(account_a) == 1
+    assert listed_ids.count(account_b) == 1
+    assert rows[account_a]["can_write"] is True
+    assert rows[account_b]["can_write"] is False
 
 
 async def test_list_accounts_returns_overview_shape(client):
@@ -86,7 +147,7 @@ async def test_list_accounts_returns_overview_shape(client):
         "id", "owner_id", "group_id", "account_kind", "account_type", "name",
         "tax_advantaged_category_id", "currency", "institution", "current_balance",
         "base_currency_current_balance", "current_balance_fx_status", "credit_limit",
-        "is_archived", "closed_at",
+        "can_write", "is_archived", "closed_at",
     ):
         assert field in row, f"missing overview field: {field}"
 

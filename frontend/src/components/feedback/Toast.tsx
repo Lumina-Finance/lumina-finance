@@ -59,7 +59,7 @@ export default function Toast({ toast, onDismiss }: ToastProps) {
               type="button"
               onClick={onDismiss}
               aria-label="Dismiss message"
-              className="app-icon-button -mr-1 -mt-1 h-6 w-6 shrink-0"
+              className="app-icon-button -mr-1 h-6 w-6 shrink-0 self-center"
             >
               <X size={14} aria-hidden />
             </button>

@@ -23,6 +23,25 @@ export function getSelectedDropdownOption(
 }
 
 /**
+ * Returns whether one option's tick should show.
+ *
+ * Reads selectedValues when the caller has set it, for a field that ticks every option among
+ * several picks, and falls back to the single selected value otherwise.
+ *
+ * @param option The option the row is rendering
+ * @param selectedValue The dropdown's single selected value
+ * @param selectedValues Every value to tick at once, or undefined for a single-value dropdown
+ */
+export function isDropdownOptionSelected(
+  option: DropdownOption,
+  selectedValue: string,
+  selectedValues: string[] | undefined,
+): boolean {
+  if (selectedValues !== undefined) return selectedValues.includes(option.value)
+  return option.value === selectedValue
+}
+
+/**
  * Reports whether an option offers the edit action, which needs a caller that handles it and an
  * option that stands for something editable
  *

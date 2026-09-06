@@ -24,6 +24,7 @@ export interface TransactionListAccount {
   name?: string
   currency?: string
   institution?: AccountsOverview['institution']
+  can_write: boolean
   is_archived?: boolean
 
   /** When the account was closed, which is a second state that takes no new transactions */
@@ -42,6 +43,7 @@ export function toTransactionListAccount(account: AccountsOverview): Transaction
     name: account.name,
     currency: account.currency,
     institution: account.institution,
+    can_write: account.can_write,
     is_archived: account.is_archived,
     closed_at: account.closed_at,
   }

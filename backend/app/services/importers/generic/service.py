@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.account import Account
 from app.models.user import User
 from app.schemas.transaction import TransactionImportRequest, TransactionImportResponse
-from app.services.accounts.snapshots import recompute_snapshots_from
+from app.services.accounts.snapshots import recompute_account_snapshots
 from app.services.cache_state import mark_cache_changed_for_scope, mark_user_cache_changed
 from app.services.importers.generic.imported_transaction_helpers import create_imported_transactions
 from app.services.importers.generic.lookup_helpers import (
@@ -47,7 +47,7 @@ async def import_transactions(
     )
 
     await db.flush()
-    await _recompute_snapshots_for_imported_accounts(db, first_import_date_by_account_id)
+    await recompute_account_snapshots(db, first_import_date_by_account_id)
     await _mark_caches_changed_for_imported_accounts(
         db,
         user.id,
@@ -62,24 +62,6 @@ async def import_transactions(
         first_import_date_by_account_id,
     )
     return transaction_import_response
-
-
-async def _recompute_snapshots_for_imported_accounts(
-    db: AsyncSession,
-    first_import_date_by_account_id: dict[uuid.UUID, date],
-) -> None:
-    """Recompute balance snapshots for accounts touched by imported transactions
-
-    Args:
-        db: Active database session
-        first_import_date_by_account_id: Earliest imported transaction date by affected account ID
-
-    Returns:
-        None
-    """
-    # Recompute each account from its earliest imported date to keep later balances aligned
-    for account_id, first_import_date in first_import_date_by_account_id.items():
-        await recompute_snapshots_from(db, account_id, first_import_date)
 
 
 async def _mark_caches_changed_for_imported_accounts(

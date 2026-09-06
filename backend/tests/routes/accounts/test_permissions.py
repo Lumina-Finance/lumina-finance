@@ -1,3 +1,5 @@
+import pytest
+
 from tests.routes.support import _create_user, _get_auth_header
 
 # --- Helpers ---
@@ -538,9 +540,80 @@ async def test_read_permission_allows_get_account(client):
     await _grant_account_permission(client, admin_headers, account_id, member_user_id, "read")
 
     resp = await client.get(f"/accounts/{account_id}", headers=member_headers)
+    listing = await client.get("/accounts", headers=member_headers)
 
     assert resp.status_code == 200
     assert resp.json()["id"] == account_id
+    assert resp.json()["can_write"] is False
+    assert listing.status_code == 200
+    assert listing.json()[0]["id"] == account_id
+    assert listing.json()[0]["can_write"] is False
+
+
+@pytest.mark.parametrize("level", ["write", "admin"])
+async def test_write_or_admin_permission_reports_write_capability(client, level):
+    """WRITE and ADMIN grants both let a regular member write transactions."""
+    admin_headers, member_headers, member_user_id, _, account_id = await _setup_group_with_member_and_account(client)
+    await _grant_account_permission(client, admin_headers, account_id, member_user_id, level)
+
+    detail = await client.get(f"/accounts/{account_id}", headers=member_headers)
+    listing = await client.get("/accounts", headers=member_headers)
+
+    assert detail.status_code == 200
+    assert detail.json()["can_write"] is True
+    assert listing.status_code == 200
+    assert listing.json()[0]["can_write"] is True
+
+
+async def test_group_admin_reports_write_capability_despite_an_explicit_read_grant(client):
+    """Group administrator access overrides the lower explicit account grant."""
+    admin_headers, member_headers, member_user_id, group_id, account_id = (
+        await _setup_group_with_member_and_account(client)
+    )
+    await _grant_account_permission(client, admin_headers, account_id, member_user_id, "read")
+    promote = await client.patch(
+        f"/groups/{group_id}/members/{member_user_id}",
+        json={"is_admin": True},
+        headers=admin_headers,
+    )
+    assert promote.status_code == 200
+
+    detail = await client.get(f"/accounts/{account_id}", headers=member_headers)
+    listing = await client.get("/accounts", headers=member_headers)
+
+    assert detail.status_code == 200
+    assert detail.json()["can_write"] is True
+    assert listing.status_code == 200
+    assert listing.json()[0]["can_write"] is True
+
+
+@pytest.mark.parametrize(
+    ("account_patch", "level", "expected"),
+    [
+        ({"is_archived": True}, "read", False),
+        ({"is_archived": True}, "write", True),
+        ({"closed_at": "2026-03-01T00:00:00Z"}, "read", False),
+        ({"closed_at": "2026-03-01T00:00:00Z"}, "write", True),
+    ],
+)
+async def test_archive_and_closed_state_do_not_change_write_capability(
+    client,
+    account_patch,
+    level,
+    expected,
+):
+    """Lifecycle state stays separate from the caller's permission level."""
+    admin_headers, member_headers, member_user_id, _, account_id = await _setup_group_with_member_and_account(client)
+    await _grant_account_permission(client, admin_headers, account_id, member_user_id, level)
+    update_resp = await client.patch(
+        f"/accounts/{account_id}", json=account_patch, headers=admin_headers,
+    )
+    assert update_resp.status_code == 200
+
+    detail = await client.get(f"/accounts/{account_id}", headers=member_headers)
+
+    assert detail.status_code == 200
+    assert detail.json()["can_write"] is expected
 
 
 async def test_read_permission_blocks_patch_account(client):

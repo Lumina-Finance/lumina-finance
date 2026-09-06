@@ -16,6 +16,8 @@ from app.schemas.firefly_import import (
     FireflyTransactionImportResponse,
 )
 from app.schemas.transaction import (
+    BulkUpdateTransactionsRequest,
+    BulkUpdateTransactionsResponse,
     CreateTransactionRequest,
     TransactionImportResponse,
     TransactionImportRunRequest,
@@ -33,6 +35,7 @@ from app.services.importers import (
     open_import_run,
     stage_import_batch,
 )
+from app.services.transactions.bulk_update import bulk_update_transactions
 from app.services.transactions.creation import create_transaction_and_get_response
 from app.services.transactions.deletion import delete_transaction_for_user
 from app.services.transactions.detail import get_transaction_response_for_user
@@ -327,6 +330,29 @@ async def create_transaction(
         Newly created transaction response
     """
     return await create_transaction_and_get_response(db, user, data)
+
+
+@router.patch("/bulk", response_model=BulkUpdateTransactionsResponse)
+async def bulk_update_transactions_route(
+    data: BulkUpdateTransactionsRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Set shared details across several transactions
+
+    Declared above the single-transaction route because a path parameter would otherwise read
+    "bulk" as a transaction identifier
+
+    Args:
+        data: Transactions to change and the details to set
+        user: Authenticated user applying the change
+        db: Active database session
+
+    Returns:
+        The count of rows the request reached, whether or not a value on any of them changed, and
+        the accounts affected, including a transfer's far side account before and after the edit
+    """
+    return await bulk_update_transactions(db, user, data)
 
 
 @router.patch("/{transaction_id}", response_model=TransactionResponse)

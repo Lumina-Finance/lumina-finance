@@ -6,7 +6,7 @@ from datetime import date
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.transaction import Transaction
-from app.services.accounts.snapshots import recompute_snapshots_from
+from app.services.accounts.snapshots import recompute_account_snapshots
 
 _SNAPSHOT_AFFECTING_UPDATE_FIELDS = frozenset({"account_id", "dt", "amount"})
 
@@ -38,13 +38,17 @@ async def recompute_snapshots_after_transaction_update(
     if not _transaction_update_affects_snapshots(changed_fields):
         return
 
-    await db.flush()
     if txn.account_id != previous_account_id:
-        await recompute_snapshots_from(db, previous_account_id, previous_date)
-        await recompute_snapshots_from(db, txn.account_id, txn.dt)
+        await recompute_account_snapshots(db, {
+            previous_account_id: previous_date,
+            txn.account_id: txn.dt,
+        })
         return
 
-    await recompute_snapshots_from(db, txn.account_id, min(previous_date, txn.dt))
+    await recompute_account_snapshots(
+        db,
+        {txn.account_id: min(previous_date, txn.dt)},
+    )
 
 
 def _transaction_update_affects_snapshots(changed_fields: Mapping[str, object]) -> bool:

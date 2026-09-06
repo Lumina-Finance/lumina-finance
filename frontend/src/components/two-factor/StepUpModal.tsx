@@ -7,7 +7,7 @@ import { OtpInput, OTP_LENGTH } from '@/components/OtpInput';
 import { StepTransition } from '@/components/two-factor/StepTransition';
 import { ModalContentPanel } from '@/components/modal/ContentPanel';
 import type { ModalLevel } from '@/components/modal/Shell';
-import { WarningCallout } from '@/components/two-factor/WarningCallout';
+import { WarningCallout } from '@/components/WarningCallout';
 import { useAuth } from '@/hooks/useAuth';
 import { buildLockoutWarning, describeStepUpFailure, getAttemptsRemaining } from '@/utils/lockoutWarning';
 import { isPasskeyCeremonyCancelled } from '@/utils/passkeyErrors';

@@ -16,12 +16,14 @@ import { runWithMinimumPendingTime } from '@/api/utils/mutationFeedback';
 import { transactionKeys, transactionOverviewKeys } from '@/api/cache/queryKeys';
 import {
   findCachedTransaction,
+  invalidateBulkUpdatedTransactionData,
   invalidateFinancialTransactionData,
   invalidatePatchedTransactionData,
   invalidateTransactionAccountData,
   removeTransactionFromLists,
 } from '@/api/cache/updates/transactions';
 import {
+  bulkUpdateTransactions,
   createTransaction,
   deleteTransaction,
   fetchTransaction,
@@ -169,6 +171,19 @@ export function useUpdateTransaction() {
         updated.account_id,
       ]);
       invalidatePatchedTransactionData(queryClient, patch, accountIds);
+    },
+  });
+}
+
+/**
+ * Applies one set of details across several transactions and refreshes the views those fields feed
+ */
+export function useBulkUpdateTransactions() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: bulkUpdateTransactions,
+    onSuccess: (result, payload) => {
+      invalidateBulkUpdatedTransactionData(queryClient, payload, result.affected_account_ids);
     },
   });
 }

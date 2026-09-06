@@ -1,11 +1,13 @@
-import { useMemo } from 'react'
-import { Upload } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { Check, ListChecks, PencilLine, SlidersHorizontal, Upload } from 'lucide-react'
 import { DesktopToolbarControls } from '@/components/list-controls/DesktopToolbarControls'
 import { GlassSearchField } from '@/components/list-controls/GlassSearchField'
 import { MobileToolbarActions } from '@/components/list-controls/MobileToolbarActions'
 import { ToolbarStickyShell } from '@/components/list-controls/ToolbarStickyShell'
 import { getSearchFieldWrapperClassName } from '@/components/list-controls/toolbarStyles'
 import { useToolbarShellState } from '@/components/list-controls/useToolbarShellState'
+import { TRANSACTION_LIST_EASE } from '@/pages/transactions/constants/transactionList'
 import type { TransactionListToolbarProps } from '@/pages/transactions/components/toolbar/types'
 import { TransactionFilterPanel } from '@/pages/transactions/components/toolbar/FilterPanel'
 import { MobileFilterPanel } from '@/pages/transactions/components/toolbar/MobileFilterPanel'
@@ -36,8 +38,21 @@ export default function TransactionListToolbar({
   importDisabled = false,
   importDisabledReason,
   onStickyOffsetChange,
+  isSelecting = false,
+  selectedCount = 0,
+  editDisabledReason,
+  onEditSelection,
+  onToggleSelecting,
 }: TransactionListToolbarProps) {
-  const shell = useToolbarShellState()
+  const prefersReducedMotion = useReducedMotion()
+
+  // Set from the desktop edit button's own onAnimationStart and onAnimationComplete, so the wrap
+  // layout hook holds its measurement still for exactly the span its width is changing
+  const [isEditActionAnimating, setIsEditActionAnimating] = useState(false)
+
+  // Selection mode swaps the row's own controls, and the wrap layout measures boxes rather than
+  // contents, so it is told rather than left to notice
+  const shell = useToolbarShellState(isSelecting ? 'selecting' : 'browsing', isEditActionAnimating)
   useToolbarStickyOffset(shell.toolbarRef, onStickyOffsetChange)
 
   // One node for both widths, at the 44px control height the row is built on, which the search field
@@ -63,6 +78,82 @@ export default function TransactionListToolbar({
       <span className="hidden min-[750px]:inline">Import</span>
     </button>
   ) : undefined
+
+  // Follows the import button's shape while browsing. In the mobile selection row, Done gains its
+  // word once Edit has enough room; the named container leaves the desktop layout independent.
+  //
+  // The icon and the word rise out and the next pair rises in, so pressing it reads as one control
+  // changing state. On desktop, the label reserves the longer word's width at both states, so
+  // the button itself never resizes: the desktop toolbar measures its children to decide when the
+  // create button stacks, and a width easing under it could flip that decision mid-animation
+  const selectAction = onToggleSelecting ? (
+    <button
+      type="button"
+      className="app-glass-button h-11 w-11 shrink-0 overflow-hidden px-0 @min-[16rem]/bulk-actions:w-auto @min-[16rem]/bulk-actions:px-4 min-[750px]:w-auto min-[750px]:px-4"
+      onClick={onToggleSelecting}
+      aria-pressed={isSelecting}
+      aria-label={isSelecting ? 'Stop selecting transactions' : 'Select transactions'}
+    >
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.span
+          key={isSelecting ? 'done' : 'select'}
+          className="flex items-center gap-2"
+          initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 7 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -7 }}
+          transition={{ duration: prefersReducedMotion ? 0 : 0.16, ease: TRANSACTION_LIST_EASE }}
+        >
+          {isSelecting ? <Check size={18} aria-hidden /> : <ListChecks size={18} aria-hidden />}
+          <span className="hidden text-center @min-[16rem]/bulk-actions:inline min-[750px]:inline min-[750px]:w-10">
+            {isSelecting ? 'Done' : 'Select'}
+          </span>
+        </motion.span>
+      </AnimatePresence>
+    </button>
+  ) : undefined
+
+  // Edit takes the remaining mobile space, retaining its word longer than Done and Filters.
+  function renderEditAction(className: string, labelClassName = 'hidden min-[750px]:inline') {
+    if (!onEditSelection) return undefined
+    const reason = editDisabledReason ?? (selectedCount === 0 ? 'Tick a transaction first' : undefined)
+    return (
+      <button
+        type="button"
+        className={className}
+        onClick={onEditSelection}
+        disabled={Boolean(reason)}
+        title={reason}
+        aria-label="Edit the selected transactions"
+      >
+        <PencilLine size={18} aria-hidden />
+        <span className={labelClassName}>Edit</span>
+      </button>
+    )
+  }
+
+  // Animates in beside Done rather than appearing in one frame. The always-present actions keep the
+  // row's own gap-3 among themselves in a group of their own; this button's trailing space instead
+  // lives inside the animated box, as a margin on the button that the width animation carries along
+  // with it, so the space closes with the button instead of sitting at a fixed width until the box
+  // unmounts and the row's gap snaps shut behind it
+  const desktopEditAction = (
+    <AnimatePresence initial={false}>
+      {isSelecting && onEditSelection && (
+        <motion.div
+          key="edit-action"
+          className="overflow-hidden"
+          initial={{ width: 0, opacity: 0 }}
+          animate={{ width: 'auto', opacity: 1 }}
+          exit={{ width: 0, opacity: 0 }}
+          transition={{ duration: prefersReducedMotion ? 0 : 0.16, ease: TRANSACTION_LIST_EASE }}
+          onAnimationStart={() => setIsEditActionAnimating(true)}
+          onAnimationComplete={() => setIsEditActionAnimating(false)}
+        >
+          {renderEditAction('app-glass-button h-11 w-11 shrink-0 px-0 mr-3 min-[750px]:w-auto min-[750px]:px-4')}
+        </motion.div>
+      )}
+    </AnimatePresence>
+  )
 
   const accountOptions = useMemo(
     () => getAccountOptions(accounts),
@@ -91,15 +182,50 @@ export default function TransactionListToolbar({
           wrapperClassName={getSearchFieldWrapperClassName(shell.mobileSearchStuck, shell.desktopInlineLayout)}
         />
 
-        <MobileToolbarActions
-          activeFilterCount={activeFilterCount}
-          onOpenFilters={shell.openMobileSheet}
-          onPrimaryAction={onCreateTransaction}
-          primaryLabel="Add transaction"
-          primaryDisabled={createDisabled}
-          primaryDisabledReason={createDisabledReason}
-          secondaryAction={importAction}
-        />
+        {/* Query this row's available width, including on an account page. Each threshold reserves
+            room for the higher-priority labels and all three 44px controls before adding a word. */}
+        {isSelecting ? (
+          <div className="@container/bulk-actions flex w-full items-center gap-3 min-[750px]:hidden">
+            <button
+              type="button"
+              className="app-glass-button relative h-11 w-11 shrink-0 px-0 @min-[20rem]/bulk-actions:w-auto @min-[20rem]/bulk-actions:px-4"
+              onClick={shell.openMobileSheet}
+              aria-label={activeFilterCount > 0 ? `Filters, ${activeFilterCount} active` : 'Filters'}
+            >
+              <SlidersHorizontal size={17} aria-hidden />
+              <span className="hidden @min-[20rem]/bulk-actions:inline">Filters</span>
+              {activeFilterCount > 0 && (
+                <span
+                  aria-hidden
+                  className="absolute right-0 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-xs font-semibold"
+                  style={{ background: 'var(--app-accent-soft)', color: 'var(--app-accent)' }}
+                >
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
+            {renderEditAction(
+              'app-glass-button h-11 min-w-11 flex-1 gap-2 px-0 @min-[12.5rem]/bulk-actions:px-4',
+              'hidden @min-[12.5rem]/bulk-actions:inline',
+            )}
+            {selectAction}
+          </div>
+        ) : (
+          <MobileToolbarActions
+            activeFilterCount={activeFilterCount}
+            onOpenFilters={shell.openMobileSheet}
+            onPrimaryAction={onCreateTransaction}
+            primaryLabel="Add transaction"
+            primaryDisabled={createDisabled}
+            primaryDisabledReason={createDisabledReason}
+            secondaryAction={
+              <>
+                {selectAction}
+                {importAction}
+              </>
+            }
+          />
+        )}
 
         <DesktopToolbarControls
           controlsRef={shell.controlsRef}
@@ -113,16 +239,20 @@ export default function TransactionListToolbar({
             // group instead would need its own measured twin, or the row would report itself
             // narrower than it draws and stay on one line where it no longer fits. Wrapped as one
             // child, since the group spreads its children apart once the create button stacks
-            <div className="flex min-w-0 items-center gap-3">
-              {importAction}
-              <TransactionFilterPanel
-                accountOptions={accountOptions}
-                categoryOptions={categoryOptions}
-                filters={filters}
-                setFilter={setFilter}
-                showAccountFilter={showAccountFilter}
-                lockedCurrency={lockedCurrency}
-              />
+            <div className="flex min-w-0 items-center">
+              {desktopEditAction}
+              <div className="flex min-w-0 items-center gap-3">
+                {selectAction}
+                {importAction}
+                <TransactionFilterPanel
+                  accountOptions={accountOptions}
+                  categoryOptions={categoryOptions}
+                  filters={filters}
+                  setFilter={setFilter}
+                  showAccountFilter={showAccountFilter}
+                  lockedCurrency={lockedCurrency}
+                />
+              </div>
             </div>
           }
           createLabel="Add Transaction"

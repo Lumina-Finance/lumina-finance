@@ -1,5 +1,6 @@
 import { EyeOff } from 'lucide-react'
-import { EmptyState, ImportCheckbox, ImportInfoCard, ImportStep } from '@/pages/imports/components'
+import { Checkbox } from '@/components/forms/Checkbox'
+import { EmptyState, ImportInfoCard, ImportStep } from '@/pages/imports/components'
 import { FireflySkippedBudgetsTable } from '@/pages/imports/firefly/components'
 import type { FireflyImportWorkflow } from '@/pages/imports/firefly/hooks'
 
@@ -113,12 +114,14 @@ export function FireflyBudgetImportStep({
                 return (
                   <tr key={draft.name}>
                     <td className="px-4 py-2.5 align-middle">
-                      <ImportCheckbox
-                        checked={status !== 'imported' && selectedBudgetNames.has(draft.name)}
-                        disabled={!selectable}
-                        label={`Import ${draft.name}`}
-                        onChange={() => toggleBudgetSelection(draft.name)}
-                      />
+                      <span className="flex justify-center">
+                        <Checkbox
+                          checked={status !== 'imported' && selectedBudgetNames.has(draft.name)}
+                          disabled={!selectable}
+                          label={`Import ${draft.name}`}
+                          onChange={() => toggleBudgetSelection(draft.name)}
+                        />
+                      </span>
                     </td>
                     <td className="truncate px-4 py-2.5 align-middle font-medium">
                       <span className="inline-flex max-w-full min-w-0 items-center gap-2">

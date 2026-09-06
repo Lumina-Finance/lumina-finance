@@ -22,6 +22,7 @@ async def test_create_account_returns_201(client):
     assert data["account_type"] == ACCOUNT_PAYLOAD["account_type"]
     assert data["currency"] == ACCOUNT_PAYLOAD["currency"]
     assert data["is_archived"] is False
+    assert data["can_write"] is True
     assert data["id"] is not None
     assert data["created_at"] is not None
 

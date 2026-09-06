@@ -43,6 +43,7 @@ export interface AccountsOverview {
    * Credit limit in currency minor units when the account is revolving credit
    */
   credit_limit: number | null;
+  can_write: boolean;
   is_archived: boolean;
   closed_at: string | null;
 }

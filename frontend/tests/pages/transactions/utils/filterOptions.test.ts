@@ -30,6 +30,7 @@ function createAccount(overrides: Partial<TransactionListAccount>): TransactionL
     name: 'name' in overrides ? overrides.name : 'Account',
     currency: 'USD',
     institution: null,
+    can_write: true,
     is_archived: false,
     ...overrides,
   }

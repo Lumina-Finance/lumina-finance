@@ -25,6 +25,13 @@ interface DropdownHeadProps {
   placeholder: string
   selected: DropdownOption | undefined
   size: DropdownSize
+
+  /**
+   * True once the value is blank and resolves to an option the caller listed, under a dropdown
+   * that opted in to drawing that as a placeholder rather than as a real selection
+   */
+  blankOptionSelected: boolean
+
   onClick: () => void
   onKeyDown: (event: KeyboardEvent<HTMLButtonElement>) => void
 }
@@ -51,11 +58,12 @@ export function DropdownHead({
   placeholder,
   selected,
   size,
+  blankOptionSelected,
   onClick,
   onKeyDown,
 }: DropdownHeadProps) {
   const shouldReduceMotion = useReducedMotion()
-  const hasVisibleSelection = Boolean(selected && !emptySelectionIsBlank)
+  const hasVisibleSelection = Boolean(selected && !emptySelectionIsBlank && !blankOptionSelected)
 
   return (
     <button

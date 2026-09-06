@@ -2,7 +2,7 @@ import { KeyRound } from 'lucide-react';
 import { useState } from 'react';
 import { usePasskeyConfig, useConfirmPasskeyRegistration, useRegisterPasskey } from '@/api/passkeys';
 import { RecoveryCodesModal } from '@/components/two-factor/RecoveryCodesModal';
-import { WarningCallout } from '@/components/two-factor/WarningCallout';
+import { WarningCallout } from '@/components/WarningCallout';
 import { getPasskeyRegistrationMessage } from '@/utils/passkeyErrors';
 import { assessPasskeySupport } from '@/utils/passkeySupport';
 

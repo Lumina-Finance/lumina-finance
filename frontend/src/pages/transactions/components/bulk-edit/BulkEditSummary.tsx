@@ -1,0 +1,189 @@
+import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { ArrowRight, CornerDownRight, Info, TriangleAlert } from 'lucide-react'
+import { EASE } from '@/pages/transactions/components/transaction-modal/constants'
+import type { BulkEditSummary as BulkEditSummaryResult } from '@/pages/transactions/components/bulk-edit/summary'
+
+interface BulkEditSummaryProps {
+  summary: BulkEditSummaryResult
+}
+
+/**
+ * One line in the animated list, keyed by what it represents rather than by its rendered content,
+ * so a row or a warning whose count changes in place is not read as a new line replacing the old
+ */
+interface SummaryListItem {
+  key: string
+  node: ReactNode
+}
+
+const ITEM_TRANSITION = { duration: 0.18, ease: EASE }
+
+/**
+ * Renders one row's label, an arrow connecting it to the value, and the value itself, wrapping
+ * rather than crowding out the connector when the value runs long
+ */
+function SummaryRow({ label, value, detail }: { label: string; value: string; detail?: string }) {
+  return (
+    <div>
+      <div className="flex items-center gap-3">
+        <span className="shrink-0 text-sm font-medium" style={{ color: 'var(--app-text-muted)' }}>
+          {label}
+        </span>
+        <span aria-hidden className="flex flex-1 min-w-6 items-center">
+          <span className="w-full" style={{ borderTop: '1px dashed var(--app-border)' }} />
+          <ArrowRight size={12} className="shrink-0" style={{ color: 'var(--app-text-muted)' }} />
+        </span>
+        <span className="min-w-0 text-right text-sm font-semibold" style={{ color: 'var(--app-text)' }}>
+          {value}
+        </span>
+      </div>
+      {detail && (
+        <div className="flex items-start gap-1.5 pl-3">
+          <CornerDownRight
+            size={12}
+            className="mt-0.5 shrink-0"
+            aria-hidden
+            style={{ color: 'var(--app-text-muted)' }}
+          />
+          <p className="text-sm italic" style={{ color: 'var(--app-text-muted)' }}>
+            {detail}
+          </p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Renders what a bulk edit would do to the selected transactions: a row per detail it sends, a note
+ * for anything it passes over, and a warning for anything the server would refuse
+ *
+ * The box eases between its own measured heights as a row appears, settles or leaves, rather than
+ * jumping in one frame, and the content-sized panel around it follows along. The panel itself is
+ * never animated, since the drop-downs inside it track their trigger while it is open and a moving
+ * panel would carry them out of place. Rows are keyed by their label and notes and warnings by
+ * their kind, so a count changing in place rewrites a line's text without replaying its entrance.
+ * Warnings sit under a rule below the rows and notes, since they are what holds Apply disabled
+ * rather than a description of what the edit does. A viewer who asks the system for reduced
+ * motion gets the same rows with the height tween, the fade and the layout shift all skipped.
+ *
+ * Only the note and warning lines announce themselves, on their own wrappers rather than one live
+ * region around the whole list, since a plain row's value changing on every keystroke in Note or
+ * Date is not something a screen reader needs read out
+ */
+export default function BulkEditSummary({ summary }: BulkEditSummaryProps) {
+  const { rows, notes, warnings } = summary
+  const isEmpty = rows.length === 0 && warnings.length === 0
+
+  // Reduced motion drops the tween entirely rather than merely shortening it, matching how the
+  // toolbar and fund flow lists gate their own height animations
+  const shouldReduceMotion = useReducedMotion()
+  const itemTransition = shouldReduceMotion ? { duration: 0 } : ITEM_TRANSITION
+
+  const contentRef = useRef<HTMLDivElement>(null)
+  // Null until the first measurement lands, which is what lets the box render unconstrained at
+  // mount, then the same pixels the unconstrained box already had, so nothing visibly moves
+  const [measuredHeight, setMeasuredHeight] = useState<number | null>(null)
+
+  // Tracks size changes React did not cause, such as text wrapping at a narrower viewport
+  useLayoutEffect(() => {
+    const node = contentRef.current
+    if (!node) return undefined
+
+    const observer = new ResizeObserver(() => setMeasuredHeight(node.getBoundingClientRect().height))
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [])
+
+  const items: SummaryListItem[] = useMemo(
+    () =>
+      isEmpty
+        ? [{
+            key: 'empty',
+            node: (
+              <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                You will see a preview of what changes once you make the selections above.
+              </p>
+            ),
+          }]
+        : [
+            ...rows.map((row) => ({
+              key: row.label,
+              node: <SummaryRow label={row.label} value={row.value} detail={row.detail} />,
+            })),
+
+            // Reaching this branch already means a row or a warning is standing, which is the same
+            // gate a note needs, so nothing further conditions it here
+            ...notes.map((note) => ({
+              key: note.key,
+              node: (
+                <div
+                  className="flex items-start gap-1.5 text-sm"
+                  style={{ color: 'var(--app-text-muted)' }}
+                  aria-live="polite"
+                >
+                  <Info size={15} strokeWidth={2.5} className="mt-0.5 shrink-0" aria-hidden />
+                  <span>{note.text}</span>
+                </div>
+              ),
+            })),
+
+            // Only the first warning carries the rule that sets the group apart from the rows and
+            // notes above it, since later ones sit directly under the one before. Every warning
+            // describeBulkEdit produces backs a blocker that holds Apply disabled, so all of them
+            // draw in the same negative colour as the icon beside them
+            ...warnings.map((warning, index) => ({
+              key: warning.key,
+              node: (
+                <div
+                  className="flex items-start gap-1.5 text-sm"
+                  style={{
+                    color: 'var(--app-negative)',
+                    ...(index === 0 ? { borderTop: '1px solid var(--app-border)', paddingTop: '0.75rem' } : {}),
+                  }}
+                  aria-live="polite"
+                >
+                  <TriangleAlert size={15} strokeWidth={2.5} className="mt-0.5 shrink-0" aria-hidden />
+                  <span>{warning.text}</span>
+                </div>
+              ),
+            })),
+          ],
+    [isEmpty, rows, notes, warnings],
+  )
+
+  // Re-measures whenever the rendered list changes, landing the new target before the browser
+  // paints the frame that changed the content, so the tween starts on the very next frame rather
+  // than one paint later
+  useLayoutEffect(() => {
+    const node = contentRef.current
+    if (!node) return
+    setMeasuredHeight(node.getBoundingClientRect().height)
+  }, [items])
+
+  return (
+    <motion.div
+      animate={{ height: measuredHeight ?? 'auto' }}
+      transition={itemTransition}
+      style={{ overflow: 'hidden' }}
+    >
+      <div ref={contentRef} className="relative flex flex-col gap-3">
+        <AnimatePresence initial={false} mode="popLayout">
+          {items.map((item) => (
+            <motion.div
+              key={item.key}
+              layout={!shouldReduceMotion}
+              initial={shouldReduceMotion ? false : { opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -4 }}
+              transition={itemTransition}
+            >
+              {item.node}
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
+    </motion.div>
+  )
+}
