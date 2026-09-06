@@ -1,5 +1,6 @@
 import type { ColumnMap, ImportFileDraft } from '@/pages/imports/types'
 import {
+  IMPORT_AMOUNT_FORMATS,
   type ImportAmountFormat,
   type ImportAmountReading,
   readImportAmount,
@@ -10,17 +11,6 @@ import {
   type ImportDateSeparator,
   readImportDate,
 } from './valueParsers'
-
-export const IMPORT_AMOUNT_FORMATS: readonly ImportAmountFormat[] = [
-  { decimalSeparator: '.', groupingSeparator: ',' },
-  { decimalSeparator: ',', groupingSeparator: '.' },
-  { decimalSeparator: '.', groupingSeparator: 'space' },
-  { decimalSeparator: ',', groupingSeparator: 'space' },
-  { decimalSeparator: '.', groupingSeparator: "'" },
-  { decimalSeparator: ',', groupingSeparator: "'" },
-  { decimalSeparator: '.', groupingSeparator: 'none' },
-  { decimalSeparator: ',', groupingSeparator: 'none' },
-]
 
 export interface ImportAmountFormatScan {
   readable: ImportAmountFormat[]

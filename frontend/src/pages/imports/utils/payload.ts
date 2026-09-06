@@ -27,6 +27,12 @@ import type {
 } from '@/pages/imports/types'
 import { isImportAccountType } from '@/pages/imports/accountTypeGuard'
 import type { Currency } from '@/api/currency'
+import {
+  DEFAULT_IMPORT_AMOUNT_FORMAT,
+  type ImportAmountFormat,
+  type ImportAmountReading,
+  readNormalizedImportAmount,
+} from './amountFormats'
 import { findReusedImportCategory, getCategoryMatchKind } from './categoryMatching'
 import { buildImportMerchantMappings } from './merchantMatching'
 import { getImportDirectionValues } from './columnMapping'
@@ -39,7 +45,7 @@ import {
   type ImportRowJudgement,
   resolveImportRow,
 } from './rowResolution'
-import { type ImportDateFormat, parseImportNumber } from './valueParsers'
+import { type ImportDateFormat, type ImportDateSeparator } from './valueParsers'
 
 /**
  * Builds the commit payload for the generic CSV import flow from the staged files and every mapping
@@ -64,6 +70,8 @@ export function buildTransactionImportPayload({
   columnValidationErrors,
   currencies,
   dateFormat,
+  dateSeparator = 'automatic',
+  amountFormat = DEFAULT_IMPORT_AMOUNT_FORMAT,
   directionAnswers,
   files,
   importedCategories,
@@ -83,6 +91,8 @@ export function buildTransactionImportPayload({
   columnValidationErrors: ColumnValidationErrors
   currencies: Currency[]
   dateFormat: ImportDateFormat | null
+  dateSeparator?: ImportDateSeparator
+  amountFormat?: ImportAmountFormat | null
 
   /** What each word in a mapped Direction column means, keyed by the folded value */
   directionAnswers: Record<string, ImportAmountDirection>
@@ -149,6 +159,9 @@ export function buildTransactionImportPayload({
   // Without a settled format every row would fail its own date check, which reads as a file full of
   // bad dates rather than one unanswered question
   if (columnMap.dt && !dateFormat) addError('Choose the date format this file is written in.')
+  if ((columnMap.amount || columnMap.amount_out || columnMap.amount_in) && !amountFormat) {
+    addError('Choose the amount format this file is written in.')
+  }
 
   const mappedHeaders = new Set(Object.values(columnMap).filter(Boolean))
   for (const [header, message] of Object.entries(columnValidationErrors)) {
@@ -261,6 +274,8 @@ export function buildTransactionImportPayload({
   const rowContext: ImportRowContext = {
     columnMap,
     dateFormat,
+    dateSeparator,
+    amountFormat,
     directionAnswers,
     currencyByAccountSource: getCurrencyByAccountSource(accountMappings, accountById, accountCreateCurrencies),
   }
@@ -288,7 +303,7 @@ export function buildTransactionImportPayload({
       // A row can be worth a second look for more than one reason, and each is listed on its own so
       // the table says every thing that is odd about it rather than only the first
       const categoryKind = kindByCategorySource[resolved.categorySource]
-      if (doesSignDisagreeWithCategoryKind(resolved.amount, categoryKind)) {
+      if (doesSignDisagreeWithCategoryKind(resolved.amountReading, categoryKind)) {
         rowWarnings.push({
           id: getImportRowId(file.id, rowIndex),
           rowNumber: rowIndex + 1,
@@ -347,12 +362,14 @@ function toPayloadRow(resolved: ReturnType<typeof resolveImportRow>): Transactio
  * A transfer has no direction rule anywhere in the app, and an amount of zero has no direction at
  * all, so neither is judged
  */
-function doesSignDisagreeWithCategoryKind(amount: string, kind: ImportCategoryKind | undefined) {
-  const value = parseImportNumber(amount)
-  if (value === null || value === 0) return false
+function doesSignDisagreeWithCategoryKind(
+  amount: ImportAmountReading | null,
+  kind: ImportCategoryKind | undefined,
+) {
+  if (!amount || amount.isZero) return false
 
-  if (kind === 'expense') return value > 0
-  if (kind === 'income') return value < 0
+  if (kind === 'expense') return amount.sign !== 'negative'
+  if (kind === 'income') return amount.sign === 'negative'
   return false
 }
 
@@ -403,7 +420,10 @@ function getImportWarnings(rows: TransactionImportPayload['rows'], columnMap: Co
   if (rows.length === 0) return []
   if (columnMap.amount_in && !columnMap.amount_out && !columnMap.amount) return []
 
-  const hasOutflow = rows.some((row) => (parseImportNumber(row.amount) ?? 0) < 0)
+  const hasOutflow = rows.some((row) => {
+    const amount = readNormalizedImportAmount(row.amount)
+    return amount !== null && !amount.isZero && amount.sign === 'negative'
+  })
   return hasOutflow ? [] : [NO_OUTFLOWS_WARNING]
 }
 

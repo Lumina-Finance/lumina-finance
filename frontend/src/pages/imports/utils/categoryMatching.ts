@@ -1,8 +1,8 @@
 import type { Category } from '@/api/categories'
 import { CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
 import type { ColumnMap, ImportAmountDirection, ImportCategoryKind, ImportFileDraft } from '@/pages/imports/types'
+import { DEFAULT_IMPORT_AMOUNT_FORMAT, type ImportAmountFormat } from './amountFormats'
 import { resolveImportAmount } from './columnMapping'
-import { parseImportNumber } from './valueParsers'
 
 /**
  * Breaks a cell holding several values into the individual ones, accepting semicolons, commas or
@@ -36,6 +36,7 @@ export function getImportedCategoryTypes(
   columnMap: ColumnMap,
   importedCategories: string[],
   directionAnswers: Record<string, ImportAmountDirection>,
+  amountFormat: ImportAmountFormat | null = DEFAULT_IMPORT_AMOUNT_FORMAT,
 ) {
   const signsByCategory = new Map<string, Set<'expense' | 'income'>>()
   const categoryHeader = columnMap.category_id
@@ -53,11 +54,11 @@ export function getImportedCategoryTypes(
       const category = row[categoryHeader]?.trim()
       if (!category) continue
 
-      const amount = parseImportNumber(resolveImportAmount(row, columnMap, directionAnswers).amount)
-      if (amount === null || amount === 0) continue
+      const amount = resolveImportAmount(row, columnMap, directionAnswers, amountFormat).amountReading
+      if (!amount || amount.isZero) continue
 
       const signs = signsByCategory.get(category) ?? new Set<'expense' | 'income'>()
-      signs.add(amount < 0 ? 'expense' : 'income')
+      signs.add(amount.sign === 'negative' ? 'expense' : 'income')
       signsByCategory.set(category, signs)
     }
   }

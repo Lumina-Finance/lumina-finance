@@ -243,8 +243,10 @@ export function isValidDateValue(value: string) {
 }
 
 /**
- * Reports whether a cell holds an amount the import can read, which is exactly what the number
- * parser accepts, so a value carrying a currency symbol counts as invalid
+ * Reports whether a cell strictly resembles an amount before a column has been mapped
+ *
+ * Header and value-only inference use this narrower rule so arbitrary surrounding text does not
+ * turn an account name or reference into an amount. Mapped columns use the selected amount reader
  */
 export function isValidAmountValue(value: string) {
   return parseImportNumber(value) !== null
@@ -253,9 +255,8 @@ export function isValidAmountValue(value: string) {
 /**
  * Reads an amount from an imported cell as a plain number, or null when the cell is not one
  *
- * This answers whether a cell is an amount at all, and its sign, which is all the callers that
- * classify a column or guess a category kind need. Converting an amount for storage is
- * toImportMinorUnits above, which is exact where this is not
+ * This legacy reader supports strict recognition and callers that still use the original
+ * period-decimal convention. Selected import formats use the exact amount reader instead
  */
 export function parseImportNumber(value: string) {
   const normalized = value.trim()
@@ -276,8 +277,7 @@ export function parseImportNumber(value: string) {
  * The sign is replaced rather than added in front, because prefixing a minus onto a cell that
  * already carries one gives `--12.00`, and onto a cell written `+5.00` gives `-+5.00`, neither of
  * which this module's pattern nor the backend's matching one reads. Everything after the sign is
- * left exactly as the file wrote it, thousands separators included, since the commit sends the
- * string for the API to parse with exact decimals
+ * left exactly as the file wrote it, thousands separators included
  *
  * A zero is written without a sign, because it moves neither way
  *

@@ -18,6 +18,7 @@ import {
 } from '@/pages/imports/constants'
 import type { ColumnMap, CsvRow, ImportAmountDirection, ImportFileDraft } from '@/pages/imports/types'
 import { buildTransactionImportPayload } from '@/pages/imports/utils'
+import type { ImportAmountFormat } from '@/pages/imports/utils/amountFormats'
 
 const CURRENCIES: Currency[] = [
   { id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 },
@@ -46,6 +47,7 @@ const DIRECTION_MAP: ColumnMap = {
 
 // What a file writing DEBIT and CREDIT settles on, which is also what the app fills in by itself
 const DEBIT_CREDIT_ANSWERS: Record<string, ImportAmountDirection> = { debit: 'out', credit: 'in' }
+const DECIMAL_COMMA: ImportAmountFormat = { decimalSeparator: ',', groupingSeparator: '.' }
 
 /**
  * Builds a commit payload from the amount and direction cells given, one row per pair
@@ -59,6 +61,7 @@ function build(
   directionAnswers: Record<string, ImportAmountDirection> = DEBIT_CREDIT_ANSWERS,
   columnMap: ColumnMap = DIRECTION_MAP,
   columnValidationErrors: Record<string, string> = {},
+  amountFormat?: ImportAmountFormat | null,
 ) {
   const csvRows: CsvRow[] = rows.map(([amount, type], index) => ({
     Date: `2026-04-${String(index + 1).padStart(2, '0')}`,
@@ -92,6 +95,7 @@ function build(
     columnValidationErrors,
     currencies: CURRENCIES,
     dateFormat: 'yearFirst',
+    amountFormat,
     directionAnswers,
     files: [file],
     importedCategories: ['Groceries'],
@@ -112,6 +116,16 @@ describe('reading a row from the word its direction column carries', () => {
     expect(committedAmounts(build([['84.20', 'DEBIT'], ['1200.00', 'CREDIT']]))).toEqual(['-84.20', '1200.00'])
   })
 
+  it('normalizes surrounding currency text before applying the direction', () => {
+    expect(committedAmounts(build(
+      [['CHF100,99', 'DEBIT']],
+      DEBIT_CREDIT_ANSWERS,
+      DIRECTION_MAP,
+      {},
+      DECIMAL_COMMA,
+    ))).toEqual(['-100.99'])
+  })
+
   it('reads a word however the file capitalises it', () => {
     expect(committedAmounts(build([['84.20', 'Debit'], ['12.00', ' debit ']]))).toEqual(['-84.20', '-12.00'])
   })
@@ -122,8 +136,8 @@ describe('reading a row from the word its direction column carries', () => {
     expect(committedAmounts(build([['-84.20', 'DEBIT'], ['+1200.00', 'CREDIT']]))).toEqual(['-84.20', '1200.00'])
   })
 
-  it('leaves thousands separators as the file wrote them', () => {
-    expect(committedAmounts(build([['1,234.56', 'DEBIT']]))).toEqual(['-1,234.56'])
+  it('removes thousands separators from the normalized amount', () => {
+    expect(committedAmounts(build([['1,234.56', 'DEBIT']]))).toEqual(['-1234.56'])
   })
 
   // A zero moves neither way, so it is committed without a sign rather than as -0.00
@@ -152,6 +166,18 @@ describe('rows this arrangement refuses', () => {
       ROW_DIRECTION_SIGN_DISAGREES_REASON,
       ROW_DIRECTION_SIGN_DISAGREES_REASON,
     ])
+  })
+
+  it('refuses a normalized sign that contradicts its direction', () => {
+    const result = build(
+      [['-CHF100,99', 'CREDIT']],
+      DEBIT_CREDIT_ANSWERS,
+      DIRECTION_MAP,
+      {},
+      DECIMAL_COMMA,
+    )
+
+    expect(result.rowProblems[0]?.reason).toBe(ROW_DIRECTION_SIGN_DISAGREES_REASON)
   })
 
   // A zero carries no direction to contradict, so a file padding its rows with -0.00 is not refused

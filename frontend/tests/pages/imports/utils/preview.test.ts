@@ -217,6 +217,43 @@ describe('import preview rows', () => {
     expect(rows[0].transaction.amount).toBe(-8420)
   })
 
+  it('previews the same normalized amount that the payload receives', () => {
+    const category = createCategory()
+    const account = createAccount()
+    const rows = buildImportPreviewRows({
+      files: [createFile([{
+        Date: '31.08.2026',
+        Amount: '-CHF100,99',
+        Category: 'Groceries',
+        Merchant: '',
+        Notes: '',
+        Tags: '',
+        Currency: '',
+      }])],
+      columnMap: { ...EMPTY_COLUMN_MAP, dt: 'Date', amount: 'Amount', category_id: 'Category' },
+      dateFormat: 'dayFirst',
+      dateSeparator: '.',
+      amountFormat: { decimalSeparator: ',', groupingSeparator: '.' },
+      directionAnswers: {},
+      missingRequiredColumnLabels: [],
+      currencies,
+      accountById: new Map([[account.id, account]]),
+      accountCreateCurrencies: {},
+      accountCreateInstitutions: {},
+      categoryById: new Map([[category.id, category]]),
+      categoryCreateKinds: {},
+      categoryTypesBySource: {},
+      institutionById: new Map(),
+      resolvedAccountMappings: { 'file-1': account.id },
+      resolvedCategoryMappings: { Groceries: category.id },
+      rowProblems: [],
+    })
+
+    expect(rows).toHaveLength(1)
+    expect(rows[0].transaction.dt).toBe('2026-08-31')
+    expect(rows[0].transaction.amount).toBe(-10099)
+  })
+
   it('caps preview rows to the first five mapped transactions', () => {
     const category = createCategory()
     const file = createFile(Array.from({ length: 6 }, (_, index) => ({

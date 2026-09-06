@@ -1,3 +1,5 @@
+import type { ImportAmountDirection } from '@/pages/imports/types'
+
 // The separators available for the fractional part of an imported amount
 export const IMPORT_AMOUNT_DECIMAL_SEPARATORS = ['.', ','] as const
 
@@ -18,6 +20,27 @@ export interface ImportAmountReading {
   sign: ImportAmountSign
   isZero: boolean
 }
+
+export const DEFAULT_IMPORT_AMOUNT_FORMAT: ImportAmountFormat = {
+  decimalSeparator: '.',
+  groupingSeparator: ',',
+}
+
+export const NORMALIZED_IMPORT_AMOUNT_FORMAT: ImportAmountFormat = {
+  decimalSeparator: '.',
+  groupingSeparator: 'none',
+}
+
+export const IMPORT_AMOUNT_FORMATS: readonly ImportAmountFormat[] = [
+  DEFAULT_IMPORT_AMOUNT_FORMAT,
+  { decimalSeparator: ',', groupingSeparator: '.' },
+  { decimalSeparator: '.', groupingSeparator: 'space' },
+  { decimalSeparator: ',', groupingSeparator: 'space' },
+  { decimalSeparator: '.', groupingSeparator: "'" },
+  { decimalSeparator: ',', groupingSeparator: "'" },
+  NORMALIZED_IMPORT_AMOUNT_FORMAT,
+  { decimalSeparator: ',', groupingSeparator: 'none' },
+]
 
 const SPACE_GROUPING_PATTERN = /[ \u00a0\u202f]/
 const ALL_SPACE_GROUPING_PATTERN = /[ \u00a0\u202f]/g
@@ -72,6 +95,35 @@ export function readImportAmount(rawValue: string, format: ImportAmountFormat): 
     sign,
     isZero: !/[1-9]/.test(`${wholeDigits}${fraction ?? ''}`),
   }
+}
+
+/** Reports whether a cell can be read under at least one supported amount format */
+export function isValidMappedImportAmount(value: string) {
+  return IMPORT_AMOUNT_FORMATS.some((format) => readImportAmount(value, format) !== null)
+}
+
+/** Reads decimal text that has already been normalized for the backend */
+export function readNormalizedImportAmount(value: string) {
+  return readImportAmount(value, NORMALIZED_IMPORT_AMOUNT_FORMAT)
+}
+
+/** Applies a separate direction to a normalized reading without converting its decimal digits */
+export function applyImportAmountReadingDirection(
+  reading: ImportAmountReading,
+  direction: ImportAmountDirection,
+) {
+  const unsigned = reading.normalized.replace(/^[-+]/, '')
+  if (reading.isZero || direction === 'in') return unsigned
+  return `-${unsigned}`
+}
+
+/** Reports whether an explicit nonzero sign contradicts a direction supplied outside the amount */
+export function doesImportAmountReadingSignDisagreeWithDirection(
+  reading: ImportAmountReading,
+  direction: ImportAmountDirection,
+) {
+  if (reading.isZero) return false
+  return direction === 'out' ? reading.sign === 'positive' : reading.sign === 'negative'
 }
 
 /** Finds the final Latin digit without converting the amount to a JavaScript number */

@@ -16,6 +16,7 @@ import {
   ROW_AMOUNT_UNREADABLE_REASON,
 } from '@/pages/imports/constants'
 import type { ColumnMap, ImportFileDraft } from '@/pages/imports/types'
+import type { ImportAmountFormat } from '@/pages/imports/utils/amountFormats'
 import { buildImportPreviewRows, buildTransactionImportPayload, validateColumnValues } from '@/pages/imports/utils'
 import { toImportMinorUnits } from '@/pages/imports/utils/valueParsers'
 
@@ -34,6 +35,8 @@ const SUPPORTED_CURRENCY_CODES = new Set(CURRENCIES.map((currency) => currency.i
 // The largest and smallest amounts a two-decimal currency can hold, as the text a file would carry
 const LARGEST_STORABLE = '92233720368547758.07'
 const SMALLEST_STORABLE = '-92233720368547758.08'
+const DECIMAL_COMMA: ImportAmountFormat = { decimalSeparator: ',', groupingSeparator: '.' }
+const DECIMAL_COMMA_WITHOUT_GROUPING: ImportAmountFormat = { decimalSeparator: ',', groupingSeparator: 'none' }
 
 const COLUMN_MAP: ColumnMap = {
   ...EMPTY_COLUMN_MAP,
@@ -97,7 +100,12 @@ function createFile(amount: string, importedCurrency = ''): ImportFileDraft {
  * Builds the commit payload for one row of the given amount, written to an account of the given
  * currency, with every other mapping already settled
  */
-function buildPayload(amount: string, accountCurrency: string, importedCurrency = '') {
+function buildPayload(
+  amount: string,
+  accountCurrency: string,
+  importedCurrency = '',
+  amountFormat?: ImportAmountFormat | null,
+) {
   return buildTransactionImportPayload({
     accountById: new Map([['account-1', createAccount(accountCurrency)]]),
     accountCreateCurrencies: {},
@@ -113,6 +121,7 @@ function buildPayload(amount: string, accountCurrency: string, importedCurrency 
     columnValidationErrors: {},
     currencies: CURRENCIES,
     dateFormat: 'yearFirst',
+    amountFormat,
     directionAnswers: {},
     files: [createFile(amount, importedCurrency)],
     importedCategories: ['Groceries'],
@@ -123,7 +132,12 @@ function buildPayload(amount: string, accountCurrency: string, importedCurrency 
  * Builds the commit payload for one row whose account is queued for creation in the given currency,
  * which is where the row's decimal places come from when no account exists yet
  */
-function buildCreateAccountPayload(amount: string, createCurrency: string, importedCurrency = '') {
+function buildCreateAccountPayload(
+  amount: string,
+  createCurrency: string,
+  importedCurrency = '',
+  amountFormat?: ImportAmountFormat | null,
+) {
   return buildTransactionImportPayload({
     accountById: new Map(),
     accountCreateCurrencies: { 'file-1': createCurrency },
@@ -139,6 +153,7 @@ function buildCreateAccountPayload(amount: string, createCurrency: string, impor
     columnValidationErrors: {},
     currencies: CURRENCIES,
     dateFormat: 'yearFirst',
+    amountFormat,
     directionAnswers: {},
     files: [createFile(amount, importedCurrency)],
     importedCategories: ['Groceries'],
@@ -148,11 +163,17 @@ function buildCreateAccountPayload(amount: string, createCurrency: string, impor
 /**
  * Builds preview rows for one row of the given amount against an account of the given currency
  */
-function buildPreview(amount: string, accountCurrency: string, importedCurrency = '') {
+function buildPreview(
+  amount: string,
+  accountCurrency: string,
+  importedCurrency = '',
+  amountFormat?: ImportAmountFormat | null,
+) {
   return buildImportPreviewRows({
     files: [createFile(amount, importedCurrency)],
     columnMap: COLUMN_MAP,
     dateFormat: 'yearFirst',
+    amountFormat,
     directionAnswers: {},
     missingRequiredColumnLabels: [],
     currencies: CURRENCIES,
@@ -224,11 +245,11 @@ describe('refusing a row whose amount its currency cannot hold', () => {
     expect(firstProblem(build)).toBe(getRowAmountTooPreciseReason('CAD'))
   })
 
-  it('says how a period is read, so a thousands separator is not called extra decimals', () => {
+  it('says how the selected separators are read', () => {
     const build = buildPayload('1.234', 'CAD')
 
     expect(firstProblem(build)).toContain('more decimal places than CAD has')
-    expect(firstProblem(build)).toContain('never as a separator between thousands')
+    expect(firstProblem(build)).toContain('selected format uses a period for decimals and commas between thousands')
   })
 
   it('accepts the same value where the currency really has three decimal places', () => {
@@ -250,8 +271,50 @@ describe('refusing a row whose amount its currency cannot hold', () => {
     expect(buildPayload(SMALLEST_STORABLE, 'CAD').rowProblems).toHaveLength(0)
   })
 
+  it('normalizes surrounding currency text and decimal commas before judging precision', () => {
+    expect(buildPayload('CHF100,99', 'CAD', '', DECIMAL_COMMA).payload?.rows[0].amount).toBe('100.99')
+    expect(buildPayload('-CHF100,99', 'CAD', '', DECIMAL_COMMA).payload?.rows[0].amount).toBe('-100.99')
+    expect(buildPayload('12,3400', 'CAD', '', DECIMAL_COMMA_WITHOUT_GROUPING).payload?.rows[0].amount)
+      .toBe('12.3400')
+    expect(firstProblem(buildPayload('12,345', 'CAD', '', DECIMAL_COMMA_WITHOUT_GROUPING)))
+      .toBe(getRowAmountTooPreciseReason('CAD', DECIMAL_COMMA_WITHOUT_GROUPING))
+  })
+
+  it('refuses a row written in a different format from the selected one', () => {
+    const result = buildPayload('1.234,56', 'CAD', '', {
+      decimalSeparator: '.',
+      groupingSeparator: ',',
+    })
+
+    expect(firstProblem(result)).toBe(ROW_AMOUNT_UNREADABLE_REASON)
+    expect(result.payload).toBeNull()
+  })
+
+  it('judges decimal commas against zero-decimal and three-decimal currencies', () => {
+    expect(firstProblem(buildPayload('12,34', 'JPY', '', DECIMAL_COMMA_WITHOUT_GROUPING)))
+      .toBe(getRowAmountTooPreciseReason('JPY', DECIMAL_COMMA_WITHOUT_GROUPING))
+    expect(buildPayload('1,234', 'BHD', '', DECIMAL_COMMA_WITHOUT_GROUPING).payload?.rows[0].amount)
+      .toBe('1.234')
+  })
+
+  it('normalizes both signed storage limits from period grouping and refuses one cent more', () => {
+    expect(buildPayload('92.233.720.368.547.758,07', 'CAD', '', DECIMAL_COMMA).payload?.rows[0].amount)
+      .toBe(LARGEST_STORABLE)
+    expect(buildPayload('-92.233.720.368.547.758,08', 'CAD', '', DECIMAL_COMMA).payload?.rows[0].amount)
+      .toBe(SMALLEST_STORABLE)
+    expect(firstProblem(buildPayload('92.233.720.368.547.758,08', 'CAD', '', DECIMAL_COMMA)))
+      .toBe(ROW_AMOUNT_TOO_LARGE_REASON)
+  })
+
+  it('refuses notation whose sign or internal text would be lost', () => {
+    for (const amount of ['--100,99', '100,99-', '(100,99)', '12abc34', '1e3', '€']) {
+      expect(firstProblem(buildPayload(amount, 'CAD', '', DECIMAL_COMMA))).toBe(ROW_AMOUNT_UNREADABLE_REASON)
+      expect(buildPayload(amount, 'CAD', '', DECIMAL_COMMA).payload).toBeNull()
+    }
+  })
+
   it('still calls a cell that is not a number unreadable rather than over-precise', () => {
-    expect(firstProblem(buildPayload('$12.34', 'CAD'))).toBe(ROW_AMOUNT_UNREADABLE_REASON)
+    expect(firstProblem(buildPayload('12abc34', 'CAD'))).toBe(ROW_AMOUNT_UNREADABLE_REASON)
   })
 
   it('judges the amount against the account currency, whatever the row states', () => {
@@ -324,6 +387,12 @@ describe('checking a row against the currency its account is kept in', () => {
     expect(result.rowProblems).toHaveLength(1)
     expect(result.rowProblems[0].rowNumber).toBe(1)
     expect(result.rowProblems[0].reason).toBe(getRowCurrencyMismatchReason('USD', 'CAD'))
+  })
+
+  it('discards currency text in Amount without changing a separately mapped currency', () => {
+    const result = buildPayload('CHF100,99', 'CAD', 'EUR', DECIMAL_COMMA)
+
+    expect(firstProblem(result)).toBe(getRowCurrencyMismatchReason('EUR', 'CAD'))
   })
 
   it('imports a row stating the currency its account is kept in', () => {

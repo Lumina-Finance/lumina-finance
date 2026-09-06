@@ -30,7 +30,17 @@ import { findCurrencyExponent } from '@/utils/moneyInput'
 import { splitImportedValues } from './categoryMatching'
 import { getMappedValue, resolveImportAmount } from './columnMapping'
 import { unique } from './common'
-import { type ImportDateFormat, parseImportNumber, readImportDate, toImportMinorUnits } from './valueParsers'
+import {
+  DEFAULT_IMPORT_AMOUNT_FORMAT,
+  type ImportAmountFormat,
+  type ImportAmountReading,
+} from './amountFormats'
+import {
+  type ImportDateFormat,
+  type ImportDateSeparator,
+  readImportDate,
+  toImportMinorUnits,
+} from './valueParsers'
 
 // What each way of breaking an amount arrangement's rules is reported as, kept beside the reading
 // rather than inside it so resolving a row states facts and judging it puts the words to them
@@ -59,6 +69,12 @@ export interface ResolvedImportRow {
   dt: string
   amount: string
 
+  /** The exact sign and zero classification of the normalized amount */
+  amountReading: ImportAmountReading | null
+
+  /** The separators used to normalize the source cell */
+  amountFormat: ImportAmountFormat | null
+
   /** Why `amount` is empty, where the file states its direction outside the amount and the row breaks the rule */
   amountProblem: ImportAmountProblem | null
   merchantName: string | null
@@ -86,6 +102,8 @@ export interface ResolvedImportRow {
 export interface ImportRowContext {
   columnMap: ColumnMap
   dateFormat: ImportDateFormat | null
+  dateSeparator?: ImportDateSeparator
+  amountFormat?: ImportAmountFormat | null
 
   /**
    * What each word in a mapped Direction column means, keyed by the folded value
@@ -123,16 +141,24 @@ export interface ImportRowJudgement {
  */
 export function resolveImportRow(row: CsvRow, fileId: string, context: ImportRowContext): ResolvedImportRow {
   const { columnMap, dateFormat } = context
+  const amountFormat = context.amountFormat === undefined ? DEFAULT_IMPORT_AMOUNT_FORMAT : context.amountFormat
 
   const accountSource = columnMap.account_id ? getMappedValue(row, columnMap.account_id) : fileId
   const importedDate = getMappedValue(row, columnMap.dt)
-  const { amount, amountProblem } = resolveImportAmount(row, columnMap, context.directionAnswers)
+  const { amount, amountReading, amountProblem } = resolveImportAmount(
+    row,
+    columnMap,
+    context.directionAnswers,
+    amountFormat,
+  )
   return {
     accountSource,
     categorySource: getMappedValue(row, columnMap.category_id),
     importedDate,
-    dt: dateFormat ? readImportDate(importedDate, dateFormat) : '',
+    dt: dateFormat ? readImportDate(importedDate, dateFormat, context.dateSeparator) : '',
     amount,
+    amountReading,
+    amountFormat,
     amountProblem,
     merchantName: cleanOptional(getMappedValue(row, columnMap.merchant_id)),
     notes: cleanOptional(getMappedValue(row, columnMap.notes)),
@@ -166,7 +192,7 @@ export function getImportRowProblem(row: ResolvedImportRow, judgement: ImportRow
   // and would otherwise be sent to fill in a cell that is not the problem
   if (row.amountProblem) return AMOUNT_PROBLEM_REASONS[row.amountProblem]
   if (!row.amount) return ROW_AMOUNT_BLANK_REASON
-  if (parseImportNumber(row.amount) === null) return ROW_AMOUNT_UNREADABLE_REASON
+  if (row.amountReading === null) return ROW_AMOUNT_UNREADABLE_REASON
 
   // Asked before the amount is judged, because the decimal places an amount is held to are the
   // account currency's, and a row stating another currency is one whose amount means something else
@@ -174,7 +200,7 @@ export function getImportRowProblem(row: ResolvedImportRow, judgement: ImportRow
     return getRowCurrencyMismatchReason(row.importedCurrency, row.currency)
   }
 
-  const storageProblem = getImportRowAmountProblem(row.amount, row.currency, judgement.currencies)
+  const storageProblem = getImportRowAmountProblem(row.amount, row.currency, judgement.currencies, row.amountFormat)
   if (storageProblem) return storageProblem
 
   // Asked here so a row the API would refuse is named against its row number before the upload
@@ -226,7 +252,12 @@ export function getCurrencyByAccountSource(
  * A row whose account source has not resolved to a currency is left alone, since there are no
  * decimal places to judge it against
  */
-function getImportRowAmountProblem(amount: string, currency: string, currencies: Currency[]) {
+function getImportRowAmountProblem(
+  amount: string,
+  currency: string,
+  currencies: Currency[],
+  amountFormat: ImportAmountFormat | null,
+) {
   if (!currency) return null
 
   const exponent = findCurrencyExponent(currencies, currency)
@@ -234,7 +265,7 @@ function getImportRowAmountProblem(amount: string, currency: string, currencies:
 
   const minorUnits = toImportMinorUnits(amount, exponent)
   if (typeof minorUnits === 'bigint') return null
-  if (minorUnits === 'tooPrecise') return getRowAmountTooPreciseReason(currency)
+  if (minorUnits === 'tooPrecise') return getRowAmountTooPreciseReason(currency, amountFormat)
 
   // An unreadable cell was already refused above, so the only reading left is a magnitude the
   // storage cannot take

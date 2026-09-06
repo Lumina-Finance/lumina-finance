@@ -198,6 +198,22 @@ describe('keeping what the reader already handled', () => {
     expect(draft.error).toBeNull()
     expect(draft.headers).toEqual(['Date', 'Merchant', 'Amount'])
   })
+
+  it('keeps a quoted semicolon inside an ordinary comma-separated file', async () => {
+    const draft = await stage('Date,Notes,Amount\n2026-01-01,"first; second",-5.00\n')
+
+    expect(draft.error).toBeNull()
+    expect(draft.headers).toEqual(['Date', 'Notes', 'Amount'])
+    expect(draft.rows[0].Notes).toBe('first; second')
+  })
+
+  it('keeps an unquoted pipe inside an ordinary comma-separated file', async () => {
+    const draft = await stage('Date,Notes,Amount\n2026-01-01,first|second,-5.00\n')
+
+    expect(draft.error).toBeNull()
+    expect(draft.headers).toEqual(['Date', 'Notes', 'Amount'])
+    expect(draft.rows[0].Notes).toBe('first|second')
+  })
 })
 
 describe('surfacing a failure the reader itself could not recover from', () => {
@@ -264,6 +280,18 @@ describe('carrying header detection onto a file actually read', () => {
     expect(draft.hasHeaderRow).toBe(false)
     expect(draft.headers).toEqual(['Column 1', 'Column 2'])
   })
+
+  it.each([';', '\t', '|'])(
+    'keeps the first transaction in a headerless localized file using %j',
+    async (delimiter) => {
+      const draft = await stage(`31.08.2026${delimiter}CHF100,99\n01.09.2026${delimiter}CHF200,00\n`)
+
+      expect(draft.error).toBeNull()
+      expect(draft.hasHeaderRow).toBe(false)
+      expect(draft.rows).toHaveLength(2)
+      expect(draft.rows[0]).toEqual({ 'Column 1': '31.08.2026', 'Column 2': 'CHF100,99' })
+    },
+  )
 })
 
 describe('creating a fresh id for each read', () => {

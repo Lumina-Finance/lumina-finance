@@ -72,4 +72,31 @@ describe('detecting a header row', () => {
     expect(parsed.hasHeaderRow).toBe(false)
     expect(parsed.headers).toEqual(['Column 1', 'Column 2', 'Column 3'])
   })
+
+  it('keeps a period date and localized amount in the first headerless row', () => {
+    const parsed = buildParsedCsv([
+      ['31.08.2026', 'CHF100,99'],
+      ['01.09.2026', 'CHF200,00'],
+    ], SUPPORTED_CURRENCY_CODES)
+
+    expect(parsed.hasHeaderRow).toBe(false)
+    expect(parsed.rows[0]).toEqual({ 'Column 1': '31.08.2026', 'Column 2': 'CHF100,99' })
+  })
+
+  it('keeps names containing numbers as data rather than amount headings', () => {
+    const parsed = buildParsedCsv([
+      ['Savings 2.0', 'CAD'],
+      ['Chequing 3.0', 'CAD'],
+    ], SUPPORTED_CURRENCY_CODES)
+
+    expect(parsed.hasHeaderRow).toBe(false)
+    expect(parsed.rows[0]['Column 1']).toBe('Savings 2.0')
+  })
+
+  it('still reads aliases with numerical suffixes as headings', () => {
+    const parsed = stage('Date,Reference1,Amount2\n2026-04-11,INV-1,-12.34')
+
+    expect(parsed.hasHeaderRow).toBe(true)
+    expect(parsed.headers).toEqual(['Date', 'Reference1', 'Amount2'])
+  })
 })

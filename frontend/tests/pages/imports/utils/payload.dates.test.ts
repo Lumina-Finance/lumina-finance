@@ -12,7 +12,7 @@ import {
 } from '@/pages/imports/constants'
 import type { ColumnMap, ImportFileDraft } from '@/pages/imports/types'
 import { buildTransactionImportPayload } from '@/pages/imports/utils'
-import type { ImportDateFormat } from '@/pages/imports/utils/valueParsers'
+import type { ImportDateFormat, ImportDateSeparator } from '@/pages/imports/utils/valueParsers'
 
 // The account these rows are written to has no currency of its own in this file's fixtures, so the
 // list only has to hold whatever the amount checks would read
@@ -56,7 +56,12 @@ function createFile(dates: string[]): ImportFileDraft {
 /**
  * Builds a payload for one file, with every mapping other than the date format already settled
  */
-function build(dates: string[], dateFormat: ImportDateFormat | null, columnValidationErrors: Record<string, string> = {}) {
+function build(
+  dates: string[],
+  dateFormat: ImportDateFormat | null,
+  columnValidationErrors: Record<string, string> = {},
+  dateSeparator: ImportDateSeparator = 'automatic',
+) {
   return buildTransactionImportPayload({
     accountById: new Map(),
     accountCreateCurrencies: {},
@@ -72,6 +77,7 @@ function build(dates: string[], dateFormat: ImportDateFormat | null, columnValid
     columnMap: COLUMN_MAP,
     columnValidationErrors,
     dateFormat,
+    dateSeparator,
     directionAnswers: {},
     files: [createFile(dates)],
     importedCategories: ['Groceries'],
@@ -86,6 +92,21 @@ describe('import payload dates', () => {
   it('reads the same value as a different day under the other order', () => {
     expect(build(['03/04/2024'], 'dayFirst').payload?.rows[0].dt).toBe('2024-04-03')
     expect(build(['03/04/2024'], 'monthFirst').payload?.rows[0].dt).toBe('2024-03-04')
+  })
+
+  it('sends period-separated and colon-separated days', () => {
+    expect(build(['31.08.2026'], 'dayFirst', {}, '.').payload?.rows[0].dt).toBe('2026-08-31')
+    expect(build(['31:08:2026'], 'dayFirst', {}, ':').payload?.rows[0].dt).toBe('2026-08-31')
+  })
+
+  it('uses the selected order for an ambiguous period-separated day', () => {
+    expect(build(['03.04.2026'], 'dayFirst', {}, '.').payload?.rows[0].dt).toBe('2026-04-03')
+    expect(build(['03.04.2026'], 'monthFirst', {}, '.').payload?.rows[0].dt).toBe('2026-03-04')
+  })
+
+  it('refuses a supported separator that does not match the selection', () => {
+    expect(build(['31/08/2026'], 'dayFirst', {}, '.').rowProblems[0]?.reason)
+      .toBe(ROW_DATE_UNREADABLE_REASON)
   })
 
   it('refuses to build until a date format is chosen, saying so rather than blaming the rows', () => {

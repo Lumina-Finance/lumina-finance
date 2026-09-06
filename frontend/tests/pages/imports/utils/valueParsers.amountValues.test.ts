@@ -9,7 +9,7 @@ describe('reading a cell as a raw signed amount', () => {
   // These separate an amount column from a formatted one, and loosening the rule imports a
   // different number than the file states
   it('refuses a formatted number', () => {
-    for (const value of ['$5.00', '(5.00)', '1 234', '1.234,56', '1,23']) {
+    for (const value of ['$5.00', 'CHF100,99', '(5.00)', '1 234', '1.234,56', '1,23', '12abc34']) {
       expect(isValidAmountValue(value)).toBe(false)
     }
   })
