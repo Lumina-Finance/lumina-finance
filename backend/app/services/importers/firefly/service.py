@@ -18,7 +18,7 @@ from app.schemas.firefly_import import (
     FireflyTransactionImportResponse,
     FireflyTransactionRow,
 )
-from app.services.accounts.snapshots import recompute_snapshots_from
+from app.services.accounts.snapshots import recompute_account_snapshots
 from app.services.cache_state import mark_cache_changed_for_scope, mark_user_cache_changed
 from app.services.categories.transfer_rules import does_category_record_counterparty_account
 from app.services.importers.firefly.constants import FIREFLY_GENERIC_SKIP_REASON
@@ -116,9 +116,8 @@ async def import_firefly_transactions(
 
     await db.flush()
 
-    # Recompute each account from its earliest imported date to keep later balances aligned
-    for account_id, first_import_date in first_import_date_by_account_id.items():
-        await recompute_snapshots_from(db, account_id, first_import_date)
+    # Recompute every affected account together so concurrent writers use one lock order
+    await recompute_account_snapshots(db, first_import_date_by_account_id)
     await _mark_caches_changed_for_imported_accounts(
         db,
         user.id,

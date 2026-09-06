@@ -12,7 +12,7 @@ from app.models.category import Category
 from app.models.merchant import Merchant
 from app.models.transaction import Transaction
 from app.models.user import User
-from app.services.accounts.snapshots import get_current_balances, recompute_snapshots_from
+from app.services.accounts.snapshots import get_current_balances, recompute_account_snapshots
 from app.services.merchants.defaults import SELF_MERCHANT_NAME
 
 _BALANCE_ADJUSTMENT_CATEGORY_NAME = "Balance Adjustment"
@@ -52,7 +52,7 @@ async def add_account_starting_balance_adjustment(
         notes=_STARTING_BALANCE_NOTE,
     ))
     await db.flush()
-    await recompute_snapshots_from(db, account.id, adjustment_date)
+    await recompute_account_snapshots(db, {account.id: adjustment_date})
 
 
 async def zero_account_balance_for_archive(
@@ -88,7 +88,7 @@ async def zero_account_balance_for_archive(
         notes=_ARCHIVE_BALANCE_ADJUSTMENT_NOTE,
     ))
     await db.flush()
-    await recompute_snapshots_from(db, account.id, archive_date)
+    await recompute_account_snapshots(db, {account.id: archive_date})
 
 
 async def _get_self_merchant_id(db: AsyncSession) -> uuid.UUID:

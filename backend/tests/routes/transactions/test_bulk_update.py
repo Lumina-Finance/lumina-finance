@@ -3,13 +3,19 @@ import uuid
 from datetime import date
 
 import pytest
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 
 from app.models.account import AccountBalanceSnapshot
 from app.models.base import TransferCounterpartyScope
 from app.models.tag import TransactionTag
 from app.models.transaction import Transaction
+from app.services.accounts import snapshots as account_snapshots_module
+from app.services.importers.firefly import service as firefly_import_module
+from app.services.importers.generic import service as generic_import_module
 from app.services.transactions import bulk_update as bulk_update_module
+from app.services.transactions import creation as creation_module
+from app.services.transactions import deletion as deletion_module
+from app.services.transactions import snapshots as transaction_snapshots_module
 from tests.conftest import TestSession
 from tests.routes.support import _create_user, _get_auth_header
 from tests.routes.transactions._helpers import (
@@ -19,6 +25,7 @@ from tests.routes.transactions._helpers import (
     _create_tag,
     _create_transaction,
     _get_system_category_id,
+    _import_transactions,
     _seed_usd_currency,
     _setup_user_with_deps,
 )
@@ -58,6 +65,83 @@ async def _read_snapshots(account_id):
             .order_by(AccountBalanceSnapshot.dt),
         )
         return list(rows.all())
+
+
+async def _read_transaction_total(account_id):
+    """Return the persisted transaction total for an account."""
+    async with TestSession() as session:
+        return await session.scalar(
+            select(func.coalesce(func.sum(Transaction.amount), 0)).where(
+                Transaction.account_id == uuid.UUID(account_id),
+            ),
+        )
+
+
+async def _wait_until_blocked(blocker_pid, blocked_pid):
+    """Wait until PostgreSQL reports one backend blocked by another."""
+    async with asyncio.timeout(5):
+        async with TestSession() as observer:
+            while blocker_pid not in await observer.scalar(
+                text("SELECT pg_blocking_pids(:pid)"),
+                {"pid": blocked_pid},
+            ):
+                await asyncio.sleep(0.01)
+
+
+async def _run_bulk_with_blocked_writer(
+    client,
+    headers,
+    transaction_id,
+    monkeypatch,
+    writer_module,
+    writer_request,
+):
+    """Hold a real bulk rebuild while another writer waits on its advisory lock."""
+    original_recompute = bulk_update_module.recompute_account_snapshots
+    first_rebuilt = asyncio.Event()
+    release_first = asyncio.Event()
+    writer_started = asyncio.Event()
+    backend_pids = []
+
+    async def hold_bulk_rebuild(db, snapshot_starts):
+        """Hold the bulk request after its real rebuild and before its commit."""
+        backend_pids.append(await db.scalar(text("SELECT pg_backend_pid()")))
+        await original_recompute(db, snapshot_starts)
+        first_rebuilt.set()
+        await release_first.wait()
+
+    async def observe_writer_rebuild(db, snapshot_starts):
+        """Record the other writer's backend before entering the real rebuild."""
+        backend_pids.append(await db.scalar(text("SELECT pg_backend_pid()")))
+        writer_started.set()
+        await original_recompute(db, snapshot_starts)
+
+    monkeypatch.setattr(bulk_update_module, "recompute_account_snapshots", hold_bulk_rebuild)
+    monkeypatch.setattr(writer_module, "recompute_account_snapshots", observe_writer_rebuild)
+    requests = []
+    try:
+        async with asyncio.timeout(10):
+            requests.append(asyncio.create_task(client.patch(
+                "/transactions/bulk",
+                json={"transaction_ids": [transaction_id], "direction": "credit"},
+                headers=headers,
+            )))
+            await first_rebuilt.wait()
+            requests.append(asyncio.create_task(writer_request()))
+            await writer_started.wait()
+            await _wait_until_blocked(backend_pids[0], backend_pids[1])
+            release_first.set()
+            results = await asyncio.gather(*requests, return_exceptions=True)
+    finally:
+        release_first.set()
+        for request in requests:
+            if not request.done():
+                request.cancel()
+        await asyncio.gather(*requests, return_exceptions=True)
+
+    for result in results:
+        assert not isinstance(result, BaseException), repr(result)
+    return results
 
 
 async def _setup_transfer_user(client):
@@ -1604,24 +1688,24 @@ async def test_bulk_edits_to_different_rows_in_one_account_preserve_both_balance
         transaction_ids.append(response.json()["id"])
     assert await _read_snapshots(account_id) == [(date(2026, 8, 1), -3000)]
 
-    original_recompute = bulk_update_module.recompute_snapshots_from
+    original_recompute = bulk_update_module.recompute_account_snapshots
     first_rebuilt = asyncio.Event()
     release_first = asyncio.Event()
     second_started = asyncio.Event()
     backend_pids = []
 
-    async def hold_first_rebuild(db, rebuild_account_id, from_dt):
+    async def hold_first_rebuild(db, snapshot_starts):
         """Keep the first rebuild uncommitted until the other request waits on its database lock."""
         backend_pids.append(await db.scalar(text("SELECT pg_backend_pid()")))
         if len(backend_pids) == 1:
-            await original_recompute(db, rebuild_account_id, from_dt)
+            await original_recompute(db, snapshot_starts)
             first_rebuilt.set()
             await release_first.wait()
         else:
             second_started.set()
-            await original_recompute(db, rebuild_account_id, from_dt)
+            await original_recompute(db, snapshot_starts)
 
-    monkeypatch.setattr(bulk_update_module, "recompute_snapshots_from", hold_first_rebuild)
+    monkeypatch.setattr(bulk_update_module, "recompute_account_snapshots", hold_first_rebuild)
     requests = []
     try:
         async with asyncio.timeout(10):
@@ -1638,12 +1722,7 @@ async def test_bulk_edits_to_different_rows_in_one_account_preserve_both_balance
             )))
             await second_started.wait()
 
-            # Observe a real database wait rather than relying on scheduler timing or a fixed delay.
-            async with TestSession() as observer:
-                while backend_pids[0] not in await observer.scalar(
-                    text("SELECT pg_blocking_pids(:pid)"), {"pid": backend_pids[1]},
-                ):
-                    await asyncio.sleep(0.01)
+            await _wait_until_blocked(backend_pids[0], backend_pids[1])
             release_first.set()
             results = await asyncio.gather(*requests, return_exceptions=True)
     finally:
@@ -1665,6 +1744,356 @@ async def test_bulk_edits_to_different_rows_in_one_account_preserve_both_balance
     response = await client.get(f"/accounts/{account_id}", headers=headers)
     assert response.status_code == 200
     assert response.json()["current_balance"] == 3000
+
+
+async def test_waiting_bulk_rebuild_reads_anchor_after_the_earlier_request_commits(client, monkeypatch):
+    """A waiting rebuild reads the committed earlier day's balance before rebuilding later days."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    first = (await _create_transaction(
+        client, headers, account_id, category_id, amount=-1000, dt="2026-08-01",
+    )).json()["id"]
+    second = (await _create_transaction(
+        client, headers, account_id, category_id, amount=-2000, dt="2026-08-02",
+    )).json()["id"]
+
+    original_recompute = bulk_update_module.recompute_account_snapshots
+    first_rebuilt = asyncio.Event()
+    release_first = asyncio.Event()
+    second_started = asyncio.Event()
+    backend_pids = []
+
+    async def hold_first_rebuild(db, snapshot_starts):
+        """Hold the first real rebuild while the second waits for its account lock."""
+        backend_pids.append(await db.scalar(text("SELECT pg_backend_pid()")))
+        if len(backend_pids) == 1:
+            await original_recompute(db, snapshot_starts)
+            first_rebuilt.set()
+            await release_first.wait()
+        else:
+            second_started.set()
+            await original_recompute(db, snapshot_starts)
+
+    monkeypatch.setattr(bulk_update_module, "recompute_account_snapshots", hold_first_rebuild)
+    requests = []
+    try:
+        async with asyncio.timeout(10):
+            requests.append(asyncio.create_task(client.patch(
+                "/transactions/bulk",
+                json={"transaction_ids": [first], "direction": "credit"},
+                headers=headers,
+            )))
+            await first_rebuilt.wait()
+            requests.append(asyncio.create_task(client.patch(
+                "/transactions/bulk",
+                json={"transaction_ids": [second], "direction": "credit"},
+                headers=headers,
+            )))
+            await second_started.wait()
+            await _wait_until_blocked(backend_pids[0], backend_pids[1])
+            release_first.set()
+            results = await asyncio.gather(*requests, return_exceptions=True)
+    finally:
+        release_first.set()
+        for request in requests:
+            if not request.done():
+                request.cancel()
+        await asyncio.gather(*requests, return_exceptions=True)
+
+    for result in results:
+        assert not isinstance(result, BaseException), repr(result)
+        assert result.status_code == 200, result.text
+    assert await _read_snapshots(account_id) == [
+        (date(2026, 8, 1), 1000),
+        (date(2026, 8, 2), 3000),
+    ]
+
+
+async def test_reverse_account_maps_wait_on_the_same_first_lock(client, monkeypatch):
+    """Bulk and single moves lock the same first account despite reversed source maps."""
+    headers, first_account_id, category_id = await _setup_user_with_deps(client)
+    second_account_id = (await _create_account(client, headers, name="Savings")).json()["id"]
+    first_transaction = (await _create_transaction(
+        client, headers, first_account_id, category_id, amount=-1000, dt="2026-08-01",
+    )).json()["id"]
+    second_transaction = (await _create_transaction(
+        client, headers, second_account_id, category_id, amount=-2000, dt="2026-08-01",
+    )).json()["id"]
+
+    controlled_keys = {
+        uuid.UUID(first_account_id): 1,
+        uuid.UUID(second_account_id): 2,
+    }
+
+    def controlled_lock_key(account_id):
+        """Give the two accounts predictable increasing advisory keys."""
+        return controlled_keys[account_id]
+
+    monkeypatch.setattr(account_snapshots_module, "_snapshot_lock_key", controlled_lock_key)
+    original_recompute = bulk_update_module.recompute_account_snapshots
+    first_locked = asyncio.Event()
+    release_first = asyncio.Event()
+    backend_pids = []
+
+    async def pause_first_request_after_first_lock(db, snapshot_starts):
+        """Pause the first request after acquiring its real first advisory lock."""
+        backend_pids.append(await db.scalar(text("SELECT pg_backend_pid()")))
+        if len(backend_pids) == 1:
+            first_key = min(controlled_keys[account_id] for account_id in snapshot_starts)
+            await db.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": first_key})
+            first_locked.set()
+            await release_first.wait()
+        await original_recompute(db, snapshot_starts)
+
+    monkeypatch.setattr(
+        bulk_update_module,
+        "recompute_account_snapshots",
+        pause_first_request_after_first_lock,
+    )
+    monkeypatch.setattr(
+        transaction_snapshots_module,
+        "recompute_account_snapshots",
+        pause_first_request_after_first_lock,
+    )
+
+    requests = []
+    try:
+        async with asyncio.timeout(10):
+            requests.append(asyncio.create_task(client.patch(
+                "/transactions/bulk",
+                json={"transaction_ids": [first_transaction], "account_id": second_account_id},
+                headers=headers,
+            )))
+            await first_locked.wait()
+            requests.append(asyncio.create_task(client.patch(
+                f"/transactions/{second_transaction}",
+                json={"account_id": first_account_id},
+                headers=headers,
+            )))
+            async with asyncio.timeout(5):
+                while len(backend_pids) < 2:
+                    await asyncio.sleep(0)
+            await _wait_until_blocked(backend_pids[0], backend_pids[1])
+            release_first.set()
+            results = await asyncio.gather(*requests, return_exceptions=True)
+    finally:
+        release_first.set()
+        for request in requests:
+            if not request.done():
+                request.cancel()
+        await asyncio.gather(*requests, return_exceptions=True)
+
+    for result in results:
+        assert not isinstance(result, BaseException), repr(result)
+        assert result.status_code == 200, result.text
+    assert await _read_snapshots(first_account_id) == [(date(2026, 8, 1), -2000)]
+    assert await _read_snapshots(second_account_id) == [(date(2026, 8, 1), -1000)]
+
+
+async def test_bulk_move_of_last_transaction_restores_source_zero_anchor(client):
+    """Moving the source's last row restores its creation-day zero snapshot."""
+    headers, source_id, category_id = await _setup_user_with_deps(client)
+    target_id = (await _create_account(client, headers, name="Savings")).json()["id"]
+    transaction_id = (await _create_transaction(
+        client, headers, source_id, category_id, amount=-1000, dt="2026-08-01",
+    )).json()["id"]
+
+    response = await client.patch(
+        "/transactions/bulk",
+        json={"transaction_ids": [transaction_id], "account_id": target_id},
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    source_snapshots = await _read_snapshots(source_id)
+    assert len(source_snapshots) == 1
+    assert source_snapshots[0][1] == 0
+    assert await _read_snapshots(target_id) == [(date(2026, 8, 1), -1000)]
+
+
+async def test_bulk_date_move_rebuilds_from_earlier_date_without_stale_snapshot(client):
+    """Moving a row to an earlier date removes its old later-day snapshot."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    transaction_id = (await _create_transaction(
+        client, headers, account_id, category_id, amount=-1000, dt="2026-08-02",
+    )).json()["id"]
+
+    response = await client.patch(
+        "/transactions/bulk",
+        json={"transaction_ids": [transaction_id], "dt": "2026-08-01"},
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    assert await _read_snapshots(account_id) == [(date(2026, 8, 1), -1000)]
+
+
+async def test_bulk_note_only_edit_skips_snapshot_rebuild(client, monkeypatch):
+    """Changing only a note does not enter the snapshot rebuild path."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    transaction_id = (await _create_transaction(
+        client, headers, account_id, category_id, amount=-1000, dt="2026-08-01",
+    )).json()["id"]
+
+    async def refuse_rebuild(_db, _snapshot_starts):
+        """Fail if a note-only request reaches snapshot recomputation."""
+        raise AssertionError("note-only edit rebuilt account snapshots")
+
+    monkeypatch.setattr(bulk_update_module, "recompute_account_snapshots", refuse_rebuild)
+
+    response = await client.patch(
+        "/transactions/bulk",
+        json={"transaction_ids": [transaction_id], "notes": "Corrected"},
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    assert (await _read_transaction(transaction_id)).notes == "Corrected"
+
+
+async def test_concurrent_create_waits_for_bulk_rebuild_and_preserves_total(client, monkeypatch):
+    """A create waiting on a bulk rebuild contributes to the final account balance."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    transaction_id = (await _create_transaction(
+        client, headers, account_id, category_id, amount=-1000, dt="2026-08-01",
+    )).json()["id"]
+
+    async def create_other_transaction():
+        """Create the second transaction through the real route."""
+        return await _create_transaction(
+            client,
+            headers,
+            account_id,
+            category_id,
+            amount=-2000,
+            dt="2026-08-01",
+        )
+
+    bulk_response, create_response = await _run_bulk_with_blocked_writer(
+        client,
+        headers,
+        transaction_id,
+        monkeypatch,
+        creation_module,
+        create_other_transaction,
+    )
+
+    assert bulk_response.status_code == 200, bulk_response.text
+    assert create_response.status_code == 201, create_response.text
+    assert await _read_snapshots(account_id) == [(date(2026, 8, 1), -1000)]
+    assert await _read_transaction_total(account_id) == -1000
+
+
+async def test_concurrent_delete_waits_for_bulk_rebuild_and_preserves_total(client, monkeypatch):
+    """A delete waiting on a bulk rebuild is reflected in the final account balance."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    transaction_id = (await _create_transaction(
+        client, headers, account_id, category_id, amount=-1000, dt="2026-08-01",
+    )).json()["id"]
+    deleted_id = (await _create_transaction(
+        client, headers, account_id, category_id, amount=-2000, dt="2026-08-01",
+    )).json()["id"]
+
+    async def delete_other_transaction():
+        """Delete the second transaction through the real route."""
+        return await client.delete(f"/transactions/{deleted_id}", headers=headers)
+
+    bulk_response, delete_response = await _run_bulk_with_blocked_writer(
+        client,
+        headers,
+        transaction_id,
+        monkeypatch,
+        deletion_module,
+        delete_other_transaction,
+    )
+
+    assert bulk_response.status_code == 200, bulk_response.text
+    assert delete_response.status_code == 204, delete_response.text
+    assert await _read_snapshots(account_id) == [(date(2026, 8, 1), 1000)]
+    assert await _read_transaction_total(account_id) == 1000
+
+
+async def test_concurrent_generic_import_waits_for_bulk_rebuild_and_preserves_total(
+    client, monkeypatch,
+):
+    """A generic import waiting on a bulk rebuild contributes to the final balance."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    transaction_id = (await _create_transaction(
+        client, headers, account_id, category_id, amount=-1000, dt="2026-08-01",
+    )).json()["id"]
+
+    async def import_other_transaction():
+        """Import the second transaction through the real staged-import route."""
+        return await _import_transactions(client, headers, {
+            "accounts": [{"source": "Main Chequing", "account_id": account_id}],
+            "categories": [{"source": "Groceries", "category_id": category_id}],
+            "rows": [{
+                "account_source": "Main Chequing",
+                "category_source": "Groceries",
+                "dt": "2026-08-01",
+                "amount": "-20.00",
+                "merchant_name": "Neighbourhood Market",
+                "tag_names": [],
+            }],
+        })
+
+    bulk_response, import_response = await _run_bulk_with_blocked_writer(
+        client,
+        headers,
+        transaction_id,
+        monkeypatch,
+        generic_import_module,
+        import_other_transaction,
+    )
+
+    assert bulk_response.status_code == 200, bulk_response.text
+    assert import_response.status_code == 201, import_response.text
+    assert await _read_snapshots(account_id) == [(date(2026, 8, 1), -1000)]
+    assert await _read_transaction_total(account_id) == -1000
+
+
+async def test_concurrent_firefly_import_waits_for_bulk_rebuild_and_preserves_total(
+    client, monkeypatch,
+):
+    """A Firefly import waiting on a bulk rebuild contributes to the final balance."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    transaction_id = (await _create_transaction(
+        client, headers, account_id, category_id, amount=-1000, dt="2026-08-01",
+    )).json()["id"]
+
+    async def import_other_transaction():
+        """Import the second transaction through the real Firefly route."""
+        return await client.post("/transactions/import/firefly", json={
+            "accounts": [{"source": "Main Chequing", "account_id": account_id}],
+            "categories": [{"source": "Groceries", "category_id": category_id}],
+            "rows": [{
+                "journal_id": "bulk-concurrency",
+                "type": "Withdrawal",
+                "dt": "2026-08-01",
+                "amount": "-20.00",
+                "currency_code": "CAD",
+                "description": "Weekly groceries",
+                "source_name": "Main Chequing",
+                "source_type": "Asset account",
+                "destination_name": "Neighbourhood Market",
+                "destination_type": "Expense account",
+                "category": "Groceries",
+                "tag_names": [],
+            }],
+        }, headers=headers)
+
+    bulk_response, import_response = await _run_bulk_with_blocked_writer(
+        client,
+        headers,
+        transaction_id,
+        monkeypatch,
+        firefly_import_module,
+        import_other_transaction,
+    )
+
+    assert bulk_response.status_code == 200, bulk_response.text
+    assert import_response.status_code == 201, import_response.text
+    assert await _read_snapshots(account_id) == [(date(2026, 8, 1), -1000)]
+    assert await _read_transaction_total(account_id) == -1000
 
 
 async def test_bulk_direction_reverse_with_no_other_session_flips_the_stored_amount(client):

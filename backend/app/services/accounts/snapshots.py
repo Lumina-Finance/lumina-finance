@@ -2,10 +2,12 @@
 
 Snapshots include a zero-balance anchor plus one row for each account day with
 transaction activity. Transaction and account routes call these helpers after
-mutations so the snapshot table stays aligned with account history
+mutations so the snapshot table stays aligned with account history. Rebuilds
+for the same account serialize until their caller commits or rolls back
 """
+import hashlib
 import uuid
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import date
 
 from sqlalchemy import delete, func, select
@@ -20,6 +22,9 @@ from app.utils.dates import ACCOUNT_OWNER_PROFILE, resolve_timezone
 
 PersonalOwner = aliased(User)
 GroupOwner = aliased(User)
+
+# The namespace separates this protocol's lock inputs from other advisory lock protocols
+_SNAPSHOT_LOCK_NAMESPACE = b"lumina:account-snapshots:"
 
 
 async def get_current_balances(
@@ -66,23 +71,52 @@ async def attach_current_balances(db: AsyncSession, accounts: Sequence[Account])
         account.current_balance = balances[account.id]
 
 
-async def recompute_snapshots_from(
-    db: AsyncSession, account_id: uuid.UUID, from_dt: date,
+async def recompute_account_snapshots(
+    db: AsyncSession,
+    snapshot_starts: Mapping[uuid.UUID, date],
 ) -> None:
-    """Rebuild daily balance snapshots from one date forward
+    """Rebuild daily balance snapshots for every affected account
 
-    Finds the most recent snapshot strictly before ``from_dt`` to use as an
-    anchor balance, deletes all snapshots from that day onwards, then walks
-    forward through the account transactions grouped by day
+    Flushes the caller's pending changes, then acquires transaction-scoped
+    advisory locks in stable order before reading any account's anchor. Locks
+    remain held until the caller commits or rolls back
 
     Args:
         db: Active database session
-        account_id: Account whose snapshots need recomputing
-        from_dt: First date to rebuild
+        snapshot_starts: Earliest rebuild date keyed by affected account ID
 
     Returns:
         None
     """
+    if not snapshot_starts:
+        return
+
+    await db.flush()
+    lock_keys = sorted({_snapshot_lock_key(account_id) for account_id in snapshot_starts})
+
+    # Serialize every affected account before any anchor read so a rebuild sees earlier commits
+    for lock_key in lock_keys:
+        await db.execute(select(func.pg_advisory_xact_lock(lock_key)))
+
+    for account_id, from_dt in snapshot_starts.items():
+        await _recompute_account_snapshots_from(db, account_id, from_dt)
+
+
+def _snapshot_lock_key(account_id: uuid.UUID) -> int:
+    """Return the stable signed 64-bit advisory lock key for an account."""
+    digest = hashlib.blake2b(
+        _SNAPSHOT_LOCK_NAMESPACE + account_id.bytes,
+        digest_size=8,
+    ).digest()
+    return int.from_bytes(digest, byteorder="big", signed=True)
+
+
+async def _recompute_account_snapshots_from(
+    db: AsyncSession,
+    account_id: uuid.UUID,
+    from_dt: date,
+) -> None:
+    """Rebuild one account's daily balance snapshots from one date forward."""
     # Fetch the most recent snapshot before the rebuild window to anchor the running balance
     anchor_result = await db.execute(
         select(AccountBalanceSnapshot.balance)

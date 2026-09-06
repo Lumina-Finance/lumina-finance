@@ -30,7 +30,7 @@ from app.schemas.transaction import (
     BulkUpdateTransactionsResponse,
     TransferEnd,
 )
-from app.services.accounts.snapshots import recompute_snapshots_from
+from app.services.accounts.snapshots import recompute_account_snapshots
 from app.services.cache_state import mark_cache_changed_for_scope
 from app.services.categories.transfer_rules import does_category_record_counterparty_account
 from app.services.transactions.access_helpers import accessible_account_ids_subquery
@@ -182,8 +182,8 @@ async def bulk_update_transactions(
 
     written_ids = await _apply_changes(db, data, sent, transactions, transaction_ids, resolutions)
 
-    for account_id, from_date in snapshot_starts.items():
-        await recompute_snapshots_from(db, account_id, from_date)
+    if snapshot_starts:
+        await recompute_account_snapshots(db, snapshot_starts)
 
     affected_accounts = [*source_accounts]
     seen_account_ids = {account.id for account in source_accounts}

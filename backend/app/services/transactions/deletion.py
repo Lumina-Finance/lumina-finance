@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.base import PermissionLevel
 from app.models.user import User
 from app.permissions import check_transaction_access
-from app.services.accounts.snapshots import recompute_snapshots_from
+from app.services.accounts.snapshots import recompute_account_snapshots
 from app.services.cache_state import mark_cache_changed_for_scope
 from app.services.transactions.accounts import (
     get_parent_account_for_transaction,
@@ -52,7 +52,7 @@ async def delete_transaction_for_user(
     await db.flush()
 
     # Rebuild balance snapshots from the deleted transaction's day forward
-    await recompute_snapshots_from(db, account_id, deleted_dt)
+    await recompute_account_snapshots(db, {account_id: deleted_dt})
 
     # Mark the affected user or group cache after all delete writes are flushed
     await mark_cache_changed_for_scope(db, user_id=account.owner_id, group_id=account.group_id)
