@@ -1682,9 +1682,7 @@
 
   .app-create-transaction-pill-selector-indicator {
     @apply pointer-events-none absolute rounded-md;
-    top: 0.25rem;
-    bottom: 0.25rem;
-    left: 0.25rem;
+    inset: 0;
     z-index: 0;
     background: var(--app-accent-soft);
     border: 1px solid var(--app-accent-border);

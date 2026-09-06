@@ -1,3 +1,4 @@
+import { useId } from 'react'
 import { motion, useReducedMotion } from 'motion/react'
 import {
   SEGMENTED_OPTION_GAP_REM,
@@ -12,6 +13,8 @@ interface TransactionModalPillSelectorProps<T extends string> {
   ariaLabel: string
   onChange: (value: T) => void
   disabled?: boolean
+  /** Uses compact mobile spacing while keeping every option label on one line */
+  compactOnMobile?: boolean
 }
 
 /**
@@ -23,14 +26,11 @@ export default function TransactionModalPillSelector<T extends string>({
   ariaLabel,
   onChange,
   disabled = false,
+  compactOnMobile = false,
 }: TransactionModalPillSelectorProps<T>) {
   const shouldReduceMotion = useReducedMotion()
-  const selectedIndex = options.findIndex((option) => option.value === value)
-  const hasSelection = selectedIndex >= 0
-  const indicatorIndex = hasSelection ? selectedIndex : 0
+  const indicatorId = useId()
   const optionGap = options.length > 1 ? SEGMENTED_OPTION_GAP_REM : 0
-  const indicatorWidth = `calc((100% - 0.5rem - ${(options.length - 1) * optionGap}rem) / ${options.length})`
-  const indicatorX = `calc(${indicatorIndex * 100}% + ${indicatorIndex * optionGap}rem)`
 
   return (
     <div
@@ -39,13 +39,6 @@ export default function TransactionModalPillSelector<T extends string>({
       aria-label={ariaLabel}
       style={{ gap: `${optionGap}rem` }}
     >
-      <motion.span
-        className="app-create-transaction-pill-selector-indicator"
-        aria-hidden
-        style={{ width: indicatorWidth }}
-        animate={{ x: indicatorX, opacity: hasSelection ? 1 : 0 }}
-        transition={shouldReduceMotion ? { duration: 0 } : SELECTOR_SPRING}
-      />
       {options.map((option) => {
         const active = option.value === value
         return (
@@ -58,13 +51,22 @@ export default function TransactionModalPillSelector<T extends string>({
             disabled={disabled}
             onClick={() => onChange(option.value)}
             className={joinClassNames(
-              'app-segmented-option relative z-10 flex-1 bg-transparent text-sm',
+              'app-segmented-option relative flex-1 bg-transparent text-sm',
+              compactOnMobile && 'whitespace-nowrap px-1 text-xs sm:px-2.5 sm:text-sm',
               active && 'app-segmented-option-active',
               disabled && 'cursor-not-allowed',
               disabled && !active && 'opacity-40',
             )}
           >
-            {option.label}
+            {active && (
+              <motion.span
+                layoutId={indicatorId}
+                className="app-create-transaction-pill-selector-indicator"
+                aria-hidden
+                transition={shouldReduceMotion ? { duration: 0 } : SELECTOR_SPRING}
+              />
+            )}
+            <span className="relative z-10">{option.label}</span>
           </button>
         )
       })}
