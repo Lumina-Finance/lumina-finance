@@ -9,6 +9,11 @@ export const IMPORT_DATE_FORMATS = ['yearFirst', 'dayFirst', 'monthFirst', 'writ
 
 export type ImportDateFormat = (typeof IMPORT_DATE_FORMATS)[number]
 
+// Automatic accepts each supported separator while an explicit value requires one throughout
+export const IMPORT_DATE_SEPARATORS = ['automatic', '/', '-', '.', ':'] as const
+
+export type ImportDateSeparator = (typeof IMPORT_DATE_SEPARATORS)[number]
+
 /**
  * Which formats every value in a column reads under, and the value that ruled each of the rest out
  */
@@ -24,12 +29,12 @@ interface CalendarDateParts {
 }
 
 // Four-digit year, then month and day. The backreference makes the second separator match the
-// first, so a half-hyphenated value like 2024-03/15 is malformed rather than a format
-const YEAR_FIRST_PATTERN = /^(\d{4})([-/])(\d{1,2})\2(\d{1,2})$/
+// first, so a value like 2024-03/15 is malformed rather than a format
+const YEAR_FIRST_PATTERN = /^(\d{4})([-/.:])(\d{1,2})\2(\d{1,2})$/
 
 // Day first and month first share one shape and differ only in which part is read as the month. The
 // year is four digits in both, since a two-digit year is a guess about the century
-const NUMERIC_PATTERN = /^(\d{1,2})([-/])(\d{1,2})\2(\d{4})$/
+const NUMERIC_PATTERN = /^(\d{1,2})([-/.:])(\d{1,2})\2(\d{4})$/
 
 // A written date carries the month name on either side of the day, with the comma and the
 // abbreviation's trailing period both optional
@@ -48,12 +53,17 @@ const MONTH_ABBREVIATION_LENGTH = 3
  * Reads one cell as a calendar day in the given format
  *
  * @param value - The raw cell value
- * @param format - The format chosen for this import
+ * @param format - The order chosen for this import, or the written format
+ * @param separator - The required numeric separator, or automatic to accept any supported one
  * @returns The zero-padded YYYY-MM-DD string the API takes, or an empty string when the value does
  * not read in that format or names a day the calendar does not have
  */
-export function readImportDate(value: string, format: ImportDateFormat) {
-  const parts = readCalendarDateParts(value.trim(), format)
+export function readImportDate(
+  value: string,
+  format: ImportDateFormat,
+  separator: ImportDateSeparator = 'automatic',
+) {
+  const parts = readCalendarDateParts(value.trim(), format, separator)
   if (!parts) return ''
 
   const ymd = `${parts.year}-${String(parts.month).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}`
@@ -68,14 +78,18 @@ export function readImportDate(value: string, format: ImportDateFormat) {
  * survivor and name the value that ruled each of the others out
  *
  * @param values - Every cell in the column, blanks included
+ * @param separator - The required numeric separator, or automatic to accept any supported one
  */
-export function scanImportDateFormats(values: string[]): ImportDateFormatScan {
+export function scanImportDateFormats(
+  values: string[],
+  separator: ImportDateSeparator = 'automatic',
+): ImportDateFormatScan {
   const filled = values.map((value) => value.trim()).filter(Boolean)
   const readable: ImportDateFormat[] = []
   const rejectedBy: Partial<Record<ImportDateFormat, string>> = {}
 
   for (const format of IMPORT_DATE_FORMATS) {
-    const offender = filled.find((value) => !readImportDate(value, format))
+    const offender = filled.find((value) => !readImportDate(value, format, separator))
     if (offender === undefined) readable.push(format)
     else rejectedBy[format] = offender
   }
@@ -96,16 +110,22 @@ export function getPreviewDateLabel(ymd: string) {
 /**
  * Splits a value into calendar parts under one format, without judging whether they are a real date
  */
-function readCalendarDateParts(value: string, format: ImportDateFormat): CalendarDateParts | null {
+function readCalendarDateParts(
+  value: string,
+  format: ImportDateFormat,
+  separator: ImportDateSeparator,
+): CalendarDateParts | null {
   if (format === 'written') return readWrittenDateParts(value)
 
   if (format === 'yearFirst') {
     const match = YEAR_FIRST_PATTERN.exec(value)
-    return match ? { year: Number(match[1]), month: Number(match[3]), day: Number(match[4]) } : null
+    return match && isExpectedDateSeparator(match[2], separator)
+      ? { year: Number(match[1]), month: Number(match[3]), day: Number(match[4]) }
+      : null
   }
 
   const match = NUMERIC_PATTERN.exec(value)
-  if (!match) return null
+  if (!match || !isExpectedDateSeparator(match[2], separator)) return null
 
   const first = Number(match[1])
   const second = Number(match[3])
@@ -114,6 +134,11 @@ function readCalendarDateParts(value: string, format: ImportDateFormat): Calenda
   return format === 'dayFirst'
     ? { year, month: second, day: first }
     : { year, month: first, day: second }
+}
+
+/** Reports whether the value's numeric separator matches the selected separator policy */
+function isExpectedDateSeparator(value: string, separator: ImportDateSeparator) {
+  return separator === 'automatic' || value === separator
 }
 
 /**
