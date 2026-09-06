@@ -10,6 +10,7 @@ import {
 import { useToast } from '@/hooks/useToast'
 import { BulkEditModal } from '@/pages/transactions/components/bulk-edit/BulkEditModal'
 import { BulkEditConfirm } from '@/pages/transactions/components/bulk-edit/BulkEditConfirm'
+import { selectedTransactionsSignature } from '@/pages/transactions/components/bulk-edit/confirmation'
 import {
   doesChosenCategoryRecordTransferTarget,
   isRowSelectable,
@@ -153,10 +154,10 @@ export default function TransactionListSection({
   const [isSelecting, setIsSelecting] = useState(false)
   const [pendingChange, setPendingChange] = useState<BulkEditFields | null>(null)
 
-  // The ids the change was validated against at Apply, frozen alongside pendingChange rather than
-  // read fresh off the live selection at Confirm, since the two have to agree on the same rows the
-  // panel's blockers were computed for
+  // The ids and stored values the change was validated against at Apply, frozen alongside
+  // pendingChange so Confirm cannot apply an old preview to refreshed transaction data
   const [pendingChangeIds, setPendingChangeIds] = useState<string[]>([])
+  const [pendingChangeSignature, setPendingChangeSignature] = useState<string | null>(null)
   const [applyError, setApplyError] = useState<string | null>(null)
   const { showToast } = useToast()
   const bulkUpdate = useBulkUpdateTransactions()
@@ -188,6 +189,10 @@ export default function TransactionListSection({
   // A Set rather than the array useBulkSelection returns, since isRowSelectable does a membership
   // check per row and a fresh array scan for each one would be quadratic in the list's length
   const selectedIdsSet = useMemo(() => new Set(selection.selectedIds), [selection.selectedIds])
+  const selectedChangeSignature = useMemo(
+    () => selectedTransactionsSignature(displayedTransactions, selection.selectedIds),
+    [displayedTransactions, selection.selectedIds],
+  )
 
   const buildRowSelection = useCallback(
     (transactionId: string, isReadOnly: boolean) => ({
@@ -279,27 +284,23 @@ export default function TransactionListSection({
     if (!bulkUpdate.isPending) {
       setPendingChange(null)
       setPendingChangeIds([])
+      setPendingChangeSignature(null)
       setApplyError(null)
     }
   }
 
-  // A refetch that changes which rows are selected, such as one dropping the only transfer among
-  // them, can land while the confirmation is open and holding ids the panel's blockers were
-  // validated against. Read by identity rather than by content, the same way the selection's own
-  // array is a new one on every dispatch that changes it, so this only fires on an actual change.
-  // The edit modal stays open underneath and picks up the new rows in its own preview, since only
-  // the confirmation, not the edit itself, was tied to the ids that just moved
-  const [lastCheckedSelectedIds, setLastCheckedSelectedIds] = useState(selection.selectedIds)
-  if (selection.selectedIds !== lastCheckedSelectedIds) {
-    setLastCheckedSelectedIds(selection.selectedIds)
-
-    // A write already sent keeps its confirmation, which is where its result has to land, whatever
-    // shrank the list while it was in flight
-    if (pendingChange !== null && !bulkUpdate.isPending) {
-      setPendingChange(null)
-      setPendingChangeIds([])
-      setApplyError(null)
-    }
+  // Keep a sent request visible until it settles. If its confirmation then remains open after a
+  // refusal, the refreshed values still invalidate it on that render
+  if (
+    pendingChange !== null
+    && pendingChangeSignature !== null
+    && pendingChangeSignature !== selectedChangeSignature
+    && !bulkUpdate.isPending
+  ) {
+    setPendingChange(null)
+    setPendingChangeIds([])
+    setPendingChangeSignature(null)
+    setApplyError(null)
   }
 
   /**
@@ -309,24 +310,32 @@ export default function TransactionListSection({
     setIsSelecting(false)
     setPendingChange(null)
     setPendingChangeIds([])
+    setPendingChangeSignature(null)
     setApplyError(null)
     clearSelection()
   }, [clearSelection])
 
   /**
-   * Freezes the modal's change together with the ids it was validated against, so a selection that
-   * moves before Confirm cannot pair a stale change with a different set of rows
+   * Freezes the modal's change with the selected ids and their stored values at Apply
    */
   function applyBulkEdit(fields: BulkEditFields) {
-    setPendingChangeIds(selection.selectedIds)
+    setPendingChangeIds([...selection.selectedIds])
+    setPendingChangeSignature(selectedChangeSignature)
     setPendingChange(fields)
   }
 
   /**
-   * Writes the change the modal holds, keeping the confirmation open when the server refuses it
+   * Writes the change the modal holds, keeping a refusal open while the selected values still match
    */
   function applyPendingChange() {
     if (!pendingChange) return
+    if (pendingChangeSignature !== selectedChangeSignature) {
+      setPendingChange(null)
+      setPendingChangeIds([])
+      setPendingChangeSignature(null)
+      setApplyError(null)
+      return
+    }
     setApplyError(null)
     bulkUpdate.mutate(
       { transaction_ids: pendingChangeIds, ...pendingChange },
@@ -489,6 +498,7 @@ export default function TransactionListSection({
             setIsEditOpen(false)
             setPendingChange(null)
             setPendingChangeIds([])
+            setPendingChangeSignature(null)
             setApplyError(null)
           }}
           onExitComplete={() => {
@@ -510,6 +520,7 @@ export default function TransactionListSection({
         onCancel={() => {
           setPendingChange(null)
           setPendingChangeIds([])
+          setPendingChangeSignature(null)
           setApplyError(null)
         }}
       />
