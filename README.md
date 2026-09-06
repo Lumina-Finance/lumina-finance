@@ -246,7 +246,7 @@ Rotate the key if it has been exposed, or on whatever schedule your own policy s
 
    The key is printed and stored nowhere. It protects nothing yet, so generate another if you lose it at this point.
 
-2. Save the key in your password manager. From the next step on it is the only thing that reads your stored secrets.
+2. Save the replacement key in your password manager, separately from the key that is in use. The replacement key takes effect when the rotation commits.
 
 3. Stop the app, leaving PostgreSQL running:
 
@@ -254,21 +254,27 @@ Rotate the key if it has been exposed, or on whatever schedule your own policy s
    docker compose stop app
    ```
 
-4. Rotate, giving the new key as the argument:
+4. Take a restorable database backup while the app is stopped and PostgreSQL is running. Keep the key that is in use with the backup, whether that key comes from `APP_ENCRYPTION_KEY` or `/data/secrets/app_encryption_key`. Keep the key until every backup whose secrets it decrypts has expired.
+
+5. Rotate, giving the replacement key as the argument:
 
    ```sh
    docker compose run --rm app rotate-app-encryption-key "your-new-key"
    ```
 
-   The key is visible in the process list while this runs, so rotate from a shell you trust. The rotation reports how many rows it rewrote per column, then frames the step left to do. It rewrites every stored secret in one transaction, so a failure leaves the data exactly as it was, and it removes the old key file from the data volume where the deployment had one.
+   The key is visible in the process list while this runs, so rotate from a shell you trust. The rotation rewrites every stored secret in one transaction, so a database failure leaves the data under the old key. After the transaction commits, the command tries to remove the old key file from the data volume. It then reports how many rows it rewrote per column and frames the step left to do.
 
-5. Set `APP_ENCRYPTION_KEY` in `.env` to the new key, then start the stack:
+6. Set `APP_ENCRYPTION_KEY` in `.env` to the replacement key, then start the stack:
 
    ```sh
    docker compose up -d
    ```
 
-If the rotation is interrupted after it commits, run step 4 again with the same key. It detects that the stored secrets are already encrypted under that key and clears what the interrupted run left behind. Check for a leftover container too, with `docker compose ps -a`, and remove it with `docker compose rm -f app`: the key is part of its recorded command, and an interrupted run is the case where `--rm` does not delete it.
+If the command fails before the database transaction commits, the database stays under the old key. Correct the reported problem and repeat step 5 before changing `APP_ENCRYPTION_KEY`.
+
+If the database rotation commits but the old key file remains, setting `APP_ENCRYPTION_KEY` to the replacement key makes the two key sources disagree. A retry can still remove the stale file only when the database fingerprint matches and at least one stored secret decrypts. Empty encrypted tables cannot establish that the rotation already committed. A retry also cannot correct file permissions. If the command prints `Could not remove the stale key file` before the row counts and success instructions, correct the permissions and remove the stale file only after establishing that the database rotation succeeded. If the replacement key is already configured and no stale key file remains, the retry refuses it as the key already in use. Start the app and verify a known stored secret instead of retrying or overwriting the recorded fingerprint.
+
+Check for a leftover container with `docker compose ps -a` and remove it with `docker compose rm -f app`. The key is part of the container's recorded command, and `--rm` does not delete a container whose run was interrupted.
 
 ### [JWKS (JSON Web Key Set)](https://auth0.com/docs/secure/tokens/json-web-tokens/json-web-key-sets) and JWT Configs
 
