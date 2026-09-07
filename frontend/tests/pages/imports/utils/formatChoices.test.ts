@@ -68,6 +68,33 @@ describe('automatic amount format choices', () => {
     expect(scan.ambiguous).toBe(false)
   })
 
+  it('treats equivalent zero spellings as the same interpretation', () => {
+    const scan = scanImportAmountFormatChoices(['10', '0,000'])
+
+    expect(scan.automatic).toEqual({ decimalSeparator: '.', groupingSeparator: ',' })
+    expect(scan.ambiguous).toBe(false)
+  })
+
+  it('compares signed zeroes and leading zeroes exactly', () => {
+    const scan = scanImportAmountFormatChoices(['0010', '-0,000', '+00010'])
+
+    expect(scan.automatic).toEqual({ decimalSeparator: '.', groupingSeparator: ',' })
+    expect(scan.ambiguous).toBe(false)
+  })
+
+  it.each([' ', '\u00a0', '\u202f'])(
+    'detects comma decimals grouped with the supported space variant %j',
+    (space) => {
+      expect(scanImportAmountFormatChoices([`1${space}234,56`, `2${space}345,67`]).automatic)
+        .toEqual({ decimalSeparator: ',', groupingSeparator: 'space' })
+    },
+  )
+
+  it('detects period decimals grouped with apostrophes', () => {
+    expect(scanImportAmountFormatChoices(["1'234.56", "2'345.67"]).automatic)
+      .toEqual({ decimalSeparator: '.', groupingSeparator: "'" })
+  })
+
   it('finds the one format shared by every row', () => {
     expect(scanImportAmountFormatChoices(['1.234,56', '2.345,67']).automatic)
       .toEqual({ decimalSeparator: ',', groupingSeparator: '.' })

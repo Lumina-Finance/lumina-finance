@@ -290,6 +290,13 @@ describe('refusing a row whose amount its currency cannot hold', () => {
     expect(result.payload).toBeNull()
   })
 
+  it('refuses the first locale when the reverse mixed format is selected', () => {
+    const result = buildPayload('1,234.56', 'CAD', '', DECIMAL_COMMA)
+
+    expect(firstProblem(result)).toBe(ROW_AMOUNT_UNREADABLE_REASON)
+    expect(result.payload).toBeNull()
+  })
+
   it('judges decimal commas against zero-decimal and three-decimal currencies', () => {
     expect(firstProblem(buildPayload('12,34', 'JPY', '', DECIMAL_COMMA_WITHOUT_GROUPING)))
       .toBe(getRowAmountTooPreciseReason('JPY', DECIMAL_COMMA_WITHOUT_GROUPING))

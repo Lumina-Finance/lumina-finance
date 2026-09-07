@@ -73,6 +73,12 @@ describe('refusing a column of numbers mapped to a field of names', () => {
     expect(validateColumnValues(files, 'Merchant', 'account_id', SUPPORTED_CURRENCY_CODES).valid).toBe(true)
   })
 
+  it('keeps decimal-like suffixes in account names', () => {
+    const files = createColumn('Account', ['Savings 2.0', 'Chequing 3.0'])
+
+    expect(validateColumnValues(files, 'Account', 'account_id', SUPPORTED_CURRENCY_CODES).valid).toBe(true)
+  })
+
   it('accepts an all-numeric column mapped to a field that takes anything', () => {
     const files = createColumn('Reference', ['80012', '80013', '80014'])
 
@@ -353,6 +359,16 @@ describe('checking a column mapped to the single amount field', () => {
 
     expect(result.valid).toBe(false)
     expect(result.message).toContain('Row 2 has "1.234,56"')
+  })
+
+  it('identifies the first row when the reverse mixed format is selected', () => {
+    const files = createColumn('Amount', ['1,234.56', '1.234,56'])
+    const result = validateColumnValues(files, 'Amount', 'amount', SUPPORTED_CURRENCY_CODES, null, {
+      amountFormat: { decimalSeparator: ',', groupingSeparator: '.' },
+    })
+
+    expect(result.valid).toBe(false)
+    expect(result.message).toContain('Row 1 has "1,234.56"')
   })
 
   it('accepts space variants and apostrophe grouping only under their selected formats', () => {

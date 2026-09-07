@@ -1,4 +1,10 @@
-import { EmptyState, ImportDirectionValueTable, ImportHeaderMappingTable, ImportNotice, ImportStep } from '@/pages/imports/components'
+import {
+  EmptyState,
+  ImportDirectionValueTable,
+  ImportHeaderMappingTable,
+  ImportNotice,
+  ImportStep,
+} from '@/pages/imports/components'
 import {
   CURRENCY_HANDLING_NOTE,
   CURRENCY_HANDLING_TITLE,
@@ -20,7 +26,11 @@ type ImportColumnMappingStepProps = Pick<
   | 'columnMap'
   | 'columnValidationErrors'
   | 'dateFormat'
+  | 'dateFormatAutomatic'
   | 'dateFormatScan'
+  | 'amountFormat'
+  | 'amountFormatAutomatic'
+  | 'amountFormatScan'
   | 'directionValues'
   | 'directionAnswers'
   | 'autoFilledDirectionValues'
@@ -28,6 +38,7 @@ type ImportColumnMappingStepProps = Pick<
   | 'fixedAccount'
   | 'accountsFailed'
   | 'setDateFormat'
+  | 'setAmountFormat'
   | 'setDirectionAnswer'
   | 'updateColumnTarget'
 >
@@ -36,10 +47,8 @@ type ImportColumnMappingStepProps = Pick<
  * Column mapping step of the generic CSV import flow, matching each header found in the uploaded
  * file to an app field
  *
- * How an amount is read is left to the mapping dropdown, whose every option carries a sentence
- * saying what that field holds and what a sign in it means. Those sentences are read at the moment
- * of choosing, so a notice above the table restating them was one level less specific and said
- * nothing the dropdown did not
+ * The mapping dropdown says whether one signed column or separate money-in and money-out columns
+ * carry the amount. Each mapped amount column shows a control for their shared format
  *
  * The currency note stays, because nothing in the dropdown says which currency an amount lands in
  *
@@ -55,7 +64,11 @@ export function ImportColumnMappingStep({
   columnMap,
   columnValidationErrors,
   dateFormat,
+  dateFormatAutomatic,
   dateFormatScan,
+  amountFormat,
+  amountFormatAutomatic,
+  amountFormatScan,
   directionValues,
   directionAnswers,
   autoFilledDirectionValues,
@@ -63,6 +76,7 @@ export function ImportColumnMappingStep({
   fixedAccount,
   accountsFailed,
   setDateFormat,
+  setAmountFormat,
   setDirectionAnswer,
   updateColumnTarget,
 }: ImportColumnMappingStepProps) {
@@ -101,9 +115,14 @@ export function ImportColumnMappingStep({
           columnMap={columnMap}
           validationErrors={columnValidationErrors}
           dateFormat={dateFormat}
+          dateFormatAutomatic={dateFormatAutomatic}
           dateFormatScan={dateFormatScan}
+          amountFormat={amountFormat}
+          amountFormatAutomatic={amountFormatAutomatic}
+          amountFormatScan={amountFormatScan}
           onChange={updateColumnTarget}
           onDateFormatChange={setDateFormat}
+          onAmountFormatChange={setAmountFormat}
         />
       )}
       {showsDirectionValues && (

@@ -214,6 +214,38 @@ describe('keeping what the reader already handled', () => {
     expect(draft.headers).toEqual(['Date', 'Notes', 'Amount'])
     expect(draft.rows[0].Notes).toBe('first|second')
   })
+
+  it('keeps repeated header words inside notes in a headerless comma file', async () => {
+    const draft = await stage(
+      '2026-01-01,5.00,Date;Amount;Notes\n2026-01-02,6.00,Date;Amount;Notes\n',
+    )
+
+    expect(draft.error).toBeNull()
+    expect(draft.hasHeaderRow).toBe(false)
+    expect(draft.headers).toEqual(['Column 1', 'Column 2', 'Column 3'])
+    expect(draft.rows).toEqual([
+      { 'Column 1': '2026-01-01', 'Column 2': '5.00', 'Column 3': 'Date;Amount;Notes' },
+      { 'Column 1': '2026-01-02', 'Column 2': '6.00', 'Column 3': 'Date;Amount;Notes' },
+    ])
+  })
+
+  it.each([
+    ['different dates', ['2026-02-01', '2026-02-02']],
+    ['the transaction dates', ['2026-01-01', '2026-01-02']],
+  ])('keeps %s inside notes in a headerless comma file', async (_description, noteDates) => {
+    const draft = await stage(
+      `2026-01-01,5.00,Date;${noteDates[0]};Amount\n`
+      + `2026-01-02,6.00,Date;${noteDates[1]};Amount\n`,
+    )
+
+    expect(draft.error).toBeNull()
+    expect(draft.hasHeaderRow).toBe(false)
+    expect(draft.headers).toEqual(['Column 1', 'Column 2', 'Column 3'])
+    expect(draft.rows).toEqual([
+      { 'Column 1': '2026-01-01', 'Column 2': '5.00', 'Column 3': `Date;${noteDates[0]};Amount` },
+      { 'Column 1': '2026-01-02', 'Column 2': '6.00', 'Column 3': `Date;${noteDates[1]};Amount` },
+    ])
+  })
 })
 
 describe('surfacing a failure the reader itself could not recover from', () => {

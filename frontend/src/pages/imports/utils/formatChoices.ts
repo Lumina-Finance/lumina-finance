@@ -107,7 +107,7 @@ export function scanImportAmountFormatChoices(values: string[]): ImportAmountFor
   }
 
   const automatic = filled.length > 0 && readingsAgree(readings.map(
-    (candidate) => candidate.map((reading) => reading.normalized),
+    (candidate) => candidate.map((reading) => canonicalizeImportDecimal(reading.normalized)),
   ))
     ? (readable[0] ?? null)
     : null
@@ -165,7 +165,7 @@ function buildImportFormatScope(files: ImportFileDraft[], headers: string[]) {
   return JSON.stringify([files.map((file) => file.id), headers])
 }
 
-/** Reports whether every viable candidate gives every row the same normalized value */
+/** Reports whether every viable candidate gives every row the same exact decimal value */
 function readingsAgree(readings: string[][]) {
   if (readings.length === 0) return false
   const expected = readings[0]
@@ -173,4 +173,15 @@ function readingsAgree(readings: string[][]) {
     (candidate) => candidate.length === expected.length
       && candidate.every((value, index) => value === expected[index]),
   )
+}
+
+/** Canonicalizes decimal text only for exact interpretation comparisons */
+function canonicalizeImportDecimal(value: string) {
+  const negative = value.startsWith('-')
+  const unsigned = value.replace(/^[-+]/, '')
+  const [rawWhole, rawFraction = ''] = unsigned.split('.')
+  const whole = rawWhole.replace(/^0+(?=\d)/, '')
+  const fraction = rawFraction.replace(/0+$/, '')
+  if (!/[1-9]/.test(`${whole}${fraction}`)) return '0'
+  return `${negative ? '-' : ''}${whole}${fraction ? `.${fraction}` : ''}`
 }

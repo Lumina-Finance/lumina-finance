@@ -247,23 +247,31 @@ function shouldPreferDelimiterResult(
 
   const current = getDelimiterEvidence(currentRows, supportedCurrencyCodes)
   const candidate = getDelimiterEvidence(records, supportedCurrencyCodes)
-  return candidate.strong > current.strong && candidate.total >= current.total
+  if (current.dates > 0) return false
+  if (candidate.total < current.total) return false
+  return candidate.dates > current.dates
+    || (candidate.dates === current.dates && candidate.headers > current.headers)
 }
 
 /** Counts strict structural and general cell evidence for one candidate delimiter */
 function getDelimiterEvidence(rows: string[][], supportedCurrencyCodes: Set<string>) {
-  let strong = 0
+  let dates = 0
+  let headers = 0
   let total = 0
 
   for (const row of rows.slice(0, 20)) {
     for (const cell of row) {
-      const isStrong = isKnownHeaderCell(cell) || isValidDateValue(cell)
-      if (isStrong) strong += 1
-      if (isStrong || isValidAmountValue(cell) || isSupportedCurrency(cell, supportedCurrencyCodes)) total += 1
+      const isDate = isValidDateValue(cell)
+      const isHeader = isKnownHeaderCell(cell)
+      if (isDate) dates += 1
+      if (isHeader) headers += 1
+      if (isDate || isHeader || isValidAmountValue(cell) || isSupportedCurrency(cell, supportedCurrencyCodes)) {
+        total += 1
+      }
     }
   }
 
-  return { strong, total }
+  return { dates, headers, total }
 }
 
 /**
