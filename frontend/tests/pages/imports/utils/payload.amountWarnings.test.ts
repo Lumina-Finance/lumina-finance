@@ -1,6 +1,6 @@
 /**
  * Tests the two things the importer says about amounts that do not stop the commit: a file whose
- * rows all read as money coming in, and a row filed against the direction its category runs in
+ * rows all read as money coming in, and a row filed against the direction of its category
  */
 import { describe, expect, it } from 'vitest'
 import type { Category } from '@/api/categories'
@@ -12,6 +12,7 @@ import {
 } from '@/pages/imports/constants'
 import type { CsvRow, ImportFileDraft } from '@/pages/imports/types'
 import { buildTransactionImportPayload } from '@/pages/imports/utils'
+import type { ImportAmountFormat } from '@/pages/imports/utils/amountFormats'
 
 const CURRENCIES: Currency[] = [
   { id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 },
@@ -48,7 +49,11 @@ function createFile(rows: CsvRow[]): ImportFileDraft {
 /**
  * Builds a commit payload for the amounts given, all filed under one category of the given kind
  */
-function build(amounts: string[], kind: Category['kind'] = 'expense') {
+function build(
+  amounts: string[],
+  kind: Category['kind'] = 'expense',
+  amountFormat?: ImportAmountFormat | null,
+) {
   const category = { ...CATEGORY, kind }
 
   return buildTransactionImportPayload({
@@ -66,6 +71,7 @@ function build(amounts: string[], kind: Category['kind'] = 'expense') {
     columnValidationErrors: {},
     currencies: CURRENCIES,
     dateFormat: 'yearFirst',
+    amountFormat,
     directionAnswers: {},
     files: [createFile(amounts.map((amount, index) => ({
       Date: `2026-04-${String(index + 1).padStart(2, '0')}`,
@@ -88,6 +94,15 @@ describe('warning that a file reads as all money coming in', () => {
 
   it('says nothing where the file carries a negative', () => {
     expect(build(['-12.34', '45.00']).warnings).toEqual([])
+  })
+
+  it('reads the normalized sign from surrounding text', () => {
+    const decimalComma: ImportAmountFormat = { decimalSeparator: ',', groupingSeparator: '.' }
+    const result = build(['-CHF100,99'], 'expense', decimalComma)
+
+    expect(result.warnings).toEqual([])
+    expect(result.rowWarnings).toEqual([])
+    expect(result.payload?.rows[0].amount).toBe('-100.99')
   })
 
   // The one arrangement never asked, since every row of such a file is positive whatever the data

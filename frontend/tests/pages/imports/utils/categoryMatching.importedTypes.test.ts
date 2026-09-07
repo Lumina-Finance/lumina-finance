@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest'
 import { EMPTY_COLUMN_MAP } from '@/pages/imports/constants'
 import type { ColumnMap, CsvRow, ImportFileDraft } from '@/pages/imports/types'
 import { getImportedCategoryTypes } from '@/pages/imports/utils'
+import type { ImportAmountFormat } from '@/pages/imports/utils/amountFormats'
 
 /**
  * Creates a one-file draft from the given headers and rows
@@ -23,6 +24,7 @@ function createFile(headers: string[], rows: CsvRow[]): ImportFileDraft {
 }
 
 const SIGNED_MAP: ColumnMap = { ...EMPTY_COLUMN_MAP, category_id: 'Category', amount: 'Amount' }
+const DECIMAL_COMMA: ImportAmountFormat = { decimalSeparator: ',', groupingSeparator: '.' }
 const BOTH_SIDES_MAP: ColumnMap = {
   ...EMPTY_COLUMN_MAP,
   category_id: 'Category',
@@ -50,6 +52,21 @@ describe('suggesting a type from a single signed amount column', () => {
     const withoutAmount = { ...EMPTY_COLUMN_MAP, category_id: 'Category' }
 
     expect(getImportedCategoryTypes(files, withoutAmount, ['Groceries'], {})).toEqual({ Groceries: '' })
+  })
+
+  it('uses the normalized sign from an amount carrying surrounding text', () => {
+    const formatted = [createFile(['Category', 'Amount'], [
+      { Category: 'Groceries', Amount: '-CHF100,99' },
+      { Category: 'Salary', Amount: 'CHF200,00' },
+    ])]
+
+    expect(getImportedCategoryTypes(
+      formatted,
+      SIGNED_MAP,
+      ['Groceries', 'Salary'],
+      {},
+      DECIMAL_COMMA,
+    )).toEqual({ Groceries: 'Expense', Salary: 'Income' })
   })
 })
 

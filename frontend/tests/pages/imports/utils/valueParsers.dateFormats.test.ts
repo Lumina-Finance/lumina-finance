@@ -34,11 +34,13 @@ function createDateFile(dates: string[]): ImportFileDraft {
 }
 
 describe('year first dates', () => {
-  it('reads a date with either separator, padded or not', () => {
+  it('reads a date with every supported separator, padded or not', () => {
     expect(readImportDate('2024-03-15', 'yearFirst')).toBe('2024-03-15')
     expect(readImportDate('2024-3-15', 'yearFirst')).toBe('2024-03-15')
     expect(readImportDate('2024-3-5', 'yearFirst')).toBe('2024-03-05')
     expect(readImportDate('2024/03/15', 'yearFirst')).toBe('2024-03-15')
+    expect(readImportDate('2024.03.15', 'yearFirst')).toBe('2024-03-15')
+    expect(readImportDate('2024:03:15', 'yearFirst')).toBe('2024-03-15')
   })
 
   it('refuses a value whose two separators disagree', () => {
@@ -62,9 +64,20 @@ describe('numeric dates in a stated order', () => {
     expect(readImportDate('04/13/2024', 'dayFirst')).toBe('')
   })
 
-  it('accepts an unpadded part and either separator', () => {
+  it('accepts unpadded parts and every supported separator', () => {
     expect(readImportDate('5/3/2024', 'dayFirst')).toBe('2024-03-05')
     expect(readImportDate('15-03-2024', 'dayFirst')).toBe('2024-03-15')
+    expect(readImportDate('31.08.2026', 'dayFirst')).toBe('2026-08-31')
+    expect(readImportDate('31:08:2026', 'dayFirst')).toBe('2026-08-31')
+    expect(readImportDate('08.31.2026', 'monthFirst')).toBe('2026-08-31')
+    expect(readImportDate('08:31:2026', 'monthFirst')).toBe('2026-08-31')
+    expect(readImportDate('08-31-2026', 'monthFirst')).toBe('2026-08-31')
+  })
+
+  it('can require one selected separator', () => {
+    expect(readImportDate('31.08.2026', 'dayFirst', '.')).toBe('2026-08-31')
+    expect(readImportDate('31/08/2026', 'dayFirst', '.')).toBe('')
+    expect(readImportDate('31-08-2026', 'dayFirst', '.')).toBe('')
   })
 
   it('requires a four-digit year, so the century is never guessed', () => {
@@ -130,6 +143,11 @@ describe('days the calendar does not have', () => {
 
   it('keeps the leap day of a leap year', () => {
     expect(readImportDate('29/02/2024', 'dayFirst')).toBe('2024-02-29')
+    expect(readImportDate('29.02.2024', 'dayFirst')).toBe('2024-02-29')
+  })
+
+  it('refuses a period-separated day the calendar does not have', () => {
+    expect(readImportDate('31.02.2026', 'dayFirst')).toBe('')
   })
 
   it('accepts any four-digit year the calendar can express', () => {
@@ -182,6 +200,19 @@ describe('scanning a column', () => {
     expect(scan.readable).toEqual([])
     expect(scan.rejectedBy.yearFirst).toBe('15/03/2024')
     expect(scan.rejectedBy.dayFirst).toBe('2024-03-15')
+  })
+
+  it('accepts different supported separators under automatic selection', () => {
+    const scan = scanImportDateFormats(['2026/08/30', '2026-08-31'])
+
+    expect(scan.readable).toEqual(['yearFirst'])
+  })
+
+  it('rules out values that do not use the required custom separator', () => {
+    const scan = scanImportDateFormats(['2026/08/30', '2026-08-31'], '.')
+
+    expect(scan.readable).toEqual([])
+    expect(scan.rejectedBy.yearFirst).toBe('2026/08/30')
   })
 
   it('ignores blank cells, which the required-value check reports on its own', () => {

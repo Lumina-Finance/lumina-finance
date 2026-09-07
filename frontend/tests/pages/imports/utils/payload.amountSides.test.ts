@@ -20,6 +20,7 @@ import {
 } from '@/pages/imports/constants'
 import type { ColumnMap, CsvRow, ImportFileDraft } from '@/pages/imports/types'
 import { buildTransactionImportPayload } from '@/pages/imports/utils'
+import type { ImportAmountFormat } from '@/pages/imports/utils/amountFormats'
 
 const CURRENCIES: Currency[] = [
   { id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 },
@@ -46,6 +47,8 @@ const BOTH_SIDES_MAP: ColumnMap = {
   amount_in: 'Credit',
 }
 
+const DECIMAL_COMMA: ImportAmountFormat = { decimalSeparator: ',', groupingSeparator: '.' }
+
 /**
  * Builds a commit payload from the money out and money in cells given, one row per pair
  *
@@ -56,6 +59,7 @@ function build(
   sides: Array<[string, string]>,
   columnMap: ColumnMap = BOTH_SIDES_MAP,
   columnValidationErrors: Record<string, string> = {},
+  amountFormat?: ImportAmountFormat | null,
 ) {
   // The signed column carries what the two sides come to, so a map naming all three is the state a
   // real file reaches rather than one invented for the test
@@ -92,6 +96,7 @@ function build(
     columnValidationErrors,
     currencies: CURRENCIES,
     dateFormat: 'yearFirst',
+    amountFormat,
     directionAnswers: {},
     files: [file],
     importedCategories: ['Groceries'],
@@ -108,6 +113,15 @@ function committedAmounts(result: ReturnType<typeof build>) {
 describe('reading a row from the side that carries its amount', () => {
   it('signs the money out side and leaves the money in side alone', () => {
     expect(committedAmounts(build([['45.00', ''], ['', '1200.00']]))).toEqual(['-45.00', '1200.00'])
+  })
+
+  it('normalizes surrounding currency text under one format shared by both sides', () => {
+    expect(committedAmounts(build(
+      [['CHF100,99', ''], ['', 'CHF200,00']],
+      BOTH_SIDES_MAP,
+      {},
+      DECIMAL_COMMA,
+    ))).toEqual(['-100.99', '200.00'])
   })
 
   // The layout this arrangement exists for: a bank that pads the unused side with a zero rather than
@@ -127,12 +141,12 @@ describe('reading a row from the side that carries its amount', () => {
     expect(committedAmounts(build([['', '+2450.00']]))).toEqual(['2450.00'])
   })
 
-  it('leaves thousands separators as the file wrote them, signed or not', () => {
-    expect(committedAmounts(build([['1,234.56', '']]))).toEqual(['-1,234.56'])
-    expect(committedAmounts(build([['-1,234.56', '']]))).toEqual(['-1,234.56'])
+  it('removes thousands separators from normalized amounts, signed or not', () => {
+    expect(committedAmounts(build([['1,234.56', '']]))).toEqual(['-1234.56'])
+    expect(committedAmounts(build([['-1,234.56', '']]))).toEqual(['-1234.56'])
   })
 
-  // Zero runs neither way, so it is committed without a sign rather than as -0.00. Both sides being
+  // Zero moves neither way, so it is committed without a sign rather than as -0.00. Both sides being
   // mapped is what makes this a row where no money moved, rather than one whose money went the way
   // the file has no mapped column for
   it('commits a row that states only a zero, unsigned', () => {
@@ -178,6 +192,14 @@ describe('refusing a row the two sides cannot be read from', () => {
 
   it('refuses a row stating an amount on both sides', () => {
     expect(refusals(build([['45.00', '30.00']]))).toEqual([[1, ROW_AMOUNT_BOTH_SIDES_REASON]])
+  })
+
+  it('does not lose a tiny nonzero side through number underflow', () => {
+    const tiny = `0,${'0'.repeat(324)}1`
+    const result = build([[tiny, '100,99']], BOTH_SIDES_MAP, {}, DECIMAL_COMMA)
+
+    expect(result.rowProblems[0]?.reason).toBe(ROW_AMOUNT_BOTH_SIDES_REASON)
+    expect(result.payload).toBeNull()
   })
 
   it('refuses a row stating an amount on neither side', () => {

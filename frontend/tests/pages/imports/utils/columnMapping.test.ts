@@ -73,6 +73,12 @@ describe('refusing a column of numbers mapped to a field of names', () => {
     expect(validateColumnValues(files, 'Merchant', 'account_id', SUPPORTED_CURRENCY_CODES).valid).toBe(true)
   })
 
+  it('keeps decimal-like suffixes in account names', () => {
+    const files = createColumn('Account', ['Savings 2.0', 'Chequing 3.0'])
+
+    expect(validateColumnValues(files, 'Account', 'account_id', SUPPORTED_CURRENCY_CODES).valid).toBe(true)
+  })
+
   it('accepts an all-numeric column mapped to a field that takes anything', () => {
     const files = createColumn('Reference', ['80012', '80013', '80014'])
 
@@ -333,5 +339,47 @@ describe('checking a column mapped to the single amount field', () => {
     const files = createColumn('Amount', ['abc'])
 
     expect(validateColumnValues(files, 'Amount', 'amount', SUPPORTED_CURRENCY_CODES).valid).toBe(false)
+  })
+
+  it('accepts surrounding text before a format is chosen and validates the selected format', () => {
+    const files = createColumn('Amount', ['CHF100,99', '-CHF20,50'])
+    const decimalComma = { decimalSeparator: ',', groupingSeparator: '.' } as const
+
+    expect(validateColumnValues(files, 'Amount', 'amount', SUPPORTED_CURRENCY_CODES).valid).toBe(true)
+    expect(validateColumnValues(files, 'Amount', 'amount', SUPPORTED_CURRENCY_CODES, null, {
+      amountFormat: decimalComma,
+    }).valid).toBe(true)
+  })
+
+  it('identifies a row that does not fit the selected amount format', () => {
+    const files = createColumn('Amount', ['1,234.56', '1.234,56'])
+    const result = validateColumnValues(files, 'Amount', 'amount', SUPPORTED_CURRENCY_CODES, null, {
+      amountFormat: { decimalSeparator: '.', groupingSeparator: ',' },
+    })
+
+    expect(result.valid).toBe(false)
+    expect(result.message).toContain('Row 2 has "1.234,56"')
+  })
+
+  it('identifies the first row when the reverse mixed format is selected', () => {
+    const files = createColumn('Amount', ['1,234.56', '1.234,56'])
+    const result = validateColumnValues(files, 'Amount', 'amount', SUPPORTED_CURRENCY_CODES, null, {
+      amountFormat: { decimalSeparator: ',', groupingSeparator: '.' },
+    })
+
+    expect(result.valid).toBe(false)
+    expect(result.message).toContain('Row 1 has "1,234.56"')
+  })
+
+  it('accepts space variants and apostrophe grouping only under their selected formats', () => {
+    const spaced = createColumn('Amount', ['1 234,56', '1 234,56', '1 234,56'])
+    const apostrophe = createColumn('Amount', ["1'234.56"])
+
+    expect(validateColumnValues(spaced, 'Amount', 'amount', SUPPORTED_CURRENCY_CODES, null, {
+      amountFormat: { decimalSeparator: ',', groupingSeparator: 'space' },
+    }).valid).toBe(true)
+    expect(validateColumnValues(apostrophe, 'Amount', 'amount', SUPPORTED_CURRENCY_CODES, null, {
+      amountFormat: { decimalSeparator: '.', groupingSeparator: "'" },
+    }).valid).toBe(true)
   })
 })

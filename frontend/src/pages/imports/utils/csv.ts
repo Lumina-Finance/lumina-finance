@@ -44,6 +44,8 @@ const MIN_IMPORT_COLUMNS = 2
 // and it reports an undetectable delimiter for every single-column file
 const FATAL_PARSE_ERROR_CODE = 'MissingQuotes'
 
+const IMPORT_DELIMITERS = [',', ';', '\t', '|'] as const
+
 const HEADER_ALIASES = new Set([
   'account',
   'accountname',
@@ -186,10 +188,11 @@ async function parseCsvText(
   // Pull the CSV parser on demand so papaparse only ships with the import flow
   const { parse } = await import('papaparse')
 
-  const result = parse<string[]>(normalizeLineEndings(text), {
+  const normalizedText = normalizeLineEndings(text)
+  let result = parse<string[]>(normalizedText, {
     header: false,
     skipEmptyLines: 'greedy',
-    delimitersToGuess: [',', ';', '\t', '|'],
+    delimitersToGuess: [...IMPORT_DELIMITERS],
 
     // Stated rather than guessed by majority. A file mixing both endings is guessed as the more
     // common one, and every line ending the other way is then read as part of the cell before it,
@@ -197,6 +200,28 @@ async function parseCsvText(
     newline: '\n',
     transform: (value) => String(value ?? '').trim(),
   })
+
+  // A headerless file with decimal-comma amounts can give the guesser the same number of commas and
+  // field delimiters on every row. If it chooses comma, the real delimiter remains embedded in a
+  // cell and every amount loses its fractional digits. Retry only delimiters still visible in the
+  // guessed cells, retaining Papa's choice unless a stable reading recovers stronger strict evidence
+  for (const delimiter of IMPORT_DELIMITERS) {
+    if (delimiter === result.meta.delimiter) continue
+    if (!result.data.some((row) => row.some((cell) => cell.includes(delimiter)))) continue
+
+    const candidate = parse<string[]>(normalizedText, {
+      delimiter,
+      header: false,
+      skipEmptyLines: 'greedy',
+      newline: '\n',
+      transform: (value) => String(value ?? '').trim(),
+    })
+
+    const isMalformed = candidate.errors.some((error) => error.code === FATAL_PARSE_ERROR_CODE)
+    if (!isMalformed && shouldPreferDelimiterResult(result.data, candidate.data, supportedCurrencyCodes)) {
+      result = candidate
+    }
+  }
 
   const malformed = result.errors.find((error) => error.code === FATAL_PARSE_ERROR_CODE)
   if (malformed) return refuseParsedCsv(getMalformedQuoteError(malformed.row))
@@ -208,6 +233,45 @@ async function parseCsvText(
   }
 
   return buildParsedCsv(records, supportedCurrencyCodes, requireDataRows)
+}
+
+/** Reports whether an explicit delimiter reading is demonstrably stronger than Papa's guess */
+function shouldPreferDelimiterResult(
+  currentRows: string[][],
+  candidateRows: string[][],
+  supportedCurrencyCodes: Set<string>,
+) {
+  const records = candidateRows.map(normalizeRecord).filter((row) => row.some(Boolean))
+  const widths = new Set(records.map((row) => row.length))
+  if (records.length === 0 || widths.size !== 1 || records[0].length < MIN_IMPORT_COLUMNS) return false
+
+  const current = getDelimiterEvidence(currentRows, supportedCurrencyCodes)
+  const candidate = getDelimiterEvidence(records, supportedCurrencyCodes)
+  if (current.dates > 0) return false
+  if (candidate.total < current.total) return false
+  return candidate.dates > current.dates
+    || (candidate.dates === current.dates && candidate.headers > current.headers)
+}
+
+/** Counts strict structural and general cell evidence for one candidate delimiter */
+function getDelimiterEvidence(rows: string[][], supportedCurrencyCodes: Set<string>) {
+  let dates = 0
+  let headers = 0
+  let total = 0
+
+  for (const row of rows.slice(0, 20)) {
+    for (const cell of row) {
+      const isDate = isValidDateValue(cell)
+      const isHeader = isKnownHeaderCell(cell)
+      if (isDate) dates += 1
+      if (isHeader) headers += 1
+      if (isDate || isHeader || isValidAmountValue(cell) || isSupportedCurrency(cell, supportedCurrencyCodes)) {
+        total += 1
+      }
+    }
+  }
+
+  return { dates, headers, total }
 }
 
 /**

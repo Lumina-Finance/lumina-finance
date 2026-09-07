@@ -16,14 +16,21 @@ import type {
 } from '@/pages/imports/types'
 import { unique } from './common'
 import {
-  applyImportAmountDirection,
-  doesImportAmountSignDisagreeWithDirection,
+  DEFAULT_IMPORT_AMOUNT_FORMAT,
+  type ImportAmountFormat,
+  type ImportAmountReading,
+  applyImportAmountReadingDirection,
+  doesImportAmountReadingSignDisagreeWithDirection,
+  isValidMappedImportAmount,
+  readImportAmount,
+} from './amountFormats'
+import {
   foldImportDirectionValue,
   type ImportDateFormat,
+  type ImportDateSeparator,
   isSupportedCurrency,
   isValidAmountValue,
   isValidDateValue,
-  parseImportNumber,
   readImportDate,
   truncateValue,
 } from './valueParsers'
@@ -59,7 +66,7 @@ const COLUMN_VALIDATION_RULES: Record<ColumnTarget, {
     refusesColumn: refuseColumnOfOnlyNumbersOrDates,
   },
   amount: {
-    expected: 'a raw signed number such as -12.34 or 1,234.56; every row must have a value',
+    expected: 'amounts in one supported decimal and grouping format',
     requiredValues: true,
     accepts: isValidAmountValue,
   },
@@ -68,11 +75,11 @@ const COLUMN_VALIDATION_RULES: Record<ColumnTarget, {
   // blank, which is the whole shape of this arrangement. Which rows a file may leave on neither side,
   // or on both, is judged per row rather than against the column
   amount_out: {
-    expected: 'a raw number such as 45.00 or 1,234.56, with the rows this column says nothing about left blank or zero',
+    expected: 'amounts in one supported decimal and grouping format',
     accepts: isValidAmountValue,
   },
   amount_in: {
-    expected: 'a raw number such as 45.00 or 1,234.56, with the rows this column says nothing about left blank or zero',
+    expected: 'amounts in one supported decimal and grouping format',
     accepts: isValidAmountValue,
   },
 
@@ -122,6 +129,7 @@ export function validateColumnMap(
   columnMap: ColumnMap,
   files: ImportFileDraft[],
   supportedCurrencyCodes: Set<string>,
+  formatOptions: ImportColumnFormatOptions = {},
 ) {
   if (files.length === 0) return { map: EMPTY_COLUMN_MAP, errors: {} }
 
@@ -133,9 +141,9 @@ export function validateColumnMap(
     const header = columnMap[target.id]
     if (!header || !availableHeaders.has(header)) continue
 
-    // No format is passed, because this runs while inferring which column is which, before anyone
-    // has chosen one. The hook holds the date column to the chosen format on its own path
-    const validation = validateColumnValues(files, header, target.id, supportedCurrencyCodes)
+    // Before a format is chosen, mapped amount columns accept any supported reading. Value-only
+    // inference remains strict in autoColumnMapping, so this does not turn names into amounts
+    const validation = validateColumnValues(files, header, target.id, supportedCurrencyCodes, null, formatOptions)
     map[target.id] = header
     if (!validation.valid) errors[header] = validation.message
   }
@@ -154,6 +162,7 @@ export function validateColumnValues(
   target: ColumnTarget,
   supportedCurrencyCodes: Set<string>,
   dateFormat: ImportDateFormat | null = null,
+  formatOptions: ImportColumnFormatOptions = {},
 ) {
   const rule = COLUMN_VALIDATION_RULES[target]
   const numberedValues = getNumberedColumnValues(files, header)
@@ -161,10 +170,19 @@ export function validateColumnValues(
   // Until a format is settled the date column is only asked whether its values could be dates at
   // all, and it is held to the chosen format from the moment there is one
   const isDateColumnInChosenFormat = target === 'dt' && dateFormat !== null
-  const expected = isDateColumnInChosenFormat ? getDateFormatExpectation(dateFormat) : rule.expected
+  const isAmountColumn = target === 'amount' || target === 'amount_out' || target === 'amount_in'
+  const expected = isDateColumnInChosenFormat
+    ? getDateFormatExpectation(dateFormat, formatOptions.dateSeparator)
+    : isAmountColumn
+      ? getAmountFormatExpectation(formatOptions.amountFormat)
+      : rule.expected
   const accepts = isDateColumnInChosenFormat
-    ? (value: string) => Boolean(readImportDate(value, dateFormat))
-    : (value: string) => rule.accepts(value, supportedCurrencyCodes)
+    ? (value: string) => Boolean(readImportDate(value, dateFormat, formatOptions.dateSeparator))
+    : isAmountColumn
+      ? (value: string) => formatOptions.amountFormat
+        ? readImportAmount(value, formatOptions.amountFormat) !== null
+        : isValidMappedImportAmount(value)
+      : (value: string) => rule.accepts(value, supportedCurrencyCodes)
 
   if (values.length === 0) {
     return {
@@ -198,6 +216,11 @@ export function validateColumnValues(
   }
 
   return { valid: true, message: '' }
+}
+
+export interface ImportColumnFormatOptions {
+  dateSeparator?: ImportDateSeparator
+  amountFormat?: ImportAmountFormat | null
 }
 
 /**
@@ -244,12 +267,36 @@ function isMoneyShapedValue(value: string) {
  * Names the chosen date format and an example of it, so a row that broke the column says what the
  * rest of the file looks like rather than only that it failed
  */
-function getDateFormatExpectation(dateFormat: ImportDateFormat) {
-  const { label, example } = IMPORT_DATE_FORMAT_LABELS[dateFormat]
+function getDateFormatExpectation(
+  dateFormat: ImportDateFormat,
+  separator: ImportDateSeparator = 'automatic',
+) {
+  const { label, example: defaultExample } = IMPORT_DATE_FORMAT_LABELS[dateFormat]
+  const example = dateFormat !== 'written' && separator !== 'automatic'
+    ? defaultExample.replace(/[-/]/g, separator)
+    : defaultExample
 
   // The label is title case because it names a dropdown entry, and reads as a proper noun mid
   // sentence unless it is lowered
   return `valid dates in the ${label.toLowerCase()} format, such as ${example}; every row must have a value`
+}
+
+/** Describes the amount format a mapped column must use */
+function getAmountFormatExpectation(amountFormat: ImportAmountFormat | null | undefined) {
+  if (!amountFormat) return 'amounts in one supported decimal and grouping format'
+
+  const decimal = amountFormat.decimalSeparator === '.' ? 'a period' : 'a comma'
+  const grouping = getAmountGroupingDescription(amountFormat.groupingSeparator)
+  return `amounts using ${decimal} for decimals and ${grouping}`
+}
+
+/** Describes one grouping separator without exposing its internal control value */
+function getAmountGroupingDescription(grouping: ImportAmountFormat['groupingSeparator']) {
+  if (grouping === 'none') return 'no separator between thousands'
+  if (grouping === 'space') return 'spaces between thousands'
+  if (grouping === '.') return 'periods between thousands'
+  if (grouping === ',') return 'commas between thousands'
+  return 'apostrophes between thousands'
 }
 
 /**
@@ -305,66 +352,92 @@ export function getMappedValue(row: CsvRow, header: string) {
  * @param directionAnswers - What each word in the Direction column means, keyed by the folded value.
  * Empty where no Direction column is mapped, and short of an answer where the user has not given one
  * yet, which the commit refuses before it judges any row
+ * @param amountFormat - The separators selected for all mapped amount columns
  * @returns The amount as the payload carries it, and why there is none where the row breaks a rule
  */
 export function resolveImportAmount(
   row: CsvRow,
   columnMap: ColumnMap,
   directionAnswers: Record<string, ImportAmountDirection>,
+  amountFormat: ImportAmountFormat | null = DEFAULT_IMPORT_AMOUNT_FORMAT,
 ): {
   amount: string
+  amountReading: ImportAmountReading | null
   amountProblem: ImportAmountProblem | null
 } {
   if (!columnMap.amount_out && !columnMap.amount_in) {
     const amountCell = getMappedValue(row, columnMap.amount)
     return columnMap.amount_direction
-      ? resolveDirectedImportAmount(amountCell, getMappedValue(row, columnMap.amount_direction), directionAnswers)
-      : { amount: amountCell, amountProblem: null }
+      ? resolveDirectedImportAmount(
+        amountCell,
+        getMappedValue(row, columnMap.amount_direction),
+        directionAnswers,
+        amountFormat,
+      )
+      : resolveSignedImportAmount(amountCell, amountFormat)
   }
 
   const outCell = getMappedValue(row, columnMap.amount_out)
   const inCell = getMappedValue(row, columnMap.amount_in)
-  if (!outCell && !inCell) return { amount: '', amountProblem: 'neitherFilled' }
+  if (!outCell && !inCell) return { amount: '', amountReading: null, amountProblem: 'neitherFilled' }
 
-  const outValue = outCell ? parseImportNumber(outCell) : null
-  const inValue = inCell ? parseImportNumber(inCell) : null
+  const outReading = outCell && amountFormat ? readImportAmount(outCell, amountFormat) : null
+  const inReading = inCell && amountFormat ? readImportAmount(inCell, amountFormat) : null
 
   // Handed back as it stands, ahead of every rule below, so the row is judged unreadable against the
   // cell the user has to go and fix. Asking which side states an amount first would report a row
   // holding one bad cell and one good one as a row stating two amounts
-  if (outCell && outValue === null) return { amount: outCell, amountProblem: null }
-  if (inCell && inValue === null) return { amount: inCell, amountProblem: null }
+  if (outCell && outReading === null) return { amount: outCell, amountReading: null, amountProblem: null }
+  if (inCell && inReading === null) return { amount: inCell, amountReading: null, amountProblem: null }
 
   // Asked of each filled cell before the rules below, so a row carrying a contradicting sign on one
   // side and a real amount on the other is reported against the cell to fix rather than as a row
   // stating two amounts
-  if (doesImportAmountSignDisagreeWithDirection(outCell, 'out')) {
-    return { amount: '', amountProblem: 'outSideStatesPlus' }
+  if (outReading && doesImportAmountReadingSignDisagreeWithDirection(outReading, 'out')) {
+    return { amount: '', amountReading: null, amountProblem: 'outSideStatesPlus' }
   }
-  if (doesImportAmountSignDisagreeWithDirection(inCell, 'in')) {
-    return { amount: '', amountProblem: 'inSideStatesMinus' }
+  if (inReading && doesImportAmountReadingSignDisagreeWithDirection(inReading, 'in')) {
+    return { amount: '', amountReading: null, amountProblem: 'inSideStatesMinus' }
   }
 
   // A zero states no money moved either way, so it never claims its side against the other
-  const doesOutState = outValue !== null && outValue !== 0
-  const doesInState = inValue !== null && inValue !== 0
+  const doesOutState = outReading !== null && !outReading.isZero
+  const doesInState = inReading !== null && !inReading.isZero
 
-  if (doesOutState && doesInState) return { amount: '', amountProblem: 'bothFilled' }
+  if (doesOutState && doesInState) return { amount: '', amountReading: null, amountProblem: 'bothFilled' }
 
   // Where only one side is mapped every row has to state its amount there, so a zero means this
   // row's money went the way the file has no mapped column for. With both sides mapped the same row
   // is one where no money moved either way, which is a real thing to import
   const isOneSided = !columnMap.amount_out || !columnMap.amount_in
   if (!doesOutState && !doesInState && isOneSided) {
-    return { amount: '', amountProblem: 'sideStatesZero' }
+    return { amount: '', amountReading: null, amountProblem: 'sideStatesZero' }
   }
 
   // Where neither side states an amount, every cell the row did fill is a zero, so whichever side is
   // read gives the same answer
   const direction = doesOutState || !inCell ? 'out' : 'in'
+  const reading = direction === 'out' ? outReading : inReading
+  if (!reading) return { amount: '', amountReading: null, amountProblem: null }
+
+  const amount = applyImportAmountReadingDirection(reading, direction)
 
   return {
-    amount: applyImportAmountDirection(direction === 'out' ? outCell : inCell, direction),
+    amount,
+    amountReading: readImportAmount(amount, DEFAULT_IMPORT_AMOUNT_FORMAT),
+    amountProblem: null,
+  }
+}
+
+/** Reads a signed Amount cell without supplying a direction from another column */
+function resolveSignedImportAmount(
+  amountCell: string,
+  amountFormat: ImportAmountFormat | null,
+) {
+  const reading = amountCell && amountFormat ? readImportAmount(amountCell, amountFormat) : null
+  return {
+    amount: reading?.normalized ?? amountCell,
+    amountReading: reading,
     amountProblem: null,
   }
 }
@@ -380,25 +453,32 @@ function resolveDirectedImportAmount(
   amountCell: string,
   directionCell: string,
   directionAnswers: Record<string, ImportAmountDirection>,
-): { amount: string; amountProblem: ImportAmountProblem | null } {
+  amountFormat: ImportAmountFormat | null,
+): { amount: string; amountReading: ImportAmountReading | null; amountProblem: ImportAmountProblem | null } {
   // Handed back as it stands, ahead of every rule below, so a row whose amount is blank or cannot be
   // read is judged against that cell rather than against a direction that was never the problem
-  if (!amountCell || parseImportNumber(amountCell) === null) {
-    return { amount: amountCell, amountProblem: null }
+  const reading = amountCell && amountFormat ? readImportAmount(amountCell, amountFormat) : null
+  if (!reading) {
+    return { amount: amountCell, amountReading: null, amountProblem: null }
   }
 
-  if (!directionCell) return { amount: '', amountProblem: 'directionBlank' }
+  if (!directionCell) return { amount: '', amountReading: null, amountProblem: 'directionBlank' }
 
   // A word nobody has answered yet stops the whole commit before any row is judged, so the row is
   // left with no amount rather than given a problem naming a fault that is not its own
   const direction = directionAnswers[foldImportDirectionValue(directionCell)]
-  if (!direction) return { amount: '', amountProblem: null }
+  if (!direction) return { amount: '', amountReading: null, amountProblem: null }
 
-  if (doesImportAmountSignDisagreeWithDirection(amountCell, direction)) {
-    return { amount: '', amountProblem: 'directionSignDisagrees' }
+  if (doesImportAmountReadingSignDisagreeWithDirection(reading, direction)) {
+    return { amount: '', amountReading: null, amountProblem: 'directionSignDisagrees' }
   }
 
-  return { amount: applyImportAmountDirection(amountCell, direction), amountProblem: null }
+  const amount = applyImportAmountReadingDirection(reading, direction)
+  return {
+    amount,
+    amountReading: readImportAmount(amount, DEFAULT_IMPORT_AMOUNT_FORMAT),
+    amountProblem: null,
+  }
 }
 
 /**

@@ -1,18 +1,15 @@
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
 import IconTooltip from '@/components/tooltips/IconTooltip'
-import { IMPORT_DATE_FORMAT_LABELS } from '@/pages/imports/constants'
+import { ImportAmountFormatControl, ImportDateFormatControl } from '@/pages/imports/components/FormatControls'
 import type { ColumnMap, ColumnValidationErrors, ImportFileDraft } from '@/pages/imports/types'
 import {
-  IMPORT_DATE_FORMATS,
   type ImportDateFormat,
-  type ImportDateFormatScan,
+  type ImportDateChoiceScan,
+  type ImportAmountFormat,
+  type ImportAmountFormatScan,
   getColumnSamples,
   getTargetForHeader,
 } from '@/pages/imports/utils'
-
-// Marks a format the column cannot be read in, kept short because it renders as a pill beside the
-// option label. Choosing it anyway is allowed, and the column error then quotes the value that broke
-const UNREADABLE_FORMAT_BADGE = 'Does not fit'
 
 /**
  * Table mapping each column header found in the uploaded files to an app field, showing sample
@@ -29,9 +26,14 @@ export function ImportHeaderMappingTable({
   columnMap,
   validationErrors,
   dateFormat,
+  dateFormatAutomatic,
   dateFormatScan,
+  amountFormat,
+  amountFormatAutomatic,
+  amountFormatScan,
   onChange,
   onDateFormatChange,
+  onAmountFormatChange,
 }: {
   headers: string[]
   files: ImportFileDraft[]
@@ -40,16 +42,15 @@ export function ImportHeaderMappingTable({
   columnMap: ColumnMap
   validationErrors: ColumnValidationErrors
   dateFormat: ImportDateFormat | null
-  dateFormatScan: ImportDateFormatScan
+  dateFormatAutomatic: boolean
+  dateFormatScan: ImportDateChoiceScan
+  amountFormat: ImportAmountFormat | null
+  amountFormatAutomatic: boolean
+  amountFormatScan: ImportAmountFormatScan
   onChange: (header: string, target: string) => void
   onDateFormatChange: (dateFormat: ImportDateFormat) => void
+  onAmountFormatChange: (format: ImportAmountFormat) => void
 }) {
-  const dateFormatOptions: DropdownOption[] = IMPORT_DATE_FORMATS.map((format) => ({
-    value: format,
-    label: `${IMPORT_DATE_FORMAT_LABELS[format].label} (${IMPORT_DATE_FORMAT_LABELS[format].example})`,
-    badge: dateFormatScan.rejectedBy[format] ? UNREADABLE_FORMAT_BADGE : undefined,
-  }))
-
   // The wrapper scrolls sideways only while the table is wider than the viewport. Past that it stops
   // clipping entirely, because overflow-x cannot be auto while overflow-y stays visible, and
   // clipping vertically cuts off a row's tooltip where it reaches past the edge of the table
@@ -104,7 +105,7 @@ export function ImportHeaderMappingTable({
                   </p>
                 </td>
                 <td className="px-4 py-2.5 align-middle">
-                  <div className="flex items-center gap-2">
+                  <div className="flex min-w-0 items-start gap-2">
                     {/* Rounded like the control inside it, so the auto-fill glow traces it rather
                         than a rectangle around it */}
                     <div className={`min-w-0 flex-1 rounded-lg ${autoFilled ? 'import-auto-fill-field' : ''}`}>
@@ -118,17 +119,22 @@ export function ImportHeaderMappingTable({
                       />
                     </div>
                     {selectedTarget === 'dt' && (
-                      <div className="min-w-0 flex-[1.4]">
-                        <Dropdown
-                          options={dateFormatOptions}
-                          value={dateFormat ?? ''}
-                          onChange={(nextValue) => onDateFormatChange(nextValue as ImportDateFormat)}
-                          placeholder="Choose the date format"
-                          size="compact"
-                        />
-                      </div>
+                      <ImportDateFormatControl
+                        format={dateFormat}
+                        automatic={dateFormatAutomatic}
+                        scan={dateFormatScan}
+                        onChange={onDateFormatChange}
+                      />
                     )}
-                    <span className="flex w-4 shrink-0 items-center justify-center">
+                    {(selectedTarget === 'amount' || selectedTarget === 'amount_out' || selectedTarget === 'amount_in') && (
+                      <ImportAmountFormatControl
+                        format={amountFormat}
+                        automatic={amountFormatAutomatic}
+                        scan={amountFormatScan}
+                        onChange={onAmountFormatChange}
+                      />
+                    )}
+                    <span className="flex h-9 w-4 shrink-0 items-center justify-center">
                       {validationError && (
                         <IconTooltip
                           label={validationError}

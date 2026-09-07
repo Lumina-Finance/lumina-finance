@@ -418,6 +418,26 @@ async def test_import_transactions_rejects_invalid_raw_amount(client):
     assert resp.json()["detail"] == "Invalid amount: $12.34"
 
 
+async def test_import_transactions_stores_a_normalized_amount(client):
+    """A normalized decimal string reaches storage without locale separators or precision loss."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+
+    resp = await _import_transactions(client, headers, {
+        "accounts": [{"source": "Main Chequing", "account_id": account_id}],
+        "categories": [{"source": "Groceries", "category_id": category_id}],
+        "rows": [{
+            "account_source": "Main Chequing",
+            "category_source": "Groceries",
+            "dt": "2026-04-11",
+            "amount": "-100.99",
+        }],
+    })
+
+    assert resp.status_code == 201
+    transaction = (await client.get("/transactions", headers=headers)).json()[0]
+    assert transaction["amount"] == -10099
+
+
 async def test_import_transactions_rejects_archived_account_mapping(client):
     """Import cannot add new rows to an archived account."""
     headers, account_id, category_id = await _setup_user_with_deps(client)

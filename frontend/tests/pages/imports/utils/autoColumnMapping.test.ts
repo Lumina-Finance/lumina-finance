@@ -465,6 +465,35 @@ describe('a file writing money out and money in in columns of their own', () => 
     expect(map.amount).toBe('Net')
   })
 
+  it('maps a named Amount column before its surrounding currency text is normalized', () => {
+    const files = [createFile(
+      ['Date', 'Amount', 'Category'],
+      [
+        { Date: '31.08.2026', Amount: '-CHF100,99', Category: 'Groceries' },
+        { Date: '01.09.2026', Amount: 'CHF200,00', Category: 'Income' },
+      ],
+    )]
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(map.dt).toBe('Date')
+    expect(map.amount).toBe('Amount')
+  })
+
+  it('does not infer an unknown text column as Amount from permissive normalization', () => {
+    const files = [createFile(
+      ['Date', 'Description', 'Mystery'],
+      [
+        { Date: '2026-04-11', Description: 'Coffee shop', Mystery: '-CHF100,99' },
+        { Date: '2026-04-12', Description: 'Payroll', Mystery: 'CHF200,00' },
+      ],
+    )]
+
+    const { map } = inferColumnMap(EMPTY_COLUMN_MAP, files, SUPPORTED_CURRENCY_CODES)
+
+    expect(map.amount).toBe('')
+  })
+
   // The single field scores on the word these headings end with, and reading a one-directional
   // column as the whole transaction signs half the file wrongly. Every wording either side knows has
   // to be barred from it, not just the bookkeeping ones

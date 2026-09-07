@@ -4,6 +4,7 @@ import type { Category } from '@/api/categories'
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
 import type { ColumnMap, ColumnTarget, ColumnTargetGroup, ImportAmountDirection, ImportCategoryKind } from './types'
 import type { ImportDateFormat } from './utils/valueParsers'
+import type { ImportAmountFormat } from './utils/amountFormats'
 
 export const EMPTY_COLUMN_MAP: ColumnMap = {
   account_id: '',
@@ -286,12 +287,22 @@ export const ROW_DIRECTION_SIGN_DISAGREES_REASON = 'The sign on this row\'s amou
  * Says an amount carries decimal places its currency does not have
  *
  * How many are allowed is the currency's answer rather than the importer's, so the message states
- * it. It also says how a period is read, because an amount like 1.234 written with a period
- * grouping the thousands fails here, and without that sentence the reason reads as a complaint
- * about a number the user considers whole
+ * it. The selected separators are included because an amount such as 1.234 can be either a decimal
+ * value or a grouped whole value
  */
-export function getRowAmountTooPreciseReason(currency: string) {
-  return `The amount has more decimal places than ${currency} has. A period is read as a decimal point, never as a separator between thousands.`
+export function getRowAmountTooPreciseReason(currency: string, amountFormat?: ImportAmountFormat | null) {
+  const decimal = amountFormat?.decimalSeparator === ',' ? 'comma' : 'period'
+  const grouping = getImportGroupingDescription(amountFormat?.groupingSeparator ?? ',')
+  return `The amount has more decimal places than ${currency} has. The selected format uses a ${decimal} for decimals and ${grouping}.`
+}
+
+/** Describes how an amount format separates groups of thousands */
+function getImportGroupingDescription(grouping: ImportAmountFormat['groupingSeparator']) {
+  if (grouping === 'none') return 'no separator between thousands'
+  if (grouping === 'space') return 'spaces between thousands'
+  if (grouping === '.') return 'periods between thousands'
+  if (grouping === ',') return 'commas between thousands'
+  return 'apostrophes between thousands'
 }
 // The two ways the counterparty column contradicts the rest of the row. Both open with what this row
 // states rather than with the rule it breaks, since a rule leaves the user working out which of
@@ -401,7 +412,7 @@ export const IMPORT_SCOPE_FAILURE_EXPLANATION = 'Without them this import cannot
 // It speaks of the account each source is mapped to, which is the step after this one, since that is
 // where the answer comes from even though the question arises while the columns are being chosen
 export const CURRENCY_HANDLING_TITLE = 'How currencies are read'
-export const CURRENCY_HANDLING_NOTE = 'Imported amounts are treated as raw values. Each one is assigned the currency of the account its row is mapped to, or the currency shown against a new account, which is taken from the file where it states one and can be changed on any row.'
+export const CURRENCY_HANDLING_NOTE = 'Imported amounts use the file format selected below. Each one is assigned the currency of the account its row is mapped to, or the currency shown against a new account, which is taken from the file where it states one and can be changed on any row.'
 
 /**
  * Says what a scoped import does with the currency of the account it writes to
@@ -412,7 +423,7 @@ export const CURRENCY_HANDLING_NOTE = 'Imported amounts are treated as raw value
  * commit with no payload at all
  */
 export function getFixedAccountCurrencyNote(accountName: string, currency: string) {
-  return `Imported amounts are treated as raw values. Every row will be assigned ${currency}, the currency ${accountName} is kept in, and a row stating a different currency stops the import until the file is corrected or its currency column is set to Do not import.`
+  return `Imported amounts use the file format selected below. Every row will be assigned ${currency}, the currency ${accountName} is kept in, and a row stating a different currency stops the import until the file is corrected or its currency column is set to Do not import.`
 }
 
 // The file cannot be checked for covering more than one account, since the column that would say so

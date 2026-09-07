@@ -25,8 +25,10 @@ import { getCategoryMatchKind } from './categoryMatching'
 import { findCurrencyExponent } from '@/utils/moneyInput'
 import { getCurrencyByAccountSource, type ImportRowContext, resolveImportRow } from './rowResolution'
 import { getAmountArrangementClashError, getSupportedCurrencyCodes } from './workflowOptions'
+import { DEFAULT_IMPORT_AMOUNT_FORMAT, type ImportAmountFormat } from './amountFormats'
 import {
   type ImportDateFormat,
+  type ImportDateSeparator,
   getPreviewDateLabel,
   isSupportedCurrency,
   toImportMinorUnits,
@@ -36,6 +38,8 @@ interface BuildImportPreviewRowsOptions {
   files: ImportFileDraft[]
   columnMap: ColumnMap
   dateFormat: ImportDateFormat | null
+  dateSeparator?: ImportDateSeparator
+  amountFormat?: ImportAmountFormat | null
   directionAnswers: Record<string, ImportAmountDirection>
   missingRequiredColumnLabels: string[]
   currencies: Currency[]
@@ -77,6 +81,8 @@ export function buildImportPreviewRows({
   files,
   columnMap,
   dateFormat,
+  dateSeparator = 'automatic',
+  amountFormat = DEFAULT_IMPORT_AMOUNT_FORMAT,
   directionAnswers,
   missingRequiredColumnLabels,
   currencies,
@@ -112,6 +118,8 @@ export function buildImportPreviewRows({
   const rowContext: ImportRowContext = {
     columnMap,
     dateFormat,
+    dateSeparator,
+    amountFormat,
     directionAnswers,
     currencyByAccountSource: getCurrencyByAccountSource(resolvedAccountMappings, accountById, accountCreateCurrencies),
   }
