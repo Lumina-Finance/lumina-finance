@@ -236,45 +236,53 @@ Lumina Finance can accept sign-ins from any standards-compliant OpenID Connect p
 
 #### Rotating the encryption key
 
-Rotate the key if it has been exposed, or on whatever schedule your own policy sets. The app must be stopped while this runs: a serving container holds the old key for its lifetime, so a two-factor enrolment during the rotation is written under that key onto a row already rewritten, and nothing can read it afterwards. The rotation refuses to start while the app is still connected.
+**YOU MUST STOP THE APP BEFORE ROTATING THE KEY.** Failure to do so will result in permanent data loss. We also highly recommend you to back up your database before beginning the process.
 
-1. Generate a key:
+To rotate your encryption key, please follow the steps below. The rotation command will update the saved secrets and reencrypt things with your replacement key to complete the key rotation process.
+
+1. Stop the stack and back up your database and the encryption key (from either `APP_ENCRYPTION_KEY` or `/data/secrets/app_encryption_key`) as backup. You will need the old key to restore your back up.
+
+2. Generate a key:
 
    ```sh
    docker compose run --rm app generate-app-encryption-key
    ```
 
-   The key is printed and stored nowhere. It protects nothing yet, so generate another if you lose it at this point.
+3. Save the replacement key
 
-2. Save the replacement key in your password manager, separately from the key that is in use. The replacement key takes effect when the rotation commits.
-
-3. Stop the app, leaving PostgreSQL running:
+4. Stop the app, but leave postgres running:
 
    ```sh
    docker compose stop app
    ```
 
-4. Take a restorable database backup while the app is stopped and PostgreSQL is running. Keep the key that is in use with the backup, whether that key comes from `APP_ENCRYPTION_KEY` or `/data/secrets/app_encryption_key`. Keep the key until every backup whose secrets it decrypts has expired.
-
-5. Rotate, giving the replacement key as the argument:
+5. Run the rotation command with the replacement key:
 
    ```sh
    docker compose run --rm app rotate-app-encryption-key "your-new-key"
    ```
 
-   The key is visible in the process list while this runs, so rotate from a shell you trust. The rotation rewrites every stored secret in one transaction, so a database failure leaves the data under the old key. After the transaction commits, the command tries to remove the old key file from the data volume. It then reports how many rows it rewrote per column and frames the step left to do.
+6. Set `APP_ENCRYPTION_KEY` in `.env` to the replacement key.
 
-6. Set `APP_ENCRYPTION_KEY` in `.env` to the replacement key, then start the stack:
+7. Start the app again:
 
    ```sh
    docker compose up -d
    ```
 
-If the command fails before the database transaction commits, the database stays under the old key. Correct the reported problem and repeat step 5 before changing `APP_ENCRYPTION_KEY`.
+##### Errors before the database changes are saved
 
-If the database rotation commits but the old key file remains, setting `APP_ENCRYPTION_KEY` to the replacement key makes the two key sources disagree. A retry can still remove the stale file only when the database fingerprint matches and at least one stored secret decrypts. Empty encrypted tables cannot establish that the rotation already committed. A retry also cannot correct file permissions. If the command prints `Could not remove the stale key file` before the row counts and success instructions, correct the permissions and remove the stale file only after establishing that the database rotation succeeded. If the replacement key is already configured and no stale key file remains, the retry refuses it as the key already in use. Start the app and verify a known stored secret instead of retrying or overwriting the recorded fingerprint.
+If the command fails before saving its database changes, the saved secrets still use the old key. Fix the reported problem and repeat step 5. Don't change `APP_ENCRYPTION_KEY` until those changes are saved. **DO NOT START THE APP WHILE YOU ARE ROTATING THE KEYS UNDER ANY CIRCUMSTANCES**.
 
-Check for a leftover container with `docker compose ps -a` and remove it with `docker compose rm -f app`. The key is part of the container's recorded command, and `--rm` does not delete a container whose run was interrupted.
+##### `Could not remove the stale key file`
+
+The database has already switched to your replacement key, but the old key file could not be deleted. Confirm that the rotation completed, then fix the file permissions and delete the old file. The app cannot start while this file conflicts with your replacement key in `APP_ENCRYPTION_KEY`.
+
+You can run the rotation command again to try removing the old file. This only works if the database's key record matches your replacement key and the key can read at least one saved secret. If you have no saved secrets, it cannot confirm that the rotation completed. You will still need to fix any file permission problems yourself.
+
+##### `Refusing to rotate: the new key is the key already in use`
+
+If you have already set `APP_ENCRYPTION_KEY` to your replacement key and removed the old file, you do not need to rotate to that key again. Start the app and test a feature that uses a saved secret, such as your existing two-factor sign-in. Do not change the database's key record to force the command to run again.
 
 ### [JWKS (JSON Web Key Set)](https://auth0.com/docs/secure/tokens/json-web-tokens/json-web-key-sets) and JWT Configs
 
