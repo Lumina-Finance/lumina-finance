@@ -10,6 +10,7 @@
   <a href="https://github.com/Lumina-Finance/lumina-finance/actions/workflows/release.yml"><img alt="Docker Image Builds" src="https://img.shields.io/github/actions/workflow/status/Lumina-Finance/lumina-finance/release.yml?event=release&label=Docker%20Image%20Builds&style=flat&logo=githubactions&logoColor=white"></a>&nbsp;&nbsp;
   <a href="https://hub.docker.com/r/luminahq/lumina-finance"><img alt="Docker Pulls" src="https://img.shields.io/docker/pulls/luminahq/lumina-finance?label=Docker%20Pulls&style=flat&logo=docker&logoColor=white&labelColor=2496ED&color=white"></a>&nbsp;&nbsp;
   <a href="https://github.com/Lumina-Finance/lumina-finance"><img alt="GitHub Stars" src="https://img.shields.io/github/stars/Lumina-Finance/lumina-finance?label=GitHub%20Stars&style=flat&logo=github&logoColor=white&labelColor=181717&color=eac54f"></a>&nbsp;&nbsp;
+  <a href="https://www.reddit.com/r/LuminaFinance/"><img alt="Reddit community" src="https://img.shields.io/badge/Reddit-r%2FLuminaFinance-white?style=flat&logo=reddit&logoColor=white&labelColor=FF4500"></a>&nbsp;&nbsp;
   <a href="https://www.buymeacoffee.com/lumina.finance"><img alt="Buy Me a Coffee" src="https://img.shields.io/badge/-Buy%20me%20a%20coffee-FFDD00?style=flat&logo=buymeacoffee&logoColor=black"></a>
 </p>
 
