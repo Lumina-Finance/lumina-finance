@@ -17,6 +17,8 @@
 
 Lumina Finance is a self-hosted personal finance app for managing your finances, tracking expenses, setting budgets, and analyzing your spending behaviour.
 
+Join the community at [r/LuminaFinance](https://www.reddit.com/r/LuminaFinance/) to ask questions, share feedback and discuss releases.
+
 <!-- markdownlint-disable MD033 -->
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/hero_dark.png">
