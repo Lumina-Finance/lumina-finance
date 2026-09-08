@@ -92,6 +92,7 @@ In no particular order:
 
 - [ ] Basic investment tracker (bring your own data)
 - [ ] Native iOS and macOS app
+- [ ] Android app
 - [ ] A few quite ambitious features we are not quite ready to spoil yet :)
 
 ## Screenshots
