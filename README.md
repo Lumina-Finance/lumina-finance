@@ -32,7 +32,7 @@ THIS APPLICATION IS PROVIDED “AS IS” AND “AS AVAILABLE,” WITHOUT WARRANT
 
 <!-- markdownlint-disable MD033 -->
 
-https://github.com/user-attachments/assets/ef368179-a7d5-4cfb-8b35-d5482244e5a4
+https://github.com/user-attachments/assets/0674ffa8-a16e-4460-a82a-fc039aba6d30
 
 <!-- markdownlint-enable MD033 -->
 
@@ -232,7 +232,57 @@ Lumina Finance can accept sign-ins from any standards-compliant OpenID Connect p
 
 | Variable | Required | Expected Values | Default Value | Purpose |
 |-|-|-|-|-|
-| `APP_ENCRYPTION_KEY` | No | Fernet key | Auto-generated | Encrypts secrets stored in the database, such as two-factor secrets and the OIDC client secret. If unset, a key is generated on first start and persisted to `/data/secrets/app_encryption_key` on the data volume. Changing the encryption key stops the container at startup because existing secrets cannot be decrypted. Losing this key makes the stored secrets undecryptable, so back up the data volume alongside your database |
+| `APP_ENCRYPTION_KEY` | No | Fernet key | Auto-generated | Encrypts secrets stored in the database, such as two-factor secrets and the OIDC client secret. If unset, a key is generated on first start and persisted to `/data/secrets/app_encryption_key` on the data volume. Setting this to a key the stored secrets were not encrypted under stops the container at startup rather than making them unreadable. To change the key, follow [Rotating the encryption key](#rotating-the-encryption-key), which rewrites every stored secret under the new one. Losing this key makes the stored secrets undecryptable, so back up the data volume alongside your database |
+
+#### Rotating the encryption key
+
+**YOU MUST STOP THE APP BEFORE ROTATING THE KEY.** Failure to do so will result in permanent data loss. We also highly recommend you to back up your database before beginning the process.
+
+To rotate your encryption key, please follow the steps below. The rotation command will update the saved secrets and reencrypt things with your replacement key to complete the key rotation process.
+
+1. Stop the stack and back up your database and the encryption key (from either `APP_ENCRYPTION_KEY` or `/data/secrets/app_encryption_key`) as backup. You will need the old key to restore your back up.
+
+2. Generate a key:
+
+   ```sh
+   docker compose run --rm app generate-app-encryption-key
+   ```
+
+3. Save the replacement key
+
+4. Stop the app, but leave postgres running:
+
+   ```sh
+   docker compose stop app
+   ```
+
+5. Run the rotation command with the replacement key:
+
+   ```sh
+   docker compose run --rm app rotate-app-encryption-key "your-new-key"
+   ```
+
+6. Set `APP_ENCRYPTION_KEY` in `.env` to the replacement key.
+
+7. Start the app again:
+
+   ```sh
+   docker compose up -d
+   ```
+
+##### Errors before the database changes are saved
+
+If the command fails before saving its database changes, the saved secrets still use the old key. Fix the reported problem and repeat step 5. Don't change `APP_ENCRYPTION_KEY` until those changes are saved. **DO NOT START THE APP WHILE YOU ARE ROTATING THE KEYS UNDER ANY CIRCUMSTANCES**.
+
+##### `Could not remove the stale key file`
+
+The database has already switched to your replacement key, but the old key file could not be deleted. Confirm that the rotation completed, then fix the file permissions and delete the old file. The app cannot start while this file conflicts with your replacement key in `APP_ENCRYPTION_KEY`.
+
+You can run the rotation command again to try removing the old file. This only works if the database's key record matches your replacement key and the key can read at least one saved secret. If you have no saved secrets, it cannot confirm that the rotation completed. You will still need to fix any file permission problems yourself.
+
+##### `Refusing to rotate: the new key is the key already in use`
+
+If you have already set `APP_ENCRYPTION_KEY` to your replacement key and removed the old file, you do not need to rotate to that key again. Start the app and test a feature that uses a saved secret, such as your existing two-factor sign-in. Do not change the database's key record to force the command to run again.
 
 ### [JWKS (JSON Web Key Set)](https://auth0.com/docs/secure/tokens/json-web-tokens/json-web-key-sets) and JWT Configs
 
