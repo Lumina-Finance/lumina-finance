@@ -10,12 +10,15 @@
   <a href="https://github.com/Lumina-Finance/lumina-finance/actions/workflows/release.yml"><img alt="Docker Image Builds" src="https://img.shields.io/github/actions/workflow/status/Lumina-Finance/lumina-finance/release.yml?event=release&label=Docker%20Image%20Builds&style=flat&logo=githubactions&logoColor=white"></a>&nbsp;&nbsp;
   <a href="https://hub.docker.com/r/luminahq/lumina-finance"><img alt="Docker Pulls" src="https://img.shields.io/docker/pulls/luminahq/lumina-finance?label=Docker%20Pulls&style=flat&logo=docker&logoColor=white&labelColor=2496ED&color=white"></a>&nbsp;&nbsp;
   <a href="https://github.com/Lumina-Finance/lumina-finance"><img alt="GitHub Stars" src="https://img.shields.io/github/stars/Lumina-Finance/lumina-finance?label=GitHub%20Stars&style=flat&logo=github&logoColor=white&labelColor=181717&color=eac54f"></a>&nbsp;&nbsp;
+  <a href="https://www.reddit.com/r/LuminaFinance/"><img alt="Reddit community" src="https://img.shields.io/badge/Reddit-r%2FLuminaFinance-white?style=flat&logo=reddit&logoColor=white&labelColor=FF4500"></a>&nbsp;&nbsp;
   <a href="https://www.buymeacoffee.com/lumina.finance"><img alt="Buy Me a Coffee" src="https://img.shields.io/badge/-Buy%20me%20a%20coffee-FFDD00?style=flat&logo=buymeacoffee&logoColor=black"></a>
 </p>
 
 <!-- markdownlint-enable MD033 -->
 
-Lumina Finance is a self-hosted personal finance app for managing your finances, tracking expenses, setting budgets, and analyzing your spending behaviour.
+Lumina Finance is a self-hosted personal finance app that helps you understand your spending behaviour, track expenses, and set budgets while keeping you in control of your data.
+
+Join the community at [r/LuminaFinance](https://www.reddit.com/r/LuminaFinance/) to ask questions, share feedback and discuss releases.
 
 <!-- markdownlint-disable MD033 -->
 <picture>
@@ -40,18 +43,18 @@ https://github.com/user-attachments/assets/0674ffa8-a16e-4460-a82a-fc039aba6d30
 
 Lumina Finance gives you one place to track accounts, transactions, budgets, and financial trends while you keep your data under your control.
 
-- **Accounts** - Track cash, credit, savings, and every other account type, each with its own balance history and detail view, and hide the ones you have archived.
-- **Multi-currency** - Track accounts and activity in different currencies with FX conversions across dashboards, budgets, runway, and insights.
-- **Transactions** - Add transactions, then organize them with merchants, categories, tags, and notes.
-- **Imports** - Bring your transaction history with you and import it easily with app-specific importers or a general importer.
-- **Tax-advantaged accounts** - Group accounts that share the same tax-advantaged structure and track their withdrawal and contribution limits in one place.
-- **Budgets** - Set recurring and one-time budgets by category, track spending against them, and keep a budget's history after you archive it.
-- **Dashboard** - Check net worth, credit usage, spending, savings rate, recent activity, and top budgets in one beautiful pane.
-- **Runway** - Know exactly how long your funds will last in the worst case scenario.
-- **Insights** - Review cash flow, income and expense breakdowns, net worth trends, savings-rate trends, and merchant patterns.
-- **Account security** - Protect sign-in with two-factor authentication using an authenticator app or passkeys, fall back on recovery codes, and reset a forgotten password by email.
-- **Single sign-on** - Sign in through your own OpenID Connect provider, or link one to an existing account and manage it from settings.
-- **Self-hostable** - You have full control of your data, run it locally with Docker.
+- **Accounts** - Lumina Finance helps you track cash, credit, savings, and every other account type, with a detailed view and balance history for each. Archived accounts can be hidden when you don't need to see them.
+- **Multi-currency** - Exchange rate conversions help you follow accounts and activity in different currencies across dashboards, budgets, runway, and insights.
+- **Transactions** - You can add transactions and organize them with merchants, categories, tags, and notes to keep your records clear.
+- **Imports** - App-specific importers and a general importer help you bring your transaction history into Lumina Finance.
+- **Tax-advantaged accounts** - Accounts with the same tax-advantaged structure can be grouped together, helping you track their contribution and withdrawal limits in one place.
+- **Budgets** - Recurring and one-time budgets help you compare your spending against the amounts you set for each category. Their history stays available after you archive them.
+- **Dashboard** - The dashboard brings your net worth, credit usage, spending, savings rate, recent activity, and top budgets together in one beautifully presented view.
+- **Runway** - The runway view shows you exactly how long your funds will last in the worst-case scenario.
+- **Insights** - Cash flow reports, income and expense breakdowns, and merchant patterns help you understand your finances, alongside trends in your net worth and savings rate.
+- **Account security** - Two-factor authentication protects your sign-in through an authenticator app or passkeys, with recovery codes as a fallback. Email password resets help you regain access if you forget your password.
+- **Single sign-on** - You can sign in through your own OpenID Connect provider, or link it to an existing account and manage it from settings.
+- **Self-hostable** - Running Lumina Finance locally with Docker keeps you in full control of your data.
 
 ### Roadmap
 
@@ -145,7 +148,7 @@ Every page is fully optimized for desktop, tablet, and mobile.
 
 ### Docker
 
-To deploy with Docker, use the example compose file at [`docker/compose.yml`](docker/compose.yml) and the example [`.env`](docker/.env.example) beside it, which holds the required database variables and the most common optional settings, including email delivery and single sign-on. The compose file passes `.env` through to the app, so you can set any variable from the [Environment Variables](#environment-variables) tables below there.
+To deploy with Docker, use the example compose file at [`docker/compose.yml`](docker/compose.yml) and the example [`.env`](docker/.env.example) beside it. The `.env` file contains the required database variables and the most common optional settings, including email delivery and single sign-on. The compose file passes these settings to the app. You can add any variable from the [Environment Variables](#environment-variables) tables below to `.env`.
 
 To get a fresh instance running:
 
@@ -181,7 +184,7 @@ Frankfurter can also be self-hosted. To use a self-hosted instance, see Frankfur
 
 ### Email
 
-Lumina Finance sends email for password resets. The default `logging` backend prints outgoing mail to the container logs instead of sending it, so the app runs fine before SMTP is configured.
+Lumina Finance sends email for password resets. The default `logging` backend prints outgoing mail to the container logs instead of sending it. The app runs fine before SMTP is configured.
 
 | Variable | Required | Expected Values | Default Value | Purpose |
 |-|-|-|-|-|
@@ -214,7 +217,9 @@ Two-factor authentication with an authenticator app works without any of these s
 
 ### Single Sign-On (OIDC)
 
-Lumina Finance can accept sign-ins from any standards-compliant OpenID Connect provider, such as Authentik or Authelia. Single sign-on is off by default and turns on when `OIDC_GENERIC_CLIENT_ID` is set, and a half-configured provider fails at startup. `APP_URL` must be set, since the provider redirects back to `<APP_URL>/auth/oidc/callback`.
+Lumina Finance can accept sign-ins from any standards-compliant OpenID Connect provider, such as Authentik or Authelia. Single sign-on is off by default. Setting `OIDC_GENERIC_CLIENT_ID` turns it on, but an incomplete provider configuration fails at startup.
+
+`APP_URL` must be set because the provider redirects back to `<APP_URL>/auth/oidc/callback`.
 
 | Variable | Required | Expected Values | Default Value | Purpose |
 |-|-|-|-|-|
@@ -238,9 +243,9 @@ Lumina Finance can accept sign-ins from any standards-compliant OpenID Connect p
 
 **YOU MUST STOP THE APP BEFORE ROTATING THE KEY.** Failure to do so will result in permanent data loss. We also highly recommend you to back up your database before beginning the process.
 
-To rotate your encryption key, please follow the steps below. The rotation command will update the saved secrets and reencrypt things with your replacement key to complete the key rotation process.
+To rotate your encryption key, follow the steps below. The rotation command updates your saved secrets by re-encrypting them with the replacement key.
 
-1. Stop the stack and back up your database and the encryption key (from either `APP_ENCRYPTION_KEY` or `/data/secrets/app_encryption_key`) as backup. You will need the old key to restore your back up.
+1. Stop the stack and back up your database and encryption key (from either `APP_ENCRYPTION_KEY` or `/data/secrets/app_encryption_key`). You will need the old key to restore your backup.
 
 2. Generate a key:
 
@@ -248,9 +253,9 @@ To rotate your encryption key, please follow the steps below. The rotation comma
    docker compose run --rm app generate-app-encryption-key
    ```
 
-3. Save the replacement key
+3. Save the replacement key.
 
-4. Stop the app, but leave postgres running:
+4. Stop the app, but leave PostgreSQL running:
 
    ```sh
    docker compose stop app
@@ -286,7 +291,7 @@ If you have already set `APP_ENCRYPTION_KEY` to your replacement key and removed
 
 ### [JWKS (JSON Web Key Set)](https://auth0.com/docs/secure/tokens/json-web-tokens/json-web-key-sets) and JWT Configs
 
-These are some advanced variables that you could also set. Lumina Finance provides an endpoint that exposes known RSA public keys used to verify the JWT tokens. However, you should only modify these settings if you set up an API gateway or a reverse proxy that validates JWT token signatures. If you want to verify the JWT tokens so that only validated requests go through your API gateway/reverse proxy, you can configure the options below:
+Lumina Finance provides an endpoint that exposes known RSA public keys for verifying JWT tokens. Only change these advanced settings if you set up an API gateway or reverse proxy that validates JWT signatures. The options below let you configure that verification so only validated requests pass through your gateway or proxy:
 
 | Variable | Required | Expected Values | Default Value | Purpose |
 | --- | --- | --- | --- | --- |
