@@ -1,16 +1,9 @@
-import { createContext, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import Toast, { type ToastMessage } from '@/components/feedback/Toast'
+import { ToastContext, type ToastValue } from '@/contexts/ToastContext'
 
 // Long enough to read a sentence without the message becoming furniture
 const TOAST_VISIBLE_MS = 6000
-
-export interface ToastValue {
-  /** Replaces whatever is showing, so the newest message is always the visible one */
-  showToast: (toast: ToastMessage) => void
-  dismissToast: () => void
-}
-
-const ToastContext = createContext<ToastValue | null>(null)
 
 /**
  * Holds the one message showing in the bottom-right corner, so any page can raise one without owning
@@ -50,5 +43,3 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     </ToastContext.Provider>
   )
 }
-
-export { ToastContext }
