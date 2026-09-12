@@ -629,6 +629,9 @@
      box underneath. Its own clipping is what hides the list while closed, so the list can grow out of
      the head instead of appearing beside it */
   .app-dropdown-glass {
+    /* Sticky group headings share the box's opaque background in every validation state */
+    --app-dropdown-bg: var(--app-input-bg);
+
     display: flex;
     flex-direction: column;
 
@@ -640,7 +643,7 @@
     min-width: 0;
     border: 1px solid var(--app-input-border);
     border-radius: var(--app-dropdown-radius);
-    background: var(--app-input-bg);
+    background: var(--app-dropdown-bg);
     color: var(--app-text);
 
     transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
@@ -680,7 +683,7 @@
      instead, which cost nothing to draw and nothing to redraw while the box opens */
   .app-dropdown-glass.app-dropdown-glass-floating {
     border-color: var(--app-border-strong);
-    background: var(--app-input-bg);
+    background: var(--app-dropdown-bg);
     box-shadow: var(--app-shadow-soft);
   }
 
@@ -688,7 +691,7 @@
      The message above it points at this field, and a plain one is the wrong thing to point at */
   .app-dropdown-glass.app-dropdown-glass-disabled {
     border-color: var(--app-input-border);
-    background: var(--app-input-bg);
+    background: var(--app-dropdown-bg);
     box-shadow: none;
     opacity: var(--app-dropdown-disabled-opacity-control);
   }
@@ -696,8 +699,9 @@
   /* Mixed from the opaque negative rather than its soft variant, which carries alpha of its own. The
      two land on nearly the same colour over a form, and this one stays solid over anything */
   .app-dropdown-glass.app-dropdown-glass-error {
+    --app-dropdown-bg: color-mix(in srgb, var(--app-negative) 10%, var(--app-input-bg));
+
     border-color: var(--app-negative-border);
-    background: color-mix(in srgb, var(--app-negative) 10%, var(--app-input-bg));
   }
 
   .app-dropdown-glass.app-dropdown-glass-error:focus-within {
@@ -867,7 +871,7 @@
     top: 0;
     z-index: 1;
     padding: 6px var(--app-dropdown-row-padding-x);
-    background: var(--app-input-bg);
+    background: var(--app-dropdown-bg);
     border-bottom: 1px solid var(--app-border);
     color: var(--app-text-subtle);
     font-size: 0.75rem;
