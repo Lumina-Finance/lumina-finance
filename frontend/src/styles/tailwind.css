@@ -780,6 +780,7 @@
   @media (prefers-reduced-motion: reduce) {
     .app-dropdown-glass,
     .app-dropdown-row,
+    .app-dropdown-glass-open .app-dropdown-bodywrap,
     .app-dropdown-bodywrap {
       transition-duration: 0s;
     }
