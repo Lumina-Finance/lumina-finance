@@ -64,7 +64,7 @@ export function ImportUploadCard({
   // `aria-disabled:` ones, whose hover rule would land at the same specificity as the plain hover
   // above it and be settled by the order Tailwind happens to emit them in
   const unavailableClasses = blockReason?.isFailure ? 'cursor-not-allowed' : 'cursor-wait'
-  const availableClasses = 'hover:bg-[var(--app-surface-soft)]'
+  const availableClasses = 'hover:bg-[var(--app-hover-soft)]'
 
   return (
     <>

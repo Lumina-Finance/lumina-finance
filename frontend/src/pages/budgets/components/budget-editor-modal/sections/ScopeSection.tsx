@@ -22,7 +22,6 @@ interface BudgetEditorModalScopeSectionProps {
   // with no period yet
   limitPlaceholder?: string
   currencyReadOnly: boolean
-  currencyTooltip: boolean
   limitDisabled: boolean
 
   // Stands the limit down unless the currency table is in hand, since its decimal places are the only way
@@ -46,7 +45,6 @@ export default function BudgetEditorModalScopeSection({
   namePlaceholder,
   limitPlaceholder,
   currencyReadOnly,
-  currencyTooltip,
   limitDisabled,
   currencyState,
   fieldsLocked,
@@ -98,14 +96,12 @@ export default function BudgetEditorModalScopeSection({
           <div>
             <BudgetEditorFieldLabelRow
               htmlFor={ids.currency}
-              label={currencyTooltip || isLimitLocked ? (
+              label={(
                 <span className="inline-flex items-center gap-2">
                   Currency
-                  {currencyTooltip && (
-                    <IconTooltip label="Budget currency limitation" level="important">
-                      Budgets currently track only accounts in the same currency
-                    </IconTooltip>
-                  )}
+                  <IconTooltip label="Budget display currency" modalFieldTabStop>
+                    This is the budget’s display currency.
+                  </IconTooltip>
                   {currencyState === 'loading' && (
                     <IconTooltip label="Loading currencies" modalFieldTabStop>
                       {CURRENCY_LIST_LOADING}
@@ -117,7 +113,7 @@ export default function BudgetEditorModalScopeSection({
                     </IconTooltip>
                   )}
                 </span>
-              ) : 'Currency'}
+              )}
               error={showError('currency')}
             />
             {currencyReadOnly ? (

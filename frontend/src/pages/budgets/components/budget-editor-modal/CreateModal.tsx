@@ -273,7 +273,6 @@ export default function BudgetCreateModal({
             namePlaceholder="e.g. Groceries"
             currencyReadOnly={false}
             currencyState="ready"
-            currencyTooltip
             limitDisabled={false}
             fieldsLocked={false}
             showError={showError}

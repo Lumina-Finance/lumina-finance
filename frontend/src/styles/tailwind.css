@@ -6,7 +6,8 @@
     /* Light — warm parchment */
     --app-bg: #F2EDE4;
     --app-surface-soft: #FBF8F0;
-    /* A row's own hover, pending mark and focus background. Kept apart from
+    /* Shared hover feedback for rows and controls, plus transaction pending and focus backgrounds.
+       Kept apart from
        .app-dropdown-row-highlighted, which mixes the same proportion in both themes rather than
        taking this token, since pointing that rule at this token would carry the flat light value
        below into the dropdown and lose the mix it depends on there */
@@ -32,6 +33,8 @@
     --app-negative: #9A3C34;
     --app-negative-soft: #9a3c341a;
     --app-negative-border: #9a3c344d;
+    /* Filled destructive buttons need a darker red than negative text to keep white labels readable */
+    --app-danger-fill: #9A3C34;
     --app-button-primary-bg: #7F541C;
     --app-button-primary-bg-hover: #8F6124;
     --app-button-primary-text: #FFF8EC;
@@ -116,9 +119,10 @@
     --app-warning: #F5D547;
     --app-warning-soft: #f5d5472e;
     --app-warning-text: #F8E28A;
-    --app-negative: #B8584E;
+    --app-negative: #D8776A;
     --app-negative-soft: #b8584e1f;
     --app-negative-border: #b8584e59;
+    --app-danger-fill: #B8584E;
     --app-button-primary-bg: #C9A96A;
     --app-button-primary-bg-hover: #D5B978;
     --app-button-primary-text: #100F0E;
@@ -580,7 +584,7 @@
   }
 
   .app-calendar-day:hover {
-    background: var(--app-surface-soft);
+    background: var(--app-hover-soft);
   }
 
   .app-calendar-day[data-outside] {
@@ -629,6 +633,9 @@
      box underneath. Its own clipping is what hides the list while closed, so the list can grow out of
      the head instead of appearing beside it */
   .app-dropdown-glass {
+    /* Sticky group headings share the box's opaque background in every validation state */
+    --app-dropdown-bg: var(--app-input-bg);
+
     display: flex;
     flex-direction: column;
 
@@ -640,7 +647,7 @@
     min-width: 0;
     border: 1px solid var(--app-input-border);
     border-radius: var(--app-dropdown-radius);
-    background: var(--app-input-bg);
+    background: var(--app-dropdown-bg);
     color: var(--app-text);
 
     transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
@@ -680,7 +687,7 @@
      instead, which cost nothing to draw and nothing to redraw while the box opens */
   .app-dropdown-glass.app-dropdown-glass-floating {
     border-color: var(--app-border-strong);
-    background: var(--app-input-bg);
+    background: var(--app-dropdown-bg);
     box-shadow: var(--app-shadow-soft);
   }
 
@@ -688,7 +695,7 @@
      The message above it points at this field, and a plain one is the wrong thing to point at */
   .app-dropdown-glass.app-dropdown-glass-disabled {
     border-color: var(--app-input-border);
-    background: var(--app-input-bg);
+    background: var(--app-dropdown-bg);
     box-shadow: none;
     opacity: var(--app-dropdown-disabled-opacity-control);
   }
@@ -696,8 +703,9 @@
   /* Mixed from the opaque negative rather than its soft variant, which carries alpha of its own. The
      two land on nearly the same colour over a form, and this one stays solid over anything */
   .app-dropdown-glass.app-dropdown-glass-error {
+    --app-dropdown-bg: color-mix(in srgb, var(--app-negative) 10%, var(--app-input-bg));
+
     border-color: var(--app-negative-border);
-    background: color-mix(in srgb, var(--app-negative) 10%, var(--app-input-bg));
   }
 
   .app-dropdown-glass.app-dropdown-glass-error:focus-within {
@@ -780,6 +788,7 @@
   @media (prefers-reduced-motion: reduce) {
     .app-dropdown-glass,
     .app-dropdown-row,
+    .app-dropdown-glass-open .app-dropdown-bodywrap,
     .app-dropdown-bodywrap {
       transition-duration: 0s;
     }
@@ -866,7 +875,7 @@
     top: 0;
     z-index: 1;
     padding: 6px var(--app-dropdown-row-padding-x);
-    background: var(--app-input-bg);
+    background: var(--app-dropdown-bg);
     border-bottom: 1px solid var(--app-border);
     color: var(--app-text-subtle);
     font-size: 0.75rem;
@@ -1403,13 +1412,13 @@
     border-radius: 20px;
     font-size: 0.9375rem;
     color: white;
-    border: 1px solid color-mix(in srgb, var(--app-negative) 65%, var(--app-border-strong));
-    background: color-mix(in srgb, var(--app-negative) 82%, transparent);
+    border: 1px solid color-mix(in srgb, var(--app-danger-fill) 65%, var(--app-border-strong));
+    background: color-mix(in srgb, var(--app-danger-fill) 82%, transparent);
   }
 
   .app-danger-button:hover {
-    background: color-mix(in srgb, var(--app-negative) 90%, transparent);
-    border-color: color-mix(in srgb, var(--app-negative) 72%, var(--app-border-strong));
+    background: color-mix(in srgb, var(--app-danger-fill) 90%, transparent);
+    border-color: color-mix(in srgb, var(--app-danger-fill) 72%, var(--app-border-strong));
   }
 
   .app-danger-button:active {
@@ -1560,7 +1569,7 @@
 
   .app-segmented-option:hover {
     color: var(--app-text);
-    background: var(--app-surface-soft);
+    background: var(--app-hover-soft);
   }
 
   .app-segmented-option:focus-visible {
@@ -1750,7 +1759,7 @@
 
   .app-icon-button:hover {
     color: var(--app-text);
-    background: var(--app-surface-soft);
+    background: var(--app-hover-soft);
     border-color: var(--app-border);
   }
 

@@ -18,7 +18,7 @@ export function ImportPreviewList({
   // clipping vertically cuts off the tag stack that opens above a row
   return (
     <div className="overflow-x-auto min-[1300px]:overflow-visible">
-      <div className="min-w-[58rem] min-[1300px]:grid min-[1300px]:grid-cols-[2.5rem_fit-content(24rem)_fit-content(18rem)_minmax(0,1fr)_max-content_max-content] min-[1300px]:gap-x-3">
+      <div className="min-w-[58rem] min-[1300px]:grid min-[1300px]:grid-cols-[2.75rem_fit-content(24rem)_fit-content(18rem)_minmax(0,1fr)_max-content_max-content] min-[1300px]:gap-x-3">
         {groups.map((group, groupIndex) => (
           <div
             key={`${group.dateLabel}-${groupIndex}`}

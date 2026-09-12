@@ -23,7 +23,7 @@ import { getTransactionReadOnlyReason } from '@/pages/transactions/utils/rowEdit
 // and disappear with the checkbox, and a row still animating one out against a list that has
 // already dropped the column has nowhere to put its content but a second line
 const LIST_COLUMNS =
-  'min-[1300px]:grid-cols-[2.5rem_fit-content(24rem)_fit-content(18rem)_minmax(0,1fr)_max-content_max-content]'
+  'min-[1300px]:grid-cols-[2.75rem_fit-content(24rem)_fit-content(18rem)_minmax(0,1fr)_max-content_max-content]'
 
 /**
  * What a day heading needs while the list is in selection mode

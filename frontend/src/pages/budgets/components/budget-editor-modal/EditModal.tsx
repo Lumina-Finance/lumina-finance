@@ -365,7 +365,6 @@ export default function BudgetEditModal({
             limitPlaceholder={latestPeriod ? undefined : 'No period yet'}
             currencyReadOnly
             currencyState={currencyState}
-            currencyTooltip={false}
             limitDisabled={!latestPeriod}
             fieldsLocked={fieldsLocked}
             showError={showError}
