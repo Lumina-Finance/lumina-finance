@@ -390,7 +390,7 @@ export default function TransactionRow({
         {formattedAmount}
       </span>
 
-      <span className="grid grid-cols-[2rem_minmax(0,1fr)_max-content] items-start gap-x-2.5 gap-y-1 min-[750px]:hidden">
+      <span className="grid grid-cols-[2.125rem_minmax(0,1fr)_max-content] items-start gap-x-2.5 gap-y-1 min-[750px]:hidden">
         <span className="row-span-3 pt-0.5 text-[1.35rem] leading-none" aria-hidden>
           {categoryIcon}
         </span>
@@ -454,7 +454,7 @@ export default function TransactionRow({
         )}
       </span>
 
-      <span className="hidden grid-cols-[2.5rem_minmax(0,1fr)_max-content] items-start gap-x-3 gap-y-1.5 min-[750px]:grid min-[1300px]:hidden">
+      <span className="hidden grid-cols-[2.75rem_minmax(0,1fr)_max-content] items-start gap-x-3 gap-y-1.5 min-[750px]:grid min-[1300px]:hidden">
         <span className="row-span-3 text-2xl leading-none" aria-hidden>
           {categoryIcon}
         </span>
