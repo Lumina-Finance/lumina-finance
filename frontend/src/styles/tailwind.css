@@ -32,6 +32,8 @@
     --app-negative: #9A3C34;
     --app-negative-soft: #9a3c341a;
     --app-negative-border: #9a3c344d;
+    /* Filled destructive buttons need a darker red than negative text to keep white labels readable */
+    --app-danger-fill: #9A3C34;
     --app-button-primary-bg: #7F541C;
     --app-button-primary-bg-hover: #8F6124;
     --app-button-primary-text: #FFF8EC;
@@ -116,9 +118,10 @@
     --app-warning: #F5D547;
     --app-warning-soft: #f5d5472e;
     --app-warning-text: #F8E28A;
-    --app-negative: #B8584E;
+    --app-negative: #D8776A;
     --app-negative-soft: #b8584e1f;
     --app-negative-border: #b8584e59;
+    --app-danger-fill: #B8584E;
     --app-button-primary-bg: #C9A96A;
     --app-button-primary-bg-hover: #D5B978;
     --app-button-primary-text: #100F0E;
@@ -1408,13 +1411,13 @@
     border-radius: 20px;
     font-size: 0.9375rem;
     color: white;
-    border: 1px solid color-mix(in srgb, var(--app-negative) 65%, var(--app-border-strong));
-    background: color-mix(in srgb, var(--app-negative) 82%, transparent);
+    border: 1px solid color-mix(in srgb, var(--app-danger-fill) 65%, var(--app-border-strong));
+    background: color-mix(in srgb, var(--app-danger-fill) 82%, transparent);
   }
 
   .app-danger-button:hover {
-    background: color-mix(in srgb, var(--app-negative) 90%, transparent);
-    border-color: color-mix(in srgb, var(--app-negative) 72%, var(--app-border-strong));
+    background: color-mix(in srgb, var(--app-danger-fill) 90%, transparent);
+    border-color: color-mix(in srgb, var(--app-danger-fill) 72%, var(--app-border-strong));
   }
 
   .app-danger-button:active {
