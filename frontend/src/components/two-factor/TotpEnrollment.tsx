@@ -250,7 +250,7 @@ export function TotpEnrollment({ onComplete, onSkip, onSwitchToPasskey, initialS
                 type="button"
                 onClick={copyKey}
                 aria-label={keyCopied ? 'Key copied' : 'Copy key'}
-                className="mx-auto flex items-center gap-2 rounded-md px-2 py-1 font-mono text-xs transition-colors duration-200 hover:bg-[color:var(--app-surface-soft)]"
+                className="mx-auto flex items-center gap-2 rounded-md px-2 py-1 font-mono text-xs transition-colors duration-200 hover:bg-[color:var(--app-hover-soft)]"
                 style={{ color: 'var(--app-text-muted)' }}
               >
                 <span>{setupData.secret}</span>

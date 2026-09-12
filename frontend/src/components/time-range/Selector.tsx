@@ -252,9 +252,9 @@ function MobileTimeRangeSelector<T extends string>({
                     type="button"
                     role="option"
                     aria-selected={active}
-                    className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left transition-colors duration-150 hover:bg-[var(--app-surface-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent-soft)] motion-reduce:transition-none"
+                    className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left transition-colors duration-150 hover:bg-[var(--app-hover-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent-soft)] motion-reduce:transition-none"
                     style={{
-                      background: active ? 'var(--app-accent-soft)' : 'transparent',
+                      background: active ? 'var(--app-accent-soft)' : undefined,
                       color: active ? 'var(--app-accent)' : 'var(--app-text)',
                     }}
                     onClick={() => handleSelect(option.value)}

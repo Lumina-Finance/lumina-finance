@@ -54,7 +54,7 @@ export function FundFlowCategoryList({
       <div className="relative flex min-h-14 w-full items-center justify-between gap-4 px-3 py-2">
         <button
           type="button"
-          className="absolute inset-0 rounded-xl text-left transition-colors duration-150 hover:bg-[var(--app-surface-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent-soft)] motion-reduce:transition-none"
+          className="absolute inset-0 rounded-xl text-left transition-colors duration-150 hover:bg-[var(--app-hover-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent-soft)] motion-reduce:transition-none"
           aria-expanded={open}
           aria-controls={listId}
           onClick={onToggle}
@@ -97,7 +97,7 @@ export function FundFlowCategoryList({
               {rows.length > 0 ? rows.map(({ entry: [name, amount], label, flipped }) => (
                 <div
                   key={`${label}-${name}-${amount}`}
-                  className="flex h-14 items-center justify-between gap-4 px-3 text-sm transition-colors duration-150 hover:bg-[var(--app-surface-soft)] motion-reduce:transition-none"
+                  className="flex h-14 items-center justify-between gap-4 px-3 text-sm transition-colors duration-150 hover:bg-[var(--app-hover-soft)] motion-reduce:transition-none"
                 >
                   <span className="min-w-0">
                     <span className="block truncate font-semibold">{name}</span>

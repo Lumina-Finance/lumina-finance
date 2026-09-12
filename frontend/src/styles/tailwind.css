@@ -6,7 +6,8 @@
     /* Light — warm parchment */
     --app-bg: #F2EDE4;
     --app-surface-soft: #FBF8F0;
-    /* A row's own hover, pending mark and focus background. Kept apart from
+    /* Shared hover feedback for rows and controls, plus transaction pending and focus backgrounds.
+       Kept apart from
        .app-dropdown-row-highlighted, which mixes the same proportion in both themes rather than
        taking this token, since pointing that rule at this token would carry the flat light value
        below into the dropdown and lose the mix it depends on there */
@@ -583,7 +584,7 @@
   }
 
   .app-calendar-day:hover {
-    background: var(--app-surface-soft);
+    background: var(--app-hover-soft);
   }
 
   .app-calendar-day[data-outside] {
@@ -1568,7 +1569,7 @@
 
   .app-segmented-option:hover {
     color: var(--app-text);
-    background: var(--app-surface-soft);
+    background: var(--app-hover-soft);
   }
 
   .app-segmented-option:focus-visible {
@@ -1758,7 +1759,7 @@
 
   .app-icon-button:hover {
     color: var(--app-text);
-    background: var(--app-surface-soft);
+    background: var(--app-hover-soft);
     border-color: var(--app-border);
   }
 
