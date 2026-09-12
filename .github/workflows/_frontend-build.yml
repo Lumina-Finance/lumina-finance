@@ -29,6 +29,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Type-check application, build configuration and tests
+        run: npx tsc -b
+
       # Mirror the production bundle the Docker image builds so the test build catches the same failures
       - name: Build production bundle
         run: npm run build:app
