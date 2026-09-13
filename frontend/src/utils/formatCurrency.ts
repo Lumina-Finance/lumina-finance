@@ -2,6 +2,13 @@ import type { Currency } from '@/api/currency'
 import { DEFAULT_MINOR_UNIT_EXPONENT, findCurrencyExponent } from '@/utils/moneyInput'
 
 /**
+ * Formats a currency's code, name, and symbol for selection and reference fields
+ */
+export function formatCurrencyLabel(currency: Currency): string {
+  return `${currency.id}: ${currency.name} (${currency.symbol})`
+}
+
+/**
  * Builds the money formatter for a currency, fixed at the decimal places given
  *
  * The locale is left to the reader's own, which is what decides how a currency's symbol is written.

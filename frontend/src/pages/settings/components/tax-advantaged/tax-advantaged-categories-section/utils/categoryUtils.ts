@@ -1,6 +1,7 @@
 import type { Currency } from '@/api/currency'
 import type { TaxAdvantagedCategoryLimit, TaxTreatment } from '@/api/tax-advantaged-categories'
 import { TAX_TREATMENT_OPTIONS } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/constants'
+import { formatCurrencyLabel } from '@/utils/formatCurrency'
 import {
   fromMinorUnits as fromMinorUnitsCanonical,
   getCurrencyExponent,
@@ -27,7 +28,10 @@ export function nextAvailableLimitYear(limits: TaxAdvantagedCategoryLimit[], cur
  * Builds the currency dropdown options, labelling each with its code, name and symbol
  */
 export function currencyOptions(currencies: Currency[]) {
-  return currencies.map((c) => ({ value: c.id, label: `${c.id} — ${c.name} (${c.symbol})` }))
+  return currencies.map((currency) => ({
+    value: currency.id,
+    label: formatCurrencyLabel(currency),
+  }))
 }
 
 /**

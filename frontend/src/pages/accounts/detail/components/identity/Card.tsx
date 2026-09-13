@@ -39,7 +39,7 @@ export default function AccountIdentityCard({
     { label: 'Currency', value: account.currency },
     {
       label: 'Credit limit',
-      value: account.credit_limit === null ? '—' : formatCurrency(account.credit_limit, account.currency),
+      value: account.credit_limit === null ? 'Not set' : formatCurrency(account.credit_limit, account.currency),
     },
   ]
 

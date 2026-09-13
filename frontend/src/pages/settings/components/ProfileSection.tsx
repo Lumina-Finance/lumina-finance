@@ -5,6 +5,7 @@ import SettingsField from '@/pages/settings/components/Field'
 import SettingsSectionHeader from '@/pages/settings/components/SectionHeader'
 import SettingsCard from '@/pages/settings/components/Card'
 import type { ProfileFormState } from '@/pages/settings/profileForm'
+import { formatCurrencyLabel } from '@/utils/formatCurrency'
 
 const TIMEZONES = Intl.supportedValuesOf('timeZone').map((tz) => ({
   value: tz,
@@ -50,7 +51,7 @@ export default function ProfileSection({
   // same code/name/symbol label format used by account creation
   const baseCurrency = currencies?.find((c) => c.id === user?.base_currency)
   const baseCurrencyLabel = baseCurrency
-    ? `${baseCurrency.id} — ${baseCurrency.name} (${baseCurrency.symbol})`
+    ? formatCurrencyLabel(baseCurrency)
     : user?.base_currency ?? ''
 
   return (

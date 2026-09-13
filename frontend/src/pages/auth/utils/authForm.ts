@@ -1,6 +1,7 @@
 import { ApiError, type LoginPayload, type SignupPayload } from '@/api/auth'
 import type { Currency } from '@/api/currency'
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
+import { formatCurrencyLabel } from '@/utils/formatCurrency'
 import { isNewPasswordValid } from '@/utils/passwordPolicy'
 
 export type AuthMode = 'login' | 'signup' | 'forgot'
@@ -154,7 +155,7 @@ export function buildSignupPayload(form: AuthFormValues): SignupPayload {
 export function buildCurrencyOptions(currencies: Currency[]): DropdownOption[] {
   return currencies.map((currency) => ({
     value: currency.id,
-    label: `${currency.id} — ${currency.name} (${currency.symbol})`,
+    label: formatCurrencyLabel(currency),
   }))
 }
 
