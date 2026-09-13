@@ -1,3 +1,5 @@
+import pytest
+
 from app.services.merchants.defaults import SELF_MERCHANT_NAME
 from tests.routes.merchants._helpers import (
     MERCHANT_PAYLOAD,
@@ -258,6 +260,28 @@ async def test_patch_merchant_updates_name(client):
     assert resp.json()["name"] == "Renamed"
 
 
+@pytest.mark.parametrize("name", [None, "", "   "], ids=["null", "empty", "whitespace"])
+async def test_patch_merchant_invalid_name_returns_422_without_changes(client, name):
+    """Reject invalid names without applying the accompanying category change"""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    category_id = (await _create_category(client, headers)).json()["id"]
+    original = (await _create_merchant(client, headers, default_category_id=category_id)).json()
+    merchant_id = original["id"]
+
+    resp = await client.patch(
+        f"/merchants/{merchant_id}",
+        json={"name": name, "default_category_id": None},
+        headers=headers,
+    )
+
+    assert resp.status_code == 422
+    assert any(error["loc"] == ["body", "name"] for error in resp.json()["detail"])
+    unchanged = await client.get(f"/merchants/{merchant_id}", headers=headers)
+    assert unchanged.status_code == 200
+    assert unchanged.json() == original
+
+
 async def test_patch_merchant_updates_default_category(client):
     """PATCH can set a default_category_id."""
     signup_resp = await _create_user(client)
@@ -276,6 +300,7 @@ async def test_patch_merchant_updates_default_category(client):
     )
 
     assert resp.status_code == 200
+    assert resp.json()["name"] == create_resp.json()["name"]
     assert resp.json()["default_category_id"] == category_id
 
 
@@ -316,6 +341,7 @@ async def test_patch_merchant_clears_default_category(client):
     )
 
     assert resp.status_code == 200
+    assert resp.json()["name"] == create_resp.json()["name"]
     assert resp.json()["default_category_id"] is None
 
 

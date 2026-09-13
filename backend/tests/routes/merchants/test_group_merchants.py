@@ -268,6 +268,21 @@ async def test_patch_group_merchant_as_admin(client):
     assert resp.json()["name"] == "New Name"
 
 
+async def test_patch_group_merchant_null_name_returns_422_without_changes(client):
+    """Reject an explicit null name from a group admin without changing the merchant"""
+    admin_headers, _, _, group_id = await _setup_group_with_member(client)
+    original = (await _create_merchant(client, admin_headers, name="Shared Store", group_id=group_id)).json()
+    merchant_id = original["id"]
+
+    resp = await client.patch(f"/merchants/{merchant_id}", json={"name": None}, headers=admin_headers)
+
+    assert resp.status_code == 422
+    assert any(error["loc"] == ["body", "name"] for error in resp.json()["detail"])
+    unchanged = await client.get(f"/merchants/{merchant_id}", headers=admin_headers)
+    assert unchanged.status_code == 200
+    assert unchanged.json() == original
+
+
 async def test_patch_group_merchant_with_group_category(client):
     """Admin can update a group merchant's default category to a group category."""
     admin_headers, _, _, group_id = await _setup_group_with_member(client)

@@ -4,7 +4,8 @@ import uuid
 from datetime import datetime
 from typing import Annotated
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+from pydantic.json_schema import SkipJsonSchema
 
 from app.schemas.names import TrimmedName
 from app.schemas.transaction import MAX_IMPORT_MAPPINGS
@@ -41,8 +42,27 @@ class CreateMerchantRequest(BaseModel):
 class UpdateMerchantRequest(BaseModel):
     """Partial update for a merchant. Only provided fields are changed."""
 
-    name: TrimmedName | None = Field(None, min_length=1, max_length=256)
+    # None represents omission internally, while explicit null is rejected
+    name: TrimmedName | SkipJsonSchema[None] = Field(None, min_length=1, max_length=256)
     default_category_id: uuid.UUID | None = None
+
+    @field_validator("name", mode="before")
+    @classmethod
+    def reject_explicit_null_name(cls, value: object) -> object:
+        """Reject a supplied null name while leaving omitted names unchanged
+
+        Args:
+            value: Name as supplied in the request body
+
+        Returns:
+            The value for normal name validation
+
+        Raises:
+            ValueError: The supplied name is null
+        """
+        if value is None:
+            raise ValueError("must not be null")
+        return value
 
 
 class MergeMerchantRequest(BaseModel):
