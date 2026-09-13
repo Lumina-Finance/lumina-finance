@@ -23,6 +23,9 @@
     --app-accent-border: #9b6c2c38;
     --app-input-bg: #FFFFFF;
     --app-input-border: #4b372338;
+
+    /* Fields strengthen their own hover edge without changing borders used by panels */
+    --app-input-border-hover: #4b372359;
     --app-positive: #3A7850;
     --app-positive-soft: #3a78501a;
     --app-chart-positive: #5D8F6D;
@@ -112,6 +115,7 @@
     --app-accent-border: #c9a96a38;
     --app-input-bg: #241F19;
     --app-input-border: #d2b47833;
+    --app-input-border-hover: #d2b47859;
     --app-positive: #6CA07B;
     --app-positive-soft: #6ca07b24;
     --app-chart-positive: #5D8F6D;
@@ -519,7 +523,7 @@
   }
 
   .app-input:hover {
-    border-color: var(--app-border-strong);
+    border-color: var(--app-input-border-hover);
     background: var(--app-input-bg);
   }
 
@@ -552,7 +556,7 @@
   }
 
   .app-date-field:hover {
-    border-color: var(--app-border-strong);
+    border-color: var(--app-input-border-hover);
   }
 
   .app-date-field:focus-within {
@@ -667,7 +671,7 @@
      less than a hover and lose to it. A new state goes in this order rather than out-weighing what
      came before */
   .app-dropdown-glass:hover {
-    border-color: var(--app-border-strong);
+    border-color: var(--app-input-border-hover);
   }
 
   .app-dropdown-glass:focus-within {
