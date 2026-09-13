@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { QueryClient, QueryObserver } from '@tanstack/react-query';
-import { insightsKeys, transactionKeys } from '@/api/cache/queryKeys';
+import type { AccountSpendingBreakdown, SpendingRange } from '@/api/accounts/types';
+import { accountKeys, insightsKeys, transactionKeys } from '@/api/cache/queryKeys';
 import {
   invalidateBulkUpdatedTransactionData,
   invalidatePatchedTransactionData,
@@ -15,6 +16,8 @@ const MERCHANT_QUERY_KEYS = [
   insightsKeys.merchants('2026-08-01', '2026-08-31'),
   insightsKeys.merchants('2026-09-01', '2026-09-30', 'previous_year'),
 ];
+const ACCOUNT_IDS = ['source', 'destination', 'unrelated'];
+const SPENDING_RANGES: SpendingRange[] = ['MTD', 'YTD'];
 const clients: QueryClient[] = [];
 
 afterEach(() => {
@@ -31,12 +34,28 @@ function createMerchantSummary(amount = 10000): InsightsMerchantsResponse {
   };
 }
 
-/** Seeds fresh merchant summaries across periods and comparison ranges */
+/** Seeds fresh merchant summaries and account spending across periods and account scopes */
 function seedCache() {
   const client = new QueryClient({ defaultOptions: { queries: { staleTime: STALE_TIME_MS, retry: false } } });
   clients.push(client);
   for (const key of MERCHANT_QUERY_KEYS) client.setQueryData(key, createMerchantSummary());
+  client.setQueryData(accountKeys.list(), []);
   client.setQueryData(transactionKeys.list({}), []);
+  for (const accountId of ACCOUNT_IDS) {
+    client.setQueryData(accountKeys.cashFlow(accountId, 3), []);
+    client.setQueryData(accountKeys.cashFlow(accountId, 12), []);
+    for (const range of SPENDING_RANGES) {
+      client.setQueryData<AccountSpendingBreakdown>(accountKeys.spendingBreakdown(accountId, range), {
+        range,
+        top_categories: [{ category_id: 'groceries', name: 'Groceries', total: 10000 }],
+        top_merchants: [{ merchant_id: 'costco', name: 'Costco', total: 10000 }],
+        categories_total_spend: 10000,
+        merchants_total_spend: 10000,
+        other_categories_count: 0,
+        other_merchants_count: 0,
+      });
+    }
+  }
   return client;
 }
 
@@ -111,7 +130,43 @@ describe('merchant spending after bulk transaction edits', () => {
 });
 
 describe.each(['single', 'bulk'] as const)('%s transaction edit scope', (mode) => {
-  it.each(['notes', 'tags'] as const)('keeps merchant summaries fresh for a %s-only edit', (field) => {
+  it('refreshes merchant spending only for affected accounts after merchant reassignment', () => {
+    const client = seedCache();
+    const accountIds = ['source', 'destination'];
+
+    if (mode === 'single') {
+      invalidatePatchedTransactionData(client, { merchant_id: 'walmart' }, accountIds);
+    } else {
+      invalidateBulkUpdatedTransactionData(client, { transaction_ids: ['txn_1', 'txn_2'], merchant_id: 'walmart' }, accountIds);
+    }
+
+    for (const accountId of ACCOUNT_IDS) {
+      expect(client.getQueryState(accountKeys.cashFlow(accountId, 3))?.isInvalidated).toBe(false);
+      expect(client.getQueryState(accountKeys.cashFlow(accountId, 12))?.isInvalidated).toBe(false);
+      for (const range of SPENDING_RANGES) {
+        const key = accountKeys.spendingBreakdown(accountId, range);
+        expect(client.getQueryState(key)?.isInvalidated, JSON.stringify(key)).toBe(accountId !== 'unrelated');
+      }
+    }
+    expect(client.getQueryState(accountKeys.list())?.isInvalidated).toBe(false);
+  });
+
+  it('still refreshes cash flow when a merchant edit also changes the date', () => {
+    const client = seedCache();
+    const patch = { merchant_id: 'walmart', dt: '2026-08-31' };
+
+    if (mode === 'single') {
+      invalidatePatchedTransactionData(client, patch, ['source']);
+    } else {
+      invalidateBulkUpdatedTransactionData(client, { transaction_ids: ['txn_1'], ...patch }, ['source']);
+    }
+
+    expect(client.getQueryState(accountKeys.cashFlow('source', 3))?.isInvalidated).toBe(true);
+    expect(client.getQueryState(accountKeys.spendingBreakdown('source', 'MTD'))?.isInvalidated).toBe(true);
+    expect(client.getQueryState(accountKeys.cashFlow('unrelated', 3))?.isInvalidated).toBe(false);
+  });
+
+  it.each(['notes', 'tags'] as const)('keeps merchant summaries and account spending fresh for a %s-only edit', (field) => {
     const client = seedCache();
 
     if (mode === 'single') {
@@ -123,6 +178,11 @@ describe.each(['single', 'bulk'] as const)('%s transaction edit scope', (mode) =
     }
 
     for (const key of MERCHANT_QUERY_KEYS) expect(client.getQueryState(key)?.isInvalidated).toBe(false);
+    for (const accountId of ACCOUNT_IDS) {
+      for (const range of SPENDING_RANGES) {
+        expect(client.getQueryState(accountKeys.spendingBreakdown(accountId, range))?.isInvalidated).toBe(false);
+      }
+    }
     expect(client.getQueryState(transactionKeys.list({}))?.isInvalidated).toBe(true);
   });
 });
