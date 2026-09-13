@@ -376,6 +376,9 @@ async def test_create_account_with_starting_balance_creates_adjustment(client):
 async def test_create_group_account_starting_balance_uses_group_owner_creation_day(client):
     """Group-account starting balances are dated in the group owner's timezone."""
     await _seed_currency()
+
+    # Kiritimati and Honolulu stay 24 hours apart without daylight saving time, so the
+    # database creation timestamp falls on different local dates whenever this test runs
     owner_resp = await _signup_user(
         client,
         email="owner@example.com",
@@ -386,7 +389,7 @@ async def test_create_group_account_starting_balance_uses_group_owner_creation_d
         client,
         email="member@example.com",
         first_name="Member",
-        tz="America/Adak",
+        tz="Pacific/Honolulu",
     )
     owner_headers = _get_auth_header(owner_resp)
     member_headers = _get_auth_header(member_resp)
@@ -406,7 +409,7 @@ async def test_create_group_account_starting_balance_uses_group_owner_creation_d
     data = resp.json()
     account_id = UUID(data["id"])
     owner_local_dt = _created_at_in_tz(data, "Pacific/Kiritimati")
-    acting_user_local_dt = _created_at_in_tz(data, "America/Adak")
+    acting_user_local_dt = _created_at_in_tz(data, "Pacific/Honolulu")
     assert owner_local_dt != acting_user_local_dt
 
     async with TestSession() as session:
