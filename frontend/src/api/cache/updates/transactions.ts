@@ -93,6 +93,10 @@ const CREDIT_ACTIVITY_FIELDS = new Set<keyof UpdateTransactionPayload>([
 ]);
 
 const MERCHANT_ACTIVITY_FIELDS = new Set<keyof UpdateTransactionPayload>([
+  'account_id',
+  'dt',
+  'category_id',
+  'amount',
   'merchant_id',
 ]);
 
