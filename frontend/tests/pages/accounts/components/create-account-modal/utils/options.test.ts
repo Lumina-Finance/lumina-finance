@@ -73,7 +73,7 @@ describe('create account option helpers', () => {
   it('builds dropdown options and filters tax-advantaged categories by ownership scope and currency', () => {
     expect(buildCreateAccountCurrencyOptions(currencies)[0]).toEqual({
       value: 'CAD',
-      label: 'CAD — Canadian Dollar ($)',
+      label: 'CAD: Canadian Dollar ($)',
     })
     expect(buildCreateAccountInstitutionOptions(institutions)).toEqual([
       { value: '', label: 'None' },

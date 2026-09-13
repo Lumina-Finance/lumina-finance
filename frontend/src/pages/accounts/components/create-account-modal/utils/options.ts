@@ -2,6 +2,7 @@ import type { Institution } from '@/api/institutions'
 import type { Currency } from '@/api/currency'
 import type { TaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
+import { formatCurrencyLabel } from '@/utils/formatCurrency'
 
 /**
  * Builds the currency selector labels without leaking formatting details into the modal component
@@ -9,7 +10,7 @@ import type { DropdownOption } from '@/components/dropdown/Dropdown'
 export function buildCreateAccountCurrencyOptions(currencies: Currency[]): DropdownOption[] {
   return currencies.map((currency) => ({
     value: currency.id,
-    label: `${currency.id} — ${currency.name} (${currency.symbol})`,
+    label: formatCurrencyLabel(currency),
   }))
 }
 

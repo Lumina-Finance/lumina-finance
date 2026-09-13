@@ -90,8 +90,8 @@ describe('auth form helpers', () => {
 
   it('guards signup when currencies are loading or failed', () => {
     expect(buildCurrencyOptions(currencies)).toEqual([
-      { value: 'CAD', label: 'CAD — Canadian Dollar ($)' },
-      { value: 'USD', label: 'USD — US Dollar (US$)' },
+      { value: 'CAD', label: 'CAD: Canadian Dollar ($)' },
+      { value: 'USD', label: 'USD: US Dollar (US$)' },
     ])
     expect(getCurrencyPlaceholder(false, 0)).toBe('Loading currencies…')
     expect(getCurrencyPlaceholder(true, 0)).toBe('Failed to load currencies')
