@@ -2,6 +2,7 @@ import type { InfiniteData, QueryClient } from '@tanstack/react-query';
 import {
   invalidateAccountActivity,
   invalidateAccountBalances,
+  invalidateAccountSpending,
   invalidateAccounts,
   invalidateBudgets,
   invalidateDashboardBalance,
@@ -93,6 +94,10 @@ const CREDIT_ACTIVITY_FIELDS = new Set<keyof UpdateTransactionPayload>([
 ]);
 
 const MERCHANT_ACTIVITY_FIELDS = new Set<keyof UpdateTransactionPayload>([
+  'account_id',
+  'dt',
+  'category_id',
+  'amount',
   'merchant_id',
 ]);
 
@@ -307,6 +312,8 @@ export function invalidatePatchedTransactionData(
   }
   if (patchTouches(patch, ACCOUNT_ACTIVITY_FIELDS)) {
     invalidateTransactionAccountActivity(queryClient, accountIds);
+  } else if (Object.hasOwn(patch, 'merchant_id')) {
+    invalidateAccountSpending(queryClient, accountIds);
   }
   if (patchTouches(patch, DASHBOARD_RECENT_FIELDS)) invalidateDashboardRecent(queryClient);
   if (patchTouches(patch, INCOME_EXPENSE_FIELDS)) {

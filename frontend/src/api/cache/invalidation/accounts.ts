@@ -28,13 +28,22 @@ export function invalidateAccountBalances(queryClient: QueryClient, accountIds: 
 }
 
 /**
+ * Invalidates merchant and category spending without refreshing account cash flow
+ */
+export function invalidateAccountSpending(queryClient: QueryClient, accountIds: string[]) {
+  invalidateTargets(queryClient, accountIds.map((accountId) => ({
+    queryKey: accountKeys.spendingBreakdownAll(accountId),
+  })));
+}
+
+/**
  * Invalidates account activity widgets after transaction changes
  */
 export function invalidateAccountActivity(queryClient: QueryClient, accountIds: string[]) {
-  invalidateTargets(queryClient, accountIds.flatMap((accountId) => [
-    { queryKey: accountKeys.spendingBreakdownAll(accountId) },
-    { queryKey: accountKeys.cashFlowAll(accountId) },
-  ]));
+  invalidateAccountSpending(queryClient, accountIds);
+  invalidateTargets(queryClient, accountIds.map((accountId) => ({
+    queryKey: accountKeys.cashFlowAll(accountId),
+  })));
 }
 
 /**
