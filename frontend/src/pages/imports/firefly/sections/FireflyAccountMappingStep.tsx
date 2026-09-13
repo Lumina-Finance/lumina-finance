@@ -14,6 +14,8 @@ import { isCreatingImportAccount } from '@/pages/imports/utils'
 import { ImportAccountMappingTable, EmptyState, ImportLoadFailure, ImportNotice, ImportStep } from '@/pages/imports/components'
 import type { FireflyImportWorkflow } from '@/pages/imports/firefly/hooks'
 
+type InstitutionModalTarget = { kind: 'batch' } | { kind: 'account'; name: string }
+
 type FireflyAccountMappingStepProps = Pick<
   FireflyImportWorkflow,
   | 'trackedAccountNames'
@@ -79,26 +81,26 @@ export function FireflyAccountMappingStep({
   const institutionModal = useInstitutionModal()
 
   // Which field asked for a new institution, so the one it creates comes back to that field
-  const [institutionModalTarget, setInstitutionModalTarget] = useState<'batch' | string>('')
+  const [institutionModalTarget, setInstitutionModalTarget] = useState<InstitutionModalTarget | null>(null)
 
-  const openInstitutionModal = (query: string, target: 'batch' | string) => {
+  /** Opens institution creation for the batch controls or one account row */
+  const openInstitutionModal = (query: string, target: InstitutionModalTarget) => {
     setInstitutionModalTarget(target)
     institutionModal.openForCreate(query)
   }
 
+  /** Clears the requesting field when institution creation closes */
   const closeInstitutionModal = () => {
-    setInstitutionModalTarget('')
+    setInstitutionModalTarget(null)
     institutionModal.close()
   }
 
+  /** Assigns the created institution only to the field that opened the modal */
   const handleInstitutionSaved = (institution: { id: string }) => {
-
-    // A correction changes an institution rather than which one a field answers with, so it
-    // comes back to no field and leaves every answer as it was
-    if (institutionModalTarget === 'batch') {
+    if (institutionModalTarget?.kind === 'batch') {
       setBatchAccountInstitution(institution.id)
     } else if (institutionModalTarget) {
-      setAccountCreateInstitutions((current) => ({ ...current, [institutionModalTarget]: institution.id }))
+      setAccountCreateInstitutions((current) => ({ ...current, [institutionModalTarget.name]: institution.id }))
     }
     closeInstitutionModal()
   }
@@ -190,8 +192,8 @@ export function FireflyAccountMappingStep({
             onBatchAccountCurrencyChange={setBatchAccountCurrency}
             onBatchAccountInstitutionChange={setBatchAccountInstitution}
             onSelectedRowsChange={setSelectedAccountRows}
-            onCreateInstitution={(query, rowId) => openInstitutionModal(query, rowId)}
-            onBatchCreateInstitution={(query) => openInstitutionModal(query, 'batch')}
+            onCreateInstitution={(query, rowId) => openInstitutionModal(query, { kind: 'account', name: rowId })}
+            onBatchCreateInstitution={(query) => openInstitutionModal(query, { kind: 'batch' })}
           />
         </>
       )}
