@@ -4,6 +4,11 @@ import uuid
 from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
+import pytest
+
+from app.models.base import CategoryKind
+from app.models.category import Category
+from app.models.merchant import Merchant
 from app.models.transaction import Transaction
 from tests.conftest import TestSession
 from tests.routes.support import _create_account, _create_user, _get_auth_header, _get_system_merchant_id
@@ -980,6 +985,135 @@ async def test_categories_and_merchants_are_ordered_largest_spend_first(client):
     assert merchant_ids_returned == [large_merch["id"], medium_merch["id"], small_merch["id"]]
     merchant_totals = [m["total"] for m in data["top_merchants"]]
     assert merchant_totals == [5000, 2000, 500]
+
+
+@pytest.mark.parametrize(
+    ("rows_key", "name_prefix", "hidden_count_key"),
+    [
+        ("top_categories", "Test ", "other_categories_count"),
+        ("top_merchants", "Test Merchant ", "other_merchants_count"),
+    ],
+)
+async def test_equal_spending_rows_use_names_for_top_five_cutoff(
+    client,
+    rows_key,
+    name_prefix,
+    hidden_count_key,
+):
+    """Equal totals sort by name, including the boundary between visible and hidden rows."""
+    headers, account_id = await _setup_account(client)
+    today = _today_utc().isoformat()
+    rows = [
+        ("Zulu", 5000),
+        ("Foxtrot", 1000),
+        ("Alpha", 1000),
+        ("Echo", 1000),
+        ("Bravo", 1000),
+        ("Delta", 1000),
+        ("Charlie", 1000),
+    ]
+
+    for name, total in rows:
+        category = (await _create_category(client, headers, name=f"Test {name}")).json()
+        merchant = (await _create_merchant(client, headers, name=f"Test Merchant {name}")).json()
+        await _create_transaction(
+            client,
+            headers,
+            account_id,
+            category["id"],
+            dt=today,
+            amount=-total,
+            merchant_id=merchant["id"],
+        )
+
+    resp = await client.get(
+        f"/accounts/{account_id}/spending-breakdown",
+        params={"range": "MTD"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert [(row["name"], row["total"]) for row in data[rows_key]] == [
+        (f"{name_prefix}Zulu", 5000),
+        (f"{name_prefix}Alpha", 1000),
+        (f"{name_prefix}Bravo", 1000),
+        (f"{name_prefix}Charlie", 1000),
+        (f"{name_prefix}Delta", 1000),
+    ]
+    assert data[hidden_count_key] == 2
+
+
+async def test_equal_spending_rows_with_equal_names_use_ids(client):
+    """Rows tied on total and name sort by ID across valid system and personal scopes."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    user_id = uuid.UUID(signup_resp.json()["user"]["id"])
+    account_id = (await _create_account(client, headers)).json()["id"]
+    lower_category_id = uuid.UUID("10000000-0000-0000-0000-000000000001")
+    higher_category_id = uuid.UUID("20000000-0000-0000-0000-000000000001")
+    lower_merchant_id = uuid.UUID("10000000-0000-0000-0000-000000000002")
+    higher_merchant_id = uuid.UUID("20000000-0000-0000-0000-000000000002")
+
+    async with TestSession() as session:
+        session.add_all([
+            Category(
+                id=lower_category_id,
+                owner_id=user_id,
+                name="Equal Category",
+                kind=CategoryKind.EXPENSE,
+                is_system=False,
+            ),
+            Category(
+                id=higher_category_id,
+                name="Equal Category",
+                kind=CategoryKind.EXPENSE,
+                is_system=True,
+            ),
+            Merchant(
+                id=lower_merchant_id,
+                owner_id=user_id,
+                name="Equal Merchant",
+                is_system=False,
+            ),
+            Merchant(
+                id=higher_merchant_id,
+                name="Equal Merchant",
+                is_system=True,
+            ),
+        ])
+        await session.commit()
+
+    for category_id, merchant_id in (
+        (higher_category_id, higher_merchant_id),
+        (lower_category_id, lower_merchant_id),
+    ):
+        transaction_resp = await _create_transaction(
+            client,
+            headers,
+            account_id,
+            str(category_id),
+            amount=-1000,
+            merchant_id=str(merchant_id),
+        )
+        assert transaction_resp.status_code == 201
+
+    resp = await client.get(
+        f"/accounts/{account_id}/spending-breakdown",
+        params={"range": "MTD"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert [row["category_id"] for row in data["top_categories"]] == [
+        str(lower_category_id),
+        str(higher_category_id),
+    ]
+    assert [row["merchant_id"] for row in data["top_merchants"]] == [
+        str(lower_merchant_id),
+        str(higher_merchant_id),
+    ]
 
 
 # --- Empty state ---
