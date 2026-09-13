@@ -108,7 +108,7 @@ async def get_account_top_categories(db: AsyncSession, expense_predicate) -> tup
         .where(expense_predicate)
         .group_by(Category.id, Category.name)
         .having(category_total < 0)
-        .order_by(category_total.asc())
+        .order_by(category_total.asc(), Category.name.asc(), Category.id.asc())
         .limit(_TOP_SPENDING_ROWS_LIMIT + 1),
     )
     category_rows = category_result.all()
@@ -176,7 +176,7 @@ async def get_account_top_merchants(db: AsyncSession, expense_predicate) -> tupl
         .where(expense_predicate)
         .group_by(Merchant.id, Merchant.name)
         .having(merchant_total < 0)
-        .order_by(merchant_total.asc())
+        .order_by(merchant_total.asc(), Merchant.name.asc(), Merchant.id.asc())
         .limit(_TOP_SPENDING_ROWS_LIMIT + 1),
     )
     merchant_rows = merchant_result.all()
