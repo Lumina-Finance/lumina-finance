@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { useMemo, useState, type FormEvent } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import {
   useDeleteAccount,
@@ -7,6 +7,7 @@ import {
 } from '@/api/accounts'
 import { useCurrencies } from '@/api/currency'
 import { useCurrencyListState } from '@/hooks/useCurrencyListState'
+import { useRestoreOnceWhenReady } from '@/hooks/useRestoreOnceWhenReady'
 import { useInstitutions, type Institution } from '@/api/institutions'
 import { useInstitutionModal } from '@/hooks/useInstitutionModal'
 import { useTaxAdvantagedCategories } from '@/api/tax-advantaged-categories'
@@ -95,30 +96,20 @@ export default function EditAccountIdentityModal({
   const knownCreditLimitExponent = findCurrencyExponent(currencies, account.currency)
   const isCreditLimitLocked = isRevolving && knownCreditLimitExponent === null
 
-  // The modal can open before the currency table arrives, which seeds the credit limit blank. Fill it in
-  // when the table lands so the field does not sit editable and empty over a stored limit, which a save
-  // would then clear. The field is disabled until this runs, so no typing can be overwritten
-  const seededWithoutExponentRef = useRef(isCreditLimitLocked && account.credit_limit !== null)
+  const readyCreditLimit = knownCreditLimitExponent === null
+    ? null
+    : fromMinorUnits(account.credit_limit, knownCreditLimitExponent)
 
-  // Re-armed on each opening, since the form is reseeded then and may again be seeded before the table lands
-  useEffect(() => {
-    if (!open) return
-
-    seededWithoutExponentRef.current = isCreditLimitLocked && account.credit_limit !== null
-    // Only the opening matters here. Re-running as the table lands would re-arm the flag the fill-in below
-    // has just cleared, and fill the field a second time over whatever was typed since
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open])
-
-  useEffect(() => {
-    if (knownCreditLimitExponent === null || !seededWithoutExponentRef.current) return
-
-    seededWithoutExponentRef.current = false
-    setForm((current) => ({
+  // Each opening reseeds the form, so it also gets one new chance to restore a blank stored limit
+  useRestoreOnceWhenReady({
+    open,
+    shouldRestore: isCreditLimitLocked && account.credit_limit !== null,
+    readyValue: readyCreditLimit,
+    restore: (creditLimit) => setForm((current) => ({
       ...current,
-      credit_limit: fromMinorUnits(account.credit_limit, knownCreditLimitExponent),
-    }))
-  }, [account.credit_limit, knownCreditLimitExponent])
+      credit_limit: creditLimit,
+    })),
+  })
 
   // The modal stays mounted between openings, so everything typed, failed or half-confirmed last time is
   // cleared on the way in. Without this, cancelling an edit and reopening shows the discarded values back.

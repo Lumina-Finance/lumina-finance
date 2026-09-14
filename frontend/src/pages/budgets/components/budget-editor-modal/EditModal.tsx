@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type React from 'react'
 import { useUpdateBaseBudget, useUpdateBudget, type BaseBudget, type Budget } from '@/api/budgets'
 import type { Category } from '@/api/categories'
@@ -15,6 +15,7 @@ import { budgetCadenceLabel, formatBudgetPeriod } from '@/pages/budgets/utils/bu
 import { sameStringSet } from '@/pages/budgets/utils/form'
 import { currencySymbol, toMinorUnits } from '@/pages/budgets/utils/money'
 import { useCurrencyListState } from '@/hooks/useCurrencyListState'
+import { useRestoreOnceWhenReady } from '@/hooks/useRestoreOnceWhenReady'
 import { findCurrencyExponent, fromMinorUnits } from '@/utils/moneyInput'
 import { waitForMilliseconds } from '@/utils/timing'
 
@@ -192,21 +193,19 @@ export default function BudgetEditModal({
     return () => window.removeEventListener('keydown', closeOnEscape)
   }, [closeAndReset, open])
 
-  // The form can be seeded before the currency table arrives, which leaves the limit blank. Fill it in
-  // when the table lands so the field does not sit editable and empty over a stored limit. The field is
-  // disabled until this runs, so it can never discard something the user typed
-  const seededWithoutExponentRef = useRef(isLimitLocked && latestPeriod !== undefined)
+  const limitExponent = findCurrencyExponent(currencies, baseBudget.currency)
+  const readyLimit = limitExponent === null
+    ? null
+    : latestPeriod
+      ? fromMinorUnits(latestPeriod.overall_limit, limitExponent)
+      : ''
 
-  useEffect(() => {
-    const limitExponent = findCurrencyExponent(currencies, baseBudget.currency)
-    if (limitExponent === null || !seededWithoutExponentRef.current) return
-
-    seededWithoutExponentRef.current = false
-    setForm((current) => ({
-      ...current,
-      limit: latestPeriod ? fromMinorUnits(latestPeriod.overall_limit, limitExponent) : '',
-    }))
-  }, [baseBudget.currency, currencies, latestPeriod])
+  // Budget restoration stays mount-only; reopening continues to use resetEditState without rearming it
+  useRestoreOnceWhenReady({
+    shouldRestore: isLimitLocked && latestPeriod !== undefined,
+    readyValue: readyLimit,
+    restore: (limit) => setForm((current) => ({ ...current, limit })),
+  })
 
   /**
    * Validates fields that can be edited without changing immutable budget cadence fields
