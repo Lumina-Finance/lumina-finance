@@ -1,3 +1,5 @@
+import pytest
+
 from tests.routes.categories._helpers import (
     CATEGORY_PAYLOAD,
     NONEXISTENT_ID,
@@ -314,17 +316,56 @@ async def test_create_category_without_auth_returns_401(client):
 # --- PATCH /categories/{category_id} ---
 
 
-async def test_patch_category_updates_name(client):
+@pytest.mark.parametrize("name", [None, "", "   "])
+async def test_patch_category_invalid_name_leaves_record_unchanged(client, name):
+    """Reject invalid names without changing any stored fields"""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    create_resp = await _create_category(client, headers, icon="🍽️")
+    assert create_resp.status_code == 201
+    original = create_resp.json()
+    url = f"/categories/{original['id']}"
+
+    resp = await client.patch(url, json={"name": name, "icon": None}, headers=headers)
+
+    assert resp.status_code == 422
+    assert any(error["loc"] == ["body", "name"] for error in resp.json()["detail"])
+    stored = await client.get(url, headers=headers)
+    assert stored.status_code == 200
+    assert stored.json() == original
+
+
+@pytest.mark.parametrize("name, expected", [("  Renamed  ", "Renamed"), ("x" * 65, "x" * 65)])
+async def test_patch_category_updates_name(client, name, expected):
     """PATCH updates name and returns the updated category."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     create_resp = await _create_category(client, headers)
     category_id = create_resp.json()["id"]
 
-    resp = await client.patch(f"/categories/{category_id}", json={"name": "Renamed"}, headers=headers)
+    resp = await client.patch(f"/categories/{category_id}", json={"name": name}, headers=headers)
 
     assert resp.status_code == 200
-    assert resp.json()["name"] == "Renamed"
+    assert resp.json()["name"] == expected
+
+
+async def test_patch_category_icon_only_preserves_name(client):
+    """Allow icon changes and clearing when the name is omitted"""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    create_resp = await _create_category(client, headers)
+    assert create_resp.status_code == 201
+    original = create_resp.json()
+    url = f"/categories/{original['id']}"
+
+    for icon in ["🍽️", None]:
+        resp = await client.patch(url, json={"icon": icon}, headers=headers)
+        assert resp.status_code == 200
+        assert resp.json()["name"] == original["name"]
+        assert resp.json()["icon"] == icon
+        stored = await client.get(url, headers=headers)
+        assert stored.status_code == 200
+        assert stored.json() == resp.json()
 
 
 async def test_patch_category_empty_body_returns_unchanged(client):
