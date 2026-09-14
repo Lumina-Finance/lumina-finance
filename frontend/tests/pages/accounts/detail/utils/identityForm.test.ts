@@ -15,6 +15,10 @@ const currencies: Currency[] = [
   { id: 'USD', name: 'US Dollar', symbol: '$', minor_unit_exponent: 2 },
 ]
 
+const cadOnlyCurrencies: Currency[] = [
+  { id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 },
+]
+
 function createAccount(overrides: Partial<Account> = {}): Account {
   return {
     id: overrides.id ?? 'account',
@@ -127,25 +131,37 @@ describe('identity form helpers', () => {
     })
   })
 
-  it('withholds the credit limit rather than scaling it by a guess when the currency is not in the table', () => {
-    const account = createAccount({ account_kind: 'revolving', credit_limit: 500_000, currency: 'JPY' })
-    const form = createIdentityFormValues(account, [])
+  it.each([
+    ['an empty currency table', [], 500_000],
+    ['a nonempty CAD-only currency table', cadOnlyCurrencies, 500_000],
+    ['a nonempty CAD-only currency table with stored zero', cadOnlyCurrencies, 0],
+    ['a nonempty CAD-only currency table with optional null', cadOnlyCurrencies, null],
+  ] satisfies Array<[string, Currency[], number | null]>)(
+    'withholds a JPY credit limit from %s',
+    (_case, availableCurrencies, creditLimit) => {
+      const account = createAccount({
+        account_kind: 'revolving',
+        credit_limit: creditLimit,
+        currency: 'JPY',
+      })
+      const form = createIdentityFormValues(account, availableCurrencies)
 
-    // Blank rather than 5000.00, which is what two assumed decimal places would have shown for ¥500,000
-    expect(form.credit_limit).toBe('')
+      // Blank rather than a guessed two-place amount, including for stored zero and optional null
+      expect(form.credit_limit).toBe('')
 
-    // Left out of the payload entirely, since a blank converts to null and would clear the stored limit
-    expect(getIdentityUpdatePayload({
-      form,
-      isRevolving: true,
-      canLinkTaxAdvantagedCategory: false,
-      currencies: [],
-      accountCurrency: 'JPY',
-    })).toEqual({
-      name: 'Account',
-      institution_id: null,
-      is_archived: false,
-    })
-  })
+      // A name-only save leaves the unreadable stored limit out rather than clearing or rescaling it
+      expect(getIdentityUpdatePayload({
+        form: { ...form, name: 'Renamed account' },
+        isRevolving: true,
+        canLinkTaxAdvantagedCategory: false,
+        currencies: availableCurrencies,
+        accountCurrency: 'JPY',
+      })).toEqual({
+        name: 'Renamed account',
+        institution_id: null,
+        is_archived: false,
+      })
+    },
+  )
 
 })

@@ -19,7 +19,11 @@ describe('budget money helpers', () => {
   })
 
   it('reads no amount from the blank limit a missing currency table leaves behind', () => {
+    const cadOnlyCurrencies = currencies.filter((currency) => currency.id === 'CAD')
+
     // The edit form treats this null as no change, so a period keeps the limit the user was never shown
     expect(toMinorUnits('', [], 'JPY')).toBeNull()
+    expect(toMinorUnits('', cadOnlyCurrencies, 'JPY')).toBeNull()
+    expect(toMinorUnits('500000', cadOnlyCurrencies, 'JPY')).toBeNull()
   })
 })

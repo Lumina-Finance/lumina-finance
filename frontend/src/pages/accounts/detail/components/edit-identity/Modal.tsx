@@ -316,6 +316,7 @@ export default function EditAccountIdentityModal({
                   fieldErrors={fieldErrors}
                   canLinkTaxAdvantagedCategory={canLinkTaxAdvantagedCategory}
                   isRevolving={isRevolving}
+                  isCreditLimitLocked={isCreditLimitLocked}
                   currencyState={currencyState}
                   selectedCurrencySymbol={selectedCurrencySymbol}
                   creditLimitExponent={knownCreditLimitExponent ?? DEFAULT_MINOR_UNIT_EXPONENT}
