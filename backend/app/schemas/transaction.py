@@ -147,7 +147,7 @@ class CreateTransactionRequest(BaseModel):
     # this rule and for the ones an import brings in without a payee
     merchant_id: uuid.UUID
     fx_rate: float | None = Field(None, gt=0)
-    notes: str | None = None
+    notes: str | None = Field(None, max_length=MAX_IMPORT_NOTES_LENGTH)
     tag_ids: list[uuid.UUID] = []
     counterparty_account_id: uuid.UUID | None = None
     counterparty_account_scope: TransferCounterpartyScope | None = None
@@ -162,7 +162,7 @@ class UpdateTransactionRequest(BaseModel):
     category_id: uuid.UUID | None = None
     amount: int | None = None
     fx_rate: float | None = Field(None, gt=0)
-    notes: str | None = None
+    notes: str | None = Field(None, max_length=MAX_IMPORT_NOTES_LENGTH)
     tag_ids: list[uuid.UUID] | None = None
     counterparty_account_id: uuid.UUID | None = None
     counterparty_account_scope: TransferCounterpartyScope | None = None
@@ -229,7 +229,6 @@ class BulkUpdateTransactionsRequest(BaseModel):
     category_id: uuid.UUID | None = None
     merchant_id: uuid.UUID | None = None
 
-    # Bounded here although the single-transaction update is not, which LF-387 covers
     notes: str | None = Field(None, max_length=MAX_IMPORT_NOTES_LENGTH)
 
     # Added to whatever each transaction already carries, unlike the single-transaction update,
