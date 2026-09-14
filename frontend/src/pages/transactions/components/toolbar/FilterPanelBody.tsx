@@ -18,6 +18,7 @@ import {
 import { useMoneyInput } from '@/hooks/useMoneyInput'
 import { ReferenceFacet } from '@/pages/transactions/components/toolbar/ReferenceFacet'
 import type { AmountDraft } from '@/pages/transactions/utils/amountRange'
+import { buildAmountRangeLabel } from '@/pages/transactions/utils/amountRangeLabel'
 import {
   FILTER_FACETS,
   type FacetConfig,
@@ -211,7 +212,8 @@ export function FilterPanelBody({
           selections={draft.selections}
           referenceLabels={draft.referenceLabels}
           amount={draft.amount}
-          amountSymbol={draft.amountSymbol}
+          amountCurrency={draft.amountCurrency}
+          amountExponent={draft.amountExponent}
           dateRange={draft.dateRange}
           getFacetOptions={draft.getFacetOptions}
           onRemoveSelection={draft.toggleSelection}
@@ -601,29 +603,13 @@ type ActiveFilterSummaryProps = {
   selections: MultiSelections
   referenceLabels: Record<string, string>
   amount: AmountDraft
-  amountSymbol: string
+  amountCurrency: string
+  amountExponent: number
   dateRange: { from: string; to: string }
   getFacetOptions: (facetId: string) => OptionItem[]
   onRemoveSelection: (facetId: string, value: string) => void
   onClearAmount: () => void
   onClearDate: () => void
-}
-
-/**
- * Renders a filter bound for the summary chip, which is read-only text and so follows the reader's
- * own number convention rather than the plain format the amount fields hold
- */
-function formatFilterAmount(value: string): string {
-  if (!value.trim()) return ''
-
-  // The bound already carries the decimals its currency uses, so the chip keeps exactly those
-  // rather than letting the formatter trim a trailing zero
-  const decimals = value.split('.')[1]?.length ?? 0
-
-  return new Intl.NumberFormat(undefined, {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  }).format(Number(value))
 }
 
 /**
@@ -634,7 +620,8 @@ function ActiveFilterSummary({
   selections,
   referenceLabels,
   amount,
-  amountSymbol,
+  amountCurrency,
+  amountExponent,
   dateRange,
   getFacetOptions,
   onRemoveSelection,
@@ -649,8 +636,9 @@ function ActiveFilterSummary({
     }),
   )
 
-  const amountChip = amount.min || amount.max
-    ? [{ key: 'amount', label: `${amountSymbol}${formatFilterAmount(amount.min) || '0'}–${formatFilterAmount(amount.max) || 'any'}`, onRemove: onClearAmount }]
+  const amountLabel = buildAmountRangeLabel({ amount, amountCurrency, amountExponent })
+  const amountChip = amountLabel
+    ? [{ key: 'amount', label: amountLabel, onRemove: onClearAmount }]
     : []
 
   const dateChip = dateRange.from || dateRange.to
