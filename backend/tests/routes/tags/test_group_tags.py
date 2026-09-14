@@ -226,6 +226,23 @@ async def test_list_tags_with_group_filter_excludes_other_groups(client):
 # --- Group tags: PATCH /tags ---
 
 
+async def test_patch_group_tag_null_name_leaves_record_unchanged(client):
+    """Reject an administrator's null name without changing the group record"""
+    admin_headers, _, _, group_id = await _setup_group_with_member(client)
+    create_resp = await _create_tag(client, admin_headers, group_id=group_id)
+    assert create_resp.status_code == 201
+    original = create_resp.json()
+    url = f"/tags/{original['id']}"
+
+    resp = await client.patch(url, json={"name": None}, headers=admin_headers)
+
+    assert resp.status_code == 422
+    assert any(error["loc"] == ["body", "name"] for error in resp.json()["detail"])
+    stored = await client.get(url, headers=admin_headers)
+    assert stored.status_code == 200
+    assert stored.json() == original
+
+
 async def test_patch_group_tag_as_admin(client):
     """Admin can update a group tag."""
     admin_headers, _, _, group_id = await _setup_group_with_member(client)

@@ -1,3 +1,5 @@
+import pytest
+
 from tests.routes.support import _create_account, _create_user, _get_auth_header, _get_system_merchant_id
 from tests.routes.tags._helpers import (
     NONEXISTENT_ID,
@@ -208,17 +210,37 @@ async def test_create_tag_without_auth_returns_401(client):
 # --- PATCH /tags/{tag_id} ---
 
 
-async def test_patch_tag_updates_name(client):
+@pytest.mark.parametrize("name", [None, "", "x" * 65])
+async def test_patch_tag_invalid_name_leaves_record_unchanged(client, name):
+    """Reject invalid names without changing any stored fields"""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    create_resp = await _create_tag(client, headers)
+    assert create_resp.status_code == 201
+    original = create_resp.json()
+    url = f"/tags/{original['id']}"
+
+    resp = await client.patch(url, json={"name": name}, headers=headers)
+
+    assert resp.status_code == 422
+    assert any(error["loc"] == ["body", "name"] for error in resp.json()["detail"])
+    stored = await client.get(url, headers=headers)
+    assert stored.status_code == 200
+    assert stored.json() == original
+
+
+@pytest.mark.parametrize("name", ["renamed", "x" * 64, "  padded  ", "   "])
+async def test_patch_tag_updates_name(client, name):
     """PATCH updates name and returns the updated tag."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     create_resp = await _create_tag(client, headers)
     tag_id = create_resp.json()["id"]
 
-    resp = await client.patch(f"/tags/{tag_id}", json={"name": "renamed"}, headers=headers)
+    resp = await client.patch(f"/tags/{tag_id}", json={"name": name}, headers=headers)
 
     assert resp.status_code == 200
-    assert resp.json()["name"] == "renamed"
+    assert resp.json()["name"] == name
 
 
 async def test_patch_tag_empty_body_returns_unchanged(client):

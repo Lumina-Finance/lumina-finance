@@ -3,7 +3,8 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+from pydantic.json_schema import SkipJsonSchema
 
 
 class TagResponse(BaseModel):
@@ -28,7 +29,26 @@ class CreateTagRequest(BaseModel):
 class UpdateTagRequest(BaseModel):
     """Partial update for a tag. Only provided fields are changed."""
 
-    name: str | None = Field(None, min_length=1, max_length=64)
+    # None represents omission internally, while explicit null is rejected
+    name: str | SkipJsonSchema[None] = Field(None, min_length=1, max_length=64)
+
+    @field_validator("name", mode="before")
+    @classmethod
+    def reject_explicit_null_name(cls, value: object) -> object:
+        """Reject a supplied null name while leaving omitted names unchanged
+
+        Args:
+            value: Name as supplied in the request body
+
+        Returns:
+            The value for normal name validation
+
+        Raises:
+            ValueError: The supplied name is null
+        """
+        if value is None:
+            raise ValueError("must not be null")
+        return value
 
 
 class MergeTagRequest(BaseModel):
