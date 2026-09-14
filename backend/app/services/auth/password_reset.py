@@ -164,8 +164,10 @@ async def begin_password_reset(db: AsyncSession, token: str, new_password: str) 
     if reset_token is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=_INVALID_TOKEN_DETAIL)
 
-    # The validated token proves this identity, which the self-only users policy needs stamped
+    # The token lookup ran before any identity existed, so close that transaction and adopt the
+    # verified identity, allowing later user reads to stamp it for the self-only users policy
     current_user_id_ctx.set(reset_token.user_id)
+    await db.commit()
 
     totp_enabled = await is_totp_enabled(db, reset_token.user_id)
     passkey_available = await is_passkey_registered(db, reset_token.user_id)

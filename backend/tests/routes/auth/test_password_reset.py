@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import pyotp
 from sqlalchemy import func, select
 
-from app.models.auth import PasswordResetToken
+from app.models.auth import PasswordCredential, PasswordResetToken
 from tests.conftest import TestSession
 from tests.routes.support import SIGNUP_PAYLOAD, _create_user, _fresh_totp_code, _get_auth_header, _seed_reset_token
 
@@ -277,6 +277,56 @@ async def test_reset_verify_with_recovery_code_wipes_factors_and_grants_restrict
     assert login.status_code == 200
     assert login.json()["mfa_required"] is True
     assert login.json()["recovery_only"] is True
+
+
+async def test_reset_during_reenrollment_requires_a_remaining_recovery_code(client):
+    """A recovery-only account cannot reset again without proving a remaining recovery code"""
+    signup, _, recovery_codes = await _enroll_totp(client)
+    user_id = uuid.UUID(signup.json()["user"]["id"])
+
+    login = await client.post(
+        "/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": SIGNUP_PAYLOAD["password"]}
+    )
+    recovery_login = await client.post(
+        "/auth/2fa/verify",
+        json={"mfa_token": login.json()["mfa_token"], "code": recovery_codes[0]},
+    )
+    assert recovery_login.status_code == 200
+    assert recovery_login.json()["user"]["second_factor_reenrollment_required"] is True
+
+    raw_token = await _seed_reset_token(user_id)
+    async with TestSession() as session:
+        original_hash = (await session.get(PasswordCredential, user_id)).password_hash
+
+    begin = await client.post("/auth/password/reset", json={"token": raw_token, "new_password": _NEW_PASSWORD})
+
+    assert begin.status_code == 200
+    challenge = begin.json()
+    assert challenge["mfa_required"] is True
+    assert challenge["recovery_only"] is True
+    assert challenge["totp_enabled"] is False
+    assert challenge["passkey_available"] is False
+    assert (await _reset_tokens_for(user_id))[0].used_at is None
+    async with TestSession() as session:
+        assert (await session.get(PasswordCredential, user_id)).password_hash == original_hash
+
+    verify = await client.post(
+        "/auth/password/reset/verify",
+        json={
+            "token": raw_token,
+            "new_password": _NEW_PASSWORD,
+            "mfa_token": challenge["mfa_token"],
+            "code": recovery_codes[1],
+        },
+    )
+    assert verify.status_code == 200
+    restricted = {"Authorization": f"Bearer {verify.json()['access_token']}"}
+    assert (await _reset_tokens_for(user_id))[0].used_at is not None
+
+    login = await client.post("/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": _NEW_PASSWORD})
+    assert login.status_code == 200
+    assert login.json()["recovery_only"] is True
+    assert (await client.get("/test/me", headers=restricted)).status_code == 403
 
 
 async def test_reset_verify_wrong_code_burns_the_challenge(client):
