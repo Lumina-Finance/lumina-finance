@@ -102,8 +102,7 @@ export function useMerchantField({
   }, [createdMerchant, merchantReference.visibleItems])
 
   // The backend already ranks merchants by a usage score that fades with age, then name, so this
-  // keeps whatever order the loaded pages are in rather than re-sorting them. Creating or editing
-  // a merchant does lose that order, because the cache update re-sorts every loaded page by name
+  // keeps the loaded pages in that order while creates and edits refetch their server ranking
   const merchantOptions = useMemo(
     () => merchantCandidates.map((m) => ({ value: m.id, label: m.name })),
     [merchantCandidates],

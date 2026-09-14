@@ -70,7 +70,7 @@ export function useInfiniteMerchants(
 }
 
 /**
- * Creates merchants and writes them into matching lookup caches
+ * Creates merchants, caches their details and refreshes ranked lookup lists
  */
 export function useCreateMerchant() {
   const queryClient = useQueryClient();

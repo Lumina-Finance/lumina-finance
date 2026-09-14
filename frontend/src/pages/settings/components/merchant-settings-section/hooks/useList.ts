@@ -14,8 +14,8 @@ import {
  * that changes the name or default category re-reveals the row instead of leaving it showing
  * stale text until the next unrelated refetch. The server's own order, a usage score that fades
  * with age and then name, is not re-sorted here, since that would interleave each new page among
- * the loaded rows and reshuffle the list on every load. Creating or editing a merchant still loses
- * it, because the cache update re-sorts every loaded page by name, an inline rename included
+ * the loaded rows and reshuffle the list on every load. Creates and edits refetch the ranked pages
+ * while preserving their cached order until the response arrives
  */
 export function useMerchantSettingsList(locallyDeletedMerchantIds: string[]) {
   const {

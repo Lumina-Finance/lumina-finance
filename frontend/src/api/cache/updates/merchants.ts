@@ -1,4 +1,4 @@
-import type { InfiniteData, QueryClient } from '@tanstack/react-query';
+import type { QueryClient } from '@tanstack/react-query';
 import {
   invalidateDashboardRecent,
   invalidateInsightsMerchants,
@@ -8,12 +8,7 @@ import {
   invalidateTransactions,
 } from '@/api/cache/invalidation';
 import { merchantKeys } from '@/api/cache/queryKeys';
-import {
-  isInfiniteReferenceLookupQueryKey,
-  referenceLookupMatchesFilters,
-  removeReferenceLookupFromInfiniteData,
-  upsertReferenceLookupIntoInfiniteData,
-} from '@/api/cache/utils/referenceLookup';
+import { isInfiniteReferenceLookupQueryKey } from '@/api/cache/utils/referenceLookup';
 import type { Merchant, UpdateMerchantPayload } from '@/api/merchants/types';
 
 /**
@@ -28,49 +23,28 @@ function invalidateMerchantUsageQueries(queryClient: QueryClient) {
 }
 
 /**
- * Updates cached merchant lookup pages after create or update mutations
+ * Refetches ranked merchant pages without guessing positions from mutation responses
  */
-function updateMerchantLookupPages(
-  queryClient: QueryClient,
-  merchant: Merchant,
-  removeWhenFilteredOut: boolean,
-) {
-  queryClient.getQueryCache()
-    .findAll({ queryKey: merchantKeys.all, exact: false })
-    .forEach((query) => {
-      const queryKey = query.queryKey;
-      if (!isInfiniteReferenceLookupQueryKey(queryKey, 'merchants')) return;
-
-      queryClient.setQueryData<InfiniteData<Merchant[]>>(
-        queryKey,
-        (data) => {
-          if (referenceLookupMatchesFilters(merchant, queryKey[2])) {
-            return upsertReferenceLookupIntoInfiniteData(data, merchant);
-          }
-
-          return removeWhenFilteredOut
-            ? removeReferenceLookupFromInfiniteData(data, merchant.id)
-            : data;
-        },
-      );
-    });
+function invalidateMerchantLookupPages(queryClient: QueryClient) {
+  void queryClient.invalidateQueries({
+    queryKey: merchantKeys.all,
+    predicate: (query) => isInfiniteReferenceLookupQueryKey(query.queryKey, 'merchants'),
+  });
 }
 
 /**
- * Writes a newly created merchant into detail and matching lookup caches
+ * Caches a created merchant's detail and refreshes ranked lists and name matches
  */
 export function updateMerchantCreateCaches(queryClient: QueryClient, merchant: Merchant) {
   queryClient.setQueryData<Merchant>(merchantKeys.detail(merchant.id), merchant);
-  updateMerchantLookupPages(queryClient, merchant, false);
+  invalidateMerchantLookupPages(queryClient);
 
-  // The lookup pages can be written into, since a new merchant simply joins them. What a file's
-  // payee values match cannot, because the answer says which values have no merchant yet, and this
-  // one may be what a value was waiting for
+  // A newly created merchant can resolve an imported payee that previously had no match
   invalidateMerchantNameMatches(queryClient);
 }
 
 /**
- * Updates merchant detail and lookup caches after editable fields change
+ * Caches edited merchant details and refreshes ranked lists and affected usage data
  */
 export function updateMerchantUpdateCaches(
   queryClient: QueryClient,
@@ -78,8 +52,11 @@ export function updateMerchantUpdateCaches(
   payload: UpdateMerchantPayload,
 ) {
   queryClient.setQueryData<Merchant>(merchantKeys.detail(merchant.id), merchant);
-  updateMerchantLookupPages(queryClient, merchant, true);
-  if ('name' in payload) invalidateMerchantUsageQueries(queryClient);
+  if ('name' in payload) {
+    invalidateMerchantUsageQueries(queryClient);
+  } else {
+    invalidateMerchantLookupPages(queryClient);
+  }
 }
 
 /**
