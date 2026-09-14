@@ -210,6 +210,23 @@ async def test_list_categories_with_group_filter_excludes_other_groups(client):
 # --- Group categories: PATCH /categories ---
 
 
+async def test_patch_group_category_null_name_leaves_record_unchanged(client):
+    """Reject an administrator's null name without changing the group record"""
+    admin_headers, _, _, group_id = await _setup_group_with_member(client)
+    create_resp = await _create_category(client, admin_headers, group_id=group_id, icon="🍽️")
+    assert create_resp.status_code == 201
+    original = create_resp.json()
+    url = f"/categories/{original['id']}"
+
+    resp = await client.patch(url, json={"name": None, "icon": None}, headers=admin_headers)
+
+    assert resp.status_code == 422
+    assert any(error["loc"] == ["body", "name"] for error in resp.json()["detail"])
+    stored = await client.get(url, headers=admin_headers)
+    assert stored.status_code == 200
+    assert stored.json() == original
+
+
 async def test_patch_group_category_as_admin(client):
     """Admin can update a group category."""
     admin_headers, _, _, group_id = await _setup_group_with_member(client)
