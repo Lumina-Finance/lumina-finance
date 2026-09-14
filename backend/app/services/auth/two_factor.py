@@ -1,10 +1,14 @@
 """Two-factor enrolment and management flows spanning TOTP and recovery codes"""
 
 import uuid
+from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException, status
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config.two_factor import TWO_FACTOR_STAGING_EXPIRE_SECONDS
+from app.models.auth import RecoveryCode, TotpCredential, WebauthnCredential
 from app.models.user import User
 from app.services.auth.recovery_codes import (
     activate_pending_recovery_codes,
@@ -33,6 +37,40 @@ _NOT_ENABLED_DETAIL = "Two-factor authentication is not enabled"
 SECOND_FACTOR_TOTP = "totp"
 SECOND_FACTOR_RECOVERY_CODE = "recovery_code"
 SECOND_FACTOR_PASSKEY = "passkey"
+
+
+async def prune_stale_factor_staging(db: AsyncSession, user_id: uuid.UUID) -> None:
+    """Delete expired pending authenticators, passkeys and recovery codes for one user
+
+    Ordinary actions such as login sweep abandoned setup because leaving the flow has no reliable
+    signal. Confirmed factors and active recovery codes are preserved. The caller commits
+
+    Args:
+        db: Active database session
+        user_id: User whose stale staged rows are cleared
+    """
+    cutoff = datetime.now(UTC) - timedelta(seconds=TWO_FACTOR_STAGING_EXPIRE_SECONDS)
+    await db.execute(
+        delete(WebauthnCredential).where(
+            WebauthnCredential.user_id == user_id,
+            WebauthnCredential.confirmed_at.is_(None),
+            WebauthnCredential.created_at < cutoff,
+        )
+    )
+    await db.execute(
+        delete(TotpCredential).where(
+            TotpCredential.user_id == user_id,
+            TotpCredential.confirmed_at.is_(None),
+            TotpCredential.created_at < cutoff,
+        )
+    )
+    await db.execute(
+        delete(RecoveryCode).where(
+            RecoveryCode.user_id == user_id,
+            RecoveryCode.pending.is_(True),
+            RecoveryCode.created_at < cutoff,
+        )
+    )
 
 
 async def verify_login_second_factor(db: AsyncSession, user_id: uuid.UUID, code: str) -> str:

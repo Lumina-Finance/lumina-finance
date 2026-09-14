@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 
 import pyotp
 from fastapi import HTTPException, status
-from sqlalchemy import delete, or_, update
+from sqlalchemy import delete, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -95,7 +95,6 @@ async def begin_totp_setup(db: AsyncSession, user_id: uuid.UUID, account_name: s
     # Supersede an abandoned staged passkey and its staged codes so this enrolment is the only one
     # pending, but leave an active batch intact for re-enrol
     await delete_staged_passkeys(db, user_id)
-    await delete_pending_recovery_codes(db, user_id)
 
     secret = generate_totp_secret()
     encrypted_secret = encrypt(secret)
@@ -107,14 +106,39 @@ async def begin_totp_setup(db: AsyncSession, user_id: uuid.UUID, account_name: s
         .values(user_id=user_id, secret_encrypted=encrypted_secret)
         .on_conflict_do_update(
             index_elements=[TotpCredential.user_id],
-            set_={"secret_encrypted": encrypted_secret},
+            set_={"secret_encrypted": encrypted_secret, "created_at": datetime.now(UTC)},
             where=TotpCredential.confirmed_at.is_(None),
         )
     )
     await db.execute(upsert)
+
+    # Clear recovery staging after the TOTP upsert, matching confirmation and cleanup lock order
+    await delete_pending_recovery_codes(db, user_id)
     await db.commit()
 
     return secret, build_totp_provisioning_uri(secret, account_name)
+
+
+async def _lock_pending_totp(db: AsyncSession, user_id: uuid.UUID) -> TotpCredential | None:
+    """Read current pending setup and retain its row until the caller commits or rolls back
+
+    Cleanup and setup replacement must wait while confirmation uses the secret. Refresh any identity
+    map entry so a completed or deleted credential is not reused after waiting for its row lock
+
+    Args:
+        db: Active database session
+        user_id: User whose pending setup is being confirmed
+
+    Returns:
+        The current pending credential, or None when no setup remains
+    """
+    query = (
+        select(TotpCredential)
+        .where(TotpCredential.user_id == user_id, TotpCredential.confirmed_at.is_(None))
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    return (await db.execute(query)).scalar_one_or_none()
 
 
 async def is_pending_totp_code_valid(db: AsyncSession, user_id: uuid.UUID, code: str) -> bool:
@@ -131,8 +155,8 @@ async def is_pending_totp_code_valid(db: AsyncSession, user_id: uuid.UUID, code:
     Returns:
         Whether a pending secret exists and the code verifies
     """
-    credential = await db.get(TotpCredential, user_id)
-    if credential is None or credential.confirmed_at is not None:
+    credential = await _lock_pending_totp(db, user_id)
+    if credential is None:
         return False
 
     step = match_totp_step(decrypt(credential.secret_encrypted), code)
@@ -156,8 +180,8 @@ async def mark_totp_confirmed(db: AsyncSession, user_id: uuid.UUID) -> bool:
     Returns:
         Whether a pending credential existed to confirm
     """
-    credential = await db.get(TotpCredential, user_id)
-    if credential is None or credential.confirmed_at is not None:
+    credential = await _lock_pending_totp(db, user_id)
+    if credential is None:
         return False
 
     credential.confirmed_at = datetime.now(UTC)

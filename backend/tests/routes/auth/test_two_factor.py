@@ -1,11 +1,17 @@
 """TOTP enrolment route tests"""
 
+import asyncio
 import uuid
+from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 
 import pyotp
-from sqlalchemy import select
+import pytest
+from sqlalchemy import func, select, text, update
 
-from app.models.auth import RecoveryCode
+from app.models.auth import RecoveryCode, TotpCredential
+from app.routes.auth.router import login_route
+from app.services.auth import two_factor, webauthn
 from app.services.auth.mfa_challenge import MFA_PURPOSE_LOGIN, MFA_PURPOSE_PASSWORD_RESET, issue_mfa_challenge
 from tests.conftest import TestSession
 from tests.routes.support import SIGNUP_PAYLOAD, _create_user, _fresh_totp_code, _get_auth_header
@@ -46,6 +52,242 @@ async def _seed_active_recovery_code(user_id: str) -> None:
     async with TestSession() as db:
         db.add(RecoveryCode(user_id=uuid.UUID(user_id), code_hash="seeded-active-code", pending=False))
         await db.commit()
+
+
+async def _stage_totp(client, signup=None):
+    """Verify a pending authenticator and return its session, secret and owner without completing"""
+    if signup is None:
+        signup = await _create_user(client)
+    auth = _get_auth_header(signup)
+    setup = await client.post("/auth/2fa/setup", headers=auth, json={"step_up": _STEP_UP})
+    assert setup.status_code == 200
+    secret = setup.json()["secret"]
+    confirmed = await client.post("/auth/2fa/confirm", headers=auth, json={"code": pyotp.TOTP(secret).now()})
+    assert confirmed.status_code == 200
+    return auth, secret, uuid.UUID(signup.json()["user"]["id"])
+
+
+async def _age_totp_staging(user_id, created_at):
+    """Set the persisted age of a user's pending authenticator and recovery batch"""
+    async with TestSession() as db:
+        await db.execute(update(TotpCredential).where(TotpCredential.user_id == user_id).values(created_at=created_at))
+        await db.execute(
+            update(RecoveryCode)
+            .where(RecoveryCode.user_id == user_id, RecoveryCode.pending.is_(True))
+            .values(created_at=created_at)
+        )
+        await db.commit()
+
+
+def _freeze_staging_cleanup(monkeypatch, now, lifetime=1800):
+    """Fix the staging clock and lifetime without changing route execution"""
+    for service in (webauthn, two_factor):
+        monkeypatch.setattr(service, "datetime", SimpleNamespace(now=lambda _tz: now), raising=False)
+        monkeypatch.setattr(service, "TWO_FACTOR_STAGING_EXPIRE_SECONDS", lifetime, raising=False)
+
+
+@pytest.mark.parametrize(
+    ("age", "lifetime", "survives"),
+    [(1801, 1800, False), (1800, 1800, True), (1799, 1800, True), (61, 60, False)],
+)
+async def test_login_prunes_only_expired_pending_totp(client, monkeypatch, age, lifetime, survives):
+    """The login sweep honours the configured strict cutoff for authenticator and recovery staging"""
+    auth, secret, user_id = await _stage_totp(client)
+    now = datetime.now(UTC)
+    await _age_totp_staging(user_id, now - timedelta(seconds=age))
+    _freeze_staging_cleanup(monkeypatch, now, lifetime)
+
+    login = await client.post("/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": _PASSWORD})
+    assert login.status_code == 200
+
+    async with TestSession() as db:
+        credential = await db.get(TotpCredential, user_id)
+        codes = (await db.scalars(select(RecoveryCode).where(RecoveryCode.user_id == user_id))).all()
+    assert (credential is not None) is survives
+    assert len(codes) == (10 if survives else 0)
+
+    if survives:
+        assert credential.confirmed_at is None
+        assert (await client.post("/auth/2fa/complete", headers=auth)).status_code == 204
+    else:
+        confirm = await client.post("/auth/2fa/confirm", headers=auth, json={"code": _fresh_totp_code(secret)})
+        assert confirm.status_code == 400
+        assert (await client.post("/auth/2fa/complete", headers=auth)).status_code == 400
+
+
+async def test_login_preserves_confirmed_totp_and_other_users_staging(client, monkeypatch):
+    """Cleanup leaves active factors and codes intact and only touches the logging-in user's staging"""
+    auth, _, user_id = await _stage_totp(client)
+    assert (await client.post("/auth/2fa/complete", headers=auth)).status_code == 204
+    second = await client.post("/auth/signup", json={**SIGNUP_PAYLOAD, "email": "other@example.com"})
+    assert second.status_code == 201
+    _, _, other_id = await _stage_totp(client, second)
+    now = datetime.now(UTC)
+    old = now - timedelta(seconds=1801)
+    await _age_totp_staging(user_id, old)
+    await _age_totp_staging(other_id, old)
+    async with TestSession() as db:
+        await db.execute(update(RecoveryCode).where(RecoveryCode.user_id == user_id).values(created_at=old))
+        await db.commit()
+    _freeze_staging_cleanup(monkeypatch, now)
+
+    login = await client.post("/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": _PASSWORD})
+    assert login.status_code == 200
+    assert login.json()["mfa_required"] is True
+    assert login.json()["totp_enabled"] is True
+    async with TestSession() as db:
+        assert (await db.get(TotpCredential, user_id)).confirmed_at is not None
+        assert (await db.get(TotpCredential, other_id)).confirmed_at is None
+        active_codes = (await db.scalars(select(RecoveryCode).where(RecoveryCode.user_id == user_id))).all()
+        other_codes = (await db.scalars(select(RecoveryCode).where(RecoveryCode.user_id == other_id))).all()
+    assert len(active_codes) == 10
+    assert all(not row.pending for row in active_codes)
+    assert len(other_codes) == 10
+    assert all(row.pending for row in other_codes)
+
+
+async def test_restarting_totp_setup_refreshes_its_staging_lifetime(client, monkeypatch):
+    """A restarted setup receives a fresh lifetime and survives the next login sweep"""
+    auth, _, user_id = await _stage_totp(client)
+    now = datetime.now(UTC)
+    await _age_totp_staging(user_id, now - timedelta(seconds=1801))
+    _freeze_staging_cleanup(monkeypatch, now)
+
+    setup = await client.post("/auth/2fa/setup", headers=auth, json={"step_up": _STEP_UP})
+    assert setup.status_code == 200
+    async with TestSession() as db:
+        assert (await db.get(TotpCredential, user_id)).created_at >= now
+
+    login = await client.post("/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": _PASSWORD})
+    assert login.status_code == 200
+    confirm = await client.post("/auth/2fa/confirm", headers=auth, json={"code": pyotp.TOTP(setup.json()["secret"]).now()})
+    assert confirm.status_code == 200
+    assert (await client.post("/auth/2fa/complete", headers=auth)).status_code == 204
+
+
+async def _wait_for_cleanup_overlap(task, blocker_pid, blocked_pid):
+    """Observe the competing request finish or actually wait on the held database transaction"""
+    async with TestSession() as observer:
+        while not task.done():
+            blockers = await observer.scalar(text("SELECT pg_blocking_pids(:pid)"), {"pid": blocked_pid})
+            if blocker_pid in blockers:
+                return
+            await asyncio.sleep(0.01)
+
+
+@pytest.mark.parametrize("action", ["confirm", "complete"])
+async def test_totp_requests_reject_setup_removed_by_concurrent_login(client, monkeypatch, action):
+    """Confirmation observes a concurrent cleanup as expired setup instead of updating a deleted row"""
+    auth, secret, user_id = await _stage_totp(client)
+    now = datetime.now(UTC)
+    await _age_totp_staging(user_id, now - timedelta(seconds=1801))
+    _freeze_staging_cleanup(monkeypatch, now)
+    cleanup_paused = asyncio.Event()
+    action_started = asyncio.Event()
+    release_cleanup = asyncio.Event()
+    pids = {}
+    route_globals = login_route.__globals__
+    original_sweep = route_globals["prune_stale_factor_staging"]
+    action_name = f"{action}_totp_enrollment"
+    original_action = route_globals[action_name]
+
+    async def pause_cleanup(db, owner_id):
+        """Hold the real deletion uncommitted while another request reads its old visible state"""
+        pids["cleanup"] = await db.scalar(select(func.pg_backend_pid()))
+        await original_sweep(db, owner_id)
+        cleanup_paused.set()
+        await release_cleanup.wait()
+
+    async def observe_action(db, *args):
+        """Identify the actual confirmation transaction without changing its behaviour"""
+        pids["action"] = await db.scalar(select(func.pg_backend_pid()))
+        action_started.set()
+        return await original_action(db, *args)
+
+    monkeypatch.setitem(route_globals, "prune_stale_factor_staging", pause_cleanup)
+    monkeypatch.setitem(route_globals, action_name, observe_action)
+    tasks = []
+    try:
+        async with asyncio.timeout(5):
+            login = asyncio.create_task(client.post("/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": _PASSWORD}))
+            tasks.append(login)
+            await cleanup_paused.wait()
+            body = {"code": _fresh_totp_code(secret)} if action == "confirm" else None
+            request = asyncio.create_task(client.post(f"/auth/2fa/{action}", headers=auth, json=body))
+            tasks.append(request)
+            await action_started.wait()
+            await _wait_for_cleanup_overlap(request, pids["cleanup"], pids["action"])
+            release_cleanup.set()
+            login_response, action_response = await asyncio.gather(*tasks)
+    finally:
+        release_cleanup.set()
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+
+    assert login_response.status_code == 200
+    assert action_response.status_code == 400
+    async with TestSession() as db:
+        assert await db.get(TotpCredential, user_id) is None
+        assert (await db.scalars(select(RecoveryCode).where(RecoveryCode.user_id == user_id))).all() == []
+
+
+async def test_totp_completion_preserves_its_factor_when_login_cleanup_overlaps(client, monkeypatch):
+    """Cleanup waits for a completing credential and then preserves its confirmed factor and active codes"""
+    auth, _, user_id = await _stage_totp(client)
+    now = datetime.now(UTC)
+    await _age_totp_staging(user_id, now - timedelta(seconds=1801))
+    _freeze_staging_cleanup(monkeypatch, now)
+    completion_paused = asyncio.Event()
+    cleanup_started = asyncio.Event()
+    release_completion = asyncio.Event()
+    pids = {}
+    original_mark = two_factor.mark_totp_confirmed
+    original_sweep = login_route.__globals__["prune_stale_factor_staging"]
+
+    async def pause_completion(db, owner_id):
+        """Pause after the real credential read without autoflushing its pending confirmation"""
+        pids["completion"] = await db.scalar(select(func.pg_backend_pid()))
+        result = await original_mark(db, owner_id)
+        completion_paused.set()
+        await release_completion.wait()
+        return result
+
+    async def observe_cleanup(db, owner_id):
+        """Identify the cleanup transaction before its real deletion"""
+        pids["cleanup"] = await db.scalar(select(func.pg_backend_pid()))
+        cleanup_started.set()
+        await original_sweep(db, owner_id)
+
+    monkeypatch.setattr(two_factor, "mark_totp_confirmed", pause_completion)
+    monkeypatch.setitem(login_route.__globals__, "prune_stale_factor_staging", observe_cleanup)
+    tasks = []
+    try:
+        async with asyncio.timeout(5):
+            tasks.append(asyncio.create_task(client.post("/auth/2fa/complete", headers=auth)))
+            await completion_paused.wait()
+            login = asyncio.create_task(client.post("/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": _PASSWORD}))
+            tasks.append(login)
+            await cleanup_started.wait()
+            await _wait_for_cleanup_overlap(login, pids["completion"], pids["cleanup"])
+            release_completion.set()
+            completion_response, login_response = await asyncio.gather(*tasks)
+    finally:
+        release_completion.set()
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+
+    assert completion_response.status_code == 204
+    assert login_response.status_code == 200
+    assert login_response.json()["totp_enabled"] is True
+    async with TestSession() as db:
+        assert (await db.get(TotpCredential, user_id)).confirmed_at is not None
+        codes = (await db.scalars(select(RecoveryCode).where(RecoveryCode.user_id == user_id))).all()
+    assert len(codes) == 10
+    assert all(not row.pending for row in codes)
 
 
 async def test_totp_enrolment_reuses_existing_recovery_codes(client):
