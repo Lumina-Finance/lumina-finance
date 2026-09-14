@@ -1,17 +1,95 @@
 """Password reset request and consume route tests"""
 
+import asyncio
 import uuid
 from datetime import UTC, datetime
 from types import SimpleNamespace
 
 import pyotp
-from sqlalchemy import func, select
+import pytest
+from sqlalchemy import func, select, text
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.auth import PasswordCredential, PasswordResetToken
+from app.services.auth import password_reset
 from tests.conftest import TestSession
 from tests.routes.support import SIGNUP_PAYLOAD, _create_user, _fresh_totp_code, _get_auth_header, _seed_reset_token
 
 _NEW_PASSWORD = "NewSecurePass123!"
+
+
+@pytest.fixture
+def sent_reset_emails(monkeypatch):
+    """Record delivered email recipients without replacing token issuance"""
+    recipients = []
+
+    async def record_send(email, _message):
+        """Record a successful delivery"""
+        recipients.append(email)
+
+    monkeypatch.setattr(password_reset, "get_email_sender", lambda: SimpleNamespace(send=record_send))
+    return recipients
+
+
+async def _overlap_reset_requests(client, monkeypatch, first_email, second_email, *, independent=False):
+    """Hold the first real issuance transaction while the second completes or waits on it"""
+    first_paused = asyncio.Event()
+    second_started = asyncio.Event()
+    release_first = asyncio.Event()
+    request_pids = []
+    gate_used = False
+    original_lookup = password_reset.find_user_id_by_email
+    original_commit = AsyncSession.commit
+
+    async def observe_lookup(db, email):
+        """Identify the real request transactions before they check the allowance"""
+        user_id = await original_lookup(db, email)
+        request_pids.append(await db.scalar(select(func.pg_backend_pid())))
+        if len(request_pids) == 2:
+            second_started.set()
+        return user_id
+
+    async def pause_first_issuance(db):
+        """Flush the first new token and retain its transaction until the overlap is observed"""
+        nonlocal gate_used
+        if not gate_used and any(isinstance(row, PasswordResetToken) for row in db.new):
+            gate_used = True
+            await db.flush()
+            first_paused.set()
+            await release_first.wait()
+        await original_commit(db)
+
+    monkeypatch.setattr(password_reset, "find_user_id_by_email", observe_lookup)
+    monkeypatch.setattr(AsyncSession, "commit", pause_first_issuance)
+    tasks = []
+    try:
+        async with asyncio.timeout(5):
+            tasks.append(asyncio.create_task(client.post("/auth/password/forgot", json={"email": first_email})))
+            await first_paused.wait()
+            second = asyncio.create_task(client.post("/auth/password/forgot", json={"email": second_email}))
+            tasks.append(second)
+            await second_started.wait()
+
+            if independent:
+                await second
+            else:
+                async with TestSession() as observer:
+                    while not second.done():
+                        blockers = await observer.scalar(
+                            text("SELECT pg_blocking_pids(:pid)"), {"pid": request_pids[1]}
+                        )
+                        if request_pids[0] in blockers:
+                            break
+                        await asyncio.sleep(0.01)
+
+            release_first.set()
+            return await asyncio.gather(*tasks)
+    finally:
+        release_first.set()
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
 
 
 async def _enroll_totp(client):
@@ -53,21 +131,68 @@ async def test_forgot_password_issues_token_for_existing_user(client):
     assert rows[0].used_at is None
 
 
-async def test_forgot_password_drops_the_token_when_the_email_fails(client, monkeypatch):
-    """A send failure leaves no live token behind and stays invisible to the caller"""
+async def test_forgot_password_drops_the_token_when_the_email_fails(client, monkeypatch, sent_reset_emails):
+    """A send failure preserves earlier send history and allows a later retry"""
     signup = await _create_user(client)
     user_id = uuid.UUID(signup.json()["user"]["id"])
+    await _seed_reset_token(user_id, raw_token="earlier-expired-send", expires_in_seconds=-60)
+    original_id = (await _reset_tokens_for(user_id))[0].id
 
     async def failing_send(*_args, **_kwargs):
+        """Simulate an unavailable mail server"""
         raise RuntimeError("smtp is down")
 
-    monkeypatch.setattr("app.services.auth.password_reset.get_email_sender", lambda: SimpleNamespace(send=failing_send))
+    with monkeypatch.context() as failed_delivery:
+        failed_delivery.setattr(password_reset, "get_email_sender", lambda: SimpleNamespace(send=failing_send))
+        resp = await client.post("/auth/password/forgot", json={"email": SIGNUP_PAYLOAD["email"]})
 
-    resp = await client.post("/auth/password/forgot", json={"email": SIGNUP_PAYLOAD["email"]})
-
-    # The response is the same 204 as a success, and no token survives to block the next request
+    # Keep the earlier send record while removing only the failed issuance
     assert resp.status_code == 204
-    assert await _reset_tokens_for(user_id) == []
+    assert [row.id for row in await _reset_tokens_for(user_id)] == [original_id]
+
+    retry = await client.post("/auth/password/forgot", json={"email": SIGNUP_PAYLOAD["email"]})
+    assert retry.status_code == 204
+    rows = await _reset_tokens_for(user_id)
+    assert len(rows) == 2
+    assert original_id in {row.id for row in rows}
+    assert sum(row.used_at is None and row.expires_at > datetime.now(UTC) for row in rows) == 1
+    assert sent_reset_emails == [SIGNUP_PAYLOAD["email"]]
+
+
+@pytest.mark.parametrize("prior_sends", [0, 2])
+async def test_overlapping_reset_requests_share_the_allowance(client, monkeypatch, sent_reset_emails, prior_sends):
+    """Concurrent requests cannot duplicate a live link or exceed the last daily allowance"""
+    signup = await _create_user(client)
+    user_id = uuid.UUID(signup.json()["user"]["id"])
+    for index in range(prior_sends):
+        await _seed_reset_token(user_id, raw_token=f"expired-{index}", expires_in_seconds=-60)
+
+    responses = await _overlap_reset_requests(
+        client, monkeypatch, SIGNUP_PAYLOAD["email"], SIGNUP_PAYLOAD["email"]
+    )
+
+    assert [response.status_code for response in responses] == [204, 204]
+    rows = await _reset_tokens_for(user_id)
+    assert len(rows) == prior_sends + 1
+    assert sum(row.used_at is None and row.expires_at > datetime.now(UTC) for row in rows) == 1
+    assert sent_reset_emails == [SIGNUP_PAYLOAD["email"]]
+
+
+async def test_overlapping_reset_requests_for_different_users_are_independent(client, monkeypatch, sent_reset_emails):
+    """Another user's reset request completes while the first issuance remains uncommitted"""
+    first = await _create_user(client)
+    second_email = "second@example.com"
+    second = await client.post("/auth/signup", json={**SIGNUP_PAYLOAD, "email": second_email})
+    assert second.status_code == 201
+
+    responses = await _overlap_reset_requests(
+        client, monkeypatch, SIGNUP_PAYLOAD["email"], second_email, independent=True
+    )
+
+    assert [response.status_code for response in responses] == [204, 204]
+    assert len(await _reset_tokens_for(uuid.UUID(first.json()["user"]["id"]))) == 1
+    assert len(await _reset_tokens_for(uuid.UUID(second.json()["user"]["id"]))) == 1
+    assert sent_reset_emails == [second_email, SIGNUP_PAYLOAD["email"]]
 
 
 async def test_forgot_password_unknown_email_creates_no_token(client):
