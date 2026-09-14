@@ -253,7 +253,7 @@ function invalidateTaxAdvantagedActivity(queryClient: QueryClient, accountIds: s
 }
 
 /**
- * Invalidates account-level transaction data after external workflows create transactions
+ * Invalidates account activity and affected credit data after external workflows create transactions
  */
 export function invalidateTransactionAccountData(
   queryClient: QueryClient,
@@ -262,6 +262,7 @@ export function invalidateTransactionAccountData(
 ) {
   if (options.refetchAccountList) invalidateTransactionAccountBalances(queryClient, accountIds);
   invalidateTransactionAccountActivity(queryClient, accountIds);
+  invalidateCreditActivity(queryClient, accountIds);
   invalidateTaxAdvantagedActivity(queryClient, accountIds);
 }
 

@@ -140,7 +140,7 @@ export function useCreateTransaction({
 }
 
 /**
- * Invalidates the transactions list, its overview, and the account data for the given accounts,
+ * Invalidates the transactions list, its overview, account data and affected credit data,
  * for flushing a session of created transactions that deferred its own invalidation
  */
 export function useRefreshCreatedTransactions() {
