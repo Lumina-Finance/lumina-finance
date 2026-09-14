@@ -1,5 +1,5 @@
 import { useState, type Dispatch, type SetStateAction } from 'react'
-import { getDefaultDirectionForKind } from '@/pages/transactions/components/transaction-modal/utils/categories'
+import { getFormAfterKindChange } from '@/pages/transactions/components/transaction-modal/utils/formTransitions'
 import { getDirectionFromAmountInputSign } from '@/pages/transactions/components/transaction-modal/utils/money'
 import { validateTransactionForm } from '@/pages/transactions/components/transaction-modal/utils/validation'
 import type {
@@ -53,17 +53,7 @@ export function useTransactionFormState(initialForm: TransactionFormValues): Tra
   // highlight animation stay consistent no matter which field triggered the switch
   const applyKindChange = (nextKind: TransactionModalKind, fields?: Partial<TransactionFormValues>) => {
     const kindChanged = nextKind !== form.kind
-    setForm((f) => ({
-      ...f,
-      // A non-transfer kind has no counterparty to record, so a pending answer from a previous
-      // transfer selection is dropped rather than lingering unseen. The checkbox goes with it,
-      // since leaving it set would arm a second transaction on the next transfer without the user
-      // ticking it again
-      ...(nextKind === 'transfer' ? {} : { counterparty_account_id: '', symmetric_transfer: false }),
-      ...fields,
-      kind: nextKind,
-      direction: nextKind === f.kind ? f.direction : getDefaultDirectionForKind(nextKind),
-    }))
+    setForm((f) => getFormAfterKindChange(f, nextKind, fields))
     if (kindChanged) setDirectionHighlightKey((key) => key + 1)
   }
 
