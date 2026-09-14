@@ -11,7 +11,7 @@ import {
   MERCHANT_SEARCH_LOADING_TEXT_MIN_MS,
 } from '@/pages/transactions/components/transaction-modal/constants'
 import { buildCategoryOptions } from '@/pages/transactions/components/transaction-modal/utils/categories'
-import { BALANCE_ADJUSTMENT_CATEGORY_NAME, doesTransferRecordCounterpartyAccount } from '@/utils/transfers'
+import { getCategorySelectionTransition } from '@/pages/transactions/components/transaction-modal/utils/categoryTransitions'
 import type {
   TransactionFormFieldErrors,
   TransactionFormValues,
@@ -145,19 +145,13 @@ export function useMerchantField({
     }
 
     const defaultCategory = categoryById.get(defaultCategoryId)
-    const nextKind = (defaultCategory?.kind as TransactionModalKind | undefined) ?? form.kind
-    const nextIsBalanceAdjustment = !!(
-      defaultCategory?.is_system && defaultCategory.name === BALANCE_ADJUSTMENT_CATEGORY_NAME
-    )
+    const transition = getCategorySelectionTransition(defaultCategory, defaultCategoryId, form.kind)
     // Balance Adjustment has no counterparty, so a pending counterparty-account answer or a
     // symmetric pair set up under a real transfer category no longer applies once the default
     // category lands on it
-    applyKindChange(nextKind, {
+    applyKindChange(transition.nextKind, {
       merchant_id: merchantId,
-      category_id: defaultCategoryId,
-      ...(doesTransferRecordCounterpartyAccount(nextKind, nextIsBalanceAdjustment)
-        ? {}
-        : { counterparty_account_id: '', symmetric_transfer: false }),
+      ...transition.fields,
     })
     clearError('merchant_id')
     clearError('category_id')

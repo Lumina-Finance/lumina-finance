@@ -1,7 +1,10 @@
 import { useMemo } from 'react'
 import type { Category } from '@/api/categories'
-import { BALANCE_ADJUSTMENT_CATEGORY_NAME, doesTransferRecordCounterpartyAccount } from '@/utils/transfers'
 import { buildCategoryOptions } from '@/pages/transactions/components/transaction-modal/utils/categories'
+import {
+  getCategorySelectionTransition,
+  isModalBalanceAdjustmentCategory,
+} from '@/pages/transactions/components/transaction-modal/utils/categoryTransitions'
 import {
   getCreditRepaymentSteer,
   type CreditRepaymentSteer,
@@ -55,27 +58,18 @@ export function useCategoryField({
 
   const selectedCategory = form.category_id ? categoryById.get(form.category_id) : undefined
 
-  // The synthetic balance adjustment category never counts toward cash flow, so warn when it is picked
-  const isBalanceAdjustmentCategory = !!(
-    selectedCategory?.is_system &&
-    selectedCategory.name === BALANCE_ADJUSTMENT_CATEGORY_NAME
-  )
+  // A balance adjustment never counts toward cash flow, so warn when it is picked
+  const isBalanceAdjustmentCategory = isModalBalanceAdjustmentCategory(selectedCategory)
 
   const creditRepaymentSteer = getCreditRepaymentSteer(selectedCategory, categories, readOnly)
 
   const handleCategoryChange = (categoryId: string) => {
     const category = categoryById.get(categoryId)
-    const nextKind = (category?.kind as TransactionModalKind | undefined) ?? form.kind
-    const nextIsBalanceAdjustment = !!(category?.is_system && category.name === BALANCE_ADJUSTMENT_CATEGORY_NAME)
+    const transition = getCategorySelectionTransition(category, categoryId, form.kind)
     // Auto-switch the kind toggle to match the chosen category. Balance Adjustment has no
     // counterparty, so a pending counterparty-account answer or a symmetric pair set up under a
     // real transfer category no longer applies once the category switches to it
-    applyKindChange(nextKind, {
-      category_id: categoryId,
-      ...(doesTransferRecordCounterpartyAccount(nextKind, nextIsBalanceAdjustment)
-        ? {}
-        : { counterparty_account_id: '', symmetric_transfer: false }),
-    })
+    applyKindChange(transition.nextKind, transition.fields)
     clearError('category_id')
   }
 

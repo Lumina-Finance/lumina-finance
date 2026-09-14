@@ -7,7 +7,14 @@ import type { TransactionFormValues, TransactionModalKind } from '@/pages/transa
 import { createAccount, createCategory, currencies } from './utils/fixtures'
 
 const merchantState = vi.hoisted(() => ({
-  merchant: { id: 'merchant', name: 'Personal merchant', group_id: null, owner_id: 'user', is_system: false, default_category_id: null },
+  merchant: {
+    id: 'merchant',
+    name: 'Personal merchant',
+    group_id: null,
+    owner_id: 'user',
+    is_system: false,
+    default_category_id: null as string | null,
+  },
   mutate: vi.fn(),
 }))
 
@@ -32,7 +39,10 @@ vi.mock('@/pages/transactions/components/transaction-modal/hooks/usePagedReferen
 const personal = createCategory({ id: 'personal', name: 'Personal expense', owner_id: 'user' })
 const system = createCategory({ id: 'system', name: 'System income', kind: 'income', is_system: true })
 
-beforeEach(() => merchantState.mutate.mockReset())
+beforeEach(() => {
+  merchantState.merchant.default_category_id = null
+  merchantState.mutate.mockReset()
+})
 
 describe('transaction category and merchant selection', () => {
   it.each(['expense', 'income', 'transfer'] as const)('offers every category with %s first', (kind) => {
@@ -111,5 +121,166 @@ describe('transaction category and merchant selection', () => {
     expect(merchant.merchantDefaultCategoryOptions.map((option) => option.value)).toEqual([
       '__none__', personal.id, system.id,
     ])
+  })
+
+  it('clears transfer references when directly selecting a personal Balance Adjustment', () => {
+    const personalAdjustment = createCategory({
+      id: 'personal-adjustment', kind: 'transfer', name: 'Balance Adjustment', is_system: false,
+    })
+    const form = {
+      ...buildInitialTransactionForm({
+        categories: [personalAdjustment], currencies,
+        selectableAccounts: [createAccount({ id: 'checking' })], timeZone: 'UTC',
+      }),
+      kind: 'transfer' as const,
+      category_id: 'regular-transfer',
+      counterparty_account_id: 'savings',
+      symmetric_transfer: true,
+    }
+    const applyKindChange = vi.fn()
+    const field = useCategoryField({
+      categories: [personalAdjustment], form, readOnly: false,
+      applyKindChange, clearError: vi.fn(), closeModal: vi.fn(),
+    })
+
+    field.handleCategoryChange(personalAdjustment.id)
+
+    expect(applyKindChange).toHaveBeenCalledWith('transfer', {
+      category_id: personalAdjustment.id,
+      counterparty_account_id: '',
+      symmetric_transfer: false,
+    })
+  })
+
+  it('clears transfer references when a merchant supplies a personal Balance Adjustment default', () => {
+    const personalAdjustment = createCategory({
+      id: 'personal-adjustment', kind: 'transfer', name: 'Balance Adjustment', is_system: false,
+    })
+    merchantState.merchant.default_category_id = personalAdjustment.id
+    const form = {
+      ...buildInitialTransactionForm({
+        categories: [personalAdjustment], currencies,
+        selectableAccounts: [createAccount({ id: 'checking' })], timeZone: 'UTC',
+      }),
+      kind: 'transfer' as const,
+      counterparty_account_id: 'savings',
+      symmetric_transfer: true,
+    }
+    const applyKindChange = vi.fn()
+    const field = useCategoryField({
+      categories: [personalAdjustment], form, readOnly: false,
+      applyKindChange: vi.fn(), clearError: vi.fn(), closeModal: vi.fn(),
+    })
+    const merchant = useMerchantField({
+      open: true, categoryById: field.categoryById, categoryOptions: field.categoryOptions,
+      selectedCategory: field.selectedCategory, form, readOnly: false,
+      setForm: vi.fn(), applyKindChange, clearError: vi.fn(), closeModal: vi.fn(),
+      setSubmitError: vi.fn(), setSubmitErrorTitle: vi.fn(),
+    })
+
+    merchant.handleMerchantChange(merchantState.merchant.id)
+
+    expect(applyKindChange).toHaveBeenCalledWith('transfer', {
+      merchant_id: merchantState.merchant.id,
+      category_id: personalAdjustment.id,
+      counterparty_account_id: '',
+      symmetric_transfer: false,
+    })
+  })
+
+  it('clears transfer references when a created merchant supplies a personal Balance Adjustment default', () => {
+    const personalAdjustment = createCategory({
+      id: 'personal-adjustment', kind: 'transfer', name: 'Balance Adjustment', is_system: false,
+    })
+    const form = {
+      ...buildInitialTransactionForm({
+        categories: [personalAdjustment], currencies,
+        selectableAccounts: [createAccount({ id: 'checking' })], timeZone: 'UTC',
+      }),
+      kind: 'transfer' as const,
+      counterparty_account_id: 'savings',
+      symmetric_transfer: true,
+    }
+    const applyKindChange = vi.fn()
+    const field = useCategoryField({
+      categories: [personalAdjustment], form, readOnly: false,
+      applyKindChange: vi.fn(), clearError: vi.fn(), closeModal: vi.fn(),
+    })
+    const merchant = useMerchantField({
+      open: true, categoryById: field.categoryById, categoryOptions: field.categoryOptions,
+      selectedCategory: field.selectedCategory, form, readOnly: false,
+      setForm: vi.fn(), applyKindChange, clearError: vi.fn(), closeModal: vi.fn(),
+      setSubmitError: vi.fn(), setSubmitErrorTitle: vi.fn(),
+    })
+    const createdMerchant = {
+      id: 'created-merchant',
+      name: 'Created merchant',
+      group_id: null,
+      owner_id: 'user',
+      is_system: false,
+      default_category_id: personalAdjustment.id,
+      created_at: '2026-09-14T00:00:00Z',
+    }
+
+    merchant.handleMerchantCreated(createdMerchant)
+
+    expect(applyKindChange).toHaveBeenCalledWith('transfer', {
+      merchant_id: createdMerchant.id,
+      category_id: personalAdjustment.id,
+      counterparty_account_id: '',
+      symmetric_transfer: false,
+    })
+  })
+
+  it('changes only the merchant when it has no default category', () => {
+    const form = {
+      ...buildInitialTransactionForm({
+        categories: [personal], currencies,
+        selectableAccounts: [createAccount({ id: 'checking' })], timeZone: 'UTC',
+      }),
+      kind: 'transfer' as const,
+      direction: 'credit' as const,
+      category_id: 'regular-transfer',
+    }
+    const setForm = vi.fn()
+    const applyKindChange = vi.fn()
+    const field = useCategoryField({
+      categories: [personal], form, readOnly: false,
+      applyKindChange: vi.fn(), clearError: vi.fn(), closeModal: vi.fn(),
+    })
+    const merchant = useMerchantField({
+      open: true, categoryById: field.categoryById, categoryOptions: field.categoryOptions,
+      selectedCategory: field.selectedCategory, form, readOnly: false,
+      setForm, applyKindChange, clearError: vi.fn(), closeModal: vi.fn(),
+      setSubmitError: vi.fn(), setSubmitErrorTitle: vi.fn(),
+    })
+
+    merchant.handleMerchantChange(merchantState.merchant.id)
+
+    expect(applyKindChange).not.toHaveBeenCalled()
+    const update = setForm.mock.calls[0]?.[0]
+    expect(update(form)).toEqual({ ...form, merchant_id: merchantState.merchant.id })
+  })
+
+  it('keeps ordinary inline-created Transfer selection free of adjustment cleanup', () => {
+    const transfer = createCategory({ id: 'new-transfer', kind: 'transfer', name: 'Account move' })
+    const form = {
+      ...buildInitialTransactionForm({
+        categories: [], currencies,
+        selectableAccounts: [createAccount({ id: 'checking' })], timeZone: 'UTC',
+      }),
+      kind: 'transfer' as const,
+      counterparty_account_id: 'savings',
+      symmetric_transfer: true,
+    }
+    const applyKindChange = vi.fn()
+    const field = useCategoryField({
+      categories: [], form, readOnly: false,
+      applyKindChange, clearError: vi.fn(), closeModal: vi.fn(),
+    })
+
+    field.handleCategoryCreated(transfer)
+
+    expect(applyKindChange).toHaveBeenCalledWith('transfer', { category_id: transfer.id })
   })
 })

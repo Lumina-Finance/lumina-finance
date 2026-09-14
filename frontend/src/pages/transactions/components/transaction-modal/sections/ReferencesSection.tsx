@@ -67,7 +67,7 @@ interface TransactionReferencesSectionProps {
   categoryValue: string
   categoryError?: string | false
 
-  // True when the chosen category is the synthetic balance adjustment, which is excluded from cash flow
+  // True when the chosen category is a balance adjustment, which is excluded from cash flow
   isBalanceAdjustmentCategory: boolean
 
   // Whether to ask the user to check that a payment filed under Debt Payment is really an expense,

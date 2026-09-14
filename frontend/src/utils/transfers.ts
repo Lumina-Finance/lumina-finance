@@ -1,7 +1,7 @@
 import type { Category } from '@/api/categories'
 
-// The backend tags synthetic balance adjustments with this system transfer category name and
-// excludes them from cash flow
+// The backend identifies balance adjustments by this exact transfer-category name and excludes
+// them from cash flow
 export const BALANCE_ADJUSTMENT_CATEGORY_NAME = 'Balance Adjustment'
 
 // The system expense category a repayment is most often filed under. Correct for a loan or a
@@ -21,7 +21,7 @@ export const OUTSIDE_ACCOUNT_LABEL = 'Outside this app'
  * the money touched
  *
  * True for every transfer-kind category except Balance Adjustment, which has no counterparty.
- * Mirrors the backend's does_category_record_counterparty_account, which matches the name alone
+ * Mirrors the backend rule, which uses the transfer kind and exact category name
  */
 export function doesTransferRecordCounterpartyAccount(
   kind: Category['kind'],
