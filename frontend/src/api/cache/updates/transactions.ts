@@ -121,13 +121,13 @@ function isInfiniteTransactionsData(data: unknown): data is InfiniteData<Transac
 }
 
 /**
- * Finds a transaction in any cached list so mutations can invalidate both old and new account scopes
+ * Finds a cached transaction in detail or list responses to invalidate old and new account scopes
  */
 export function findCachedTransaction(
   queryClient: QueryClient,
   transactionId: string,
 ): Transaction | undefined {
-  const transactionQueries = queryClient.getQueriesData<Transaction[] | InfiniteData<Transaction[]>>({
+  const transactionQueries = queryClient.getQueriesData<Transaction | Transaction[] | InfiniteData<Transaction[]>>({
     queryKey: transactionKeys.all,
     exact: false,
   });
@@ -137,9 +137,11 @@ export function findCachedTransaction(
     if (isInfiniteTransactionsData(data)) {
       const transaction = data.pages.flat().find((item) => item.id === transactionId);
       if (transaction) return transaction;
-    } else {
+    } else if (Array.isArray(data)) {
       const transaction = data.find((item) => item.id === transactionId);
       if (transaction) return transaction;
+    } else if (data.id === transactionId) {
+      return data;
     }
   }
   return undefined;
