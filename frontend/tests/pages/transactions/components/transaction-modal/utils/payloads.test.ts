@@ -15,6 +15,39 @@ import {
 import { createAccount, createCategory, createTransaction, currencies } from './fixtures'
 
 describe('transaction modal payloads', () => {
+  it.each([' existing note ', ` ${'n'.repeat(10001)} `])('keeps untouched notes out of amount edits (%#)', (notes) => {
+    const transaction = createTransaction({ notes })
+    const form = buildInitialTransactionForm({
+      transaction,
+      categories: [createCategory({ id: 'groceries' })],
+      currencies,
+      selectableAccounts: [createAccount({ id: 'checking' })],
+      timeZone: undefined,
+    })
+
+    expect(buildUpdateTransactionPatch({ ...form, amount: '200.00' }, transaction, 2)).toEqual({
+      amount: -20000,
+    })
+  })
+
+  it.each([
+    [' revised ', { notes: 'revised' }],
+    ['', { notes: null }],
+    ['   ', { notes: null }],
+    [' Original ', null],
+  ] as const)('normalizes intentionally edited notes (%#)', (notes, expectedPatch) => {
+    const transaction = createTransaction({ notes: 'Original' })
+    const form = buildInitialTransactionForm({
+      transaction,
+      categories: [createCategory({ id: 'groceries' })],
+      currencies,
+      selectableAccounts: [createAccount({ id: 'checking' })],
+      timeZone: undefined,
+    })
+
+    expect(buildUpdateTransactionPatch({ ...form, notes }, transaction, 2)).toEqual(expectedPatch)
+  })
+
   it('builds minimal edit patches and returns null when the transaction is unchanged', () => {
     const transaction = createTransaction({
       tag_ids: ['tax', 'business'],

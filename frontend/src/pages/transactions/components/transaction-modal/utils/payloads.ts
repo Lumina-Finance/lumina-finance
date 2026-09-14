@@ -121,7 +121,6 @@ export function buildUpdateTransactionPatch(
   transaction: Transaction,
   selectedCurrencyExponent: number | null,
 ): UpdateTransactionPayload | null {
-  const notes = form.notes.trim() || null
   const patch: UpdateTransactionPayload = {}
 
   if (form.account_id !== transaction.account_id) patch.account_id = form.account_id
@@ -135,7 +134,12 @@ export function buildUpdateTransactionPatch(
     if (signedAmount !== transaction.amount) patch.amount = signedAmount
   }
   if (form.date !== transaction.dt) patch.dt = form.date
-  if (notes !== (transaction.notes ?? null)) patch.notes = notes
+
+  // Normalizing untouched text would turn an unrelated edit into a notes update
+  if (form.notes !== (transaction.notes ?? '')) {
+    const notes = form.notes.trim() || null
+    if (notes !== (transaction.notes ?? null)) patch.notes = notes
+  }
   if (!sameStringSet(form.tag_ids, transaction.tag_ids)) patch.tag_ids = form.tag_ids
 
   // Left out entirely once the category leaves transfer, since the backend clears the stored
