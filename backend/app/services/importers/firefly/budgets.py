@@ -1,6 +1,7 @@
 """Firefly III budget import service"""
 
 import calendar
+import uuid
 from datetime import date, timedelta
 from itertools import pairwise
 
@@ -18,7 +19,7 @@ from app.schemas.firefly_import import (
     FireflyBudgetImportResult,
 )
 from app.services.budgets.periods import compute_period_end, validate_period_start
-from app.services.budgets.tracked_categories import get_valid_tracked_category_ids
+from app.services.budgets.tracked_categories import get_allowed_tracked_category_ids
 from app.services.cache_state import mark_cache_changed_for_scope
 from app.services.importers.shared.currencies import get_import_currencies_by_code
 from app.utils.money import (
@@ -37,6 +38,9 @@ FALLBACK_RECURRENCE_DOM = 1
 MAX_RECURRENCE_DOM = 31
 
 MONTHS_PER_YEAR = 12
+
+# Bound expanded IN parameters when one request contains many distinct categories
+CATEGORY_QUERY_CHUNK_SIZE = 1000
 
 
 async def import_firefly_budgets(
@@ -65,9 +69,30 @@ async def import_firefly_budgets(
     currency_codes = {budget.currency.upper() for budget in data.budgets}
     currencies_by_code = await get_import_currencies_by_code(db, currency_codes)
 
+    requested_category_ids = {
+        category_id
+        for budget in data.budgets
+        for category_id in budget.category_ids
+    }
+    allowed_category_ids: set[uuid.UUID] = set()
+    category_id_list = sorted(requested_category_ids, key=lambda category_id: category_id.int)
+    for offset in range(0, len(category_id_list), CATEGORY_QUERY_CHUNK_SIZE):
+        allowed_category_ids.update(await get_allowed_tracked_category_ids(
+            db,
+            category_id_list[offset:offset + CATEGORY_QUERY_CHUNK_SIZE],
+            user.id,
+            None,
+        ))
+
     results = []
     for budget in data.budgets:
-        results.append(await _create_imported_budget(db, user, budget, currencies_by_code))
+        results.append(await _create_imported_budget(
+            db,
+            user,
+            budget,
+            currencies_by_code,
+            allowed_category_ids,
+        ))
 
     await mark_cache_changed_for_scope(db, user_id=user.id, group_id=None)
 
@@ -83,6 +108,7 @@ async def _create_imported_budget(
     user: User,
     budget: FireflyBudgetImport,
     currencies_by_code: dict[str, Currency],
+    allowed_category_ids: set[uuid.UUID],
 ) -> FireflyBudgetImportResult:
     """Create one base budget with tracked categories and its exact periods
 
@@ -91,6 +117,7 @@ async def _create_imported_budget(
         user: Authenticated user running the import
         budget: Budget definition derived from the export
         currencies_by_code: Currency rows keyed by currency code
+        allowed_category_ids: Requested category identifiers allowed for this personal scope
 
     Returns:
         Created budget summary
@@ -99,7 +126,9 @@ async def _create_imported_budget(
         HTTPException: Raised with 422 when the categories, limit amounts, or
             limit periods are invalid
     """
-    category_ids = await get_valid_tracked_category_ids(db, budget.category_ids, user.id, None)
+    category_ids = list(set(budget.category_ids))
+    if not set(category_ids).issubset(allowed_category_ids):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Category not found")
     limit_periods = _parse_limit_periods(budget, currencies_by_code[budget.currency.upper()])
 
     base_budget = BaseBudget(
