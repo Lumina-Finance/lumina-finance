@@ -243,10 +243,16 @@ function getFireflyAmountInAccountCurrency(row: CsvRow, accountCurrency: string,
   const exponent = findCurrencyExponent(currencies, accountCurrency)
   if (exponent === null) throw new Error(`No currency metadata for ${accountCurrency}`)
 
-  // The backend catches its parser's malformed, over-precise and out-of-range errors together and
-  // reports all three as an invalid amount, so all three read the same way here
+  // Explain excess precision separately while malformed text and parser-range overflow retain the raw value
   const minorUnits = toImportMinorUnits(rawAmount, exponent)
-  if (typeof minorUnits !== 'bigint') throw new FireflyRowSkipError(`Invalid amount "${rawAmount}"`)
+  if (minorUnits === 'tooPrecise') {
+    throw new FireflyRowSkipError(
+      `The amount has more decimal places than ${accountCurrency} has. A period is read as a decimal point, never as a separator between thousands.`,
+    )
+  }
+  if (minorUnits === 'unreadable' || minorUnits === 'tooLarge') {
+    throw new FireflyRowSkipError(`Invalid amount "${rawAmount}"`)
+  }
 
   // The import writes the magnitude rather than the parsed value, and the signed range holds one
   // more value below zero than above it, so the smallest amount the parser accepts negates into
