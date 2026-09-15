@@ -226,4 +226,24 @@ describe('carrying a resolved mapping through to the payload', () => {
     expect(result.errors).toEqual([])
     expect(result.payload?.merchants).toEqual([{ source: 'Acme', create: { name: 'Acme Store' } }])
   })
+
+  it('carries two deliberate source mappings to the same account', () => {
+    const rows = [
+      { ...VALID_ROW, Account: 'Everyday' },
+      { ...VALID_ROW, Account: 'Travel Card', Amount: '-56.78' },
+    ]
+    const result = build({
+      files: [createFile(rows, { headers: ['Date', 'Account', 'Category', 'Amount'] })],
+      columnMap: { ...COLUMN_MAP, account_id: 'Account' },
+      accountSources: [createSource('Everyday'), createSource('Travel Card')],
+      accountMappings: { Everyday: ACCOUNT.id, 'Travel Card': ACCOUNT.id },
+    })
+
+    expect(result.errors).toEqual([])
+    expect(result.payload?.accounts).toEqual([
+      { source: 'Everyday', account_id: ACCOUNT.id },
+      { source: 'Travel Card', account_id: ACCOUNT.id },
+    ])
+    expect(result.payload?.rows.map((row) => row.account_source)).toEqual(['Everyday', 'Travel Card'])
+  })
 })

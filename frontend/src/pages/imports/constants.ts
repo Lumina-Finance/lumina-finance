@@ -488,7 +488,7 @@ export function getFixedAccountWarning(accountName: string) {
 
 // Shown over the accounts that appear only as a counterparty, which the import writes nothing to
 export const COUNTERPARTY_ONLY_TABLE_TITLE = 'Counterparty accounts'
-export const COUNTERPARTY_ONLY_EXPLANATION = 'These only ever appeared as the other side of a transfer. Matching one records where the money came from or went to without writing a transaction into that account, which is why an archived account can be chosen here and stays archived. Leave one unmatched and the transfer is recorded as going outside this app. To bring a name in as an account of your own, choose Create New Account in its Existing Account column.'
+export const COUNTERPARTY_ONLY_EXPLANATION = 'These only ever appeared as the other side of a transfer. Matching one records where the money came from or went to without writing a transaction into that account, which is why an archived account can be chosen here and stays archived. Choose Outside this app to record the transfer without linking another account. To bring a name in as an account of your own, choose Create New Account in its Existing Account column.'
 
 // Each format is named by an example of its shape rather than by a standard, because the year-first
 // option deliberately takes a slash and an unpadded part, which ISO 8601 does not. Keyed by format

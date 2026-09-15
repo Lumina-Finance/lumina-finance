@@ -182,11 +182,11 @@ export function useFireflyImportWorkflow() {
     [trackedAccountNames],
   )
 
-  // Names without an explicit choice fall back to the best existing-account match and, once the
-  // account list is current, default to create-new so every tracked account stays mapped
+  // Names without an explicit choice use an unambiguous existing-account match. Once the account
+  // list is current, unmatched names outside collisions default to create-new
   // An answer pointing at a deleted account is dropped before anything is derived from it, or the
   // commit sends an id the server will refuse. While account data is not current, an unmatched name
-  // remains unanswered rather than briefly presenting create details that a later match replaces
+  // remains unanswered, and colliding names require an explicit choice even after the list is current
   const liveAccountMappings = useMemo(
     () => (accountsResolved
       ? dropVanishedAccountMappings(accountMappings, accountById).mappings

@@ -14,6 +14,7 @@ import {
   getStatedCurrencyByAccountSource,
   isAutoFilledAccountSource,
   resolveImportAccountCreateCurrencies,
+  resolveImportAccountMappings,
 } from '@/pages/imports/utils'
 
 const SUPPORTED_CURRENCIES = new Set(['CAD', 'USD', 'EUR'])
@@ -219,6 +220,230 @@ describe('resting an unanswered row source on creating an account', () => {
 
   it('does not touch a source it was not given', () => {
     expect(applyCreateAccountFallback([], { Everyday: '' })).toEqual({ Everyday: '' })
+  })
+})
+
+describe('generic account mapping composition', () => {
+  it('defaults an unmatched row source to create when the account list is current', () => {
+    const result = resolveImportAccountMappings({
+      sources: [createSource('Everyday')],
+      liveMappings: {},
+      clearedSourceIds: new Set(),
+      fixedAccountId: null,
+      canInfer: true,
+      accountsCurrent: true,
+      rowAccounts: [],
+      counterpartyAccounts: [],
+    })
+
+    expect(result).toEqual({
+      matchedMappings: {},
+      resolvedMappings: { Everyday: CREATE_ACCOUNT_VALUE },
+    })
+  })
+
+  it('defaults an unanswered counterparty source to outside', () => {
+    const result = resolveImportAccountMappings({
+      sources: [createSource('Mum', { isCounterpartyOnly: true })],
+      liveMappings: {},
+      clearedSourceIds: new Set(),
+      fixedAccountId: null,
+      canInfer: true,
+      accountsCurrent: true,
+      rowAccounts: [],
+      counterpartyAccounts: [],
+    })
+
+    expect(result).toEqual({
+      matchedMappings: { Mum: OUTSIDE_ACCOUNT_VALUE },
+      resolvedMappings: { Mum: OUTSIDE_ACCOUNT_VALUE },
+    })
+  })
+
+  it('gives a fixed account precedence over name matching and defaults', () => {
+    const source = createSource('file-1', { label: 'Everyday', matchText: 'Everyday.csv' })
+    const everyday = createAccount({ id: 'everyday', name: 'Everyday' })
+
+    const result = resolveImportAccountMappings({
+      sources: [source],
+      liveMappings: {},
+      clearedSourceIds: new Set(),
+      fixedAccountId: 'fixed-account',
+      canInfer: true,
+      accountsCurrent: true,
+      rowAccounts: [everyday],
+      counterpartyAccounts: [everyday],
+    })
+
+    expect(result).toEqual({
+      matchedMappings: { 'file-1': 'fixed-account' },
+      resolvedMappings: { 'file-1': 'fixed-account' },
+    })
+  })
+
+  it('keeps a cleared row out of inference before applying the create fallback', () => {
+    const source = createSource('Chequing')
+    const chequing = createAccount({ id: 'chequing', name: 'Chequing' })
+
+    const result = resolveImportAccountMappings({
+      sources: [source],
+      liveMappings: {},
+      clearedSourceIds: new Set(['Chequing']),
+      fixedAccountId: null,
+      canInfer: true,
+      accountsCurrent: true,
+      rowAccounts: [chequing],
+      counterpartyAccounts: [chequing],
+    })
+
+    expect(result).toEqual({
+      matchedMappings: {},
+      resolvedMappings: { Chequing: CREATE_ACCOUNT_VALUE },
+    })
+  })
+
+  it('keeps the pre-default mapping available to the archived-account notice', () => {
+    const source = createSource('Old Savings')
+    const archived = createAccount({ id: 'old-savings', name: 'Old Savings', is_archived: true })
+
+    const result = resolveImportAccountMappings({
+      sources: [source],
+      liveMappings: {},
+      clearedSourceIds: new Set(),
+      fixedAccountId: null,
+      canInfer: true,
+      accountsCurrent: true,
+      rowAccounts: [],
+      counterpartyAccounts: [archived],
+    })
+
+    expect(result.matchedMappings).toEqual({})
+    expect(result.resolvedMappings).toEqual({ 'Old Savings': CREATE_ACCOUNT_VALUE })
+    expect(getArchivedAccountMatches([source], result.matchedMappings, [archived]))
+      .toEqual([{ id: 'old-savings', name: 'Old Savings' }])
+  })
+
+  it('keeps colliding row and counterparty sources out of both automatic defaults', () => {
+    const everyday = createAccount({ id: 'everyday', name: 'Everyday Chequing' })
+    const sources = [
+      createSource('everyday-source', { label: 'Everyday Chequing', matchText: 'Everyday Chequing' }),
+      createSource('card-source', {
+        label: 'Everyday Chequing Card One',
+        matchText: 'Everyday Chequing Card One',
+      }),
+      createSource('everyday-counterparty', {
+        label: 'Everyday Chequing',
+        matchText: 'Everyday Chequing',
+        isCounterpartyOnly: true,
+      }),
+      createSource('card-counterparty', {
+        label: 'Everyday Chequing Card Two',
+        matchText: 'Everyday Chequing Card Two',
+        isCounterpartyOnly: true,
+      }),
+      createSource('unmatched-row', { label: 'Travel Wallet', matchText: 'Travel Wallet' }),
+      createSource('unmatched-counterparty', {
+        label: 'External Vendor',
+        matchText: 'External Vendor',
+        isCounterpartyOnly: true,
+      }),
+    ]
+
+    const result = resolveImportAccountMappings({
+      sources,
+      liveMappings: {},
+      clearedSourceIds: new Set(),
+      fixedAccountId: null,
+      canInfer: true,
+      accountsCurrent: true,
+      rowAccounts: [everyday],
+      counterpartyAccounts: [everyday],
+    })
+
+    expect(result.matchedMappings).toEqual({ 'unmatched-counterparty': OUTSIDE_ACCOUNT_VALUE })
+    expect(result.resolvedMappings).toEqual({
+      'unmatched-row': CREATE_ACCOUNT_VALUE,
+      'unmatched-counterparty': OUTSIDE_ACCOUNT_VALUE,
+    })
+  })
+
+  it('keeps a cleared collision member in discovery while excluding it from assignment', () => {
+    const everyday = createAccount({ id: 'everyday', name: 'Everyday Chequing' })
+    const sources = [
+      createSource('everyday-source', { label: 'Everyday Chequing', matchText: 'Everyday Chequing' }),
+      createSource('card-source', {
+        label: 'Everyday Chequing Card One',
+        matchText: 'Everyday Chequing Card One',
+      }),
+    ]
+
+    expect(resolveImportAccountMappings({
+      sources,
+      liveMappings: {},
+      clearedSourceIds: new Set(['everyday-source']),
+      fixedAccountId: null,
+      canInfer: true,
+      accountsCurrent: true,
+      rowAccounts: [everyday],
+      counterpartyAccounts: [everyday],
+    })).toEqual({ matchedMappings: {}, resolvedMappings: {} })
+  })
+
+  it('preserves a fixed row answer while leaving its colliding counterparty unanswered', () => {
+    const everyday = createAccount({ id: 'everyday', name: 'Everyday Chequing' })
+    const sources = [
+      createSource('row-source', { label: 'Everyday Chequing', matchText: 'Everyday Chequing' }),
+      createSource('counterparty-source', {
+        label: 'Everyday Chequing Card One',
+        matchText: 'Everyday Chequing Card One',
+        isCounterpartyOnly: true,
+      }),
+    ]
+
+    expect(resolveImportAccountMappings({
+      sources,
+      liveMappings: {},
+      clearedSourceIds: new Set(),
+      fixedAccountId: 'fixed-account',
+      canInfer: true,
+      accountsCurrent: true,
+      rowAccounts: [everyday],
+      counterpartyAccounts: [everyday],
+    })).toEqual({
+      matchedMappings: { 'row-source': 'fixed-account' },
+      resolvedMappings: { 'row-source': 'fixed-account' },
+    })
+  })
+
+  it('preserves the archived exact-name notice after suppressing an active-account collision', () => {
+    const everyday = createAccount({ id: 'everyday', name: 'Everyday Chequing' })
+    const archivedCard = createAccount({
+      id: 'archived-card',
+      name: 'Everyday Chequing Card One',
+      is_archived: true,
+    })
+    const sources = [
+      createSource('everyday-source', { label: 'Everyday Chequing', matchText: 'Everyday Chequing' }),
+      createSource('card-source', {
+        label: 'Everyday Chequing Card One',
+        matchText: 'Everyday Chequing Card One',
+      }),
+    ]
+
+    const result = resolveImportAccountMappings({
+      sources,
+      liveMappings: {},
+      clearedSourceIds: new Set(),
+      fixedAccountId: null,
+      canInfer: true,
+      accountsCurrent: true,
+      rowAccounts: [everyday],
+      counterpartyAccounts: [everyday, archivedCard],
+    })
+
+    expect(result).toEqual({ matchedMappings: {}, resolvedMappings: {} })
+    expect(getArchivedAccountMatches(sources, result.matchedMappings, [everyday, archivedCard]))
+      .toEqual([{ id: 'archived-card', name: 'Everyday Chequing Card One' }])
   })
 })
 

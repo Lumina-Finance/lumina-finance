@@ -1,7 +1,7 @@
 import type { AccountsOverview } from '@/api/accounts'
 import { CREATE_ACCOUNT_VALUE } from '@/pages/imports/constants'
 import type { ImportAccountSource } from '@/pages/imports/types'
-import { inferAccountMappings } from '@/pages/imports/utils/accountMapping'
+import { inferAccountMappingsWithCollisions } from '@/pages/imports/utils/accountMapping'
 
 interface ResolveFireflyAccountMappingsOptions {
   sources: ImportAccountSource[]
@@ -14,16 +14,18 @@ interface ResolveFireflyAccountMappingsOptions {
 export function resolveFireflyAccountMappings(
   options: ResolveFireflyAccountMappingsOptions,
 ): Record<string, string> {
-  const inferred = inferAccountMappings(options.sources, options.liveMappings, {
+  const inferred = inferAccountMappingsWithCollisions(options.sources, options.liveMappings, {
     rowAccounts: options.selectableAccounts,
     counterpartyAccounts: options.selectableAccounts,
   })
 
-  if (!options.accountsCurrent) return inferred
+  if (!options.accountsCurrent) return inferred.mappings
 
   for (const source of options.sources) {
-    if (!inferred[source.id]) inferred[source.id] = CREATE_ACCOUNT_VALUE
+    if (!inferred.mappings[source.id] && !inferred.collidingSourceIds.has(source.id)) {
+      inferred.mappings[source.id] = CREATE_ACCOUNT_VALUE
+    }
   }
 
-  return inferred
+  return inferred.mappings
 }
