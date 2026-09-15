@@ -1,4 +1,4 @@
-import { EmptyState, ImportPreviewList, ImportStat, ImportStep } from '@/pages/imports/components'
+import { EmptyState, ImportPreviewList, ImportRowProblemsTable, ImportStat, ImportStep } from '@/pages/imports/components'
 import { FireflySkippedRowsTable } from '@/pages/imports/firefly/components'
 import { FIREFLY_SAMPLE_PREVIEW_LIMIT } from '@/pages/imports/firefly/constants'
 import type { FireflyImportWorkflow } from '@/pages/imports/firefly/hooks'
@@ -9,6 +9,7 @@ type FireflyPreviewStepProps = Pick<
   | 'previewRows'
   | 'previewGroups'
   | 'predictedSkippedRows'
+  | 'predictedRowWarnings'
   | 'fireflyHeaders'
   | 'newAccountCount'
   | 'newCategoryCount'
@@ -22,7 +23,7 @@ type FireflyPreviewStepProps = Pick<
 
 /**
  * Preview and commit step of the Firefly III import flow, showing a sample of the transactions the
- * commit will create, any rows it will skip, and the button that starts the commit
+ * commit will create, skipped rows, non-blocking row guidance and the button that starts the commit
  *
  * The step number shifts by one depending on whether a budgets export is staged, since the budget
  * step before it only exists when there is one
@@ -32,6 +33,7 @@ export function FireflyPreviewStep({
   previewRows,
   previewGroups,
   predictedSkippedRows,
+  predictedRowWarnings,
   fireflyHeaders,
   newAccountCount,
   newCategoryCount,
@@ -66,6 +68,19 @@ export function FireflyPreviewStep({
           totalCount={skippedCount}
           headers={fireflyHeaders}
         />
+      )}
+
+      {predictedRowWarnings.length > 0 && (
+        <div className="mb-4">
+          <ImportRowProblemsTable
+            title={`${predictedRowWarnings.length} row${predictedRowWarnings.length === 1 ? '' : 's'} worth a look`}
+            rowProblems={predictedRowWarnings}
+            headers={fireflyHeaders}
+            toggleLabel="rows worth a look"
+            tone="warning"
+            reasonHeader="Note"
+          />
+        </div>
       )}
 
       {previewRows.length === 0 ? (

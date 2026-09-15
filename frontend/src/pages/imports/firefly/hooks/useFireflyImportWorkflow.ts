@@ -320,10 +320,11 @@ export function useFireflyImportWorkflow() {
   )
 
   // A full pass over the export predicts the commit outcome, so the stats
-  // and the skipped-row list always come from the same resolution and the
-  // transaction estimate never counts rows the commit would skip
+  // and both row lists always come from the same resolution and the transaction estimate never
+  // counts rows the commit would skip
   const importForecast = useMemo(
     () => forecastFireflyImport(fireflyRows, {
+      fileId: transactionsFile?.id ?? null,
       accountById,
       accountMappings: resolvedAccountMappings,
       accountCreateDetails: resolvedAccountCreateDetails,
@@ -347,10 +348,12 @@ export function useFireflyImportWorkflow() {
       resolvedCategoryKinds,
       resolvedCategoryMappings,
       transferCategory,
+      transactionsFile,
     ],
   )
   const importEstimate = importForecast
   const predictedSkippedRows = importForecast.skippedRows
+  const predictedRowWarnings = importForecast.rowWarnings
 
   const newAccountCount = useMemo(
     () => trackedAccountNames.filter((name) => resolvedAccountMappings[name] === CREATE_ACCOUNT_VALUE).length,
@@ -694,6 +697,7 @@ export function useFireflyImportWorkflow() {
     previewRows,
     previewGroups,
     predictedSkippedRows,
+    predictedRowWarnings,
     newAccountCount,
     newCategoryCount,
     importBuild,
