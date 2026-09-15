@@ -1,6 +1,7 @@
 import type { Category } from '@/api/categories'
-import { CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
+import { CREATE_CATEGORY_VALUE, DEBT_PAYMENT_IMPORT_NOTE } from '@/pages/imports/constants'
 import type { ColumnMap, ImportAmountDirection, ImportCategoryKind, ImportFileDraft } from '@/pages/imports/types'
+import { DEBT_PAYMENT_CATEGORY_NAME } from '@/utils/transfers'
 import { DEFAULT_IMPORT_AMOUNT_FORMAT, type ImportAmountFormat } from './amountFormats'
 import { resolveImportAmount } from './columnMapping'
 
@@ -208,6 +209,13 @@ export function findReusedImportCategory(source: string, categories: Iterable<Ca
   }
 
   return systemMatch
+}
+
+/** Returns repayment guidance only for the exact system Debt Payment category */
+export function getDebtPaymentImportNote(category: Category | undefined) {
+  return category?.is_system && category.name === DEBT_PAYMENT_CATEGORY_NAME
+    ? DEBT_PAYMENT_IMPORT_NOTE
+    : null
 }
 
 function getCategoryKindFromTypeLabel(categoryType: string | undefined): ImportCategoryKind | '' {
