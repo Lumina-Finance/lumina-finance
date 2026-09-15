@@ -10,6 +10,22 @@ describe('reading an amount in a selected format', () => {
     expect(readImportAmount('-CHF100,99', DECIMAL_COMMA)?.normalized).toBe('-100.99')
     expect(readImportAmount('-2.112,2€', DECIMAL_COMMA)?.normalized).toBe('-2112.2')
     expect(readImportAmount('tokens 100,99 units', DECIMAL_COMMA)?.normalized).toBe('100.99')
+    expect(readImportAmount('円12.34', DECIMAL_POINT)?.normalized).toBe('12.34')
+    expect(readImportAmount('²12.34', DECIMAL_POINT)?.normalized).toBe('12.34')
+    expect(readImportAmount('\u001C12.34\u0085', DECIMAL_POINT)?.normalized).toBe('12.34')
+  })
+
+  it.each([
+    { case: 'an all Arabic-Indic amount', value: '١٢.٣٤' },
+    { case: 'an all fullwidth amount', value: '１２.３４' },
+    { case: 'an Arabic-Indic prefix digit', value: '١2.34' },
+    { case: 'an Arabic-Indic suffix digit', value: '12.3٤' },
+    { case: 'an Arabic-Indic fractional part', value: '12.٣٤' },
+    { case: 'an Arabic-Indic grouping digit', value: '1,٢34.56' },
+    { case: 'an Arabic-Indic final grouped digit', value: '1,23٤.56' },
+    { case: 'an astral mathematical digit', value: '𝟙2.34' },
+  ])('refuses $case before discarding surrounding text', ({ value }) => {
+    expect(readImportAmount(value, DECIMAL_POINT)).toBeNull()
   })
 
   it('retains leading signs and recognizes the Unicode minus sign', () => {

@@ -15,6 +15,14 @@ from app.utils.money import (
 LARGEST_STORABLE_TEXT = "92233720368547758.07"
 SMALLEST_STORABLE_TEXT = "-92233720368547758.08"
 
+# Every code point JavaScript trim removes, kept together so additions cannot silently test only
+# the whitespace Python and JavaScript already share
+ECMASCRIPT_TRIM_CHARACTERS = (
+    "\u0009\u000a\u000b\u000c\u000d\u0020\u00a0\u1680"
+    "\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a"
+    "\u2028\u2029\u202f\u205f\u3000\ufeff"
+)
+
 
 def _parse(raw_amount, minor_unit_exponent=2):
     """Parse an amount against a currency with the given number of decimal places"""
@@ -41,6 +49,17 @@ def _parse(raw_amount, minor_unit_exponent=2):
 def test_parses_amounts_the_currency_can_hold(raw_amount, minor_unit_exponent, expected_minor_units):
     """An amount within the currency's decimal places parses to its minor units"""
     assert _parse(raw_amount, minor_unit_exponent) == expected_minor_units
+
+
+@pytest.mark.parametrize("padding", ECMASCRIPT_TRIM_CHARACTERS)
+def test_parses_amounts_padded_with_each_ecmascript_trim_character(padding):
+    """Canonical amounts accept each character JavaScript trim removes at either end"""
+    assert _parse(f"{padding}+1,234.56{padding}") == 123456
+
+
+def test_parses_mixed_ecmascript_padding_and_signed_zero():
+    """Different accepted padding characters can surround an explicitly signed zero"""
+    assert _parse("\ufeff \t-0.00\u3000") == 0
 
 
 @pytest.mark.parametrize(
@@ -87,8 +106,39 @@ def test_refuses_an_amount_past_the_range_the_column_holds(raw_amount):
         _parse(raw_amount)
 
 
-@pytest.mark.parametrize("raw_amount", ["$12.34", "12,34", "1.234.567", "", "twelve"])
+@pytest.mark.parametrize(
+    "raw_amount",
+    [
+        "$12.34",
+        "12,34",
+        "1.234.567",
+        "",
+        " \t\ufeff",
+        "twelve",
+        "12 34",
+        "\u000012.34",
+        "\u180e12.34",
+        "\u200b12.34",
+    ],
+)
 def test_refuses_malformed_amount_text(raw_amount):
     """Text that is not a plain signed decimal number is refused"""
     with pytest.raises(DecimalAmountParseError):
         _parse(raw_amount)
+
+
+@pytest.mark.parametrize(
+    "raw_amount",
+    ["١٢.٣٤", "\uff11\uff12.\uff13\uff14", "\u06612.34", "12.3٤", "1,23٤.56", "\U0001d7d92.34"],
+)
+def test_refuses_decimal_digits_outside_ascii(raw_amount):
+    """Canonical amounts refuse non-ASCII decimal digits wherever they appear"""
+    with pytest.raises(DecimalAmountParseError):
+        _parse(raw_amount)
+
+
+@pytest.mark.parametrize("padding", ["\u001c", "\u001d", "\u001e", "\u001f", "\u0085"])
+def test_refuses_python_only_surrounding_whitespace(padding):
+    """Canonical amounts do not accept padding that JavaScript trim preserves"""
+    with pytest.raises(DecimalAmountParseError):
+        _parse(f"{padding}12.34{padding}")

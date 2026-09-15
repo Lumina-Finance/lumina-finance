@@ -2,7 +2,13 @@
 import re
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation, localcontext
 
-_RAW_DECIMAL_AMOUNT_RE = re.compile(r"^[+-]?(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d+)?$")
+# Paired with frontend IMPORT_NUMBER_PATTERN: ASCII digits and ECMAScript trim padding only
+_RAW_DECIMAL_AMOUNT_RE = re.compile(r"^[+-]?(?:[0-9]+|[0-9]{1,3}(?:,[0-9]{3})+)(?:\.[0-9]+)?$")
+ECMASCRIPT_TRIM_CHARACTERS = (
+    "\u0009\u000a\u000b\u000c\u000d\u0020\u00a0\u1680"
+    "\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a"
+    "\u2028\u2029\u202f\u205f\u3000\ufeff"
+)
 
 # Amounts are stored as signed 64-bit integers, so a parsed value outside this
 # range would only fail later at database flush instead of being rejected where
@@ -42,7 +48,7 @@ def parse_decimal_amount_to_minor_units(
             amount falls outside the signed 64-bit range the column holds
         DecimalAmountPrecisionError: Raised when the amount has too many decimal places
     """
-    normalized_amount = raw_amount.strip()
+    normalized_amount = raw_amount.strip(ECMASCRIPT_TRIM_CHARACTERS)
     if not _RAW_DECIMAL_AMOUNT_RE.fullmatch(normalized_amount):
         raise DecimalAmountParseError(f"Invalid amount: {raw_amount}")
 

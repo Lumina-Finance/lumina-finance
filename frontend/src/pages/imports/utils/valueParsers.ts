@@ -171,11 +171,12 @@ function getMonthNumber(name: string) {
   return index === -1 ? null : index + 1
 }
 
-// An optional sign, then either plain digits or digits grouped in threes by commas, then an
+// An optional sign, then either plain ASCII digits or digits grouped in threes by commas, then an
 // optional decimal part. Currency symbols, spaces between digits and brackets around negatives
 // are all refused rather than cleaned up, because guessing at them risks importing an amount the
-// file never stated. The groups are the sign, the whole part and the decimal digits
-const IMPORT_NUMBER_PATTERN = /^([+-]?)(\d+|\d{1,3}(?:,\d{3})+)(?:\.(\d+))?$/
+// file never stated. Paired with backend _RAW_DECIMAL_AMOUNT_RE, this pattern follows trim()'s
+// ECMAScript padding policy. The groups are the sign, the whole part and the decimal digits
+const IMPORT_NUMBER_PATTERN = /^([+-]?)([0-9]+|[0-9]{1,3}(?:,[0-9]{3})+)(?:\.([0-9]+))?$/
 
 // The bounds of the signed 64-bit column the backend stores an amount in. The negative side
 // reaches one further than the positive, which is what two's complement holds, so a caller that

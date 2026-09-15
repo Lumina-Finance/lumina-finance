@@ -224,6 +224,39 @@ describe('forecastFireflyImport', () => {
     expect(skipped[0].reason).toBe('Invalid amount "twelve"')
   })
 
+  it('reports non-ASCII digits and non-ECMAScript padding in the selected account amount', () => {
+    for (const amount of ['-١2.34', '-12.34\u001C']) {
+      const { skippedRows } = forecastFireflyImport(
+        [
+          createFireflyRow(),
+          createFireflyRow({ journal_id: '2', amount }),
+        ],
+        createOptions(),
+      )
+
+      expect(skippedRows).toHaveLength(1)
+      expect(skippedRows[0].journalId).toBe('2')
+      expect(skippedRows[0].reason).toBe(`Invalid amount "${amount}"`)
+    }
+  })
+
+  it('reports an invalid foreign amount selected for the account currency', () => {
+    const row = createFireflyRow({
+      amount: '-10.00',
+      currency_code: 'USD',
+      foreign_amount: '-١2.34',
+      foreign_currency_code: 'CAD',
+    })
+    const { skippedRows } = forecastFireflyImport(
+      [createFireflyRow(), { ...row, journal_id: '2' }],
+      createOptions(),
+    )
+
+    expect(skippedRows).toHaveLength(1)
+    expect(skippedRows[0].journalId).toBe('2')
+    expect(skippedRows[0].reason).toBe('Invalid amount "-١2.34"')
+  })
+
   it('reports an amount carrying more decimal places than the account currency holds', () => {
     const { skippedRows: skipped } = forecastFireflyImport(
       [createFireflyRow({ amount: '-12.345' })],

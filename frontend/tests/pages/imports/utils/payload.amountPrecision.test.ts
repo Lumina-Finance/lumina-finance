@@ -38,6 +38,14 @@ const SMALLEST_STORABLE = '-92233720368547758.08'
 const DECIMAL_COMMA: ImportAmountFormat = { decimalSeparator: ',', groupingSeparator: '.' }
 const DECIMAL_COMMA_WITHOUT_GROUPING: ImportAmountFormat = { decimalSeparator: ',', groupingSeparator: 'none' }
 
+// Full set removed by ECMAScript trim, used here to pair the frontend canonical conversion with
+// the backend parser's accepted padding matrix
+const ECMASCRIPT_TRIM_CHARACTERS = [
+  '\u0009', '\u000A', '\u000B', '\u000C', '\u000D', '\u0020', '\u00A0', '\u1680',
+  '\u2000', '\u2001', '\u2002', '\u2003', '\u2004', '\u2005', '\u2006', '\u2007',
+  '\u2008', '\u2009', '\u200A', '\u2028', '\u2029', '\u202F', '\u205F', '\u3000', '\uFEFF',
+]
+
 const COLUMN_MAP: ColumnMap = {
   ...EMPTY_COLUMN_MAP,
   dt: 'Date',
@@ -227,6 +235,19 @@ describe('converting an amount to minor units', () => {
     expect(toImportMinorUnits('', 2)).toBe('unreadable')
   })
 
+  it('uses ECMAScript trim characters and refuses other surrounding controls', () => {
+    for (const padding of ECMASCRIPT_TRIM_CHARACTERS) {
+      expect(toImportMinorUnits(`${padding}+1,234.56${padding}`, 2)).toBe(123456n)
+    }
+    expect(toImportMinorUnits('\uFEFF \t-0.00\u3000', 2)).toBe(0n)
+
+    for (const padding of ['\u001C', '\u001D', '\u001E', '\u001F', '\u0085']) {
+      expect(toImportMinorUnits(`${padding}12.34${padding}`, 2)).toBe('unreadable')
+    }
+    expect(toImportMinorUnits(' \t\uFEFF', 2)).toBe('unreadable')
+    expect(toImportMinorUnits('12 34', 2)).toBe('unreadable')
+  })
+
   it('holds both ends of the range the backend stores, and refuses one step past either', () => {
     expect(toImportMinorUnits(LARGEST_STORABLE, 2)).toBe(9223372036854775807n)
     expect(toImportMinorUnits(SMALLEST_STORABLE, 2)).toBe(-9223372036854775808n)
@@ -236,6 +257,25 @@ describe('converting an amount to minor units', () => {
 })
 
 describe('refusing a row whose amount its currency cannot hold', () => {
+  it('refuses a selected-format amount containing a non-ASCII decimal digit', () => {
+    const amountFormat: ImportAmountFormat = { decimalSeparator: '.', groupingSeparator: ',' }
+    const validation = validateColumnValues(
+      [createFile('١2.34')],
+      'Amount',
+      'amount',
+      SUPPORTED_CURRENCY_CODES,
+      null,
+      { amountFormat },
+    )
+    const build = buildPayload('١2.34', 'CAD', '', amountFormat)
+
+    expect(validation.valid).toBe(false)
+    expect(validation.message).toContain('Row 1 has "١2.34"')
+    expect(firstProblem(build)).toBe(ROW_AMOUNT_UNREADABLE_REASON)
+    expect(build.payload).toBeNull()
+    expect(buildPreview('١2.34', 'CAD', '', amountFormat)).toHaveLength(0)
+  })
+
   it('refuses an over-precise amount and blocks the commit rather than rounding it', () => {
     const build = buildPayload('1.005', 'CAD')
 

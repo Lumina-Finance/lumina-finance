@@ -418,6 +418,66 @@ async def test_import_transactions_rejects_invalid_raw_amount(client):
     assert resp.json()["detail"] == "Invalid amount: $12.34"
 
 
+async def test_import_transactions_rolls_back_created_records_for_non_ascii_amount(client):
+    """An invalid later amount rolls back every domain record created for the import"""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    user_id = signup_resp.json()["user"]["id"]
+    endpoints = ["/accounts", "/categories", "/merchants", "/tags", "/transactions"]
+    before = {path: (await client.get(path, headers=headers)).json() for path in endpoints}
+
+    # A failed import must not leave a balance snapshot for the account it tried to create
+    # Owner and name scope the observation to this synthetic user's attempted record
+    async with TestSession() as db:
+        snapshots_before = (await db.execute(text(
+            "SELECT count(*) FROM account_balance_snapshots AS snapshots "
+            "JOIN accounts ON accounts.id = snapshots.account_id "
+            "WHERE accounts.owner_id = :owner_id AND accounts.name = 'Imported Account'"
+        ), {"owner_id": user_id})).scalar_one()
+
+    resp = await _import_transactions(client, headers, {
+        "accounts": [{
+            "source": "Imported Account",
+            "create": {"name": "Imported Account", "account_type": "checking", "currency": "CAD"},
+        }],
+        "categories": [{
+            "source": "Imported Category",
+            "create": {"name": "Imported Category", "kind": "expense"},
+        }],
+        "rows": [
+            {
+                "account_source": "Imported Account",
+                "category_source": "Imported Category",
+                "dt": "2026-04-11",
+                "amount": "-12.34",
+                "merchant_name": "Imported Merchant",
+                "tag_names": ["Imported Tag"],
+            },
+            {
+                "account_source": "Imported Account",
+                "category_source": "Imported Category",
+                "dt": "2026-04-12",
+                "amount": "١٢.٣٤",
+            },
+        ],
+    })
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "Invalid amount: ١٢.٣٤"
+    after = {path: (await client.get(path, headers=headers)).json() for path in endpoints}
+    assert after == before
+
+    # Repeat the same owner-scoped snapshot observation after refusal so unrelated test users or
+    # identically named accounts cannot satisfy the rollback check
+    async with TestSession() as db:
+        snapshots_after = (await db.execute(text(
+            "SELECT count(*) FROM account_balance_snapshots AS snapshots "
+            "JOIN accounts ON accounts.id = snapshots.account_id "
+            "WHERE accounts.owner_id = :owner_id AND accounts.name = 'Imported Account'"
+        ), {"owner_id": user_id})).scalar_one()
+    assert snapshots_after == snapshots_before
+
+
 async def test_import_transactions_stores_a_normalized_amount(client):
     """A normalized decimal string reaches storage without locale separators or precision loss."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
