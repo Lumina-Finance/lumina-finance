@@ -187,11 +187,21 @@ function cleanOptional(value: string | undefined) {
  * Budgets only join the line when the commit imported some, so a run without a
  * budgets export reads exactly as it did before
  */
-export function formatFireflyImportSummary(result: FireflyTransactionImportResponse, budgetsCreated = 0) {
+export function formatFireflyImportSummary(
+  result: FireflyTransactionImportResponse,
+  {
+    browserDroppedCount,
+    budgetsCreated,
+  }: {
+    browserDroppedCount: number
+    budgetsCreated: number
+  },
+) {
+  const skippedCount = browserDroppedCount + result.rows_skipped
   const parts = [
     `${result.rows_imported} row${result.rows_imported === 1 ? '' : 's'} imported`,
     `${result.transactions_created} transaction${result.transactions_created === 1 ? '' : 's'} created`,
-    `${result.rows_skipped} skipped`,
+    `${skippedCount} skipped`,
   ]
   if (budgetsCreated > 0) {
     parts.push(`${budgetsCreated} budget${budgetsCreated === 1 ? '' : 's'} imported`)

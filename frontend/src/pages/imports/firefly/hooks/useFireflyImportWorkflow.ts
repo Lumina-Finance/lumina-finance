@@ -438,7 +438,10 @@ export function useFireflyImportWorkflow() {
     [importStageState],
   )
 
-  const importSummary = importResult ? formatFireflyImportSummary(importResult, budgetsImportedCount) : ''
+  const browserDroppedCount = predictedSkippedRows.filter((row) => row.droppedBeforeUpload).length
+  const importSummary = importResult
+    ? formatFireflyImportSummary(importResult, { browserDroppedCount, budgetsCreated: budgetsImportedCount })
+    : ''
 
   // A budget failure leaves the committed transactions in place, so only the
   // budget stage reports it and the overlay shows whichever stage failed
