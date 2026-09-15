@@ -21,7 +21,7 @@ import {
   getImportUploadBlockReason,
   getSupportedCurrencyCodes,
   groupPreviewRowsByDate,
-  inferAccountMappings,
+  isAutoFilledAccountSource,
 } from '@/pages/imports/utils'
 import {
   FIREFLY_CSV_PROCESSING_MIN_MS,
@@ -53,6 +53,7 @@ import {
   getFireflyTrackedAccountNames,
   inferFireflyCategoryMappings,
   readFireflyCsvFile,
+  resolveFireflyAccountMappings,
   type FireflyAccountCreateDetails,
   type FireflyCompletedImportContext,
 } from '@/pages/imports/firefly/utils'
@@ -119,6 +120,7 @@ export function useFireflyImportWorkflow() {
     accountsFailed,
     categoriesFailed,
     accountsResolved,
+    accountsCurrent,
     categoriesResolved,
     refetchAccounts,
     refetchCategories,
@@ -180,13 +182,11 @@ export function useFireflyImportWorkflow() {
     [trackedAccountNames],
   )
 
-  // Names without an explicit choice fall back to the best existing-account
-  // match and default to create-new so every tracked account stays mapped
+  // Names without an explicit choice fall back to the best existing-account match and, once the
+  // account list is current, default to create-new so every tracked account stays mapped
   // An answer pointing at a deleted account is dropped before anything is derived from it, or the
-  // commit sends an id the server will refuse. Unlike the CSV flow there is no unanswered state to
-  // put the row back into, since every name here resolves to a match or to creating an account, so
-  // a dropped answer is replaced by whichever of those applies. Only the match shows as auto-filled,
-  // since creating a new account is what an unmatched name does here rather than a guess at one
+  // commit sends an id the server will refuse. While account data is not current, an unmatched name
+  // remains unanswered rather than briefly presenting create details that a later match replaces
   const liveAccountMappings = useMemo(
     () => (accountsResolved
       ? dropVanishedAccountMappings(accountMappings, accountById).mappings
@@ -195,25 +195,25 @@ export function useFireflyImportWorkflow() {
   )
 
   const resolvedAccountMappings = useMemo(
-    () => {
-      // Both sides of a Firefly transfer take rows, so no source here can record an archived
-      // account and both lists are the same one
-      const inferred = inferAccountMappings(accountMappingSources, liveAccountMappings, {
-        rowAccounts: selectableAccounts,
-        counterpartyAccounts: selectableAccounts,
-      })
-      for (const name of trackedAccountNames) {
-        if (!inferred[name]) inferred[name] = CREATE_ACCOUNT_VALUE
-      }
-      return inferred
-    },
-    [accountMappingSources, liveAccountMappings, selectableAccounts, trackedAccountNames],
+    // Both sides of a Firefly transfer take rows, so no source here can record an archived
+    // account and both matching lists are the same one
+    () => resolveFireflyAccountMappings({
+      sources: accountMappingSources,
+      liveMappings: liveAccountMappings,
+      selectableAccounts,
+      accountsCurrent,
+    }),
+    [accountMappingSources, accountsCurrent, liveAccountMappings, selectableAccounts],
   )
 
   const autoFilledAccountSources = useMemo(
     () => new Set(
       trackedAccountNames.filter((name) => (
-        !liveAccountMappings[name] && resolvedAccountMappings[name] !== CREATE_ACCOUNT_VALUE
+        isAutoFilledAccountSource(
+          liveAccountMappings[name] ?? '',
+          resolvedAccountMappings[name] ?? '',
+          false,
+        )
       )),
     ),
     [liveAccountMappings, resolvedAccountMappings, trackedAccountNames],
