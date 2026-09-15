@@ -113,6 +113,7 @@ export default function TopCategoriesChart({
   displayCurrency,
   chartAnimationKey,
   prefersReducedMotion,
+  tooltipDisabled,
   className = '',
 }: {
   categorySpend: OverviewCategorySpend[]
@@ -120,6 +121,7 @@ export default function TopCategoriesChart({
   displayCurrency: string
   chartAnimationKey: string
   prefersReducedMotion: boolean | null
+  tooltipDisabled: boolean
   className?: string
 }) {
   const topCategoryChartRef = useRef<HTMLDivElement>(null)
@@ -265,19 +267,21 @@ export default function TopCategoriesChart({
                 </BarChart>
               </ResponsiveContainer>
               )}
-              <DeferredChartTooltipOverlay
-                ref={topCategoryTooltipRef}
-                chartRef={topCategoryChartRef}
-                className="min-w-40"
-                showGuide={false}
-                getKey={getTopCategoryTooltipKey}
-                renderContent={(point) => (
-                  <TopCategoryTooltipContent
-                    point={point}
-                    displayCurrency={displayCurrency}
-                  />
-                )}
-              />
+              {!tooltipDisabled && (
+                <DeferredChartTooltipOverlay
+                  ref={topCategoryTooltipRef}
+                  chartRef={topCategoryChartRef}
+                  className="min-w-40"
+                  showGuide={false}
+                  getKey={getTopCategoryTooltipKey}
+                  renderContent={(point) => (
+                    <TopCategoryTooltipContent
+                      point={point}
+                      displayCurrency={displayCurrency}
+                    />
+                  )}
+                />
+              )}
             </motion.div>
           )}
         </AnimatePresence>

@@ -107,7 +107,12 @@ export default function TransactionsPage() {
   // The overview supports a single account and the date range, so it scopes to the chosen account
   // only when exactly one is selected and otherwise spans every account
   const overviewAccountId = filters.account_id?.length === 1 ? filters.account_id[0] : undefined
-  const { data: overview, isFetching: isOverviewFetching } = useTransactionsOverview({
+  const {
+    data: overview,
+    isFetching: isOverviewFetching,
+    isError: isOverviewError,
+    refetch: refetchOverview,
+  } = useTransactionsOverview({
     account_id: overviewAccountId,
     from_date: overviewFromDate,
     to_date: overviewToDate,
@@ -146,6 +151,7 @@ export default function TransactionsPage() {
             overview={overview}
             displayCurrency={displayCurrency}
             loading={filterListLoading || isOverviewFetching}
+            failed={isOverviewError}
             rangeLabel={rangeLabel}
             fromDate={overviewFromDate}
             toDate={overviewToDate}
@@ -153,6 +159,7 @@ export default function TransactionsPage() {
             prefersReducedMotion={prefersReducedMotion}
             openingOutlierId={openingOutlierId}
             outlierLoadError={outlierLoadError}
+            onRetry={() => { void refetchOverview() }}
             onOpenOutlierTransaction={(transactionId) => { void openOutlierTransaction(transactionId) }}
           />
 
