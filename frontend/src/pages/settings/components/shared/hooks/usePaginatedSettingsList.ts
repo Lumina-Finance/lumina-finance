@@ -1,10 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type UIEvent } from 'react'
 import { useMinimumVisibleFlag } from '@/hooks/useMinimumVisibleFlag'
-
-// Held long enough that the first load's overlay and the fetch-more message do not flash on a fast
-// connection, before the fetched page is old enough to reveal on its own
-const INITIAL_LOAD_MIN_MS = 300
-const FETCHING_MORE_TEXT_MIN_MS = 800
+import { FETCHING_MORE_TEXT_MIN_MS, LOADING_TEXT_MIN_MS } from '@/utils/timing'
 
 // Distance in pixels from the end of the scroll container still counted as "at the bottom",
 // absorbing the sub-pixel rounding browsers apply to scroll measurements
@@ -86,7 +82,7 @@ export function usePaginatedSettingsList<TItem extends { id: string }>({
     visibleItems.length > 0 &&
     pageFetchPending
   )
-  const showInitialLoading = useMinimumVisibleFlag(listQuery.isLoading, INITIAL_LOAD_MIN_MS)
+  const showInitialLoading = useMinimumVisibleFlag(listQuery.isLoading, LOADING_TEXT_MIN_MS)
   const showFetchingMore = useMinimumVisibleFlag(
     listQuery.isFetchingNextPage || hasUndisplayedFetchedItems,
     FETCHING_MORE_TEXT_MIN_MS,
@@ -150,9 +146,9 @@ export function usePaginatedSettingsList<TItem extends { id: string }>({
     const fetchStartedAt = isAppendingPage
       ? fetchMoreStartedAtRef.current
       : initialFetchStartedAtRef.current
-    const elapsed = fetchStartedAt === null ? INITIAL_LOAD_MIN_MS : now - fetchStartedAt
+    const elapsed = fetchStartedAt === null ? LOADING_TEXT_MIN_MS : now - fetchStartedAt
     const shouldDelay = isAppendingPage || isInitialPage
-    const minimumVisibleMs = isAppendingPage ? FETCHING_MORE_TEXT_MIN_MS : INITIAL_LOAD_MIN_MS
+    const minimumVisibleMs = isAppendingPage ? FETCHING_MORE_TEXT_MIN_MS : LOADING_TEXT_MIN_MS
     const delayMs = shouldDelay ? Math.max(minimumVisibleMs - elapsed, 0) : 0
     const timeoutId = window.setTimeout(() => {
       setVisibleItems(fetchedItems)

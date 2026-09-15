@@ -12,6 +12,7 @@ import {
 import { joinClassNames } from '@/utils/classNames';
 import { motion, useReducedMotion } from 'motion/react';
 import { useMinimumVisibleFlag } from '@/hooks/useMinimumVisibleFlag';
+import { LOADING_TEXT_MIN_MS } from '@/utils/timing';
 import { DropdownBox } from './Box';
 import {
   DROPDOWN_INSTANT_TRANSITION,
@@ -111,8 +112,6 @@ interface DropdownProps {
   /** Tooltip on the edit action, since the action itself is hidden from assistive software */
   editOptionLabel?: string;
 }
-
-const LOADING_TEXT_MIN_MS = 300;
 
 /**
  * Coordinates dropdown selection, search, keyboard navigation, and whether the box is open

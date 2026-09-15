@@ -17,7 +17,7 @@ import { currencySymbol, toMinorUnits } from '@/pages/budgets/utils/money'
 import { useCurrencyListState } from '@/hooks/useCurrencyListState'
 import { useRestoreOnceWhenReady } from '@/hooks/useRestoreOnceWhenReady'
 import { findCurrencyExponent, fromMinorUnits } from '@/utils/moneyInput'
-import { waitForMilliseconds } from '@/utils/timing'
+import { ACTION_LOADING_MIN_MS, waitForMilliseconds } from '@/utils/timing'
 
 const EDIT_FIELD_IDS: BudgetEditorModalFieldIds = {
   name: 'budget-edit-name',
@@ -305,7 +305,7 @@ export default function BudgetEditModal({
       await Promise.all([
         saveChanges(),
 
-        waitForMilliseconds(1000),
+        waitForMilliseconds(ACTION_LOADING_MIN_MS),
       ])
       closeAndReset()
       onSaved(archiveChanged)

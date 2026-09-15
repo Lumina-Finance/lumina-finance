@@ -14,12 +14,11 @@ import CreateCategoryModal from '@/components/reference-modals/CreateCategoryMod
 import LoadingRegion from '@/components/loading/Region'
 import CategorySettingsGroup from '@/pages/settings/components/category-settings-section/list/Group'
 import MergeDeleteCategoryModal from '@/pages/settings/components/category-settings-section/modals/MergeDeleteModal'
-import { DELETE_SPINNER_MS } from '@/pages/settings/components/category-settings-section/constants'
 import { useCategorySettingsGroups } from '@/pages/settings/components/category-settings-section/hooks/useGroups'
 import SettingsSectionHeader from '@/pages/settings/components/SectionHeader'
 import SettingsCard from '@/pages/settings/components/Card'
 import { SETTINGS_LIST_LOADING_OVERLAY_CLASS } from '@/pages/settings/components/shared/constants'
-import { waitForMilliseconds } from '@/utils/timing'
+import { ACTION_LOADING_MIN_MS, waitForMilliseconds } from '@/utils/timing'
 
 /**
  * Categories pane where the user searches the category list, creates categories, and renames
@@ -65,7 +64,7 @@ export default function CategorySettingsSection() {
 
     const deleteResult = await Promise.allSettled([
       deleteCategory.mutateAsync(category.id),
-      waitForMilliseconds(DELETE_SPINNER_MS),
+      waitForMilliseconds(ACTION_LOADING_MIN_MS),
     ])
 
     if (deleteResult[0].status === 'fulfilled') {
