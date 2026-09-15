@@ -2,6 +2,7 @@
 
 import calendar
 import uuid
+from dataclasses import dataclass
 from datetime import date, timedelta
 from itertools import pairwise
 
@@ -41,6 +42,18 @@ MONTHS_PER_YEAR = 12
 
 # Bound expanded IN parameters when one request contains many distinct categories
 CATEGORY_QUERY_CHUNK_SIZE = 1000
+
+# Bound pending period and tracked-category objects across the whole request
+CHILD_WRITE_BUFFER_SIZE = 1000
+
+
+@dataclass
+class _PreparedBudget:
+    """Validated input paired with its unsaved parent and child values"""
+
+    base_budget: BaseBudget
+    category_ids: list[uuid.UUID]
+    limit_periods: list[tuple[date, date, int]]
 
 
 async def import_firefly_budgets(
@@ -84,15 +97,47 @@ async def import_firefly_budgets(
             None,
         ))
 
-    results = []
+    prepared_budgets: list[_PreparedBudget] = []
     for budget in data.budgets:
-        results.append(await _create_imported_budget(
-            db,
+        prepared_budgets.append(_prepare_imported_budget(
             user,
             budget,
             currencies_by_code,
             allowed_category_ids,
         ))
+
+    db.add_all([prepared.base_budget for prepared in prepared_budgets])
+    await db.flush()
+
+    pending_children: list[Budget | BudgetTrackedCategory] = []
+    for prepared in prepared_budgets:
+
+        # Categories join at the first period start so the earliest period sees them
+        for category_id in prepared.category_ids:
+            pending_children.append(BudgetTrackedCategory(
+                base_budget_id=prepared.base_budget.id,
+                category_id=category_id,
+                added_at=prepared.limit_periods[0][0],
+            ))
+            if len(pending_children) == CHILD_WRITE_BUFFER_SIZE:
+                db.add_all(pending_children)
+                await db.flush()
+                pending_children = []
+
+        for period_start, period_end, overall_limit in prepared.limit_periods:
+            pending_children.append(Budget(
+                base_budget_id=prepared.base_budget.id,
+                period_start=period_start,
+                period_end=period_end,
+                overall_limit=overall_limit,
+            ))
+            if len(pending_children) == CHILD_WRITE_BUFFER_SIZE:
+                db.add_all(pending_children)
+                await db.flush()
+                pending_children = []
+
+    if pending_children:
+        db.add_all(pending_children)
 
     await mark_cache_changed_for_scope(db, user_id=user.id, group_id=None)
 
@@ -100,27 +145,33 @@ async def import_firefly_budgets(
     # leaves a partial import behind
     await db.commit()
 
+    results = [
+        FireflyBudgetImportResult(
+            name=prepared.base_budget.name,
+            base_budget_id=prepared.base_budget.id,
+            instance_count=len(prepared.limit_periods),
+        )
+        for prepared in prepared_budgets
+    ]
     return FireflyBudgetImportResponse(budgets_created=len(results), results=results)
 
 
-async def _create_imported_budget(
-    db: AsyncSession,
+def _prepare_imported_budget(
     user: User,
     budget: FireflyBudgetImport,
     currencies_by_code: dict[str, Currency],
     allowed_category_ids: set[uuid.UUID],
-) -> FireflyBudgetImportResult:
-    """Create one base budget with tracked categories and its exact periods
+) -> _PreparedBudget:
+    """Validate one imported budget and prepare its parent and child values
 
     Args:
-        db: Active database session
         user: Authenticated user running the import
         budget: Budget definition derived from the export
         currencies_by_code: Currency rows keyed by currency code
         allowed_category_ids: Requested category identifiers allowed for this personal scope
 
     Returns:
-        Created budget summary
+        Validated budget values ready for batched persistence
 
     Raises:
         HTTPException: Raised with 422 when the categories, limit amounts, or
@@ -139,30 +190,10 @@ async def _create_imported_budget(
         is_archived=budget.is_archived,
         **_cadence_from_latest_period(limit_periods),
     )
-    db.add(base_budget)
-    await db.flush()
-
-    # Categories join at the first period start so the earliest period
-    # already sees them when utilization reconstructs the tracked set
-    for category_id in category_ids:
-        db.add(BudgetTrackedCategory(
-            base_budget_id=base_budget.id,
-            category_id=category_id,
-            added_at=limit_periods[0][0],
-        ))
-
-    for period_start, period_end, overall_limit in limit_periods:
-        db.add(Budget(
-            base_budget_id=base_budget.id,
-            period_start=period_start,
-            period_end=period_end,
-            overall_limit=overall_limit,
-        ))
-
-    return FireflyBudgetImportResult(
-        name=base_budget.name,
-        base_budget_id=base_budget.id,
-        instance_count=len(limit_periods),
+    return _PreparedBudget(
+        base_budget=base_budget,
+        category_ids=category_ids,
+        limit_periods=limit_periods,
     )
 
 

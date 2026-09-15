@@ -2,18 +2,27 @@ import uuid
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
+from datetime import date, timedelta
 
 import pytest
 from sqlalchemy import event, select
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import Select
 
 from app.database import current_user_id_ctx
 from app.models.base import CategoryKind
 from app.models.budget import BaseBudget, Budget, BudgetTrackedCategory
+from app.models.cache_state import UserCacheState
 from app.models.category import Category
+from app.models.currency import Currency
 from tests.conftest import ScopedSession, TestSession, scoped_engine
-from tests.routes.base_budgets._helpers import _create_category, _create_group, _create_second_user
+from tests.routes.base_budgets._helpers import (
+    _create_base_budget,
+    _create_category,
+    _create_group,
+    _create_second_user,
+)
 from tests.routes.support import SIGNUP_PAYLOAD, _create_user, _get_auth_header
 
 
@@ -34,15 +43,30 @@ class _BudgetImportObservations:
     category_selects: int
     flushes: tuple[_BudgetFlushObservation, ...]
     commits: int
+    fault_attempts: int = 0
+
+
+@dataclass(frozen=True)
+class _PersonalBudgetState:
+    """Exact personal budget and cache rows visible through the application role"""
+
+    base_budgets: tuple[tuple, ...]
+    budgets: tuple[tuple, ...]
+    tracked_categories: tuple[tuple, ...]
+    cache_state: tuple | None
 
 
 @contextmanager
-def _observe_budget_import() -> Iterator[Callable[[], _BudgetImportObservations]]:
+def _observe_budget_import(fail_after: str | None = None) -> Iterator[Callable[[], _BudgetImportObservations]]:
     """Observe category reads and budget-bearing flushes for one app-role request"""
+    if fail_after not in {None, "parents", "first-child-buffer"}:
+        raise ValueError(f"Unsupported budget fault boundary: {fail_after}")
     category_selects = 0
     flushes: list[_BudgetFlushObservation] = []
     budget_session: Session | None = None
     commits = 0
+    armed_session: Session | None = None
+    fault_attempts = 0
     sync_session_class = ScopedSession.class_.sync_session_class
 
     def is_scoped_session(session: Session) -> bool:
@@ -69,7 +93,7 @@ def _observe_budget_import() -> Iterator[Callable[[], _BudgetImportObservations]
 
     def before_flush(session: Session, _flush_context, _instances) -> None:
         """Record pending budget model populations without changing the flush"""
-        nonlocal budget_session
+        nonlocal armed_session, budget_session
         if not is_scoped_session(session):
             return
         base_budget_count = sum(isinstance(row, BaseBudget) for row in session.new)
@@ -86,6 +110,19 @@ def _observe_budget_import() -> Iterator[Callable[[], _BudgetImportObservations]
             budgets=budget_count,
             tracked_categories=tracked_category_count,
         ))
+        child_count = budget_count + tracked_category_count
+        if fail_after == "parents" and base_budget_count and child_count == 0:
+            armed_session = session
+        elif fail_after == "first-child-buffer" and child_count == 1000:
+            armed_session = session
+
+    def after_flush(session: Session, _flush_context) -> None:
+        """Abort the observed transaction after the selected real flush boundary"""
+        nonlocal fault_attempts
+        if session is not armed_session or fault_attempts:
+            return
+        fault_attempts += 1
+        session.connection().exec_driver_sql("SELECT 1 / 0")
 
     def after_commit(session: Session) -> None:
         """Count commits only for the request session that flushed budget rows"""
@@ -95,16 +132,18 @@ def _observe_budget_import() -> Iterator[Callable[[], _BudgetImportObservations]
 
     def snapshot() -> _BudgetImportObservations:
         """Freeze the counts collected so far"""
-        return _BudgetImportObservations(category_selects, tuple(flushes), commits)
+        return _BudgetImportObservations(category_selects, tuple(flushes), commits, fault_attempts)
 
     event.listen(scoped_engine.sync_engine, "before_cursor_execute", before_cursor_execute)
     event.listen(sync_session_class, "before_flush", before_flush)
+    event.listen(sync_session_class, "after_flush", after_flush)
     event.listen(sync_session_class, "after_commit", after_commit)
     try:
         yield snapshot
     finally:
         event.remove(scoped_engine.sync_engine, "before_cursor_execute", before_cursor_execute)
         event.remove(sync_session_class, "before_flush", before_flush)
+        event.remove(sync_session_class, "after_flush", after_flush)
         event.remove(sync_session_class, "after_commit", after_commit)
 
 
@@ -187,8 +226,81 @@ async def _read_personal_budget_rows(owner_id, base_budget_ids=None):
         current_user_id_ctx.reset(identity_token)
 
 
-async def test_firefly_budget_import_batches_shared_category_lookup(client, record_property):
-    """Shared categories need one lookup without changing imported budgets or isolation"""
+async def _snapshot_personal_budget_state(owner_id) -> _PersonalBudgetState:
+    """Return an exact immutable snapshot of one user's budget and cache rows"""
+    identity_token = current_user_id_ctx.set(owner_id)
+    try:
+        async with ScopedSession() as session:
+
+            # Read all personal budget and cache rows under the user's real RLS scope
+            base_budgets = list((await session.execute(
+                select(BaseBudget).where(BaseBudget.owner_id == owner_id),
+            )).scalars().all())
+            base_budget_ids = [base_budget.id for base_budget in base_budgets]
+            budgets = list((await session.execute(
+                select(Budget).where(Budget.base_budget_id.in_(base_budget_ids)),
+            )).scalars().all()) if base_budget_ids else []
+            tracked_categories = list((await session.execute(
+                select(BudgetTrackedCategory).where(
+                    BudgetTrackedCategory.base_budget_id.in_(base_budget_ids),
+                ),
+            )).scalars().all()) if base_budget_ids else []
+            cache_state = await session.get(UserCacheState, owner_id)
+    finally:
+        current_user_id_ctx.reset(identity_token)
+
+    return _PersonalBudgetState(
+        base_budgets=tuple(sorted((
+            base_budget.id,
+            base_budget.owner_id,
+            base_budget.group_id,
+            base_budget.name,
+            base_budget.currency,
+            base_budget.recurrence_freq,
+            base_budget.instance_length,
+            base_budget.recurrence_weekday,
+            base_budget.recurrence_dom,
+            base_budget.recurrence_month,
+            base_budget.recurs,
+            base_budget.is_archived,
+        ) for base_budget in base_budgets)),
+        budgets=tuple(sorted((
+            budget.id,
+            budget.base_budget_id,
+            budget.period_start,
+            budget.period_end,
+            budget.overall_limit,
+        ) for budget in budgets)),
+        tracked_categories=tuple(sorted((
+            link.id,
+            link.base_budget_id,
+            link.category_id,
+            link.added_at,
+            link.removed_at,
+        ) for link in tracked_categories)),
+        cache_state=(
+            cache_state.user_id,
+            cache_state.changed_at,
+            cache_state.last_changed_session_id,
+        ) if cache_state else None,
+    )
+
+
+def _daily_budget_limits(count: int) -> list[dict[str, str]]:
+    """Return consecutive one-day limit payloads for child-buffer coverage"""
+    first_day = date(2023, 1, 1)
+    return [
+        {
+            "start": (first_day + timedelta(days=offset)).isoformat(),
+            "end": (first_day + timedelta(days=offset)).isoformat(),
+            "amount": f"{100 + offset}.00",
+        }
+        for offset in range(count)
+    ]
+
+
+async def _assert_compact_budget_import(client, record_property):
+    """Run and fully verify the compact observed budget import"""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     user_resp = await client.get("/test/me", headers=headers)
@@ -316,7 +428,24 @@ async def test_firefly_budget_import_batches_shared_category_lookup(client, reco
     assert hidden_base.status_code == 404
     assert hidden_budget.status_code == 404
     assert get_observations() == observations
+    return observations
+
+
+async def test_firefly_budget_import_batches_shared_category_lookup(client, record_property):
+    """Shared categories need one lookup without changing imported budgets or isolation"""
+    observations = await _assert_compact_budget_import(client, record_property)
     assert observations.category_selects == 1, observations
+
+
+async def test_firefly_budget_import_batches_budget_flushes(client, record_property):
+    """Observe budget flush populations without changing the complete imported result"""
+    observations = await _assert_compact_budget_import(client, record_property)
+    assert observations.flushes, observations
+    assert observations.commits == 1, observations
+    assert observations.flushes == (
+        _BudgetFlushObservation(ordinal=1, base_budgets=8, budgets=0, tracked_categories=0),
+        _BudgetFlushObservation(ordinal=2, base_budgets=0, budgets=16, tracked_categories=16),
+    ), observations
 
 
 async def test_firefly_budget_import_chunks_distinct_category_union(client):
@@ -520,6 +649,273 @@ async def test_firefly_budget_import_validates_currencies_before_budgets(client)
 
     assert response.status_code == 422
     assert response.json()["detail"] == "Invalid currency code: AAA"
+
+
+async def test_firefly_budget_import_bounds_pending_children(client):
+    """Child flushes stay within 1,000 objects and preserve all period attachments"""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    owner_id = uuid.UUID((await client.get("/test/me", headers=headers)).json()["id"])
+    category_id = await _get_category_id(client, headers, "Groceries")
+    limits = _daily_budget_limits(1000)
+
+    with _observe_budget_import() as get_observations:
+        response = await client.post("/transactions/import/firefly/budgets", json={
+            "budgets": [{
+                "name": "Bounded history",
+                "currency": "CAD",
+                "category_ids": [category_id],
+                "limits": limits,
+            }],
+        }, headers=headers)
+    observations = get_observations()
+
+    assert response.status_code == 201
+    result = response.json()["results"][0]
+    assert result["instance_count"] == 1000
+    child_flushes = [
+        flush for flush in observations.flushes
+        if flush.budgets or flush.tracked_categories
+    ]
+    assert child_flushes, observations
+    assert max(flush.budgets + flush.tracked_categories for flush in child_flushes) <= 1000
+    assert any(flush.budgets + flush.tracked_categories == 1000 for flush in child_flushes)
+    assert sorted(flush.budgets + flush.tracked_categories for flush in child_flushes) == [1, 1000]
+    assert sum(flush.budgets for flush in child_flushes) == 1000
+    assert sum(flush.tracked_categories for flush in child_flushes) == 1
+
+    base_budget_id = uuid.UUID(result["base_budget_id"])
+    _, budgets, tracked_categories = await _read_personal_budget_rows(owner_id, [base_budget_id])
+    assert len(budgets) == 1000
+    assert len(tracked_categories) == 1
+    assert tracked_categories[0].base_budget_id == base_budget_id
+    assert tracked_categories[0].category_id == uuid.UUID(category_id)
+    expected_periods = {
+        (limit["start"], limit["end"], (100 + offset) * 100)
+        for offset, limit in enumerate(limits)
+    }
+    assert {
+        (budget.period_start.isoformat(), budget.period_end.isoformat(), budget.overall_limit)
+        for budget in budgets
+    } == expected_periods
+
+
+async def test_firefly_budget_import_keeps_duplicate_definitions_independent(client):
+    """Identical definitions create distinct parents with independent children"""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    owner_id = uuid.UUID((await client.get("/test/me", headers=headers)).json()["id"])
+    category_id = await _get_category_id(client, headers, "Groceries")
+    budget_payload = {
+        "name": "  Repeated budget  ",
+        "currency": "CAD",
+        "category_ids": [category_id, category_id],
+        "limits": [{"start": "2025-01-01", "end": "2025-01-31", "amount": "321.00"}],
+    }
+    response = await client.post("/transactions/import/firefly/budgets", json={
+        "budgets": [budget_payload, budget_payload],
+    }, headers=headers)
+
+    assert response.status_code == 201
+    results = response.json()["results"]
+    assert [result["name"] for result in results] == ["Repeated budget", "Repeated budget"]
+    base_budget_ids = [uuid.UUID(result["base_budget_id"]) for result in results]
+    assert len(set(base_budget_ids)) == 2
+    _, budgets, tracked_categories = await _read_personal_budget_rows(owner_id, base_budget_ids)
+    assert len(budgets) == 2
+    assert len(tracked_categories) == 2
+    for base_budget_id in base_budget_ids:
+        own_budgets = [budget for budget in budgets if budget.base_budget_id == base_budget_id]
+        own_links = [link for link in tracked_categories if link.base_budget_id == base_budget_id]
+        assert len(own_budgets) == 1
+        assert own_budgets[0].period_start == date(2025, 1, 1)
+        assert own_budgets[0].period_end == date(2025, 1, 31)
+        assert own_budgets[0].overall_limit == 32100
+        assert len(own_links) == 1
+        assert own_links[0].category_id == uuid.UUID(category_id)
+        assert own_links[0].added_at == date(2025, 1, 1)
+        assert own_links[0].removed_at is None
+
+
+@pytest.mark.parametrize(("currency", "amount", "expected"), [
+    ("CAD", "650.5000", 65050),
+    ("JPY", "650.000", 650),
+    ("BHD", "650.125", 650125),
+])
+async def test_firefly_budget_import_preserves_currency_precision(client, currency, amount, expected):
+    """Budget batching preserves accepted extra zeros and configured currency precision"""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    owner_id = uuid.UUID((await client.get("/test/me", headers=headers)).json()["id"])
+    if currency != "CAD":
+        async with TestSession() as session:
+
+            # Seed the real currency metadata used by the import amount parser
+            session.add(Currency(
+                id=currency,
+                name=f"{currency} test currency",
+                symbol=currency,
+                minor_unit_exponent=0 if currency == "JPY" else 3,
+            ))
+            await session.commit()
+    category_id = await _get_category_id(client, headers, "Groceries")
+    response = await client.post("/transactions/import/firefly/budgets", json={
+        "budgets": [{
+            "name": f"{currency} precision",
+            "currency": currency,
+            "category_ids": [category_id],
+            "limits": [{"start": "2025-01-01", "end": "2025-01-31", "amount": amount}],
+        }],
+    }, headers=headers)
+
+    assert response.status_code == 201
+    base_budget_id = uuid.UUID(response.json()["results"][0]["base_budget_id"])
+    _, budgets, _ = await _read_personal_budget_rows(owner_id, [base_budget_id])
+    assert len(budgets) == 1
+    assert budgets[0].overall_limit == expected
+
+
+@pytest.mark.parametrize(("amount", "detail"), [
+    ("12.345", 'Invalid amount: invalid limit amount "12.345"'),
+    ("not-a-number", 'Invalid amount: invalid limit amount "not-a-number"'),
+    ("92233720368547758.08", 'Invalid amount: invalid limit amount "92233720368547758.08"'),
+    ("0.00", "Invalid amount: limit amounts must be positive"),
+    ("-1.00", "Invalid amount: limit amounts must be positive"),
+])
+async def test_firefly_budget_import_preserves_limit_refusals(client, amount, detail):
+    """Budget batching preserves precision, syntax, range and positive-limit refusals"""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    category_id = await _get_category_id(client, headers, "Groceries")
+    response = await client.post("/transactions/import/firefly/budgets", json={
+        "budgets": [{
+            "name": "Invalid amount",
+            "currency": "CAD",
+            "category_ids": [category_id],
+            "limits": [{"start": "2025-01-01", "end": "2025-01-31", "amount": amount}],
+        }],
+    }, headers=headers)
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == detail
+
+
+@pytest.mark.parametrize(("invalid_kind", "expected_detail"), [
+    ("amount", 'Late invalid: invalid limit amount "not-a-number"'),
+    ("category", "Category not found"),
+    ("overlap", "Late invalid: two limit periods overlap"),
+])
+async def test_firefly_budget_import_rejections_preserve_existing_state(client, invalid_kind, expected_detail):
+    """Late validation refusals occur before writes and preserve existing rows and cache"""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    owner_id = uuid.UUID((await client.get("/test/me", headers=headers)).json()["id"])
+    category_id = await _create_category(client, headers, name="Existing tracked category")
+    existing = await _create_base_budget(
+        client,
+        headers,
+        name="Existing budget",
+        category_ids=[category_id],
+        period_start="2026-09-01",
+        overall_limit=50000,
+    )
+    assert existing.status_code == 201
+    before = await _snapshot_personal_budget_state(owner_id)
+    assert len(before.base_budgets) == 1
+    assert before.budgets
+    assert len(before.tracked_categories) == 1
+    assert before.cache_state is not None
+
+    invalid_budget = {
+        "name": "Late invalid",
+        "currency": "CAD",
+        "category_ids": [category_id],
+        "limits": [{"start": "2025-02-01", "end": "2025-02-28", "amount": "100.00"}],
+    }
+    if invalid_kind == "amount":
+        invalid_budget["limits"][0]["amount"] = "not-a-number"
+    elif invalid_kind == "category":
+        invalid_budget["category_ids"] = ["00000000-0000-0000-0000-000000000000"]
+    else:
+        invalid_budget["limits"].append({
+            "start": "2025-02-15",
+            "end": "2025-03-14",
+            "amount": "100.00",
+        })
+    response = await client.post("/transactions/import/firefly/budgets", json={
+        "budgets": [
+            {
+                "name": "Would be valid",
+                "currency": "CAD",
+                "category_ids": [category_id],
+                "limits": [{"start": "2025-01-01", "end": "2025-01-31", "amount": "100.00"}],
+            },
+            invalid_budget,
+        ],
+    }, headers=headers)
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == expected_detail
+    assert await _snapshot_personal_budget_state(owner_id) == before
+
+
+@pytest.mark.parametrize("fault_boundary", ["parents", "first-child-buffer"])
+async def test_firefly_budget_import_rolls_back_database_failures(client, fault_boundary):
+    """A real post-flush database failure rolls back new rows and preserves existing state"""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    owner_id = uuid.UUID((await client.get("/test/me", headers=headers)).json()["id"])
+    category_id = await _create_category(client, headers, name="Rollback tracked category")
+    existing = await _create_base_budget(
+        client,
+        headers,
+        name="Rollback existing budget",
+        category_ids=[category_id],
+        period_start="2026-09-01",
+        overall_limit=50000,
+    )
+    assert existing.status_code == 201
+    before = await _snapshot_personal_budget_state(owner_id)
+    assert len(before.base_budgets) == 1
+    assert before.budgets
+    assert len(before.tracked_categories) == 1
+    assert before.cache_state is not None
+    limits = _daily_budget_limits(1000) if fault_boundary == "first-child-buffer" else [
+        {"start": "2025-01-01", "end": "2025-01-31", "amount": "100.00"},
+    ]
+    payload = {
+        "budgets": [{
+            "name": f"Faulted import {fault_boundary}",
+            "currency": "CAD",
+            "category_ids": [category_id],
+            "limits": limits,
+        }],
+    }
+
+    with _observe_budget_import(fail_after=fault_boundary) as get_observations:
+        with pytest.raises(DBAPIError):
+            await client.post(
+                "/transactions/import/firefly/budgets",
+                json=payload,
+                headers=headers,
+            )
+    observations = get_observations()
+
+    assert observations.fault_attempts == 1, observations
+    assert observations.commits == 0, observations
+    if fault_boundary == "parents":
+        assert any(
+            flush.base_budgets == 1 and flush.budgets == 0 and flush.tracked_categories == 0
+            for flush in observations.flushes
+        ), observations
+    else:
+        assert any(
+            flush.budgets + flush.tracked_categories == 1000
+            for flush in observations.flushes
+        ), observations
+
+    # Both injected faults precede the cache upsert, so this proves preservation of its prior value
+    assert await _snapshot_personal_budget_state(owner_id) == before
 
 
 async def test_firefly_budget_import_mirrors_limit_periods(client):
