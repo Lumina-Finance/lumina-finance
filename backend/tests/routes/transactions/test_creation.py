@@ -2,6 +2,8 @@ import uuid
 from datetime import date
 from decimal import Decimal
 
+import pytest
+
 from app.models.transaction import Transaction
 from tests.conftest import TestSession
 from tests.routes.support import _create_user, _get_auth_header, _get_system_merchant_id
@@ -18,6 +20,21 @@ from tests.routes.transactions._helpers import (
 )
 
 # --- POST /transactions ---
+
+
+@pytest.mark.parametrize(("note_length", "expected_status"), [(10_000, 201), (10_001, 422)])
+async def test_create_transaction_limits_note_length(client, note_length, expected_status):
+    """Accept notes at the limit and reject longer notes before creating a transaction"""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    notes = "n" * note_length
+
+    resp = await _create_transaction(client, headers, account_id, category_id, notes=notes)
+
+    assert resp.status_code == expected_status
+    if expected_status == 201:
+        assert resp.json()["notes"] == notes
+    else:
+        assert any(error["loc"] == ["body", "notes"] for error in resp.json()["detail"])
 
 
 async def test_create_transaction_returns_201(client):

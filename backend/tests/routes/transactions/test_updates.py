@@ -3,6 +3,8 @@
 import uuid
 from datetime import date
 
+import pytest
+
 from app.models.transaction import Transaction
 from tests.conftest import TestSession
 from tests.routes.support import _create_user, _get_auth_header
@@ -18,6 +20,62 @@ from tests.routes.transactions._helpers import (
 )
 
 # --- PATCH /transactions/{id} ---
+
+
+@pytest.mark.parametrize(("note_length", "expected_status"), [(10_000, 200), (10_001, 422)])
+async def test_patch_transaction_limits_note_length(client, note_length, expected_status):
+    """Reject an over-limit note without applying any part of the update"""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    created = await _create_transaction(client, headers, account_id, category_id, notes="Original")
+    transaction_id = created.json()["id"]
+    notes = "n" * note_length
+
+    resp = await client.patch(
+        f"/transactions/{transaction_id}",
+        json={"notes": notes, "amount": -9999},
+        headers=headers,
+    )
+
+    assert resp.status_code == expected_status
+    if expected_status == 200:
+        assert resp.json()["notes"] == notes
+        assert resp.json()["amount"] == -9999
+    else:
+        assert any(error["loc"] == ["body", "notes"] for error in resp.json()["detail"])
+        unchanged = await client.get(f"/transactions/{transaction_id}", headers=headers)
+        assert unchanged.status_code == 200
+        assert unchanged.json()["notes"] == "Original"
+        assert unchanged.json()["amount"] == created.json()["amount"]
+
+
+async def test_patch_transaction_preserves_and_clears_legacy_long_notes(client):
+    """Keep an omitted legacy note readable and allow the user to clear it explicitly"""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    created = await _create_transaction(client, headers, account_id, category_id)
+    transaction_id = created.json()["id"]
+    legacy_notes = f" {'n' * 10_001} "
+    async with TestSession() as session:
+        transaction = await session.get(Transaction, uuid.UUID(transaction_id))
+        transaction.notes = legacy_notes
+        await session.commit()
+
+    existing = await client.get(f"/transactions/{transaction_id}", headers=headers)
+    assert existing.status_code == 200
+    assert existing.json()["notes"] == legacy_notes
+
+    updated = await client.patch(
+        f"/transactions/{transaction_id}", json={"amount": -9999}, headers=headers,
+    )
+    assert updated.status_code == 200
+    assert updated.json()["amount"] == -9999
+    assert updated.json()["notes"] == legacy_notes
+
+    cleared = await client.patch(
+        f"/transactions/{transaction_id}", json={"notes": None}, headers=headers,
+    )
+    assert cleared.status_code == 200
+    assert cleared.json()["amount"] == -9999
+    assert cleared.json()["notes"] is None
 
 
 async def test_patch_transaction_updates_amount(client):
