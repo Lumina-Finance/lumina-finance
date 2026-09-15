@@ -32,6 +32,7 @@ export function FilterPanelBody({
   showFooter = true,
   mobile = false,
   fillHeight = false,
+  facetLabelledBy,
 }: {
   draft: AccountFilterDraft
   showFooter?: boolean
@@ -40,6 +41,7 @@ export function FilterPanelBody({
   // Lets the facet checklist grow to fill its container with the list scrolling internally, used by
   // the mobile sheet and the desktop panel once the panel opens to a fixed height
   fillHeight?: boolean
+  facetLabelledBy?: string
 }) {
   const [activeFacetId, setActiveFacetId] = useState<FacetId>(FILTER_FACETS[0].id)
   // Scopes the sliding-thumb layout animation to this instance
@@ -57,6 +59,7 @@ export function FilterPanelBody({
     <div className={joinClassNames('contents', fillHeight && '!flex min-h-0 flex-1 flex-col')}>
       {mobile ? (
         <FacetSelectDropdown
+          labelledBy={facetLabelledBy}
           facets={FILTER_FACETS}
           activeFacetId={activeFacetId}
           countFacet={draft.countFacet}

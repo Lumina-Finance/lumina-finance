@@ -13,8 +13,8 @@ test('signs a new user up through the form', async ({ page }) => {
   await page.getByLabel('Confirm password').fill(TEST_PASSWORD)
 
   // Timezone and base currency keep the browser's own defaults, which the config pins, so the
-  // form needs no answer for either. Neither could be driven anyway: both are dropdowns with
-  // no accessible name
+  // form needs no answer for either. Their existing native labels also leave both controls
+  // addressable when another test needs to change those defaults
 
   // Submit stays disabled until the currency list arrives, which Playwright waits out
   await page.getByRole('button', { name: 'Sign up' }).click()

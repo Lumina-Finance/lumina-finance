@@ -14,11 +14,13 @@ import { scopeLabel } from '@/pages/settings/components/merchant-settings-sectio
  */
 export default function InlineMerchantEdit({
   categoryOptions,
+  defaultCategoryLabelledBy,
   isLast,
   merchant,
   onCancel,
 }: {
   categoryOptions: DropdownOption[]
+  defaultCategoryLabelledBy: string
   isLast: boolean
   merchant: Merchant
   onCancel: () => void
@@ -113,6 +115,7 @@ export default function InlineMerchantEdit({
           </div>
           <div className="min-w-0">
             <Dropdown
+              labelledBy={defaultCategoryLabelledBy}
               className="w-full"
               size="compact"
               options={categoryOptions}

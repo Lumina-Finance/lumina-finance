@@ -1,3 +1,4 @@
+import { useId } from 'react'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
 import IconTooltip from '@/components/tooltips/IconTooltip'
 import { ImportAmountFormatControl, ImportDateFormatControl } from '@/pages/imports/components/FormatControls'
@@ -51,6 +52,9 @@ export function ImportHeaderMappingTable({
   onDateFormatChange: (dateFormat: ImportDateFormat) => void
   onAmountFormatChange: (format: ImportAmountFormat) => void
 }) {
+  const labelNamespace = useId()
+  const targetHeadingId = `${labelNamespace}-target`
+
   // The wrapper scrolls sideways only while the table is wider than the viewport. Past that it stops
   // clipping entirely, because overflow-x cannot be auto while overflow-y stays visible, and
   // clipping vertically cuts off a row's tooltip where it reaches past the edge of the table
@@ -66,11 +70,12 @@ export function ImportHeaderMappingTable({
           <tr>
             <th className="px-4 py-3 font-medium">Imported Column</th>
             <th className="px-4 py-3 font-medium">Examples From File</th>
-            <th className="px-4 py-3 font-medium">Match To App Field</th>
+            <th id={targetHeadingId} className="px-4 py-3 font-medium">Match To App Field</th>
           </tr>
         </thead>
         <tbody>
-          {headers.map((header) => {
+          {headers.map((header, index) => {
+            const sourceLabelId = `${labelNamespace}-source-${index}`
             const selectedTarget = getTargetForHeader(columnMap, header)
             const samples = getColumnSamples(files, header)
             const isIgnored = selectedTarget === ''
@@ -89,7 +94,7 @@ export function ImportHeaderMappingTable({
               >
                 <td className="px-4 py-2.5 align-middle">
                   <div className="flex items-center gap-2">
-                    <p className={`font-medium ${isIgnored ? 'line-through' : ''}`} style={{ color: isIgnored ? 'var(--app-text-muted)' : undefined }}>
+                    <p id={sourceLabelId} className={`font-medium ${isIgnored ? 'line-through' : ''}`} style={{ color: isIgnored ? 'var(--app-text-muted)' : undefined }}>
                       {header}
                     </p>
                     {isIgnored && (
@@ -110,6 +115,7 @@ export function ImportHeaderMappingTable({
                         than a rectangle around it */}
                     <div className={`min-w-0 flex-1 rounded-lg ${autoFilled ? 'import-auto-fill-field' : ''}`}>
                       <Dropdown
+                        labelledBy={`${targetHeadingId} ${sourceLabelId}`}
                         options={options}
                         value={selectedTarget}
                         onChange={(nextValue) => onChange(header, nextValue)}

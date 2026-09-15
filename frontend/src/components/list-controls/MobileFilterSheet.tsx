@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useId, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { X } from 'lucide-react'
@@ -19,7 +19,7 @@ type MobileFilterSheetProps = {
   // Greys out Apply while the body holds an entry the draft will refuse, so the button never looks
   // live for a commit that cannot happen
   isApplyDisabled?: boolean
-  children: ReactNode
+  children: (headingId: string) => ReactNode
 }
 
 /**
@@ -41,6 +41,7 @@ export function MobileFilterSheet({
   children,
 }: MobileFilterSheetProps) {
   const panelRef = useMobileFilterSheetEffects({ isOpen, onClose, lockScroll: false })
+  const headingId = useId()
   const shouldReduceMotion = useReducedMotion()
 
   // Hold the page still behind the full-screen sheet without overflow: hidden, which would strip the
@@ -77,7 +78,7 @@ export function MobileFilterSheet({
         >
           <div className="flex items-center justify-between border-b px-5 py-4" style={{ borderColor: 'var(--app-border)' }}>
             <div>
-              <h2 className="text-base font-semibold">Filters</h2>
+              <h2 id={headingId} className="text-base font-semibold">Filters</h2>
               <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
                 {activeFacetCount === 0 ? 'No active filters' : `${activeFacetCount} active`}
               </p>
@@ -88,7 +89,7 @@ export function MobileFilterSheet({
           </div>
 
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-5 py-4 [scrollbar-gutter:stable]">
-            {children}
+            {children(headingId)}
           </div>
 
           <div className="flex items-center justify-between gap-3 border-t px-5 py-4" style={{ borderColor: 'var(--app-border)' }}>

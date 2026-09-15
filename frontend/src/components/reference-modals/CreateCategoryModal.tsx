@@ -213,7 +213,7 @@ export default function CreateCategoryModal({
           <div className="min-w-0 space-y-3">
             <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Classification</p>
             <div>
-              <span className="app-label mb-1.5 block text-[0.9375rem] leading-5">Category type</span>
+              <label htmlFor={CREATE_CATEGORY_FIELD_IDS.kind} className="app-label mb-1.5 block text-[0.9375rem] leading-5">Category type</label>
               <Dropdown
                 id={CREATE_CATEGORY_FIELD_IDS.kind}
                 options={KIND_OPTIONS}

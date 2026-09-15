@@ -26,6 +26,7 @@ export const TRANSACTION_MODAL_FIELD_IDS = {
   merchant: 'txn-merchant',
   category: 'txn-category',
   tags: 'txn-tags',
+  currency: 'txn-currency',
 } as const
 
 export const KIND_OPTIONS: { value: TransactionModalKind; label: string }[] = [

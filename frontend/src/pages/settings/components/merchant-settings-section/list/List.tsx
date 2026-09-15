@@ -1,4 +1,4 @@
-import type { RefObject, UIEvent } from 'react'
+import { useId, type RefObject, type UIEvent } from 'react'
 import { AnimatePresence, useReducedMotion } from 'motion/react'
 import type { Category } from '@/api/categories'
 import type { Merchant } from '@/api/merchants'
@@ -62,6 +62,7 @@ export default function MerchantSettingsList({
   onListMoreClick: () => void
   onListScroll: (event: UIEvent<HTMLDivElement>) => void
 }) {
+  const defaultCategoryHeadingId = useId()
   const shouldReduceMotion = useReducedMotion()
   const failure = listFailed ? <LoadFailure error={listError} subject="Merchants" /> : null
 
@@ -139,6 +140,7 @@ export default function MerchantSettingsList({
                   Merchant
                 </th>
                 <th
+                  id={defaultCategoryHeadingId}
                   scope="col"
                   className={`app-label py-3 pr-4 ${shouldScrollMerchants ? 'sticky top-0 z-10' : ''}`}
                   style={{ background: 'var(--app-surface-soft)' }}
@@ -161,6 +163,7 @@ export default function MerchantSettingsList({
                     key={merchant.id}
                     categoryById={categoryById}
                     categoryOptions={categoryOptions}
+                    defaultCategoryLabelledBy={defaultCategoryHeadingId}
                     confirmingDelete={confirmingDeleteMerchantId === merchant.id}
                     deleting={deletingMerchantId === merchant.id}
                     isEditing={editingMerchantId === merchant.id}

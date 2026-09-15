@@ -46,7 +46,9 @@ export function MobileFilterPanel({
       clearAll={draft.clearAll}
       applyFilters={draft.applyFilters}
     >
-      <FilterPanelBody draft={draft} showFooter={false} mobile fillHeight />
+      {(headingId) => (
+        <FilterPanelBody draft={draft} showFooter={false} mobile fillHeight facetLabelledBy={headingId} />
+      )}
     </MobileFilterSheet>
   )
 }

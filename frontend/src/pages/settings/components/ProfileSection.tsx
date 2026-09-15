@@ -7,6 +7,8 @@ import SettingsCard from '@/pages/settings/components/Card'
 import type { ProfileFormState } from '@/pages/settings/profileForm'
 import { formatCurrencyLabel } from '@/utils/formatCurrency'
 
+const PROFILE_TIMEZONE_FIELD_ID = 'profile-timezone'
+
 const TIMEZONES = Intl.supportedValuesOf('timeZone').map((tz) => ({
   value: tz,
   label: tz.replace(/_/g, ' '),
@@ -103,8 +105,9 @@ export default function ProfileSection({
                   onChange={(e) => onFieldChange('last_name', e.target.value)}
                 />
               </SettingsField>
-              <SettingsField label="Timezone">
+              <SettingsField label="Timezone" htmlFor={PROFILE_TIMEZONE_FIELD_ID}>
                 <Dropdown
+                  id={PROFILE_TIMEZONE_FIELD_ID}
                   options={TIMEZONES}
                   value={form.tz}
                   onChange={(v) => onFieldChange('tz', v)}

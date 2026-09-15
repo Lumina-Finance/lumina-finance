@@ -6,22 +6,29 @@ import type React from 'react'
  */
 export default function SettingsField({
   label,
+  htmlFor,
   labelAccessory,
   hint,
   children,
 }: {
   label: string
+  htmlFor?: string
   labelAccessory?: React.ReactNode
   hint?: string
   children: React.ReactNode
 }) {
-  // Plain <div>, not <label>. A <label> wrapper re-dispatches clicks onto
+  // Plain <div>, not a wrapping <label>. A label wrapper re-dispatches clicks onto
   // the first labelable control inside it, which reopens a Dropdown that just
-  // closed on option selection. The visual label is the span below
+  // closed on option selection. A field with one fixed control can connect the
+  // visual label directly through htmlFor instead
   return (
     <div className="space-y-1.5 block">
       <div className="flex items-center gap-2">
-        <span className="app-label block">{label}</span>
+        {htmlFor ? (
+          <label htmlFor={htmlFor} className="app-label block">{label}</label>
+        ) : (
+          <span className="app-label block">{label}</span>
+        )}
         {labelAccessory}
       </div>
       {children}

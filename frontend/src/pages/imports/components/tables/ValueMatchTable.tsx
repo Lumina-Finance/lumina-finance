@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useId, type ReactNode } from 'react'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
 import { IMPORT_CATEGORY_KIND_OPTIONS } from '@/pages/imports/constants'
 import type { ImportCategoryKind } from '@/pages/imports/types'
@@ -52,6 +52,9 @@ export function ImportValueMatchTable({
   hasMore?: boolean
   onLoadMore?: () => void
 }) {
+  const labelNamespace = useId()
+  const targetHeadingId = `${labelNamespace}-target`
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full table-fixed min-w-[48rem] text-left text-[0.9375rem]">
@@ -64,18 +67,19 @@ export function ImportValueMatchTable({
           <tr>
             <th className="px-4 py-2.5 font-medium">{sourceLabel}</th>
             {detailLabel && <th className="w-64 px-4 py-2.5 font-medium">{detailLabel}</th>}
-            <th className="px-4 py-2.5 font-medium">{targetLabel}</th>
+            <th id={targetHeadingId} className="px-4 py-2.5 font-medium">{targetLabel}</th>
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => {
+          {rows.map((row, index) => {
+            const sourceLabelId = `${labelNamespace}-source-${index}`
             const creating = Boolean(createValue && row.value === createValue)
 
             return (
               <tr key={row.id} className={row.autoFilled || row.detailAutoFilled ? 'import-auto-fill-row' : undefined}>
                 <td className="px-4 py-2 align-middle">
                   <div className="flex min-w-0 items-center gap-2">
-                    <p className="truncate font-medium" title={row.source}>{row.source}</p>
+                    <p id={sourceLabelId} className="truncate font-medium" title={row.source}>{row.source}</p>
                     {creating && (
                       <span className="shrink-0 text-[0.6875rem] font-semibold uppercase" style={{ color: 'var(--app-accent)' }}>
                         New
@@ -106,6 +110,7 @@ export function ImportValueMatchTable({
                 )}
                 <td className="px-4 py-2 align-middle">
                   <Dropdown
+                    labelledBy={`${targetHeadingId} ${sourceLabelId}`}
                     options={options}
                     value={row.value}
                     onChange={row.onChange}
