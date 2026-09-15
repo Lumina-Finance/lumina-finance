@@ -61,10 +61,6 @@ export default function LoadingRegion<T>({
     snapshot: snapshot as T,
     loading,
     transitionKey: transitionKey ?? label,
-    // A key change with nothing loading behind it holds only long enough to conceal what is on
-    // screen before the new value takes its place, since there is nothing to wait for and a
-    // spinner over data already in hand only delays reading it
-    swapMinVisibleMs: LOADING_VISIBILITY_MS,
   })
   const contentRef = useRef<HTMLDivElement | null>(null)
   const [contentHeight, setContentHeight] = useState<number | null>(null)

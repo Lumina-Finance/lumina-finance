@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useReducedMotion } from 'motion/react'
+import { LOADING_VISIBILITY_MS } from '@/components/loading/Transition'
 
 const DEFAULT_LOADING_MIN_MS = 800
 
@@ -11,9 +12,8 @@ type UseLoadingSnapshotOptions<T> = {
 
   /**
    * Hold for a transition key change with nothing loading behind it, which is a swap between two
-   * values already in hand rather than a wait for one. Passing a duration keeps the spinner out of
-   * that transition, so the new value conceals and comes back rather than sitting behind a load
-   * that already finished. Left out, a swap is held and labelled exactly like a load
+   * values already in hand rather than a wait for one. Defaults to the shared crossfade duration
+   * and keeps the spinner out of that transition
    */
   swapMinVisibleMs?: number
 }
@@ -26,22 +26,22 @@ type LoadingSnapshotState<T> = {
 }
 
 /**
- * Holds a stable snapshot of data behind a minimum-duration loading state, so a quick fetch or a
- * transition to new data still shows the loading UI for at least `minVisibleMs` instead of flashing
+ * Holds a stable snapshot of data behind a minimum-duration loading state, so a quick fetch still
+ * shows the loading UI for at least `minVisibleMs` instead of flashing
  *
  * A concealment starts whenever `loading` is true or `transitionKey` changes, even if `loading` is
  * already false, and only reveals the latest `snapshot` once both loading has ended and the minimum
  * time has elapsed. Skips the minimum hold when the user prefers reduced motion
  *
- * A key change with nothing loading behind it can be held on its own terms, which is what
- * `swapMinVisibleMs` is for
+ * A key change with nothing loading behind it uses `swapMinVisibleMs` to conceal and reveal the
+ * cached value without a loading spinner
  */
 export function useLoadingSnapshot<T>({
   snapshot,
   loading = false,
   transitionKey,
   minVisibleMs = DEFAULT_LOADING_MIN_MS,
-  swapMinVisibleMs,
+  swapMinVisibleMs = LOADING_VISIBILITY_MS,
 }: UseLoadingSnapshotOptions<T>): LoadingSnapshotState<T> {
   const [displaySnapshot, setDisplaySnapshot] = useState<T>(snapshot)
   const [contentConcealed, setContentConcealed] = useState(loading)
