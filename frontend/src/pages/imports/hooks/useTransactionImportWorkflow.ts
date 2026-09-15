@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type Dispatch, type SetStateAction } from 'react'
+import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import type { AccountsOverview } from '@/api/accounts'
 import {
   discardStagedRun,
@@ -46,6 +46,7 @@ import {
   inferColumnMap,
   type ImportAmountFormat,
   type ImportDateFormat,
+  type ImportFileAcquisition,
   buildImportAmountFormatScope,
   buildImportDateFormatScope,
   chooseImportFormat,
@@ -53,6 +54,7 @@ import {
   getImportAmountFormatValues,
   keepCurrentMatchMap,
   moveImportFormatChoiceToScope,
+  processImportFileIntake,
   readCsvFile,
   readScopedImportAnswers,
   resolveImportAccountCreateCurrencies,
@@ -96,6 +98,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   const inputRef = useRef<HTMLInputElement>(null)
   const [files, setFiles] = useState<ImportFileDraft[]>([])
   const [isProcessingFiles, setIsProcessingFiles] = useState(false)
+  const [fileIntakeError, setFileIntakeError] = useState<string | null>(null)
   const [autoFilledColumnHeaders, setAutoFilledColumnHeaders] = useState<Set<string>>(() => new Set())
 
   // Columns the user has answered for, so replacing the file with one carrying the same headings
@@ -804,30 +807,33 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     setImportError(null)
   }
 
-  const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
-    const input = event.currentTarget
-    const selectedFiles = Array.from(event.target.files ?? [])
-    if (selectedFiles.length === 0) return
+  const handleFileChange = async (acquiredFiles: ImportFileAcquisition) => {
+    const intake = await processImportFileIntake({
+      files: acquiredFiles,
+      processing: isProcessingFiles,
+      unavailableReason: getImportUploadBlockReason(currencies, currenciesError)?.message ?? null,
+      readFile: async (selectedFile) => {
+        const workflowRun = startWorkflowRun()
+        setFileIntakeError(null)
+        setIsProcessingFiles(true)
 
-    const workflowRun = startWorkflowRun()
-    setIsProcessingFiles(true)
+        try {
+          const [draft] = await Promise.all([
+            readCsvFile(selectedFile, supportedCurrencyCodes, { requireDataRows: true }),
+            waitForMilliseconds(CSV_PROCESSING_MIN_MS),
+          ])
 
-    try {
-      const [drafts] = await Promise.all([
-        Promise.all(selectedFiles.map((selectedFile) => (
-          readCsvFile(selectedFile, supportedCurrencyCodes, { requireDataRows: true })
-        ))),
-        waitForMilliseconds(CSV_PROCESSING_MIN_MS),
-      ])
+          // The workflow can be reset while the file is being read, and a file staged into the flow
+          // that replaced it is one the user believes they discarded
+          if (!isCurrentWorkflowRun(workflowRun)) return
+          applyStagedFiles([draft])
+        } finally {
+          if (isCurrentWorkflowRun(workflowRun)) setIsProcessingFiles(false)
+        }
+      },
+    })
 
-      // The workflow can be reset while the file is being read, and a file staged into the flow
-      // that replaced it is one the user believes they discarded
-      if (!isCurrentWorkflowRun(workflowRun)) return
-      applyStagedFiles(drafts.slice(0, 1))
-    } finally {
-      if (isCurrentWorkflowRun(workflowRun)) setIsProcessingFiles(false)
-      input.value = ''
-    }
+    if (intake.status === 'refused') setFileIntakeError(intake.reason)
   }
 
   const removeFile = (fileId: string) => {
@@ -989,6 +995,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     setCanStopImport(false)
     setFiles([])
     setIsProcessingFiles(false)
+    setFileIntakeError(null)
     setAutoFilledColumnHeaders(new Set())
     setDecidedColumnHeaders(new Set())
     setStoredColumnMap(EMPTY_COLUMN_MAP)
@@ -1021,6 +1028,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     inputRef,
     files,
     isProcessingFiles,
+    fileIntakeError,
     autoFilledColumnHeaders,
     columnMap,
     fixedAccount,

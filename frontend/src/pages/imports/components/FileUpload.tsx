@@ -1,8 +1,9 @@
+import { useState, type DragEvent } from 'react'
 import { FileText, LoaderCircle, TriangleAlert, Upload, X } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { IMPORT_INSET_STYLE } from '@/pages/imports/constants'
 import type { ImportFileDraft, ImportUploadBlock } from '@/pages/imports/types'
-import { formatBytes } from '@/pages/imports/utils'
+import { formatBytes, selectDroppedImportFiles, type ImportFileSelection } from '@/pages/imports/utils'
 
 // Shown on the card and read out by the live region beside it, so both say the same thing
 const PROCESSING_STATUS = 'Processing CSV'
@@ -32,6 +33,7 @@ export function ImportUploadCard({
   rejection,
   blockReason,
   onClick,
+  onDropFile,
 }: {
   title: string
   hint: string
@@ -40,12 +42,18 @@ export function ImportUploadCard({
   rejection?: string | null
   blockReason?: ImportUploadBlock | null
   onClick: () => void
+  onDropFile: (selection: ImportFileSelection) => void
 }) {
   // A block leads over a file's own refusal, since nothing can be uploaded while one stands
   const isBlockedWithoutFailure = Boolean(blockReason) && !blockReason?.isFailure
   const message = blockReason?.message ?? rejection ?? null
   const isRefusal = message !== null && !isBlockedWithoutFailure
   const shouldReduceMotion = useReducedMotion()
+  const [dragState, setDragState] = useState(() => ({ depth: 0, disabled }))
+
+  // Reset a drag that crosses an availability change before rendering the new presentation
+  if (dragState.disabled !== disabled) setDragState({ depth: 0, disabled })
+  const isDraggingFile = !disabled && dragState.depth > 0
   const uploadStateMotion = shouldReduceMotion
     ? {
       initial: { opacity: 0 },
@@ -74,7 +82,11 @@ export function ImportUploadCard({
         style={{
           ...IMPORT_INSET_STYLE,
           color: 'var(--app-text-muted)',
-          border: isRefusal ? '1px solid var(--app-negative-border)' : undefined,
+          border: isRefusal
+            ? '1px solid var(--app-negative-border)'
+            : isDraggingFile
+              ? '1px solid var(--app-accent)'
+              : undefined,
         }}
         onClick={() => {
           if (disabled) return
@@ -82,6 +94,23 @@ export function ImportUploadCard({
         }}
         aria-disabled={disabled}
         aria-busy={processing}
+        onDragEnter={(event) => {
+          event.preventDefault()
+          if (disabled) return
+          setDragState((current) => ({ disabled, depth: current.depth + 1 }))
+        }}
+        onDragLeave={(event) => {
+          event.preventDefault()
+          if (disabled) return
+          setDragState((current) => ({ disabled, depth: Math.max(0, current.depth - 1) }))
+        }}
+        onDragOver={(event) => event.preventDefault()}
+        onDrop={(event: DragEvent<HTMLButtonElement>) => {
+          event.preventDefault()
+          setDragState({ depth: 0, disabled })
+          if (disabled) return
+          onDropFile(selectDroppedImportFiles(event.dataTransfer.items, event.dataTransfer.files))
+        }}
       >
         <span className="relative flex min-h-[5.75rem] w-full items-center justify-center overflow-hidden">
           <AnimatePresence initial={false} mode="wait">
@@ -138,6 +167,25 @@ export function ImportUploadCard({
                     Choose another file to try again.
                   </span>
                 )}
+              </motion.span>
+            ) : isDraggingFile ? (
+              <motion.span
+                key="dragging"
+                className="flex flex-col items-center"
+                {...uploadStateMotion}
+              >
+                <span
+                  className="mb-3 flex h-11 w-11 items-center justify-center"
+                  style={{ background: 'var(--app-surface-soft)', color: 'var(--app-accent)' }}
+                >
+                  <Upload size={20} aria-hidden />
+                </span>
+                <span className="block text-sm font-semibold" style={{ color: 'var(--app-text)' }}>
+                  Drop CSV file here
+                </span>
+                <span className="mt-1 block text-xs" style={{ color: 'var(--app-text-subtle)' }}>
+                  Release to upload one file.
+                </span>
               </motion.span>
             ) : (
               <motion.span

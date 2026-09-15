@@ -1,4 +1,4 @@
-import { useMemo, useState, type ChangeEvent } from 'react'
+import { useMemo, useState } from 'react'
 import {
   useImportFireflyBudgets,
   useImportFireflyTransactions,
@@ -22,6 +22,8 @@ import {
   getSupportedCurrencyCodes,
   groupPreviewRowsByDate,
   isAutoFilledAccountSource,
+  processImportFileIntake,
+  type ImportFileAcquisition,
 } from '@/pages/imports/utils'
 import {
   FIREFLY_CSV_PROCESSING_MIN_MS,
@@ -77,6 +79,10 @@ export function useFireflyImportWorkflow() {
   const [transactionsFile, setTransactionsFile] = useState<ImportFileDraft | null>(null)
   const [budgetsFile, setBudgetsFile] = useState<ImportFileDraft | null>(null)
   const [processingFileKind, setProcessingFileKind] = useState<FireflyFileKind | null>(null)
+  const [fileIntakeErrors, setFileIntakeErrors] = useState<Record<FireflyFileKind, string | null>>({
+    transactions: null,
+    budgets: null,
+  })
   const [accountMappings, setAccountMappings] = useState<Record<string, string>>({})
   const {
     accountCreateTypes,
@@ -482,6 +488,8 @@ export function useFireflyImportWorkflow() {
   }
 
   const assignFireflyFile = (kind: FireflyFileKind, draft: ImportFileDraft | null) => {
+    setFileIntakeErrors((current) => ({ ...current, [kind]: null }))
+
     if (kind === 'transactions') {
       setTransactionsFile(draft)
 
@@ -497,22 +505,32 @@ export function useFireflyImportWorkflow() {
     resetBudgetPanelState()
   }
 
-  const handleFireflyFileChange = async (kind: FireflyFileKind, event: ChangeEvent<HTMLInputElement>) => {
-    const input = event.currentTarget
-    const selected = event.target.files?.[0]
-    if (!selected) return
+  const handleFireflyFileChange = async (
+    kind: FireflyFileKind,
+    acquiredFiles: ImportFileAcquisition,
+  ) => {
+    const intake = await processImportFileIntake({
+      files: acquiredFiles,
+      processing: processingFileKind !== null,
+      unavailableReason: getImportUploadBlockReason(currencies, currenciesError)?.message ?? null,
+      readFile: async (selectedFile) => {
+        setFileIntakeErrors((current) => ({ ...current, [kind]: null }))
+        setProcessingFileKind(kind)
 
-    setProcessingFileKind(kind)
+        try {
+          const [draft] = await Promise.all([
+            readFireflyCsvFile(selectedFile, kind, supportedCurrencyCodes),
+            waitForMilliseconds(FIREFLY_CSV_PROCESSING_MIN_MS),
+          ])
+          assignFireflyFile(kind, draft)
+        } finally {
+          setProcessingFileKind(null)
+        }
+      },
+    })
 
-    try {
-      const [draft] = await Promise.all([
-        readFireflyCsvFile(selected, kind, supportedCurrencyCodes),
-        waitForMilliseconds(FIREFLY_CSV_PROCESSING_MIN_MS),
-      ])
-      assignFireflyFile(kind, draft)
-    } finally {
-      setProcessingFileKind(null)
-      input.value = ''
+    if (intake.status === 'refused') {
+      setFileIntakeErrors((current) => ({ ...current, [kind]: intake.reason }))
     }
   }
 
@@ -679,6 +697,7 @@ export function useFireflyImportWorkflow() {
     setTransactionsFile(null)
     setBudgetsFile(null)
     setProcessingFileKind(null)
+    setFileIntakeErrors({ transactions: null, budgets: null })
     resetMappingState()
     resetCommitState()
     resetBudgetPanelState()
@@ -689,6 +708,7 @@ export function useFireflyImportWorkflow() {
     transactionsFile,
     budgetsFile,
     processingFileKind,
+    fileIntakeErrors,
     fireflyRows,
     fireflyHeaders,
     trackedAccountNames,
