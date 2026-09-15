@@ -7,6 +7,14 @@ import {
   CREATE_ACCOUNT_VALUE,
   CREATE_CATEGORY_VALUE,
   DEFAULT_CATEGORY_ICON,
+  getImportAccountCurrencyRequiredError,
+  getImportAccountMappingError,
+  getImportAccountTypeRequiredError,
+  getImportAccountTypeUnsupportedError,
+  getImportArchivedAccountMappingError,
+  getImportCategoryMappingError,
+  getImportCategoryTypeRequiredError,
+  getImportNoRowsError,
 } from '@/pages/imports/constants'
 import type { CsvRow, ImportCategoryKind, ImportFileDraft } from '@/pages/imports/types'
 import type { FireflyImportBuildResult } from '@/pages/imports/firefly/types'
@@ -59,7 +67,7 @@ export function buildFireflyImportPayload({
   for (const name of trackedAccountNames) {
     const choice = accountMappings[name]
     if (!choice) {
-      addError(`Map account: ${name}`)
+      addError(getImportAccountMappingError(name))
       continue
     }
 
@@ -67,7 +75,7 @@ export function buildFireflyImportPayload({
       // Every Firefly source takes rows, and an archived account takes none, so an account archived
       // after it was chosen is refused here rather than by the server part way through the import
       if (accountById.get(choice)?.is_archived) {
-        addError(`Map to an account that is not archived: ${name}`)
+        addError(getImportArchivedAccountMappingError(name))
         continue
       }
 
@@ -76,12 +84,12 @@ export function buildFireflyImportPayload({
     }
 
     const details = accountCreateDetails[name]
-    if (!details?.accountType) addError(`Choose account type: ${name}`)
-    if (!details?.currency) addError(`Choose account currency: ${name}`)
+    if (!details?.accountType) addError(getImportAccountTypeRequiredError(name))
+    if (!details?.currency) addError(getImportAccountCurrencyRequiredError(name))
     if (!details?.accountType || !details.currency) continue
 
     if (!isImportAccountType(details.accountType)) {
-      addError(`Choose an account type this app supports: ${name}`)
+      addError(getImportAccountTypeUnsupportedError(name))
       continue
     }
 
@@ -104,7 +112,7 @@ export function buildFireflyImportPayload({
   for (const source of importedCategories) {
     const choice = categoryMappings[source]
     if (!choice) {
-      addError(`Map category: ${source}`)
+      addError(getImportCategoryMappingError(source))
       continue
     }
 
@@ -115,7 +123,7 @@ export function buildFireflyImportPayload({
 
     const kind = categoryCreateKinds[source]
     if (!kind) {
-      addError(`Choose category type: ${source}`)
+      addError(getImportCategoryTypeRequiredError(source))
       continue
     }
 
@@ -130,7 +138,7 @@ export function buildFireflyImportPayload({
   }
 
   const payloadRows = buildFireflyImportRows(rows)
-  if (payloadRows.length === 0) addError('This export has no transaction rows to import.')
+  if (payloadRows.length === 0) addError(getImportNoRowsError('export'))
 
   if (errors.length > 0) return { errors, payload: null }
   return { errors: [], payload: { accounts, categories, rows: payloadRows } }

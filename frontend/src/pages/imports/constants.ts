@@ -188,6 +188,46 @@ export function getCategoryDirectionClashError(source: string, existingName: str
   return `${existingName} already records ${direction}, so ${source} cannot be created. Match it to that category, or set its type to ${direction}.`
 }
 
+/** Says which account source still needs a mapping */
+export function getImportAccountMappingError(name: string) {
+  return `Map account: ${name}`
+}
+
+/** Says which category source still needs a mapping */
+export function getImportCategoryMappingError(name: string) {
+  return `Map category: ${name}`
+}
+
+/** Says which new account still needs a type */
+export function getImportAccountTypeRequiredError(name: string) {
+  return `Choose account type: ${name}`
+}
+
+/** Says which new account still needs a currency */
+export function getImportAccountCurrencyRequiredError(name: string) {
+  return `Choose account currency: ${name}`
+}
+
+/** Says which new account has an unsupported type */
+export function getImportAccountTypeUnsupportedError(name: string) {
+  return `Choose an account type this app supports: ${name}`
+}
+
+/** Says which source maps to an archived account */
+export function getImportArchivedAccountMappingError(name: string) {
+  return `Map to an account that is not archived: ${name}`
+}
+
+/** Says which new category still needs a type */
+export function getImportCategoryTypeRequiredError(name: string) {
+  return `Choose category type: ${name}`
+}
+
+/** Says that an import file or export contains no uploadable rows */
+export function getImportNoRowsError(subject: 'file' | 'export') {
+  return `This ${subject} has no transaction rows to import.`
+}
+
 /**
  * Says a row's notes are longer than the importer stores
  */
