@@ -20,8 +20,7 @@ interface IconTooltipProps {
   size?: number
   strokeWidth?: number
 
-  // Joins the Tab order inside a modal, whose focus handling only visits fields and anything carrying
-  // this marker, so an explanation attached to a field label stays reachable without a mouse
+  // Makes the trigger a candidate for the modal's initial focus
   modalFieldTabStop?: boolean
 
   // Keeps controls in a closed tooltip out of the modal keyboard navigation
