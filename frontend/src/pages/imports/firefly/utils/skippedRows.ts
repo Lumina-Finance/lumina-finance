@@ -1,3 +1,4 @@
+import type { FireflyTransactionImportResponse } from '@/api/firefly-imports'
 import type { CsvRow, ImportRowProblem } from '@/pages/imports/types'
 import { FIREFLY_MISSING_REQUIRED_VALUES_REASON, FIREFLY_TAG_TOO_LONG_REASON } from '@/pages/imports/firefly/constants'
 import { getImportRowId } from '@/pages/imports/utils/common'
@@ -50,6 +51,99 @@ export interface FireflyImportForecast {
 /** Resolution options paired with the staged file that gives source rows their identity */
 export interface FireflyImportForecastOptions extends FireflyRowResolutionOptions {
   fileId: string | null
+}
+
+/** Result and skipped-row prediction captured together for one completed transaction import */
+export interface FireflyCompletedImportContext {
+  result: FireflyTransactionImportResponse
+  predictedSkippedRowsAtCommit: FireflySkippedRowDetail[]
+}
+
+/**
+ * Selects the skipped rows the preview table shows before or after commit
+ */
+export function getFireflySkippedRowsDisplay({
+  liveForecastRows,
+  completedImport,
+}: {
+  liveForecastRows: FireflySkippedRowDetail[]
+  completedImport: FireflyCompletedImportContext | null
+}) {
+  if (completedImport) return getCompletedFireflySkippedRowsDisplay(completedImport)
+
+  const totalCount = liveForecastRows.length
+  return {
+    rows: liveForecastRows,
+    totalCount,
+    title: `${totalCount} row${totalCount === 1 ? '' : 's'} will not be imported`,
+  }
+}
+
+/** Reconciles exact committed counts with the available browser and server detail samples */
+function getCompletedFireflySkippedRowsDisplay({
+  result,
+  predictedSkippedRowsAtCommit,
+}: FireflyCompletedImportContext) {
+  const browserDroppedRows = predictedSkippedRowsAtCommit.filter((row) => row.droppedBeforeUpload)
+  const uploadedForecastByPair = new Map<string, FireflySkippedRowDetail[]>()
+  for (const row of predictedSkippedRowsAtCommit) {
+    if (row.droppedBeforeUpload) continue
+    const key = getFireflySkipPairKey(row.journalId, row.reason)
+    const matches = uploadedForecastByPair.get(key)
+    if (matches) {
+      matches.push(row)
+    } else {
+      uploadedForecastByPair.set(key, [row])
+    }
+  }
+
+  const returnedCountByPair = new Map<string, number>()
+  for (const row of result.skipped) {
+    const key = getFireflySkipPairKey(row.journal_id, row.reason)
+    returnedCountByPair.set(key, (returnedCountByPair.get(key) ?? 0) + 1)
+  }
+
+  const serverRows = result.skipped.map((row) => {
+    const key = getFireflySkipPairKey(row.journal_id, row.reason)
+    const forecastMatches = uploadedForecastByPair.get(key) ?? []
+    if (forecastMatches.length === 1 && returnedCountByPair.get(key) === 1) {
+      return {
+        ...forecastMatches[0],
+        journalId: row.journal_id,
+        reason: row.reason,
+        droppedBeforeUpload: false,
+      }
+    }
+
+    return {
+      journalId: row.journal_id,
+      rowNumber: null,
+      cells: null,
+      reason: row.reason,
+      droppedBeforeUpload: false,
+    }
+  })
+
+  const rows = [...browserDroppedRows, ...serverRows]
+    .map((row, index) => ({ row, index }))
+    .sort((left, right) => {
+      if (left.row.rowNumber === null) return right.row.rowNumber === null ? left.index - right.index : 1
+      if (right.row.rowNumber === null) return -1
+      return left.row.rowNumber - right.row.rowNumber || left.index - right.index
+    })
+    .map(({ row }) => row)
+  const totalCount = browserDroppedRows.length + result.rows_skipped
+
+  return {
+    rows,
+    totalCount,
+    title: `${totalCount} row${totalCount === 1 ? '' : 's'} ${totalCount === 1 ? 'was' : 'were'} not imported`,
+  }
+}
+
+/** Builds an unambiguous key from the journal ID and returned reason pair */
+function getFireflySkipPairKey(journalId: string, reason: string) {
+  return JSON.stringify([journalId, reason])
 }
 
 /**

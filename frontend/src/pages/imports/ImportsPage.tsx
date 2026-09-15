@@ -276,6 +276,10 @@ export default function ImportsPage() {
           error={fireflyWorkflow.importOverlayError}
           onDone={handleDone}
           onReturnToImport={fireflyWorkflow.closeImportOverlay}
+          onReview={fireflyWorkflow.importOverlayPhase === 'success'
+            && fireflyWorkflow.completedSkippedCount > 0
+            ? fireflyWorkflow.closeImportOverlay
+            : undefined}
           onClosed={() => setOverlayOnScreen(false)}
         />
       ) : (
