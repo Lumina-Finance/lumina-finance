@@ -88,7 +88,7 @@ jobs:
 
       - name: Install the browser suite
         working-directory: e2e
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       # Nothing else type-checks this package: there is no root tsconfig, and the frontend's
       # covers its own source and tests alone. It runs here rather than beside the suite so a
