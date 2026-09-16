@@ -1,6 +1,7 @@
-import { useEffect, useRef, type Dispatch, type SetStateAction } from 'react'
+import type { Dispatch, SetStateAction } from 'react'
 import type { Currency } from '@/api/currency'
 import type { Transaction } from '@/api/transactions'
+import { useRestoreOnceWhenReady } from '@/hooks/useRestoreOnceWhenReady'
 import { findAmountInputString } from '@/pages/transactions/components/transaction-modal/utils/money'
 import type { TransactionFormValues } from '@/pages/transactions/components/transaction-modal/types'
 
@@ -27,26 +28,14 @@ export function useRestoreLockedAmount({
   isAmountLocked,
   setForm,
 }: RestoreLockedAmountOptions): void {
-  // Whether this opening seeded the amount blank, which is the only case with anything to restore
-  const seededWithoutExponentRef = useRef(isAmountLocked)
+  const readyAmount = transaction
+    ? findAmountInputString(transaction.amount, currencies, transaction.currency)
+    : null
 
-  // Re-armed on each opening, since the form is seeded again then and may again be seeded before
-  // the table lands. Only the opening matters: re-running as the table arrives would re-arm the
-  // flag the fill-in below has just cleared, and overwrite whatever was typed since
-  useEffect(() => {
-    if (!open) return
-
-    seededWithoutExponentRef.current = isAmountLocked
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open])
-
-  useEffect(() => {
-    if (!transaction || !seededWithoutExponentRef.current) return
-
-    const amount = findAmountInputString(transaction.amount, currencies, transaction.currency)
-    if (amount === null) return
-
-    seededWithoutExponentRef.current = false
-    setForm((current) => ({ ...current, amount }))
-  }, [transaction, currencies, setForm])
+  useRestoreOnceWhenReady({
+    open,
+    shouldRestore: isAmountLocked,
+    readyValue: readyAmount,
+    restore: (amount) => setForm((current) => ({ ...current, amount })),
+  })
 }

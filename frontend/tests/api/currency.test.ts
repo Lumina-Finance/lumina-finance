@@ -149,3 +149,43 @@ describe('the currency query when it cannot load', () => {
     }
   });
 });
+
+
+describe('retrying an incomplete currency list', () => {
+  it('refetches a successful cached list and restores a missing currency for all observers', async () => {
+    const usd = { id: 'USD', name: 'US Dollar', symbol: '$', minor_unit_exponent: 2 };
+    const cad = { id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 };
+    const client = new QueryClient();
+    client.setQueryData(currencyQueryOptions.queryKey, [usd]);
+    const field = new QueryObserver(client, currencyQueryOptions);
+    const tooltip = new QueryObserver(client, currencyQueryOptions);
+    const unsubField = field.subscribe(() => {});
+    const unsubTooltip = tooltip.subscribe(() => {});
+
+    try {
+      expect(fetchMock).not.toHaveBeenCalled();
+      fetchMock.mockResolvedValueOnce(new Response(null, { status: 503 }));
+      await tooltip.refetch({ cancelRefetch: false });
+      expect(field.getCurrentResult().data).toEqual([usd]);
+      // ProtectedRoute uses this flag so failed refreshes do not unmount the edited form
+      expect(field.getCurrentResult().isLoadingError).toBe(false);
+      expect(field.getCurrentResult().isRefetchError).toBe(true);
+
+      let finish!: (response: Response) => void;
+      fetchMock.mockReturnValueOnce(new Promise<Response>((resolve) => { finish = resolve; }));
+      const retry = tooltip.refetch({ cancelRefetch: false });
+      const repeatedRetry = field.refetch({ cancelRefetch: false });
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      finish(new Response(JSON.stringify([usd, cad])));
+      await Promise.all([retry, repeatedRetry]);
+      expect(field.getCurrentResult().data).toEqual([usd, cad]);
+      expect(tooltip.getCurrentResult().data).toEqual([usd, cad]);
+      expect(field.getCurrentResult().error).toBeNull();
+    } finally {
+      unsubField();
+      unsubTooltip();
+      client.clear();
+      vi.unstubAllGlobals();
+    }
+  });
+});

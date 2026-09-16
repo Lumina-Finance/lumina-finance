@@ -1,11 +1,11 @@
 import Dropdown from '@/components/dropdown/Dropdown'
 import IconTooltip from '@/components/tooltips/IconTooltip'
+import { CurrencyUnavailableTooltip } from '@/components/currency/CurrencyUnavailableTooltip'
 import { useMoneyInput } from '@/hooks/useMoneyInput'
 import type { BudgetEditorModalErrorGetter, BudgetEditorModalFieldIds, BudgetEditorModalHandlers, BudgetEditorModalOptions, BudgetEditorModalViewState } from '@/pages/budgets/components/budget-editor-modal/types'
 import BudgetEditorFieldLabelRow from '@/pages/budgets/components/shared/EditorFieldLabelRow'
 import { getCurrencyExponent, getMoneyPlaceholder } from '@/utils/moneyInput'
 import {
-  CURRENCY_AMOUNT_NOTICE,
   CURRENCY_LIST_LOADING,
   CURRENCY_LIST_NOTICE,
   type CurrencyListState,
@@ -23,9 +23,9 @@ interface BudgetEditorModalScopeSectionProps {
   limitPlaceholder?: string
   currencyReadOnly: boolean
   limitDisabled: boolean
+  isLimitLocked: boolean
 
-  // Stands the limit down unless the currency table is in hand, since its decimal places are the only way
-  // to read or write the stored amount, and says which of the two reasons applies
+  // Explains why the authoritative own-currency lock applies
   currencyState: CurrencyListState
 
   // Locks every editable field while the budget is archived so only the archive toggle stays live
@@ -46,6 +46,7 @@ export default function BudgetEditorModalScopeSection({
   limitPlaceholder,
   currencyReadOnly,
   limitDisabled,
+  isLimitLocked,
   currencyState,
   fieldsLocked,
   showError,
@@ -54,7 +55,6 @@ export default function BudgetEditorModalScopeSection({
   const { form } = state
   const { currencies } = options
   const { setField, onBlur } = handlers
-  const isLimitLocked = currencyState !== 'ready'
   const limitExponent = getCurrencyExponent(currencies, form.currency)
   const limitInput = useMoneyInput({
     value: form.limit,
@@ -145,20 +145,12 @@ export default function BudgetEditorModalScopeSection({
           <div>
             <BudgetEditorFieldLabelRow
               htmlFor={ids.limit}
-              label={isLimitLocked ? (
+              label={(
                 <span className="inline-flex items-center gap-2">
                   Limit
-                  {currencyState === 'loading' ? (
-                    <IconTooltip label="Loading currencies" modalFieldTabStop>
-                      {CURRENCY_LIST_LOADING}
-                    </IconTooltip>
-                  ) : (
-                    <IconTooltip label="Limit unavailable" level="important" modalFieldTabStop>
-                      {CURRENCY_AMOUNT_NOTICE}
-                    </IconTooltip>
-                  )}
+                  <CurrencyUnavailableTooltip unavailable={isLimitLocked} currencyState={currencyState} label="Limit unavailable" />
                 </span>
-              ) : 'Limit'}
+              )}
               error={showError('limit')}
             />
             <div className="relative">

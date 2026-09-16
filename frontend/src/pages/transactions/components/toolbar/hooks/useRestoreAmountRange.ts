@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef, type Dispatch, type SetStateAction } from 'react'
+import type { Dispatch, SetStateAction } from 'react'
 import type { Currency } from '@/api/currency'
+import { useRestoreOnceWhenReady } from '@/hooks/useRestoreOnceWhenReady'
 import {
   findAmountRangeDraft,
   isAppliedRangeWaitingOnCurrency,
@@ -29,22 +30,12 @@ export function useRestoreAmountRange(
   currencies: Currency[],
   setAmount: Dispatch<SetStateAction<AmountDraft>>,
 ): () => void {
-  const waitingRef = useRef(isAppliedRangeWaitingOnCurrency(filters, currencies))
-
-  useEffect(() => {
-    if (!waitingRef.current) return
-
-    const appliedAmount = findAmountRangeDraft(filters, currencies)
-    if (appliedAmount === null) return
-
-    waitingRef.current = false
-    setAmount(appliedAmount)
-  }, [filters, currencies, setAmount])
-
   // Re-armed by each seeding rather than on an open prop, since the desktop pill seeds from its own
   // open handler and the mobile sheet from the rising edge of its open prop, and only the draft
   // itself is called by both
-  return useCallback(() => {
-    waitingRef.current = isAppliedRangeWaitingOnCurrency(filters, currencies)
-  }, [filters, currencies])
+  return useRestoreOnceWhenReady({
+    shouldRestore: isAppliedRangeWaitingOnCurrency(filters, currencies),
+    readyValue: findAmountRangeDraft(filters, currencies),
+    restore: setAmount,
+  })
 }

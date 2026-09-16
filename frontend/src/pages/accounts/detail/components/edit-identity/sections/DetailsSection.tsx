@@ -1,11 +1,9 @@
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
 import Dropdown from '@/components/dropdown/Dropdown'
 import LoadFailure from '@/components/errors/LoadFailure'
-import IconTooltip from '@/components/tooltips/IconTooltip'
+import { CurrencyUnavailableTooltip } from '@/components/currency/CurrencyUnavailableTooltip'
 import { useMoneyInput } from '@/hooks/useMoneyInput'
 import {
-  CURRENCY_AMOUNT_NOTICE,
-  CURRENCY_LIST_LOADING,
   type CurrencyListState,
 } from '@/utils/currencyStatus'
 import { EDIT_ACCOUNT_IDENTITY_FIELD_IDS } from '@/pages/accounts/detail/constants/accountDetail'
@@ -22,9 +20,9 @@ type AccountDetailsSectionProps = {
   fieldErrors: IdentityFieldErrors
   canLinkTaxAdvantagedCategory: boolean
   isRevolving: boolean
+  isCreditLimitLocked: boolean
 
-  // Stands the credit limit down unless the currency table is in hand, since its decimal places are the
-  // only way to read or write the stored amount, and says which of the two reasons applies
+  // Explains why the authoritative own-currency lock applies
   currencyState: CurrencyListState
   selectedCurrencySymbol: string
   // Decimal places of the account's currency, used to settle the credit limit field on blur
@@ -43,6 +41,7 @@ export function AccountDetailsSection({
   fieldErrors,
   canLinkTaxAdvantagedCategory,
   isRevolving,
+  isCreditLimitLocked,
   currencyState,
   selectedCurrencySymbol,
   creditLimitExponent,
@@ -51,7 +50,6 @@ export function AccountDetailsSection({
   taxAdvantagedCategoriesFailed,
   setField,
 }: AccountDetailsSectionProps) {
-  const isCreditLimitLocked = currencyState !== 'ready'
   const creditLimitInput = useMoneyInput({
     value: form.credit_limit,
     exponent: creditLimitExponent,
@@ -88,20 +86,12 @@ export function AccountDetailsSection({
         <div>
           <AccountIdentityFieldLabelRow
             htmlFor={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.creditLimit}
-            label={isCreditLimitLocked ? (
+            label={(
               <span className="inline-flex items-center gap-2">
                 Credit Limit
-                {currencyState === 'loading' ? (
-                  <IconTooltip label="Loading currencies" modalFieldTabStop>
-                    {CURRENCY_LIST_LOADING}
-                  </IconTooltip>
-                ) : (
-                  <IconTooltip label="Credit limit unavailable" level="important" modalFieldTabStop>
-                    {CURRENCY_AMOUNT_NOTICE}
-                  </IconTooltip>
-                )}
+                <CurrencyUnavailableTooltip unavailable={isCreditLimitLocked} currencyState={currencyState} label="Credit limit unavailable" />
               </span>
-            ) : 'Credit Limit'}
+            )}
             error={fieldErrors.credit_limit}
           />
           <div className="relative">

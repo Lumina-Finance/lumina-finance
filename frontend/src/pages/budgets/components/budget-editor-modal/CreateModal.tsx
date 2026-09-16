@@ -16,6 +16,7 @@ import { validateBudgetCreateForm } from '@/pages/budgets/utils/budgetCreateVali
 import { getTodayYmd } from '@/utils/date'
 import { currencySymbol, toMinorUnits } from '@/pages/budgets/utils/money'
 import { waitForMilliseconds } from '@/utils/timing'
+import { findCurrencyExponent } from '@/utils/moneyInput'
 
 const CREATE_FIELD_IDS: BudgetEditorModalFieldIds = {
   name: 'budget-name',
@@ -81,6 +82,7 @@ export default function BudgetCreateModal({
     return expenseCategories.filter((category) => category.name.toLowerCase().includes(query))
   }, [categorySearch, expenseCategories])
   const limitMinorUnits = toMinorUnits(form.limit, currencies, form.currency)
+  const isLimitLocked = findCurrencyExponent(currencies, form.currency) === null
   const instanceLength = form.recurs ? Number(form.instanceLength) : 1
   const hasSelectedExpenseCategory = form.categoryIds.some((categoryId) =>
     expenseCategories.some((category) => category.id === categoryId),
@@ -273,6 +275,7 @@ export default function BudgetCreateModal({
             namePlaceholder="e.g. Groceries"
             currencyReadOnly={false}
             currencyState="ready"
+            isLimitLocked={isLimitLocked}
             limitDisabled={false}
             fieldsLocked={false}
             showError={showError}
