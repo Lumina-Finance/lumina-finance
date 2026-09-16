@@ -19,13 +19,17 @@ export function selectTransactionOverviewState({
   overview,
   loading,
   failed,
+  retrying = false,
   rangeLabel,
 }: {
   overview: TransactionsOverview | undefined
   loading: boolean
   failed: boolean
+  retrying?: boolean
   rangeLabel: string
 }): TransactionOverviewState {
+  // Explicit retries keep the failure view mounted while its button supplies loading feedback
+  if (retrying) return { kind: 'failed' }
   if (loading) return { kind: 'loading' }
   if (failed) return { kind: 'failed' }
 

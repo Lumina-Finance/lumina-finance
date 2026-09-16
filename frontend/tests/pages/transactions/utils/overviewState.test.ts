@@ -107,3 +107,20 @@ describe('transaction overview presentation state', () => {
     expect(select({ data: overview(data) })).toStrictEqual({ kind: 'content' })
   })
 })
+
+
+describe('overview button retry presentation', () => {
+  it('keeps the failure view while an explicit retry loads', () => {
+    expect(selectTransactionOverviewState({
+      overview: undefined, loading: true, failed: false, retrying: true, rangeLabel: RANGE_LABEL,
+    })).toEqual({ kind: 'failed' })
+  })
+
+  it('holds recovered data behind the failure view until the retry transition releases it', () => {
+    const data = overview({ total_inflow: 12000, total_outflow: -2000 })
+    const input = { overview: data, loading: false, failed: false, rangeLabel: RANGE_LABEL }
+    expect(selectTransactionOverviewState({ ...input, retrying: true })).toEqual({ kind: 'failed' })
+    expect(selectTransactionOverviewState({ ...input, retrying: false })).toEqual({ kind: 'content' })
+    expect(selectTransactionOverviewState({ ...input, failed: true, retrying: false })).toEqual({ kind: 'failed' })
+  })
+})

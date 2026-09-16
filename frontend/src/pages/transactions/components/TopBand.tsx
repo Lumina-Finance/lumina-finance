@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
+import { LoaderCircle } from 'lucide-react'
 import type { TransactionsOverview } from '@/api/transactions'
 import TransactionFilterLoadingOverlay from '@/pages/transactions/components/FilterLoadingOverlay'
 import { useMinimumLoadingDuration } from '@/pages/transactions/hooks/useMinimumLoadingDuration'
@@ -20,6 +21,11 @@ import { selectTransactionOverviewState } from '@/pages/transactions/utils/overv
 // refetch does not flash the overlay in and out
 const MIN_SUMMARY_LOADING_MS = 800
 
+// Match the secondary button height when it contracts into a circular retry indicator
+const RETRY_BUTTON_DIAMETER = 40
+const RETRY_BUTTON_WIDTH = 112
+const RETRY_TRANSITION_SECONDS = 0.2
+
 const topBandDividerStyle = {
   height: 1,
   background:
@@ -38,6 +44,8 @@ export default function TransactionsTopBand({
   displayCurrency,
   loading,
   failed,
+  retrying,
+  skipEntrance,
   rangeLabel,
   fromDate,
   toDate,
@@ -52,6 +60,8 @@ export default function TransactionsTopBand({
   displayCurrency: string
   loading: boolean
   failed: boolean
+  retrying: boolean
+  skipEntrance: boolean
   rangeLabel: string
   fromDate: string
   toDate: string
@@ -62,7 +72,7 @@ export default function TransactionsTopBand({
   onRetry: () => void
   onOpenOutlierTransaction: (transactionId: string) => void
 }) {
-  const showLoading = useMinimumLoadingDuration(loading, MIN_SUMMARY_LOADING_MS)
+  const showLoading = useMinimumLoadingDuration(loading && !retrying, MIN_SUMMARY_LOADING_MS)
   const overviewOutliers = overview?.outliers ?? []
   const overviewCategories = overview?.top_categories ?? []
   const overviewDailyCashFlow = overview?.daily_cash_flow ?? []
@@ -76,6 +86,7 @@ export default function TransactionsTopBand({
     overview,
     loading: showLoading,
     failed,
+    retrying,
     rangeLabel,
   })
 
@@ -159,9 +170,35 @@ export default function TransactionsTopBand({
               Try again to refresh this summary.
             </p>
           </div>
-          <button type="button" className="app-secondary-button" onClick={onRetry}>
-            Try again
-          </button>
+          <motion.button
+            type="button"
+            className="app-secondary-button relative overflow-hidden"
+            onClick={onRetry}
+            disabled={retrying}
+            aria-busy={retrying}
+            aria-label={retrying ? 'Retrying transaction summary' : 'Try again'}
+            initial={false}
+            animate={{ width: retrying ? RETRY_BUTTON_DIAMETER : RETRY_BUTTON_WIDTH, paddingLeft: 0, paddingRight: 0, borderRadius: RETRY_BUTTON_DIAMETER / 2 }}
+            transition={{ duration: prefersReducedMotion ? 0 : RETRY_TRANSITION_SECONDS }}
+            style={{ transition: 'none' }}
+          >
+            <motion.span
+              animate={{ opacity: retrying ? 0 : 1 }}
+              transition={{ duration: prefersReducedMotion ? 0 : RETRY_TRANSITION_SECONDS }}
+              className="whitespace-nowrap"
+              aria-hidden
+            >
+              Try again
+            </motion.span>
+            <motion.span
+              className="absolute inset-0 flex items-center justify-center"
+              animate={{ opacity: retrying ? 1 : 0 }}
+              transition={{ duration: prefersReducedMotion ? 0 : RETRY_TRANSITION_SECONDS }}
+              aria-hidden
+            >
+              <LoaderCircle size={18} className={retrying ? 'animate-spin motion-reduce:animate-none' : ''} />
+            </motion.span>
+          </motion.button>
         </div>
       )}
 
@@ -190,7 +227,7 @@ export default function TransactionsTopBand({
             <MostExpensiveTransactionsPanel
               outliers={outliers}
               fxStatus={overview?.outliers_fx_status}
-              prefersReducedMotion={prefersReducedMotion}
+              prefersReducedMotion={prefersReducedMotion || skipEntrance}
               openingOutlierId={openingOutlierId}
               outlierLoadError={outlierLoadError}
               onOpenOutlierTransaction={onOpenOutlierTransaction}
@@ -201,7 +238,8 @@ export default function TransactionsTopBand({
               fxStatus={overview?.top_categories_fx_status}
               displayCurrency={displayCurrency}
               chartAnimationKey={chartAnimationKey}
-              prefersReducedMotion={prefersReducedMotion}
+              prefersReducedMotion={prefersReducedMotion || skipEntrance}
+              skipEntrance={skipEntrance}
               tooltipDisabled={overviewState.kind === 'failed'}
               className="border-t border-[var(--app-border)] pt-3 min-[730px]:pl-6 min-[1750px]:border-t-0 min-[1750px]:pt-0"
             />
@@ -224,7 +262,7 @@ export default function TransactionsTopBand({
           showPlaceholderData={!hasOverviewData}
           displayCurrency={displayCurrency}
           chartAnimationKey={chartAnimationKey}
-          prefersReducedMotion={prefersReducedMotion}
+          prefersReducedMotion={prefersReducedMotion || skipEntrance}
           mode={dailyCashFlowMode}
           tooltipDisabled={overviewState.kind === 'failed'}
           onModeToggle={() => setDailyCashFlowMode((mode) => (mode === 'net' ? 'gross' : 'net'))}
