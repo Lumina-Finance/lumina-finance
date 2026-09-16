@@ -1,5 +1,6 @@
 """Password reset request and token service"""
 
+import hashlib
 import logging
 import secrets
 import uuid
@@ -35,6 +36,9 @@ _RESET_PATH = "/reset-password"
 # Dead token rows double as the send log for the daily email limit, so they are kept for the
 # full rolling day the limit counts over
 _SEND_LOG_RETENTION = timedelta(hours=24)
+
+# Keep reset issuance separate from other advisory-lock protocols
+_ISSUANCE_LOCK_NAMESPACE = b"lumina:password-reset-issuance:"
 
 # One message for every token failure so responses do not reveal which check rejected it
 _INVALID_TOKEN_DETAIL = "Invalid or expired reset token"  # noqa: S105
@@ -83,6 +87,11 @@ async def request_password_reset(db: AsyncSession, email: str) -> None:
     if user_id is None:
         await db.commit()
         return
+
+    # Hold this user's allowance until the new token commits, including when no prior rows exist
+    lock_digest = hashlib.blake2b(_ISSUANCE_LOCK_NAMESPACE + user_id.bytes, digest_size=8).digest()
+    lock_key = int.from_bytes(lock_digest, byteorder="big", signed=True)
+    await db.execute(select(sa_func.pg_advisory_xact_lock(lock_key)))
 
     # After pruning, every remaining row for the user was created within the rolling day
     recent_tokens_query = select(PasswordResetToken).where(PasswordResetToken.user_id == user_id)
@@ -164,8 +173,10 @@ async def begin_password_reset(db: AsyncSession, token: str, new_password: str) 
     if reset_token is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=_INVALID_TOKEN_DETAIL)
 
-    # The validated token proves this identity, which the self-only users policy needs stamped
+    # The token lookup ran before any identity existed, so close that transaction and adopt the
+    # verified identity, allowing later user reads to stamp it for the self-only users policy
     current_user_id_ctx.set(reset_token.user_id)
+    await db.commit()
 
     totp_enabled = await is_totp_enabled(db, reset_token.user_id)
     passkey_available = await is_passkey_registered(db, reset_token.user_id)
