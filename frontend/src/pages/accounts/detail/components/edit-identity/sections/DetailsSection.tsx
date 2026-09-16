@@ -1,12 +1,9 @@
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
 import Dropdown from '@/components/dropdown/Dropdown'
 import LoadFailure from '@/components/errors/LoadFailure'
-import IconTooltip from '@/components/tooltips/IconTooltip'
+import { CurrencyUnavailableTooltip } from '@/components/currency/CurrencyUnavailableTooltip'
 import { useMoneyInput } from '@/hooks/useMoneyInput'
 import {
-  CURRENCY_AMOUNT_NOTICE,
-  CURRENCY_AMOUNT_UNKNOWN,
-  CURRENCY_LIST_LOADING,
   type CurrencyListState,
 } from '@/utils/currencyStatus'
 import { EDIT_ACCOUNT_IDENTITY_FIELD_IDS } from '@/pages/accounts/detail/constants/accountDetail'
@@ -89,24 +86,12 @@ export function AccountDetailsSection({
         <div>
           <AccountIdentityFieldLabelRow
             htmlFor={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.creditLimit}
-            label={isCreditLimitLocked ? (
+            label={(
               <span className="inline-flex items-center gap-2">
                 Credit Limit
-                {currencyState === 'loading' ? (
-                  <IconTooltip label="Loading currencies" modalFieldTabStop>
-                    {CURRENCY_LIST_LOADING}
-                  </IconTooltip>
-                ) : currencyState === 'unavailable' ? (
-                  <IconTooltip label="Credit limit unavailable" level="important" modalFieldTabStop>
-                    {CURRENCY_AMOUNT_NOTICE}
-                  </IconTooltip>
-                ) : (
-                  <IconTooltip label="Credit limit unavailable" level="important" modalFieldTabStop>
-                    {CURRENCY_AMOUNT_UNKNOWN}
-                  </IconTooltip>
-                )}
+                <CurrencyUnavailableTooltip unavailable={isCreditLimitLocked} currencyState={currencyState} label="Credit limit unavailable" />
               </span>
-            ) : 'Credit Limit'}
+            )}
             error={fieldErrors.credit_limit}
           />
           <div className="relative">

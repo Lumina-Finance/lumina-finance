@@ -23,6 +23,9 @@ interface IconTooltipProps {
   // Joins the Tab order inside a modal, whose focus handling only visits fields and anything carrying
   // this marker, so an explanation attached to a field label stays reachable without a mouse
   modalFieldTabStop?: boolean
+
+  // Keeps controls in a closed tooltip out of the modal keyboard navigation
+  interactive?: boolean
 }
 
 const placementClass: Record<IconTooltipPlacement, string> = {
@@ -145,11 +148,13 @@ export default function IconTooltip({
   size = 15,
   strokeWidth = 2.5,
   modalFieldTabStop = false,
+  interactive = false,
 }: IconTooltipProps) {
   const { Icon: DefaultIcon, color } = levelConfig[level]
   const isFxIcon = IconOverride === 'fx'
   const Icon = isFxIcon ? DefaultIcon : IconOverride ?? DefaultIcon
   const [isOpen, setIsOpen] = useState(false)
+  const [isHovered, setIsHovered] = useState(false)
   const [actualPlacement, setActualPlacement] = useState<IconTooltipPlacement>(placement)
   const [horizontalOffset, setHorizontalOffset] = useState(0)
   const rootRef = useRef<HTMLSpanElement>(null)
@@ -199,7 +204,12 @@ export default function IconTooltip({
   const rootClassName = joinClassNames(ROOT_CLASS, isFxIcon && FX_ROOT_CLASS)
 
   return (
-    <span ref={rootRef} className={rootClassName}>
+    <span
+      ref={rootRef}
+      className={rootClassName}
+      onMouseEnter={interactive ? () => setIsHovered(true) : undefined}
+      onMouseLeave={interactive ? () => setIsHovered(false) : undefined}
+    >
       <button
         ref={triggerRef}
         type="button"
@@ -229,7 +239,11 @@ export default function IconTooltip({
       <span
         ref={tooltipRef}
         className={tooltipWrapperClassName}
-        style={{ transform: `translateX(calc(-50% + ${horizontalOffset}px))` }}
+        inert={interactive && !isOpen && !isHovered}
+        style={{
+          transform: `translateX(calc(-50% + ${horizontalOffset}px))`,
+          visibility: interactive && !isOpen && !isHovered ? 'hidden' : undefined,
+        }}
       >
         <span
           className={`app-tooltip-panel block rounded-md px-2.5 py-1.5 text-left text-sm font-medium shadow-sm ${widthClassName}`}

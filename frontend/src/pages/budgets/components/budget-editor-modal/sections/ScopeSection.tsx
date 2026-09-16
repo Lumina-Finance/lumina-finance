@@ -1,12 +1,11 @@
 import Dropdown from '@/components/dropdown/Dropdown'
 import IconTooltip from '@/components/tooltips/IconTooltip'
+import { CurrencyUnavailableTooltip } from '@/components/currency/CurrencyUnavailableTooltip'
 import { useMoneyInput } from '@/hooks/useMoneyInput'
 import type { BudgetEditorModalErrorGetter, BudgetEditorModalFieldIds, BudgetEditorModalHandlers, BudgetEditorModalOptions, BudgetEditorModalViewState } from '@/pages/budgets/components/budget-editor-modal/types'
 import BudgetEditorFieldLabelRow from '@/pages/budgets/components/shared/EditorFieldLabelRow'
 import { getCurrencyExponent, getMoneyPlaceholder } from '@/utils/moneyInput'
 import {
-  CURRENCY_AMOUNT_NOTICE,
-  CURRENCY_AMOUNT_UNKNOWN,
   CURRENCY_LIST_LOADING,
   CURRENCY_LIST_NOTICE,
   type CurrencyListState,
@@ -146,24 +145,12 @@ export default function BudgetEditorModalScopeSection({
           <div>
             <BudgetEditorFieldLabelRow
               htmlFor={ids.limit}
-              label={isLimitLocked ? (
+              label={(
                 <span className="inline-flex items-center gap-2">
                   Limit
-                  {currencyState === 'loading' ? (
-                    <IconTooltip label="Loading currencies" modalFieldTabStop>
-                      {CURRENCY_LIST_LOADING}
-                    </IconTooltip>
-                  ) : currencyState === 'unavailable' ? (
-                    <IconTooltip label="Limit unavailable" level="important" modalFieldTabStop>
-                      {CURRENCY_AMOUNT_NOTICE}
-                    </IconTooltip>
-                  ) : (
-                    <IconTooltip label="Limit unavailable" level="important" modalFieldTabStop>
-                      {CURRENCY_AMOUNT_UNKNOWN}
-                    </IconTooltip>
-                  )}
+                  <CurrencyUnavailableTooltip unavailable={isLimitLocked} currencyState={currencyState} label="Limit unavailable" />
                 </span>
-              ) : 'Limit'}
+              )}
               error={showError('limit')}
             />
             <div className="relative">

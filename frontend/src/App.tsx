@@ -97,11 +97,11 @@ function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase, 
   // The wait is bounded by the request rather than by a timer here, so it survives this component
   // remounting on every navigation and needs nothing reset. useCurrencies aborts at five seconds and
   // does not retry, so this is pending for at most that long and then either has the list or has failed
-  const { isPending: currenciesPending, isError: currenciesFailed, error: currencyError } = useCurrencies();
+  const { isPending: currenciesPending, isLoadingError: currencyListUnavailable, error: currencyError } = useCurrencies();
   const ready = !loading && minTimePassed && !currenciesPending;
 
-  // Failing means the recovery screen rather than the app, because every screen below shows money and
-  // none can show it correctly without the list
+  // An initial failure means the recovery screen because amounts need currency metadata. A failed
+  // refetch retains the cached list and the open form so an inline retry does not discard edits
   //
   // Deliberately not held back until the session is known, though that does cost something. A visitor
   // whose stored session turns out to be stale sees this screen until the session request answers and
@@ -114,7 +114,6 @@ function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase, 
   // loading screen with no reload button rather than on this screen with one. Every one of these
   // cases means the server is unreachable, and the screen saying so is the better answer to all of
   // them
-  const currencyListUnavailable = currenciesFailed;
 
   // The loading phase runs after the switch while the new route's chunk mounts
   const routeLoading = pageTransitionPhase === 'loading';
