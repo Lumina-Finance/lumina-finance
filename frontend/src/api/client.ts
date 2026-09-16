@@ -66,18 +66,20 @@ export async function authenticatedFetch<T>(path: string, options: RequestInit =
   const isExpiredTokenResponse = res.status === 401 && res.headers.get('WWW-Authenticate') !== null;
 
   if (isExpiredTokenResponse) {
+    let refreshed: AuthResponse;
     try {
-      const refreshed = await refreshOnce();
-      bindings.onSessionRefreshed(refreshed);
-      res = await makeRequest(refreshed.access_token);
+      refreshed = await refreshOnce();
     } catch (error) {
-      if (authApi.isRefreshAlreadyRotatedError(error)) {
-        throw error;
+      // Only rejected refresh credentials end the session; temporary failures remain retryable
+      if (error instanceof ApiError && error.status === 401) {
+        bindings.onSessionLost();
+        throw new ApiError('Session expired', 401);
       }
-
-      bindings.onSessionLost();
-      throw new ApiError('Session expired', 401);
+      throw error;
     }
+
+    bindings.onSessionRefreshed(refreshed);
+    res = await makeRequest(refreshed.access_token);
   }
 
   if (!res.ok) {
