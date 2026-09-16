@@ -1,5 +1,7 @@
-import { useCallback, useMemo, useRef, useState } from 'react'
-import { useReducedMotion } from 'motion/react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { motion, useAnimationControls, useReducedMotion } from 'motion/react'
+import { flushSync } from 'react-dom'
+import { withMinDelay } from '@/utils/timing'
 import { useNavigate } from 'react-router'
 import { useAuth } from '@/hooks/useAuth'
 import { useAccounts } from '@/api/accounts'
@@ -18,6 +20,12 @@ import {
   formatOverviewRangeLabel,
   getCurrentMonthOverviewRange,
 } from '@/pages/transactions/utils/date'
+
+// Matches the overview loading minimum while keeping feedback inside the retry button
+const RETRY_MIN_MS = 800
+
+// Fade out the failed summary before revealing the recovered summary without chart entrances
+const RETRY_FADE_SECONDS = 0.2
 
 /**
  * Renders the transactions page overview, filters, list, and transaction modal workflows
@@ -107,7 +115,12 @@ export default function TransactionsPage() {
   // The overview supports a single account and the date range, so it scopes to the chosen account
   // only when exactly one is selected and otherwise spans every account
   const overviewAccountId = filters.account_id?.length === 1 ? filters.account_id[0] : undefined
-  const { data: overview, isFetching: isOverviewFetching } = useTransactionsOverview({
+  const {
+    data: overview,
+    isFetching: isOverviewFetching,
+    isError: isOverviewError,
+    refetch: refetchOverview,
+  } = useTransactionsOverview({
     account_id: overviewAccountId,
     from_date: overviewFromDate,
     to_date: overviewToDate,
@@ -120,6 +133,51 @@ export default function TransactionsPage() {
     overviewFromDate,
     overviewToDate,
   ].join('|')
+  const summaryAnimation = useAnimationControls()
+  const [retryKey, setRetryKey] = useState<string | null>(null)
+  const [recoveredKey, setRecoveredKey] = useState<string | null>(null)
+  const activeRetryRef = useRef<object | null>(null)
+  const currentOverviewKeyRef = useRef(chartAnimationKey)
+  const [renderedOverviewKey, setRenderedOverviewKey] = useState(chartAnimationKey)
+  if (renderedOverviewKey !== chartAnimationKey) {
+    setRenderedOverviewKey(chartAnimationKey)
+    setRetryKey(null)
+    setRecoveredKey(null)
+  }
+  const retrying = retryKey === chartAnimationKey
+
+  // A filter change or unmount invalidates the previous retry's visual transition
+  useEffect(() => {
+    currentOverviewKeyRef.current = chartAnimationKey
+    activeRetryRef.current = null
+    summaryAnimation.stop()
+    summaryAnimation.set({ opacity: 1 })
+    return () => {
+      activeRetryRef.current = null
+      summaryAnimation.stop()
+    }
+  }, [chartAnimationKey, summaryAnimation])
+
+  /** Retries only the current summary, then swaps its failure view while the summary is faded out */
+  const handleRetryOverview = async () => {
+    if (activeRetryRef.current || isOverviewFetching) return
+    const request = {}
+    activeRetryRef.current = request
+    setRetryKey(chartAnimationKey)
+    setRecoveredKey(chartAnimationKey)
+    const result = await withMinDelay(() => refetchOverview({ cancelRefetch: false }), RETRY_MIN_MS)
+    if (activeRetryRef.current !== request || currentOverviewKeyRef.current !== chartAnimationKey) return
+    if (!result.isError) {
+      await summaryAnimation.start({ opacity: 0, transition: { duration: prefersReducedMotion ? 0 : RETRY_FADE_SECONDS } })
+      if (activeRetryRef.current !== request) return
+      flushSync(() => setRetryKey(null))
+      await summaryAnimation.start({ opacity: 1, transition: { duration: prefersReducedMotion ? 0 : RETRY_FADE_SECONDS } })
+    } else {
+      setRetryKey(null)
+    }
+    if (activeRetryRef.current === request) activeRetryRef.current = null
+  }
+
   const transactionAccounts = useMemo(
     () => (accounts ?? []).map(toTransactionListAccount),
     [accounts],
@@ -142,19 +200,25 @@ export default function TransactionsPage() {
 
       <div>
         <div className="space-y-3">
-          <TransactionsTopBand
-            overview={overview}
-            displayCurrency={displayCurrency}
-            loading={filterListLoading || isOverviewFetching}
-            rangeLabel={rangeLabel}
-            fromDate={overviewFromDate}
-            toDate={overviewToDate}
-            chartAnimationKey={chartAnimationKey}
-            prefersReducedMotion={prefersReducedMotion}
-            openingOutlierId={openingOutlierId}
-            outlierLoadError={outlierLoadError}
-            onOpenOutlierTransaction={(transactionId) => { void openOutlierTransaction(transactionId) }}
-          />
+          <motion.div animate={summaryAnimation} initial={false}>
+            <TransactionsTopBand
+              overview={overview}
+              displayCurrency={displayCurrency}
+              loading={filterListLoading || isOverviewFetching}
+              failed={isOverviewError}
+              retrying={retrying}
+              skipEntrance={recoveredKey === chartAnimationKey}
+              rangeLabel={rangeLabel}
+              fromDate={overviewFromDate}
+              toDate={overviewToDate}
+              chartAnimationKey={chartAnimationKey}
+              prefersReducedMotion={prefersReducedMotion}
+              openingOutlierId={openingOutlierId}
+              outlierLoadError={outlierLoadError}
+              onRetry={() => { void handleRetryOverview() }}
+              onOpenOutlierTransaction={(transactionId) => { void openOutlierTransaction(transactionId) }}
+            />
+          </motion.div>
 
           <div
             style={{

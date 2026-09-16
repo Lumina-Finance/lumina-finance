@@ -44,7 +44,7 @@ import {
 import type { OverviewCategorySpend } from '@/pages/transactions/components/top-band/types'
 import { getTopCategoriesFxStatusMessage } from '@/pages/transactions/utils/fxTooltipMessages'
 
-const emptyTopCategoryHeight = TOP_CATEGORY_LIMIT * TOP_CATEGORY_ROW_HEIGHT
+const topCategoryPanelHeight = TOP_CATEGORY_LIMIT * TOP_CATEGORY_ROW_HEIGHT
 
 // Overrides Bar's own 400 ms default, holding the entrance this chart ran before its animation
 // state moved to the shared hook
@@ -113,6 +113,8 @@ export default function TopCategoriesChart({
   displayCurrency,
   chartAnimationKey,
   prefersReducedMotion,
+  tooltipDisabled,
+  skipEntrance,
   className = '',
 }: {
   categorySpend: OverviewCategorySpend[]
@@ -120,6 +122,8 @@ export default function TopCategoriesChart({
   displayCurrency: string
   chartAnimationKey: string
   prefersReducedMotion: boolean | null
+  skipEntrance: boolean
+  tooltipDisabled: boolean
   className?: string
 }) {
   const topCategoryChartRef = useRef<HTMLDivElement>(null)
@@ -196,7 +200,7 @@ export default function TopCategoriesChart({
           getMessage={getTopCategoriesFxStatusMessage}
         />
       </p>
-      <div className="mt-2">
+      <div className="mt-2" style={{ minHeight: topCategoryPanelHeight }}>
         <AnimatePresence initial={false} mode="popLayout">
           {categorySpend.length === 0 ? (
             <motion.p
@@ -204,7 +208,7 @@ export default function TopCategoriesChart({
               layout
               className="flex items-center justify-center text-center text-sm italic"
               style={{
-                height: emptyTopCategoryHeight,
+                height: topCategoryPanelHeight,
                 color: 'var(--app-text-subtle)',
               }}
               initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 4 }}
@@ -254,6 +258,7 @@ export default function TopCategoriesChart({
                     barSize={16}
                     animationDuration={TOP_CATEGORY_BAR_ENTRANCE_DURATION_MS}
                     {...topCategoryBarEntrance}
+                    isAnimationActive={skipEntrance ? false : topCategoryBarEntrance.isAnimationActive}
                   >
                     {categorySpend.map((_, index) => (
                       <Cell
@@ -265,19 +270,21 @@ export default function TopCategoriesChart({
                 </BarChart>
               </ResponsiveContainer>
               )}
-              <DeferredChartTooltipOverlay
-                ref={topCategoryTooltipRef}
-                chartRef={topCategoryChartRef}
-                className="min-w-40"
-                showGuide={false}
-                getKey={getTopCategoryTooltipKey}
-                renderContent={(point) => (
-                  <TopCategoryTooltipContent
-                    point={point}
-                    displayCurrency={displayCurrency}
-                  />
-                )}
-              />
+              {!tooltipDisabled && (
+                <DeferredChartTooltipOverlay
+                  ref={topCategoryTooltipRef}
+                  chartRef={topCategoryChartRef}
+                  className="min-w-40"
+                  showGuide={false}
+                  getKey={getTopCategoryTooltipKey}
+                  renderContent={(point) => (
+                    <TopCategoryTooltipContent
+                      point={point}
+                      displayCurrency={displayCurrency}
+                    />
+                  )}
+                />
+              )}
             </motion.div>
           )}
         </AnimatePresence>

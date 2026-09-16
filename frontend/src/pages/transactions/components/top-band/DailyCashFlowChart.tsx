@@ -172,6 +172,7 @@ export default function DailyCashFlowChart({
   chartAnimationKey,
   prefersReducedMotion,
   mode,
+  tooltipDisabled,
   onModeToggle,
 }: {
   rawDailyFlow: DailyCashFlow[]
@@ -183,6 +184,7 @@ export default function DailyCashFlowChart({
   chartAnimationKey: string
   prefersReducedMotion: boolean | null
   mode: DailyCashFlowChartMode
+  tooltipDisabled: boolean
   onModeToggle: () => void
 }) {
   const dailyFlowChartRef = useRef<HTMLDivElement>(null)
@@ -413,19 +415,21 @@ export default function DailyCashFlowChart({
         </ResponsiveContainer>
         </motion.div>
         )}
-        <DeferredChartTooltipOverlay
-          ref={dailyFlowTooltipRef}
-          chartRef={dailyFlowChartRef}
-          className="min-w-44"
-          getKey={getDailyCashFlowTooltipKey}
-          renderContent={(point) => (
-            <DailyCashFlowTooltipContent
-              point={point}
-              displayCurrency={displayCurrency}
-              mode={mode}
-            />
-          )}
-        />
+        {!tooltipDisabled && (
+          <DeferredChartTooltipOverlay
+            ref={dailyFlowTooltipRef}
+            chartRef={dailyFlowChartRef}
+            className="min-w-44"
+            getKey={getDailyCashFlowTooltipKey}
+            renderContent={(point) => (
+              <DailyCashFlowTooltipContent
+                point={point}
+                displayCurrency={displayCurrency}
+                mode={mode}
+              />
+            )}
+          />
+        )}
       </div>
     </>
   )
