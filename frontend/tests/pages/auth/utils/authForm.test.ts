@@ -12,7 +12,6 @@ import {
   getAuthErrorMessage,
   getAuthMode,
   getCurrencyPlaceholder,
-  getDisplayAuthError,
   getLockoutExpiry,
   getLockoutRemainingLabel,
   getSubmitTouchedFields,
@@ -95,7 +94,6 @@ describe('auth form helpers', () => {
     ])
     expect(getCurrencyPlaceholder(false, 0)).toBe('Loading currencies…')
     expect(getCurrencyPlaceholder(true, 0)).toBe('Failed to load currencies')
-    expect(getDisplayAuthError('', 'signup', true, 0)).toBe('Unable to load currencies. Please refresh and try again.')
     expect(isAuthSubmitDisabled(false, {}, 'signup', 0)).toBe(true)
     expect(isAuthSubmitDisabled(false, {}, 'login', 0)).toBe(false)
   })

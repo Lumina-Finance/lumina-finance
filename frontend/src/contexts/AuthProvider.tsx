@@ -11,6 +11,7 @@ import type {
   User,
 } from '@/api/auth';
 import { registerAuthBindings } from '@/api/client';
+import { clearUserScopedCache } from '@/api/cache/session';
 import { AuthContext, SESSION_KEY, type AuthContextValue, type AuthState } from '@/contexts/AuthContext';
 
 const RELOAD_SESSION_RESTORE_DELAY_MS = 750;
@@ -51,8 +52,8 @@ function restoreSession(): Promise<AuthResponse> {
  *
  * On mount, if a prior session flag is set, it silently attempts a token refresh to restore the
  * session, waiting briefly first after a browser reload so a refresh already in flight from before the
- * reload can finish rather than racing a second rotation. Every action that starts or ends a session
- * also clears the cached React Query data so no previous user's data survives the switch
+ * reload can finish rather than racing a second rotation. Starting a new session clears user queries
+ * and mutations while retaining public currency metadata. Ending a session clears both caches fully
  */
 export function AuthProvider({ children }: { children: ReactNode }) {
   // Check once on mount — not reactive to later changes
@@ -146,21 +147,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return res;
     }
 
-    queryClient.clear();
+    clearUserScopedCache(queryClient);
     localStorage.setItem(SESSION_KEY, '1');
     return res;
   }, [queryClient]);
 
   const verifyMfa = useCallback(async (payload: MfaVerifyPayload) => {
     const res = await authApi.verifyMfa(payload);
-    queryClient.clear();
+    clearUserScopedCache(queryClient);
     localStorage.setItem(SESSION_KEY, '1');
     return res;
   }, [queryClient]);
 
   const signup = useCallback(async (payload: SignupPayload) => {
     const res = await authApi.signup(payload);
-    queryClient.clear();
+    clearUserScopedCache(queryClient);
     localStorage.setItem(SESSION_KEY, '1');
     return res;
   }, [queryClient]);
@@ -171,7 +172,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // this commit without going through login/verifyMfa, so without this a reload finds no flag, skips
     // the silent refresh, and signs the user out despite a valid refresh cookie
     localStorage.setItem(SESSION_KEY, '1');
-    queryClient.clear();
+    clearUserScopedCache(queryClient);
     applyState({ user: res.user, accessToken: res.access_token, loading: false });
   }, [queryClient, applyState]);
 

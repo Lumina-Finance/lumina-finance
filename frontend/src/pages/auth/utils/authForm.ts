@@ -169,22 +169,6 @@ export function getCurrencyPlaceholder(currenciesError: boolean, currencyCount: 
 }
 
 /**
- * Promotes signup reference-data failures into the main error surface so the user cannot miss them
- */
-export function getDisplayAuthError(
-  error: string,
-  mode: AuthMode,
-  currenciesError: boolean,
-  currencyCount: number,
-): string {
-  if (error) return error
-  if (mode === 'signup' && currenciesError && currencyCount === 0) {
-    return 'Unable to load currencies. Please refresh and try again.'
-  }
-  return ''
-}
-
-/**
  * Prevents submit when the form is busy, invalid, or signup cannot load required currency options
  */
 export function isAuthSubmitDisabled(
