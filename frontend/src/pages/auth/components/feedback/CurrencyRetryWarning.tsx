@@ -1,5 +1,10 @@
 import { useState } from 'react'
+import { LoaderCircle } from 'lucide-react'
 import { AuthErrorBanner } from '@/pages/auth/components/feedback/ErrorBanner'
+import { withMinDelay } from '@/utils/timing'
+
+/** Keeps the retry feedback visible even when the currency request settles immediately */
+const CURRENCY_RETRY_MIN_MS = 800
 
 interface CurrencyRetryWarningProps {
   failed: boolean
@@ -16,7 +21,7 @@ export function CurrencyRetryWarning({ failed, fetching, onRetry }: CurrencyRetr
     if (fetching || retrying) return
     setRetrying(true)
     try {
-      await onRetry()
+      await withMinDelay(onRetry, CURRENCY_RETRY_MIN_MS)
     } finally {
       setRetrying(false)
     }
@@ -31,6 +36,7 @@ export function CurrencyRetryWarning({ failed, fetching, onRetry }: CurrencyRetr
           Unable to load currencies.{' '}
           {retrying ? (
             <span role="status" className="inline-flex items-center gap-1.5 align-middle">
+              <LoaderCircle size={14} className="animate-spin motion-reduce:animate-none" aria-hidden />
               Retrying…
             </span>
           ) : (
