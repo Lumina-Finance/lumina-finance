@@ -14,7 +14,7 @@ interface DeferredTransactionRefreshState {
 }
 
 /**
- * Defers the transactions-page and account refresh for a session of one or more creates until the
+ * Defers transaction, account and credit refresh for a session of one or more creates until the
  * modal closes, so it refreshes once, on dismiss, instead of refetching behind the open modal
  * after every save
  */
