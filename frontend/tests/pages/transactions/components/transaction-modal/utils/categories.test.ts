@@ -20,4 +20,12 @@ describe('transaction modal category options', () => {
       { value: 'transfer', label: 'Transfer', group: 'Transfer' },
     ])
   })
+
+  it('keeps all kinds available for callers without a single transaction kind', () => {
+    expect(buildCategoryOptions([
+      createCategory({ id: 'groceries', name: 'Groceries', kind: 'expense' }),
+      createCategory({ id: 'salary', name: 'Salary', kind: 'income' }),
+      createCategory({ id: 'transfer', name: 'Transfer', kind: 'transfer' }),
+    ]).map((option) => option.value)).toEqual(['groceries', 'salary', 'transfer'])
+  })
 })

@@ -13,9 +13,10 @@ export interface CreditRepaymentSteer {
  * Reports whether the chosen category may be recording a credit repayment as an expense, and which
  * category the offered switch sets
  *
- * Both categories are matched by name and the system flag, the way Balance Adjustment already is,
- * so a personal category sharing either name is left alone. The whole decision lives here rather
- * than in the component, so every case it has to get right is reachable from a test
+ * Both repayment categories are matched by name and the system flag, so a personal category
+ * sharing either name is left alone. Balance Adjustment uses a separate exact transfer-kind rule.
+ * The whole decision lives here rather than in the component, so every case it has to get right is
+ * reachable from a test
  *
  * @param selectedCategory Category currently chosen on the form, if any
  * @param categories Every category the user can pick from
