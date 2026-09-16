@@ -30,7 +30,6 @@ from webauthn.helpers.structs import (
     UserVerificationRequirement,
 )
 
-from app.config.two_factor import TWO_FACTOR_STAGING_EXPIRE_SECONDS
 from app.config.webauthn import (
     WEBAUTHN_CHALLENGE_EXPIRE_SECONDS,
     WEBAUTHN_ORIGINS,
@@ -38,7 +37,7 @@ from app.config.webauthn import (
     WEBAUTHN_RP_NAME,
 )
 from app.database import current_user_id_ctx
-from app.models.auth import AuthIdentity, RecoveryCode, TotpCredential, WebauthnChallenge, WebauthnCredential
+from app.models.auth import AuthIdentity, TotpCredential, WebauthnChallenge, WebauthnCredential
 from app.models.base import AuthProvider
 from app.models.user import User
 from app.services.auth.recovery_codes import (
@@ -259,33 +258,6 @@ async def is_passkey_registered(db: AsyncSession, user_id: uuid.UUID) -> bool:
         .limit(1)
     )
     return result.first() is not None
-
-
-async def prune_stale_passkey_staging(db: AsyncSession, user_id: uuid.UUID) -> None:
-    """Delete the user's staged passkeys and recovery codes that have gone stale
-
-    There is no reliable signal that a user abandoned setup, so stale staged rows are swept by ordinary
-    actions such as login rather than at the moment they are left. The caller commits
-
-    Args:
-        db: Active database session
-        user_id: User whose stale staged rows are cleared
-    """
-    cutoff = datetime.now(UTC) - timedelta(seconds=TWO_FACTOR_STAGING_EXPIRE_SECONDS)
-    await db.execute(
-        delete(WebauthnCredential).where(
-            WebauthnCredential.user_id == user_id,
-            WebauthnCredential.confirmed_at.is_(None),
-            WebauthnCredential.created_at < cutoff,
-        )
-    )
-    await db.execute(
-        delete(RecoveryCode).where(
-            RecoveryCode.user_id == user_id,
-            RecoveryCode.pending.is_(True),
-            RecoveryCode.created_at < cutoff,
-        )
-    )
 
 
 async def revoke_all_passkeys(db: AsyncSession, user_id: uuid.UUID) -> None:

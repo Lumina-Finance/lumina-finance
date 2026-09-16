@@ -55,7 +55,7 @@ from app.services.auth import (
     is_totp_enabled,
     issue_mfa_challenge,
     login,
-    prune_stale_passkey_staging,
+    prune_stale_factor_staging,
     regenerate_recovery_codes,
     request_password_reset,
     set_first_password,
@@ -123,9 +123,9 @@ async def login_route(
     """
     user = await login(db, data)
 
-    # Login is the ordinary action that sweeps a passkey setup the user never finished, since there is
+    # Login is the ordinary action that sweeps factor setup the user never finished, since there is
     # no reliable signal that they abandoned it
-    await prune_stale_passkey_staging(db, user.id)
+    await prune_stale_factor_staging(db, user.id)
     await db.commit()
 
     # Any confirmed second factor, or a pending re-enrolment whose only key is a recovery code, holds
