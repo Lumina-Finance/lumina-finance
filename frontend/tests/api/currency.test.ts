@@ -96,4 +96,56 @@ describe('the currency query when it cannot load', () => {
       onlineManager.setOnline(true);
     }
   });
+
+  it('recovers on explicit retry without another automatic request', async () => {
+    const currencies = [{ id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 }];
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 503 }));
+    const client = new QueryClient();
+    const { observer, unsubscribe } = mount(client);
+
+    try {
+      await vi.waitFor(() => expect(observer.getCurrentResult().isError).toBe(true));
+      let finishRetry!: (response: Response) => void;
+      fetchMock.mockReturnValueOnce(new Promise<Response>((resolve) => { finishRetry = resolve; }));
+
+      const retry = observer.refetch();
+      expect(observer.getCurrentResult().isFetching).toBe(true);
+      const repeatedRetry = observer.refetch();
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      finishRetry(new Response(JSON.stringify(currencies)));
+      await Promise.all([retry, repeatedRetry]);
+
+      expect(observer.getCurrentResult().data).toEqual(currencies);
+      expect(observer.getCurrentResult().error).toBeNull();
+      expect(observer.getCurrentResult().isFetching).toBe(false);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    } finally {
+      unsubscribe();
+      client.clear();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('settles a failed explicit retry and allows a later successful retry', async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 503 }));
+    const client = new QueryClient();
+    const { observer, unsubscribe } = mount(client);
+
+    try {
+      await vi.waitFor(() => expect(observer.getCurrentResult().isError).toBe(true));
+      await observer.refetch();
+      expect(observer.getCurrentResult().isError).toBe(true);
+      expect(observer.getCurrentResult().isFetching).toBe(false);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+
+      fetchMock.mockResolvedValueOnce(new Response(JSON.stringify([{ id: 'CAD' }])));
+      await observer.refetch();
+      expect(observer.getCurrentResult().isSuccess).toBe(true);
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+    } finally {
+      unsubscribe();
+      client.clear();
+      vi.unstubAllGlobals();
+    }
+  });
 });

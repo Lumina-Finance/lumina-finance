@@ -1,10 +1,11 @@
+import type { ReactNode } from 'react'
 import { AlertCircle } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 
 /**
  * Renders the animated auth error banner for validation and backend failures
  */
-export function AuthErrorBanner({ error }: { error: string }) {
+export function AuthErrorBanner({ error }: { error: ReactNode }) {
   return (
     <AnimatePresence>
       {error && (

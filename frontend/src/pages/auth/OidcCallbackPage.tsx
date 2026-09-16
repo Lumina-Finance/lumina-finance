@@ -17,6 +17,7 @@ import Dropdown from '@/components/dropdown/Dropdown'
 import LoadingScreen from '@/components/loading/Screen'
 import { useAuth } from '@/hooks/useAuth'
 import { AuthTextField } from '@/pages/auth/components/fields/TextField'
+import { CurrencyRetryWarning } from '@/pages/auth/components/feedback/CurrencyRetryWarning'
 import { AUTH_VIEW_TRANSITION } from '@/pages/auth/constants/authAnimations'
 import { consumeOidcIntent, type OidcSignedInIntent } from '@/utils/oidcIntent'
 import { buildCurrencyOptions, getCurrencyPlaceholder } from '@/pages/auth/utils/authForm'
@@ -255,7 +256,12 @@ interface OidcOnboardingFormProps {
 function OidcOnboardingForm({ onboarding, onBackToLogin }: OidcOnboardingFormProps) {
   const navigate = useNavigate()
   const { setSession } = useAuth()
-  const { data: currencies = [], isError: currenciesError } = useCurrencies()
+  const {
+    data: currencies = [],
+    isError: currenciesError,
+    isFetching: currenciesFetching,
+    refetch: refetchCurrencies,
+  } = useCurrencies()
 
   const [firstName, setFirstName] = useState(onboarding.first_name)
   const [lastName, setLastName] = useState(onboarding.last_name ?? '')
@@ -305,6 +311,12 @@ function OidcOnboardingForm({ onboarding, onBackToLogin }: OidcOnboardingFormPro
           {error}
         </p>
       )}
+
+      <CurrencyRetryWarning
+        failed={currenciesError && currencies.length === 0}
+        fetching={currenciesFetching}
+        onRetry={refetchCurrencies}
+      />
 
       <div className="mt-5 space-y-1.5">
         <label htmlFor="email" className="app-label block">

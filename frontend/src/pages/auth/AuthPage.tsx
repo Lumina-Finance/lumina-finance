@@ -8,6 +8,7 @@ import { MfaChallenge } from '@/components/two-factor/MfaChallenge';
 import { SignupFactorSetup } from '@/pages/auth/components/SignupFactorSetup';
 import { AuthAnimatedTitle } from '@/pages/auth/components/AnimatedTitle';
 import { AuthConfirmPasswordField } from '@/pages/auth/components/fields/ConfirmPasswordField';
+import { CurrencyRetryWarning } from '@/pages/auth/components/feedback/CurrencyRetryWarning';
 import { AuthErrorBanner } from '@/pages/auth/components/feedback/ErrorBanner';
 import { OidcProviderButtons } from '@/pages/auth/components/OidcProviderButtons';
 import { AuthSignupNameFields } from '@/pages/auth/components/fields/SignupNameFields';
@@ -41,7 +42,12 @@ const AuthPage = () => {
   const isLogin = mode === 'login';
   const isSignup = mode === 'signup';
   const isForgot = mode === 'forgot';
-  const { data: currencies = [], isError: currenciesError } = useCurrencies();
+  const {
+    data: currencies = [],
+    isError: currenciesError,
+    isFetching: currenciesFetching,
+    refetch: refetchCurrencies,
+  } = useCurrencies();
   const {
     currencyPlaceholder,
     displayError,
@@ -133,6 +139,13 @@ const AuthPage = () => {
         <AuthAnimatedTitle mode={mode} />
 
         <AuthErrorBanner error={displayError} />
+        {isSignup && (
+          <CurrencyRetryWarning
+            failed={currenciesError && currencies.length === 0}
+            fetching={currenciesFetching}
+            onRetry={refetchCurrencies}
+          />
+        )}
 
         {recoveryMode && isLogin && !enrolling && (
           <div

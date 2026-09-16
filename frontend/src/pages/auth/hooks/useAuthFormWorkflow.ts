@@ -19,7 +19,6 @@ import {
   buildSignupPayload,
   getAuthErrorMessage,
   getCurrencyPlaceholder,
-  getDisplayAuthError,
   getSubmitTouchedFields,
   isAuthFieldErrorKey,
   isAuthLockoutError,
@@ -99,7 +98,6 @@ export function useAuthFormWorkflow({
 
   const isLogin = mode === 'login'
   const currencyPlaceholder = getCurrencyPlaceholder(currenciesError, currencies.length)
-  const displayError = getDisplayAuthError(error, mode, currenciesError, currencies.length)
   const submitDisabled = isAuthSubmitDisabled(submitting, fieldErrors, mode, currencies.length)
 
   // The passkey button only shows where a ceremony can actually run, so an unsupported origin such as
@@ -203,7 +201,6 @@ export function useAuthFormWorkflow({
 
     // Signup waits for currencies so the default currency is not submitted without visible options
     if (!isLogin && currencies.length === 0) {
-      setError('Unable to load currencies. Please refresh and try again.')
       return
     }
 
@@ -292,7 +289,7 @@ export function useAuthFormWorkflow({
 
   return {
     currencyPlaceholder,
-    displayError,
+    displayError: error,
     fieldErrors,
     form,
     handleBlur,
