@@ -1,4 +1,4 @@
-import { useRef, type ChangeEvent, type ReactNode } from 'react'
+import { useRef, type ReactNode } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import {
   EmptyState,
@@ -11,12 +11,14 @@ import {
 import type { ImportFileDraft, ImportUploadBlock } from '@/pages/imports/types'
 import type { FireflyImportWorkflow } from '@/pages/imports/firefly/hooks'
 import type { FireflyFileKind } from '@/pages/imports/firefly/types'
+import type { ImportFileAcquisition } from '@/pages/imports/utils'
 
 type FireflyFilesStepProps = Pick<
   FireflyImportWorkflow,
   | 'transactionsFile'
   | 'budgetsFile'
   | 'processingFileKind'
+  | 'fileIntakeErrors'
   | 'fireflyRows'
   | 'trackedAccountNames'
   | 'importedCategories'
@@ -42,6 +44,7 @@ export function FireflyFilesStep({
   transactionsFile,
   budgetsFile,
   processingFileKind,
+  fileIntakeErrors,
   fireflyRows,
   trackedAccountNames,
   importedCategories,
@@ -71,6 +74,7 @@ export function FireflyFilesStep({
           required={slot.required}
           file={filesByKind[slot.kind]}
           processing={processingFileKind === slot.kind}
+          intakeRejection={fileIntakeErrors[slot.kind]}
           disabled={processingFileKind !== null}
           // A block is about the step rather than any one slot, so it is stated on the slot the
           // user reaches first and the other is only disabled. Repeating it would read as two
@@ -107,6 +111,7 @@ function FireflyFileSlot({
   required,
   file,
   processing,
+  intakeRejection,
   disabled,
   blockReason,
   isBlocked,
@@ -120,12 +125,13 @@ function FireflyFileSlot({
   required: boolean
   file: ImportFileDraft | null
   processing: boolean
+  intakeRejection: string | null
   disabled: boolean
   blockReason: ImportUploadBlock | null
 
   /** Whether no file can be staged, which every slot answers to even where only one states why */
   isBlocked: boolean
-  onFileChange: (kind: FireflyFileKind, event: ChangeEvent<HTMLInputElement>) => void
+  onFileChange: (kind: FireflyFileKind, files: ImportFileAcquisition) => Promise<void>
   onRemove: (kind: FireflyFileKind) => void
   note?: ReactNode
 }) {
@@ -134,7 +140,7 @@ function FireflyFileSlot({
   // A rejected file never becomes a staged file, so the slot keeps its upload
   // card and any guidance beside it and reports the refusal in place
   const stagedFile = file && !file.error ? file : null
-  const rejection = file?.error ?? null
+  const rejection = intakeRejection ?? file?.error ?? null
   const isUploadBlocked = disabled || isBlocked
 
   return (
@@ -150,7 +156,14 @@ function FireflyFileSlot({
         type="file"
         className="hidden"
         accept=".csv,text/csv"
-        onChange={(event) => onFileChange(kind, event)}
+        onChange={async (event) => {
+          const input = event.currentTarget
+          try {
+            await onFileChange(kind, input.files ?? [])
+          } finally {
+            input.value = ''
+          }
+        }}
         disabled={isUploadBlocked}
       />
 
@@ -185,6 +198,7 @@ function FireflyFileSlot({
               rejection={rejection}
               blockReason={blockReason}
               onClick={() => inputRef.current?.click()}
+              onDropFile={(selection) => void onFileChange(kind, selection)}
             />
             <EmptyState
               title="No file staged"

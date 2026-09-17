@@ -99,6 +99,17 @@ export default function ImportsPage() {
     void queryClient.invalidateQueries({ queryKey: merchantKeys.nameMatchesAll })
   }, [queryClient])
 
+  // The page owns browser file drops for its lifetime, so missing a card cannot navigate away
+  useEffect(() => {
+    const preventFileDropNavigation = (event: DragEvent) => event.preventDefault()
+    window.addEventListener('dragover', preventFileDropNavigation)
+    window.addEventListener('drop', preventFileDropNavigation)
+    return () => {
+      window.removeEventListener('dragover', preventFileDropNavigation)
+      window.removeEventListener('drop', preventFileDropNavigation)
+    }
+  }, [])
+
   const handleDataSourceChange = (next: ImportDataSource) => {
     if (next === dataSource || isImportBusy) return
 

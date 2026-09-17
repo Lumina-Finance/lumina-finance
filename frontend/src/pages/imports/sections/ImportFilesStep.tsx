@@ -8,6 +8,7 @@ type ImportFilesStepProps = Pick<
   | 'inputRef'
   | 'files'
   | 'isProcessingFiles'
+  | 'fileIntakeError'
   | 'totalRows'
   | 'mappedFieldCount'
   | 'handleFileChange'
@@ -27,6 +28,7 @@ export function ImportFilesStep({
   inputRef,
   files,
   isProcessingFiles,
+  fileIntakeError,
   totalRows,
   mappedFieldCount,
   handleFileChange,
@@ -77,7 +79,14 @@ export function ImportFilesStep({
             type="file"
             className="hidden"
             accept=".csv,text/csv"
-            onChange={handleFileChange}
+            onChange={async (event) => {
+              const input = event.currentTarget
+              try {
+                await handleFileChange(input.files ?? [])
+              } finally {
+                input.value = ''
+              }
+            }}
             disabled={isUploadBlocked}
           />
           <ImportUploadCard
@@ -85,8 +94,10 @@ export function ImportFilesStep({
             hint="One file accepted."
             processing={isProcessingFiles}
             disabled={isUploadBlocked}
+            rejection={fileIntakeError}
             blockReason={uploadBlockReason}
             onClick={() => inputRef.current?.click()}
+            onDropFile={(selection) => void handleFileChange(selection)}
           />
         </>
       )}
