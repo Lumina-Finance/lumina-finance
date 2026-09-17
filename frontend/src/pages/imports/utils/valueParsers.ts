@@ -171,12 +171,12 @@ function getMonthNumber(name: string) {
   return index === -1 ? null : index + 1
 }
 
-// An optional sign, then either plain ASCII digits or digits grouped in threes by commas, then an
-// optional decimal part. Currency symbols, spaces between digits and brackets around negatives
-// are all refused rather than cleaned up, because guessing at them risks importing an amount the
-// file never stated. Paired with backend _RAW_DECIMAL_AMOUNT_RE, this pattern follows trim()'s
-// ECMAScript padding policy. The groups are the sign, the whole part and the decimal digits
+// Raw-column recognition accepts plain ASCII digits or comma-grouped thousands. Selected CSV
+// formats are interpreted separately before the normalized amount reaches the API boundary
 const IMPORT_NUMBER_PATTERN = /^([+-]?)([0-9]+|[0-9]{1,3}(?:,[0-9]{3})+)(?:\.([0-9]+))?$/
+
+// Paired with backend _NORMALIZED_DECIMAL_AMOUNT_RE: no grouping or surrounding whitespace
+const NORMALIZED_IMPORT_NUMBER_PATTERN = /^([+-]?)([0-9]+)(?:\.([0-9]+))?$/
 
 // The bounds of the signed 64-bit column the backend stores an amount in. The negative side
 // reaches one further than the positive, which is what two's complement holds, so a caller that
@@ -192,20 +192,21 @@ export const MAX_IMPORT_MINOR_UNITS = 2n ** 63n - 1n
 export type ImportAmountRefusal = 'unreadable' | 'tooPrecise' | 'tooLarge'
 
 /**
- * Converts an amount cell into the whole minor units the backend stores
+ * Converts normalized decimal text into the whole minor units the backend stores
  *
  * The decimal point is moved through the digits rather than the value being multiplied, so an
  * amount binary floating point cannot hold exactly still converts to the digits the file states.
  * The result is a bigint because the largest storable amount is past the range a number holds
  * exactly, and agreeing with the backend at that boundary is the point of the conversion
  *
- * @param rawValue - The raw cell value, which may carry a sign and commas grouping the thousands
+ * @param rawValue - ASCII decimal text with an optional sign and no grouping or padding
  * @param exponent - Decimal places of the currency the row will be stored in
  * @returns The amount in minor units, or which of the three rules the cell broke
  */
 export function toImportMinorUnits(rawValue: string, exponent: number): bigint | ImportAmountRefusal {
-  const match = IMPORT_NUMBER_PATTERN.exec(rawValue.trim())
-  if (!match) return 'unreadable'
+  const match = NORMALIZED_IMPORT_NUMBER_PATTERN.exec(rawValue)
+  // JavaScript's $ anchor also matches before a final newline, which the API refuses
+  if (!match || match[0] !== rawValue) return 'unreadable'
 
   const [, sign, whole, fraction = ''] = match
 
@@ -214,7 +215,7 @@ export function toImportMinorUnits(rawValue: string, exponent: number): bigint |
   const kept = fraction.slice(0, exponent)
   if (/[^0]/.test(fraction.slice(exponent))) return 'tooPrecise'
 
-  const scaled = BigInt(`${whole.replace(/,/g, '')}${kept.padEnd(exponent, '0')}`)
+  const scaled = BigInt(`${whole}${kept.padEnd(exponent, '0')}`)
   const minorUnits = sign === '-' ? -scaled : scaled
 
   return minorUnits >= MIN_IMPORT_MINOR_UNITS && minorUnits <= MAX_IMPORT_MINOR_UNITS ? minorUnits : 'tooLarge'
@@ -276,9 +277,9 @@ export function parseImportNumber(value: string) {
  * which is what makes dropping it safe
  *
  * The sign is replaced rather than added in front, because prefixing a minus onto a cell that
- * already carries one gives `--12.00`, and onto a cell written `+5.00` gives `-+5.00`, neither of
- * which this module's pattern nor the backend's matching one reads. Everything after the sign is
- * left exactly as the file wrote it, thousands separators included
+ * already carries one gives `--12.00`, and onto a cell written `+5.00` gives `-+5.00`, which
+ * neither this module nor the backend reads. Everything after the sign is left exactly as the
+ * file wrote it, thousands separators included
  *
  * A zero is written without a sign, because it moves neither way
  *

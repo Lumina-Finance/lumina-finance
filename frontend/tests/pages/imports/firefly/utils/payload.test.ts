@@ -40,10 +40,10 @@ const TRANSACTIONS_FILE = {
 /**
  * Builds the payload for one tracked account mapped to the given account id
  */
-function buildWithMapping(accountId: string, accounts: AccountsOverview[]) {
+function buildWithMapping(accountId: string, accounts: AccountsOverview[], row: CsvRow = ROW) {
   return buildFireflyImportPayload({
     transactionsFile: TRANSACTIONS_FILE,
-    rows: [ROW],
+    rows: [row],
     trackedAccountNames: ['Chequing'],
     accountMappings: { Chequing: accountId },
     accountById: new Map(accounts.map((account) => [account.id, account])),
@@ -67,5 +67,23 @@ describe('a Firefly account archived after it was mapped', () => {
 
     expect(result.errors).not.toContain('Map to an account that is not archived: Chequing')
     expect(result.payload?.accounts).toEqual([{ source: 'Chequing', account_id: CHEQUING.id }])
+  })
+})
+
+
+describe('Firefly amount payloads', () => {
+  it('trims primary and foreign decimal text without changing their digits', () => {
+    const result = buildWithMapping(CHEQUING.id, [CHEQUING], {
+      ...ROW,
+      amount: ' \t-1234.5600\n',
+      foreign_amount: '\ufeff-100.99\u00a0',
+      foreign_currency_code: 'USD',
+    })
+
+    expect(result.errors).toEqual([])
+    expect(result.payload?.rows[0]).toMatchObject({
+      amount: '-1234.5600',
+      foreign_amount: '-100.99',
+    })
   })
 })

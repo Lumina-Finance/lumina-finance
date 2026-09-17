@@ -2,13 +2,8 @@
 import re
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation, localcontext
 
-# Paired with frontend IMPORT_NUMBER_PATTERN: ASCII digits and ECMAScript trim padding only
-_RAW_DECIMAL_AMOUNT_RE = re.compile(r"^[+-]?(?:[0-9]+|[0-9]{1,3}(?:,[0-9]{3})+)(?:\.[0-9]+)?$")
-ECMASCRIPT_TRIM_CHARACTERS = (
-    "\u0009\u000a\u000b\u000c\u000d\u0020\u00a0\u1680"
-    "\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a"
-    "\u2028\u2029\u202f\u205f\u3000\ufeff"
-)
+# Importers submit normalized decimal text; CSV formatting is resolved before upload
+_NORMALIZED_DECIMAL_AMOUNT_RE = re.compile(r"[+-]?[0-9]+(?:\.[0-9]+)?")
 
 # Amounts are stored as signed 64-bit integers, so a parsed value outside this
 # range would only fail later at database flush instead of being rejected where
@@ -36,7 +31,7 @@ def parse_decimal_amount_to_minor_units(
     """Parse a decimal amount string into currency minor units
 
     Args:
-        raw_amount: User-supplied decimal amount string
+        raw_amount: Decimal text with ASCII digits, an optional sign and decimal fraction
         currency_code: Currency code used in precision error details
         minor_unit_exponent: Number of decimal places supported by the currency
 
@@ -48,12 +43,11 @@ def parse_decimal_amount_to_minor_units(
             amount falls outside the signed 64-bit range the column holds
         DecimalAmountPrecisionError: Raised when the amount has too many decimal places
     """
-    normalized_amount = raw_amount.strip(ECMASCRIPT_TRIM_CHARACTERS)
-    if not _RAW_DECIMAL_AMOUNT_RE.fullmatch(normalized_amount):
+    if not _NORMALIZED_DECIMAL_AMOUNT_RE.fullmatch(raw_amount):
         raise DecimalAmountParseError(f"Invalid amount: {raw_amount}")
 
     try:
-        decimal_amount = Decimal(normalized_amount.replace(",", ""))
+        decimal_amount = Decimal(raw_amount)
     except InvalidOperation as exc:
         raise DecimalAmountParseError(f"Invalid amount: {raw_amount}") from exc
 

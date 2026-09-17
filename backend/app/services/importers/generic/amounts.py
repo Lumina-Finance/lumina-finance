@@ -11,10 +11,10 @@ from app.utils.money import (
 
 
 def parse_import_amount_to_minor_units(raw_amount: str, currency: Currency) -> int:
-    """Parse a raw import amount into the currency's minor units
+    """Parse a normalized import amount into the currency's minor units
 
     Args:
-        raw_amount: User-supplied amount string from an import row
+        raw_amount: Normalized decimal text from an import row
         currency: Currency metadata used to validate decimal precision
 
     Returns:

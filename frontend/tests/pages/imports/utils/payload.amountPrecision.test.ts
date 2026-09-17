@@ -38,14 +38,6 @@ const SMALLEST_STORABLE = '-92233720368547758.08'
 const DECIMAL_COMMA: ImportAmountFormat = { decimalSeparator: ',', groupingSeparator: '.' }
 const DECIMAL_COMMA_WITHOUT_GROUPING: ImportAmountFormat = { decimalSeparator: ',', groupingSeparator: 'none' }
 
-// Full set removed by ECMAScript trim, used here to pair the frontend canonical conversion with
-// the backend parser's accepted padding matrix
-const ECMASCRIPT_TRIM_CHARACTERS = [
-  '\u0009', '\u000A', '\u000B', '\u000C', '\u000D', '\u0020', '\u00A0', '\u1680',
-  '\u2000', '\u2001', '\u2002', '\u2003', '\u2004', '\u2005', '\u2006', '\u2007',
-  '\u2008', '\u2009', '\u200A', '\u2028', '\u2029', '\u202F', '\u205F', '\u3000', '\uFEFF',
-]
-
 const COLUMN_MAP: ColumnMap = {
   ...EMPTY_COLUMN_MAP,
   dt: 'Date',
@@ -226,26 +218,21 @@ describe('converting an amount to minor units', () => {
     expect(toImportMinorUnits('1.2345', 3)).toBe('tooPrecise')
   })
 
-  it('reads a sign and comma grouping, and refuses anything else', () => {
+  it('reads normalized signed decimals and refuses grouping or text', () => {
     expect(toImportMinorUnits('-12.34', 2)).toBe(-1234n)
     expect(toImportMinorUnits('+12.34', 2)).toBe(1234n)
-    expect(toImportMinorUnits('1,234.56', 2)).toBe(123456n)
+    expect(toImportMinorUnits('1,234.56', 2)).toBe('unreadable')
     expect(toImportMinorUnits('$12.34', 2)).toBe('unreadable')
     expect(toImportMinorUnits('1.234.567', 2)).toBe('unreadable')
     expect(toImportMinorUnits('', 2)).toBe('unreadable')
   })
 
-  it('uses ECMAScript trim characters and refuses other surrounding controls', () => {
-    for (const padding of ECMASCRIPT_TRIM_CHARACTERS) {
-      expect(toImportMinorUnits(`${padding}+1,234.56${padding}`, 2)).toBe(123456n)
+  it('refuses every character outside a complete normalized amount', () => {
+    for (const value of [' 12.34', '12.34 ', '\t12.34', '12.34\n', '12.34\r', '12.34\u2028',
+      '12.34\u2029', '\uFEFF12.34', '12.34\u00A0', '12.34\u001C', '12 34', '1e3']) {
+      expect(toImportMinorUnits(value, 2)).toBe('unreadable')
     }
-    expect(toImportMinorUnits('\uFEFF \t-0.00\u3000', 2)).toBe(0n)
-
-    for (const padding of ['\u001C', '\u001D', '\u001E', '\u001F', '\u0085']) {
-      expect(toImportMinorUnits(`${padding}12.34${padding}`, 2)).toBe('unreadable')
-    }
-    expect(toImportMinorUnits(' \t\uFEFF', 2)).toBe('unreadable')
-    expect(toImportMinorUnits('12 34', 2)).toBe('unreadable')
+    expect(toImportMinorUnits('-0.00', 2)).toBe(0n)
   })
 
   it('holds both ends of the range the backend stores, and refuses one step past either', () => {
@@ -309,6 +296,21 @@ describe('refusing a row whose amount its currency cannot hold', () => {
     expect(firstProblem(buildPayload('-92233720368547758.09', 'CAD'))).toBe(ROW_AMOUNT_TOO_LARGE_REASON)
     expect(buildPayload(LARGEST_STORABLE, 'CAD').rowProblems).toHaveLength(0)
     expect(buildPayload(SMALLEST_STORABLE, 'CAD').rowProblems).toHaveLength(0)
+  })
+
+  it('normalizes CSV grouping and surrounding whitespace before submitting amounts', () => {
+    const cases: [string, ImportAmountFormat, string][] = [
+      ['1.234', DECIMAL_COMMA, '1234'],
+      ['1,234', { decimalSeparator: '.', groupingSeparator: ',' }, '1234'],
+      ['1.234,56', DECIMAL_COMMA, '1234.56'],
+      ['1,234.56', { decimalSeparator: '.', groupingSeparator: ',' }, '1234.56'],
+      ['\uFEFF \t1.234,56\n', DECIMAL_COMMA, '1234.56'],
+    ]
+    for (const [input, format, amount] of cases) {
+      const result = buildPayload(input, 'CAD', '', format)
+      expect(result.rowProblems).toHaveLength(0)
+      expect(result.payload?.rows[0].amount).toBe(amount)
+    }
   })
 
   it('normalizes surrounding currency text and decimal commas before judging precision', () => {

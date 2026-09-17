@@ -1,6 +1,7 @@
 import asyncio
 import uuid
 
+import pytest
 from sqlalchemy import text
 
 from app.schemas.transaction import (
@@ -418,7 +419,8 @@ async def test_import_transactions_rejects_invalid_raw_amount(client):
     assert resp.json()["detail"] == "Invalid amount: $12.34"
 
 
-async def test_import_transactions_rolls_back_created_records_for_non_ascii_amount(client):
+@pytest.mark.parametrize("invalid_amount", ["١٢.٣٤", " 12.34 ", "1,234.56", "12.34\n"])
+async def test_import_transactions_rolls_back_created_records_for_invalid_amount(client, invalid_amount):
     """An invalid later amount rolls back every domain record created for the import"""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
@@ -457,13 +459,13 @@ async def test_import_transactions_rolls_back_created_records_for_non_ascii_amou
                 "account_source": "Imported Account",
                 "category_source": "Imported Category",
                 "dt": "2026-04-12",
-                "amount": "١٢.٣٤",
+                "amount": invalid_amount,
             },
         ],
     })
 
     assert resp.status_code == 422
-    assert resp.json()["detail"] == "Invalid amount: ١٢.٣٤"
+    assert resp.json()["detail"] == f"Invalid amount: {invalid_amount}"
     after = {path: (await client.get(path, headers=headers)).json() for path in endpoints}
     assert after == before
 

@@ -388,6 +388,19 @@ describe('buildFireflyBudgetDrafts', () => {
 })
 
 describe('buildFireflyBudgetImportBudgets', () => {
+  it('trims exported limit amounts before sending the budget payload', () => {
+    const drafts = buildFireflyBudgetDrafts({
+      budgetsFile: createBudgetsFile([createLimitRow({ amount: ' \t600.00\n' })]),
+      transactionRows: [createTransactionRow()],
+    })
+    const [budget] = buildFireflyBudgetImportBudgets(drafts, { Food: 'category-food' })
+
+    expect(drafts[0].disabledReason).toBeNull()
+    expect(budget.limits).toEqual([
+      { start: '2024-01-01', end: '2024-01-31', amount: '600.00' },
+    ])
+  })
+
   /**
    * Creates one importable draft, since only importable drafts reach the commit
    */

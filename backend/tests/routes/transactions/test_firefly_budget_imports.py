@@ -254,7 +254,7 @@ async def test_firefly_budget_import_rejects_period_end_before_start(client):
     assert resp.json()["detail"] == "Groceries: a limit period ends before it starts"
 
 
-@pytest.mark.parametrize("invalid_amount", ["not-a-number", "١٢.٣٤", "12.34\u001c"])
+@pytest.mark.parametrize("invalid_amount", ["not-a-number", "١٢.٣٤", "12.34\u001c", " 12.34 ", "1,234.56"])
 async def test_firefly_budget_import_is_atomic_across_budgets(client, invalid_amount):
     """Each malformed amount in a later budget rolls back every budget in the batch"""
     signup_resp = await _create_user(client)
