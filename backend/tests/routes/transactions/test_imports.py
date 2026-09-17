@@ -347,7 +347,8 @@ async def test_import_transactions_rejects_rows_written_to_an_outside_source(cli
 
     assert resp.status_code == 422
     assert resp.json()["detail"] == (
-        "Rows cannot be written to an account source that is outside the tracked accounts: Brokerage elsewhere"
+        "Map to one of your accounts: Brokerage elsewhere has rows of its own, "
+        "so it cannot be answered as outside."
     )
 
 

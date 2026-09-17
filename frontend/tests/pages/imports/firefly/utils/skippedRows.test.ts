@@ -264,13 +264,13 @@ describe('forecastFireflyImport', () => {
     )
 
     expect(skipped).toHaveLength(1)
-    expect(skipped[0].reason).toBe('Invalid amount "-12.345"')
+    expect(skipped[0].reason).toBe(
+      'The amount has more decimal places than CAD has. A period is read as a decimal point, never as a separator between thousands.',
+    )
   })
 
   it('reports an amount past the storable range the way the backend does', () => {
-    // The backend catches its parser's malformed, over-precise and out-of-range errors in one
-    // clause and reports all three as an invalid amount, so a different wording here would name
-    // the same skipped row two ways between the preview and the result
+    // Parser-range overflow keeps the raw invalid-amount reason, separate from excess precision
     const { skippedRows: skipped } = forecastFireflyImport(
       [createFireflyRow({ amount: '99999999999999999999.00' })],
       createOptions(),

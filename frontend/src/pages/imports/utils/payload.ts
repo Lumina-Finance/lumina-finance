@@ -8,6 +8,14 @@ import {
   DEFAULT_CATEGORY_ICON,
   getCategoryDirectionClashError,
   getDirectionValuesAgreeError,
+  getImportAccountCurrencyRequiredError,
+  getImportAccountMappingError,
+  getImportAccountTypeRequiredError,
+  getImportAccountTypeUnsupportedError,
+  getImportArchivedAccountMappingError,
+  getImportCategoryMappingError,
+  getImportCategoryTypeRequiredError,
+  getImportNoRowsError,
   getTooManyMappingsError,
   getRowSignDisagreesWithCategoryReason,
   getUnansweredDirectionValuesError,
@@ -195,14 +203,14 @@ export function buildTransactionImportPayload({
   for (const source of importedCategories) {
     const choice = categoryMappings[source] ?? ''
     if (!choice) {
-      addError(`Map category: ${source}`)
+      addError(getImportCategoryMappingError(source))
       continue
     }
 
     if (choice === CREATE_CATEGORY_VALUE) {
       const kind = getCategoryMatchKind('', categoryCreateKinds[source], categoryTypesBySource[source], categoryById)
       if (!kind) {
-        addError(`Choose category type: ${source}`)
+        addError(getImportCategoryTypeRequiredError(source))
         continue
       }
 
@@ -320,7 +328,7 @@ export function buildTransactionImportPayload({
 
   // A file whose every row has a problem is described by the list of problems, so the empty-file
   // message is kept for the case it was written for
-  if (rows.length === 0 && rowProblems.length === 0) addError('This file has no transaction rows to import.')
+  if (rows.length === 0 && rowProblems.length === 0) addError(getImportNoRowsError('file'))
 
   const warnings = getImportWarnings(rows, columnMap)
   const allErrors = [...columnErrors, ...errors]
@@ -444,7 +452,7 @@ function appendAccountMapping(
   }
 
   if (!choice) {
-    addError(`Map account: ${createName}`)
+    addError(getImportAccountMappingError(createName))
     return
   }
 
@@ -465,7 +473,7 @@ function appendAccountMapping(
     // that same column afterwards turns it into a source rows are written to while its answer
     // stands, which the dropdown no longer offers and the API refuses
     if (!accountSource.isCounterpartyOnly && accountById.get(choice)?.is_archived) {
-      addError(`Map to an account that is not archived: ${createName}`)
+      addError(getImportArchivedAccountMappingError(createName))
       return
     }
 
@@ -473,12 +481,12 @@ function appendAccountMapping(
     return
   }
 
-  if (!createType) addError(`Choose account type: ${createName}`)
-  if (!createCurrency) addError(`Choose account currency: ${createName}`)
+  if (!createType) addError(getImportAccountTypeRequiredError(createName))
+  if (!createCurrency) addError(getImportAccountCurrencyRequiredError(createName))
   if (!createType || !createCurrency) return
 
   if (!isImportAccountType(createType)) {
-    addError(`Choose an account type this app supports: ${createName}`)
+    addError(getImportAccountTypeUnsupportedError(createName))
     return
   }
 

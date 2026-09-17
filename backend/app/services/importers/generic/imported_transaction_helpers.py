@@ -90,7 +90,10 @@ async def create_imported_transactions(
         if account_source in import_lookups.outside_account_sources:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=f"Rows cannot be written to an account source that is outside the tracked accounts: {account_source}",
+                detail=(
+                    f"Map to one of your accounts: {account_source} has rows of its own, "
+                    "so it cannot be answered as outside."
+                ),
             )
 
         account = get_import_row_account(import_lookups.accounts_by_source, row.account_source)

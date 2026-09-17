@@ -87,3 +87,22 @@ describe('Firefly amount payloads', () => {
     })
   })
 })
+
+describe('a Firefly export with no uploadable rows', () => {
+  it('refuses the commit with the export-specific message', () => {
+    const result = buildFireflyImportPayload({
+      transactionsFile: TRANSACTIONS_FILE,
+      rows: [],
+      trackedAccountNames: [],
+      accountMappings: {},
+      accountById: new Map(),
+      accountCreateDetails: {},
+      importedCategories: [],
+      categoryMappings: {},
+      categoryCreateKinds: {},
+    })
+
+    expect(result.errors).toEqual(['This export has no transaction rows to import.'])
+    expect(result.payload).toBeNull()
+  })
+})

@@ -325,7 +325,8 @@ def _get_amount_in_account_currency(
 
     Raises:
         FireflyRowSkipError: Raised when no amount is available in the account currency,
-            when the raw amount cannot be parsed, or when its magnitude cannot be stored
+            when the raw amount cannot be parsed or has too many decimal places, or when
+            its magnitude cannot be stored
     """
     if row.currency_code.upper() == account.currency:
         raw_amount = row.amount
@@ -343,7 +344,12 @@ def _get_amount_in_account_currency(
             currency_code=currency.id,
             minor_unit_exponent=currency.minor_unit_exponent,
         )
-    except (DecimalAmountParseError, DecimalAmountPrecisionError) as exc:
+    except DecimalAmountPrecisionError as exc:
+        raise FireflyRowSkipError(
+            f"The amount has more decimal places than {currency.id} has. "
+            "A period is read as a decimal point, never as a separator between thousands.",
+        ) from exc
+    except DecimalAmountParseError as exc:
         raise FireflyRowSkipError(f'Invalid amount "{raw_amount}"') from exc
 
     # This path stores the magnitude rather than the parsed value, and the signed range

@@ -491,7 +491,7 @@ async def test_firefly_import_applies_opening_balance_direction(client):
 
 
 async def test_firefly_import_skips_unconvertible_rows(client):
-    """Unsupported types and unavailable currencies are skipped and reported."""
+    """Invalid rows report their exact reason while a valid sibling is imported"""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
@@ -512,6 +512,7 @@ async def test_firefly_import_skips_unconvertible_rows(client):
                 foreign_amount="١٢.٣٤",
                 foreign_currency_code="CAD",
             ),
+            _firefly_row(journal_id="11", amount="twelve"),
             _firefly_row(journal_id="8", amount=" 12.34 "),
             _firefly_row(journal_id="9", amount="1,234.56"),
             _firefly_row(
@@ -524,19 +525,25 @@ async def test_firefly_import_skips_unconvertible_rows(client):
     assert resp.status_code == 201
     data = resp.json()
     assert data["rows_imported"] == 1
-    assert data["rows_skipped"] == 9
+    assert data["rows_skipped"] == 10
     assert data["transactions_created"] == 1
-    assert {entry["journal_id"] for entry in data["skipped"]} == {"2", "3", "4", "5", "6", "7", "8", "9", "10"}
+    assert {entry["journal_id"] for entry in data["skipped"]} == {
+        "2", "3", "4", "5", "6", "7", "8", "9", "10", "11",
+    }
     reasons_by_journal = {entry["journal_id"]: entry["reason"] for entry in data["skipped"]}
     assert reasons_by_journal["2"] == (
         'Journal type "Liability credit" is not supported, the importer handles'
         " withdrawals, deposits, transfers, opening balances, and reconciliations"
     )
     assert reasons_by_journal["3"] == "Neither the amount nor the foreign amount is in the account's currency (CAD)"
-    assert reasons_by_journal["4"] == 'Invalid amount "12.345"'
+    assert reasons_by_journal["4"] == (
+        "The amount has more decimal places than CAD has. "
+        "A period is read as a decimal point, never as a separator between thousands."
+    )
     assert reasons_by_journal["5"] == 'Invalid amount "١٢.٣٤"'
     assert reasons_by_journal["6"] == 'Invalid amount "12.34\u001c"'
     assert reasons_by_journal["7"] == 'Invalid amount "١٢.٣٤"'
+    assert reasons_by_journal["11"] == 'Invalid amount "twelve"'
     assert reasons_by_journal["8"] == 'Invalid amount " 12.34 "'
     assert reasons_by_journal["9"] == 'Invalid amount "1,234.56"'
     assert reasons_by_journal["10"] == 'Invalid amount "1,234.56"'
