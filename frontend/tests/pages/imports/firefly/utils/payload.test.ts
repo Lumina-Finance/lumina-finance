@@ -135,6 +135,58 @@ describe('a Firefly export with no uploadable rows', () => {
   })
 })
 
+describe('Firefly account mapping completeness', () => {
+  const rows = [
+    { ...ROW, journal_id: '1', source_name: 'Everyday Chequing' },
+    { ...ROW, journal_id: '2', source_name: 'Everyday Chequing Card One', amount: '-56.78' },
+  ]
+  const trackedAccountNames = ['Everyday Chequing', 'Everyday Chequing Card One']
+
+  it('lists every unresolved tracked account and refuses the payload', () => {
+    const result = buildFireflyImportPayload({
+      transactionsFile: TRANSACTIONS_FILE,
+      rows,
+      trackedAccountNames,
+      accountMappings: {},
+      accountById: new Map([[CHEQUING.id, CHEQUING]]),
+      accountCreateDetails: {},
+      importedCategories: ['Groceries'],
+      categoryMappings: { Groceries: 'groceries' },
+      categoryCreateKinds: {},
+    })
+
+    expect(result.errors).toEqual([
+      'Map account: Everyday Chequing',
+      'Map account: Everyday Chequing Card One',
+    ])
+    expect(result.payload).toBeNull()
+  })
+
+  it('accepts deliberate mappings from both tracked names to the same account', () => {
+    const result = buildFireflyImportPayload({
+      transactionsFile: TRANSACTIONS_FILE,
+      rows,
+      trackedAccountNames,
+      accountMappings: {
+        'Everyday Chequing': CHEQUING.id,
+        'Everyday Chequing Card One': CHEQUING.id,
+      },
+      accountById: new Map([[CHEQUING.id, CHEQUING]]),
+      accountCreateDetails: {},
+      importedCategories: ['Groceries'],
+      categoryMappings: { Groceries: 'groceries' },
+      categoryCreateKinds: {},
+    })
+
+    expect(result.errors).toEqual([])
+    expect(result.payload?.accounts).toEqual([
+      { source: 'Everyday Chequing', account_id: CHEQUING.id },
+      { source: 'Everyday Chequing Card One', account_id: CHEQUING.id },
+    ])
+    expect(result.payload?.rows).toHaveLength(2)
+  })
+})
+
 describe('the completed Firefly import summary', () => {
   it('counts rows dropped by the browser beside rows skipped by the server', () => {
     const result = createImportResult({

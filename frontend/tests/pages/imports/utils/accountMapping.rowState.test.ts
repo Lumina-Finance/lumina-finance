@@ -4,6 +4,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { CREATE_ACCOUNT_VALUE } from '@/pages/imports/constants'
+import { formatAccountMappingSummary } from '@/pages/imports/utils/accountMappingSummary'
 import { OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 import {
   canApplyBatchEditToRow,
@@ -75,6 +76,61 @@ describe('what the mapping counter calls answered', () => {
 })
 
 describe('which rows the batch bar may edit', () => {
+  it('formats the selected count and mapping states', () => {
+    expect(formatAccountMappingSummary({
+      selected: 3,
+      mapped: 3,
+      new: 0,
+    })).toBe('3 selected · 3 mapped · 0 new')
+  })
+
+  const summaryRows = [
+    { ...createRow({ value: 'automatic-existing' }), isHandAnswered: false },
+    { ...createRow({ value: 'explicit-existing' }), isHandAnswered: true },
+    {
+      ...createRow(),
+      isHandAnswered: false,
+    },
+    {
+      ...createRow({ value: CREATE_ACCOUNT_VALUE, createType: 'checking', createCurrency: 'CAD' }),
+      isHandAnswered: true,
+    },
+    {
+      ...createRow({ value: OUTSIDE_ACCOUNT_VALUE, isCounterpartyOnly: true }),
+      isHandAnswered: false,
+    },
+    {
+      ...createRow({ value: OUTSIDE_ACCOUNT_VALUE, isCounterpartyOnly: true }),
+      isHandAnswered: true,
+    },
+    {
+      ...createRow({ value: OUTSIDE_ACCOUNT_VALUE }),
+      isHandAnswered: true,
+    },
+  ]
+
+  it.each([
+    { label: 'none', selectedIndexes: [], expectedEditable: 0 },
+    { label: 'the unanswered row', selectedIndexes: [2], expectedEditable: 1 },
+    { label: 'every row', selectedIndexes: [0, 1, 2, 3, 4, 5, 6], expectedEditable: 4 },
+  ])('keeps eligibility separate from mapping counts for $label', ({ selectedIndexes, expectedEditable }) => {
+    const counts = countImportAccountRowStates(summaryRows)
+    const selectedRows = selectedIndexes.map((index) => summaryRows[index])
+    const editableRows = selectedRows.filter((row) => (
+      canApplyBatchEditToRow(row.value, row.isHandAnswered, row.isCounterpartyOnly)
+    ))
+
+    expect(counts).toEqual({ mapped: 4, new: 1, review: 2 })
+    expect(editableRows).toHaveLength(expectedEditable)
+    expect(formatAccountMappingSummary({
+      selected: selectedRows.length,
+      mapped: counts.mapped,
+      new: counts.new,
+    })).toBe(
+      `${selectedRows.length} selected · 4 mapped · 1 new`,
+    )
+  })
+
   it('leaves a row pointing at an account alone whether or not the user picked it', () => {
     expect(canApplyBatchEditToRow('checking', true, false)).toBe(false)
     expect(canApplyBatchEditToRow('checking', false, false)).toBe(false)

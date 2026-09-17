@@ -10,8 +10,6 @@ import { EMPTY_COLUMN_MAP } from '@/pages/imports/constants'
 import { OUTSIDE_ACCOUNT_LABEL, OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 import type { ColumnMap, ColumnTarget, ColumnValidationErrors, ImportAmountDirection, ImportCategoryKind, ImportFileDraft, ImportOverlayPhase, PreviewTransactionRow } from '@/pages/imports/types'
 import {
-  applyCreateAccountFallback,
-  applyFixedImportAccount,
   buildColumnTargetOptions,
   buildImportAnswerScope,
   buildImportAccountMappingSources,
@@ -40,7 +38,6 @@ import {
   getImportUploadBlockReason,
   getNextColumnValidationErrors,
   getSupportedCurrencyCodes,
-  inferAccountMappings,
   inferCategoryMappings,
   isAutoFilledAccountSource,
   isColumnMappingComplete,
@@ -59,6 +56,7 @@ import {
   readCsvFile,
   readScopedImportAnswers,
   resolveImportAccountCreateCurrencies,
+  resolveImportAccountMappings,
   resolveImportFormatChoice,
   scanImportAmountFormatChoices,
   scanImportDateFormatChoices,
@@ -480,45 +478,22 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     [accountById, accountMappings, accountsResolved],
   )
 
-  const matchedAccountMappings = useMemo(
-    () => {
-      // A source whose account has gone is kept away from the name match, so it can never come back
-      // holding a different account of the user's. The create-new fallback below does cover it,
-      // since the worst that answer can do is offer a new account the user still has to fill in
-      const answerableSources = accountMappingSources.filter((source) => !clearedAccountSources.has(source.id))
-
-      // The account an import was started from answers every source rows are written to, over every
-      // source rather than only the answerable ones, so a cleared source cannot slip past it into
-      // the create-new fallback and quietly create an account the step says nothing about
-      const answered = applyFixedImportAccount(accountMappingSources, liveAccountMappings, fixedAccount?.id ?? null)
-
-      const resolved = canInferAccountMappings
-        ? inferAccountMappings(answerableSources, answered, {
-          rowAccounts: selectableAccounts,
-          counterpartyAccounts: allAccounts,
-        })
-        : { ...answered }
-
-      // No row is written to these, so the import creates nothing for them unless the user asks for
-      // an account by hand, and the transfers pointing at them say the money left the app
-      for (const source of answerableSources) {
-        if (source.isCounterpartyOnly && !resolved[source.id]) resolved[source.id] = OUTSIDE_ACCOUNT_VALUE
-      }
-      return resolved
-    },
-    [accountMappingSources, allAccounts, canInferAccountMappings, clearedAccountSources, fixedAccount, liveAccountMappings, selectableAccounts],
-  )
-
-  // Every row source the match could not place rests on creating an account, so the step asks for
-  // its type rather than for all three answers. Both conditions keep a row from answering itself
-  // and then changing its mind: it only ever fires alongside the name match, which is what
-  // `canInferAccountMappings` says has run, and only against an accounts list that is current, so
-  // a list still being refreshed cannot turn a row from creating an account into one of the user's
-  const resolvedAccountMappings = useMemo(
-    () => (accountsCurrent && canInferAccountMappings
-      ? applyCreateAccountFallback(accountMappingSources, matchedAccountMappings)
-      : matchedAccountMappings),
-    [accountMappingSources, accountsCurrent, canInferAccountMappings, matchedAccountMappings],
+  // A source whose account has gone still participates in collision discovery but receives no
+  // automatic match, while fixed imports still answer every row source. Unanswered counterparties
+  // outside collisions then default outside, and current unmatched row sources outside collisions
+  // default to create
+  const { matchedMappings: matchedAccountMappings, resolvedMappings: resolvedAccountMappings } = useMemo(
+    () => resolveImportAccountMappings({
+      sources: accountMappingSources,
+      liveMappings: liveAccountMappings,
+      clearedSourceIds: clearedAccountSources,
+      fixedAccountId: fixedAccount?.id ?? null,
+      canInfer: canInferAccountMappings,
+      accountsCurrent,
+      rowAccounts: selectableAccounts,
+      counterpartyAccounts: allAccounts,
+    }),
+    [accountMappingSources, accountsCurrent, allAccounts, canInferAccountMappings, clearedAccountSources, fixedAccount, liveAccountMappings, selectableAccounts],
   )
 
   const resolvedAccountCreateCurrencies = useMemo(

@@ -132,9 +132,9 @@ export function dropVanishedAccountMappings(
  * creating an account, since `applyCreateAccountFallback` covers every row source with no answer,
  * so a tie between two of the user's accounts ends up creating a third one carrying that name
  *
- * An import started from an account reaches neither of those. `applyFixedImportAccount` has already
- * answered every source rows are written to, so this only ever settles a transfer's counterparty
- * there
+ * Sources are also left unmapped when two distinct source IDs choose the same unique best account
+ * Candidate discovery includes sources already answered or excluded from automatic assignment, so
+ * answering one collision member does not silently settle another. Explicit answers remain intact
  *
  * The two lists differ by which accounts each kind of source can be offered: a source no row is
  * written to can record an archived account, so matching it against the list the dropdown does not
@@ -145,16 +145,60 @@ export function inferAccountMappings(
   explicitMappings: Record<string, string>,
   { rowAccounts, counterpartyAccounts }: { rowAccounts: AccountsOverview[]; counterpartyAccounts: AccountsOverview[] },
 ) {
+  return inferAccountMappingsWithCollisions(sources, explicitMappings, {
+    rowAccounts,
+    counterpartyAccounts,
+  }).mappings
+}
+
+/** Existing-account guesses and every source whose best candidate is shared with another source */
+export interface InferredAccountMappings {
+  mappings: Record<string, string>
+  collidingSourceIds: Set<string>
+}
+
+/** Finds every source's best candidate before applying only unambiguous automatic answers */
+export function inferAccountMappingsWithCollisions(
+  sources: ImportAccountSource[],
+  explicitMappings: Record<string, string>,
+  {
+    rowAccounts,
+    counterpartyAccounts,
+    excludedAutomaticSourceIds = new Set(),
+  }: {
+    rowAccounts: AccountsOverview[]
+    counterpartyAccounts: AccountsOverview[]
+    excludedAutomaticSourceIds?: Set<string>
+  },
+): InferredAccountMappings {
   const next = { ...explicitMappings }
+  const candidateBySourceId = new Map<string, string>()
+  const sourceIdsByCandidate = new Map<string, Set<string>>()
 
   for (const source of sources) {
-    if (next[source.id]) continue
-
     const match = findBestAccountNameMatch(source.matchText, source.isCounterpartyOnly ? counterpartyAccounts : rowAccounts)
-    if (match) next[source.id] = match.id
+    if (!match) continue
+
+    candidateBySourceId.set(source.id, match.id)
+    const sourceIds = sourceIdsByCandidate.get(match.id) ?? new Set<string>()
+    sourceIds.add(source.id)
+    sourceIdsByCandidate.set(match.id, sourceIds)
   }
 
-  return next
+  const collidingSourceIds = new Set<string>()
+  for (const sourceIds of sourceIdsByCandidate.values()) {
+    if (sourceIds.size < 2) continue
+    for (const sourceId of sourceIds) collidingSourceIds.add(sourceId)
+  }
+
+  for (const source of sources) {
+    if (next[source.id] || excludedAutomaticSourceIds.has(source.id) || collidingSourceIds.has(source.id)) continue
+
+    const candidateId = candidateBySourceId.get(source.id)
+    if (candidateId) next[source.id] = candidateId
+  }
+
+  return { mappings: next, collidingSourceIds }
 }
 
 /**
@@ -204,8 +248,7 @@ export function applyFixedImportAccount(
  * An import started from an account leaves nothing here to rest on create, since every source rows
  * are written to is answered before this runs
  *
- * @param sources - Every mapping source, cleared ones included, since a cleared row still has to be
- *   answerable and this fallback can only ever offer it a new account
+ * @param sources - Sources outside collisions, including cleared rows that can still create an account
  * @param resolved - The answers after the name match and the outside default
  */
 export function applyCreateAccountFallback(
@@ -220,6 +263,57 @@ export function applyCreateAccountFallback(
   }
 
   return next
+}
+
+interface ResolveImportAccountMappingsOptions {
+  sources: ImportAccountSource[]
+  liveMappings: Record<string, string>
+  clearedSourceIds: Set<string>
+  fixedAccountId: string | null
+  canInfer: boolean
+  accountsCurrent: boolean
+  rowAccounts: AccountsOverview[]
+  counterpartyAccounts: AccountsOverview[]
+}
+
+interface ResolvedImportAccountMappings {
+  matchedMappings: Record<string, string>
+  resolvedMappings: Record<string, string>
+}
+
+/** Applies fixed answers, name matches and account defaults in the generic import order */
+export function resolveImportAccountMappings(
+  options: ResolveImportAccountMappingsOptions,
+): ResolvedImportAccountMappings {
+  const answerableSources = options.sources.filter((source) => !options.clearedSourceIds.has(source.id))
+  const answered = applyFixedImportAccount(options.sources, options.liveMappings, options.fixedAccountId)
+  const inferred = options.canInfer
+    ? inferAccountMappingsWithCollisions(options.sources, answered, {
+      rowAccounts: options.rowAccounts,
+      counterpartyAccounts: options.counterpartyAccounts,
+      excludedAutomaticSourceIds: options.clearedSourceIds,
+    })
+    : { mappings: { ...answered }, collidingSourceIds: new Set<string>() }
+  const matchedMappings = inferred.mappings
+
+  for (const source of answerableSources) {
+    if (
+      source.isCounterpartyOnly
+      && !inferred.collidingSourceIds.has(source.id)
+      && !matchedMappings[source.id]
+    ) {
+      matchedMappings[source.id] = OUTSIDE_ACCOUNT_VALUE
+    }
+  }
+
+  const resolvedMappings = options.accountsCurrent && options.canInfer
+    ? applyCreateAccountFallback(
+      options.sources.filter((source) => !inferred.collidingSourceIds.has(source.id)),
+      matchedMappings,
+    )
+    : matchedMappings
+
+  return { matchedMappings, resolvedMappings }
 }
 
 /**
@@ -260,9 +354,8 @@ export interface ImportArchivedAccountMatch {
  * choose between accounts that tie, and identical names always tie
  *
  * @param resolvedMappings - The answers as they stand after the name match and before the
- *   create-new fallback. Given the finished map instead, every row source holds an answer and this
- *   returns nothing, so a user importing a file naming an account they archived would be told to
- *   unarchive nothing and would silently get a second account carrying that name
+ *   create-new fallback. Passing the finished map hides archived matches for sources defaulted to
+ *   create, so those sources lose the notice explaining that an existing account can be unarchived
  */
 export function getArchivedAccountMatches(
   sources: ImportAccountSource[],

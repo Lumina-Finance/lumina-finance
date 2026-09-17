@@ -83,3 +83,127 @@ describe('guessing which account a source belongs to by name', () => {
     expect(result.Outside).toBe(OUTSIDE_ACCOUNT_VALUE)
   })
 })
+
+describe('cross-source account-name collisions', () => {
+  const everyday = createAccount({ id: 'everyday', name: 'Everyday Chequing' })
+  const collidingSources = [
+    createSource('everyday-source', { label: 'Everyday Chequing', matchText: 'Everyday Chequing' }),
+    createSource('card-one-source', {
+      label: 'Everyday Chequing Card One',
+      matchText: 'Everyday Chequing Card One',
+    }),
+    createSource('card-two-source', {
+      label: 'Everyday Chequing Card Two',
+      matchText: 'Everyday Chequing Card Two',
+    }),
+  ]
+
+  it.each([
+    ['source order', collidingSources],
+    ['reverse source order', [...collidingSources].reverse()],
+  ])('leaves every source sharing one best account unanswered in %s', (_label, sources) => {
+    expect(inferAccountMappings(sources, {}, {
+      rowAccounts: [everyday],
+      counterpartyAccounts: [everyday],
+    })).toEqual({})
+  })
+
+  it('treats distinct source IDs with the same label as a collision', () => {
+    const sources = [
+      createSource('first', { label: 'Everyday Chequing', matchText: 'Everyday Chequing' }),
+      createSource('second', { label: 'Everyday Chequing', matchText: 'Everyday Chequing' }),
+    ]
+
+    expect(inferAccountMappings(sources, {}, {
+      rowAccounts: [everyday],
+      counterpartyAccounts: [everyday],
+    })).toEqual({})
+  })
+
+  it('keeps an unanswered sibling unresolved after one collision member is answered', () => {
+    const sources = collidingSources.slice(0, 2)
+
+    expect(inferAccountMappings(sources, { 'everyday-source': 'everyday' }, {
+      rowAccounts: [everyday],
+      counterpartyAccounts: [everyday],
+    })).toEqual({ 'everyday-source': 'everyday' })
+  })
+
+  it('matches three sources independently when all three exact accounts exist', () => {
+    const accounts = [
+      everyday,
+      createAccount({ id: 'card-one', name: 'Everyday Chequing Card One' }),
+      createAccount({ id: 'card-two', name: 'Everyday Chequing Card Two' }),
+    ]
+
+    expect(inferAccountMappings(collidingSources, {}, {
+      rowAccounts: accounts,
+      counterpartyAccounts: accounts,
+    })).toEqual({
+      'everyday-source': 'everyday',
+      'card-one-source': 'card-one',
+      'card-two-source': 'card-two',
+    })
+  })
+
+  it('preserves a single source substring match', () => {
+    const source = createSource('card-source', {
+      label: 'Everyday Chequing Card',
+      matchText: 'Everyday Chequing Card',
+    })
+
+    expect(inferAccountMappings([source], {}, {
+      rowAccounts: [everyday],
+      counterpartyAccounts: [everyday],
+    })).toEqual({ 'card-source': 'everyday' })
+  })
+
+  it('preserves deliberate many-to-one answers', () => {
+    const sources = collidingSources.slice(0, 2)
+    const explicitMappings = {
+      'everyday-source': 'everyday',
+      'card-one-source': 'everyday',
+    }
+
+    expect(inferAccountMappings(sources, explicitMappings, {
+      rowAccounts: [everyday],
+      counterpartyAccounts: [everyday],
+    })).toEqual(explicitMappings)
+  })
+
+  it('does not let a manual answer without a name candidate reserve an account', () => {
+    const sources = [
+      createSource('manual-source', { label: 'Unrelated', matchText: 'Unrelated' }),
+      createSource('everyday-source', { label: 'Everyday Chequing', matchText: 'Everyday Chequing' }),
+    ]
+
+    expect(inferAccountMappings(sources, { 'manual-source': 'everyday' }, {
+      rowAccounts: [everyday],
+      counterpartyAccounts: [everyday],
+    })).toEqual({
+      'manual-source': 'everyday',
+      'everyday-source': 'everyday',
+    })
+  })
+
+  it('keeps row and counterparty sources on their separate eligible account lists', () => {
+    const rowSource = createSource('row-source', {
+      label: 'Everyday Chequing',
+      matchText: 'Everyday Chequing',
+    })
+    const counterpartySource = createSource('counterparty-source', {
+      label: 'Everyday Chequing',
+      matchText: 'Everyday Chequing',
+      isCounterpartyOnly: true,
+    })
+    const archivedExact = createAccount({ id: 'archived-everyday', name: 'Everyday Chequing', is_archived: true })
+
+    expect(inferAccountMappings([rowSource, counterpartySource], {}, {
+      rowAccounts: [everyday],
+      counterpartyAccounts: [archivedExact],
+    })).toEqual({
+      'row-source': 'everyday',
+      'counterparty-source': 'archived-everyday',
+    })
+  })
+})
