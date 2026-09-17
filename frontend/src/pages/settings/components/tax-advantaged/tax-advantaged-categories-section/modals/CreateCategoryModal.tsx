@@ -87,7 +87,7 @@ export default function CreateTaxAdvantagedCategoryModal({
                 />
               </div>
               <div>
-                <span className="app-label mb-1.5 block text-[0.9375rem] leading-5">Category type</span>
+                <label htmlFor={CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.taxTreatment} className="app-label mb-1.5 block text-[0.9375rem] leading-5">Category type</label>
                 <Dropdown
                   id={CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.taxTreatment}
                   options={TAX_TREATMENT_OPTIONS}
@@ -116,7 +116,7 @@ export default function CreateTaxAdvantagedCategoryModal({
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <div className="mb-1.5 flex items-center gap-2">
-                  <span className="app-label block text-[0.9375rem] leading-5">Currency</span>
+                  <label htmlFor={CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.currency} className="app-label block text-[0.9375rem] leading-5">Currency</label>
                   <TaxAdvantagedCurrencyWarning />
                 </div>
                 <Dropdown

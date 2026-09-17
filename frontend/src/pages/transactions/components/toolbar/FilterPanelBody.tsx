@@ -73,6 +73,7 @@ export function FilterPanelBody({
   mobile = false,
   fillHeight = false,
   showAccountFilter = true,
+  facetLabelledBy,
 }: {
   draft: TransactionFilterDraft
   showFooter?: boolean
@@ -84,6 +85,7 @@ export function FilterPanelBody({
   // False on an account's own transaction list, where the account facet is disabled because the
   // account scope is already fixed
   showAccountFilter?: boolean
+  facetLabelledBy?: string
 }) {
   const disabledFacetIds = showAccountFilter ? NO_DISABLED_FACETS : ACCOUNT_DISABLED_FACETS
   const [activeFacetId, setActiveFacetId] = useState(
@@ -108,6 +110,7 @@ export function FilterPanelBody({
     <div className={joinClassNames('contents', fillHeight && '!flex min-h-0 flex-1 flex-col')}>
       {mobile ? (
         <FacetSelectDropdown
+          labelledBy={facetLabelledBy}
           facets={FILTER_FACETS}
           activeFacetId={activeFacetId}
           countFacet={draft.countFacet}

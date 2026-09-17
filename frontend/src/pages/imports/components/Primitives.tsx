@@ -24,6 +24,7 @@ export function ImportStat({ label, value, numeric = true }: { label: string; va
 export function ImportStep({
   index,
   title,
+  titleId,
   description,
   action,
   className = '',
@@ -32,6 +33,7 @@ export function ImportStep({
 }: {
   index: string
   title: string
+  titleId?: string
   description?: string
   action?: ReactNode
   className?: string
@@ -58,7 +60,7 @@ export function ImportStep({
       <div className={`min-w-0 pb-1 ${contentClassName}`}>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
-            <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>
+            <p id={titleId} className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>
               {title}
             </p>
             {description && (

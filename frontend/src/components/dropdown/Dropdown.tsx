@@ -68,10 +68,7 @@ interface DropdownProps {
   /** Draws the control in the error state, for a field the form has rejected */
   hasError?: boolean;
 
-  /**
-   * Id of the visible label for this field, since a label element does not give a button its
-   * accessible name
-   */
+  /** Ids of visible content that collectively names the control */
   labelledBy?: string;
 
   placeholder?: string;

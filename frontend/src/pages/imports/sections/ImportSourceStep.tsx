@@ -1,3 +1,4 @@
+import { useId } from 'react'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
 import { ImportStep } from '@/pages/imports/components'
 import type { ImportDataSource } from '@/pages/imports/types'
@@ -21,13 +22,17 @@ export function ImportSourceStep({
   value: ImportDataSource
   onChange: (value: ImportDataSource) => void
 }) {
+  const titleId = useId()
+
   return (
     <ImportStep
       index="00"
       title="Data Source"
+      titleId={titleId}
       description="Choose the app the export came from."
     >
       <Dropdown
+        labelledBy={titleId}
         options={DATA_SOURCE_OPTIONS}
         value={value}
         onChange={(next) => onChange(next as ImportDataSource)}

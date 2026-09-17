@@ -15,6 +15,7 @@ export type FacetSelectOption = {
 type FacetSelectDropdownProps<Facet extends FacetSelectOption> = {
   facets: Facet[]
   activeFacetId: Facet['id']
+  labelledBy?: string
   countFacet: (facet: Facet) => number
   // Facet ids the caller has scoped away, greyed out and inert in the menu
   disabledFacetIds?: Set<string>
@@ -31,6 +32,7 @@ type FacetSelectDropdownProps<Facet extends FacetSelectOption> = {
 export function FacetSelectDropdown<Facet extends FacetSelectOption>({
   facets,
   activeFacetId,
+  labelledBy,
   countFacet,
   disabledFacetIds = NO_DISABLED_FACET_IDS,
   onSelect,
@@ -59,6 +61,7 @@ export function FacetSelectDropdown<Facet extends FacetSelectOption>({
 
   return (
     <Dropdown
+      labelledBy={labelledBy}
       options={options}
       value={resolvedValue}
       onChange={onSelect}

@@ -3,6 +3,7 @@ import CreateModalSectionFrame from '@/components/create-modal/SectionFrame'
 import DateField from '@/components/date-field/DateField'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
 import IconTooltip from '@/components/tooltips/IconTooltip'
+import { TRANSACTION_MODAL_FIELD_IDS } from '@/pages/transactions/components/transaction-modal/constants'
 import { useMoneyInput } from '@/hooks/useMoneyInput'
 import { getMoneyPlaceholder } from '@/utils/moneyInput'
 import {
@@ -88,7 +89,7 @@ export default function TransactionDetailsSection({
         </div>
         <div>
           <div className="mb-1.5 flex items-center gap-2">
-            <label className="app-label block text-[0.9375rem] leading-5">Currency</label>
+            <label htmlFor={TRANSACTION_MODAL_FIELD_IDS.currency} className="app-label block text-[0.9375rem] leading-5">Currency</label>
             <IconTooltip label="Transaction currency limitation">
               Locked to the selected account's currency
             </IconTooltip>
@@ -104,6 +105,7 @@ export default function TransactionDetailsSection({
             )}
           </div>
           <Dropdown
+            id={TRANSACTION_MODAL_FIELD_IDS.currency}
             options={currencyOptions}
             value={currencyValue}
             onChange={() => undefined}

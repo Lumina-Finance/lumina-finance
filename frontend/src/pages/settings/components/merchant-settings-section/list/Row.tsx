@@ -23,6 +23,7 @@ import {
 export default function MerchantRow({
   categoryById,
   categoryOptions,
+  defaultCategoryLabelledBy,
   confirmingDelete,
   deleting,
   isEditing,
@@ -37,6 +38,7 @@ export default function MerchantRow({
 }: {
   categoryById: Map<string, Category>
   categoryOptions: DropdownOption[]
+  defaultCategoryLabelledBy: string
   confirmingDelete: boolean
   deleting: boolean
   isEditing: boolean
@@ -53,6 +55,7 @@ export default function MerchantRow({
     return (
       <InlineMerchantEdit
         categoryOptions={categoryOptions}
+        defaultCategoryLabelledBy={defaultCategoryLabelledBy}
         merchant={merchant}
         isLast={isLast}
         onCancel={onEditCancel}

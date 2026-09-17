@@ -75,8 +75,7 @@ export async function expectSignedIn(page: Page): Promise<void> {
  *
  * Two different control sets do this job. Above the toolbar breakpoint it is a pill that opens
  * a panel of tabs; below it a sheet whose first control is a dropdown rather than tabs, and
- * that dropdown is named by whichever filter it currently shows rather than by what it is, so
- * it is reached as the only one inside the sheet.
+ * that dropdown is named by the sheet's Filters heading
  *
  * @param page - Page showing the transaction list
  * @param categoryName - Exact name of the category to keep
@@ -93,7 +92,7 @@ export async function filterByCategory(page: Page, categoryName: string): Promis
   await page.getByRole('button', { name: 'Filters', exact: true }).click()
 
   const sheet = page.getByRole('dialog', { name: 'Transaction filters' })
-  await sheet.getByRole('combobox').click()
+  await sheet.getByRole('combobox', { name: 'Filters', exact: true }).click()
   await sheet.getByRole('option', { name: 'Category' }).click()
   await sheet.getByRole('checkbox', { name: categoryName }).click()
   await sheet.getByRole('button', { name: 'Apply filters' }).click()

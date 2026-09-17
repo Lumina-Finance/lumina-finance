@@ -51,7 +51,16 @@ export function MobileFilterPanel({
       applyFilters={draft.applyFilters}
       isApplyDisabled={draft.isApplyBlocked}
     >
-      <FilterPanelBody draft={draft} showFooter={false} mobile fillHeight showAccountFilter={showAccountFilter} />
+      {(headingId) => (
+        <FilterPanelBody
+          draft={draft}
+          showFooter={false}
+          mobile
+          fillHeight
+          showAccountFilter={showAccountFilter}
+          facetLabelledBy={headingId}
+        />
+      )}
     </MobileFilterSheet>
   )
 }

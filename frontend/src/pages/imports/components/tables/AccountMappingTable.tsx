@@ -1,3 +1,4 @@
+import { useId } from 'react'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
 import { CREATE_ACCOUNT_VALUE, IMPORT_INSET_STYLE, UNSET_BATCH_INSTITUTION } from '@/pages/imports/constants'
 import { OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
@@ -84,6 +85,12 @@ export function ImportAccountMappingTable({
   onCreateInstitution: (query: string, rowId: string) => void
   onBatchCreateInstitution: (query: string) => void
 }) {
+  const labelNamespace = useId()
+  const batchHeadingId = `${labelNamespace}-batch`
+  const accountHeadingId = `${labelNamespace}-account`
+  const typeHeadingId = `${labelNamespace}-type`
+  const currencyHeadingId = `${labelNamespace}-currency`
+  const institutionHeadingId = `${labelNamespace}-institution`
   const selectedRows = rows.filter((row) => selectedRowIds.has(row.id))
   const allRowsSelected = rows.length > 0 && selectedRows.length === rows.length
   const someRowsSelected = selectedRows.length > 0 && !allRowsSelected
@@ -141,8 +148,9 @@ export function ImportAccountMappingTable({
   /**
    * Renders one source's mapping row, with the account, type, currency and institution choices
    */
-  const renderMappingRow = (row: (typeof rows)[number]) => {
+  const renderMappingRow = (row: (typeof rows)[number], index: number) => {
     const creating = row.value === CREATE_ACCOUNT_VALUE
+    const sourceLabelId = `${labelNamespace}-source-${index}`
 
     return (
       <tr key={row.id} className={row.autoFilled ? 'import-auto-fill-row' : undefined}>
@@ -158,6 +166,7 @@ export function ImportAccountMappingTable({
         <td className="px-4 py-3 align-middle">
           <div className="flex min-w-0 items-center gap-2">
             <p
+              id={sourceLabelId}
               className={`truncate font-medium ${row.value === OUTSIDE_ACCOUNT_VALUE ? 'line-through' : ''}`}
               style={{ color: row.value === OUTSIDE_ACCOUNT_VALUE ? 'var(--app-text-muted)' : undefined }}
               title={row.source}
@@ -173,6 +182,7 @@ export function ImportAccountMappingTable({
         </td>
         <td className="px-4 py-3 align-middle">
           <Dropdown
+            labelledBy={`${accountHeadingId} ${sourceLabelId}`}
             options={options}
             value={row.value}
             selectedOption={row.selectedOption}
@@ -186,6 +196,7 @@ export function ImportAccountMappingTable({
         </td>
         <td className="px-4 py-3 align-middle">
           <Dropdown
+            labelledBy={`${typeHeadingId} ${sourceLabelId}`}
             options={accountTypeOptions}
             value={creating ? row.createType : row.accountType}
             onChange={row.onCreateTypeChange}
@@ -201,6 +212,7 @@ export function ImportAccountMappingTable({
         </td>
         <td className="px-2 py-3 align-middle">
           <Dropdown
+            labelledBy={`${currencyHeadingId} ${sourceLabelId}`}
             options={currencyOptions}
             value={creating ? row.createCurrency : row.accountCurrency}
             onChange={row.onCreateCurrencyChange}
@@ -214,6 +226,7 @@ export function ImportAccountMappingTable({
         </td>
         <td className="px-4 py-3 align-middle">
           <Dropdown
+            labelledBy={`${institutionHeadingId} ${sourceLabelId}`}
             options={institutionOptions}
             value={creating ? row.createInstitution : row.accountInstitution}
             onChange={row.onCreateInstitutionChange}
@@ -241,13 +254,14 @@ export function ImportAccountMappingTable({
           style={IMPORT_INSET_STYLE}
         >
           <div className="col-span-3 min-w-0 px-4">
-            <p className="text-sm font-semibold">Batch Edit Accounts</p>
+            <p id={batchHeadingId} className="text-sm font-semibold">Batch Edit Accounts</p>
             <p className="mt-1 text-xs" style={{ color: 'var(--app-text-subtle)' }}>
               {selectedRows.length} selected · {mappedCount} mapped · {newCount} new · {reviewCount} review
             </p>
           </div>
           <div className="min-w-0 px-4">
             <Dropdown
+              labelledBy={`${batchHeadingId} ${typeHeadingId}`}
               options={accountTypeOptions}
               value={batchAccountType}
               onChange={onBatchAccountTypeChange}
@@ -258,6 +272,7 @@ export function ImportAccountMappingTable({
           </div>
           <div className="min-w-0 px-2">
             <Dropdown
+              labelledBy={`${batchHeadingId} ${currencyHeadingId}`}
               options={currencyOptions}
               value={batchAccountCurrency}
               onChange={onBatchAccountCurrencyChange}
@@ -270,6 +285,7 @@ export function ImportAccountMappingTable({
           <div className="flex min-w-0 items-center gap-3 px-4">
             <div className="min-w-0 flex-1">
               <Dropdown
+                labelledBy={`${batchHeadingId} ${institutionHeadingId}`}
                 options={institutionOptions}
                 value={batchAccountInstitution}
                 onChange={onBatchAccountInstitutionChange}
@@ -317,10 +333,10 @@ export function ImportAccountMappingTable({
                 </span>
               </th>
               <th className="px-4 py-3 font-medium">Source Account</th>
-              <th className="px-4 py-3 font-medium">Existing Account</th>
-              <th className="px-4 py-3 font-medium">Type</th>
-              <th className="px-2 py-3 font-medium">Currency</th>
-              <th className="px-4 py-3 font-medium">Institution</th>
+              <th id={accountHeadingId} className="px-4 py-3 font-medium">Existing Account</th>
+              <th id={typeHeadingId} className="px-4 py-3 font-medium">Type</th>
+              <th id={currencyHeadingId} className="px-2 py-3 font-medium">Currency</th>
+              <th id={institutionHeadingId} className="px-4 py-3 font-medium">Institution</th>
             </tr>
           </thead>
           <tbody>

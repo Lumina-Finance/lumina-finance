@@ -13,6 +13,7 @@ import {
 import TaxAdvantagedOpeningUsageLabel from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/controls/OpeningUsageLabel'
 
 const COUNTS_INTERNAL_TRANSFERS_FIELD_ID = 'tac-details-counts-internal-transfers'
+const TAX_TREATMENT_FIELD_ID = 'tac-details-tax-treatment'
 
 interface TaxAdvantagedCategoryDetailsModalProps {
   currencies: Currency[]
@@ -120,8 +121,9 @@ export default function TaxAdvantagedCategoryDetailsModal({
 
           <div className="grid grid-cols-1 gap-3 min-[620px]:grid-cols-[minmax(0,3fr)_minmax(0,7fr)]">
             <div className="min-w-0">
-              <span className="app-label mb-1 block text-xs">Type</span>
+              <label htmlFor={TAX_TREATMENT_FIELD_ID} className="app-label mb-1 block text-xs">Type</label>
               <Dropdown
+                id={TAX_TREATMENT_FIELD_ID}
                 className="w-full"
                 size="compact"
                 options={TAX_TREATMENT_OPTIONS}

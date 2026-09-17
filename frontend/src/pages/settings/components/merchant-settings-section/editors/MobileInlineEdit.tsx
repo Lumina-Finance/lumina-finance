@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useId, useState, type FormEvent } from 'react'
 import { Check, Pencil, X } from 'lucide-react'
 import { useUpdateMerchant, type Merchant } from '@/api/merchants'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
@@ -23,6 +23,7 @@ export default function MobileInlineMerchantEdit({
   merchant: Merchant
   onCancel: () => void
 }) {
+  const defaultCategoryFieldId = useId()
   const updateMerchant = useUpdateMerchant()
   const [form, setForm] = useState({
     name: merchant.name,
@@ -106,8 +107,9 @@ export default function MobileInlineMerchantEdit({
           </p>
         </div>
         <div>
-          <span className="app-label-compact mb-1 block">Default category</span>
+          <label htmlFor={defaultCategoryFieldId} className="app-label-compact mb-1 block">Default category</label>
           <Dropdown
+            id={defaultCategoryFieldId}
             className="w-full"
             size="compact"
             options={categoryOptions}
