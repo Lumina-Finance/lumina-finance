@@ -19,9 +19,9 @@ from app.schemas.transaction import (
 # monthly limits or two decades of weekly ones
 MAX_BUDGET_LIMIT_PERIODS = 1200
 
-# Budgets one request may carry, and categories one budget may track. Both are
-# checked and written one at a time, so each decides the work a single request
-# costs, and both sit far above any real export
+# Budgets one request may carry, and categories one budget may track. These
+# bound validation and batched writes for one request while remaining far
+# above any real export
 MAX_FIREFLY_BUDGETS = 1000
 MAX_FIREFLY_BUDGET_CATEGORIES = 1000
 

@@ -39,9 +39,38 @@ async def get_valid_tracked_category_ids(
 
     # Deduplicate before querying so repeated IDs are not treated as missing
     unique_category_ids = list(set(category_ids))
-    query = select(Category.id).where(Category.id.in_(unique_category_ids))
+    found_category_ids = await get_allowed_tracked_category_ids(db, unique_category_ids, user_id, group_id)
 
-    # Match categories allowed by the budget scope before checking for missing IDs
+    # Missing and out-of-scope categories use the same client-facing validation error
+    if found_category_ids != set(unique_category_ids):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Category not found")
+    return unique_category_ids
+
+
+async def get_allowed_tracked_category_ids(
+    db: AsyncSession,
+    category_ids: list[uuid.UUID],
+    user_id: uuid.UUID,
+    group_id: uuid.UUID | None,
+) -> set[uuid.UUID]:
+    """Return requested category identifiers allowed for a budget scope
+
+    Args:
+        db: Active database session
+        category_ids: Requested tracked category identifiers
+        user_id: Authenticated user identifier
+        group_id: Optional group scope for the base budget
+
+    Returns:
+        Allowed category identifiers without rejecting missing or forbidden IDs
+    """
+    if not category_ids:
+        return set()
+
+    # Fetch only categories eligible for the requested budget scope
+    query = select(Category.id).where(Category.id.in_(set(category_ids)))
+
+    # Match categories allowed by the budget scope
     system_category_filter = Category.is_system.is_(True)
     if group_id is not None:
         query = query.where(system_category_filter | (Category.group_id == group_id))
@@ -53,9 +82,4 @@ async def get_valid_tracked_category_ids(
 
     # Fetch categories that are valid for the base budget scope
     result = await db.execute(query)
-    found_category_ids = set(result.scalars().all())
-
-    # Missing and out-of-scope categories use the same client-facing validation error
-    if found_category_ids != set(unique_category_ids):
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Category not found")
-    return unique_category_ids
+    return set(result.scalars().all())
