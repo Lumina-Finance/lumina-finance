@@ -1,8 +1,10 @@
-import { useId } from 'react'
+import { useEffect, useId, type Dispatch, type SetStateAction } from 'react'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
 import { CREATE_ACCOUNT_VALUE, IMPORT_INSET_STYLE, UNSET_BATCH_INSTITUTION } from '@/pages/imports/constants'
 import { OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 import { canApplyBatchEditToRow, countImportAccountRowStates } from '@/pages/imports/utils'
+import { formatAccountMappingSummary } from '@/pages/imports/utils/accountMappingSummary'
+import { getImportAccountSelection, toggleAllImportAccountRows } from '@/pages/imports/utils/accountSelection'
 import { Checkbox } from '@/components/forms/Checkbox'
 
 /**
@@ -81,7 +83,7 @@ export function ImportAccountMappingTable({
   onBatchAccountTypeChange: (value: string) => void
   onBatchAccountCurrencyChange: (value: string) => void
   onBatchAccountInstitutionChange: (value: string) => void
-  onSelectedRowsChange: (rows: Set<string>) => void
+  onSelectedRowsChange: Dispatch<SetStateAction<Set<string>>>
   onCreateInstitution: (query: string, rowId: string) => void
   onBatchCreateInstitution: (query: string) => void
 }) {
@@ -91,36 +93,40 @@ export function ImportAccountMappingTable({
   const typeHeadingId = `${labelNamespace}-type`
   const currencyHeadingId = `${labelNamespace}-currency`
   const institutionHeadingId = `${labelNamespace}-institution`
-  const selectedRows = rows.filter((row) => selectedRowIds.has(row.id))
-  const allRowsSelected = rows.length > 0 && selectedRows.length === rows.length
-  const someRowsSelected = selectedRows.length > 0 && !allRowsSelected
-  const { mapped: mappedCount, new: newCount, review: reviewCount } = countImportAccountRowStates(rows)
+  const { eligibleRows, selectedRows, validSelection, allSelected: allRowsSelected, someSelected: someRowsSelected } = getImportAccountSelection(rows, selectedRowIds)
+  const { mapped: mappedCount, new: newCount } = countImportAccountRowStates(rows)
 
-  // Apply leaves a settled row alone, so both the button and the edit itself work from this rather
-  // than from the selection, which can hold rows this Apply will not touch
-  const editableRows = selectedRows.filter((row) => canApplyBatchEditToRow(row.value, row.isHandAnswered, row.isCounterpartyOnly))
+  // A reference-data refresh can settle a selected row without calling its mapping handler
+  useEffect(() => {
+    if (validSelection !== selectedRowIds) {
+      onSelectedRowsChange((current) => getImportAccountSelection(rows, current).validSelection)
+    }
+  }, [onSelectedRowsChange, rows, selectedRowIds, validSelection])
+
+  const editableRows = selectedRows
+  const accountMappingSummary = formatAccountMappingSummary({
+    selected: selectedRows.length,
+    mapped: mappedCount,
+    new: newCount,
+  })
   const hasBatchInstitutionSet = batchAccountInstitution !== UNSET_BATCH_INSTITUTION
   const hasBatchFieldSet = Boolean(batchAccountType || batchAccountCurrency) || hasBatchInstitutionSet
 
+  /** Updates one eligible row while retaining the other table's current selection */
   const toggleRow = (row: (typeof rows)[number]) => {
-    const next = new Set(selectedRowIds)
-    if (next.has(row.id)) {
-      next.delete(row.id)
-    } else {
-      next.add(row.id)
-    }
-    onSelectedRowsChange(next)
+    if (disabled || !canApplyBatchEditToRow(row.value, row.isHandAnswered, row.isCounterpartyOnly)) return
+    onSelectedRowsChange((current) => {
+      const next = new Set(getImportAccountSelection(rows, current).validSelection)
+      if (next.has(row.id)) next.delete(row.id)
+      else next.add(row.id)
+      return next
+    })
   }
 
-  // Both tables in the mapping step share one selection, so each one only ever adds or removes its
-  // own rows rather than replacing the whole set
+  /** Toggles eligible rows in this table while retaining the other table's selection */
   const toggleAllRows = () => {
-    const next = new Set(selectedRowIds)
-    for (const row of rows) {
-      if (allRowsSelected) next.delete(row.id)
-      else next.add(row.id)
-    }
-    onSelectedRowsChange(next)
+    if (disabled) return
+    onSelectedRowsChange((current) => toggleAllImportAccountRows(rows, current))
   }
 
   const applyBatchType = () => {
@@ -138,11 +144,12 @@ export function ImportAccountMappingTable({
     onBatchAccountCurrencyChange('')
     onBatchAccountInstitutionChange(UNSET_BATCH_INSTITUTION)
 
-    // Only the rows this table just edited leave the selection, which the other table shares, so a
-    // row Apply skipped stays ticked rather than reading as though something happened to it
-    const next = new Set(selectedRowIds)
-    for (const row of editableRows) next.delete(row.id)
-    onSelectedRowsChange(next)
+    // The other table shares this selection and keeps its rows after this table applies its edits
+    onSelectedRowsChange((current) => {
+      const next = new Set(current)
+      for (const row of editableRows) next.delete(row.id)
+      return next
+    })
   }
 
   /**
@@ -150,6 +157,7 @@ export function ImportAccountMappingTable({
    */
   const renderMappingRow = (row: (typeof rows)[number], index: number) => {
     const creating = row.value === CREATE_ACCOUNT_VALUE
+    const selectable = canApplyBatchEditToRow(row.value, row.isHandAnswered, row.isCounterpartyOnly)
     const sourceLabelId = `${labelNamespace}-source-${index}`
 
     return (
@@ -157,7 +165,8 @@ export function ImportAccountMappingTable({
         <td className="px-4 py-3 align-middle">
           <span className="flex justify-center">
             <Checkbox
-              checked={selectedRowIds.has(row.id)}
+              checked={selectable && selectedRowIds.has(row.id)}
+              disabled={disabled || !selectable}
               onChange={() => toggleRow(row)}
               label={`Select ${row.source}`}
             />
@@ -256,7 +265,7 @@ export function ImportAccountMappingTable({
           <div className="col-span-3 min-w-0 px-4">
             <p id={batchHeadingId} className="text-sm font-semibold">Batch Edit Accounts</p>
             <p className="mt-1 text-xs" style={{ color: 'var(--app-text-subtle)' }}>
-              {selectedRows.length} selected · {mappedCount} mapped · {newCount} new · {reviewCount} review
+              {accountMappingSummary}
             </p>
           </div>
           <div className="min-w-0 px-4">
@@ -327,7 +336,7 @@ export function ImportAccountMappingTable({
                     checked={allRowsSelected}
                     indeterminate={someRowsSelected}
                     onChange={toggleAllRows}
-                    disabled={rows.length === 0}
+                    disabled={disabled || eligibleRows.length === 0}
                     label={allRowsSelected ? 'Deselect all accounts' : 'Select all accounts'}
                   />
                 </span>
