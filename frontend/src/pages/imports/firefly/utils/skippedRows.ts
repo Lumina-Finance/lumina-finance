@@ -1,11 +1,17 @@
-import type { CsvRow } from '@/pages/imports/types'
+import type { CsvRow, ImportRowProblem } from '@/pages/imports/types'
 import { FIREFLY_MISSING_REQUIRED_VALUES_REASON, FIREFLY_TAG_TOO_LONG_REASON } from '@/pages/imports/firefly/constants'
+import { getImportRowId } from '@/pages/imports/utils/common'
+import { getDebtPaymentImportNote } from '@/pages/imports/utils/categoryMatching'
 import {
   getFireflyMissingRequiredFields,
   getFireflyOverlongTag,
   getFireflyRowOverLimitReason,
 } from './derivation'
-import { resolveFireflyRowLegs, type FireflyRowResolutionOptions } from './rowResolution'
+import {
+  getFireflyCategoryUsedByResolution,
+  resolveFireflyRowLegs,
+  type FireflyRowResolutionOptions,
+} from './rowResolution'
 
 // How much of an overlong tag the skip reason shows, mirroring the backend's
 // own truncation of tag names in error details
@@ -31,26 +37,30 @@ export interface FireflySkippedRowDetail {
 }
 
 /**
- * Everything the preview predicts about a commit in one pass over the rows,
- * where rowCount covers every parsed row so the row count minus the skipped
- * rows is the number that converts
+ * Everything the preview predicts about a commit in one pass over the rows, including skipped rows
+ * and non-blocking guidance for rows that will convert
  */
 export interface FireflyImportForecast {
   rowCount: number
   transactionEstimate: number
   skippedRows: FireflySkippedRowDetail[]
+  rowWarnings: ImportRowProblem[]
+}
+
+/** Resolution options paired with the staged file that gives source rows their identity */
+export interface FireflyImportForecastOptions extends FireflyRowResolutionOptions {
+  fileId: string | null
 }
 
 /**
- * Resolves every journal row once to predict the commit outcome: the rows
- * that will convert, the ledger transactions they produce, and the rows the
- * commit will skip paired with the reasons the backend will report
+ * Resolves every journal row once to predict its transaction count, skip reason and guidance
  */
 export function forecastFireflyImport(
   rows: CsvRow[],
-  options: FireflyRowResolutionOptions,
+  options: FireflyImportForecastOptions,
 ): FireflyImportForecast {
   const skippedRows: FireflySkippedRowDetail[] = []
+  const rowWarnings: ImportRowProblem[] = []
   let rowCount = 0
   let transactionEstimate = 0
 
@@ -98,10 +108,21 @@ export function forecastFireflyImport(
       skippedRows.push(buildFireflySkippedRowDetail(row, index, resolution.skipReason))
     } else {
       transactionEstimate += resolution.legs.length
+
+      const category = getFireflyCategoryUsedByResolution(row, resolution.legs, options)
+      const debtPaymentNote = getDebtPaymentImportNote(category)
+      if (debtPaymentNote && options.fileId) {
+        rowWarnings.push({
+          id: getImportRowId(options.fileId, index),
+          rowNumber: index + FIRST_DATA_ROW_LINE_NUMBER,
+          cells: row,
+          reason: debtPaymentNote,
+        })
+      }
     }
   }
 
-  return { rowCount, transactionEstimate, skippedRows }
+  return { rowCount, transactionEstimate, skippedRows, rowWarnings }
 }
 
 /**

@@ -1,5 +1,5 @@
 /**
- * Tests Firefly III skipped-row prediction so the preview step lists unconvertible rows with the reasons the backend reports
+ * Tests Firefly III outcome prediction for skipped rows and non-blocking row guidance
  */
 import { describe, expect, it } from 'vitest'
 import type { AccountsOverview } from '@/api/accounts'
@@ -7,12 +7,13 @@ import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import {
   CREATE_ACCOUNT_VALUE,
+  CREATE_CATEGORY_VALUE,
   getRowNotesTooLongReason,
   getRowTooManyTagsReason,
   MAX_IMPORT_NOTES_LENGTH,
   MAX_IMPORT_TAGS_PER_ROW,
 } from '@/pages/imports/constants'
-import type { CsvRow } from '@/pages/imports/types'
+import type { CsvRow, ImportRowProblem } from '@/pages/imports/types'
 import {
   forecastFireflyImport,
   type FireflyRowResolutionOptions,
@@ -20,7 +21,11 @@ import {
 import {
   FIREFLY_GENERIC_SKIP_REASON,
   FIREFLY_MISSING_REQUIRED_VALUES_REASON,
+  FIREFLY_SAMPLE_PREVIEW_LIMIT,
 } from '@/pages/imports/firefly/constants'
+
+const EXPECTED_DEBT_PAYMENT_NOTE =
+  'Make sure this payment is really an expense. Repayments of a credit card, line of credit or HELOC belong in Credit Card Payment. Debt Payment can remain selected for a loan or mortgage payment.'
 
 const CURRENCIES: Currency[] = [
   { id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 },
@@ -96,9 +101,11 @@ function createFireflyRow(overrides: Partial<CsvRow> = {}): CsvRow {
 }
 
 /**
- * Builds resolution options around one existing CAD chequing account mapping
+ * Builds forecast options around one existing CAD chequing account mapping
  */
-function createOptions(overrides: Partial<FireflyRowResolutionOptions> = {}): FireflyRowResolutionOptions {
+function createOptions(
+  overrides: Partial<FireflyRowResolutionOptions> = {},
+): FireflyRowResolutionOptions & { fileId: string } {
   const groceries = createCategory()
   return {
     accountById: new Map([['checking', createAccount()]]),
@@ -117,7 +124,14 @@ function createOptions(overrides: Partial<FireflyRowResolutionOptions> = {}): Fi
       is_system: true,
     }),
     ...overrides,
+    fileId: 'transactions-file',
   }
+}
+
+/** Reads the warning collection as empty before the forecast exposes it */
+function getForecastRowWarnings(forecast: ReturnType<typeof forecastFireflyImport>): ImportRowProblem[] {
+  if (!('rowWarnings' in forecast)) return []
+  return forecast.rowWarnings as ImportRowProblem[]
 }
 
 describe('forecastFireflyImport', () => {
@@ -453,5 +467,219 @@ describe('forecastFireflyImport', () => {
     )
 
     expect(skipped.map((row) => row.rowNumber)).toEqual([3, 4])
+  })
+
+  it('warns for a withdrawal mapped directly to system Debt Payment', () => {
+    const debtPayment = createCategory({
+      id: 'debt-payment',
+      name: 'Debt Payment',
+      is_system: true,
+    })
+    const row = createFireflyRow()
+    const forecast = forecastFireflyImport(
+      [row],
+      createOptions({
+        categoryById: new Map([[debtPayment.id, debtPayment]]),
+        categoryMappings: { Groceries: debtPayment.id },
+      }),
+    )
+
+    expect(forecast).toMatchObject({
+      rowCount: 1,
+      transactionEstimate: 1,
+      skippedRows: [],
+      rowWarnings: [{
+        id: 'transactions-file-0',
+        rowNumber: 2,
+        cells: row,
+        reason: EXPECTED_DEBT_PAYMENT_NOTE,
+      }],
+    })
+  })
+
+  it.each([
+    {
+      label: 'the system category alone',
+      categories: [createCategory({ id: 'debt-payment', name: 'Debt Payment', is_system: true })],
+      warningCount: 1,
+    },
+    {
+      label: 'a personal namesake beside the system category',
+      categories: [
+        createCategory({ id: 'debt-payment', name: 'Debt Payment', is_system: true }),
+        createCategory({ id: 'personal-debt-payment', name: 'Debt Payment', owner_id: 'user-1' }),
+      ],
+      warningCount: 0,
+    },
+    {
+      label: 'a group namesake beside the system category',
+      categories: [
+        createCategory({ id: 'group-debt-payment', name: 'Debt Payment', group_id: 'group-1' }),
+        createCategory({ id: 'debt-payment', name: 'Debt Payment', is_system: true }),
+      ],
+      warningCount: 1,
+    },
+  ])('follows create-category reuse with $label', ({ categories, warningCount }) => {
+    const row = createFireflyRow({ category: 'DEBT PAYMENT' })
+    const options = createOptions({
+      categoryById: new Map(categories.map((category) => [category.id, category])),
+      categoryMappings: { 'DEBT PAYMENT': CREATE_CATEGORY_VALUE },
+      categoryCreateKinds: { 'DEBT PAYMENT': 'expense' },
+    })
+    const forecast = forecastFireflyImport([row], options)
+
+    expect(forecast).toMatchObject({ rowCount: 1, transactionEstimate: 1, skippedRows: [] })
+    expect(options.categoryMappings).toEqual({ 'DEBT PAYMENT': CREATE_CATEGORY_VALUE })
+    if (warningCount === 0) {
+      expect(getForecastRowWarnings(forecast)).toEqual([])
+    } else {
+      expect(forecast).toMatchObject({
+        rowWarnings: [{
+          id: 'transactions-file-0',
+          rowNumber: 2,
+          cells: row,
+          reason: EXPECTED_DEBT_PAYMENT_NOTE,
+        }],
+      })
+    }
+  })
+
+  it.each([
+    { type: 'Withdrawal', mapping: 'direct' },
+    { type: 'Withdrawal', mapping: 'create reuse' },
+    { type: 'Deposit', mapping: 'direct' },
+    { type: 'Deposit', mapping: 'create reuse' },
+  ])('does not warn when a $type with $mapping resolves between two imported accounts', ({ type, mapping }) => {
+    const debtPayment = createCategory({
+      id: 'debt-payment',
+      name: 'Debt Payment',
+      is_system: true,
+    })
+    const savings = createAccount({ id: 'savings', name: 'Savings' })
+    const categorySource = mapping === 'direct' ? 'Groceries' : 'DEBT PAYMENT'
+    const row = createFireflyRow({
+      type,
+      destination_name: 'Savings',
+      destination_type: 'Asset account',
+      category: categorySource,
+    })
+    const forecast = forecastFireflyImport(
+      [row],
+      createOptions({
+        accountById: new Map([
+          ['checking', createAccount()],
+          ['savings', savings],
+        ]),
+        accountMappings: { Chequing: 'checking', Savings: 'savings' },
+        categoryById: new Map([[debtPayment.id, debtPayment]]),
+        categoryMappings: {
+          [categorySource]: mapping === 'direct' ? debtPayment.id : CREATE_CATEGORY_VALUE,
+        },
+        categoryCreateKinds: mapping === 'direct' ? {} : { [categorySource]: 'expense' },
+      }),
+    )
+
+    expect(forecast).toMatchObject({ rowCount: 1, transactionEstimate: 2, skippedRows: [] })
+    expect(getForecastRowWarnings(forecast)).toEqual([])
+  })
+
+  it.each([
+    {
+      type: 'Opening balance',
+      source_name: 'Chequing initial balance',
+      source_type: 'Initial balance account',
+      destination_name: 'Chequing',
+      destination_type: 'Asset account',
+    },
+    {
+      type: 'Reconciliation',
+      source_name: 'Chequing',
+      source_type: 'Asset account',
+      destination_name: 'Chequing reconciliation',
+      destination_type: 'Reconciliation account',
+    },
+  ])('does not warn when $type resolves to Balance Adjustment', (rowShape) => {
+    const debtPayment = createCategory({
+      id: 'debt-payment',
+      name: 'Debt Payment',
+      is_system: true,
+    })
+    const forecast = forecastFireflyImport(
+      [createFireflyRow({ ...rowShape, category: 'Groceries' })],
+      createOptions({
+        categoryById: new Map([[debtPayment.id, debtPayment]]),
+        categoryMappings: { Groceries: debtPayment.id },
+      }),
+    )
+
+    expect(forecast).toMatchObject({ rowCount: 1, transactionEstimate: 1, skippedRows: [] })
+    expect(getForecastRowWarnings(forecast)).toEqual([])
+  })
+
+  it('does not warn for a skipped row mapped to system Debt Payment', () => {
+    const debtPayment = createCategory({
+      id: 'debt-payment',
+      name: 'Debt Payment',
+      is_system: true,
+    })
+    const forecast = forecastFireflyImport(
+      [createFireflyRow({ type: 'Liability credit' })],
+      createOptions({
+        categoryById: new Map([[debtPayment.id, debtPayment]]),
+        categoryMappings: { Groceries: debtPayment.id },
+      }),
+    )
+
+    expect(forecast.skippedRows.map((row) => row.reason)).toEqual([
+      'Journal type "Liability credit" is not supported, the importer handles withdrawals, deposits, transfers, opening balances, and reconciliations',
+    ])
+    expect(getForecastRowWarnings(forecast)).toEqual([])
+  })
+
+  it('warns for every qualifying row after the preview sample without colliding on journal ID', () => {
+    const groceries = createCategory()
+    const debtPayment = createCategory({
+      id: 'debt-payment',
+      name: 'Debt Payment',
+      is_system: true,
+    })
+    const rows = Array.from({ length: FIREFLY_SAMPLE_PREVIEW_LIMIT + 2 }, (_, index) => createFireflyRow({
+      journal_id: index >= FIREFLY_SAMPLE_PREVIEW_LIMIT ? 'shared-journal' : String(index + 1),
+      date: `2026-06-${String(index + 1).padStart(2, '0')} 00:00:00`,
+      category: index >= FIREFLY_SAMPLE_PREVIEW_LIMIT ? 'Debt Payment' : 'Groceries',
+    }))
+    const forecast = forecastFireflyImport(
+      rows,
+      createOptions({
+        categoryById: new Map([
+          [groceries.id, groceries],
+          [debtPayment.id, debtPayment],
+        ]),
+        categoryMappings: {
+          Groceries: groceries.id,
+          'Debt Payment': debtPayment.id,
+        },
+      }),
+    )
+
+    expect(forecast).toMatchObject({
+      rowCount: FIREFLY_SAMPLE_PREVIEW_LIMIT + 2,
+      transactionEstimate: FIREFLY_SAMPLE_PREVIEW_LIMIT + 2,
+      skippedRows: [],
+      rowWarnings: [
+        {
+          id: `transactions-file-${FIREFLY_SAMPLE_PREVIEW_LIMIT}`,
+          rowNumber: FIREFLY_SAMPLE_PREVIEW_LIMIT + 2,
+          cells: rows[FIREFLY_SAMPLE_PREVIEW_LIMIT],
+          reason: EXPECTED_DEBT_PAYMENT_NOTE,
+        },
+        {
+          id: `transactions-file-${FIREFLY_SAMPLE_PREVIEW_LIMIT + 1}`,
+          rowNumber: FIREFLY_SAMPLE_PREVIEW_LIMIT + 3,
+          cells: rows[FIREFLY_SAMPLE_PREVIEW_LIMIT + 1],
+          reason: EXPECTED_DEBT_PAYMENT_NOTE,
+        },
+      ],
+    })
   })
 })

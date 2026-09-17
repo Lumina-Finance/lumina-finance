@@ -6,6 +6,7 @@ import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, DEFAULT_CATEGORY_ICON } fr
 import type { Currency } from '@/api/currency'
 import type { CsvRow, ImportCategoryKind } from '@/pages/imports/types'
 import { MAX_IMPORT_MINOR_UNITS, toImportMinorUnits } from '@/pages/imports/utils'
+import { findReusedImportCategory } from '@/pages/imports/utils/categoryMatching'
 import { findCurrencyExponent } from '@/utils/moneyInput'
 import {
   FIREFLY_GENERIC_SKIP_REASON,
@@ -95,6 +96,25 @@ export function resolveFireflyRowLegs(row: CsvRow, options: FireflyRowResolution
     // the backend reports when its own fallback catches the row
     return { legs: null, skipReason: FIREFLY_GENERIC_SKIP_REASON }
   }
+}
+
+/**
+ * Returns the mapped category a successful resolution will commit, or undefined when the row's
+ * resolver used Transfer or Balance Adjustment instead
+ */
+export function getFireflyCategoryUsedByResolution(
+  row: CsvRow,
+  legs: FireflyResolvedLeg[],
+  options: FireflyRowResolutionOptions,
+) {
+  const mappedCategory = getFireflyMappedCategory(row, options)
+  if (!mappedCategory || !legs.some((leg) => leg.category?.id === mappedCategory.id)) return undefined
+
+  const source = row.category?.trim() || FIREFLY_NO_CATEGORY_SOURCE
+  if (options.categoryMappings[source] !== CREATE_CATEGORY_VALUE) return mappedCategory
+
+  const reused = findReusedImportCategory(source, options.categoryById.values())
+  return reused?.kind === mappedCategory.kind ? reused : undefined
 }
 
 /**

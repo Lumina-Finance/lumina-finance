@@ -41,7 +41,7 @@ import {
   type ImportAmountReading,
   readNormalizedImportAmount,
 } from './amountFormats'
-import { findReusedImportCategory, getCategoryMatchKind } from './categoryMatching'
+import { findReusedImportCategory, getCategoryMatchKind, getDebtPaymentImportNote } from './categoryMatching'
 import { buildImportMerchantMappings } from './merchantMatching'
 import { getImportDirectionValues } from './columnMapping'
 import { getImportRowId } from './common'
@@ -200,6 +200,10 @@ export function buildTransactionImportPayload({
   // The kind each category source settles on, read back per row to spot an amount moving the other
   // way. A source mapped to an existing category takes that category's kind
   const kindByCategorySource: Record<string, ImportCategoryKind> = {}
+
+  // The category each source will actually use, including an existing category the create answer
+  // reuses, read back only after a row passes its blocking validation
+  const categoryBySource: Record<string, Category | undefined> = {}
   for (const source of importedCategories) {
     const choice = categoryMappings[source] ?? ''
     if (!choice) {
@@ -232,6 +236,7 @@ export function buildTransactionImportPayload({
         (reused?.name ?? source) === BALANCE_ADJUSTMENT_CATEGORY_NAME,
       )
       kindByCategorySource[source] = kind
+      categoryBySource[source] = reused
       categories.push({
         source,
         create: {
@@ -249,7 +254,10 @@ export function buildTransactionImportPayload({
     recordsCounterpartyBySource[source] = category
       ? doesTransferRecordCounterpartyAccount(category.kind, category.name === BALANCE_ADJUSTMENT_CATEGORY_NAME)
       : false
-    if (category) kindByCategorySource[source] = category.kind
+    if (category) {
+      kindByCategorySource[source] = category.kind
+      categoryBySource[source] = category
+    }
     categories.push({ source, category_id: choice })
   }
 
@@ -308,17 +316,24 @@ export function buildTransactionImportPayload({
         continue
       }
 
-      // A row can be worth a second look for more than one reason, and each is listed on its own so
-      // the table says every thing that is odd about it rather than only the first
+      // One source row keeps one warning-table identity even when more than one note applies
+      const warningReasons: string[] = []
       const categoryKind = kindByCategorySource[resolved.categorySource]
       if (doesSignDisagreeWithCategoryKind(resolved.amountReading, categoryKind)) {
+        // Only an expense or an income category reaches here, since the check above judges no
+        // other kind, so the note can say which of the two this row is filed under
+        warningReasons.push(getRowSignDisagreesWithCategoryReason(categoryKind as 'expense' | 'income'))
+      }
+
+      const debtPaymentNote = getDebtPaymentImportNote(categoryBySource[resolved.categorySource])
+      if (debtPaymentNote) warningReasons.push(debtPaymentNote)
+
+      if (warningReasons.length > 0) {
         rowWarnings.push({
           id: getImportRowId(file.id, rowIndex),
           rowNumber: rowIndex + 1,
           cells: row,
-          // Only an expense or an income category reaches here, since the check above judges no
-          // other kind, so the note can say which of the two this row is filed under
-          reason: getRowSignDisagreesWithCategoryReason(categoryKind as 'expense' | 'income'),
+          reason: warningReasons.join(' '),
         })
       }
 

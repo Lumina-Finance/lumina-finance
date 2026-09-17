@@ -299,6 +299,9 @@ export const ROW_AMOUNT_BLANK_REASON = 'The amount cell is blank.'
 export const ROW_AMOUNT_UNREADABLE_REASON = 'The amount is not a number.'
 export const ROW_AMOUNT_TOO_LARGE_REASON = 'The amount is larger than this app can store.'
 
+// Shared by both import previews so the same category decision receives the same guidance
+export const DEBT_PAYMENT_IMPORT_NOTE = 'Make sure this payment is really an expense. Repayments of a credit card, line of credit or HELOC belong in Credit Card Payment. Debt Payment can remain selected for a loan or mortgage payment.'
+
 // The five ways a row cannot be read from the columns holding money out and money in. The first
 // needs both mapped to happen at all, since one side alone leaves the other empty. The next two each
 // send the user to map the column holding the other direction, which is the fix whichever way the
