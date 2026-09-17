@@ -19,7 +19,7 @@ import {
   findCurrencyExponent,
   fromMinorUnits,
 } from '@/utils/moneyInput'
-import { waitForMilliseconds } from '@/utils/timing'
+import { ACTION_LOADING_MIN_MS, waitForMilliseconds } from '@/utils/timing'
 import {
   createIdentityFormValues,
   getIdentityFieldErrors,
@@ -51,7 +51,6 @@ type EditAccountIdentityModalProps = {
 const EDIT_ACCOUNT_IDENTITY_TITLE_ID = 'edit-account-identity-title'
 
 const MIN_SAVE_SPINNER_MS = 800
-const MIN_DELETE_SPINNER_MS = 1000
 
 /**
  * Coordinates account identity edits, archive changes, and destructive deletion from one modal workflow
@@ -72,7 +71,7 @@ export default function EditAccountIdentityModal({
   const { data: currencies = [] } = useCurrencies()
   const currencyState = useCurrencyListState()
   const updateAccount = useUpdateAccount()
-  const deleteAccount = useDeleteAccount({ minimumPendingMs: MIN_DELETE_SPINNER_MS })
+  const deleteAccount = useDeleteAccount({ minimumPendingMs: ACTION_LOADING_MIN_MS })
   const { data: institutions = [] } = useInstitutions()
   const {
     data: taxAdvantagedCategories = [],

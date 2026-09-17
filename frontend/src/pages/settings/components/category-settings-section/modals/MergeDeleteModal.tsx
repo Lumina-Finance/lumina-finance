@@ -1,8 +1,8 @@
 import { Tag } from 'lucide-react'
 import type { Category } from '@/api/categories'
 import MergeDeleteReferenceModal from '@/pages/settings/components/shared/modals/MergeDeleteReferenceModal'
-import { DELETE_SPINNER_MS } from '@/pages/settings/components/category-settings-section/constants'
 import { categoryMergeOptions } from '@/pages/settings/components/category-settings-section/utils'
+import { ACTION_LOADING_MIN_MS } from '@/utils/timing'
 
 /**
  * Modal shown when a category cannot be deleted because transactions still use it, asking
@@ -41,7 +41,7 @@ export default function MergeDeleteCategoryModal({
       open={open}
       item={category}
       isPending={isPending}
-      submitMinVisibleMs={DELETE_SPINNER_MS}
+      submitMinVisibleMs={ACTION_LOADING_MIN_MS}
       filterOptionsLocally
       icon={Tag}
       buildOptions={categoryMergeOptions}

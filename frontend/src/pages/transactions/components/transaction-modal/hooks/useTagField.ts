@@ -3,11 +3,10 @@ import { useInfiniteTags, type Tag } from '@/api/tags'
 import type { TransactionTag } from '@/api/transactions'
 import {
   TAG_DROPDOWN_PAGE_SIZE,
-  TAG_FETCHING_MORE_TEXT_MIN_MS,
   TAG_SEARCH_DEBOUNCE_MS,
-  TAG_SEARCH_LOADING_TEXT_MIN_MS,
 } from '@/pages/transactions/components/transaction-modal/constants'
 import type { TransactionFormValues } from '@/pages/transactions/components/transaction-modal/types'
+import { FETCHING_MORE_TEXT_MIN_MS, LOADING_TEXT_MIN_MS } from '@/utils/timing'
 import { useDebouncedReferenceSearch } from './useDebouncedReferenceSearch'
 import { usePagedReferenceDropdown } from './usePagedReferenceDropdown'
 
@@ -64,8 +63,8 @@ export function useTagField({
   const tagReference = usePagedReferenceDropdown({
     query: tagQuery,
     activeSearchText: tagReferenceSearch.activeSearchText,
-    searchLoadingMinMs: TAG_SEARCH_LOADING_TEXT_MIN_MS,
-    fetchingMoreMinMs: TAG_FETCHING_MORE_TEXT_MIN_MS,
+    searchLoadingMinMs: LOADING_TEXT_MIN_MS,
+    fetchingMoreMinMs: FETCHING_MORE_TEXT_MIN_MS,
     idleLoadingText: 'Loading tags...',
   })
 

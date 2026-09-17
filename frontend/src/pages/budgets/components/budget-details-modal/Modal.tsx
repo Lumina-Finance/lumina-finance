@@ -9,7 +9,6 @@ import BudgetPeriodHistory from '@/pages/budgets/components/budget-details-modal
 import BudgetEditModal from '@/pages/budgets/components/budget-editor-modal/EditModal'
 import BudgetFxStatusBadge from '@/pages/budgets/components/shared/FxStatusBadge'
 import { ModalShell } from '@/components/modal/Shell'
-import { DELETE_BUDGET_MIN_LOADING_MS } from '@/pages/budgets/constants'
 import { attentionState } from '@/pages/budgets/utils/budgetStatus'
 import { getHistoricalBudgetUtilizationFxStatusMessage } from '@/pages/budgets/utils/fxTooltipMessages'
 import {
@@ -21,6 +20,7 @@ import {
   getSortedBudgetPeriods,
 } from '@/pages/budgets/utils/budgetDetails'
 import { combineFxStatuses } from '@/utils/fxStatus'
+import { ACTION_LOADING_MIN_MS } from '@/utils/timing'
 
 /**
  * Coordinates budget details data, edit/delete actions, and the responsive details dialog layout
@@ -53,7 +53,7 @@ export default function BudgetDetailsModal({
   /** Runs once the panel has finished leaving, which the page waits on before dropping its budget snapshot */
   onExitComplete: () => void
 }) {
-  const deleteBaseBudget = useDeleteBaseBudget({ minimumPendingMs: DELETE_BUDGET_MIN_LOADING_MS })
+  const deleteBaseBudget = useDeleteBaseBudget({ minimumPendingMs: ACTION_LOADING_MIN_MS })
   const [editOpen, setEditOpen] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleteInProgress, setDeleteInProgress] = useState(false)

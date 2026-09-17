@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ActionFeedbackStatus } from '@/components/feedback/ActionButton'
-import { waitForMilliseconds } from '@/utils/timing'
+import { ACTION_LOADING_MIN_MS, waitForMilliseconds } from '@/utils/timing'
 
-const DEFAULT_MINIMUM_LOADING_MS = 1000
 const DEFAULT_SUCCESS_MS = 1200
 
 interface UseActionFeedbackOptions {
@@ -19,7 +18,7 @@ interface UseActionFeedbackOptions {
  * skipped after the component unmounts
  */
 export function useActionFeedback({
-  minimumLoadingMs = DEFAULT_MINIMUM_LOADING_MS,
+  minimumLoadingMs = ACTION_LOADING_MIN_MS,
   successMs = DEFAULT_SUCCESS_MS,
 }: UseActionFeedbackOptions = {}) {
   const [status, setStatus] = useState<ActionFeedbackStatus>('idle')

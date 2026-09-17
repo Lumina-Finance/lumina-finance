@@ -6,9 +6,7 @@ import type { Category } from '@/api/categories'
 import { useInfiniteMerchants, useMerchant, useUpdateMerchant, type Merchant } from '@/api/merchants'
 import {
   MERCHANT_DROPDOWN_PAGE_SIZE,
-  MERCHANT_FETCHING_MORE_TEXT_MIN_MS,
   MERCHANT_SEARCH_DEBOUNCE_MS,
-  MERCHANT_SEARCH_LOADING_TEXT_MIN_MS,
 } from '@/pages/transactions/components/transaction-modal/constants'
 import { buildCategoryOptions } from '@/pages/transactions/components/transaction-modal/utils/categories'
 import { getCategorySelectionTransition } from '@/pages/transactions/components/transaction-modal/utils/categoryTransitions'
@@ -17,6 +15,7 @@ import type {
   TransactionFormValues,
   TransactionModalKind,
 } from '@/pages/transactions/components/transaction-modal/types'
+import { FETCHING_MORE_TEXT_MIN_MS, LOADING_TEXT_MIN_MS } from '@/utils/timing'
 import { useDebouncedReferenceSearch } from './useDebouncedReferenceSearch'
 import { usePagedReferenceDropdown } from './usePagedReferenceDropdown'
 
@@ -87,8 +86,8 @@ export function useMerchantField({
   const merchantReference = usePagedReferenceDropdown({
     query: merchantQuery,
     activeSearchText: merchantReferenceSearch.activeSearchText,
-    searchLoadingMinMs: MERCHANT_SEARCH_LOADING_TEXT_MIN_MS,
-    fetchingMoreMinMs: MERCHANT_FETCHING_MORE_TEXT_MIN_MS,
+    searchLoadingMinMs: LOADING_TEXT_MIN_MS,
+    fetchingMoreMinMs: FETCHING_MORE_TEXT_MIN_MS,
     idleLoadingText: 'Loading merchants...',
   })
   const selectedMerchantId = form.merchant_id || null
