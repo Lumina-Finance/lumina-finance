@@ -82,11 +82,12 @@ export function ImportUploadCard({
         style={{
           ...IMPORT_INSET_STYLE,
           color: 'var(--app-text-muted)',
-          border: isRefusal
-            ? '1px solid var(--app-negative-border)'
+          border: '1px solid transparent',
+          borderColor: isRefusal
+            ? 'var(--app-negative-border)'
             : isDraggingFile
-              ? '1px solid var(--app-accent)'
-              : undefined,
+              ? 'var(--app-accent)'
+              : 'transparent',
         }}
         onClick={() => {
           if (disabled) return
@@ -112,12 +113,18 @@ export function ImportUploadCard({
           onDropFile(selectDroppedImportFiles(event.dataTransfer.items, event.dataTransfer.files))
         }}
       >
-        <span className="relative flex min-h-[5.75rem] w-full items-center justify-center overflow-hidden">
+        <span className="relative grid min-h-[5.75rem] w-full items-center justify-items-center overflow-hidden">
+          {/* The idle prompt reserves its natural height, including wrapped hints, for every state */}
+          <span className="invisible col-start-1 row-start-1 flex flex-col items-center" aria-hidden>
+            <span className="mb-3 h-11 w-11" />
+            <span className="block text-sm font-semibold">{title}</span>
+            <span className="mt-1 block text-xs">{hint}</span>
+          </span>
           <AnimatePresence initial={false} mode="wait">
             {processing ? (
               <motion.span
                 key="processing"
-                className="flex flex-col items-center"
+                className="col-start-1 row-start-1 flex flex-col items-center"
                 {...uploadStateMotion}
               >
                 <span
@@ -142,7 +149,7 @@ export function ImportUploadCard({
                 // place, and so the polite live region is replaced by an assertive one rather than
                 // having its politeness changed under a screen reader, which is not reliably honoured
                 key={isBlockedWithoutFailure ? 'waiting' : 'rejected'}
-                className="flex flex-col items-center"
+                className="col-start-1 row-start-1 flex flex-col items-center"
                 role={isBlockedWithoutFailure ? 'status' : 'alert'}
                 {...uploadStateMotion}
               >
@@ -171,7 +178,7 @@ export function ImportUploadCard({
             ) : isDraggingFile ? (
               <motion.span
                 key="dragging"
-                className="flex flex-col items-center"
+                className="col-start-1 row-start-1 flex flex-col items-center"
                 {...uploadStateMotion}
               >
                 <span
@@ -190,7 +197,7 @@ export function ImportUploadCard({
             ) : (
               <motion.span
                 key="upload"
-                className="flex flex-col items-center"
+                className="col-start-1 row-start-1 flex flex-col items-center"
                 {...uploadStateMotion}
               >
                 <span
