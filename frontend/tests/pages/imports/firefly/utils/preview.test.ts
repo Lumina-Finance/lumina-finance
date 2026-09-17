@@ -8,12 +8,7 @@ import type { Currency } from '@/api/currency'
 import type { Institution } from '@/api/institutions'
 import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, MAX_IMPORT_TAGS_PER_ROW } from '@/pages/imports/constants'
 import type { CsvRow } from '@/pages/imports/types'
-import { FIREFLY_NO_CATEGORY_SOURCE } from '@/api/firefly-imports'
-import {
-  buildFireflyPreviewRows,
-  getFireflyImportedCategories,
-  inferFireflyCategoryMappings,
-} from '@/pages/imports/firefly/utils'
+import { buildFireflyPreviewRows } from '@/pages/imports/firefly/utils'
 
 const institution: Institution = {
   id: 'bank',
@@ -338,57 +333,5 @@ describe('firefly preview rows', () => {
     }))
 
     expect(rows).toHaveLength(2)
-  })
-})
-
-describe('getFireflyImportedCategories', () => {
-  it('lists the distinct categories rows carry', () => {
-    const rows = [
-      createFireflyRow({ category: 'Groceries' }),
-      createFireflyRow({ category: 'Dining' }),
-      createFireflyRow({ category: 'Groceries' }),
-    ]
-
-    expect(getFireflyImportedCategories(rows)).toEqual(['Dining', 'Groceries'])
-  })
-
-  it('adds the no-category placeholder when a row carries no category', () => {
-    const rows = [createFireflyRow({ category: 'Groceries' }), createFireflyRow({ category: '' })]
-
-    expect(getFireflyImportedCategories(rows)).toEqual(['Groceries', FIREFLY_NO_CATEGORY_SOURCE])
-  })
-})
-
-describe('inferFireflyCategoryMappings', () => {
-  it('matches the no-category placeholder to the seeded miscellaneous category', () => {
-    const miscellaneous = createCategory({
-      id: 'miscellaneous',
-      name: 'Miscellaneous',
-      kind: 'expense',
-      is_system: true,
-    })
-
-    const mappings = inferFireflyCategoryMappings(
-      [FIREFLY_NO_CATEGORY_SOURCE],
-      {},
-      [miscellaneous],
-      { [FIREFLY_NO_CATEGORY_SOURCE]: 'expense' },
-    )
-
-    expect(mappings[FIREFLY_NO_CATEGORY_SOURCE]).toBe('miscellaneous')
-  })
-
-  it('keeps an explicit choice for the placeholder over the automatic match', () => {
-    const miscellaneous = createCategory({ id: 'miscellaneous', name: 'Miscellaneous', is_system: true })
-    const chosen = createCategory({ id: 'chosen', name: 'Shopping' })
-
-    const mappings = inferFireflyCategoryMappings(
-      [FIREFLY_NO_CATEGORY_SOURCE],
-      { [FIREFLY_NO_CATEGORY_SOURCE]: 'chosen' },
-      [miscellaneous, chosen],
-      { [FIREFLY_NO_CATEGORY_SOURCE]: 'expense' },
-    )
-
-    expect(mappings[FIREFLY_NO_CATEGORY_SOURCE]).toBe('chosen')
   })
 })

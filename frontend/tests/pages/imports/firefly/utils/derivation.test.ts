@@ -1,13 +1,38 @@
 /**
- * Tests that the Firefly III create-new prefills only ever offer a currency the app can store an
+ * Tests Firefly account currency prefills, imported category listing and category mappings
+ *
+ * Create-new prefills must only offer a currency the app can store an
  * account in, since the count above the mapping table reads a row carrying a type and a currency as
  * answered while the control beside it shows a placeholder for a code its own list does not hold
  */
 import { describe, expect, it } from 'vitest'
+import type { Category } from '@/api/categories'
+import { FIREFLY_NO_CATEGORY_SOURCE } from '@/api/firefly-imports'
 import type { CsvRow } from '@/pages/imports/types'
-import { buildFireflyAccountPrefills } from '@/pages/imports/firefly/utils'
+import {
+  buildFireflyAccountPrefills,
+  getFireflyImportedCategories,
+  inferFireflyCategoryMappings,
+} from '@/pages/imports/firefly/utils'
 
 const SUPPORTED_CURRENCIES = new Set(['CAD', 'USD'])
+
+/**
+ * Creates a category fixture used by category derivation
+ */
+function createCategory(overrides: Partial<Category> = {}): Category {
+  return {
+    id: 'groceries',
+    group_id: null,
+    owner_id: null,
+    name: 'Groceries',
+    kind: 'expense',
+    icon: null,
+    is_system: false,
+    created_at: '2026-01-01T00:00:00Z',
+    ...overrides,
+  }
+}
 
 /**
  * Creates a Firefly withdrawal leaving the given asset account in the given currency
@@ -73,5 +98,60 @@ describe('the currency a Firefly account is prefilled with', () => {
     ]
 
     expect(buildFireflyAccountPrefills(rows, ['Savings'], SUPPORTED_CURRENCIES).Savings.currency).toBe('CAD')
+  })
+})
+
+describe('getFireflyImportedCategories', () => {
+  it('lists the distinct categories rows carry', () => {
+    const rows = [
+      createWithdrawal('Chequing', 'CAD', { category: 'Groceries' }),
+      createWithdrawal('Chequing', 'CAD', { category: 'Dining' }),
+      createWithdrawal('Chequing', 'CAD', { category: 'Groceries' }),
+    ]
+
+    expect(getFireflyImportedCategories(rows)).toEqual(['Dining', 'Groceries'])
+  })
+
+  it('adds the no-category placeholder when a row carries no category', () => {
+    const rows = [
+      createWithdrawal('Chequing', 'CAD', { category: 'Groceries' }),
+      createWithdrawal('Chequing', 'CAD', { category: '' }),
+    ]
+
+    expect(getFireflyImportedCategories(rows)).toEqual(['Groceries', FIREFLY_NO_CATEGORY_SOURCE])
+  })
+})
+
+describe('inferFireflyCategoryMappings', () => {
+  it('matches the no-category placeholder to the seeded miscellaneous category', () => {
+    const miscellaneous = createCategory({
+      id: 'miscellaneous',
+      name: 'Miscellaneous',
+      kind: 'expense',
+      is_system: true,
+    })
+
+    const mappings = inferFireflyCategoryMappings(
+      [FIREFLY_NO_CATEGORY_SOURCE],
+      {},
+      [miscellaneous],
+      { [FIREFLY_NO_CATEGORY_SOURCE]: 'expense' },
+    )
+
+    expect(mappings[FIREFLY_NO_CATEGORY_SOURCE]).toBe('miscellaneous')
+  })
+
+  it('keeps an explicit choice for the placeholder over the automatic match', () => {
+    const miscellaneous = createCategory({ id: 'miscellaneous', name: 'Miscellaneous', is_system: true })
+    const chosen = createCategory({ id: 'chosen', name: 'Shopping' })
+
+    const mappings = inferFireflyCategoryMappings(
+      [FIREFLY_NO_CATEGORY_SOURCE],
+      { [FIREFLY_NO_CATEGORY_SOURCE]: 'chosen' },
+      [miscellaneous, chosen],
+      { [FIREFLY_NO_CATEGORY_SOURCE]: 'expense' },
+    )
+
+    expect(mappings[FIREFLY_NO_CATEGORY_SOURCE]).toBe('chosen')
   })
 })
