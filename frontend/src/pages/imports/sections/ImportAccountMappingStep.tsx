@@ -1,5 +1,6 @@
-import { useState } from 'react'
-import { Link } from 'react-router'
+import { useId, useState, type MouseEvent } from 'react'
+import { Link, useNavigate } from 'react-router'
+import { ModalContentPanel } from '@/components/modal/ContentPanel'
 import InstitutionModal from '@/components/reference-modals/InstitutionModal'
 import { useInstitutionModal } from '@/hooks/useInstitutionModal'
 import {
@@ -108,7 +109,10 @@ export function ImportAccountMappingStep({
   setBatchAccountInstitution,
   setSelectedAccountRows,
 }: ImportAccountMappingStepProps) {
+  const navigate = useNavigate()
+  const leaveImportTitleId = useId()
   const institutionModal = useInstitutionModal()
+  const [pendingAccountDestination, setPendingAccountDestination] = useState<string | null>(null)
 
   // Which field asked for a new institution, so the one it creates comes back to that field
   const [institutionModalTarget, setInstitutionModalTarget] = useState<BatchTarget | string>('')
@@ -117,6 +121,34 @@ export function ImportAccountMappingStep({
   const [counterpartyBatchType, setCounterpartyBatchType] = useState('')
   const [counterpartyBatchCurrency, setCounterpartyBatchCurrency] = useState('')
   const [counterpartyBatchInstitution, setCounterpartyBatchInstitution] = useState(UNSET_BATCH_INSTITUTION)
+
+  /** Holds same-tab archived-account navigation until the user confirms leaving */
+  const handleArchivedAccountLinkClick = (
+    event: MouseEvent<HTMLAnchorElement>,
+    destination: string,
+  ) => {
+    if (
+      event.defaultPrevented
+      || event.button !== 0
+      || event.metaKey
+      || event.ctrlKey
+      || event.shiftKey
+      || event.altKey
+    ) return
+
+    event.preventDefault()
+    setPendingAccountDestination(destination)
+  }
+
+  const cancelLeaveImport = () => setPendingAccountDestination(null)
+
+  /** Leaves for the one archived account held by the open confirmation */
+  const confirmLeaveImport = () => {
+    const destination = pendingAccountDestination
+    setPendingAccountDestination(null)
+    if (!destination) return
+    navigate(destination, { state: { editAccount: true } })
+  }
 
   const openInstitutionModal = (query: string, target: BatchTarget | string) => {
     setInstitutionModalTarget(target)
@@ -243,6 +275,7 @@ export function ImportAccountMappingStep({
                   to={`/accounts/${match.id}`}
                   state={{ editAccount: true }}
                   aria-label={`Open ${match.name} to unarchive it`}
+                  onClick={(event) => handleArchivedAccountLinkClick(event, `/accounts/${match.id}`)}
                   className="font-medium underline underline-offset-2 transition-colors duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
                   style={{ color: 'var(--app-accent)' }}
                 >
@@ -309,6 +342,37 @@ export function ImportAccountMappingStep({
         onClose={closeInstitutionModal}
         onSaved={handleInstitutionSaved}
       />
+      <ModalContentPanel
+        open={pendingAccountDestination !== null}
+        onClose={cancelLeaveImport}
+        titleId={leaveImportTitleId}
+      >
+        <div className="space-y-1">
+          <h3 id={leaveImportTitleId} className="text-base font-semibold">Leave the import page?</h3>
+          <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+            Opening the account will discard any progress you made in the imports page. You may need to start from the beginning again after you unarchive your account.
+          </p>
+        </div>
+
+        <div className="space-y-3">
+          <button
+            type="button"
+            onClick={cancelLeaveImport}
+            className="app-primary-button w-full"
+            data-modal-field-tab-stop="true"
+          >
+            Stay on the import page
+          </button>
+          <button
+            type="button"
+            onClick={confirmLeaveImport}
+            className="block w-full text-center text-sm font-medium underline underline-offset-2 transition-colors duration-200"
+            style={{ color: 'var(--app-text-muted)' }}
+          >
+            Leave the import page
+          </button>
+        </div>
+      </ModalContentPanel>
     </ImportStep>
   )
 }
