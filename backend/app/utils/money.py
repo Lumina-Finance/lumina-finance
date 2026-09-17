@@ -2,7 +2,8 @@
 import re
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation, localcontext
 
-_RAW_DECIMAL_AMOUNT_RE = re.compile(r"^[+-]?(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d+)?$")
+# Importers submit normalized decimal text; CSV formatting is resolved before upload
+_NORMALIZED_DECIMAL_AMOUNT_RE = re.compile(r"[+-]?[0-9]+(?:\.[0-9]+)?")
 
 # Amounts are stored as signed 64-bit integers, so a parsed value outside this
 # range would only fail later at database flush instead of being rejected where
@@ -30,7 +31,7 @@ def parse_decimal_amount_to_minor_units(
     """Parse a decimal amount string into currency minor units
 
     Args:
-        raw_amount: User-supplied decimal amount string
+        raw_amount: Decimal text with ASCII digits, an optional sign and decimal fraction
         currency_code: Currency code used in precision error details
         minor_unit_exponent: Number of decimal places supported by the currency
 
@@ -42,12 +43,11 @@ def parse_decimal_amount_to_minor_units(
             amount falls outside the signed 64-bit range the column holds
         DecimalAmountPrecisionError: Raised when the amount has too many decimal places
     """
-    normalized_amount = raw_amount.strip()
-    if not _RAW_DECIMAL_AMOUNT_RE.fullmatch(normalized_amount):
+    if not _NORMALIZED_DECIMAL_AMOUNT_RE.fullmatch(raw_amount):
         raise DecimalAmountParseError(f"Invalid amount: {raw_amount}")
 
     try:
-        decimal_amount = Decimal(normalized_amount.replace(",", ""))
+        decimal_amount = Decimal(raw_amount)
     except InvalidOperation as exc:
         raise DecimalAmountParseError(f"Invalid amount: {raw_amount}") from exc
 

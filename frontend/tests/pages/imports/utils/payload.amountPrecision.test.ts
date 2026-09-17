@@ -218,13 +218,21 @@ describe('converting an amount to minor units', () => {
     expect(toImportMinorUnits('1.2345', 3)).toBe('tooPrecise')
   })
 
-  it('reads a sign and comma grouping, and refuses anything else', () => {
+  it('reads normalized signed decimals and refuses grouping or text', () => {
     expect(toImportMinorUnits('-12.34', 2)).toBe(-1234n)
     expect(toImportMinorUnits('+12.34', 2)).toBe(1234n)
-    expect(toImportMinorUnits('1,234.56', 2)).toBe(123456n)
+    expect(toImportMinorUnits('1,234.56', 2)).toBe('unreadable')
     expect(toImportMinorUnits('$12.34', 2)).toBe('unreadable')
     expect(toImportMinorUnits('1.234.567', 2)).toBe('unreadable')
     expect(toImportMinorUnits('', 2)).toBe('unreadable')
+  })
+
+  it('refuses every character outside a complete normalized amount', () => {
+    for (const value of [' 12.34', '12.34 ', '\t12.34', '12.34\n', '12.34\r', '12.34\u2028',
+      '12.34\u2029', '\uFEFF12.34', '12.34\u00A0', '12.34\u001C', '12 34', '1e3']) {
+      expect(toImportMinorUnits(value, 2)).toBe('unreadable')
+    }
+    expect(toImportMinorUnits('-0.00', 2)).toBe(0n)
   })
 
   it('holds both ends of the range the backend stores, and refuses one step past either', () => {
@@ -236,6 +244,25 @@ describe('converting an amount to minor units', () => {
 })
 
 describe('refusing a row whose amount its currency cannot hold', () => {
+  it('refuses a selected-format amount containing a non-ASCII decimal digit', () => {
+    const amountFormat: ImportAmountFormat = { decimalSeparator: '.', groupingSeparator: ',' }
+    const validation = validateColumnValues(
+      [createFile('١2.34')],
+      'Amount',
+      'amount',
+      SUPPORTED_CURRENCY_CODES,
+      null,
+      { amountFormat },
+    )
+    const build = buildPayload('١2.34', 'CAD', '', amountFormat)
+
+    expect(validation.valid).toBe(false)
+    expect(validation.message).toContain('Row 1 has "١2.34"')
+    expect(firstProblem(build)).toBe(ROW_AMOUNT_UNREADABLE_REASON)
+    expect(build.payload).toBeNull()
+    expect(buildPreview('١2.34', 'CAD', '', amountFormat)).toHaveLength(0)
+  })
+
   it('refuses an over-precise amount and blocks the commit rather than rounding it', () => {
     const build = buildPayload('1.005', 'CAD')
 
@@ -269,6 +296,21 @@ describe('refusing a row whose amount its currency cannot hold', () => {
     expect(firstProblem(buildPayload('-92233720368547758.09', 'CAD'))).toBe(ROW_AMOUNT_TOO_LARGE_REASON)
     expect(buildPayload(LARGEST_STORABLE, 'CAD').rowProblems).toHaveLength(0)
     expect(buildPayload(SMALLEST_STORABLE, 'CAD').rowProblems).toHaveLength(0)
+  })
+
+  it('normalizes CSV grouping and surrounding whitespace before submitting amounts', () => {
+    const cases: [string, ImportAmountFormat, string][] = [
+      ['1.234', DECIMAL_COMMA, '1234'],
+      ['1,234', { decimalSeparator: '.', groupingSeparator: ',' }, '1234'],
+      ['1.234,56', DECIMAL_COMMA, '1234.56'],
+      ['1,234.56', { decimalSeparator: '.', groupingSeparator: ',' }, '1234.56'],
+      ['\uFEFF \t1.234,56\n', DECIMAL_COMMA, '1234.56'],
+    ]
+    for (const [input, format, amount] of cases) {
+      const result = buildPayload(input, 'CAD', '', format)
+      expect(result.rowProblems).toHaveLength(0)
+      expect(result.payload?.rows[0].amount).toBe(amount)
+    }
   })
 
   it('normalizes surrounding currency text and decimal commas before judging precision', () => {

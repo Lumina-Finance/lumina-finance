@@ -1,3 +1,5 @@
+import pytest
+
 from tests.routes.support import _create_user, _get_auth_header
 
 
@@ -252,8 +254,9 @@ async def test_firefly_budget_import_rejects_period_end_before_start(client):
     assert resp.json()["detail"] == "Groceries: a limit period ends before it starts"
 
 
-async def test_firefly_budget_import_is_atomic_across_budgets(client):
-    """A failing budget rolls back every budget in the batch"""
+@pytest.mark.parametrize("invalid_amount", ["not-a-number", "١٢.٣٤", "12.34\u001c", " 12.34 ", "1,234.56"])
+async def test_firefly_budget_import_is_atomic_across_budgets(client, invalid_amount):
+    """Each malformed amount in a later budget rolls back every budget in the batch"""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     groceries_id = await _get_category_id(client, headers, "Groceries")
@@ -270,16 +273,18 @@ async def test_firefly_budget_import_is_atomic_across_budgets(client):
                 "name": "Broken",
                 "currency": "CAD",
                 "category_ids": [groceries_id],
-                "limits": [{"start": "2026-01-01", "end": "2026-01-31", "amount": "not-a-number"}],
+                "limits": [{"start": "2026-01-01", "end": "2026-01-31", "amount": invalid_amount}],
             },
         ],
     }, headers=headers)
 
     assert resp.status_code == 422
-    assert resp.json()["detail"] == 'Broken: invalid limit amount "not-a-number"'
+    assert resp.json()["detail"] == f'Broken: invalid limit amount "{invalid_amount}"'
 
     base_budgets_resp = await client.get("/base-budgets", headers=headers)
     assert base_budgets_resp.json() == []
+    budgets_resp = await client.get("/budgets", headers=headers)
+    assert budgets_resp.json() == []
 
 
 async def test_firefly_budget_import_rejects_unknown_category(client):

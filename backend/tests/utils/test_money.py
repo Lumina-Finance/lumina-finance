@@ -15,7 +15,6 @@ from app.utils.money import (
 LARGEST_STORABLE_TEXT = "92233720368547758.07"
 SMALLEST_STORABLE_TEXT = "-92233720368547758.08"
 
-
 def _parse(raw_amount, minor_unit_exponent=2):
     """Parse an amount against a currency with the given number of decimal places"""
     return parse_decimal_amount_to_minor_units(
@@ -30,7 +29,8 @@ def _parse(raw_amount, minor_unit_exponent=2):
     [
         ("12.34", 2, 1234),
         ("-12.34", 2, -1234),
-        ("1,234.56", 2, 123456),
+        ("+1234.56", 2, 123456),
+        ("-0.00", 2, 0),
         # Trailing zeros past the currency's places carry no precision, so they are not
         # the same thing as a digit the currency cannot hold
         ("12.3400", 2, 1234),
@@ -41,6 +41,16 @@ def _parse(raw_amount, minor_unit_exponent=2):
 def test_parses_amounts_the_currency_can_hold(raw_amount, minor_unit_exponent, expected_minor_units):
     """An amount within the currency's decimal places parses to its minor units"""
     assert _parse(raw_amount, minor_unit_exponent) == expected_minor_units
+
+
+@pytest.mark.parametrize("raw_amount", [
+    " 12.34", "12.34 ", "\t12.34", "12.34\n", "\u00a012.34", "12.34\ufeff",
+    "1,234.56", "1.234,56", "1 234.56", "1'234.56", "1e3", "12.", ".5", "--12.34",
+])
+def test_refuses_amounts_that_are_not_normalized(raw_amount):
+    """The backend accepts complete decimal text without padding or grouping"""
+    with pytest.raises(DecimalAmountParseError):
+        _parse(raw_amount)
 
 
 @pytest.mark.parametrize(
@@ -87,8 +97,39 @@ def test_refuses_an_amount_past_the_range_the_column_holds(raw_amount):
         _parse(raw_amount)
 
 
-@pytest.mark.parametrize("raw_amount", ["$12.34", "12,34", "1.234.567", "", "twelve"])
+@pytest.mark.parametrize(
+    "raw_amount",
+    [
+        "$12.34",
+        "12,34",
+        "1.234.567",
+        "",
+        " \t\ufeff",
+        "twelve",
+        "12 34",
+        "\u000012.34",
+        "\u180e12.34",
+        "\u200b12.34",
+    ],
+)
 def test_refuses_malformed_amount_text(raw_amount):
     """Text that is not a plain signed decimal number is refused"""
     with pytest.raises(DecimalAmountParseError):
         _parse(raw_amount)
+
+
+@pytest.mark.parametrize(
+    "raw_amount",
+    ["١٢.٣٤", "\uff11\uff12.\uff13\uff14", "\u06612.34", "12.3٤", "1,23٤.56", "\U0001d7d92.34"],
+)
+def test_refuses_decimal_digits_outside_ascii(raw_amount):
+    """Canonical amounts refuse non-ASCII decimal digits wherever they appear"""
+    with pytest.raises(DecimalAmountParseError):
+        _parse(raw_amount)
+
+
+@pytest.mark.parametrize("padding", ["\u001c", "\u001d", "\u001e", "\u001f", "\u0085"])
+def test_refuses_python_only_surrounding_whitespace(padding):
+    """Normalized amounts refuse surrounding control characters"""
+    with pytest.raises(DecimalAmountParseError):
+        _parse(f"{padding}12.34{padding}")

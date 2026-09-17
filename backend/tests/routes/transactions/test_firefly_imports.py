@@ -503,15 +503,30 @@ async def test_firefly_import_skips_unconvertible_rows(client):
             _firefly_row(journal_id="2", type="Liability credit"),
             _firefly_row(journal_id="3", currency_code="EUR"),
             _firefly_row(journal_id="4", amount="12.345"),
+            _firefly_row(journal_id="5", amount="١٢.٣٤"),
+            _firefly_row(journal_id="6", amount="12.34\u001c"),
+            _firefly_row(
+                journal_id="7",
+                amount="10.00",
+                currency_code="USD",
+                foreign_amount="١٢.٣٤",
+                foreign_currency_code="CAD",
+            ),
+            _firefly_row(journal_id="8", amount=" 12.34 "),
+            _firefly_row(journal_id="9", amount="1,234.56"),
+            _firefly_row(
+                journal_id="10", amount="10.00", currency_code="USD",
+                foreign_amount="1,234.56", foreign_currency_code="CAD",
+            ),
         ],
     }, headers=headers)
 
     assert resp.status_code == 201
     data = resp.json()
     assert data["rows_imported"] == 1
-    assert data["rows_skipped"] == 3
+    assert data["rows_skipped"] == 9
     assert data["transactions_created"] == 1
-    assert {entry["journal_id"] for entry in data["skipped"]} == {"2", "3", "4"}
+    assert {entry["journal_id"] for entry in data["skipped"]} == {"2", "3", "4", "5", "6", "7", "8", "9", "10"}
     reasons_by_journal = {entry["journal_id"]: entry["reason"] for entry in data["skipped"]}
     assert reasons_by_journal["2"] == (
         'Journal type "Liability credit" is not supported, the importer handles'
@@ -519,6 +534,15 @@ async def test_firefly_import_skips_unconvertible_rows(client):
     )
     assert reasons_by_journal["3"] == "Neither the amount nor the foreign amount is in the account's currency (CAD)"
     assert reasons_by_journal["4"] == 'Invalid amount "12.345"'
+    assert reasons_by_journal["5"] == 'Invalid amount "١٢.٣٤"'
+    assert reasons_by_journal["6"] == 'Invalid amount "12.34\u001c"'
+    assert reasons_by_journal["7"] == 'Invalid amount "١٢.٣٤"'
+    assert reasons_by_journal["8"] == 'Invalid amount " 12.34 "'
+    assert reasons_by_journal["9"] == 'Invalid amount "1,234.56"'
+    assert reasons_by_journal["10"] == 'Invalid amount "1,234.56"'
+
+    transactions_resp = await client.get("/transactions", headers=headers)
+    assert len(transactions_resp.json()) == 1
 
 
 async def test_firefly_import_reports_unexpected_row_failures_generically(client, monkeypatch):

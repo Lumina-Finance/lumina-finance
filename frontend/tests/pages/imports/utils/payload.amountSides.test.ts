@@ -225,6 +225,16 @@ describe('refusing a row the two sides cannot be read from', () => {
     expect(refusals(build([['abc', '45.00']]))).toEqual([[1, ROW_AMOUNT_UNREADABLE_REASON]])
     expect(refusals(build([['45.00', 'abc']]))).toEqual([[1, ROW_AMOUNT_UNREADABLE_REASON]])
   })
+
+  it.each([
+    { side: 'Debit', debit: '١0', credit: '12.34' },
+    { side: 'Credit', debit: '12.34', credit: '١0' },
+  ])('does not discard a non-ASCII digit in $side as though that side were zero', ({ debit, credit }) => {
+    const result = build([[debit, credit]])
+
+    expect(refusals(result)).toEqual([[1, ROW_AMOUNT_UNREADABLE_REASON]])
+    expect(result.payload).toBeNull()
+  })
 })
 
 describe('refusing a sign the column cannot mean', () => {

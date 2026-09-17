@@ -47,6 +47,7 @@ const ALL_SPACE_GROUPING_PATTERN = /[ \u00a0\u202f]/g
 const EXTRA_SIGN_PATTERN = /[-+\u2212]/
 const PARENTHESIS_PATTERN = /[()]/
 const NUMERIC_PUNCTUATION_PATTERN = /[.,']/
+const NON_ASCII_DECIMAL_DIGIT_PATTERN = /(?![0-9])\p{Decimal_Number}/u
 
 /**
  * Reads one amount under a selected decimal and grouping format
@@ -59,6 +60,9 @@ const NUMERIC_PUNCTUATION_PATTERN = /[.,']/
  * @returns The normalized amount and its exact classification, or null when the cell does not fit
  */
 export function readImportAmount(rawValue: string, format: ImportAmountFormat): ImportAmountReading | null {
+  // Decimal digits outside ASCII are part of the amount, not discardable currency text. Refuse
+  // them before choosing the ASCII numeric span so a prefix or suffix cannot shorten the value
+  if (NON_ASCII_DECIMAL_DIGIT_PATTERN.test(rawValue)) return null
   if (format.decimalSeparator === format.groupingSeparator) return null
 
   const trimmed = rawValue.trim()

@@ -7,8 +7,8 @@ import type {
 /**
  * One Firefly III export journal row compiled by the frontend
  *
- * Amounts stay raw CSV strings so the backend can validate precision against
- * the account currency, and sign conventions are ignored server side
+ * Amounts are trimmed decimal text without grouping separators so the backend can
+ * validate precision against the account currency. Sign conventions are ignored server side
  */
 export interface FireflyTransactionImportRow {
   journal_id: string;
@@ -47,8 +47,8 @@ export interface FireflySkippedRow {
  * One budget limit period with its inclusive dates
  *
  * Each period becomes a budget period with these exact dates. The amount
- * stays a raw CSV string so the backend can validate precision against the
- * budget currency
+ * is trimmed decimal text without grouping separators so the backend can validate
+ * precision against the budget currency
  */
 export interface FireflyBudgetImportLimit {
   /**

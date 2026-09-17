@@ -29,8 +29,8 @@ MAX_FIREFLY_BUDGET_CATEGORIES = 1000
 class FireflyTransactionRow(BaseModel):
     """One Firefly III export journal row compiled by the frontend
 
-    Amounts are raw CSV strings so the backend can validate precision against
-    the account currency. Sign conventions in the export are ignored, the
+    Amounts are trimmed decimal text without grouping separators so the backend
+    can validate precision against the account currency. Sign conventions in the export are ignored, the
     backend derives direction from the journal type
     """
 
@@ -68,8 +68,8 @@ class FireflyBudgetLimit(BaseModel):
     """One limit period from the Firefly III budgets export
 
     Both dates are inclusive, matching how the export expresses a period. The
-    amount is a raw CSV string so the backend can validate precision against
-    the budget currency
+    amount is trimmed decimal text without grouping separators so the backend
+    can validate precision against the budget currency
     """
 
     start: date
