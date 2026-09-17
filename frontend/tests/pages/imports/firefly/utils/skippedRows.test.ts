@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
+import type { FireflyTransactionImportResponse } from '@/api/firefly-imports'
 import {
   CREATE_ACCOUNT_VALUE,
   CREATE_CATEGORY_VALUE,
@@ -16,6 +17,8 @@ import {
 import type { CsvRow, ImportRowProblem } from '@/pages/imports/types'
 import {
   forecastFireflyImport,
+  getFireflySkippedRowsDisplay,
+  type FireflySkippedRowDetail,
   type FireflyRowResolutionOptions,
 } from '@/pages/imports/firefly/utils'
 import {
@@ -133,6 +136,359 @@ function getForecastRowWarnings(forecast: ReturnType<typeof forecastFireflyImpor
   if (!('rowWarnings' in forecast)) return []
   return forecast.rowWarnings as ImportRowProblem[]
 }
+
+/** Creates one predicted skipped-row detail at a distinct source position */
+function createSkippedDetail(
+  index: number,
+  overrides: Partial<FireflySkippedRowDetail> = {},
+): FireflySkippedRowDetail {
+  return {
+    journalId: `journal-${index}`,
+    rowNumber: index + 2,
+    cells: { marker: `row-${index}` },
+    reason: `Reason ${index}`,
+    droppedBeforeUpload: false,
+    ...overrides,
+  }
+}
+
+/** Creates a complete committed result with empty counters and mappings unless overridden */
+function createImportResult(
+  overrides: Partial<FireflyTransactionImportResponse> = {},
+): FireflyTransactionImportResponse {
+  return {
+    transactions_created: 0,
+    accounts_created: 0,
+    accounts_reused: 0,
+    categories_created: 0,
+    categories_reused: 0,
+    merchants_created: 0,
+    merchants_reused: 0,
+    tags_created: 0,
+    tags_reused: 0,
+    affected_account_ids: [],
+    account_source_ids: {},
+    category_source_ids: {},
+    created_account_ids: [],
+    created_category_ids: [],
+    created_merchant_ids: [],
+    created_tag_ids: [],
+    rows_imported: 0,
+    rows_skipped: 0,
+    skipped: [],
+    ...overrides,
+  }
+}
+
+/** Shapes one returned server reason without claiming source metadata */
+function createServerDisplayDetail(journalId: string, reason: string): FireflySkippedRowDetail {
+  return {
+    journalId,
+    rowNumber: null,
+    cells: null,
+    reason,
+    droppedBeforeUpload: false,
+  }
+}
+
+describe('getFireflySkippedRowsDisplay before commit', () => {
+  it('keeps the forecast rows, count and future-tense title without mutating its input', () => {
+    const forecastRows = [
+      createSkippedDetail(0),
+      createSkippedDetail(1, { droppedBeforeUpload: true }),
+    ]
+    const originalRows = forecastRows.map((row) => ({
+      ...row,
+      cells: row.cells ? { ...row.cells } : null,
+    }))
+
+    const display = getFireflySkippedRowsDisplay({
+      liveForecastRows: forecastRows,
+      completedImport: null,
+    })
+
+    expect(display).toEqual({
+      rows: forecastRows,
+      totalCount: 2,
+      title: '2 rows will not be imported',
+    })
+    expect(forecastRows).toEqual(originalRows)
+  })
+})
+
+describe('getFireflySkippedRowsDisplay after commit', () => {
+  it('combines disjoint skips, enriches one unique match and leaves a server-only row blank', () => {
+    const uploaded = createSkippedDetail(1, {
+      journalId: 'uploaded',
+      rowNumber: 3,
+      cells: { marker: 'uploaded-row' },
+      reason: 'Predicted and returned',
+    })
+    const browserDropped = createSkippedDetail(3, {
+      journalId: 'browser-dropped',
+      rowNumber: 5,
+      cells: { marker: 'browser-row' },
+      reason: 'Dropped by the browser',
+      droppedBeforeUpload: true,
+    })
+    const forecastRows = [uploaded, browserDropped]
+    const importResult = createImportResult({
+      rows_skipped: 2,
+      skipped: [
+        { journal_id: uploaded.journalId, reason: uploaded.reason },
+        { journal_id: 'server-only', reason: 'Only the server saw this row.' },
+      ],
+    })
+    const originalForecastRows = forecastRows.map((row) => ({
+      ...row,
+      cells: row.cells ? { ...row.cells } : null,
+    }))
+    const originalServerRows = importResult.skipped.map((row) => ({ ...row }))
+
+    const display = getFireflySkippedRowsDisplay({
+      liveForecastRows: forecastRows,
+      completedImport: { result: importResult, predictedSkippedRowsAtCommit: forecastRows },
+    })
+
+    expect(display).toEqual({
+      rows: [
+        uploaded,
+        browserDropped,
+        createServerDisplayDetail('server-only', 'Only the server saw this row.'),
+      ],
+      totalCount: 3,
+      title: '3 rows were not imported',
+    })
+    expect(forecastRows).toEqual(originalForecastRows)
+    expect(importResult.skipped).toEqual(originalServerRows)
+  })
+
+  it('retains the commit-time source row after live account mappings move the same skip pair', () => {
+    const sameAccountReason = 'Transfer source and destination resolve to the same account'
+    const firstRow = createFireflyRow({
+      journal_id: 'dup',
+      type: 'Transfer',
+      amount: '12.34',
+      source_name: 'A',
+      source_type: 'Asset account',
+      destination_name: 'B',
+      destination_type: 'Asset account',
+      category: '',
+    })
+    const secondRow = createFireflyRow({
+      journal_id: 'dup',
+      type: 'Transfer',
+      amount: '56.78',
+      source_name: 'A',
+      source_type: 'Asset account',
+      destination_name: 'C',
+      destination_type: 'Asset account',
+      category: '',
+    })
+    const rows = [firstRow, secondRow]
+    const accountById = new Map([
+      ['account-1', createAccount({ id: 'account-1', name: 'Account 1' })],
+      ['account-2', createAccount({ id: 'account-2', name: 'Account 2' })],
+    ])
+    const predictionAtCommit = forecastFireflyImport(
+      rows,
+      createOptions({
+        accountById,
+        accountMappings: { A: 'account-1', B: 'account-1', C: 'account-2' },
+      }),
+    )
+    const livePrediction = forecastFireflyImport(
+      rows,
+      createOptions({
+        accountById,
+        accountMappings: { A: 'account-2', B: 'account-1', C: 'account-2' },
+      }),
+    )
+    const importResult = createImportResult({
+      rows_imported: 1,
+      transactions_created: 2,
+      rows_skipped: 1,
+      skipped: [{ journal_id: 'dup', reason: sameAccountReason }],
+    })
+
+    expect(predictionAtCommit).toMatchObject({
+      rowCount: 2,
+      transactionEstimate: 2,
+      skippedRows: [{ rowNumber: 2, cells: firstRow, reason: sameAccountReason }],
+    })
+    expect(livePrediction).toMatchObject({
+      rowCount: 2,
+      transactionEstimate: 2,
+      skippedRows: [{ rowNumber: 3, cells: secondRow, reason: sameAccountReason }],
+    })
+
+    expect(getFireflySkippedRowsDisplay({
+      liveForecastRows: livePrediction.skippedRows,
+      completedImport: {
+        result: importResult,
+        predictedSkippedRowsAtCommit: predictionAtCommit.skippedRows,
+      },
+    })).toEqual({
+      rows: [predictionAtCommit.skippedRows[0]],
+      totalCount: 1,
+      title: '1 row was not imported',
+    })
+  })
+
+  it('drops an uploaded forecast row omitted by the authoritative result', () => {
+    const forecastRows = [createSkippedDetail(0)]
+
+    expect(getFireflySkippedRowsDisplay({
+      liveForecastRows: forecastRows,
+      completedImport: {
+        result: createImportResult(),
+        predictedSkippedRowsAtCommit: forecastRows,
+      },
+    })).toEqual({
+      rows: [],
+      totalCount: 0,
+      title: '0 rows were not imported',
+    })
+  })
+
+  it('keeps a browser-dropped pair separate and never lends its metadata to the server row', () => {
+    const browserDropped = createSkippedDetail(0, {
+      journalId: 'same-pair',
+      reason: 'Same reason',
+      droppedBeforeUpload: true,
+    })
+    const importResult = createImportResult({
+      rows_skipped: 1,
+      skipped: [{ journal_id: browserDropped.journalId, reason: browserDropped.reason }],
+    })
+    const forecastRows = [browserDropped]
+
+    expect(getFireflySkippedRowsDisplay({
+      liveForecastRows: forecastRows,
+      completedImport: { result: importResult, predictedSkippedRowsAtCommit: forecastRows },
+    })).toEqual({
+      rows: [
+        browserDropped,
+        createServerDisplayDetail(browserDropped.journalId, browserDropped.reason),
+      ],
+      totalCount: 2,
+      title: '2 rows were not imported',
+    })
+  })
+
+  it('matches repeated journal IDs by their distinct reasons and restores source order', () => {
+    const first = createSkippedDetail(0, {
+      journalId: 'repeated-journal',
+      cells: { marker: 'first-row' },
+      reason: 'First reason',
+    })
+    const second = createSkippedDetail(1, {
+      journalId: 'repeated-journal',
+      cells: { marker: 'second-row' },
+      reason: 'Second reason',
+    })
+    const importResult = createImportResult({
+      rows_skipped: 2,
+      skipped: [
+        { journal_id: second.journalId, reason: second.reason },
+        { journal_id: first.journalId, reason: first.reason },
+      ],
+    })
+    const forecastRows = [first, second]
+
+    expect(getFireflySkippedRowsDisplay({
+      liveForecastRows: forecastRows,
+      completedImport: { result: importResult, predictedSkippedRowsAtCommit: forecastRows },
+    })).toEqual({
+      rows: [first, second],
+      totalCount: 2,
+      title: '2 rows were not imported',
+    })
+  })
+
+  it('retains repeated returned pairs without assigning either forecast occurrence', () => {
+    const first = createSkippedDetail(0, {
+      journalId: 'same-pair',
+      cells: { marker: 'first-row' },
+      reason: 'Same reason',
+    })
+    const second = createSkippedDetail(1, {
+      journalId: 'same-pair',
+      cells: { marker: 'second-row' },
+      reason: 'Same reason',
+    })
+    const importResult = createImportResult({
+      rows_skipped: 2,
+      skipped: [
+        { journal_id: 'same-pair', reason: 'Same reason' },
+        { journal_id: 'same-pair', reason: 'Same reason' },
+      ],
+    })
+    const forecastRows = [first, second]
+
+    expect(getFireflySkippedRowsDisplay({
+      liveForecastRows: forecastRows,
+      completedImport: { result: importResult, predictedSkippedRowsAtCommit: forecastRows },
+    })).toEqual({
+      rows: [
+        createServerDisplayDetail('same-pair', 'Same reason'),
+        createServerDisplayDetail('same-pair', 'Same reason'),
+      ],
+      totalCount: 2,
+      title: '2 rows were not imported',
+    })
+  })
+
+  it('keeps every sampled repeated pair blank when one batch omitted an indistinguishable row', () => {
+    const forecastRows = Array.from({ length: 52 }, (_, index) => createSkippedDetail(index, {
+      journalId: 'same-pair',
+      cells: { marker: `raw-row-${index}` },
+      reason: 'Same reason',
+    }))
+    const returnedRows = Array.from(
+      { length: 51 },
+      () => ({ journal_id: 'same-pair', reason: 'Same reason' }),
+    )
+    const importResult = createImportResult({ rows_skipped: 52, skipped: returnedRows })
+
+    const display = getFireflySkippedRowsDisplay({
+      liveForecastRows: forecastRows,
+      completedImport: { result: importResult, predictedSkippedRowsAtCommit: forecastRows },
+    })
+
+    expect(display.totalCount).toBe(52)
+    expect(display.rows).toHaveLength(51)
+    expect(display.title).toBe('52 rows were not imported')
+    expect(display.rows.every((row) => row.rowNumber === null && row.cells === null)).toBe(true)
+    expect(display.rows).not.toContainEqual(expect.objectContaining({ cells: { marker: 'raw-row-50' } }))
+    expect(display.rows).toEqual(returnedRows.map((row) => (
+      createServerDisplayDetail(row.journal_id, row.reason)
+    )))
+  })
+
+  it('keeps the exact total separate from the available detail sample and display cap', () => {
+    const browserDropped = createSkippedDetail(0, { droppedBeforeUpload: true })
+    const returnedRows = Array.from({ length: 50 }, (_, index) => ({
+      journal_id: `server-${index}`,
+      reason: `Server reason ${index}`,
+    }))
+    const importResult = createImportResult({ rows_skipped: 73, skipped: returnedRows })
+    const forecastRows = [browserDropped]
+
+    const display = getFireflySkippedRowsDisplay({
+      liveForecastRows: forecastRows,
+      completedImport: { result: importResult, predictedSkippedRowsAtCommit: forecastRows },
+    })
+
+    expect(display.totalCount).toBe(74)
+    expect(display.rows).toHaveLength(51)
+    expect(display.rows[0]).toEqual(browserDropped)
+    expect(display.rows.slice(1)).toEqual(returnedRows.map((row) => (
+      createServerDisplayDetail(row.journal_id, row.reason)
+    )))
+    expect(display.title).toBe('74 rows were not imported')
+  })
+})
 
 describe('forecastFireflyImport', () => {
   it('returns no rows when every row converts', () => {

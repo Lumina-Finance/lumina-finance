@@ -54,6 +54,7 @@ import {
   inferFireflyCategoryMappings,
   readFireflyCsvFile,
   type FireflyAccountCreateDetails,
+  type FireflyCompletedImportContext,
 } from '@/pages/imports/firefly/utils'
 
 // This flow reads its account sources from the staged export rather than from a column the user
@@ -97,7 +98,8 @@ export function useFireflyImportWorkflow() {
   const [categoryMappings, setCategoryMappings] = useState<Record<string, string>>({})
   const [categoryCreateKinds, setCategoryCreateKinds] = useState<Record<string, ImportCategoryKind>>({})
   const [importError, setImportError] = useState<string | null>(null)
-  const [importResult, setImportResult] = useState<FireflyTransactionImportResponse | null>(null)
+  const [completedImport, setCompletedImport] = useState<FireflyCompletedImportContext | null>(null)
+  const importResult = completedImport?.result ?? null
   const [importOverlayPhase, setImportOverlayPhase] = useState<ImportOverlayPhase>('idle')
   const [importStageState, setImportStageState] = useState<FireflyImportStageState | null>(null)
   const [selectedBudgetNames, setSelectedBudgetNames] = useState<Set<string> | null>(null)
@@ -438,7 +440,14 @@ export function useFireflyImportWorkflow() {
     [importStageState],
   )
 
-  const importSummary = importResult ? formatFireflyImportSummary(importResult, budgetsImportedCount) : ''
+  const completedPrediction = completedImport?.predictedSkippedRowsAtCommit ?? predictedSkippedRows
+  const browserDroppedCount = completedPrediction.filter((row) => row.droppedBeforeUpload).length
+  const completedSkippedCount = completedImport
+    ? browserDroppedCount + completedImport.result.rows_skipped
+    : 0
+  const importSummary = importResult
+    ? formatFireflyImportSummary(importResult, { browserDroppedCount, budgetsCreated: budgetsImportedCount })
+    : ''
 
   // A budget failure leaves the committed transactions in place, so only the
   // budget stage reports it and the overlay shows whichever stage failed
@@ -458,7 +467,7 @@ export function useFireflyImportWorkflow() {
 
   const resetCommitState = () => {
     setImportError(null)
-    setImportResult(null)
+    setCompletedImport(null)
     setImportOverlayPhase('idle')
     setImportStageState(null)
     importFireflyTransactions.reset()
@@ -580,12 +589,19 @@ export function useFireflyImportWorkflow() {
     const payload = importBuild.payload
     if (!payload || importOverlayOpen || importFireflyTransactions.isPending) return
 
+    // The response can outlive the mappings used for its request, so its source-row prediction is
+    // captured before the first await and retained with the result
+    const predictedSkippedRowsAtCommit = predictedSkippedRows.map((row) => ({
+      ...row,
+      cells: row.cells ? { ...row.cells } : null,
+    }))
+
     // The run imports the budgets selected when it started, so the drafts are
     // captured here rather than read again between the two stages
     const budgetDraftsToImport = pendingBudgetDrafts
 
     setImportError(null)
-    setImportResult(null)
+    setCompletedImport(null)
     setBudgetStageError(null)
     setImportStageState(budgetDraftsToImport.length > 0 ? { stage: 'transactions', isFinished: false } : null)
     setImportOverlayPhase('importing')
@@ -598,7 +614,7 @@ export function useFireflyImportWorkflow() {
         waitForMilliseconds(FIREFLY_IMPORT_STAGE_MIN_MS),
       ])
       result = imported
-      setImportResult(result)
+      setCompletedImport({ result, predictedSkippedRowsAtCommit })
     } catch (error) {
       await minimumOverlay
       setImportError(getImportFailureMessage(error))
@@ -698,6 +714,8 @@ export function useFireflyImportWorkflow() {
     previewGroups,
     predictedSkippedRows,
     predictedRowWarnings,
+    completedImport,
+    completedSkippedCount,
     newAccountCount,
     newCategoryCount,
     importBuild,

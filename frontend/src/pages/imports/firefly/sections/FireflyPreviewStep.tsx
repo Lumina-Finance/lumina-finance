@@ -2,6 +2,7 @@ import { EmptyState, ImportPreviewList, ImportRowProblemsTable, ImportStat, Impo
 import { FireflySkippedRowsTable } from '@/pages/imports/firefly/components'
 import { FIREFLY_SAMPLE_PREVIEW_LIMIT } from '@/pages/imports/firefly/constants'
 import type { FireflyImportWorkflow } from '@/pages/imports/firefly/hooks'
+import { getFireflySkippedRowsDisplay } from '@/pages/imports/firefly/utils'
 
 type FireflyPreviewStepProps = Pick<
   FireflyImportWorkflow,
@@ -10,6 +11,7 @@ type FireflyPreviewStepProps = Pick<
   | 'previewGroups'
   | 'predictedSkippedRows'
   | 'predictedRowWarnings'
+  | 'completedImport'
   | 'fireflyHeaders'
   | 'newAccountCount'
   | 'newCategoryCount'
@@ -34,6 +36,7 @@ export function FireflyPreviewStep({
   previewGroups,
   predictedSkippedRows,
   predictedRowWarnings,
+  completedImport,
   fireflyHeaders,
   newAccountCount,
   newCategoryCount,
@@ -44,7 +47,10 @@ export function FireflyPreviewStep({
   canCommitImport,
   handleCommitImport,
 }: FireflyPreviewStepProps) {
-  const skippedCount = predictedSkippedRows.length
+  const skippedRowsDisplay = getFireflySkippedRowsDisplay({
+    liveForecastRows: predictedSkippedRows,
+    completedImport,
+  })
 
   return (
     <ImportStep
@@ -61,11 +67,11 @@ export function FireflyPreviewStep({
         <ImportStat label="New Categories" value={newCategoryCount.toString()} />
       </div>
 
-      {skippedCount > 0 && (
+      {skippedRowsDisplay.totalCount > 0 && (
         <FireflySkippedRowsTable
-          title={`${skippedCount} row${skippedCount === 1 ? '' : 's'} will not be imported`}
-          rows={predictedSkippedRows}
-          totalCount={skippedCount}
+          title={skippedRowsDisplay.title}
+          rows={skippedRowsDisplay.rows}
+          totalCount={skippedRowsDisplay.totalCount}
           headers={fireflyHeaders}
         />
       )}

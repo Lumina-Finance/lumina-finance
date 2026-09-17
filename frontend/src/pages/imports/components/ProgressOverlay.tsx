@@ -129,6 +129,9 @@ interface ImportProgressOverlayProps {
 
   /** Runs a failed import again without re-uploading it, offered only when that could work */
   onRetry?: () => void
+
+  /** Closes a successful overlay onto result details that remain on the import page */
+  onReview?: () => void
   phase: ImportOverlayPhase
 
   /** Stages of a multi-stage import, listed while it runs; single-stage flows leave this unset */
@@ -150,6 +153,7 @@ export function ImportProgressOverlay({
   onClosed,
   onCancel,
   onRetry,
+  onReview,
   phase,
   steps,
   summary,
@@ -305,6 +309,15 @@ export function ImportProgressOverlay({
                     >
                       Done
                     </button>
+                    {onReview && (
+                      <button
+                        type="button"
+                        className={`app-secondary-button ${overlayButtonClass} sm:min-w-[10.5rem]`}
+                        onClick={onReview}
+                      >
+                        Review skipped rows
+                      </button>
+                    )}
                   </motion.div>
                 )}
 
