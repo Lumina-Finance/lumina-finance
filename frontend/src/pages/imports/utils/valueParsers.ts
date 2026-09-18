@@ -5,7 +5,7 @@ import { DATE_FORMATS, formatDate, parseYmd } from '@/utils/date'
  * The shapes a date column can be read in. One is chosen for the whole import, because a file that
  * changes format part way through has no single reading that is right for all of its rows
  */
-export const IMPORT_DATE_FORMATS = ['yearFirst', 'dayFirst', 'monthFirst', 'written'] as const
+export const IMPORT_DATE_FORMATS = ['yearFirst', 'dayFirst', 'monthFirst', 'written', 'iso'] as const
 
 export type ImportDateFormat = (typeof IMPORT_DATE_FORMATS)[number]
 
@@ -32,6 +32,9 @@ interface CalendarDateParts {
 // first, so a value like 2024-03/15 is malformed rather than a format
 const YEAR_FIRST_PATTERN = /^(\d{4})([-/.:])(\d{1,2})\2(\d{1,2})$/
 
+// A complete timestamp may add fractional seconds and a zone, but its written day stays the date
+const ISO_DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|[+-](\d{2}):(\d{2}))?)?$/
+
 // Day first and month first share one shape and differ only in which part is read as the month. The
 // year is four digits in both, since a two-digit year is a guess about the century
 const NUMERIC_PATTERN = /^(\d{1,2})([-/.:])(\d{1,2})\2(\d{4})$/
@@ -53,8 +56,8 @@ const MONTH_ABBREVIATION_LENGTH = 3
  * Reads one cell as a calendar day in the given format
  *
  * @param value - The raw cell value
- * @param format - The order chosen for this import, or the written format
- * @param separator - The required numeric separator, or automatic to accept any supported one
+ * @param format - The date preset chosen for this import
+ * @param separator - Separator for numeric date-order presets, ignored by written and ISO formats
  * @returns The zero-padded YYYY-MM-DD string the API takes, or an empty string when the value does
  * not read in that format or names a day the calendar does not have
  */
@@ -69,7 +72,7 @@ export function readImportDate(
   const ymd = `${parts.year}-${String(parts.month).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}`
 
   // Whether the parts name a day that exists is the shared parser's decision, so February 31 is
-  // refused identically whichever of the four formats it was written in
+  // refused identically whichever supported format it was written in
   return parseYmd(ymd) ? ymd : ''
 }
 
@@ -116,6 +119,14 @@ function readCalendarDateParts(
   separator: ImportDateSeparator,
 ): CalendarDateParts | null {
   if (format === 'written') return readWrittenDateParts(value)
+  if (format === 'iso') {
+    const match = ISO_DATE_PATTERN.exec(value)
+    if (!match || (match[4] !== undefined && (
+      Number(match[4]) > 23 || Number(match[5]) > 59 || Number(match[6]) > 59
+      || (match[7] !== undefined && (Number(match[7]) > 23 || Number(match[8]) > 59))
+    ))) return null
+    return { year: Number(match[1]), month: Number(match[2]), day: Number(match[3]) }
+  }
 
   if (format === 'yearFirst') {
     const match = YEAR_FIRST_PATTERN.exec(value)

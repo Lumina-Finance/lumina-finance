@@ -13,7 +13,7 @@ import {
   scanImportDateFormats,
 } from '@/pages/imports/utils/valueParsers'
 
-const ALL_FORMATS: ImportDateFormat[] = ['yearFirst', 'dayFirst', 'monthFirst', 'written']
+const ALL_FORMATS: ImportDateFormat[] = ['yearFirst', 'dayFirst', 'monthFirst', 'written', 'iso']
 
 // The date column never consults it, so its contents do not matter here
 const SUPPORTED_CURRENCY_CODES = new Set(['CAD', 'USD'])
@@ -50,6 +50,42 @@ describe('year first dates', () => {
 
   it('refuses a timestamp, which used to import a day early west of Greenwich', () => {
     expect(readImportDate('2024-03-15T00:30:00Z', 'yearFirst')).toBe('')
+  })
+})
+
+describe('ISO dates and timestamps', () => {
+  it.each([
+    ['2024-02-29', '2024-02-29'],
+    ['2024-03-15T00:30:00', '2024-03-15'],
+    ['2024-03-15T00:30:00.123456', '2024-03-15'],
+    ['2024-03-15T00:30:00Z', '2024-03-15'],
+    ['2024-03-15T00:30:00.123Z', '2024-03-15'],
+    ['2024-03-15T00:30:00+09:00', '2024-03-15'],
+    ['2024-03-15T23:30:00-04:00', '2024-03-15'],
+    ['1899-12-31T23:59:59Z', '1899-12-31'],
+    ['2101-01-01', '2101-01-01'],
+  ])('keeps the written calendar day of %s', (value, expected) => {
+    expect(readImportDate(value, 'iso')).toBe(expected)
+    expect(readImportDate(value, 'iso', '.')).toBe(expected)
+    expect(isValidDateValue(value)).toBe(true)
+  })
+
+  it.each([
+    '2025-02-29', '2024-02-31T00:00:00Z', '2024-13-01', '2024-00-01',
+    '2024-01-00', '0099-03-15', '2024-3-15', '2024/03/15',
+    '2024-03-15T24:00:00', '2024-03-15T00:60:00', '2024-03-15T00:00:60',
+    '2024-03-15T00:00:00+25:00', '2024-03-15T00:00:00-01:60',
+    '2024-03-15T00:00', '2024-03-15T00:00:00.', '2024-03-15T00:00:00+0900',
+    '2024-03-15T00:00:00+09', '2024-03-15t00:00:00Z', '2024-03-15T00:00:00z',
+    '2024-03-15 00:00:00Z', '2024-03-15Z', '2024-03-15T00:00:00Z junk',
+  ])('refuses malformed or impossible ISO values: %s', (value) => {
+    expect(readImportDate(value, 'iso')).toBe('')
+  })
+
+  it('keeps the ISO example hyphens under a custom numeric separator', () => {
+    const result = validateColumnValues([createDateFile(['2024-03-15T24:00:00Z'])], 'Date', 'dt', SUPPORTED_CURRENCY_CODES, 'iso', { dateSeparator: '.' })
+    expect(result.valid).toBe(false)
+    expect(result.message).toContain('such as 2026-04-30T00:30:00Z')
   })
 })
 
@@ -218,7 +254,7 @@ describe('scanning a column', () => {
   it('ignores blank cells, which the required-value check reports on its own', () => {
     const scan = scanImportDateFormats(['2024-03-15', '', '   ', '2024-04-01'])
 
-    expect(scan.readable).toEqual(['yearFirst'])
+    expect(scan.readable).toEqual(['yearFirst', 'iso'])
   })
 })
 

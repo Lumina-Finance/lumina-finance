@@ -58,6 +58,11 @@ export function ImportDateFormatControl({
         placeholder="Choose the date format"
         size="compact"
       />
+      {format === 'iso' && (
+        <p className="text-xs" style={{ color: 'var(--app-text-muted)' }}>
+          Uses the date written before T. The time and timezone do not move it to another day
+        </p>
+      )}
     </div>
   )
 }

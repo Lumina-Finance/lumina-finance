@@ -272,7 +272,7 @@ function getDateFormatExpectation(
   separator: ImportDateSeparator = 'automatic',
 ) {
   const { label, example: defaultExample } = IMPORT_DATE_FORMAT_LABELS[dateFormat]
-  const example = dateFormat !== 'written' && separator !== 'automatic'
+  const example = dateFormat !== 'written' && dateFormat !== 'iso' && separator !== 'automatic'
     ? defaultExample.replace(/[-/]/g, separator)
     : defaultExample
 
