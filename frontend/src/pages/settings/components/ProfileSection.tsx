@@ -6,13 +6,11 @@ import SettingsSectionHeader from '@/pages/settings/components/SectionHeader'
 import SettingsCard from '@/pages/settings/components/Card'
 import type { ProfileFormState } from '@/pages/settings/profileForm'
 import { formatCurrencyLabel } from '@/utils/formatCurrency'
+import { buildTimezoneOptions } from '@/utils/timezoneOptions'
 
 const PROFILE_TIMEZONE_FIELD_ID = 'profile-timezone'
 
-const TIMEZONES = Intl.supportedValuesOf('timeZone').map((tz) => ({
-  value: tz,
-  label: tz.replace(/_/g, ' '),
-}))
+const TIMEZONES = Intl.supportedValuesOf('timeZone')
 
 const DISABLED_INPUT_STYLE: React.CSSProperties = {
   opacity: 0.55,
@@ -110,7 +108,7 @@ export default function ProfileSection({
               <SettingsField label="Timezone" htmlFor={PROFILE_TIMEZONE_FIELD_ID}>
                 <Dropdown
                   id={PROFILE_TIMEZONE_FIELD_ID}
-                  options={TIMEZONES}
+                  options={buildTimezoneOptions(TIMEZONES, form.tz)}
                   value={form.tz}
                   onChange={(v) => onFieldChange('tz', v)}
                   searchable
