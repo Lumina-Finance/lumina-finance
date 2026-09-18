@@ -1,8 +1,58 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { parse } from 'postcss'
 import { describe, expect, it } from 'vitest'
 import { STACKING_LEVELS, toTailwindZIndexTheme } from '@/constants/stackingLevels'
+
+// Stylesheet literals only order nearby siblings, global overlays use the named Tailwind scale
+const LOCAL_STYLESHEET_LEVELS = new Set(['auto', '0', '1', '2'])
+
+/** Parse declarations so comments and strings mentioning z-index do not become false positives */
+function findUnsupportedStylesheetLevels(css: string): string[] {
+  const namedLevels = toTailwindZIndexTheme()
+  const unsupported: string[] = []
+
+  parse(css).walkDecls((declaration) => {
+    if (declaration.prop.toLowerCase() !== 'z-index') return
+    const value = declaration.value.trim()
+    if (LOCAL_STYLESHEET_LEVELS.has(value)) return
+
+    const themeReference = /^theme\(\s*(['"])zIndex\.([a-z-]+)\1\s*\)$/.exec(value)
+    if (themeReference && Object.hasOwn(namedLevels, themeReference[2])) return
+
+    unsupported.push(value)
+  })
+
+  return unsupported
+}
+
+describe('stylesheet stacking levels', () => {
+  it.each(['auto', '0', '1', '2', "theme('zIndex.popover')", 'theme("zIndex.stacked-modal")'])(
+    'accepts local ordering or a named level: %s', (value) => {
+      expect(findUnsupportedStylesheetLevels(`.example { z-index: ${value} !important; }`)).toEqual([])
+    },
+  )
+
+  it.each(['110', '-1', '3', "theme('zIndex.missing')", 'var(--unknown-level)', 'calc(100 + 10)'])(
+    'rejects unsupported levels: %s', (value) => {
+      expect(findUnsupportedStylesheetLevels(`@media (min-width: 1px) { .example { z-index: ${value}; } }`))
+        .toEqual([value])
+    },
+  )
+
+  it('ignores comments, custom properties and unrelated declaration values', () => {
+    expect(findUnsupportedStylesheetLevels(`
+      /* z-index: 110; */
+      .example { content: "z-index: 110"; --z-index: 110; width: 110px; }
+    `)).toEqual([])
+  })
+
+  it('keeps handwritten stylesheet levels within the local range or named scale', () => {
+    const stylesheet = readFileSync(new URL('../../src/styles/tailwind.css', import.meta.url), 'utf8')
+    expect(findUnsupportedStylesheetLevels(stylesheet)).toEqual([])
+  })
+})
 
 describe('STACKING_LEVELS', () => {
   it('rises strictly from the first level to the last', () => {
