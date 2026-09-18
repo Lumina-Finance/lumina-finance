@@ -83,6 +83,9 @@ export default function TransactionModalFooter({
       {editing && !readOnly ? (
         <button
           ref={deleteButtonRef}
+          data-testid="transaction-delete"
+          aria-label={confirmingDelete ? 'Yes, delete' : 'Delete'}
+          aria-busy={deleteButtonLoading}
           type="button"
           onClick={handleDeleteClick}
           disabled={isPending}
@@ -174,6 +177,9 @@ export default function TransactionModalFooter({
         {!readOnly && (
           <button
             type="submit"
+            data-testid="transaction-submit"
+            aria-label={editing ? 'Save' : 'Add Transaction'}
+            aria-busy={submitLoading}
             disabled={isPending}
             className={`app-primary-button overflow-hidden whitespace-nowrap duration-300 ${submitLoading ? 'app-primary-button-loading justify-self-center sm:justify-self-auto' : editing ? 'w-full sm:w-24' : 'w-full sm:w-44'}`}
           >

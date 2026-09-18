@@ -12,6 +12,9 @@ interface DropdownHeadProps {
   headRef: RefObject<HTMLButtonElement | null>
   id?: string
 
+  /** Stable identity for an individual control whose visible label changes */
+  testId?: string
+
   /**
    * Id of the visible label this control takes its accessible name from, for a field whose label
    * sits above it
@@ -52,6 +55,7 @@ export function DropdownHead({
   emptySelectionIsBlank,
   headRef,
   id,
+  testId,
   labelledBy,
   listId,
   open,
@@ -69,6 +73,7 @@ export function DropdownHead({
     <button
       ref={headRef}
       id={id}
+      data-testid={testId}
       type="button"
       role="combobox"
       aria-expanded={open}
