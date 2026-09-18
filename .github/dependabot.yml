@@ -1,5 +1,12 @@
 version: 2
 
+registries:
+  docker-hardened-images:
+    type: docker-registry
+    url: https://dhi.io
+    username: ${{secrets.DOCKERHUB_USERNAME}}
+    password: ${{secrets.DOCKERHUB_TOKEN}}
+
 updates:
   - package-ecosystem: uv
     directory: /backend
@@ -23,6 +30,19 @@ updates:
     open-pull-requests-limit: 1
     groups:
       npm-minor-and-patch:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: [minor, patch]
+
+  - package-ecosystem: docker
+    directory: /docker
+    registries:
+      - docker-hardened-images
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 1
+    groups:
+      docker-minor-and-patch:
         applies-to: version-updates
         patterns: ["*"]
         update-types: [minor, patch]
