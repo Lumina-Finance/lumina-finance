@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Locator } from '@playwright/test'
 
 import {
   budgetPeriodStart,
@@ -11,13 +11,39 @@ import { logIn, openModal } from '../support/app'
 import { expectPendingAction, whileApiRequestHeld } from '../support/selectors'
 import { API_BASE_URL } from '../support/target'
 
-test('counts seeded spending against the budget limit', async ({ page, request }) => {
+// Format stored calendar dates without applying the test runner's own timezone
+const PERIOD_DATE = new Intl.DateTimeFormat('en-CA', {
+  year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC',
+})
+
+/** Assert spending and limit in the same historical period across its two responsive layouts */
+async function expectHistoricalPeriod(dialog: Locator, label: string): Promise<void> {
+  const history = dialog.getByRole('heading', { name: 'Period history', exact: true }).locator('..')
+  const periodLabel = history.getByText(label, { exact: true }).filter({ visible: true })
+  await expect(periodLabel).toBeVisible()
+  const row = history.getByRole('row').filter({ hasText: label })
+  if (await row.isVisible()) {
+    await expect(history.getByRole('columnheader', { name: 'Used', exact: true })).toBeVisible()
+    await expect(history.getByRole('columnheader', { name: 'Budgeted', exact: true })).toBeVisible()
+    await expect(row.getByRole('cell').nth(1)).toHaveText('$52.50')
+    await expect(row.getByRole('cell').nth(2)).toHaveText('$500.00')
+  } else {
+    const card = periodLabel.locator('..').locator('..')
+    await expect(card.getByText('Used', { exact: true }).locator('..').getByText('$52.50', { exact: true })).toBeVisible()
+    await expect(card.getByText('Budgeted', { exact: true }).locator('..').getByText('$500.00', { exact: true })).toBeVisible()
+  }
+}
+
+test('preserves seeded budget history across a month boundary', async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday Chequing' })
 
-  // Read once and used for both, so a run that crosses midnight into the first of a month
-  // cannot anchor the period to one month and the spending to the next
+  // Seed a completed period whose history is independent of the latest period on the card
   const periodStart = budgetPeriodStart()
+  const [year, month] = periodStart.split('-').map(Number)
+  const periodEnd = new Date(Date.UTC(year, month, 0, 12))
+  const nextMonth = new Date(Date.UTC(year, month, 1, 12))
+  const periodLabel = `${PERIOD_DATE.format(new Date(`${periodStart}T12:00:00Z`))} - ${PERIOD_DATE.format(periodEnd)}`
 
   const id = await createMonthlyBudget(request, user, {
     name: 'Monthly Food',
@@ -26,9 +52,7 @@ test('counts seeded spending against the budget limit', async ({ page, request }
     periodStart,
   })
 
-  // Dated where the period starts, so both fall inside it whatever day the suite runs. A
-  // transaction outside the period is not counted and not complained about, which would leave
-  // the card reading $0.00 used and the assertion below blaming the total
+  // Both transactions belong to the exact historical period asserted below
   for (const amount of [-4250, -1000]) {
     await createTransaction(request, user, {
       accountId: account.id,
@@ -39,13 +63,18 @@ test('counts seeded spending against the budget limit', async ({ page, request }
   }
 
   await logIn(page, user)
-  await page.goto('/budgets')
-
-  const card = page.getByTestId(`budget-card-${id}`)
-  await expect(card).toHaveRole('button')
-  await expect(card).toHaveAccessibleName(/Monthly Food/)
-  await expect(card.getByRole('heading', { name: 'Monthly Food' })).toBeVisible()
-  await expect(card.getByText('$52.50 used of $500.00')).toBeVisible()
+  for (const date of [periodEnd, nextMonth]) {
+    // Date changes while timers continue normally, and navigation remounts the backfill hook
+    await page.clock.setFixedTime(date)
+    await page.goto('/budgets')
+    const card = page.getByTestId(`budget-card-${id}`)
+    await expect(card).toHaveRole('button')
+    await expect(card).toHaveAccessibleName(/Monthly Food/)
+    // The server also creates elapsed recurring periods, so the latest card is not this history
+    await expect(card.getByText('$0.00 used of $500.00', { exact: true })).toBeVisible()
+    await card.click()
+    await expectHistoricalPeriod(page.getByRole('dialog', { name: 'Monthly Food', exact: true }), periodLabel)
+  }
 })
 
 test('keeps budget actions named during creation and editing', async ({ page, request }) => {
