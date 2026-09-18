@@ -203,8 +203,8 @@ export default function TransactionsTopBand({
       )}
 
       <div
-        inert={overviewState.kind === 'failed' ? true : undefined}
-        aria-hidden={overviewState.kind === 'failed' ? true : undefined}
+        inert={overviewState.kind === 'failed' || (!showLoading && !hasOverviewData) ? true : undefined}
+        aria-hidden={overviewState.kind === 'failed' || (!showLoading && !hasOverviewData) ? true : undefined}
       >
         <TopBandDivider className="mb-3" />
         <motion.div
