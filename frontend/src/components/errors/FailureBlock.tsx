@@ -89,8 +89,8 @@ interface FailureBlockProps {
  * instead. That sentence runs to five lines in a dashboard widget, which would leave no room for
  * the Reload button, and the compact one drops the bug report link with it. It is asked for rather
  * than taken from the size, since every caller of the inline size asks for the same size while the
- * space each of them has differs: a dashboard widget gives the box about 174px, while an insights
- * card, which holds a height too, has 360px or more and takes the usual wording
+ * space each of them has differs. Dashboard widgets and the financial chart and merchant cards
+ * in Insights use compact wording so a long server explanation leaves their recovery controls visible
  *
  * It returns a fragment rather than its own container, since the three callers each need a
  * different one: a full window, a centred card, or a strip inside a section that is already there

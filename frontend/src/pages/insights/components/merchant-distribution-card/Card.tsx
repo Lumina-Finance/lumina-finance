@@ -100,6 +100,7 @@ export function MerchantDistributionCard({
         >
           {displaySnapshot.failed && (
             <LoadFailure
+              compact
               error={displaySnapshot.error}
               standalone
               subject="Spending distribution by merchant"
