@@ -15,6 +15,7 @@ updates:
       day: monday
       time: "05:00"
       timezone: America/Toronto
+    assignees: ["OKok-3"]
     open-pull-requests-limit: 1
     groups:
       uv-minor-and-patch:
@@ -33,6 +34,7 @@ updates:
       day: monday
       time: "05:00"
       timezone: America/Toronto
+    assignees: ["OKok-3"]
     open-pull-requests-limit: 1
     groups:
       npm-minor-and-patch:
@@ -49,6 +51,7 @@ updates:
       day: monday
       time: "05:00"
       timezone: America/Toronto
+    assignees: ["OKok-3"]
     open-pull-requests-limit: 1
     groups:
       docker-minor-and-patch:
@@ -65,6 +68,7 @@ updates:
       day: monday
       time: "05:00"
       timezone: America/Toronto
+    assignees: ["OKok-3"]
     open-pull-requests-limit: 1
     groups:
       actions-minor-and-patch:
