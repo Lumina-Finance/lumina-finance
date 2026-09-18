@@ -20,6 +20,13 @@ const MAX_VISIBLE_TAGS = 1
 const DEFAULT_CATEGORY_ICON = '🏷️'
 const ROW_EXIT_EASE = [0.25, 0.1, 0.25, 1] as const
 
+export type TransactionRowMetadata = Pick<Transaction, 'id' | 'dt' | 'merchant_name' | 'notes' | 'tags' | 'counterparty_account_scope'>
+/**
+ * Supplies already signed and formatted amount text, with the amount's sign controlling color
+ * and transfer direction independently of its numeric representation
+ */
+export type TransactionAmountPresentation = { text: string; sign: -1 | 0 | 1 }
+
 /**
  * Describes the counterparty of a transfer for the line that shows a merchant on other kinds
  *
@@ -27,7 +34,8 @@ const ROW_EXIT_EASE = [0.25, 0.1, 0.25, 1] as const
  * falls back to the merchant rather than claiming an answer it does not have
  */
 function describeTransferCounterparty(
-  transaction: Transaction,
+  transaction: TransactionRowMetadata,
+  sign: TransactionAmountPresentation['sign'],
   counterpartyAccountName: string | undefined,
 ): string | null {
   const counterparty = transaction.counterparty_account_scope === 'outside'
@@ -37,7 +45,7 @@ function describeTransferCounterparty(
 
   // Which way the money went reads the same whether the counterparty is an account or not, so money
   // leaving the tracked accounts gets the same wording rather than standing on its own
-  return transaction.amount < 0 ? `To ${counterparty}` : `From ${counterparty}`
+  return sign < 0 ? `To ${counterparty}` : `From ${counterparty}`
 }
 
 /**
@@ -74,6 +82,12 @@ interface TransactionRowProps {
   skipEnterAnimation?: boolean
   selection?: TransactionRowSelection
   onOpen: (transaction: Transaction) => void
+}
+
+interface TransactionRowViewProps extends Omit<TransactionRowProps, 'transaction' | 'currency' | 'onOpen'> {
+  transaction: TransactionRowMetadata
+  amountPresentation: TransactionAmountPresentation
+  onOpen: () => void
 }
 
 function amountColor(category: Category | undefined, amount: number) {
@@ -167,23 +181,30 @@ function TagTooltip({ tags }: { tags: Transaction['tags'] }) {
  * stacked two-line layout on narrow ones, and animates its height on mount and removal unless
  * `prefersReducedMotion` is set. A `readOnlyReason` dims the row and shows why it cannot be edited
  */
-export default function TransactionRow({
+export default function TransactionRow({ transaction, currency, onOpen, ...props }: TransactionRowProps) {
+  const { formatCurrency } = useMoneyFormatters()
+  const sign = transaction.amount < 0 ? -1 : transaction.amount > 0 ? 1 : 0
+  const text = `${sign < 0 ? '-' : '+'}${formatCurrency(Math.abs(transaction.amount), currency)}`
+  return <TransactionRowView {...props} transaction={transaction} amountPresentation={{ text, sign }} onOpen={() => onOpen(transaction)} />
+}
+
+/** Renders transaction metadata with an already formatted amount and its exact direction */
+export function TransactionRowView({
   accountName,
   counterpartyAccountName,
   accountInstitution,
   category,
-  currency,
   readOnlyReason,
   transaction,
+  amountPresentation,
   prefersReducedMotion,
   skipEnterAnimation = false,
   selection,
   onOpen,
-}: TransactionRowProps) {
+}: TransactionRowViewProps) {
   // The row clips its content only while the height animates, so the grow and collapse read cleanly
   // while the resting row still lets a tag tooltip overflow past its edges
   const [isAnimatingHeight, setIsAnimatingHeight] = useState(false)
-  const { formatCurrency } = useMoneyFormatters()
   const categoryName = category?.name ?? 'Uncategorized'
   const categoryIcon = category?.icon ?? DEFAULT_CATEGORY_ICON
   const fallbackTitle = category?.kind === 'transfer' ? 'Transfer' : 'Transaction'
@@ -192,7 +213,7 @@ export default function TransactionRow({
   // that shows a merchant on other kinds, and the merchant fills in only for a transfer that
   // recorded no counterparty
   const transferCounterparty = category?.kind === 'transfer'
-    ? describeTransferCounterparty(transaction, counterpartyAccountName)
+    ? describeTransferCounterparty(transaction, amountPresentation.sign, counterpartyAccountName)
     : null
   const title = transferCounterparty ?? transaction.merchant_name ?? fallbackTitle
   const hasNotes = Boolean(transaction.notes?.trim())
@@ -203,8 +224,8 @@ export default function TransactionRow({
   const hasSupplementalMeta = hasNotes || hasVisibleTags
   const hasAccountMeta = !!accountName || !!accountInstitution
   const readOnly = Boolean(readOnlyReason)
-  const formattedAmount = `${transaction.amount >= 0 ? '+' : '-'}${formatCurrency(Math.abs(transaction.amount), currency)}`
-  const transactionAmountColor = amountColor(category, transaction.amount)
+  const formattedAmount = amountPresentation.text
+  const transactionAmountColor = amountColor(category, amountPresentation.sign)
 
   // Only the limit gets a title here, since a read-only row already explains itself through the
   // pill beside its account name
@@ -295,7 +316,7 @@ export default function TransactionRow({
         tabIndex={selection ? -1 : undefined}
         onClick={(event) => {
           if (!selection) {
-            onOpen(transaction)
+            onOpen()
             return
           }
 

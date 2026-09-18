@@ -401,14 +401,14 @@ describe('previewing an amount', () => {
 
     expect(rows).toHaveLength(1)
     expect(rows[0].currency).toBe('PKR')
-    expect(rows[0].transaction.amount).toBe(123456)
+    expect(rows[0].transaction.amount).toBe(123456n)
   })
 
   it('does not scale a zero-decimal currency by a hundred', () => {
     const rows = buildPreview('1234', 'JPY')
 
     expect(rows[0].currency).toBe('JPY')
-    expect(rows[0].transaction.amount).toBe(1234)
+    expect(rows[0].transaction.amount).toBe(1234n)
   })
 
   // The commit refuses this row outright, so it only reaches the preview while the account step is
@@ -417,7 +417,7 @@ describe('previewing an amount', () => {
     const rows = buildPreview('12.34', 'CAD', 'JPY')
 
     expect(rows[0].currency).toBe('CAD')
-    expect(rows[0].transaction.amount).toBe(1234)
+    expect(rows[0].transaction.amount).toBe(1234n)
   })
 
   it('leaves out a row whose amount the currency cannot hold instead of rounding it', () => {
