@@ -29,7 +29,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Set up Docker build
         uses: ./.github/actions/docker-build-setup
@@ -83,7 +83,7 @@ jobs:
     steps:
       # The composite action below is read from the repository, so it has to be checked out
       - name: Check out repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Download the digests
         uses: actions/download-artifact@v8
