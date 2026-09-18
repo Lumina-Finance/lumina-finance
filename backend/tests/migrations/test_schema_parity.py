@@ -43,6 +43,122 @@ _ALEMBIC_ENCRYPTED_DB_NAME = f"{WORKER_DB_NAME}_alembic_encrypted_columns"
 _ALEMBIC_FOLDED_CATEGORY_DB_NAME = f"{WORKER_DB_NAME}_alembic_folded_categories"
 _ALEMBIC_FOLDED_MERCHANT_DB_NAME = f"{WORKER_DB_NAME}_alembic_folded_merchants"
 _BEFORE_FOLDED_NAMES_REVISION = "6a1f132b9da2"
+_ALEMBIC_ACCOUNT_DATE_INDEX_DB_NAME = f"{WORKER_DB_NAME}_alembic_account_date_index"
+_BEFORE_ACCOUNT_DATE_INDEX_REVISION = "51c17506619a"
+_ACCOUNT_DATE_INDEX_REVISION = "0b8d6e2c9a41"
+_ACCOUNT_DATE_INDEX_NAME = "ix_transactions_account_id_dt"
+
+
+async def test_account_date_index_migration_preserves_rows_and_existing_indexes() -> None:
+    """Verify upgrade, downgrade and reupgrade preserve duplicate account/date rows and other indexes"""
+    database_name = _ALEMBIC_ACCOUNT_DATE_INDEX_DB_NAME
+    await _recreate_database(database_name)
+    engine = _create_engine_for_database(database_name)
+    try:
+        _run_alembic_upgrade(database_name, revision=_BEFORE_ACCOUNT_DATE_INDEX_REVISION)
+        async with engine.begin() as conn:
+
+            # Supply the currency required by the synthetic owner and ledger rows
+            await conn.execute(text(
+                "INSERT INTO currencies (id, name, symbol, minor_unit_exponent)"
+                " VALUES ('CAD', 'Canadian Dollar', '$', 2) ON CONFLICT (id) DO NOTHING",
+            ))
+
+            # Keep the fixture owner independent of existing profile data
+            await conn.execute(text(
+                "INSERT INTO users (id, email, first_name, tz, base_currency)"
+                " VALUES ('11111111-1111-4111-8111-111111111111', 'index-migration@example.com', 'Index', 'UTC', 'CAD')",
+            ))
+
+            # Put both ledger rows in one active account to exercise duplicate account dates
+            await conn.execute(text(
+                "INSERT INTO accounts (id, owner_id, name, currency, account_kind, account_type, is_archived)"
+                " VALUES ('22222222-2222-4222-8222-222222222222', '11111111-1111-4111-8111-111111111111',"
+                " 'Index account', 'CAD', 'ASSET', 'CHECKING', false)",
+            ))
+
+            # Give the ledger rows a valid classification without application seeding
+            await conn.execute(text(
+                "INSERT INTO categories (id, name, kind, is_system)"
+                " VALUES ('33333333-3333-4333-8333-333333333333', 'Index category', 'EXPENSE', true)",
+            ))
+
+            # Give both rows a shared merchant so existing merchant index coverage remains relevant
+            await conn.execute(text(
+                "INSERT INTO merchants (id, name, is_system)"
+                " VALUES ('44444444-4444-4444-8444-444444444444', 'Index merchant', true)",
+            ))
+            for identifier, amount, notes in (
+                ("55555555-5555-4555-8555-555555555555", -12345, "Purchase"),
+                ("66666666-6666-4666-8666-666666666666", 250, "Refund"),
+            ):
+
+                # Preserve distinct financial values while proving that duplicate dates remain valid
+                await conn.execute(text(
+                    "INSERT INTO transactions (id, created_by_user_id, account_id, dt, merchant_id, category_id, amount, currency, notes)"
+                    " VALUES (:id, '11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222',"
+                    " '2026-03-15', '44444444-4444-4444-8444-444444444444', '33333333-3333-4333-8333-333333333333',"
+                    " :amount, 'CAD', :notes)",
+                ), {"id": UUID(identifier), "amount": amount, "notes": notes})
+        async with engine.connect() as conn:
+            original_rows, original_indexes = await _read_account_index_migration_state(conn)
+        assert len(original_rows) == 2
+        assert _ACCOUNT_DATE_INDEX_NAME not in original_indexes
+        assert {"transactions_pkey", "ix_transactions_merchant_id_dt", "ix_transactions_counterparty_account_id"} <= original_indexes.keys()
+        metadata_index = next(index for index in Base.metadata.tables["transactions"].indexes if index.name == _ACCOUNT_DATE_INDEX_NAME)
+        assert [column.name for column in metadata_index.columns] == ["account_id", "dt"]
+        assert not metadata_index.unique
+
+        for reupgrade in (False, True):
+            _run_alembic_upgrade(database_name, revision=_ACCOUNT_DATE_INDEX_REVISION)
+            async with engine.connect() as conn:
+                rows, indexes = await _read_account_index_migration_state(conn)
+
+                # Verify the physical index independently of the migration and metadata declarations
+                catalog = (await conn.execute(text(
+                    "SELECT i.indisvalid, i.indisunique, i.indnkeyatts,"
+                    " pg_get_indexdef(i.indexrelid, 1, true), pg_get_indexdef(i.indexrelid, 2, true)"
+                    " FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid WHERE c.relname = :name",
+                ), {"name": _ACCOUNT_DATE_INDEX_NAME})).one()
+            assert tuple(catalog) == (True, False, 2, "account_id", "dt")
+            assert rows == original_rows
+            assert {name: definition for name, definition in indexes.items() if name != _ACCOUNT_DATE_INDEX_NAME} == original_indexes
+            if not reupgrade:
+                _run_account_index_downgrade(database_name)
+                async with engine.connect() as conn:
+                    rows, indexes = await _read_account_index_migration_state(conn)
+                assert rows == original_rows
+                assert indexes == original_indexes
+    finally:
+        await engine.dispose()
+        await _drop_database(database_name)
+
+
+async def _read_account_index_migration_state(conn: AsyncConnection) -> tuple[list[tuple], dict[str, str]]:
+    """Read every ledger field and index definition to detect changes beyond the new index"""
+    rows = [tuple(row) for row in (await conn.execute(text("SELECT * FROM transactions ORDER BY id"))).all()]
+
+    # Preserve all existing index definitions across both migration directions
+    indexes = dict((await conn.execute(text(
+        "SELECT indexname, indexdef FROM pg_indexes WHERE schemaname = 'public' AND tablename = 'transactions' ORDER BY indexname",
+    ))).all())
+    return rows, indexes
+
+
+def _run_account_index_downgrade(database_name: str) -> None:
+    """Downgrade only the account index revision in a generated migration database"""
+    environment = os.environ.copy()
+    environment.update({
+        "DB_HOST": DB_HOST, "DB_PORT": DB_PORT, "DB_NAME": database_name,
+        "DB_USER": DB_USER, "DB_PASSWORD": DB_PASSWORD,
+    })
+
+    # Fixed revision and executable keep this migration subprocess independent of application imports
+    completed = subprocess.run(  # noqa: S603
+        [sys.executable, "-m", "alembic", "downgrade", _BEFORE_ACCOUNT_DATE_INDEX_REVISION],
+        cwd=_BACKEND_DIR, env=environment, check=False, capture_output=True, text=True,
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
 
 
 async def test_alembic_schema_columns_match_model_metadata() -> None:

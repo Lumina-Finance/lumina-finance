@@ -24,6 +24,9 @@ class Transaction(Base):
         # range for each merchant. Leading on merchant_id means it also covers every lookup that
         # filters on the merchant alone, so no separate index on that column is needed
         Index("ix_transactions_merchant_id_dt", "merchant_id", "dt"),
+
+        # Supports account and date lookups for history, analytics and snapshot rebuilds
+        Index("ix_transactions_account_id_dt", "account_id", "dt"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
