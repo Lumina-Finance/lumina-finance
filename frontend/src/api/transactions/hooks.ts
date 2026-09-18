@@ -8,6 +8,7 @@ import {
 } from '@tanstack/react-query';
 import {
   invalidateInsightsMerchants,
+  invalidateMerchantLookupPages,
   invalidateTransactions,
   invalidateTransactionOverview,
 } from '@/api/cache/invalidation';
@@ -133,6 +134,7 @@ export function useCreateTransaction({
       invalidateFinancialTransactionData(queryClient, accountIds, {
         deferAccountInvalidation,
         deferTransactionOverview: deferTransactionInvalidation,
+        deferMerchantLookupInvalidation: deferTransactionInvalidation,
       });
       invalidateInsightsMerchants(queryClient);
     },
@@ -149,6 +151,7 @@ export function useRefreshCreatedTransactions() {
     (accountIds: string[]) => {
       invalidateTransactions(queryClient);
       invalidateTransactionOverview(queryClient);
+      invalidateMerchantLookupPages(queryClient);
       invalidateTransactionAccountData(queryClient, accountIds, { refetchAccountList: true });
     },
     [queryClient],

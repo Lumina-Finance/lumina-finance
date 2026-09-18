@@ -6,6 +6,7 @@ import {
   tagKeys,
 } from '@/api/cache/queryKeys';
 import { invalidateTargets, type InvalidationTarget } from '@/api/cache/invalidation/types';
+import { isInfiniteReferenceLookupQueryKey } from '@/api/cache/utils/referenceLookup';
 
 export const referenceDataTargets: InvalidationTarget[] = [
   { queryKey: categoryKeys.list(), exact: true },
@@ -19,6 +20,15 @@ export const referenceDataTargets: InvalidationTarget[] = [
  */
 export function invalidateMerchants(queryClient: QueryClient) {
   invalidateTargets(queryClient, [{ queryKey: merchantKeys.all }]);
+}
+
+/** Refresh usage-ranked lookup pages without invalidating merchant details or name matches */
+export function invalidateMerchantLookupPages(queryClient: QueryClient) {
+  void queryClient.invalidateQueries({
+    queryKey: merchantKeys.all,
+    predicate: (query) => isInfiniteReferenceLookupQueryKey(query.queryKey, 'merchants'),
+    refetchType: 'active',
+  });
 }
 
 /**
