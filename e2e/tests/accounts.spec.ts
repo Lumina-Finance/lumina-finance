@@ -80,3 +80,20 @@ test('shows a transaction seeded over the API', async ({ page, request }) => {
 
   await expectTransactionRow(page, id, '-$42.50')
 })
+
+test('keeps the account save action named while an edit is pending', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Account before edit' })
+  await logIn(page, user)
+  await page.goto(`/accounts/${account.id}`)
+  await page.getByRole('button', { name: 'Edit account', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: 'Edit Account', exact: true })
+  await dialog.getByLabel('Account Name').fill('Account after edit')
+  const submit = dialog.getByTestId('account-submit')
+  await expect(submit).toHaveRole('button')
+  await expect(submit).toHaveAccessibleName('Save Changes')
+  await whileApiRequestHeld(page, 'PATCH', `/accounts/${account.id}`,
+    () => submit.click(), () => expectPendingAction(submit, 'Save Changes'))
+  await expect(dialog).toBeHidden()
+  await expect(page.getByRole('heading', { name: 'Account after edit', exact: true })).toBeVisible()
+})
