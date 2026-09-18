@@ -11,3 +11,18 @@ updates:
         applies-to: version-updates
         patterns: ["*"]
         update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directories:
+      - /frontend
+      - /e2e
+    cooldown:
+      default-days: 14
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 1
+    groups:
+      npm-minor-and-patch:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: [minor, patch]
