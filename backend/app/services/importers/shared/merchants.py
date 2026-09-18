@@ -48,13 +48,40 @@ def get_import_merchant_scope_filter(user_id: uuid.UUID):
     return Merchant.is_system.is_(True) | ((Merchant.owner_id == user_id) & Merchant.group_id.is_(None))
 
 
-async def require_usable_import_merchant(db: AsyncSession, merchant_id: uuid.UUID, user_id: uuid.UUID) -> Merchant:
+async def load_usable_import_merchants(
+    db: AsyncSession, merchant_ids: set[uuid.UUID], user_id: uuid.UUID,
+) -> dict[uuid.UUID, Merchant]:
+    """Read selected merchant references under the existing system-or-personal import scope
+
+    Args:
+        db: Active caller-scoped database session
+        merchant_ids: Unique references declared by this request
+        user_id: Authenticated importer used by the existing eligibility predicate
+
+    Returns:
+        Eligible merchants by ID, with absent or inaccessible references omitted
+    """
+    if not merchant_ids:
+        return {}
+
+    # Resolve reference eligibility in one query before the ordered declaration checks
+    merchants = (await db.execute(select(Merchant).where(
+        Merchant.id.in_(merchant_ids), get_import_merchant_scope_filter(user_id),
+    ))).scalars().all()
+    return {merchant.id: merchant for merchant in merchants}
+
+
+async def require_usable_import_merchant(
+    db: AsyncSession, merchant_id: uuid.UUID, user_id: uuid.UUID,
+    *, merchants_by_id: dict[uuid.UUID, Merchant] | None = None,
+) -> Merchant:
     """Return a merchant an import may file rows under, refusing any other
 
     Args:
         db: Active database session
         merchant_id: Merchant an answer points at
         user_id: Identifier for the user running the import
+        merchants_by_id: Optional complete caller-eligible reference lookup for this request
 
     Returns:
         The merchant
@@ -64,10 +91,15 @@ async def require_usable_import_merchant(db: AsyncSession, merchant_id: uuid.UUI
             covers another user's and a group's, so answering a value cannot reach further than
             matching one does
     """
-    result = await db.execute(
-        select(Merchant).where(Merchant.id == merchant_id, get_import_merchant_scope_filter(user_id)),
-    )
-    merchant = result.scalar_one_or_none()
+    if merchants_by_id is None:
+
+        # Resolve the selected merchant within the importer's system-or-personal scope
+        result = await db.execute(
+            select(Merchant).where(Merchant.id == merchant_id, get_import_merchant_scope_filter(user_id)),
+        )
+        merchant = result.scalar_one_or_none()
+    else:
+        merchant = merchants_by_id.get(merchant_id)
     if merchant is None:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Merchant not found")
     return merchant

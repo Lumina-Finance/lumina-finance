@@ -2,6 +2,7 @@
 
 import uuid
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any
 
 from fastapi import HTTPException, status
@@ -9,9 +10,12 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.base import PermissionLevel
+from app.models.category import Category
 from app.models.import_run import ImportRun, ImportStagedRow
+from app.models.merchant import Merchant
 from app.models.user import User
 from app.permissions import check_account_access
+from app.permissions.accounts import AccountAccessLookup, load_account_access_lookup
 from app.schemas.transaction import (
     MAX_IMPORT_MAPPINGS,
     TransactionImportAccountMapping,
@@ -21,16 +25,62 @@ from app.schemas.transaction import (
 )
 from app.services.importers.generic.run_locking import load_locked_run
 from app.services.importers.shared.account_creation_helpers import (
+    load_import_account_references,
     parse_import_account_type,
     validate_import_account_currency,
     validate_import_account_institution,
 )
 from app.services.importers.shared.categories import (
     get_visible_import_category,
+    load_visible_import_categories,
     parse_import_category_kind,
 )
-from app.services.importers.shared.merchants import get_import_merchant_key, require_usable_import_merchant
+from app.services.importers.shared.merchants import (
+    get_import_merchant_key,
+    load_usable_import_merchants,
+    require_usable_import_merchant,
+)
 from app.services.importers.shared.validation_helpers import strip_import_text_or_raise
+
+
+@dataclass
+class StagingReferences:
+    """Complete caller-local reference facts used only by one staging request"""
+
+    account_access: AccountAccessLookup
+    currencies: set[str]
+    institutions: set[uuid.UUID]
+    categories: dict[uuid.UUID, Category]
+    merchants: dict[uuid.UUID, Merchant]
+
+
+async def _load_staging_references(
+    db: AsyncSession, user: User, data: TransactionImportStageRequest,
+) -> StagingReferences:
+    """Acquire reference facts without validating or reordering declaration errors
+
+    Args:
+        db: Active caller-scoped staging session
+        user: Authenticated importer
+        data: Validated batch whose declarations are checked after acquisition
+
+    Returns:
+        Complete request-local facts, with unavailable references absent
+    """
+    account_ids = {mapping.account_id for mapping in data.accounts if mapping.account_id is not None}
+    creates = [mapping.create for mapping in data.accounts if mapping.create is not None]
+    currencies, institutions = await load_import_account_references(
+        db, {create.currency.upper() for create in creates},
+        {create.institution_id for create in creates if create.institution_id is not None},
+    )
+    account_access = await load_account_access_lookup(db, account_ids, user.id)
+    categories = await load_visible_import_categories(
+        db, {mapping.category_id for mapping in data.categories if mapping.category_id is not None}, user.id,
+    )
+    merchants = await load_usable_import_merchants(
+        db, {mapping.merchant_id for mapping in data.merchants if mapping.merchant_id is not None}, user.id,
+    )
+    return StagingReferences(account_access, currencies, institutions, categories, merchants)
 
 
 async def open_import_run(db: AsyncSession, user: User, expected_transaction_count: int) -> ImportRun:
@@ -88,12 +138,13 @@ async def stage_import_batch(
             detail=f"This batch reaches row {last_row_index} of an import declaring {run.expected_transaction_count}",
         )
 
+    references = await _load_staging_references(db, user, data)
     for account_mapping in data.accounts:
-        await _validate_account_mapping(db, user, account_mapping)
+        await _validate_account_mapping(db, user, account_mapping, references)
     for category_mapping in data.categories:
-        await _validate_category_mapping(db, user, category_mapping)
+        await _validate_category_mapping(db, user, category_mapping, references)
     for merchant_mapping in data.merchants:
-        await _validate_merchant_mapping(db, user, merchant_mapping)
+        await _validate_merchant_mapping(db, user, merchant_mapping, references)
 
     # Reassigned rather than mutated, since SQLAlchemy tracks a JSONB column by identity and would
     # not see a change made inside the dictionary it already holds
@@ -261,6 +312,7 @@ async def _validate_account_mapping(
     db: AsyncSession,
     user: User,
     mapping: TransactionImportAccountMapping,
+    references: StagingReferences,
 ) -> None:
     """Check one account mapping as far as staging can, without creating anything
 
@@ -272,6 +324,7 @@ async def _validate_account_mapping(
         db: Active database session
         user: Authenticated user running the import
         mapping: Account source mapping from the batch
+        references: Complete caller-local reference facts for this staging request
 
     Returns:
         None
@@ -298,18 +351,21 @@ async def _validate_account_mapping(
         )
 
     if mapping.account_id is not None:
-        await check_account_access(db, mapping.account_id, user.id, PermissionLevel.READ)
+        await check_account_access(
+            db, mapping.account_id, user.id, PermissionLevel.READ, access_lookup=references.account_access,
+        )
         return
 
     parse_import_account_type(mapping.create.account_type)
-    await validate_import_account_currency(db, mapping.create.currency.upper())
-    await validate_import_account_institution(db, mapping.create.institution_id)
+    await validate_import_account_currency(db, mapping.create.currency.upper(), existing_currencies=references.currencies)
+    await validate_import_account_institution(db, mapping.create.institution_id, existing_institutions=references.institutions)
 
 
 async def _validate_category_mapping(
     db: AsyncSession,
     user: User,
     mapping: TransactionImportCategoryMapping,
+    references: StagingReferences,
 ) -> None:
     """Check one category mapping as far as staging can, without creating anything
 
@@ -317,6 +373,7 @@ async def _validate_category_mapping(
         db: Active database session
         user: Authenticated user running the import
         mapping: Category source mapping from the batch
+        references: Complete caller-local reference facts for this staging request
 
     Returns:
         None
@@ -334,7 +391,7 @@ async def _validate_category_mapping(
         )
 
     if mapping.category_id is not None:
-        await get_visible_import_category(db, mapping.category_id, user.id)
+        await get_visible_import_category(db, mapping.category_id, user.id, categories_by_id=references.categories)
         return
 
     parse_import_category_kind(mapping.create.kind)
@@ -344,6 +401,7 @@ async def _validate_merchant_mapping(
     db: AsyncSession,
     user: User,
     mapping: TransactionImportMerchantMapping,
+    references: StagingReferences,
 ) -> None:
     """Check one merchant mapping as far as staging can, without creating anything
 
@@ -351,6 +409,7 @@ async def _validate_merchant_mapping(
         db: Active database session
         user: Authenticated user running the import
         mapping: Payee value answered in the batch
+        references: Complete caller-local reference facts for this staging request
 
     Returns:
         None
@@ -369,4 +428,4 @@ async def _validate_merchant_mapping(
         )
 
     if mapping.merchant_id is not None:
-        await require_usable_import_merchant(db, mapping.merchant_id, user.id)
+        await require_usable_import_merchant(db, mapping.merchant_id, user.id, merchants_by_id=references.merchants)

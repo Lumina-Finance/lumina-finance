@@ -1,15 +1,82 @@
 """Account permission checks"""
 import uuid
+from dataclasses import dataclass
 
 from fastapi import HTTPException, status
 from sqlalchemy import and_, select
+from sqlalchemy.exc import MultipleResultsFound
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import joinedload, selectinload
 
 from app.models.account import Account, AccountPermission
 from app.models.base import PermissionLevel
 from app.models.group import GroupMember
 from app.permissions.levels import is_permission_level_at_least
+
+
+@dataclass
+class AccountAccessLookup:
+    """Request-local account facts bound to one authenticated user's identity
+
+    Missing entries are authoritative for the loaded request, not invitations to query again
+    Memberships and grants retain all matching rows so evaluation preserves cardinality errors
+    """
+
+    user_id: uuid.UUID
+    accounts: dict[uuid.UUID, Account]
+    memberships: dict[uuid.UUID, list[GroupMember]]
+    permissions: dict[uuid.UUID, list[AccountPermission]]
+
+
+async def load_account_access_lookup(
+    db: AsyncSession, account_ids: set[uuid.UUID], user_id: uuid.UUID,
+) -> AccountAccessLookup:
+    """Load account and caller access facts in sets without deciding authorization
+
+    Args:
+        db: Active request database session under its normal row-level security
+        account_ids: Unique account references to evaluate in this request
+        user_id: Authenticated caller whose memberships and grants are loaded
+
+    Returns:
+        Request-local facts for the existing permission evaluator
+    """
+    lookup = AccountAccessLookup(user_id, {}, {}, {})
+    if not account_ids:
+        return lookup
+
+    # Include institutions in the account read so response data adds no per-account query
+    accounts = (await db.execute(
+        select(Account).where(Account.id.in_(account_ids)).options(joinedload(Account.institution)),
+    )).scalars().all()
+    lookup.accounts = {account.id: account for account in accounts}
+    group_ids = {account.group_id for account in accounts if account.group_id is not None}
+    if not group_ids:
+        return lookup
+
+    # Load only the caller's memberships for groups represented by the requested accounts
+    memberships = (await db.execute(select(GroupMember).where(
+        GroupMember.group_id.in_(group_ids), GroupMember.user_id == user_id,
+    ))).scalars().all()
+    for membership in memberships:
+        lookup.memberships.setdefault(membership.group_id, []).append(membership)
+
+    # Retain every matching grant exactly as the single-account evaluator would read it
+    permissions = (await db.execute(select(AccountPermission).where(
+        AccountPermission.account_id.in_(account_ids), AccountPermission.user_id == user_id,
+    ))).scalars().all()
+    for permission in permissions:
+        lookup.permissions.setdefault(permission.account_id, []).append(permission)
+    return lookup
+
+
+def _get_single_access_record[AccessRecord: (GroupMember, AccountPermission)](
+    records: list[AccessRecord],
+) -> AccessRecord | None:
+    """Preserve scalar_one_or_none semantics when reading preloaded access facts"""
+    if len(records) > 1:
+        raise MultipleResultsFound("Multiple rows were found when one or none was required")
+    return records[0] if records else None
 
 
 async def attach_account_write_capabilities(
@@ -69,6 +136,7 @@ async def check_account_access(
     required_level: PermissionLevel,
     *,
     require_open: bool = False,
+    access_lookup: AccountAccessLookup | None = None,
 ) -> Account:
     """Return an account when the user has the required access level
 
@@ -81,14 +149,24 @@ async def check_account_access(
         user_id: User requesting access
         required_level: Minimum permission level required by the operation
         require_open: Whether closed accounts should be rejected
+        access_lookup: Optional request-local facts bound to this caller, with no missing-entry fallback
 
     Returns:
         Account row with institution data loaded
 
     Raises:
         HTTPException: Account is missing, inaccessible, closed, or below the required permission level
+        ValueError: Preloaded facts belong to another user
+        MultipleResultsFound: More than one matching membership or grant exists
     """
-    account = await _get_account_or_404(db, account_id)
+    if access_lookup is not None and access_lookup.user_id != user_id:
+        raise ValueError("Account access lookup belongs to another user")
+    if access_lookup is None:
+        account = await _get_account_or_404(db, account_id)
+    else:
+        account = access_lookup.accounts.get(account_id)
+        if account is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found")
     is_authorized = account.owner_id == user_id
 
     if not is_authorized and account.group_id:
@@ -98,6 +176,7 @@ async def check_account_access(
             account.group_id,
             user_id,
             required_level,
+            access_lookup=access_lookup,
         )
 
     if not is_authorized:
@@ -138,6 +217,8 @@ async def _is_group_account_access_allowed(
     group_id: uuid.UUID,
     user_id: uuid.UUID,
     required_level: PermissionLevel,
+    *,
+    access_lookup: AccountAccessLookup | None = None,
 ) -> bool:
     """Return whether group membership or permission allows account access
 
@@ -147,20 +228,30 @@ async def _is_group_account_access_allowed(
         group_id: Group that owns the account
         user_id: User requesting access
         required_level: Minimum permission level required by the operation
+        access_lookup: Optional caller-bound request facts already checked by the account evaluator
 
     Returns:
         Whether the user has access through group admin status or an explicit permission
 
     Raises:
         HTTPException: User is not a group member or has insufficient explicit access
+        MultipleResultsFound: More than one matching membership or grant exists
     """
-    membership = await _get_group_membership_for_account(db, group_id, user_id)
+    membership = (
+        await _get_group_membership_for_account(db, group_id, user_id)
+        if access_lookup is None
+        else _get_single_access_record(access_lookup.memberships.get(group_id, []))
+    )
     if not membership:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found")
     if membership.is_admin:
         return True
 
-    account_permission = await _get_account_permission(db, account_id, user_id)
+    account_permission = (
+        await _get_account_permission(db, account_id, user_id)
+        if access_lookup is None
+        else _get_single_access_record(access_lookup.permissions.get(account_id, []))
+    )
     if not account_permission:
         return False
     if is_permission_level_at_least(account_permission.level, required_level):

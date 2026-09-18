@@ -84,13 +84,57 @@ async def _get_or_create_import_category_for_mapping(
     return await _get_or_create_personal_import_category(db, user_id, mapping.create, stats)
 
 
-async def get_visible_import_category(db: AsyncSession, category_id: uuid.UUID, user_id: uuid.UUID) -> Category:
+def get_import_category_scope_filter(user_id: uuid.UUID):
+    """Return the existing system, personal and member-group category visibility predicate
+
+    Args:
+        user_id: Authenticated importer whose personal and group categories may be used
+
+    Returns:
+        SQL predicate matching the importer's visible categories
+    """
+    group_ids = select(GroupMember.group_id).where(GroupMember.user_id == user_id).scalar_subquery()
+    return (
+        Category.is_system.is_(True)
+        | ((Category.owner_id == user_id) & (Category.group_id.is_(None)))
+        | Category.group_id.in_(group_ids)
+    )
+
+
+async def load_visible_import_categories(
+    db: AsyncSession, category_ids: set[uuid.UUID], user_id: uuid.UUID,
+) -> dict[uuid.UUID, Category]:
+    """Read all selected category references under the importer's existing visibility rule
+
+    Args:
+        db: Active caller-scoped database session
+        category_ids: Unique references declared by this request
+        user_id: Authenticated importer used by the visibility predicate
+
+    Returns:
+        Visible categories by ID, with absent or inaccessible references omitted
+    """
+    if not category_ids:
+        return {}
+
+    # Acquire visible references in one read while validation retains declaration order
+    categories = (await db.execute(select(Category).where(
+        Category.id.in_(category_ids), get_import_category_scope_filter(user_id),
+    ))).scalars().all()
+    return {category.id: category for category in categories}
+
+
+async def get_visible_import_category(
+    db: AsyncSession, category_id: uuid.UUID, user_id: uuid.UUID,
+    *, categories_by_id: dict[uuid.UUID, Category] | None = None,
+) -> Category:
     """Return an existing category visible to the importing user
 
     Args:
         db: Active database session
         category_id: Existing category ID selected for an import source
         user_id: Identifier for the user running the import
+        categories_by_id: Optional complete caller-visible reference lookup for this request
 
     Returns:
         Category row visible to the importing user
@@ -98,18 +142,15 @@ async def get_visible_import_category(db: AsyncSession, category_id: uuid.UUID, 
     Raises:
         HTTPException: Raised with 422 when the category is not visible
     """
-    group_ids = select(GroupMember.group_id).where(GroupMember.user_id == user_id).scalar_subquery()
+    if categories_by_id is None:
 
-    # Fetch the selected category only if it is system, personal, or in one of the user's groups
-    result = await db.execute(
-        select(Category).where(
-            Category.id == category_id,
-            Category.is_system.is_(True)
-            | ((Category.owner_id == user_id) & (Category.group_id.is_(None)))
-            | (Category.group_id.in_(group_ids)),
-        ),
-    )
-    category = result.scalar_one_or_none()
+        # Fetch the selected category only if it is system, personal, or in one of the user's groups
+        result = await db.execute(select(Category).where(
+            Category.id == category_id, get_import_category_scope_filter(user_id),
+        ))
+        category = result.scalar_one_or_none()
+    else:
+        category = categories_by_id.get(category_id)
     if category is None:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Category not found")
     return category
