@@ -20,6 +20,8 @@ async def create_import_account(
     db: AsyncSession,
     user: User,
     create: TransactionImportCreateAccount,
+    *, existing_currencies: set[str] | None = None,
+    existing_institutions: set[uuid.UUID] | None = None,
 ) -> Account:
     """Create a personal account for an import source mapping
 
@@ -27,14 +29,16 @@ async def create_import_account(
         db: Active database session
         user: Authenticated user running the import
         create: New account fields from the import mapping
+        existing_currencies: Optional complete request-local currency facts
+        existing_institutions: Optional complete request-local institution facts
 
     Returns:
         Created account row
     """
     account_type = parse_import_account_type(create.account_type)
     currency = create.currency.upper()
-    await validate_import_account_currency(db, currency)
-    await validate_import_account_institution(db, create.institution_id)
+    await validate_import_account_currency(db, currency, existing_currencies=existing_currencies)
+    await validate_import_account_institution(db, create.institution_id, existing_institutions=existing_institutions)
 
     account = Account(
         owner_id=user.id,

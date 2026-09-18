@@ -1,8 +1,9 @@
 """Transaction import category mapping"""
 import uuid
+from dataclasses import dataclass
 
 from fastapi import HTTPException, status
-from sqlalchemy import func, literal_column, select, text
+from sqlalchemy import String, column, func, literal_column, select, text, values
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.base import CategoryKind
@@ -13,6 +14,52 @@ from app.schemas.transaction import TransactionImportCategoryMapping, Transactio
 from app.services.importers.shared.insertion_helpers import insert_import_records_if_absent
 from app.services.importers.shared.stats import ImportStats
 from app.services.importers.shared.validation_helpers import strip_import_text_or_raise
+
+
+@dataclass
+class ImportCategoryNameFacts:
+    """Keep database storage keys and current reusable categories within one resolver
+
+    Attributes:
+        keys_by_name: PostgreSQL lower storage keys for each requested trimmed spelling
+        categories_by_key: Personal-preferred or system category keyed by database lower name
+    """
+
+    keys_by_name: dict[str, str]
+    categories_by_key: dict[str, Category]
+
+
+async def _load_import_category_name_facts(
+    db: AsyncSession, user_id: uuid.UUID, names: set[str],
+) -> ImportCategoryNameFacts:
+    """Acquire reusable candidates while retaining the existing Python request comparison key
+
+    Args:
+        db: Active caller-scoped import session
+        user_id: Authenticated caller whose personal categories take precedence
+        names: Requested trimmed category names without deciding their validity
+
+    Returns:
+        Database storage keys and candidates matching the existing request comparison rule
+    """
+    facts = ImportCategoryNameFacts({}, {})
+    if not names:
+        return facts
+    requested = values(column("name", String), column("lookup_key", String), name="import_category_names").data([
+        (name, name.lower()) for name in sorted(names)
+    ])
+
+    # Preserve the existing database-column versus Python-request comparison while batching reads
+    rows = (await db.execute(select(Category, requested.c.name, func.lower(requested.c.name)).select_from(
+        requested.outerjoin(Category, (
+            func.lower(Category.name) == requested.c.lookup_key
+        ) & (Category.is_system.is_(True) | ((Category.owner_id == user_id) & Category.group_id.is_(None)))),
+    ).order_by(Category.is_system.asc()))).all()
+    for category, name, key in rows:
+        facts.keys_by_name[name] = key
+        if category is not None:
+            facts.categories_by_key.setdefault(name.lower(), category)
+    return facts
 
 
 async def get_or_create_import_categories_by_source(
@@ -38,13 +85,23 @@ async def get_or_create_import_categories_by_source(
     """
     categories_by_source: dict[str, Category] = {}
 
+    # Preload facts but keep source validation, kind checks and writes in declaration order
+    categories_by_id = await load_visible_import_categories(db, {
+        mapping.category_id for mapping in mappings if mapping.category_id is not None
+    }, user.id)
+    name_facts = await _load_import_category_name_facts(db, user.id, {
+        mapping.create.name.strip() for mapping in mappings if mapping.create is not None
+    })
+
     # Build each declared category source once so import rows can use a stable lookup map
     for mapping in mappings:
         source = strip_import_text_or_raise(mapping.source, "Category source")
         if source in categories_by_source:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f"Duplicate category source: {source}")
 
-        categories_by_source[source] = await _get_or_create_import_category_for_mapping(db, user.id, mapping, source, stats)
+        categories_by_source[source] = await _get_or_create_import_category_for_mapping(
+            db, user.id, mapping, source, stats, categories_by_id, name_facts,
+        )
     return categories_by_source
 
 
@@ -54,6 +111,8 @@ async def _get_or_create_import_category_for_mapping(
     mapping: TransactionImportCategoryMapping,
     source: str,
     stats: ImportStats,
+    categories_by_id: dict[uuid.UUID, Category],
+    name_facts: ImportCategoryNameFacts,
 ) -> Category:
     """Return the category selected by one import category source mapping
 
@@ -63,6 +122,8 @@ async def _get_or_create_import_category_for_mapping(
         mapping: Category source mapping from the import payload
         source: Trimmed category source used in validation messages
         stats: Import summary counters updated when a category is reused or created
+        categories_by_id: Complete caller-visible category ID facts for this resolver invocation
+        name_facts: Database name keys and reusable candidates updated after each creation
 
     Returns:
         Existing or newly created category row for the import source
@@ -77,11 +138,11 @@ async def _get_or_create_import_category_for_mapping(
         )
 
     if mapping.category_id is not None:
-        category = await get_visible_import_category(db, mapping.category_id, user_id)
+        category = await get_visible_import_category(db, mapping.category_id, user_id, categories_by_id=categories_by_id)
         stats.reused_category_ids.add(category.id)
         return category
 
-    return await _get_or_create_personal_import_category(db, user_id, mapping.create, stats)
+    return await _get_or_create_personal_import_category(db, user_id, mapping.create, stats, name_facts)
 
 
 def get_import_category_scope_filter(user_id: uuid.UUID):
@@ -161,6 +222,7 @@ async def _get_or_create_personal_import_category(
     user_id: uuid.UUID,
     create: TransactionImportCreateCategory,
     stats: ImportStats,
+    name_facts: ImportCategoryNameFacts,
 ) -> Category:
     """Return a matching category or create a personal import category
 
@@ -169,6 +231,7 @@ async def _get_or_create_personal_import_category(
         user_id: Identifier for the user running the import
         create: New category fields from the import mapping
         stats: Import summary counters updated when a category is reused or created
+        name_facts: Request-local database keys and candidates including earlier declarations
 
     Returns:
         Existing or newly created category row
@@ -176,7 +239,7 @@ async def _get_or_create_personal_import_category(
     kind = parse_import_category_kind(create.kind)
     name = strip_import_text_or_raise(create.name, "Category name")
 
-    existing = await _select_reusable_import_category(db, user_id, name)
+    existing = name_facts.categories_by_key.get(name.lower())
     if existing is not None:
         return _reuse_import_category(existing, kind, name, stats)
 
@@ -191,6 +254,7 @@ async def _get_or_create_personal_import_category(
         category = inserted[0]
         stats.categories_created += 1
         stats.created_category_ids.append(category.id)
+        name_facts.categories_by_key[name_facts.keys_by_name[name]] = category
         return category
 
     # Nothing was written, so this name was taken between the lookup above and the insert, by
@@ -202,7 +266,9 @@ async def _get_or_create_personal_import_category(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Category could not be created or found: {name}",
         )
-    return _reuse_import_category(created_elsewhere, kind, name, stats)
+    category = _reuse_import_category(created_elsewhere, kind, name, stats)
+    name_facts.categories_by_key[name.lower()] = category
+    return category
 
 
 async def _select_reusable_import_category(db: AsyncSession, user_id: uuid.UUID, name: str) -> Category | None:

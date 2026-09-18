@@ -9,8 +9,9 @@ from app.models.account import Account
 from app.models.base import PermissionLevel
 from app.models.user import User
 from app.permissions import check_account_access
+from app.permissions.accounts import AccountAccessLookup, load_account_access_lookup
 from app.schemas.transaction import TransactionImportAccountMapping
-from app.services.importers.shared.account_creation_helpers import create_import_account
+from app.services.importers.shared.account_creation_helpers import create_import_account, load_import_account_references
 from app.services.importers.shared.stats import ImportStats
 from app.services.importers.shared.validation_helpers import strip_import_text_or_raise
 
@@ -59,6 +60,17 @@ async def resolve_import_account_sources(
     accounts_by_source: dict[str, Account] = {}
     outside_sources: set[str] = set()
 
+    # Acquire fresh caller-bound facts without changing the order of account policy decisions
+    access_lookup = await load_account_access_lookup(db, {
+        mapping.account_id for mapping in mappings if mapping.account_id is not None
+    }, user.id)
+    existing_currencies, existing_institutions = await load_import_account_references(
+        db,
+        {mapping.create.currency.upper() for mapping in mappings if mapping.create is not None},
+        {mapping.create.institution_id for mapping in mappings
+         if mapping.create is not None and mapping.create.institution_id is not None},
+    )
+
     # Build each declared account source once so import rows can use a stable lookup map
     for mapping in mappings:
         source = strip_import_text_or_raise(mapping.source, "Account source")
@@ -81,6 +93,9 @@ async def resolve_import_account_sources(
             source,
             stats,
             is_counterparty_only=source in counterparty_only_sources,
+            access_lookup=access_lookup,
+            existing_currencies=existing_currencies,
+            existing_institutions=existing_institutions,
         )
     return ImportAccountSources(accounts_by_source=accounts_by_source, outside_sources=outside_sources)
 
@@ -92,6 +107,9 @@ async def _get_or_create_import_account_for_mapping(
     source: str,
     stats: ImportStats,
     is_counterparty_only: bool,
+    access_lookup: AccountAccessLookup,
+    existing_currencies: set[str],
+    existing_institutions: set[uuid.UUID],
 ) -> Account:
     """Return the account selected by one import account source mapping
 
@@ -103,6 +121,9 @@ async def _get_or_create_import_account_for_mapping(
         stats: Import summary counters updated when an account is reused or created
         is_counterparty_only: True when no row is written to this source, which resolves it under
             the weaker rule a transfer's counterparty needs
+        access_lookup: Fresh caller-bound access facts for every declared account ID
+        existing_currencies: Currency facts for this resolver invocation
+        existing_institutions: Institution facts for this resolver invocation
 
     Returns:
         Existing or newly created account row for the import source
@@ -118,26 +139,30 @@ async def _get_or_create_import_account_for_mapping(
 
     if mapping.account_id is not None:
         account = (
-            await _get_counterparty_import_account(db, user, mapping.account_id)
+            await _get_counterparty_import_account(db, user, mapping.account_id, access_lookup)
             if is_counterparty_only
-            else await _get_existing_import_account(db, user, mapping.account_id)
+            else await _get_existing_import_account(db, user, mapping.account_id, access_lookup)
         )
         stats.reused_account_ids.add(account.id)
         return account
 
-    account = await create_import_account(db, user, mapping.create)
+    account = await create_import_account(db, user, mapping.create,
+                                         existing_currencies=existing_currencies, existing_institutions=existing_institutions)
     stats.accounts_created += 1
     stats.created_account_ids.append(account.id)
     return account
 
 
-async def _get_existing_import_account(db: AsyncSession, user: User, account_id: uuid.UUID) -> Account:
+async def _get_existing_import_account(
+    db: AsyncSession, user: User, account_id: uuid.UUID, access_lookup: AccountAccessLookup,
+) -> Account:
     """Return an existing account after validating import write access
 
     Args:
         db: Active database session
         user: Authenticated user running the import
         account_id: Existing account ID selected for an import source
+        access_lookup: Fresh caller-bound access facts for this resolver invocation
 
     Returns:
         Writable, non-archived account row
@@ -151,13 +176,16 @@ async def _get_existing_import_account(db: AsyncSession, user: User, account_id:
         user.id,
         PermissionLevel.WRITE,
         require_open=True,
+        access_lookup=access_lookup,
     )
     if account.is_archived:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Account is archived")
     return account
 
 
-async def _get_counterparty_import_account(db: AsyncSession, user: User, account_id: uuid.UUID) -> Account:
+async def _get_counterparty_import_account(
+    db: AsyncSession, user: User, account_id: uuid.UUID, access_lookup: AccountAccessLookup,
+) -> Account:
     """Return an existing account that only ever appears as a transfer's counterparty
 
     Read access is enough, and the account may be closed or archived, because no row is written to
@@ -169,6 +197,7 @@ async def _get_counterparty_import_account(db: AsyncSession, user: User, account
         db: Active database session
         user: Authenticated user running the import
         account_id: Existing account ID selected for a counterparty-only import source
+        access_lookup: Fresh caller-bound access facts for this resolver invocation
 
     Returns:
         Readable account row for the import source
@@ -177,4 +206,4 @@ async def _get_counterparty_import_account(db: AsyncSession, user: User, account
         HTTPException: Raised with 404 when the account does not exist, or when the user holds no
             read access to it, which is reported the same way rather than as a refusal
     """
-    return await check_account_access(db, account_id, user.id, PermissionLevel.READ)
+    return await check_account_access(db, account_id, user.id, PermissionLevel.READ, access_lookup=access_lookup)
