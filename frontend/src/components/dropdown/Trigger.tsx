@@ -8,6 +8,7 @@ import type { DropdownOption, DropdownSize } from './types'
 
 interface DropdownHeadProps {
   disabled: boolean
+  hasError: boolean
   emptySelectionIsBlank: boolean
   headRef: RefObject<HTMLButtonElement | null>
   id?: string
@@ -52,6 +53,7 @@ const SIZE_CLASS: Record<DropdownSize, string> = {
  */
 export function DropdownHead({
   disabled,
+  hasError,
   emptySelectionIsBlank,
   headRef,
   id,
@@ -80,6 +82,7 @@ export function DropdownHead({
       aria-haspopup="listbox"
       aria-controls={open ? listId : undefined}
       aria-labelledby={labelledBy}
+      aria-invalid={hasError || undefined}
       disabled={disabled}
       className={joinClassNames('app-dropdown-head', SIZE_CLASS[size])}
       onClick={onClick}

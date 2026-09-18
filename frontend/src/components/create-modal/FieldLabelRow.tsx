@@ -50,6 +50,7 @@ export default function CreateModalFieldLabelRow({
         {error && (
           <motion.p
             key={error}
+            role="alert"
             className="text-right text-xs font-medium leading-5"
             style={{ color: 'var(--app-negative)' }}
             initial={{ opacity: 0, x: 4 }}

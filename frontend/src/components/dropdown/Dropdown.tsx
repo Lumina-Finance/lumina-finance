@@ -468,6 +468,7 @@ const Dropdown = ({
           id={id}
           testId={testId}
           disabled={disabled}
+          hasError={hasError}
           emptySelectionIsBlank={emptySelectionIsBlank}
           labelledBy={labelledBy}
           listId={listId}
