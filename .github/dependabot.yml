@@ -1,0 +1,73 @@
+version: 2
+
+registries:
+  docker-hardened-images:
+    type: docker-registry
+    url: https://dhi.io
+    username: ${{secrets.DOCKERHUB_USERNAME}}
+    password: ${{secrets.DOCKERHUB_TOKEN}}
+
+updates:
+  - package-ecosystem: uv
+    directory: /backend
+    schedule:
+      interval: weekly
+      day: monday
+      time: "05:00"
+      timezone: America/Toronto
+    open-pull-requests-limit: 1
+    groups:
+      uv-minor-and-patch:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directories:
+      - /frontend
+      - /e2e
+    cooldown:
+      default-days: 14
+    schedule:
+      interval: weekly
+      day: monday
+      time: "05:00"
+      timezone: America/Toronto
+    open-pull-requests-limit: 1
+    groups:
+      npm-minor-and-patch:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: [minor, patch]
+
+  - package-ecosystem: docker
+    directory: /docker
+    registries:
+      - docker-hardened-images
+    schedule:
+      interval: weekly
+      day: monday
+      time: "05:00"
+      timezone: America/Toronto
+    open-pull-requests-limit: 1
+    groups:
+      docker-minor-and-patch:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directories:
+      - /
+      - /.github/actions/docker-build-setup
+    schedule:
+      interval: weekly
+      day: monday
+      time: "05:00"
+      timezone: America/Toronto
+    open-pull-requests-limit: 1
+    groups:
+      actions-minor-and-patch:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: [minor, patch]
