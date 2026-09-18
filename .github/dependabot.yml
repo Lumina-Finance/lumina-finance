@@ -12,6 +12,9 @@ updates:
     directory: /backend
     schedule:
       interval: weekly
+      day: monday
+      time: "05:00"
+      timezone: America/Toronto
     open-pull-requests-limit: 1
     groups:
       uv-minor-and-patch:
@@ -27,6 +30,9 @@ updates:
       default-days: 14
     schedule:
       interval: weekly
+      day: monday
+      time: "05:00"
+      timezone: America/Toronto
     open-pull-requests-limit: 1
     groups:
       npm-minor-and-patch:
@@ -40,6 +46,9 @@ updates:
       - docker-hardened-images
     schedule:
       interval: weekly
+      day: monday
+      time: "05:00"
+      timezone: America/Toronto
     open-pull-requests-limit: 1
     groups:
       docker-minor-and-patch:
@@ -53,6 +62,9 @@ updates:
       - /.github/actions/docker-build-setup
     schedule:
       interval: weekly
+      day: monday
+      time: "05:00"
+      timezone: America/Toronto
     open-pull-requests-limit: 1
     groups:
       actions-minor-and-patch:
