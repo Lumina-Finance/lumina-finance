@@ -5,6 +5,8 @@
 
 import type { APIRequestContext } from '@playwright/test'
 
+import { API_BASE_URL } from './target'
+
 // Satisfies the backend's password policy: twelve to a hundred and twenty-eight characters,
 // with an uppercase letter, a digit and a special character
 export const TEST_PASSWORD = 'E2ePassw0rd!'
@@ -37,7 +39,7 @@ export interface TestUser {
  * Every call makes its own email address. That is what keeps one spec's data out of another's
  * and lets them all run at once against a single instance.
  *
- * @param request - Playwright request context, which carries the base URL
+ * @param request - Playwright request context, with requests sent to the configured API target
  * @returns The credentials of the user that was created
  * @throws When signup does not answer 201
  */
@@ -45,7 +47,7 @@ export async function signUpUser(request: APIRequestContext): Promise<TestUser> 
   const email = `e2e-${crypto.randomUUID()}@example.com`
   const firstName = 'Test'
 
-  const response = await request.post('/api/auth/signup', {
+  const response = await request.post(`${API_BASE_URL}/auth/signup`, {
     data: {
       email,
       password: TEST_PASSWORD,
@@ -119,7 +121,7 @@ export async function findReferenceId(
   kind: 'categories' | 'merchants',
   name: string,
 ): Promise<string> {
-  const response = await request.get(`/api/${kind}`, { headers: asUser(user) })
+  const response = await request.get(`${API_BASE_URL}/${kind}`, { headers: asUser(user) })
   if (!response.ok()) {
     throw new Error(`reading ${kind} answered ${response.status()}: ${await response.text()}`)
   }
@@ -166,7 +168,7 @@ export async function createAccount(
 ): Promise<SeededAccount> {
   const currency = options.currency ?? TEST_CURRENCY
 
-  const response = await request.post('/api/accounts', {
+  const response = await request.post(`${API_BASE_URL}/accounts`, {
     headers: asUser(user),
     data: {
       account_kind: options.accountKind ?? 'asset',
@@ -221,7 +223,7 @@ export async function createTransaction(
     findReferenceId(request, user, 'merchants', SYSTEM_MERCHANT),
   ])
 
-  const response = await request.post('/api/transactions', {
+  const response = await request.post(`${API_BASE_URL}/transactions`, {
     headers: asUser(user),
     data: {
       account_id: options.accountId,
@@ -289,7 +291,7 @@ export async function createMonthlyBudget(
     options.categoryNames.map((name) => findReferenceId(request, user, 'categories', name)),
   )
 
-  const response = await request.post('/api/base-budgets', {
+  const response = await request.post(`${API_BASE_URL}/base-budgets`, {
     headers: asUser(user),
     data: {
       name: options.name,
