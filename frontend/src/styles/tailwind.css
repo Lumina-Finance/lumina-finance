@@ -1161,6 +1161,19 @@
     transition: color 180ms ease, background-color 180ms ease;
   }
 
+  .app-breakdown-sector {
+    cursor: pointer;
+  }
+
+  .app-breakdown-sector[aria-disabled="true"] {
+    cursor: default;
+  }
+
+  .app-breakdown-sector:focus-visible {
+    outline: 2px solid var(--app-accent);
+    outline-offset: 3px;
+  }
+
   .app-range-seg-option:hover {
     color: var(--app-text);
     background: var(--app-accent-soft);

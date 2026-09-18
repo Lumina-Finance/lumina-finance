@@ -1,4 +1,6 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
+import { useNavigate } from 'react-router'
+import { buildCategoryTransactionsUrl } from '@/pages/transactions/utils/filterNavigation'
 import {
   type InsightsBreakdownCategoryKind,
   useDeleteSavedInsightsRange,
@@ -20,11 +22,16 @@ import { useInsightsCardQueries } from './hooks/useInsightsCardQueries'
 import { useInsightsCardVisibilityMap } from './hooks/useInsightsCardVisibilityMap'
 import { useInsightsRange } from './hooks/useInsightsRange'
 import type { NetWorthViewMode } from './utils/netWorth'
+import type { InsightsRangeInputDates } from './types/range'
 
 /**
  * Coordinates insight range controls, card modes, query state, and the insights card layout
  */
 export default function InsightsPage() {
+  const navigate = useNavigate()
+  const openCategoryTransactions = useCallback((categoryId: string, displayedRange: InsightsRangeInputDates) => {
+    navigate(buildCategoryTransactionsUrl(categoryId, displayedRange))
+  }, [navigate])
   const { user } = useAuth()
   const [breakdownMode, setBreakdownMode] = useState<InsightsBreakdownCategoryKind>('expense')
   const [netWorthMode, setNetWorthMode] = useState<NetWorthViewMode>('overview')
@@ -151,6 +158,8 @@ export default function InsightsPage() {
 
         <div ref={breakdownRef}>
           <IncomeExpenseBreakdownCard
+            range={range.rangeInputDates}
+            onCategorySelect={openCategoryTransactions}
             mode={breakdownMode}
             onModeToggle={() => setBreakdownMode((mode) => (mode === 'expense' ? 'income' : 'expense'))}
             entries={cardData.selectedBreakdown}

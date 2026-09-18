@@ -15,7 +15,7 @@ import CreateTransactionModal from '@/pages/transactions/components/transaction-
 import { useCurrencyGuard } from '@/hooks/useCurrencyGuard'
 import TransactionsTopBand from '@/pages/transactions/components/TopBand'
 import { toTransactionListAccount } from '@/pages/transactions/types/transactionList'
-import type { TransactionListFilters } from '@/pages/transactions/types/transactionList'
+import { useTransactionNavigationFilters } from '@/pages/transactions/hooks/useTransactionNavigationFilters'
 import {
   formatOverviewRangeLabel,
   getCurrentMonthOverviewRange,
@@ -38,7 +38,7 @@ export default function TransactionsPage() {
   const { data: accounts } = useAccounts()
   const displayCurrency = user!.base_currency
   const latestTransactionsRef = useRef<Transaction[]>([])
-  const [filters, setFilters] = useState<TransactionListFilters>({})
+  const { filters, setFilters } = useTransactionNavigationFilters()
   const [filterListLoading, setFilterListLoading] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const requireCurrencies = useCurrencyGuard()

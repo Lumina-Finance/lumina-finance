@@ -1,13 +1,11 @@
-import {
-  useMemo,
-  useRef,
-} from 'react'
+import { memo, useMemo, useRef, type ComponentProps } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import {
   Cell,
   Pie,
   PieChart,
   ResponsiveContainer,
+  Sector,
 } from 'recharts'
 import type { InsightsBreakdownCategoryKind } from '@/api/insights'
 import { BreakdownCrossoverBadge } from '@/components/display/BreakdownCrossoverBadge'
@@ -17,7 +15,7 @@ import {
   getChartDataSignature,
   useChartEntranceAnimation,
 } from '@/components/charts/useChartEntranceAnimation'
-import { useCursorTooltip } from '@/hooks/useCursorTooltip'
+import { useCursorTooltip, type CursorTooltipPointer } from '@/hooks/useCursorTooltip'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import type { BreakdownEntry } from '@/pages/insights/types/incomeExpenseBreakdown'
 import {
@@ -30,6 +28,7 @@ import {
 import { getCategoryColor, getCategoryColorMap } from '@/utils/chartColor'
 
 type IncomeExpensePieChartProps = {
+  onCategorySelect: (categoryId: string) => void
   mode: InsightsBreakdownCategoryKind
   entries: BreakdownEntry[]
   total: number
@@ -57,10 +56,108 @@ function renderCrossoverBadge(entry: BreakdownEntry, mode: InsightsBreakdownCate
   return kind ? <BreakdownCrossoverBadge kind={kind} /> : null
 }
 
+/** Reads category identity without changing the tooltip callback across local state updates */
+function getBreakdownEntryKey(entry: BreakdownEntry) {
+  return entry.id
+}
+
+/** Reads the category's existing fallback color without depending on tooltip state */
+function getBreakdownColor(entry: BreakdownEntry) {
+  return getCategoryColor({
+    id: entry.id,
+    name: entry.name,
+    kind: entry.categoryKind,
+  })
+}
+
+type BreakdownPlotProps = {
+  entries: BreakdownEntry[]
+  colors: ReadonlyMap<string, string>
+  onCategorySelect: (categoryId: string) => void
+  showEntryTooltip: (entry: BreakdownEntry, pointer: CursorTooltipPointer) => void
+  hideTooltip: () => void
+}
+
+/** Keeps the plotted subtree mounted while its parent updates tooltip state or measured layout */
+const BreakdownPlot = memo(function BreakdownPlot({
+  entries,
+  colors,
+  onCategorySelect,
+  showEntryTooltip,
+  hideTooltip,
+}: BreakdownPlotProps) {
+  const dataSignature = useMemo(
+    () => getChartDataSignature(entries, (entry) => entry.amount),
+    [entries],
+  )
+  const pieEntrance = useChartEntranceAnimation({ dataSignature })
+
+  /** Gives every sector its own named keyboard action, including entries outside the short legend */
+  function renderCategorySector(props: unknown) {
+    const sector = props as ComponentProps<typeof Sector> & { payload: BreakdownEntry; isAnimating: boolean }
+    const entry = sector.payload
+    // Recharts keys sectors by their animated angles, replacing the DOM until geometry settles
+    const disabled = sector.isAnimating
+    const activate = () => {
+      if (!disabled) onCategorySelect(entry.id)
+    }
+    return (
+      <g
+        role="button"
+        tabIndex={disabled ? -1 : 0}
+        aria-disabled={disabled}
+        aria-label={`View ${entry.name} transactions`}
+        className="app-breakdown-sector"
+        onClick={activate}
+        onKeyDown={(event) => {
+          if (event.key !== 'Enter' && event.key !== ' ') return
+          event.preventDefault()
+          event.stopPropagation()
+          activate()
+        }}
+      >
+        <Sector {...sector} />
+      </g>
+    )
+  }
+
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <PieChart>
+        <Pie
+          data={entries}
+          cx="50%"
+          cy="50%"
+          innerRadius="62%"
+          outerRadius="90%"
+          paddingAngle={3}
+          dataKey="amount"
+          nameKey="name"
+          stroke="none"
+          shape={renderCategorySector}
+          onMouseEnter={(_sector, index, event) => {
+            showEntryTooltip(entries[index], event)
+          }}
+          onMouseMove={(_sector, index, event) => {
+            showEntryTooltip(entries[index], event)
+          }}
+          onMouseLeave={hideTooltip}
+          {...pieEntrance}
+        >
+          {entries.map((entry) => (
+            <Cell key={entry.id} fill={colors.get(entry.id || entry.name) ?? getBreakdownColor(entry)} />
+          ))}
+        </Pie>
+      </PieChart>
+    </ResponsiveContainer>
+  )
+})
+
 /**
  * Renders the income or expense donut chart, tooltip, total label, and legend
  */
 export function IncomeExpensePieChart({
+  onCategorySelect,
   mode,
   entries,
   total,
@@ -81,7 +178,7 @@ export function IncomeExpensePieChart({
     originRef: chartRef,
     xProperty: '--breakdown-tooltip-x',
     yProperty: '--breakdown-tooltip-y',
-    getItemKey: (entry) => entry.id,
+    getItemKey: getBreakdownEntryKey,
   })
   const sliceTotal = getBreakdownTotal(entries)
   const breakdownColors = useMemo(() => getCategoryColorMap(entries.map((entry) => ({
@@ -94,24 +191,9 @@ export function IncomeExpensePieChart({
     [entries, mode],
   )
   const legendMinHeight = getBreakdownLegendMinHeight(legendEntries.length)
-  const dataSignature = useMemo(
-    () => getChartDataSignature(entries, (entry) => entry.amount),
-    [entries],
-  )
-  const pieEntrance = useChartEntranceAnimation({ dataSignature })
-
-  function getBreakdownColor(entry: BreakdownEntry) {
-    return getCategoryColor({
-      id: entry.id,
-      name: entry.name,
-      kind: entry.categoryKind,
-    })
-  }
-
   function getSpacedBreakdownColor(entry: BreakdownEntry) {
     return breakdownColors.get(entry.id || entry.name) ?? getBreakdownColor(entry)
   }
-
   return (
     <div className="flex flex-col min-[1350px]:min-h-[620px]">
       <div
@@ -127,33 +209,13 @@ export function IncomeExpensePieChart({
             {formatCurrency(total, displayCurrency)}
           </span>
         </div>
-        <ResponsiveContainer width="100%" height="100%">
-          <PieChart>
-            <Pie
-              data={entries}
-              cx="50%"
-              cy="50%"
-              innerRadius="62%"
-              outerRadius="90%"
-              paddingAngle={3}
-              dataKey="amount"
-              nameKey="name"
-              stroke="none"
-              onMouseEnter={(_sector, index, event) => {
-                showEntryTooltip(entries[index], event)
-              }}
-              onMouseMove={(_sector, index, event) => {
-                showEntryTooltip(entries[index], event)
-              }}
-              onMouseLeave={hideTooltip}
-              {...pieEntrance}
-            >
-              {entries.map((entry) => (
-                <Cell key={entry.id} fill={getSpacedBreakdownColor(entry)} />
-              ))}
-            </Pie>
-          </PieChart>
-        </ResponsiveContainer>
+        <BreakdownPlot
+          entries={entries}
+          colors={breakdownColors}
+          onCategorySelect={onCategorySelect}
+          showEntryTooltip={showEntryTooltip}
+          hideTooltip={hideTooltip}
+        />
         <CursorTooltipPortal
           ref={tooltipRef}
           className="min-w-40"
