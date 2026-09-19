@@ -68,8 +68,8 @@ const SET_PROPERTY_MESSAGE =
 //
 // Two forms still get through: a class assembled by string concatenation, and a value chosen by a
 // conditional inside the property. Neither appears anywhere in the tree, and catching either costs a
-// false positive on legitimate code. A z-index written straight into a .css file is out of reach too,
-// since the block applying this matches TypeScript alone
+// false positive on legitimate code. Handwritten stylesheet z-index declarations are checked by
+// tests/constants/stackingLevels.test.ts, since this block matches TypeScript alone
 const restrictedStackingLevels = [
   {
     selector: 'Literal[value=/z-\\[\\d+\\]/]',
