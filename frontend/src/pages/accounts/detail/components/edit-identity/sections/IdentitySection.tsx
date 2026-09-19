@@ -43,7 +43,7 @@ export function AccountIdentitySection({
       </div>
 
       <div>
-        <AccountIdentityFieldLabelRow label="Institution" />
+        <AccountIdentityFieldLabelRow htmlFor={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.institution} label="Institution" />
         <Dropdown
           id={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.institution}
           options={institutionOptions}

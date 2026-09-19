@@ -22,6 +22,9 @@ interface DropdownHeadProps {
    */
   labelledBy?: string
 
+  /** Id of supporting text that explains an additional keyboard action */
+  describedBy?: string
+
   /** Id of the open list, so assistive software can follow the head to the options it controls */
   listId?: string
 
@@ -59,6 +62,7 @@ export function DropdownHead({
   id,
   testId,
   labelledBy,
+  describedBy,
   listId,
   open,
   placeholder,
@@ -82,6 +86,7 @@ export function DropdownHead({
       aria-haspopup="listbox"
       aria-controls={open ? listId : undefined}
       aria-labelledby={labelledBy}
+      aria-describedby={describedBy}
       aria-invalid={hasError || undefined}
       disabled={disabled}
       className={joinClassNames('app-dropdown-head', SIZE_CLASS[size])}

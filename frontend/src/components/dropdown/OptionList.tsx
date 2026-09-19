@@ -103,7 +103,7 @@ function DropdownOptionRow({
       {editable && (
         <span
           className="app-dropdown-row-edit shrink-0"
-          title={editOptionLabel ?? DEFAULT_EDIT_OPTION_LABEL}
+          title={`${editOptionLabel ?? DEFAULT_EDIT_OPTION_LABEL} (Alt+Enter)`}
           aria-hidden
           onClick={handleEdit}
         >

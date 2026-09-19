@@ -3,6 +3,7 @@ import { Plus, Search } from 'lucide-react'
 
 interface DropdownSearchControlsProps {
   createNewLabel: string
+  describedBy?: string
   searchPlaceholder: string
   searchRef: RefObject<HTMLInputElement | null>
   searchText: string
@@ -17,6 +18,7 @@ interface DropdownSearchControlsProps {
  */
 export function DropdownSearchControls({
   createNewLabel,
+  describedBy,
   searchPlaceholder,
   searchRef,
   searchText,
@@ -38,6 +40,7 @@ export function DropdownSearchControls({
         // Left out of the fields a modal picks its opening focus from, in modal/focus.ts, since
         // this input belongs to the list rather than to the form around it
         data-dropdown-search="true"
+        aria-describedby={describedBy}
         className="app-dropdown-search-input"
         placeholder={searchPlaceholder}
         value={searchText}
