@@ -149,4 +149,5 @@ test('every API seeding helper overrides the request context frontend base URL',
   for (const { options } of calls.slice(1)) {
     assert.equal(options.headers.Authorization, 'Bearer contract-token')
   }
+  assert.equal(calls.at(-1).options.data.recurs, true)
 })

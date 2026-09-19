@@ -94,15 +94,18 @@ export function todayInTestTimezone(): string {
 const BUDGET_ANCHOR_DAY = 1
 
 /**
- * The first of the current month, which is where a seeded budget's period starts.
+ * The first of the previous month, so seeded budget history is already complete
  *
- * Dating a transaction here rather than at an arbitrary day keeps it inside the period whatever
- * day the suite runs on, and never puts it in the future.
+ * Read the calendar month once in the suite's timezone, including January's year rollover
  *
  * @returns The date as YYYY-MM-DD
  */
-export function budgetPeriodStart(): string {
-  return `${todayInTestTimezone().slice(0, 7)}-${String(BUDGET_ANCHOR_DAY).padStart(2, '0')}`
+export function budgetPeriodStart(now = new Date()): string {
+  const [year, month] = new Intl.DateTimeFormat('en-CA', { timeZone: TEST_TIMEZONE })
+    .format(now).split('-').map(Number)
+  const previousMonth = month === 1 ? 12 : month - 1
+  const previousYear = month === 1 ? year - 1 : year
+  return `${previousYear}-${String(previousMonth).padStart(2, '0')}-${String(BUDGET_ANCHOR_DAY).padStart(2, '0')}`
 }
 
 /**
@@ -257,17 +260,15 @@ export interface CreateMonthlyBudgetOptions {
   /**
    * Where the period starts, as YYYY-MM-DD, which must be the first of a month.
    *
-   * Passed in rather than worked out here so a spec can date its transactions to the same day
-   * it gave the budget. Left to default, a run crossing midnight into the first of a month
-   * anchors the period to one month and the spending to the next, and the card then reports
-   * nothing spent rather than failing.
+   * Defaults to the previous month. Capture and pass it explicitly when transactions must
+   * belong to the same period, so separate clock reads cannot split fixtures across months
    */
   periodStart?: string
   currency?: string
 }
 
 /**
- * Create a monthly budget with a period already running.
+ * Create a recurring monthly budget funded from the previous month unless a start is supplied
  *
  * Monthly is the only cadence here because it is the only one a spec needs. The others take
  * different anchor fields, which the API checks rather than infers.
@@ -297,6 +298,7 @@ export async function createMonthlyBudget(
       name: options.name,
       currency: options.currency ?? TEST_CURRENCY,
       recurrence_freq: 'monthly',
+      recurs: true,
       recurrence_dom: BUDGET_ANCHOR_DAY,
       category_ids: categoryIds,
       period_start: options.periodStart ?? budgetPeriodStart(),
