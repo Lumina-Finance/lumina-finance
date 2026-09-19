@@ -3,12 +3,12 @@ import {
   invalidateDashboardRecent,
   invalidateInsightsMerchants,
   invalidateMerchantNameMatches,
+  invalidateMerchantLookupPages,
   invalidateMerchants,
   invalidateTransactionOverview,
   invalidateTransactions,
 } from '@/api/cache/invalidation';
 import { merchantKeys } from '@/api/cache/queryKeys';
-import { isInfiniteReferenceLookupQueryKey } from '@/api/cache/utils/referenceLookup';
 import type { Merchant, UpdateMerchantPayload } from '@/api/merchants/types';
 
 /**
@@ -20,16 +20,6 @@ function invalidateMerchantUsageQueries(queryClient: QueryClient) {
   invalidateTransactionOverview(queryClient);
   invalidateDashboardRecent(queryClient);
   invalidateInsightsMerchants(queryClient);
-}
-
-/**
- * Refetches ranked merchant pages without guessing positions from mutation responses
- */
-function invalidateMerchantLookupPages(queryClient: QueryClient) {
-  void queryClient.invalidateQueries({
-    queryKey: merchantKeys.all,
-    predicate: (query) => isInfiniteReferenceLookupQueryKey(query.queryKey, 'merchants'),
-  });
 }
 
 /**

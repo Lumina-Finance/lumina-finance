@@ -13,6 +13,7 @@ import {
   invalidateInsightsBalance,
   invalidateInsightsIncomeExpense,
   invalidateInsightsMerchants,
+  invalidateMerchantLookupPages,
   invalidateRunway,
   invalidateTaxAdvantagedCategories,
   invalidateTransactionOverview as invalidateTransactionOverviewQueries,
@@ -99,6 +100,11 @@ const MERCHANT_ACTIVITY_FIELDS = new Set<keyof UpdateTransactionPayload>([
   'category_id',
   'amount',
   'merchant_id',
+]);
+
+// Usage is ranked by decayed transaction count, excluding Balance Adjustment categories
+const MERCHANT_USAGE_FIELDS = new Set<keyof UpdateTransactionPayload>([
+  'dt', 'category_id', 'merchant_id',
 ]);
 
 function patchTouches(
@@ -271,6 +277,8 @@ export interface FinancialTransactionInvalidationOptions {
   // Holds the transaction overview refresh for the caller to flush, so an open create modal does not
   // refetch the transactions page behind it on every save
   deferTransactionOverview?: boolean;
+  // Holds ranked merchant lookup refresh until a deferred create session is flushed
+  deferMerchantLookupInvalidation?: boolean;
 }
 
 /**
@@ -282,6 +290,7 @@ export function invalidateFinancialTransactionData(
   options: FinancialTransactionInvalidationOptions = {},
 ) {
   if (!options.deferTransactionOverview) invalidateTransactionOverviewQueries(queryClient);
+  if (!options.deferMerchantLookupInvalidation) invalidateMerchantLookupPages(queryClient);
   invalidateDashboardBalance(queryClient);
   invalidateDashboardIncomeExpense(queryClient);
   invalidateDashboardRecent(queryClient);
@@ -329,6 +338,7 @@ export function invalidatePatchedTransactionData(
   if (patchTouches(patch, TAX_ADVANTAGED_FIELDS)) invalidateTaxAdvantagedActivity(queryClient, accountIds);
   if (patchTouches(patch, CREDIT_ACTIVITY_FIELDS)) invalidateCreditActivity(queryClient, accountIds);
   if (patchTouches(patch, MERCHANT_ACTIVITY_FIELDS)) invalidateInsightsMerchants(queryClient);
+  if (patchTouches(patch, MERCHANT_USAGE_FIELDS)) invalidateMerchantLookupPages(queryClient);
 }
 
 /**
