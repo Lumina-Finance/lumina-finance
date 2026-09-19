@@ -88,7 +88,7 @@ function createFile(
 }
 
 describe('import preview rows', () => {
-  it('previews written timestamp days with the same financial fields as plain dates', () => {
+  it('previews timestamps in the profile zone with the same financial fields as plain dates', () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date('2026-09-18T12:00:00Z'))
     try {
@@ -111,11 +111,12 @@ describe('import preview rows', () => {
         rowProblems: [],
       }
       const values = ['2024-03-15T00:30:00Z', '2024-03-16T00:30:00+09:00', '2024-03-17T23:30:00-04:00']
+      const dates = ['2024-03-15', '2024-03-16', '2024-03-18']
       const makeRows = (dates: string[]) => createFile(dates.map((Date) => ({ Date, Amount: '-12.34', Category: 'Groceries' })))
-      const rows = buildImportPreviewRows({ ...options, files: [makeRows(values)], dateFormat: 'iso', dateSeparator: '.' })
-      const plainRows = buildImportPreviewRows({ ...options, files: [makeRows(values.map((value) => value.slice(0, 10)))], dateFormat: 'yearFirst' })
+      const rows = buildImportPreviewRows({ ...options, files: [makeRows(values)], dateFormat: 'iso', dateSeparator: '.', timeZone: 'Asia/Tokyo' })
+      const plainRows = buildImportPreviewRows({ ...options, files: [makeRows(dates)], dateFormat: 'yearFirst' })
       expect(rows).toEqual(plainRows)
-      expect(rows.map((row) => row.transaction.dt)).toEqual(['2024-03-15', '2024-03-16', '2024-03-17'])
+      expect(rows.map((row) => row.transaction.dt)).toEqual(dates)
       expect(rows.map((row) => row.transaction.amount)).toEqual([-1234, -1234, -1234])
     } finally {
       vi.useRealTimers()

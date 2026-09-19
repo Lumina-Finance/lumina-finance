@@ -39,6 +39,7 @@ interface BuildImportPreviewRowsOptions {
   columnMap: ColumnMap
   dateFormat: ImportDateFormat | null
   dateSeparator?: ImportDateSeparator
+  timeZone?: string
   amountFormat?: ImportAmountFormat | null
   directionAnswers: Record<string, ImportAmountDirection>
   missingRequiredColumnLabels: string[]
@@ -82,6 +83,7 @@ export function buildImportPreviewRows({
   columnMap,
   dateFormat,
   dateSeparator = 'automatic',
+  timeZone,
   amountFormat = DEFAULT_IMPORT_AMOUNT_FORMAT,
   directionAnswers,
   missingRequiredColumnLabels,
@@ -119,6 +121,7 @@ export function buildImportPreviewRows({
     columnMap,
     dateFormat,
     dateSeparator,
+    timeZone,
     amountFormat,
     directionAnswers,
     currencyByAccountSource: getCurrencyByAccountSource(resolvedAccountMappings, accountById, accountCreateCurrencies),

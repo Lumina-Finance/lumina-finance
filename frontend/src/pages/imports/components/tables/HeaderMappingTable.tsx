@@ -141,7 +141,7 @@ export function ImportHeaderMappingTable({
                       />
                     )}
                     <span className="flex h-9 w-4 shrink-0 items-center justify-center">
-                      {validationError && (
+                      {validationError ? (
                         <IconTooltip
                           label={validationError}
                           level="important"
@@ -150,7 +150,16 @@ export function ImportHeaderMappingTable({
                         >
                           {validationError}
                         </IconTooltip>
-                      )}
+                      ) : selectedTarget === 'dt' && dateFormat === 'iso' ? (
+                        <IconTooltip
+                          label="How timestamp dates are imported"
+                          level="info"
+                          placement="bottom"
+                          widthClassName="w-64"
+                        >
+                          Timestamps with a timezone are converted to the timezone in your profile before the date is imported. Dates and timestamps without a timezone keep their calendar date.
+                        </IconTooltip>
+                      ) : null}
                     </span>
                   </div>
                 </td>

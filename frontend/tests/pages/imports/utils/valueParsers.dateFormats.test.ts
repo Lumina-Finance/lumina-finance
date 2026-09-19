@@ -48,7 +48,7 @@ describe('year first dates', () => {
     expect(readImportDate('2024/03-15', 'yearFirst')).toBe('')
   })
 
-  it('refuses a timestamp, which used to import a day early west of Greenwich', () => {
+  it('requires the ISO preset for a timestamp', () => {
     expect(readImportDate('2024-03-15T00:30:00Z', 'yearFirst')).toBe('')
   })
 })
@@ -60,14 +60,63 @@ describe('ISO dates and timestamps', () => {
     ['2024-03-15T00:30:00.123456', '2024-03-15'],
     ['2024-03-15T00:30:00Z', '2024-03-15'],
     ['2024-03-15T00:30:00.123Z', '2024-03-15'],
-    ['2024-03-15T00:30:00+09:00', '2024-03-15'],
-    ['2024-03-15T23:30:00-04:00', '2024-03-15'],
+    ['2024-03-15T00:30:00+09:00', '2024-03-14'],
+    ['2024-03-15T23:30:00-04:00', '2024-03-16'],
     ['1899-12-31T23:59:59Z', '1899-12-31'],
     ['2101-01-01', '2101-01-01'],
-  ])('keeps the written calendar day of %s', (value, expected) => {
-    expect(readImportDate(value, 'iso')).toBe(expected)
-    expect(readImportDate(value, 'iso', '.')).toBe(expected)
+  ])('reads %s in UTC', (value, expected) => {
+    expect(readImportDate(value, 'iso', 'automatic', 'UTC')).toBe(expected)
+    expect(readImportDate(value, 'iso', '.', 'UTC')).toBe(expected)
     expect(isValidDateValue(value)).toBe(true)
+  })
+
+  it.each([
+    ['2024-03-15T00:30:00Z', 'America/Toronto', '2024-03-14'],
+    ['2024-03-15T23:30:00-04:00', 'Asia/Tokyo', '2024-03-16'],
+    ['2024-01-01T00:30:00Z', 'America/Toronto', '2023-12-31'],
+    ['2024-12-31T23:30:00Z', 'Asia/Tokyo', '2025-01-01'],
+    ['2024-03-01T00:30:00Z', 'America/Toronto', '2024-02-29'],
+    ['2024-03-10T04:30:00Z', 'America/Toronto', '2024-03-09'],
+    ['2024-03-11T04:30:00Z', 'America/Toronto', '2024-03-11'],
+    ['2024-11-03T04:30:00Z', 'America/Toronto', '2024-11-03'],
+    ['2024-11-04T04:30:00Z', 'America/Toronto', '2024-11-03'],
+    ['2024-03-15T23:59:59.999999Z', 'UTC', '2024-03-15'],
+  ])('converts %s to the calendar day in %s', (value, timeZone, expected) => {
+    expect(readImportDate(value, 'iso', 'automatic', timeZone)).toBe(expected)
+  })
+
+  it.each(['UTC', 'America/Toronto', 'Asia/Tokyo'])(
+    'keeps plain dates and unzoned local timestamps unchanged in %s',
+    (timeZone) => {
+      for (const value of ['2024-03-10', '2024-03-10T02:30:00', '2024-11-03T01:30:00']) {
+        expect(readImportDate(value, 'iso', 'automatic', timeZone)).toBe(value.slice(0, 10))
+      }
+    },
+  )
+
+  it('refuses explicit-offset timestamps without a valid profile timezone', () => {
+    for (const timeZone of [undefined, '', 'Invalid/Timezone']) {
+      expect(readImportDate('2024-03-15T00:30:00Z', 'iso', 'automatic', timeZone)).toBe('')
+    }
+    expect(readImportDate('9999-12-31T23:30:00Z', 'iso', 'automatic', 'Asia/Tokyo')).toBe('')
+    expect(readImportDate('1000-01-01T00:30:00Z', 'iso', 'automatic', 'America/Toronto')).toBe('')
+    expect(readImportDate('0100-01-02T00:30:00Z', 'iso', 'automatic', 'UTC')).toBe('')
+  })
+
+  it('uses the same timezone when scanning and validating the selected format', () => {
+    const value = '9999-12-31T23:30:00Z'
+    expect(scanImportDateFormats([value], 'automatic', 'Asia/Tokyo').readable).toEqual([])
+    expect(scanImportDateFormats([value], 'automatic', 'UTC').readable).toEqual(['iso'])
+    const files = [createDateFile([value])]
+    expect(validateColumnValues(files, 'Date', 'dt', SUPPORTED_CURRENCY_CODES, 'iso', { timeZone: 'Asia/Tokyo' }).valid).toBe(false)
+    expect(validateColumnValues(files, 'Date', 'dt', SUPPORTED_CURRENCY_CODES, 'iso', { timeZone: 'UTC' }).valid).toBe(true)
+  })
+
+  it('recognizes a source timestamp without imposing a conversion timezone', () => {
+    const value = '9999-12-31T23:30:00-05:00'
+    expect(isValidDateValue(value)).toBe(true)
+    expect(readImportDate(value, 'iso', 'automatic', 'America/New_York')).toBe('9999-12-31')
+    expect(readImportDate(value, 'iso', 'automatic', 'UTC')).toBe('')
   })
 
   it.each([
@@ -79,7 +128,7 @@ describe('ISO dates and timestamps', () => {
     '2024-03-15T00:00:00+09', '2024-03-15t00:00:00Z', '2024-03-15T00:00:00z',
     '2024-03-15 00:00:00Z', '2024-03-15Z', '2024-03-15T00:00:00Z junk',
   ])('refuses malformed or impossible ISO values: %s', (value) => {
-    expect(readImportDate(value, 'iso')).toBe('')
+    expect(readImportDate(value, 'iso', 'automatic', 'UTC')).toBe('')
   })
 
   it('keeps the ISO example hyphens under a custom numeric separator', () => {

@@ -28,10 +28,21 @@ function createFile(id: string, rows: ImportFileDraft['rows']): ImportFileDraft 
 
 describe('automatic date format choices', () => {
   it('detects ISO for mixed complete timestamps and plain ISO dates', () => {
-    const scan = scanImportDateFormatChoices(['2024-03-15T00:30:00Z', '2024-03-16', '2024-03-17T23:30:00-04:00'])
+    const scan = scanImportDateFormatChoices(
+      ['2024-03-15T00:30:00Z', '2024-03-16', '2024-03-17T23:30:00-04:00'],
+      'automatic',
+      'America/Toronto',
+    )
     expect(scan.readable).toEqual(['iso'])
     expect(scan.automatic).toBe('iso')
     expect(scan.ambiguous).toBe(false)
+  })
+
+  it('refuses zoned timestamps when the profile zone is missing or invalid', () => {
+    const values = ['2024-03-15T00:30:00Z']
+
+    expect(scanImportDateFormatChoices(values).readable).toEqual([])
+    expect(scanImportDateFormatChoices(values, 'automatic', 'Not/AZone').readable).toEqual([])
   })
 
   it('preserves the existing year-first choice for plain padded ISO dates', () => {
