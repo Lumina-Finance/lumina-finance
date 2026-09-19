@@ -52,6 +52,16 @@ export function canEditDropdownOption(option: DropdownOption, hasEditHandler: bo
   return hasEditHandler && option.value !== '' && !option.disabled
 }
 
+/** Returns the highlighted record only when the dropdown can edit it */
+export function getEditableHighlightedOption(
+  visibleOptions: DropdownOption[],
+  highlightedIndex: number,
+  hasEditHandler: boolean,
+): DropdownOption | undefined {
+  const target = highlightedIndex >= 0 ? visibleOptions[highlightedIndex] : undefined
+  return target && canEditDropdownOption(target, hasEditHandler) ? target : undefined
+}
+
 /**
  * Applies client-side search and loading visibility rules before the menu renders options
  */
@@ -120,4 +130,3 @@ export function getCreateNewLabel(
   if (typeof createNewLabel === 'function') return createNewLabel(createQuery)
   return createNewLabel ?? (createQuery ? `Create "${createQuery}"` : 'Create new')
 }
-

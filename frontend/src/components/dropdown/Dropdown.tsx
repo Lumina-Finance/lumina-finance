@@ -27,6 +27,7 @@ import { canCommitOption, getDropdownKeyAction, getOpeningHighlight } from './ke
 import {
   getCreateNewLabel,
   getEffectiveHighlightedIndex,
+  getEditableHighlightedOption,
   getGroupedDropdownOptions,
   getSelectedDropdownOption,
   getVisibleDropdownOptions,
@@ -106,13 +107,12 @@ interface DropdownProps {
   createNewLabel?: DropdownCreateLabel;
 
   /**
-   * Called with an option's value when the user clicks the edit action on that option's row,
-   * which is offered on every option standing for a record, so the blank "None" entry and a
-   * disabled option never reach this
+   * Called with an option's value when the user uses its inline edit action or presses Alt+Enter
+   * while it is highlighted. The blank "None" entry and a disabled option never reach this
    */
   onEditOption?: (value: string) => void;
 
-  /** Tooltip on the edit action, since the action itself is hidden from assistive software */
+  /** Action name used by the inline icon's shortcut tooltip */
   editOptionLabel?: string;
 }
 
@@ -162,6 +162,7 @@ const Dropdown = ({
   const [collapsing, setCollapsing] = useState(false);
   const shouldReduceMotion = useReducedMotion();
   const listId = useId();
+  const editShortcutDescriptionId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
   const boxRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -354,10 +355,29 @@ const Dropdown = ({
     onEditOption(optionValue);
   };
 
+  /** Consumes Alt+Enter and edits only an eligible highlighted option */
+  const handleEditShortcut = (e: KeyboardEvent<HTMLElement>): boolean => {
+    if (!onEditOption || e.key !== 'Enter' || !e.altKey) return false;
+
+    e.preventDefault();
+    e.stopPropagation();
+    if (!open || e.ctrlKey || e.metaKey || e.shiftKey) return true;
+
+    const editableOption = getEditableHighlightedOption(
+      visibleFiltered,
+      effectiveHighlightedIndex,
+      Boolean(onEditOption),
+    );
+    if (editableOption) handleEditOption(editableOption.value);
+    return true;
+  };
+
   /**
    * Applies the shared keyboard policy to an event from the trigger or the search field
    */
   const handleKeyDown = (e: KeyboardEvent<HTMLElement>) => {
+    if (handleEditShortcut(e)) return;
+
     const action = getDropdownKeyAction({
       fromTrigger: e.currentTarget === triggerRef.current,
       highlightedIndex: effectiveHighlightedIndex,
@@ -401,6 +421,8 @@ const Dropdown = ({
    * Gives search-specific Enter behaviour priority before falling back to menu navigation
    */
   const handleSearchKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (handleEditShortcut(e)) return;
+
     const canSelectHighlighted = canCommitOption(optionDisabled, effectiveHighlightedIndex);
     if (e.key === 'Enter' && selectHighlightedOnSearchEnter && canSelectHighlighted) {
       e.preventDefault();
@@ -468,8 +490,10 @@ const Dropdown = ({
           id={id}
           testId={testId}
           disabled={disabled}
+          hasError={hasError}
           emptySelectionIsBlank={emptySelectionIsBlank}
           labelledBy={labelledBy}
+          describedBy={onEditOption ? editShortcutDescriptionId : undefined}
           listId={listId}
           open={open}
           placeholder={placeholder}
@@ -479,6 +503,11 @@ const Dropdown = ({
           onClick={handleTriggerClick}
           onKeyDown={handleKeyDown}
         />
+        {onEditOption && (
+          <span id={editShortcutDescriptionId} className="sr-only">
+            Press Alt+Enter to edit the highlighted option.
+          </span>
+        )}
 
         {/* Held out of reach while the box is shut, and gone entirely once it has finished shutting.
             A clipped list is still a list: its options stay in the accessibility tree and its search
@@ -506,6 +535,7 @@ const Dropdown = ({
                 {searchable && (
                   <DropdownSearchControls
                     createNewLabel={resolvedCreateNewLabel}
+                    describedBy={onEditOption ? editShortcutDescriptionId : undefined}
                     searchPlaceholder={searchPlaceholder}
                     searchRef={searchRef}
                     searchText={searchText}
