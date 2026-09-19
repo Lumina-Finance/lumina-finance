@@ -80,7 +80,7 @@ jobs:
       # currencies and categories, so the poll below usually passes on its first attempt
       # rather than waiting out a boot that could have been overlapped
       - name: Set up Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: "26.5"
           cache: npm
