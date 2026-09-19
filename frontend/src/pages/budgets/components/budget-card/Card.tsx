@@ -39,6 +39,7 @@ export default function BudgetCard({
 
   return (
     <article
+      data-testid={`budget-card-${baseBudget.id}`}
       className={`app-card app-budget-card flex w-full min-w-0 cursor-pointer flex-col transition-transform duration-150 hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-[var(--app-accent-soft)] ${
         isArchived ? 'opacity-80 transition-opacity hover:opacity-100' : 'min-h-[21.5rem]'
       }`}

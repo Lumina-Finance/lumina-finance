@@ -26,6 +26,9 @@ export default function BudgetEditorModalFooter({
       </button>
       <button
         type="submit"
+        data-testid="budget-submit"
+        aria-label={submitLabel}
+        aria-busy={isPending}
         className={`app-primary-button overflow-hidden whitespace-nowrap duration-300 ${isPending ? 'app-primary-button-loading justify-self-center sm:justify-self-auto' : 'w-full sm:w-36'}`}
         disabled={submitDisabled}
       >

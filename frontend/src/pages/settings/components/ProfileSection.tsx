@@ -89,8 +89,9 @@ export default function ProfileSection({
             </div>
 
             <div className="grid gap-4 min-[1500px]:grid-cols-2">
-              <SettingsField label="First name">
+              <SettingsField label="First name" htmlFor="profile-first-name">
                 <input
+                  id="profile-first-name"
                   className="app-input"
                   required
                   aria-invalid={!firstNameValid}
@@ -98,8 +99,9 @@ export default function ProfileSection({
                   onChange={(e) => onFieldChange('first_name', e.target.value)}
                 />
               </SettingsField>
-              <SettingsField label="Last name">
+              <SettingsField label="Last name" htmlFor="profile-last-name">
                 <input
+                  id="profile-last-name"
                   className="app-input"
                   value={form.last_name}
                   onChange={(e) => onFieldChange('last_name', e.target.value)}
@@ -115,8 +117,9 @@ export default function ProfileSection({
                   searchPlaceholder="Search timezones..."
                 />
               </SettingsField>
-              <SettingsField label="Base currency" hint="Planned, currently not supported to change">
+              <SettingsField label="Base currency" htmlFor="profile-base-currency" hint="Planned, currently not supported to change">
                 <input
+                  id="profile-base-currency"
                   className="app-input"
                   value={baseCurrencyLabel}
                   disabled

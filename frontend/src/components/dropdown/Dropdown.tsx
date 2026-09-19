@@ -38,6 +38,9 @@ export type { DropdownOption } from './types';
 
 interface DropdownProps {
   id?: string;
+
+  /** Stable identity for an individual control whose visible label changes */
+  testId?: string;
   options: DropdownOption[];
   selectedOption?: DropdownOption;
   value: string;
@@ -118,6 +121,7 @@ interface DropdownProps {
  */
 const Dropdown = ({
   id,
+  testId,
   options,
   selectedOption,
   value,
@@ -462,6 +466,7 @@ const Dropdown = ({
         <DropdownHead
           headRef={triggerRef}
           id={id}
+          testId={testId}
           disabled={disabled}
           emptySelectionIsBlank={emptySelectionIsBlank}
           labelledBy={labelledBy}

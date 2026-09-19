@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test'
 
 import { createAccount, createTransaction, signUpUser } from '../support/api'
 import { chooseFromDropdown, logIn, openModal } from '../support/app'
+import { expectPendingAction, expectTransactionRow, whileApiRequestHeld } from '../support/selectors'
 
 const ACCOUNT_NAME = 'Everyday Chequing'
 
@@ -41,25 +42,34 @@ test('records an expense through the modal and shows it as money out', async ({ 
   await page.goto('/transactions')
 
   const dialog = await openModal(page, ['Add Transaction', 'Add transaction'], 'Add Transaction')
-  await chooseFromDropdown(dialog, 'Account', new RegExp(account.name))
+  const accountControl = dialog.getByTestId('transaction-account')
+  await expect(accountControl).toHaveRole('combobox')
+  await expect(accountControl).toHaveAccessibleName('Account')
+  await accountControl.click()
+  await dialog.getByRole('option', { name: new RegExp(account.name) }).click()
   await chooseFromDropdown(dialog, 'Merchant', 'Unknown')
   await chooseFromDropdown(dialog, 'Category', 'Groceries')
   await dialog.getByLabel('Amount').fill('42.50')
-  await dialog.getByRole('button', { name: 'Add Transaction' }).click()
+  const submit = dialog.getByTestId('transaction-submit')
+  await expect(submit).toHaveRole('button')
+  await expect(submit).toHaveAccessibleName('Add Transaction')
+  await whileApiRequestHeld(page, 'POST', '/transactions',
+    () => submit.click(), () => expectPendingAction(submit, 'Add Transaction'),
+    { account_id: account.id })
 
   await expect(dialog).toBeHidden()
 
-  // The row is queried by role rather than by text because it renders its amount once per
-  // responsive layout and all of them sit in the DOM at once. Only the rendered one counts
-  // towards the accessible name. The leading minus is the assertion: an expense recorded with
-  // the wrong sign still reads $42.50, and would pass a check that only looked for the number
-  await expect(page.getByRole('button', { name: /-\$42\.50/ })).toBeVisible()
+  const row = page.getByTestId(/^transaction-row-/)
+  await expect(row).toHaveCount(1)
+  await expect(row).toHaveRole('button')
+  await expect(row).toHaveAccessibleName(/-\$42\.50/)
+  await expect(row.getByTestId('transaction-amount').filter({ visible: true })).toHaveText('-$42.50')
 })
 
 test('shows a transaction seeded over the API', async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: ACCOUNT_NAME })
-  await createTransaction(request, user, {
+  const id = await createTransaction(request, user, {
     accountId: account.id,
     categoryName: 'Groceries',
     amount: -4250,
@@ -68,5 +78,22 @@ test('shows a transaction seeded over the API', async ({ page, request }) => {
   await logIn(page, user)
   await page.goto('/transactions')
 
-  await expect(page.getByRole('button', { name: /-\$42\.50/ })).toBeVisible()
+  await expectTransactionRow(page, id, '-$42.50')
+})
+
+test('keeps the account save action named while an edit is pending', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Account before edit' })
+  await logIn(page, user)
+  await page.goto(`/accounts/${account.id}`)
+  await page.getByRole('button', { name: 'Edit account', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: 'Edit Account', exact: true })
+  await dialog.getByLabel('Account Name').fill('Account after edit')
+  const submit = dialog.getByTestId('account-submit')
+  await expect(submit).toHaveRole('button')
+  await expect(submit).toHaveAccessibleName('Save Changes')
+  await whileApiRequestHeld(page, 'PATCH', `/accounts/${account.id}`,
+    () => submit.click(), () => expectPendingAction(submit, 'Save Changes'))
+  await expect(dialog).toBeHidden()
+  await expect(page.getByRole('heading', { name: 'Account after edit', exact: true })).toBeVisible()
 })

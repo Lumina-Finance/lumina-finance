@@ -288,6 +288,7 @@ export default function TransactionRow({
           screen it declares a subgrid of its own so the cells inside it still line up against the
           tracks the list declares */}
       <button
+        data-testid={`transaction-row-${transaction.id}`}
         type="button"
         // In selection mode the checkbox is the row's single stop, so the same row does not offer
         // two controls doing the same thing
@@ -385,6 +386,7 @@ export default function TransactionRow({
 
       <span
         className="hidden min-w-0 text-right font-financial text-base font-semibold tabular-nums min-[1300px]:block"
+        data-testid="transaction-amount"
         style={{ color: transactionAmountColor }}
       >
         {formattedAmount}
@@ -401,6 +403,7 @@ export default function TransactionRow({
 
         <span
           className="col-start-3 row-start-1 ml-2 justify-self-end font-financial text-[0.9375rem] font-semibold leading-5 tabular-nums"
+          data-testid="transaction-amount"
           style={{ color: transactionAmountColor }}
         >
           {formattedAmount}
@@ -465,6 +468,7 @@ export default function TransactionRow({
 
         <span
           className="col-start-3 row-start-1 justify-self-end font-financial text-base font-semibold tabular-nums"
+          data-testid="transaction-amount"
           style={{ color: transactionAmountColor }}
         >
           {formattedAmount}

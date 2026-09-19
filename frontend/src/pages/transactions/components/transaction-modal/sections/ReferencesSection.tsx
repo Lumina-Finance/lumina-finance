@@ -228,6 +228,7 @@ export default function TransactionReferencesSection({
         />
         <Dropdown
           id={TRANSACTION_MODAL_FIELD_IDS.account}
+          testId="transaction-account"
           options={accountOptions}
           selectedOption={selectedArchivedAccountOption}
           value={accountValue}
@@ -269,6 +270,7 @@ export default function TransactionReferencesSection({
                 />
                 <Dropdown
                   id={TRANSACTION_MODAL_FIELD_IDS.counterpartyAccount}
+                  testId="transaction-counterparty-account"
                   options={counterpartyAccountOptions}
                   selectedOption={selectedArchivedCounterpartyAccountOption}
                   value={counterpartyAccountValue}

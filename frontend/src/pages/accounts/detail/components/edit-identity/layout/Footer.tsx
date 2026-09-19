@@ -40,6 +40,9 @@ export function EditModalFooter({
         </button>
         <button
           type="submit"
+          data-testid="account-submit"
+          aria-label="Save Changes"
+          aria-busy={saveLoading}
           className={`app-primary-button overflow-hidden whitespace-nowrap duration-300 ${saveLoading ? 'app-primary-button-loading' : 'w-36'}`}
           disabled={isBusy || deleteStage !== 'idle'}
         >
