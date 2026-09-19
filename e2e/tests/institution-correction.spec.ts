@@ -76,6 +76,7 @@ test('corrects the highlighted institution by keyboard and the original inline a
   const inlineEdit = currentOption.locator('.app-dropdown-row-edit')
   await expect(inlineEdit).toHaveAttribute('title', 'Correct institution (Alt+Enter)')
   await expect(currentOption.getByRole('button')).toHaveCount(0)
+  await expect(inlineEdit).toBeInViewport()
   if (test.info().project.name === 'desktop') {
     await currentOption.hover()
     await inlineEdit.click()
