@@ -20,13 +20,11 @@ import { useAuthFormWorkflow } from '@/pages/auth/hooks/useAuthFormWorkflow';
 import { getAuthMode } from '@/pages/auth/utils/authForm';
 import { getBrowserTimeZone } from '@/utils/date';
 import { isNewPasswordValid } from '@/utils/passwordPolicy';
+import { buildTimezoneOptions } from '@/utils/timezoneOptions';
 
 const DETECTED_TZ = getBrowserTimeZone();
 
-const TIMEZONES = Intl.supportedValuesOf('timeZone').map((tz) => ({
-  value: tz,
-  label: tz.replace(/_/g, ' '),
-}));
+const TIMEZONES = Intl.supportedValuesOf('timeZone');
 
 /**
  * Renders the auth shell for the login, signup, and forgot-password modes, which share a route key so
@@ -312,7 +310,7 @@ const AuthPage = () => {
                 currencyPlaceholder={currencyPlaceholder}
                 form={form}
                 show={isSignup}
-                timezones={TIMEZONES}
+                timezones={buildTimezoneOptions(TIMEZONES, form.tz)}
                 onFieldChange={handleChange}
               />
 

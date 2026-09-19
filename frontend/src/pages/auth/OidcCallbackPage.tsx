@@ -22,13 +22,11 @@ import { AUTH_VIEW_TRANSITION } from '@/pages/auth/constants/authAnimations'
 import { consumeOidcIntent, type OidcSignedInIntent } from '@/utils/oidcIntent'
 import { buildCurrencyOptions, getCurrencyPlaceholder } from '@/pages/auth/utils/authForm'
 import { getBrowserTimeZone } from '@/utils/date'
+import { buildTimezoneOptions } from '@/utils/timezoneOptions'
 
 const DETECTED_TZ = getBrowserTimeZone()
 
-const TIMEZONES = Intl.supportedValuesOf('timeZone').map((tz) => ({
-  value: tz,
-  label: tz.replace(/_/g, ' '),
-}))
+const TIMEZONES = Intl.supportedValuesOf('timeZone')
 
 // The provider supplies the email, so it is shown dimmed to read as fixed rather than editable
 const IMMUTABLE_FIELD_STYLE: CSSProperties = { opacity: 0.55, cursor: 'not-allowed' }
@@ -373,7 +371,7 @@ function OidcOnboardingForm({ onboarding, onBackToLogin }: OidcOnboardingFormPro
         </label>
         <Dropdown
           id="tz"
-          options={TIMEZONES}
+          options={buildTimezoneOptions(TIMEZONES, tz)}
           value={tz}
           onChange={setTz}
           searchable
