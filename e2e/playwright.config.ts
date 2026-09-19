@@ -1,7 +1,11 @@
 import { defineConfig, devices } from '@playwright/test'
+import { availableParallelism } from 'node:os'
 
 import { TEST_TIMEZONE } from './support/api'
 import { BASE_URL } from './support/target'
+
+// Bound simultaneous browser activity against the shared application instance
+const MAX_BROWSER_WORKERS = 6
 
 // The three sizes the screenshot captures use, so the suite checks the layouts the captures
 // show. Copied by value from dev/demo/capture/shared.mjs rather than imported: that file is
@@ -59,11 +63,8 @@ export default defineConfig({
     launchOptions: { args: ['--enable-features=OverlayScrollbar'] },
   },
 
-  // Pinned rather than left to default, which is half the machine's cores and would serialise
-  // the three sizes on a two-core runner. Raising it further buys little: every test signs up,
-  // and the app hashes each password on its single event loop, so those calls queue behind one
-  // another however many browsers are asking at once
-  workers: 6,
+  // Scale down on smaller runners while bounding load on the shared application instance
+  workers: Math.min(availableParallelism(), MAX_BROWSER_WORKERS),
 
   projects: [
     {
