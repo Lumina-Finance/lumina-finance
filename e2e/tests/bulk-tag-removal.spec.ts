@@ -86,7 +86,7 @@ for (const mode of ['add', 'replace', 'clear'] as const) {
 
     const writes: unknown[] = []
     page.on('request', (sent) => {
-      if (sent.method() === 'PATCH' && new URL(sent.url()).pathname === '/transactions/bulk') {
+      if (sent.method() === 'PATCH' && sent.url() === `${API_BASE_URL}/transactions/bulk`) {
         writes.push(sent.postDataJSON())
       }
     })
@@ -103,7 +103,7 @@ for (const mode of ['add', 'replace', 'clear'] as const) {
 
     await edit.getByRole('button', { name: 'Apply', exact: true }).click()
     const saved = page.waitForResponse((response) =>
-      response.request().method() === 'PATCH' && new URL(response.url()).pathname === '/transactions/bulk',
+      response.request().method() === 'PATCH' && response.url() === `${API_BASE_URL}/transactions/bulk`,
     )
     await confirmation.getByRole('button', { name: 'Confirm', exact: true }).click()
     expect((await saved).status()).toBe(200)
