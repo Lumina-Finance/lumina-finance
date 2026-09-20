@@ -3,6 +3,7 @@ import type { OptionItem } from '@/components/filters/OptionList'
 import { FilterGlassPanel } from '@/components/list-controls/FilterGlassPanel'
 import { FilterPanelBody } from '@/pages/transactions/components/toolbar/FilterPanelBody'
 import { useTransactionFilterDraft } from '@/pages/transactions/components/toolbar/useTransactionFilterDraft'
+import { getActiveFacetCount } from '@/pages/transactions/utils/filterOptions'
 import type { TransactionListFilters } from '@/pages/transactions/types/transactionList'
 import type { TransactionFilterSetter } from '@/pages/transactions/components/toolbar/types'
 
@@ -51,7 +52,7 @@ export function TransactionFilterPanel({
       openWidth={OPEN_WIDTH}
       open={open}
       onOpenChange={setOpen}
-      activeFacetCount={draft.activeFacetCount}
+      activeFacetCount={open ? draft.activeFacetCount : getActiveFacetCount(filters, showAccountFilter, lockedCurrency)}
       seedDraftFromFilters={draft.seedDraftFromFilters}
       clearAll={draft.clearAll}
     >
