@@ -1,6 +1,8 @@
-import { expect, type Locator, type Page, type Route } from '@playwright/test'
+import { expect, type Locator, type Page, type Request, type Route } from '@playwright/test'
 
 import { API_BASE_URL } from './target'
+
+const NO_CONTENT_STATUS = 204
 
 /** Assert identity selection still finds an accessible pending action */
 export async function expectPendingAction(action: Locator, name: string): Promise<void> {
@@ -10,7 +12,7 @@ export async function expectPendingAction(action: Locator, name: string): Promis
   await expect(action).toHaveAttribute('aria-busy', 'true')
 }
 
-/** Hold an own-resource mutation while asserting pending UI, then continue the real request */
+/** Hold an own-resource mutation while asserting pending UI, then await its real response */
 export async function whileApiRequestHeld(
   page: Page,
   method: 'POST' | 'PATCH' | 'DELETE',
@@ -22,6 +24,7 @@ export async function whileApiRequestHeld(
   let release!: () => void
   let markFinished!: () => void
   let intercepted = false
+  let mutation: Request | undefined
   const held = new Promise<void>((resolve) => { release = resolve })
   const finished = new Promise<void>((resolve) => { markFinished = resolve })
   const url = `${API_BASE_URL}${path}`
@@ -41,6 +44,7 @@ export async function whileApiRequestHeld(
       }
     }
     intercepted = true
+    mutation = request
     try {
       await held
       await route.continue()
@@ -54,6 +58,18 @@ export async function whileApiRequestHeld(
     await click()
     await expect.poll(() => intercepted, { message: 'Own-resource mutation was intercepted' }).toBe(true)
     await checkPending()
+    release()
+    await finished
+
+    // Dispatch is not completion, so start post-save UI checks only after the server answers
+    const response = await mutation!.response()
+    expect(response, 'The held mutation must receive a response').not.toBeNull()
+    expect(response!.ok(), `The held mutation returned HTTP ${response!.status()}`).toBe(true)
+
+    // Chromium does not reliably finish intercepted no-content responses through this API
+    if (response!.status() !== NO_CONTENT_STATUS) {
+      expect(await response!.finished(), 'The held mutation response must finish').toBeNull()
+    }
   } finally {
     release()
     if (intercepted) await finished
