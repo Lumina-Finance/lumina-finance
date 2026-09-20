@@ -82,6 +82,16 @@ test('keeps long account and transaction selections reachable without crowding o
     await expect(panel.getByRole('group', { name: 'Selected filters', exact: true })).toHaveCount(0)
     await expect(panel.getByText('No filters applied', { exact: true })).toBeVisible()
     await expect(panel.getByText(`${domain}s must match every filter you apply`, { exact: true })).toBeVisible()
+
+    // Compare populated layouts, since reference data can arrive after the panel opens
+    for (const name of names) await expect(panel.getByRole('checkbox', { name, exact: true })).toBeAttached()
+    await page.evaluate(() => document.fonts.ready.then(() => undefined))
+    if (page.viewportSize()!.width >= 750) {
+      await expect.poll(() => panel.evaluate((element) => {
+        const body = element.lastElementChild!
+        return Math.abs(body.getBoundingClientRect().height - body.firstElementChild!.clientHeight) < 1
+      })).toBe(true)
+    }
     const originalPanelHeight = await panel.evaluate((element) => element.getBoundingClientRect().height)
     const originalPadding = page.viewportSize()!.width >= 750
       ? await panel.evaluate((element) => parseFloat(getComputedStyle(element.lastElementChild!.firstElementChild!.firstElementChild!).paddingTop))
