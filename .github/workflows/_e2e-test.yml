@@ -1,4 +1,4 @@
-name: Docker build and browser suite
+name: E2E tests
 
 on:
   workflow_call:
@@ -6,63 +6,9 @@ on:
 permissions:
   contents: read
 
-env:
-  # Must match the Compose app image when APP_IMAGE_TAG is ci
-  IMAGE_REF: luminahq/lumina-finance:ci
-
 jobs:
-  build:
-    name: Build Docker image (${{ matrix.platform }})
-    runs-on: ${{ matrix.runner }}
-
-    # Build natively and retain results from both architectures if either fails
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: amd64
-            runner: ubuntu-latest
-          - platform: arm64
-            runner: ubuntu-24.04-arm
-
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
-
-      - name: Set up Docker build
-        uses: ./.github/actions/docker-build-setup
-        with:
-          registry-username: ${{ vars.DOCKERHUB_USERNAME }}
-          registry-token: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      # Export once per architecture so each device job tests the same image without rebuilding it
-      - name: Build image
-        uses: docker/build-push-action@v7
-        env:
-          # Only the image artifact is needed by downstream jobs
-          DOCKER_BUILD_RECORD_UPLOAD: false
-        with:
-          context: .
-          file: ./docker/Dockerfile
-          platforms: linux/${{ matrix.platform }}
-          push: false
-          outputs: type=docker,dest=${{ runner.temp }}/lumina-image.tar
-          tags: ${{ env.IMAGE_REF }}
-          build-args: |
-            APP_VERSION=ci
-
-      - name: Share the built image with browser jobs
-        uses: actions/upload-artifact@v7
-        with:
-          name: browser-image-${{ matrix.platform }}
-          path: ${{ runner.temp }}/lumina-image.tar
-          if-no-files-found: error
-          retention-days: 1
-          compression-level: 0
-
-  browser:
-    name: Browser suite (${{ matrix.target.platform }}, ${{ matrix.project }})
-    needs: build
+  test:
+    name: E2E tests (${{ matrix.target.platform }}, ${{ matrix.project }})
     runs-on: ${{ matrix.target.runner }}
     strategy:
       fail-fast: false
@@ -90,7 +36,7 @@ jobs:
       - name: Download the native image
         uses: actions/download-artifact@v8
         with:
-          name: browser-image-${{ matrix.target.platform }}
+          name: e2e-image-${{ matrix.target.platform }}
           path: ${{ runner.temp }}
 
       - name: Load the image
@@ -115,7 +61,7 @@ jobs:
       - name: Start the stack
         run: docker compose -f docker/compose.yml up -d
 
-      # Overlap browser setup with application migrations and seeding
+      # Overlap E2E setup with application migrations and seeding
       - name: Set up Node
         uses: actions/setup-node@v7
         with:
@@ -123,16 +69,16 @@ jobs:
           cache: npm
           cache-dependency-path: e2e/package-lock.json
 
-      - name: Install the browser suite
+      - name: Install E2E dependencies
         working-directory: e2e
         run: npm ci --ignore-scripts
 
-      # Browser tests have a separate TypeScript project from the frontend
-      - name: Type-check the browser suite
+      # E2E tests have a separate TypeScript project from the frontend
+      - name: Type-check E2E tests
         working-directory: e2e
         run: npm run typecheck
 
-      - name: Install the browser it drives
+      - name: Install Chromium
         working-directory: e2e
         run: npx playwright install --with-deps chromium
 
@@ -150,19 +96,19 @@ jobs:
           docker compose -f docker/compose.yml logs
           exit 1
 
-      - name: Run the browser suite
-        id: browser-suite
+      - name: Run E2E tests
+        id: e2e-tests
         working-directory: e2e
         env:
           E2E_BASE_URL: http://localhost:8080
         run: npm test -- --project=${{ matrix.project }} --workers=2
 
-      # Setup failures do not produce a browser report
+      # Setup failures do not produce an E2E report
       - name: Keep the report from a failed run
-        if: ${{ failure() && steps.browser-suite.outcome == 'failure' }}
+        if: ${{ failure() && steps.e2e-tests.outcome == 'failure' }}
         uses: actions/upload-artifact@v7
         with:
-          name: browser-suite-${{ matrix.target.platform }}-${{ matrix.project }}
+          name: e2e-tests-${{ matrix.target.platform }}-${{ matrix.project }}
           path: e2e/playwright-report
           retention-days: 7
 

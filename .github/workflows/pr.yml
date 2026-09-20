@@ -33,7 +33,7 @@ jobs:
             frontend:
               - 'frontend/**'
               - '.github/workflows/**'
-            # Browser tests and composite actions are exercised by the Docker workflow
+            # E2E and Docker jobs exercise these tests and composite actions
             docker:
               - 'docker/**'
               - 'e2e/**'
@@ -84,7 +84,13 @@ jobs:
             || needs.changes.outputs.frontend == 'true'
             || needs.changes.outputs.docker == 'true'
             || needs.changes.outputs.lockfiles == 'true') }}
-    uses: ./.github/workflows/_docker-build-and-test.yml
+    uses: ./.github/workflows/_docker-build.yml
+    secrets: inherit
+
+  e2e-test:
+    needs: docker-build
+    if: ${{ !cancelled() && needs.docker-build.result == 'success' }}
+    uses: ./.github/workflows/_e2e-test.yml
     secrets: inherit
 
   # Keep this name stable for the repository's required status check
@@ -99,6 +105,7 @@ jobs:
       - frontend-test
       - frontend-build
       - docker-build
+      - e2e-test
     if: ${{ always() }}
     runs-on: ubuntu-latest
     steps:

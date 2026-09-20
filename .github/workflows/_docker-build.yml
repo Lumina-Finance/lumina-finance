@@ -1,0 +1,61 @@
+name: Docker build
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+env:
+  # Must match the Compose app image when APP_IMAGE_TAG is ci
+  IMAGE_REF: luminahq/lumina-finance:ci
+
+jobs:
+  build:
+    name: Build Docker image (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+
+    # Build natively and retain results from both architectures if either fails
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: amd64
+            runner: ubuntu-latest
+          - platform: arm64
+            runner: ubuntu-24.04-arm
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Docker build
+        uses: ./.github/actions/docker-build-setup
+        with:
+          registry-username: ${{ vars.DOCKERHUB_USERNAME }}
+          registry-token: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Export once per architecture so each device job tests the same image without rebuilding it
+      - name: Build image
+        uses: docker/build-push-action@v7
+        env:
+          # Only the image artifact is needed by downstream jobs
+          DOCKER_BUILD_RECORD_UPLOAD: false
+        with:
+          context: .
+          file: ./docker/Dockerfile
+          platforms: linux/${{ matrix.platform }}
+          push: false
+          outputs: type=docker,dest=${{ runner.temp }}/lumina-image.tar
+          tags: ${{ env.IMAGE_REF }}
+          build-args: |
+            APP_VERSION=ci
+
+      - name: Share the built image with E2E jobs
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-image-${{ matrix.platform }}
+          path: ${{ runner.temp }}/lumina-image.tar
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
