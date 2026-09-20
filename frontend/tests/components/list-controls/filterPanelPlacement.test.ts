@@ -6,6 +6,21 @@ import { describe, expect, it } from 'vitest'
 import { getFilterPanelPlacement } from '@/components/list-controls/filterPanelPlacement'
 
 describe('filter panel placement', () => {
+  it('grows and shrinks with content while retaining its minimum opening height', () => {
+    const position = { anchorRect: { bottom: 100, top: 60 }, currentDirection: 'down' as const, viewportHeight: 1100 }
+    expect(getFilterPanelPlacement({ ...position, contentHeight: 720 })).toEqual({ direction: 'down', height: 720 })
+    expect(getFilterPanelPlacement({ ...position, contentHeight: 320 })).toEqual({ direction: 'down', height: 440 })
+  })
+
+  it('caps expanded content to available space and opens upward when it fits there', () => {
+    expect(getFilterPanelPlacement({
+      anchorRect: { bottom: 800, top: 760 }, currentDirection: 'down', viewportHeight: 1000, contentHeight: 700,
+    })).toEqual({ direction: 'up', height: 700 })
+    expect(getFilterPanelPlacement({
+      anchorRect: { bottom: 100, top: 60 }, currentDirection: 'down', viewportHeight: 700, contentHeight: 900,
+    })).toEqual({ direction: 'down', height: 576 })
+  })
+
   it('opens downward when the space below the pill holds the full height', () => {
     expect(getFilterPanelPlacement({
       anchorRect: { bottom: 100, top: 60 },
@@ -61,4 +76,25 @@ describe('filter panel placement', () => {
       viewportHeight: 50,
     })).toEqual({ direction: 'up', height: 0 })
   })
+
+  it('holds the full height exactly at the viewport margin boundary', () => {
+    expect(getFilterPanelPlacement({
+      anchorRect: { bottom: 100, top: 60 },
+      currentDirection: null,
+      viewportHeight: 564,
+    })).toEqual({ direction: 'down', height: 440 })
+
+    expect(getFilterPanelPlacement({
+      anchorRect: { bottom: 100, top: 60 },
+      currentDirection: null,
+      viewportHeight: 563,
+    })).toEqual({ direction: 'down', height: 439 })
+
+    expect(getFilterPanelPlacement({
+      anchorRect: { bottom: 504, top: 464 },
+      currentDirection: null,
+      viewportHeight: 600,
+    })).toEqual({ direction: 'up', height: 440 })
+  })
+
 })

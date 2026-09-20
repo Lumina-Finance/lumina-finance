@@ -10,6 +10,7 @@ import {
 } from '@/components/list-controls/toolbarStyles'
 import {
   DEFAULT_FILTER_PANEL_PLACEMENT,
+  FILTER_PANEL_MIN_HEIGHT,
   getFilterPanelPlacement,
   type FilterPanelDirection,
 } from '@/components/list-controls/filterPanelPlacement'
@@ -74,6 +75,8 @@ export function FilterGlassPanel({
   const wrapperRef = useRef<HTMLDivElement>(null)
   const headRef = useRef<HTMLButtonElement>(null)
   const headContentRef = useRef<HTMLSpanElement>(null)
+  const bodyViewportRef = useRef<HTMLDivElement>(null)
+  const bodyContentRef = useRef<HTMLDivElement>(null)
   const shouldReduceMotion = useReducedMotion()
   const transition = shouldReduceMotion ? { duration: 0 } : FILTER_GLASS_SPRING
 
@@ -110,11 +113,13 @@ export function FilterGlassPanel({
     })
   }, [open, activeFacetCount])
 
-  // The open panel is one height whichever window it opens in, growing upward when the space under
-  // the pill cannot hold it. The toolbar is sticky, so scrolling moves the pill and changes which
-  // side has the room, and the panel is re-placed on both scroll and resize while it is open
+  // Measure unconstrained content so adding chips grows the pane without feeding the animated
+  // viewport height back into its desired size
   useLayoutEffect(() => {
     if (!open) return undefined
+
+    // The body stays mounted while closed, but each new opening starts with the facet controls
+    if (bodyViewportRef.current) bodyViewportRef.current.scrollTop = 0
 
     // Scoped to this open cycle so reopening picks a direction fresh, while a scroll partway
     // through keeps the direction the panel is already open in
@@ -128,6 +133,7 @@ export function FilterGlassPanel({
         anchorRect: { bottom: rect.bottom, top: rect.top },
         currentDirection: openDirection,
         viewportHeight: window.innerHeight,
+        contentHeight: bodyContentRef.current?.offsetHeight,
       })
       // The first measurement of an open cycle lands before the panel has painted, so opening on
       // the other side from last time is applied whole rather than played as a flip
@@ -141,9 +147,12 @@ export function FilterGlassPanel({
     }
 
     measurePlacement()
+    const observer = new ResizeObserver(measurePlacement)
+    if (bodyContentRef.current) observer.observe(bodyContentRef.current)
     window.addEventListener('resize', measurePlacement)
     window.addEventListener('scroll', measurePlacement, { passive: true })
     return () => {
+      observer.disconnect()
       window.removeEventListener('resize', measurePlacement)
       window.removeEventListener('scroll', measurePlacement)
     }
@@ -280,16 +289,22 @@ export function FilterGlassPanel({
           }
           onAnimationComplete={handleBodyAnimationComplete}
         >
-          {/* Scrolls only on a window too short to hold the controls that sit outside the option
-              list, where the list has already given up all of its own height */}
+          {/* The whole body scrolls only once its natural height reaches the viewport limit */}
           <div
-            className="flex flex-col overflow-y-auto"
-            style={{
-              height: placement.height,
-              padding: `${openUpward ? BODY_PADDING : 0}px ${BODY_PADDING}px ${BODY_PADDING}px`,
-            }}
+            ref={bodyViewportRef}
+            className="overflow-y-auto"
+            style={{ height: placement.height }}
           >
-            {children}
+            <div
+              ref={bodyContentRef}
+              className="flex flex-col"
+              style={{
+                minHeight: FILTER_PANEL_MIN_HEIGHT,
+                padding: `${openUpward ? BODY_PADDING : 0}px ${BODY_PADDING}px ${BODY_PADDING}px`,
+              }}
+            >
+              {children}
+            </div>
           </div>
         </motion.div>
       </motion.div>

@@ -1,8 +1,8 @@
 import { useId, useState, type Dispatch, type SetStateAction } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import { X } from 'lucide-react'
 import DateField from '@/components/date-field/DateField'
 import type { OptionItem } from '@/components/filters/OptionList'
+import { ActiveFilterChips } from '@/components/filters/ActiveFilterChips'
 import { MultiSelectChecklist } from '@/components/filters/MultiSelectChecklist'
 import { FacetSelectDropdown } from '@/components/list-controls/FacetSelectDropdown'
 import { FILTER_GLASS_SPRING } from '@/components/list-controls/toolbarStyles'
@@ -80,7 +80,7 @@ export function FilterPanelBody({
   // Swaps the cramped facet tab grid for a dropdown, only used by the mobile full-screen sheet
   mobile?: boolean
   // Lets the facet editor grow to fill its container with the option list scrolling internally,
-  // used by the mobile sheet and the desktop panel once the panel opens to a fixed height
+  // used by the full-screen mobile sheet
   fillHeight?: boolean
   // False on an account's own transaction list, where the account facet is disabled because the
   // account scope is already fixed
@@ -166,7 +166,7 @@ export function FilterPanelBody({
       <motion.div
         layout={blockLayout}
         transition={transition}
-        className={joinClassNames('mt-3', fillHeight && 'flex min-h-0 flex-1 flex-col')}
+        className={joinClassNames('mt-3', fillHeight && 'flex min-h-[5.5rem] flex-1 flex-col')}
       >
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
@@ -210,7 +210,7 @@ export function FilterPanelBody({
         </AnimatePresence>
       </motion.div>
 
-      <motion.div layout={blockLayout} transition={transition}>
+      <motion.div layout={blockLayout} transition={transition} className="shrink-0">
         <ActiveFilterSummary
           selections={draft.selections}
           referenceLabels={draft.referenceLabels}
@@ -650,50 +650,5 @@ function ActiveFilterSummary({
 
   const chips = [...multiChips, ...amountChip, ...dateChip]
 
-  return (
-    <div
-      className="mt-3 flex min-h-[1.5rem] flex-wrap items-center gap-1.5 border-t px-0.5 pt-2.5"
-      style={{ borderColor: 'var(--app-input-border)' }}
-    >
-      <AnimatePresence mode="popLayout" initial={false}>
-        {chips.length === 0 ? (
-          <motion.span
-            key="empty"
-            layout
-            className="text-xs"
-            style={{ color: 'var(--app-text-subtle)' }}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={FILTER_GLASS_SPRING}
-          >
-            No filters applied
-          </motion.span>
-        ) : (
-          chips.map((chip) => (
-            <motion.span
-              key={chip.key}
-              layout
-              className="inline-flex items-center gap-1 rounded-full py-0.5 pl-2.5 pr-1 text-[11px]"
-              style={{ background: 'color-mix(in srgb, var(--app-accent) 14%, transparent)', color: 'var(--app-accent)' }}
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.8 }}
-              transition={FILTER_GLASS_SPRING}
-            >
-              {chip.label}
-              <button
-                type="button"
-                aria-label={`Remove ${chip.label}`}
-                className="flex opacity-70 hover:opacity-100"
-                onClick={chip.onRemove}
-              >
-                <X size={13} aria-hidden />
-              </button>
-            </motion.span>
-          ))
-        )}
-      </AnimatePresence>
-    </div>
-  )
+  return <ActiveFilterChips chips={chips} />
 }

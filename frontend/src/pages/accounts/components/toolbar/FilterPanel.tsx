@@ -50,7 +50,7 @@ export function AccountFilterPanel({
       seedDraftFromFilters={draft.seedDraftFromFilters}
       clearAll={draft.clearAll}
     >
-      <FilterPanelBody draft={draft} fillHeight />
+      <FilterPanelBody draft={draft} />
     </FilterGlassPanel>
   )
 }
