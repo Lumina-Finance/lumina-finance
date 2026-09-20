@@ -61,6 +61,7 @@ function build(
   dateFormat: ImportDateFormat | null,
   columnValidationErrors: Record<string, string> = {},
   dateSeparator: ImportDateSeparator = 'automatic',
+  timeZone?: string,
 ) {
   return buildTransactionImportPayload({
     accountById: new Map(),
@@ -78,6 +79,7 @@ function build(
     columnValidationErrors,
     dateFormat,
     dateSeparator,
+    timeZone,
     directionAnswers: {},
     files: [createFile(dates)],
     importedCategories: ['Groceries'],
@@ -85,6 +87,27 @@ function build(
 }
 
 describe('import payload dates', () => {
+  it('converts zoned timestamps to profile dates and preserves every other payload field', () => {
+    const timestamps = ['2024-03-15T00:30:00Z', '2024-03-16T00:30:00+09:00', '2024-03-17T23:30:00-04:00', '2024-03-18']
+    const dates = ['2024-03-14', '2024-03-15', '2024-03-17', '2024-03-18']
+    const result = build(timestamps, 'iso', {}, '.', 'America/Toronto')
+    expect(result.payload).not.toBeNull()
+    expect(result.payload).toEqual(build(dates, 'yearFirst').payload)
+    expect(result.payload?.rows.map((row) => row.dt)).toEqual(dates)
+  })
+
+  it('blocks the payload when one ISO timestamp is invalid', () => {
+    const result = build(['2024-03-15T00:30:00Z', '2024-03-16T24:00:00Z'], 'iso', {}, 'automatic', 'UTC')
+    expect(result.payload).toBeNull()
+    expect(result.rowProblems.map((problem) => ({ rowNumber: problem.rowNumber, reason: problem.reason })))
+      .toEqual([{ rowNumber: 2, reason: ROW_DATE_UNREADABLE_REASON }])
+    expect(build(['2024-03-15T00:30:00Z'], 'yearFirst', {}, 'automatic', 'UTC').payload).toBeNull()
+  })
+
+  it('blocks zoned timestamps without a valid profile zone', () => {
+    expect(build(['2024-03-15T00:30:00Z'], 'iso').payload).toBeNull()
+    expect(build(['2024-03-15T00:30:00Z'], 'iso', {}, 'automatic', 'Not/AZone').payload).toBeNull()
+  })
   it('sends the day the chosen format names', () => {
     expect(build(['15/03/2024'], 'dayFirst').payload?.rows[0].dt).toBe('2024-03-15')
   })

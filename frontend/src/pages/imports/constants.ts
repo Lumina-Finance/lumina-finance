@@ -490,8 +490,8 @@ export function getFixedAccountWarning(accountName: string) {
 export const COUNTERPARTY_ONLY_TABLE_TITLE = 'Counterparty accounts'
 export const COUNTERPARTY_ONLY_EXPLANATION = 'These only ever appeared as the other side of a transfer. Matching one records where the money came from or went to without writing a transaction into that account, which is why an archived account can be chosen here and stays archived. Choose Outside this app to record the transfer without linking another account. To bring a name in as an account of your own, choose Create New Account in its Existing Account column.'
 
-// Each format is named by an example of its shape rather than by a standard, because the year-first
-// option deliberately takes a slash and an unpadded part, which ISO 8601 does not. Keyed by format
+// Date-order presets are named by their shape rather than a standard because year-first accepts
+// slashes and unpadded parts, while the separate ISO preset requires padded dates. Keyed by format
 // rather than listed, so every format is guaranteed a label and the picker takes its order from
 // IMPORT_DATE_FORMATS instead of repeating it here
 export const IMPORT_DATE_FORMAT_LABELS: Record<ImportDateFormat, { label: string; example: string }> = {
@@ -499,6 +499,7 @@ export const IMPORT_DATE_FORMAT_LABELS: Record<ImportDateFormat, { label: string
   dayFirst: { label: 'Day first', example: '30/04/2026' },
   monthFirst: { label: 'Month first', example: '04/30/2026' },
   written: { label: 'Written', example: 'April 30, 2026' },
+  iso: { label: 'ISO date/time', example: '2026-04-30T12:00:00Z' },
 }
 
 export const KIND_LABELS: Record<Category['kind'], string> = {

@@ -7,6 +7,7 @@ import {
   type TransactionImportResponse,
 } from '@/api/transaction-imports'
 import { EMPTY_COLUMN_MAP } from '@/pages/imports/constants'
+import { useAuth } from '@/hooks/useAuth'
 import { OUTSIDE_ACCOUNT_LABEL, OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 import type { ColumnMap, ColumnTarget, ColumnValidationErrors, ImportAmountDirection, ImportCategoryKind, ImportFileDraft, ImportOverlayPhase, PreviewTransactionRow } from '@/pages/imports/types'
 import {
@@ -95,6 +96,8 @@ const IMPORT_OVERLAY_MIN_MS = 2000
  *   resolved from the file. A transfer's counterparty is resolved as it always is
  */
 export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | null = null) {
+  const { user } = useAuth()
+  const timeZone = user?.tz
   const inputRef = useRef<HTMLInputElement>(null)
   const [files, setFiles] = useState<ImportFileDraft[]>([])
   const [isProcessingFiles, setIsProcessingFiles] = useState(false)
@@ -351,8 +354,8 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     [columnMap.dt, files],
   )
   const dateFormatScan = useMemo(
-    () => scanImportDateFormatChoices(dateValues),
-    [dateValues],
+    () => scanImportDateFormatChoices(dateValues, 'automatic', timeZone),
+    [dateValues, timeZone],
   )
   const dateFormatScope = buildImportDateFormatScope(columnMap, files)
   const dateFormat = resolveImportFormatChoice(dateFormatChoice, dateFormatScope, dateFormatScan.automatic)
@@ -376,9 +379,9 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   // on every render rather than kept in the stored map, which only refreshes when a mapping changes
   const dateColumnValidation = useMemo(
     () => (columnMap.dt
-      ? validateColumnValues(files, columnMap.dt, 'dt', supportedCurrencyCodes, dateFormat)
+      ? validateColumnValues(files, columnMap.dt, 'dt', supportedCurrencyCodes, dateFormat, { timeZone })
       : null),
-    [columnMap.dt, dateFormat, files, supportedCurrencyCodes],
+    [columnMap.dt, dateFormat, files, supportedCurrencyCodes, timeZone],
   )
 
   const resolvedColumnValidationErrors = useMemo(() => {
@@ -674,6 +677,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
       columnValidationErrors: resolvedColumnValidationErrors,
       currencies,
       dateFormat,
+      timeZone,
       amountFormat,
       directionAnswers,
       files,
@@ -708,6 +712,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
       resolvedAccountMappings,
       resolvedCategoryMappings,
       resolvedColumnValidationErrors,
+      timeZone,
     ],
   )
 
@@ -718,6 +723,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
       files,
       columnMap,
       dateFormat,
+      timeZone,
       amountFormat,
       directionAnswers,
       missingRequiredColumnLabels,
@@ -733,7 +739,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
       resolvedCategoryMappings,
       rowProblems: importBuild.rowProblems,
     }),
-    [accountById, accountCreateInstitutions, amountFormat, categoryById, categoryCreateKinds, categoryTypesBySource, columnMap, currencies, dateFormat, directionAnswers, files, importBuild.rowProblems, institutionById, missingRequiredColumnLabels, resolvedAccountCreateCurrencies, resolvedAccountMappings, resolvedCategoryMappings],
+    [accountById, accountCreateInstitutions, amountFormat, categoryById, categoryCreateKinds, categoryTypesBySource, columnMap, currencies, dateFormat, directionAnswers, files, importBuild.rowProblems, institutionById, missingRequiredColumnLabels, resolvedAccountCreateCurrencies, resolvedAccountMappings, resolvedCategoryMappings, timeZone],
   )
 
   const previewGroups = useMemo(

@@ -177,7 +177,7 @@ export function validateColumnValues(
       ? getAmountFormatExpectation(formatOptions.amountFormat)
       : rule.expected
   const accepts = isDateColumnInChosenFormat
-    ? (value: string) => Boolean(readImportDate(value, dateFormat, formatOptions.dateSeparator))
+    ? (value: string) => Boolean(readImportDate(value, dateFormat, formatOptions.dateSeparator, formatOptions.timeZone))
     : isAmountColumn
       ? (value: string) => formatOptions.amountFormat
         ? readImportAmount(value, formatOptions.amountFormat) !== null
@@ -220,6 +220,7 @@ export function validateColumnValues(
 
 export interface ImportColumnFormatOptions {
   dateSeparator?: ImportDateSeparator
+  timeZone?: string
   amountFormat?: ImportAmountFormat | null
 }
 
@@ -272,7 +273,7 @@ function getDateFormatExpectation(
   separator: ImportDateSeparator = 'automatic',
 ) {
   const { label, example: defaultExample } = IMPORT_DATE_FORMAT_LABELS[dateFormat]
-  const example = dateFormat !== 'written' && separator !== 'automatic'
+  const example = dateFormat !== 'written' && dateFormat !== 'iso' && separator !== 'automatic'
     ? defaultExample.replace(/[-/]/g, separator)
     : defaultExample
 

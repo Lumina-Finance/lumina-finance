@@ -79,6 +79,7 @@ export function buildTransactionImportPayload({
   currencies,
   dateFormat,
   dateSeparator = 'automatic',
+  timeZone,
   amountFormat = DEFAULT_IMPORT_AMOUNT_FORMAT,
   directionAnswers,
   files,
@@ -100,6 +101,7 @@ export function buildTransactionImportPayload({
   currencies: Currency[]
   dateFormat: ImportDateFormat | null
   dateSeparator?: ImportDateSeparator
+  timeZone?: string
   amountFormat?: ImportAmountFormat | null
 
   /** What each word in a mapped Direction column means, keyed by the folded value */
@@ -291,6 +293,7 @@ export function buildTransactionImportPayload({
     columnMap,
     dateFormat,
     dateSeparator,
+    timeZone,
     amountFormat,
     directionAnswers,
     currencyByAccountSource: getCurrencyByAccountSource(accountMappings, accountById, accountCreateCurrencies),

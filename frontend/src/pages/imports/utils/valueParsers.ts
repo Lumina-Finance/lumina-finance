@@ -5,7 +5,7 @@ import { DATE_FORMATS, formatDate, parseYmd } from '@/utils/date'
  * The shapes a date column can be read in. One is chosen for the whole import, because a file that
  * changes format part way through has no single reading that is right for all of its rows
  */
-export const IMPORT_DATE_FORMATS = ['yearFirst', 'dayFirst', 'monthFirst', 'written'] as const
+export const IMPORT_DATE_FORMATS = ['yearFirst', 'dayFirst', 'monthFirst', 'written', 'iso'] as const
 
 export type ImportDateFormat = (typeof IMPORT_DATE_FORMATS)[number]
 
@@ -32,6 +32,14 @@ interface CalendarDateParts {
 // first, so a value like 2024-03/15 is malformed rather than a format
 const YEAR_FIRST_PATTERN = /^(\d{4})([-/.:])(\d{1,2})\2(\d{1,2})$/
 
+// A complete timestamp may add fractional seconds and a zone. The captured zone distinguishes an
+// instant that must be converted from an unzoned timestamp whose written calendar day is retained
+const ISO_DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(Z|[+-](\d{2}):(\d{2}))?)?$/
+
+// Imports revisit every date during scanning, validation, preview and payload construction. A
+// formatter is immutable, so sharing one per profile zone avoids rebuilding it for every row
+const IMPORT_DATE_FORMATTERS = new Map<string, Intl.DateTimeFormat | null>()
+
 // Day first and month first share one shape and differ only in which part is read as the month. The
 // year is four digits in both, since a two-digit year is a guess about the century
 const NUMERIC_PATTERN = /^(\d{1,2})([-/.:])(\d{1,2})\2(\d{4})$/
@@ -53,8 +61,9 @@ const MONTH_ABBREVIATION_LENGTH = 3
  * Reads one cell as a calendar day in the given format
  *
  * @param value - The raw cell value
- * @param format - The order chosen for this import, or the written format
- * @param separator - The required numeric separator, or automatic to accept any supported one
+ * @param format - The date preset chosen for this import
+ * @param separator - Separator for numeric date-order presets, ignored by written and ISO formats
+ * @param timeZone - Profile zone used to convert an ISO timestamp carrying an explicit offset
  * @returns The zero-padded YYYY-MM-DD string the API takes, or an empty string when the value does
  * not read in that format or names a day the calendar does not have
  */
@@ -62,14 +71,36 @@ export function readImportDate(
   value: string,
   format: ImportDateFormat,
   separator: ImportDateSeparator = 'automatic',
+  timeZone?: string,
 ) {
-  const parts = readCalendarDateParts(value.trim(), format, separator)
+  const normalized = value.trim()
+  const ymd = getValidatedCalendarDay(normalized, format, separator)
+  if (!ymd) return ''
+
+  const isoMatch = format === 'iso' ? ISO_DATE_PATTERN.exec(normalized) : null
+  if (!isoMatch?.[7]) return ymd
+
+  return readZonedTimestampDate(normalized, timeZone)
+}
+
+/**
+ * Returns the source calendar day when a value has the selected shape and names a real date
+ *
+ * This deliberately stops before converting an offset timestamp. Recognition uses it before the
+ * profile zone is known, while actual import readings continue from this day to conversion
+ */
+function getValidatedCalendarDay(
+  value: string,
+  format: ImportDateFormat,
+  separator: ImportDateSeparator,
+) {
+  const parts = readCalendarDateParts(value, format, separator)
   if (!parts) return ''
 
   const ymd = `${parts.year}-${String(parts.month).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}`
 
   // Whether the parts name a day that exists is the shared parser's decision, so February 31 is
-  // refused identically whichever of the four formats it was written in
+  // refused identically whichever supported format it was written in
   return parseYmd(ymd) ? ymd : ''
 }
 
@@ -83,13 +114,14 @@ export function readImportDate(
 export function scanImportDateFormats(
   values: string[],
   separator: ImportDateSeparator = 'automatic',
+  timeZone?: string,
 ): ImportDateFormatScan {
   const filled = values.map((value) => value.trim()).filter(Boolean)
   const readable: ImportDateFormat[] = []
   const rejectedBy: Partial<Record<ImportDateFormat, string>> = {}
 
   for (const format of IMPORT_DATE_FORMATS) {
-    const offender = filled.find((value) => !readImportDate(value, format, separator))
+    const offender = filled.find((value) => !readImportDate(value, format, separator, timeZone))
     if (offender === undefined) readable.push(format)
     else rejectedBy[format] = offender
   }
@@ -116,6 +148,14 @@ function readCalendarDateParts(
   separator: ImportDateSeparator,
 ): CalendarDateParts | null {
   if (format === 'written') return readWrittenDateParts(value)
+  if (format === 'iso') {
+    const match = ISO_DATE_PATTERN.exec(value)
+    if (!match || (match[4] !== undefined && (
+      Number(match[4]) > 23 || Number(match[5]) > 59 || Number(match[6]) > 59
+      || (match[8] !== undefined && (Number(match[8]) > 23 || Number(match[9]) > 59))
+    ))) return null
+    return { year: Number(match[1]), month: Number(match[2]), day: Number(match[3]) }
+  }
 
   if (format === 'yearFirst') {
     const match = YEAR_FIRST_PATTERN.exec(value)
@@ -134,6 +174,45 @@ function readCalendarDateParts(
   return format === 'dayFirst'
     ? { year, month: second, day: first }
     : { year, month: first, day: second }
+}
+
+/** Converts a strictly recognized offset timestamp to the profile's calendar day */
+function readZonedTimestampDate(value: string, timeZone?: string) {
+  if (!timeZone) return ''
+
+  const formatter = getImportDateFormatter(timeZone)
+  if (!formatter) return ''
+
+  const instant = new Date(value)
+  if (Number.isNaN(instant.getTime())) return ''
+
+  const parts = formatter.formatToParts(instant)
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value ?? ''
+  const ymd = `${part('year')}-${part('month')}-${part('day')}`
+
+  // Conversion can cross a year boundary, so its output is held to the same supported range as the
+  // source rather than trusting the Date and Intl range as a second date contract
+  return parseYmd(ymd) ? ymd : ''
+}
+
+/** Returns one strict formatter for a profile zone, or null when the configured zone is invalid */
+function getImportDateFormatter(timeZone: string) {
+  const cached = IMPORT_DATE_FORMATTERS.get(timeZone)
+  if (cached !== undefined) return cached
+
+  let formatter: Intl.DateTimeFormat | null = null
+  try {
+    formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    })
+  } catch {
+    // Unlike shared display helpers, timestamp imports cannot fall back to the browser's zone
+  }
+  IMPORT_DATE_FORMATTERS.set(timeZone, formatter)
+  return formatter
 }
 
 /** Reports whether the value's numeric separator matches the selected separator policy */
@@ -241,7 +320,10 @@ export function isSupportedCurrency(currency: string, supportedCodes: Set<string
  * anyone has chosen a format. Judging a column against the chosen format is what the scan does
  */
 export function isValidDateValue(value: string) {
-  return IMPORT_DATE_FORMATS.some((format) => Boolean(readImportDate(value, format)))
+  const normalized = value.trim()
+  return IMPORT_DATE_FORMATS.some(
+    (format) => Boolean(getValidatedCalendarDay(normalized, format, 'automatic')),
+  )
 }
 
 /**

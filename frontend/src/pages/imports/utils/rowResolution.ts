@@ -103,6 +103,7 @@ export interface ImportRowContext {
   columnMap: ColumnMap
   dateFormat: ImportDateFormat | null
   dateSeparator?: ImportDateSeparator
+  timeZone?: string
   amountFormat?: ImportAmountFormat | null
 
   /**
@@ -155,7 +156,7 @@ export function resolveImportRow(row: CsvRow, fileId: string, context: ImportRow
     accountSource,
     categorySource: getMappedValue(row, columnMap.category_id),
     importedDate,
-    dt: dateFormat ? readImportDate(importedDate, dateFormat, context.dateSeparator) : '',
+    dt: dateFormat ? readImportDate(importedDate, dateFormat, context.dateSeparator, context.timeZone) : '',
     amount,
     amountReading,
     amountFormat,

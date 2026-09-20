@@ -1,7 +1,7 @@
 /**
  * Tests import preview row construction so CSV review catches broken account creation, category creation, tag splitting, and preview capping before import submission
  */
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
@@ -88,6 +88,40 @@ function createFile(
 }
 
 describe('import preview rows', () => {
+  it('previews timestamps in the profile zone with the same financial fields as plain dates', () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-09-18T12:00:00Z'))
+    try {
+      const category = createCategory()
+      const account = createAccount()
+      const options = {
+        columnMap: { ...EMPTY_COLUMN_MAP, dt: 'Date', amount: 'Amount', category_id: 'Category' },
+        directionAnswers: {},
+        missingRequiredColumnLabels: [],
+        currencies,
+        accountById: new Map([[account.id, account]]),
+        accountCreateCurrencies: {},
+        accountCreateInstitutions: {},
+        categoryById: new Map([[category.id, category]]),
+        categoryCreateKinds: {},
+        categoryTypesBySource: {},
+        institutionById: new Map(),
+        resolvedAccountMappings: { 'file-1': account.id },
+        resolvedCategoryMappings: { Groceries: category.id },
+        rowProblems: [],
+      }
+      const values = ['2024-03-15T00:30:00Z', '2024-03-16T00:30:00+09:00', '2024-03-17T23:30:00-04:00']
+      const dates = ['2024-03-15', '2024-03-16', '2024-03-18']
+      const makeRows = (dates: string[]) => createFile(dates.map((Date) => ({ Date, Amount: '-12.34', Category: 'Groceries' })))
+      const rows = buildImportPreviewRows({ ...options, files: [makeRows(values)], dateFormat: 'iso', dateSeparator: '.', timeZone: 'Asia/Tokyo' })
+      const plainRows = buildImportPreviewRows({ ...options, files: [makeRows(dates)], dateFormat: 'yearFirst' })
+      expect(rows).toEqual(plainRows)
+      expect(rows.map((row) => row.transaction.dt)).toEqual(dates)
+      expect(rows.map((row) => row.transaction.amount)).toEqual([-1234, -1234, -1234])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
   it('returns no preview rows until required columns are mapped', () => {
     expect(buildImportPreviewRows({
       files: [createFile([])],

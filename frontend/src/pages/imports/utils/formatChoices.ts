@@ -124,6 +124,7 @@ export function scanImportAmountFormatChoices(values: string[]): ImportAmountFor
 export function scanImportDateFormatChoices(
   values: string[],
   separator: ImportDateSeparator = 'automatic',
+  timeZone?: string,
 ): ImportDateChoiceScan {
   const filled = values.map((value) => value.trim()).filter(Boolean)
   const readable: ImportDateFormat[] = []
@@ -133,7 +134,7 @@ export function scanImportDateFormatChoices(
   for (const format of IMPORT_DATE_FORMATS) {
     const candidateReadings: string[] = []
     const offender = filled.find((value) => {
-      const reading = readImportDate(value, format, separator)
+      const reading = readImportDate(value, format, separator, timeZone)
       if (reading) candidateReadings.push(reading)
       return !reading
     })
