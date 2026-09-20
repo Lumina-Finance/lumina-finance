@@ -82,6 +82,7 @@ test('keeps long account and transaction selections reachable without crowding o
     await expect(panel.getByRole('group', { name: 'Selected filters', exact: true })).toHaveCount(0)
     await expect(panel.getByText('No filters applied', { exact: true })).toBeVisible()
     await expect(panel.getByText(`${domain}s must match every filter you apply`, { exact: true })).toBeVisible()
+    const originalScroll = await page.evaluate(() => ({ x: window.scrollX, y: window.scrollY }))
     const originalPanelHeight = await panel.evaluate((element) => element.getBoundingClientRect().height)
     const originalPadding = page.viewportSize()!.width >= 750
       ? await panel.evaluate((element) => parseFloat(getComputedStyle(element.lastElementChild!.firstElementChild!.firstElementChild!).paddingTop))
@@ -120,9 +121,9 @@ test('keeps long account and transaction selections reachable without crowding o
     await page.setViewportSize({ width: original.width, height: 320 })
     if (original.width >= 750) {
       // A drastic resize can leave the toolbar below the viewport. Existing placement follows that
-      // anchor, so measure short-panel usability after normal scrolling brings the open head back
+      // anchor, so bring the whole collapsed footprint into view, including the glass borders
       const head = panel.getByRole('button', { name: `${domain} filters`, exact: true })
-      await head.scrollIntoViewIfNeeded()
+      await panel.locator('..').scrollIntoViewIfNeeded()
       await expect.poll(() => head.evaluate((element) => {
         const rect = element.getBoundingClientRect()
         return { top: rect.top, bottom: rect.bottom, viewportHeight: window.innerHeight, inside: rect.top >= -1 && rect.bottom <= window.innerHeight + 1 }
@@ -152,6 +153,9 @@ test('keeps long account and transaction selections reachable without crowding o
     await expect(panel.getByRole('group', { name: 'Selected filters', exact: true }).getByRole('button')).toHaveCount(10)
     await panel.getByRole('button', { name: 'Clear all', exact: true }).click()
     await page.setViewportSize(original)
+    // Compare like-for-like space around the anchor, not the scroll position left by the short window
+    await page.evaluate(({ x, y }) => window.scrollTo({ left: x, top: y, behavior: 'instant' }), originalScroll)
+    await expect.poll(() => page.evaluate(() => ({ x: window.scrollX, y: window.scrollY }))).toEqual(originalScroll)
     panel = await openFilters(page, domain)
     await expect(panel.getByRole('group', { name: 'Selected filters', exact: true })).toHaveCount(0)
     if (original.width >= 750) {
