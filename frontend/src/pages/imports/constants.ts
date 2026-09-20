@@ -499,7 +499,7 @@ export const IMPORT_DATE_FORMAT_LABELS: Record<ImportDateFormat, { label: string
   dayFirst: { label: 'Day first', example: '30/04/2026' },
   monthFirst: { label: 'Month first', example: '04/30/2026' },
   written: { label: 'Written', example: 'April 30, 2026' },
-  iso: { label: 'ISO date or timestamp', example: '2026-04-30T00:30:00Z' },
+  iso: { label: 'ISO date/time', example: '2026-04-30T12:00:00Z' },
 }
 
 export const KIND_LABELS: Record<Category['kind'], string> = {

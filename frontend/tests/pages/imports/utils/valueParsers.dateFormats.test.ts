@@ -134,7 +134,7 @@ describe('ISO dates and timestamps', () => {
   it('keeps the ISO example hyphens under a custom numeric separator', () => {
     const result = validateColumnValues([createDateFile(['2024-03-15T24:00:00Z'])], 'Date', 'dt', SUPPORTED_CURRENCY_CODES, 'iso', { dateSeparator: '.' })
     expect(result.valid).toBe(false)
-    expect(result.message).toContain('such as 2026-04-30T00:30:00Z')
+    expect(result.message).toContain('such as 2026-04-30T12:00:00Z')
   })
 })
 
