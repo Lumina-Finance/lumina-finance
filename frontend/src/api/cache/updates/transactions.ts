@@ -361,7 +361,7 @@ export function invalidateBulkUpdatedTransactionData(
   if (payload.account_id !== undefined) patch.account_id = payload.account_id;
   if (payload.dt !== undefined) patch.dt = payload.dt;
   if (payload.notes !== undefined) patch.notes = payload.notes;
-  if (payload.add_tag_ids?.length) patch.tag_ids = payload.add_tag_ids;
+  if (payload.add_tag_ids?.length || payload.override_tags) patch.tag_ids = payload.add_tag_ids ?? [];
 
   // A direction change, whether it reaches every row or only the transfer rows, writes the sign of
   // the amount column, and a set end writes account_id on whichever rows resolve to be their own.

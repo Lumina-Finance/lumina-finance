@@ -27,6 +27,17 @@ function isStale(queryClient: QueryClient, queryKey: readonly unknown[]) {
 }
 
 describe('invalidateBulkUpdatedTransactionData', () => {
+  it.each([{ tagIds: [] }, { tagIds: ['work'] }])('refreshes tag-filtered lists after override with $tagIds without refreshing financial aggregates', ({ tagIds }) => {
+    const queryClient = seedCache();
+    const filtered = transactionKeys.list({ tag_id: ['holiday'] });
+    queryClient.setQueryData(filtered, []);
+    invalidateBulkUpdatedTransactionData(queryClient, { transaction_ids: ['txn_1'], override_tags: true, add_tag_ids: tagIds }, ['acc_1']);
+    expect(isStale(queryClient, transactionKeys.list({}))).toBe(true);
+    expect(isStale(queryClient, filtered)).toBe(true);
+    expect(isStale(queryClient, budgetKeys.latestUtilizations())).toBe(false);
+    expect(isStale(queryClient, accountKeys.list())).toBe(false);
+    expect(isStale(queryClient, accountKeys.cashFlowAll('acc_1'))).toBe(false);
+  });
   it.each([
     { name: 'moving transactions', fields: { account_id: 'destination' } },
     { name: 'changing From', fields: { transfer_from: { scope: 'tracked', account_id: 'destination' } } },

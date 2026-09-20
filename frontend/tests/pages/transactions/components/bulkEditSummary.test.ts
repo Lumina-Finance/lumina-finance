@@ -58,6 +58,18 @@ describe('the opening clause of a warning sentence', () => {
 })
 
 describe('the rows, notes and warnings a bulk edit choice produces', () => {
+  it('explains the tag bound without dropping selected tags', () => {
+    const ids = Array.from({ length: 33 }, (_, index) => `tag-${index}`)
+    const choice = untouched({ tagIds: ids, overrideTags: true })
+    const result = summarize([groceries], choice, { tagLabels: ids })
+    expect(result.warnings).toContainEqual({ key: 'tag-limit', text: 'Choose at most 32 tags in one edit.' })
+    expect(result.rows).toContainEqual({ label: 'Tags replaced', value: ids.join(', ') })
+  })
+  it('describes clearing all tags instead of naming individual removed tags', () => {
+    const result = summarize([groceries], untouched({ overrideTags: true }))
+    expect(result.rows).toContainEqual({ label: 'Tags removed', value: 'All tags' })
+    expect(result.warnings).toEqual([])
+  })
   it('shows nothing while nothing is chosen over a clean pair', () => {
     expect(summarize(pair, untouched())).toEqual({ rows: [], notes: [], warnings: [] })
   })

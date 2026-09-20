@@ -8,7 +8,7 @@
 import type { Category } from '@/api/categories'
 import type { BulkDirectionChange, BulkTransferEnd, TransactionDirection } from '@/api/transactions'
 import type { TransactionListAccount } from '@/pages/transactions/types/transactionList'
-import { MAX_BULK_EDIT_TRANSACTIONS } from '@/pages/transactions/components/bulk-edit/constants'
+import { MAX_BULK_EDIT_TRANSACTIONS, MAX_BULK_TAGS } from '@/pages/transactions/components/bulk-edit/constants'
 import {
   BALANCE_ADJUSTMENT_CATEGORY_NAME,
   doesTransferRecordCounterpartyAccount,
@@ -83,6 +83,7 @@ export interface BulkEditChoice {
   categoryId: string
   merchantId: string
   tagIds: string[]
+  overrideTags: boolean
   accountId: string
   date: string
 
@@ -122,6 +123,7 @@ export interface BulkEditFields {
   category_id?: string
   merchant_id?: string
   add_tag_ids?: string[]
+  override_tags?: boolean
   account_id?: string
   dt?: string
   notes?: string | null
@@ -148,7 +150,7 @@ function toBulkTransferEnd(choice: TransferEndChoice): BulkTransferEnd {
  * than an empty string.
  */
 export function buildBulkEditFields(choice: BulkEditChoice): BulkEditFields {
-  const { categoryId, merchantId, tagIds, accountId, date, note, clearsNote } = choice
+  const { categoryId, merchantId, tagIds, overrideTags, accountId, date, note, clearsNote } = choice
   const { transferFrom, transferTo, endsAreOffered, direction, directionIsImplied } = choice
 
   // An end and a move both write account_id, on whichever rows resolve to be their own, so sending
@@ -163,6 +165,7 @@ export function buildBulkEditFields(choice: BulkEditChoice): BulkEditFields {
     ...(categoryId ? { category_id: categoryId } : {}),
     ...(merchantId ? { merchant_id: merchantId } : {}),
     ...(tagIds.length ? { add_tag_ids: tagIds } : {}),
+    ...(overrideTags ? { override_tags: true } : {}),
     ...(accountId && !sendsAnEnd ? { account_id: accountId } : {}),
     ...(date ? { dt: date } : {}),
     ...(clearsNote ? { notes: null } : trimmedNote ? { notes: trimmedNote } : {}),
@@ -541,6 +544,8 @@ export function nextDirectionAfterEndChange(
 
 /** The selected transactions an edit would have the server refuse the whole batch over */
 export interface BulkEditBlockers {
+  /** True when selected tags exceed the request bound, with every choice retained for correction */
+  tooManyTags: boolean;
   /** Rows with no merchant recorded, which the server refuses to edit at all until one is set */
   withoutMerchant: string[];
 
@@ -656,6 +661,7 @@ export function getBulkEditBlockers(
   }
 
   return {
+    tooManyTags: choice.tagIds.length > MAX_BULK_TAGS,
     withoutMerchant,
     unansweredFarSide,
     ownAccountFarSide,
@@ -685,6 +691,7 @@ export function canApplyBulkEdit(
 
   return (
     blockers.withoutMerchant.length === 0
+    && !blockers.tooManyTags
     && blockers.unansweredFarSide.length === 0
     && blockers.ownAccountFarSide.length === 0
     && blockers.sitsOutside.length === 0

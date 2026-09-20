@@ -44,6 +44,10 @@ import { useDebouncedReferenceSearch } from '@/pages/transactions/components/tra
 import { buildCategoryOptions } from '@/pages/transactions/components/transaction-modal/utils/categories'
 import { OUTSIDE_ACCOUNT_LABEL, OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 
+// This option clears assignments rather than identifying a stored tag
+const REMOVE_ALL_TAGS_VALUE = 'remove-all-tags'
+const REMOVE_ALL_TAGS_LABEL = 'Remove all tags'
+
 const REFERENCE_SEARCH_DEBOUNCE_MS = 250
 const REFERENCE_PAGE_SIZE = 20
 
@@ -130,6 +134,7 @@ export function BulkEditModal({
   // is not in it, so a label read back off the loaded page would turn into an identifier
   const [merchant, setMerchant] = useState<{ value: string; label: string } | null>(null)
   const [chosenTags, setChosenTags] = useState<ChosenTagOption[]>([])
+  const [overrideTags, setOverrideTags] = useState(false)
   const merchantId = merchant?.value ?? ''
   const tagIds = chosenTags.map((tag) => tag.value)
 
@@ -299,20 +304,19 @@ export function BulkEditModal({
   const tagQuery = useInfiniteTags({ q: tagSearch.activeSearchText || undefined }, REFERENCE_PAGE_SIZE)
   const tags = tagQuery.data?.pages.flat() ?? []
 
-  // Chosen tags lead the list, ticked, ahead of the search results, so one can always be unticked
-  // whatever the search box holds. Search results already chosen are dropped rather than repeated
+  // Keep chosen tags before search results so they can be unticked regardless of the search text
+  // Remove all tags remains available even when the search returns no tags
   const tagOptions = [
+    { value: REMOVE_ALL_TAGS_VALUE, label: REMOVE_ALL_TAGS_LABEL },
     ...chosenTags,
     ...tags.filter((tag) => !tagIds.includes(tag.id)).map((tag) => ({ value: tag.id, label: tag.name })),
   ]
 
-  // The trigger shows this while any tag is chosen, since the dropdown's own value stays blank so
-  // a pick never closes the list. getSelectedDropdownOption only keeps it when its value matches
-  // the blank value passed below, which is also why it goes undefined rather than an empty label
-  // once every tag is unticked
+  // The trigger uses the blank value required by the multi-select dropdown
+  // An empty selection with Override enabled represents an intentional clear
   const chosenTagsOption = chosenTags.length > 0
     ? { value: '', label: chosenTags.map((tag) => tag.label).join(', ') }
-    : undefined
+    : overrideTags ? { value: '', label: REMOVE_ALL_TAGS_LABEL } : undefined
 
   // An implied direction is tied to the pairing of ends that produced it, so it drops out once
   // endsAreOffered goes false, as when a category change turns the controls off, rather than
@@ -325,6 +329,7 @@ export function BulkEditModal({
     categoryId,
     merchantId,
     tagIds,
+    overrideTags,
     accountId,
     date,
     note,
@@ -548,15 +553,35 @@ export function BulkEditModal({
             </div>
 
             <div>
-              <CreateModalFieldLabelRow htmlFor="bulk-tags" label="Add a tag" />
+              <CreateModalFieldLabelRow
+                htmlFor="bulk-tags"
+                label="Add a tag"
+                action={(
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <Checkbox
+                      checked={overrideTags}
+                      label="Override existing tags"
+                      onChange={() => setOverrideTags((current) => !current)}
+                    />
+                    <span aria-hidden onClick={() => setOverrideTags((current) => !current)}>
+                      Override existing tags
+                    </span>
+                  </div>
+                )}
+              />
               <Dropdown
                 id="bulk-tags"
                 options={tagOptions}
                 value=""
                 selectedOption={chosenTagsOption}
-                selectedValues={tagIds}
+                selectedValues={overrideTags && !tagIds.length ? [REMOVE_ALL_TAGS_VALUE] : tagIds}
                 closeOnSelect={false}
                 onChange={(value) => {
+                  if (value === REMOVE_ALL_TAGS_VALUE) {
+                    setChosenTags([])
+                    setOverrideTags(true)
+                    return
+                  }
                   const picked = tagOptions.find((option) => option.value === value)
                   if (picked) setChosenTags((current) => toggleChosenTag(current, picked))
                 }}
