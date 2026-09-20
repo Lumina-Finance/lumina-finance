@@ -82,7 +82,6 @@ test('keeps long account and transaction selections reachable without crowding o
     await expect(panel.getByRole('group', { name: 'Selected filters', exact: true })).toHaveCount(0)
     await expect(panel.getByText('No filters applied', { exact: true })).toBeVisible()
     await expect(panel.getByText(`${domain}s must match every filter you apply`, { exact: true })).toBeVisible()
-    const originalScroll = await page.evaluate(() => ({ x: window.scrollX, y: window.scrollY }))
     const originalPanelHeight = await panel.evaluate((element) => element.getBoundingClientRect().height)
     const originalPadding = page.viewportSize()!.width >= 750
       ? await panel.evaluate((element) => parseFloat(getComputedStyle(element.lastElementChild!.firstElementChild!.firstElementChild!).paddingTop))
@@ -94,6 +93,19 @@ test('keeps long account and transaction selections reachable without crowding o
     await expectChipGeometry(panel, 12)
     if (page.viewportSize()!.width >= 750) {
       await expect.poll(() => panel.evaluate((element) => element.getBoundingClientRect().height)).toBeGreaterThan(originalPanelHeight + 1)
+      // Measure shrinkage in the same open cycle before resizing or closing adds layout changes
+      for (const name of names) await panel.getByRole('button', { name: `Remove ${name}`, exact: true }).click()
+      await expect(panel.getByRole('group', { name: 'Selected filters', exact: true })).toHaveCount(0)
+      // Opening upward adds the existing top padding, independently of the chip rows
+      await expect.poll(async () => {
+        const restored = await panel.evaluate((element) => ({
+          height: element.getBoundingClientRect().height,
+          padding: parseFloat(getComputedStyle(element.lastElementChild!.firstElementChild!.firstElementChild!).paddingTop),
+        }))
+        return Math.abs(restored.height - originalPanelHeight - (restored.padding - originalPadding))
+      }).toBeLessThanOrEqual(2)
+      for (const name of names) await panel.getByRole('checkbox', { name, exact: true }).click()
+      await expectChipGeometry(panel, 12)
     }
     const search = panel.getByPlaceholder(domain === 'Account' ? 'Search institution' : 'Search accounts', { exact: true })
     await expect(search).toBeVisible()
@@ -153,21 +165,8 @@ test('keeps long account and transaction selections reachable without crowding o
     await expect(panel.getByRole('group', { name: 'Selected filters', exact: true }).getByRole('button')).toHaveCount(10)
     await panel.getByRole('button', { name: 'Clear all', exact: true }).click()
     await page.setViewportSize(original)
-    // Compare like-for-like space around the anchor, not the scroll position left by the short window
-    await page.evaluate(({ x, y }) => window.scrollTo({ left: x, top: y, behavior: 'instant' }), originalScroll)
-    await expect.poll(() => page.evaluate(() => ({ x: window.scrollX, y: window.scrollY }))).toEqual(originalScroll)
     panel = await openFilters(page, domain)
     await expect(panel.getByRole('group', { name: 'Selected filters', exact: true })).toHaveCount(0)
-    if (original.width >= 750) {
-      // Resizing and scrolling can reopen upward, which adds the existing top padding
-      await expect.poll(async () => {
-        const restored = await panel.evaluate((element) => ({
-          height: element.getBoundingClientRect().height,
-          padding: parseFloat(getComputedStyle(element.lastElementChild!.firstElementChild!.firstElementChild!).paddingTop),
-        }))
-        return Math.abs(restored.height - originalPanelHeight - (restored.padding - originalPadding))
-      }).toBeLessThanOrEqual(2)
-    }
     await panel.getByRole('button', { name: 'Apply filters', exact: true }).click()
   }
 })
