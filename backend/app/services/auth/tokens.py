@@ -3,6 +3,8 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import jwt
+from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
+from cryptography.hazmat.primitives.serialization import load_pem_private_key
 
 from app.config.jwt import (
     JWT_ACCESS_KID,
@@ -20,6 +22,18 @@ from app.config.oidc import (
 )
 from app.config.two_factor import MFA_CHALLENGE_TOKEN_EXPIRE_SECONDS
 from app.models.base import AuthTokenKind
+
+
+def _load_signing_key(pem: str) -> RSAPrivateKey:
+    key = load_pem_private_key(pem.encode(), password=None)
+    if not isinstance(key, RSAPrivateKey):
+        raise ValueError("JWT signing keys must be RSA private keys")
+    return key
+
+
+# Reuse validated keys so token issuance does not repeat costly RSA validation on the event loop
+_ACCESS_SIGNING_KEY = _load_signing_key(JWT_ACCESS_PRIVATE_KEY)
+_REFRESH_SIGNING_KEY = _load_signing_key(JWT_REFRESH_PRIVATE_KEY)
 
 # Token use claim for the step-up challenge
 MFA_CHALLENGE_TOKEN_USE = "mfa_challenge"  # noqa: S105 — token use claim, not a secret
@@ -45,7 +59,7 @@ def create_access_token(user_id: uuid.UUID, session_id: uuid.UUID) -> tuple[str,
         user_id,
         session_id,
         expires_in_seconds=JWT_ACCESS_TOKEN_EXPIRE_SECONDS,
-        private_key=JWT_ACCESS_PRIVATE_KEY,
+        private_key=_ACCESS_SIGNING_KEY,
         key_id=JWT_ACCESS_KID,
         token_use=AuthTokenKind.ACCESS.value,
     )
@@ -66,7 +80,7 @@ def create_refresh_token(user_id: uuid.UUID, session_id: uuid.UUID) -> tuple[str
         user_id,
         session_id,
         expires_in_seconds=JWT_REFRESH_TOKEN_EXPIRE_SECONDS,
-        private_key=JWT_REFRESH_PRIVATE_KEY,
+        private_key=_REFRESH_SIGNING_KEY,
         key_id=JWT_REFRESH_KID,
         token_use=AuthTokenKind.REFRESH.value,
     )
@@ -85,7 +99,7 @@ def create_mfa_challenge_token(user_id: uuid.UUID) -> tuple[str, uuid.UUID, date
     token = _create_signed_token(
         user_id,
         expires_in_seconds=MFA_CHALLENGE_TOKEN_EXPIRE_SECONDS,
-        private_key=JWT_ACCESS_PRIVATE_KEY,
+        private_key=_ACCESS_SIGNING_KEY,
         key_id=JWT_ACCESS_KID,
         token_use=MFA_CHALLENGE_TOKEN_USE,
     )
@@ -133,7 +147,7 @@ def create_oidc_onboarding_token(
         "exp": issued_at + timedelta(seconds=OIDC_ONBOARDING_TOKEN_EXPIRE_SECONDS),
         "iss": JWT_ISSUER,
     }
-    return jwt.encode(payload, JWT_ACCESS_PRIVATE_KEY, algorithm=JWT_ALGORITHM, headers={"kid": JWT_ACCESS_KID})
+    return jwt.encode(payload, _ACCESS_SIGNING_KEY, algorithm=JWT_ALGORITHM, headers={"kid": JWT_ACCESS_KID})
 
 
 def create_oidc_reauth_stepup_token(user_id: uuid.UUID) -> str:
@@ -161,7 +175,7 @@ def create_oidc_reauth_stepup_token(user_id: uuid.UUID) -> str:
         "exp": issued_at + timedelta(seconds=OIDC_REAUTH_STEPUP_TOKEN_EXPIRE_SECONDS),
         "iss": JWT_ISSUER,
     }
-    return jwt.encode(payload, JWT_ACCESS_PRIVATE_KEY, algorithm=JWT_ALGORITHM, headers={"kid": JWT_ACCESS_KID})
+    return jwt.encode(payload, _ACCESS_SIGNING_KEY, algorithm=JWT_ALGORITHM, headers={"kid": JWT_ACCESS_KID})
 
 
 def _create_signed_token(
@@ -169,7 +183,7 @@ def _create_signed_token(
     session_id: uuid.UUID | None = None,
     *,
     expires_in_seconds: int,
-    private_key: str,
+    private_key: RSAPrivateKey,
     key_id: str,
     token_use: str,
 ) -> tuple[str, uuid.UUID, datetime]:
