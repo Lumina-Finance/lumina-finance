@@ -166,9 +166,8 @@ export function buildImportPreviewRows({
       // table and there are no decimal places to convert against
       if (typeof minorUnits !== 'bigint') continue
 
-      // Past the range a number holds exactly this loses digits, which is a display artifact on an
-      // amount around ninety trillion in a two-decimal currency. The commit sends the cell's text
-      const amount = Number(minorUnits)
+      // Keep the exact minor units through presentation, just as the commit keeps the cell's digits
+      const amount = minorUnits
       const importedTagValues = resolved.tagNames
       const category = getPreviewCategory(
         resolved.categorySource,

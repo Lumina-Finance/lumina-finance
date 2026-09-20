@@ -106,6 +106,17 @@ export interface ImportFileDraft {
   notice?: string
 }
 
+/**
+ * Keeps all three amount fields as exact signed minor units for import previews only
+ *
+ * This in-memory representation is not the JSON transaction contract used by the API
+ */
+export type ExactPreviewTransaction = Omit<Transaction, 'amount' | 'account_amount' | 'base_currency_amount'> & {
+  amount: bigint
+  account_amount: bigint
+  base_currency_amount: bigint
+}
+
 export interface PreviewTransactionRow {
   id: string
   accountInstitution: AccountsOverview['institution']
@@ -113,7 +124,7 @@ export interface PreviewTransactionRow {
   category: Category | undefined
   currency: string
   dateLabel: string
-  transaction: Transaction
+  transaction: Transaction | ExactPreviewTransaction
 
   /** Name behind the transaction's counterparty account, since the preview has no account list to read */
   counterpartyAccountName?: string

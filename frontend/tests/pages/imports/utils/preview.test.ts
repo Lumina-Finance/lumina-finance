@@ -117,7 +117,7 @@ describe('import preview rows', () => {
       const plainRows = buildImportPreviewRows({ ...options, files: [makeRows(dates)], dateFormat: 'yearFirst' })
       expect(rows).toEqual(plainRows)
       expect(rows.map((row) => row.transaction.dt)).toEqual(dates)
-      expect(rows.map((row) => row.transaction.amount)).toEqual([-1234, -1234, -1234])
+      expect(rows.map((row) => row.transaction.amount)).toEqual([-1234n, -1234n, -1234n])
     } finally {
       vi.useRealTimers()
     }
@@ -193,8 +193,8 @@ describe('import preview rows', () => {
       },
       transaction: {
         account_id: CREATE_ACCOUNT_VALUE,
-        amount: -1234,
-        account_amount: -1234,
+        amount: -1234n,
+        account_amount: -1234n,
         fx_rate: null,
         merchant_id: 'import-preview-merchant-file-1-0',
         merchant_name: 'Market',
@@ -248,7 +248,7 @@ describe('import preview rows', () => {
     })
 
     expect(rows).toHaveLength(1)
-    expect(rows[0].transaction.amount).toBe(-8420)
+    expect(rows[0].transaction.amount).toBe(-8420n)
   })
 
   it('previews the same normalized amount that the payload receives', () => {
@@ -285,7 +285,7 @@ describe('import preview rows', () => {
 
     expect(rows).toHaveLength(1)
     expect(rows[0].transaction.dt).toBe('2026-08-31')
-    expect(rows[0].transaction.amount).toBe(-10099)
+    expect(rows[0].transaction.amount).toBe(-10099n)
   })
 
   it('caps preview rows to the first five mapped transactions', () => {
