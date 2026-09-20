@@ -100,6 +100,7 @@ export function untouched(overrides: Partial<BulkEditChoice> = {}): BulkEditChoi
     categoryId: '',
     merchantId: '',
     tagIds: [],
+    overrideTags: false,
     accountId: '',
     date: '',
     note: '',

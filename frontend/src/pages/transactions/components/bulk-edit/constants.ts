@@ -5,3 +5,6 @@
  * letting the request be refused after the user has already agreed to it
  */
 export const MAX_BULK_EDIT_TRANSACTIONS = 1000
+
+/** Tags one bulk request may add or replace, matching the API's per-operation tag bound */
+export const MAX_BULK_TAGS = 32

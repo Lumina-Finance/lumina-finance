@@ -20,6 +20,13 @@ beforeEach(() => {
 });
 
 describe('bulkUpdateTransactions', () => {
+  it('sends the override flag and replacement tags together', async () => {
+    const payload = { transaction_ids: ['txn_1'], override_tags: true, add_tag_ids: ['work'] };
+    await bulkUpdateTransactions(payload);
+    expect(authenticatedFetchMock).toHaveBeenCalledWith('/transactions/bulk', {
+      method: 'PATCH', body: JSON.stringify(payload),
+    });
+  });
   it('sends the ticked transactions and the chosen category', async () => {
     await bulkUpdateTransactions({
       transaction_ids: ['txn_1', 'txn_2'],

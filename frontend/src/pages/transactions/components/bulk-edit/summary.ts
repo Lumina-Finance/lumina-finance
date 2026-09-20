@@ -19,6 +19,7 @@ import {
 } from '@/pages/transactions/components/bulk-edit/selection'
 import { DATE_FORMATS, formatDate, parseYmd } from '@/utils/date'
 import { OUTSIDE_ACCOUNT_LABEL } from '@/utils/transfers'
+import { MAX_BULK_TAGS } from '@/pages/transactions/components/bulk-edit/constants'
 
 /** One currency an own end would move blocked rows into, and how many rows share the pairing */
 interface CurrencyMismatch {
@@ -261,7 +262,11 @@ export function describeBulkEdit(
   if (fields.category_id !== undefined) {
     summaryRows.push({ label: 'Category', value: labels.categoryLabel })
   }
-  if (fields.add_tag_ids !== undefined) {
+  if (fields.override_tags) {
+    summaryRows.push(fields.add_tag_ids?.length
+      ? { label: 'Tags replaced', value: labels.tagLabels.join(', ') }
+      : { label: 'Tags removed', value: 'All tags' })
+  } else if (fields.add_tag_ids !== undefined) {
     summaryRows.push({ label: 'Tags added', value: labels.tagLabels.join(', ') })
   }
   if (fields.transfer_from !== undefined) {
@@ -330,6 +335,9 @@ export function describeBulkEdit(
   }
 
   const warnings: BulkEditSummaryMessage[] = []
+  if (blockers.tooManyTags) {
+    warnings.push({ key: 'tag-limit', text: `Choose at most ${MAX_BULK_TAGS} tags in one edit.` })
+  }
   if (blockers.withoutMerchant.length > 0) {
     const count = blockers.withoutMerchant.length
     const noun = rows.length === 1 ? 'transaction' : 'transactions'

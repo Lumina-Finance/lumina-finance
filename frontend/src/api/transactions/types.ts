@@ -177,11 +177,10 @@ export interface BulkUpdateTransactionsPayload {
   merchant_id?: string;
   notes?: string | null;
 
-  /**
-   * Attached on top of the tags each transaction already carries, unlike `tag_ids` on a single
-   * update, which replaces the whole list
-   */
+  /** Added to existing tags unless override_tags replaces the full set */
   add_tag_ids?: string[];
+  /** True replaces all assignments, or clears them when add_tag_ids is empty or omitted */
+  override_tags?: boolean;
 
   /**
    * The transfer's From account. Resolved per row: on a money-out row this is the account the row

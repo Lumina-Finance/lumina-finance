@@ -514,9 +514,26 @@ describe('the details the panel sends', () => {
 })
 
 describe('what a bulk edit may do to the rows it covers', () => {
+  it('allows 32 selected tags and retains a 33rd choice while blocking Apply', () => {
+    const tags = Array.from({ length: 33 }, (_, index) => `tag-${index}`)
+    const allowed = untouched({ tagIds: tags.slice(0, 32), overrideTags: true })
+    expect(canApplyBulkEdit([groceries], allowed, getBulkEditBlockers([groceries], allowed, undefined))).toBe(true)
+    const oversized = untouched({ tagIds: tags, overrideTags: true })
+    expect(canApplyBulkEdit([groceries], oversized, getBulkEditBlockers([groceries], oversized, undefined))).toBe(false)
+  })
+
+  it('distinguishes clearing, replacing, appending and leaving tags unchanged', () => {
+    const clearing = untouched({ overrideTags: true })
+    expect(buildBulkEditFields(clearing)).toEqual({ override_tags: true })
+    expect(canApplyBulkEdit([groceries], clearing, getBulkEditBlockers([groceries], clearing, undefined))).toBe(true)
+    expect(buildBulkEditFields(untouched({ tagIds: ['work'], overrideTags: true }))).toEqual({ add_tag_ids: ['work'], override_tags: true })
+    expect(buildBulkEditFields(untouched({ tagIds: ['work'] }))).toEqual({ add_tag_ids: ['work'] })
+    expect(hasBulkEditChoice(untouched({ overrideTags: false }))).toBe(false)
+  })
   /** An edit that sets a note and nothing else, which is the smallest thing a user can ask for */
   const noteOnly = untouched({ note: 'Corrected' })
   const noBlockers = {
+    tooManyTags: false,
     withoutMerchant: [], unansweredFarSide: [], ownAccountFarSide: [], sitsOutside: [], ownSideInAnotherCurrency: [],
     unavailableOwnAccount: [],
   }

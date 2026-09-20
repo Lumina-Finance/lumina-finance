@@ -7,7 +7,7 @@ from sqlalchemy import func, select, text
 
 from app.models.account import AccountBalanceSnapshot
 from app.models.base import TransferCounterpartyScope
-from app.models.tag import TransactionTag
+from app.models.tag import Tag, TransactionTag
 from app.models.transaction import Transaction
 from app.services.accounts import snapshots as account_snapshots_module
 from app.services.importers.firefly import service as firefly_import_module
@@ -31,6 +31,199 @@ from tests.routes.transactions._helpers import (
 )
 
 # --- PATCH /transactions/bulk ---
+
+
+async def test_bulk_update_clears_only_selected_transaction_tags(client):
+    """Clearing preserves the registry, unrelated rows and financial fields"""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    holiday, family, work = [
+        (await _create_tag(client, headers, name=name)).json()["id"]
+        for name in ("Holiday", "Family", "Work")
+    ]
+    first = (await _create_transaction(
+        client, headers, account_id, category_id, tag_ids=[holiday, family], notes="Family visit",
+    )).json()["id"]
+    second = (await _create_transaction(
+        client, headers, account_id, category_id, tag_ids=[holiday, work], amount=-7500,
+    )).json()["id"]
+    unrelated = (await _create_transaction(
+        client, headers, account_id, category_id, tag_ids=[holiday],
+    )).json()["id"]
+    before = [(await client.get(f"/transactions/{identifier}", headers=headers)).json() for identifier in (first, second)]
+    snapshots = await _read_snapshots(account_id)
+    response = await client.patch("/transactions/bulk", headers=headers, json={
+        "transaction_ids": [first, second], "override_tags": True,
+    })
+    assert response.status_code == 200
+    assert response.json()["transactions_updated"] == 2
+    assert response.json()["affected_account_ids"] == [account_id]
+    for identifier, old, remaining in zip((first, second), before, (set(), set()), strict=True):
+        current = (await client.get(f"/transactions/{identifier}", headers=headers)).json()
+        assert set(current["tag_ids"]) == remaining
+        for field in ("amount", "currency", "fx_rate", "account_id", "category_id", "dt", "merchant_id", "notes"):
+            assert current[field] == old[field]
+    assert (await client.get(f"/transactions/{unrelated}", headers=headers)).json()["tag_ids"] == [holiday]
+    assert await _read_snapshots(account_id) == snapshots
+    async with TestSession() as session:
+        assert await session.get(Tag, uuid.UUID(holiday)) is not None
+
+
+async def test_bulk_update_clears_tags_across_personal_and_group_scopes(client):
+    """Removal operates where attached rather than requiring addition access in every scope."""
+    headers, personal, category = await _setup_user_with_deps(client)
+    group = (await client.post("/groups", headers=headers, json={"name": "Household"})).json()["id"]
+    shared = (await _create_account(client, headers, name="Shared", group_id=group)).json()["id"]
+    shared_category = (await _create_category(client, headers, name="Shared food", group_id=group)).json()["id"]
+    personal_tag = (await _create_tag(client, headers, name="Personal holiday")).json()["id"]
+    shared_tag = (await _create_tag(client, headers, name="Shared holiday", group_id=group)).json()["id"]
+    first = (await _create_transaction(client, headers, personal, category, tag_ids=[personal_tag])).json()["id"]
+    second = (await _create_transaction(client, headers, shared, shared_category, tag_ids=[shared_tag])).json()["id"]
+    response = await client.patch("/transactions/bulk", headers=headers, json={
+        "transaction_ids": [first, second], "override_tags": True,
+    })
+    assert response.status_code == 200
+    assert response.json()["transactions_updated"] == 2
+    for identifier in (first, second):
+        assert (await client.get(f"/transactions/{identifier}", headers=headers)).json()["tag_ids"] == []
+
+
+@pytest.mark.parametrize("failure, expected_status", [
+    ("archived", 422), ("other_user", 404), ("read_only", 403), ("invalid_category", 422),
+])
+async def test_bulk_tag_override_is_atomic_when_a_selected_row_or_detail_refuses(client, failure, expected_status):
+    """Permission, archive and combined-detail failures leave every assignment intact."""
+    headers, account, category = await _setup_user_with_deps(client)
+    tag = (await _create_tag(client, headers, name="Holiday")).json()["id"]
+    first = (await _create_transaction(client, headers, account, category, tag_ids=[tag])).json()["id"]
+    second_headers = headers
+    second_tag = tag
+    fields = {}
+    if failure in ("other_user", "read_only"):
+        second_headers, second_account, second_category = await _setup_user_with_deps(
+            client, email="other@example.com", name_prefix="Other",
+        )
+        second_tag = (await _create_tag(client, second_headers, name="Holiday")).json()["id"]
+        if failure == "read_only":
+            group = (await client.post("/groups", headers=second_headers, json={"name": "Household"})).json()["id"]
+            second_account = (await _create_account(client, second_headers, name="Shared", group_id=group)).json()["id"]
+            second_category = (await _create_category(client, second_headers, name="Shared food", group_id=group)).json()["id"]
+            second_tag = (await _create_tag(client, second_headers, name="Shared holiday", group_id=group)).json()["id"]
+            user_id = (await client.get("/me", headers=headers)).json()["id"]
+            membership = await client.post(f"/groups/{group}/members", headers=second_headers, json={"user_id": user_id})
+            assert membership.status_code == 201
+            permission = await client.post(f"/accounts/{second_account}/permissions", headers=second_headers, json={
+                "user_id": user_id, "level": "read",
+            })
+            assert permission.status_code == 201
+    else:
+        second_account = (await _create_account(client, headers, name="Second")).json()["id"]
+        second_category = category
+    second = (await _create_transaction(
+        client, second_headers, second_account, second_category, tag_ids=[second_tag],
+    )).json()["id"]
+    if failure == "archived":
+        assert (await client.patch(f"/accounts/{second_account}", headers=headers, json={"is_archived": True})).status_code == 200
+    if failure == "invalid_category":
+        fields["category_id"] = str(uuid.uuid4())
+    response = await client.patch("/transactions/bulk", headers=headers, json={
+        "transaction_ids": [first, second], "override_tags": True, **fields,
+    })
+    assert response.status_code == expected_status
+    assert (await client.get(f"/transactions/{first}", headers=headers)).json()["tag_ids"] == [tag]
+    assert (await client.get(f"/transactions/{second}", headers=second_headers)).json()["tag_ids"] == [second_tag]
+
+
+@pytest.mark.parametrize("override", [False, True])
+async def test_bulk_update_adds_or_replaces_tags(client, override):
+    """Duplicate selections produce one assignment and override produces the same set on every row"""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    first, second, added = [
+        (await _create_tag(client, headers, name=name)).json()["id"]
+        for name in ("First", "Second", "Added")
+    ]
+    transactions = [
+        (await _create_transaction(client, headers, account_id, category_id, tag_ids=tags)).json()["id"]
+        for tags in ([first], [second], [])
+    ]
+    response = await client.patch("/transactions/bulk", headers=headers, json={
+        "transaction_ids": transactions, "override_tags": override, "add_tag_ids": [added, added],
+    })
+    assert response.status_code == 200
+    assert response.json()["transactions_updated"] == 3
+    for transaction, existing in zip(transactions, ({first}, {second}, set()), strict=True):
+        detail = (await client.get(f"/transactions/{transaction}", headers=headers)).json()
+        assert set(detail["tag_ids"]) == ({added} if override else existing | {added})
+
+
+async def test_bulk_update_clearing_untagged_transaction_counts_selection(client):
+    """An intentional clear counts selected rows even when their tags are already empty"""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    transaction = (await _create_transaction(client, headers, account_id, category_id)).json()["id"]
+    response = await client.patch("/transactions/bulk", headers=headers, json={
+        "transaction_ids": [transaction], "override_tags": True, "add_tag_ids": [],
+    })
+    assert response.status_code == 200
+    assert response.json()["transactions_updated"] == 1
+    assert (await client.get(f"/transactions/{transaction}", headers=headers)).json()["tag_ids"] == []
+
+
+@pytest.mark.parametrize("fields", [
+    {"override_tags": False},
+    {"override_tags": False, "add_tag_ids": []},
+    {"override_tags": None},
+    {"override_tags": "true"},
+    {"override_tags": True, "add_tag_ids": None},
+    {"override_tags": True, "add_tag_ids": ["malformed"]},
+    {"override_tags": True, "add_tag_ids": [str(uuid.uuid4()) for _ in range(33)]},
+])
+async def test_bulk_update_rejects_invalid_override_requests(client, fields):
+    """A no-op flag or malformed replacement must not be reported as an applied edit"""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    transaction = (await _create_transaction(client, headers, account_id, category_id)).json()["id"]
+    response = await client.patch("/transactions/bulk", headers=headers, json={
+        "transaction_ids": [transaction], **fields,
+    })
+    assert response.status_code == 422
+
+
+@pytest.mark.parametrize("replacement_scope", ["unknown", "other_user", "group"])
+async def test_bulk_update_validates_replacement_tags_before_clearing(client, replacement_scope):
+    """Invalid replacement access leaves both the old tags and combined detail changes untouched"""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    original = (await _create_tag(client, headers, name="Original")).json()["id"]
+    transaction = (await _create_transaction(
+        client, headers, account_id, category_id, tag_ids=[original], notes="Original",
+    )).json()["id"]
+    if replacement_scope == "other_user":
+        other, _, _ = await _setup_user_with_deps(client, email="other@example.com", name_prefix="Other")
+        replacement = (await _create_tag(client, other, name="Private")).json()["id"]
+    elif replacement_scope == "group":
+        group = (await client.post("/groups", headers=headers, json={"name": "Household"})).json()["id"]
+        replacement = (await _create_tag(client, headers, name="Shared", group_id=group)).json()["id"]
+    else:
+        replacement = str(uuid.uuid4())
+    response = await client.patch("/transactions/bulk", headers=headers, json={
+        "transaction_ids": [transaction], "override_tags": True, "add_tag_ids": [replacement], "notes": "Changed",
+    })
+    assert response.status_code == 422
+    detail = (await client.get(f"/transactions/{transaction}", headers=headers)).json()
+    assert detail["tag_ids"] == [original]
+    assert detail["notes"] == "Original"
+
+
+@pytest.mark.parametrize("fields", [{}, {"override_tags": False, "add_tag_ids": []}])
+async def test_bulk_update_omitted_or_false_override_leaves_tags_alone(client, fields):
+    """Updating another detail without enabling override must preserve existing assignments"""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    tag = (await _create_tag(client, headers, name="Holiday")).json()["id"]
+    transaction = (await _create_transaction(client, headers, account_id, category_id, tag_ids=[tag])).json()["id"]
+    response = await client.patch("/transactions/bulk", headers=headers, json={
+        "transaction_ids": [transaction], "notes": "Changed", **fields,
+    })
+    assert response.status_code == 200
+    detail = (await client.get(f"/transactions/{transaction}", headers=headers)).json()
+    assert detail["tag_ids"] == [tag]
+    assert detail["notes"] == "Changed"
 
 
 async def _clear_merchant(transaction_id):
