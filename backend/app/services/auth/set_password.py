@@ -40,7 +40,7 @@ async def set_first_password(
     # autoflushing early
     await delete_other_user_auth_sessions(db, user.id, current_session_id)
 
-    create_first_password_credential(db, user.id, new_password)
+    await create_first_password_credential(db, user.id, new_password)
 
     # A parallel set-password can insert the credential first, so the primary key turns that race into
     # the same conflict the pre-check raises rather than an unhandled error

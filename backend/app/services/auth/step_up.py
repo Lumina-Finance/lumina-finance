@@ -4,6 +4,7 @@ from typing import NoReturn
 
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.concurrency import run_in_threadpool
 
 from app.models.auth import PasswordCredential
 from app.models.user import User
@@ -78,7 +79,7 @@ async def verify_step_up(
 
     if credential is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
-    if not is_password_valid(password, credential.password_hash):
+    if not await run_in_threadpool(is_password_valid, password, credential.password_hash):
         await _reject_failed_step_up(db, credential, "Invalid credentials")
 
     if passkey is not None:
@@ -136,7 +137,7 @@ async def verify_sensitive_action_step_up(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
     if is_account_locked(credential):
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="Account temporarily locked")
-    if not is_password_valid(password, credential.password_hash):
+    if not await run_in_threadpool(is_password_valid, password, credential.password_hash):
         await _reject_failed_step_up(db, credential, "Invalid credentials")
     await reset_failed_attempts(db, credential)
 

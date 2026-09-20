@@ -3,6 +3,7 @@
 import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.concurrency import run_in_threadpool
 
 from app.models.auth import AuthIdentity, PasswordCredential
 from app.models.base import AuthProvider
@@ -11,7 +12,7 @@ from app.services.auth.password_helpers import hash_password
 _PASSWORD_ALGO = "argon2id"  # noqa: S105 - algorithm name, not a secret
 
 
-def create_first_password_credential(
+async def create_first_password_credential(
     db: AsyncSession, user_id: uuid.UUID, new_password: str
 ) -> PasswordCredential:
     """Create the password credential and password auth identity for an account that had none
@@ -29,7 +30,7 @@ def create_first_password_credential(
     """
     credential = PasswordCredential(
         user_id=user_id,
-        password_hash=hash_password(new_password),
+        password_hash=await run_in_threadpool(hash_password, new_password),
         password_algo=_PASSWORD_ALGO,
     )
     db.add(credential)

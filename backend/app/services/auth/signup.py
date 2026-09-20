@@ -5,6 +5,7 @@ import uuid
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.concurrency import run_in_threadpool
 
 from app.database import current_user_id_ctx
 from app.models.auth import AuthIdentity, PasswordCredential
@@ -54,7 +55,7 @@ async def signup(db: AsyncSession, data: SignupRequest) -> User:
     auth_identity = AuthIdentity(user_id=user.id, auth_provider=AuthProvider.PASSWORD)
     password_credential = PasswordCredential(
         user_id=user.id,
-        password_hash=hash_password(data.password),
+        password_hash=await run_in_threadpool(hash_password, data.password),
         password_algo="argon2id",  # noqa: S106
     )
     db.add(auth_identity)
