@@ -35,7 +35,7 @@ from app.services.cache_state import mark_cache_changed_for_scope
 from app.services.categories.transfer_rules import does_category_record_counterparty_account
 from app.services.transactions.access_helpers import accessible_account_ids_subquery
 from app.services.transactions.accounts import validate_transaction_account_is_not_archived
-from app.services.transactions.tags import add_transaction_tag_assignments
+from app.services.transactions.tags import add_transaction_tag_assignments, clear_transaction_tag_assignments
 from app.services.transactions.validation import (
     get_valid_transaction_tag_ids,
     validate_transaction_category_access,
@@ -977,11 +977,17 @@ async def _apply_changes(
             .values(counterparty_account_id=None, counterparty_account_scope=None),
         )
 
-    # A column written straight onto every selected row, a direction of any kind, and an added tag
+    # A column written straight onto every selected row, a direction of any kind, and a tag operation
     # all write across the whole selection rather than a filtered subset, so each counts as reaching
     # every row the request carried, whether or not a given row already held that value
-    direct_ids = set(transaction_ids) if column_values or "direction" in sent or data.add_tag_ids else set()
+    direct_ids = (
+        set(transaction_ids)
+        if column_values or "direction" in sent or data.add_tag_ids or data.override_tags
+        else set()
+    )
 
+    if data.override_tags:
+        await clear_transaction_tag_assignments(db, transaction_ids)
     if data.add_tag_ids:
         await add_transaction_tag_assignments(db, transaction_ids, list(dict.fromkeys(data.add_tag_ids)))
 

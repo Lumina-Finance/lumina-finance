@@ -231,11 +231,16 @@ class BulkUpdateTransactionsRequest(BaseModel):
 
     notes: str | None = Field(None, max_length=MAX_IMPORT_NOTES_LENGTH)
 
-    # Added to whatever each transaction already carries, unlike the single-transaction update,
-    # which replaces the whole list. Bounded to the cap tag_names already carries, since tags.py
-    # issues one statement per id at any count, so this cap is what bounds how many statements a
-    # request can cause while it still holds its locked rows
+    # Override replaces the full set, including clearing it when no tags are supplied
+    # The bound limits assignment statements while the selected rows are locked
     add_tag_ids: list[uuid.UUID] = Field(default=[], max_length=MAX_IMPORT_TAGS_PER_ROW)
+    override_tags: bool = Field(default=False, strict=True)
+
+    @field_validator("add_tag_ids")
+    @classmethod
+    def deduplicate_tag_ids(cls, value: list[uuid.UUID]) -> list[uuid.UUID]:
+        """Keep one assignment operation per tag without changing omitted fields"""
+        return list(dict.fromkeys(value))
 
     # Where a row's own account sits and what it records as the other side, once resolved against
     # its own resulting direction. Which of the two an unset field leaves alone is not fixed by name
@@ -274,9 +279,11 @@ class BulkUpdateTransactionsRequest(BaseModel):
         """
         sent = self.model_fields_set - {"transaction_ids"}
 
-        # An empty tag list adds no tag, so a request carrying only that changes nothing
+        # Empty additions and a disabled override are no-ops, but an enabled override clears tags
         if not self.add_tag_ids:
             sent -= {"add_tag_ids"}
+        if not self.override_tags:
+            sent -= {"override_tags"}
         if not sent:
             raise ValueError("A bulk edit must set at least one detail")
         return self

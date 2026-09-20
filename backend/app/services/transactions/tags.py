@@ -63,6 +63,18 @@ async def add_transaction_tag_assignments(
         )
 
 
+async def clear_transaction_tag_assignments(
+    db: AsyncSession,
+    transaction_ids: list[uuid.UUID],
+) -> None:
+    """Clear assignments for the locked selection after write access and replacement validation"""
+    if not transaction_ids:
+        return
+    await db.execute(
+        delete(TransactionTag).where(TransactionTag.transaction_id.in_(transaction_ids)),
+    )
+
+
 async def delete_transaction_tag_assignments(db: AsyncSession, transaction_id: uuid.UUID) -> None:
     """Delete every tag assignment attached to a transaction
 
