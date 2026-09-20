@@ -36,7 +36,7 @@ jobs:
             frontend:
               - 'frontend/**'
               - '.github/workflows/**'
-            # The browser suite runs inside the Docker job against the image it builds, so it
+            # The browser suite runs in the Docker workflow against the images it builds, so it
             # belongs to this area rather than to one of its own. Without it here, a change to
             # the suite is the one edit that merges without the suite having run
             docker:

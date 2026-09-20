@@ -13,7 +13,7 @@ env:
 
 jobs:
   build:
-    name: Build and test Docker image (${{ matrix.platform }})
+    name: Build Docker image (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
 
     # Each leg builds on a runner of its own architecture, so neither is emulated. One
@@ -28,7 +28,56 @@ jobs:
           - platform: arm64
             runner: ubuntu-24.04-arm
 
-    # Feed docker/compose.yml the built image tag and a throwaway database identity
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Docker build
+        uses: ./.github/actions/docker-build-setup
+        with:
+          registry-username: ${{ vars.DOCKERHUB_USERNAME }}
+          registry-token: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Export once per architecture so each device job tests the same image without rebuilding it
+      - name: Build image
+        uses: docker/build-push-action@v7
+        env:
+          # The build record artifact is unused here and would outlive the job that made it
+          DOCKER_BUILD_RECORD_UPLOAD: false
+        with:
+          context: .
+          file: ./docker/Dockerfile
+          platforms: linux/${{ matrix.platform }}
+          push: false
+          outputs: type=docker,dest=${{ runner.temp }}/lumina-image.tar
+          tags: ${{ env.IMAGE_REF }}
+          build-args: |
+            APP_VERSION=ci
+
+      - name: Share the built image with browser jobs
+        uses: actions/upload-artifact@v7
+        with:
+          name: browser-image-${{ matrix.platform }}
+          path: ${{ runner.temp }}/lumina-image.tar
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
+
+  browser:
+    name: Browser suite (${{ matrix.target.platform }}, ${{ matrix.project }})
+    needs: build
+    runs-on: ${{ matrix.target.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - platform: amd64
+            runner: ubuntu-latest
+          - platform: arm64
+            runner: ubuntu-24.04-arm
+        project: [desktop, tablet, phone]
+
+    # Every matrix job starts its own application and database on its runner
     env:
       APP_IMAGE_TAG: ci
       DB_HOST: postgres
@@ -41,27 +90,20 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7
 
-      - name: Set up Docker build
-        uses: ./.github/actions/docker-build-setup
+      - name: Download the native image
+        uses: actions/download-artifact@v8
         with:
-          registry-username: ${{ vars.DOCKERHUB_USERNAME }}
-          registry-token: ${{ secrets.DOCKERHUB_TOKEN }}
+          name: browser-image-${{ matrix.target.platform }}
+          path: ${{ runner.temp }}
 
-      # Load the image into the local daemon rather than pushing, so the checks below run the
-      # exact image this job just built without it leaving the runner
-      - name: Build image
-        uses: docker/build-push-action@v7
-        env:
-          # The build record artifact is unused here and would outlive the job that made it
-          DOCKER_BUILD_RECORD_UPLOAD: false
+      - name: Load the image
+        run: docker load --input "${RUNNER_TEMP}/lumina-image.tar"
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v4
         with:
-          context: .
-          file: ./docker/Dockerfile
-          push: false
-          load: true
-          tags: ${{ env.IMAGE_REF }}
-          build-args: |
-            APP_VERSION=ci
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Write the operator env file
         run: |
@@ -121,7 +163,7 @@ jobs:
         working-directory: e2e
         env:
           E2E_BASE_URL: http://localhost:8080
-        run: npm test
+        run: npm test -- --project=${{ matrix.project }} --workers=2
 
       # Gated on the suite rather than on the job, because a report only exists when the suite
       # itself ran. On an image that never boots the poll above fails first, and an upload
@@ -130,7 +172,7 @@ jobs:
         if: ${{ failure() && steps.browser-suite.outcome == 'failure' }}
         uses: actions/upload-artifact@v7
         with:
-          name: browser-suite-${{ matrix.platform }}
+          name: browser-suite-${{ matrix.target.platform }}-${{ matrix.project }}
           path: e2e/playwright-report
           retention-days: 7
 
