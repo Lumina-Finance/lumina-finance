@@ -22,6 +22,6 @@ export function getFilterOptionStyle(selected: boolean): CSSProperties {
  */
 export function getFilterOptionListClass(fillHeight: boolean): string {
   return fillHeight
-    ? 'min-h-0 flex-1 space-y-1 overflow-auto py-2'
+    ? 'min-h-12 flex-1 space-y-1 overflow-auto py-2'
     : 'max-h-56 space-y-1 overflow-auto py-2'
 }

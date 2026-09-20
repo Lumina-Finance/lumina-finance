@@ -55,7 +55,7 @@ export function TransactionFilterPanel({
       seedDraftFromFilters={draft.seedDraftFromFilters}
       clearAll={draft.clearAll}
     >
-      <FilterPanelBody draft={draft} fillHeight showAccountFilter={showAccountFilter} />
+      <FilterPanelBody draft={draft} showAccountFilter={showAccountFilter} />
     </FilterGlassPanel>
   )
 }
