@@ -4,9 +4,6 @@ import { availableParallelism } from 'node:os'
 import { TEST_TIMEZONE } from './support/api'
 import { BASE_URL } from './support/target'
 
-// Bound simultaneous browser activity against the shared application instance
-const MAX_BROWSER_WORKERS = 6
-
 // The three sizes the screenshot captures use, so the suite checks the layouts the captures
 // show. Copied by value from dev/demo/capture/shared.mjs rather than imported: that file is
 // JavaScript in the internal repository and this one is TypeScript in this one, so an import
@@ -61,8 +58,8 @@ export default defineConfig({
     launchOptions: { args: ['--enable-features=OverlayScrollbar'] },
   },
 
-  // Scale down on smaller runners while bounding load on the shared application instance
-  workers: Math.min(availableParallelism(), MAX_BROWSER_WORKERS),
+  // Leave one available CPU for the application and operating system
+  workers: Math.max(1, availableParallelism() - 1),
 
   projects: [
     {
