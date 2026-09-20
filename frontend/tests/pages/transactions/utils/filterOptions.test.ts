@@ -6,6 +6,7 @@ import type { Category } from '@/api/categories'
 import {
   getAccountOptions,
   getActiveFilterCount,
+  getActiveFacetCount,
   getCategoryOptions,
 } from '@/pages/transactions/utils/filterOptions'
 import type { TransactionListAccount } from '@/pages/transactions/types/transactionList'
@@ -37,6 +38,23 @@ function createAccount(overrides: Partial<TransactionListAccount>): TransactionL
 }
 
 describe('filter option helpers', () => {
+  it('counts restored category and date facets without opening the draft', () => {
+    expect(getActiveFacetCount({ category_id: ['food', 'travel'], from_date: '2026-06-01', to_date: '2026-06-30' }, true)).toBe(2)
+    expect(getActiveFacetCount({}, true)).toBe(0)
+  })
+
+  it('counts currency and zero-valued amount bounds as one facet', () => {
+    expect(getActiveFacetCount({ currency: 'CAD', min_amount: 0, max_amount: 100 }, true)).toBe(1)
+    expect(getActiveFacetCount({ min_amount: 0 }, true)).toBe(1)
+  })
+
+  it('excludes fixed account and currency scopes but retains applied bounds', () => {
+    const filters = { account_id: ['checking'], currency: 'CAD' }
+    expect(getActiveFacetCount(filters, false, 'CAD')).toBe(0)
+    expect(getActiveFacetCount({ ...filters, max_amount: 0 }, false, 'CAD')).toBe(1)
+    expect(getActiveFacetCount({ merchant_id: ['shop'], tag_id: ['tag'] }, true)).toBe(2)
+  })
+
   it('builds account options with an unnamed-account fallback', () => {
     expect(getAccountOptions([
       createAccount({ id: 'checking', name: 'Checking' }),

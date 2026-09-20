@@ -56,3 +56,19 @@ export function getActiveFilterCount(
     Boolean(filters.from_date || filters.to_date),
   ].filter(Boolean).length
 }
+
+/** Counts applied facets without draft state or loaded option and currency metadata */
+export function getActiveFacetCount(
+  filters: TransactionListFilters,
+  showAccountFilter: boolean,
+  lockedCurrency?: string,
+): number {
+  return [
+    showAccountFilter && Boolean(filters.account_id?.length),
+    Boolean(filters.category_id?.length),
+    Boolean(filters.merchant_id?.length),
+    Boolean(filters.tag_id?.length),
+    (!lockedCurrency && Boolean(filters.currency)) || filters.min_amount !== undefined || filters.max_amount !== undefined,
+    Boolean(filters.from_date || filters.to_date),
+  ].filter(Boolean).length
+}
