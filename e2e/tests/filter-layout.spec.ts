@@ -163,6 +163,13 @@ test('keeps long account and transaction selections reachable without crowding o
     await shortOption.click()
     await expect(shortOption).not.toBeChecked()
     await expect(panel.getByRole('group', { name: 'Selected filters', exact: true }).getByRole('button')).toHaveCount(10)
+    if (original.width >= 750) {
+      await panel.getByRole('button', { name: 'Clear all', exact: true }).scrollIntoViewIfNeeded()
+      await expect.poll(() => panel.evaluate((element) => element.lastElementChild!.firstElementChild!.scrollTop)).toBeGreaterThan(0)
+      await page.keyboard.press('Escape')
+      panel = await openFilters(page, domain)
+      await expect.poll(() => panel.evaluate((element) => element.lastElementChild!.firstElementChild!.scrollTop)).toBe(0)
+    }
     await panel.getByRole('button', { name: 'Clear all', exact: true }).click()
     await page.setViewportSize(original)
     panel = await openFilters(page, domain)

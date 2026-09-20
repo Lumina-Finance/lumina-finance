@@ -75,6 +75,7 @@ export function FilterGlassPanel({
   const wrapperRef = useRef<HTMLDivElement>(null)
   const headRef = useRef<HTMLButtonElement>(null)
   const headContentRef = useRef<HTMLSpanElement>(null)
+  const bodyViewportRef = useRef<HTMLDivElement>(null)
   const bodyContentRef = useRef<HTMLDivElement>(null)
   const shouldReduceMotion = useReducedMotion()
   const transition = shouldReduceMotion ? { duration: 0 } : FILTER_GLASS_SPRING
@@ -116,6 +117,9 @@ export function FilterGlassPanel({
   // viewport height back into its desired size
   useLayoutEffect(() => {
     if (!open) return undefined
+
+    // The body stays mounted while closed, but each new opening starts with the facet controls
+    if (bodyViewportRef.current) bodyViewportRef.current.scrollTop = 0
 
     // Scoped to this open cycle so reopening picks a direction fresh, while a scroll partway
     // through keeps the direction the panel is already open in
@@ -287,6 +291,7 @@ export function FilterGlassPanel({
         >
           {/* The whole body scrolls only once its natural height reaches the viewport limit */}
           <div
+            ref={bodyViewportRef}
             className="overflow-y-auto"
             style={{ height: placement.height }}
           >
