@@ -69,9 +69,7 @@ test('keeps long account and transaction selections reachable without crowding o
     })
     expect(institution.status()).toBe(201)
     const { id } = await institution.json() as { id: string }
-    const account = await createAccount(request, user, { name })
-    const linked = await request.patch(`${API_BASE_URL}/accounts/${account.id}`, { headers, data: { institution_id: id } })
-    expect(linked.status()).toBe(200)
+    await createAccount(request, user, { name, institutionId: id })
   }
   await logInViaApi(page, user)
 
