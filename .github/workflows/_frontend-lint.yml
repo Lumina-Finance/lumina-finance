@@ -1,6 +1,5 @@
 name: Frontend lint
 
-# Reusable step invoked by the pull request pipeline, it does not trigger on its own
 on:
   workflow_call:
 

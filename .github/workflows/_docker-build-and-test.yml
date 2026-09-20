@@ -1,6 +1,5 @@
 name: Docker build and browser suite
 
-# Reusable step invoked by the pull request pipeline, it does not trigger on its own
 on:
   workflow_call:
 
@@ -8,7 +7,7 @@ permissions:
   contents: read
 
 env:
-  # Fixed local tag the stack below reuses, it matches the image name in docker/compose.yml
+  # Must match the Compose app image when APP_IMAGE_TAG is ci
   IMAGE_REF: luminahq/lumina-finance:ci
 
 jobs:
@@ -16,9 +15,7 @@ jobs:
     name: Build Docker image (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
 
-    # Each leg builds on a runner of its own architecture, so neither is emulated. One
-    # architecture failing must not cancel the other, since knowing whether the break is
-    # architecture specific is the point of running both
+    # Build natively and retain results from both architectures if either fails
     strategy:
       fail-fast: false
       matrix:
@@ -42,7 +39,7 @@ jobs:
       - name: Build image
         uses: docker/build-push-action@v7
         env:
-          # The build record artifact is unused here and would outlive the job that made it
+          # Only the image artifact is needed by downstream jobs
           DOCKER_BUILD_RECORD_UPLOAD: false
         with:
           context: .
@@ -118,9 +115,7 @@ jobs:
       - name: Start the stack
         run: docker compose -f docker/compose.yml up -d
 
-      # Installed while the container migrates, applies row-level security and seeds its
-      # currencies and categories, so the poll below usually passes on its first attempt
-      # rather than waiting out a boot that could have been overlapped
+      # Overlap browser setup with application migrations and seeding
       - name: Set up Node
         uses: actions/setup-node@v7
         with:
@@ -132,9 +127,7 @@ jobs:
         working-directory: e2e
         run: npm ci --ignore-scripts
 
-      # Nothing else type-checks this package: there is no root tsconfig, and the frontend's
-      # covers its own source and tests alone. It runs here rather than beside the suite so a
-      # type error is reported before the browser download and the health poll it does not need
+      # Browser tests have a separate TypeScript project from the frontend
       - name: Type-check the browser suite
         working-directory: e2e
         run: npm run typecheck
@@ -143,7 +136,6 @@ jobs:
         working-directory: e2e
         run: npx playwright install --with-deps chromium
 
-      # Caddy serves the backend health route under /api, poll until the app reports ready
       - name: Ping the health endpoint
         run: |
           for attempt in $(seq 1 30); do
@@ -165,9 +157,7 @@ jobs:
           E2E_BASE_URL: http://localhost:8080
         run: npm test -- --project=${{ matrix.project }} --workers=2
 
-      # Gated on the suite rather than on the job, because a report only exists when the suite
-      # itself ran. On an image that never boots the poll above fails first, and an upload
-      # gated on the job would then find nothing and pass with a warning
+      # Setup failures do not produce a browser report
       - name: Keep the report from a failed run
         if: ${{ failure() && steps.browser-suite.outcome == 'failure' }}
         uses: actions/upload-artifact@v7

@@ -26,27 +26,21 @@ jobs:
         uses: dorny/paths-filter@v4
         with:
           filters: |
-            # Every area watches the workflow files as well, so that a change to the
-            # pipeline runs the pipeline, which is otherwise the one edit that merges
-            # without any branch having exercised it. The composite action is used by
-            # the Docker jobs alone, which is why the other two do not name it
+            # Workflow edits exercise the pipeline they change
             backend:
               - 'backend/**'
               - '.github/workflows/**'
             frontend:
               - 'frontend/**'
               - '.github/workflows/**'
-            # The browser suite runs in the Docker workflow against the images it builds, so it
-            # belongs to this area rather than to one of its own. Without it here, a change to
-            # the suite is the one edit that merges without the suite having run
+            # Browser tests and composite actions are exercised by the Docker workflow
             docker:
               - 'docker/**'
               - 'e2e/**'
               - '.github/workflows/**'
               - '.github/actions/**'
 
-            # A lockfile change can shift transitive dependencies that affect the
-            # other side or the built image, so it forces the whole pipeline to run
+            # Dependency changes exercise the full pipeline
             lockfiles:
               - 'backend/uv.lock'
               - 'frontend/package-lock.json'
@@ -76,8 +70,7 @@ jobs:
     if: ${{ needs.changes.outputs.frontend == 'true' || needs.changes.outputs.lockfiles == 'true' }}
     uses: ./.github/workflows/_frontend-build.yml
 
-  # Build whenever backend, frontend, or docker changed, as long as no upstream
-  # branch failed, a skipped branch means that side was untouched and is fine
+  # Allow checks skipped by path filters, but block failed checks and cancelled runs
   docker-build:
     needs: [changes, backend-lint, backend-test, frontend-lint, frontend-test, frontend-build]
     if: >-
@@ -94,10 +87,8 @@ jobs:
     uses: ./.github/workflows/_docker-build-and-test.yml
     secrets: inherit
 
-  # Single required status check, it fails if any branch failed or was cancelled
-  # while treating path skipped branches as a pass. The name below is the exact
-  # context the branch ruleset requires, so renaming it leaves every pull request
-  # waiting forever on a check that no longer reports under that name
+  # Keep this name stable for the repository's required status check
+  # Jobs skipped by path filters are allowed, but failures and cancellations block merging
   pr-gate:
     name: PR gate
     needs:

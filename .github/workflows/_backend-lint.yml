@@ -1,6 +1,5 @@
 name: Backend lint
 
-# Reusable step invoked by the pull request pipeline, it does not trigger on its own
 on:
   workflow_call:
 
@@ -24,7 +23,6 @@ jobs:
         with:
           enable-cache: true
 
-      # Linting only needs ruff, so run it standalone instead of syncing the whole
-      # project venv, leaving the version unpinned tracks the latest ruff used locally
+      # Run Ruff without installing backend dependencies
       - name: Run ruff
         run: uvx ruff check .

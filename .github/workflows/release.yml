@@ -15,9 +15,7 @@ jobs:
     name: Build Docker image (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
 
-    # Each leg builds on a runner of its own architecture, so neither is emulated. One
-    # architecture failing leaves the other's digest pushed but untagged, and the merge
-    # job below is skipped, so a failed release publishes no tags at all
+    # Build natively and publish tags only after both architectures succeed
     strategy:
       fail-fast: false
       matrix:
@@ -37,16 +35,13 @@ jobs:
           registry-username: ${{ vars.DOCKERHUB_USERNAME }}
           registry-token: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # Only the labels are wanted here, they are stamped onto each architecture as it is
-      # built. The tags belong to the manifest list and are applied in the merge job
+      # Apply labels to each image and tags to the combined manifest
       - name: Extract Docker metadata
         id: meta
         uses: docker/metadata-action@v6
         with:
           images: ${{ env.IMAGE_NAME }}
 
-      # Push untagged and report the digest, so the merge job can gather one digest per
-      # architecture into a single tagged manifest list
       - name: Build and push image by digest
         id: build
         uses: docker/build-push-action@v7
@@ -58,8 +53,7 @@ jobs:
           build-args: |
             APP_VERSION=${{ github.event.release.tag_name }}
 
-      # The digest is carried as a filename on an empty file, so the merge job learns every
-      # architecture's digest by listing the directory
+      # Artifact filenames carry the digests consumed by manifest assembly
       - name: Record the digest
         env:
           DIGEST: ${{ steps.build.outputs.digest }}
@@ -81,7 +75,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # The composite action below is read from the repository, so it has to be checked out
       - name: Check out repository
         uses: actions/checkout@v7
 
@@ -108,8 +101,7 @@ jobs:
             type=semver,pattern={{major}}.{{minor}},value=${{ github.event.release.tag_name }}
             type=semver,pattern={{major}},value=${{ github.event.release.tag_name }}
 
-      # Point every release tag at one manifest list holding both architecture digests,
-      # which is what makes a client pull the image matching its own hardware
+      # All release tags reference both architecture digests
       - name: Assemble the manifest list
         working-directory: /tmp/digests
         run: |
