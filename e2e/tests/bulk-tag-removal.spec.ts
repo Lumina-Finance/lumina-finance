@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 import { createAccount, findReferenceId, signUpUser, todayInTestTimezone } from '../support/api'
-import { openPage, logIn, waitForPageReady } from '../support/app'
+import { openPage, logInViaApi, waitForPageReady } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
 for (const mode of ['add', 'replace', 'clear'] as const) {
@@ -56,7 +56,7 @@ for (const mode of ['add', 'replace', 'clear'] as const) {
       return transaction.tags.map((tag) => tag.name).sort()
     }
 
-    await logIn(page, user)
+    await logInViaApi(page, user)
     await openPage(page, '/transactions')
     await expect(page.getByTestId(/^transaction-row-/)).toHaveCount(6)
     await expect(page.getByTestId(`transaction-row-${adjustment!.id}`)).toBeVisible()

@@ -1,6 +1,6 @@
 import { expect, test, type APIRequestContext, type Locator, type Page, type Route } from '@playwright/test'
 import { createAccount, findReferenceId, signUpUser, TEST_CURRENCY, type TestUser } from '../support/api'
-import { openPage, expectSignedIn, logIn, waitForPageReady } from '../support/app'
+import { openPage, logInViaApi, waitForPageReady } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
 const NOW = new Date('2026-04-15T16:00:00Z')
@@ -47,7 +47,7 @@ async function createDrillFixture(request: APIRequestContext) {
   return { user, categories, selected, otherIds, readOnlyId, account, allIds, unfilteredIds }
 }
 
-/** Signs in once and fixes Date without replacing performance, animation frames, or the native animation timeline */
+/** Starts a real session and fixes Date without replacing timers or the native animation timeline */
 async function start(page: Page, user: TestUser) {
   await page.addInitScript(({ now }) => {
     const NativeDate = Date
@@ -64,8 +64,7 @@ async function start(page: Page, user: TestUser) {
       },
     })
   }, { now: NOW.getTime() })
-  await logIn(page, user)
-  await expectSignedIn(page)
+  await logInViaApi(page, user)
 }
 
 /** Waits for actual rendered transaction identities instead of treating an old loading snapshot as final */

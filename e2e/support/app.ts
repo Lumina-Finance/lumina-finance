@@ -5,7 +5,7 @@
 import { expect, type Locator, type Page } from '@playwright/test'
 
 import type { TestUser } from './api'
-import { API_BASE_URL } from './target'
+import { API_BASE_URL, BASE_URL } from './target'
 
 // The app's own two breakpoints. Above the first the navigation is a sidebar and below it a
 // menu behind a button. Above the second the list toolbars show their controls inline, and
@@ -49,6 +49,23 @@ export async function logIn(page: Page, user: TestUser): Promise<void> {
   expect((await authenticated).status()).toBe(200)
   await page.waitForURL((url) => !url.pathname.startsWith('/login'))
   await waitForPageReady(page)
+}
+
+/** Start a separate real browser session so its rotation cannot invalidate API fixture credentials */
+export async function logInViaApi(page: Page, user: TestUser): Promise<void> {
+  const response = await page.request.post(`${API_BASE_URL}/auth/login`, {
+    data: { email: user.email, password: user.password },
+  })
+  expect(response.status()).toBe(200)
+  const body = await response.json() as { access_token?: string }
+  expect(body.access_token).toEqual(expect.any(String))
+  const cookies = await page.context().cookies(`${API_BASE_URL}/auth/refresh`)
+  expect(cookies.some((cookie) => cookie.name === 'refresh_token')).toBe(true)
+
+  // The session flag makes AuthProvider exchange the real HttpOnly cookie through /auth/refresh
+  await page.addInitScript((origin) => {
+    if (location.origin === origin) localStorage.setItem('lumina:has_session', '1')
+  }, new URL(BASE_URL).origin)
 }
 
 /** Wait for a new document or an identified destination route to finish its entrance */

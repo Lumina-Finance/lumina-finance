@@ -1,12 +1,12 @@
 import { expect, test } from '@playwright/test'
 
 import { createAccount, createTransaction, signUpUser } from '../support/api'
-import { openPage, logIn, waitForPageReady } from '../support/app'
+import { openPage, logInViaApi, waitForPageReady } from '../support/app'
 
 test('skips empty summary samples and restores genuine transaction edit actions', async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Summary accessibility account' })
-  await logIn(page, user)
+  await logInViaApi(page, user)
   await openPage(page, '/transactions')
   const empty = page.getByText(/^No transaction data for /)
   await expect(empty).toBeVisible()

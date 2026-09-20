@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 import { createAccount, signUpUser } from '../support/api'
-import { openPage, expectSignedIn, logIn } from '../support/app'
+import { openPage, logInViaApi } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
 const DATE_CASES = [
@@ -30,8 +30,7 @@ for (const { profileZone, browserZone, dates } of DATE_CASES) {
       const zone = await request.patch(`${API_BASE_URL}/me`, { headers, data: { tz: profileZone } })
       expect(zone.status()).toBe(200)
       const account = await createAccount(request, user, { name: 'Timestamp import account' })
-      await logIn(page, user)
-      await expectSignedIn(page)
+      await logInViaApi(page, user)
       await openPage(page, `/settings/imports?account=${account.id}`)
       await expect(page.getByRole('heading', { name: 'Import Transactions', exact: true })).toBeVisible()
       const upload = page.locator('input[type="file"][accept=".csv,text/csv"]')

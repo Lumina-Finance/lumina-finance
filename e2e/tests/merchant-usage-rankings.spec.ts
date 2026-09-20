@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 import { createAccount, signUpUser } from '../support/api'
-import { chooseFromDropdown, expectSignedIn, logIn, openModal } from '../support/app'
+import { chooseFromDropdown, expectSignedIn, openModal, openPage, logInViaApi } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
 test('refreshes merchant usage order after creating and deleting an expense', async ({ page, request }) => {
@@ -17,7 +17,8 @@ test('refreshes merchant usage order after creating and deleting an expense', as
     expect(response.status()).toBe(201)
     if (name === zulu) zuluId = (await response.json() as { id: string }).id
   }
-  await logIn(page, user)
+  await logInViaApi(page, user)
+  await openPage(page, '/accounts')
   await expectSignedIn(page)
 
   /** Navigate through the responsive app links, preserving the live query cache */

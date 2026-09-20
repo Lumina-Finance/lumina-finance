@@ -7,7 +7,7 @@ import {
   createTransaction,
   signUpUser,
 } from '../support/api'
-import { openPage, logIn, openModal } from '../support/app'
+import { openPage, logInViaApi, openModal } from '../support/app'
 import { expectPendingAction, whileApiRequestHeld } from '../support/selectors'
 import { API_BASE_URL } from '../support/target'
 
@@ -62,7 +62,7 @@ test('preserves seeded budget history across a month boundary', async ({ page, r
     })
   }
 
-  await logIn(page, user)
+  await logInViaApi(page, user)
   for (const date of [periodEnd, nextMonth]) {
     // Date changes while timers continue normally, and navigation remounts the backfill hook
     await page.clock.setFixedTime(date)
@@ -79,7 +79,7 @@ test('preserves seeded budget history across a month boundary', async ({ page, r
 
 test('keeps budget actions named during creation and editing', async ({ page, request }) => {
   const user = await signUpUser(request)
-  await logIn(page, user)
+  await logInViaApi(page, user)
   await openPage(page, '/budgets')
   const name = 'Selectors budget'
   const dialog = await openModal(page, ['New Budget'], 'Add Budget')

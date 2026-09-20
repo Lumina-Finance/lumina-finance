@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 import { createAccount, signUpUser } from '../support/api'
-import { openPage, logIn, openModal } from '../support/app'
+import { openPage, logInViaApi, openModal } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
 test('corrects the highlighted institution by keyboard and the original inline action', async ({ page, request }) => {
@@ -19,7 +19,7 @@ test('corrects the highlighted institution by keyboard and the original inline a
   })
   expect(linked.status()).toBe(200)
 
-  await logIn(page, user)
+  await logInViaApi(page, user)
   await openPage(page, '/accounts')
   const create = await openModal(page, ['Add Account', 'Add account'], 'Add Account')
   const picker = create.getByRole('combobox', { name: 'Institution', exact: true })

@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { createAccount, signUpUser, TEST_CURRENCY } from '../support/api'
-import { openPage, expectSignedIn, logIn } from '../support/app'
+import { openPage, logInViaApi } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
 /** Establishes the compact tablet sidebar through its real control before measuring filter layout */
@@ -73,8 +73,7 @@ test('keeps long account and transaction selections reachable without crowding o
     const linked = await request.patch(`${API_BASE_URL}/accounts/${account.id}`, { headers, data: { institution_id: id } })
     expect(linked.status()).toBe(200)
   }
-  await logIn(page, user)
-  await expectSignedIn(page)
+  await logInViaApi(page, user)
 
   for (const domain of ['Account', 'Transaction'] as const) {
     await openPage(page, domain === 'Account' ? '/accounts' : '/transactions')
@@ -191,8 +190,7 @@ test('keeps long account and transaction selections reachable without crowding o
 test('retains Tags explanations and invalid amount and date blocking', async ({ page, request }) => {
   const user = await signUpUser(request)
   await createAccount(request, user, { name: 'Validation account' })
-  await logIn(page, user)
-  await expectSignedIn(page)
+  await logInViaApi(page, user)
   await openPage(page, '/transactions')
   const panel = await openFilters(page, 'Transaction')
   await selectFacet(page, panel, 'Tags')

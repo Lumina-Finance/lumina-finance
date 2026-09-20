@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 import { createAccount, TEST_PASSWORD, TEST_TIMEZONE, type TestUser } from '../support/api'
-import { openPage, expectSignedIn, logIn } from '../support/app'
+import { openPage, logInViaApi } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
 const CASES = [
@@ -22,8 +22,7 @@ for (const example of CASES) {
     const auth = await signup.json() as { access_token: string }
     const user: TestUser = { email, password: TEST_PASSWORD, firstName: 'Exact', accessToken: auth.access_token }
     const account = await createAccount(request, user, { name: 'Exact import account', currency: example.currency })
-    await logIn(page, user)
-    await expectSignedIn(page)
+    await logInViaApi(page, user)
     await openPage(page, `/settings/imports?account=${account.id}`)
     await expect(page.getByRole('heading', { name: 'Import Transactions', exact: true })).toBeVisible()
 

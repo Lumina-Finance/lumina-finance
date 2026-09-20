@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 import { createAccount, createTransaction, signUpUser } from '../support/api'
-import { openPage, chooseFromDropdown, logIn, openModal } from '../support/app'
+import { openPage, chooseFromDropdown, logInViaApi, openModal } from '../support/app'
 import { expectPendingAction, expectTransactionRow, whileApiRequestHeld } from '../support/selectors'
 
 const ACCOUNT_NAME = 'Everyday Chequing'
@@ -9,7 +9,7 @@ const ACCOUNT_NAME = 'Everyday Chequing'
 test('starts a new user with no accounts and creates one through the modal', async ({ page, request }) => {
   const user = await signUpUser(request)
 
-  await logIn(page, user)
+  await logInViaApi(page, user)
   await openPage(page, '/accounts')
 
   // Both halves are needed before the empty state means anything. The list is given no error to
@@ -38,7 +38,7 @@ test('records an expense through the modal and shows it as money out', async ({ 
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: ACCOUNT_NAME })
 
-  await logIn(page, user)
+  await logInViaApi(page, user)
   await openPage(page, '/transactions')
 
   const dialog = await openModal(page, ['Add Transaction', 'Add transaction'], 'Add Transaction')
@@ -75,7 +75,7 @@ test('shows a transaction seeded over the API', async ({ page, request }) => {
     amount: -4250,
   })
 
-  await logIn(page, user)
+  await logInViaApi(page, user)
   await openPage(page, '/transactions')
 
   await expectTransactionRow(page, id, '-$42.50')
@@ -84,7 +84,7 @@ test('shows a transaction seeded over the API', async ({ page, request }) => {
 test('keeps the account save action named while an edit is pending', async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Account before edit' })
-  await logIn(page, user)
+  await logInViaApi(page, user)
   await openPage(page, `/accounts/${account.id}`)
   await page.getByRole('button', { name: 'Edit account', exact: true }).click()
   const dialog = page.getByRole('dialog', { name: 'Edit Account', exact: true })
