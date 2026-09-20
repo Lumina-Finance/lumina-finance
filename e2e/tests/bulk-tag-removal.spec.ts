@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 import { createAccount, findReferenceId, signUpUser, todayInTestTimezone } from '../support/api'
-import { logIn } from '../support/app'
+import { openPage, logIn, waitForPageReady } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
 for (const mode of ['add', 'replace', 'clear'] as const) {
@@ -57,7 +57,7 @@ for (const mode of ['add', 'replace', 'clear'] as const) {
     }
 
     await logIn(page, user)
-    await page.goto('/transactions')
+    await openPage(page, '/transactions')
     await expect(page.getByTestId(/^transaction-row-/)).toHaveCount(6)
     await expect(page.getByTestId(`transaction-row-${adjustment!.id}`)).toBeVisible()
     await page.getByRole('button', { name: 'Select transactions', exact: true }).click()
@@ -142,6 +142,7 @@ for (const mode of ['add', 'replace', 'clear'] as const) {
     }, [family, work, absent])).toEqual(expectedNames.map((names) => names.map((name) => tags[name]).sort()))
 
     await page.reload()
+    await waitForPageReady(page)
     await expect(page.getByTestId(/^transaction-row-/)).toHaveCount(6)
     for (const [index, id] of [family, work, absent].entries()) {
       expect(await readTags(id)).toEqual(expectedNames[index])

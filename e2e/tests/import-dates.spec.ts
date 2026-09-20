@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 import { createAccount, signUpUser } from '../support/api'
-import { expectSignedIn, logIn } from '../support/app'
+import { openPage, expectSignedIn, logIn } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
 const DATE_CASES = [
@@ -32,7 +32,7 @@ for (const { profileZone, browserZone, dates } of DATE_CASES) {
       const account = await createAccount(request, user, { name: 'Timestamp import account' })
       await logIn(page, user)
       await expectSignedIn(page)
-      await page.goto(`/settings/imports?account=${account.id}`)
+      await openPage(page, `/settings/imports?account=${account.id}`)
       await expect(page.getByRole('heading', { name: 'Import Transactions', exact: true })).toBeVisible()
       const upload = page.locator('input[type="file"][accept=".csv,text/csv"]')
       await expect(upload).toBeEnabled()
@@ -103,7 +103,7 @@ for (const { profileZone, browserZone, dates } of DATE_CASES) {
       expect(transactions.map((row) => row.amount)).toEqual([-1234, -2345, -3456, -4567, -5678])
       expect(transactions.every((row) => row.currency === 'CAD')).toBe(true)
 
-      await page.goto(`/settings/imports?account=${account.id}`)
+      await openPage(page, `/settings/imports?account=${account.id}`)
       await expect(upload).toBeEnabled()
       await upload.setInputFiles({
         name: 'invalid-timestamp.csv',

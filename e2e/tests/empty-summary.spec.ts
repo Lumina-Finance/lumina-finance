@@ -1,13 +1,13 @@
 import { expect, test } from '@playwright/test'
 
 import { createAccount, createTransaction, signUpUser } from '../support/api'
-import { logIn } from '../support/app'
+import { openPage, logIn, waitForPageReady } from '../support/app'
 
 test('skips empty summary samples and restores genuine transaction edit actions', async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Summary accessibility account' })
   await logIn(page, user)
-  await page.goto('/transactions')
+  await openPage(page, '/transactions')
   const empty = page.getByText(/^No transaction data for /)
   await expect(empty).toBeVisible()
   const band = empty.locator('xpath=ancestor::section[1]')
@@ -43,6 +43,7 @@ test('skips empty summary samples and restores genuine transaction edit actions'
     accountId: account.id, categoryName: 'Groceries', amount: -4250,
   })
   await page.reload()
+  await waitForPageReady(page)
   await expect(empty).toBeHidden()
   const edit = page.getByRole('button', { name: /^Edit transaction:/ })
   await expect(edit).toHaveCount(1)

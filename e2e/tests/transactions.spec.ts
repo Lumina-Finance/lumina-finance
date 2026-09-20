@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 import { createAccount, createTransaction, signUpUser } from '../support/api'
-import { chooseFromDropdown, filterByCategory, logIn, openModal } from '../support/app'
+import { openPage, chooseFromDropdown, filterByCategory, logIn, openModal } from '../support/app'
 import { expectPendingAction, expectTransactionRow, whileApiRequestHeld } from '../support/selectors'
 
 test('filters the list down to one category', async ({ page, request }) => {
@@ -18,7 +18,7 @@ test('filters the list down to one category', async ({ page, request }) => {
   }
 
   await logIn(page, user)
-  await page.goto('/transactions')
+  await openPage(page, '/transactions')
 
   const groceries = ids.slice(0, 2).map((id) => page.getByTestId(`transaction-row-${id}`))
   const dining = page.getByTestId(`transaction-row-${ids[2]}`)
@@ -52,7 +52,7 @@ test('keeps transaction account controls identifiable as transfer labels change'
   await createAccount(request, user, { name: 'Transfer source' })
   await createAccount(request, user, { name: 'Transfer destination' })
   await logIn(page, user)
-  await page.goto('/transactions')
+  await openPage(page, '/transactions')
   const dialog = await openModal(page, ['Add Transaction', 'Add transaction'], 'Add Transaction')
   const account = dialog.getByTestId('transaction-account')
   const counterparty = dialog.getByTestId('transaction-counterparty-account')
@@ -84,7 +84,7 @@ test('preserves transaction action names through save and delete confirmation', 
     accountId: account.id, categoryName: 'Groceries', amount: -4250,
   })
   await logIn(page, user)
-  await page.goto('/transactions')
+  await openPage(page, '/transactions')
   await expectTransactionRow(page, id, '-$42.50')
   await page.getByTestId(`transaction-row-${id}`).click()
   const dialog = page.getByRole('dialog', { name: 'Edit Transaction', exact: true })

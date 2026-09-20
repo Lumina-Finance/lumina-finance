@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { createAccount, signUpUser, TEST_CURRENCY } from '../support/api'
-import { expectSignedIn, logIn } from '../support/app'
+import { openPage, expectSignedIn, logIn } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
 /** Establishes the compact tablet sidebar through its real control before measuring filter layout */
@@ -77,7 +77,7 @@ test('keeps long account and transaction selections reachable without crowding o
   await expectSignedIn(page)
 
   for (const domain of ['Account', 'Transaction'] as const) {
-    await page.goto(domain === 'Account' ? '/accounts' : '/transactions')
+    await openPage(page, domain === 'Account' ? '/accounts' : '/transactions')
     let panel = await openFilters(page, domain)
     await expect(panel.getByRole('group', { name: 'Selected filters', exact: true })).toHaveCount(0)
     await expect(panel.getByText('No filters applied', { exact: true })).toBeVisible()
@@ -183,7 +183,7 @@ test('retains Tags explanations and invalid amount and date blocking', async ({ 
   await createAccount(request, user, { name: 'Validation account' })
   await logIn(page, user)
   await expectSignedIn(page)
-  await page.goto('/transactions')
+  await openPage(page, '/transactions')
   const panel = await openFilters(page, 'Transaction')
   await selectFacet(page, panel, 'Tags')
   await expect(panel.getByText('Match transactions with all selected tags', { exact: true })).toBeVisible()

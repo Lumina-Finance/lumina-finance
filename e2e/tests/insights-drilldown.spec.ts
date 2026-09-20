@@ -1,6 +1,6 @@
 import { expect, test, type APIRequestContext, type Locator, type Page, type Route } from '@playwright/test'
 import { createAccount, findReferenceId, signUpUser, TEST_CURRENCY, type TestUser } from '../support/api'
-import { expectSignedIn, logIn } from '../support/app'
+import { openPage, expectSignedIn, logIn, waitForPageReady } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
 const NOW = new Date('2026-04-15T16:00:00Z')
@@ -70,6 +70,9 @@ async function start(page: Page, user: TestUser) {
 
 /** Waits for actual rendered transaction identities instead of treating an old loading snapshot as final */
 async function expectRows(page: Page, ids: string[]) {
+  // A history change updates the URL before the outgoing route becomes busy
+  await page.getByRole('main').getByRole('heading', { name: 'Transactions', exact: true }).waitFor()
+  await waitForPageReady(page)
   await expect.poll(() => page.getByTestId(/^transaction-row-/).evaluateAll((rows) => rows.map((row) => row.getAttribute('data-testid')!.replace('transaction-row-', '')).sort())).toEqual([...ids].sort())
 }
 
@@ -81,7 +84,8 @@ function breakdown(page: Page) {
 /** Brings the lazy-loaded card into view so its real visibility-gated query can run */
 async function showBreakdown(page: Page) {
   const card = breakdown(page)
-  await expect(card).toBeVisible()
+  await card.waitFor({ state: 'visible' })
+  await waitForPageReady(page)
   await card.scrollIntoViewIfNeeded()
   return card
 }
@@ -203,7 +207,7 @@ test('opens slice transactions with inclusive dates and preserves refresh, filte
   const fixture = await createDrillFixture(request)
   await observeInitialSector(page, `View ${fixture.categories[0].name} transactions`)
   await start(page, fixture.user)
-  await page.goto('/insights')
+  await openPage(page, '/insights')
   const card = await showBreakdown(page)
   const slice = card.getByRole('button', { name: `View ${fixture.categories[0].name} transactions`, exact: true })
   await expectSectorReady(slice)
@@ -251,7 +255,7 @@ test('validates initial URL filters and keeps local-only changes out of address 
     if (req.method() === 'GET' && url.origin === api.origin && url.pathname === api.pathname) listQueries.push(url.searchParams)
   })
   const id = fixture.categories[0].id
-  await page.goto(`/transactions?category_id=junk&category_id=${id}&category_id=${id.toUpperCase()}&from_date=2026-02-30&to_date=${TO}&context=one&context=two`)
+  await openPage(page, `/transactions?category_id=junk&category_id=${id}&category_id=${id.toUpperCase()}&from_date=2026-02-30&to_date=${TO}&context=one&context=two`)
   await expectRows(page, [...fixture.selected, fixture.allIds[3]])
   expect(listQueries.length).toBeGreaterThan(0)
   expect(listQueries[0].getAll('category_id')).toEqual([id])
@@ -276,14 +280,14 @@ test('validates initial URL filters and keeps local-only changes out of address 
   await panel.getByRole('button', { name: 'Clear all', exact: true }).click()
   await expect.poll(() => Array.from(new URL(page.url()).searchParams)).toEqual([['context', 'one'], ['context', 'two']])
   await expectRows(page, fixture.unfilteredIds)
-  await page.goto(`/transactions?category_id=${id}&from_date=${TO}&to_date=${FROM}`)
+  await openPage(page, `/transactions?category_id=${id}&from_date=${TO}&to_date=${FROM}`)
   await expectRows(page, [...fixture.selected, fixture.allIds[3], fixture.allIds[4]])
 })
 
 test('allows keyboard access beyond the legend and retains the displayed range during a pending change', async ({ page, request }) => {
   const fixture = await createDrillFixture(request)
   await start(page, fixture.user)
-  await page.goto('/insights')
+  await openPage(page, '/insights')
   let card = await showBreakdown(page)
   const beyondLegend = card.getByRole('button', { name: `View ${fixture.categories[5].name} transactions`, exact: true })
   await expectSectorReady(beyondLegend)

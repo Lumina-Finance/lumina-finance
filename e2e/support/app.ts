@@ -5,12 +5,7 @@
 import { expect, type Locator, type Page } from '@playwright/test'
 
 import type { TestUser } from './api'
-
-// Covers a cold API call against a container that has just started
-const CONTENT_TIMEOUT_MS = 20_000
-
-// How long one attempt at opening a modal is given before the click is made again
-const MODAL_ATTEMPT_MS = 3_000
+import { API_BASE_URL } from './target'
 
 // The app's own two breakpoints. Above the first the navigation is a sidebar and below it a
 // menu behind a button. Above the second the list toolbars show their controls inline, and
@@ -36,8 +31,7 @@ async function isAtLeast(page: Page, widthPx: number): Promise<boolean> {
 /**
  * Sign in through the login form and wait until the app leaves the login page.
  *
- * Leaving the page is all this waits for. Whether the page it lands on has its data is for
- * the spec to assert, since there is no signal in the app that would answer it generally.
+ * Waits for the response and route transition separately from assertions on page data
  *
  * @param page - Page to drive, at any address in the app
  * @param user - Credentials to sign in with
@@ -49,8 +43,23 @@ export async function logIn(page: Page, user: TestUser): Promise<void> {
   // Exact, or it also matches the "Confirm password" field the signup form carries
   await page.getByLabel('Password', { exact: true }).fill(user.password)
 
+  const authenticated = page.waitForResponse((response) =>
+    response.url() === `${API_BASE_URL}/auth/login` && response.request().method() === 'POST')
   await page.getByRole('button', { name: 'Log in' }).click()
-  await page.waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: CONTENT_TIMEOUT_MS })
+  expect((await authenticated).status()).toBe(200)
+  await page.waitForURL((url) => !url.pathname.startsWith('/login'))
+  await waitForPageReady(page)
+}
+
+/** Wait for a new document or an identified destination route to finish its entrance */
+export async function waitForPageReady(page: Page): Promise<void> {
+  await page.locator('#app-page-content[aria-busy="false"]').waitFor({ state: 'visible' })
+}
+
+/** Navigate to an authenticated page and wait for its actual route readiness signal */
+export async function openPage(page: Page, url: string): Promise<void> {
+  await page.goto(url)
+  await waitForPageReady(page)
 }
 
 /**
@@ -63,6 +72,7 @@ export async function logIn(page: Page, user: TestUser): Promise<void> {
  * @param page - Page to assert on
  */
 export async function expectSignedIn(page: Page): Promise<void> {
+  await waitForPageReady(page)
   const signedIn = (await isAtLeast(page, NAVIGATION_BREAKPOINT_PX))
     ? page.getByRole('link', { name: 'Accounts' })
     : page.getByRole('button', { name: 'Open navigation menu' })
@@ -101,10 +111,8 @@ export async function filterByCategory(page: Page, categoryName: string): Promis
 /**
  * Open a modal from a toolbar button, and answer with the dialog.
  *
- * The create buttons do nothing but raise a toast until the currency list has arrived, so a
- * single click against a page that has just loaded opens nothing, and the wait that follows
- * blames the modal for a cause that sits in a request. Clicking again until the dialog appears
- * is what makes a spec independent of when that request settles.
+ * The authenticated route waits for currencies before becoming ready, so the opener can be
+ * clicked once after the route finishes loading
  *
  * @param page - Page showing the toolbar
  * @param buttonNames - Accessible names of the button that opens the modal, one per toolbar,
@@ -113,28 +121,21 @@ export async function filterByCategory(page: Page, categoryName: string): Promis
  * @returns The dialog, to scope every query inside it
  */
 export async function openModal(page: Page, buttonNames: string[], dialogName: string): Promise<Locator> {
+  await waitForPageReady(page)
   const dialog = page.getByRole('dialog', { name: dialogName })
 
   // Only one toolbar is ever displayed, so only one of these names is in the accessibility
   // tree and the pair resolves to a single control at any width
   //
   // Anything inside an open dialog is excluded, because the transaction modal's own submit
-  // button carries the same name as the toolbar button that opened it. Without this the two
-  // match together in the moment between the check below and the click
+  // button carries the same name as the toolbar button that opened it
   const outsideDialogs = page.locator(':not([role="dialog"] *)')
   const opener = buttonNames
     .map((name) => page.getByRole('button', { name, exact: true }).and(outsideDialogs))
     .reduce((all, one) => all.or(one))
 
-  await expect(async () => {
-    if (!(await dialog.isVisible())) {
-      // Bounded, because a modal that opens between the check above and this click puts its
-      // backdrop over the button. Without a timeout that click waits out the whole test rather
-      // than failing and letting the next attempt see the dialog is already open
-      await opener.click({ timeout: MODAL_ATTEMPT_MS })
-    }
-    await expect(dialog).toBeVisible({ timeout: MODAL_ATTEMPT_MS })
-  }).toPass({ timeout: CONTENT_TIMEOUT_MS })
+  await opener.click()
+  await expect(dialog).toBeVisible()
 
   return dialog
 }

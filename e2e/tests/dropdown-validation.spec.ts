@@ -1,12 +1,12 @@
 import { expect, test } from '@playwright/test'
 
 import { signUpUser } from '../support/api'
-import { chooseFromDropdown, logIn, openModal } from '../support/app'
+import { openPage, chooseFromDropdown, logIn, openModal } from '../support/app'
 
 test('exposes and clears an invalid dropdown with its inline validation alert', async ({ page, request }) => {
   const user = await signUpUser(request)
   await logIn(page, user)
-  await page.goto('/accounts')
+  await openPage(page, '/accounts')
   const dialog = await openModal(page, ['Add Account', 'Add account'], 'Add Account')
   await dialog.getByRole('textbox', { name: 'Account Name', exact: true }).fill('Validation account')
   const type = dialog.getByRole('combobox', { name: 'Account Type', exact: true })
