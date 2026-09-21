@@ -101,7 +101,7 @@ jobs:
         working-directory: e2e
         env:
           E2E_BASE_URL: http://localhost:8080
-        run: npm test -- --project=${{ matrix.project }} --workers=2
+        run: npm test -- --project=${{ matrix.project }}
 
       # Setup failures do not produce an E2E report
       - name: Keep the report from a failed run
