@@ -1,6 +1,7 @@
 """Login service"""
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.concurrency import run_in_threadpool
 
 from app.database import current_user_id_ctx
 from app.models.user import User
@@ -33,7 +34,7 @@ async def login(db: AsyncSession, data: LoginRequest) -> User:
     """
     user_id = await find_user_id_by_email(db, data.email)
     if not user_id:
-        hash_dummy_password_for_timing()
+        await run_in_threadpool(hash_dummy_password_for_timing)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
     credential = await get_password_credential(db, user_id)
@@ -43,7 +44,7 @@ async def login(db: AsyncSession, data: LoginRequest) -> User:
     if is_account_locked(credential):
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="Account temporarily locked")
 
-    if not is_password_valid(data.password, credential.password_hash):
+    if not await run_in_threadpool(is_password_valid, data.password, credential.password_hash):
         await record_failed_attempt(db, credential)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 

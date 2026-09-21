@@ -1,12 +1,12 @@
 import { expect, test } from '@playwright/test'
 
 import { createAccount, signUpUser } from '../support/api'
-import { chooseFromDropdown, logIn } from '../support/app'
+import { openPage, chooseFromDropdown, logInViaApi } from '../support/app'
 
 test('associates profile inputs with their visible labels', async ({ page, request }) => {
   const user = await signUpUser(request)
-  await logIn(page, user)
-  await page.goto('/settings')
+  await logInViaApi(page, user)
+  await openPage(page, '/settings')
   const firstName = page.getByRole('textbox', { name: 'First name', exact: true })
   await expect(firstName).toBeVisible()
   await expect(firstName).toHaveValue(user.firstName)
@@ -20,8 +20,8 @@ test('associates profile inputs with their visible labels', async ({ page, reque
 test('names the import file-picker entry without opening a picker', async ({ page, request }) => {
   const user = await signUpUser(request)
   await createAccount(request, user, { name: 'Import audit account' })
-  await logIn(page, user)
-  await page.goto('/settings/imports')
+  await logInViaApi(page, user)
+  await openPage(page, '/settings/imports')
   const generic = page.getByRole('button', { name: /^Upload CSV file/ })
   await expect(generic).toBeVisible()
   await expect(generic).toHaveAccessibleName('Upload CSV file One file accepted.')

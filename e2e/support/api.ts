@@ -150,6 +150,7 @@ export interface CreateAccountOptions {
   accountKind?: string
   accountType?: string
   currency?: string
+  institutionId?: string
 
   /** Signed opening balance in minor units */
   startingBalance?: number
@@ -178,6 +179,7 @@ export async function createAccount(
       account_type: options.accountType ?? 'checking',
       name: options.name,
       currency,
+      institution_id: options.institutionId,
       starting_balance: options.startingBalance ?? null,
     },
   })

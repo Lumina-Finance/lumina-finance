@@ -6,6 +6,7 @@ from pathlib import Path
 
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.concurrency import run_in_threadpool
 
 from app.models.auth import RecoveryCode
 from app.services.auth.secret_hashing import hash_secret, is_secret_valid
@@ -78,7 +79,8 @@ async def generate_recovery_codes(db: AsyncSession, user_id: uuid.UUID, *, pendi
 
     codes = [_build_recovery_code() for _ in range(_RECOVERY_CODE_COUNT)]
     for code in codes:
-        db.add(RecoveryCode(user_id=user_id, code_hash=hash_secret(code), pending=pending))
+        code_hash = await run_in_threadpool(hash_secret, code)
+        db.add(RecoveryCode(user_id=user_id, code_hash=code_hash, pending=pending))
 
     return codes
 
@@ -161,7 +163,7 @@ async def consume_recovery_code(db: AsyncSession, user_id: uuid.UUID, code: str)
     )
     result = await db.execute(active_codes_query)
     for recovery_code in result.scalars():
-        if is_secret_valid(code, recovery_code.code_hash):
+        if await run_in_threadpool(is_secret_valid, code, recovery_code.code_hash):
             # Claim the row with a conditional delete so two concurrent redemptions of the same code
             # cannot both succeed, the loser matches no row and is rejected cleanly rather than raising
             # on a stale ORM delete

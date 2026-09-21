@@ -1,6 +1,6 @@
-import { expect, test, type APIRequestContext, type Locator, type Page, type Route } from '@playwright/test'
+import { expect, test as base, type APIRequestContext, type Locator, type Page, type Request, type Route } from '@playwright/test'
 import { createAccount, findReferenceId, signUpUser, TEST_CURRENCY, type TestUser } from '../support/api'
-import { expectSignedIn, logIn } from '../support/app'
+import { openPage, logInViaApi, waitForPageReady } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
 const NOW = new Date('2026-04-15T16:00:00Z')
@@ -47,7 +47,14 @@ async function createDrillFixture(request: APIRequestContext) {
   return { user, categories, selected, otherIds, readOnlyId, account, allIds, unfilteredIds }
 }
 
-/** Signs in once and fixes Date without replacing performance, animation frames, or the native animation timeline */
+// Dataset creation has its own deadline so API setup cannot consume the browser flow's budget
+const test = base.extend<{ drillFixture: Awaited<ReturnType<typeof createDrillFixture>> }>({
+  drillFixture: [async ({ request }, use) => {
+    await use(await createDrillFixture(request))
+  }, { timeout: 90_000 }],
+})
+
+/** Starts a real session and fixes Date without replacing timers or the native animation timeline */
 async function start(page: Page, user: TestUser) {
   await page.addInitScript(({ now }) => {
     const NativeDate = Date
@@ -64,12 +71,14 @@ async function start(page: Page, user: TestUser) {
       },
     })
   }, { now: NOW.getTime() })
-  await logIn(page, user)
-  await expectSignedIn(page)
+  await logInViaApi(page, user)
 }
 
 /** Waits for actual rendered transaction identities instead of treating an old loading snapshot as final */
 async function expectRows(page: Page, ids: string[]) {
+  // A history change updates the URL before the outgoing route becomes busy
+  await page.getByRole('main').getByRole('heading', { name: 'Transactions', exact: true }).waitFor()
+  await waitForPageReady(page)
   await expect.poll(() => page.getByTestId(/^transaction-row-/).evaluateAll((rows) => rows.map((row) => row.getAttribute('data-testid')!.replace('transaction-row-', '')).sort())).toEqual([...ids].sort())
 }
 
@@ -81,8 +90,11 @@ function breakdown(page: Page) {
 /** Brings the lazy-loaded card into view so its real visibility-gated query can run */
 async function showBreakdown(page: Page) {
   const card = breakdown(page)
-  await expect(card).toBeVisible()
+  await card.waitFor({ state: 'visible' })
+  await waitForPageReady(page)
   await card.scrollIntoViewIfNeeded()
+  // Route readiness does not include this visibility-gated query's initial response
+  await card.getByRole('button', { name: /^View .+ transactions$/ }).first().waitFor({ state: 'visible' })
   return card
 }
 
@@ -114,6 +126,7 @@ async function hoverSector(page: Page, sector: Locator, categoryName: string) {
     const shape = element as SVGGeometryElement
     const bounds = shape.getBBox()
     const transform = shape.getScreenCTM()
+    const screenBounds = shape.getBoundingClientRect()
     const action = shape.closest('.app-breakdown-sector')
     if (!transform) return null
     for (let row = 1; row < 20; row++) {
@@ -123,7 +136,7 @@ async function hoverSector(page: Page, sector: Locator, categoryName: string) {
           const screen = point.matrixTransform(transform)
           if (screen.x < 0 || screen.y < 0 || screen.x >= window.innerWidth || screen.y >= window.innerHeight) continue
           if (document.elementFromPoint(screen.x, screen.y)?.closest('.app-breakdown-sector') !== action) continue
-          return { x: screen.x, y: screen.y }
+          return { x: screen.x - screenBounds.left, y: screen.y - screenBounds.top }
         }
       }
     }
@@ -133,7 +146,7 @@ async function hoverSector(page: Page, sector: Locator, categoryName: string) {
   await expect.poll(insidePoint).not.toBeNull()
   const point = await insidePoint()
   expect(point).not.toBeNull()
-  await page.mouse.move(point!.x, point!.y)
+  await path.hover({ position: point! })
   await expect(page.locator('.app-chart-tooltip-default-content').filter({ has: page.getByText(categoryName, { exact: true }) })).toBeVisible()
   return point!
 }
@@ -141,7 +154,7 @@ async function hoverSector(page: Page, sector: Locator, categoryName: string) {
 /** Activates a real sector after its hover tooltip has updated */
 async function clickSector(page: Page, sector: Locator, categoryName: string) {
   const point = await hoverSector(page, sector, categoryName)
-  await page.mouse.click(point.x, point.y)
+  await sector.locator('path').click({ position: point })
 }
 
 /** Keeps an enabled action's DOM identity and focus when focusing it scrolls the chart into view */
@@ -199,11 +212,10 @@ async function expectDrillUrl(page: Page, ids: string[], from = FROM, to = TO) {
   }).toEqual({ path: '/transactions', categories: ids, from, to, keys: [...ids.map(() => 'category_id'), 'from_date', 'to_date'].sort() })
 }
 
-test('opens slice transactions with inclusive dates and preserves refresh, filter and history behavior', async ({ page, request }) => {
-  const fixture = await createDrillFixture(request)
+test('opens slice transactions with inclusive dates and preserves refresh', async ({ page, drillFixture: fixture }) => {
   await observeInitialSector(page, `View ${fixture.categories[0].name} transactions`)
   await start(page, fixture.user)
-  await page.goto('/insights')
+  await openPage(page, '/insights')
   const card = await showBreakdown(page)
   const slice = card.getByRole('button', { name: `View ${fixture.categories[0].name} transactions`, exact: true })
   await expectSectorReady(slice)
@@ -214,6 +226,13 @@ test('opens slice transactions with inclusive dates and preserves refresh, filte
   await expect(page.getByTestId(`transaction-row-${fixture.readOnlyId}`)).toContainText('Archived')
   await page.reload()
   await expectDrillUrl(page, [fixture.categories[0].id])
+  await expectRows(page, fixture.selected)
+
+})
+
+test('preserves drilldown filters through edits and browser history', async ({ page, drillFixture: fixture }) => {
+  await start(page, fixture.user)
+  await openPage(page, `/transactions?category_id=${fixture.categories[0].id}&from_date=${FROM}&to_date=${TO}`)
   await expectRows(page, fixture.selected)
 
   let panel = await openFilters(page)
@@ -240,9 +259,8 @@ test('opens slice transactions with inclusive dates and preserves refresh, filte
   await expectRows(page, fixture.unfilteredIds)
 })
 
-test('validates initial URL filters and keeps local-only changes out of address history', async ({ page, request }) => {
+test('validates initial URL filters and keeps local-only changes out of address history', async ({ page, drillFixture: fixture }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
-  const fixture = await createDrillFixture(request)
   await start(page, fixture.user)
   const listQueries: URLSearchParams[] = []
   page.on('request', (req) => {
@@ -251,7 +269,7 @@ test('validates initial URL filters and keeps local-only changes out of address 
     if (req.method() === 'GET' && url.origin === api.origin && url.pathname === api.pathname) listQueries.push(url.searchParams)
   })
   const id = fixture.categories[0].id
-  await page.goto(`/transactions?category_id=junk&category_id=${id}&category_id=${id.toUpperCase()}&from_date=2026-02-30&to_date=${TO}&context=one&context=two`)
+  await openPage(page, `/transactions?category_id=junk&category_id=${id}&category_id=${id.toUpperCase()}&from_date=2026-02-30&to_date=${TO}&context=one&context=two`)
   await expectRows(page, [...fixture.selected, fixture.allIds[3]])
   expect(listQueries.length).toBeGreaterThan(0)
   expect(listQueries[0].getAll('category_id')).toEqual([id])
@@ -276,14 +294,13 @@ test('validates initial URL filters and keeps local-only changes out of address 
   await panel.getByRole('button', { name: 'Clear all', exact: true }).click()
   await expect.poll(() => Array.from(new URL(page.url()).searchParams)).toEqual([['context', 'one'], ['context', 'two']])
   await expectRows(page, fixture.unfilteredIds)
-  await page.goto(`/transactions?category_id=${id}&from_date=${TO}&to_date=${FROM}`)
+  await openPage(page, `/transactions?category_id=${id}&from_date=${TO}&to_date=${FROM}`)
   await expectRows(page, [...fixture.selected, fixture.allIds[3], fixture.allIds[4]])
 })
 
-test('allows keyboard access beyond the legend and retains the displayed range during a pending change', async ({ page, request }) => {
-  const fixture = await createDrillFixture(request)
+test('allows keyboard access beyond the legend and to crossover categories', async ({ page, drillFixture: fixture }) => {
   await start(page, fixture.user)
-  await page.goto('/insights')
+  await openPage(page, '/insights')
   let card = await showBreakdown(page)
   const beyondLegend = card.getByRole('button', { name: `View ${fixture.categories[5].name} transactions`, exact: true })
   await expectSectorReady(beyondLegend)
@@ -312,21 +329,78 @@ test('allows keyboard access beyond the legend and retains the displayed range d
   await crossover.press('Space')
   await expectDrillUrl(page, [fixture.categories[6].id])
   await expectRows(page, [fixture.otherIds[5]])
-  await page.goBack()
-  card = await showBreakdown(page)
+})
+
+for (const reducedMotion of ['no-preference', 'reduce'] as const) {
+  test(`reveals a cached range after a delayed frame with ${reducedMotion} motion`, async ({ page, drillFixture: fixture }) => {
+    await page.emulateMedia({ reducedMotion })
+    await start(page, fixture.user)
+    await openPage(page, '/insights')
+    await showBreakdown(page)
+    await page.getByRole('button', { name: /^Insights date range:/ }).filter({ visible: true }).click()
+    const tabs = page.getByRole('tablist', { name: 'Insights date range', exact: true }).filter({ visible: true })
+    await tabs.getByRole('tab', { name: 'LM', exact: true }).click()
+    const card = await showBreakdown(page)
+    await expect(card.getByRole('button', { name: /^View Drill category .* transactions$/ })).toHaveCount(1)
+    await expect(card.getByRole('status', { name: 'Loading income and expense breakdown', exact: true })).toBeHidden()
+
+    await page.getByRole('button', { name: /^Insights date range:/ }).filter({ visible: true }).click()
+    const currentMonth = tabs.getByRole('tab', { name: 'MTD', exact: true })
+    await currentMonth.evaluate((button) => {
+      // Delay rendering past the cached-swap timer without delaying timers or changing the data
+      button.addEventListener('click', () => {
+        const requestFrame = window.requestAnimationFrame.bind(window)
+        const cancelFrame = window.cancelAnimationFrame.bind(window)
+        const frames = new Map<number, FrameRequestCallback>()
+        let nextId = -1
+        window.requestAnimationFrame = (callback) => {
+          const id = nextId--
+          frames.set(id, callback)
+          return id
+        }
+        window.cancelAnimationFrame = (id) => {
+          if (id < 0) frames.delete(id)
+          else cancelFrame(id)
+        }
+        window.addEventListener('e2e-release-frames', () => {
+          window.requestAnimationFrame = requestFrame
+          window.cancelAnimationFrame = cancelFrame
+          for (const callback of frames.values()) callback(performance.now())
+        }, { once: true })
+      }, { once: true })
+    })
+    await currentMonth.click()
+    // The replacement snapshot proves its reveal timer ran before the deferred concealment
+    await expect(card.getByRole('button', { name: /^View Drill category .* transactions$/ })).toHaveCount(7)
+    await page.evaluate(async () => {
+      window.dispatchEvent(new Event('e2e-release-frames'))
+      await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+    })
+    await expect(card.getByRole('status', { name: 'Loading income and expense breakdown', exact: true })).toBeHidden()
+    await expectSectorReady(card.getByRole('button', { name: `View ${fixture.categories[0].name} transactions`, exact: true }))
+  })
+}
+
+test('retains the displayed range during a pending change', async ({ page, drillFixture: fixture }) => {
+  await start(page, fixture.user)
+  await openPage(page, '/insights')
+  let card = await showBreakdown(page)
   const current = card.getByRole('button', { name: `View ${fixture.categories[0].name} transactions`, exact: true })
   await expectSectorReady(current)
 
   let release!: () => void
   const held = new Promise<void>((resolve) => { release = resolve })
   let intercepted = false
+  let holding = true
+  let breakdownRequest: Request | undefined
   let markFinished!: () => void
   const finished = new Promise<void>((resolve) => { markFinished = resolve })
   /** Holds only this synthetic user's next dated breakdown request */
   const handler = async (route: Route) => {
     const params = new URL(route.request().url()).searchParams
-    if (params.get('from_date') !== '2026-03-01' || params.get('to_date') !== '2026-03-31') return route.continue()
+    if (!holding || params.get('from_date') !== '2026-03-01' || params.get('to_date') !== '2026-03-31') return route.fallback()
     intercepted = true
+    breakdownRequest = route.request()
     try {
       await held
       await route.continue()
@@ -345,10 +419,16 @@ test('allows keyboard access beyond the legend and retains the displayed range d
     await expectDrillUrl(page, [fixture.categories[0].id])
     await expectRows(page, fixture.selected)
   } finally {
+    // Keep interception installed through history-triggered requests until context disposal
+    holding = false
     release()
     if (intercepted) await finished
-    await page.unroute(pattern, handler)
   }
+
+  const response = await breakdownRequest!.response()
+  expect(response, 'The released breakdown request must receive a response').not.toBeNull()
+  expect(response!.status()).toBe(200)
+  expect(await response!.finished(), 'The breakdown response must finish before returning').toBeNull()
 
   await page.goBack()
   await page.getByRole('button', { name: /^Insights date range:/ }).filter({ visible: true }).click()

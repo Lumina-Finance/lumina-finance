@@ -1,6 +1,6 @@
-import { expect, test, type Locator, type Page } from '@playwright/test'
+import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
 import { createAccount, signUpUser, TEST_CURRENCY } from '../support/api'
-import { expectSignedIn, logIn } from '../support/app'
+import { openPage, logInViaApi } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
 /** Establishes the compact tablet sidebar through its real control before measuring filter layout */
@@ -58,7 +58,8 @@ async function expectChipGeometry(panel: Locator, count: number) {
   })).toEqual({ overflow: 'visible', fits: true })
 }
 
-test('keeps long account and transaction selections reachable without crowding options', async ({ page, request }) => {
+/** Creates an isolated populated panel for each independent layout scenario */
+async function seedFilterPanel(page: Page, request: APIRequestContext, domain: 'Account' | 'Transaction') {
   const user = await signUpUser(request)
   const headers = { Authorization: `Bearer ${user.accessToken}` }
   const fixtureId = crypto.randomUUID()
@@ -69,33 +70,62 @@ test('keeps long account and transaction selections reachable without crowding o
     })
     expect(institution.status()).toBe(201)
     const { id } = await institution.json() as { id: string }
-    const account = await createAccount(request, user, { name })
-    const linked = await request.patch(`${API_BASE_URL}/accounts/${account.id}`, { headers, data: { institution_id: id } })
-    expect(linked.status()).toBe(200)
+    await createAccount(request, user, { name, institutionId: id })
   }
-  await logIn(page, user)
-  await expectSignedIn(page)
+  await logInViaApi(page, user)
 
-  for (const domain of ['Account', 'Transaction'] as const) {
-    await page.goto(domain === 'Account' ? '/accounts' : '/transactions')
-    let panel = await openFilters(page, domain)
-    await expect(panel.getByRole('group', { name: 'Selected filters', exact: true })).toHaveCount(0)
-    await expect(panel.getByText('No filters applied', { exact: true })).toBeVisible()
-    await expect(panel.getByText(`${domain}s must match every filter you apply`, { exact: true })).toBeVisible()
+  await openPage(page, domain === 'Account' ? '/accounts' : '/transactions')
+  const panel = await openFilters(page, domain)
+  await expect(panel.getByRole('group', { name: 'Selected filters', exact: true })).toHaveCount(0)
+  await expect(panel.getByText('No filters applied', { exact: true })).toBeVisible()
+  await expect(panel.getByText(`${domain}s must match every filter you apply`, { exact: true })).toBeVisible()
+
+  // Compare populated layouts, since reference data can arrive after the panel opens
+  for (const name of names) await expect(panel.getByRole('checkbox', { name, exact: true })).toBeAttached()
+  await page.evaluate(() => document.fonts.ready.then(() => undefined))
+  return { names, panel }
+}
+
+for (const domain of ['Account', 'Transaction'] as const) {
+  test(`wraps long ${domain.toLowerCase()} selections and restores the empty panel height`, async ({ page, request }) => {
+    const { names, panel } = await seedFilterPanel(page, request, domain)
+    if (page.viewportSize()!.width >= 750) {
+      await expect.poll(() => panel.evaluate((element) => {
+        const body = element.lastElementChild!
+        const viewport = body.firstElementChild!
+        const content = viewport.firstElementChild! as HTMLElement
+        return Math.abs(body.getBoundingClientRect().height - content.offsetHeight) < 1
+          && viewport.clientHeight === content.offsetHeight
+      })).toBe(true)
+    }
     const originalPanelHeight = await panel.evaluate((element) => element.getBoundingClientRect().height)
+    const originalScrollY = await page.evaluate(() => window.scrollY)
     const originalPadding = page.viewportSize()!.width >= 750
       ? await panel.evaluate((element) => parseFloat(getComputedStyle(element.lastElementChild!.firstElementChild!.firstElementChild!).paddingTop))
       : 0
     for (let index = 0; index < names.length; index++) {
-      await panel.getByRole('checkbox', { name: names[index], exact: true }).click()
+      const option = panel.getByRole('checkbox', { name: names[index], exact: true })
+      // Exercise pointer selection once, then use the keyboard while the growing pane moves
+      if (index === 0) await option.click()
+      else await option.press('Space')
       if (index === 0) await expectChipGeometry(panel, 1)
     }
     await expectChipGeometry(panel, 12)
     if (page.viewportSize()!.width >= 750) {
+      // Reaching clipped options can scroll the document and change the panel's available space
+      await page.evaluate((top) => window.scrollTo({ top, behavior: 'instant' }), originalScrollY)
       await expect.poll(() => panel.evaluate((element) => element.getBoundingClientRect().height)).toBeGreaterThan(originalPanelHeight + 1)
-      // Measure shrinkage in the same open cycle before resizing or closing adds layout changes
-      for (const name of names) await panel.getByRole('button', { name: `Remove ${name}`, exact: true }).click()
-      await expect(panel.getByRole('group', { name: 'Selected filters', exact: true })).toHaveCount(0)
+    }
+    // Measure shrinkage in the same open cycle before resizing or closing adds layout changes
+    for (let index = 0; index < names.length; index++) {
+      const remove = panel.getByRole('button', { name: `Remove ${names[index]}`, exact: true })
+      if (index === 0) await remove.click()
+      else await remove.press('Enter')
+    }
+    await expect(panel.getByRole('group', { name: 'Selected filters', exact: true })).toHaveCount(0)
+    await expect(panel.getByText('No filters applied', { exact: true })).toBeVisible()
+    if (page.viewportSize()!.width >= 750) {
+      await page.evaluate((top) => window.scrollTo({ top, behavior: 'instant' }), originalScrollY)
       // Opening upward adds the existing top padding, independently of the chip rows
       await expect.poll(async () => {
         const restored = await panel.evaluate((element) => ({
@@ -104,9 +134,15 @@ test('keeps long account and transaction selections reachable without crowding o
         }))
         return Math.abs(restored.height - originalPanelHeight - (restored.padding - originalPadding))
       }).toBeLessThanOrEqual(2)
-      for (const name of names) await panel.getByRole('checkbox', { name, exact: true }).click()
-      await expectChipGeometry(panel, 12)
     }
+  })
+
+  test(`keeps long ${domain.toLowerCase()} selections reachable by keyboard and in a short viewport`, async ({ page, request }) => {
+    const seeded = await seedFilterPanel(page, request, domain)
+    const { names } = seeded
+    let { panel } = seeded
+    for (const name of names) await panel.getByRole('checkbox', { name, exact: true }).press('Space')
+    await expectChipGeometry(panel, 12)
     const search = panel.getByPlaceholder(domain === 'Account' ? 'Search institution' : 'Search accounts', { exact: true })
     await expect(search).toBeVisible()
     const optionList = panel.getByRole('checkbox', { name: names[0], exact: true }).locator('..').locator('..')
@@ -175,15 +211,14 @@ test('keeps long account and transaction selections reachable without crowding o
     panel = await openFilters(page, domain)
     await expect(panel.getByRole('group', { name: 'Selected filters', exact: true })).toHaveCount(0)
     await panel.getByRole('button', { name: 'Apply filters', exact: true }).click()
-  }
-})
+  })
+}
 
 test('retains Tags explanations and invalid amount and date blocking', async ({ page, request }) => {
   const user = await signUpUser(request)
   await createAccount(request, user, { name: 'Validation account' })
-  await logIn(page, user)
-  await expectSignedIn(page)
-  await page.goto('/transactions')
+  await logInViaApi(page, user)
+  await openPage(page, '/transactions')
   const panel = await openFilters(page, 'Transaction')
   await selectFacet(page, panel, 'Tags')
   await expect(panel.getByText('Match transactions with all selected tags', { exact: true })).toBeVisible()

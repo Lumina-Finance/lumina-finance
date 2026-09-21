@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 import { createAccount, signUpUser } from '../support/api'
-import { logIn, openModal } from '../support/app'
+import { openPage, logInViaApi, openModal } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
 test('corrects the highlighted institution by keyboard and the original inline action', async ({ page, request }) => {
@@ -19,8 +19,8 @@ test('corrects the highlighted institution by keyboard and the original inline a
   })
   expect(linked.status()).toBe(200)
 
-  await logIn(page, user)
-  await page.goto('/accounts')
+  await logInViaApi(page, user)
+  await openPage(page, '/accounts')
   const create = await openModal(page, ['Add Account', 'Add account'], 'Add Account')
   const picker = create.getByRole('combobox', { name: 'Institution', exact: true })
   const describedBy = await picker.getAttribute('aria-describedby')
@@ -64,7 +64,7 @@ test('corrects the highlighted institution by keyboard and the original inline a
   await create.getByRole('button', { name: 'Cancel', exact: true }).click()
   await expect(create).toBeHidden()
 
-  await page.goto(`/accounts/${account.id}`)
+  await openPage(page, `/accounts/${account.id}`)
   await page.getByRole('button', { name: 'Edit account', exact: true }).click()
   const edit = page.getByRole('dialog', { name: 'Edit Account', exact: true })
   const current = edit.getByRole('combobox', { name: 'Institution', exact: true })

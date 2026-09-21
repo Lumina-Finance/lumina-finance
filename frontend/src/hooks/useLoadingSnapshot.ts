@@ -49,6 +49,7 @@ export function useLoadingSnapshot<T>({
   const loadingStartedAtRef = useRef<number | null>(null)
   const transitionKeyRef = useRef(transitionKey)
   const swappingRef = useRef(false)
+  const concealFrameRef = useRef<number | null>(null)
   const shouldReduceMotion = useReducedMotion() ?? false
 
   useEffect(() => {
@@ -64,11 +65,16 @@ export function useLoadingSnapshot<T>({
     swappingRef.current = !loading && swapMinVisibleMs !== undefined
     loadingStartedAtRef.current = Date.now()
     const frameId = window.requestAnimationFrame(() => {
+      concealFrameRef.current = null
       setContentConcealed(true)
       setLoadingVisible(!swappingRef.current)
     })
+    concealFrameRef.current = frameId
 
-    return () => window.cancelAnimationFrame(frameId)
+    return () => {
+      window.cancelAnimationFrame(frameId)
+      if (concealFrameRef.current === frameId) concealFrameRef.current = null
+    }
   }, [loading, swapMinVisibleMs, transitionKey])
 
   useEffect(() => {
@@ -81,6 +87,11 @@ export function useLoadingSnapshot<T>({
       : Math.max(0, holdMs - (Date.now() - loadingStartedAt))
 
     const finishTimeoutId = window.setTimeout(() => {
+      // A delayed frame must not conceal the snapshot after its reveal has completed
+      if (concealFrameRef.current !== null) {
+        window.cancelAnimationFrame(concealFrameRef.current)
+        concealFrameRef.current = null
+      }
       setDisplaySnapshot(snapshot)
       setLoadingVisible(false)
       setContentConcealed(false)

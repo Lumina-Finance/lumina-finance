@@ -1,6 +1,5 @@
 name: Backend tests
 
-# Reusable step invoked by the pull request pipeline, it does not trigger on its own
 on:
   workflow_call:
 
@@ -8,8 +7,7 @@ permissions:
   contents: read
 
 jobs:
-  # Fetch the locked dependencies once and warm the shared uv cache, the test legs
-  # restore it instead of each downloading the same packages in parallel
+  # Warm the shared uv cache before starting the parallel test jobs
   prime-cache:
     name: Prime the uv cache
     runs-on: ubuntu-latest
@@ -35,8 +33,6 @@ jobs:
     needs: prime-cache
     runs-on: ubuntu-latest
 
-    # pytest-split shards the whole suite into ten balanced groups that run in parallel,
-    # each against its own database, so wall-clock scales with the slowest tenth
     strategy:
       fail-fast: false
       matrix:
@@ -51,9 +47,7 @@ jobs:
           POSTGRES_PASSWORD: lumina_test
         ports:
           - 5432:5432
-        # A tight health interval lets the job start as soon as Postgres is ready
-        # instead of idling until the next poll, and the tmpfs data dir keeps the
-        # throwaway test database in memory for faster startup and writes
+        # Keep the disposable database in memory to reduce test I/O
         options: >-
           --health-cmd "pg_isready -U lumina_test -d lumina_test"
           --health-interval 2s
@@ -73,8 +67,6 @@ jobs:
       DB_NAME: lumina_test
       DB_USER: lumina_test
       DB_PASSWORD: lumina_test
-      # The migrator and app roles read their own passwords from these, the same
-      # variables the shared provisioner and the runtime app role resolve them from
       MIGRATOR_DB_PASSWORD: lumina_migrator
       APP_DB_PASSWORD: lumina_app
       TEST_DB_HOST: 127.0.0.1
@@ -92,9 +84,8 @@ jobs:
         with:
           enable-cache: true
 
-      # The tests run as the row-level-security app role, so the migrator and app
-      # roles must exist before pytest. The shared provisioner imports app config,
-      # which loads JWT keys at import, so generate throwaway keys for this step
+      # Tests need the restricted app role to exercise row-level security
+      # Provisioning loads auth configuration, so it also needs temporary JWT keys
       - name: Provision the migrator and app roles
         run: |
           mkdir -p "${RUNNER_TEMP}/jwt-keys"

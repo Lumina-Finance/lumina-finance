@@ -1,6 +1,5 @@
 name: Frontend build
 
-# Reusable step invoked by the pull request pipeline, it does not trigger on its own
 on:
   workflow_call:
 
@@ -32,6 +31,6 @@ jobs:
       - name: Type-check application, build configuration and tests
         run: npx tsc -b
 
-      # Mirror the production bundle the Docker image builds so the test build catches the same failures
+      # Use the same bundle command as the Docker build
       - name: Build production bundle
         run: npm run build:app

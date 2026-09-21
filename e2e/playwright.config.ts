@@ -4,8 +4,12 @@ import { availableParallelism } from 'node:os'
 import { TEST_TIMEZONE } from './support/api'
 import { BASE_URL } from './support/target'
 
-// Bound simultaneous browser activity against the shared application instance
-const MAX_BROWSER_WORKERS = 6
+// The development runner preserves the host-derived count when reserving an app CPU.
+// Playwright CLI worker overrides still take precedence over this default
+const configuredWorkers = process.env.E2E_WORKERS
+if (configuredWorkers !== undefined && (!/^[1-9]\d*$/.test(configuredWorkers) || !Number.isSafeInteger(Number(configuredWorkers)))) {
+  throw new Error('E2E_WORKERS must be a positive integer')
+}
 
 // The three sizes the screenshot captures use, so the suite checks the layouts the captures
 // show. Copied by value from dev/demo/capture/shared.mjs rather than imported: that file is
@@ -33,11 +37,9 @@ export default defineConfig({
   // or in itself, and retrying would hide the one thing this suite exists to catch
   retries: 0,
 
-  // Both are raised above Playwright's defaults of 30 seconds and 5 seconds, because a spec
-  // can spend 20 seconds signing in and 20 more waiting for a modal against an instance that
-  // has just started, and every first assertion after a navigation waits on a cold query. With
-  // no retries, one slow query would otherwise be a failed run rather than a slow one
-  timeout: 90_000,
+  // Long real flows need a total budget that tolerates CPU contention at high worker counts.
+  // Each assertion still bounds the expected UI update independently
+  timeout: 180_000,
   expect: { timeout: 15_000 },
 
   reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
@@ -54,7 +56,7 @@ export default defineConfig({
     // United States renders the same amount CA$42.50 and every assertion naming a symbol fails
     locale: 'en-CA',
 
-    trace: 'retain-on-failure',
+    trace: { mode: 'retain-on-failure', screenshots: false },
     screenshot: 'only-on-failure',
 
     // The captures pass this for the same reason: Chromium on Linux otherwise draws a classic
@@ -63,8 +65,8 @@ export default defineConfig({
     launchOptions: { args: ['--enable-features=OverlayScrollbar'] },
   },
 
-  // Scale down on smaller runners while bounding load on the shared application instance
-  workers: Math.min(availableParallelism(), MAX_BROWSER_WORKERS),
+  // Leave one available CPU for the application and operating system
+  workers: configuredWorkers === undefined ? Math.max(1, availableParallelism() - 1) : Number(configuredWorkers),
 
   projects: [
     {

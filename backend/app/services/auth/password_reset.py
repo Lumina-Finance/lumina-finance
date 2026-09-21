@@ -11,6 +11,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import func as sa_func
+from starlette.concurrency import run_in_threadpool
 
 from app.config.password_reset import PASSWORD_RESET_DAILY_EMAIL_LIMIT, PASSWORD_RESET_TOKEN_EXPIRE_SECONDS
 from app.config.runtime import APP_URL
@@ -243,9 +244,9 @@ async def _apply_password_reset(db: AsyncSession, reset_token: PasswordResetToke
     # the account email is the same proof a reset trusts, so redeeming a link sets its first
     # password and records password as an auth provider
     if credential is None:
-        credential = create_first_password_credential(db, reset_token.user_id, new_password)
+        credential = await create_first_password_credential(db, reset_token.user_id, new_password)
     else:
-        credential.password_hash = hash_password(new_password)
+        credential.password_hash = await run_in_threadpool(hash_password, new_password)
         credential.password_algo = "argon2id"  # noqa: S105
 
     # A verified reset clears any login lockout the user was trying to recover from

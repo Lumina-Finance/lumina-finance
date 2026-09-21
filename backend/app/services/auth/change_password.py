@@ -4,6 +4,7 @@ import uuid
 
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.concurrency import run_in_threadpool
 
 from app.models.user import User
 from app.schemas.auth import ChangePasswordRequest
@@ -42,7 +43,7 @@ async def change_password(
     await verify_sensitive_action_step_up(db, user, data.current_password, code=data.code, passkey=data.passkey)
 
     # A verified change clears any login lockout since the caller has proven the current password
-    credential.password_hash = hash_password(data.new_password)
+    credential.password_hash = await run_in_threadpool(hash_password, data.new_password)
     credential.password_algo = "argon2id"  # noqa: S105
     credential.failed_attempt_count = 0
     credential.locked_until = None
