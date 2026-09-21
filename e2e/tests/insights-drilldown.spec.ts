@@ -331,6 +331,56 @@ test('allows keyboard access beyond the legend and to crossover categories', asy
   await expectRows(page, [fixture.otherIds[5]])
 })
 
+for (const reducedMotion of ['no-preference', 'reduce'] as const) {
+  test(`reveals a cached range after a delayed frame with ${reducedMotion} motion`, async ({ page, drillFixture: fixture }) => {
+    await page.emulateMedia({ reducedMotion })
+    await start(page, fixture.user)
+    await openPage(page, '/insights')
+    await showBreakdown(page)
+    await page.getByRole('button', { name: /^Insights date range:/ }).filter({ visible: true }).click()
+    const tabs = page.getByRole('tablist', { name: 'Insights date range', exact: true }).filter({ visible: true })
+    await tabs.getByRole('tab', { name: 'LM', exact: true }).click()
+    const card = await showBreakdown(page)
+    await expect(card.getByRole('button', { name: /^View Drill category .* transactions$/ })).toHaveCount(1)
+    await expect(card.getByRole('status', { name: 'Loading income and expense breakdown', exact: true })).toBeHidden()
+
+    await page.getByRole('button', { name: /^Insights date range:/ }).filter({ visible: true }).click()
+    const currentMonth = tabs.getByRole('tab', { name: 'MTD', exact: true })
+    await currentMonth.evaluate((button) => {
+      // Delay rendering past the cached-swap timer without delaying timers or changing the data
+      button.addEventListener('click', () => {
+        const requestFrame = window.requestAnimationFrame.bind(window)
+        const cancelFrame = window.cancelAnimationFrame.bind(window)
+        const frames = new Map<number, FrameRequestCallback>()
+        let nextId = -1
+        window.requestAnimationFrame = (callback) => {
+          const id = nextId--
+          frames.set(id, callback)
+          return id
+        }
+        window.cancelAnimationFrame = (id) => {
+          if (id < 0) frames.delete(id)
+          else cancelFrame(id)
+        }
+        window.addEventListener('e2e-release-frames', () => {
+          window.requestAnimationFrame = requestFrame
+          window.cancelAnimationFrame = cancelFrame
+          for (const callback of frames.values()) callback(performance.now())
+        }, { once: true })
+      }, { once: true })
+    })
+    await currentMonth.click()
+    // The replacement snapshot proves its reveal timer ran before the deferred concealment
+    await expect(card.getByRole('button', { name: /^View Drill category .* transactions$/ })).toHaveCount(7)
+    await page.evaluate(async () => {
+      window.dispatchEvent(new Event('e2e-release-frames'))
+      await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+    })
+    await expect(card.getByRole('status', { name: 'Loading income and expense breakdown', exact: true })).toBeHidden()
+    await expectSectorReady(card.getByRole('button', { name: `View ${fixture.categories[0].name} transactions`, exact: true }))
+  })
+}
+
 test('retains the displayed range during a pending change', async ({ page, drillFixture: fixture }) => {
   await start(page, fixture.user)
   await openPage(page, '/insights')
