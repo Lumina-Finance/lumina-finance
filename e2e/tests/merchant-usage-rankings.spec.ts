@@ -76,7 +76,10 @@ test('refreshes merchant usage order after creating and deleting an expense', as
   await expect(remove).toHaveAccessibleName('Delete')
   await remove.click()
   await expect(remove).toHaveAccessibleName('Yes, delete')
+  const deleted = page.waitForResponse((result) =>
+    result.url() === `${API_BASE_URL}/transactions/${id}` && result.request().method() === 'DELETE')
   await remove.click()
+  expect((await deleted).status()).toBe(204)
   await expect(edit).toBeHidden()
   await expect(row).toBeHidden()
   await expectOrder([alpha, zulu])
