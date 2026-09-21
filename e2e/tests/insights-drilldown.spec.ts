@@ -93,6 +93,8 @@ async function showBreakdown(page: Page) {
   await card.waitFor({ state: 'visible' })
   await waitForPageReady(page)
   await card.scrollIntoViewIfNeeded()
+  // Route readiness does not include this visibility-gated query's initial response
+  await card.getByRole('button', { name: /^View .+ transactions$/ }).first().waitFor({ state: 'visible' })
   return card
 }
 
