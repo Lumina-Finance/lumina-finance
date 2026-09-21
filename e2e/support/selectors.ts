@@ -24,6 +24,7 @@ export async function whileApiRequestHeld(
   let release!: () => void
   let markFinished!: () => void
   let intercepted = false
+  let holding = true
   let mutation: Request | undefined
   const held = new Promise<void>((resolve) => { release = resolve })
   const finished = new Promise<void>((resolve) => { markFinished = resolve })
@@ -32,14 +33,14 @@ export async function whileApiRequestHeld(
   /** Match the mutation's method and synthetic record before holding its network request */
   const handler = async (route: Route): Promise<void> => {
     const request = route.request()
-    if (request.method() !== method) {
-      await route.continue()
+    if (!holding || request.method() !== method) {
+      await route.fallback()
       return
     }
     if (body) {
       const data = request.postDataJSON() as Record<string, unknown>
       if (!Object.entries(body).every(([key, value]) => data[key] === value)) {
-        await route.continue()
+        await route.fallback()
         return
       }
     }
@@ -71,15 +72,11 @@ export async function whileApiRequestHeld(
       expect(await response!.finished(), 'The held mutation response must finish').toBeNull()
     }
   } finally {
+    // Removing the last route here can race with the app's post-mutation refetches
+    // Keep an inactive passthrough until this test's browser context is disposed
+    holding = false
     release()
     if (intercepted) await finished
-    if (!page.isClosed()) {
-      try {
-        await page.unroute(url, handler)
-      } catch (error) {
-        if (!page.isClosed()) throw error
-      }
-    }
   }
 }
 
