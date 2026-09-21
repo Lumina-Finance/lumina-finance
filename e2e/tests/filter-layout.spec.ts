@@ -90,6 +90,7 @@ for (const domain of ['Account', 'Transaction'] as const) {
       })).toBe(true)
     }
     const originalPanelHeight = await panel.evaluate((element) => element.getBoundingClientRect().height)
+    const originalScrollY = await page.evaluate(() => window.scrollY)
     const originalPadding = page.viewportSize()!.width >= 750
       ? await panel.evaluate((element) => parseFloat(getComputedStyle(element.lastElementChild!.firstElementChild!.firstElementChild!).paddingTop))
       : 0
@@ -99,10 +100,13 @@ for (const domain of ['Account', 'Transaction'] as const) {
     }
     await expectChipGeometry(panel, 12)
     if (page.viewportSize()!.width >= 750) {
+      // Reaching clipped options can scroll the document and change the panel's available space
+      await page.evaluate((top) => window.scrollTo({ top, behavior: 'instant' }), originalScrollY)
       await expect.poll(() => panel.evaluate((element) => element.getBoundingClientRect().height)).toBeGreaterThan(originalPanelHeight + 1)
       // Measure shrinkage in the same open cycle before resizing or closing adds layout changes
       for (const name of names) await panel.getByRole('button', { name: `Remove ${name}`, exact: true }).click()
       await expect(panel.getByRole('group', { name: 'Selected filters', exact: true })).toHaveCount(0)
+      await page.evaluate((top) => window.scrollTo({ top, behavior: 'instant' }), originalScrollY)
       // Opening upward adds the existing top padding, independently of the chip rows
       await expect.poll(async () => {
         const restored = await panel.evaluate((element) => ({
