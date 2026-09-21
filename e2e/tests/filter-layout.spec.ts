@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from '@playwright/test'
+import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
 import { createAccount, signUpUser, TEST_CURRENCY } from '../support/api'
 import { openPage, logInViaApi } from '../support/app'
 import { API_BASE_URL } from '../support/target'
@@ -58,31 +58,37 @@ async function expectChipGeometry(panel: Locator, count: number) {
   })).toEqual({ overflow: 'visible', fits: true })
 }
 
+/** Creates an isolated populated panel for each independent layout scenario */
+async function seedFilterPanel(page: Page, request: APIRequestContext, domain: 'Account' | 'Transaction') {
+  const user = await signUpUser(request)
+  const headers = { Authorization: `Bearer ${user.accessToken}` }
+  const fixtureId = crypto.randomUUID()
+  const names = Array.from({ length: 12 }, (_, index) => `Filter layout ${String(index).padStart(2, '0')} with a deliberately long complete financial institution name ${fixtureId}`)
+  for (const name of names) {
+    const institution = await request.post(`${API_BASE_URL}/institutions`, {
+      headers, data: { name, country_code: 'CA', website: 'https://example.com' },
+    })
+    expect(institution.status()).toBe(201)
+    const { id } = await institution.json() as { id: string }
+    await createAccount(request, user, { name, institutionId: id })
+  }
+  await logInViaApi(page, user)
+
+  await openPage(page, domain === 'Account' ? '/accounts' : '/transactions')
+  const panel = await openFilters(page, domain)
+  await expect(panel.getByRole('group', { name: 'Selected filters', exact: true })).toHaveCount(0)
+  await expect(panel.getByText('No filters applied', { exact: true })).toBeVisible()
+  await expect(panel.getByText(`${domain}s must match every filter you apply`, { exact: true })).toBeVisible()
+
+  // Compare populated layouts, since reference data can arrive after the panel opens
+  for (const name of names) await expect(panel.getByRole('checkbox', { name, exact: true })).toBeAttached()
+  await page.evaluate(() => document.fonts.ready.then(() => undefined))
+  return { names, panel }
+}
+
 for (const domain of ['Account', 'Transaction'] as const) {
-  test(`keeps long ${domain.toLowerCase()} selections reachable without crowding options`, async ({ page, request }) => {
-    const user = await signUpUser(request)
-    const headers = { Authorization: `Bearer ${user.accessToken}` }
-    const fixtureId = crypto.randomUUID()
-    const names = Array.from({ length: 12 }, (_, index) => `Filter layout ${String(index).padStart(2, '0')} with a deliberately long complete financial institution name ${fixtureId}`)
-    for (const name of names) {
-      const institution = await request.post(`${API_BASE_URL}/institutions`, {
-        headers, data: { name, country_code: 'CA', website: 'https://example.com' },
-      })
-      expect(institution.status()).toBe(201)
-      const { id } = await institution.json() as { id: string }
-      await createAccount(request, user, { name, institutionId: id })
-    }
-    await logInViaApi(page, user)
-
-    await openPage(page, domain === 'Account' ? '/accounts' : '/transactions')
-    let panel = await openFilters(page, domain)
-    await expect(panel.getByRole('group', { name: 'Selected filters', exact: true })).toHaveCount(0)
-    await expect(panel.getByText('No filters applied', { exact: true })).toBeVisible()
-    await expect(panel.getByText(`${domain}s must match every filter you apply`, { exact: true })).toBeVisible()
-
-    // Compare populated layouts, since reference data can arrive after the panel opens
-    for (const name of names) await expect(panel.getByRole('checkbox', { name, exact: true })).toBeAttached()
-    await page.evaluate(() => document.fonts.ready.then(() => undefined))
+  test(`wraps long ${domain.toLowerCase()} selections and restores the empty panel height`, async ({ page, request }) => {
+    const { names, panel } = await seedFilterPanel(page, request, domain)
     if (page.viewportSize()!.width >= 750) {
       await expect.poll(() => panel.evaluate((element) => {
         const body = element.lastElementChild!
@@ -106,9 +112,12 @@ for (const domain of ['Account', 'Transaction'] as const) {
       // Reaching clipped options can scroll the document and change the panel's available space
       await page.evaluate((top) => window.scrollTo({ top, behavior: 'instant' }), originalScrollY)
       await expect.poll(() => panel.evaluate((element) => element.getBoundingClientRect().height)).toBeGreaterThan(originalPanelHeight + 1)
-      // Measure shrinkage in the same open cycle before resizing or closing adds layout changes
-      for (const name of names) await panel.getByRole('button', { name: `Remove ${name}`, exact: true }).click()
-      await expect(panel.getByRole('group', { name: 'Selected filters', exact: true })).toHaveCount(0)
+    }
+    // Measure shrinkage in the same open cycle before resizing or closing adds layout changes
+    for (const name of names) await panel.getByRole('button', { name: `Remove ${name}`, exact: true }).click()
+    await expect(panel.getByRole('group', { name: 'Selected filters', exact: true })).toHaveCount(0)
+    await expect(panel.getByText('No filters applied', { exact: true })).toBeVisible()
+    if (page.viewportSize()!.width >= 750) {
       await page.evaluate((top) => window.scrollTo({ top, behavior: 'instant' }), originalScrollY)
       // Opening upward adds the existing top padding, independently of the chip rows
       await expect.poll(async () => {
@@ -118,9 +127,15 @@ for (const domain of ['Account', 'Transaction'] as const) {
         }))
         return Math.abs(restored.height - originalPanelHeight - (restored.padding - originalPadding))
       }).toBeLessThanOrEqual(2)
-      for (const name of names) await panel.getByRole('checkbox', { name, exact: true }).click()
-      await expectChipGeometry(panel, 12)
     }
+  })
+
+  test(`keeps long ${domain.toLowerCase()} selections reachable by keyboard and in a short viewport`, async ({ page, request }) => {
+    const seeded = await seedFilterPanel(page, request, domain)
+    const { names } = seeded
+    let { panel } = seeded
+    for (const name of names) await panel.getByRole('checkbox', { name, exact: true }).click()
+    await expectChipGeometry(panel, 12)
     const search = panel.getByPlaceholder(domain === 'Account' ? 'Search institution' : 'Search accounts', { exact: true })
     await expect(search).toBeVisible()
     const optionList = panel.getByRole('checkbox', { name: names[0], exact: true }).locator('..').locator('..')
