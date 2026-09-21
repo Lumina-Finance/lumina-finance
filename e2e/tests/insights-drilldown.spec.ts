@@ -1,4 +1,4 @@
-import { expect, test, type APIRequestContext, type Locator, type Page, type Route } from '@playwright/test'
+import { expect, test as base, type APIRequestContext, type Locator, type Page, type Route } from '@playwright/test'
 import { createAccount, findReferenceId, signUpUser, TEST_CURRENCY, type TestUser } from '../support/api'
 import { openPage, logInViaApi, waitForPageReady } from '../support/app'
 import { API_BASE_URL } from '../support/target'
@@ -46,6 +46,13 @@ async function createDrillFixture(request: APIRequestContext) {
   const unfilteredIds = (await unfiltered.json() as { id: string }[]).map((transaction) => transaction.id)
   return { user, categories, selected, otherIds, readOnlyId, account, allIds, unfilteredIds }
 }
+
+// Dataset creation has its own deadline so API setup cannot consume the browser flow's budget
+const test = base.extend<{ drillFixture: Awaited<ReturnType<typeof createDrillFixture>> }>({
+  drillFixture: [async ({ request }, use) => {
+    await use(await createDrillFixture(request))
+  }, { timeout: 90_000 }],
+})
 
 /** Starts a real session and fixes Date without replacing timers or the native animation timeline */
 async function start(page: Page, user: TestUser) {
@@ -202,8 +209,7 @@ async function expectDrillUrl(page: Page, ids: string[], from = FROM, to = TO) {
   }).toEqual({ path: '/transactions', categories: ids, from, to, keys: [...ids.map(() => 'category_id'), 'from_date', 'to_date'].sort() })
 }
 
-test('opens slice transactions with inclusive dates and preserves refresh', async ({ page, request }) => {
-  const fixture = await createDrillFixture(request)
+test('opens slice transactions with inclusive dates and preserves refresh', async ({ page, drillFixture: fixture }) => {
   await observeInitialSector(page, `View ${fixture.categories[0].name} transactions`)
   await start(page, fixture.user)
   await openPage(page, '/insights')
@@ -221,8 +227,7 @@ test('opens slice transactions with inclusive dates and preserves refresh', asyn
 
 })
 
-test('preserves drilldown filters through edits and browser history', async ({ page, request }) => {
-  const fixture = await createDrillFixture(request)
+test('preserves drilldown filters through edits and browser history', async ({ page, drillFixture: fixture }) => {
   await start(page, fixture.user)
   await openPage(page, `/transactions?category_id=${fixture.categories[0].id}&from_date=${FROM}&to_date=${TO}`)
   await expectRows(page, fixture.selected)
@@ -251,9 +256,8 @@ test('preserves drilldown filters through edits and browser history', async ({ p
   await expectRows(page, fixture.unfilteredIds)
 })
 
-test('validates initial URL filters and keeps local-only changes out of address history', async ({ page, request }) => {
+test('validates initial URL filters and keeps local-only changes out of address history', async ({ page, drillFixture: fixture }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
-  const fixture = await createDrillFixture(request)
   await start(page, fixture.user)
   const listQueries: URLSearchParams[] = []
   page.on('request', (req) => {
@@ -291,8 +295,7 @@ test('validates initial URL filters and keeps local-only changes out of address 
   await expectRows(page, [...fixture.selected, fixture.allIds[3], fixture.allIds[4]])
 })
 
-test('allows keyboard access beyond the legend and to crossover categories', async ({ page, request }) => {
-  const fixture = await createDrillFixture(request)
+test('allows keyboard access beyond the legend and to crossover categories', async ({ page, drillFixture: fixture }) => {
   await start(page, fixture.user)
   await openPage(page, '/insights')
   let card = await showBreakdown(page)
@@ -325,8 +328,7 @@ test('allows keyboard access beyond the legend and to crossover categories', asy
   await expectRows(page, [fixture.otherIds[5]])
 })
 
-test('retains the displayed range during a pending change', async ({ page, request }) => {
-  const fixture = await createDrillFixture(request)
+test('retains the displayed range during a pending change', async ({ page, drillFixture: fixture }) => {
   await start(page, fixture.user)
   await openPage(page, '/insights')
   let card = await showBreakdown(page)
