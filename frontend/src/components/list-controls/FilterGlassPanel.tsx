@@ -148,7 +148,8 @@ export function FilterGlassPanel({
 
     measurePlacement()
     const observer = new ResizeObserver(measurePlacement)
-    if (bodyContentRef.current) observer.observe(bodyContentRef.current)
+    // Flipping upward changes padding without changing the content box
+    if (bodyContentRef.current) observer.observe(bodyContentRef.current, { box: 'border-box' })
     window.addEventListener('resize', measurePlacement)
     window.addEventListener('scroll', measurePlacement, { passive: true })
     return () => {
