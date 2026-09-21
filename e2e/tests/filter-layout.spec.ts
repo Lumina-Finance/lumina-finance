@@ -86,7 +86,10 @@ for (const domain of ['Account', 'Transaction'] as const) {
     if (page.viewportSize()!.width >= 750) {
       await expect.poll(() => panel.evaluate((element) => {
         const body = element.lastElementChild!
-        return Math.abs(body.getBoundingClientRect().height - body.firstElementChild!.clientHeight) < 1
+        const viewport = body.firstElementChild!
+        const content = viewport.firstElementChild! as HTMLElement
+        return Math.abs(body.getBoundingClientRect().height - content.offsetHeight) < 1
+          && viewport.clientHeight === content.offsetHeight
       })).toBe(true)
     }
     const originalPanelHeight = await panel.evaluate((element) => element.getBoundingClientRect().height)
