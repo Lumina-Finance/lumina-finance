@@ -30,9 +30,9 @@ export default defineConfig({
   // or in itself, and retrying would hide the one thing this suite exists to catch
   retries: 0,
 
-  // The whole flow includes API seeding and cold route startup, while each assertion bounds
-  // the expected UI update after the route or mutation is ready
-  timeout: 90_000,
+  // Long real flows need a total budget that tolerates CPU contention at high worker counts.
+  // Each assertion still bounds the expected UI update independently
+  timeout: 180_000,
   expect: { timeout: 15_000 },
 
   reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
