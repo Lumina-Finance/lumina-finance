@@ -58,22 +58,22 @@ async function expectChipGeometry(panel: Locator, count: number) {
   })).toEqual({ overflow: 'visible', fits: true })
 }
 
-test('keeps long account and transaction selections reachable without crowding options', async ({ page, request }) => {
-  const user = await signUpUser(request)
-  const headers = { Authorization: `Bearer ${user.accessToken}` }
-  const fixtureId = crypto.randomUUID()
-  const names = Array.from({ length: 12 }, (_, index) => `Filter layout ${String(index).padStart(2, '0')} with a deliberately long complete financial institution name ${fixtureId}`)
-  for (const name of names) {
-    const institution = await request.post(`${API_BASE_URL}/institutions`, {
-      headers, data: { name, country_code: 'CA', website: 'https://example.com' },
-    })
-    expect(institution.status()).toBe(201)
-    const { id } = await institution.json() as { id: string }
-    await createAccount(request, user, { name, institutionId: id })
-  }
-  await logInViaApi(page, user)
+for (const domain of ['Account', 'Transaction'] as const) {
+  test(`keeps long ${domain.toLowerCase()} selections reachable without crowding options`, async ({ page, request }) => {
+    const user = await signUpUser(request)
+    const headers = { Authorization: `Bearer ${user.accessToken}` }
+    const fixtureId = crypto.randomUUID()
+    const names = Array.from({ length: 12 }, (_, index) => `Filter layout ${String(index).padStart(2, '0')} with a deliberately long complete financial institution name ${fixtureId}`)
+    for (const name of names) {
+      const institution = await request.post(`${API_BASE_URL}/institutions`, {
+        headers, data: { name, country_code: 'CA', website: 'https://example.com' },
+      })
+      expect(institution.status()).toBe(201)
+      const { id } = await institution.json() as { id: string }
+      await createAccount(request, user, { name, institutionId: id })
+    }
+    await logInViaApi(page, user)
 
-  for (const domain of ['Account', 'Transaction'] as const) {
     await openPage(page, domain === 'Account' ? '/accounts' : '/transactions')
     let panel = await openFilters(page, domain)
     await expect(panel.getByRole('group', { name: 'Selected filters', exact: true })).toHaveCount(0)
@@ -182,8 +182,8 @@ test('keeps long account and transaction selections reachable without crowding o
     panel = await openFilters(page, domain)
     await expect(panel.getByRole('group', { name: 'Selected filters', exact: true })).toHaveCount(0)
     await panel.getByRole('button', { name: 'Apply filters', exact: true }).click()
-  }
-})
+  })
+}
 
 test('retains Tags explanations and invalid amount and date blocking', async ({ page, request }) => {
   const user = await signUpUser(request)
