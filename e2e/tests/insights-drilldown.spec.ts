@@ -124,6 +124,7 @@ async function hoverSector(page: Page, sector: Locator, categoryName: string) {
     const shape = element as SVGGeometryElement
     const bounds = shape.getBBox()
     const transform = shape.getScreenCTM()
+    const screenBounds = shape.getBoundingClientRect()
     const action = shape.closest('.app-breakdown-sector')
     if (!transform) return null
     for (let row = 1; row < 20; row++) {
@@ -133,7 +134,7 @@ async function hoverSector(page: Page, sector: Locator, categoryName: string) {
           const screen = point.matrixTransform(transform)
           if (screen.x < 0 || screen.y < 0 || screen.x >= window.innerWidth || screen.y >= window.innerHeight) continue
           if (document.elementFromPoint(screen.x, screen.y)?.closest('.app-breakdown-sector') !== action) continue
-          return { x: screen.x, y: screen.y }
+          return { x: screen.x - screenBounds.left, y: screen.y - screenBounds.top }
         }
       }
     }
@@ -143,7 +144,7 @@ async function hoverSector(page: Page, sector: Locator, categoryName: string) {
   await expect.poll(insidePoint).not.toBeNull()
   const point = await insidePoint()
   expect(point).not.toBeNull()
-  await page.mouse.move(point!.x, point!.y)
+  await path.hover({ position: point! })
   await expect(page.locator('.app-chart-tooltip-default-content').filter({ has: page.getByText(categoryName, { exact: true }) })).toBeVisible()
   return point!
 }
@@ -151,7 +152,7 @@ async function hoverSector(page: Page, sector: Locator, categoryName: string) {
 /** Activates a real sector after its hover tooltip has updated */
 async function clickSector(page: Page, sector: Locator, categoryName: string) {
   const point = await hoverSector(page, sector, categoryName)
-  await page.mouse.click(point.x, point.y)
+  await sector.locator('path').click({ position: point })
 }
 
 /** Keeps an enabled action's DOM identity and focus when focusing it scrolls the chart into view */
