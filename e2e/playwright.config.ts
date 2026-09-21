@@ -4,6 +4,13 @@ import { availableParallelism } from 'node:os'
 import { TEST_TIMEZONE } from './support/api'
 import { BASE_URL } from './support/target'
 
+// The development runner preserves the host-derived count when reserving an app CPU.
+// Playwright CLI worker overrides still take precedence over this default
+const configuredWorkers = process.env.E2E_WORKERS
+if (configuredWorkers !== undefined && (!/^[1-9]\d*$/.test(configuredWorkers) || !Number.isSafeInteger(Number(configuredWorkers)))) {
+  throw new Error('E2E_WORKERS must be a positive integer')
+}
+
 // The three sizes the screenshot captures use, so the suite checks the layouts the captures
 // show. Copied by value from dev/demo/capture/shared.mjs rather than imported: that file is
 // JavaScript in the internal repository and this one is TypeScript in this one, so an import
@@ -59,7 +66,7 @@ export default defineConfig({
   },
 
   // Leave one available CPU for the application and operating system
-  workers: Math.max(1, availableParallelism() - 1),
+  workers: configuredWorkers === undefined ? Math.max(1, availableParallelism() - 1) : Number(configuredWorkers),
 
   projects: [
     {
