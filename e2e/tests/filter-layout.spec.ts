@@ -104,7 +104,10 @@ for (const domain of ['Account', 'Transaction'] as const) {
       ? await panel.evaluate((element) => parseFloat(getComputedStyle(element.lastElementChild!.firstElementChild!.firstElementChild!).paddingTop))
       : 0
     for (let index = 0; index < names.length; index++) {
-      await panel.getByRole('checkbox', { name: names[index], exact: true }).click()
+      const option = panel.getByRole('checkbox', { name: names[index], exact: true })
+      // Exercise pointer selection once, then use the keyboard while the growing pane moves
+      if (index === 0) await option.click()
+      else await option.press('Space')
       if (index === 0) await expectChipGeometry(panel, 1)
     }
     await expectChipGeometry(panel, 12)
@@ -114,7 +117,11 @@ for (const domain of ['Account', 'Transaction'] as const) {
       await expect.poll(() => panel.evaluate((element) => element.getBoundingClientRect().height)).toBeGreaterThan(originalPanelHeight + 1)
     }
     // Measure shrinkage in the same open cycle before resizing or closing adds layout changes
-    for (const name of names) await panel.getByRole('button', { name: `Remove ${name}`, exact: true }).click()
+    for (let index = 0; index < names.length; index++) {
+      const remove = panel.getByRole('button', { name: `Remove ${names[index]}`, exact: true })
+      if (index === 0) await remove.click()
+      else await remove.press('Enter')
+    }
     await expect(panel.getByRole('group', { name: 'Selected filters', exact: true })).toHaveCount(0)
     await expect(panel.getByText('No filters applied', { exact: true })).toBeVisible()
     if (page.viewportSize()!.width >= 750) {
@@ -134,7 +141,7 @@ for (const domain of ['Account', 'Transaction'] as const) {
     const seeded = await seedFilterPanel(page, request, domain)
     const { names } = seeded
     let { panel } = seeded
-    for (const name of names) await panel.getByRole('checkbox', { name, exact: true }).click()
+    for (const name of names) await panel.getByRole('checkbox', { name, exact: true }).press('Space')
     await expectChipGeometry(panel, 12)
     const search = panel.getByPlaceholder(domain === 'Account' ? 'Search institution' : 'Search accounts', { exact: true })
     await expect(search).toBeVisible()
