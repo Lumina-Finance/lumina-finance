@@ -49,7 +49,7 @@ export default defineConfig({
     // United States renders the same amount CA$42.50 and every assertion naming a symbol fails
     locale: 'en-CA',
 
-    trace: 'retain-on-failure',
+    trace: { mode: 'retain-on-failure', screenshots: false },
     screenshot: 'only-on-failure',
 
     // The captures pass this for the same reason: Chromium on Linux otherwise draws a classic
