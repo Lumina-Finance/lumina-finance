@@ -202,7 +202,7 @@ async function expectDrillUrl(page: Page, ids: string[], from = FROM, to = TO) {
   }).toEqual({ path: '/transactions', categories: ids, from, to, keys: [...ids.map(() => 'category_id'), 'from_date', 'to_date'].sort() })
 }
 
-test('opens slice transactions with inclusive dates and preserves refresh, filter and history behavior', async ({ page, request }) => {
+test('opens slice transactions with inclusive dates and preserves refresh', async ({ page, request }) => {
   const fixture = await createDrillFixture(request)
   await observeInitialSector(page, `View ${fixture.categories[0].name} transactions`)
   await start(page, fixture.user)
@@ -217,6 +217,14 @@ test('opens slice transactions with inclusive dates and preserves refresh, filte
   await expect(page.getByTestId(`transaction-row-${fixture.readOnlyId}`)).toContainText('Archived')
   await page.reload()
   await expectDrillUrl(page, [fixture.categories[0].id])
+  await expectRows(page, fixture.selected)
+
+})
+
+test('preserves drilldown filters through edits and browser history', async ({ page, request }) => {
+  const fixture = await createDrillFixture(request)
+  await start(page, fixture.user)
+  await openPage(page, `/transactions?category_id=${fixture.categories[0].id}&from_date=${FROM}&to_date=${TO}`)
   await expectRows(page, fixture.selected)
 
   let panel = await openFilters(page)
@@ -283,7 +291,7 @@ test('validates initial URL filters and keeps local-only changes out of address 
   await expectRows(page, [...fixture.selected, fixture.allIds[3], fixture.allIds[4]])
 })
 
-test('allows keyboard access beyond the legend and retains the displayed range during a pending change', async ({ page, request }) => {
+test('allows keyboard access beyond the legend and to crossover categories', async ({ page, request }) => {
   const fixture = await createDrillFixture(request)
   await start(page, fixture.user)
   await openPage(page, '/insights')
@@ -315,8 +323,13 @@ test('allows keyboard access beyond the legend and retains the displayed range d
   await crossover.press('Space')
   await expectDrillUrl(page, [fixture.categories[6].id])
   await expectRows(page, [fixture.otherIds[5]])
-  await page.goBack()
-  card = await showBreakdown(page)
+})
+
+test('retains the displayed range during a pending change', async ({ page, request }) => {
+  const fixture = await createDrillFixture(request)
+  await start(page, fixture.user)
+  await openPage(page, '/insights')
+  let card = await showBreakdown(page)
   const current = card.getByRole('button', { name: `View ${fixture.categories[0].name} transactions`, exact: true })
   await expectSectorReady(current)
 
