@@ -1,4 +1,4 @@
-import { expect, test as base, type APIRequestContext, type Locator, type Page, type Route } from '@playwright/test'
+import { expect, test as base, type APIRequestContext, type Locator, type Page, type Request, type Route } from '@playwright/test'
 import { createAccount, findReferenceId, signUpUser, TEST_CURRENCY, type TestUser } from '../support/api'
 import { openPage, logInViaApi, waitForPageReady } from '../support/app'
 import { API_BASE_URL } from '../support/target'
@@ -341,13 +341,16 @@ test('retains the displayed range during a pending change', async ({ page, drill
   let release!: () => void
   const held = new Promise<void>((resolve) => { release = resolve })
   let intercepted = false
+  let holding = true
+  let breakdownRequest: Request | undefined
   let markFinished!: () => void
   const finished = new Promise<void>((resolve) => { markFinished = resolve })
   /** Holds only this synthetic user's next dated breakdown request */
   const handler = async (route: Route) => {
     const params = new URL(route.request().url()).searchParams
-    if (params.get('from_date') !== '2026-03-01' || params.get('to_date') !== '2026-03-31') return route.continue()
+    if (!holding || params.get('from_date') !== '2026-03-01' || params.get('to_date') !== '2026-03-31') return route.fallback()
     intercepted = true
+    breakdownRequest = route.request()
     try {
       await held
       await route.continue()
@@ -366,10 +369,16 @@ test('retains the displayed range during a pending change', async ({ page, drill
     await expectDrillUrl(page, [fixture.categories[0].id])
     await expectRows(page, fixture.selected)
   } finally {
+    // Keep interception installed through history-triggered requests until context disposal
+    holding = false
     release()
     if (intercepted) await finished
-    await page.unroute(pattern, handler)
   }
+
+  const response = await breakdownRequest!.response()
+  expect(response, 'The released breakdown request must receive a response').not.toBeNull()
+  expect(response!.status()).toBe(200)
+  expect(await response!.finished(), 'The breakdown response must finish before returning').toBeNull()
 
   await page.goBack()
   await page.getByRole('button', { name: /^Insights date range:/ }).filter({ visible: true }).click()
