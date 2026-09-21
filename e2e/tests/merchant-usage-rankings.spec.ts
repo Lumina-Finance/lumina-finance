@@ -1,10 +1,10 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 
-import { createAccount, signUpUser } from '../support/api'
+import { createAccount, findReferenceId, signUpUser, TEST_CURRENCY, todayInTestTimezone } from '../support/api'
 import { chooseFromDropdown, expectSignedIn, openModal, openPage, logInViaApi } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
-test('refreshes merchant usage order after creating and deleting an expense', async ({ page, request }) => {
+async function setupMerchantRanking(page: Page, request: APIRequestContext, withExpense = false) {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Merchant usage account' })
   const headers = { Authorization: `Bearer ${user.accessToken}` }
@@ -16,6 +16,16 @@ test('refreshes merchant usage order after creating and deleting an expense', as
     const response = await request.post(`${API_BASE_URL}/merchants`, { headers, data: { name } })
     expect(response.status()).toBe(201)
     if (name === zulu) zuluId = (await response.json() as { id: string }).id
+  }
+  let transactionId: string | undefined
+  if (withExpense) {
+    const categoryId = await findReferenceId(request, user, 'categories', 'Groceries')
+    const response = await request.post(`${API_BASE_URL}/transactions`, {
+      headers,
+      data: { account_id: account.id, category_id: categoryId, merchant_id: zuluId, amount: -4250, currency: TEST_CURRENCY, dt: todayInTestTimezone() },
+    })
+    expect(response.status()).toBe(201)
+    transactionId = (await response.json() as { id: string }).id
   }
   await logInViaApi(page, user)
   await openPage(page, '/accounts')
@@ -50,6 +60,11 @@ test('refreshes merchant usage order after creating and deleting an expense', as
       .toEqual(names.map((name) => `Edit ${name}`))
   }
 
+  return { account, alpha, zulu, zuluId, transactionId, expectOrder, openAccount }
+}
+
+test('refreshes merchant usage order after creating an expense', async ({ page, request }) => {
+  const { account, alpha, zulu, zuluId, expectOrder, openAccount } = await setupMerchantRanking(page, request)
   await expectOrder([alpha, zulu])
   await openAccount()
   const dialog = await openModal(page, ['Add Transaction', 'Add transaction'], 'Add Transaction')
@@ -64,12 +79,15 @@ test('refreshes merchant usage order after creating and deleting an expense', as
   await dialog.getByTestId('transaction-submit').click()
   const response = await created
   expect(response.status()).toBe(201)
-  const { id } = await response.json() as { id: string }
   await expect(dialog).toBeHidden()
   await expectOrder([zulu, alpha])
+})
 
+test('refreshes merchant usage order after deleting an expense', async ({ page, request }) => {
+  const { alpha, zulu, transactionId, expectOrder, openAccount } = await setupMerchantRanking(page, request, true)
+  await expectOrder([zulu, alpha])
   await openAccount()
-  const row = page.getByTestId(`transaction-row-${id}`)
+  const row = page.getByTestId(`transaction-row-${transactionId}`)
   await row.click()
   const edit = page.getByRole('dialog', { name: 'Edit Transaction', exact: true })
   const remove = edit.getByTestId('transaction-delete')
@@ -77,7 +95,7 @@ test('refreshes merchant usage order after creating and deleting an expense', as
   await remove.click()
   await expect(remove).toHaveAccessibleName('Yes, delete')
   const deleted = page.waitForResponse((result) =>
-    result.url() === `${API_BASE_URL}/transactions/${id}` && result.request().method() === 'DELETE')
+    result.url() === `${API_BASE_URL}/transactions/${transactionId}` && result.request().method() === 'DELETE')
   await remove.click()
   expect((await deleted).status()).toBe(204)
   await expect(edit).toBeHidden()
