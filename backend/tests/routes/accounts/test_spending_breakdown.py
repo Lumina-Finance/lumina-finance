@@ -1,4 +1,5 @@
 """Route tests for GET /accounts/{account_id}/spending-breakdown."""
+import asyncio
 import importlib
 import uuid
 from datetime import UTC, date, datetime, timedelta
@@ -6,11 +7,13 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
+from app.database import current_user_id_ctx
 from app.models.base import CategoryKind
 from app.models.category import Category
 from app.models.merchant import Merchant
 from app.models.transaction import Transaction
-from tests.conftest import TestSession
+from app.services.accounts.spending import get_account_spending_breakdown
+from tests.conftest import ScopedSession, TestSession
 from tests.routes.support import _create_account, _create_user, _get_auth_header, _get_system_merchant_id
 
 # --- Helpers ---
@@ -120,6 +123,174 @@ async def _setup_account(client):
     headers = _get_auth_header(signup_resp)
     account_resp = await _create_account(client, headers)
     return headers, account_resp.json()["id"]
+
+
+async def _read_across_committed_write(monkeypatch, user_id, account_id, transaction):
+    """Commit an independent RLS-protected write after the reader buffers its first aggregate
+
+    Return the complete breakdown before, during and after the concurrent write without
+    replacing any database result or relying on scheduling delays
+    """
+    buffered = asyncio.Event()
+    release = asyncio.Event()
+    identity_token = current_user_id_ctx.set(uuid.UUID(user_id))
+    now = datetime.now(ZoneInfo("America/Toronto"))
+    read_task = None
+    try:
+        async with ScopedSession() as reader:
+            original = await get_account_spending_breakdown(reader, uuid.UUID(account_id), "MTD", now)
+            execute = reader.execute
+            first_execute = True
+
+            async def pause_after_execute(*args, **kwargs):
+                nonlocal first_execute
+                result = await execute(*args, **kwargs)
+                if first_execute:
+                    first_execute = False
+                    buffered.set()
+                    await asyncio.wait_for(release.wait(), timeout=10)
+                return result
+
+            with monkeypatch.context() as patch:
+                patch.setattr(reader, "execute", pause_after_execute)
+                read_task = asyncio.create_task(
+                    get_account_spending_breakdown(reader, uuid.UUID(account_id), "MTD", now),
+                )
+                try:
+                    await asyncio.wait_for(buffered.wait(), timeout=10)
+                    async with ScopedSession() as writer:
+                        writer.add(transaction)
+                        await writer.commit()
+                except BaseException:
+                    read_task.cancel()
+                    await asyncio.gather(read_task, return_exceptions=True)
+                    raise
+                finally:
+                    release.set()
+                during = await asyncio.wait_for(read_task, timeout=10)
+            after = await get_account_spending_breakdown(reader, uuid.UUID(account_id), "MTD", now)
+        return original.model_dump(), during.model_dump(), after.model_dump()
+    finally:
+        release.set()
+        if read_task is not None and not read_task.done():
+            read_task.cancel()
+            await asyncio.gather(read_task, return_exceptions=True)
+        current_user_id_ctx.reset(identity_token)
+
+
+async def test_concurrent_full_refund_keeps_one_spending_snapshot(client, monkeypatch):
+    """A committed refund cannot mix an old category total with newly empty rows and merchants"""
+    signup = await _create_user(client)
+    headers = _get_auth_header(signup)
+    user_id = signup.json()["user"]["id"]
+    account_id = (await _create_account(client, headers)).json()["id"]
+    category = (await _create_category(client, headers)).json()
+    merchant = (await _create_merchant(client, headers)).json()
+    purchase = await _create_transaction(
+        client, headers, account_id, category["id"], amount=-1000, merchant_id=merchant["id"],
+    )
+    assert purchase.status_code == 201
+    refund = Transaction(
+        created_by_user_id=uuid.UUID(user_id), account_id=uuid.UUID(account_id), dt=_today_utc(),
+        category_id=uuid.UUID(category["id"]), merchant_id=uuid.UUID(merchant["id"]),
+        amount=1000, currency="CAD",
+    )
+
+    original, during, after = await _read_across_committed_write(monkeypatch, user_id, account_id, refund)
+
+    assert original["categories_total_spend"] == original["merchants_total_spend"] == 1000
+    assert len(original["top_categories"]) == len(original["top_merchants"]) == 1
+    assert during == original
+    assert after == {
+        "range": "MTD", "top_categories": [], "top_merchants": [],
+        "categories_total_spend": 0, "merchants_total_spend": 0,
+        "other_categories_count": 0, "other_merchants_count": 0,
+    }
+
+
+async def test_concurrent_new_group_keeps_totals_rankings_and_hidden_counts_consistent(client, monkeypatch):
+    """A new leading expense group appears in totals, rankings and hidden counts together"""
+    signup = await _create_user(client)
+    headers = _get_auth_header(signup)
+    user_id = signup.json()["user"]["id"]
+    account_id = (await _create_account(client, headers)).json()["id"]
+    for index in range(6):
+        category = (await _create_category(client, headers, name=f"Test Snapshot {index}")).json()
+        merchant = (await _create_merchant(client, headers, name=f"Snapshot Merchant {index}")).json()
+        purchase = await _create_transaction(
+            client, headers, account_id, category["id"],
+            amount=-(600 - index * 100), merchant_id=merchant["id"],
+        )
+        assert purchase.status_code == 201
+    new_category = (await _create_category(client, headers, name="Test Snapshot New")).json()
+    new_merchant = (await _create_merchant(client, headers, name="Snapshot Merchant New")).json()
+    expense = Transaction(
+        created_by_user_id=uuid.UUID(user_id), account_id=uuid.UUID(account_id), dt=_today_utc(),
+        category_id=uuid.UUID(new_category["id"]), merchant_id=uuid.UUID(new_merchant["id"]),
+        amount=-1000, currency="CAD",
+    )
+
+    original, during, after = await _read_across_committed_write(monkeypatch, user_id, account_id, expense)
+
+    assert original["categories_total_spend"] == original["merchants_total_spend"] == 2100
+    assert original["other_categories_count"] == original["other_merchants_count"] == 1
+    assert during == original
+    assert after["categories_total_spend"] == after["merchants_total_spend"] == 3100
+    assert after["other_categories_count"] == after["other_merchants_count"] == 2
+    assert after["top_categories"][0]["category_id"] == uuid.UUID(new_category["id"])
+    assert after["top_merchants"][0]["merchant_id"] == uuid.UUID(new_merchant["id"])
+    assert [row["total"] for row in after["top_categories"]] == [1000, 600, 500, 400, 300]
+    assert [row["total"] for row in after["top_merchants"]] == [1000, 600, 500, 400, 300]
+
+
+async def test_spending_snapshot_uses_one_execute_and_returns_at_most_ten_rows(client, monkeypatch):
+    """Top-five decoding keeps complete totals and hidden counts without fetching every group"""
+    signup = await _create_user(client)
+    headers = _get_auth_header(signup)
+    user_id = uuid.UUID(signup.json()["user"]["id"])
+    account_id = (await _create_account(client, headers)).json()["id"]
+    for index in range(8):
+        category = (await _create_category(client, headers, name=f"Test Bounded {index}")).json()
+        merchant = (await _create_merchant(client, headers, name=f"Bounded Merchant {index}")).json()
+        purchase = await _create_transaction(
+            client, headers, account_id, category["id"],
+            amount=-(800 - index * 100), merchant_id=merchant["id"],
+        )
+        assert purchase.status_code == 201
+    executions = 0
+    returned_row_counts = []
+    identity_token = current_user_id_ctx.set(user_id)
+    try:
+        async with ScopedSession() as reader:
+            execute = reader.execute
+
+            async def record_execute(*args, **kwargs):
+                nonlocal executions
+                result = await execute(*args, **kwargs)
+                executions += 1
+                read_all = result.all
+
+                def record_rows():
+                    rows = read_all()
+                    returned_row_counts.append(len(rows))
+                    return rows
+
+                monkeypatch.setattr(result, "all", record_rows)
+                return result
+
+            monkeypatch.setattr(reader, "execute", record_execute)
+            breakdown = await get_account_spending_breakdown(
+                reader, uuid.UUID(account_id), "MTD", datetime.now(ZoneInfo("America/Toronto")),
+            )
+    finally:
+        current_user_id_ctx.reset(identity_token)
+
+    assert executions == 1
+    assert returned_row_counts == [10]
+    assert breakdown.categories_total_spend == breakdown.merchants_total_spend == 3600
+    assert breakdown.other_categories_count == breakdown.other_merchants_count == 3
+    assert [row.total for row in breakdown.top_categories] == [800, 700, 600, 500, 400]
+    assert [row.total for row in breakdown.top_merchants] == [800, 700, 600, 500, 400]
 
 
 # --- Range window tests ---

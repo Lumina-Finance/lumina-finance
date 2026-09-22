@@ -9,12 +9,7 @@ from app.models.category import Category
 from app.models.transaction import Transaction
 from app.schemas.account import AccountSpendingBreakdown
 from app.schemas.dashboard import RangeKind
-from app.services.accounts.spending_query_helpers import (
-    get_account_categories_total_spend,
-    get_account_merchants_total_spend,
-    get_account_top_categories,
-    get_account_top_merchants,
-)
+from app.services.accounts.spending_query_helpers import get_account_spending_snapshot
 
 
 async def get_account_spending_breakdown(
@@ -36,36 +31,7 @@ async def get_account_spending_breakdown(
     """
     start, end = _get_current_period_date_bounds(range_, now.date())
     expense_predicate = _build_expense_transaction_predicate(account_id, start, end)
-    categories_total_spend = await get_account_categories_total_spend(db, expense_predicate)
-    merchants_total_spend = await get_account_merchants_total_spend(db, expense_predicate)
-
-    # A card holds rows only where something netted spending, which leaves that card's total
-    # above zero, so two zero totals mean both cards are empty. One alone does not: a category
-    # refunded past zero can still hold a merchant that was not
-    if categories_total_spend == 0 and merchants_total_spend == 0:
-        empty_breakdown = AccountSpendingBreakdown(
-            range=range_,
-            top_categories=[],
-            top_merchants=[],
-            categories_total_spend=0,
-            merchants_total_spend=0,
-            other_categories_count=0,
-            other_merchants_count=0,
-        )
-        return empty_breakdown
-
-    top_categories, other_categories_count = await get_account_top_categories(db, expense_predicate)
-    top_merchants, other_merchants_count = await get_account_top_merchants(db, expense_predicate)
-    breakdown = AccountSpendingBreakdown(
-        range=range_,
-        top_categories=top_categories,
-        top_merchants=top_merchants,
-        categories_total_spend=categories_total_spend,
-        merchants_total_spend=merchants_total_spend,
-        other_categories_count=other_categories_count,
-        other_merchants_count=other_merchants_count,
-    )
-    return breakdown
+    return await get_account_spending_snapshot(db, expense_predicate, range_)
 
 
 def _get_current_period_date_bounds(range_: RangeKind, today: date) -> tuple[date, date]:
