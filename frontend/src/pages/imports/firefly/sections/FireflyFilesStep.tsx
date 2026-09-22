@@ -91,7 +91,7 @@ export function FireflyFilesStep({
         />
       ))}
 
-      <div className="mt-auto grid grid-cols-3 gap-3 pt-3">
+      <div className="mt-auto flex flex-wrap gap-3 pt-3">
         <ImportStat label="Rows" value={fireflyRows.length.toString()} />
         <ImportStat label="Accounts" value={trackedAccountNames.length.toString()} />
         <ImportStat label="Categories" value={importedCategories.length.toString()} />
