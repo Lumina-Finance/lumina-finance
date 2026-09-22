@@ -162,6 +162,7 @@ export function NetWorthCard({
           {displaySnapshot.failed && (
             <div className={BODY_CLASS}>
               <LoadFailure
+                compact
                 error={displaySnapshot.error}
                 standalone
                 subject="Net worth"

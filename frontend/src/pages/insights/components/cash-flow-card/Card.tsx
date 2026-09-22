@@ -112,6 +112,7 @@ export function CashFlowCard({
           {displaySnapshot.failed && (
             <div className={BODY_CLASS}>
               <LoadFailure
+                compact
                 error={displaySnapshot.error}
                 standalone
                 subject="Cash flow"

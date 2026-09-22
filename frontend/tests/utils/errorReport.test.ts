@@ -60,6 +60,19 @@ describe('buildErrorReport', () => {
     expect(report).not.toContain('Server said:')
   })
 
+  it('preserves the complete backend detail when its card presentation is shortened', () => {
+    const detail = `${'The request could not complete with the supplied account data.\n'.repeat(100)}Final diagnostic detail`
+    const report = buildErrorReport({
+      componentStack: null,
+      error: new ApiError('Request failed (503)', 503, { detail }),
+      occurredAt: OCCURRED_AT,
+      path: '/insights',
+      userAgent: USER_AGENT,
+    })
+
+    expect(report).toContain(`Server said: ${detail}`)
+  })
+
   it('describes a thrown value that is not an error and leaves the stack out', () => {
     const report = buildErrorReport({
       componentStack: null,

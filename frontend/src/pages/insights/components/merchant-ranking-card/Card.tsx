@@ -125,6 +125,7 @@ export function MerchantRankingCard({
         >
           {displaySnapshot.failed && (
             <LoadFailure
+              compact
               error={displaySnapshot.error}
               standalone
               subject="Merchant ranking"
