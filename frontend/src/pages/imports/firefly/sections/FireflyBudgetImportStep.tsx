@@ -93,7 +93,7 @@ export function FireflyBudgetImportStep({
             </colgroup>
             <thead style={{ color: 'var(--app-text-subtle)', background: 'var(--app-input-bg)' }}>
               <tr>
-                <th className="w-12 px-4 py-2.5 font-medium" aria-label="Import selection" />
+                <th className="w-12 px-2 py-2.5 font-medium" aria-label="Import selection" />
                 <th className="px-4 py-2.5 font-medium">Budget</th>
                 <th className="px-4 py-2.5 font-medium">Cadence</th>
                 <th className="px-4 py-2.5 text-right font-medium">Latest Amount</th>
@@ -113,7 +113,7 @@ export function FireflyBudgetImportStep({
 
                 return (
                   <tr key={draft.name}>
-                    <td className="px-4 py-2.5 align-middle">
+                    <td className="px-2 py-2.5 align-middle">
                       <span className="flex justify-center">
                         <Checkbox
                           checked={status !== 'imported' && selectedBudgetNames.has(draft.name)}
