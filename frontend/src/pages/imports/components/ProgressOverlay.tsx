@@ -1,7 +1,11 @@
+import { useEffect, useId, useRef, type RefObject } from 'react'
 import { AlertCircle, CheckCircle2, CircleStop, LoaderCircle } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import type { Variants } from 'motion/react'
 import type { ImportOverlayPhase, ImportProgressStep, ImportProgressStepStatus } from '@/pages/imports/types'
+import { useDialogFocus } from '@/components/modal/focus'
+import { registerOpenModal, unregisterOpenModal } from '@/components/modal/stack'
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock'
 import { GENERIC_IMPORT_FAILURE } from '@/utils/importFailure'
 
 const OVERLAY_BACKGROUND = 'var(--app-bg)'
@@ -118,6 +122,9 @@ const iconVariants: Variants = {
 
 interface ImportProgressOverlayProps {
   error: string | null
+  onScreen: boolean
+  returnFocusTo: HTMLElement | null
+  returnFocusFallbackRef: RefObject<HTMLElement | null>
   onDone: () => void
   onReturnToImport: () => void
 
@@ -148,6 +155,9 @@ interface ImportProgressOverlayProps {
  */
 export function ImportProgressOverlay({
   error,
+  onScreen,
+  returnFocusTo,
+  returnFocusFallbackRef,
   onDone,
   onReturnToImport,
   onClosed,
@@ -158,6 +168,25 @@ export function ImportProgressOverlay({
   steps,
   summary,
 }: ImportProgressOverlayProps) {
+  const token = useId()
+  const titleId = useId()
+  const panelRef = useRef<HTMLDivElement>(null)
+
+  useBodyScrollLock(onScreen)
+  useDialogFocus(onScreen, panelRef, token, undefined, false, {
+    opener: returnFocusTo,
+    fallbackRef: returnFocusFallbackRef,
+  })
+
+  // The imports page already makes only its own content inert, so registering the inline overlay
+  // must not make the app root inert along with the dialog itself
+  useEffect(() => {
+    if (!onScreen) return
+
+    registerOpenModal(token, { blurPage: false, inertPage: false })
+    return () => unregisterOpenModal(token)
+  }, [onScreen, token])
+
   const open = phase !== 'idle'
   const complete = phase === 'success'
   const failed = phase === 'error'
@@ -204,6 +233,7 @@ export function ImportProgressOverlay({
         // Declared on both sides so the property has a value to return to, rather than leaving that
         // to how a value dropped from the target is treated
         <motion.div
+          ref={panelRef}
           key="import-progress-overlay"
           className="fixed inset-0 flex items-center justify-center px-5 py-8"
           style={{ background: OVERLAY_BACKGROUND, color: OVERLAY_TEXT, zIndex: OVERLAY_Z_INDEX }}
@@ -213,8 +243,13 @@ export function ImportProgressOverlay({
           transition={{ duration: 0.24, ease: 'easeOut' }}
           role="dialog"
           aria-modal="true"
-          aria-live="polite"
+          aria-labelledby={titleId}
+          tabIndex={-1}
         >
+          <h2 id={titleId} className="sr-only">Import progress</h2>
+          <p role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+            {title}. {steps?.find((step) => step.status === 'active')?.label ?? ''} {message}
+          </p>
           <motion.div
             className="relative flex w-full max-w-[30rem] flex-col items-center px-4 py-8 text-center"
             initial={{ scale: 0.985 }}

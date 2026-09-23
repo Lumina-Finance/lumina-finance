@@ -51,7 +51,7 @@ export function MobileFilterSheet({
   useEffect(() => {
     if (!isOpen) return
 
-    registerOpenModal(token, false)
+    registerOpenModal(token, { blurPage: false })
     return () => unregisterOpenModal(token)
   }, [isOpen, token])
 
