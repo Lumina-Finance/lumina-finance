@@ -13,6 +13,7 @@ import { useCategories } from '@/api/categories'
 import { useCurrencies } from '@/api/currency'
 import { useAuth } from '@/hooks/useAuth'
 import { useCurrencyGuard } from '@/hooks/useCurrencyGuard'
+import { useMinimumVisibleFlag } from '@/hooks/useMinimumVisibleFlag'
 import BudgetCardsSection from '@/pages/budgets/components/budget-cards/Section'
 import BudgetArchivedSection from '@/pages/budgets/components/budget-cards/ArchivedSection'
 import BudgetCreateModal from '@/pages/budgets/components/budget-editor-modal/CreateModal'
@@ -21,6 +22,7 @@ import { useBudgetCards } from '@/pages/budgets/hooks/useBudgetCards'
 import { useRecurringBudgetBackfill } from '@/pages/budgets/hooks/useRecurringBudgetBackfill'
 import type { BudgetCardViewModel } from '@/pages/budgets/types'
 import { getTodayYmd, resolveTimeZone } from '@/utils/date'
+import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
 
 /**
  * Coordinates budget data loading, URL selection, recurring backfill, and modal workflows
@@ -66,7 +68,10 @@ export default function BudgetsPage() {
     ),
     [latestUtilizationsQuery.data],
   )
-  const budgetsLoading = baseBudgetsQuery.isFetching || budgetsQuery.isFetching || latestUtilizationsQuery.isFetching
+  const budgetsLoading = useMinimumVisibleFlag(
+    baseBudgetsQuery.isFetching || budgetsQuery.isFetching || latestUtilizationsQuery.isFetching,
+    LOADING_ANIMATION_MIN_MS,
+  )
   const budgetsError = baseBudgetsQuery.isError || budgetsQuery.isError || latestUtilizationsQuery.isError
   const selectedBudget = budgetCards.find(({ baseBudget }) => baseBudget.id === selectedBudgetId)
   const visibleBudgetDetails = selectedBudget ?? (
@@ -140,7 +145,7 @@ export default function BudgetsPage() {
         budgetCards={activeBudgetCards}
         latestUtilizationByBudgetId={latestUtilizationByBudgetId}
         loading={budgetsLoading}
-        error={budgetsError}
+        error={budgetsError && !budgetsLoading}
         formOptionsLoading={categoriesLoading}
         onOpenBudget={openBudget}
       />

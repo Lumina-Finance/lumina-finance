@@ -20,7 +20,8 @@ import {
   getSortedBudgetPeriods,
 } from '@/pages/budgets/utils/budgetDetails'
 import { combineFxStatuses } from '@/utils/fxStatus'
-import { ACTION_LOADING_MIN_MS } from '@/utils/timing'
+import { useMinimumVisibleFlag } from '@/hooks/useMinimumVisibleFlag'
+import { ACTION_LOADING_MIN_MS, LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
 
 /**
  * Coordinates budget details data, edit/delete actions, and the responsive details dialog layout
@@ -71,7 +72,7 @@ export default function BudgetDetailsModal({
     () => getBudgetUtilizationByBudgetId(initialLatestUtilization, utilizationQuery.data ?? []),
     [initialLatestUtilization, utilizationQuery.data],
   )
-  const utilizationHistoryLoading = utilizationQuery.isLoading
+  const utilizationHistoryLoading = useMinimumVisibleFlag(utilizationQuery.isLoading, LOADING_ANIMATION_MIN_MS)
   const utilizationHistoryError = utilizationQuery.isError
   const latestUtilization = latestPeriod ? utilizationByBudgetId.get(latestPeriod.id) : undefined
 
