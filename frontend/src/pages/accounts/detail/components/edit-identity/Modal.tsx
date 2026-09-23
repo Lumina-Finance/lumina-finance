@@ -19,7 +19,7 @@ import {
   findCurrencyExponent,
   fromMinorUnits,
 } from '@/utils/moneyInput'
-import { ACTION_LOADING_MIN_MS, waitForMilliseconds } from '@/utils/timing'
+import { ACTION_LOADING_MIN_MS, LOADING_ANIMATION_MIN_MS, waitForMilliseconds } from '@/utils/timing'
 import {
   createIdentityFormValues,
   getIdentityFieldErrors,
@@ -49,8 +49,6 @@ type EditAccountIdentityModalProps = {
 
 // Set on the heading inside the header component, which the dialog is labelled by
 const EDIT_ACCOUNT_IDENTITY_TITLE_ID = 'edit-account-identity-title'
-
-const MIN_SAVE_SPINNER_MS = 800
 
 /**
  * Coordinates account identity edits, archive changes, and destructive deletion from one modal workflow
@@ -176,7 +174,7 @@ export default function EditAccountIdentityModal({
 
     setSubmitError(null)
     setSaveDelayPending(true)
-    const minimumDelay = waitForMilliseconds(MIN_SAVE_SPINNER_MS)
+    const minimumDelay = waitForMilliseconds(LOADING_ANIMATION_MIN_MS)
 
     try {
       await updateAccount.mutateAsync({
