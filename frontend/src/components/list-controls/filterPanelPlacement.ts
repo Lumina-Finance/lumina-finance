@@ -12,6 +12,11 @@ export interface FilterPanelPlacement {
   height: number
 }
 
+export interface FilterPanelHorizontalPlacement {
+  direction: 'left' | 'right'
+  width: number
+}
+
 interface FilterPanelPlacementParams {
   anchorRect: FilterPanelAnchorRect
   // Direction the panel is already open in, or null when it is being opened
@@ -25,8 +30,35 @@ export const FILTER_PANEL_MIN_HEIGHT = 440
 
 // Kept clear beyond the open panel so it never runs to the top or bottom edge of the viewport
 const VIEWPORT_MARGIN = 24
+const NAVIGATION_GAP = 16
 
 export const DEFAULT_FILTER_PANEL_PLACEMENT: FilterPanelPlacement = { direction: 'down', height: FILTER_PANEL_MIN_HEIGHT }
+
+/** Keeps the expanded panel beside the navigation and inside the viewport. */
+export function getFilterPanelHorizontalPlacement({
+  anchorLeft,
+  anchorRight,
+  navigationRight,
+  openWidth,
+  viewportWidth,
+}: {
+  anchorLeft: number
+  anchorRight: number
+  navigationRight: number
+  openWidth: number
+  viewportWidth: number
+}): FilterPanelHorizontalPlacement {
+  const desiredWidth = Math.min(openWidth, viewportWidth * 0.9)
+  const leftBoundary = Math.max(VIEWPORT_MARGIN, navigationRight + NAVIGATION_GAP)
+  if (anchorRight - leftBoundary >= desiredWidth) {
+    return { direction: 'left', width: desiredWidth }
+  }
+
+  return {
+    direction: 'right',
+    width: Math.max(0, Math.min(desiredWidth, viewportWidth - VIEWPORT_MARGIN - anchorLeft)),
+  }
+}
 
 /**
  * Chooses which way the open filter panel grows and how tall it is: downward wherever the full
