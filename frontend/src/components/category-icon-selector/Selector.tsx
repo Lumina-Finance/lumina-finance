@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type RefObject } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { useMinimumVisibleFlag } from '@/hooks/useMinimumVisibleFlag'
 import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
@@ -56,15 +56,19 @@ const EMOJI_MART_THEME = {
 } as const
 
 let emojiMartDataPromise: Promise<EmojiMartData> | null = null
+let cachedEmojiMartData: EmojiMartData | null = null
+let cachedEmojiMartPickerModule: typeof import('emoji-mart') | null = null
 
 /**
  * Loads the large emoji dataset once because multiple icon selectors can open during settings edits
  */
 function loadEmojiMartData(): Promise<EmojiMartData> {
   if (!emojiMartDataPromise) {
-    emojiMartDataPromise = fetch(EMOJI_MART_DATA_URL).then((response) => {
+    emojiMartDataPromise = fetch(EMOJI_MART_DATA_URL).then(async (response) => {
       if (!response.ok) throw new Error('Failed to load emoji data.')
-      return response.json() as Promise<EmojiMartData>
+      const data = await response.json() as EmojiMartData
+      cachedEmojiMartData = data
+      return data
     })
   }
 
@@ -222,8 +226,8 @@ function EmojiMartIconPicker({
   position: EmojiPickerPosition
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null)
-  const [data, setData] = useState<EmojiMartData | null>(null)
-  const [pickerModule, setPickerModule] = useState<typeof import('emoji-mart') | null>(null)
+  const [data, setData] = useState<EmojiMartData | null>(cachedEmojiMartData)
+  const [pickerModule, setPickerModule] = useState<typeof import('emoji-mart') | null>(cachedEmojiMartPickerModule)
   const [loadError, setLoadError] = useState<string | null>(null)
   const isDark = useAppDarkMode()
   const loadingVisible = useMinimumVisibleFlag(
@@ -250,6 +254,7 @@ function EmojiMartIconPicker({
     // Load the picker on demand alongside its dataset so the loading state covers both requests
     import('emoji-mart')
       .then((module) => {
+        cachedEmojiMartPickerModule = module
         if (!cancelled) setPickerModule(module)
       })
       .catch(() => {
@@ -268,7 +273,7 @@ function EmojiMartIconPicker({
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [onClose])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const container = containerRef.current
     if (!container || !data || !pickerModule || loadingVisible) return
 
