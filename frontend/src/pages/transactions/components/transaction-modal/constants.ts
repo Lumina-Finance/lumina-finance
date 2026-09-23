@@ -3,13 +3,14 @@ import type {
   TransactionFormValues,
   TransactionModalKind,
 } from '@/pages/transactions/components/transaction-modal/types'
+import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
 
 export const EASE = [0.25, 0.1, 0.25, 1] as const
 export const SELECTOR_SPRING = { type: 'spring', stiffness: 420, damping: 36, mass: 0.8 } as const
 export const DEFAULT_CATEGORY_ICON = '🏷️'
-export const MIN_ADD_TRANSACTION_LOADING_MS = 800
-export const MIN_BATCH_ADD_TRANSACTION_LOADING_MS = 300
-export const MIN_DELETE_TRANSACTION_LOADING_MS = 800
+export const MIN_ADD_TRANSACTION_LOADING_MS = LOADING_ANIMATION_MIN_MS
+export const MIN_BATCH_ADD_TRANSACTION_LOADING_MS = LOADING_ANIMATION_MIN_MS
+export const MIN_DELETE_TRANSACTION_LOADING_MS = LOADING_ANIMATION_MIN_MS
 export const MERCHANT_DROPDOWN_PAGE_SIZE = 10
 export const MERCHANT_SEARCH_DEBOUNCE_MS = 300
 export const TAG_DROPDOWN_PAGE_SIZE = 10

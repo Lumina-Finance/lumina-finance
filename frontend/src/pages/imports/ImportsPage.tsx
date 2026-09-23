@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useQueryClient } from '@tanstack/react-query'
+import { useMinimumVisibleFlag } from '@/hooks/useMinimumVisibleFlag'
+import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
 import { Upload, X } from 'lucide-react'
 import { accountKeys, categoryKeys, institutionKeys, merchantKeys } from '@/api/cache/queryKeys'
 import {
@@ -45,6 +47,8 @@ export default function ImportsPage() {
   const queryClient = useQueryClient()
   const [dataSource, setDataSource] = useState<ImportDataSource>('generic')
   const accountScope = useImportAccountScope()
+  const scopeLoadingVisible = useMinimumVisibleFlag(accountScope.state === 'loading', LOADING_ANIMATION_MIN_MS)
+  const scopeState = scopeLoadingVisible ? 'loading' : accountScope.state
   const workflow = useTransactionImportWorkflow(accountScope.account)
   const fireflyWorkflow = useFireflyImportWorkflow()
 
@@ -136,7 +140,7 @@ export default function ImportsPage() {
   // nothing, and a refetch landing during a commit would otherwise replace the overlay reporting
   // what was written. That also strands the page: the overlay is taken off screen without the exit
   // that would clear the flag dimming and disabling everything under it
-  if (accountScope.state !== 'unscoped' && accountScope.state !== 'ready' && !isImportBusy) {
+  if (scopeState !== 'unscoped' && scopeState !== 'ready' && !isImportBusy) {
     return (
       <div
         className="relative flex h-screen min-h-screen flex-col items-center justify-center px-5"
@@ -151,9 +155,9 @@ export default function ImportsPage() {
           <X size={20} aria-hidden />
         </button>
 
-        {accountScope.state === 'loading' && <div className="app-spinner" role="status" aria-label="Loading" />}
+        {scopeState === 'loading' && <div className="app-spinner" role="status" aria-label="Loading" />}
 
-        {accountScope.state === 'failed' && (
+        {scopeState === 'failed' && (
           <div className="w-full max-w-md">
             <ImportLoadFailure
               title={IMPORT_SCOPE_FAILURE_TITLE}
@@ -163,7 +167,7 @@ export default function ImportsPage() {
           </div>
         )}
 
-        {accountScope.state === 'unavailable' && (
+        {scopeState === 'unavailable' && (
           <div className="max-w-md text-center">
             <h1 className="app-page-title">{IMPORT_NOT_PERMITTED_TITLE}</h1>
             <p className="app-page-description">{IMPORT_NOT_PERMITTED_EXPLANATION}</p>

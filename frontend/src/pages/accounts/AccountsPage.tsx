@@ -14,6 +14,8 @@ import { useFilters } from '@/pages/accounts/hooks/useFilters'
 import { useAccountSections } from '@/pages/accounts/hooks/useAccountSections'
 import { useAccountsMetrics } from '@/pages/accounts/hooks/useAccountsMetrics'
 import { useTaxAdvantagedLimitSummaries } from '@/pages/accounts/hooks/useTaxAdvantagedLimitSummaries'
+import { useMinimumVisibleFlag } from '@/hooks/useMinimumVisibleFlag'
+import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
 
 /**
  * Accounts overview page listing every open account grouped into assets, revolving credit and
@@ -40,7 +42,7 @@ export default function AccountsPage() {
   // A fetch that already has rows to show leaves them in place, so adding an account no longer
   // drops the whole list through its exit animation and plays it back in. A fetch with nothing to
   // show still gets the spinner, which covers first load and the retry after a failed one alike
-  const accountsLoading = isFetching && allRows.length === 0
+  const accountsLoading = useMinimumVisibleFlag(isFetching && allRows.length === 0, LOADING_ANIMATION_MIN_MS)
   const rows = useMemo(() => allRows.filter((account) => !account.is_archived), [allRows])
   const archivedRows = useMemo(() => allRows.filter((account) => account.is_archived), [allRows])
   const displayCurrency = user!.base_currency
@@ -75,7 +77,7 @@ export default function AccountsPage() {
 
       <div className="space-y-4">
         <SummaryStatement
-          error={error}
+          error={accountsLoading ? null : error}
           isLoading={accountsLoading}
           netWorth={accountSections.netWorth}
           totalAssets={accountSections.totalAssets}

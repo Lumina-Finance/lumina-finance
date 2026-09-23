@@ -1,4 +1,5 @@
 import type { SnapshotGranularity } from '@/api/accounts'
+import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
 
 export const ACCOUNT_KIND_LABEL: Record<string, string> = {
   asset: 'Asset',
@@ -14,7 +15,7 @@ export const ACCOUNT_SKELETON_DELAY_MS = 150
 
 // Once the skeleton is on screen it stays for at least this long, so an account arriving just
 // after it appears does not replace it mid-blink
-export const ACCOUNT_SKELETON_MINIMUM_MS = 800
+export const ACCOUNT_SKELETON_MINIMUM_MS = LOADING_ANIMATION_MIN_MS
 
 // How long the placeholder takes to fade in, and to fade out once the account is ready. The page
 // waits out the fade before swapping in the real cards, so this is time added to every load that

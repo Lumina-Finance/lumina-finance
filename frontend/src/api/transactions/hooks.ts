@@ -161,10 +161,11 @@ export function useRefreshCreatedTransactions() {
 /**
  * Updates transactions and invalidates only the views affected by changed fields
  */
-export function useUpdateTransaction() {
+export function useUpdateTransaction({ minimumPendingMs = 0 }: { minimumPendingMs?: number } = {}) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: updateTransaction,
+    mutationFn: (payload: Parameters<typeof updateTransaction>[0]) =>
+      runWithMinimumPendingTime(minimumPendingMs, () => updateTransaction(payload)),
     onMutate: ({ id }: { id: string; patch: UpdateTransactionPayload }) => ({
       previousTransaction: findCachedTransaction(queryClient, id),
     }),
@@ -181,10 +182,11 @@ export function useUpdateTransaction() {
 /**
  * Applies one set of details across several transactions and refreshes the views those fields feed
  */
-export function useBulkUpdateTransactions() {
+export function useBulkUpdateTransactions({ minimumPendingMs = 0 }: { minimumPendingMs?: number } = {}) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: bulkUpdateTransactions,
+    mutationFn: (payload: Parameters<typeof bulkUpdateTransactions>[0]) =>
+      runWithMinimumPendingTime(minimumPendingMs, () => bulkUpdateTransactions(payload)),
     onSuccess: (result, payload) => {
       invalidateBulkUpdatedTransactionData(queryClient, payload, result.affected_account_ids);
     },

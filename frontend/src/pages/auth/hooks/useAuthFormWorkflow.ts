@@ -178,6 +178,7 @@ export function useAuthFormWorkflow({
       try {
         await forgotPassword({ email: form.email })
       } catch (err) {
+        await delayToMinimum(forgotStart)
         setSubmitting(false)
         setError(getAuthErrorMessage(err))
         return
@@ -215,6 +216,7 @@ export function useAuthFormWorkflow({
         ? await login(buildLoginPayload(form))
         : await signup(buildSignupPayload(form))
     } catch (err) {
+      await delayToMinimum(start)
       setSubmitting(false)
       if (isAuthLockoutError(err)) {
         lockout.recordLockout()

@@ -31,7 +31,7 @@ import {
   validateNewLimitForm,
 } from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/utils/limitWorkflowUtils'
 import { getTodayYear } from '@/utils/date'
-import { waitForMilliseconds } from '@/utils/timing'
+import { LOADING_ANIMATION_MIN_MS, waitForMilliseconds } from '@/utils/timing'
 import { useAuth } from '@/hooks/useAuth'
 
 interface UseTaxAdvantagedLimitWorkflowParams {
@@ -52,7 +52,7 @@ export function useTaxAdvantagedLimitWorkflow({
 }: UseTaxAdvantagedLimitWorkflowParams) {
   const { data: limits = [], isLoading: limitsLoading } = useTaxAdvantagedCategoryLimits(plan.id)
   const createLimit = useCreateTaxAdvantagedCategoryLimit()
-  const updateLimit = useUpdateTaxAdvantagedCategoryLimit()
+  const updateLimit = useUpdateTaxAdvantagedCategoryLimit({ minimumPendingMs: LOADING_ANIMATION_MIN_MS })
   const deleteLimit = useDeleteTaxAdvantagedCategoryLimit()
   const { user } = useAuth()
   const currentYear = getTodayYear(user?.tz)

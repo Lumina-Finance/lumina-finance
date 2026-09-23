@@ -23,6 +23,7 @@ import type {
   SpendingRange,
 } from '@/api/accounts/types';
 import { runWithMinimumPendingTime } from '@/api/utils/mutationFeedback';
+import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing';
 import { accountKeys } from '@/api/cache/queryKeys';
 import { getFxAwareStaleTime } from '@/api/shared/fxCache';
 import { useAuth } from '@/hooks/useAuth';
@@ -35,7 +36,8 @@ const ACCOUNT_FX_STALE_TIME_MS = 10 * 60 * 1000;
 export function useCreateAccount() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: createAccount,
+    mutationFn: (payload: Parameters<typeof createAccount>[0]) =>
+      runWithMinimumPendingTime(LOADING_ANIMATION_MIN_MS, () => createAccount(payload)),
     onSuccess: (account, payload) => {
       updateCachedAccountList(queryClient, account);
       invalidateCreatedAccountData(queryClient, account, payload);

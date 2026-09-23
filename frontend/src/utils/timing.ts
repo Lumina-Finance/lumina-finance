@@ -1,17 +1,20 @@
+/** Minimum time for a visible loading animation, regardless of where it appears */
+export const LOADING_ANIMATION_MIN_MS = 800
+
 /** Minimum visible loading time shared across auth actions so a quick request does not flash */
-export const AUTH_LOADING_MIN_MS = 1000
+export const AUTH_LOADING_MIN_MS = LOADING_ANIMATION_MIN_MS
 
 /** Minimum visible loading time for two-factor management actions so a quick request does not flash */
-export const MFA_LOADING_MIN_MS = 800
+export const MFA_LOADING_MIN_MS = LOADING_ANIMATION_MIN_MS
 
-/** Minimum visibility for a short loading message that should not flash */
-export const LOADING_TEXT_MIN_MS = 300
+/** Minimum visibility for loading text in a short search or list request */
+export const LOADING_TEXT_MIN_MS = LOADING_ANIMATION_MIN_MS
 
 /** Minimum visibility for an appended-page loading message and delayed reveal */
-export const FETCHING_MORE_TEXT_MIN_MS = 800
+export const FETCHING_MORE_TEXT_MIN_MS = LOADING_ANIMATION_MIN_MS
 
 /** Minimum visibility for the ordinary full loading state of a user-triggered action */
-export const ACTION_LOADING_MIN_MS = 1000
+export const ACTION_LOADING_MIN_MS = LOADING_ANIMATION_MIN_MS
 
 /**
  * Resolves after a fixed delay for minimum loading and feedback states

@@ -1,5 +1,7 @@
-export const DELETE_SPINNER_MS = 800
-export const CREATE_TAG_MIN_LOADING_MS = 800
+import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
+
+export const DELETE_SPINNER_MS = LOADING_ANIMATION_MIN_MS
+export const CREATE_TAG_MIN_LOADING_MS = LOADING_ANIMATION_MIN_MS
 export const EASE = [0.25, 0.1, 0.25, 1] as const
 export const TAG_SEARCH_DEBOUNCE_MS = 300
 export const TAG_LIST_VISIBLE_ROWS = 10

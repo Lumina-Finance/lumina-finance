@@ -9,7 +9,7 @@ import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import { ModalFormFooter } from '@/components/modal/FormFooter'
 import type { ModalLevel } from '@/components/modal/Shell'
 import { CREATE_CATEGORY_FIELD_IDS } from '@/components/reference-modals/createCategoryConstants'
-import { waitForMilliseconds } from '@/utils/timing'
+import { LOADING_ANIMATION_MIN_MS, waitForMilliseconds } from '@/utils/timing'
 
 type CategoryKind = Category['kind']
 type CreateCategoryField = 'icon' | 'name'
@@ -24,8 +24,6 @@ interface CreateCategoryModalProps {
   onClose: () => void
   onCreated: (category: Category) => void
 }
-
-const CREATE_CATEGORY_MIN_LOADING_MS = 800
 
 const KIND_LABELS: Record<CategoryKind, string> = {
   expense: 'Expense',
@@ -93,7 +91,7 @@ export default function CreateCategoryModal({
     }
 
     setCreateInProgress(true)
-    const minimumLoading = waitForMilliseconds(CREATE_CATEGORY_MIN_LOADING_MS)
+    const minimumLoading = waitForMilliseconds(LOADING_ANIMATION_MIN_MS)
 
     void createCategory.mutateAsync(
       {

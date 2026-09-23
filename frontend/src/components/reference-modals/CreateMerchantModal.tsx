@@ -9,9 +9,7 @@ import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import { ModalFormFooter } from '@/components/modal/FormFooter'
 import type { ModalLevel } from '@/components/modal/Shell'
 import { CREATE_MERCHANT_FIELD_IDS, NO_DEFAULT_CATEGORY_VALUE } from '@/components/reference-modals/createMerchantConstants'
-import { waitForMilliseconds } from '@/utils/timing'
-
-const CREATE_MERCHANT_MIN_LOADING_MS = 800
+import { LOADING_ANIMATION_MIN_MS, waitForMilliseconds } from '@/utils/timing'
 
 type CreateMerchantField = 'name'
 type CreateMerchantFieldErrors = Partial<Record<CreateMerchantField, string>>
@@ -80,7 +78,7 @@ export default function CreateMerchantModal({
     }
 
     setCreateInProgress(true)
-    const minimumLoading = waitForMilliseconds(CREATE_MERCHANT_MIN_LOADING_MS)
+    const minimumLoading = waitForMilliseconds(LOADING_ANIMATION_MIN_MS)
 
     void createMerchant.mutateAsync(
       {

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { motion, useAnimationControls, useReducedMotion } from 'motion/react'
 import { flushSync } from 'react-dom'
-import { withMinDelay } from '@/utils/timing'
+import { LOADING_ANIMATION_MIN_MS, withMinDelay } from '@/utils/timing'
 import { useNavigate } from 'react-router'
 import { useAuth } from '@/hooks/useAuth'
 import { useAccounts } from '@/api/accounts'
@@ -20,9 +20,6 @@ import {
   formatOverviewRangeLabel,
   getCurrentMonthOverviewRange,
 } from '@/pages/transactions/utils/date'
-
-// Matches the overview loading minimum while keeping feedback inside the retry button
-const RETRY_MIN_MS = 800
 
 // Fade out the failed summary before revealing the recovered summary without chart entrances
 const RETRY_FADE_SECONDS = 0.2
@@ -92,7 +89,7 @@ export default function TransactionsPage() {
 
     setOpeningOutlierId(transactionId)
     try {
-      const transaction = await loadTransaction(transactionId)
+      const transaction = await withMinDelay(() => loadTransaction(transactionId))
       openEditModal(transaction)
     } catch {
       setOutlierLoadError('Unable to open transaction')
@@ -165,7 +162,7 @@ export default function TransactionsPage() {
     activeRetryRef.current = request
     setRetryKey(chartAnimationKey)
     setRecoveredKey(chartAnimationKey)
-    const result = await withMinDelay(() => refetchOverview({ cancelRefetch: false }), RETRY_MIN_MS)
+    const result = await withMinDelay(() => refetchOverview({ cancelRefetch: false }), LOADING_ANIMATION_MIN_MS)
     if (activeRetryRef.current !== request || currentOverviewKeyRef.current !== chartAnimationKey) return
     if (!result.isError) {
       await summaryAnimation.start({ opacity: 0, transition: { duration: prefersReducedMotion ? 0 : RETRY_FADE_SECONDS } })

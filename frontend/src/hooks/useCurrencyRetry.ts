@@ -1,8 +1,5 @@
 import { useRef, useState } from 'react'
-import { withMinDelay } from '@/utils/timing'
-
-/** Keeps currency retry feedback visible even when the request settles immediately */
-const CURRENCY_RETRY_MIN_MS = 800
+import { LOADING_ANIMATION_MIN_MS, withMinDelay } from '@/utils/timing'
 
 /** Guards repeated clicks and holds the retry feedback through fast responses */
 export function useCurrencyRetry(fetching: boolean, onRetry: () => Promise<unknown>) {
@@ -15,7 +12,7 @@ export function useCurrencyRetry(fetching: boolean, onRetry: () => Promise<unkno
     retryPendingRef.current = true
     setRetrying(true)
     try {
-      await withMinDelay(onRetry, CURRENCY_RETRY_MIN_MS)
+      await withMinDelay(onRetry, LOADING_ANIMATION_MIN_MS)
     } finally {
       retryPendingRef.current = false
       setRetrying(false)
