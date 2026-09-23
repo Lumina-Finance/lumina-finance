@@ -150,9 +150,11 @@ export function DeleteAccountPanel({
                           <div className="mt-4 flex justify-end">
                             <button
                               type="button"
-                              className={`app-danger-button w-full justify-center min-[1050px]:w-auto ${deleteLoading ? 'app-primary-button-loading' : ''}`}
+                              className={`app-danger-button justify-center overflow-hidden whitespace-nowrap duration-300 ${deleteLoading ? 'app-primary-button-loading shrink-0' : 'w-full min-[1050px]:w-auto'}`}
                               onClick={onDelete}
                               disabled={!canDelete || isBusy}
+                              aria-label="Delete account"
+                              aria-busy={deleteLoading}
                             >
                               {deleteLoading ? <span className="app-spinner" /> : 'Delete account'}
                             </button>
