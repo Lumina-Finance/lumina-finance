@@ -16,10 +16,7 @@ import {
   PLACEHOLDER_OUTLIERS,
 } from '@/pages/transactions/components/top-band/constants'
 import { selectTransactionOverviewState } from '@/pages/transactions/utils/overviewState'
-
-// Whenever the summary pulls new data, its loading animation holds at least this long so a quick
-// refetch does not flash the overlay in and out
-const MIN_SUMMARY_LOADING_MS = 800
+import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
 
 // Match the secondary button height when it contracts into a circular retry indicator
 const RETRY_BUTTON_DIAMETER = 40
@@ -72,7 +69,7 @@ export default function TransactionsTopBand({
   onRetry: () => void
   onOpenOutlierTransaction: (transactionId: string) => void
 }) {
-  const showLoading = useMinimumLoadingDuration(loading && !retrying, MIN_SUMMARY_LOADING_MS)
+  const showLoading = useMinimumLoadingDuration(loading && !retrying, LOADING_ANIMATION_MIN_MS)
   const overviewOutliers = overview?.outliers ?? []
   const overviewCategories = overview?.top_categories ?? []
   const overviewDailyCashFlow = overview?.daily_cash_flow ?? []

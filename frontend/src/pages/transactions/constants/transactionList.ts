@@ -1,4 +1,5 @@
 import type { TransactionListFilters } from '@/pages/transactions/types/transactionList'
+import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
 
 export const DEFAULT_TRANSACTION_CATEGORY_ICON = '🏷️'
 
@@ -16,7 +17,7 @@ export const TRANSACTION_FILTER_KEYS: Array<keyof TransactionListFilters> = [
   'to_date',
 ]
 
-export const FILTER_LIST_LOADING_MIN_MS = 1000
+export const FILTER_LIST_LOADING_MIN_MS = LOADING_ANIMATION_MIN_MS
 export const TRANSACTION_LIST_EASE = [0.25, 0.1, 0.25, 1] as const
 
 // The room the checkbox sits in while the list is in selection mode. Held as padding on the list
