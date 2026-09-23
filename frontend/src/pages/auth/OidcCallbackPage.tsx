@@ -278,13 +278,13 @@ function OidcOnboardingForm({ onboarding, onBackToLogin }: OidcOnboardingFormPro
     setSubmitting(true)
     setError(null)
     try {
-      const response = await completeOidcSignup({
+      const response = await withMinDelay(() => completeOidcSignup({
         onboarding_token: onboarding.onboarding_token,
         first_name: firstName.trim(),
         last_name: lastName.trim() || undefined,
         tz,
         base_currency: baseCurrency,
-      })
+      }))
 
       // The route sits outside the public-only wrapper, so the new session must be
       // followed by an explicit move into the app
