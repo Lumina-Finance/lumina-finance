@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useReducedMotion } from 'motion/react'
 import { LOADING_VISIBILITY_MS } from '@/components/loading/Transition'
-
-const DEFAULT_LOADING_MIN_MS = 800
+import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
 
 type UseLoadingSnapshotOptions<T> = {
   snapshot: T
@@ -40,7 +39,7 @@ export function useLoadingSnapshot<T>({
   snapshot,
   loading = false,
   transitionKey,
-  minVisibleMs = DEFAULT_LOADING_MIN_MS,
+  minVisibleMs = LOADING_ANIMATION_MIN_MS,
   swapMinVisibleMs = LOADING_VISIBILITY_MS,
 }: UseLoadingSnapshotOptions<T>): LoadingSnapshotState<T> {
   const [displaySnapshot, setDisplaySnapshot] = useState<T>(snapshot)
