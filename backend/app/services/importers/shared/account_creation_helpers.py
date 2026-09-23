@@ -20,6 +20,8 @@ async def create_import_account(
     db: AsyncSession,
     user: User,
     create: TransactionImportCreateAccount,
+    *, existing_currencies: set[str] | None = None,
+    existing_institutions: set[uuid.UUID] | None = None,
 ) -> Account:
     """Create a personal account for an import source mapping
 
@@ -27,14 +29,16 @@ async def create_import_account(
         db: Active database session
         user: Authenticated user running the import
         create: New account fields from the import mapping
+        existing_currencies: Optional complete request-local currency facts
+        existing_institutions: Optional complete request-local institution facts
 
     Returns:
         Created account row
     """
     account_type = parse_import_account_type(create.account_type)
     currency = create.currency.upper()
-    await validate_import_account_currency(db, currency)
-    await validate_import_account_institution(db, create.institution_id)
+    await validate_import_account_currency(db, currency, existing_currencies=existing_currencies)
+    await validate_import_account_institution(db, create.institution_id, existing_institutions=existing_institutions)
 
     account = Account(
         owner_id=user.id,
@@ -79,12 +83,41 @@ def _add_import_account_opening_snapshot(db: AsyncSession, account: Account, use
     db.add(opening_snapshot)
 
 
-async def validate_import_account_currency(db: AsyncSession, currency: str) -> None:
+async def load_import_account_references(
+    db: AsyncSession, currencies: set[str], institution_ids: set[uuid.UUID],
+) -> tuple[set[str], set[uuid.UUID]]:
+    """Load valid create-account reference values once for an import request
+
+    Args:
+        db: Active database session
+        currencies: Uppercase currency codes declared by account creation mappings
+        institution_ids: Non-null institution references declared by those mappings
+
+    Returns:
+        Existing currency codes and institution identifiers without deciding validation order
+    """
+    existing_currencies = set()
+    existing_institutions = set()
+    if currencies:
+
+        # Resolve all currency declarations without repeating reads for shared codes
+        existing_currencies = set((await db.execute(select(Currency.id).where(Currency.id.in_(currencies)))).scalars())
+    if institution_ids:
+
+        # Resolve optional institution references without creating or revealing absent entries
+        existing_institutions = set((await db.execute(select(Institution.id).where(Institution.id.in_(institution_ids)))).scalars())
+    return existing_currencies, existing_institutions
+
+
+async def validate_import_account_currency(
+    db: AsyncSession, currency: str, *, existing_currencies: set[str] | None = None,
+) -> None:
     """Validate that an import-created account currency exists
 
     Args:
         db: Active database session
         currency: Uppercase currency code requested for the account
+        existing_currencies: Optional complete request-local currency lookup
 
     Returns:
         None
@@ -92,20 +125,26 @@ async def validate_import_account_currency(db: AsyncSession, currency: str) -> N
     Raises:
         HTTPException: Raised with 422 when the currency code does not exist
     """
-    currency_query = select(Currency.id).where(Currency.id == currency)
+    if existing_currencies is None:
+        currency_query = select(Currency.id).where(Currency.id == currency)
 
-    # Check the currency table before inserting an import-created account
-    currency_exists = (await db.execute(currency_query)).scalar_one_or_none() is not None
+        # Check the currency table before inserting an import-created account
+        currency_exists = (await db.execute(currency_query)).scalar_one_or_none() is not None
+    else:
+        currency_exists = currency in existing_currencies
     if not currency_exists:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f"Invalid currency code: {currency}")
 
 
-async def validate_import_account_institution(db: AsyncSession, institution_id: uuid.UUID | None) -> None:
+async def validate_import_account_institution(
+    db: AsyncSession, institution_id: uuid.UUID | None, *, existing_institutions: set[uuid.UUID] | None = None,
+) -> None:
     """Validate that an optional import-created account institution exists
 
     Args:
         db: Active database session
         institution_id: Optional institution ID requested for the account
+        existing_institutions: Optional complete request-local institution lookup
 
     Returns:
         None
@@ -116,10 +155,13 @@ async def validate_import_account_institution(db: AsyncSession, institution_id: 
     if institution_id is None:
         return
 
-    institution_query = select(Institution.id).where(Institution.id == institution_id)
+    if existing_institutions is None:
+        institution_query = select(Institution.id).where(Institution.id == institution_id)
 
-    # Check the institution table only when the import payload links a new account to an institution
-    institution_exists = (await db.execute(institution_query)).scalar_one_or_none() is not None
+        # Check the institution table only when the import payload links a new account to an institution
+        institution_exists = (await db.execute(institution_query)).scalar_one_or_none() is not None
+    else:
+        institution_exists = institution_id in existing_institutions
     if not institution_exists:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Institution not found")
 
