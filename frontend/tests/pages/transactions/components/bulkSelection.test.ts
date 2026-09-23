@@ -1264,7 +1264,6 @@ describe('the accounts a selection can move to', () => {
   const accounts = [
     { id: 'acc_1', currency: 'CAD', can_write: true },
     { id: 'acc_2', currency: 'CAD', can_write: true, is_archived: true },
-    { id: 'acc_3', currency: 'CAD', can_write: true, closed_at: '2026-03-01' },
     { id: 'acc_4', currency: 'USD', can_write: true },
     { id: 'acc_5', currency: 'CAD', can_write: false },
     { id: 'acc_6', currency: 'CAD' },
@@ -1287,7 +1286,6 @@ describe("the accounts a transfer's ends can be set to", () => {
   const accounts = [
     { id: 'acc_1', currency: 'CAD', can_write: true },
     { id: 'acc_2', currency: 'CAD', can_write: true, is_archived: true },
-    { id: 'acc_3', currency: 'CAD', can_write: true, closed_at: '2026-03-01' },
     { id: 'acc_4', currency: 'USD', can_write: false },
   ]
 
@@ -1295,10 +1293,9 @@ describe("the accounts a transfer's ends can be set to", () => {
     expect(getTransferEndTargets(accounts).map((account) => account.id)).toEqual(['acc_1', 'acc_4'])
   })
 
-  it('leaves out an archived or a closed account', () => {
+  it('leaves out an archived account', () => {
     const ids = getTransferEndTargets(accounts).map((account) => account.id)
     expect(ids).not.toContain('acc_2')
-    expect(ids).not.toContain('acc_3')
   })
 
   it('keeps a read-only account because it can be recorded as the far side', () => {

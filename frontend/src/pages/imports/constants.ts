@@ -438,11 +438,11 @@ export const IMPORT_ACCOUNT_PARAM = 'account'
 // Shown in place of the whole import page when the address points at an account no import can be
 // written to. The button offering the import is disabled in those states, so this is reached by a
 // typed or shared address, or by an account whose state changed after the address was made
-// The account is only ever missing from the list, archived or closed, and the list leaves out both
+// The account is only ever missing from the list or archived, and the list leaves out both
 // an account that has gone and one belonging to someone else, so the wording covers being unable to
 // import into it rather than claiming to know which of those it is
 export const IMPORT_NOT_PERMITTED_TITLE = 'This action is not permitted'
-export const IMPORT_NOT_PERMITTED_EXPLANATION = 'Transactions can only be imported into an account that is open and not archived. This one is archived, closed, or not an account you can import into.'
+export const IMPORT_NOT_PERMITTED_EXPLANATION = 'Transactions can only be imported into an available, unarchived account. This one is archived or not an account you can import into.'
 
 // Shown in place of the whole page where the accounts list cannot say whether this account takes an
 // import. The mapping step's own failure text is about mapping sources onto a list, which is a

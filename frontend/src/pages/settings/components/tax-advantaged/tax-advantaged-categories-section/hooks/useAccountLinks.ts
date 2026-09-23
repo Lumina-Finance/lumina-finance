@@ -27,8 +27,7 @@ export function useTaxAdvantagedAccountLinks({
   const bindableAccounts = useMemo(
     () => accounts.filter(
       (account) =>
-        account.closed_at === null
-        && account.account_kind === 'asset'
+        account.account_kind === 'asset'
         && account.currency === plan.currency,
     ),
     [accounts, plan.currency],

@@ -26,7 +26,6 @@ function createAccount(overrides: Partial<AccountsOverview> = {}): AccountsOverv
     credit_limit: null,
     can_write: true,
     is_archived: false,
-    closed_at: null,
     ...overrides,
   }
 }
@@ -42,21 +41,15 @@ describe('which accounts an import may be written to', () => {
     expect(isImportableAccount(createAccount({ is_archived: true }))).toBe(false)
   })
 
-  // The state the account summary the transaction list receives used to drop, so the control
-  // offering the import could not tell it apart from an open account
-  it('refuses a closed account that is not archived', () => {
-    expect(isImportableAccount(createAccount({ closed_at: '2026-03-01T14:00:00Z' }))).toBe(false)
-  })
-
   it('refuses an account that is not there at all', () => {
     expect(isImportableAccount(undefined)).toBe(false)
     expect(isImportableAccount(null)).toBe(false)
   })
 
   // The transaction list is handed a summary of an account rather than the whole thing, so the rule
-  // has to answer for one stating neither field, and it answers the way the Add Transaction button
+  // has to answer for one without an archived flag, the way the Add Transaction button
   // beside it already reads a missing archived flag
-  it('takes a summary stating neither field as an open account', () => {
+  it('takes a summary without an archived flag as available', () => {
     expect(isImportableAccount({})).toBe(true)
   })
 })
@@ -74,16 +67,6 @@ describe('why an import cannot be written to an account', () => {
     expect(getImportBlockReason(createAccount({ is_archived: true }))).toBe('Archived accounts are read-only')
   })
 
-  it('says a closed account is read-only', () => {
-    expect(getImportBlockReason(createAccount({ closed_at: '2026-03-01T14:00:00Z' }))).toBe('Closed accounts are read-only')
-  })
-
-  // Both are true of an account in both states, and archiving is the one the user did and can undo
-  it('describes an account in both states as archived', () => {
-    const account = createAccount({ is_archived: true, closed_at: '2026-03-01T14:00:00Z' })
-
-    expect(getImportBlockReason(account)).toBe('Archived accounts are read-only')
-  })
 })
 
 describe('what the import page does with the account in its address', () => {
@@ -111,17 +94,6 @@ describe('what the import page does with the account in its address', () => {
     expect(getImportAccountScopeState({
       accountId: 'acct-1',
       account: createAccount({ is_archived: true }),
-      accountsCurrent: true,
-      accountsError: false,
-    })).toBe('unavailable')
-  })
-
-  // The API asks for an open account on every row it writes, so a closed one is refused here rather
-  // than at the commit
-  it('refuses a closed account', () => {
-    expect(getImportAccountScopeState({
-      accountId: 'acct-1',
-      account: createAccount({ closed_at: '2026-01-31T12:00:00Z' }),
       accountsCurrent: true,
       accountsError: false,
     })).toBe('unavailable')

@@ -28,7 +28,7 @@ function runwayThresholdsEqual(a: RunwayThresholds, b: RunwayThresholds) {
  */
 function getSelectableRunwayAccounts(accounts: AccountsOverview[] | undefined) {
   return (accounts ?? []).filter(
-    (account) => account.closed_at === null && !account.is_archived && account.account_kind === 'asset',
+    (account) => !account.is_archived && account.account_kind === 'asset',
   )
 }
 

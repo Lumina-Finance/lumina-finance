@@ -70,15 +70,6 @@ describe('getTransactionReadOnlyReason', () => {
       .toBe('Read-only access')
   })
 
-  it('keeps writable closed history editable', () => {
-    const closed = { ...openAccount, id: 'closed', closed_at: '2026-03-01T14:00:00Z' }
-    expect(getTransactionReadOnlyReason(
-      transaction({ account_id: closed.id }),
-      new Map([[closed.id, closed]]),
-      categoryMap,
-    )).toBeUndefined()
-  })
-
   it('uses the fixed account capability over a duplicate general account entry', () => {
     const fixed = { ...openAccount, can_write: false }
     expect(getTransactionReadOnlyReason(transaction(), accountMap, categoryMap, fixed)).toBe('Read-only access')

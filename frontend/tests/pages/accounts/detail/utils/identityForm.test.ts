@@ -36,7 +36,6 @@ function createAccount(overrides: Partial<Account> = {}): Account {
     credit_limit: overrides.credit_limit ?? null,
     can_write: overrides.can_write ?? true,
     is_archived: overrides.is_archived ?? false,
-    closed_at: null,
     created_at: '2026-01-01T00:00:00Z',
     ...overrides,
   }

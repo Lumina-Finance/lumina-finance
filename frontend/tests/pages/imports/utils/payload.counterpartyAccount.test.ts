@@ -65,7 +65,6 @@ function createAccount(id: string, name: string): AccountsOverview {
     credit_limit: null,
     can_write: true,
     is_archived: false,
-    closed_at: null,
   }
 }
 
