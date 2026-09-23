@@ -7,9 +7,7 @@ import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import { ModalFormFooter } from '@/components/modal/FormFooter'
 import type { ModalLevel } from '@/components/modal/Shell'
 import { CREATE_TAG_FIELD_IDS } from '@/components/reference-modals/createTagConstants'
-import { waitForMilliseconds } from '@/utils/timing'
-
-const CREATE_TAG_MIN_LOADING_MS = 800
+import { LOADING_ANIMATION_MIN_MS, waitForMilliseconds } from '@/utils/timing'
 
 
 interface CreateTagModalProps {
@@ -56,7 +54,7 @@ export default function CreateTagModal({
     }
 
     setCreateInProgress(true)
-    const minimumLoading = waitForMilliseconds(CREATE_TAG_MIN_LOADING_MS)
+    const minimumLoading = waitForMilliseconds(LOADING_ANIMATION_MIN_MS)
 
     void createTag.mutateAsync({ name: trimmed, group_id: groupId })
       .then(async (tag) => {

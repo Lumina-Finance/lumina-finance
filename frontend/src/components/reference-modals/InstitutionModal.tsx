@@ -10,9 +10,7 @@ import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import { ModalFormFooter } from '@/components/modal/FormFooter'
 import { INSTITUTION_FIELD_IDS } from '@/components/reference-modals/institutionModalConstants'
 import { COUNTRY_OPTIONS } from '@/constants/countries'
-import { waitForMilliseconds } from '@/utils/timing'
-
-const INSTITUTION_MIN_LOADING_MS = 800
+import { LOADING_ANIMATION_MIN_MS, waitForMilliseconds } from '@/utils/timing'
 
 const INITIAL_FORM = {
   name: '',
@@ -112,7 +110,7 @@ export default function InstitutionModal({
     if (Object.keys(errors).length > 0) return
 
     setSaveInProgress(true)
-    const minimumLoading = waitForMilliseconds(INSTITUTION_MIN_LOADING_MS)
+    const minimumLoading = waitForMilliseconds(LOADING_ANIMATION_MIN_MS)
     const payload = {
       name: form.name.trim(),
       country_code: form.country_code.toUpperCase(),
