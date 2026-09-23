@@ -147,7 +147,7 @@ async def test_list_accounts_returns_overview_shape(client):
         "id", "owner_id", "group_id", "account_kind", "account_type", "name",
         "tax_advantaged_category_id", "currency", "institution", "current_balance",
         "base_currency_current_balance", "current_balance_fx_status", "credit_limit",
-        "can_write", "is_archived", "closed_at",
+        "can_write", "is_archived",
     ):
         assert field in row, f"missing overview field: {field}"
 

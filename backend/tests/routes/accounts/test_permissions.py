@@ -592,11 +592,9 @@ async def test_group_admin_reports_write_capability_despite_an_explicit_read_gra
     [
         ({"is_archived": True}, "read", False),
         ({"is_archived": True}, "write", True),
-        ({"closed_at": "2026-03-01T00:00:00Z"}, "read", False),
-        ({"closed_at": "2026-03-01T00:00:00Z"}, "write", True),
     ],
 )
-async def test_archive_and_closed_state_do_not_change_write_capability(
+async def test_archive_state_does_not_change_write_capability(
     client,
     account_patch,
     level,

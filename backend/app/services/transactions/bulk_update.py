@@ -250,10 +250,9 @@ async def _load_move_target(db: AsyncSession, user: User, account_id: uuid.UUID)
         The target account
 
     Raises:
-        HTTPException: The account refuses the write, is closed, or is archived
+        HTTPException: The account refuses the write or is archived
     """
-    # An account that is closed takes no new history, which is why a move asks for an open one
-    account = await check_account_access(db, account_id, user.id, PermissionLevel.WRITE, require_open=True)
+    account = await check_account_access(db, account_id, user.id, PermissionLevel.WRITE)
     validate_transaction_account_is_not_archived(account)
     return account
 
@@ -379,7 +378,7 @@ async def _load_own_end_accounts(
         The target accounts keyed by identifier
 
     Raises:
-        HTTPException: An account refuses the write, is closed, or is archived
+        HTTPException: An account refuses the write or is archived
     """
     candidate_ids: set[uuid.UUID] = set()
     for transaction in transactions:

@@ -61,14 +61,13 @@ async def test_is_archived_defaults_to_false(db, user, currency):
 
 
 async def test_nullable_fields_default_to_null(db, user, currency):
-    """institution_id and closed_at should default to null."""
+    """institution_id should default to null."""
     a = Account(owner_id=user.id, account_kind=AccountKind.ASSET, account_type=AccountType.CHECKING, name="Checking", currency="CAD")
     db.add(a)
     await db.flush()
 
     result = await db.get(Account, a.id)
     assert result.institution_id is None
-    assert result.closed_at is None
 
 
 # --- Owner XOR Group Check Constraint ---

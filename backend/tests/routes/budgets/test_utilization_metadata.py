@@ -55,8 +55,8 @@ async def test_get_budget_utilization_echoes_overall_limit_when_set(client):
     assert entry["overall_limit"] == 200000
 
 
-async def test_get_budget_utilization_includes_transactions_from_closed_accounts(client):
-    """Closing an account does not retroactively erase its historical spend from a budget."""
+async def test_get_budget_utilization_includes_transactions_from_archived_accounts(client):
+    """Archiving an account does not retroactively erase its historical spend from a budget."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
@@ -70,17 +70,17 @@ async def test_get_budget_utilization_includes_transactions_from_closed_accounts
 
     await _create_transaction(client, headers, account_id, groceries, amount=-5000)
 
-    # Close the account after the transaction is recorded
-    close_resp = await client.patch(
+    # Archive the account after the transaction is recorded
+    archive_resp = await client.patch(
         f"/accounts/{account_id}",
-        json={"closed_at": "2026-04-01"},
+        json={"is_archived": True},
         headers=headers,
     )
-    assert close_resp.status_code == 200
-    # Verify the close actually took effect — if the field were renamed or the
+    assert archive_resp.status_code == 200
+    # Verify the archive actually took effect — if the field were renamed or the
     # PATCH became a no-op, this test would otherwise pass for the wrong reason
     account_resp = await client.get(f"/accounts/{account_id}", headers=headers)
-    assert account_resp.json()["closed_at"] is not None
+    assert account_resp.json()["is_archived"] is True
 
     data = await _get_budget_utilization_entry(client, headers, base_id, budget_id)
     assert data["total_spent"] == 5000

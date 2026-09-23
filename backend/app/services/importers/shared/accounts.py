@@ -175,7 +175,6 @@ async def _get_existing_import_account(
         account_id,
         user.id,
         PermissionLevel.WRITE,
-        require_open=True,
         access_lookup=access_lookup,
     )
     if account.is_archived:
@@ -188,7 +187,7 @@ async def _get_counterparty_import_account(
 ) -> Account:
     """Return an existing account that only ever appears as a transfer's counterparty
 
-    Read access is enough, and the account may be closed or archived, because no row is written to
+    Read access is enough, and the account may be archived, because no row is written to
     it: the transfer records where its money came from or went to. This is the rule a transfer
     entered by hand already resolves its counterparty under, and the whole reason for it is that
     archiving happens after the money moved

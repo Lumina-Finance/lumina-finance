@@ -136,24 +136,6 @@ async def test_patch_account_unarchiving_keeps_zeroed_balance(client, monkeypatc
     assert rows[0][0].amount == -42_000
 
 
-async def test_patch_account_sets_closed_at(client):
-    """PATCH can close an account by setting closed_at."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-    create_resp = await _create_account(client, headers)
-    account_id = create_resp.json()["id"]
-
-    resp = await client.patch(
-        f"/accounts/{account_id}",
-        json={"closed_at": "2026-03-01T00:00:00Z"},
-        headers=headers,
-    )
-
-    assert resp.status_code == 200
-    assert resp.json()["closed_at"] is not None
-    assert resp.json()["can_write"] is True
-
-
 async def test_patch_account_empty_body_returns_unchanged(client):
     """PATCH with empty body returns 200 with no changes."""
     signup_resp = await _create_user(client)
@@ -194,25 +176,6 @@ async def test_patch_account_explicit_null_is_archived_returns_422(client):
     assert resp.json()["detail"] == "is_archived cannot be null"
 
 
-async def test_patch_account_explicit_null_closed_at_still_clears_field(client):
-    """Nullable fields (closed_at) can still be cleared with explicit null — the guard only covers NOT NULL columns."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-    create_resp = await _create_account(client, headers)
-    account_id = create_resp.json()["id"]
-
-    # Set closed_at first, then clear it
-    await client.patch(
-        f"/accounts/{account_id}",
-        json={"closed_at": "2026-01-01T00:00:00+00:00"},
-        headers=headers,
-    )
-    resp = await client.patch(f"/accounts/{account_id}", json={"closed_at": None}, headers=headers)
-
-    assert resp.status_code == 200
-    assert resp.json()["closed_at"] is None
-
-
 async def test_patch_account_not_found_returns_404(client):
     """PATCH non-existent account returns 404."""
     signup_resp = await _create_user(client)
@@ -241,22 +204,6 @@ async def test_patch_account_clears_institution(client):
 
     assert resp.status_code == 200
     assert resp.json()["institution"] is None
-
-
-async def test_patch_account_clears_closed_at(client):
-    """PATCH with closed_at=null reopens a closed account."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-    create_resp = await _create_account(client, headers)
-    account_id = create_resp.json()["id"]
-
-    # Close it
-    await client.patch(f"/accounts/{account_id}", json={"closed_at": "2026-03-01T00:00:00Z"}, headers=headers)
-    # Reopen it
-    resp = await client.patch(f"/accounts/{account_id}", json={"closed_at": None}, headers=headers)
-
-    assert resp.status_code == 200
-    assert resp.json()["closed_at"] is None
 
 
 async def test_patch_account_invalid_institution_returns_422(client):

@@ -135,7 +135,6 @@ async def check_account_access(
     user_id: uuid.UUID,
     required_level: PermissionLevel,
     *,
-    require_open: bool = False,
     access_lookup: AccountAccessLookup | None = None,
 ) -> Account:
     """Return an account when the user has the required access level
@@ -148,14 +147,13 @@ async def check_account_access(
         account_id: Account identifier to check
         user_id: User requesting access
         required_level: Minimum permission level required by the operation
-        require_open: Whether closed accounts should be rejected
         access_lookup: Optional request-local facts bound to this caller, with no missing-entry fallback
 
     Returns:
         Account row with institution data loaded
 
     Raises:
-        HTTPException: Account is missing, inaccessible, closed, or below the required permission level
+        HTTPException: Account is missing, inaccessible, or below the required permission level
         ValueError: Preloaded facts belong to another user
         MultipleResultsFound: More than one matching membership or grant exists
     """
@@ -181,9 +179,6 @@ async def check_account_access(
 
     if not is_authorized:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found")
-
-    if require_open and account.closed_at is not None:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Account is closed")
 
     return account
 

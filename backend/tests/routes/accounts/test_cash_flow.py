@@ -709,8 +709,8 @@ async def test_group_member_with_explicit_read_permission_succeeds(client):
     assert len(resp.json()) == 6
 
 
-async def test_closed_account_still_returns_cash_flow(client):
-    """Closed accounts remain readable — the handler does not require require_open."""
+async def test_archived_account_still_returns_cash_flow(client):
+    """Archiving does not hide an account's cash-flow history."""
     headers, account_id = await _setup_account(client)
     category_id = await _get_category_id(client, headers, "Transfer")
 
@@ -719,12 +719,12 @@ async def test_closed_account_still_returns_cash_flow(client):
         dt=_today_utc().isoformat(), amount=-1000, counterparty_account_scope="outside",
     )
 
-    close_resp = await client.patch(
+    archive_resp = await client.patch(
         f"/accounts/{account_id}",
-        json={"closed_at": "2026-04-01"},
+        json={"is_archived": True},
         headers=headers,
     )
-    assert close_resp.status_code == 200
+    assert archive_resp.status_code == 200
 
     resp = await client.get(
         f"/accounts/{account_id}/cash-flow",
