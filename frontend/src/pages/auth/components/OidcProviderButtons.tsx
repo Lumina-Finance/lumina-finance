@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { beginOidcSignIn, type OidcProvider } from '@/api/oidc'
 import { ProviderMark } from '@/components/ProviderMark'
+import { withMinDelay } from '@/utils/timing'
 
 interface OidcProviderButtonsProps {
   providers: OidcProvider[]
@@ -21,7 +22,7 @@ export function OidcProviderButtons({ providers }: OidcProviderButtonsProps) {
     setPendingSlug(slug)
     setError(null)
     try {
-      const { authorization_url } = await beginOidcSignIn(slug)
+      const { authorization_url } = await withMinDelay(() => beginOidcSignIn(slug))
       window.location.assign(authorization_url)
     } catch {
       setError('Could not reach the sign-in provider. Try again.')

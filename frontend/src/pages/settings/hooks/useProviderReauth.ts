@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { beginOidcReauth, useOidcIdentities } from '@/api/oidc';
 import { markOidcIntent, type OidcReauthAction } from '@/utils/oidcIntent';
+import { withMinDelay } from '@/utils/timing';
 
 /**
  * Drives the reauth step-up a passwordless account uses before a sensitive provider action
@@ -22,7 +23,7 @@ export function useProviderReauth() {
     setBusySlug(slug);
     try {
       markOidcIntent({ flow: 'reauth', action });
-      const { authorization_url } = await beginOidcReauth(slug);
+      const { authorization_url } = await withMinDelay(() => beginOidcReauth(slug));
       window.location.assign(authorization_url);
     } catch {
       setBusySlug(null);
