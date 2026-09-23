@@ -111,10 +111,11 @@ export function useCreateTaxAdvantagedCategoryLimit() {
 /**
  * Updates yearly limits and refreshes contribution rollups
  */
-export function useUpdateTaxAdvantagedCategoryLimit() {
+export function useUpdateTaxAdvantagedCategoryLimit({ minimumPendingMs = 0 }: { minimumPendingMs?: number } = {}) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: updateTaxAdvantagedCategoryLimit,
+    mutationFn: (payload: Parameters<typeof updateTaxAdvantagedCategoryLimit>[0]) =>
+      runWithMinimumPendingTime(minimumPendingMs, () => updateTaxAdvantagedCategoryLimit(payload)),
     onSuccess: (limit, variables) => {
       upsertTaxAdvantagedCategoryLimit(queryClient, limit);
       refreshTaxAdvantagedCategorySummary(queryClient, variables.categoryId);
