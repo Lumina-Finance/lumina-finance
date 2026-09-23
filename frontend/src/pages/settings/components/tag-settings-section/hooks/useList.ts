@@ -10,8 +10,8 @@ import {
  * Drives the paginated, searchable tag list on top of the shared settings-list hook, sorting
  * each fetched page alphabetically before it is compared against what is on screen
  *
- * Rows key on id alone, since a tag's name only ever changes through a rename that already
- * triggers its own refetch
+ * Include the displayed name so a rename replaces the visible row after its refetch, even
+ * when the tag ids and their order have not changed
  */
 export function useTagSettingsList(locallyDeletedTagIds: string[]) {
   const {
@@ -38,7 +38,7 @@ export function useTagSettingsList(locallyDeletedTagIds: string[]) {
     visibleRowCount: TAG_LIST_VISIBLE_ROWS,
     searchDebounceMs: TAG_SEARCH_DEBOUNCE_MS,
     locallyDeletedIds: locallyDeletedTagIds,
-    getItemIdentityKey: (tag: Tag) => [tag.id],
+    getItemIdentityKey: (tag: Tag) => [tag.id, tag.name],
     sortFetchedItems: (tags: Tag[]) => tags.slice().sort((a, b) => a.name.localeCompare(b.name)),
   })
 
