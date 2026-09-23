@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
+import { useMinimumVisibleFlag } from '@/hooks/useMinimumVisibleFlag'
+import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
 
 type EmojiPickerPosition = {
   left: number
@@ -221,8 +223,13 @@ function EmojiMartIconPicker({
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [data, setData] = useState<EmojiMartData | null>(null)
+  const [pickerModule, setPickerModule] = useState<typeof import('emoji-mart') | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const isDark = useAppDarkMode()
+  const loadingVisible = useMinimumVisibleFlag(
+    (data === null || pickerModule === null) && loadError === null,
+    LOADING_ANIMATION_MIN_MS,
+  )
 
   useEffect(() => {
     let cancelled = false
@@ -239,6 +246,21 @@ function EmojiMartIconPicker({
   }, [])
 
   useEffect(() => {
+    let cancelled = false
+    // Load the picker on demand alongside its dataset so the loading state covers both requests
+    import('emoji-mart')
+      .then((module) => {
+        if (!cancelled) setPickerModule(module)
+      })
+      .catch(() => {
+        if (!cancelled) setLoadError('Failed to load emoji picker.')
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose()
     }
@@ -248,64 +270,55 @@ function EmojiMartIconPicker({
 
   useEffect(() => {
     const container = containerRef.current
-    if (!container || !data) return
+    if (!container || !data || !pickerModule || loadingVisible) return
 
-    let cancelled = false
-    let pickerElement: HTMLElement | null = null
-
-    // Load the emoji-mart picker on demand so its bundle stays out of the initial load
-    import('emoji-mart').then(({ Picker }) => {
-      if (cancelled || !containerRef.current) return
-
-      container.innerHTML = ''
-      const picker = new Picker({
-        data,
-        autoFocus: false,
-        emojiButtonColors: ['var(--app-accent-soft)'],
-        emojiButtonRadius: '6px',
-        emojiButtonSize: 32,
-        emojiSize: 20,
-        emojiVersion: 14,
-        icons: 'outline',
-        maxFrequentRows: 0,
-        navPosition: 'none',
-        noCountryFlags: true,
-        onEmojiSelect: (selection: EmojiMartSelection) => {
-          if (!selection.native) return
-          onChange(selection.native)
-          onClose()
-        },
-        perLine: 7,
-        previewPosition: 'none',
-        searchPosition: 'sticky',
-        set: 'native',
-        skinTonePosition: 'none',
-        theme: isDark ? 'dark' : 'light',
-      })
-      pickerElement = picker as unknown as HTMLElement
-      const theme = EMOJI_MART_THEME[isDark ? 'dark' : 'light']
-      pickerElement.style.width = '100%'
-      pickerElement.style.setProperty('--font-family', '"DM Sans Variable", system-ui, sans-serif')
-      pickerElement.style.setProperty('--font-size', '14px')
-      pickerElement.style.setProperty('--border-radius', '0.75rem')
-      pickerElement.style.setProperty('--shadow', 'none')
-      pickerElement.style.setProperty('--sidebar-width', '8px')
-      pickerElement.style.setProperty('--rgb-color', theme.color)
-      pickerElement.style.setProperty('--rgb-accent', theme.accent)
-      pickerElement.style.setProperty('--rgb-background', theme.background)
-      pickerElement.style.setProperty('--rgb-input', theme.input)
-      pickerElement.style.setProperty('--color-border', theme.border)
-      pickerElement.style.setProperty('--color-border-over', theme.borderOver)
-      pickerElement.style.height = `${Math.max(position.maxHeight - 14, 220)}px`
-      container.appendChild(pickerElement)
+    container.innerHTML = ''
+    const picker = new pickerModule.Picker({
+      data,
+      autoFocus: false,
+      emojiButtonColors: ['var(--app-accent-soft)'],
+      emojiButtonRadius: '6px',
+      emojiButtonSize: 32,
+      emojiSize: 20,
+      emojiVersion: 14,
+      icons: 'outline',
+      maxFrequentRows: 0,
+      navPosition: 'none',
+      noCountryFlags: true,
+      onEmojiSelect: (selection: EmojiMartSelection) => {
+        if (!selection.native) return
+        onChange(selection.native)
+        onClose()
+      },
+      perLine: 7,
+      previewPosition: 'none',
+      searchPosition: 'sticky',
+      set: 'native',
+      skinTonePosition: 'none',
+      theme: isDark ? 'dark' : 'light',
     })
+    const pickerElement = picker as unknown as HTMLElement
+    const theme = EMOJI_MART_THEME[isDark ? 'dark' : 'light']
+    pickerElement.style.width = '100%'
+    pickerElement.style.setProperty('--font-family', '"DM Sans Variable", system-ui, sans-serif')
+    pickerElement.style.setProperty('--font-size', '14px')
+    pickerElement.style.setProperty('--border-radius', '0.75rem')
+    pickerElement.style.setProperty('--shadow', 'none')
+    pickerElement.style.setProperty('--sidebar-width', '8px')
+    pickerElement.style.setProperty('--rgb-color', theme.color)
+    pickerElement.style.setProperty('--rgb-accent', theme.accent)
+    pickerElement.style.setProperty('--rgb-background', theme.background)
+    pickerElement.style.setProperty('--rgb-input', theme.input)
+    pickerElement.style.setProperty('--color-border', theme.border)
+    pickerElement.style.setProperty('--color-border-over', theme.borderOver)
+    pickerElement.style.height = `${Math.max(position.maxHeight - 14, 220)}px`
+    container.appendChild(pickerElement)
 
     return () => {
-      cancelled = true
-      pickerElement?.remove()
+      pickerElement.remove()
       container.innerHTML = ''
     }
-  }, [data, isDark, onChange, onClose, position.maxHeight])
+  }, [data, isDark, loadingVisible, onChange, onClose, pickerModule, position.maxHeight])
 
   return createPortal(
     <div
@@ -327,14 +340,14 @@ function EmojiMartIconPicker({
         width: position.width,
       }}
     >
-      {loadError ? (
-        <p className="p-2 text-sm" style={{ color: 'var(--app-negative)' }}>
-          {loadError}
-        </p>
-      ) : !data ? (
+      {loadingVisible ? (
         <div className="flex h-20 items-center justify-center">
           <div className="app-spinner" aria-label="Loading emoji picker" />
         </div>
+      ) : loadError ? (
+        <p className="p-2 text-sm" style={{ color: 'var(--app-negative)' }}>
+          {loadError}
+        </p>
       ) : (
         <div ref={containerRef} />
       )}
