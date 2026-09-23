@@ -161,10 +161,11 @@ export function useRefreshCreatedTransactions() {
 /**
  * Updates transactions and invalidates only the views affected by changed fields
  */
-export function useUpdateTransaction() {
+export function useUpdateTransaction({ minimumPendingMs = 0 }: { minimumPendingMs?: number } = {}) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: updateTransaction,
+    mutationFn: (payload: Parameters<typeof updateTransaction>[0]) =>
+      runWithMinimumPendingTime(minimumPendingMs, () => updateTransaction(payload)),
     onMutate: ({ id }: { id: string; patch: UpdateTransactionPayload }) => ({
       previousTransaction: findCachedTransaction(queryClient, id),
     }),

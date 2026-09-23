@@ -6,7 +6,7 @@ import {
   useUpdateTransaction,
   type Transaction,
 } from '@/api/transactions'
-import { waitForMilliseconds } from '@/utils/timing'
+import { LOADING_ANIMATION_MIN_MS, waitForMilliseconds } from '@/utils/timing'
 import {
   INITIAL_TRANSACTION_FORM,
   MIN_ADD_TRANSACTION_LOADING_MS,
@@ -87,7 +87,7 @@ export function useTransactionSubmit({
   closeModal,
 }: UseTransactionSubmitOptions): TransactionSubmitState {
   const createMutation = useCreateTransaction({ deferAccountInvalidation: true, deferTransactionInvalidation: true })
-  const updateMutation = useUpdateTransaction()
+  const updateMutation = useUpdateTransaction({ minimumPendingMs: LOADING_ANIMATION_MIN_MS })
   const [keepOpenAfterCreate, setKeepOpenAfterCreate] = useState(false)
   const [sessionAccountDeltas, setSessionAccountDeltas] = useState<Record<string, number>>({})
   const [createDelayPending, setCreateDelayPending] = useState(false)
