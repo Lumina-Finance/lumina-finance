@@ -11,8 +11,10 @@ import {
 import {
   DEFAULT_FILTER_PANEL_PLACEMENT,
   FILTER_PANEL_MIN_HEIGHT,
+  getFilterPanelHorizontalPlacement,
   getFilterPanelPlacement,
   type FilterPanelDirection,
+  type FilterPanelHorizontalPlacement,
 } from '@/components/list-controls/filterPanelPlacement'
 import { joinClassNames } from '@/utils/classNames'
 import { isFloatingLayerOpen, isInsideFloatingLayer } from '@/utils/floatingLayer'
@@ -69,6 +71,7 @@ export function FilterGlassPanel({
 }: FilterGlassPanelProps) {
   const [collapsedSize, setCollapsedSize] = useState(COLLAPSED_FALLBACK)
   const [placement, setPlacement] = useState(DEFAULT_FILTER_PANEL_PLACEMENT)
+  const [horizontalPlacement, setHorizontalPlacement] = useState<FilterPanelHorizontalPlacement>({ direction: 'left', width: openWidth })
   // The side the body is drawn on, which lags a measured change of direction until the body has
   // pulled back into the pill, so the anchoring never switches under content that is on screen
   const [renderedDirection, setRenderedDirection] = useState(DEFAULT_FILTER_PANEL_PLACEMENT.direction)
@@ -127,7 +130,8 @@ export function FilterGlassPanel({
 
     function measurePlacement() {
       const head = headRef.current
-      if (!head) return
+      const wrapper = wrapperRef.current
+      if (!head || !wrapper) return
       const rect = head.getBoundingClientRect()
       const next = getFilterPanelPlacement({
         anchorRect: { bottom: rect.bottom, top: rect.top },
@@ -144,6 +148,21 @@ export function FilterGlassPanel({
       setPlacement((current) => (
         current.direction === next.direction && current.height === next.height ? current : next
       ))
+
+      const anchor = wrapper.getBoundingClientRect()
+      const navigation = document.querySelector<HTMLElement>('.app-desktop-nav')
+      const navigationRight = navigation && getComputedStyle(navigation).display !== 'none'
+        ? navigation.getBoundingClientRect().right : 0
+      const horizontal = getFilterPanelHorizontalPlacement({
+        anchorLeft: anchor.left,
+        anchorRight: anchor.right,
+        navigationRight,
+        openWidth,
+        viewportWidth: document.documentElement.clientWidth,
+      })
+      setHorizontalPlacement((current) => (
+        current.direction === horizontal.direction && current.width === horizontal.width ? current : horizontal
+      ))
     }
 
     measurePlacement()
@@ -157,7 +176,7 @@ export function FilterGlassPanel({
       window.removeEventListener('resize', measurePlacement)
       window.removeEventListener('scroll', measurePlacement)
     }
-  }, [open])
+  }, [open, openWidth])
 
   // An outside press or Escape dismisses the panel and discards the draft
   useEffect(() => {
@@ -218,13 +237,14 @@ export function FilterGlassPanel({
           position: 'absolute',
           top: openUpward ? undefined : 0,
           bottom: openUpward ? 0 : undefined,
-          right: 0,
+          left: horizontalPlacement.direction === 'right' ? 0 : undefined,
+          right: horizontalPlacement.direction === 'left' ? 0 : undefined,
           maxWidth: '90vw',
           zIndex: PANEL_Z_INDEX,
           marginLeft: 0,
         }}
         initial={false}
-        animate={{ width: open ? openWidth : collapsedSize.width }}
+        animate={{ width: open ? horizontalPlacement.width : collapsedSize.width }}
         transition={transition}
         whileTap={open || shouldReduceMotion ? undefined : { scale: 0.94 }}
       >

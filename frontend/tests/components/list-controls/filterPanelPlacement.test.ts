@@ -3,7 +3,30 @@
  * no room, shrinking on a window that could hold it, or flipping direction under a scroll
  */
 import { describe, expect, it } from 'vitest'
-import { getFilterPanelPlacement } from '@/components/list-controls/filterPanelPlacement'
+import { getFilterPanelHorizontalPlacement, getFilterPanelPlacement } from '@/components/list-controls/filterPanelPlacement'
+
+describe('filter panel horizontal placement', () => {
+  it('opens right when leftward growth would overlap expanded navigation', () => {
+    expect(getFilterPanelHorizontalPlacement({
+      anchorLeft: 519, anchorRight: 652, navigationRight: 260, openWidth: 468, viewportWidth: 1194,
+    })).toEqual({ direction: 'right', width: 468 })
+  })
+
+  it('keeps leftward growth beside collapsed navigation or in a wider viewport', () => {
+    expect(getFilterPanelHorizontalPlacement({
+      anchorLeft: 519, anchorRight: 652, navigationRight: 94, openWidth: 468, viewportWidth: 1194,
+    })).toEqual({ direction: 'left', width: 468 })
+    expect(getFilterPanelHorizontalPlacement({
+      anchorLeft: 1375, anchorRight: 1508, navigationRight: 260, openWidth: 468, viewportWidth: 1720,
+    })).toEqual({ direction: 'left', width: 468 })
+  })
+
+  it('caps rightward growth at the viewport margin when space is tight', () => {
+    expect(getFilterPanelHorizontalPlacement({
+      anchorLeft: 750, anchorRight: 883, navigationRight: 600, openWidth: 468, viewportWidth: 1050,
+    })).toEqual({ direction: 'right', width: 276 })
+  })
+})
 
 describe('filter panel placement', () => {
   it('grows and shrinks with content while retaining its minimum opening height', () => {
