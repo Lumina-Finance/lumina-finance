@@ -182,10 +182,11 @@ export function useUpdateTransaction({ minimumPendingMs = 0 }: { minimumPendingM
 /**
  * Applies one set of details across several transactions and refreshes the views those fields feed
  */
-export function useBulkUpdateTransactions() {
+export function useBulkUpdateTransactions({ minimumPendingMs = 0 }: { minimumPendingMs?: number } = {}) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: bulkUpdateTransactions,
+    mutationFn: (payload: Parameters<typeof bulkUpdateTransactions>[0]) =>
+      runWithMinimumPendingTime(minimumPendingMs, () => bulkUpdateTransactions(payload)),
     onSuccess: (result, payload) => {
       invalidateBulkUpdatedTransactionData(queryClient, payload, result.affected_account_ids);
     },

@@ -8,6 +8,7 @@ import {
   type Transaction,
 } from '@/api/transactions'
 import { useToast } from '@/hooks/useToast'
+import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
 import { BulkEditModal } from '@/pages/transactions/components/bulk-edit/BulkEditModal'
 import { BulkEditConfirm } from '@/pages/transactions/components/bulk-edit/BulkEditConfirm'
 import { selectedTransactionsSignature } from '@/pages/transactions/components/bulk-edit/confirmation'
@@ -160,7 +161,7 @@ export default function TransactionListSection({
   const [pendingChangeSignature, setPendingChangeSignature] = useState<string | null>(null)
   const [applyError, setApplyError] = useState<string | null>(null)
   const { showToast } = useToast()
-  const bulkUpdate = useBulkUpdateTransactions()
+  const bulkUpdate = useBulkUpdateTransactions({ minimumPendingMs: LOADING_ANIMATION_MIN_MS })
 
   // The rows a range runs along, in the order they appear, carrying the same editable rule the row
   // itself shows
