@@ -1,8 +1,8 @@
 import { useEffect, useId, useRef, useSyncExternalStore, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'motion/react'
-import { getFocusableElements, getNextTabStop, requestInitialModalFocus } from '@/components/modal/focus'
-import { isModalCovered, isTopMostModal, registerOpenModal, subscribeToModalStack, unregisterOpenModal } from '@/components/modal/stack'
+import { useDialogFocus } from '@/components/modal/focus'
+import { isModalCovered, registerOpenModal, subscribeToModalStack, unregisterOpenModal } from '@/components/modal/stack'
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock'
 
 const EASE = [0.25, 0.1, 0.25, 1] as const
@@ -82,82 +82,7 @@ export function ModalShell({
     return () => unregisterOpenModal(token)
   }, [open, token])
 
-  // Runs before the effect that moves focus into the panel, so the control that opened the modal is
-  // captured while it still holds focus
-  useEffect(() => {
-    if (!open) return
-
-    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
-
-    return () => {
-      // Waits a frame rather than restoring straight away. Closing a stacked modal leaves the panel beneath
-      // it inert until React renders the stack change, and focus cannot land inside an inert subtree
-      window.requestAnimationFrame(() => {
-        // A trigger the modal's own work removed from the page, such as a row it archived, has nothing to go
-        // back to, so focus is left where it falls rather than sent somewhere arbitrary
-        if (opener?.isConnected) opener.focus({ preventScroll: true })
-      })
-    }
-  }, [open])
-
-  useEffect(() => {
-    if (!open) return
-
-    const panel = panelRef.current
-    if (!panel) return
-
-    const frameId = requestInitialModalFocus(panel)
-    return () => window.cancelAnimationFrame(frameId)
-  }, [open])
-
-  useEffect(() => {
-    if (!open || closeDisabled) return
-
-    const closeOnEscape = (event: KeyboardEvent) => {
-      // Only the top-most modal reacts, so one press never closes a modal stacked underneath as well
-      if (event.key === 'Escape' && isTopMostModal(token)) onClose()
-    }
-
-    window.addEventListener('keydown', closeOnEscape)
-    return () => window.removeEventListener('keydown', closeOnEscape)
-  }, [closeDisabled, onClose, open, token])
-
-  // Takes every Tab press while this is the top-most modal and moves focus to the next control in the panel
-  // itself, rather than letting the browser move focus and only correcting at the edges. Deciding where the
-  // edges are means matching the browser's tab order exactly, and any control it reaches that the panel's own
-  // list misses would let focus straight out to the browser's toolbar
-  useEffect(() => {
-    if (!open) return
-
-    const holdFocusInPanel = (event: KeyboardEvent) => {
-      if (event.key !== 'Tab') return
-      if (!isTopMostModal(token)) return
-
-      const panel = panelRef.current
-      if (!panel) return
-
-      event.preventDefault()
-
-      const focusable = getFocusableElements(panel)
-      if (focusable.length === 0) {
-        panel.focus({ preventScroll: true })
-        return
-      }
-
-      // Focus that has ended up outside the panel, in an overlay the panel opened or on the page behind, is
-      // pulled back to whichever end of the panel it was heading towards
-      const active = document.activeElement instanceof HTMLElement ? document.activeElement : null
-      const from = active && panel.contains(active) ? active : null
-
-      getNextTabStop(focusable, from, event.shiftKey)?.focus()
-    }
-
-    // Capture phase, so a control between the panel and the document cannot stop the event before this sees
-    // it. Nothing in the app handles Tab itself, and anything added later that wants to would have to be let
-    // through here rather than by stopping the event
-    document.addEventListener('keydown', holdFocusInPanel, true)
-    return () => document.removeEventListener('keydown', holdFocusInPanel, true)
-  }, [open, token])
+  useDialogFocus(open, panelRef, token, onClose, closeDisabled)
 
   return createPortal(
     <AnimatePresence onExitComplete={onExitComplete}>
