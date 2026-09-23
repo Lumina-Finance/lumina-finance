@@ -89,7 +89,7 @@ export default function TransactionsPage() {
 
     setOpeningOutlierId(transactionId)
     try {
-      const transaction = await loadTransaction(transactionId)
+      const transaction = await withMinDelay(() => loadTransaction(transactionId))
       openEditModal(transaction)
     } catch {
       setOutlierLoadError('Unable to open transaction')
