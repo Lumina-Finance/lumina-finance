@@ -1,7 +1,8 @@
 import type { Category } from '@/api/categories'
 import { NO_DEFAULT_CATEGORY_VALUE } from '@/components/reference-modals/createMerchantConstants'
+import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
 
-export const DELETE_SPINNER_MS = 800
+export const DELETE_SPINNER_MS = LOADING_ANIMATION_MIN_MS
 export const NO_CATEGORY_VALUE = NO_DEFAULT_CATEGORY_VALUE
 export const EASE = [0.25, 0.1, 0.25, 1] as const
 export const MERCHANT_SEARCH_DEBOUNCE_MS = 300

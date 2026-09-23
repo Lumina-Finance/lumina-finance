@@ -15,7 +15,9 @@ import {
 } from '@/api/merchants/requests';
 import type { MerchantFilters } from '@/api/merchants/types';
 import { merchantKeys } from '@/api/cache/queryKeys';
+import { runWithMinimumPendingTime } from '@/api/utils/mutationFeedback';
 import { useAuth } from '@/hooks/useAuth';
+import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing';
 
 /**
  * Reads a merchant detail record when a merchant ID is available
@@ -88,7 +90,8 @@ export function useCreateMerchant() {
 export function useUpdateMerchant() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: updateMerchant,
+    mutationFn: (payload: Parameters<typeof updateMerchant>[0]) =>
+      runWithMinimumPendingTime(LOADING_ANIMATION_MIN_MS, () => updateMerchant(payload)),
     onSuccess: (merchant, { payload }) => {
       updateMerchantUpdateCaches(queryClient, merchant, payload);
     },
