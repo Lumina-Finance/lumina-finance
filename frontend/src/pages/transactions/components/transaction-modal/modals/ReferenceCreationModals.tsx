@@ -56,7 +56,7 @@ export default function TransactionReferenceCreationModals({
   return (
     <>
       <CreateMerchantModal
-        key={merchantModalKey}
+        key={`merchant:${merchantModalKey}`}
         open={parentOpen && merchantOpen}
         initialName={merchantInitialName}
         level="stacked"
@@ -65,7 +65,7 @@ export default function TransactionReferenceCreationModals({
         onCreated={onMerchantCreated}
       />
       <CreateCategoryModal
-        key={categoryModalKey}
+        key={`category:${categoryModalKey}`}
         open={parentOpen && categoryOpen}
         initialName={categoryInitialName}
         initialKind={categoryInitialKind}
@@ -74,7 +74,7 @@ export default function TransactionReferenceCreationModals({
         onCreated={onCategoryCreated}
       />
       <CreateTagModal
-        key={tagModalKey}
+        key={`tag:${tagModalKey}`}
         open={parentOpen && tagOpen}
         initialName={tagInitialName}
         groupId={tagGroupId}
