@@ -69,8 +69,6 @@ def get_category_name_conflict_filter(name: str, user_id: uuid.UUID, group_id: u
     else:
         scope_filter = scope_filter | get_personal_category_filter(user_id)
 
-    # Trimmed and compared with capitals folded, which is what the unique indexes are built on, so
-    # the route and the database reach the same verdict. SQL lower() rather than Python casefold(),
-    # which disagree for a handful of characters and would leave the index refusing what this allows
-    conflict_filter = (sa.func.lower(Category.name) == name.strip().lower()) & scope_filter
+    # Compare both sides with PostgreSQL lower(), the same operation the unique indexes use
+    conflict_filter = (sa.func.lower(Category.name) == sa.func.lower(name.strip())) & scope_filter
     return conflict_filter

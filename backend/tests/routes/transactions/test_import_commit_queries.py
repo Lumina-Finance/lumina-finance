@@ -127,7 +127,7 @@ async def test_commit_batched_group_access_keeps_admin_and_explicit_write_succes
 
 @pytest.mark.parametrize("name_case", ["personal_precedence", "database_case_key"])
 async def test_commit_category_name_candidates_keep_personal_precedence_and_database_case_keys(client, name_case):
-    """Category reuse keeps personal precedence and the legacy Python-to-database comparison"""
+    """Category reuse keeps personal precedence and follows PostgreSQL's lowercase key"""
     headers, batch = await _build_reference_batch(client, 2, "aliases")
     account_id = uuid.UUID(batch["accounts"][0]["account_id"])
     async with TestSession() as session:
@@ -143,6 +143,8 @@ async def test_commit_category_name_candidates_keep_personal_precedence_and_data
         else:
             requested_name = "Database İ category"
             existing_name = (await session.execute(select(func.lower(literal(requested_name))))).scalar_one()
+            if existing_name == requested_name.lower():
+                pytest.skip("PostgreSQL locale matches Python lower() for U+0130")
         category = Category(id=uuid.uuid4(), owner_id=owner_id, name=existing_name, kind=CategoryKind.EXPENSE)
         session.add(category)
         await session.commit()
@@ -154,11 +156,6 @@ async def test_commit_category_name_candidates_keep_personal_precedence_and_data
     staged = await client.post(f"/transactions/import/runs/{run_id}/rows", headers=headers, json=batch)
     assert staged.status_code == 204, staged.text
     committed, _counts = await _commit_with_reference_count(client, headers, run_id)
-    if name_case == "database_case_key" and existing_name != requested_name.lower():
-        assert committed.status_code == 500, committed.text
-        assert committed.json()["detail"] == f"Category could not be created or found: {requested_name}"
-        assert (await client.get("/transactions", headers=headers)).json() == []
-        return
     assert committed.status_code == 201, committed.text
     summary = committed.json()
     assert summary["categories_created"] == 0

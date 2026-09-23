@@ -32,7 +32,7 @@ class ImportCategoryNameFacts:
 async def _load_import_category_name_facts(
     db: AsyncSession, user_id: uuid.UUID, names: set[str],
 ) -> ImportCategoryNameFacts:
-    """Acquire reusable candidates while retaining the existing Python request comparison key
+    """Acquire reusable candidates using the database's category name key
 
     Args:
         db: Active caller-scoped import session
@@ -40,25 +40,25 @@ async def _load_import_category_name_facts(
         names: Requested trimmed category names without deciding their validity
 
     Returns:
-        Database storage keys and candidates matching the existing request comparison rule
+        Database storage keys and candidates matching the category unique indexes
     """
     facts = ImportCategoryNameFacts({}, {})
     if not names:
         return facts
-    requested = values(column("name", String), column("lookup_key", String), name="import_category_names").data([
-        (name, name.lower()) for name in sorted(names)
+    requested = values(column("name", String), name="import_category_names").data([
+        (name,) for name in sorted(names)
     ])
 
-    # Preserve the existing database-column versus Python-request comparison while batching reads
+    # Lower both operands in PostgreSQL so the lookup agrees with its unique indexes
     rows = (await db.execute(select(Category, requested.c.name, func.lower(requested.c.name)).select_from(
         requested.outerjoin(Category, (
-            func.lower(Category.name) == requested.c.lookup_key
+            func.lower(Category.name) == func.lower(requested.c.name)
         ) & (Category.is_system.is_(True) | ((Category.owner_id == user_id) & Category.group_id.is_(None)))),
     ).order_by(Category.is_system.asc()))).all()
     for category, name, key in rows:
         facts.keys_by_name[name] = key
         if category is not None:
-            facts.categories_by_key.setdefault(name.lower(), category)
+            facts.categories_by_key.setdefault(key, category)
     return facts
 
 
@@ -239,7 +239,8 @@ async def _get_or_create_personal_import_category(
     kind = parse_import_category_kind(create.kind)
     name = strip_import_text_or_raise(create.name, "Category name")
 
-    existing = name_facts.categories_by_key.get(name.lower())
+    key = name_facts.keys_by_name[name]
+    existing = name_facts.categories_by_key.get(key)
     if existing is not None:
         return _reuse_import_category(existing, kind, name, stats)
 
@@ -254,7 +255,7 @@ async def _get_or_create_personal_import_category(
         category = inserted[0]
         stats.categories_created += 1
         stats.created_category_ids.append(category.id)
-        name_facts.categories_by_key[name_facts.keys_by_name[name]] = category
+        name_facts.categories_by_key[key] = category
         return category
 
     # Nothing was written, so this name was taken between the lookup above and the insert, by
@@ -267,7 +268,7 @@ async def _get_or_create_personal_import_category(
             detail=f"Category could not be created or found: {name}",
         )
     category = _reuse_import_category(created_elsewhere, kind, name, stats)
-    name_facts.categories_by_key[name.lower()] = category
+    name_facts.categories_by_key[key] = category
     return category
 
 
@@ -288,7 +289,7 @@ async def _select_reusable_import_category(db: AsyncSession, user_id: uuid.UUID,
     result = await db.execute(
         select(Category)
         .where(
-            func.lower(Category.name) == name.lower(),
+            func.lower(Category.name) == func.lower(name),
             Category.is_system.is_(True) | ((Category.owner_id == user_id) & (Category.group_id.is_(None))),
         )
         .order_by(Category.is_system.asc())
