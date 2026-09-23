@@ -18,6 +18,7 @@ import {
 } from '@/api/passkeys/requests';
 import type { StepUpPayload } from '@/api/two-factor/types';
 import { useAuth } from '@/hooks/useAuth';
+import { withPasskeyFeedbackMinimum } from '@/utils/passkeyFeedback';
 import { withMinDelay } from '@/utils/timing';
 
 /**
@@ -42,11 +43,11 @@ export function usePasskeyConfig() {
  */
 export function useAuthenticatePasskey() {
   return useMutation({
-    mutationFn: async () => {
+    mutationFn: () => withPasskeyFeedbackMinimum(async () => {
       const optionsJSON = await fetchPasskeyAuthenticationOptions();
       const credential = await startAuthentication({ optionsJSON });
       return authenticatePasskey(credential);
-    },
+    }),
   });
 }
 
@@ -58,11 +59,11 @@ export function useAuthenticatePasskey() {
  */
 export function useVerifyPasskeyMfa() {
   return useMutation({
-    mutationFn: async (mfaToken: string) => {
+    mutationFn: (mfaToken: string) => withPasskeyFeedbackMinimum(async () => {
       const optionsJSON = await fetchPasskeyMfaOptions(mfaToken);
       const credential = await startAuthentication({ optionsJSON });
       return verifyPasskeyMfa(mfaToken, credential);
-    },
+    }),
   });
 }
 
@@ -74,11 +75,12 @@ export function useVerifyPasskeyMfa() {
  */
 export function useVerifyPasskeyReset() {
   return useMutation({
-    mutationFn: async (payload: { token: string; new_password: string; mfa_token: string }) => {
-      const optionsJSON = await fetchPasskeyResetOptions(payload.mfa_token);
-      const credential = await startAuthentication({ optionsJSON });
-      return verifyPasskeyReset(payload, credential);
-    },
+    mutationFn: (payload: { token: string; new_password: string; mfa_token: string }) =>
+      withPasskeyFeedbackMinimum(async () => {
+        const optionsJSON = await fetchPasskeyResetOptions(payload.mfa_token);
+        const credential = await startAuthentication({ optionsJSON });
+        return verifyPasskeyReset(payload, credential);
+      }),
   });
 }
 
@@ -104,14 +106,16 @@ export function usePasskeys() {
 export function useRegisterPasskey() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ name, step_up }: { name: string; step_up?: StepUpPayload }) => {
-      // Step up before fetching options, so a wrong factor is refused before the browser ceremony runs
-      // and the passkey is only ever created after the current factor verifies
-      const optionsJSON = await fetchPasskeyRegistrationOptions(step_up);
-      const credential = await startRegistration({ optionsJSON });
-      // The minimum delay holds only the server store, so a cancelled prompt still surfaces at once
-      return withMinDelay(() => registerPasskey({ name, credential }));
-    },
+    mutationFn: ({ name, step_up }: { name: string; step_up?: StepUpPayload }) =>
+      withPasskeyFeedbackMinimum(async () => {
+        // Step up before fetching options, so a wrong factor is refused before the browser ceremony runs
+        // and the passkey is only ever created after the current factor verifies
+        const optionsJSON = await fetchPasskeyRegistrationOptions(step_up);
+        const credential = await startRegistration({ optionsJSON });
+        // Keep the server-store minimum after the native prompt while the outer minimum covers fast
+        // options failures; prompt cancellation remains immediate
+        return withMinDelay(() => registerPasskey({ name, credential }));
+      }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: passkeyKeys.list() }),
   });
 }
