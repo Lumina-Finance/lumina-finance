@@ -23,6 +23,7 @@ import { consumeOidcIntent, type OidcSignedInIntent } from '@/utils/oidcIntent'
 import { buildCurrencyOptions, getCurrencyPlaceholder } from '@/pages/auth/utils/authForm'
 import { getBrowserTimeZone } from '@/utils/date'
 import { buildTimezoneOptions } from '@/utils/timezoneOptions'
+import { withMinDelay } from '@/utils/timing'
 
 const DETECTED_TZ = getBrowserTimeZone()
 
@@ -87,7 +88,7 @@ const OidcCallbackPage = () => {
 
     if (user && signedInIntent?.flow === 'reauth') {
       const { action } = signedInIntent
-      completeOidcReauthCallback({ code, state })
+      withMinDelay(() => completeOidcReauthCallback({ code, state }))
         .then(() => {
           // The reauth armed the step-up proof, so settings resumes the action it was started for
           if (action.kind === 'set-password') {
@@ -110,7 +111,7 @@ const OidcCallbackPage = () => {
     }
 
     if (user) {
-      completeOidcLinkCallback({ code, state })
+      withMinDelay(() => completeOidcLinkCallback({ code, state }))
         .then(async (identity) => {
           await refreshOidcIdentities()
 
@@ -128,7 +129,7 @@ const OidcCallbackPage = () => {
       return
     }
 
-    completeOidcCallback({ code, state })
+    withMinDelay(() => completeOidcCallback({ code, state }))
       .then((result) => {
         if (isOidcOnboardingRequired(result)) {
           setOnboarding(result)
