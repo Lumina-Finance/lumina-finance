@@ -46,7 +46,6 @@ function createAccount(overrides: Partial<AccountsOverview> = {}): AccountsOverv
     credit_limit: null,
     can_write: true,
     is_archived: false,
-    closed_at: null,
     ...overrides,
   }
 }

@@ -45,7 +45,6 @@ export interface AccountsOverview {
   credit_limit: number | null;
   can_write: boolean;
   is_archived: boolean;
-  closed_at: string | null;
 }
 
 /**
@@ -102,7 +101,6 @@ export interface UpdateAccountPayload {
   institution_id?: string | null;
   credit_limit?: number | null;
   is_archived?: boolean;
-  closed_at?: string | null;
 }
 
 export type SnapshotGranularity = 'day' | 'week' | 'month' | 'quarter';

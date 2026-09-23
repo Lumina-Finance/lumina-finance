@@ -104,7 +104,6 @@ async def test_list_accounts_includes_tax_advantaged_category_id(client):
             "credit_limit": None,
             "can_write": True,
             "is_archived": False,
-            "closed_at": None,
         },
     ]
 

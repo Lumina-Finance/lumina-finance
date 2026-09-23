@@ -677,8 +677,8 @@ async def test_failed_update_with_invalid_category_does_not_change_snapshots(cli
     assert before == after
 
 
-async def test_failed_move_to_closed_account_leaves_both_account_snapshots_unchanged(client):
-    """A 422 from moving to a closed account must not touch either account's snapshots."""
+async def test_failed_move_to_archived_account_leaves_both_account_snapshots_unchanged(client):
+    """A 422 from moving to an archived account must not touch either account's snapshots."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
@@ -687,13 +687,13 @@ async def test_failed_move_to_closed_account_leaves_both_account_snapshots_uncha
     src_id = uuid.UUID(src.json()["id"])
     dst_id = uuid.UUID(dst.json()["id"])
 
-    # Close dst
-    close_resp = await client.patch(
+    # Archive dst
+    archive_resp = await client.patch(
         f"/accounts/{dst_id}",
-        json={"closed_at": "2026-03-01"},
+        json={"is_archived": True},
         headers=headers,
     )
-    assert close_resp.status_code == 200
+    assert archive_resp.status_code == 200
 
     cat_resp = await _create_category(client, headers)
     category_id = cat_resp.json()["id"]

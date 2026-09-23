@@ -76,7 +76,6 @@ async def update_transaction_and_get_response(
             changed_fields["account_id"],
             user.id,
             PermissionLevel.WRITE,
-            require_open=True,
         )
         validate_transaction_account_is_not_archived(new_account)
         account_group_id = new_account.group_id

@@ -168,12 +168,8 @@ async def test_list_snapshots_returns_zero_anchor_for_new_account(client):
     assert date.fromisoformat(snapshots[0]["dt"]) == expected_anchor_dt
 
 
-async def test_list_snapshots_on_closed_account_still_returns_history(client):
-    """Read-only endpoint must return snapshots even after the account is closed
-
-    Closed accounts are still meaningful for historical balance charts; the
-    handler intentionally does NOT pass require_open=True to check_account_access
-    """
+async def test_list_snapshots_on_archived_account_still_returns_history(client):
+    """Archived accounts retain their historical balance snapshots."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
@@ -181,14 +177,16 @@ async def test_list_snapshots_on_closed_account_still_returns_history(client):
     account_id = account_resp.json()["id"]
     await _seed_three_day_history(client, headers, account_id)
 
-    # Close the account
-    close_resp = await client.patch(
+    archive_resp = await client.patch(
         f"/accounts/{account_id}",
-        json={"closed_at": "2026-04-01"},
+        json={"is_archived": True},
         headers=headers,
     )
-    assert close_resp.status_code == 200
+    assert archive_resp.status_code == 200
 
     resp = await client.get(f"/accounts/{account_id}/snapshots", headers=headers)
     assert resp.status_code == 200
-    assert len(resp.json()) == 3
+    snapshots = resp.json()
+    assert [snapshot["balance"] for snapshot in snapshots[:3]] == [1000, 3000, 6000]
+    assert snapshots[-1]["balance"] == 0
+    assert len(snapshots) == 4

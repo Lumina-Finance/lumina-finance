@@ -26,7 +26,6 @@ function createAccount(overrides: Partial<AccountsOverview> = {}): AccountsOverv
     credit_limit: null,
     can_write: true,
     is_archived: false,
-    closed_at: null,
     ...overrides,
   }
 }
@@ -40,16 +39,7 @@ describe('the account the transaction list is handed', () => {
       institution: null,
       can_write: true,
       is_archived: false,
-      closed_at: null,
     })
-  })
-
-  // Dropped here, the toolbar cannot tell a closed account from an open one, and offers an import
-  // the API would refuse
-  it('carries the closing date through', () => {
-    const account = createAccount({ closed_at: '2026-03-01T14:00:00Z' })
-
-    expect(toTransactionListAccount(account).closed_at).toBe('2026-03-01T14:00:00Z')
   })
 
   it('carries the archived state through', () => {

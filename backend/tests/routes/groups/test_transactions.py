@@ -537,75 +537,76 @@ async def test_create_transaction_with_other_users_personal_category_returns_422
     assert resp.json()["detail"] == "Category not found"
 
 
-# --- Transactions on closed group accounts ---
+# --- Transactions on archived group accounts ---
 
 
-async def test_create_transaction_on_closed_group_account_returns_422(client):
-    """Admin cannot create a transaction on a closed group account."""
+async def test_create_transaction_on_archived_group_account_returns_422(client):
+    """Admin cannot create a transaction on an archived group account."""
     admin_headers, _, _, _, account_id, category_id, _ = (
         await _setup_group_with_shared_account(client)
     )
 
-    await client.patch(
+    archive_resp = await client.patch(
         f"/accounts/{account_id}",
-        json={"closed_at": "2026-03-01"},
+        json={"is_archived": True},
         headers=admin_headers,
     )
+    assert archive_resp.status_code == 200
 
     resp = await _create_transaction(client, admin_headers, account_id, category_id)
 
     assert resp.status_code == 422
-    assert resp.json()["detail"] == "Account is closed"
+    assert resp.json()["detail"] == "Account is archived"
 
 
-async def test_create_transaction_on_closed_group_account_with_write_permission_returns_422(client):
-    """Member with write permission cannot create on a closed group account."""
+async def test_create_transaction_on_archived_group_account_with_write_permission_returns_422(client):
+    """A write-granted member cannot create on an archived group account."""
     admin_headers, member_headers, member_user_id, _, account_id, category_id, _ = (
         await _setup_group_with_shared_account(client)
     )
     await _grant_account_permission(client, admin_headers, account_id, member_user_id, "write")
 
-    await client.patch(
+    archive_resp = await client.patch(
         f"/accounts/{account_id}",
-        json={"closed_at": "2026-03-01"},
+        json={"is_archived": True},
         headers=admin_headers,
     )
+    assert archive_resp.status_code == 200
 
     resp = await _create_transaction(client, member_headers, account_id, category_id)
 
     assert resp.status_code == 422
-    assert resp.json()["detail"] == "Account is closed"
+    assert resp.json()["detail"] == "Account is archived"
 
 
-async def test_move_transaction_to_closed_group_account_returns_422(client):
-    """Moving a transaction onto a closed group account is rejected."""
+async def test_move_transaction_to_archived_group_account_returns_422(client):
+    """Moving a transaction onto an archived group account is rejected."""
     admin_headers, _, _, group_id, account_id, category_id, _ = (
         await _setup_group_with_shared_account(client)
     )
 
-    # Create a second group account and close it
     second_acct = await _create_account(
         client, admin_headers, name="Joint Savings", group_id=group_id,
     )
-    closed_account_id = second_acct.json()["id"]
-    await client.patch(
-        f"/accounts/{closed_account_id}",
-        json={"closed_at": "2026-03-01"},
+    archived_account_id = second_acct.json()["id"]
+    archive_resp = await client.patch(
+        f"/accounts/{archived_account_id}",
+        json={"is_archived": True},
         headers=admin_headers,
     )
+    assert archive_resp.status_code == 200
 
-    # Create a transaction on the open group account
     create_resp = await _create_transaction(client, admin_headers, account_id, category_id)
     txn_id = create_resp.json()["id"]
 
     resp = await client.patch(
         f"/transactions/{txn_id}",
-        json={"account_id": closed_account_id},
+        json={"account_id": archived_account_id},
         headers=admin_headers,
     )
 
     assert resp.status_code == 422
-    assert resp.json()["detail"] == "Account is closed"
+    assert resp.json()["detail"] == "Account is archived"
 
 
 # --- PATCH /transactions/bulk across group boundaries ---

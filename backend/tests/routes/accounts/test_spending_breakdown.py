@@ -1486,8 +1486,8 @@ async def test_merchant_total_leaves_out_a_merchant_the_viewer_cannot_see(client
     assert data["merchants_total_spend"] == 0
 
 
-async def test_closed_account_still_returns_breakdown(client):
-    """Closed accounts remain readable — the handler does not require require_open."""
+async def test_archived_account_still_returns_breakdown(client):
+    """Archiving does not hide an account's spending history."""
     headers, account_id = await _setup_account(client)
     category = (await _create_category(client, headers)).json()
 
@@ -1496,12 +1496,12 @@ async def test_closed_account_still_returns_breakdown(client):
         dt=_today_utc().isoformat(), amount=-1000,
     )
 
-    close_resp = await client.patch(
+    archive_resp = await client.patch(
         f"/accounts/{account_id}",
-        json={"closed_at": "2026-04-01"},
+        json={"is_archived": True},
         headers=headers,
     )
-    assert close_resp.status_code == 200
+    assert archive_resp.status_code == 200
 
     resp = await client.get(
         f"/accounts/{account_id}/spending-breakdown",

@@ -46,7 +46,6 @@ async def test_get_account_returns_account(client):
     ):
         assert field not in data
     assert data["is_archived"] is False
-    assert data["closed_at"] is None
     assert data["created_at"] is not None
 
 

@@ -46,7 +46,6 @@ async def create_transaction_and_get_response(
         data.account_id,
         user.id,
         PermissionLevel.WRITE,
-        require_open=True,
     )
     validate_transaction_account_is_not_archived(account)
 

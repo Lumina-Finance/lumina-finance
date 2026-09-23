@@ -956,23 +956,6 @@ async def test_bulk_update_refuses_a_move_to_an_archived_account(client):
     assert str((await _read_transaction(txn)).account_id) == source_id
 
 
-async def test_bulk_update_refuses_a_move_to_a_closed_account(client):
-    """A closed account is a second state that takes no new transactions."""
-    headers, source_id, category_id = await _setup_user_with_deps(client)
-    target_id = (await _create_account(client, headers, name="Closed Savings")).json()["id"]
-    txn = (await _create_transaction(client, headers, source_id, category_id)).json()["id"]
-    await client.patch(f"/accounts/{target_id}", json={"closed_at": "2026-03-01"}, headers=headers)
-
-    resp = await client.patch(
-        "/transactions/bulk",
-        json={"transaction_ids": [txn], "account_id": target_id},
-        headers=headers,
-    )
-
-    assert resp.status_code == 422
-    assert str((await _read_transaction(txn)).account_id) == source_id
-
-
 # --- The other account a transfer records ---
 
 

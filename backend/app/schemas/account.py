@@ -33,7 +33,6 @@ class AccountsOverview(BaseModel):
     # Effective transaction write permission for the caller, independent of lifecycle state
     can_write: bool
     is_archived: bool
-    closed_at: datetime | None
 
     model_config = {"from_attributes": True}
 
@@ -58,7 +57,6 @@ class AccountResponse(BaseModel):
     # Effective transaction write permission for the caller, independent of lifecycle state
     can_write: bool
     is_archived: bool
-    closed_at: datetime | None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -87,7 +85,6 @@ class UpdateAccountRequest(BaseModel):
     institution_id: uuid.UUID | None = None
     credit_limit: int | None = None  # Only valid on liability accounts
     is_archived: bool | None = None
-    closed_at: datetime | None = None
 
 
 class AccountBalanceSnapshotResponse(BaseModel):

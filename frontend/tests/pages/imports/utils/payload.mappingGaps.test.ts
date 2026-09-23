@@ -50,7 +50,6 @@ const ACCOUNT: AccountsOverview = {
   credit_limit: null,
   can_write: true,
   is_archived: false,
-  closed_at: null,
 }
 
 const COLUMN_MAP: ColumnMap = { ...EMPTY_COLUMN_MAP, dt: 'Date', category_id: 'Category', amount: 'Amount' }

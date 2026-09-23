@@ -31,7 +31,6 @@ export function createAccount(overrides: Partial<AccountsOverview>): AccountsOve
     credit_limit: overrides.credit_limit ?? null,
     can_write: overrides.can_write ?? true,
     is_archived: overrides.is_archived ?? false,
-    closed_at: null,
     ...overrides,
   }
 }

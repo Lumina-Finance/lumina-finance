@@ -256,6 +256,6 @@ async def validate_transaction_counterparty_account(
             detail="A transfer cannot record its own account as its counterparty",
         )
 
-    # Read access is enough, since recording an account writes nothing to it. Archived and closed
+    # Read access is enough, since recording an account writes nothing to it. Archived
     # accounts stay recordable, because archiving happens after the money moved
     await check_account_access(db, counterparty_account_id, user_id, PermissionLevel.READ)

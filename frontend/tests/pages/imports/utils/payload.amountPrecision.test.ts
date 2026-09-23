@@ -77,7 +77,6 @@ function createAccount(currency: string): AccountsOverview {
     credit_limit: null,
     can_write: true,
     is_archived: false,
-    closed_at: null,
   }
 }
 

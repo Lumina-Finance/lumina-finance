@@ -41,7 +41,7 @@ export function doesChosenCategoryRecordTransferTarget(category: Category | unde
  * @param accounts Every account the list knows about
  * @param selectedCurrencies Currencies of the selected transactions, deduplicated
  */
-export function getBulkMoveTargets<T extends { can_write?: boolean; is_archived?: boolean; closed_at?: string | null; currency?: string }>(
+export function getBulkMoveTargets<T extends { can_write?: boolean; is_archived?: boolean; currency?: string }>(
   accounts: T[],
   selectedCurrencies: string[],
 ): T[] {
@@ -49,7 +49,6 @@ export function getBulkMoveTargets<T extends { can_write?: boolean; is_archived?
   return accounts.filter(
     (account) => account.can_write === true
       && !account.is_archived
-      && !account.closed_at
       && account.currency === selectedCurrencies[0],
   )
 }
@@ -63,10 +62,10 @@ export function getBulkMoveTargets<T extends { can_write?: boolean; is_archived?
  *
  * @param accounts Every account the list knows about
  */
-export function getTransferEndTargets<T extends { is_archived?: boolean; closed_at?: string | null }>(
+export function getTransferEndTargets<T extends { is_archived?: boolean }>(
   accounts: T[],
 ): T[] {
-  return accounts.filter((account) => !account.is_archived && !account.closed_at)
+  return accounts.filter((account) => !account.is_archived)
 }
 
 /**
@@ -610,7 +609,7 @@ export function getBulkEditBlockers(
 
     if (!sendsAnEnd && choice.accountId && accountMap) {
       const destination = accountMap.get(choice.accountId)
-      if (destination?.can_write !== true || destination?.is_archived || Boolean(destination?.closed_at)) {
+      if (destination?.can_write !== true || destination?.is_archived) {
         if (!unavailableOwnAccount.includes(row.id)) unavailableOwnAccount.push(row.id)
       }
     }
@@ -638,7 +637,7 @@ export function getBulkEditBlockers(
 
     if (ownEnd?.scope === 'tracked' && accountMap) {
       const ownAccount = accountMap.get(ownEnd.accountId)
-      if (ownAccount?.can_write !== true || ownAccount?.is_archived || Boolean(ownAccount?.closed_at)) {
+      if (ownAccount?.can_write !== true || ownAccount?.is_archived) {
         if (!unavailableOwnAccount.includes(row.id)) unavailableOwnAccount.push(row.id)
       }
     }
