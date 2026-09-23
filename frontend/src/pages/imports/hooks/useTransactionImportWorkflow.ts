@@ -9,6 +9,7 @@ import {
 import { EMPTY_COLUMN_MAP } from '@/pages/imports/constants'
 import { useAuth } from '@/hooks/useAuth'
 import { OUTSIDE_ACCOUNT_LABEL, OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
+import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
 import type { ColumnMap, ColumnTarget, ColumnValidationErrors, ImportAmountDirection, ImportCategoryKind, ImportFileDraft, ImportOverlayPhase, PreviewTransactionRow } from '@/pages/imports/types'
 import {
   buildColumnTargetOptions,
@@ -78,8 +79,8 @@ const FILE_ACCOUNT_MATCH_KEY = '__file_account__'
 // Stands in while a reference list has not arrived, so nothing is treated as cleared and the memos
 // below keep the same identity from render to render
 const NO_CLEARED_SOURCES: Set<string> = new Set()
-const CSV_PROCESSING_MIN_MS = 1500
-const IMPORT_OVERLAY_MIN_MS = 2000
+const CSV_PROCESSING_MIN_MS = LOADING_ANIMATION_MIN_MS
+const IMPORT_OVERLAY_MIN_MS = LOADING_ANIMATION_MIN_MS
 
 /**
  * Drives the generic CSV import flow: staging one file, mapping its columns to app fields, resolving

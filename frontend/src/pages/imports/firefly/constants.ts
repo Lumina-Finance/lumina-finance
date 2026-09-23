@@ -1,5 +1,6 @@
 import type { AccountType } from '@/api/accounts'
 import { STEP_DOT_WAVE_MS } from '@/pages/imports/components'
+import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
 import type { FireflyImportStage } from './types'
 
 /**
@@ -135,8 +136,8 @@ export const FIREFLY_MISSING_REQUIRED_VALUES_REASON = 'Missing required values'
 export const FIREFLY_GENERIC_SKIP_REASON = 'Row could not be converted'
 
 export const FIREFLY_SAMPLE_PREVIEW_LIMIT = 5
-export const FIREFLY_CSV_PROCESSING_MIN_MS = 1500
-export const FIREFLY_IMPORT_OVERLAY_MIN_MS = 2000
+export const FIREFLY_CSV_PROCESSING_MIN_MS = LOADING_ANIMATION_MIN_MS
+export const FIREFLY_IMPORT_OVERLAY_MIN_MS = LOADING_ANIMATION_MIN_MS
 
 /**
  * Stages of the commit in the order they run, as the overlay lists them
