@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { useMinimumVisibleFlag } from '@/hooks/useMinimumVisibleFlag'
@@ -79,7 +79,12 @@ export default function ImportsPage() {
   // showing has already ended, so the page under it is held until it has actually gone rather than
   // until the import finished
   const [overlayOnScreen, setOverlayOnScreen] = useState(false)
-  if (importOverlayOpen && !overlayOnScreen) setOverlayOnScreen(true)
+  const [overlayOpener, setOverlayOpener] = useState<HTMLElement | null>(null)
+  const pageRef = useRef<HTMLDivElement>(null)
+  if (importOverlayOpen && !overlayOnScreen) {
+    setOverlayOpener(document.activeElement instanceof HTMLElement ? document.activeElement : null)
+    setOverlayOnScreen(true)
+  }
 
   // Switching source resets the flow being left, so a file still being read or an import still
   // being written would finish into a flow the user has already discarded
@@ -179,15 +184,17 @@ export default function ImportsPage() {
 
   return (
     <div
+      ref={pageRef}
+      tabIndex={-1}
       className="relative h-screen min-h-screen overflow-hidden"
       style={{ background: 'var(--app-bg)', color: 'var(--app-text)' }}
-      aria-busy={overlayOnScreen}
     >
       {/* Inert rather than aria-hidden: dimming alone leaves every control behind the overlay
           reachable by keyboard, which is how a second commit could be started on top of one that
           was still writing. It also takes the subtree out of the accessibility tree on its own.
           The dimming follows the same flag, so the page never looks reachable before it is */}
       <div
+        aria-busy={overlayOnScreen}
         className={`flex h-full min-h-full transition duration-200 ${overlayOnScreen ? 'select-none opacity-40 grayscale' : 'opacity-100'}`}
         inert={overlayOnScreen}
       >
@@ -285,6 +292,9 @@ export default function ImportsPage() {
 
       {isFirefly ? (
         <ImportProgressOverlay
+          onScreen={overlayOnScreen}
+          returnFocusTo={overlayOpener}
+          returnFocusFallbackRef={pageRef}
           phase={fireflyWorkflow.importOverlayPhase}
           steps={fireflyWorkflow.importOverlaySteps}
           summary={fireflyWorkflow.importSummary}
@@ -299,6 +309,9 @@ export default function ImportsPage() {
         />
       ) : (
         <ImportProgressOverlay
+          onScreen={overlayOnScreen}
+          returnFocusTo={overlayOpener}
+          returnFocusFallbackRef={pageRef}
           phase={workflow.importOverlayPhase}
           summary={workflow.importSummary}
           error={workflow.importError}

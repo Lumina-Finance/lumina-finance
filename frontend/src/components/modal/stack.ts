@@ -9,15 +9,15 @@ const PAGE_BEHIND_MODAL_CLASS = 'app-behind-modal'
 
 // Tokens for the modals currently open, the top-most last. One stack drives everything that depends on
 // that order: which modal Escape closes, and which panels below it stop taking input
-const openModalLayers: { token: string; blurPage: boolean }[] = []
+const openModalLayers: { token: string; blurPage: boolean; inertPage: boolean }[] = []
 
 const stackListeners = new Set<() => void>()
 
 /**
- * Adds a modal to the open stack, taking the page behind out of the tab order for the first one
+ * Adds a dialog to the open stack with its own page blur and inert policy
  */
-export function registerOpenModal(token: string, blurPage = true) {
-  openModalLayers.push({ token, blurPage })
+export function registerOpenModal(token: string, { blurPage = true, inertPage = true } = {}) {
+  openModalLayers.push({ token, blurPage, inertPage })
   syncPageBehindModals()
   notifyStackListeners()
 }
@@ -62,14 +62,13 @@ export function subscribeToModalStack(listener: () => void) {
 }
 
 /**
- * Marks the app root inert while any dialog is open and blurred while a blurring modal is open
+ * Applies page blur and inert only when an open dialog requests each effect
  */
 function syncPageBehindModals() {
   const appRoot = document.getElementById(APP_ROOT_ID)
   if (!appRoot) return
 
-  const anyModalOpen = openModalLayers.length > 0
-  appRoot.toggleAttribute('inert', anyModalOpen)
+  appRoot.toggleAttribute('inert', openModalLayers.some((layer) => layer.inertPage))
   appRoot.classList.toggle(PAGE_BEHIND_MODAL_CLASS, openModalLayers.some((layer) => layer.blurPage))
 }
 

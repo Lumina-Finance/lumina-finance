@@ -74,22 +74,29 @@ export function useDialogFocus(
   open: boolean,
   panelRef: RefObject<HTMLElement | null>,
   token: string,
-  onClose: () => void,
+  onClose?: () => void,
   closeDisabled = false,
+  returnFocus?: { opener: HTMLElement | null; fallbackRef: RefObject<HTMLElement | null> },
 ) {
+  const returnFocusOpener = returnFocus?.opener
+  const fallbackRef = returnFocus?.fallbackRef
+
   // Capture the opener before moving focus into the dialog
   useEffect(() => {
     if (!open) return
 
-    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const opener = returnFocusOpener
+      ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null)
+    const fallback = fallbackRef?.current
 
     return () => {
       // A covered dialog remains inert until React renders the stack change
       window.requestAnimationFrame(() => {
-        if (opener?.isConnected) opener.focus({ preventScroll: true })
+        const target = opener?.isConnected && opener !== document.body ? opener : fallback
+        if (target?.isConnected) target.focus({ preventScroll: true })
       })
     }
-  }, [open])
+  }, [open, returnFocusOpener, fallbackRef])
 
   useEffect(() => {
     if (!open) return
@@ -102,7 +109,7 @@ export function useDialogFocus(
   }, [open, panelRef])
 
   useEffect(() => {
-    if (!open || closeDisabled) return
+    if (!open || closeDisabled || !onClose) return
 
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && isTopMostModal(token) && !isFloatingLayerOpen()) onClose()
