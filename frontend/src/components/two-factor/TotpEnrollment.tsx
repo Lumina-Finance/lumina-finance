@@ -17,13 +17,10 @@ export const TOTP_ENROLLMENT_TITLE_ID = 'totp-enrollment-title';
 import { RecoveryCodesPanel } from '@/components/two-factor/RecoveryCodesPanel';
 import { StepTransition } from '@/components/two-factor/StepTransition';
 import { copyText } from '@/utils/clipboard';
-import { delayToMinimum, MFA_LOADING_MIN_MS } from '@/utils/timing';
+import { delayToMinimum, LOADING_ANIMATION_MIN_MS, MFA_LOADING_MIN_MS } from '@/utils/timing';
 
 // How long the copied confirmation stays before reverting to the copy affordance
 const COPIED_FEEDBACK_MS = 1500;
-
-// Hold the QR and key behind the spinner this long so a fast secret does not flash in
-const SETUP_LOADING_MIN_MS = 800;
 
 interface TotpEnrollmentProps {
   /** Called once 2FA is confirmed and the recovery codes are acknowledged */
@@ -67,7 +64,7 @@ export function TotpEnrollment({ onComplete, onSkip, onSwitchToPasskey, initialS
 
   // Hold the spinner for a fixed minimum from mount so a fast secret does not flash the QR in
   useEffect(() => {
-    const timer = window.setTimeout(() => setMinLoadingElapsed(true), SETUP_LOADING_MIN_MS);
+    const timer = window.setTimeout(() => setMinLoadingElapsed(true), LOADING_ANIMATION_MIN_MS);
     return () => window.clearTimeout(timer);
   }, []);
 
