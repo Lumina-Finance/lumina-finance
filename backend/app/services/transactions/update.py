@@ -50,8 +50,10 @@ async def update_transaction_and_get_response(
     Returns:
         Updated transaction response with related display data
     """
-    # Load the transaction through the access helper so only writable rows can be updated
-    txn = await check_transaction_access(db, transaction_id, user.id, PermissionLevel.WRITE)
+    # Lock the fresh row before access checks and validation; hold it through the commit
+    txn = await check_transaction_access(
+        db, transaction_id, user.id, PermissionLevel.WRITE, lock_for_update=True,
+    )
 
     # Load the persisted parent account for archive validation and cache scope updates
     current_account = await get_parent_account_for_transaction(db, txn)
