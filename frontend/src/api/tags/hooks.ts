@@ -15,7 +15,9 @@ import {
 } from '@/api/tags/requests';
 import type { TagFilters } from '@/api/tags/types';
 import { tagKeys } from '@/api/cache/queryKeys';
+import { runWithMinimumPendingTime } from '@/api/utils/mutationFeedback';
 import { useAuth } from '@/hooks/useAuth';
+import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing';
 
 /**
  * Reads a tag detail record when a tag ID is available
@@ -84,7 +86,8 @@ export function useCreateTag() {
 export function useUpdateTag() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: updateTag,
+    mutationFn: (payload: Parameters<typeof updateTag>[0]) =>
+      runWithMinimumPendingTime(LOADING_ANIMATION_MIN_MS, () => updateTag(payload)),
     onSuccess: (tag) => {
       updateTagUpdateCaches(queryClient, tag);
     },
