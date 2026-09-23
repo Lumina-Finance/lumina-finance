@@ -6,6 +6,7 @@ import { AuthProvider } from '@/contexts/AuthProvider'
 import { NavCollapseProvider } from '@/contexts/NavCollapseProvider'
 import { ToastProvider } from '@/contexts/ToastProvider'
 import { useNavCollapse } from '@/hooks/useNavCollapse'
+import { useMinimumVisibleFlag } from '@/hooks/useMinimumVisibleFlag'
 import { useAuth } from '@/hooks/useAuth'
 import { useCacheValidation } from '@/hooks/useCacheValidation'
 import { useTheme } from '@/hooks/useTheme'
@@ -14,6 +15,7 @@ import ErrorBoundary from '@/components/errors/Boundary'
 import Fallback from '@/components/errors/Fallback'
 import LoadingScreen from '@/components/loading/Screen'
 import ForcedReenrollScreen from '@/components/two-factor/ForcedReenrollScreen'
+import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
 
 // Pages are lazy-loaded so each route ships as its own chunk instead of the
 // initial bundle, keeping first load small and pulling heavy page-only deps
@@ -30,7 +32,6 @@ const AuthPage = lazy(() => import('@/pages/auth/AuthPage'))
 const ResetPasswordPage = lazy(() => import('@/pages/auth/ResetPasswordPage'))
 const OidcCallbackPage = lazy(() => import('@/pages/auth/OidcCallbackPage'))
 
-const LOADING_SCREEN_MIN_MS = 1000;
 const PAGE_TRANSITION_MS = 350;
 const PAGE_TRANSITION_OFFSET_PX = 12;
 const ROUTE_LOADER_DELAY_MS = 300;
@@ -118,6 +119,10 @@ function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase, 
   // The loading phase runs after the switch while the new route's chunk mounts
   const routeLoading = pageTransitionPhase === 'loading';
   const [routeLoaderDelayElapsed, setRouteLoaderDelayElapsed] = useState(false);
+  const routeLoaderVisible = useMinimumVisibleFlag(
+    routeLoading && routeLoaderDelayElapsed && !isInitialLoad,
+    LOADING_ANIMATION_MIN_MS,
+  );
 
   // Hold the heavy page body back until the navigation shell has painted, then
   // mount it as a non-urgent transition. The route subtree remounts per path, so
@@ -154,7 +159,7 @@ function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase, 
     const timer = setTimeout(() => {
       hasShownLoadingScreen = true;
       setMinTimePassed(true);
-    }, LOADING_SCREEN_MIN_MS);
+    }, LOADING_ANIMATION_MIN_MS);
     return () => clearTimeout(timer);
   }, [shouldShowLoading]);
 
@@ -196,7 +201,7 @@ function ProtectedRoute({ displayLocation, onContentReady, pageTransitionPhase, 
           {/* The main variant keeps the navigation visible while AnimatePresence
               lets the loader fade back out once the route chunk has mounted */}
           <AnimatePresence>
-            {routeLoading && routeLoaderDelayElapsed && !isInitialLoad && <LoadingScreen key="route-loader" variant="main" />}
+            {routeLoaderVisible && <LoadingScreen key="route-loader" variant="main" />}
           </AnimatePresence>
           {/* isolate makes this a stacking context for good, so a level set on an element that stays
               in the page orders only against the rest of the page and never against the navigation, a
