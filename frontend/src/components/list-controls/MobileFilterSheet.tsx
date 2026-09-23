@@ -1,9 +1,11 @@
-import { useId, type ReactNode } from 'react'
+import { useEffect, useId, useSyncExternalStore, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { X } from 'lucide-react'
 import { useMobileFilterSheetEffects } from '@/components/filters/hooks/useMobileSheetEffects'
 import { useModalScrollGuard } from '@/components/filters/hooks/useModalScrollGuard'
+import { useDialogFocus } from '@/components/modal/focus'
+import { isModalCovered, registerOpenModal, subscribeToModalStack, unregisterOpenModal } from '@/components/modal/stack'
 
 type MobileFilterSheetProps = {
   isOpen: boolean
@@ -41,8 +43,19 @@ export function MobileFilterSheet({
   children,
 }: MobileFilterSheetProps) {
   const panelRef = useMobileFilterSheetEffects({ isOpen, onClose, lockScroll: false })
+  const token = useId()
   const headingId = useId()
   const shouldReduceMotion = useReducedMotion()
+  const covered = useSyncExternalStore(subscribeToModalStack, () => isModalCovered(token))
+
+  useEffect(() => {
+    if (!isOpen) return
+
+    registerOpenModal(token, false)
+    return () => unregisterOpenModal(token)
+  }, [isOpen, token])
+
+  useDialogFocus(isOpen, panelRef, token, onClose)
 
   // Hold the page still behind the full-screen sheet without overflow: hidden, which would strip the
   // sticky toolbar back to its in-flow position
@@ -60,6 +73,8 @@ export function MobileFilterSheet({
           role="dialog"
           aria-modal="true"
           aria-label={ariaLabel}
+          tabIndex={-1}
+          inert={covered}
           className="fixed inset-x-0 top-0 z-sheet flex flex-col min-[750px]:hidden"
           style={{
             // 100dvh tracks the dynamic viewport so the sheet covers the screen even as the mobile

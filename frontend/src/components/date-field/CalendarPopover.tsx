@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { parseIsoDate } from '@/components/date-field/dateSegments'
+import { getFocusableElements, getNextTabStop } from '@/components/modal/focus'
 import { STACKING_LEVELS } from '@/constants/stackingLevels'
 import { useAuth } from '@/hooks/useAuth'
 import { formatYmd, getTodayYmd, getWeekdayIndex } from '@/utils/date'
@@ -90,6 +91,7 @@ function useCalendarPosition(open: boolean, anchorRef: RefObject<HTMLElement | n
 export default function CalendarPopover({ open, anchorRef, value, onSelect, onClose }: CalendarPopoverProps) {
   const position = useCalendarPosition(open, anchorRef)
   const gridRef = useRef<HTMLDivElement>(null)
+  const restoreFocusRef = useRef(true)
   const prefersReducedMotion = useReducedMotion()
 
   const { user } = useAuth()
@@ -118,9 +120,33 @@ export default function CalendarPopover({ open, anchorRef, value, onSelect, onCl
   useEffect(() => {
     if (!open) return
 
+    restoreFocusRef.current = true
+    const anchor = anchorRef.current
+    const previousFocus = document.activeElement
+    const field = previousFocus instanceof HTMLElement && anchor?.contains(previousFocus)
+      ? previousFocus
+      : anchor?.querySelector<HTMLInputElement>('input:not([disabled])')
+    const grid = gridRef.current
+
+    return () => {
+      if (!restoreFocusRef.current) return
+
+      window.requestAnimationFrame(() => {
+        const active = document.activeElement
+        if (field?.isConnected && (active === document.body || (active && grid?.contains(active)))) {
+          field.focus({ preventScroll: true })
+        }
+      })
+    }
+  }, [open, anchorRef])
+
+  useEffect(() => {
+    if (!open) return
+
     const handlePointerDown = (event: PointerEvent) => {
       const target = event.target as Node
       if (gridRef.current?.contains(target) || anchorRef.current?.contains(target)) return
+      restoreFocusRef.current = false
       onClose()
     }
 
@@ -130,6 +156,7 @@ export default function CalendarPopover({ open, anchorRef, value, onSelect, onCl
       if (event.key !== 'Escape') return
 
       event.preventDefault()
+      event.stopPropagation()
       onClose()
     }
 
@@ -183,6 +210,16 @@ export default function CalendarPopover({ open, anchorRef, value, onSelect, onCl
 
   const handleGridKeyDown = (event: React.KeyboardEvent) => {
     switch (event.key) {
+      case 'Tab': {
+        const grid = gridRef.current
+        if (!grid) break
+
+        event.preventDefault()
+        const active = document.activeElement instanceof HTMLElement ? document.activeElement : null
+        const tabStops = getFocusableElements(grid).filter((element) => element.tabIndex >= 0)
+        getNextTabStop(tabStops, active, event.shiftKey)?.focus()
+        break
+      }
       case 'ArrowLeft':
         event.preventDefault()
         moveFocus(-1)

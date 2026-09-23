@@ -3,23 +3,21 @@
 // from screen readers without touching the dialog itself
 const APP_ROOT_ID = 'root'
 
-// Marks the page while any modal is open, so the stylesheet can blur what sits behind the dialog. The
-// blur belongs on the page rather than on a filter laid over it: the page is inert and scroll locked
-// for as long as a modal is open, so the browser rasterizes it once, where a filter over it has to run
-// again for every frame in which anything above it moves
+// Marks the page while a blurring modal is open, so the stylesheet can blur what sits behind it. The
+// full-screen filter sheet keeps the page inert without this blur because its solid surface hides it
 const PAGE_BEHIND_MODAL_CLASS = 'app-behind-modal'
 
 // Tokens for the modals currently open, the top-most last. One stack drives everything that depends on
 // that order: which modal Escape closes, and which panels below it stop taking input
-const openModalTokens: string[] = []
+const openModalLayers: { token: string; blurPage: boolean }[] = []
 
 const stackListeners = new Set<() => void>()
 
 /**
  * Adds a modal to the open stack, taking the page behind out of the tab order for the first one
  */
-export function registerOpenModal(token: string) {
-  openModalTokens.push(token)
+export function registerOpenModal(token: string, blurPage = true) {
+  openModalLayers.push({ token, blurPage })
   syncPageBehindModals()
   notifyStackListeners()
 }
@@ -28,8 +26,8 @@ export function registerOpenModal(token: string) {
  * Removes a modal from the open stack, giving the page back once the last one closes
  */
 export function unregisterOpenModal(token: string) {
-  const index = openModalTokens.indexOf(token)
-  if (index !== -1) openModalTokens.splice(index, 1)
+  const index = openModalLayers.findIndex((layer) => layer.token === token)
+  if (index !== -1) openModalLayers.splice(index, 1)
 
   syncPageBehindModals()
   notifyStackListeners()
@@ -39,7 +37,7 @@ export function unregisterOpenModal(token: string) {
  * Reports whether a modal is the top-most one open, so a keypress reaches only that one
  */
 export function isTopMostModal(token: string) {
-  return openModalTokens[openModalTokens.length - 1] === token
+  return openModalLayers[openModalLayers.length - 1]?.token === token
 }
 
 /**
@@ -47,9 +45,9 @@ export function isTopMostModal(token: string) {
  * uncovered, so a panel is never inert on its first paint, before its own effects have run
  */
 export function isModalCovered(token: string) {
-  const index = openModalTokens.indexOf(token)
+  const index = openModalLayers.findIndex((layer) => layer.token === token)
 
-  return index !== -1 && index < openModalTokens.length - 1
+  return index !== -1 && index < openModalLayers.length - 1
 }
 
 /**
@@ -64,15 +62,15 @@ export function subscribeToModalStack(listener: () => void) {
 }
 
 /**
- * Marks the app root inert and blurred while any modal is open
+ * Marks the app root inert while any dialog is open and blurred while a blurring modal is open
  */
 function syncPageBehindModals() {
   const appRoot = document.getElementById(APP_ROOT_ID)
   if (!appRoot) return
 
-  const anyModalOpen = openModalTokens.length > 0
+  const anyModalOpen = openModalLayers.length > 0
   appRoot.toggleAttribute('inert', anyModalOpen)
-  appRoot.classList.toggle(PAGE_BEHIND_MODAL_CLASS, anyModalOpen)
+  appRoot.classList.toggle(PAGE_BEHIND_MODAL_CLASS, openModalLayers.some((layer) => layer.blurPage))
 }
 
 /**

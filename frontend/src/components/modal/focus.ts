@@ -1,3 +1,7 @@
+import { useEffect, type RefObject } from 'react'
+import { isTopMostModal } from '@/components/modal/stack'
+import { isFloatingLayerOpen, isInsideFloatingLayer } from '@/utils/floatingLayer'
+
 const MODAL_FIELD_TAB_STOP_SELECTOR = [
   '[data-modal-field-tab-stop="true"]:not([disabled])',
   'input:not([disabled]):not([type="hidden"]):not([data-dropdown-search="true"])',
@@ -61,6 +65,80 @@ export function requestInitialModalFocus(panel: HTMLElement) {
     const target = getModalFieldTabStops(panel)[0] ?? panel
     target.focus({ preventScroll: true })
   })
+}
+
+/**
+ * Keeps keyboard focus and Escape handling on the top dialog, including the full-screen filter sheet
+ */
+export function useDialogFocus(
+  open: boolean,
+  panelRef: RefObject<HTMLElement | null>,
+  token: string,
+  onClose: () => void,
+  closeDisabled = false,
+) {
+  // Capture the opener before moving focus into the dialog
+  useEffect(() => {
+    if (!open) return
+
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
+
+    return () => {
+      // A covered dialog remains inert until React renders the stack change
+      window.requestAnimationFrame(() => {
+        if (opener?.isConnected) opener.focus({ preventScroll: true })
+      })
+    }
+  }, [open])
+
+  useEffect(() => {
+    if (!open) return
+
+    const panel = panelRef.current
+    if (!panel) return
+
+    const frameId = requestInitialModalFocus(panel)
+    return () => window.cancelAnimationFrame(frameId)
+  }, [open, panelRef])
+
+  useEffect(() => {
+    if (!open || closeDisabled) return
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && isTopMostModal(token) && !isFloatingLayerOpen()) onClose()
+    }
+
+    window.addEventListener('keydown', closeOnEscape)
+    return () => window.removeEventListener('keydown', closeOnEscape)
+  }, [closeDisabled, onClose, open, token])
+
+  useEffect(() => {
+    if (!open) return
+
+    const holdFocusInPanel = (event: KeyboardEvent) => {
+      if (event.key !== 'Tab' || !isTopMostModal(token)) return
+      if (isInsideFloatingLayer(document.activeElement)) return
+
+      const panel = panelRef.current
+      if (!panel) return
+
+      event.preventDefault()
+
+      const focusable = getFocusableElements(panel)
+      if (focusable.length === 0) {
+        panel.focus({ preventScroll: true })
+        return
+      }
+
+      const active = document.activeElement instanceof HTMLElement ? document.activeElement : null
+      const from = active && panel.contains(active) ? active : null
+      getNextTabStop(focusable, from, event.shiftKey)?.focus()
+    }
+
+    // A child cannot suppress Tab before the dialog keeps focus inside it
+    document.addEventListener('keydown', holdFocusInPanel, true)
+    return () => document.removeEventListener('keydown', holdFocusInPanel, true)
+  }, [open, panelRef, token])
 }
 
 /**
