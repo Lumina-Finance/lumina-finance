@@ -14,7 +14,9 @@ import {
 } from '@/api/categories/requests';
 import type { Category } from '@/api/categories/types';
 import { categoryKeys } from '@/api/cache/queryKeys';
+import { runWithMinimumPendingTime } from '@/api/utils/mutationFeedback';
 import { useAuth } from '@/hooks/useAuth';
+import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing';
 
 /**
  * Reads all categories available to the current user
@@ -49,7 +51,8 @@ export function useCreateCategory() {
 export function useUpdateCategory() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: updateCategory,
+    mutationFn: (payload: Parameters<typeof updateCategory>[0]) =>
+      runWithMinimumPendingTime(LOADING_ANIMATION_MIN_MS, () => updateCategory(payload)),
     onSuccess: (category) => {
       updateCategoryUpdateCaches(queryClient, category);
     },
