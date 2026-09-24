@@ -9,6 +9,7 @@ import {
   buildImportCategoryMatchOptions,
   buildImportCurrencyOptions,
   buildImportInstitutionOptions,
+  isImportableAccount,
 } from '@/pages/imports/utils'
 
 /**
@@ -109,11 +110,12 @@ export function useImportReferenceData(): ImportReferenceData {
     refetch: refetchCategoriesQuery,
   } = useCategories()
 
-  // An archived account takes no new transactions, so it is left out of every source rows are
-  // written to. A transfer's counterparty is the one place it stays offerable, since recording it
-  // writes nothing to the account and the transfer usually predates the archiving
+  // Neither an archived account nor one shared with the user at read level takes rows from an
+  // import, so both are left out of every source rows are written to. A transfer's counterparty is
+  // the one place they stay offerable, since recording it writes nothing to the account and the
+  // transfer usually predates the archiving
   const selectableAccounts = useMemo(
-    () => accounts.filter((account) => !account.is_archived),
+    () => accounts.filter((account) => isImportableAccount(account)),
     [accounts],
   )
 
@@ -137,8 +139,8 @@ export function useImportReferenceData(): ImportReferenceData {
     [categories],
   )
 
-  // Every account, not only the selectable ones, or a transfer recording an archived counterparty
-  // would preview with no name against it
+  // Every account, not only the selectable ones, or a transfer recording an archived or read-only
+  // counterparty would preview with no name against it
   const accountById = useMemo(
     () => new Map(accounts.map((account) => [account.id, account])),
     [accounts],

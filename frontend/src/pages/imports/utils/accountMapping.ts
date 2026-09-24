@@ -96,12 +96,12 @@ export function canApplyBatchEditToRow(
  * Drops every mapping pointing at an account that no longer exists, and says which sources lost one
  *
  * Judged against every account rather than the ones the dropdown offers, since a counterparty row
- * is deliberately allowed to keep an archived account that the list leaves out. The two answers
- * that are not account ids are left alone, or a row set to create an account would be cleared the
- * moment it was answered
+ * is deliberately allowed to keep an archived or read-only account that the list leaves out. The
+ * two answers that are not account ids are left alone, or a row set to create an account would be
+ * cleared the moment it was answered
  *
  * @param mappings - The answers as stored, before any match or default is layered on
- * @param accountById - Every account the user has, archived ones included
+ * @param accountById - Every account the user has, archived and read-only ones included
  */
 export function dropVanishedAccountMappings(
   mappings: Record<string, string>,
@@ -137,8 +137,8 @@ export function dropVanishedAccountMappings(
  * answering one collision member does not silently settle another. Explicit answers remain intact
  *
  * The two lists differ by which accounts each kind of source can be offered: a source no row is
- * written to can record an archived account, so matching it against the list the dropdown does not
- * offer would fill in a choice the user cannot see or change
+ * written to can record an archived or read-only account, so matching it against the list the
+ * dropdown does not offer would fill in a choice the user cannot see or change
  */
 export function inferAccountMappings(
   sources: ImportAccountSource[],
@@ -345,9 +345,9 @@ export interface ImportArchivedAccountMatch {
 /**
  * Lists the archived accounts that an unmapped row source appears to point at
  *
- * Those sources are offered every account except an archived one, so a file pointing at one
- * matches nothing and the reason never reaches the user. A source that is only ever a transfer's
- * counterparty is left out, since it can record an archived account as it is
+ * Those sources are offered no archived account, so a file pointing at one matches nothing and the
+ * reason never reaches the user. A source that is only ever a transfer's counterparty is left out,
+ * since it can record an archived account as it is
  *
  * Two sources can point at the same archived account, so each one is listed once. Two archived
  * accounts sharing a name are listed neither once nor twice: `findBestAccountNameMatch` refuses to

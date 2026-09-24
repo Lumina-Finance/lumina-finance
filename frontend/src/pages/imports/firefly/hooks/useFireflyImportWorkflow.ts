@@ -201,8 +201,8 @@ export function useFireflyImportWorkflow() {
   )
 
   const resolvedAccountMappings = useMemo(
-    // Both sides of a Firefly transfer take rows, so no source here can record an archived
-    // account and both matching lists are the same one
+    // Both sides of a Firefly transfer take rows, so no source here can record an archived or
+    // read-only account and both matching lists are the same one
     () => resolveFireflyAccountMappings({
       sources: accountMappingSources,
       liveMappings: liveAccountMappings,

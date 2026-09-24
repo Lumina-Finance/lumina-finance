@@ -460,8 +460,8 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   }
 
   // Only a source no row is written to can answer that the money left the tracked accounts, so the
-  // extra choice is kept off every other row's dropdown, and the same reason is why an archived
-  // account is offered here and nowhere else in the flow
+  // extra choice is kept off every other row's dropdown, and the same reason is why an archived or
+  // read-only account is offered here and nowhere else in the flow
   const counterpartyAccountOptions = useMemo(
     () => [
       { value: OUTSIDE_ACCOUNT_VALUE, label: OUTSIDE_ACCOUNT_LABEL, group: 'Import Action' },

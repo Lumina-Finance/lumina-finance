@@ -115,8 +115,8 @@ export function FireflyAccountMappingStep({
       source: sourceAccount,
       value,
 
-      // Keeps an account the dropdown has stopped offering, which here means one archived
-      // since it was chosen, visible on its row rather than reading as unanswered
+      // Keeps an account the dropdown has stopped offering, which here means one archived or made
+      // read-only since it was chosen, visible on its row rather than reading as unanswered
       selectedOption: account ? { value, label: account.name } : undefined,
 
       autoFilled: autoFilledAccountSources.has(sourceAccount),
