@@ -96,7 +96,7 @@ async def get_converted_runway_account_balances(
     Returns:
         Converted account balance rows and total liquid balance
     """
-    balances = await get_current_balances(db, selected_account_ids)
+    balances = await get_current_balances(db, selected_account_ids, today)
     account_balances: list[RunwayAccountBalance] = []
     liquid_balance = 0
 

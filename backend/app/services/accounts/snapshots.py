@@ -28,9 +28,9 @@ _SNAPSHOT_LOCK_NAMESPACE = b"lumina:account-snapshots:"
 
 
 async def get_current_balances(
-    db: AsyncSession, account_ids: Sequence[uuid.UUID],
+    db: AsyncSession, account_ids: Sequence[uuid.UUID], as_of_date: date,
 ) -> dict[uuid.UUID, int]:
-    """Return the most recent snapshot balance for each account
+    """Return the latest eligible snapshot balance for each account
 
     Uses Postgres ``DISTINCT ON`` to pick the row with the highest date per
     account without a self-join
@@ -38,6 +38,7 @@ async def get_current_balances(
     Args:
         db: Active database session
         account_ids: Account identifiers whose latest balances should be loaded
+        as_of_date: Latest eligible transaction date in the viewer's calendar
 
     Returns:
         Current balances keyed by account identifier
@@ -47,28 +48,32 @@ async def get_current_balances(
 
     result = await db.execute(
         select(AccountBalanceSnapshot.account_id, AccountBalanceSnapshot.balance)
-        .where(AccountBalanceSnapshot.account_id.in_(account_ids))
+        .where(
+            AccountBalanceSnapshot.account_id.in_(account_ids),
+            AccountBalanceSnapshot.dt <= as_of_date,
+        )
         .order_by(AccountBalanceSnapshot.account_id, AccountBalanceSnapshot.dt.desc())
         .distinct(AccountBalanceSnapshot.account_id),
     )
     return {row.account_id: row.balance for row in result}
 
 
-async def attach_current_balances(db: AsyncSession, accounts: Sequence[Account]) -> None:
+async def attach_current_balances(db: AsyncSession, accounts: Sequence[Account], as_of_date: date) -> None:
     """Attach current balance fields to account rows from latest snapshots
 
     Args:
         db: Active database session
         accounts: Account rows receiving current balance fields
+        as_of_date: Latest eligible transaction date in the viewer's calendar
 
     Returns:
         None
     """
     if not accounts:
         return
-    balances = await get_current_balances(db, [a.id for a in accounts])
+    balances = await get_current_balances(db, [a.id for a in accounts], as_of_date)
     for account in accounts:
-        account.current_balance = balances[account.id]
+        account.current_balance = balances.get(account.id, 0)
 
 
 async def recompute_account_snapshots(

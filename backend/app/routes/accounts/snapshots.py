@@ -1,6 +1,6 @@
 """Account snapshot route handlers"""
 import uuid
-from datetime import date
+from datetime import date, timedelta
 from typing import Annotated, Literal
 
 import sqlalchemy as sa
@@ -14,6 +14,7 @@ from app.models.account import AccountBalanceSnapshot
 from app.models.base import PermissionLevel
 from app.models.user import User
 from app.permissions import check_account_access
+from app.routes.users.date_helpers import get_current_user_date
 from app.schemas.account import AccountBalanceSnapshotResponse
 
 router = APIRouter()
@@ -58,11 +59,12 @@ async def list_account_balance_snapshots(
     """
     await check_account_access(db, account_id, user.id, PermissionLevel.READ)
     _raise_for_invalid_snapshot_date_bounds(from_date, to_date)
+    today = get_current_user_date(user)
 
-    snapshot_query = _build_account_snapshot_query(account_id, from_date, to_date)
+    snapshot_query = _build_account_snapshot_query(account_id, from_date, min(to_date or today, today))
     rows = await _get_account_snapshot_rows(db, snapshot_query, granularity)
     if include_anchor and from_date is not None:
-        anchor = await _get_anchor_snapshot(db, account_id, from_date)
+        anchor = await _get_anchor_snapshot(db, account_id, min(from_date, today + timedelta(days=1)))
         if anchor is not None:
             rows.insert(0, anchor)
     return rows

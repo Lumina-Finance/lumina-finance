@@ -1,7 +1,8 @@
 import importlib
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 import pytest
 from sqlalchemy import delete, func, select, update
@@ -164,8 +165,8 @@ async def test_list_accounts_current_balance_starts_at_zero(client):
     assert resp.json()[0]["current_balance"] == 0
 
 
-async def test_list_accounts_current_balance_uses_latest_snapshot(client):
-    """When multiple snapshots exist for an account, list returns the most recent balance."""
+async def test_list_accounts_current_balance_uses_latest_snapshot(client, monkeypatch):
+    """The balance uses the latest snapshot eligible on the viewer's local date."""
     from uuid import UUID
 
     from app.models.account import AccountBalanceSnapshot
@@ -175,11 +176,12 @@ async def test_list_accounts_current_balance_uses_latest_snapshot(client):
     create_resp = await _create_account(client, headers)
     account_id = UUID(create_resp.json()["id"])
 
-    # Insert two snapshots after the creation-day zero anchor: the older of the two (12345)
-    # and the newer (98765). Both are dated relative to today with margin so they stay after
-    # the anchor on any run date, letting the helper return the most recent
+    # The snapshots are future-dated relative to real time; advance the route clock so both
+    # are eligible without depending on when the test suite runs.
     older_dt = date.today() + timedelta(days=30)
     newer_dt = date.today() + timedelta(days=60)
+    account_routes = importlib.import_module("app.routes.accounts.router")
+    monkeypatch.setattr(account_routes, "datetime", _FixedClock(datetime.now(UTC) + timedelta(days=90)))
     async with TestSession() as session:
         session.add(AccountBalanceSnapshot(
             account_id=account_id,
@@ -201,8 +203,6 @@ async def test_list_accounts_current_balance_uses_latest_snapshot(client):
 
 async def test_list_accounts_converts_current_balance_to_user_base_currency(client, monkeypatch):
     """List rows expose a converted current balance for overview stats."""
-    from datetime import UTC
-
     account_routes = importlib.import_module("app.routes.accounts.router")
     from app.services.fx import FrankfurterProvider
 
@@ -212,7 +212,8 @@ async def test_list_accounts_converts_current_balance_to_user_base_currency(clie
         calls.append((base, quote, rate_date))
         return Decimal("1.5")
 
-    monkeypatch.setattr(account_routes, "datetime", _FixedClock(datetime(2026, 3, 20, 16, 0, tzinfo=UTC)))
+    now = datetime.now(UTC)
+    monkeypatch.setattr(account_routes, "datetime", _FixedClock(now))
     monkeypatch.setattr(FrankfurterProvider, "get_rate", fake_get_rate)
 
     signup_resp = await _create_user(client)
@@ -247,20 +248,18 @@ async def test_list_accounts_converts_current_balance_to_user_base_currency(clie
     assert rows["USD Cash"]["current_balance"] == 200_00
     assert rows["USD Cash"]["base_currency_current_balance"] == 300_00
     assert rows["USD Cash"]["current_balance_fx_status"] == {"state": "complete", "missing_pairs": []}
-    assert calls == [("USD", "CAD", date(2026, 3, 20))]
+    assert calls == [("USD", "CAD", now.astimezone(ZoneInfo("America/Toronto")).date())]
 
 
 async def test_list_accounts_reports_current_balance_fx_failure(client, monkeypatch):
     """Rows with unconverted foreign balances report the missing pair."""
-    from datetime import UTC
-
     account_routes = importlib.import_module("app.routes.accounts.router")
     from app.services.fx import FrankfurterProvider, FxRateNotFoundError
 
     async def fake_get_rate(self, base, quote, rate_date):
         raise FxRateNotFoundError()
 
-    monkeypatch.setattr(account_routes, "datetime", _FixedClock(datetime(2026, 3, 20, 16, 0, tzinfo=UTC)))
+    monkeypatch.setattr(account_routes, "datetime", _FixedClock(datetime.now(UTC)))
     monkeypatch.setattr(FrankfurterProvider, "get_rate", fake_get_rate)
 
     signup_resp = await _create_user(client)

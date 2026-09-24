@@ -36,7 +36,7 @@ async def get_credit_widget(
         fx_status = FxStatus()
         return 0, 0, fx_status
 
-    balances = await get_current_balances(db, [account.id for account in credit_accounts])
+    balances = await get_current_balances(db, [account.id for account in credit_accounts], rate_date)
     converter = FxConverter(
         currency_exponents=await get_currency_exponents(
             db,

@@ -354,10 +354,12 @@ async def test_archived_runway_selection_excludes_current_balance_but_keeps_hist
     assert set(restored_settings_resp.json()["account_ids"]) == {visible_account_id, archived_account_id}
     assert restored_settings_resp.json()["archived_account_ids"] == []
     restored_runway = restored_runway_resp.json()
-    assert restored_runway["liquid_balance"] == 120_000
+    # The fixed Runway date is before the archive adjustment's real date, so restoring
+    # the account makes its earlier balance visible again in that historical view.
+    assert restored_runway["liquid_balance"] == 168_000
     assert sorted(restored_runway["account_balances"], key=lambda item: item["account_id"]) == sorted([
         {"account_id": visible_account_id, "balance": 120_000},
-        {"account_id": archived_account_id, "balance": 0},
+        {"account_id": archived_account_id, "balance": 48_000},
     ], key=lambda item: item["account_id"])
     assert restored_runway["months_covered"] == 1
     assert restored_runway["avg_monthly_expense"] == 36_000

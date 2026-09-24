@@ -72,7 +72,7 @@ async def zero_account_balance_for_archive(
     Raises:
         HTTPException: Balance adjustment category or the Myself merchant is not configured
     """
-    current_balance = (await get_current_balances(db, [account.id])).get(account.id, 0)
+    current_balance = (await get_current_balances(db, [account.id], archive_date)).get(account.id, 0)
     if current_balance == 0:
         return
 
