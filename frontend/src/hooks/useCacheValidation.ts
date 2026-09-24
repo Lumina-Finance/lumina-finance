@@ -9,12 +9,11 @@ const FX_REFRESH_INTERVAL_MS = 12 * 60 * 60 * 1000
 
 /**
  * Revalidates cached app and FX data on mount and whenever the window regains focus, comparing the
- * server's last-changed timestamps against the ones stored locally for `userId`
+ * server's last-changed timestamps against the ones this window last saw for `userId`
  *
- * Personal data invalidates the app cache only when its server timestamp differs from what this device
- * last saw and the change did not originate from the current session. FX data refreshes at most once
- * every twelve hours, or immediately when app data was just invalidated. Overlapping validate calls are
- * coalesced so a focus event during an in-flight check re-runs once it finishes rather than in parallel
+ * Personal data invalidates the app cache when its server timestamp differs from this window's copy,
+ * even if another window shares the same login session. FX data refreshes at most once every twelve
+ * hours, or immediately when app data was just invalidated. Overlapping validate calls are coalesced.
  */
 export function useCacheValidation(userId: string | undefined, enabled: boolean) {
   const queryClient = useQueryClient()
@@ -50,8 +49,23 @@ export function useCacheValidation(userId: string | undefined, enabled: boolean)
     const unsubscribeFocus = focusManager.subscribe((focused) => {
       if (focused) void validate()
     })
+    const onWindowFocus = () => { void validate() }
+    const onStorageChange = (event: StorageEvent) => {
+      const key = `${PERSONAL_CACHE_CHANGED_AT_KEY_PREFIX}:${userId}`
+      if (
+        event.storageArea === window.localStorage
+        && event.key === key
+        && event.newValue !== null
+        && event.newValue !== window.sessionStorage.getItem(key)
+        && document.visibilityState === 'visible'
+      ) void validate()
+    }
+    window.addEventListener('focus', onWindowFocus)
+    window.addEventListener('storage', onStorageChange)
     return () => {
       unsubscribeFocus()
+      window.removeEventListener('focus', onWindowFocus)
+      window.removeEventListener('storage', onStorageChange)
     }
   }, [enabled, queryClient, userId])
 }
@@ -63,13 +77,17 @@ async function validateAppData(
   const storageKey = `${PERSONAL_CACHE_CHANGED_AT_KEY_PREFIX}:${userId}`
   const status = await fetchCacheStatus()
   const currentChangedAt = toUtcCacheTimestamp(status.personal.changed_at) ?? ''
-  const previousChangedAt = toUtcCacheTimestamp(window.localStorage.getItem(storageKey))
-  window.localStorage.setItem(storageKey, currentChangedAt)
+  const previousChangedAt = toUtcCacheTimestamp(
+    window.sessionStorage.getItem(storageKey) ?? window.localStorage.getItem(storageKey),
+  )
+  window.sessionStorage.setItem(storageKey, currentChangedAt)
+  if (window.localStorage.getItem(storageKey) !== currentChangedAt) {
+    window.localStorage.setItem(storageKey, currentChangedAt)
+  }
 
   if (
     previousChangedAt === null
     || previousChangedAt === currentChangedAt
-    || status.personal.last_change_from_current_session
   ) {
     return false
   }
