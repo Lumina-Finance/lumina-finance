@@ -10,20 +10,23 @@ let releaseScroll: (() => void) | null = null
 /**
  * Pins the page and returns a function that restores it
  *
- * On wide screens overflow hidden is enough. On narrow screens it is not, since touch scrolling still
- * moves the body behind the overlay, so the body is fixed at its current offset and the scroll position
- * is restored on release. The fullscreen modal covers the pinned page, so the shift is never seen
+ * On wide screens overflow hidden on the root element is enough. It goes there rather than on the body,
+ * since a body with its overflow hidden becomes a scroll container of its own, and sticky content such
+ * as the settings section menu would then stop sticking to the viewport. On narrow screens it is not
+ * enough, since touch scrolling still moves the body behind the overlay, so the body is fixed at its
+ * current offset and the scroll position is restored on release. The fullscreen modal covers the pinned
+ * page, so the shift is never seen
  */
 function pinScroll(): () => void {
-  const { body } = document
+  const { body, documentElement } = document
   body.classList.add('app-body-scroll-locked')
 
   const pinBody = window.matchMedia?.(FULLSCREEN_MODAL_QUERY)?.matches ?? false
   if (!pinBody) {
-    const previousOverflow = body.style.overflow
-    body.style.overflow = 'hidden'
+    const previousOverflow = documentElement.style.overflow
+    documentElement.style.overflow = 'hidden'
     return () => {
-      body.style.overflow = previousOverflow
+      documentElement.style.overflow = previousOverflow
       body.classList.remove('app-body-scroll-locked')
     }
   }

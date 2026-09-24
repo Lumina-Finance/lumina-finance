@@ -2026,6 +2026,14 @@
     filter: blur(4px);
   }
 
+  /* Firefox draws nothing at all for a backdrop filter inside a filtered element, so the glass search
+     fields on the page would vanish behind a dialog. The glass is lost in the blur anyway. It is marked
+     important to also reach the backdrop filters set inline */
+  .app-behind-modal #app-page-content * {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+
   .app-modal-panel-covered {
     filter: blur(10px);
   }
@@ -2164,21 +2172,15 @@
 }
 
 /*
-  While a modal locks body scroll the settings secondary menu must stay pinned to
-  the viewport, so it is switched from sticky to fixed. These rules live in the
-  utilities layer because the menu carries the sticky and hidden Tailwind
-  utilities, and Tailwind orders utilities after components, so a components-layer
-  override would lose the cascade and the menu would scroll away off screen
+  While a modal pins the body on narrow screens the settings secondary menu must
+  stay pinned to the viewport, so it is switched from sticky to fixed. Wider
+  screens leave the body in place and the menu keeps sticking on its own. These
+  rules live in the utilities layer because the menu carries the sticky and hidden
+  Tailwind utilities, and Tailwind orders utilities after components, so a
+  components-layer override would lose the cascade and the menu would scroll away
+  off screen
 */
 @layer utilities {
-  @media (min-width: 1200px) {
-    .app-body-scroll-locked .settings-desktop-section-nav {
-      position: fixed;
-      top: 1.5rem;
-      width: 260px;
-    }
-  }
-
   @media (max-width: 1049.98px) {
     .app-body-scroll-locked .settings-mobile-section-menu-lock-spacer {
       display: block;
@@ -2190,21 +2192,6 @@
       top: 0;
       left: 0.5rem;
       right: 0.5rem;
-      margin: 0;
-    }
-  }
-
-  @media (min-width: 1050px) and (max-width: 1199.98px) {
-    .app-body-scroll-locked .settings-mobile-section-menu-lock-spacer {
-      display: block;
-      height: 3.75rem;
-    }
-
-    .app-body-scroll-locked .settings-mobile-section-menu-shell {
-      position: fixed;
-      top: 0;
-      left: calc(260px + 1rem);
-      right: 1rem;
       margin: 0;
     }
   }
