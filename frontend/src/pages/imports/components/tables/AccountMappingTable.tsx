@@ -52,8 +52,11 @@ export function ImportAccountMappingTable({
     /** Whether no row is written to this source, which is what makes the lenient answers legal */
     isCounterpartyOnly: boolean
 
-    /** Whether the account this row points at is archived, false for every other kind of answer */
-    isArchivedAccount: boolean
+    /**
+     * Whether the account this row points at takes no rows from an import, being archived or shared
+     * with the user at read level, false for every other kind of answer
+     */
+    isReadOnlyAccount: boolean
 
     /** Whether this row's answer came from the user rather than from a match or a default */
     isHandAnswered: boolean

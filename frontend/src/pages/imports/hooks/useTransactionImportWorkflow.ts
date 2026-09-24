@@ -31,6 +31,7 @@ import {
   getImportedTags,
   getImportAccountRowState,
   getImportHeaders,
+  isImportableAccount,
   getStatedCurrencyByAccountSource,
   getColumnValues,
   getMissingRequiredColumnLabels,
@@ -517,12 +518,13 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
         if (!clearedAccountSources.has(source.id)) return false
 
         const value = resolvedAccountMappings[source.id] ?? ''
+        const account = accountById.get(value)
         return getImportAccountRowState({
           value,
           isCounterpartyOnly: source.isCounterpartyOnly,
           createType: accountCreateTypes[source.id] ?? '',
           createCurrency: resolvedAccountCreateCurrencies[source.id] ?? '',
-          isArchivedAccount: accountById.get(value)?.is_archived ?? false,
+          isReadOnlyAccount: account ? !isImportableAccount(account) : false,
         }) === 'review'
       })
       .map((source) => source.label),

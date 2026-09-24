@@ -33,7 +33,7 @@ const CATEGORY: Category = {
   created_at: '2026-01-01T00:00:00Z',
 }
 
-const ACCOUNT = { id: 'account-1', name: 'Chequing', currency: 'CAD' } as AccountsOverview
+const ACCOUNT = { id: 'account-1', name: 'Chequing', currency: 'CAD', can_write: true } as AccountsOverview
 const HEADERS = ['Date', 'Category', 'Amount', 'Notes', 'Tags']
 
 /**

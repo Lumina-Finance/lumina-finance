@@ -11,7 +11,7 @@ import {
   getImportAccountMappingError,
   getImportAccountTypeRequiredError,
   getImportAccountTypeUnsupportedError,
-  getImportArchivedAccountMappingError,
+  getImportReadOnlyAccountMappingError,
   getImportCategoryMappingError,
   getImportCategoryTypeRequiredError,
   getImportNoRowsError,
@@ -19,6 +19,7 @@ import {
 import type { CsvRow, ImportCategoryKind, ImportFileDraft } from '@/pages/imports/types'
 import type { FireflyImportBuildResult } from '@/pages/imports/firefly/types'
 import { isImportAccountType } from '@/pages/imports/accountTypeGuard'
+import { isImportableAccount } from '@/pages/imports/utils/accountScope'
 import { getFireflyRowDate, isFireflyRowUploadable, splitFireflyTags } from './derivation'
 
 /**
@@ -72,10 +73,12 @@ export function buildFireflyImportPayload({
     }
 
     if (choice !== CREATE_ACCOUNT_VALUE) {
-      // Every Firefly source takes rows, and an archived account takes none, so an account archived
-      // after it was chosen is refused here rather than by the server part way through the import
-      if (accountById.get(choice)?.is_archived) {
-        addError(getImportArchivedAccountMappingError(name))
+      // Every Firefly source takes rows, and an archived or read-only account takes none, so an
+      // account archived or made read-only after it was chosen is refused here rather than by the
+      // server part way through the import
+      const account = accountById.get(choice)
+      if (account && !isImportableAccount(account)) {
+        addError(getImportReadOnlyAccountMappingError(name, account))
         continue
       }
 

@@ -12,7 +12,7 @@ import {
   getImportAccountMappingError,
   getImportAccountTypeRequiredError,
   getImportAccountTypeUnsupportedError,
-  getImportArchivedAccountMappingError,
+  getImportReadOnlyAccountMappingError,
   getImportCategoryMappingError,
   getImportCategoryTypeRequiredError,
   getImportNoRowsError,
@@ -44,6 +44,7 @@ import {
 import { findReusedImportCategory, getCategoryMatchKind, getDebtPaymentImportNote } from './categoryMatching'
 import { buildImportMerchantMappings } from './merchantMatching'
 import { getImportDirectionValues } from './columnMapping'
+import { isImportableAccount } from './accountScope'
 import { getImportRowId } from './common'
 import { getAmountArrangementClashError, getMissingRequiredColumnLabels } from './workflowOptions'
 import {
@@ -487,11 +488,13 @@ function appendAccountMapping(
   }
 
   if (choice !== CREATE_ACCOUNT_VALUE) {
-    // Only a counterparty source is offered an archived account, and pointing the account column at
-    // that same column afterwards turns it into a source rows are written to while its answer
-    // stands, which the dropdown no longer offers and the API refuses
-    if (!accountSource.isCounterpartyOnly && accountById.get(choice)?.is_archived) {
-      addError(getImportArchivedAccountMappingError(createName))
+    // Only a counterparty source is offered an archived or read-only account, and pointing the
+    // account column at that same column afterwards turns it into a source rows are written to while
+    // its answer stands, which the dropdown no longer offers and the API refuses. The same refusal
+    // covers an account archived or made read-only after it was chosen
+    const account = accountById.get(choice)
+    if (!accountSource.isCounterpartyOnly && account && !isImportableAccount(account)) {
+      addError(getImportReadOnlyAccountMappingError(createName, account))
       return
     }
 

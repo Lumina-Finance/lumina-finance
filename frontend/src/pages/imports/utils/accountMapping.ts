@@ -16,8 +16,11 @@ export interface ImportAccountRowAnswer {
   createType: string
   createCurrency: string
 
-  /** Whether the account this row points at is archived, false for every other kind of answer */
-  isArchivedAccount: boolean
+  /**
+   * Whether the account this row points at takes no rows from an import, being archived or shared
+   * with the user at read level, false for every other kind of answer
+   */
+  isReadOnlyAccount: boolean
 }
 
 /**
@@ -40,11 +43,11 @@ export function getImportAccountRowState(row: ImportAccountRowAnswer): ImportAcc
     return row.createType && row.createCurrency ? 'new' : 'review'
   }
 
-  // Nothing is written to a counterparty source, which is why the outside answer and an archived
+  // Nothing is written to a counterparty source, which is why the outside answer and a read-only
   // account are both accepted there and both refused on a source rows are written to
   if (row.isCounterpartyOnly) return 'mapped'
 
-  return row.value === OUTSIDE_ACCOUNT_VALUE || row.isArchivedAccount ? 'review' : 'mapped'
+  return row.value === OUTSIDE_ACCOUNT_VALUE || row.isReadOnlyAccount ? 'review' : 'mapped'
 }
 
 /**

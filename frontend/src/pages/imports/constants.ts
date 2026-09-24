@@ -213,9 +213,15 @@ export function getImportAccountTypeUnsupportedError(name: string) {
   return `Choose an account type this app supports: ${name}`
 }
 
-/** Says which source maps to an archived account */
-export function getImportArchivedAccountMappingError(name: string) {
-  return `Map to an account that is not archived: ${name}`
+/**
+ * Says which source maps to an account no import can write rows to, and why
+ *
+ * Archiving is named first, since an archived account is refused whatever access the user has
+ */
+export function getImportReadOnlyAccountMappingError(name: string, account: Pick<AccountsOverview, 'is_archived'>) {
+  return account.is_archived
+    ? `Map to an account that is not archived: ${name}`
+    : `Map to an account you can write to: ${name}`
 }
 
 /** Says which new category still needs a type */

@@ -22,7 +22,7 @@ function createRow(overrides: Partial<ImportAccountRowAnswer> = {}): ImportAccou
     isCounterpartyOnly: false,
     createType: '',
     createCurrency: '',
-    isArchivedAccount: false,
+    isReadOnlyAccount: false,
     ...overrides,
   }
 }
@@ -48,15 +48,15 @@ describe('what the mapping counter calls answered', () => {
   })
 
   // payload.ts accepts both of these on a counterparty source and refuses both by name on a source
-  // rows are written to, which is the disagreement LF-386 and the archived case are about
-  it('counts the outside answer and an archived account by whether rows are written to the source', () => {
+  // rows are written to, so the counter has to agree with it on each
+  it('counts the outside answer and a read-only account by whether rows are written to the source', () => {
     const outside = { value: OUTSIDE_ACCOUNT_VALUE }
-    const archived = { value: 'savings', isArchivedAccount: true }
+    const readOnly = { value: 'savings', isReadOnlyAccount: true }
 
     expect(getImportAccountRowState(createRow({ ...outside, isCounterpartyOnly: true }))).toBe('mapped')
     expect(getImportAccountRowState(createRow(outside))).toBe('review')
-    expect(getImportAccountRowState(createRow({ ...archived, isCounterpartyOnly: true }))).toBe('mapped')
-    expect(getImportAccountRowState(createRow(archived))).toBe('review')
+    expect(getImportAccountRowState(createRow({ ...readOnly, isCounterpartyOnly: true }))).toBe('mapped')
+    expect(getImportAccountRowState(createRow(readOnly))).toBe('review')
   })
 
   it('counts a whole table at once', () => {

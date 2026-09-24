@@ -10,7 +10,7 @@ import {
   CREATED_ACCOUNT_EXPLANATION,
   CREATED_ACCOUNT_TITLE,
 } from '@/pages/imports/constants'
-import { isCreatingImportAccount } from '@/pages/imports/utils'
+import { isCreatingImportAccount, isImportableAccount } from '@/pages/imports/utils'
 import { ImportAccountMappingTable, EmptyState, ImportLoadFailure, ImportNotice, ImportStep } from '@/pages/imports/components'
 import type { FireflyImportWorkflow } from '@/pages/imports/firefly/hooks'
 
@@ -124,7 +124,7 @@ export function FireflyAccountMappingStep({
       // Both sides of a Firefly transfer take rows, so no source here is counterparty-only
       isCounterpartyOnly: false,
 
-      isArchivedAccount: account?.is_archived ?? false,
+      isReadOnlyAccount: account ? !isImportableAccount(account) : false,
       isHandAnswered: handAnsweredAccountSources.has(sourceAccount),
       accountType: account?.account_type ?? '',
       accountCurrency: account?.currency ?? '',
