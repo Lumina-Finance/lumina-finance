@@ -145,7 +145,7 @@ export default function CreateCategoryModal({
             <div className="grid gap-4 sm:grid-cols-[3.5rem_minmax(0,1fr)]">
               <div>
                 <div className="mb-1.5 flex items-start justify-between gap-3">
-                  <span className="app-label block shrink-0 text-[0.9375rem] leading-5">Icon</span>
+                  <label htmlFor={CREATE_CATEGORY_FIELD_IDS.icon} className="app-label block shrink-0 text-[0.9375rem] leading-5">Icon</label>
                   <AnimatePresence initial={false}>
                     {showError('icon') && (
                       <motion.p
@@ -175,7 +175,7 @@ export default function CreateCategoryModal({
 
               <div>
                 <div className="mb-1.5 flex items-start justify-between gap-3">
-                  <span className="app-label block shrink-0 text-[0.9375rem] leading-5">Category name</span>
+                  <label htmlFor={CREATE_CATEGORY_FIELD_IDS.name} className="app-label block shrink-0 text-[0.9375rem] leading-5">Category name</label>
                   <AnimatePresence initial={false}>
                     {showError('name') && (
                       <motion.p

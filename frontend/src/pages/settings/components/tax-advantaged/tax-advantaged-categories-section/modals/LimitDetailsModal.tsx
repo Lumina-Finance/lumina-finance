@@ -33,6 +33,10 @@ interface TaxAdvantagedLimitDetailsModalProps {
   showAddTaxYear: boolean
 }
 
+// Each field's id comes from its limit key alone. The add and edit forms never show together and each
+// holds one year, so no two fields on the page share a key
+const NEW_TAX_YEAR_FIELD_ID = 'tac-new-limit-year'
+
 /**
  * Renders the add and edit dialogs for annual TAC limits
  */
@@ -89,13 +93,14 @@ export default function TaxAdvantagedLimitDetailsModal({
         {showAddTaxYear ? (
           <div className="space-y-4">
             <div>
-              <span className="app-label mb-1 block text-xs">Year</span>
+              <label htmlFor={NEW_TAX_YEAR_FIELD_ID} className="app-label mb-1 block text-xs">Year</label>
               <div
                 className="group flex h-9 w-full items-center gap-1.5 rounded-md border border-transparent px-2 transition-colors duration-150 hover:border-[var(--app-border)] focus-within:border-[var(--app-accent-border)]"
                 style={{ background: 'color-mix(in srgb, var(--app-input-bg) 55%, var(--app-bg))' }}
               >
                 <input
                   aria-label="New tax year"
+                  id={NEW_TAX_YEAR_FIELD_ID}
                   className="block h-8 min-w-0 flex-1 bg-transparent text-[0.9375rem] font-medium leading-8 outline-none"
                   inputMode="numeric"
                   pattern="[0-9]*"
@@ -234,11 +239,14 @@ function renderLimitEditorField(
   onLimitFieldChange: (year: number, key: TaxPlanLimitDraftField, value: string) => void,
   placeholder?: string,
 ) {
+  const id = `tac-limit-${key}`
+
   return (
     <div className="min-w-0">
-      <span className="app-label mb-1 block text-xs">{label}</span>
+      <label htmlFor={id} className="app-label mb-1 block text-xs">{label}</label>
       <CompactCurrencyInput
         ariaLabel={`${year} ${ariaLabel.toLowerCase()}`}
+        id={id}
         currencies={currencies}
         currency={plan.currency}
         value={value}
@@ -262,11 +270,14 @@ function renderNewLimitEditorField(
   onNewLimitFieldChange: <K extends keyof TaxPlanLimitFormState>(key: K, value: TaxPlanLimitFormState[K]) => void,
   placeholder?: string,
 ) {
+  const id = `tac-new-limit-${key}`
+
   return (
     <div className="min-w-0">
-      <span className="app-label mb-1 block text-xs">{label}</span>
+      <label htmlFor={id} className="app-label mb-1 block text-xs">{label}</label>
       <CompactCurrencyInput
         ariaLabel={ariaLabel}
+        id={id}
         currencies={currencies}
         currency={plan.currency}
         value={newLimitForm[key]}

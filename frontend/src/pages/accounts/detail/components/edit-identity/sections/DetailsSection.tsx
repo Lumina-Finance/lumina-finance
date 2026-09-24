@@ -60,7 +60,10 @@ export function AccountDetailsSection({
     <EditModalSection number="02" title="Details">
       {canLinkTaxAdvantagedCategory && (
         <div>
-          <AccountIdentityFieldLabelRow label="Tax-Advantaged Category" />
+          <AccountIdentityFieldLabelRow
+            label="Tax-Advantaged Category"
+            htmlFor={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.taxAdvantagedCategory}
+          />
           <Dropdown
             id={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.taxAdvantagedCategory}
             options={taxAdvantagedCategoryOptions}
