@@ -438,7 +438,7 @@ export const IMPORT_ACCOUNT_PARAM = 'account'
 // Shown in place of the whole import page when the address points at an account no import can be
 // written to. The button offering the import is disabled in those states, so this is reached by a
 // typed or shared address, or by an account whose state changed after the address was made
-// The account is only ever missing from the list or archived, and the list leaves out both
+// The account is only ever missing from the list, archived or read-only, and the list leaves out both
 // an account that has gone and one belonging to someone else, so the wording covers being unable to
 // import into it rather than claiming to know which of those it is
 export const IMPORT_NOT_PERMITTED_TITLE = 'This action is not permitted'

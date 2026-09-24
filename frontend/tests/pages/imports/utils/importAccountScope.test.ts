@@ -41,6 +41,12 @@ describe('which accounts an import may be written to', () => {
     expect(isImportableAccount(createAccount({ is_archived: true }))).toBe(false)
   })
 
+  // The API writes rows only where the user can write, so a group account shared at read level is
+  // refused before the file is staged rather than by the commit after every answer is given
+  it('refuses an account the user can only read', () => {
+    expect(isImportableAccount(createAccount({ can_write: false }))).toBe(false)
+  })
+
   it('refuses an account that is not there at all', () => {
     expect(isImportableAccount(undefined)).toBe(false)
     expect(isImportableAccount(null)).toBe(false)
@@ -49,8 +55,9 @@ describe('which accounts an import may be written to', () => {
   // The transaction list is handed a summary of an account rather than the whole thing, so the rule
   // has to answer for one without an archived flag, the way the Add Transaction button
   // beside it already reads a missing archived flag
-  it('takes a summary without an archived flag as available', () => {
-    expect(isImportableAccount({})).toBe(true)
+  it('takes a summary without an archived flag as not archived', () => {
+    expect(isImportableAccount({ can_write: true })).toBe(true)
+    expect(isImportableAccount({ can_write: false })).toBe(false)
   })
 })
 
@@ -65,6 +72,15 @@ describe('why an import cannot be written to an account', () => {
 
   it('says an archived account is read-only', () => {
     expect(getImportBlockReason(createAccount({ is_archived: true }))).toBe('Archived accounts are read-only')
+  })
+
+  // The same words the transaction rows use for an account the user can only read
+  it('says an account the user can only read has read-only access', () => {
+    expect(getImportBlockReason(createAccount({ can_write: false }))).toBe('Read-only access')
+  })
+
+  it('names archiving first on an archived account the user can only read', () => {
+    expect(getImportBlockReason(createAccount({ can_write: false, is_archived: true }))).toBe('Archived accounts are read-only')
   })
 
 })
@@ -94,6 +110,15 @@ describe('what the import page does with the account in its address', () => {
     expect(getImportAccountScopeState({
       accountId: 'acct-1',
       account: createAccount({ is_archived: true }),
+      accountsCurrent: true,
+      accountsError: false,
+    })).toBe('unavailable')
+  })
+
+  it('refuses an account the user can only read', () => {
+    expect(getImportAccountScopeState({
+      accountId: 'acct-1',
+      account: createAccount({ can_write: false }),
       accountsCurrent: true,
       accountsError: false,
     })).toBe('unavailable')
