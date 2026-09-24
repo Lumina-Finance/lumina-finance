@@ -16,8 +16,9 @@ type GlassSearchFieldProps = {
 }
 
 /**
- * Renders the shared glass search field: a leading search glyph over the translucent glass input,
- * fixed to the 44px control height used across the toolbars, settings, and modals
+ * Renders the shared search field: a leading search glyph over the pill-shaped input, which takes
+ * the ordinary input background, fixed to the 44px control height used across the toolbars,
+ * settings, and modals
  */
 export function GlassSearchField({
   value,
