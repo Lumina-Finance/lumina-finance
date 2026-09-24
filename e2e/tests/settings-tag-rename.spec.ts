@@ -17,9 +17,10 @@ test('shows a renamed tag without reloading when its id and list position stay t
   await logInViaApi(page, user)
   await openPage(page, '/settings#tags')
   const tags = page.locator('#tags')
+  const searchPath = new URL(`${API_BASE_URL}/tags`).pathname
   const searched = page.waitForResponse((response) => {
     const url = new URL(response.url())
-    return url.pathname === '/api/tags' &&
+    return url.pathname === searchPath &&
       url.searchParams.get('q') === prefix &&
       response.request().method() === 'GET'
   })
