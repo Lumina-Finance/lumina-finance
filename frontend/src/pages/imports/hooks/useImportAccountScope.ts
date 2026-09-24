@@ -75,7 +75,7 @@ export function useImportAccountScope(): ImportAccountScope {
   return {
     accountId,
     // Held back until the state settles, so nothing downstream can file rows into an account that
-    // is archived or still being judged
+    // is archived, read-only or still being judged
     account: state === 'ready' ? settledAccount ?? account ?? null : null,
     state,
     refetchAccounts: refetch,

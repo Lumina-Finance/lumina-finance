@@ -7,8 +7,9 @@ import type { FireflyTransactionImportResponse } from '@/api/firefly-imports'
 import type { CsvRow, ImportFileDraft } from '@/pages/imports/types'
 import { buildFireflyImportPayload, formatFireflyImportSummary } from '@/pages/imports/firefly/utils'
 
-const CHEQUING = { id: 'chequing', name: 'Chequing', is_archived: false } as AccountsOverview
-const ARCHIVED = { id: 'old-savings', name: 'Old Savings', is_archived: true } as AccountsOverview
+const CHEQUING = { id: 'chequing', name: 'Chequing', can_write: true, is_archived: false } as AccountsOverview
+const ARCHIVED = { id: 'old-savings', name: 'Old Savings', can_write: true, is_archived: true } as AccountsOverview
+const SHARED = { id: 'family-savings', name: 'Family Savings', can_write: false, is_archived: false } as AccountsOverview
 
 const ROW: CsvRow = {
   journal_id: '1',
@@ -95,6 +96,16 @@ describe('a Firefly account archived after it was mapped', () => {
 
     expect(result.errors).not.toContain('Map to an account that is not archived: Chequing')
     expect(result.payload?.accounts).toEqual([{ source: 'Chequing', account_id: CHEQUING.id }])
+  })
+})
+
+// Every Firefly source takes rows, and the API writes rows only where the user can write
+describe('a Firefly account the user can only read', () => {
+  it('refuses the commit and says which source', () => {
+    const result = buildWithMapping(SHARED.id, [CHEQUING, SHARED])
+
+    expect(result.payload).toBeNull()
+    expect(result.errors).toContain('Map to an account you can write to: Chequing')
   })
 })
 

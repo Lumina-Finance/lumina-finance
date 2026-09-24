@@ -22,7 +22,7 @@ import {
   getFixedAccountWarning,
 } from '@/pages/imports/constants'
 import type { ImportAccountSource } from '@/pages/imports/types'
-import { isCreatingImportAccount } from '@/pages/imports/utils'
+import { isCreatingImportAccount, isImportableAccount } from '@/pages/imports/utils'
 import { ImportAccountMappingTable, EmptyState, ImportLoadFailure, ImportNotice, ImportStep } from '@/pages/imports/components'
 import type { TransactionImportWorkflow } from '@/pages/imports/hooks'
 
@@ -189,7 +189,7 @@ export function ImportAccountMappingStep({
       selectedOption: account ? { value, label: account.name } : undefined,
       autoFilled: autoFilledAccountSources.has(sourceAccount.id),
       isCounterpartyOnly: sourceAccount.isCounterpartyOnly,
-      isArchivedAccount: account?.is_archived ?? false,
+      isReadOnlyAccount: account ? !isImportableAccount(account) : false,
       isHandAnswered: handAnsweredAccountSources.has(sourceAccount.id),
       accountType: account?.account_type ?? '',
       accountCurrency: account?.currency ?? '',

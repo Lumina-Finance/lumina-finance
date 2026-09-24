@@ -71,10 +71,12 @@ function createAccount(id: string, name: string): AccountsOverview {
 const CHEQUING = createAccount('chequing', 'Chequing')
 const SAVINGS = createAccount('savings', 'Savings')
 const ARCHIVED_SAVINGS = { ...createAccount('archived-savings', 'Old Savings'), is_archived: true }
+const SHARED_SAVINGS = { ...createAccount('shared-savings', 'Family Savings'), can_write: false }
 const ACCOUNTS_BY_ID = new Map([
   [CHEQUING.id, CHEQUING],
   [SAVINGS.id, SAVINGS],
   [ARCHIVED_SAVINGS.id, ARCHIVED_SAVINGS],
+  [SHARED_SAVINGS.id, SHARED_SAVINGS],
 ])
 
 /**
@@ -218,6 +220,24 @@ describe('CSV import counterparty account', () => {
 
     expect(rowAccount.payload).toBeNull()
     expect(rowAccount.errors).toContain('Map to an account that is not archived: Chequing')
+  })
+
+  // Recording a counterparty writes nothing to the account, so read access is enough there, while
+  // the API refuses to write a source's rows to an account the user can only read
+  it('records a read-only account as a counterparty, and refuses one for a source rows are written to', () => {
+    const counterparty = buildPayload({
+      accountMappings: { Chequing: CHEQUING.id, Savings: SHARED_SAVINGS.id },
+    })
+
+    expect(counterparty.errors).toEqual([])
+    expect(counterparty.payload?.accounts).toContainEqual({ source: 'Savings', account_id: SHARED_SAVINGS.id })
+
+    const rowAccount = buildPayload({
+      accountMappings: { Chequing: SHARED_SAVINGS.id, Savings: SAVINGS.id },
+    })
+
+    expect(rowAccount.payload).toBeNull()
+    expect(rowAccount.errors).toContain('Map to an account you can write to: Chequing')
   })
 
   it('refuses the outside answer for a source rows are written to', () => {

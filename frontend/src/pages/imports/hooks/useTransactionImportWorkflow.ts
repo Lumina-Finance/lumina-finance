@@ -31,6 +31,7 @@ import {
   getImportedTags,
   getImportAccountRowState,
   getImportHeaders,
+  isImportableAccount,
   getStatedCurrencyByAccountSource,
   getColumnValues,
   getMissingRequiredColumnLabels,
@@ -460,8 +461,8 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   }
 
   // Only a source no row is written to can answer that the money left the tracked accounts, so the
-  // extra choice is kept off every other row's dropdown, and the same reason is why an archived
-  // account is offered here and nowhere else in the flow
+  // extra choice is kept off every other row's dropdown, and the same reason is why an archived or
+  // read-only account is offered here and nowhere else in the flow
   const counterpartyAccountOptions = useMemo(
     () => [
       { value: OUTSIDE_ACCOUNT_VALUE, label: OUTSIDE_ACCOUNT_LABEL, group: 'Import Action' },
@@ -517,12 +518,13 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
         if (!clearedAccountSources.has(source.id)) return false
 
         const value = resolvedAccountMappings[source.id] ?? ''
+        const account = accountById.get(value)
         return getImportAccountRowState({
           value,
           isCounterpartyOnly: source.isCounterpartyOnly,
           createType: accountCreateTypes[source.id] ?? '',
           createCurrency: resolvedAccountCreateCurrencies[source.id] ?? '',
-          isArchivedAccount: accountById.get(value)?.is_archived ?? false,
+          isReadOnlyAccount: account ? !isImportableAccount(account) : false,
         }) === 'review'
       })
       .map((source) => source.label),
