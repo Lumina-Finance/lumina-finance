@@ -24,6 +24,8 @@ const EDIT_FIELD_IDS: BudgetEditorModalFieldIds = {
   currency: 'budget-edit-currency',
   limit: 'budget-edit-limit',
   interval: 'budget-edit-interval',
+  recurrenceType: 'budget-edit-recurrence-type',
+  frequency: 'budget-edit-frequency',
   periodStart: 'budget-edit-period-start',
   categorySearch: 'budget-edit-category-search',
   categoryError: 'budget-edit-category-error',

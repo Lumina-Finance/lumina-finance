@@ -32,6 +32,8 @@ export interface BudgetEditorModalFieldIds {
   currency: string
   limit: string
   interval: string
+  recurrenceType: string
+  frequency: string
   periodStart: string
   categorySearch: string
   categoryError: string
