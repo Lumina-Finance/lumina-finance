@@ -13,12 +13,6 @@ export interface BudgetFormState {
   recurs: boolean
 }
 
-export interface CalendarDate {
-  year: number
-  month: number
-  day: number
-}
-
 export interface BudgetEditorFieldLabelRowProps {
   label: React.ReactNode
   htmlFor?: string

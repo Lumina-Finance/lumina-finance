@@ -9,7 +9,9 @@ import {
   addMonths,
   formatDate,
   formatYmd,
+  getDaysInMonth,
   getIsoWeek,
+  getIsoWeekYear,
   getStartOfWeek,
   getTodayDate,
   getTodayYmd,
@@ -149,5 +151,27 @@ describe('calendar arithmetic', () => {
 
   it('numbers the week holding the first Thursday of the year as week one', () => {
     expect(getIsoWeek(new Date(2026, 0, 1))).toBe(1)
+  })
+
+  it('counts the days of short, long and leap months', () => {
+    expect(getDaysInMonth(new Date(2026, 1, 10))).toBe(28)
+    expect(getDaysInMonth(new Date(2028, 1, 10))).toBe(29)
+    expect(getDaysInMonth(new Date(2026, 6, 31))).toBe(31)
+  })
+
+  it('numbers a week across New Year in the year its Thursday falls in', () => {
+    // Sunday 3 January 2021 closes the last week of 2020
+    expect(getIsoWeek(new Date(2021, 0, 3))).toBe(53)
+    expect(getIsoWeekYear(new Date(2021, 0, 3))).toBe(2020)
+
+    // Monday 30 December 2024 opens the first week of 2025
+    expect(getIsoWeek(new Date(2024, 11, 30))).toBe(1)
+    expect(getIsoWeekYear(new Date(2024, 11, 30))).toBe(2025)
+
+    // Friday 1 January 2027 still belongs to the last week of 2026
+    expect(getIsoWeek(new Date(2027, 0, 1))).toBe(53)
+    expect(getIsoWeekYear(new Date(2027, 0, 1))).toBe(2026)
+
+    expect(getIsoWeekYear(new Date(2026, 5, 15))).toBe(2026)
   })
 })

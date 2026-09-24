@@ -207,10 +207,17 @@ export function addMonths(date: Date, months: number): Date {
   const targetDay = next.getDate()
   next.setDate(1)
   next.setMonth(next.getMonth() + months)
-  const lastDayOfResultMonth = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate()
-  next.setDate(Math.min(targetDay, lastDayOfResultMonth))
+  next.setDate(Math.min(targetDay, getDaysInMonth(next)))
 
   return next
+}
+
+/**
+ * Returns how many days the month holding the given date has
+ */
+export function getDaysInMonth(date: Date): number {
+  // Day zero of the following month is the last day of this one
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()
 }
 
 /**
@@ -240,9 +247,29 @@ export function getStartOfWeek(date: Date): Date {
  * through the year cannot push a date into the neighbouring week
  */
 export function getIsoWeek(date: Date): number {
-  const normalized = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
-  normalized.setUTCDate(normalized.getUTCDate() + 4 - (normalized.getUTCDay() || 7))
-  const yearStart = new Date(Date.UTC(normalized.getUTCFullYear(), 0, 1))
+  const thursday = getIsoWeekThursday(date)
+  const yearStart = new Date(Date.UTC(thursday.getUTCFullYear(), 0, 1))
 
-  return Math.ceil((((normalized.getTime() - yearStart.getTime()) / 86400000) + 1) / 7)
+  return Math.ceil((((thursday.getTime() - yearStart.getTime()) / 86400000) + 1) / 7)
+}
+
+/**
+ * Returns the year the date's ISO week is numbered in, which is the calendar year except around New
+ * Year: early January can sit in the previous year's last week and late December in the next
+ * year's first week, so a week number is labelled with this rather than the calendar year
+ */
+export function getIsoWeekYear(date: Date): number {
+  return getIsoWeekThursday(date).getUTCFullYear()
+}
+
+/**
+ * Returns the Thursday of the ISO week holding the date as a UTC date. A week belongs to the year
+ * its Thursday falls in, which is what makes the week holding the first Thursday week one
+ */
+function getIsoWeekThursday(date: Date): Date {
+  const thursday = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
+  // getUTCDay reports 0 for Sunday, which counts as the seventh day of an ISO week
+  thursday.setUTCDate(thursday.getUTCDate() + 4 - (thursday.getUTCDay() || 7))
+
+  return thursday
 }

@@ -1,10 +1,8 @@
 import type { BaseBudget, Budget, BudgetUtilization } from '@/api/budgets'
 import type { Category } from '@/api/categories'
 import type { BudgetChartPoint } from '@/pages/budgets/components/budget-details-modal/ChartTooltip'
-import type { CalendarDate } from '@/pages/budgets/types'
 import { nextRecurringPeriodStart } from '@/pages/budgets/utils/budgetPeriods'
-import { formatCalendarDate, parseCalendarDate } from '@/pages/budgets/utils/date'
-import { DATE_FORMATS, formatDate, getYmdTime } from '@/utils/date'
+import { DATE_FORMATS, formatDate, getIsoWeek, getIsoWeekYear, getYmdTime, parseYmd } from '@/utils/date'
 import { getBudgetUtilizationPercent } from '@/pages/budgets/utils/utilization'
 import { getCategoryColorMap } from '@/utils/chartColor'
 
@@ -120,57 +118,32 @@ export function getBudgetChartCategories({
 }
 
 /**
- * Returns the ISO 8601 week number and its week-numbering year for a calendar date, where week 1 is
- * the week holding the year's first Thursday and weeks start on Monday
- *
- * The week-numbering year can differ from the calendar year across the January boundary (early
- * January can fall in the previous year's last week and late December in the next year's week 1),
- * so the year is returned alongside the week for labelling that boundary
- */
-function getIsoWeek(date: CalendarDate): { week: number; year: number } {
-  const target = new Date(Date.UTC(date.year, date.month - 1, date.day))
-
-  // Move to the Thursday of this week so the week-numbering year is the calendar year of that Thursday
-  const mondayIndex = (target.getUTCDay() + 6) % 7
-  target.setUTCDate(target.getUTCDate() - mondayIndex + 3)
-  const isoYear = target.getUTCFullYear()
-
-  // January 4th always lands in ISO week 1, so its Thursday anchors the week count
-  const week1Thursday = new Date(Date.UTC(isoYear, 0, 4))
-  const week1MondayIndex = (week1Thursday.getUTCDay() + 6) % 7
-  week1Thursday.setUTCDate(week1Thursday.getUTCDate() - week1MondayIndex + 3)
-
-  const week = 1 + Math.round((target.getTime() - week1Thursday.getTime()) / (7 * 24 * 60 * 60 * 1000))
-  return { week, year: isoYear }
-}
-
-/**
  * Builds the chart X-axis label for a period start and whether it carries a year suffix, both derived
  * from the budget's recurrence: weekly budgets read as ISO week numbers, yearly budgets as the year,
  * and monthly budgets as the short month. The year suffix marks the first period of a new year (the
  * first ISO week, or January) so a window that crosses a year boundary still reads unambiguously
  */
 function getBudgetChartAxisLabel(
-  date: CalendarDate,
+  date: Date,
   recurrenceFreq: BaseBudget['recurrence_freq'],
 ): { axisLabel: string; hasYearLabel: boolean } {
   if (recurrenceFreq === 'weekly') {
-    const { week, year } = getIsoWeek(date)
+    const week = getIsoWeek(date)
     const hasYearLabel = week === 1
     return {
-      axisLabel: hasYearLabel ? `W${week} '${String(year).slice(2)}` : `W${week}`,
+      axisLabel: hasYearLabel ? `W${week} '${String(getIsoWeekYear(date)).slice(2)}` : `W${week}`,
       hasYearLabel,
     }
   }
 
   if (recurrenceFreq === 'yearly') {
-    return { axisLabel: String(date.year), hasYearLabel: false }
+    return { axisLabel: String(date.getFullYear()), hasYearLabel: false }
   }
 
-  const hasYearLabel = date.month === 1
-  const monthLabel = formatDate(new Date(date.year, date.month - 1, date.day), DATE_FORMATS.month)
+  const hasYearLabel = date.getMonth() === 0
+  const monthLabel = formatDate(date, DATE_FORMATS.month)
   return {
-    axisLabel: hasYearLabel ? `${monthLabel} '${String(date.year).slice(2)}` : monthLabel,
+    axisLabel: hasYearLabel ? `${monthLabel} '${String(date.getFullYear()).slice(2)}` : monthLabel,
     hasYearLabel,
   }
 }
@@ -194,7 +167,7 @@ function buildBudgetPeriodPoint(
     values[category.dataKey] = getBudgetUtilizationPercent(categorySpentById.get(category.id) ?? 0, period.overall_limit)
     return values
   }, {})
-  const periodStart = parseCalendarDate(period.period_start)
+  const periodStart = parseYmd(period.period_start)
   // Sorting reads the same value through getYmdTime and stops on one it cannot read, so this states
   // the same refusal rather than labelling the column with a day the calendar rolled forward
   if (periodStart === null) throw new Error(`Expected a YYYY-MM-DD date, received "${period.period_start}"`)
@@ -203,7 +176,7 @@ function buildBudgetPeriodPoint(
 
   return {
     periodKey: period.period_start,
-    label: formatCalendarDate(periodStart),
+    label: formatDate(periodStart, DATE_FORMATS.monthDayYear),
     axisLabel,
     hasYearAxisLabel: hasYearLabel,
     spent: periodSpent,

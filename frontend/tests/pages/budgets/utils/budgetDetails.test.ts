@@ -526,6 +526,32 @@ describe('budget details helpers', () => {
     expect(chartData.map((point) => point.hasYearAxisLabel)).toEqual([true, false])
   })
 
+  it('numbers weeks across New Year by the year each week belongs to', () => {
+    const weeklyBudget = createBaseBudget({
+      recurrence_freq: 'weekly',
+      recurrence_dom: null,
+      recurrence_weekday: 6,
+    })
+
+    // Sunday 3 January 2021 still closes the last week of 2020, so the suffix waits for the next week
+    const periods = [
+      createBudget({ id: 'w52', period_start: '2020-12-27', period_end: '2021-01-02' }),
+      createBudget({ id: 'w53', period_start: '2021-01-03', period_end: '2021-01-09' }),
+      createBudget({ id: 'w1', period_start: '2021-01-10', period_end: '2021-01-16' }),
+    ]
+
+    const chartData = getBudgetDetailsChartData({
+      sortedPeriods: getSortedBudgetPeriods(periods),
+      utilizationByBudgetId: new Map(),
+      chartCategories: [],
+      baseBudget: weeklyBudget,
+      today: '2021-01-12',
+    })
+
+    expect(chartData.map((point) => point.axisLabel)).toEqual(['W52', 'W53', "W1 '21"])
+    expect(chartData.map((point) => point.hasYearAxisLabel)).toEqual([false, false, true])
+  })
+
   it('labels yearly budget periods with the four-digit year', () => {
     const yearlyBudget = createBaseBudget({
       recurrence_freq: 'yearly',
