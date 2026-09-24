@@ -1,6 +1,7 @@
 """Budget utilization query helpers"""
 
 import uuid
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import func, select, text
@@ -66,8 +67,8 @@ async def get_budget_spend_rows(db: AsyncSession, budget_ids: list[uuid.UUID]) -
     # privacy-respecting design of the utilization endpoint. Callers check budget read
     # access before reaching here, so the function is only ever asked for authorized budgets
     result = await db.execute(
-        text(f"SELECT * FROM {BUDGET_SPEND_ROWS}(:budget_ids)"),  # noqa: S608
-        {"budget_ids": budget_ids},
+        text(f"SELECT * FROM {BUDGET_SPEND_ROWS}(:budget_ids, :now)"),  # noqa: S608
+        {"budget_ids": budget_ids, "now": datetime.now(UTC)},
     )
     spend_rows = list(result.all())
     return spend_rows

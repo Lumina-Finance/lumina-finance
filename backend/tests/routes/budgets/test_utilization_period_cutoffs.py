@@ -1,6 +1,7 @@
 """Route tests for budget utilization endpoints."""
 import uuid
-from datetime import date
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
 
 import sqlalchemy as sa
 
@@ -229,12 +230,12 @@ async def test_get_budget_utilization_re_add_after_remove_single_counts(client):
 
     account_id = (await _create_account(client, headers)).json()["id"]
     groceries = await _create_category(client, headers)
+    today = datetime.now(ZoneInfo("America/Toronto")).date()
 
     base_id, budget_id = await _create_base_with_instance(
         client, headers,
         category_ids=[groceries],
-        # Future period so both old and new rows have added_at/removed_at <= period_end
-        instance_overrides={"period_start": "2099-01-01"},
+        instance_overrides={"period_start": today.replace(day=1).isoformat()},
     )
 
     # Remove, then re-add
@@ -267,7 +268,7 @@ async def test_get_budget_utilization_re_add_after_remove_single_counts(client):
 
     await _create_transaction(
         client, headers, account_id, groceries,
-        dt="2099-01-15", amount=-5000,
+        dt=today.isoformat(), amount=-5000,
     )
 
     data = await _get_budget_utilization_entry(client, headers, base_id, budget_id)
@@ -278,13 +279,8 @@ async def test_get_budget_utilization_re_add_after_remove_single_counts(client):
     assert groceries_entries[0]["spent"] == 5000
 
 
-async def test_get_budget_utilization_current_period_uses_currently_active_categories(client):
-    """For a period_end in the future, the tracked set is exactly the currently active categories
-
-    Validates the "current period = currently active" reduction of the
-    period_end cutoff predicate: added_at <= period_end is trivially true (now
-    is before the future period_end), and removed_at IS NULL trivially wins
-    """
+async def test_get_budget_utilization_future_period_has_no_spend(client):
+    """Transactions in a wholly future budget period do not contribute spend."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
@@ -308,8 +304,8 @@ async def test_get_budget_utilization_current_period_uses_currently_active_categ
     )
 
     data = await _get_budget_utilization_entry(client, headers, base_id, budget_id)
-    assert data["total_spent"] == 5500
-    by_id = {c["category_id"]: c["spent"] for c in data["categories"]}
-    assert by_id[groceries] == 4000
-    assert by_id[transit] == 1500
-    assert len(data["categories"]) == 2
+    assert data["total_spent"] == 0
+    assert {entry["category_id"]: entry["spent"] for entry in data["categories"]} == {
+        groceries: 0,
+        transit: 0,
+    }

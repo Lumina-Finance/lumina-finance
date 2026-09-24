@@ -237,14 +237,15 @@ async def test_budget_spend_rows_returns_nothing_to_unauthorized_readers(users):
         ))
         await session.commit()
 
-    spend_query = text("SELECT id FROM public.budget_spend_rows(:budget_ids)")
+    spend_query = text("SELECT id FROM public.budget_spend_rows(:budget_ids, :now)")
+    params = {"budget_ids": [budget.id], "now": datetime.now(UTC)}
 
     async with _act_as(user_a.id) as session:
-        owner_rows = (await session.execute(spend_query, {"budget_ids": [budget.id]})).all()
+        owner_rows = (await session.execute(spend_query, params)).all()
         assert len(owner_rows) > 0
 
     async with _act_as(user_b.id) as session:
-        other_rows = (await session.execute(spend_query, {"budget_ids": [budget.id]})).all()
+        other_rows = (await session.execute(spend_query, params)).all()
         assert other_rows == []
 
 
