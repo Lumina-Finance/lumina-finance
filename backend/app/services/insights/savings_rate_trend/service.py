@@ -1,6 +1,6 @@
 """Savings-rate trend service for the insights page"""
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -60,7 +60,7 @@ async def get_savings_rate_trend(
         return response
 
     current_month = get_month_start_date(now.date())
-    window_end = get_shifted_month_start_date(current_month, 1)
+    window_end = min(get_shifted_month_start_date(current_month, 1), now.date() + timedelta(days=1))
     first_activity_month = await get_first_activity_month(db, account_ids, window_end)
     if first_activity_month is None:
         response = build_empty_savings_rate_trend_response()

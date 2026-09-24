@@ -11,7 +11,7 @@ from app.models.account import TaxAdvantagedCategory
 from app.services.tax_advantaged_categories.tac_limit_metric_helpers import (
     attach_tac_limit_metrics,
     get_category_owner_timezones,
-    get_tac_category_current_years,
+    get_tac_category_current_dates,
     get_tac_limit_metrics,
 )
 from app.services.tax_advantaged_categories.tac_transfer_metric_helpers import (
@@ -57,17 +57,22 @@ async def attach_tax_advantaged_category_metrics(
         return
 
     tax_advantaged_category_ids = [tax_advantaged_category.id for tax_advantaged_category in tax_advantaged_categories]
-    current_years_by_tax_advantaged_category_id = get_tac_category_current_years(
+    current_dates_by_tax_advantaged_category_id = get_tac_category_current_dates(
         tax_advantaged_categories,
         owner_timezones,
         _get_current_datetime_for_timezone,
     )
+    current_years_by_tax_advantaged_category_id = {
+        category_id: current_date.year
+        for category_id, current_date in current_dates_by_tax_advantaged_category_id.items()
+    }
     limit_metrics = await get_tac_limit_metrics(db, tax_advantaged_category_ids, current_years_by_tax_advantaged_category_id)
     attach_tac_limit_metrics(tax_advantaged_categories, current_years_by_tax_advantaged_category_id, limit_metrics)
     transfer_totals_by_tax_advantaged_category_id = await get_tac_transfer_totals(
         db,
         tax_advantaged_categories,
         tax_advantaged_category_ids,
+        current_dates_by_tax_advantaged_category_id,
         current_years_by_tax_advantaged_category_id,
         limit_metrics,
     )

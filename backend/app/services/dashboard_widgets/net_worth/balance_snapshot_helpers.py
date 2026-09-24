@@ -48,6 +48,7 @@ async def get_net_worth_balance_updates_by_day(
     db: AsyncSession,
     account_ids: list[uuid.UUID],
     window_start: date,
+    window_end: date,
 ) -> dict[date, dict[uuid.UUID, int]]:
     """Return dashboard net worth balance updates grouped by snapshot date
 
@@ -55,6 +56,7 @@ async def get_net_worth_balance_updates_by_day(
         db: Active database session
         account_ids: Account IDs included in the dashboard scope
         window_start: First date in the dashboard history window
+        window_end: Last date eligible for the dashboard history window
 
     Returns:
         Balance updates keyed by snapshot date and account ID
@@ -73,6 +75,7 @@ async def get_net_worth_balance_updates_by_day(
         .where(
             AccountBalanceSnapshot.account_id.in_(account_ids),
             AccountBalanceSnapshot.dt >= window_start,
+            AccountBalanceSnapshot.dt <= window_end,
         )
         .order_by(AccountBalanceSnapshot.dt),
     )

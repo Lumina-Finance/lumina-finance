@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.base import CategoryKind
 from app.models.user import User
+from app.routes.users.date_helpers import get_current_user_date
 from app.schemas.insights import InsightsComparisonPeriod, InsightsIncomeExpenseBreakdownResponse
 from app.services.accounts.access import get_accessible_accounts
 from app.services.insights.common import comparison_period_bounds
@@ -42,6 +43,7 @@ async def get_income_expense_breakdown(
         Income and expense breakdown response payload
     """
     previous_from_date, previous_to_date = comparison_period_bounds(from_date, to_date, comparison_period)
+    today = get_current_user_date(user)
     accounts = await get_accessible_accounts(db, user)
 
     if not accounts:
@@ -61,14 +63,14 @@ async def get_income_expense_breakdown(
         accounts,
         user.base_currency,
         from_date,
-        to_date,
+        min(to_date, today),
     )
     previous_period_stats, previous_fx_status = await get_income_expense_breakdown_period_stats(
         db,
         accounts,
         user.base_currency,
         previous_from_date,
-        previous_to_date,
+        min(previous_to_date, today),
     )
     current_expense_breakdown, current_income_breakdown = get_income_expense_breakdown_stats_by_side(current_period_stats)
     current_expense_stats = get_income_expense_breakdown_category_stats(current_period_stats, CategoryKind.EXPENSE)

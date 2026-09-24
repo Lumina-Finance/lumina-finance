@@ -3,7 +3,7 @@
 import uuid
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException, status
@@ -58,12 +58,12 @@ async def get_category_owner_timezones(
     return owner_timezones
 
 
-def get_tac_category_current_years(
+def get_tac_category_current_dates(
     tax_advantaged_categories: Sequence[TaxAdvantagedCategory],
     owner_timezones: dict[uuid.UUID, ZoneInfo],
     current_datetime_for_timezone: Callable[[ZoneInfo], datetime],
-) -> dict[uuid.UUID, int]:
-    """Return the current calendar year for each TAC category
+) -> dict[uuid.UUID, date]:
+    """Return the current local date for each TAC category
 
     Args:
         tax_advantaged_categories: Tax-advantaged categories being enriched
@@ -71,15 +71,16 @@ def get_tac_category_current_years(
         current_datetime_for_timezone: Clock function for timezone-aware current dates
 
     Returns:
-        Current calendar year keyed by tax-advantaged category identifier
+        Current local date keyed by tax-advantaged category identifier
     """
-    current_years_by_tax_advantaged_category_id = {
-        tax_advantaged_category.id: current_datetime_for_timezone(
-            owner_timezones[tax_advantaged_category.category_owner_user_id],
-        ).year
+    owner_dates = {
+        owner_id: current_datetime_for_timezone(timezone).date()
+        for owner_id, timezone in owner_timezones.items()
+    }
+    return {
+        tax_advantaged_category.id: owner_dates[tax_advantaged_category.category_owner_user_id]
         for tax_advantaged_category in tax_advantaged_categories
     }
-    return current_years_by_tax_advantaged_category_id
 
 
 async def get_tac_limit_metrics(

@@ -15,6 +15,8 @@ type DeleteAccountPanelProps = {
   deleteLoading: boolean
   isBusy: boolean
   canDelete: boolean
+  /** Disables the archive shortcut for the same reason the archive switch is locked */
+  isArchiveBlocked: boolean
   onArchiveInstead: () => void
   onContinue: () => void
   onDelete: () => void
@@ -32,6 +34,7 @@ export function DeleteAccountPanel({
   deleteLoading,
   isBusy,
   canDelete,
+  isArchiveBlocked,
   onArchiveInstead,
   onContinue,
   onDelete,
@@ -87,10 +90,11 @@ export function DeleteAccountPanel({
                           {!account.is_archived ? (
                             <button
                               type="button"
-                              className="inline-flex items-center gap-2 text-sm font-medium"
+                              className="inline-flex items-center gap-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-60"
                               style={{ color: 'var(--app-text-muted)' }}
                               onClick={onArchiveInstead}
-                              disabled={isBusy}
+                              disabled={isBusy || isArchiveBlocked}
+                              aria-describedby={isArchiveBlocked ? EDIT_ACCOUNT_IDENTITY_FIELD_IDS.archiveBlockedReason : undefined}
                             >
                               <EyeOff size={15} aria-hidden />
                               Archive instead

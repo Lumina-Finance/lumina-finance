@@ -1,4 +1,5 @@
 import importlib
+from datetime import timedelta
 
 from app.models.base import CategoryKind
 from tests.routes.accounts._account_helpers import (
@@ -9,6 +10,7 @@ from tests.routes.accounts._account_helpers import (
     _latest_snapshot_balance,
     _seed_institution,
 )
+from tests.routes.accounts._balance_snapshot_helpers import _create_category, _create_transaction
 from tests.routes.support import ACCOUNT_PAYLOAD, _create_account, _create_user, _get_auth_header
 
 # --- PATCH /accounts/{account_id} ---
@@ -89,6 +91,42 @@ async def test_patch_account_archiving_zero_balance_skips_balance_adjustment(cli
     assert resp.json()["is_archived"] is True
     assert resp.json()["current_balance"] == 0
     assert await _archive_adjustment_rows(account_id) == []
+
+
+async def test_patch_account_archiving_is_blocked_by_transactions_dated_after_today(client, monkeypatch):
+    """A later-dated transaction flags the account and refuses archiving, which would leave it off zero."""
+    account_routes = importlib.import_module("app.routes.accounts.router")
+
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    create_resp = await _create_account(client, headers, starting_balance=12_500)
+    account_data = create_resp.json()
+    account_id = account_data["id"]
+    archive_dt = _created_at_in_tz(account_data, "America/Toronto")
+    monkeypatch.setattr(account_routes, "datetime", _clock_on_account_day(account_data, "America/Toronto"))
+
+    # The starting balance is dated today, which does not block archiving
+    same_day = await client.get(f"/accounts/{account_id}", headers=headers)
+    assert same_day.json()["has_transactions_after_today"] is False
+
+    category_id = (await _create_category(client, headers)).json()["id"]
+    future = await _create_transaction(
+        client, headers, account_id, category_id, dt=(archive_dt + timedelta(days=1)).isoformat(), amount=5_000,
+    )
+    assert future.status_code == 201
+    blocked = await client.get(f"/accounts/{account_id}", headers=headers)
+    assert blocked.json()["has_transactions_after_today"] is True
+
+    resp = await client.patch(f"/accounts/{account_id}", json={"is_archived": True}, headers=headers)
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == (
+        "This account can't be archived because it has future dated transactions. "
+        "Please delete them or adjust date before archiving the account."
+    )
+    assert await _archive_adjustment_rows(account_id) == []
+    account = await client.get(f"/accounts/{account_id}", headers=headers)
+    assert account.json()["is_archived"] is False
 
 
 async def test_patch_account_archiving_is_idempotent(client, monkeypatch):

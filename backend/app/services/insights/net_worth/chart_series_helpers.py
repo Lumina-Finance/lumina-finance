@@ -29,6 +29,7 @@ async def get_net_worth_chart_series(
     base_currency: str,
     from_date: date,
     to_date: date,
+    as_of_date: date,
 ) -> tuple[list[int], list[tuple[date, date, list[int]]], FxStatus]:
     """Return signed grouped balances converted to base currency for each chart bucket
 
@@ -38,6 +39,7 @@ async def get_net_worth_chart_series(
         base_currency: User base currency used for converted values
         from_date: Inclusive chart start date
         to_date: Inclusive chart end date
+        as_of_date: Latest date whose transactions may affect a balance
 
     Returns:
         Baseline values, chart series rows, and FX conversion status
@@ -52,6 +54,7 @@ async def get_net_worth_chart_series(
         for account in accounts
     }
     baseline_date = from_date - timedelta(days=1)
+    eligible_baseline_date = min(baseline_date, as_of_date)
     converter = await build_net_worth_fx_converter(
         db,
         {base_currency, *(account.currency for account in accounts)},
@@ -59,32 +62,36 @@ async def get_net_worth_chart_series(
     await prefetch_net_worth_fx_rates(
         converter,
         accounts=accounts,
-        buckets=buckets,
+        buckets=[(label, min(value, as_of_date)) for label, value in buckets],
         base_currency=base_currency,
-        baseline_date=baseline_date,
+        baseline_date=eligible_baseline_date,
     )
-    baseline_balances = await get_latest_account_balances_on_or_before(db, account_ids, baseline_date)
+    baseline_balances = await get_latest_account_balances_on_or_before(db, account_ids, eligible_baseline_date)
     baseline_values = await get_grouped_net_worth_balance_values(
         accounts,
         group_index_by_account_id,
         baseline_balances,
         base_currency=base_currency,
-        rate_date=baseline_date,
+        rate_date=eligible_baseline_date,
         converter=converter,
     )
     first_bucket_start = buckets[0][0]
 
-    running = await get_latest_account_balances_before(db, account_ids, first_bucket_start)
+    running = await get_latest_account_balances_before(
+        db, account_ids, min(first_bucket_start, as_of_date + timedelta(days=1)),
+    )
     for account_id in account_ids:
         running.setdefault(account_id, 0)
 
-    snapshots = await get_account_balance_snapshots_in_range(db, account_ids, first_bucket_start, to_date)
+    snapshots = await get_account_balance_snapshots_in_range(
+        db, account_ids, first_bucket_start, min(to_date, as_of_date),
+    )
     snapshot_index = 0
     chart_rows: list[tuple[date, date, list[int]]] = []
 
     # Carry account balances forward through buckets and convert each bucket's grouped values
     for label_date, value_date in buckets:
-        while snapshot_index < len(snapshots) and snapshots[snapshot_index].snapshot_date <= value_date:
+        while snapshot_index < len(snapshots) and snapshots[snapshot_index].snapshot_date <= min(value_date, as_of_date):
             snapshot = snapshots[snapshot_index]
             running[snapshot.account_id] = snapshot.balance
             snapshot_index += 1
@@ -94,7 +101,7 @@ async def get_net_worth_chart_series(
             group_index_by_account_id,
             running,
             base_currency=base_currency,
-            rate_date=value_date,
+            rate_date=min(value_date, as_of_date),
             converter=converter,
         )
         chart_rows.append((label_date, value_date, values))

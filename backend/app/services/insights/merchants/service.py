@@ -5,6 +5,7 @@ from datetime import date
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
+from app.routes.users.date_helpers import get_current_user_date
 from app.schemas.insights import (
     InsightsComparisonPeriod,
     InsightsMerchantDistributionResponse,
@@ -37,6 +38,7 @@ async def get_merchants(
         Shared merchant response payload
     """
     previous_from_date, previous_to_date = comparison_period_bounds(from_date, to_date, comparison_period)
+    today = get_current_user_date(user)
 
     # Load accounts the user can read before aggregating merchant spend
     accounts = await get_accessible_accounts(db, user)
@@ -51,7 +53,7 @@ async def get_merchants(
         accounts,
         user.base_currency,
         from_date,
-        to_date,
+        min(to_date, today),
     )
 
     # Query comparison-period merchant spend for movement values
@@ -60,7 +62,7 @@ async def get_merchants(
         accounts,
         user.base_currency,
         previous_from_date,
-        previous_to_date,
+        min(previous_to_date, today),
     )
 
     response = build_merchants_response(

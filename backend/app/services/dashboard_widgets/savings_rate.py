@@ -36,7 +36,7 @@ async def get_savings_rate_history(
     months_count = DASHBOARD_SAVINGS_HISTORY_MONTHS
     months = get_recent_month_start_dates(now, months_count)
     first_month = months[0]
-    window_end = get_next_month_start_date(now)
+    window_end = min(get_next_month_start_date(now), now.date() + timedelta(days=1))
 
     empty_history = [MonthlyIncomeExpense(month=month, income=0, expenses=0) for month in months]
     if not accounts:

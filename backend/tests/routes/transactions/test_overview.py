@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 from app.models.currency import Currency
@@ -13,6 +13,41 @@ from tests.routes.transactions._helpers import (
 )
 
 # --- GET /transactions/overview ---
+
+
+async def test_future_transaction_is_visible_but_enters_calculations_only_on_its_date(client):
+    """A future row stays editable while balances and totals stop at the viewer's today."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    cache_status = await client.get("/me/cache-status", headers=headers)
+    today = date.fromisoformat(cache_status.json()["current_date"])
+    tomorrow = today + timedelta(days=1)
+
+    await _create_transaction(client, headers, account_id, category_id, dt=today.isoformat(), amount=-1000)
+    future = await _create_transaction(client, headers, account_id, category_id, dt=tomorrow.isoformat(), amount=-3000)
+    assert future.status_code == 201
+
+    listing = await client.get("/transactions", headers=headers)
+    account = await client.get(f"/accounts/{account_id}", headers=headers)
+    snapshots = await client.get(f"/accounts/{account_id}/snapshots", headers=headers)
+    overview = await client.get("/transactions/overview", headers=headers)
+    net_worth = await client.get(
+        "/insights/net-worth",
+        params={"from_date": today.isoformat(), "to_date": tomorrow.isoformat()},
+        headers=headers,
+    )
+    assert {row["dt"] for row in listing.json()} == {today.isoformat(), tomorrow.isoformat()}
+    assert account.json()["current_balance"] == -1000
+    assert snapshots.json()[-1]["dt"] == today.isoformat()
+    assert snapshots.json()[-1]["balance"] == -1000
+    assert overview.json()["total_outflow"] == -1000
+    assert [point[2][0] for point in net_worth.json()["points"]] == [-1000, -1000]
+
+    moved = await client.patch(f"/transactions/{future.json()['id']}", json={"dt": today.isoformat()}, headers=headers)
+    assert moved.status_code == 200
+    account = await client.get(f"/accounts/{account_id}", headers=headers)
+    overview = await client.get("/transactions/overview", headers=headers)
+    assert account.json()["current_balance"] == -4000
+    assert overview.json()["total_outflow"] == -4000
 
 
 async def test_transactions_overview_includes_archived_accounts_unscoped(client):

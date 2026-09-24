@@ -1,4 +1,6 @@
+import importlib
 from datetime import UTC, datetime
+from zoneinfo import ZoneInfo
 
 from tests.routes.support import _create_account, _create_user, _get_auth_header
 
@@ -39,6 +41,16 @@ def _assert_utc_timestamp(value: str) -> None:
     assert _parse_iso_timestamp(value).utcoffset() == UTC.utcoffset(None)
 
 
+def _assert_date_boundary(payload: dict, zone_name: str = "America/Toronto") -> None:
+    """The advertised rollover is midnight after the viewer's current day."""
+    zone = ZoneInfo(zone_name)
+    next_midnight = _parse_iso_timestamp(payload["next_calculation_boundary_at"])
+    _assert_utc_timestamp(payload["next_calculation_boundary_at"])
+    assert next_midnight.astimezone(zone).date().isoformat() > payload["current_date"]
+    assert next_midnight.astimezone(zone).time().isoformat() == "00:00:00"
+    assert len(payload["calculation_date_token"]) == 64
+
+
 async def test_cache_status_initially_null(client):
     """A fresh user has no visible app-data cache timestamp."""
     signup_resp = await _create_user(client)
@@ -47,14 +59,81 @@ async def test_cache_status_initially_null(client):
     resp = await client.get("/me/cache-status", headers=headers)
 
     assert resp.status_code == 200
+    _assert_date_boundary(resp.json())
     assert resp.json() == {
         "changed_at": None,
+        "current_date": resp.json()["current_date"],
+        "calculation_date_token": resp.json()["calculation_date_token"],
+        "next_calculation_boundary_at": resp.json()["next_calculation_boundary_at"],
         "personal": {
             "changed_at": None,
             "last_change_from_current_session": False,
         },
         "groups": {},
     }
+
+
+async def test_cache_status_uses_profile_date_and_dst_midnight(client, monkeypatch):
+    """The same instant yields owner-local dates and a DST-aware next refresh time."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    instant = datetime(2026, 3, 8, 4, 30, tzinfo=UTC)
+
+    class FixedDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return instant.astimezone(tz) if tz else instant
+
+    user_routes = importlib.import_module("app.routes.users.router")
+    monkeypatch.setattr(user_routes, "datetime", FixedDateTime)
+
+    toronto = (await client.get("/me/cache-status", headers=headers)).json()
+    assert toronto["current_date"] == "2026-03-07"
+    assert _parse_iso_timestamp(toronto["next_calculation_boundary_at"]) == datetime(2026, 3, 8, 5, tzinfo=UTC)
+
+    update = await client.patch("/me", json={"tz": "Asia/Tokyo"}, headers=headers)
+    assert update.status_code == 200
+    tokyo = (await client.get("/me/cache-status", headers=headers)).json()
+    assert tokyo["current_date"] == "2026-03-08"
+    assert _parse_iso_timestamp(tokyo["next_calculation_boundary_at"]) == datetime(2026, 3, 8, 15, tzinfo=UTC)
+
+    instant = datetime(2026, 3, 8, 6, 30, tzinfo=UTC)
+    update = await client.patch("/me", json={"tz": "America/Toronto"}, headers=headers)
+    assert update.status_code == 200
+    dst_day = (await client.get("/me/cache-status", headers=headers)).json()
+    assert dst_day["current_date"] == "2026-03-08"
+    assert _parse_iso_timestamp(dst_day["next_calculation_boundary_at"]) == datetime(2026, 3, 9, 4, tzinfo=UTC)
+
+
+async def test_cache_status_advances_at_visible_group_owner_midnight(client, monkeypatch):
+    """A Toronto member gets a new date token when a Tokyo group owner reaches midnight."""
+    owner = await _create_user(client)
+    owner_headers = _get_auth_header(owner)
+    assert (await client.patch("/me", json={"tz": "Asia/Tokyo"}, headers=owner_headers)).status_code == 200
+    group = await _create_group(client, owner_headers)
+    member_headers, member_id = await _create_second_user(client)
+    assert (await client.post(
+        f"/groups/{group.json()['id']}/members", json={"user_id": member_id}, headers=owner_headers,
+    )).status_code == 201
+
+    instant = datetime(2026, 3, 7, 14, 59, tzinfo=UTC)
+
+    class FixedDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return instant.astimezone(tz) if tz else instant
+
+    user_routes = importlib.import_module("app.routes.users.router")
+    monkeypatch.setattr(user_routes, "datetime", FixedDateTime)
+
+    before = (await client.get("/me/cache-status", headers=member_headers)).json()
+    instant = datetime(2026, 3, 7, 15, tzinfo=UTC)
+    after = (await client.get("/me/cache-status", headers=member_headers)).json()
+
+    assert before["current_date"] == after["current_date"] == "2026-03-07"
+    assert _parse_iso_timestamp(before["next_calculation_boundary_at"]) == instant
+    assert before["calculation_date_token"] != after["calculation_date_token"]
+    assert _parse_iso_timestamp(after["next_calculation_boundary_at"]) == datetime(2026, 3, 8, 5, tzinfo=UTC)
 
 
 async def test_personal_write_updates_cache_status(client):
@@ -68,6 +147,7 @@ async def test_personal_write_updates_cache_status(client):
     assert account_resp.status_code == 201
     assert status_resp.status_code == 200
     payload = status_resp.json()
+    _assert_date_boundary(payload)
     changed_at = payload["changed_at"]
     assert changed_at is not None
     _assert_utc_timestamp(changed_at)
@@ -115,8 +195,12 @@ async def test_group_write_updates_member_cache_status(client):
     after_resp = await client.get("/me/cache-status", headers=member_headers)
 
     assert before_resp.status_code == 200
+    _assert_date_boundary(before_resp.json())
     assert before_resp.json() == {
         "changed_at": None,
+        "current_date": before_resp.json()["current_date"],
+        "calculation_date_token": before_resp.json()["calculation_date_token"],
+        "next_calculation_boundary_at": before_resp.json()["next_calculation_boundary_at"],
         "personal": {
             "changed_at": None,
             "last_change_from_current_session": False,

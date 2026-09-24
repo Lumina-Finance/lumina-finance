@@ -23,7 +23,7 @@ async def attach_account_balance_fields(
         user: Authenticated user requesting the account data
         rate_date: Date used for FX conversion
     """
-    await attach_current_balances(db, accounts)
+    await attach_current_balances(db, accounts, rate_date)
     await attach_base_currency_current_balances(
         db,
         accounts,

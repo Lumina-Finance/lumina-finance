@@ -5,6 +5,7 @@ from datetime import date
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
+from app.routes.users.date_helpers import get_current_user_date
 from app.schemas.insights import InsightsCashFlowResponse
 from app.services.accounts.access import get_accessible_accounts
 from app.services.insights.cash_flow.daily_totals_helpers import get_cash_flow_daily_totals
@@ -34,7 +35,9 @@ async def get_cash_flow(
         response = InsightsCashFlowResponse(points=[])
         return response
 
-    daily_totals, fx_status = await get_cash_flow_daily_totals(db, accounts, user.base_currency, from_date, to_date)
+    daily_totals, fx_status = await get_cash_flow_daily_totals(
+        db, accounts, user.base_currency, from_date, min(to_date, get_current_user_date(user)),
+    )
     response = build_cash_flow_response(
         from_date=from_date,
         to_date=to_date,

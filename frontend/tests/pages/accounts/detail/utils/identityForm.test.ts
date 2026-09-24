@@ -37,6 +37,7 @@ function createAccount(overrides: Partial<Account> = {}): Account {
     can_write: overrides.can_write ?? true,
     is_archived: overrides.is_archived ?? false,
     created_at: '2026-01-01T00:00:00Z',
+    has_transactions_after_today: overrides.has_transactions_after_today ?? false,
     ...overrides,
   }
 }

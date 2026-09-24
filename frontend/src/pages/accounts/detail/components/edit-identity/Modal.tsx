@@ -251,6 +251,7 @@ export default function EditAccountIdentityModal({
   const hasEditableAccountContext = canLinkTaxAdvantagedCategory || isRevolving
   const visibilitySectionNumber = hasEditableAccountContext ? '03' : '02'
   const isArchiving = !account.is_archived && form.is_archived
+  const isArchiveBlocked = !account.is_archived && account.has_transactions_after_today
 
   /**
    * Blocks closing while a mutation is pending so user intent and network state cannot diverge
@@ -319,6 +320,7 @@ export default function EditAccountIdentityModal({
                 sectionNumber={visibilitySectionNumber}
                 isArchived={form.is_archived}
                 isArchiving={isArchiving}
+                isArchiveBlocked={isArchiveBlocked}
                 currentBalance={account.current_balance}
                 currency={account.currency}
                 onToggle={handleArchiveToggle}
@@ -347,6 +349,7 @@ export default function EditAccountIdentityModal({
                 deleteLoading={deleteLoading}
                 isBusy={isBusy}
                 canDelete={canDelete}
+                isArchiveBlocked={isArchiveBlocked}
                 onArchiveInstead={handleArchiveInstead}
                 onContinue={() => {
                   setDeleteStage('type-name')

@@ -28,8 +28,15 @@ export const EDIT_ACCOUNT_IDENTITY_FIELD_IDS = {
   taxAdvantagedCategory: 'edit-account-tax-advantaged-category',
   creditLimit: 'edit-credit-limit',
   archive: 'edit-account-archived',
+  archiveBlockedReason: 'edit-account-archive-blocked-reason',
   deleteName: 'delete-account-name',
 } as const
+
+// Archiving zeroes the balance on today's date and freezes the account's transactions, so a
+// later-dated row would move the balance off zero with no way to remove it. The server refuses
+// the archive with the same wording
+export const ARCHIVE_BLOCKED_BY_LATER_TRANSACTIONS_REASON =
+  "This account can't be archived because it has future dated transactions. Please delete them or adjust date before archiving the account."
 
 export type BalanceRange = '7D' | '30D' | '90D' | '1Y'
 export type BalanceChartMode = 'balance' | 'change'

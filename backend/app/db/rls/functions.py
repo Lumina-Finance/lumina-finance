@@ -31,7 +31,10 @@ BUDGET_SPEND_ROWS = "public.budget_spend_rows"
 # bump_user_cache stamped whatever user id it was given, and the app role can execute every
 # function in the schema, so leaving it on an already-provisioned database would keep any
 # authenticated user able to invalidate any other user's cache
-_OBSOLETE_SIGNATURES: tuple[str, ...] = ("public.bump_user_cache(uuid)",)
+_OBSOLETE_SIGNATURES: tuple[str, ...] = (
+    "public.bump_user_cache(uuid)",
+    f"{BUDGET_SPEND_ROWS}(uuid[])",
+)
 
 
 class _Helper(NamedTuple):
@@ -191,7 +194,7 @@ _HELPERS: tuple[_Helper, ...] = (
     # individual transactions to the app role
     _Helper(
         f"""
-    CREATE OR REPLACE FUNCTION {BUDGET_SPEND_ROWS}(p_budget_ids uuid[])
+    CREATE OR REPLACE FUNCTION {BUDGET_SPEND_ROWS}(p_budget_ids uuid[], p_now timestamptz)
     RETURNS TABLE (
         id uuid,
         category_id uuid,
@@ -205,6 +208,8 @@ _HELPERS: tuple[_Helper, ...] = (
         SELECT b.id, t.category_id, t.account_id, t.dt, a.currency, bb.currency, sum(t.amount)
         FROM public.budgets b
         JOIN public.base_budgets bb ON b.base_budget_id = bb.id
+        LEFT JOIN public.groups owner_group ON bb.group_id = owner_group.id
+        JOIN public.users budget_owner ON budget_owner.id = COALESCE(bb.owner_id, owner_group.owner_id)
         JOIN public.budget_tracked_categories btc
             ON btc.base_budget_id = bb.id
             AND btc.added_at <= b.period_end
@@ -215,6 +220,7 @@ _HELPERS: tuple[_Helper, ...] = (
             AND {CAN_ACCESS_BASE_BUDGET}(bb.id)
             AND t.dt >= b.period_start
             AND t.dt <= b.period_end
+            AND t.dt <= (p_now AT TIME ZONE budget_owner.tz)::date
             AND (
                 (bb.group_id IS NOT NULL AND a.group_id = bb.group_id)
                 OR (bb.group_id IS NULL AND a.owner_id = bb.owner_id)
@@ -222,7 +228,7 @@ _HELPERS: tuple[_Helper, ...] = (
         GROUP BY b.id, t.category_id, t.account_id, t.dt, a.currency, bb.currency
     $$
     """,
-        f"{BUDGET_SPEND_ROWS}(uuid[])",
+        f"{BUDGET_SPEND_ROWS}(uuid[], timestamptz)",
     ),
 )
 

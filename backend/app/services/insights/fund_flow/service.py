@@ -5,6 +5,7 @@ from datetime import date
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
+from app.routes.users.date_helpers import get_current_user_date
 from app.schemas.insights import InsightsFundFlowResponse
 from app.services.accounts.access import get_accessible_accounts
 from app.services.insights.fund_flow.response_field_helpers import get_fund_flow_response_fields
@@ -40,7 +41,7 @@ async def get_fund_flow(
         accounts,
         user.base_currency,
         from_date,
-        to_date,
+        min(to_date, get_current_user_date(user)),
     )
 
     response = build_fund_flow_response(response_fields)

@@ -553,17 +553,17 @@ async def test_period_glance_routes_flipped_categories_to_opposite_side(client):
             income_reversal,
             groceries,
             over_refund,
-            _transaction(user_id, account_id, salary_id, date(2026, 10, 2), 200_000),
-            _transaction(user_id, account_id, income_reversal_id, date(2026, 10, 3), -5_000),
-            _transaction(user_id, account_id, groceries_id, date(2026, 10, 4), -100_000),
-            _transaction(user_id, account_id, groceries_id, date(2026, 10, 5), 40_000),
-            _transaction(user_id, account_id, over_refund_id, date(2026, 10, 6), 20_000),
+            _transaction(user_id, account_id, salary_id, date(2025, 10, 2), 200_000),
+            _transaction(user_id, account_id, income_reversal_id, date(2025, 10, 3), -5_000),
+            _transaction(user_id, account_id, groceries_id, date(2025, 10, 4), -100_000),
+            _transaction(user_id, account_id, groceries_id, date(2025, 10, 5), 40_000),
+            _transaction(user_id, account_id, over_refund_id, date(2025, 10, 6), 20_000),
         ])
         await session.commit()
 
     resp = await client.get(
         "/insights/period-glance",
-        params={"from_date": "2026-10-01", "to_date": "2026-10-31"},
+        params={"from_date": "2025-10-01", "to_date": "2025-10-31"},
         headers=headers,
     )
 
@@ -591,14 +591,14 @@ async def test_period_glance_counts_net_negative_income_categories_as_expenses(c
         session.add_all([
             capital_gains,
             salary,
-            _transaction(user_id, account_id, capital_gains_id, date(2026, 12, 4), -80_000),
-            _transaction(user_id, account_id, salary_id, date(2026, 12, 5), 300_000),
+            _transaction(user_id, account_id, capital_gains_id, date(2025, 12, 4), -80_000),
+            _transaction(user_id, account_id, salary_id, date(2025, 12, 5), 300_000),
         ])
         await session.commit()
 
     resp = await client.get(
         "/insights/period-glance",
-        params={"from_date": "2026-12-01", "to_date": "2026-12-31"},
+        params={"from_date": "2025-12-01", "to_date": "2025-12-31"},
         headers=headers,
     )
 
@@ -695,14 +695,14 @@ async def test_period_glance_uses_stable_tie_breakers(client):
         session.add_all([
             beta,
             alpha,
-            _transaction(user_id, account_id, beta_id, date(2026, 11, 4), -50_000),
-            _transaction(user_id, account_id, alpha_id, date(2026, 11, 5), -50_000),
+            _transaction(user_id, account_id, beta_id, date(2025, 11, 4), -50_000),
+            _transaction(user_id, account_id, alpha_id, date(2025, 11, 5), -50_000),
         ])
         await session.commit()
 
     resp = await client.get(
         "/insights/period-glance",
-        params={"from_date": "2026-11-01", "to_date": "2026-11-30"},
+        params={"from_date": "2025-11-01", "to_date": "2025-11-30"},
         headers=headers,
     )
 

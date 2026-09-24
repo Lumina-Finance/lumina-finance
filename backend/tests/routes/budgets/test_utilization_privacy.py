@@ -1,6 +1,8 @@
 """Route tests for budget utilization endpoints."""
 
+from datetime import UTC, datetime
 
+import app.services.budgets.utilization.query_helpers as utilization_queries
 from tests.routes.budgets._utilization_helpers import (
     _create_base_with_instance,
     _create_category,
@@ -64,3 +66,36 @@ async def test_get_budget_utilization_returns_account_data_without_account_acces
     data = await _get_budget_utilization_entry(client, member_headers, base_id, budget_id)
     assert data["total_spent"] == 5000
     assert data["categories"][0]["spent"] == 5000
+
+
+async def test_group_budget_spend_uses_owner_date_for_other_viewers(client, monkeypatch):
+    """A Toronto reader sees the Tokyo owner's current-day spend, never tomorrow's."""
+    signup_resp = await _create_user(client)
+    owner_headers = _get_auth_header(signup_resp)
+    assert (await client.patch("/me", json={"tz": "Asia/Tokyo"}, headers=owner_headers)).status_code == 200
+
+    group_id = await _create_group(client, owner_headers)
+    account_id = (await _create_account(client, owner_headers, group_id=group_id)).json()["id"]
+    groceries = await _create_category(client, owner_headers, group_id=group_id)
+    base_id, budget_id = await _create_base_with_instance(
+        client, owner_headers, category_ids=[groceries], base_overrides={"group_id": group_id},
+    )
+    await _create_transaction(client, owner_headers, account_id, groceries, dt="2026-03-07", amount=-1000)
+    await _create_transaction(client, owner_headers, account_id, groceries, dt="2026-03-08", amount=-2000)
+    await _create_transaction(client, owner_headers, account_id, groceries, dt="2026-03-09", amount=-4000)
+
+    member_headers, member_id = await _create_second_user(client)
+    assert (await client.post(
+        f"/groups/{group_id}/members", json={"user_id": member_id}, headers=owner_headers,
+    )).status_code == 201
+    await _grant_base_budget_permission(client, owner_headers, base_id, member_id, "read")
+
+    class FixedDateTime:
+        @staticmethod
+        def now(tz=None):
+            instant = datetime(2026, 3, 7, 16, tzinfo=UTC)
+            return instant.astimezone(tz) if tz else instant
+
+    monkeypatch.setattr(utilization_queries, "datetime", FixedDateTime)
+    data = await _get_budget_utilization_entry(client, member_headers, base_id, budget_id)
+    assert data["total_spent"] == 3000

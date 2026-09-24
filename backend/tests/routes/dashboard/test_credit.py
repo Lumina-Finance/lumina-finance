@@ -1,6 +1,7 @@
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import update
 
@@ -20,12 +21,13 @@ async def test_dashboard_credit_converts_foreign_currency_accounts(client, monke
     from app.services.fx import FrankfurterProvider
 
     calls = []
+    today = datetime.now(ZoneInfo("America/Toronto")).date()
 
     async def fake_get_rates(self, base, quote, start_date, end_date):
         calls.append((base, quote, start_date, end_date))
-        return {date(2026, 3, 20): Decimal("1.5")}
+        return {today: Decimal("1.5")}
 
-    monkeypatch.setattr(dashboard_routes, "datetime", _FixedClock(datetime(2026, 3, 20, 16, 0, tzinfo=UTC)))
+    monkeypatch.setattr(dashboard_routes, "datetime", _FixedClock(datetime.now(UTC)))
     monkeypatch.setattr(FrankfurterProvider, "get_rates", fake_get_rates)
 
     signup_resp = await _create_user(client)
@@ -71,20 +73,21 @@ async def test_dashboard_credit_converts_foreign_currency_accounts(client, monke
     assert data["credit_limit_total"] == 130_000
     assert data["credit_used"] == 37_500
     assert data["fx_status"] == {"state": "complete", "missing_pairs": []}
-    assert calls == [("USD", "CAD", date(2026, 3, 20), date(2026, 3, 20))]
+    assert calls == [("USD", "CAD", today, today)]
 
 
 async def test_dashboard_credit_reports_incomplete_fx_with_missing_pairs(client, monkeypatch):
     """Credit usage skips unconverted foreign cards and reports the missing pair."""
     from app.routes import dashboard as dashboard_routes
     from app.services.fx import FrankfurterProvider, FxRateNotFoundError
+    today = datetime.now(ZoneInfo("America/Toronto")).date()
 
     async def fake_get_rates(self, base, quote, start_date, end_date):
         if base == "USD":
-            return {date(2026, 3, 20): Decimal("1.5")}
+            return {today: Decimal("1.5")}
         raise FxRateNotFoundError()
 
-    monkeypatch.setattr(dashboard_routes, "datetime", _FixedClock(datetime(2026, 3, 20, 16, 0, tzinfo=UTC)))
+    monkeypatch.setattr(dashboard_routes, "datetime", _FixedClock(datetime.now(UTC)))
     monkeypatch.setattr(FrankfurterProvider, "get_rates", fake_get_rates)
 
     signup_resp = await _create_user(client)

@@ -55,6 +55,54 @@ async def add_account_starting_balance_adjustment(
     await recompute_account_snapshots(db, {account.id: adjustment_date})
 
 
+async def has_transactions_after(db: AsyncSession, account_id: uuid.UUID, after_date: date) -> bool:
+    """Return whether an account holds any transaction dated after a date
+
+    Args:
+        db: Active database session
+        account_id: Account whose transactions are checked
+        after_date: Latest date that does not count as later
+
+    Returns:
+        True when at least one transaction is dated after the date
+    """
+    later_transaction_id = await db.scalar(
+        select(Transaction.id)
+        .where(Transaction.account_id == account_id, Transaction.dt > after_date)
+        .limit(1),
+    )
+    return later_transaction_id is not None
+
+
+async def validate_no_transactions_after_archive_date(
+    db: AsyncSession,
+    account: Account,
+    archive_date: date,
+) -> None:
+    """Refuse to archive an account that holds transactions dated after the archive date
+
+    The archive adjustment zeroes the balance on the archive date, and archived accounts refuse
+    transaction edits, so a later-dated row would move the balance off zero once its date arrived
+    with no way to remove it
+
+    Args:
+        db: Active database session
+        account: Account being archived
+        archive_date: Date used for the archive adjustment transaction
+
+    Raises:
+        HTTPException: The account has transactions dated after the archive date
+    """
+    if await has_transactions_after(db, account.id, archive_date):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=(
+                "This account can't be archived because it has future dated transactions. "
+                "Please delete them or adjust date before archiving the account."
+            ),
+        )
+
+
 async def zero_account_balance_for_archive(
     db: AsyncSession,
     account: Account,
@@ -72,7 +120,7 @@ async def zero_account_balance_for_archive(
     Raises:
         HTTPException: Balance adjustment category or the Myself merchant is not configured
     """
-    current_balance = (await get_current_balances(db, [account.id])).get(account.id, 0)
+    current_balance = (await get_current_balances(db, [account.id], archive_date)).get(account.id, 0)
     if current_balance == 0:
         return
 
