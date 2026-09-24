@@ -3,8 +3,9 @@
 import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass
+from datetime import date
 
-from sqlalchemy import case, func, select
+from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -30,6 +31,7 @@ async def get_tac_transfer_totals(
     db: AsyncSession,
     tax_advantaged_categories: Sequence[TaxAdvantagedCategory],
     tax_advantaged_category_ids: Sequence[uuid.UUID],
+    current_dates_by_tax_advantaged_category_id: dict[uuid.UUID, date],
     current_years_by_tax_advantaged_category_id: dict[uuid.UUID, int],
     limit_metrics: TacLimitMetrics,
 ) -> dict[uuid.UUID, TacTransferTotals]:
@@ -39,6 +41,7 @@ async def get_tac_transfer_totals(
         db: Active database session
         tax_advantaged_categories: Tax-advantaged category rows being enriched
         tax_advantaged_category_ids: Tax-advantaged category identifiers being enriched
+        current_dates_by_tax_advantaged_category_id: Current owner-local date keyed by category identifier
         current_years_by_tax_advantaged_category_id: Current calendar year keyed by tax-advantaged category identifier
         limit_metrics: Configured TAC limit metrics used as starting totals
 
@@ -92,6 +95,13 @@ async def get_tac_transfer_totals(
         .outerjoin(counterparty_account, Transaction.counterparty_account_id == counterparty_account.id)
         .where(
             Account.tax_advantaged_category_id.in_(tax_advantaged_category_ids),
+            or_(*(
+                and_(
+                    Account.tax_advantaged_category_id == category_id,
+                    Transaction.dt <= current_dates_by_tax_advantaged_category_id[category_id],
+                )
+                for category_id in tax_advantaged_category_ids
+            )),
 
             # Archived accounts remain linked to their tax-advantaged category history
             # The same rule the write path enforces, so a row that had to answer is a row that counts

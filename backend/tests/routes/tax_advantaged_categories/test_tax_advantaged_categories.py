@@ -350,7 +350,7 @@ async def test_tax_advantaged_category_metrics_use_tax_advantaged_category_owner
     assert resp.status_code == 200
     assert resp.json()["current_year_contribution_limit"] == 700_000
     assert resp.json()["ytd_contributions"] == 25_000
-    assert resp.json()["lifetime_contributions"] == 51_000
+    assert resp.json()["lifetime_contributions"] == 25_000
 
 
 async def test_tax_advantaged_category_detail_aggregates_transfer_activity_across_linked_accounts(client):
