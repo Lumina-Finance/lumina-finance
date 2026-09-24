@@ -18,7 +18,7 @@ import { useMinimumVisibleFlag } from '@/hooks/useMinimumVisibleFlag'
 import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
 
 /**
- * Accounts overview page listing every open account grouped into assets, revolving credit and
+ * Accounts overview page listing every unarchived account grouped into assets, revolving credit and
  * amortizing debt, alongside net worth, contribution limit summaries and archived accounts
  *
  * Archived accounts are held out of the grouped lists, the totals and the filter toolbar, and

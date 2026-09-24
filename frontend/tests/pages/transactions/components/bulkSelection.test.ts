@@ -1269,7 +1269,7 @@ describe('the accounts a selection can move to', () => {
     { id: 'acc_6', currency: 'CAD' },
   ]
 
-  it('offers the open accounts in the currency the selection uses', () => {
+  it('offers the unarchived accounts the user can write to in the currency the selection uses', () => {
     expect(getBulkMoveTargets(accounts, ['CAD']).map((account) => account.id)).toEqual(['acc_1'])
   })
 
@@ -1289,7 +1289,7 @@ describe("the accounts a transfer's ends can be set to", () => {
     { id: 'acc_4', currency: 'USD', can_write: false },
   ]
 
-  it('offers every open account, whatever its currency', () => {
+  it('offers every unarchived account the user can write to, whatever its currency', () => {
     expect(getTransferEndTargets(accounts).map((account) => account.id)).toEqual(['acc_1', 'acc_4'])
   })
 

@@ -33,7 +33,7 @@ function createAccount(overrides: Partial<AccountsOverview> = {}): AccountsOverv
 // Read both by the control offering the import and by the page carrying it out, so a state one of
 // them accepts and the other refuses cannot exist
 describe('which accounts an import may be written to', () => {
-  it('accepts an open account', () => {
+  it('accepts an unarchived account the user can write to', () => {
     expect(isImportableAccount(createAccount())).toBe(true)
   })
 
@@ -62,7 +62,7 @@ describe('which accounts an import may be written to', () => {
 })
 
 describe('why an import cannot be written to an account', () => {
-  it('says nothing about an open account', () => {
+  it('says nothing about an account an import can write to', () => {
     expect(getImportBlockReason(createAccount())).toBeUndefined()
   })
 
@@ -96,8 +96,8 @@ describe('what the import page does with the account in its address', () => {
   })
 
   // The list being refreshed in the background is not a reason to take a staged import off the
-  // screen, so an account the list already holds as open is taken at its word
-  it('imports into an open account even while the list is being refreshed', () => {
+  // screen, so an account the list already holds as importable is taken at its word
+  it('imports into an importable account even while the list is being refreshed', () => {
     expect(getImportAccountScopeState({
       accountId: 'acct-1',
       account: createAccount(),

@@ -317,8 +317,8 @@ async def _validate_account_mapping(
     """Check one account mapping as far as staging can, without creating anything
 
     An existing account is only checked for read access here. Whether rows are written to it, which
-    is what asks for write access to an open account, depends on the rows of the whole file, so the
-    commit is the first point that can tell
+    is what asks for write access to an unarchived account, depends on the rows of the whole file, so
+    the commit is the first point that can tell
 
     Args:
         db: Active database session
