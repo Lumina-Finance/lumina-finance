@@ -8,6 +8,7 @@ from sqlalchemy import select, text
 
 from app.models.transaction import Transaction
 from app.permissions import transactions as transaction_permissions
+from app.services.transactions import deletion as deletion_module
 from app.services.transactions import update as update_module
 from tests.conftest import TestSession
 from tests.routes.groups.test_transactions import _setup_group_with_shared_account
@@ -170,6 +171,72 @@ async def test_concurrent_account_moves_rebuild_from_the_latest_account(client, 
         for account_id in (account_a, account_b, account_c)
     ]
     assert balances == [0, 0, -5000]
+
+
+async def test_delete_after_account_move_rebuilds_the_latest_account(client, monkeypatch):
+    """A delete queued behind a move rebuilds the account holding the row after the move"""
+    headers, account_a, category_id = await _setup_user_with_deps(client)
+    account_b = (await _create_account(client, headers, name="Savings")).json()["id"]
+    transaction_id = (await _create_transaction(client, headers, account_a, category_id)).json()["id"]
+    original_recompute = update_module.recompute_snapshots_after_transaction_update
+    original_delete_access = deletion_module.check_transaction_access
+    move_ready = asyncio.Event()
+    move_responded = asyncio.Event()
+    delete_entered = asyncio.Event()
+    release_move = asyncio.Event()
+    move_pid = None
+    delete_pid = None
+
+    async def hold_after_recompute(db, *args, **kwargs):
+        nonlocal move_pid
+        move_pid = await db.scalar(text("SELECT pg_backend_pid()"))
+        await original_recompute(db, *args, **kwargs)
+        move_ready.set()
+        await release_move.wait()
+
+    async def record_delete(db, *args, **kwargs):
+        nonlocal delete_pid
+        delete_pid = await db.scalar(text("SELECT pg_backend_pid()"))
+        delete_entered.set()
+        txn = await original_delete_access(db, *args, **kwargs)
+        await move_responded.wait()
+        return txn
+
+    monkeypatch.setattr(update_module, "recompute_snapshots_after_transaction_update", hold_after_recompute)
+    monkeypatch.setattr(deletion_module, "check_transaction_access", record_delete)
+    requests = []
+    try:
+        async with asyncio.timeout(10):
+            requests.append(asyncio.create_task(client.patch(
+                f"/transactions/{transaction_id}", json={"account_id": account_b}, headers=headers,
+            )))
+            await move_ready.wait()
+            requests.append(asyncio.create_task(client.delete(
+                f"/transactions/{transaction_id}", headers=headers,
+            )))
+            await delete_entered.wait()
+            await _wait_until_blocked(move_pid, delete_pid)
+            release_move.set()
+            moved = await requests[0]
+            move_responded.set()
+            deleted = await requests[1]
+    finally:
+        release_move.set()
+        move_responded.set()
+        for request in requests:
+            if not request.done():
+                request.cancel()
+        await asyncio.gather(*requests, return_exceptions=True)
+
+    assert move_pid != delete_pid
+    assert moved.status_code == 200, moved.text
+    assert deleted.status_code == 204, deleted.text
+    assert (await client.get(f"/transactions/{transaction_id}", headers=headers)).status_code == 404
+    balances = [
+        (await client.get(f"/accounts/{account_id}", headers=headers)).json()["current_balance"]
+        for account_id in (account_a, account_b)
+    ]
+    assert balances == [0, 0]
 
 
 async def test_row_deleted_while_update_waits_returns_not_found(client, monkeypatch):
