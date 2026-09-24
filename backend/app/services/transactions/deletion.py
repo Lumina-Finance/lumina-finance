@@ -34,8 +34,10 @@ async def delete_transaction_for_user(
     Returns:
         None
     """
-    # Load the transaction through the access helper so only writable rows can be deleted
-    txn = await check_transaction_access(db, transaction_id, user.id, PermissionLevel.WRITE)
+    # Take the same row lock before tag deletion so an edit and delete cannot interleave
+    txn = await check_transaction_access(
+        db, transaction_id, user.id, PermissionLevel.WRITE, lock_for_update=True,
+    )
 
     # Load the parent account for archive validation and cache scope updates
     account = await get_parent_account_for_transaction(db, txn)
