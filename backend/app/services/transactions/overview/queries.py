@@ -21,6 +21,7 @@ def build_overview_transaction_filters(
     *,
     from_date: date | None,
     to_date: date | None,
+    today: date,
     account_id: uuid.UUID | None,
 ):
     """Build the shared transaction filters for overview queries
@@ -29,6 +30,7 @@ def build_overview_transaction_filters(
         user_id: Identifier for the user requesting the overview
         from_date: Optional inclusive start date for the transaction window
         to_date: Optional inclusive end date for the transaction window
+        today: Latest transaction date eligible for calculated amounts
         account_id: Optional account filter applied within the user's accessible accounts
 
     Returns:
@@ -40,8 +42,7 @@ def build_overview_transaction_filters(
         transaction_query = transaction_query.where(Transaction.account_id == account_id)
     if from_date is not None:
         transaction_query = transaction_query.where(Transaction.dt >= from_date)
-    if to_date is not None:
-        transaction_query = transaction_query.where(Transaction.dt <= to_date)
+    transaction_query = transaction_query.where(Transaction.dt <= min(to_date or today, today))
     return transaction_query.whereclause
 
 

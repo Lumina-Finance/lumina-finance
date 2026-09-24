@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
+from app.routes.users.date_helpers import get_current_user_date
 from app.schemas.transaction import TransactionsOverview
 from app.services.fx import FxConverter
 from app.services.fx.currency_exponent_helpers import get_currency_exponents
@@ -65,6 +66,7 @@ async def get_transactions_overview(
         user.id,
         from_date=from_date,
         to_date=to_date,
+        today=get_current_user_date(user),
         account_id=account_id,
     )
 
