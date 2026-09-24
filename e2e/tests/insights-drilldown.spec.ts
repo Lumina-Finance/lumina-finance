@@ -105,18 +105,27 @@ async function expectSectorReady(sector: Locator) {
   await expect(sector).toHaveAttribute('tabindex', '0')
 }
 
-/** Records the first rendered action state without changing chart, focus, or animation behavior */
-async function observeInitialSector(page: Page, label: string) {
+/**
+ * Records the shape of every enabled action for one category, without changing chart behavior.
+ * Shapes rather than elements, since recharts swaps in an identical element just after settling
+ */
+async function observeSectorActions(page: Page, label: string) {
   await page.addInitScript(({ label }) => {
-    const measurement = { first: null as { disabled: string | null; tabIndex: string | null } | null }
-    const observedWindow = window as Window & { __breakdownFirstAction?: typeof measurement }
-    observedWindow.__breakdownFirstAction = measurement
+    const enabledShapes = new Set<string | null>()
+    const observedWindow = window as Window & { __breakdownEnabledShapes?: Set<string | null> }
+    observedWindow.__breakdownEnabledShapes = enabledShapes
     new MutationObserver(() => {
-      if (measurement.first) return
       const action = Array.from(document.querySelectorAll('g.app-breakdown-sector')).find((element) => element.getAttribute('aria-label') === label)
-      if (action) measurement.first = { disabled: action.getAttribute('aria-disabled'), tabIndex: action.getAttribute('tabindex') }
+      if (action?.getAttribute('aria-disabled') === 'false') enabledShapes.add(action.querySelector('path')?.getAttribute('d') ?? null)
     }).observe(document, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-disabled', 'tabindex'] })
   }, { label })
+}
+
+/** Checks that the category's action was only ever enabled with the shape it settled on */
+async function expectEnabledOnlyOnceSettled(sector: Locator) {
+  const settledShape = await sector.locator('path').getAttribute('d')
+  const enabledShapes = await sector.page().evaluate(() => Array.from((window as Window & { __breakdownEnabledShapes?: Set<string | null> }).__breakdownEnabledShapes ?? []))
+  expect(enabledShapes).toEqual([settledShape])
 }
 
 /** Hovers a point inside the real filled SVG sector rather than the donut hole in its bounding box */
@@ -213,13 +222,13 @@ async function expectDrillUrl(page: Page, ids: string[], from = FROM, to = TO) {
 }
 
 test('opens slice transactions with inclusive dates and preserves refresh', async ({ page, drillFixture: fixture }) => {
-  await observeInitialSector(page, `View ${fixture.categories[0].name} transactions`)
+  await observeSectorActions(page, `View ${fixture.categories[0].name} transactions`)
   await start(page, fixture.user)
   await openPage(page, '/insights')
   const card = await showBreakdown(page)
   const slice = card.getByRole('button', { name: `View ${fixture.categories[0].name} transactions`, exact: true })
   await expectSectorReady(slice)
-  expect(await page.evaluate(() => (window as Window & { __breakdownFirstAction?: { first: unknown } }).__breakdownFirstAction?.first)).toEqual({ disabled: 'true', tabIndex: '-1' })
+  await expectEnabledOnlyOnceSettled(slice)
   await clickSector(page, slice, fixture.categories[0].name)
   await expectDrillUrl(page, [fixture.categories[0].id])
   await expectRows(page, fixture.selected)
