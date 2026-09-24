@@ -17,7 +17,7 @@ import { markOidcIntent } from '@/utils/oidcIntent';
 import { withMinDelay } from '@/utils/timing';
 
 // Operator documentation for configuring providers, shown when none are available
-const OIDC_SETUP_DOCS_URL = 'https://github.com/Lumina-Finance/lumina-finance#single-sign-on-oidc';
+const OIDC_SETUP_DOCS_URL = 'https://docs.luminafinance.co/self-hosting/single-sign-on';
 
 const LINKED_BADGE_STYLE = {
   backgroundColor: 'var(--app-positive-soft)',
