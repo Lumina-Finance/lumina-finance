@@ -10,7 +10,10 @@ from app.models.account import Account
 from app.models.base import PermissionLevel
 from app.models.user import User
 from app.permissions import check_account_access
-from app.routes.accounts.balance_adjustment_helpers import zero_account_balance_for_archive
+from app.routes.accounts.balance_adjustment_helpers import (
+    validate_no_transactions_after_archive_date,
+    zero_account_balance_for_archive,
+)
 from app.routes.accounts.request_validation_helpers import validate_update_account_request
 from app.routes.accounts.response_loading_helpers import get_account_for_response
 from app.routes.accounts.tax_advantaged_category_link_helpers import validate_update_account_tax_advantaged_category_link
@@ -81,6 +84,8 @@ async def apply_account_updates(
         archive_date: Date used for archive balance adjustment rows
     """
     should_archive = updates.get("is_archived") is True and not account.is_archived
+    if should_archive:
+        await validate_no_transactions_after_archive_date(db, account, archive_date)
 
     # Apply requested fields before adding any archive balance adjustment
     for field, value in updates.items():

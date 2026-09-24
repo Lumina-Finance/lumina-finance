@@ -11,6 +11,7 @@ from app.models.base import PermissionLevel
 from app.models.user import User
 from app.permissions import check_account_access
 from app.permissions.accounts import attach_account_write_capabilities
+from app.routes.accounts.balance_adjustment_helpers import has_transactions_after
 from app.routes.accounts.balance_field_helpers import attach_account_balance_fields
 
 
@@ -26,7 +27,7 @@ async def get_account_response_for_user(
         db: Active database session
         account_id: Account identifier from the route path
         user: Authenticated user requesting the account
-        as_of_date: Date used for current balance fields
+        as_of_date: Viewer's today, used for current balance fields and the later-transaction flag
 
     Returns:
         Account with derived balance fields
@@ -37,6 +38,7 @@ async def get_account_response_for_user(
     account = await check_account_access(db, account_id, user.id, PermissionLevel.READ)
     await attach_account_write_capabilities(db, [account], user.id)
     await attach_account_balance_fields(db, [account], user, as_of_date)
+    account.has_transactions_after_today = await has_transactions_after(db, account.id, as_of_date)
     return account
 
 
@@ -54,7 +56,7 @@ async def get_account_for_response(
         db: Active database session
         user: Authenticated user receiving the response
         account_id: Account identifier to load
-        as_of_date: Date used for current balance fields
+        as_of_date: Viewer's today, used for current balance fields and the later-transaction flag
         refresh_cached_account: Whether to overwrite a cached account instance
 
     Returns:
@@ -73,4 +75,5 @@ async def get_account_for_response(
     account = result.scalar_one()
     await attach_account_write_capabilities(db, [account], user.id)
     await attach_account_balance_fields(db, [account], user, as_of_date)
+    account.has_transactions_after_today = await has_transactions_after(db, account.id, as_of_date)
     return account

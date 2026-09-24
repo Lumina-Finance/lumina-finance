@@ -81,6 +81,8 @@ export interface AccountBalanceSnapshot {
  */
 export interface Account extends AccountsOverview {
   created_at: string;
+  /** Whether a transaction is dated after the viewer's today, which blocks archiving until it is moved or deleted */
+  has_transactions_after_today: boolean;
 }
 
 export interface CreateAccountPayload {

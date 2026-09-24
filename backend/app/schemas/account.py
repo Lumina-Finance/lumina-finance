@@ -59,6 +59,10 @@ class AccountResponse(BaseModel):
     is_archived: bool
     created_at: datetime
 
+    # Whether a transaction is dated after the viewer's today, which blocks archiving until it is
+    # moved or deleted
+    has_transactions_after_today: bool
+
     model_config = {"from_attributes": True}
 
 

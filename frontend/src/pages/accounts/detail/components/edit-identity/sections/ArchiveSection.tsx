@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from 'motion/react'
 import { EyeOff } from 'lucide-react'
 import {
+  ARCHIVE_BLOCKED_BY_LATER_TRANSACTIONS_REASON,
   EDIT_ACCOUNT_IDENTITY_FIELD_IDS,
   EASE,
 } from '@/pages/accounts/detail/constants/accountDetail'
@@ -11,18 +12,22 @@ type AccountArchiveSectionProps = {
   sectionNumber: string
   isArchived: boolean
   isArchiving: boolean
+  /** Locks the switch off while later-dated transactions would leave the archived balance off zero */
+  isArchiveBlocked: boolean
   currentBalance: number
   currency: string
   onToggle: (checked: boolean) => void
 }
 
 /**
- * Renders archive controls and warns when archiving will create a balance adjustment
+ * Renders archive controls, warns when archiving will create a balance adjustment and explains
+ * why archiving is unavailable while later-dated transactions remain
  */
 export function AccountArchiveSection({
   sectionNumber,
   isArchived,
   isArchiving,
+  isArchiveBlocked,
   currentBalance,
   currency,
   onToggle,
@@ -31,7 +36,7 @@ export function AccountArchiveSection({
     <EditModalSection number={sectionNumber} title="Archive">
       <label
         htmlFor={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.archive}
-        className="flex cursor-pointer items-center justify-between gap-4 rounded-xl p-4"
+        className={`flex items-center justify-between gap-4 rounded-xl p-4 ${isArchiveBlocked ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
         style={{
           background: 'var(--app-input-bg)',
           border: '1px solid var(--app-input-border)',
@@ -52,6 +57,8 @@ export function AccountArchiveSection({
             type="checkbox"
             role="switch"
             checked={isArchived}
+            disabled={isArchiveBlocked}
+            aria-describedby={isArchiveBlocked ? EDIT_ACCOUNT_IDENTITY_FIELD_IDS.archiveBlockedReason : undefined}
             onChange={(event) => {
               onToggle(event.target.checked)
             }}
@@ -69,6 +76,16 @@ export function AccountArchiveSection({
           />
         </span>
       </label>
+
+      {isArchiveBlocked && (
+        <p
+          id={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.archiveBlockedReason}
+          className="mt-2 text-sm font-medium"
+          style={{ color: 'var(--app-negative)' }}
+        >
+          {ARCHIVE_BLOCKED_BY_LATER_TRANSACTIONS_REASON}
+        </p>
+      )}
 
       <AnimatePresence initial={false}>
         {isArchiving && (
