@@ -1454,16 +1454,17 @@
   }
 
   /* Liquid-glass variants of the toolbar controls, sharing the filter pill and insights range
-     selector surface so the transactions toolbar reads as one glass family */
+     selector surface so the transactions toolbar reads as one glass family. The search field keeps
+     the pill shape and border but not the see-through fill: it takes the same solid background as
+     every other input, at rest, under the pointer and while focused, so searching reads as the same
+     kind of control as typing anywhere else */
   .app-glass-input {
     @apply min-w-0 border px-4 py-0 outline-none transition-colors duration-200;
     border-radius: 20px;
     font-size: 0.9375rem;
     color: var(--app-text);
     border-color: var(--app-border-strong);
-    background: color-mix(in srgb, var(--app-input-bg) 62%, transparent);
-    -webkit-backdrop-filter: blur(20px) saturate(160%);
-    backdrop-filter: blur(20px) saturate(160%);
+    background: var(--app-input-bg);
   }
 
   .app-glass-input::placeholder {
