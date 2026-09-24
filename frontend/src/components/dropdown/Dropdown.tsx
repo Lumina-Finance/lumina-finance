@@ -269,7 +269,8 @@ const Dropdown = ({
 
   // The dropdown closes on outside mouse interactions so stale menus do not remain open. The box is
   // a descendant of this container even while positioned against the viewport, so a press inside it
-  // is not an outside press
+  // is not an outside press. The field's own label counts as outside, since a click there only moves
+  // focus to the head rather than pressing it
   useEffect(() => {
     if (!open) return;
 
@@ -278,19 +279,12 @@ const Dropdown = ({
       const target = e.target;
       if (!container || !(target instanceof Element) || container.contains(target)) return;
 
-      // The field's own visible label sits outside this container but points at the head inside it,
-      // and a label repeats its click on the control it belongs to. Closing here would be undone a
-      // moment later by that repeat, which reaches a list this handler has already closed and opens
-      // it again. Left alone, the repeat arrives at the head and closes the list once, exactly as
-      // pressing the head does
-      if (id && target.closest('label')?.htmlFor === id) return;
-
       close();
     };
 
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
-  }, [close, id, open]);
+  }, [close, open]);
 
   // The highlighted option scrolls into view after keyboard movement so focus stays visible. The list
   // is scrolled by hand rather than through scrollIntoView, which walks up and scrolls every ancestor
