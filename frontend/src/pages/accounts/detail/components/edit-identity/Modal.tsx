@@ -109,7 +109,9 @@ export default function EditAccountIdentityModal({
   })
 
   // The modal stays mounted between openings, so everything typed, failed or half-confirmed last time is
-  // cleared on the way in. Without this, cancelling an edit and reopening shows the discarded values back.
+  // cleared on the way in, along with the hold a successful save keeps on Save while the modal closes.
+  // Without this, cancelling an edit and reopening shows the discarded values back, and reopening after a
+  // save shows Save still spinning with no way to save or close.
   // Adjusting state during the render that opens it, rather than in an effect, keeps the reset in the same
   // render the fields first appear in, so no stale value is ever painted
   const [wasOpen, setWasOpen] = useState(open)
@@ -122,6 +124,7 @@ export default function EditAccountIdentityModal({
       setFieldErrors({})
       setDeleteStage('idle')
       setDeleteNameInput('')
+      setSaveDelayPending(false)
       institutionModal.close()
     }
   }
