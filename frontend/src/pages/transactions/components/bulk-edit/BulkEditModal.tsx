@@ -193,7 +193,7 @@ export function BulkEditModal({
   // Leading blank entry lets a pick be undone without closing the modal, matching From and To, but
   // only when there is an account to move to. Adding it unconditionally would give an empty
   // accountOptions a blank entry that matches the trigger's empty value, hiding the placeholder
-  // computed below for a currency with no other open account
+  // computed below for a currency no unarchived account the user can write to holds
   const moveAccountOptions = accountOptions.length > 0
     ? [{ value: '', label: 'Leave as is' }, ...accountOptions]
     : []
@@ -360,8 +360,9 @@ export function BulkEditModal({
   const hasNoAccountForCurrency = selectedCurrencies.length === 1 && accountOptions.length === 0
 
   // At most one icon beside Move to account, in the order its disabled reasons take priority: a
-  // selection spanning currencies refuses every account, then a single currency with nothing open
-  // to hold it, then an end already answering where the money moves instead
+  // selection spanning currencies refuses every account, then a single currency no unarchived
+  // account the user can write to holds, then an end already answering where the money moves
+  // instead
   let moveAccountIcon: ReactNode = null
   if (spansMultipleCurrencies) {
     moveAccountIcon = (
