@@ -373,7 +373,7 @@ export function BulkEditModal({
   } else if (hasNoAccountForCurrency) {
     moveAccountIcon = (
       <IconTooltip label="No account for this currency" level="warn">
-        No open account holds this currency.
+        No unarchived account holds this currency.
       </IconTooltip>
     )
   } else if (sendsAnEnd) {
