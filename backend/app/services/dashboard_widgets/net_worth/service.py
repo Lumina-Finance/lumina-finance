@@ -62,6 +62,7 @@ async def get_net_worth_history(
         db,
         account_ids,
         window_start,
+        today,
     )
 
     # Carry balances forward day by day while applying snapshots on their update date

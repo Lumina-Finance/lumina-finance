@@ -54,6 +54,7 @@ async def get_account_cash_flow_history(
             Transaction.account_id == account_id,
             Transaction.dt >= window_start,
             Transaction.dt < window_end,
+            Transaction.dt <= now.date(),
             _build_cash_flow_category_predicate(),
         )
         .group_by(month_start_expr),
