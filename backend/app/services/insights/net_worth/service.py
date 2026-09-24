@@ -5,6 +5,7 @@ from datetime import date
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
+from app.routes.users.date_helpers import get_current_user_date
 from app.schemas.insights import InsightsNetWorthResponse
 from app.services.accounts.access import get_accessible_accounts
 from app.services.insights.net_worth.chart_series_helpers import get_net_worth_chart_series
@@ -33,7 +34,9 @@ async def get_net_worth(
         response = InsightsNetWorthResponse(groups=[], points=[])
         return response
 
-    baseline, chart_rows, fx_status = await get_net_worth_chart_series(db, accounts, user.base_currency, from_date, to_date)
+    baseline, chart_rows, fx_status = await get_net_worth_chart_series(
+        db, accounts, user.base_currency, from_date, to_date, get_current_user_date(user),
+    )
     response = build_net_worth_response(
         baseline=baseline,
         chart_rows=chart_rows,
