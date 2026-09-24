@@ -3,13 +3,13 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BreakdownEntry } from '@/pages/insights/types/incomeExpenseBreakdown'
 
-const captured = vi.hoisted(() => ({ animating: false, sectors: [] as ReactElement<{ onClick: () => void; onKeyDown: (event: { key: string; preventDefault: () => void; stopPropagation: () => void }) => void }>[] }))
+const captured = vi.hoisted(() => ({ elapsed: 1, latched: false, sectors: [] as ReactElement<{ onClick: () => void; onKeyDown: (event: { key: string; preventDefault: () => void; stopPropagation: () => void }) => void }>[] }))
 
 vi.mock('recharts', () => ({
   ResponsiveContainer: ({ children }: { children: ReactNode }) => children,
   PieChart: ({ children }: { children: ReactNode }) => createElement('svg', null, children),
   Pie: ({ data, shape }: { data: BreakdownEntry[]; shape: (props: unknown) => typeof captured.sectors[number] }) => {
-    const sectors = data.map((payload) => cloneElement(shape({ payload, isAnimating: captured.animating, cx: 100, cy: 100, innerRadius: 40, outerRadius: 90, startAngle: 0, endAngle: 40 }), { key: payload.id }))
+    const sectors = data.map((payload) => cloneElement(shape({ payload, animationElapsedTime: captured.elapsed, isAnimating: captured.latched, cx: 100, cy: 100, innerRadius: 40, outerRadius: 90, startAngle: 0, endAngle: 40 }), { key: payload.id }))
     captured.sectors.push(...sectors)
     return sectors
   },
@@ -38,7 +38,8 @@ function render(onCategorySelect: (id: string) => void) {
 
 beforeEach(() => {
   captured.sectors = []
-  captured.animating = false
+  captured.elapsed = 1
+  captured.latched = false
 })
 
 describe('breakdown sector navigation', () => {
@@ -75,7 +76,7 @@ describe('breakdown sector navigation', () => {
   })
 
   it('withholds focusability and pointer or keyboard activation while sector geometry changes', () => {
-    captured.animating = true
+    captured.elapsed = 0.5
     const onSelect = vi.fn()
     const markup = render(onSelect)
     expect(markup.match(/tabindex="-1" aria-disabled="true"/g)).toHaveLength(7)
@@ -84,5 +85,14 @@ describe('breakdown sector navigation', () => {
       captured.sectors[0].props.onKeyDown({ key, preventDefault: vi.fn(), stopPropagation: vi.fn() })
     }
     expect(onSelect).not.toHaveBeenCalled()
+  })
+
+  it('keeps settled sectors actionable when the animating flag stays latched', () => {
+    captured.latched = true
+    const onSelect = vi.fn()
+    const markup = render(onSelect)
+    expect(markup.match(/role="button" tabindex="0"/g)).toHaveLength(7)
+    captured.sectors[0].props.onClick()
+    expect(onSelect).toHaveBeenCalledExactlyOnceWith('category-0')
   })
 })

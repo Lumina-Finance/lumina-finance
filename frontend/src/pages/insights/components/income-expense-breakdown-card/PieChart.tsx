@@ -94,10 +94,11 @@ const BreakdownPlot = memo(function BreakdownPlot({
 
   /** Gives every sector its own named keyboard action, including entries outside the short legend */
   function renderCategorySector(props: unknown) {
-    const sector = props as ComponentProps<typeof Sector> & { payload: BreakdownEntry; isAnimating: boolean }
+    const sector = props as ComponentProps<typeof Sector> & { payload: BreakdownEntry; animationElapsedTime: number }
     const entry = sector.payload
-    // Recharts keys sectors by their animated angles, replacing the DOM until geometry settles
-    const disabled = sector.isAnimating
+    // Recharts keys sectors by their animated angles, replacing the DOM until geometry settles.
+    // Its isAnimating flag can stay set after an interrupted animation, so progress decides instead
+    const disabled = sector.animationElapsedTime < 1
     const activate = () => {
       if (!disabled) onCategorySelect(entry.id)
     }
