@@ -30,6 +30,9 @@ export interface CacheScopeStatus {
 
 export interface CacheStatus {
   changed_at: string | null;
+  current_date: string;
+  calculation_date_token: string;
+  next_calculation_boundary_at: string;
   personal: CacheScopeStatus;
   groups: Record<string, CacheScopeStatus>;
 }

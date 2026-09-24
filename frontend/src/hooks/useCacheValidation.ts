@@ -4,15 +4,18 @@ import { fetchCacheStatus } from '@/api/user'
 import { invalidateAppData, invalidateFxData } from '@/api/cache/invalidation'
 
 const PERSONAL_CACHE_CHANGED_AT_KEY_PREFIX = 'lumina:personal-cache-changed-at'
+const CALCULATION_DATE_TOKEN_KEY_PREFIX = 'lumina:calculation-date-token'
 const FX_REFRESHED_AT_KEY_PREFIX = 'lumina:fx-refreshed-at'
 const FX_REFRESH_INTERVAL_MS = 12 * 60 * 60 * 1000
+const CACHE_STATUS_RETRY_INTERVAL_MS = 60 * 1000
 
 /**
- * Revalidates cached app and FX data on mount and whenever the window regains focus, comparing the
- * server's last-changed timestamps against the ones this window last saw for `userId`
+ * Revalidates cached app and FX data on mount, focus, and the next calculation owner's midnight,
+ * comparing server changes and owner-local dates with this window's last result for `userId`
  *
  * Personal data invalidates the app cache when its server timestamp differs from this window's copy,
- * even if another window shares the same login session. FX data refreshes at most once every twelve
+ * even if another window shares the same login session. A new owner-local date also refreshes calculations
+ * without requiring a transaction edit. FX data refreshes at most once every twelve
  * hours, or immediately when app data was just invalidated. Overlapping validate calls are coalesced.
  */
 export function useCacheValidation(userId: string | undefined, enabled: boolean) {
@@ -22,6 +25,22 @@ export function useCacheValidation(userId: string | undefined, enabled: boolean)
 
   useEffect(() => {
     if (!enabled || !userId) return
+    let midnightTimer: ReturnType<typeof setTimeout> | undefined
+    let active = true
+
+    const scheduleMidnightCheck = (nextBoundaryAt: string) => {
+      if (!active) return
+      clearTimeout(midnightTimer)
+      const remaining = Date.parse(nextBoundaryAt) - Date.now()
+      if (!Number.isFinite(remaining)) return
+      midnightTimer = setTimeout(() => { void validate() }, remaining > 0 ? remaining + 1000 : CACHE_STATUS_RETRY_INTERVAL_MS)
+    }
+
+    const scheduleRetry = () => {
+      if (!active) return
+      clearTimeout(midnightTimer)
+      midnightTimer = setTimeout(() => { void validate() }, CACHE_STATUS_RETRY_INTERVAL_MS)
+    }
 
     const validate = async () => {
       if (validatingRef.current) {
@@ -34,9 +53,12 @@ export function useCacheValidation(userId: string | undefined, enabled: boolean)
           pendingValidationRef.current = false
           let appInvalidated = false
           try {
-            appInvalidated = await validateAppData(queryClient, userId)
+            const result = await validateAppData(queryClient, userId)
+            appInvalidated = result.appInvalidated
+            scheduleMidnightCheck(result.nextBoundaryAt)
           } catch {
             appInvalidated = false
+            scheduleRetry()
           }
           validateFxData(queryClient, userId, appInvalidated)
         } while (pendingValidationRef.current)
@@ -51,18 +73,21 @@ export function useCacheValidation(userId: string | undefined, enabled: boolean)
     })
     const onWindowFocus = () => { void validate() }
     const onStorageChange = (event: StorageEvent) => {
-      const key = `${PERSONAL_CACHE_CHANGED_AT_KEY_PREFIX}:${userId}`
+      const changedAtKey = `${PERSONAL_CACHE_CHANGED_AT_KEY_PREFIX}:${userId}`
+      const dateKey = `${CALCULATION_DATE_TOKEN_KEY_PREFIX}:${userId}`
       if (
         event.storageArea === window.localStorage
-        && event.key === key
+        && (event.key === changedAtKey || event.key === dateKey)
         && event.newValue !== null
-        && event.newValue !== window.sessionStorage.getItem(key)
+        && event.newValue !== window.sessionStorage.getItem(event.key)
         && document.visibilityState === 'visible'
       ) void validate()
     }
     window.addEventListener('focus', onWindowFocus)
     window.addEventListener('storage', onStorageChange)
     return () => {
+      active = false
+      clearTimeout(midnightTimer)
       unsubscribeFocus()
       window.removeEventListener('focus', onWindowFocus)
       window.removeEventListener('storage', onStorageChange)
@@ -75,25 +100,26 @@ async function validateAppData(
   userId: string,
 ) {
   const storageKey = `${PERSONAL_CACHE_CHANGED_AT_KEY_PREFIX}:${userId}`
+  const dateStorageKey = `${CALCULATION_DATE_TOKEN_KEY_PREFIX}:${userId}`
   const status = await fetchCacheStatus()
   const currentChangedAt = toUtcCacheTimestamp(status.personal.changed_at) ?? ''
   const previousChangedAt = toUtcCacheTimestamp(
     window.sessionStorage.getItem(storageKey) ?? window.localStorage.getItem(storageKey),
   )
+  const previousDate = window.sessionStorage.getItem(dateStorageKey) ?? window.localStorage.getItem(dateStorageKey)
   window.sessionStorage.setItem(storageKey, currentChangedAt)
+  window.sessionStorage.setItem(dateStorageKey, status.calculation_date_token)
   if (window.localStorage.getItem(storageKey) !== currentChangedAt) {
     window.localStorage.setItem(storageKey, currentChangedAt)
   }
-
-  if (
-    previousChangedAt === null
-    || previousChangedAt === currentChangedAt
-  ) {
-    return false
+  if (window.localStorage.getItem(dateStorageKey) !== status.calculation_date_token) {
+    window.localStorage.setItem(dateStorageKey, status.calculation_date_token)
   }
 
-  invalidateAppData(queryClient)
-  return true
+  const changed = previousChangedAt !== null && previousChangedAt !== currentChangedAt
+  const dayChanged = previousDate !== null && previousDate !== status.calculation_date_token
+  if (changed || dayChanged) invalidateAppData(queryClient)
+  return { appInvalidated: changed || dayChanged, nextBoundaryAt: status.next_calculation_boundary_at }
 }
 
 function toUtcCacheTimestamp(value: string | null) {

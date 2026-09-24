@@ -1,7 +1,7 @@
 """User schemas"""
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -40,9 +40,12 @@ class CacheScopeStatus(BaseModel):
 
 
 class CacheStatus(BaseModel):
-    """Latest visible app-data cache status."""
+    """Latest visible app-data changes and owner-local calculation boundary."""
 
     changed_at: datetime | None
+    current_date: date
+    calculation_date_token: str
+    next_calculation_boundary_at: datetime
     personal: CacheScopeStatus
     groups: dict[uuid.UUID, CacheScopeStatus] = Field(default_factory=dict)
 
