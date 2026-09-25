@@ -28,6 +28,7 @@ import {
   isFireflyJournalType,
 } from '@/pages/imports/firefly/constants'
 import type { FireflyAccountPrefill, FireflyAccountSource, FireflyAccountSources } from '@/pages/imports/firefly/types'
+import { toImportMinorUnits } from '@/pages/imports/utils/valueParsers'
 import { parseYmd } from '@/utils/date'
 
 /**
@@ -228,7 +229,7 @@ export function countCharacters(value: string): number {
 }
 
 /**
- * Returns why a row holds a value past what the import endpoint takes, or null
+ * Returns why a row holds a value the import endpoint cannot take, or null
  *
  * The server refuses the whole import for any of them, so the row is dropped
  * before upload, as the overlong tag above already is
@@ -258,6 +259,12 @@ export function getFireflyRowOverLimitReason(row: CsvRow, groupSizes: FireflySpl
   for (const [field, value, maxLength] of fields) {
     const length = countCharacters(value?.trim() ?? '')
     if (length > maxLength) return getFireflyFieldTooLongReason(field, length, maxLength)
+  }
+
+  // Both amounts are sent whichever one a leg uses, and the endpoint takes only plain decimal
+  // text, so a malformed amount the row would never use still leaves it out
+  for (const amount of [main, foreign]) {
+    if (amount && toImportMinorUnits(amount.amount, 0) === 'unreadable') return `Invalid amount "${amount.amount}"`
   }
   return null
 }

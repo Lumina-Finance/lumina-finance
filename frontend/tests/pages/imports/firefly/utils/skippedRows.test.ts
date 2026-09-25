@@ -370,6 +370,15 @@ describe('forecastFireflyImport', () => {
     expect(skipped[0].reason).toBe('Invalid amount "twelve"')
   })
 
+  // The upload carries both amounts, and the endpoint refuses malformed text wherever it sits
+  it('drops a row whose unused foreign amount is malformed, since the upload still carries it', () => {
+    const row = createFireflyRow({ foreign_amount: '-1,234.56', foreign_currency_code: 'USD' })
+    const { skippedRows: skipped } = forecastFireflyImport([row], createOptions())
+
+    expect(skipped.map((skippedRow) => skippedRow.reason)).toEqual(['Invalid amount "-1,234.56"'])
+    expect(isFireflyRowUploadable(row, new Map())).toBe(false)
+  })
+
   it('reports non-ASCII digits, grouping and invalid controls in the selected account amount', () => {
     for (const amount of ['-١2.34', '-12.34\u001C', '-1,234.56']) {
       const { skippedRows } = forecastFireflyImport(
