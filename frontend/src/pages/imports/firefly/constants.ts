@@ -63,7 +63,6 @@ export const FIREFLY_ACCOUNT_NAME_MAX_LENGTH = 256
  */
 export const FIREFLY_ROW_FIELD_MAX_LENGTHS = {
   journalId: 64,
-  type: 64,
   amount: 64,
   description: 1024,
   category: 256,
@@ -192,6 +191,24 @@ export const FIREFLY_TYPE_DEPOSIT = 'deposit'
 export const FIREFLY_TYPE_TRANSFER = 'transfer'
 export const FIREFLY_TYPE_OPENING_BALANCE = 'opening balance'
 export const FIREFLY_TYPE_RECONCILIATION = 'reconciliation'
+
+const FIREFLY_JOURNAL_TYPES = [
+  FIREFLY_TYPE_WITHDRAWAL,
+  FIREFLY_TYPE_DEPOSIT,
+  FIREFLY_TYPE_TRANSFER,
+  FIREFLY_TYPE_OPENING_BALANCE,
+  FIREFLY_TYPE_RECONCILIATION,
+] as const
+
+/** A journal type the importer handles, lowercased as the import endpoint takes it */
+export type FireflyJournalType = typeof FIREFLY_JOURNAL_TYPES[number]
+
+/**
+ * Whether a lowercased journal type is one the importer handles
+ */
+export function isFireflyJournalType(type: string): type is FireflyJournalType {
+  return (FIREFLY_JOURNAL_TYPES as readonly string[]).includes(type)
+}
 
 /**
  * Seeded system category the no-category placeholder matches to, since

@@ -16,10 +16,10 @@ import {
   FIREFLY_TYPE_DEPOSIT,
   FIREFLY_TYPE_OPENING_BALANCE,
   FIREFLY_TYPE_RECONCILIATION,
-  FIREFLY_TYPE_TRANSFER,
   FIREFLY_TYPE_WITHDRAWAL,
   FIREFLY_WITHDRAWAL_SOURCE_UNTRACKED_REASON,
   getFireflyUnsupportedTypeReason,
+  isFireflyJournalType,
 } from '@/pages/imports/firefly/constants'
 import type { FireflyAccountSource, FireflyAccountSources } from '@/pages/imports/firefly/types'
 import { getFireflyRowAmounts } from './derivation'
@@ -141,6 +141,13 @@ export function getFireflyCategoryUsedByResolution(
  */
 function buildFireflyRowLegs(row: CsvRow, options: FireflyRowResolutionOptions): FireflyResolvedLeg[] {
   const journalType = row.type?.trim().toLowerCase() ?? ''
+
+  // A type the importer does not know is refused before any account is resolved, since the
+  // transfer rule below would otherwise write it as a transfer between two imported accounts
+  if (!isFireflyJournalType(journalType)) {
+    throw new FireflyRowSkipError(getFireflyUnsupportedTypeReason(row.type?.trim() ?? ''))
+  }
+
   const sourceAccountSource = options.accountSources.find(row.source_name, row.source_type)
   const destinationAccountSource = options.accountSources.find(row.destination_name, row.destination_type)
   const source = resolveFireflyMappedAccount(sourceAccountSource, options)
@@ -219,11 +226,7 @@ function buildFireflyRowLegs(row: CsvRow, options: FireflyRowResolutionOptions):
     }]
   }
 
-  if (journalType === FIREFLY_TYPE_TRANSFER) {
-    throw new FireflyRowSkipError(FIREFLY_TRANSFER_ENDPOINT_UNTRACKED_REASON)
-  }
-
-  throw new FireflyRowSkipError(getFireflyUnsupportedTypeReason(row.type?.trim() ?? ''))
+  throw new FireflyRowSkipError(FIREFLY_TRANSFER_ENDPOINT_UNTRACKED_REASON)
 }
 
 /**

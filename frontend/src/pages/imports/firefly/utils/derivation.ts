@@ -25,6 +25,7 @@ import {
   FIREFLY_WITHDRAWAL_SOURCE_UNTRACKED_REASON,
   getFireflySplitTitleLine,
   getFireflyUnsupportedTypeReason,
+  isFireflyJournalType,
 } from '@/pages/imports/firefly/constants'
 import type { FireflyAccountPrefill, FireflyAccountSource, FireflyAccountSources } from '@/pages/imports/firefly/types'
 import { parseYmd } from '@/utils/date'
@@ -138,6 +139,10 @@ export function getFireflyRowShapeSkipReason(row: CsvRow): string | null {
   const isSourceTracked = isFireflyTrackedEndpoint(row.source_name, row.source_type)
   const isDestinationTracked = isFireflyTrackedEndpoint(row.destination_name, row.destination_type)
 
+  // A type the importer does not know is refused before the transfer rule below, which would
+  // otherwise write it as a transfer whenever both of its endpoints are imported accounts
+  if (!isFireflyJournalType(journalType)) return getFireflyUnsupportedTypeReason(row.type?.trim() ?? '')
+
   if (journalType === FIREFLY_TYPE_OPENING_BALANCE || journalType === FIREFLY_TYPE_RECONCILIATION) {
     return isSourceTracked || isDestinationTracked ? null : FIREFLY_BALANCE_ROW_UNATTACHED_REASON
   }
@@ -145,8 +150,7 @@ export function getFireflyRowShapeSkipReason(row: CsvRow): string | null {
 
   if (journalType === FIREFLY_TYPE_WITHDRAWAL) return isSourceTracked ? null : FIREFLY_WITHDRAWAL_SOURCE_UNTRACKED_REASON
   if (journalType === FIREFLY_TYPE_DEPOSIT) return isDestinationTracked ? null : FIREFLY_DEPOSIT_DESTINATION_UNTRACKED_REASON
-  if (journalType === FIREFLY_TYPE_TRANSFER) return FIREFLY_TRANSFER_ENDPOINT_UNTRACKED_REASON
-  return getFireflyUnsupportedTypeReason(row.type?.trim() ?? '')
+  return FIREFLY_TRANSFER_ENDPOINT_UNTRACKED_REASON
 }
 
 /**
@@ -242,7 +246,6 @@ export function getFireflyRowOverLimitReason(row: CsvRow, groupSizes: FireflySpl
   const limits = FIREFLY_ROW_FIELD_MAX_LENGTHS
   const fields: [string, string | null | undefined, number][] = [
     ['journal id', row.journal_id, limits.journalId],
-    ['type', row.type, limits.type],
     ['amount', main?.amount, limits.amount],
     ['foreign amount', foreign?.amount, limits.amount],
     ['description', row.description, limits.description],

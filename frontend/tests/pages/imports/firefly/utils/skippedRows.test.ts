@@ -479,6 +479,28 @@ describe('forecastFireflyImport', () => {
     expect(skipped).toEqual([])
   })
 
+  // A pair of imported accounts is a transfer whatever its known type, which a type the importer
+  // does not know must not be guessed into
+  it('drops an unsupported journal type between two imported accounts rather than writing a transfer', () => {
+    const createDetails = { accountType: 'checking', currency: 'CAD', institutionId: '' }
+    const row = createFireflyRow({
+      type: 'Liability credit',
+      source_name: 'Chequing',
+      destination_name: 'Savings',
+      destination_type: 'Asset account',
+      category: '',
+    })
+    const options = createOptions({
+      accountMappings: { Chequing: CREATE_ACCOUNT_VALUE, Savings: CREATE_ACCOUNT_VALUE },
+      accountCreateDetails: { Chequing: createDetails, Savings: createDetails },
+    })
+
+    expect(forecastFireflyImport([row], options).skippedRows.map((skipped) => skipped.reason)).toEqual([
+      'Journal type "Liability credit" is not supported, the importer handles withdrawals, deposits, transfers, opening balances, and reconciliations',
+    ])
+    expect(isFireflyRowUploadable(row, new Map())).toBe(false)
+  })
+
   it('reports a withdrawal without an imported source account', () => {
     const { skippedRows: skipped } = forecastFireflyImport(
       [createFireflyRow({ source_name: 'Employer', source_type: 'Revenue account' })],
@@ -813,8 +835,6 @@ describe('Firefly rows past what the import endpoint takes', () => {
   // longer value
   const cases: [string, string, number, (length: number) => Partial<CsvRow>][] = [
     ['journal id', 'journal id', 64, (length) => ({ journal_id: '1'.repeat(length) })],
-    // A type the importer does not know is skipped unless both ends are imported accounts
-    ['type', 'type', 64, (length) => ({ type: 'W'.repeat(length), destination_name: 'Savings', destination_type: 'Asset account' })],
     ['amount', 'amount', 64, (length) => ({ amount: `-${'1'.repeat(length - 4)}.00` })],
     ['foreign amount', 'foreign amount', 64, (length) => ({ foreign_amount: `-${'1'.repeat(length - 4)}.00`, foreign_currency_code: 'USD' })],
 
