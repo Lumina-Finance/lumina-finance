@@ -489,6 +489,13 @@ describe('forecastFireflyImport', () => {
     expect(skipped).toEqual([expect.objectContaining({ reason: 'Withdrawal source is not an imported account' })])
   })
 
+  it('neither skips nor counts a row whose account has no answer yet', () => {
+    const forecast = forecastFireflyImport([createFireflyRow()], createOptions({ accountMappings: {} }))
+
+    expect(forecast.skippedRows).toEqual([])
+    expect(forecast.transactionEstimate).toBe(0)
+  })
+
   it('reports a deposit without an imported destination account', () => {
     const { skippedRows: skipped } = forecastFireflyImport(
       [createFireflyRow({

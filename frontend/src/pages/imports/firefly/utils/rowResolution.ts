@@ -70,12 +70,13 @@ export interface FireflyResolvedLeg {
 }
 
 /**
- * Outcome of resolving one journal row, either the ledger legs the import
- * will create or the reason the import will skip the row
+ * Outcome of resolving one journal row: the ledger legs the import will create, the reason the
+ * import will skip the row, or neither while an account the row writes to has no answer yet
  */
 export type FireflyRowResolution =
   | { legs: FireflyResolvedLeg[]; skipReason: null }
   | { legs: null; skipReason: string }
+  | { legs: null; skipReason: null }
 
 /**
  * Internal signal that a row cannot be converted, mirroring the backend's
@@ -91,6 +92,11 @@ class FireflyRowSkipError extends Error {
 }
 
 /**
+ * Internal signal that a row writes to an imported account the user has not answered yet
+ */
+class FireflyAccountUnansweredError extends Error {}
+
+/**
  * Resolves one journal row into the ledger legs the import will create, or
  * the backend-worded reason the import will skip the row
  */
@@ -99,6 +105,9 @@ export function resolveFireflyRowLegs(row: CsvRow, options: FireflyRowResolution
     return { legs: buildFireflyRowLegs(row, options), skipReason: null }
   } catch (error) {
     if (error instanceof FireflyRowSkipError) return { legs: null, skipReason: error.reason }
+
+    // The import stays blocked until the account is answered, and the answer decides the outcome
+    if (error instanceof FireflyAccountUnansweredError) return { legs: null, skipReason: null }
 
     // A row failing in a way no skip rule anticipated must not break the
     // preview, so it is predicted as skipped with the same generic reason
@@ -219,7 +228,8 @@ function buildFireflyRowLegs(row: CsvRow, options: FireflyRowResolutionOptions):
 
 /**
  * Resolves a tracked journal endpoint to the ledger account the mapping
- * choices produce, or null when the endpoint is not an imported account
+ * choices produce, or null when the endpoint is not an imported account.
+ * Throws while the endpoint is an imported account with no answer yet
  */
 function resolveFireflyMappedAccount(
   accountSource: FireflyAccountSource | null,
@@ -228,6 +238,7 @@ function resolveFireflyMappedAccount(
   if (!accountSource) return null
 
   const choice = options.accountMappings[accountSource.id]
+  if (!choice) throw new FireflyAccountUnansweredError()
   if (choice === CREATE_ACCOUNT_VALUE) {
     const details = options.accountCreateDetails[accountSource.id]
     return {
@@ -238,7 +249,7 @@ function resolveFireflyMappedAccount(
     }
   }
 
-  const account = choice ? options.accountById.get(choice) : undefined
+  const account = options.accountById.get(choice)
   if (!account) return null
   return { id: account.id, name: account.name, currency: account.currency, institution: account.institution }
 }

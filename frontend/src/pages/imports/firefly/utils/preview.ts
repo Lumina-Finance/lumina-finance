@@ -36,7 +36,7 @@ export function buildFireflyPreviewRows(options: BuildFireflyPreviewRowsOptions)
     if (!isFireflyRowUploadable(row, groupSizes)) continue
 
     const resolution = resolveFireflyRowLegs(row, options)
-    if (resolution.skipReason !== null) continue
+    if (!resolution.legs) continue
 
     for (const [legIndex, leg] of resolution.legs.entries()) {
       if (previewRows.length >= options.limit) break

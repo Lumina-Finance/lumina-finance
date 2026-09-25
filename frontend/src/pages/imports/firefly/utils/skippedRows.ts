@@ -142,7 +142,7 @@ export function forecastFireflyImport(
     const resolution = resolveFireflyRowLegs(row, options)
     if (resolution.skipReason !== null) {
       skippedRows.push(buildFireflySkippedRowDetail(row, index, resolution.skipReason))
-    } else {
+    } else if (resolution.legs) {
       transactionEstimate += resolution.legs.length
 
       const category = getFireflyCategoryUsedByResolution(row, resolution.legs, options)
