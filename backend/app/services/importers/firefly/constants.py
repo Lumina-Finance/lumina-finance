@@ -1,9 +1,8 @@
 """Firefly III export vocabulary shared by the importer modules"""
 
-# Journal types as they appear in the Firefly III transactions export
+# Journal types as the import screen sends them, lowercased from the Firefly III export
 FIREFLY_TYPE_WITHDRAWAL = "withdrawal"
 FIREFLY_TYPE_DEPOSIT = "deposit"
-FIREFLY_TYPE_TRANSFER = "transfer"
 FIREFLY_TYPE_OPENING_BALANCE = "opening balance"
 FIREFLY_TYPE_RECONCILIATION = "reconciliation"
 

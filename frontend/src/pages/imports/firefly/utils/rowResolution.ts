@@ -296,7 +296,8 @@ function getFireflyAmountInAccountCurrency(row: CsvRow, accountCurrency: string,
 
   // The import writes the magnitude rather than the parsed value, and the signed range holds one
   // more value below zero than above it, so the smallest amount the parser accepts negates into
-  // one the column cannot take. The backend bounds its own result the same way
+  // one the column cannot take. Such a row is left out, since its unsigned amount would be past
+  // what the endpoint stores
   const absoluteMinorUnits = minorUnits < 0n ? -minorUnits : minorUnits
   if (absoluteMinorUnits > MAX_IMPORT_MINOR_UNITS) throw new FireflyRowSkipError(`Amount is too large: "${rawAmount}"`)
 

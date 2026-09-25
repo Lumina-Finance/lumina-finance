@@ -8,8 +8,9 @@ import type {
 /**
  * One Firefly III export journal row compiled by the frontend
  *
- * Amounts are trimmed decimal text without grouping separators so the backend can
- * validate precision against the account currency. Sign conventions are ignored server side
+ * Every value is in the one form the endpoint takes, which refuses any other: a lowercased type,
+ * amounts as magnitudes in plain decimal text so the backend can validate precision against the
+ * account currency, upper-case currency codes, and trimmed text with a missing value sent as null
  *
  * An endpoint the import writes to is named by its account mapping source and carries no name,
  * since Firefly III lets an asset account and a liability share one. Any other endpoint is named
@@ -55,7 +56,7 @@ export interface FireflyImportStageBatch extends FireflyTransactionImportPayload
  * One budget limit period with its inclusive dates
  *
  * Each period becomes a budget period with these exact dates. The amount
- * is trimmed decimal text without grouping separators so the backend can validate
+ * is a magnitude in plain decimal text so the backend can validate
  * precision against the budget currency
  */
 export interface FireflyBudgetImportLimit {

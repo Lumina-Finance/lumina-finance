@@ -340,6 +340,6 @@ def _build_leg_notes(row: FireflyTransactionRow) -> str | None:
         row: Firefly III journal row from the import payload
 
     Returns:
-        Description and notes joined on separate lines, or None when both are empty
+        Description and notes joined on separate lines, or None when both are null
     """
     return "\n".join(part for part in (row.description, row.notes) if part is not None) or None
