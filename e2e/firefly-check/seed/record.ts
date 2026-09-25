@@ -137,6 +137,13 @@ function buildAccounts(resources: FireflyResource<FireflyAccountAttributes>[], r
       for (const { endpoint } of importedEndpoints(rows)) {
         if (endpoint.name === attributes.name && endpoint.type === type) rowTotal += toMinorUnits(endpoint.amount ?? '0', currency)
       }
+
+      // The comparison takes Firefly III's balance as what its rows add up to. A release where the
+      // two part would make every balance difference Firefly III's own, so the manifest stops here
+      const balance = toMinorUnits(attributes.current_balance, currency)
+      if (rowTotal !== balance) {
+        throw new Error(`Firefly III reports ${attributes.name} (${type}) at ${formatMinorUnits(balance, currency)}, but its rows add up to ${formatMinorUnits(rowTotal, currency)}`)
+      }
       return {
         name: attributes.name,
         type,
@@ -144,7 +151,7 @@ function buildAccounts(resources: FireflyResource<FireflyAccountAttributes>[], r
         liabilityDirection: attributes.liability_direction,
         currency,
         active: attributes.active,
-        balance: formatMinorUnits(toMinorUnits(attributes.current_balance, currency), currency),
+        balance: formatMinorUnits(balance, currency),
         rowTotal: formatMinorUnits(rowTotal, currency),
       }
     })
