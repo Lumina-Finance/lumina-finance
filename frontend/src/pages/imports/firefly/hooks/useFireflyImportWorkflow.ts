@@ -30,7 +30,9 @@ import {
 } from '@/pages/imports/utils'
 import {
   FIREFLY_CSV_PROCESSING_MIN_MS,
+  FIREFLY_IMPORT_NOTHING_SAVED_NOTE,
   FIREFLY_IMPORT_OVERLAY_MIN_MS,
+  FIREFLY_IMPORT_SAVE_AGAIN_NOTE,
   FIREFLY_IMPORT_STAGES,
   FIREFLY_IMPORT_STAGE_CROSS_OFF_MS,
   FIREFLY_IMPORT_STAGE_MIN_MS,
@@ -545,7 +547,11 @@ export function useFireflyImportWorkflow() {
     [importResult],
   )
 
-  const importOverlayError = importError
+  // Only the overlay says what a failure left, read off the upload still kept, since closing it
+  // drops that upload and the preview beside the button then shows the reason alone
+  const importOverlayError = importError && importOverlayPhase === 'error'
+    ? describeFireflyImportFailure(importError, stagedRunId !== null)
+    : importError
   const importOverlayOpen = importOverlayPhase !== 'idle'
   const isImportInFlight = importFirefly.isPending || commitStagedFirefly.isPending
   const canCommitImport = Boolean(importBuild.payload)
@@ -865,3 +871,11 @@ export function useFireflyImportWorkflow() {
 }
 
 export type FireflyImportWorkflow = ReturnType<typeof useFireflyImportWorkflow>
+
+/**
+ * Says why an import failed and what that left behind: nothing, or an upload that can be saved again
+ */
+function describeFireflyImportFailure(reason: string, canSaveAgain: boolean) {
+  const sentence = /[.!?]$/.test(reason) ? reason : `${reason}.`
+  return `${sentence} ${canSaveAgain ? FIREFLY_IMPORT_SAVE_AGAIN_NOTE : FIREFLY_IMPORT_NOTHING_SAVED_NOTE}`
+}

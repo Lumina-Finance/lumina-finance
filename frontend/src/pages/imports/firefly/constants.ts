@@ -272,3 +272,9 @@ export const FIREFLY_IMPORT_STAGE_CROSS_OFF_MS = 750
  * for the rest of the request, so a selection too large to send is refused before anything uploads
  */
 export const FIREFLY_MAX_BUDGETS_REQUEST_BYTES = 9 * 1024 * 1024
+
+// Added after the reason a Firefly III import failed. An import the server refused, or one that failed
+// while uploading, wrote nothing. A save that failed for another reason may or may not have landed,
+// and saving it again answers either way
+export const FIREFLY_IMPORT_NOTHING_SAVED_NOTE = 'Nothing was added to your ledger.'
+export const FIREFLY_IMPORT_SAVE_AGAIN_NOTE = 'Your upload is kept, so you can try saving it again.'
