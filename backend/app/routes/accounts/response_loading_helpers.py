@@ -11,8 +11,8 @@ from app.models.base import PermissionLevel
 from app.models.user import User
 from app.permissions import check_account_access
 from app.permissions.accounts import attach_account_write_capabilities
-from app.routes.accounts.balance_adjustment_helpers import has_transactions_after
 from app.routes.accounts.balance_field_helpers import attach_account_balance_fields
+from app.services.accounts.balance_adjustments import has_transactions_after
 
 
 async def get_account_response_for_user(

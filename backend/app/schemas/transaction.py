@@ -3,7 +3,7 @@
 import enum
 import uuid
 from datetime import date, datetime
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
 
@@ -424,6 +424,10 @@ class TransactionImportRunRequest(BaseModel):
     """Open a run for a file about to be staged."""
 
     expected_transaction_count: int = Field(gt=0, le=MAX_IMPORT_ROWS)
+
+    # Which importer's rows the run stages, so each importer's commit reads only its own. Actual
+    # Budget runs are held for that importer, which has no rows of its own yet
+    source: Literal["generic", "firefly"] = "generic"
 
 
 class TransactionImportRunResponse(BaseModel):

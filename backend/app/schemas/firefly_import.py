@@ -73,6 +73,22 @@ class FireflyTransactionImportRequest(BaseModel):
     rows: list[FireflyTransactionRow] = Field(min_length=1, max_length=MAX_IMPORT_BATCH_ROWS)
 
 
+class FireflyImportStageRequest(BaseModel):
+    """One batch of a staged Firefly III export: the mappings its rows reference, and the rows
+
+    A batch declares only the mappings its own rows need. Category mappings may be empty, since a
+    batch of transfers and opening balances reads no category
+    """
+
+    accounts: list[TransactionImportAccountMapping] = Field(min_length=1, max_length=MAX_IMPORT_MAPPINGS)
+    categories: list[TransactionImportCategoryMapping] = Field(default=[], max_length=MAX_IMPORT_MAPPINGS)
+    rows: list[FireflyTransactionRow] = Field(min_length=1, max_length=MAX_IMPORT_BATCH_ROWS)
+
+    # Where this batch starts in the export, so a batch sent twice stages the same positions and
+    # the second copy is absorbed
+    start_row_index: int = Field(ge=0)
+
+
 class FireflyBudgetLimit(BaseModel):
     """One limit period from the Firefly III budgets export
 
@@ -175,6 +191,38 @@ class FireflyTransactionImportResponse(BaseModel):
     merchants_reused: int
     tags_created: int
     tags_reused: int
+    affected_account_ids: list[uuid.UUID]
+    account_source_ids: dict[str, uuid.UUID]
+    category_source_ids: dict[str, uuid.UUID]
+    created_account_ids: list[uuid.UUID]
+    created_category_ids: list[uuid.UUID]
+    created_merchant_ids: list[uuid.UUID]
+    created_tag_ids: list[uuid.UUID]
+
+
+class FireflyImportRunResponse(BaseModel):
+    """Summary of everything a Firefly III import run wrote in its one commit
+
+    A run never skips a row, since a row it cannot write fails the whole commit. Transfers between
+    two imported accounts produce two Lumina transactions from one journal row, so
+    transactions_created can exceed rows_imported. Archiving an account with money left in it adds
+    one balance adjustment, which transactions_created does not count
+    """
+
+    rows_imported: int
+    transactions_created: int
+    accounts_created: int
+    accounts_reused: int
+    categories_created: int
+    categories_reused: int
+    merchants_created: int
+    merchants_reused: int
+    tags_created: int
+    tags_reused: int
+    budgets_created: int
+    budgets: list[FireflyBudgetImportResult]
+    accounts_archived: int
+    archive_adjustments_created: int
     affected_account_ids: list[uuid.UUID]
     account_source_ids: dict[str, uuid.UUID]
     category_source_ids: dict[str, uuid.UUID]

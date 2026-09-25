@@ -11,8 +11,8 @@ from app.schemas.transaction import (
     MAX_IMPORT_TAG_NAME_LENGTH,
     MAX_IMPORT_TAGS_PER_ROW,
 )
-from app.services.importers.generic import run_locking
-from app.services.importers.generic.run_locking import load_locked_run
+from app.services.importers.shared import run_locking
+from app.services.importers.shared.run_locking import load_locked_run
 from app.services.merchants.defaults import (
     SELF_MERCHANT_NAME,
     UNKNOWN_MERCHANT_NAME,

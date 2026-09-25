@@ -10,14 +10,14 @@ from app.models.account import Account
 from app.models.base import PermissionLevel
 from app.models.user import User
 from app.permissions import check_account_access
-from app.routes.accounts.balance_adjustment_helpers import (
-    validate_no_transactions_after_archive_date,
-    zero_account_balance_for_archive,
-)
 from app.routes.accounts.request_validation_helpers import validate_update_account_request
 from app.routes.accounts.response_loading_helpers import get_account_for_response
 from app.routes.accounts.tax_advantaged_category_link_helpers import validate_update_account_tax_advantaged_category_link
 from app.schemas.account import UpdateAccountRequest
+from app.services.accounts.balance_adjustments import (
+    validate_no_transactions_after_archive_date,
+    zero_account_balance_for_archive,
+)
 from app.services.cache_state import mark_cache_changed_for_scope
 
 

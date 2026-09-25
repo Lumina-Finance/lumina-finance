@@ -54,12 +54,7 @@ async def import_firefly_budgets(
     user: User,
     data: FireflyBudgetImportRequest,
 ) -> FireflyBudgetImportResponse:
-    """Create budgets from a Firefly III export with their limit history
-
-    Each limit period becomes one budget period carrying its exported dates
-    and amount. The frontend reads the base budget's cadence off the latest
-    limit period, and it is stored only when that period is exactly one period
-    of it, so the budget continues on the shape it was last run at
+    """Create budgets from a Firefly III export in one commit, so a failing budget leaves none behind
 
     Args:
         db: Active database session
@@ -73,13 +68,45 @@ async def import_firefly_budgets(
         HTTPException: Raised with 422 when a currency, category, limit
             amount, limit period, or cadence is invalid, naming the budget
     """
-    currency_codes = {budget.currency.upper() for budget in data.budgets}
+    results = await write_firefly_budgets(db, user, data.budgets)
+    await db.commit()
+    return FireflyBudgetImportResponse(budgets_created=len(results), results=results)
+
+
+async def write_firefly_budgets(
+    db: AsyncSession,
+    user: User,
+    budgets: list[FireflyBudgetImport],
+) -> list[FireflyBudgetImportResult]:
+    """Create budgets from a Firefly III export with their limit history, without committing
+
+    Each limit period becomes one budget period carrying its exported dates
+    and amount. The frontend reads the base budget's cadence off the latest
+    limit period, and it is stored only when that period is exactly one period
+    of it, so the budget continues on the shape it was last run at
+
+    Args:
+        db: Active database session
+        user: Authenticated user running the import
+        budgets: Budgets derived from the export by the frontend
+
+    Returns:
+        The created budgets with the periods materialized for each
+
+    Raises:
+        HTTPException: Raised with 422 when a currency, category, limit
+            amount, limit period, or cadence is invalid, naming the budget
+    """
+    if not budgets:
+        return []
+
+    currency_codes = {budget.currency.upper() for budget in budgets}
     currency_rows = await db.execute(select(Currency).where(Currency.id.in_(currency_codes)))
     currencies_by_code = {currency.id: currency for currency in currency_rows.scalars().all()}
 
     # Currencies are checked for every budget before any other check, and each error names its
     # budget so the frontend can show it on the one it concerns
-    for budget in data.budgets:
+    for budget in budgets:
         if budget.currency.upper() not in currencies_by_code:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -88,7 +115,7 @@ async def import_firefly_budgets(
 
     requested_category_ids = {
         category_id
-        for budget in data.budgets
+        for budget in budgets
         for category_id in budget.category_ids
     }
     allowed_category_ids: set[uuid.UUID] = set()
@@ -102,7 +129,7 @@ async def import_firefly_budgets(
         ))
 
     prepared_budgets: list[_PreparedBudget] = []
-    for budget in data.budgets:
+    for budget in budgets:
         prepared_budgets.append(_prepare_imported_budget(
             user,
             budget,
@@ -144,12 +171,9 @@ async def import_firefly_budgets(
         db.add_all(pending_children)
 
     await mark_cache_changed_for_scope(db, user_id=user.id, group_id=None)
+    await db.flush()
 
-    # One commit keeps the whole batch atomic, so a failing budget never
-    # leaves a partial import behind
-    await db.commit()
-
-    results = [
+    return [
         FireflyBudgetImportResult(
             name=prepared.base_budget.name,
             base_budget_id=prepared.base_budget.id,
@@ -157,7 +181,6 @@ async def import_firefly_budgets(
         )
         for prepared in prepared_budgets
     ]
-    return FireflyBudgetImportResponse(budgets_created=len(results), results=results)
 
 
 def _prepare_imported_budget(
