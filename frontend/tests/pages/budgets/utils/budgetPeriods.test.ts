@@ -89,12 +89,16 @@ describe('budget period helpers', () => {
     })
   })
 
-  it('summarizes one-off and recurring form cadence', () => {
-    expect(oneOffPeriodEnd(createForm({ recurs: false, recurrenceFreq: 'monthly' }))).toEqual({
-      year: 2026,
-      month: 6,
-      day: 30,
+  it('anchors a weekly budget starting on a Sunday to the last day of the week', () => {
+    expect(recurrenceAnchorsFromStart('weekly', '2026-06-21')).toEqual({
+      recurrence_weekday: 6,
+      recurrence_dom: null,
+      recurrence_month: null,
     })
+  })
+
+  it('summarizes one-off and recurring form cadence', () => {
+    expect(oneOffPeriodEnd(createForm({ recurs: false, recurrenceFreq: 'monthly' }))).toEqual(new Date(2026, 5, 30))
     expect(cadenceSummary(createForm({ name: '  ', recurs: false }))).toBe('"Untitled" is one-off starting Jun 1, 2026 and ending Jun 30, 2026')
     expect(cadenceSummary(createForm({ recurrenceFreq: 'weekly', instanceLength: '2' }))).toBe('"Groceries" will repeat every 2 weeks starting Jun 1, 2026')
   })
@@ -168,6 +172,12 @@ describe('budget period helpers', () => {
 
     expect(nextRecurringPeriodStart(baseBudget, '2026-01-30')).toBe('2026-02-28')
     expect(nextRecurringPeriodStart(baseBudget, '2026-02-28')).toBe('2026-03-30')
+  })
+
+  it('ends a one-off yearly budget from a leap day the day before its clamped anniversary', () => {
+    const form = createForm({ recurs: false, recurrenceFreq: 'yearly', periodStart: '2028-02-29' })
+
+    expect(oneOffPeriodEnd(form)).toEqual(new Date(2029, 1, 27))
   })
 
   it('re-anchors to recurrence_dom for a dom-29 monthly budget across a leap year', () => {
