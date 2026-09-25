@@ -112,7 +112,7 @@ export function useFireflyImportWorkflow() {
   } = useImportAccountCreateState(setAccountMappings, getFireflyAccountSourceScope)
   const [categoryMappings, setCategoryMappings] = useState<Record<string, string>>({})
   const [categoryCreateKinds, setCategoryCreateKinds] = useState<Record<string, ImportCategoryKind>>({})
-  const [importError, setImportError] = useState<string | null>(null)
+  const [importFailure, setImportFailure] = useState<{ message: string; answers: object } | null>(null)
   const [completedImport, setCompletedImport] = useState<FireflyCompletedImportContext | null>(null)
   const importResult = completedImport?.result ?? null
   const [importOverlayPhase, setImportOverlayPhaseState] = useState<ImportOverlayPhase>('idle')
@@ -122,6 +122,33 @@ export function useFireflyImportWorkflow() {
   const importOverlayPhaseRef = useRef<ImportOverlayPhase>('idle')
   const [importStageState, setImportStageState] = useState<FireflyImportStageState | null>(null)
   const [selectedBudgetNames, setSelectedBudgetNames] = useState<Set<string> | null>(null)
+
+  // Every answer the user gives about the import, as one value that changes only when one of them does
+  const importAnswers = useMemo(
+    () => ({
+      budgetsFile,
+      accountMappings,
+      accountCreateTypes,
+      accountCreateCurrencies,
+      accountCreateInstitutions,
+      categoryMappings,
+      categoryCreateKinds,
+      selectedBudgetNames,
+    }),
+    [
+      accountCreateCurrencies,
+      accountCreateInstitutions,
+      accountCreateTypes,
+      accountMappings,
+      budgetsFile,
+      categoryCreateKinds,
+      categoryMappings,
+      selectedBudgetNames,
+    ],
+  )
+
+  // A failure is about the answers the import was sent with, so it stops showing once one changes
+  const importError = importFailure?.answers === importAnswers ? importFailure.message : null
 
   // An import whose save stopped for a reason saving again could clear leaves its upload staged,
   // and this is what the second attempt runs against. Held in a ref as well, since the overlay
@@ -596,7 +623,7 @@ export function useFireflyImportWorkflow() {
     if (stagedRunIdRef.current) void discardStagedRun(stagedRunIdRef.current)
     setStagedRun(null)
     setCanStopImport(false)
-    setImportError(null)
+    setImportFailure(null)
     setCompletedImport(null)
     setImportOverlayPhase('idle')
     setImportStageState(null)
@@ -681,7 +708,7 @@ export function useFireflyImportWorkflow() {
     const controller = new AbortController()
     importAbortRef.current = controller
 
-    setImportError(null)
+    setImportFailure(null)
     setCompletedImport(null)
     setStagedRun(null)
     setCanStopImport(firstStage === 'uploading')
@@ -712,7 +739,7 @@ export function useFireflyImportWorkflow() {
       if (failure.discardableRunId) void discardStagedRun(failure.discardableRunId)
       stagedSkippedRowsRef.current = skippedRowsAtCommit
       setStagedRun(failure.retryableRunId)
-      setImportError(failure.message)
+      setImportFailure({ message: failure.message, answers: importAnswers })
       setImportOverlayPhase(controller.signal.aborted ? 'cancelled' : 'error')
     } finally {
       if (importAbortRef.current === controller) importAbortRef.current = null
