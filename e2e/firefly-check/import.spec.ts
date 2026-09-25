@@ -51,9 +51,11 @@ test('a Firefly III export imports to the balances, totals and budgets Firefly I
   await expect(commit).toBeEnabled()
   await commit.click()
   const progress = page.getByRole('dialog', { name: 'Import progress' })
-  // A failed or stopped import ends the wait too, and fails with what the dialog says
+  // A failed or stopped import ends the wait too, and fails with what the dialog says. The import
+  // is most of the test, so only the test's own timeout bounds the wait, not the minute an
+  // expectation gets
   const outcome = progress.getByText(/^Import (complete|failed|stopped)$/)
-  await expect(outcome).toBeVisible()
+  await expect(outcome).toBeVisible({ timeout: 0 })
   if (await outcome.textContent() !== 'Import complete') throw new Error(`The import did not complete: ${await progress.innerText()}`)
 
   // Read before Done, which leaves the import screen. Either title is absent when nothing was skipped
