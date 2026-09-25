@@ -37,7 +37,6 @@ import { CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
 import { findReusedImportCategory, getCategoryNameKey } from '@/pages/imports/utils/categoryMatching'
 import {
   countCharacters,
-  getFireflyRowDate,
   getFireflySplitGroupSizes,
   isFireflyCategoryUseRow,
   isFireflyRowUploadable,
@@ -55,7 +54,6 @@ const MAX_MONTH_ANCHOR_DAY = 31
  * How transactions in the export reference one budget name
  */
 interface FireflyBudgetUsage {
-  earliestDate: string
   categoryNames: Set<string>
 }
 
@@ -143,9 +141,7 @@ export function buildFireflyBudgetDrafts({
     // cannot vote on a budget's tracked categories
     if (!isFireflyRowUploadable(row, groupSizes)) continue
 
-    const rowDate = getFireflyRowDate(row.date ?? '')
-    const usage = usageByName.get(budgetName) ?? { earliestDate: '', categoryNames: new Set<string>() }
-    if (rowDate && (!usage.earliestDate || rowDate < usage.earliestDate)) usage.earliestDate = rowDate
+    const usage = usageByName.get(budgetName) ?? { categoryNames: new Set<string>() }
 
     // Only a row written with its category is counted in that category, so a transfer or balance
     // row carrying the budget adds none, and a budget with only those tracks nothing
@@ -427,7 +423,7 @@ function buildBudgetDraft(
   const recurrence = latest ? getFireflyBudgetRecurrence(latest) : null
   const repeatsUnsupported = repeatsOnUnsupportedCadence(limits)
 
-  const disabledReason = !usage || !usage.earliestDate
+  const disabledReason = !usage
     ? FIREFLY_BUDGET_NO_TRANSACTIONS_REASON
     : schedule.hasUnreadableDates
       ? FIREFLY_BUDGET_UNREADABLE_DATES_REASON
