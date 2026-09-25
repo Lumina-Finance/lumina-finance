@@ -40,6 +40,14 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7
 
+      # Signed in before the version is chosen, so looking up Firefly III's images counts against
+      # the account's pull limit rather than the runner's shared anonymous one
+      - name: Set up Docker build
+        uses: ./.github/actions/docker-build-setup
+        with:
+          registry-username: ${{ vars.DOCKERHUB_USERNAME }}
+          registry-token: ${{ secrets.DOCKERHUB_TOKEN }}
+
       # A release can be tagged before its image is pushed, so the newest release with an image
       # is checked and the summary says when that is not the newest release
       - name: Choose the Firefly III version
@@ -60,21 +68,22 @@ jobs:
           fi
           newest=$(printf '%s\n' "${candidates}" | head -n 1)
           while IFS= read -r version; do
-            if docker manifest inspect "fireflyiii/core:version-${version}" >/dev/null 2>&1; then
+            if lookup=$(docker manifest inspect "fireflyiii/core:version-${version}" 2>&1 >/dev/null); then
               echo "version=${version}" >> "${GITHUB_OUTPUT}"
               echo "newest=${newest}" >> "${GITHUB_OUTPUT}"
               exit 0
+            fi
+
+            # Only a missing tag means the image is not out yet. Any other failure, such as a rate
+            # limit, stops the run rather than quietly checking an older release
+            if ! grep -qiE 'no such manifest|manifest unknown' <<< "${lookup}"; then
+              echo "Could not look up the Firefly III ${version} image: ${lookup}"
+              exit 1
             fi
             echo "No image for Firefly III ${version} yet"
           done <<< "${candidates}"
           echo "No Firefly III image found for ${candidates}"
           exit 1
-
-      - name: Set up Docker build
-        uses: ./.github/actions/docker-build-setup
-        with:
-          registry-username: ${{ vars.DOCKERHUB_USERNAME }}
-          registry-token: ${{ secrets.DOCKERHUB_TOKEN }}
 
       # One architecture is enough here: the check is about Firefly III's export, not the image
       - name: Build image
