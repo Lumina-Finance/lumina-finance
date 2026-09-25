@@ -127,11 +127,17 @@ interface ParsedCsv {
  * @param requireDataRows - Whether a file carrying headings with nothing under them is refused. The
  * transaction flow has nothing to import from one, while a budgets export from another tool with no
  * budgets in it is an ordinary thing to have
+ * @param unescapeCell - Undoes the exporting tool's own escaping of a cell. It runs on every cell,
+ * headings included, before the cell is trimmed and before the reader weighs delimiters, detects
+ * headings or checks anything else, and it sees line endings already rewritten as newlines
  */
 export async function readCsvFile(
   file: File,
   supportedCurrencyCodes: Set<string>,
-  { requireDataRows }: { requireDataRows: boolean },
+  {
+    requireDataRows,
+    unescapeCell = (value) => value,
+  }: { requireDataRows: boolean; unescapeCell?: (value: string) => string },
 ): Promise<ImportFileDraft> {
   const staged = { id: createFileId(file), name: file.name, size: file.size }
   const refuse = (error: string): ImportFileDraft => ({
@@ -155,7 +161,7 @@ export async function readCsvFile(
     // a null, rather than to the replacement character, so the count alone would let it through
     if (replacementCount > replacementLimit || text.includes(NULL_CHARACTER)) return refuse(UNREADABLE_TEXT_ERROR)
 
-    const parsed = await parseCsvText(text, supportedCurrencyCodes, requireDataRows)
+    const parsed = await parseCsvText(text, supportedCurrencyCodes, requireDataRows, unescapeCell)
     if (parsed.error) return refuse(parsed.error)
 
     const draft: ImportFileDraft = {
@@ -184,9 +190,12 @@ async function parseCsvText(
   text: string,
   supportedCurrencyCodes: Set<string>,
   requireDataRows: boolean,
+  unescapeCell: (value: string) => string,
 ): Promise<ParsedCsv> {
   // Pull the CSV parser on demand so papaparse only ships with the import flow
   const { parse } = await import('papaparse')
+
+  const transform = (value: unknown) => unescapeCell(String(value ?? '')).trim()
 
   const normalizedText = normalizeLineEndings(text)
   let result = parse<string[]>(normalizedText, {
@@ -198,7 +207,7 @@ async function parseCsvText(
     // common one, and every line ending the other way is then read as part of the cell before it,
     // which merges two transactions into a single row and reports nothing
     newline: '\n',
-    transform: (value) => String(value ?? '').trim(),
+    transform,
   })
 
   // A headerless file with decimal-comma amounts can give the guesser the same number of commas and
@@ -214,7 +223,7 @@ async function parseCsvText(
       header: false,
       skipEmptyLines: 'greedy',
       newline: '\n',
-      transform: (value) => String(value ?? '').trim(),
+      transform,
     })
 
     const isMalformed = candidate.errors.some((error) => error.code === FATAL_PARSE_ERROR_CODE)
