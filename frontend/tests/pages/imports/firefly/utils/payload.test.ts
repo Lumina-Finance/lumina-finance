@@ -168,6 +168,28 @@ describe('a Firefly export with no uploadable rows', () => {
   })
 })
 
+describe('Firefly sources used only by skipped rows', () => {
+  it('are left out of the sources the uploaded rows write to', () => {
+    const walletRow = { ...ROW, journal_id: '2', source_name: 'Wallet', category: 'Travel' }
+    const result = buildFireflyImportPayload({
+      transactionsFile: TRANSACTIONS_FILE,
+      skippedRows: new Set([walletRow]),
+      rows: [ROW, walletRow],
+      accountSources: createNameKeyedAccountSources(['Chequing', 'Wallet']),
+      accountMappings: { Chequing: CREATE_ACCOUNT_VALUE, Wallet: CREATE_ACCOUNT_VALUE },
+      accountById: new Map(),
+      accountCreateDetails: {},
+      importedCategories: ['Groceries', 'Travel'],
+      categoryMappings: { Groceries: CREATE_CATEGORY_VALUE, Travel: CREATE_CATEGORY_VALUE },
+      categoryCreateKinds: {},
+      categoryById: new Map(),
+    })
+
+    expect([...result.writtenSources.accounts]).toEqual(['Chequing'])
+    expect([...result.writtenSources.categories]).toEqual(['Groceries'])
+  })
+})
+
 describe('Firefly account mapping completeness', () => {
   const rows = [
     { ...ROW, journal_id: '1', source_name: 'Everyday Chequing' },

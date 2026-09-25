@@ -1,8 +1,9 @@
 import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
-import type {
-  FireflyImportRunResponse,
-  FireflyTransactionImportPayload,
+import {
+  FIREFLY_NO_CATEGORY_SOURCE,
+  type FireflyImportRunResponse,
+  type FireflyTransactionImportPayload,
 } from '@/api/firefly-imports'
 import {
   CREATE_ACCOUNT_VALUE,
@@ -197,11 +198,11 @@ export function buildFireflyImportPayload({
     })
   }
 
-  const payloadRows = buildFireflyImportRows(rows, skippedRows, accountSources)
+  const { rows: payloadRows, writtenSources } = buildFireflyImportRows(rows, skippedRows, accountSources)
   if (payloadRows.length === 0) addError(getImportNoRowsError('export'))
 
-  if (errors.length > 0) return { errors, payload: null }
-  return { errors: [], payload: { accounts, categories, rows: payloadRows } }
+  if (errors.length > 0) return { errors, payload: null, writtenSources }
+  return { errors: [], payload: { accounts, categories, rows: payloadRows }, writtenSources }
 }
 
 /**
@@ -216,8 +217,9 @@ function buildFireflyImportRows(
   rows: CsvRow[],
   skippedRows: ReadonlySet<CsvRow>,
   accountSources: FireflyAccountSources,
-): FireflyTransactionImportPayload['rows'] {
+): Pick<FireflyImportBuildResult, 'writtenSources'> & { rows: FireflyTransactionImportPayload['rows'] } {
   const payloadRows: FireflyTransactionImportPayload['rows'] = []
+  const writtenSources = { accounts: new Set<string>(), categories: new Set<string>() }
 
   // Read over every row, skipped ones included, since a split's notes name the whole group
   const groupSizes = getFireflySplitGroupSizes(rows)
@@ -233,6 +235,13 @@ function buildFireflyImportRows(
     // Only the payee a withdrawal pays or a deposit comes from is written, as the merchant
     const payeeName = getFireflyRowPayeeName(row) || null
     const isDeposit = row.type.trim().toLowerCase() === FIREFLY_TYPE_DEPOSIT
+    const category = isFireflyPayeeRow(row) ? cleanOptional(row.category) : null
+
+    if (sourceAccount) writtenSources.accounts.add(sourceAccount.id)
+    if (destinationAccount) writtenSources.accounts.add(destinationAccount.id)
+
+    // The commit files a payee row without a category under the no-category source
+    if (isFireflyPayeeRow(row)) writtenSources.categories.add(category ?? FIREFLY_NO_CATEGORY_SOURCE)
 
     payloadRows.push({
       journal_id: row.journal_id.trim(),
@@ -247,13 +256,13 @@ function buildFireflyImportRows(
       source_name: isDeposit ? payeeName : null,
       destination_account: destinationAccount?.id ?? null,
       destination_name: isDeposit ? null : payeeName,
-      category: isFireflyPayeeRow(row) ? cleanOptional(row.category) : null,
+      category,
       tag_names: splitFireflyTags(row.tags ?? ''),
       notes: getFireflyRowSentNotes(row, groupSizes),
     })
   }
 
-  return payloadRows
+  return { rows: payloadRows, writtenSources }
 }
 
 function getFireflyCategoryCreateClashError(firstSource: string, secondSource: string) {

@@ -405,16 +405,6 @@ export function useFireflyImportWorkflow() {
   const predictedSkippedRows = importForecast.skippedRows
   const predictedRowWarnings = importForecast.rowWarnings
 
-  const newAccountCount = useMemo(
-    () => trackedAccounts.filter((source) => resolvedAccountMappings[source.id] === CREATE_ACCOUNT_VALUE).length,
-    [resolvedAccountMappings, trackedAccounts],
-  )
-
-  const newCategoryCount = useMemo(
-    () => importedCategories.filter((source) => resolvedCategoryMappings[source] === CREATE_CATEGORY_VALUE).length,
-    [importedCategories, resolvedCategoryMappings],
-  )
-
   // The server refuses a row it cannot write rather than skipping it, so every row the forecast
   // predicts as skipped is left out of the upload
   const forecastSkippedRows = useMemo(
@@ -449,6 +439,22 @@ export function useFireflyImportWorkflow() {
       resolvedCategoryMappings,
       transactionsFile,
     ],
+  )
+
+  // A source answered create is counted only while an uploaded row uses it, since the commit
+  // creates nothing for a source whose rows are all skipped
+  const newAccountCount = useMemo(
+    () => trackedAccounts.filter((source) => (
+      resolvedAccountMappings[source.id] === CREATE_ACCOUNT_VALUE && importBuild.writtenSources.accounts.has(source.id)
+    )).length,
+    [importBuild, resolvedAccountMappings, trackedAccounts],
+  )
+
+  const newCategoryCount = useMemo(
+    () => importedCategories.filter((source) => (
+      resolvedCategoryMappings[source] === CREATE_CATEGORY_VALUE && importBuild.writtenSources.categories.has(source)
+    )).length,
+    [importBuild, importedCategories, resolvedCategoryMappings],
   )
 
   // Drafts derive from the staged files and the category matching so the

@@ -51,6 +51,12 @@ export interface FireflyImportEstimate {
 export interface FireflyImportBuildResult {
   errors: string[]
   payload: FireflyTransactionImportPayload | null
+
+  /**
+   * Account and category sources the uploaded rows use, kept even when errors block the payload.
+   * A source only skipped rows use is sent with no row, so the commit creates nothing for it
+   */
+  writtenSources: { accounts: ReadonlySet<string>; categories: ReadonlySet<string> }
 }
 
 /**
