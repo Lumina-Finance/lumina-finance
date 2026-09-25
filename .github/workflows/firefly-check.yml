@@ -1,0 +1,203 @@
+name: Firefly III import check
+
+# Imports a freshly seeded Firefly III export through the real import screen each week, so a
+# Firefly III release that changes its export format shows up here before a person moving over
+# runs into it
+on:
+  schedule:
+    # Mondays at 05:00 in Toronto during standard time, 06:00 during daylight time
+    - cron: "0 10 * * 1"
+  workflow_dispatch:
+    inputs:
+      firefly_version:
+        description: Firefly III version to check, such as 6.7.3. Empty checks the latest release
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+env:
+  # Must match the Compose app image when APP_IMAGE_TAG is ci
+  IMAGE_REF: luminahq/lumina-finance:ci
+
+jobs:
+  check:
+    name: Firefly III import check
+    runs-on: ubuntu-latest
+    # The build, the seed and the ten-minute import, with room to spare
+    timeout-minutes: 45
+
+    env:
+      APP_IMAGE_TAG: ci
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: lumina
+      DB_USER: lumina
+      DB_PASSWORD: lumina-smoke
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      # A release can be tagged before its image is pushed, so the newest release with an image
+      # is checked and the summary says when that is not the newest release
+      - name: Choose the Firefly III version
+        id: firefly
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUESTED: ${{ inputs.firefly_version }}
+        run: |
+          if [ -n "${REQUESTED}" ]; then
+            if ! [[ "${REQUESTED}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "firefly_version must look like 6.7.3, got '${REQUESTED}'"
+              exit 1
+            fi
+            candidates="${REQUESTED}"
+          else
+            candidates=$(gh api 'repos/firefly-iii/firefly-iii/releases?per_page=10' \
+              --jq '.[] | select(.prerelease == false and .draft == false) | .tag_name | ltrimstr("v")')
+          fi
+          newest=$(printf '%s\n' "${candidates}" | head -n 1)
+          while IFS= read -r version; do
+            if docker manifest inspect "fireflyiii/core:version-${version}" >/dev/null 2>&1; then
+              echo "version=${version}" >> "${GITHUB_OUTPUT}"
+              echo "newest=${newest}" >> "${GITHUB_OUTPUT}"
+              exit 0
+            fi
+            echo "No image for Firefly III ${version} yet"
+          done <<< "${candidates}"
+          echo "No Firefly III image found for ${candidates}"
+          exit 1
+
+      - name: Set up Docker build
+        uses: ./.github/actions/docker-build-setup
+        with:
+          registry-username: ${{ vars.DOCKERHUB_USERNAME }}
+          registry-token: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # One architecture is enough here: the check is about Firefly III's export, not the image
+      - name: Build image
+        uses: docker/build-push-action@v7
+        env:
+          DOCKER_BUILD_RECORD_UPLOAD: false
+        with:
+          context: .
+          file: ./docker/Dockerfile
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: ${{ env.IMAGE_REF }}
+          build-args: |
+            APP_VERSION=ci
+
+      - name: Write the operator env file
+        run: |
+          cat > docker/.env <<EOF
+          DB_HOST=${DB_HOST}
+          DB_PORT=${DB_PORT}
+          DB_NAME=${DB_NAME}
+          DB_USER=${DB_USER}
+          DB_PASSWORD=${DB_PASSWORD}
+          EOF
+
+      - name: Start the stack
+        run: docker compose -f docker/compose.yml up -d
+
+      - name: Seed Firefly III and export it
+        working-directory: e2e/firefly-check
+        env:
+          FIREFLY_VERSION: version-${{ steps.firefly.outputs.version }}
+        run: ./seed.sh
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "26.5"
+          cache: npm
+          cache-dependency-path: e2e/package-lock.json
+
+      - name: Install E2E dependencies
+        working-directory: e2e
+        run: npm ci --ignore-scripts
+
+      - name: Type-check E2E tests
+        working-directory: e2e
+        run: npm run typecheck
+
+      - name: Install Chromium
+        working-directory: e2e
+        run: npx playwright install --with-deps chromium
+
+      - name: Ping the health endpoint
+        run: |
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://localhost:8080/api/health | grep -qE '"status":\s*"ok"'; then
+              echo "Health check passed"
+              exit 0
+            fi
+            echo "Attempt ${attempt}: app not ready yet"
+            sleep 5
+          done
+          echo "Health check never succeeded, dumping logs"
+          docker compose -f docker/compose.yml logs
+          exit 1
+
+      - name: Import the export and compare
+        working-directory: e2e
+        env:
+          E2E_BASE_URL: http://localhost:8080
+        run: npx playwright test -c firefly-check/playwright.config.ts
+
+      - name: Dump container logs
+        if: failure()
+        run: |
+          docker compose -f e2e/firefly-check/compose.yaml logs || true
+          docker compose -f docker/compose.yml logs || true
+
+      - name: Summarize
+        if: always()
+        env:
+          VERSION: ${{ steps.firefly.outputs.version }}
+          NEWEST: ${{ steps.firefly.outputs.newest }}
+        run: |
+          {
+            echo "### Firefly III ${VERSION:-unknown}"
+            if [ -n "${NEWEST}" ] && [ "${NEWEST}" != "${VERSION}" ]; then
+              echo "Firefly III ${NEWEST} has no image yet, so ${VERSION} was checked"
+            fi
+            report=$(find e2e/test-results -name comparison.json -print -quit 2>/dev/null || true)
+            if [ -n "${report}" ]; then
+              jq -r '"\(.differences | length) differences, \(.unexpected | length) unexpected, \(.stale | length) no longer occurring"' "${report}"
+              jq -r '.skipped | to_entries[] | select(.value != null) | "The import screen reported: \(.value)"' "${report}"
+              echo
+              echo "#### Differences"
+              jq -r '.unexpected as $unexpected | .differences[] | . as $difference
+                | (if any($unexpected[]; .kind == $difference.kind and .subject == $difference.subject and .lumina == $difference.lumina)
+                  then "unexpected" else "expected" end) as $status
+                | "- \($status): \(.kind) \(.subject): Firefly III \(.firefly), Lumina \(.lumina)"' "${report}"
+              if [ "$(jq '.stale | length' "${report}")" -gt 0 ]; then
+                echo
+                echo "#### Expected differences that no longer occur"
+                jq -r '.stale[] | "- \(.kind) \(.subject), Lumina \(.lumina): \(.reason)"' "${report}"
+              fi
+            else
+              echo "The check stopped before it compared anything"
+            fi
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Keep the exports and results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: firefly-check
+          path: |
+            e2e/firefly-check/output
+            e2e/test-results
+            e2e/playwright-report
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: Tear down the stack
+        if: always()
+        run: docker compose -f docker/compose.yml down -v
