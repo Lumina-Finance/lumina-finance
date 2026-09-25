@@ -10,7 +10,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from tests.routes.support import _create_user, _get_auth_header
-from tests.routes.transactions._helpers import _create_account, _seed_usd_currency
+from tests.routes.transactions._helpers import _create_account, _seed_usd_currency, _setup_user_with_deps
 from tests.routes.transactions.test_firefly_imports import _chequing_mapping, _firefly_row
 
 _GROCERIES = {"source": "Groceries", "create": {"name": "Groceries", "kind": "expense"}}
@@ -255,3 +255,25 @@ async def test_a_run_takes_requests_only_from_the_importer_that_opened_it(client
 
     resp = await client.request(method, f"/transactions/import/runs/{run_id}/{path}", json=body, headers=headers)
     assert (resp.status_code, resp.json()["detail"]) == (422, detail)
+
+
+async def test_another_users_firefly_run_is_out_of_reach(client):
+    """Every Firefly III run endpoint answers another user as if the run did not exist."""
+    owner_headers, _, _ = await _setup_user_with_deps(client)
+    other_headers, _, _ = await _setup_user_with_deps(client, email="other@example.com", name_prefix="Other")
+    run_id = await _open_run(client, owner_headers, 1)
+    base = f"/transactions/import/runs/{run_id}"
+
+    responses = [
+        await client.post(f"{base}/firefly/rows", json={
+            "accounts": [_chequing_mapping()],
+            "categories": [_GROCERIES],
+            "rows": [_firefly_row()],
+            "start_row_index": 0,
+        }, headers=other_headers),
+        await client.put(f"{base}/budgets", json={"categories": [_GROCERIES], "budgets": [_budget()]}, headers=other_headers),
+        await client.put(f"{base}/archive", json={"account_sources": ["Everyday Chequing"]}, headers=other_headers),
+        await client.post(f"{base}/firefly/commit", headers=other_headers),
+    ]
+
+    assert [(resp.status_code, resp.json()["detail"]) for resp in responses] == [(404, "Import run not found")] * 4
