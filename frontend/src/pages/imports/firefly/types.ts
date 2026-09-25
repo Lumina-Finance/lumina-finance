@@ -1,5 +1,9 @@
 import type { AccountType } from '@/api/accounts'
-import type { FireflyBudgetImportLimit, FireflyTransactionImportPayload } from '@/api/firefly-imports'
+import type {
+  FireflyBudgetImportLimit,
+  FireflyBudgetImportRecurrence,
+  FireflyTransactionImportPayload,
+} from '@/api/firefly-imports'
 
 export type FireflyFileKind = 'transactions' | 'budgets'
 
@@ -82,7 +86,12 @@ export interface FireflyBudgetDraft {
   lastPeriodEnd: string | null
 
   /**
-   * How the latest limit period repeats, in words the drafts table can show
+   * Cadence the budget continues on, null when its latest limit period fits none
+   */
+  recurrence: FireflyBudgetImportRecurrence | null
+
+  /**
+   * How the budget repeats, in words the drafts table can show
    */
   periodLabel: string | null
 

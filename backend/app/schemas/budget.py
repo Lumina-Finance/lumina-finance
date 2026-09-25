@@ -9,6 +9,46 @@ from app.models.base import RecurrenceFreq
 from app.schemas.fx import FxStatus
 
 
+def validate_recurrence_anchor_fields(
+    freq: RecurrenceFreq,
+    weekday: int | None,
+    dom: int | None,
+    month: int | None,
+) -> None:
+    """Enforce that exactly the right anchor fields are set for a cadence
+
+    Args:
+        freq: Budget recurrence frequency
+        weekday: Weekday anchor, required for weekly budgets only
+        dom: Day-of-month anchor, required for monthly and yearly budgets
+        month: Month anchor, required for yearly budgets only
+
+    Raises:
+        ValueError: An anchor field is missing or set for a cadence that does not use it
+    """
+    if freq == RecurrenceFreq.WEEKLY:
+        if weekday is None:
+            msg = "recurrence_weekday is required for weekly budgets"
+            raise ValueError(msg)
+        if dom is not None or month is not None:
+            msg = "recurrence_dom and recurrence_month must be null for weekly budgets"
+            raise ValueError(msg)
+    elif freq == RecurrenceFreq.MONTHLY:
+        if dom is None:
+            msg = "recurrence_dom is required for monthly budgets"
+            raise ValueError(msg)
+        if weekday is not None or month is not None:
+            msg = "recurrence_weekday and recurrence_month must be null for monthly budgets"
+            raise ValueError(msg)
+    elif freq == RecurrenceFreq.YEARLY:
+        if dom is None or month is None:
+            msg = "recurrence_dom and recurrence_month are required for yearly budgets"
+            raise ValueError(msg)
+        if weekday is not None:
+            msg = "recurrence_weekday must be null for yearly budgets"
+            raise ValueError(msg)
+
+
 class CreateBaseBudgetRequest(BaseModel):
     """Create a new base budget. Either owner_id (inferred from user) or group_id is used."""
 
@@ -28,28 +68,12 @@ class CreateBaseBudgetRequest(BaseModel):
     @model_validator(mode="after")
     def _validate_recurrence_field_pairing(self):
         """Enforce that exactly the right anchor fields are set for the chosen cadence."""
-        freq = self.recurrence_freq
-        if freq == RecurrenceFreq.WEEKLY:
-            if self.recurrence_weekday is None:
-                msg = "recurrence_weekday is required for weekly budgets"
-                raise ValueError(msg)
-            if self.recurrence_dom is not None or self.recurrence_month is not None:
-                msg = "recurrence_dom and recurrence_month must be null for weekly budgets"
-                raise ValueError(msg)
-        elif freq == RecurrenceFreq.MONTHLY:
-            if self.recurrence_dom is None:
-                msg = "recurrence_dom is required for monthly budgets"
-                raise ValueError(msg)
-            if self.recurrence_weekday is not None or self.recurrence_month is not None:
-                msg = "recurrence_weekday and recurrence_month must be null for monthly budgets"
-                raise ValueError(msg)
-        elif freq == RecurrenceFreq.YEARLY:
-            if self.recurrence_dom is None or self.recurrence_month is None:
-                msg = "recurrence_dom and recurrence_month are required for yearly budgets"
-                raise ValueError(msg)
-            if self.recurrence_weekday is not None:
-                msg = "recurrence_weekday must be null for yearly budgets"
-                raise ValueError(msg)
+        validate_recurrence_anchor_fields(
+            self.recurrence_freq,
+            self.recurrence_weekday,
+            self.recurrence_dom,
+            self.recurrence_month,
+        )
         if (self.period_start is None) != (self.overall_limit is None):
             msg = "period_start and overall_limit must be provided together"
             raise ValueError(msg)

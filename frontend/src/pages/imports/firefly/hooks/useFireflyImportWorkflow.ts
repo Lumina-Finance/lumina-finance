@@ -31,6 +31,7 @@ import {
   FIREFLY_IMPORT_STAGES,
   FIREFLY_IMPORT_STAGE_CROSS_OFF_MS,
   FIREFLY_IMPORT_STAGE_MIN_MS,
+  FIREFLY_MAX_BUDGETS,
   FIREFLY_SAMPLE_PREVIEW_LIMIT,
   FIREFLY_TRANSFER_CATEGORY_NAME,
 } from '@/pages/imports/firefly/constants'
@@ -53,6 +54,7 @@ import {
   getFireflyFileRows,
   getFireflyImportedCategories,
   getFireflyAccountSources,
+  findFireflyBudgetNamedInError,
   inferFireflyCategoryMappings,
   isFireflyRowUploadable,
   readFireflyCsvFile,
@@ -415,11 +417,18 @@ export function useFireflyImportWorkflow() {
     ],
   )
 
-  // Drafts derive from the staged files alone so the budget preview can be
-  // reviewed before the commit, which then resolves their category IDs
+  // Drafts derive from the staged files and the category matching so the
+  // budget preview can be reviewed before the commit, which then resolves
+  // their category IDs
   const budgetDrafts = useMemo(
-    () => buildFireflyBudgetDrafts({ budgetsFile, transactionRows: fireflyRows }),
-    [budgetsFile, fireflyRows],
+    () => buildFireflyBudgetDrafts({
+      budgetsFile,
+      transactionRows: fireflyRows,
+      currencies,
+      categoryMappings: resolvedCategoryMappings,
+      categoryById,
+    }),
+    [budgetsFile, categoryById, currencies, fireflyRows, resolvedCategoryMappings],
   )
 
   const importableBudgetNames = useMemo(
@@ -441,6 +450,11 @@ export function useFireflyImportWorkflow() {
     )),
     [budgetDrafts, budgetImportStatuses, resolvedSelectedBudgets],
   )
+
+  // The budget import takes a bounded number of budgets, and its refusal would name none of them
+  const budgetSelectionError = pendingBudgetDrafts.length > FIREFLY_MAX_BUDGETS
+    ? `Select at most ${FIREFLY_MAX_BUDGETS.toLocaleString()} budgets to import, since the importer takes up to that many at once.`
+    : null
 
   // The stage list only appears when the commit has a budget stage to run, so a
   // transactions-only commit keeps the plain overlay
@@ -477,6 +491,7 @@ export function useFireflyImportWorkflow() {
   const importOverlayError = importError ?? budgetStageError
   const importOverlayOpen = importOverlayPhase !== 'idle'
   const canCommitImport = Boolean(importBuild.payload)
+    && !budgetSelectionError
     && !importOverlayOpen
     && !importFireflyTransactions.isPending
     && !importResult
@@ -595,9 +610,9 @@ export function useFireflyImportWorkflow() {
       const detail = getImportFailureMessage(error)
       // The generic failure names no budget, so a budget whose name it happens to start with must
       // not be blamed for it and the rest told they were skipped for that budget's sake
-      const failedDraft = detail === GENERIC_IMPORT_FAILURE
+      const failedName = detail === GENERIC_IMPORT_FAILURE
         ? undefined
-        : drafts.find((draft) => detail.startsWith(draft.name))
+        : findFireflyBudgetNamedInError(drafts.map((draft) => draft.name), detail)
 
       setBudgetStageError(detail)
       setBudgetImportStatuses((current) => {
@@ -608,7 +623,7 @@ export function useFireflyImportWorkflow() {
       setBudgetImportErrors((current) => {
         const next = { ...current }
         for (const draft of drafts) {
-          next[draft.name] = failedDraft && draft.name !== failedDraft.name
+          next[draft.name] = failedName && draft.name !== failedName
             ? 'Not imported because another budget in the batch failed.'
             : detail
         }
@@ -622,7 +637,7 @@ export function useFireflyImportWorkflow() {
 
   const handleCommitImport = async () => {
     const payload = importBuild.payload
-    if (!payload || importOverlayOpen || importFireflyTransactions.isPending) return
+    if (!payload || budgetSelectionError || importOverlayOpen || importFireflyTransactions.isPending) return
 
     // The response can outlive the mappings used for its request, so its source-row prediction is
     // captured before the first await and retained with the result
@@ -705,7 +720,7 @@ export function useFireflyImportWorkflow() {
    * commit reported instead of importing anything again
    */
   const handleRetryBudgetImport = async () => {
-    if (isImportingBudgets || !importResult || pendingBudgetDrafts.length === 0) return
+    if (isImportingBudgets || !importResult || pendingBudgetDrafts.length === 0 || budgetSelectionError) return
 
     await importBudgetDrafts(pendingBudgetDrafts, importResult.category_source_ids)
   }
@@ -769,6 +784,7 @@ export function useFireflyImportWorkflow() {
     budgetImportStatuses,
     budgetImportErrors,
     budgetStageError,
+    budgetSelectionError,
     isImportingBudgets,
     accountsLoading,
     currenciesLoading,

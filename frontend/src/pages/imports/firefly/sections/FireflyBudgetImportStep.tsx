@@ -14,6 +14,7 @@ type FireflyBudgetImportStepProps = Pick<
   | 'budgetImportStatuses'
   | 'budgetImportErrors'
   | 'budgetStageError'
+  | 'budgetSelectionError'
   | 'isImportingBudgets'
   | 'handleRetryBudgetImport'
 >
@@ -35,6 +36,7 @@ export function FireflyBudgetImportStep({
   budgetImportStatuses,
   budgetImportErrors,
   budgetStageError,
+  budgetSelectionError,
   isImportingBudgets,
   handleRetryBudgetImport,
 }: FireflyBudgetImportStepProps) {
@@ -60,7 +62,7 @@ export function FireflyBudgetImportStep({
       description="Budgets derived from the budgets export and the staged transactions, imported together with them."
     >
       <ImportInfoCard title="Periods as exported">
-        Each budget keeps its limit periods exactly as exported, with their original dates and amounts, and continues on the cadence of its most recent period.
+        Each budget keeps its limit periods exactly as exported, with their original dates and amounts, and continues on the cadence of its most recent period. A budget whose most recent period fits no Lumina Finance cadence is imported without recurring, shown as Not recurring below.
       </ImportInfoCard>
 
       <ImportInfoCard title="Merged categories">
@@ -68,6 +70,12 @@ export function FireflyBudgetImportStep({
       </ImportInfoCard>
 
       {skippedDrafts.length > 0 && <FireflySkippedBudgetsTable drafts={skippedDrafts} />}
+
+      {budgetSelectionError && (
+        <p role="alert" className="text-sm font-medium" style={{ color: 'var(--app-negative)' }}>
+          {budgetSelectionError}
+        </p>
+      )}
 
       {budgetDrafts.length === 0 ? (
         <EmptyState
@@ -178,7 +186,7 @@ export function FireflyBudgetImportStep({
             type="button"
             className="app-primary-button"
             onClick={handleRetryBudgetImport}
-            disabled={pendingCount === 0 || isImportingBudgets}
+            disabled={pendingCount === 0 || isImportingBudgets || Boolean(budgetSelectionError)}
           >
             {isImportingBudgets ? 'Importing budgets' : 'Retry budget import'}
           </button>

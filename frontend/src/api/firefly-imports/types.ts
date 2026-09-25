@@ -1,3 +1,4 @@
+import type { RecurrenceFreq } from '@/api/budgets/types';
 import type {
   TransactionImportAccountMapping,
   TransactionImportCategoryMapping,
@@ -64,6 +65,20 @@ export interface FireflyBudgetImportLimit {
 }
 
 /**
+ * The cadence a budget continues on, read off its latest limit period in the browser
+ *
+ * The anchor fields follow the budget create rules: a weekday for weekly, a day of month for
+ * monthly, and a day of month with a month for yearly, the others null
+ */
+export interface FireflyBudgetImportRecurrence {
+  freq: RecurrenceFreq;
+  instance_length: number;
+  weekday: number | null;
+  dom: number | null;
+  month: number | null;
+}
+
+/**
  * One budget with its full limit period schedule, sorted by start date
  */
 export interface FireflyBudgetImportBudget {
@@ -71,6 +86,11 @@ export interface FireflyBudgetImportBudget {
   currency: string;
   category_ids: string[];
   limits: FireflyBudgetImportLimit[];
+
+  /**
+   * Null when the latest limit period fits no cadence, which imports the budget not recurring
+   */
+  recurrence: FireflyBudgetImportRecurrence | null;
 
   /**
    * An archived budget arrives with its history frozen and stays out of the active budget list

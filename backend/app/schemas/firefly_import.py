@@ -3,8 +3,10 @@
 import uuid
 from datetime import date
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
+from app.models.base import RecurrenceFreq
+from app.schemas.budget import validate_recurrence_anchor_fields
 from app.schemas.transaction import (
     MAX_IMPORT_BATCH_ROWS,
     MAX_IMPORT_MAPPINGS,
@@ -24,6 +26,9 @@ MAX_BUDGET_LIMIT_PERIODS = 1200
 # above any real export
 MAX_FIREFLY_BUDGETS = 1000
 MAX_FIREFLY_BUDGET_CATEGORIES = 1000
+
+# Longest cadence a base budget stores, the largest value its small-integer column holds
+MAX_BUDGET_INSTANCE_LENGTH = 32767
 
 
 class FireflyTransactionRow(BaseModel):
@@ -80,6 +85,26 @@ class FireflyBudgetLimit(BaseModel):
     amount: str = Field(min_length=1, max_length=64)
 
 
+class FireflyBudgetRecurrence(BaseModel):
+    """The cadence an imported budget continues on, read off its latest limit period by the frontend
+
+    The anchor fields follow the budget create rules, and the backend checks that the latest
+    limit period is exactly one period of this cadence
+    """
+
+    freq: RecurrenceFreq
+    instance_length: int = Field(ge=1, le=MAX_BUDGET_INSTANCE_LENGTH)
+    weekday: int | None = Field(None, ge=0, le=6)
+    dom: int | None = Field(None, ge=1, le=31)
+    month: int | None = Field(None, ge=1, le=12)
+
+    @model_validator(mode="after")
+    def _validate_anchor_fields(self):
+        """Enforce that exactly the right anchor fields are set for the cadence"""
+        validate_recurrence_anchor_fields(self.freq, self.weekday, self.dom, self.month)
+        return self
+
+
 class FireflyBudgetImport(BaseModel):
     """One budget to create from a Firefly III export
 
@@ -87,12 +112,17 @@ class FireflyBudgetImport(BaseModel):
     amount, so the history arrives as it was lived rather than reshaped onto
     a single cadence. An archived budget arrives with its history frozen and
     stays out of the active list
+
+    The recurrence must always be sent, null meaning the latest period fits no cadence and the
+    budget imports not recurring, so a request that leaves it out is refused rather than read as
+    not recurring
     """
 
     name: str = Field(min_length=1, max_length=256)
     currency: str = Field(min_length=3, max_length=3)
     category_ids: list[uuid.UUID] = Field(min_length=1, max_length=MAX_FIREFLY_BUDGET_CATEGORIES)
     limits: list[FireflyBudgetLimit] = Field(min_length=1, max_length=MAX_BUDGET_LIMIT_PERIODS)
+    recurrence: FireflyBudgetRecurrence | None
     is_archived: bool = False
 
 

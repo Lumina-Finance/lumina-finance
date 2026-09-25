@@ -102,6 +102,68 @@ export const FIREFLY_BUDGET_UNREADABLE_DATES_REASON = 'A limit period date in th
 export const FIREFLY_BUDGET_MIXED_CURRENCIES_REASON = 'Its limit periods mix more than one currency'
 
 /**
+ * Why a budget with a limit period ending before it starts is never imported
+ */
+export const FIREFLY_BUDGET_PERIOD_ENDS_BEFORE_START_REASON = 'A limit period ends before it starts'
+
+/**
+ * Why a budget whose limit periods share days is never imported, since a Lumina Finance budget
+ * holds one limit for each day
+ *
+ * Firefly III refuses only a second limit over the identical range and currency, so a monthly
+ * limit and a custom-range limit over the same days can both be exported
+ */
+export const FIREFLY_BUDGET_OVERLAPPING_PERIODS_REASON = 'Two of its limit periods overlap'
+
+/**
+ * Longest budget name, most limit periods and most tracked categories the budget import takes,
+ * mirroring the backend schema
+ */
+export const FIREFLY_BUDGET_NAME_MAX_LENGTH = 256
+export const FIREFLY_BUDGET_MAX_LIMIT_PERIODS = 1200
+export const FIREFLY_BUDGET_MAX_CATEGORIES = 1000
+
+/**
+ * Most budgets one import takes, mirroring the backend schema
+ */
+export const FIREFLY_MAX_BUDGETS = 1000
+
+/**
+ * Longest cadence the budget import stores, the largest value its small-integer column holds
+ */
+export const FIREFLY_BUDGET_MAX_INSTANCE_LENGTH = 32767
+
+/**
+ * Why a budget in a currency Lumina Finance does not have is never imported, such as a custom
+ * currency Firefly III lets its users add
+ */
+export function getFireflyBudgetUnsupportedCurrencyReason(currencyCode: string) {
+  return `Its currency, ${currencyCode}, is not one Lumina Finance supports`
+}
+
+/**
+ * Why a budget with a limit amount its currency cannot hold is never imported
+ */
+export function getFireflyBudgetAmountReason(amount: string, currencyCode: string, problem: string) {
+  return `Its limit amount ${amount} ${currencyCode} ${problem}`
+}
+
+/**
+ * Why a budget matched to a group's category is never imported, since an imported budget is the
+ * user's own and can track only their own categories and the built-in ones
+ */
+export function getFireflyBudgetGroupCategoryReason(categoryName: string) {
+  return `Its category ${categoryName} is matched to a group category, and an imported budget can only track your own or built-in categories`
+}
+
+/**
+ * Why a budget past one of the budget import's limits is never imported
+ */
+export function getFireflyBudgetOverLimitReason(what: string, count: number, maxCount: number) {
+  return `Its ${what} is ${count.toLocaleString()}, and the importer takes up to ${maxCount.toLocaleString()}`
+}
+
+/**
  * Why a budget repeating on a period length no Lumina Finance cadence can
  * express is never imported
  *

@@ -2,6 +2,7 @@ export type {
   FireflyBudgetImportBudget,
   FireflyBudgetImportLimit,
   FireflyBudgetImportPayload,
+  FireflyBudgetImportRecurrence,
   FireflyBudgetImportResponse,
   FireflyBudgetImportResult,
   FireflySkippedRow,
