@@ -21,6 +21,7 @@ import {
   FIREFLY_BUDGET_UNREADABLE_DATES_REASON,
   FIREFLY_BUDGET_UNSUPPORTED_CADENCE_REASON,
   FIREFLY_ROW_FIELD_MAX_LENGTHS,
+  FIREFLY_TYPE_WITHDRAWAL,
   getFireflyBudgetAmountReason,
   getFireflyBudgetGroupCategoryReason,
   getFireflyBudgetOverLimitReason,
@@ -29,7 +30,17 @@ import {
 import type { FireflyBudgetDraft } from '@/pages/imports/firefly/types'
 import { toImportMinorUnits } from '@/pages/imports/utils/valueParsers'
 import { parseYmd } from '@/utils/date'
-import { countCharacters, getFireflyRowDate, isFireflyRowUploadable } from './derivation'
+import { formatCurrency } from '@/utils/formatCurrency'
+import { FIREFLY_NO_CATEGORY_SOURCE } from '@/api/firefly-imports'
+import { CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
+import { findReusedImportCategory, getCategoryNameKey } from '@/pages/imports/utils/categoryMatching'
+import {
+  countCharacters,
+  getFireflyRowDate,
+  isFireflyPayeeRow,
+  isFireflyRowUploadable,
+} from './derivation'
+import { resolveFireflyRowLegs, type FireflyRowResolutionOptions } from './rowResolution'
 
 const DAYS_PER_WEEK = 7
 const MONTHS_PER_YEAR = 12
@@ -201,6 +212,125 @@ export function findFireflyBudgetNamedInError(names: string[], detail: string): 
 }
 
 /**
+ * The Lumina category an export category name becomes, keyed so that names merging into one
+ * category share a key
+ */
+interface FireflyCategoryTarget {
+  key: string
+  name: string
+}
+
+/**
+ * Returns the Lumina category an export category name is matched to, or null when it has no match
+ *
+ * A new category whose name an existing one already holds reuses it, and two new names differing
+ * only in capitals become one, so both count as the same category here
+ */
+function getFireflyCategoryTarget(source: string, options: FireflyRowResolutionOptions): FireflyCategoryTarget | null {
+  const mapping = options.categoryMappings[source]
+  if (!mapping) return null
+  if (mapping !== CREATE_CATEGORY_VALUE) {
+    return { key: mapping, name: options.categoryById.get(mapping)?.name ?? source }
+  }
+
+  const reused = findReusedImportCategory(source, options.categoryById.values())
+  return reused ? { key: reused.id, name: reused.name } : { key: `new:${getCategoryNameKey(source)}`, name: source }
+}
+
+/**
+ * Writes one line for each way a selected budget will count spending differently from Firefly III
+ *
+ * A Lumina budget counts whole categories, so a budget sharing a category with another selected
+ * budget counts the other's spending there too, and a budget's spending with no category is never
+ * counted against it unless rows with no category are matched to a category the budget tracks.
+ * Both are read after the user's category matching, and the spending from the legs the preview
+ * predicts, so a skipped row or one written in another currency is counted as it will import
+ */
+export function buildFireflyBudgetCountingNotes({
+  drafts,
+  selectedNames,
+  rows,
+  options,
+}: {
+  drafts: FireflyBudgetDraft[]
+  selectedNames: Set<string>
+  rows: CsvRow[]
+  options: FireflyRowResolutionOptions
+}): string[] {
+  const selected = drafts.filter((draft) => !draft.disabledReason && selectedNames.has(draft.name))
+  const targetsByBudget = new Map(selected.map((draft) => {
+    const targets = new Map<string, string>()
+    for (const categoryName of draft.categoryNames) {
+      const target = getFireflyCategoryTarget(categoryName, options)
+      if (target) targets.set(target.key, target.name)
+    }
+    return [draft.name, targets]
+  }))
+
+  const budgetNamesByTarget = new Map<string, string[]>()
+  for (const [budgetName, targets] of targetsByBudget) {
+    for (const key of targets.keys()) budgetNamesByTarget.set(key, [...budgetNamesByTarget.get(key) ?? [], budgetName])
+  }
+
+  const uncategorizedTarget = getFireflyCategoryTarget(FIREFLY_NO_CATEGORY_SOURCE, options)
+  const uncategorizedByBudget = new Map<string, Map<string, number>>()
+  for (const row of rows) {
+    const budgetName = row.budget?.trim() ?? ''
+    const targets = targetsByBudget.get(budgetName)
+    if (!targets || row.category?.trim() || !isFireflyRowUploadable(row) || !isFireflyPayeeRow(row)) continue
+    if (row.type?.trim().toLowerCase() !== FIREFLY_TYPE_WITHDRAWAL) continue
+
+    // Rows with no category matched to a category the budget tracks are counted after all
+    if (uncategorizedTarget && targets.has(uncategorizedTarget.key)) continue
+
+    const { legs } = resolveFireflyRowLegs(row, options)
+    for (const leg of legs ?? []) {
+      const totals = uncategorizedByBudget.get(budgetName) ?? new Map<string, number>()
+      totals.set(leg.account.currency, (totals.get(leg.account.currency) ?? 0) + Math.abs(leg.amount))
+      uncategorizedByBudget.set(budgetName, totals)
+    }
+  }
+
+  return selected.flatMap((draft) => {
+    const notes: string[] = []
+    for (const [key, categoryName] of targetsByBudget.get(draft.name) ?? []) {
+      const others = (budgetNamesByTarget.get(key) ?? []).filter((name) => name !== draft.name)
+      if (others.length === 0) continue
+      const theirs = others.length === 1 ? `${others[0]}'s` : 'their'
+      notes.push(`${draft.name} shares ${categoryName} with ${joinNames(others)}, so it also counts ${theirs} spending in ${categoryName}.`)
+    }
+
+    const totals = [...uncategorizedByBudget.get(draft.name) ?? []]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([currencyCode, minorUnits]) => formatCurrency(minorUnits, currencyCode, options.currencies))
+    if (totals.length > 0) {
+      notes.push(`${draft.name} has ${joinNames(totals)} of spending with no category in Firefly III, which it will not count.`)
+    }
+    return notes
+  })
+}
+
+/**
+ * Joins names into a readable list, such as "A, B and C"
+ */
+function joinNames(names: string[]): string {
+  return names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names[0] ?? ''
+}
+
+/**
+ * Writes an amount in its currency's own format, or as exported beside its code when it cannot be
+ * read in that currency
+ */
+function formatBudgetAmount(amount: string, currencyCode: string, currencies: Currency[]): string {
+  const currency = currencies.find((entry) => entry.id.toUpperCase() === currencyCode)
+  if (currency) {
+    const minorUnits = toImportMinorUnits(amount, currency.minor_unit_exponent)
+    if (typeof minorUnits === 'bigint') return formatCurrency(Number(minorUnits), currency.id, currencies)
+  }
+  return `${amount} ${currencyCode}`.trim()
+}
+
+/**
  * One deduplicated limit period, with its dates read into time values so the
  * schedule can be ordered without comparing the strings
  */
@@ -313,7 +443,7 @@ function buildBudgetDraft(
 
   return {
     name,
-    amount: latest?.amount ?? '',
+    amount: latest ? formatBudgetAmount(latest.amount, latestCurrencyCode, context.currencies) : '',
     currencyCode: latestCurrencyCode,
     currencyCodes,
     isArchived: budget.isArchived,

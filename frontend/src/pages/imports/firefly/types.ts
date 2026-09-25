@@ -60,7 +60,8 @@ export interface FireflyBudgetDraft {
   name: string
 
   /**
-   * Latest limit amount, shown in the drafts table
+   * Latest limit amount formatted for its currency, shown in the drafts table, or the exported
+   * text beside its code when the currency cannot read it
    */
   amount: string
 

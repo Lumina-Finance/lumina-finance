@@ -28,7 +28,7 @@ export function FireflySkippedBudgetsTable({ drafts }: { drafts: FireflyBudgetDr
       'Cadence': draft.periodLabel ?? '',
       'First Period': draft.firstPeriodStart ?? '',
       'Last Period': draft.lastPeriodEnd ?? '',
-      'Latest Amount': draft.amount ? `${draft.amount} ${draft.currencyCode}` : '',
+      'Latest Amount': draft.amount,
     },
   }))
 

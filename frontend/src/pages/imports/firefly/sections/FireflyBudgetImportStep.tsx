@@ -15,6 +15,7 @@ type FireflyBudgetImportStepProps = Pick<
   | 'budgetImportErrors'
   | 'budgetStageError'
   | 'budgetSelectionError'
+  | 'budgetCountingNotes'
   | 'isImportingBudgets'
   | 'handleRetryBudgetImport'
 >
@@ -37,6 +38,7 @@ export function FireflyBudgetImportStep({
   budgetImportErrors,
   budgetStageError,
   budgetSelectionError,
+  budgetCountingNotes,
   isImportingBudgets,
   handleRetryBudgetImport,
 }: FireflyBudgetImportStepProps) {
@@ -68,6 +70,12 @@ export function FireflyBudgetImportStep({
       <ImportInfoCard title="Merged categories">
         If you merged categories in the category matching step, a budget tracking them counts spending across the whole merged category, so its remaining amount will read differently than it does in Firefly III. This is expected behaviour.
       </ImportInfoCard>
+
+      {budgetCountingNotes.length > 0 && (
+        <ImportInfoCard title="Spending counted differently">
+          {budgetCountingNotes.map((note) => <span key={note} className="mt-1 block first:mt-0">{note}</span>)}
+        </ImportInfoCard>
+      )}
 
       {skippedDrafts.length > 0 && <FireflySkippedBudgetsTable drafts={skippedDrafts} />}
 
@@ -158,7 +166,7 @@ export function FireflyBudgetImportStep({
                       {draft.periodLabel ?? ''}
                     </td>
                     <td className="px-4 py-2.5 text-right align-middle font-financial tabular-nums">
-                      {draft.amount ? `${draft.amount} ${draft.currencyCode}` : ''}
+                      {draft.amount}
                     </td>
                     <td className="truncate px-4 py-2.5 align-middle" style={{ color: 'var(--app-text-muted)' }}>
                       {draft.categoryNames.join(', ')}

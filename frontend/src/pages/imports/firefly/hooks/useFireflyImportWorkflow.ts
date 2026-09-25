@@ -43,6 +43,7 @@ import type {
 } from '@/pages/imports/firefly/types'
 import {
   buildFireflyAccountPrefills,
+  buildFireflyBudgetCountingNotes,
   buildFireflyBudgetDrafts,
   buildFireflyBudgetImportBudgets,
   buildFireflyCategoryKinds,
@@ -60,6 +61,7 @@ import {
   readFireflyCsvFile,
   resolveFireflyAccountMappings,
   type FireflyAccountCreateDetails,
+  type FireflyRowResolutionOptions,
   type FireflyCompletedImportContext,
 } from '@/pages/imports/firefly/utils'
 
@@ -342,12 +344,8 @@ export function useFireflyImportWorkflow() {
     [previewRows],
   )
 
-  // A full pass over the export predicts the commit outcome, so the stats
-  // and both row lists always come from the same resolution and the transaction estimate never
-  // counts rows the commit would skip
-  const importForecast = useMemo(
-    () => forecastFireflyImport(fireflyRows, {
-      fileId: transactionsFile?.id ?? null,
+  const rowResolutionOptions = useMemo<FireflyRowResolutionOptions>(
+    () => ({
       accountSources,
       accountById,
       accountMappings: resolvedAccountMappings,
@@ -366,15 +364,20 @@ export function useFireflyImportWorkflow() {
       balanceAdjustmentCategory,
       categoryById,
       currencies,
-      fireflyRows,
       institutionById,
       resolvedAccountCreateDetails,
       resolvedAccountMappings,
       resolvedCategoryKinds,
       resolvedCategoryMappings,
       transferCategory,
-      transactionsFile,
     ],
+  )
+  // A full pass over the export predicts the commit outcome, so the stats
+  // and both row lists always come from the same resolution and the transaction estimate never
+  // counts rows the commit would skip
+  const importForecast = useMemo(
+    () => forecastFireflyImport(fireflyRows, { fileId: transactionsFile?.id ?? null, ...rowResolutionOptions }),
+    [fireflyRows, rowResolutionOptions, transactionsFile],
   )
   const importEstimate = importForecast
   const predictedSkippedRows = importForecast.skippedRows
@@ -449,6 +452,18 @@ export function useFireflyImportWorkflow() {
       && budgetImportStatuses[draft.name] !== 'imported'
     )),
     [budgetDrafts, budgetImportStatuses, resolvedSelectedBudgets],
+  )
+
+  // Read after the category matching, since what a budget counts depends on the Lumina categories
+  // its Firefly categories become
+  const budgetCountingNotes = useMemo(
+    () => buildFireflyBudgetCountingNotes({
+      drafts: budgetDrafts,
+      selectedNames: resolvedSelectedBudgets,
+      rows: fireflyRows,
+      options: rowResolutionOptions,
+    }),
+    [budgetDrafts, fireflyRows, resolvedSelectedBudgets, rowResolutionOptions],
   )
 
   // The budget import takes a bounded number of budgets, and its refusal would name none of them
@@ -785,6 +800,7 @@ export function useFireflyImportWorkflow() {
     budgetImportErrors,
     budgetStageError,
     budgetSelectionError,
+    budgetCountingNotes,
     isImportingBudgets,
     accountsLoading,
     currenciesLoading,
