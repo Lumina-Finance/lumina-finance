@@ -719,3 +719,52 @@ async def test_firefly_import_skips_the_amount_whose_magnitude_cannot_be_stored(
     assert data["rows_imported"] == 1
     assert data["rows_skipped"] == 1
     assert data["skipped"][0]["reason"] == 'Amount is too large: "-92233720368547758.08"'
+
+
+async def test_firefly_import_files_a_payee_under_a_merchant_the_database_lowercases_alike(client):
+    """A payee is matched by PostgreSQL's lowercase, which the unique index is built on
+
+    Python lowercases "İ" to "i" and a combining dot, while PostgreSQL gives a plain "i"
+    """
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    existing = await client.post("/merchants", json={"name": "ISTANBUL KEBAP"}, headers=headers)
+    assert existing.status_code == 201
+
+    resp = await client.post("/transactions/import/firefly", json={
+        "accounts": [_chequing_mapping()],
+        "categories": [{"source": "Groceries", "create": {"name": "Groceries", "kind": "expense"}}],
+        "rows": [
+            _firefly_row(destination_name="İstanbul Kebap"),
+            _firefly_row(journal_id="2", destination_name="İSTANBUL KEBAP"),
+        ],
+    }, headers=headers)
+
+    assert resp.status_code == 201
+    assert resp.json()["merchants_created"] == 0
+    transactions = (await client.get("/transactions", headers=headers)).json()
+    assert [transaction["merchant_id"] for transaction in transactions] == [existing.json()["id"]] * 2
+
+
+async def test_firefly_import_creates_one_merchant_for_payees_the_database_lowercases_alike(client):
+    """Two spellings PostgreSQL folds to one name make one merchant, as its unique index requires"""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await client.post("/transactions/import/firefly", json={
+        "accounts": [_chequing_mapping()],
+        "categories": [{"source": "Groceries", "create": {"name": "Groceries", "kind": "expense"}}],
+        "rows": [
+            _firefly_row(destination_name="İstanbul Kebap"),
+            _firefly_row(journal_id="2", destination_name="Istanbul Kebap"),
+        ],
+    }, headers=headers)
+
+    assert resp.status_code == 201
+    assert resp.json()["merchants_created"] == 1
+    transactions = (await client.get("/transactions", headers=headers)).json()
+    assert len({transaction["merchant_id"] for transaction in transactions}) == 1
+
+    # The first spelling in the file names the merchant
+    merchants = (await client.get("/merchants", headers=headers)).json()
+    assert "İstanbul Kebap" in [merchant["name"] for merchant in merchants]

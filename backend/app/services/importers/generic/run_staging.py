@@ -36,7 +36,7 @@ from app.services.importers.shared.categories import (
     parse_import_category_kind,
 )
 from app.services.importers.shared.merchants import (
-    get_import_merchant_key,
+    load_import_merchant_keys,
     load_usable_import_merchants,
     require_usable_import_merchant,
 )
@@ -52,6 +52,7 @@ class StagingReferences:
     institutions: set[uuid.UUID]
     categories: dict[uuid.UUID, Category]
     merchants: dict[uuid.UUID, Merchant]
+    merchant_keys: dict[str, str]
 
 
 async def _load_staging_references(
@@ -80,7 +81,8 @@ async def _load_staging_references(
     merchants = await load_usable_import_merchants(
         db, {mapping.merchant_id for mapping in data.merchants if mapping.merchant_id is not None}, user.id,
     )
-    return StagingReferences(account_access, currencies, institutions, categories, merchants)
+    merchant_keys = await load_import_merchant_keys(db, {mapping.source.strip() for mapping in data.merchants})
+    return StagingReferences(account_access, currencies, institutions, categories, merchants, merchant_keys)
 
 
 async def open_import_run(db: AsyncSession, user: User, expected_transaction_count: int) -> ImportRun:
@@ -159,7 +161,7 @@ async def stage_import_batch(
         run.merchant_mappings,
         data.merchants,
         "Merchant source",
-        get_key=get_import_merchant_key,
+        get_key=references.merchant_keys.__getitem__,
     )
 
     await _insert_staged_rows(db, run, user.id, data)

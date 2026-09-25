@@ -141,8 +141,9 @@ async def require_merchant_name_available(
 
     # Trimmed and compared without regard to capitalisation, so "myself" cannot sit beside the
     # seeded "Myself" and read as a second merchant, and neither can "Amazon " beside "Amazon".
-    # Matches how the migration folded the existing ones and what the unique indexes are built on
-    duplicate_query = select(Merchant.id).where(func.lower(Merchant.name) == name.strip().lower(), scope_filter)
+    # Matches how the migration folded the existing ones and what the unique indexes are built on,
+    # with the database lowercasing both sides, since Python lowercases some letters differently
+    duplicate_query = select(Merchant.id).where(func.lower(Merchant.name) == func.lower(name.strip()), scope_filter)
 
     # A rename measures the new name against everyone else, so changing only the capitalisation of a
     # merchant's own name does not read as a clash with itself
