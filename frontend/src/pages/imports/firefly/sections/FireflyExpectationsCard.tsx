@@ -33,6 +33,10 @@ const CONVERTED_MAPPINGS: ConceptMapping[] = [
     lumina: 'Separate tags split at each comma, since the export does not mark where a tag ends',
   },
   {
+    firefly: 'A transaction paid in another currency',
+    lumina: "Its amount in the account's currency only, since every transaction here is in its account's currency",
+  },
+  {
     firefly: 'A split transaction group',
     lumina: 'Separate entries that are no longer linked',
   },
