@@ -25,6 +25,10 @@ const CONVERTED_MAPPINGS: ConceptMapping[] = [
     lumina: 'A transfer between your account and the loan',
   },
   {
+    firefly: 'A category on a transfer or loan payment between two imported accounts',
+    lumina: 'The Transfer category, so the one you chose is dropped',
+  },
+  {
     firefly: 'A split transaction group',
     lumina: 'Separate entries that are no longer linked',
   },
