@@ -29,6 +29,10 @@ const CONVERTED_MAPPINGS: ConceptMapping[] = [
     lumina: 'The Transfer category, so the one you chose is dropped',
   },
   {
+    firefly: 'A tag with a comma in its name',
+    lumina: 'Separate tags split at each comma, since the export does not mark where a tag ends',
+  },
+  {
     firefly: 'A split transaction group',
     lumina: 'Separate entries that are no longer linked',
   },
