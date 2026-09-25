@@ -5866,234 +5866,259 @@
           "tag_names": [],
           "notes": null
         }
-      ]
+      ],
+      "start_row_index": 0
     }
   ],
-  "budgets": [
-    {
-      "name": "Food",
-      "currency": "EUR",
-      "limits": [
-        {
-          "start": "2024-01-01",
-          "end": "2024-01-31",
-          "amount": "300.000000000000"
-        },
-        {
-          "start": "2024-02-01",
-          "end": "2024-02-29",
-          "amount": "300.000000000000"
-        },
-        {
-          "start": "2024-03-01",
-          "end": "2024-03-31",
-          "amount": "300.000000000000"
-        },
-        {
-          "start": "2024-04-01",
-          "end": "2024-04-30",
-          "amount": "300.000000000000"
-        },
-        {
-          "start": "2024-05-01",
-          "end": "2024-05-31",
-          "amount": "300.000000000000"
-        },
-        {
-          "start": "2024-06-01",
-          "end": "2024-06-30",
-          "amount": "300.000000000000"
-        },
-        {
-          "start": "2024-07-01",
-          "end": "2024-07-31",
-          "amount": "300.000000000000"
-        },
-        {
-          "start": "2024-08-01",
-          "end": "2024-08-31",
-          "amount": "300.000000000000"
-        },
-        {
-          "start": "2024-09-01",
-          "end": "2024-09-30",
-          "amount": "300.000000000000"
-        },
-        {
-          "start": "2024-10-01",
-          "end": "2024-10-31",
-          "amount": "300.000000000000"
-        },
-        {
-          "start": "2024-11-01",
-          "end": "2024-11-30",
-          "amount": "300.000000000000"
-        },
-        {
-          "start": "2024-12-01",
-          "end": "2024-12-31",
-          "amount": "300.000000000000"
-        },
-        {
-          "start": "2025-01-01",
-          "end": "2025-01-31",
-          "amount": "320.000000000000"
-        },
-        {
-          "start": "2025-02-01",
-          "end": "2025-02-28",
-          "amount": "320.000000000000"
-        },
-        {
-          "start": "2025-03-01",
-          "end": "2025-03-31",
-          "amount": "320.000000000000"
-        },
-        {
-          "start": "2025-04-01",
-          "end": "2025-04-30",
-          "amount": "320.000000000000"
-        },
-        {
-          "start": "2025-05-01",
-          "end": "2025-05-31",
-          "amount": "320.000000000000"
-        },
-        {
-          "start": "2025-06-01",
-          "end": "2025-06-30",
-          "amount": "320.000000000000"
-        },
-        {
-          "start": "2025-07-01",
-          "end": "2025-07-31",
-          "amount": "320.000000000000"
-        },
-        {
-          "start": "2025-08-01",
-          "end": "2025-08-31",
-          "amount": "320.000000000000"
-        },
-        {
-          "start": "2025-09-01",
-          "end": "2025-09-30",
-          "amount": "320.000000000000"
-        },
-        {
-          "start": "2025-10-01",
-          "end": "2025-10-31",
-          "amount": "320.000000000000"
-        },
-        {
-          "start": "2025-11-01",
-          "end": "2025-11-30",
-          "amount": "320.000000000000"
-        },
-        {
-          "start": "2025-12-01",
-          "end": "2025-12-31",
-          "amount": "320.000000000000"
-        }
-      ],
-      "recurrence": {
-        "freq": "monthly",
-        "instance_length": 1,
-        "weekday": null,
-        "dom": 1,
-        "month": null
+  "budgets": {
+    "categories": [
+      {
+        "source": "Groceries",
+        "category_name": "Groceries"
       },
-      "is_archived": false,
-      "category_names": [
-        "Groceries"
-      ]
-    },
-    {
-      "name": "Retired",
-      "currency": "EUR",
-      "limits": [
-        {
-          "start": "2024-02-01",
-          "end": "2024-02-29",
-          "amount": "50.000000000000"
+      {
+        "source": "Hobbies",
+        "create": {
+          "name": "Hobbies",
+          "kind": "expense",
+          "icon": "🏷️"
         }
-      ],
-      "recurrence": {
-        "freq": "monthly",
-        "instance_length": 1,
-        "weekday": null,
-        "dom": 1,
-        "month": null
       },
-      "is_archived": true,
-      "category_names": [
-        "Hobbies"
-      ]
-    },
-    {
-      "name": "Travel",
-      "currency": "USD",
-      "limits": [
-        {
-          "start": "2024-01-01",
-          "end": "2024-12-31",
-          "amount": "2000.000000000000"
-        },
-        {
-          "start": "2025-01-01",
-          "end": "2025-12-31",
-          "amount": "2400.000000000000"
-        }
-      ],
-      "recurrence": {
-        "freq": "yearly",
-        "instance_length": 1,
-        "weekday": null,
-        "dom": 1,
-        "month": 1
+      {
+        "source": "Travel",
+        "category_name": "Travel"
       },
-      "is_archived": false,
-      "category_names": [
-        "Travel"
-      ]
-    },
-    {
-      "name": "Weekly fun",
-      "currency": "EUR",
-      "limits": [
-        {
-          "start": "2025-03-03",
-          "end": "2025-03-09",
-          "amount": "40.000000000000"
+      {
+        "source": "Entertainment",
+        "category_name": "Entertainment"
+      }
+    ],
+    "budgets": [
+      {
+        "name": "Food",
+        "currency": "EUR",
+        "category_sources": [
+          "Groceries"
+        ],
+        "limits": [
+          {
+            "start": "2024-01-01",
+            "end": "2024-01-31",
+            "amount": "300.000000000000"
+          },
+          {
+            "start": "2024-02-01",
+            "end": "2024-02-29",
+            "amount": "300.000000000000"
+          },
+          {
+            "start": "2024-03-01",
+            "end": "2024-03-31",
+            "amount": "300.000000000000"
+          },
+          {
+            "start": "2024-04-01",
+            "end": "2024-04-30",
+            "amount": "300.000000000000"
+          },
+          {
+            "start": "2024-05-01",
+            "end": "2024-05-31",
+            "amount": "300.000000000000"
+          },
+          {
+            "start": "2024-06-01",
+            "end": "2024-06-30",
+            "amount": "300.000000000000"
+          },
+          {
+            "start": "2024-07-01",
+            "end": "2024-07-31",
+            "amount": "300.000000000000"
+          },
+          {
+            "start": "2024-08-01",
+            "end": "2024-08-31",
+            "amount": "300.000000000000"
+          },
+          {
+            "start": "2024-09-01",
+            "end": "2024-09-30",
+            "amount": "300.000000000000"
+          },
+          {
+            "start": "2024-10-01",
+            "end": "2024-10-31",
+            "amount": "300.000000000000"
+          },
+          {
+            "start": "2024-11-01",
+            "end": "2024-11-30",
+            "amount": "300.000000000000"
+          },
+          {
+            "start": "2024-12-01",
+            "end": "2024-12-31",
+            "amount": "300.000000000000"
+          },
+          {
+            "start": "2025-01-01",
+            "end": "2025-01-31",
+            "amount": "320.000000000000"
+          },
+          {
+            "start": "2025-02-01",
+            "end": "2025-02-28",
+            "amount": "320.000000000000"
+          },
+          {
+            "start": "2025-03-01",
+            "end": "2025-03-31",
+            "amount": "320.000000000000"
+          },
+          {
+            "start": "2025-04-01",
+            "end": "2025-04-30",
+            "amount": "320.000000000000"
+          },
+          {
+            "start": "2025-05-01",
+            "end": "2025-05-31",
+            "amount": "320.000000000000"
+          },
+          {
+            "start": "2025-06-01",
+            "end": "2025-06-30",
+            "amount": "320.000000000000"
+          },
+          {
+            "start": "2025-07-01",
+            "end": "2025-07-31",
+            "amount": "320.000000000000"
+          },
+          {
+            "start": "2025-08-01",
+            "end": "2025-08-31",
+            "amount": "320.000000000000"
+          },
+          {
+            "start": "2025-09-01",
+            "end": "2025-09-30",
+            "amount": "320.000000000000"
+          },
+          {
+            "start": "2025-10-01",
+            "end": "2025-10-31",
+            "amount": "320.000000000000"
+          },
+          {
+            "start": "2025-11-01",
+            "end": "2025-11-30",
+            "amount": "320.000000000000"
+          },
+          {
+            "start": "2025-12-01",
+            "end": "2025-12-31",
+            "amount": "320.000000000000"
+          }
+        ],
+        "recurrence": {
+          "freq": "monthly",
+          "instance_length": 1,
+          "weekday": null,
+          "dom": 1,
+          "month": null
         },
-        {
-          "start": "2025-03-10",
-          "end": "2025-03-16",
-          "amount": "40.000000000000"
-        },
-        {
-          "start": "2025-03-17",
-          "end": "2025-03-23",
-          "amount": "40.000000000000"
-        },
-        {
-          "start": "2025-03-24",
-          "end": "2025-03-30",
-          "amount": "40.000000000000"
-        }
-      ],
-      "recurrence": {
-        "freq": "weekly",
-        "instance_length": 1,
-        "weekday": 0,
-        "dom": null,
-        "month": null
+        "is_archived": false
       },
-      "is_archived": false,
-      "category_names": [
-        "Entertainment"
-      ]
-    }
-  ],
+      {
+        "name": "Retired",
+        "currency": "EUR",
+        "category_sources": [
+          "Hobbies"
+        ],
+        "limits": [
+          {
+            "start": "2024-02-01",
+            "end": "2024-02-29",
+            "amount": "50.000000000000"
+          }
+        ],
+        "recurrence": {
+          "freq": "monthly",
+          "instance_length": 1,
+          "weekday": null,
+          "dom": 1,
+          "month": null
+        },
+        "is_archived": true
+      },
+      {
+        "name": "Travel",
+        "currency": "USD",
+        "category_sources": [
+          "Travel"
+        ],
+        "limits": [
+          {
+            "start": "2024-01-01",
+            "end": "2024-12-31",
+            "amount": "2000.000000000000"
+          },
+          {
+            "start": "2025-01-01",
+            "end": "2025-12-31",
+            "amount": "2400.000000000000"
+          }
+        ],
+        "recurrence": {
+          "freq": "yearly",
+          "instance_length": 1,
+          "weekday": null,
+          "dom": 1,
+          "month": 1
+        },
+        "is_archived": false
+      },
+      {
+        "name": "Weekly fun",
+        "currency": "EUR",
+        "category_sources": [
+          "Entertainment"
+        ],
+        "limits": [
+          {
+            "start": "2025-03-03",
+            "end": "2025-03-09",
+            "amount": "40.000000000000"
+          },
+          {
+            "start": "2025-03-10",
+            "end": "2025-03-16",
+            "amount": "40.000000000000"
+          },
+          {
+            "start": "2025-03-17",
+            "end": "2025-03-23",
+            "amount": "40.000000000000"
+          },
+          {
+            "start": "2025-03-24",
+            "end": "2025-03-30",
+            "amount": "40.000000000000"
+          }
+        ],
+        "recurrence": {
+          "freq": "weekly",
+          "instance_length": 1,
+          "weekday": 0,
+          "dom": null,
+          "month": null
+        },
+        "is_archived": false
+      }
+    ]
+  },
   "expected": {
     "accounts": [
       {

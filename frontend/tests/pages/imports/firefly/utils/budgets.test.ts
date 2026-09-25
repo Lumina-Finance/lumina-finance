@@ -1,5 +1,5 @@
 /**
- * Tests Firefly III budget draft derivation and the category IDs the two-phase commit resolves from the transactions response
+ * Tests Firefly III budget draft derivation and the budgets an import run stages
  *
  * Formatted amounts such as 'CA$650.00' assume the en-US locale the test script sets with LC_ALL
  */
@@ -26,9 +26,8 @@ import {
 import {
   type FireflyRowResolutionOptions,
   buildFireflyBudgetDrafts,
-  buildFireflyBudgetImportBudgets,
   buildFireflyBudgetCountingNotes,
-  findFireflyBudgetNamedInError,
+  buildFireflyRunBudgets,
 } from '@/pages/imports/firefly/utils'
 import { createNameKeyedAccountSources } from './fixtures'
 
@@ -838,30 +837,10 @@ describe('how imported Firefly budgets will count spending', () => {
   })
 })
 
-// This covers the matching the workflow hook calls when the budget upload fails
-describe('findFireflyBudgetNamedInError', () => {
-  it('puts an error on the budget it names when another budget\'s name starts it', () => {
-    const names = ['Car', 'Car insurance']
-
-    expect(findFireflyBudgetNamedInError(names, 'Car insurance: two limit periods overlap')).toBe('Car insurance')
-    expect(findFireflyBudgetNamedInError(names, 'Car: two limit periods overlap')).toBe('Car')
-    expect(findFireflyBudgetNamedInError(names, 'Cars: two limit periods overlap')).toBeUndefined()
-  })
-})
-
-describe('buildFireflyBudgetImportBudgets', () => {
-  it('trims exported limit amounts before sending the budget payload', () => {
-    const drafts = buildDrafts({
-      budgetsFile: createBudgetsFile([createLimitRow({ amount: ' \t600.00\n' })]),
-      transactionRows: [createTransactionRow()],
-    })
-    const [budget] = buildFireflyBudgetImportBudgets(drafts, { Food: 'category-food' })
-
-    expect(drafts[0].disabledReason).toBeNull()
-    expect(budget.limits).toEqual([
-      { start: '2024-01-01', end: '2024-01-31', amount: '600.00' },
-    ])
-  })
+describe('buildFireflyRunBudgets', () => {
+  const FOOD = { source: 'Food', create: { name: 'Food', kind: 'expense' as const } }
+  const RESTAURANTS = { source: 'Restaurants', category_id: 'category-restaurants' }
+  const RENT = { source: 'Rent', category_id: 'category-rent' }
 
   /**
    * Creates one importable draft, since only importable drafts reach the commit
@@ -884,50 +863,55 @@ describe('buildFireflyBudgetImportBudgets', () => {
     }
   }
 
-  it('resolves category names through the ids the transactions commit reported', () => {
-    const [budget] = buildFireflyBudgetImportBudgets(
-      [createDraft({ categoryNames: ['Food', 'Restaurants'] })],
-      { Food: 'category-food', Restaurants: 'category-restaurants', Rent: 'category-rent' },
+  it('trims exported limit amounts before staging the budget', () => {
+    const drafts = buildDrafts({
+      budgetsFile: createBudgetsFile([createLimitRow({ amount: ' \t600.00\n' })]),
+      transactionRows: [createTransactionRow()],
+    })
+    const { budgets: [budget] } = buildFireflyRunBudgets(drafts, [FOOD])
+
+    expect(drafts[0].disabledReason).toBeNull()
+    expect(budget.limits).toEqual([
+      { start: '2024-01-01', end: '2024-01-31', amount: '600.00' },
+    ])
+  })
+
+  // The commit resolves the sources against the run's mappings, so the budgets carry the mapping of
+  // every category they name, and only those
+  it('names categories by source and carries only the mappings the budgets use', () => {
+    const result = buildFireflyRunBudgets(
+      [
+        createDraft({ categoryNames: ['Food', 'Restaurants'] }),
+        createDraft({ name: 'Eating out', categoryNames: ['Restaurants'], recurrence: null, isArchived: true }),
+      ],
+      [FOOD, RESTAURANTS, RENT],
     )
 
-    expect(budget).toEqual({
-      name: 'Groceries',
-      currency: 'CAD',
-      category_ids: ['category-food', 'category-restaurants'],
-      limits: [{ start: '2024-01-01', end: '2024-01-31', amount: '600.00' }],
-      recurrence: MONTHLY_ON_THE_FIRST,
-      is_archived: false,
+    expect(result).toEqual({
+      categories: [FOOD, RESTAURANTS],
+      budgets: [
+        {
+          name: 'Groceries',
+          currency: 'CAD',
+          category_sources: ['Food', 'Restaurants'],
+          limits: [{ start: '2024-01-01', end: '2024-01-31', amount: '600.00' }],
+          recurrence: MONTHLY_ON_THE_FIRST,
+          is_archived: false,
+        },
+        {
+          name: 'Eating out',
+          currency: 'CAD',
+          category_sources: ['Restaurants'],
+          limits: [{ start: '2024-01-01', end: '2024-01-31', amount: '600.00' }],
+          recurrence: null,
+          is_archived: true,
+        },
+      ],
     })
   })
 
-  // The backend requires the cadence on every budget, so a budget that does not recur sends null
-  it('sends a null cadence for a budget that does not recur', () => {
-    const [budget] = buildFireflyBudgetImportBudgets([createDraft({ recurrence: null })], {})
-
-    expect(budget).toHaveProperty('recurrence', null)
-  })
-
-  it('carries the archived flag into the payload', () => {
-    const [budget] = buildFireflyBudgetImportBudgets([createDraft({ isArchived: true })], {})
-
-    expect(budget.is_archived).toBe(true)
-  })
-
-  it('drops a category name the commit response does not report', () => {
-    const [budget] = buildFireflyBudgetImportBudgets(
-      [createDraft({ categoryNames: ['Food', 'Unreported'] })],
-      { Food: 'category-food' },
-    )
-
-    expect(budget.category_ids).toEqual(['category-food'])
-  })
-
-  it('collapses category names the commit resolved to one category', () => {
-    const [budget] = buildFireflyBudgetImportBudgets(
-      [createDraft({ categoryNames: ['Food', 'food'] })],
-      { Food: 'category-food', food: 'category-food' },
-    )
-
-    expect(budget.category_ids).toEqual(['category-food'])
+  it('refuses a budget naming a category the import does not map, naming the budget', () => {
+    expect(() => buildFireflyRunBudgets([createDraft({ categoryNames: ['Food', 'Travel'] })], [FOOD]))
+      .toThrow('Groceries: category Travel is not mapped')
   })
 })

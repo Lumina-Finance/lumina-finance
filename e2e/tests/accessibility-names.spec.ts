@@ -31,5 +31,5 @@ test('names the import file-picker entry without opening a picker', async ({ pag
   await expect(transactions).toBeVisible()
   await expect(transactions).toHaveAccessibleName('Upload transactions csv The journal rows to import.')
   await expect(budgets).toBeVisible()
-  await expect(budgets).toHaveAccessibleName('Upload budgets csv Enables budget import after the transactions commit.')
+  await expect(budgets).toHaveAccessibleName('Upload budgets csv The budgets and limit periods to create with the import.')
 })

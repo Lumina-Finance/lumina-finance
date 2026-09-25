@@ -1,35 +1,33 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { invalidateAppData } from '@/api/cache/invalidation';
-import { invalidateBudgetActivity } from '@/api/cache/updates/budgets';
-import { importFireflyTransactionsInBatches } from '@/api/firefly-imports/batching';
-import { postFireflyBudgetImport } from '@/api/firefly-imports/requests';
+import { commitStagedFireflyRun, runFireflyImport, type FireflyImportRequest } from '@/api/firefly-imports/run';
 
 /**
- * Provides the mutation boundary for uploading prepared Firefly III import payloads
+ * Provides the mutation boundary for staging a prepared Firefly III import and committing it
  */
-export function useImportFireflyTransactions() {
+export function useImportFirefly() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: importFireflyTransactionsInBatches,
-
-    // Settled rather than success because a failure part way through the
-    // batches leaves the earlier batches committed, and those rows must not
-    // keep being served from stale caches
-    onSettled: () => {
+    mutationFn: ({ request, signal, onStaged }: {
+      request: FireflyImportRequest;
+      signal?: AbortSignal;
+      onStaged?: () => Promise<void>;
+    }) => runFireflyImport(request, signal, onStaged),
+    onSuccess: () => {
       invalidateAppData(queryClient);
     },
   });
 }
 
 /**
- * Creates Firefly III budgets with their limit histories and refreshes budget rollups
+ * Provides the mutation boundary for committing a Firefly III import that is already staged
  */
-export function useImportFireflyBudgets() {
+export function useCommitStagedFireflyImport() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: postFireflyBudgetImport,
+    mutationFn: ({ runId, signal }: { runId: string; signal?: AbortSignal }) => commitStagedFireflyRun(runId, signal),
     onSuccess: () => {
-      invalidateBudgetActivity(queryClient);
+      invalidateAppData(queryClient);
     },
   });
 }

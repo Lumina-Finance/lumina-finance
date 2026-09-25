@@ -6,6 +6,7 @@ import {
   buildFireflyAccountPrefills,
   buildFireflyCategoryKinds,
   buildFireflyImportPayload,
+  forecastFireflyImport,
   getFireflyAccountSources,
   getFireflyImportedCategories,
   type FireflyRowResolutionOptions,
@@ -58,7 +59,9 @@ export function stageFireflyImportAsNew(transactionsFile: ImportFileDraft, rows:
     balanceAdjustmentCategory: undefined,
     currencies,
   }
-  const { payload, errors } = buildFireflyImportPayload({ transactionsFile, rows, importedCategories, ...options })
+  // The screen leaves out every row the forecast predicts the server would refuse
+  const skippedRows = new Set(forecastFireflyImport(rows, { fileId: transactionsFile.id, ...options }).skippedRows.map((row) => row.cells))
+  const { payload, errors } = buildFireflyImportPayload({ transactionsFile, rows, skippedRows, importedCategories, ...options })
   if (!payload) throw new Error(`The staged import builds no payload: ${errors.join('; ')}`)
   return { options, importedCategories, payload }
 }

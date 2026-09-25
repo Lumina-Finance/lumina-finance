@@ -242,27 +242,33 @@ export const FIREFLY_CSV_PROCESSING_MIN_MS = LOADING_ANIMATION_MIN_MS
 export const FIREFLY_IMPORT_OVERLAY_MIN_MS = LOADING_ANIMATION_MIN_MS
 
 /**
- * Stages of the commit in the order they run, as the overlay lists them
+ * Stages of the import in the order they run, as the overlay lists them
  */
 export const FIREFLY_IMPORT_STAGES: { id: FireflyImportStage; label: string }[] = [
-  { id: 'transactions', label: 'Importing transactions' },
-  { id: 'budgets', label: 'Importing budgets' },
+  { id: 'uploading', label: 'Uploading the export' },
+  { id: 'saving', label: 'Saving the import' },
 ]
 
 /**
- * How long one commit stage holds the overlay before the next one takes over
+ * How long the upload stage holds the overlay before saving takes over
  *
- * Both stages can finish faster than the transition between them reads, so
- * without a floor the budget stage would flash past unseen. The floor is
- * pinned to one full dot wave so a stage is never struck off mid-cycle
+ * A small export uploads faster than the transition between the stages reads, so without a floor
+ * the upload stage would flash past unseen. The floor is pinned to one full dot wave so a stage is
+ * never struck off mid-cycle
  */
 export const FIREFLY_IMPORT_STAGE_MIN_MS = STEP_DOT_WAVE_MS
 
 /**
- * How long a finished commit stage stays on the overlay struck off before the
- * next stage takes its place
+ * How long a finished stage stays on the overlay struck off before the next
+ * stage takes its place
  *
  * The strike is what tells the user the stage landed, so this has to outlast
  * the line being drawn and leave a beat to read it afterwards
  */
 export const FIREFLY_IMPORT_STAGE_CROSS_OFF_MS = 750
+
+/**
+ * Largest budgets request the import sends, kept under the server's 10 MiB request limit with room
+ * for the rest of the request, so a selection too large to send is refused before anything uploads
+ */
+export const FIREFLY_MAX_BUDGETS_REQUEST_BYTES = 9 * 1024 * 1024

@@ -1,8 +1,8 @@
 import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type {
+  FireflyImportRunResponse,
   FireflyTransactionImportPayload,
-  FireflyTransactionImportResponse,
 } from '@/api/firefly-imports'
 import {
   CREATE_ACCOUNT_VALUE,
@@ -17,6 +17,8 @@ import {
   getImportCategoryMappingError,
   getImportCategoryTypeRequiredError,
   getImportNoRowsError,
+  getTooManyMappingsError,
+  MAX_IMPORT_MAPPINGS,
 } from '@/pages/imports/constants'
 import type { CsvRow, ImportCategoryKind, ImportFileDraft } from '@/pages/imports/types'
 import { FIREFLY_ACCOUNT_NAME_MAX_LENGTH, FIREFLY_TYPE_DEPOSIT } from '@/pages/imports/firefly/constants'
@@ -52,6 +54,7 @@ export interface FireflyAccountCreateDetails {
 export function buildFireflyImportPayload({
   transactionsFile,
   rows,
+  skippedRows,
   accountSources,
   accountMappings,
   accountById,
@@ -63,6 +66,12 @@ export function buildFireflyImportPayload({
 }: {
   transactionsFile: ImportFileDraft | null
   rows: CsvRow[]
+
+  /**
+   * Rows the preview predicts cannot be written, left out so the commit, which refuses rather than
+   * skips a row it cannot write, never receives one
+   */
+  skippedRows: ReadonlySet<CsvRow>
   accountSources: FireflyAccountSources
   accountMappings: Record<string, string>
   accountById: Map<string, AccountsOverview>
@@ -81,6 +90,15 @@ export function buildFireflyImportPayload({
 
   if (!transactionsFile) addError('Upload the transactions CSV file.')
   if (transactionsFile?.error) addError(`${transactionsFile.name}: ${transactionsFile.error}`)
+
+  // One run holds up to this many distinct values of each kind across all its batches, so an
+  // export past it is refused here rather than by the server part way through the upload
+  if (accountSources.list.length > MAX_IMPORT_MAPPINGS) {
+    addError(getTooManyMappingsError('account', accountSources.list.length))
+  }
+  if (importedCategories.length > MAX_IMPORT_MAPPINGS) {
+    addError(getTooManyMappingsError('category', importedCategories.length))
+  }
 
   const accounts: FireflyTransactionImportPayload['accounts'] = []
   for (const { id: source, name, label } of accountSources.list) {
@@ -179,7 +197,7 @@ export function buildFireflyImportPayload({
     })
   }
 
-  const payloadRows = buildFireflyImportRows(rows, accountSources)
+  const payloadRows = buildFireflyImportRows(rows, skippedRows, accountSources)
   if (payloadRows.length === 0) addError(getImportNoRowsError('export'))
 
   if (errors.length > 0) return { errors, payload: null }
@@ -187,7 +205,7 @@ export function buildFireflyImportPayload({
 }
 
 /**
- * Compiles journal rows into the backend row shape, excluding the rows dropped before upload
+ * Compiles journal rows into the backend row shape, leaving out the rows predicted to be skipped
  *
  * An endpoint the import writes to is sent as its account source alone, so the backend never works
  * out from the Firefly III type which endpoints are accounts. Another endpoint's name is sent only
@@ -196,13 +214,16 @@ export function buildFireflyImportPayload({
  */
 function buildFireflyImportRows(
   rows: CsvRow[],
+  skippedRows: ReadonlySet<CsvRow>,
   accountSources: FireflyAccountSources,
 ): FireflyTransactionImportPayload['rows'] {
   const payloadRows: FireflyTransactionImportPayload['rows'] = []
+
+  // Read over every row, skipped ones included, since a split's notes name the whole group
   const groupSizes = getFireflySplitGroupSizes(rows)
 
   for (const row of rows) {
-    if (!isFireflyRowUploadable(row, groupSizes)) continue
+    if (skippedRows.has(row) || !isFireflyRowUploadable(row, groupSizes)) continue
 
     const sourceAccount = accountSources.find(row.source_name, row.source_type)
     const destinationAccount = accountSources.find(row.destination_name, row.destination_type)
@@ -249,29 +270,22 @@ function cleanOptional(value: string | undefined) {
 }
 
 /**
- * Formats the merged import response into the overlay summary line
+ * Formats the import result into the overlay summary line
  *
- * Budgets only join the line when the commit imported some, so a run without a
- * budgets export reads exactly as it did before
+ * Budgets only join the line when the commit imported some, so an import without a budgets export
+ * reads as a transactions import alone
+ *
+ * @param result - What the commit wrote
+ * @param skippedCount - Rows the browser left out because they cannot be written
  */
-export function formatFireflyImportSummary(
-  result: FireflyTransactionImportResponse,
-  {
-    browserDroppedCount,
-    budgetsCreated,
-  }: {
-    browserDroppedCount: number
-    budgetsCreated: number
-  },
-) {
-  const skippedCount = browserDroppedCount + result.rows_skipped
+export function formatFireflyImportSummary(result: FireflyImportRunResponse, skippedCount: number) {
   const parts = [
     `${result.rows_imported} row${result.rows_imported === 1 ? '' : 's'} imported`,
     `${result.transactions_created} transaction${result.transactions_created === 1 ? '' : 's'} created`,
     `${skippedCount} skipped`,
   ]
-  if (budgetsCreated > 0) {
-    parts.push(`${budgetsCreated} budget${budgetsCreated === 1 ? '' : 's'} imported`)
+  if (result.budgets_created > 0) {
+    parts.push(`${result.budgets_created} budget${result.budgets_created === 1 ? '' : 's'} imported`)
   }
 
   return parts.join(' · ')

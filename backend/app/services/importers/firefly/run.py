@@ -104,7 +104,7 @@ async def commit_firefly_run(db: AsyncSession, user: User, run_id: uuid.UUID) ->
         HTTPException: Raised with 404 for a run that is absent or not the caller's, or a mapped
             account they cannot reach, 409 when another request holds the run, and 422 when another
             importer opened the run, when the staged rows do not add up to the export the run
-            declared, when a row cannot be written (naming the row), when a budget names a category
+            declared, when a row cannot be written (naming the row's journal), when a budget names a category
             source with no mapping or cannot be created, or when an account cannot be archived
     """
     run = await lock_run_for_commit(db, run_id, ImportRunSource.FIREFLY)
@@ -117,8 +117,7 @@ async def commit_firefly_run(db: AsyncSession, user: User, run_id: uuid.UUID) ->
         user,
         [TransactionImportAccountMapping.model_validate(mapping) for mapping in run.account_mappings.values()],
         [TransactionImportCategoryMapping.model_validate(mapping) for mapping in run.category_mappings.values()],
-        [(row.row_index, FireflyTransactionRow.model_validate(row.payload)) for row in staged_rows],
-        skip_unconvertible=False,
+        [FireflyTransactionRow.model_validate(row.payload) for row in staged_rows],
     )
 
     budgets = [

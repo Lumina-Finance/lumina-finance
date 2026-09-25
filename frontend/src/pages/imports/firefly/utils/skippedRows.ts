@@ -1,4 +1,4 @@
-import type { FireflyTransactionImportResponse } from '@/api/firefly-imports'
+import type { FireflyImportRunResponse } from '@/api/firefly-imports'
 import type { CsvRow, ImportRowProblem } from '@/pages/imports/types'
 import { FIREFLY_MISSING_REQUIRED_VALUES_REASON, FIREFLY_TAG_TOO_LONG_REASON } from '@/pages/imports/firefly/constants'
 import { getImportRowId } from '@/pages/imports/utils/common'
@@ -25,18 +25,17 @@ const OVERLONG_TAG_PREVIEW_LENGTH = 28
 const FIRST_DATA_ROW_LINE_NUMBER = 2
 
 /**
- * One journal row the import will not convert, carrying its line number in
- * the uploaded file, the raw export cells shown to the user, and the
- * backend-worded skip reason
+ * One journal row the import leaves out, carrying its line number in the uploaded file, the raw
+ * export cells shown to the user, and the reason in the words the server would use
+ *
+ * The server refuses a row it cannot write rather than skipping it, so every row predicted here is
+ * left out of the upload by the browser
  */
 export interface FireflySkippedRowDetail {
   journalId: string
-  rowNumber: number | null
-  cells: CsvRow | null
+  rowNumber: number
+  cells: CsvRow
   reason: string
-  // True when the payload builder drops the row before upload, so the commit
-  // response never reports it and the results have to add it back
-  droppedBeforeUpload: boolean
 }
 
 /**
@@ -55,10 +54,10 @@ export interface FireflyImportForecastOptions extends FireflyRowResolutionOption
   fileId: string | null
 }
 
-/** Result and skipped-row prediction captured together for one completed transaction import */
+/** What one completed import wrote, with what it left out, captured when it started */
 export interface FireflyCompletedImportContext {
-  result: FireflyTransactionImportResponse
-  predictedSkippedRowsAtCommit: FireflySkippedRowDetail[]
+  result: FireflyImportRunResponse
+  skippedRowsAtCommit: FireflySkippedRowDetail[]
 }
 
 /**
@@ -71,81 +70,16 @@ export function getFireflySkippedRowsDisplay({
   liveForecastRows: FireflySkippedRowDetail[]
   completedImport: FireflyCompletedImportContext | null
 }) {
-  if (completedImport) return getCompletedFireflySkippedRowsDisplay(completedImport)
-
-  const totalCount = liveForecastRows.length
-  return {
-    rows: liveForecastRows,
-    totalCount,
-    title: `${totalCount} row${totalCount === 1 ? '' : 's'} will not be imported`,
-  }
-}
-
-/** Reconciles exact committed counts with the available browser and server detail samples */
-function getCompletedFireflySkippedRowsDisplay({
-  result,
-  predictedSkippedRowsAtCommit,
-}: FireflyCompletedImportContext) {
-  const browserDroppedRows = predictedSkippedRowsAtCommit.filter((row) => row.droppedBeforeUpload)
-  const uploadedForecastByPair = new Map<string, FireflySkippedRowDetail[]>()
-  for (const row of predictedSkippedRowsAtCommit) {
-    if (row.droppedBeforeUpload) continue
-    const key = getFireflySkipPairKey(row.journalId, row.reason)
-    const matches = uploadedForecastByPair.get(key)
-    if (matches) {
-      matches.push(row)
-    } else {
-      uploadedForecastByPair.set(key, [row])
-    }
-  }
-
-  const returnedCountByPair = new Map<string, number>()
-  for (const row of result.skipped) {
-    const key = getFireflySkipPairKey(row.journal_id, row.reason)
-    returnedCountByPair.set(key, (returnedCountByPair.get(key) ?? 0) + 1)
-  }
-
-  const serverRows = result.skipped.map((row) => {
-    const key = getFireflySkipPairKey(row.journal_id, row.reason)
-    const forecastMatches = uploadedForecastByPair.get(key) ?? []
-    if (forecastMatches.length === 1 && returnedCountByPair.get(key) === 1) {
-      return {
-        ...forecastMatches[0],
-        journalId: row.journal_id,
-        reason: row.reason,
-        droppedBeforeUpload: false,
-      }
-    }
-
-    return {
-      journalId: row.journal_id,
-      rowNumber: null,
-      cells: null,
-      reason: row.reason,
-      droppedBeforeUpload: false,
-    }
-  })
-
-  const rows = [...browserDroppedRows, ...serverRows]
-    .map((row, index) => ({ row, index }))
-    .sort((left, right) => {
-      if (left.row.rowNumber === null) return right.row.rowNumber === null ? left.index - right.index : 1
-      if (right.row.rowNumber === null) return -1
-      return left.row.rowNumber - right.row.rowNumber || left.index - right.index
-    })
-    .map(({ row }) => row)
-  const totalCount = browserDroppedRows.length + result.rows_skipped
-
+  const rows = completedImport?.skippedRowsAtCommit ?? liveForecastRows
+  const totalCount = rows.length
+  const plural = totalCount === 1 ? '' : 's'
   return {
     rows,
     totalCount,
-    title: `${totalCount} row${totalCount === 1 ? '' : 's'} ${totalCount === 1 ? 'was' : 'were'} not imported`,
+    title: completedImport
+      ? `${totalCount} row${plural} ${totalCount === 1 ? 'was' : 'were'} not imported`
+      : `${totalCount} row${plural} will not be imported`,
   }
-}
-
-/** Builds an unambiguous key from the journal ID and returned reason pair */
-function getFireflySkipPairKey(journalId: string, reason: string) {
-  return JSON.stringify([journalId, reason])
 }
 
 /**
@@ -164,50 +98,47 @@ export function forecastFireflyImport(
   for (const [index, row] of rows.entries()) {
     rowCount += 1
 
-    // Rows missing identity fields never reach the backend because the
-    // payload builder drops them before upload, so the reason names the
-    // fields the user has to fix in the file
+    // A row missing identity fields is left out, and the reason names the fields the user has to
+    // fix in the file
     const missingFields = getFireflyMissingRequiredFields(row)
     if (missingFields.length > 0) {
       skippedRows.push(buildFireflySkippedRowDetail(
         row,
         index,
         `${FIREFLY_MISSING_REQUIRED_VALUES_REASON}: ${missingFields.join(', ')}`,
-        { droppedBeforeUpload: true },
       ))
       continue
     }
 
-    // A row whose endpoints leave it nothing to write is skipped whatever the mappings, and
-    // uploading it would still create the accounts it names, so it is dropped before upload
+    // A row whose endpoints leave it nothing to write is skipped whatever the mappings
     const shapeSkipReason = getFireflyRowShapeSkipReason(row)
     if (shapeSkipReason !== null) {
-      skippedRows.push(buildFireflySkippedRowDetail(row, index, shapeSkipReason, { droppedBeforeUpload: true }))
+      skippedRows.push(buildFireflySkippedRowDetail(row, index, shapeSkipReason))
       continue
     }
 
-    // A tag past Lumina's length cap would fail the whole upload batch on
-    // the backend, so the row is dropped before upload with the tag named
+    // A tag past Lumina's length cap would fail the whole import, so the row is left out with the
+    // tag named
     const overlongTag = getFireflyOverlongTag(row)
     if (overlongTag !== null) {
       skippedRows.push(buildFireflySkippedRowDetail(
         row,
         index,
         `${FIREFLY_TAG_TOO_LONG_REASON}: ${overlongTag.slice(0, OVERLONG_TAG_PREVIEW_LENGTH)}`,
-        { droppedBeforeUpload: true },
       ))
       continue
     }
 
-    // A value past what the import endpoint takes would fail the whole upload
-    // batch, and the batches already sent stay in the ledger, so the row is
-    // dropped before upload with the value named
+    // A value past what the import takes would fail the whole import, so the row is left out
+    // with the value named
     const overLimitReason = getFireflyRowOverLimitReason(row, groupSizes)
     if (overLimitReason !== null) {
-      skippedRows.push(buildFireflySkippedRowDetail(row, index, overLimitReason, { droppedBeforeUpload: true }))
+      skippedRows.push(buildFireflySkippedRowDetail(row, index, overLimitReason))
       continue
     }
 
+    // The rest are what the server would refuse, and it fails the whole commit on one, so these
+    // are left out too, with the reason the server would give
     const resolution = resolveFireflyRowLegs(row, options)
     if (resolution.skipReason !== null) {
       skippedRows.push(buildFireflySkippedRowDetail(row, index, resolution.skipReason))
@@ -233,17 +164,11 @@ export function forecastFireflyImport(
 /**
  * Shapes one parsed export row into the skipped-row detail the table renders
  */
-function buildFireflySkippedRowDetail(
-  row: CsvRow,
-  index: number,
-  reason: string,
-  { droppedBeforeUpload = false }: { droppedBeforeUpload?: boolean } = {},
-): FireflySkippedRowDetail {
+function buildFireflySkippedRowDetail(row: CsvRow, index: number, reason: string): FireflySkippedRowDetail {
   return {
     journalId: row.journal_id?.trim() ?? '',
     rowNumber: index + FIRST_DATA_ROW_LINE_NUMBER,
     cells: row,
     reason,
-    droppedBeforeUpload,
   }
 }

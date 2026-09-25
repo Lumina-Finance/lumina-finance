@@ -33,7 +33,7 @@ const SLOT_SWAP_DURATION = 0.24
 
 const FILE_SLOTS: Array<{ kind: FireflyFileKind; label: string; hint: string; required: boolean }> = [
   { kind: 'transactions', label: 'Transactions CSV', hint: 'The journal rows to import.', required: true },
-  { kind: 'budgets', label: 'Budgets CSV', hint: 'Enables budget import after the transactions commit.', required: false },
+  { kind: 'budgets', label: 'Budgets CSV', hint: 'The budgets and limit periods to create with the import.', required: false },
 ]
 
 /**

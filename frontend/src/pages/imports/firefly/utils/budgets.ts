@@ -1,10 +1,11 @@
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import type {
-  FireflyBudgetImportBudget,
   FireflyBudgetImportLimit,
   FireflyBudgetImportRecurrence,
+  FireflyImportRunBudgets,
 } from '@/api/firefly-imports'
+import type { TransactionImportCategoryMapping } from '@/api/transaction-imports'
 import type { CsvRow, ImportFileDraft } from '@/pages/imports/types'
 import {
   FIREFLY_BUDGET_ACTIVE_VALUE,
@@ -100,9 +101,9 @@ interface FireflyBudgetDraftContext {
  * transaction rows
  *
  * Drafts derive before the commit so the budget preview can drive what the
- * commit imports, which leaves category IDs to be resolved from the commit
- * response afterwards. A budget the backend would refuse is skipped with its
- * reason, since the budget upload is all or nothing
+ * commit imports. Each names its categories by their export name, which the
+ * import run maps along with the rest of the import. A budget the backend would
+ * refuse is skipped with its reason, since the import is all or nothing
  */
 export function buildFireflyBudgetDrafts({
   budgetsFile,
@@ -138,8 +139,8 @@ export function buildFireflyBudgetDrafts({
     const budgetName = row.budget?.trim()
     if (!budgetName) continue
 
-    // Rows dropped before upload never register category sources in the
-    // commit response, so they cannot vote on a budget's tracked categories
+    // Rows left out whatever the mappings never write a category, so they
+    // cannot vote on a budget's tracked categories
     if (!isFireflyRowUploadable(row, groupSizes)) continue
 
     const rowDate = getFireflyRowDate(row.date ?? '')
@@ -168,51 +169,42 @@ export function buildFireflyBudgetDrafts({
 }
 
 /**
- * Turns budget drafts into the commit payload by resolving each draft's export
- * category names through the category IDs the transactions commit reported
+ * Turns budget drafts into what the run creates alongside the export's rows
  *
- * A draft's categories come from the same rows the category sources do, so the
- * response carries all of them, and a name that is somehow absent is dropped
- * rather than failing the budget it belongs to
+ * A budget names its categories by the export category names the category step mapped, and
+ * carries the mapping of each, since a budget can track a category none of the uploaded rows uses
+ *
+ * @param drafts - The budgets to import
+ * @param categoryMappings - Every category mapping the import built
+ * @throws When a budget names a category the import has no mapping for, which the commit would
+ *   refuse, so it is caught before anything is uploaded
  */
-export function buildFireflyBudgetImportBudgets(
+export function buildFireflyRunBudgets(
   drafts: FireflyBudgetDraft[],
-  categorySourceIds: Record<string, string>,
-): FireflyBudgetImportBudget[] {
-  return drafts.map((draft) => {
-    const categoryIds: string[] = []
-    const seenIds = new Set<string>()
+  categoryMappings: TransactionImportCategoryMapping[],
+): FireflyImportRunBudgets {
+  const mappingsBySource = new Map(categoryMappings.map((mapping) => [mapping.source, mapping]))
+  const usedMappings = new Map<string, TransactionImportCategoryMapping>()
 
-    for (const categoryName of draft.categoryNames) {
-      const categoryId = categorySourceIds[categoryName]
-      if (!categoryId || seenIds.has(categoryId)) continue
-      seenIds.add(categoryId)
-      categoryIds.push(categoryId)
+  const budgets = drafts.map((draft) => {
+    const categorySources = [...new Set(draft.categoryNames)]
+    for (const source of categorySources) {
+      const mapping = mappingsBySource.get(source)
+      if (!mapping) throw new Error(`${draft.name}: category ${source} is not mapped`)
+      usedMappings.set(source, mapping)
     }
 
     return {
       name: draft.name,
       currency: draft.currencyCode,
-      category_ids: categoryIds,
+      category_sources: categorySources,
       limits: draft.limits,
       recurrence: draft.recurrence,
       is_archived: draft.isArchived,
     }
   })
-}
 
-/**
- * Finds the budget a budget import error names
- *
- * Every error the budget import raises for one budget starts with its name and a colon, and the
- * longest matching name wins, so an error about "Car insurance" never lands on "Car"
- */
-export function findFireflyBudgetNamedInError(names: string[], detail: string): string | undefined {
-  let named: string | undefined
-  for (const name of names) {
-    if (detail.startsWith(`${name}: `) && (!named || name.length > named.length)) named = name
-  }
-  return named
+  return { categories: [...usedMappings.values()], budgets }
 }
 
 /**
@@ -465,7 +457,7 @@ function buildBudgetDraft(
 /**
  * Returns why the backend would refuse a budget whose schedule is otherwise complete, or null
  *
- * The budget upload is all or nothing, so each of these would fail every budget with it
+ * The import is all or nothing, so each of these would fail the whole import
  */
 function getRefusalReason(
   name: string,

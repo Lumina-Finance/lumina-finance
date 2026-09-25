@@ -11,22 +11,19 @@ type FireflyBudgetImportStepProps = Pick<
   | 'budgetDrafts'
   | 'selectedBudgetNames'
   | 'toggleBudgetSelection'
-  | 'budgetImportStatuses'
-  | 'budgetImportErrors'
-  | 'budgetStageError'
+  | 'importedBudgetNames'
   | 'budgetSelectionError'
   | 'budgetCountingNotes'
-  | 'isImportingBudgets'
-  | 'handleRetryBudgetImport'
+  | 'importOverlayOpen'
 >
 
 /**
- * Previews the budgets the commit will import and lets the user choose them
+ * Previews the budgets the import will create and lets the user choose them
  *
  * Budgets the export cannot back move into their own skipped panel beneath
  * the selection table, in the same shape as the skipped transaction rows. The
- * commit imports the selected budgets itself, so this step only offers a
- * button when the budget stage failed after the transactions were committed
+ * import creates the selected budgets in the same save as the transactions,
+ * so this step has no import button of its own
  */
 export function FireflyBudgetImportStep({
   importResult,
@@ -34,28 +31,19 @@ export function FireflyBudgetImportStep({
   budgetDrafts,
   selectedBudgetNames,
   toggleBudgetSelection,
-  budgetImportStatuses,
-  budgetImportErrors,
-  budgetStageError,
+  importedBudgetNames,
   budgetSelectionError,
   budgetCountingNotes,
-  isImportingBudgets,
-  handleRetryBudgetImport,
+  importOverlayOpen,
 }: FireflyBudgetImportStepProps) {
   if (!budgetsFile) return null
 
   const importableDrafts = budgetDrafts.filter((draft) => !draft.disabledReason)
   const skippedDrafts = budgetDrafts.filter((draft) => draft.disabledReason)
 
-  const retryable = Boolean(importResult) && Boolean(budgetStageError)
-  const pendingCount = importableDrafts.filter((draft) => (
-    selectedBudgetNames.has(draft.name)
-    && budgetImportStatuses[draft.name] !== 'imported'
-  )).length
-
-  // Selection drives what the commit imports, so it locks once the commit has
-  // run unless the budget stage failed and is waiting on a retry
-  const selectionLocked = isImportingBudgets || (Boolean(importResult) && !retryable)
+  // Selection drives what the import creates, so it locks while an import runs and once one has
+  // finished
+  const selectionLocked = importOverlayOpen || Boolean(importResult)
 
   return (
     <ImportStep
@@ -120,8 +108,7 @@ export function FireflyBudgetImportStep({
             </thead>
             <tbody>
               {importableDrafts.map((draft) => {
-                const status = budgetImportStatuses[draft.name]
-                const selectable = status !== 'imported' && !selectionLocked
+                const imported = importedBudgetNames.has(draft.name)
 
                 // A schedule with more than one distinct amount means the
                 // limit changed over time, which the Changes column shows
@@ -132,8 +119,8 @@ export function FireflyBudgetImportStep({
                     <td className="px-2 py-2.5 align-middle">
                       <span className="flex justify-center">
                         <Checkbox
-                          checked={status !== 'imported' && selectedBudgetNames.has(draft.name)}
-                          disabled={!selectable}
+                          checked={imported || (!importResult && selectedBudgetNames.has(draft.name))}
+                          disabled={selectionLocked}
                           label={`Import ${draft.name}`}
                           onChange={() => toggleBudgetSelection(draft.name)}
                         />
@@ -156,11 +143,6 @@ export function FireflyBudgetImportStep({
                           </span>
                         )}
                       </span>
-                      {status === 'error' && (
-                        <div role="alert" className="text-xs font-normal" style={{ color: 'var(--app-negative)' }}>
-                          {budgetImportErrors[draft.name] ?? 'Budget import failed.'}
-                        </div>
-                      )}
                     </td>
                     <td className="px-4 py-2.5 align-middle" style={{ color: 'var(--app-text-muted)' }}>
                       {draft.periodLabel ?? ''}
@@ -185,21 +167,6 @@ export function FireflyBudgetImportStep({
         </div>
       )}
 
-      {retryable && (
-        <div className="flex flex-col items-end gap-3 pt-2">
-          <p role="alert" className="max-w-xl text-right text-sm font-medium" style={{ color: 'var(--app-negative)' }}>
-            Your transactions were imported. Only the budgets failed, so retrying imports the budgets alone and leaves the transactions untouched.
-          </p>
-          <button
-            type="button"
-            className="app-primary-button"
-            onClick={handleRetryBudgetImport}
-            disabled={pendingCount === 0 || isImportingBudgets || Boolean(budgetSelectionError)}
-          >
-            {isImportingBudgets ? 'Importing budgets' : 'Retry budget import'}
-          </button>
-        </div>
-      )}
     </ImportStep>
   )
 }

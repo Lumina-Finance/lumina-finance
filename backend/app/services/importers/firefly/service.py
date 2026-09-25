@@ -14,12 +14,7 @@ from app.models.category import Category
 from app.models.tag import TransactionTag
 from app.models.transaction import Transaction
 from app.models.user import User
-from app.schemas.firefly_import import (
-    FireflySkippedRow,
-    FireflyTransactionImportRequest,
-    FireflyTransactionImportResponse,
-    FireflyTransactionRow,
-)
+from app.schemas.firefly_import import FireflyTransactionRow
 from app.schemas.transaction import TransactionImportAccountMapping, TransactionImportCategoryMapping
 from app.services.accounts.snapshots import recompute_account_snapshots
 from app.services.cache_state import mark_cache_changed_for_scope, mark_user_cache_changed
@@ -53,9 +48,6 @@ from app.services.importers.shared.tags import (
 # batched INSERTs instead of one round trip per row
 INSERT_CHUNK_SIZE = 1000
 
-# Skipped-row details returned to the client, the full count is always exact
-SKIPPED_DETAIL_LIMIT = 50
-
 logger = logging.getLogger(__name__)
 
 
@@ -64,33 +56,10 @@ class FireflyWriteResult:
     """What writing a Firefly III export's rows created, before anything is committed"""
 
     stats: ImportStats
-    skipped: list[FireflySkippedRow]
     legs_created: int
     accounts_by_source: dict[str, Account]
     categories_by_source: dict[str, Category]
     first_import_date_by_account_id: dict[uuid.UUID, date]
-
-
-async def import_firefly_transactions(
-    db: AsyncSession,
-    user: User,
-    data: FireflyTransactionImportRequest,
-) -> FireflyTransactionImportResponse:
-    """Create transactions from a frontend-compiled Firefly III export payload
-
-    Args:
-        db: Active database session
-        user: Authenticated user running the import
-        data: Prepared Firefly III import payload from the frontend compiler
-
-    Returns:
-        Import summary with converted, skipped, and created record counts
-    """
-    result = await write_firefly_transactions(
-        db, user, data.accounts, data.categories, list(enumerate(data.rows)), skip_unconvertible=True,
-    )
-    await db.commit()
-    return _build_response(data=data, result=result)
 
 
 async def write_firefly_transactions(
@@ -98,9 +67,7 @@ async def write_firefly_transactions(
     user: User,
     accounts: list[TransactionImportAccountMapping],
     categories: list[TransactionImportCategoryMapping],
-    rows: list[tuple[int, FireflyTransactionRow]],
-    *,
-    skip_unconvertible: bool,
+    rows: list[FireflyTransactionRow],
 ) -> FireflyWriteResult:
     """Write a Firefly III export's rows and everything they reference, without committing
 
@@ -109,16 +76,14 @@ async def write_firefly_transactions(
         user: Authenticated user running the import
         accounts: Account mappings covering every account source the rows name
         categories: Category mappings covering every category the rows read
-        rows: Journal rows paired with their position in the export
-        skip_unconvertible: Whether a row that cannot be converted is left out and reported, or
-            fails the whole write naming the row
+        rows: Journal rows in export order
 
     Returns:
-        What the rows created, with the rows left out when skipping
+        What the rows created
 
     Raises:
-        HTTPException: Raised with 422 for an account source marked outside, and, when not
-            skipping, for the first row that cannot be converted
+        HTTPException: Raised with 422 for an account source marked outside, and for the first row
+            that cannot be converted, naming the row's journal
     """
     stats = ImportStats()
     # Both legs of a Firefly transfer get a row written, so every source here is an account the
@@ -151,7 +116,7 @@ async def write_firefly_transactions(
         transfer_category=transfer_category,
         balance_adjustment_category=balance_adjustment_category,
     )
-    legs_by_row, skipped = _resolve_rows(rows, context, skip_unconvertible=skip_unconvertible)
+    legs_by_row = _resolve_rows(rows, context)
     legs = [leg for row_legs in legs_by_row for leg in row_legs]
 
     first_import_date_by_account_id = await _write_legs(
@@ -175,7 +140,6 @@ async def write_firefly_transactions(
     )
     return FireflyWriteResult(
         stats=stats,
-        skipped=skipped,
         legs_created=len(legs),
         accounts_by_source=accounts_by_source,
         categories_by_source=categories_by_source,
@@ -184,60 +148,51 @@ async def write_firefly_transactions(
 
 
 def _resolve_rows(
-    rows: list[tuple[int, FireflyTransactionRow]],
+    rows: list[FireflyTransactionRow],
     context: FireflyResolutionContext,
-    *,
-    skip_unconvertible: bool,
-) -> tuple[list[list[FireflyLeg]], list[FireflySkippedRow]]:
-    """Resolve payload rows into transaction legs, leaving out or refusing rows that cannot convert
+) -> list[list[FireflyLeg]]:
+    """Resolve payload rows into transaction legs, refusing the first row that cannot convert
+
+    The browser leaves out every row it can tell will not convert, so a row refused here fails the
+    whole import rather than being dropped from it
 
     Args:
-        rows: Firefly III journal rows paired with their position in the export
+        rows: Firefly III journal rows in export order
         context: Lookups needed to resolve rows
-        skip_unconvertible: Whether a row that cannot convert is left out rather than refused
 
     Returns:
-        Legs per converted row and records for rows left out
+        Legs per row
 
     Raises:
-        HTTPException: Raised for a row naming a source with no usable mapping, and with 422 for a
-            row that cannot convert when skipping is off. Either names the row and its journal when
-            skipping is off
+        HTTPException: Raised naming the row's journal, which the browser can find in the file
+            whichever rows it left out, with the status of a mapping the row cannot use, or 422 for
+            a row that cannot convert
     """
     legs_by_row: list[list[FireflyLeg]] = []
-    skipped: list[FireflySkippedRow] = []
 
-    for row_index, row in rows:
+    for row in rows:
         try:
             legs_by_row.append(resolve_firefly_row(row, context))
             continue
         except FireflyRowSkipError as skip:
-            reason = skip.reason
+            status_code, reason = status.HTTP_422_UNPROCESSABLE_CONTENT, skip.reason
         except HTTPException as exc:
 
-            # Mapping-contract violations fail the whole import because the frontend must supply a
-            # mapping for every source a row names. A run's commit names the row, as it does for
-            # every row it refuses
-            if skip_unconvertible:
-                raise
-            raise HTTPException(
-                status_code=exc.status_code,
-                detail=f"Row {row_index + 1} (Firefly III journal {row.journal_id}): {exc.detail}",
-            ) from exc
+            # The frontend must supply a mapping for every source a row names, so one it cannot use
+            # keeps the status the mapping check gave it
+            status_code, reason = exc.status_code, exc.detail
         except Exception:
 
-            # A row failing in a way no skip rule anticipated is reported with a generic reason,
-            # and the specifics are kept in the server log
+            # A row failing in a way no skip rule anticipated is refused with a generic reason, and
+            # the specifics are kept in the server log
             logger.exception("Firefly III journal %s could not be converted", row.journal_id)
-            reason = FIREFLY_GENERIC_SKIP_REASON
+            status_code, reason = status.HTTP_422_UNPROCESSABLE_CONTENT, FIREFLY_GENERIC_SKIP_REASON
 
-        if not skip_unconvertible:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=f"Row {row_index + 1} (Firefly III journal {row.journal_id}): {reason}",
-            )
-        skipped.append(FireflySkippedRow(journal_id=row.journal_id, reason=reason))
-    return legs_by_row, skipped
+        raise HTTPException(
+            status_code=status_code,
+            detail=f"Firefly III journal {row.journal_id}: {reason}",
+        )
+    return legs_by_row
 
 
 async def _write_legs(
@@ -362,41 +317,3 @@ async def _mark_caches_changed_for_imported_accounts(
     for account_id in first_import_date_by_account_id:
         account = affected_accounts[account_id]
         await mark_cache_changed_for_scope(db, user_id=account.owner_id, group_id=account.group_id)
-
-
-def _build_response(
-    *,
-    data: FireflyTransactionImportRequest,
-    result: FireflyWriteResult,
-) -> FireflyTransactionImportResponse:
-    """Build the import summary response
-
-    Args:
-        data: Prepared Firefly III import payload from the frontend compiler
-        result: What writing the rows created, with the rows left out
-
-    Returns:
-        Import summary response
-    """
-    stats = result.stats
-    return FireflyTransactionImportResponse(
-        rows_imported=len(data.rows) - len(result.skipped),
-        rows_skipped=len(result.skipped),
-        skipped=result.skipped[:SKIPPED_DETAIL_LIMIT],
-        transactions_created=result.legs_created,
-        accounts_created=stats.accounts_created,
-        accounts_reused=stats.accounts_reused,
-        categories_created=stats.categories_created,
-        categories_reused=stats.categories_reused,
-        merchants_created=stats.merchants_created,
-        merchants_reused=stats.merchants_reused,
-        tags_created=stats.tags_created,
-        tags_reused=stats.tags_reused,
-        affected_account_ids=list(result.first_import_date_by_account_id.keys()),
-        account_source_ids={source: account.id for source, account in result.accounts_by_source.items()},
-        category_source_ids={source: category.id for source, category in result.categories_by_source.items()},
-        created_account_ids=stats.created_account_ids,
-        created_category_ids=stats.created_category_ids,
-        created_merchant_ids=stats.created_merchant_ids,
-        created_tag_ids=stats.created_tag_ids,
-    )

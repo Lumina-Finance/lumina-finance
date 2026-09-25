@@ -12,8 +12,10 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import type { Currency } from '@/api/currency'
+import { buildFireflyStageBatches, type FireflyImportRunBudgets, type FireflyImportStageBatch } from '@/api/firefly-imports'
 import {
   buildFireflyBudgetDrafts,
+  buildFireflyRunBudgets,
   forecastFireflyImport,
   readFireflyCsvFile,
   resolveFireflyRowLegs,
@@ -47,7 +49,7 @@ const readFixture = (name: string) => readFileSync(new URL(`../fixtures/real-exp
 const capturedUpload = JSON.parse(readFileSync(
   new URL('../../../../../../backend/tests/fixtures/firefly/real-export-upload.json', import.meta.url),
   'utf8',
-)) as { transactions: { accounts: unknown[]; rows: unknown[] }[] }
+)) as { transactions: FireflyImportStageBatch[]; budgets: FireflyImportRunBudgets | null }
 const manifest = JSON.parse(readFixture('manifest.json')) as Manifest
 const { fireflyVersion } = JSON.parse(readFixture('run.json')) as { fireflyVersion: string }
 
@@ -120,16 +122,38 @@ describe(`a real Firefly III ${fireflyVersion} export`, () => {
   })
 
   // A new user's import creates every account, so staging everything as new sends what the screen
-  // sent, and a change in how rows are unescaped, signed or paired shows up here
-  it('builds the upload the import screen sent for this export', async () => {
-    const draft = await readExport('transactions.csv', 'transactions')
-    const { payload } = stageFireflyImportAsNew(draft, draft.rows, CURRENCIES)
+  // sent, and a change in how rows are unescaped, signed, paired or batched shows up here
+  it('stages the batches and budgets the import screen sent for this export', async () => {
+    const [transactions, budgetsFile] = await Promise.all([
+      readExport('transactions.csv', 'transactions'),
+      readExport('budgets.csv', 'budgets'),
+    ])
+    const { options, payload } = stageFireflyImportAsNew(transactions, transactions.rows, CURRENCIES)
+    const batches = await buildFireflyStageBatches(payload)
 
-    expect(capturedUpload.transactions).toHaveLength(1)
-    // The screen lists accounts in the order its rows first use them
-    expect(payload.accounts).toEqual(expect.arrayContaining(capturedUpload.transactions[0].accounts))
-    expect(payload.accounts).toHaveLength(capturedUpload.transactions[0].accounts.length)
-    expect(payload.rows).toEqual(capturedUpload.transactions[0].rows)
+    expect(batches).toHaveLength(capturedUpload.transactions.length)
+    for (const [index, batch] of batches.entries()) {
+      const captured = capturedUpload.transactions[index]
+      expect(batch.start_row_index).toBe(captured.start_row_index)
+      // The screen lists accounts in the order its rows first use them
+      expect(batch.accounts).toEqual(expect.arrayContaining(captured.accounts))
+      expect(batch.accounts).toHaveLength(captured.accounts.length)
+      expect(batch.rows).toEqual(captured.rows)
+    }
+
+    // Every budget the export can import is selected unless the user clears it
+    const drafts = buildFireflyBudgetDrafts({
+      budgetsFile,
+      transactionRows: transactions.rows,
+      currencies: CURRENCIES,
+      categoryMappings: options.categoryMappings,
+      categoryById: new Map(),
+    }).filter((draft) => draft.disabledReason === null)
+    const runBudgets = buildFireflyRunBudgets(drafts, payload.categories)
+    expect(runBudgets.budgets).toEqual(capturedUpload.budgets?.budgets)
+    // The captured mappings name an existing category rather than its id, so only the sources compare
+    expect(runBudgets.categories.map((mapping) => mapping.source))
+      .toEqual(capturedUpload.budgets?.categories.map((mapping) => mapping.source))
   })
 
   it('reads every budget with the limits and categories Firefly III holds for it', async () => {

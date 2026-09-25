@@ -67,7 +67,7 @@ export default function ImportsPage() {
   // swapped away while it is the busy one
   const isFireflyBusy = fireflyWorkflow.importOverlayOpen
     || fireflyWorkflow.processingFileKind !== null
-    || fireflyWorkflow.isImportingBudgets
+    || fireflyWorkflow.isImportInFlight
   const isGenericBusy = workflow.importOverlayOpen || workflow.isProcessingFiles || workflow.isImportInFlight
   const isFirefly = isFireflyBusy || (!isGenericBusy && dataSource === 'firefly' && !isScopedToAccount)
   const importOverlayOpen = isFirefly ? fireflyWorkflow.importOverlayOpen : workflow.importOverlayOpen
@@ -306,6 +306,8 @@ export default function ImportsPage() {
             ? fireflyWorkflow.closeImportOverlay
             : undefined}
           onClosed={() => setOverlayOnScreen(false)}
+          onCancel={fireflyWorkflow.canStopImport ? fireflyWorkflow.cancelImport : undefined}
+          onRetry={fireflyWorkflow.canRetryImportCommit ? fireflyWorkflow.retryImportCommit : undefined}
         />
       ) : (
         <ImportProgressOverlay

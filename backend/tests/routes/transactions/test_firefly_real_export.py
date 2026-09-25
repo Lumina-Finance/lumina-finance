@@ -73,29 +73,43 @@ async def test_a_real_firefly_export_imports_to_the_balances_and_totals_firefly_
 
     # What each Firefly III category became in Lumina, an existing category or one the import creates
     lumina_category_by_source = {}
-    for batch in FIXTURE["transactions"]:
+
+    def resolve_categories(mappings):
         categories = []
-        for mapping in batch["categories"]:
+        for mapping in mappings:
             if "category_name" in mapping:
                 lumina_category_by_source[mapping["source"]] = mapping["category_name"]
                 categories.append({"source": mapping["source"], "category_id": category_ids[mapping["category_name"]]})
             else:
                 lumina_category_by_source[mapping["source"]] = mapping["create"]["name"]
                 categories.append(mapping)
+        return categories
 
-        resp = await client.post("/transactions/import/firefly", json={**batch, "categories": categories}, headers=headers)
-        assert resp.status_code == 201, resp.text
-        assert resp.json()["skipped"] == []
-
-    # Budgets name categories the transactions import may have just created
-    category_ids = await _get_category_ids_by_name(client, headers)
-    budgets = [
-        {key: value for key, value in budget.items() if key != "category_names"}
-        | {"category_ids": [category_ids[name] for name in budget["category_names"]]}
-        for budget in FIXTURE["budgets"]
-    ]
-    resp = await client.post("/transactions/import/firefly/budgets", json={"budgets": budgets}, headers=headers)
+    resp = await client.post("/transactions/import/runs", json={
+        "expected_transaction_count": sum(len(batch["rows"]) for batch in FIXTURE["transactions"]),
+        "source": "firefly",
+    }, headers=headers)
     assert resp.status_code == 201, resp.text
+    run_path = f"/transactions/import/runs/{resp.json()['id']}"
+
+    for batch in FIXTURE["transactions"]:
+        resp = await client.post(
+            f"{run_path}/firefly/rows",
+            json={**batch, "categories": resolve_categories(batch["categories"])},
+            headers=headers,
+        )
+        assert resp.status_code == 204, resp.text
+
+    if FIXTURE["budgets"]:
+        budgets = {**FIXTURE["budgets"], "categories": resolve_categories(FIXTURE["budgets"]["categories"])}
+        resp = await client.put(f"{run_path}/budgets", json=budgets, headers=headers)
+        assert resp.status_code == 204, resp.text
+
+    resp = await client.post(f"{run_path}/firefly/commit", headers=headers)
+    assert resp.status_code == 201, resp.text
+
+    # The commit may have created categories the budgets and totals below are read by
+    category_ids = await _get_category_ids_by_name(client, headers)
 
     expected = FIXTURE["expected"]
     accounts = (await client.get("/accounts", headers=headers)).json()

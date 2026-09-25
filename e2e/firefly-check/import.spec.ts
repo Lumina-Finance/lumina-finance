@@ -31,13 +31,14 @@ test('a Firefly III export imports to the balances, totals and budgets Firefly I
   await openPage(page, '/settings/imports')
   await chooseFromDropdown(page.locator('body'), 'Data Source', /^Firefly III/)
 
-  // Kept in the results beside the comparison, with the skipped rows the server reports, and made
-  // into the fixture the backend test replays
+  // Every request of the import run, kept in the results beside the comparison with the commit's
+  // summary, and made into the fixture the backend test replays
   const uploads: (CapturedUpload & { response: unknown })[] = []
   page.on('response', async (response) => {
     const path = response.url().slice(API_BASE_URL.length)
-    if (response.request().method() !== 'POST' || !path.startsWith('/transactions/import/firefly')) return
-    uploads.push({ path, body: response.request().postDataJSON(), response: await response.json().catch(() => null) })
+    const method = response.request().method()
+    if (!['POST', 'PUT'].includes(method) || !path.startsWith('/transactions/import/runs')) return
+    uploads.push({ method, path, body: response.request().postDataJSON(), response: await response.json().catch(() => null) })
   })
 
   const files = page.locator('input[type="file"][accept=".csv,text/csv"]')

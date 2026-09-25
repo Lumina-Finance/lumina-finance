@@ -6,6 +6,7 @@ import type { LuminaSnapshot } from './compare.ts'
 import type { FireflyManifest, FireflyRunInfo, ManifestRow } from './manifest.ts'
 
 export interface CapturedUpload {
+  method: string
   path: string
   body: unknown
 }
@@ -22,14 +23,16 @@ interface AccountMapping {
   create?: { institution_id?: string | null }
 }
 
-interface TransactionsBody {
+interface StageBody {
   accounts: AccountMapping[]
   categories: CategoryMapping[]
   rows: unknown[]
+  start_row_index: number
 }
 
 interface BudgetsBody {
-  budgets: { category_ids: string[] }[]
+  categories: CategoryMapping[]
+  budgets: unknown[]
 }
 
 export function buildUploadFixture(
@@ -44,28 +47,28 @@ export function buildUploadFixture(
     return name
   }
 
+  // A category matched to one the user already has is named, and one the import creates is kept
+  const nameCategories = (categories: CategoryMapping[]) => categories.map(({ category_id, ...mapping }) => (
+    category_id ? { ...mapping, category_name: categoryName(category_id) } : mapping
+  ))
+
   const transactions = uploads
-    .filter((upload) => upload.path === '/transactions/import/firefly')
+    .filter((upload) => upload.method === 'POST' && upload.path.endsWith('/firefly/rows'))
     .map(({ body }) => {
-      const { accounts, categories, rows } = body as TransactionsBody
+      const { accounts, categories, rows, start_row_index } = body as StageBody
 
       // A new user has no accounts or institutions of their own, so every account is created
       for (const account of accounts) {
         if (account.account_id || account.create?.institution_id) throw new Error(`The upload maps ${account.source} to an existing record`)
       }
-      return {
-        accounts,
-        categories: categories.map(({ category_id, ...mapping }) => (
-          category_id ? { ...mapping, category_name: categoryName(category_id) } : mapping
-        )),
-        rows,
-      }
+      return { accounts, categories: nameCategories(categories), rows, start_row_index }
     })
 
-  const budgets = uploads
-    .filter((upload) => upload.path === '/transactions/import/firefly/budgets')
-    .flatMap(({ body }) => (body as BudgetsBody).budgets)
-    .map(({ category_ids, ...budget }) => ({ ...budget, category_names: category_ids.map(categoryName) }))
+  // The screen sends the budgets once, and not at all when none is imported
+  const budgetUploads = uploads.filter((upload) => upload.method === 'PUT' && upload.path.endsWith('/budgets'))
+  if (budgetUploads.length > 1) throw new Error(`The screen sent the budgets ${budgetUploads.length} times`)
+  const budgetsBody = budgetUploads[0]?.body as BudgetsBody | undefined
+  const budgets = budgetsBody ? { categories: nameCategories(budgetsBody.categories), budgets: budgetsBody.budgets } : null
 
   return {
     firefly: runInfo,

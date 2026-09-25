@@ -15,8 +15,6 @@ from app.models.currency import Currency
 from app.models.user import User
 from app.schemas.firefly_import import (
     FireflyBudgetImport,
-    FireflyBudgetImportRequest,
-    FireflyBudgetImportResponse,
     FireflyBudgetImportResult,
 )
 from app.services.budgets.periods import compute_period_end, validate_period_start
@@ -47,30 +45,6 @@ class _PreparedBudget:
     base_budget: BaseBudget
     category_ids: list[uuid.UUID]
     limit_periods: list[tuple[date, date, int]]
-
-
-async def import_firefly_budgets(
-    db: AsyncSession,
-    user: User,
-    data: FireflyBudgetImportRequest,
-) -> FireflyBudgetImportResponse:
-    """Create budgets from a Firefly III export in one commit, so a failing budget leaves none behind
-
-    Args:
-        db: Active database session
-        user: Authenticated user running the import
-        data: Budgets derived from the export by the frontend
-
-    Returns:
-        Summary of the created budgets and their periods
-
-    Raises:
-        HTTPException: Raised with 422 when a currency, category, limit
-            amount, limit period, or cadence is invalid, naming the budget
-    """
-    results = await write_firefly_budgets(db, user, data.budgets)
-    await db.commit()
-    return FireflyBudgetImportResponse(budgets_created=len(results), results=results)
 
 
 async def write_firefly_budgets(

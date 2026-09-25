@@ -2,10 +2,10 @@
  * Tests Firefly III commit payload validation and completed summary formatting
  */
 import { readFileSync } from 'node:fs'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import type { AccountsOverview } from '@/api/accounts'
 import type { Currency } from '@/api/currency'
-import type { FireflyTransactionImportPayload, FireflyTransactionImportResponse } from '@/api/firefly-imports'
+import { buildFireflyStageBatches, type FireflyImportRunResponse } from '@/api/firefly-imports'
 import type { Category } from '@/api/categories'
 import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, MAX_IMPORT_NOTES_LENGTH } from '@/pages/imports/constants'
 import type { CsvRow, ImportFileDraft } from '@/pages/imports/types'
@@ -19,18 +19,11 @@ import {
   getFireflyAccountSources,
   getFireflyImportedCategories,
   inferFireflyCategoryMappings,
+  isFireflyRowUploadable,
   readFireflyCsvFile,
   resolveFireflyRowLegs,
 } from '@/pages/imports/firefly/utils'
 import { createNameKeyedAccountSources, stageFireflyImportAsNew } from './fixtures'
-
-const { postBatchMock } = vi.hoisted(() => ({ postBatchMock: vi.fn() }))
-
-vi.mock('@/api/firefly-imports/requests', () => ({
-  postFireflyTransactionImportBatch: postBatchMock,
-}))
-
-import { importFireflyTransactionsInBatches } from '@/api/firefly-imports'
 
 const CHEQUING = { id: 'chequing', name: 'Chequing', can_write: true, is_archived: false } as AccountsOverview
 const ARCHIVED = { id: 'old-savings', name: 'Old Savings', can_write: true, is_archived: true } as AccountsOverview
@@ -64,9 +57,7 @@ const TRANSACTIONS_FILE = {
 } as ImportFileDraft
 
 /** Creates a complete Firefly result with empty counters and mappings unless overridden */
-function createImportResult(
-  overrides: Partial<FireflyTransactionImportResponse> = {},
-): FireflyTransactionImportResponse {
+function createImportResult(overrides: Partial<FireflyImportRunResponse> = {}): FireflyImportRunResponse {
   return {
     transactions_created: 0,
     accounts_created: 0,
@@ -85,8 +76,10 @@ function createImportResult(
     created_merchant_ids: [],
     created_tag_ids: [],
     rows_imported: 0,
-    rows_skipped: 0,
-    skipped: [],
+    budgets_created: 0,
+    budgets: [],
+    accounts_archived: 0,
+    archive_adjustments_created: 0,
     ...overrides,
   }
 }
@@ -97,6 +90,7 @@ function createImportResult(
 function buildWithMapping(accountId: string, accounts: AccountsOverview[], row: CsvRow = ROW) {
   return buildFireflyImportPayload({
     transactionsFile: TRANSACTIONS_FILE,
+    skippedRows: new Set(),
     rows: [row],
     accountSources: createNameKeyedAccountSources(['Chequing']),
     accountMappings: { Chequing: accountId },
@@ -157,6 +151,7 @@ describe('a Firefly export with no uploadable rows', () => {
   it('refuses the commit with the export-specific message', () => {
     const result = buildFireflyImportPayload({
       transactionsFile: TRANSACTIONS_FILE,
+      skippedRows: new Set(),
       rows: [],
       accountSources: createNameKeyedAccountSources([]),
       accountMappings: {},
@@ -183,6 +178,7 @@ describe('Firefly account mapping completeness', () => {
   it('lists every unresolved tracked account and refuses the payload', () => {
     const result = buildFireflyImportPayload({
       transactionsFile: TRANSACTIONS_FILE,
+      skippedRows: new Set(),
       rows,
       accountSources,
       accountMappings: {},
@@ -204,6 +200,7 @@ describe('Firefly account mapping completeness', () => {
   it('accepts deliberate mappings from both tracked names to the same account', () => {
     const result = buildFireflyImportPayload({
       transactionsFile: TRANSACTIONS_FILE,
+      skippedRows: new Set(),
       rows,
       accountSources,
       accountMappings: {
@@ -228,48 +225,16 @@ describe('Firefly account mapping completeness', () => {
 })
 
 describe('the completed Firefly import summary', () => {
-  it('counts rows dropped by the browser beside rows skipped by the server', () => {
-    const result = createImportResult({
-      rows_imported: 1,
-      transactions_created: 1,
-      rows_skipped: 1,
-      skipped: [{ journal_id: 'server-skip', reason: 'Skipped by the server' }],
-    })
-    const summary = formatFireflyImportSummary(
-      result,
-      { browserDroppedCount: 1, budgetsCreated: 0 },
-    )
+  it('counts the rows the browser left out as skipped', () => {
+    const result = createImportResult({ rows_imported: 1, transactions_created: 1 })
 
-    expect(summary).toBe('1 row imported · 1 transaction created · 2 skipped')
-  })
-
-  it('preserves the server-only total when the browser drops no rows', () => {
-    const result = createImportResult({
-      rows_imported: 1,
-      transactions_created: 1,
-      rows_skipped: 1,
-      skipped: [{ journal_id: 'server-skip', reason: 'Skipped by the server' }],
-    })
-    const summary = formatFireflyImportSummary(
-      result,
-      { browserDroppedCount: 0, budgetsCreated: 0 },
-    )
-
-    expect(summary).toBe('1 row imported · 1 transaction created · 1 skipped')
+    expect(formatFireflyImportSummary(result, 2)).toBe('1 row imported · 1 transaction created · 2 skipped')
   })
 
   it('preserves plural row, transaction and budget segments in their current order', () => {
-    const result = createImportResult({
-      rows_imported: 2,
-      transactions_created: 2,
-      rows_skipped: 0,
-    })
-    const summary = formatFireflyImportSummary(
-      result,
-      { browserDroppedCount: 1, budgetsCreated: 2 },
-    )
+    const result = createImportResult({ rows_imported: 2, transactions_created: 2, budgets_created: 2 })
 
-    expect(summary).toBe('2 rows imported · 2 transactions created · 1 skipped · 2 budgets imported')
+    expect(formatFireflyImportSummary(result, 1)).toBe('2 rows imported · 2 transactions created · 1 skipped · 2 budgets imported')
   })
 })
 
@@ -280,6 +245,7 @@ describe('a Firefly account name longer than a new account takes', () => {
     const accountSources = getFireflyAccountSources(rows)
     return buildFireflyImportPayload({
       transactionsFile: TRANSACTIONS_FILE,
+      skippedRows: new Set(),
       rows,
       accountSources,
       accountMappings: { 'account-1': choice },
@@ -398,6 +364,7 @@ describe('a Firefly asset account and loan sharing a name', () => {
   it('names each unanswered account by its label', () => {
     const result = buildFireflyImportPayload({
       transactionsFile: TRANSACTIONS_FILE,
+      skippedRows: new Set(),
       rows,
       accountSources,
       accountMappings: {},
@@ -437,6 +404,7 @@ describe('a Firefly asset account and loan sharing a name', () => {
   it('creates two accounts and sends the payment between them in a later batch', async () => {
     const result = buildFireflyImportPayload({
       transactionsFile: TRANSACTIONS_FILE,
+      skippedRows: new Set(),
       rows,
       accountSources,
       accountMappings,
@@ -449,27 +417,21 @@ describe('a Firefly asset account and loan sharing a name', () => {
     })
     expect(result.errors).toEqual([])
 
-    const createdIds: Record<string, string> = {
-      [asset.id]: 'created-asset',
-      [loan.id]: 'created-loan',
-      [savings.id]: 'created-savings',
-    }
-    postBatchMock.mockImplementation(async (batch: FireflyTransactionImportPayload) => createImportResult({
-      account_source_ids: Object.fromEntries(batch.accounts.map((mapping) => [mapping.source, createdIds[mapping.source]])),
-    }))
-    await importFireflyTransactionsInBatches(result.payload!)
-
-    const batches = postBatchMock.mock.calls.map(([batch]) => batch as FireflyTransactionImportPayload)
+    // Nothing is created until the commit, so every batch carries the create mappings its rows need
+    const batches = await buildFireflyStageBatches(result.payload!)
     const lastBatch = batches[batches.length - 1]
     expect(batches.length).toBeGreaterThan(1)
+    expect(batches.map((batch) => batch.start_row_index)).toEqual(
+      batches.map((_, index) => batches.slice(0, index).reduce((count, batch) => count + batch.rows.length, 0)),
+    )
     expect(batches[0].accounts).toEqual([
       { source: asset.id, create: { name: 'Car', account_type: 'checking', currency: 'CAD', institution_id: null } },
       { source: loan.id, create: { name: 'Car', account_type: 'loan', currency: 'CAD', institution_id: null } },
       { source: savings.id, create: { name: 'Savings', account_type: 'checking', currency: 'CAD', institution_id: null } },
     ])
     expect(lastBatch.accounts).toEqual([
-      { source: asset.id, account_id: 'created-asset' },
-      { source: loan.id, account_id: 'created-loan' },
+      { source: asset.id, create: { name: 'Car', account_type: 'checking', currency: 'CAD', institution_id: null } },
+      { source: loan.id, create: { name: 'Car', account_type: 'loan', currency: 'CAD', institution_id: null } },
     ])
     expect(lastBatch.rows.find((row) => row.journal_id === '9')).toMatchObject({
       source_account: asset.id,
@@ -490,6 +452,7 @@ describe('the Firefly row values the payload sends', () => {
   const build = (row: CsvRow, categoryOverrides: Partial<Parameters<typeof buildFireflyImportPayload>[0]> = {}) => (
     buildFireflyImportPayload({
       transactionsFile: TRANSACTIONS_FILE,
+      skippedRows: new Set(),
       rows: [row],
       accountSources: createNameKeyedAccountSources(['Chequing']),
       accountMappings: { Chequing: CHEQUING.id },
@@ -642,8 +605,28 @@ describe('a real Firefly III export with splits, transfers and balance rows', ()
     expect(options.accountSources.list.map((source) => source.name)).toEqual(['Car Loan', 'Checking', 'Savings'])
 
     const forecast = forecastFireflyImport(rows, { fileId: draft.id, ...options })
-    expect(forecast.skippedRows.map((row) => [row.journalId, row.droppedBeforeUpload])).toEqual([['41', true]])
+    expect(forecast.skippedRows.map((row) => row.journalId)).toEqual(['41'])
+    expect(payload.rows.map((row) => row.journal_id)).not.toContain('41')
     expect(payload.rows.find((row) => row.journal_id === '7')?.category).toBeNull()
+  })
+
+  // The server refuses the whole import on a row it cannot write, so a row only the account's
+  // currency rules out has to be left out by the browser, not just the rows no mapping could save
+  it('leaves out a row the forecast predicts the server would refuse', async () => {
+    const draft = await readExport()
+    const parking = draft.rows.find((row) => row.journal_id === '16')!
+    const tooPrecise = { ...parking, journal_id: '42', amount: '-5.001' }
+    const rows = [...draft.rows, tooPrecise]
+
+    const { options, payload } = stage(draft, rows)
+    const forecast = forecastFireflyImport(rows, { fileId: draft.id, ...options })
+
+    expect(isFireflyRowUploadable(tooPrecise, new Map())).toBe(true)
+    expect(forecast.skippedRows.map((row) => [row.journalId, row.reason])).toEqual([[
+      '42',
+      'The amount has more decimal places than EUR has. A period is read as a decimal point, never as a separator between thousands.',
+    ]])
+    expect(payload.rows.map((row) => row.journal_id)).toEqual(draft.rows.map((row) => row.journal_id))
   })
 
   it("starts each split's notes with the title of its transaction", async () => {
@@ -710,20 +693,10 @@ describe('a real Firefly III export with splits, transfers and balance rows', ()
     const { options, payload } = stage(draft, rows)
     const [, checking, savings] = options.accountSources.list
 
-    postBatchMock.mockReset()
-    postBatchMock.mockImplementation(async (batch: FireflyTransactionImportPayload) => createImportResult({
-      account_source_ids: Object.fromEntries(batch.accounts.map((mapping) => [mapping.source, `created-${mapping.source}`])),
-      category_source_ids: Object.fromEntries(batch.categories.map((mapping) => [mapping.source, `created-${mapping.source}`])),
-    }))
-    await importFireflyTransactionsInBatches(payload)
-
-    const batches = postBatchMock.mock.calls.map(([batch]) => batch as FireflyTransactionImportPayload)
+    const batches = await buildFireflyStageBatches(payload)
     const lastBatch = batches[batches.length - 1]
     expect(lastBatch.rows.every((row) => row.type === 'Transfer')).toBe(true)
     expect(lastBatch.categories).toEqual([])
-    expect(lastBatch.accounts).toEqual([
-      { source: checking.id, account_id: `created-${checking.id}` },
-      { source: savings.id, account_id: `created-${savings.id}` },
-    ])
+    expect(lastBatch.accounts.map((mapping) => mapping.source)).toEqual([checking.id, savings.id])
   })
 })

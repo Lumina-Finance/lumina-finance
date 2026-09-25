@@ -178,9 +178,9 @@ def _future_date():
 @pytest.mark.parametrize(("case", "detail"), [
     (
         "row",
-        "Row 2 (Firefly III journal 2): Neither the amount nor the foreign amount is in the account's currency (CAD)",
+        "Firefly III journal 2: Neither the amount nor the foreign amount is in the account's currency (CAD)",
     ),
-    ("row-unmapped", "Row 2 (Firefly III journal 2): Category source is not mapped: Dining"),
+    ("row-unmapped", "Firefly III journal 2: Category source is not mapped: Dining"),
     ("budget", "Travel: category source Travel has no category mapping in this import"),
     ("archive-unmapped", "Account source Holiday Fund is not an account this import creates, so it can't be archived"),
     ("archive-existing", "Account source Old Chequing is not an account this import creates, so it can't be archived"),

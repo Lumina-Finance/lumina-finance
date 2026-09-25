@@ -60,19 +60,6 @@ class FireflyTransactionRow(BaseModel):
     notes: str | None = Field(None, max_length=MAX_IMPORT_NOTES_LENGTH)
 
 
-class FireflyTransactionImportRequest(BaseModel):
-    """Batch import frontend-compiled Firefly III export rows
-
-    Account mappings must cover every account source the rows name. Category mappings must cover the category of every
-    withdrawal or deposit between an imported account and one outside the import, with the no-category placeholder
-    standing in when such a row has none. Transfers and balance rows read no category
-    """
-
-    accounts: list[TransactionImportAccountMapping] = Field(min_length=1, max_length=MAX_IMPORT_MAPPINGS)
-    categories: list[TransactionImportCategoryMapping] = Field(default=[], max_length=MAX_IMPORT_MAPPINGS)
-    rows: list[FireflyTransactionRow] = Field(min_length=1, max_length=MAX_IMPORT_BATCH_ROWS)
-
-
 class FireflyImportStageRequest(BaseModel):
     """One batch of a staged Firefly III export: the mappings its rows reference, and the rows
 
@@ -143,61 +130,12 @@ class FireflyBudgetImport(BaseModel):
     is_archived: bool = False
 
 
-class FireflyBudgetImportRequest(BaseModel):
-    """Batch import budgets derived from a Firefly III export"""
-
-    budgets: list[FireflyBudgetImport] = Field(min_length=1, max_length=MAX_FIREFLY_BUDGETS)
-
-
 class FireflyBudgetImportResult(BaseModel):
     """One created budget with the periods materialized for it"""
 
     name: str
     base_budget_id: uuid.UUID
     instance_count: int
-
-
-class FireflyBudgetImportResponse(BaseModel):
-    """Summary of budgets created by a Firefly III budget import"""
-
-    budgets_created: int
-    results: list[FireflyBudgetImportResult]
-
-
-class FireflySkippedRow(BaseModel):
-    """One Firefly III row the importer could not convert"""
-
-    journal_id: str
-    reason: str
-
-
-class FireflyTransactionImportResponse(BaseModel):
-    """Summary of records created by a Firefly III transaction import
-
-    Transfers between two imported accounts produce two Lumina transactions
-    from one Firefly journal row, so transactions_created can exceed
-    rows_imported
-    """
-
-    rows_imported: int
-    rows_skipped: int
-    skipped: list[FireflySkippedRow]
-    transactions_created: int
-    accounts_created: int
-    accounts_reused: int
-    categories_created: int
-    categories_reused: int
-    merchants_created: int
-    merchants_reused: int
-    tags_created: int
-    tags_reused: int
-    affected_account_ids: list[uuid.UUID]
-    account_source_ids: dict[str, uuid.UUID]
-    category_source_ids: dict[str, uuid.UUID]
-    created_account_ids: list[uuid.UUID]
-    created_category_ids: list[uuid.UUID]
-    created_merchant_ids: list[uuid.UUID]
-    created_tag_ids: list[uuid.UUID]
 
 
 class FireflyImportRunResponse(BaseModel):

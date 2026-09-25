@@ -269,11 +269,12 @@ function getFireflyFieldTooLongReason(field: string, length: number, maxLength: 
 }
 
 /**
- * Whether a row survives the payload build and reaches the backend
+ * Whether a row passes the checks the browser makes whatever the mappings, so the upload can
+ * carry it. The payload build also leaves out the rows the forecast rules out for the chosen
+ * mappings
  *
- * Anything deriving import sources, such as the budget category inference,
- * must gate on this, because a row dropped before upload can never register
- * an account or category source in the commit response
+ * Anything deriving import sources, such as the budget category inference, must gate on this,
+ * because a row left out here never needs an account or a category
  *
  * @param groupSizes - Group sizes across the whole export, which decide the notes a split is sent with
  */

@@ -97,19 +97,18 @@ export interface FireflyBudgetDraft {
   periodLabel: string | null
 
   /**
-   * Export category names the budget's transactions carry, resolved to
-   * category IDs only once the transactions commit reports them
+   * Export category names the budget's transactions carry, sent as the category mapping sources
+   * the commit resolves
    */
   categoryNames: string[]
   disabledReason: string | null
 }
 
-export type FireflyBudgetImportStatus = 'imported' | 'error'
-
 /**
- * Stage of the two-phase commit currently holding the overlay
+ * Stage of the import currently holding the overlay: uploading the export, which saves nothing,
+ * then writing all of it at once
  */
-export type FireflyImportStage = 'transactions' | 'budgets'
+export type FireflyImportStage = 'uploading' | 'saving'
 
 /**
  * Stage holding the overlay and whether its work has landed

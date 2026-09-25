@@ -43,9 +43,12 @@ export interface FireflyTransactionImportPayload {
   rows: FireflyTransactionImportRow[];
 }
 
-export interface FireflySkippedRow {
-  journal_id: string;
-  reason: string;
+/**
+ * One batch of a staged export: the mappings its own rows reference, the rows, and where the
+ * batch starts in the export
+ */
+export interface FireflyImportStageBatch extends FireflyTransactionImportPayload {
+  start_row_index: number;
 }
 
 /**
@@ -80,11 +83,14 @@ export interface FireflyBudgetImportRecurrence {
 
 /**
  * One budget with its full limit period schedule, sorted by start date
+ *
+ * Its tracked categories are named by category mapping source, since a category the same import
+ * creates has no id until the commit
  */
 export interface FireflyBudgetImportBudget {
   name: string;
   currency: string;
-  category_ids: string[];
+  category_sources: string[];
   limits: FireflyBudgetImportLimit[];
 
   /**
@@ -98,7 +104,12 @@ export interface FireflyBudgetImportBudget {
   is_archived: boolean;
 }
 
-export interface FireflyBudgetImportPayload {
+/**
+ * Every budget a run creates, with the category mappings they name, since a budget can track a
+ * category no staged row uses
+ */
+export interface FireflyImportRunBudgets {
+  categories: TransactionImportCategoryMapping[];
   budgets: FireflyBudgetImportBudget[];
 }
 
@@ -109,20 +120,16 @@ export interface FireflyBudgetImportResult {
 }
 
 /**
- * The backend creates all budgets atomically, so a failure means none were
- * imported and the error detail names the budget it rejected
+ * Everything a Firefly III import wrote in its one commit
+ *
+ * A row the server cannot write fails the whole commit, so nothing is ever skipped here. Transfers
+ * between two mapped accounts produce two Lumina transactions from one journal row, so
+ * transactions_created can exceed rows_imported
  */
-export interface FireflyBudgetImportResponse {
-  budgets_created: number;
-  results: FireflyBudgetImportResult[];
-}
-
-/**
- * Transfers between two mapped accounts produce two Lumina transactions from
- * one journal row, so transactions_created can exceed rows_imported
- */
-export interface FireflyTransactionImportResponse extends TransactionImportResponse {
+export interface FireflyImportRunResponse extends TransactionImportResponse {
   rows_imported: number;
-  rows_skipped: number;
-  skipped: FireflySkippedRow[];
+  budgets_created: number;
+  budgets: FireflyBudgetImportResult[];
+  accounts_archived: number;
+  archive_adjustments_created: number;
 }
