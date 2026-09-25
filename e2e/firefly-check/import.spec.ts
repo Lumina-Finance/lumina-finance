@@ -13,6 +13,7 @@ import { checkExpected, compareImport } from './compare.ts'
 import { readAccountsFile } from './csv.ts'
 import { EXPECTED_DIFFERENCES } from './expected-differences.ts'
 import { readLumina } from './lumina.ts'
+import { buildUploadFixture, type CapturedUpload } from './upload-fixture.ts'
 import type { FireflyManifest, FireflyRunInfo } from './manifest.ts'
 
 const OUTPUT_DIR = join(import.meta.dirname, 'output')
@@ -30,8 +31,9 @@ test('a Firefly III export imports to the balances, totals and budgets Firefly I
   await openPage(page, '/settings/imports')
   await chooseFromDropdown(page.locator('body'), 'Data Source', /^Firefly III/)
 
-  // Kept in the results beside the comparison, with the skipped rows the server reports
-  const uploads: { path: string; body: unknown; response: unknown }[] = []
+  // Kept in the results beside the comparison, with the skipped rows the server reports, and made
+  // into the fixture the backend test replays
+  const uploads: (CapturedUpload & { response: unknown })[] = []
   page.on('response', async (response) => {
     const path = response.url().slice(API_BASE_URL.length)
     if (response.request().method() !== 'POST' || !path.startsWith('/transactions/import/firefly')) return
@@ -65,12 +67,15 @@ test('a Firefly III export imports to the balances, totals and budgets Firefly I
     budgets: await readTitle(/^\d+ budgets? skipped$/),
   }
   await progress.getByRole('button', { name: 'Done', exact: true }).click()
-  const differences = compareImport(manifest, runInfo, accountsFile, await readLumina(request, user))
+  const lumina = await readLumina(request, user)
+  const differences = compareImport(manifest, runInfo, accountsFile, lumina)
   const { unexpected, stale } = checkExpected(differences, EXPECTED_DIFFERENCES)
 
   const report = { firefly: runInfo, skipped, differences, unexpected, stale }
   await writeFile(testInfo.outputPath('comparison.json'), `${JSON.stringify(report, null, 2)}\n`)
   await writeFile(testInfo.outputPath('uploads.json'), `${JSON.stringify(uploads, null, 2)}\n`)
+  const fixture = buildUploadFixture(uploads, lumina, manifest, runInfo)
+  await writeFile(testInfo.outputPath('upload-fixture.json'), `${JSON.stringify(fixture, null, 2)}\n`)
 
   expect(unexpected, 'differences from Firefly III that are not on the expected list').toEqual([])
   expect(stale, 'expected differences that no longer occur, which should come off the list').toEqual([])

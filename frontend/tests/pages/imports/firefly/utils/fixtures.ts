@@ -1,5 +1,16 @@
+import type { Currency } from '@/api/currency'
 import { isFireflyTrackedAccountType } from '@/api/firefly-imports'
+import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
 import type { FireflyAccountSource, FireflyAccountSources } from '@/pages/imports/firefly/types'
+import {
+  buildFireflyAccountPrefills,
+  buildFireflyCategoryKinds,
+  buildFireflyImportPayload,
+  getFireflyAccountSources,
+  getFireflyImportedCategories,
+  type FireflyRowResolutionOptions,
+} from '@/pages/imports/firefly/utils'
+import type { CsvRow, ImportFileDraft } from '@/pages/imports/types'
 
 /**
  * Account sources keyed by name, for tests about anything other than telling same-named accounts
@@ -20,4 +31,34 @@ export function createNameKeyedAccountSources(names: string[] = []): FireflyAcco
       return trimmedName && isFireflyTrackedAccountType(type) ? toSource(trimmedName) : null
     },
   }
+}
+
+/**
+ * Stages the import the way the steps do for a user with nothing yet, where every account and
+ * category is created new
+ */
+export function stageFireflyImportAsNew(transactionsFile: ImportFileDraft, rows: CsvRow[], currencies: Currency[]) {
+  const accountSources = getFireflyAccountSources(rows)
+  const prefills = buildFireflyAccountPrefills(rows, accountSources, new Set(currencies.map((currency) => currency.id)))
+  const importedCategories = getFireflyImportedCategories(rows)
+  const categoryCreateKinds = buildFireflyCategoryKinds(rows)
+  const options: FireflyRowResolutionOptions = {
+    accountSources,
+    accountById: new Map(),
+    accountMappings: Object.fromEntries(accountSources.list.map((source) => [source.id, CREATE_ACCOUNT_VALUE])),
+    accountCreateDetails: Object.fromEntries(accountSources.list.map((source) => [
+      source.id,
+      { ...prefills[source.id], institutionId: '' },
+    ])),
+    institutionById: new Map(),
+    categoryById: new Map(),
+    categoryMappings: Object.fromEntries(importedCategories.map((source) => [source, CREATE_CATEGORY_VALUE])),
+    categoryCreateKinds,
+    transferCategory: undefined,
+    balanceAdjustmentCategory: undefined,
+    currencies,
+  }
+  const { payload, errors } = buildFireflyImportPayload({ transactionsFile, rows, importedCategories, ...options })
+  if (!payload) throw new Error(`The staged import builds no payload: ${errors.join('; ')}`)
+  return { options, importedCategories, payload }
 }

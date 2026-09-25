@@ -166,12 +166,12 @@ describe('removing the formula escape from Firefly III cells', () => {
   })
 
   it('removes the escape from the budgets export', async () => {
-    const csv = `${FIREFLY_BUDGETS_REQUIRED_HEADERS.join(',')}\n'@Home,1,2026-06-01,2026-06-30,CAD,300.00\n`
+    const csv = `${FIREFLY_BUDGETS_REQUIRED_HEADERS.join(',')}\n'@Home,1,2026-06-01,2026-06-30,CAD,300.000000000000\n`
 
     const draft = await readFile(csv, 'budgets')
 
     expect(draft.error).toBeNull()
-    expect(draft.rows[0]).toMatchObject({ name: '@Home', amount: '300.00' })
+    expect(draft.rows[0]).toMatchObject({ name: '@Home', amount: '300.000000000000' })
   })
 })
 

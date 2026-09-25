@@ -21,9 +21,8 @@ import {
   inferFireflyCategoryMappings,
   readFireflyCsvFile,
   resolveFireflyRowLegs,
-  type FireflyRowResolutionOptions,
 } from '@/pages/imports/firefly/utils'
-import { createNameKeyedAccountSources } from './fixtures'
+import { createNameKeyedAccountSources, stageFireflyImportAsNew } from './fixtures'
 
 const { postBatchMock } = vi.hoisted(() => ({ postBatchMock: vi.fn() }))
 
@@ -610,33 +609,7 @@ describe('a real Firefly III export with splits, transfers and balance rows', ()
     new Set(['EUR']),
   )
 
-  /**
-   * Stages the import the way the steps do when every account and category is created new
-   */
-  function stage(transactionsFile: ImportFileDraft, rows: CsvRow[]) {
-    const accountSources = getFireflyAccountSources(rows)
-    const prefills = buildFireflyAccountPrefills(rows, accountSources, new Set(['EUR']))
-    const importedCategories = getFireflyImportedCategories(rows)
-    const categoryCreateKinds = buildFireflyCategoryKinds(rows)
-    const options: FireflyRowResolutionOptions = {
-      accountSources,
-      accountById: new Map(),
-      accountMappings: Object.fromEntries(accountSources.list.map((source) => [source.id, CREATE_ACCOUNT_VALUE])),
-      accountCreateDetails: Object.fromEntries(accountSources.list.map((source) => [
-        source.id,
-        { ...prefills[source.id], institutionId: '' },
-      ])),
-      institutionById: new Map(),
-      categoryById: new Map(),
-      categoryMappings: Object.fromEntries(importedCategories.map((source) => [source, CREATE_CATEGORY_VALUE])),
-      categoryCreateKinds,
-      transferCategory: undefined,
-      balanceAdjustmentCategory: undefined,
-      currencies: CURRENCIES,
-    }
-    const { payload } = buildFireflyImportPayload({ transactionsFile, rows, importedCategories, ...options })
-    return { options, importedCategories, payload: payload! }
-  }
+  const stage = (transactionsFile: ImportFileDraft, rows: CsvRow[]) => stageFireflyImportAsNew(transactionsFile, rows, CURRENCIES)
 
   it('creates only the categories and accounts the import writes to', async () => {
     const draft = await readExport()
