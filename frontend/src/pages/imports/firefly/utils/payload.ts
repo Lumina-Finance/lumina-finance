@@ -29,6 +29,9 @@ import {
   getFireflyRowAmounts,
   getFireflyRowDate,
   getFireflyRowPayeeName,
+  getFireflyRowSentNotes,
+  getFireflySplitGroupSizes,
+  isFireflyPayeeRow,
   isFireflyRowUploadable,
   splitFireflyTags,
 } from './derivation'
@@ -129,10 +132,6 @@ export function buildFireflyImportPayload({
     })
   }
 
-  if (accountSources.list.length === 0 && rows.length > 0) {
-    addError('This export has no asset or liability accounts to import into.')
-  }
-
   const categories: FireflyTransactionImportPayload['categories'] = []
   const createdCategoryByKey = new Map<string, { source: string; kind: ImportCategoryKind }>()
   for (const source of importedCategories) {
@@ -192,16 +191,18 @@ export function buildFireflyImportPayload({
  *
  * An endpoint the import writes to is sent as its account source alone, so the backend never works
  * out from the Firefly III type which endpoints are accounts. Another endpoint's name is sent only
- * where it becomes the merchant, so a long name the import never writes cannot fail the batch
+ * where it becomes the merchant, and a category only where the row is written with it, so a long
+ * value the import never writes cannot fail the batch and a batch of transfers maps no category
  */
 function buildFireflyImportRows(
   rows: CsvRow[],
   accountSources: FireflyAccountSources,
 ): FireflyTransactionImportPayload['rows'] {
   const payloadRows: FireflyTransactionImportPayload['rows'] = []
+  const groupSizes = getFireflySplitGroupSizes(rows)
 
   for (const row of rows) {
-    if (!isFireflyRowUploadable(row)) continue
+    if (!isFireflyRowUploadable(row, groupSizes)) continue
 
     const sourceAccount = accountSources.find(row.source_name, row.source_type)
     const destinationAccount = accountSources.find(row.destination_name, row.destination_type)
@@ -225,9 +226,9 @@ function buildFireflyImportRows(
       source_name: isDeposit ? payeeName : null,
       destination_account: destinationAccount?.id ?? null,
       destination_name: isDeposit ? null : payeeName,
-      category: cleanOptional(row.category),
+      category: isFireflyPayeeRow(row) ? cleanOptional(row.category) : null,
       tag_names: splitFireflyTags(row.tags ?? ''),
-      notes: cleanOptional(row.notes),
+      notes: getFireflyRowSentNotes(row, groupSizes),
     })
   }
 

@@ -1,7 +1,14 @@
 import type { CsvRow, PreviewTransactionRow } from '@/pages/imports/types'
 import { BALANCE_ADJUSTMENT_CATEGORY_NAME, doesTransferRecordCounterpartyAccount } from '@/utils/transfers'
 import { getPreviewDateLabel } from '@/pages/imports/utils'
-import { getFireflyRowDate, isFireflyRowUploadable, splitFireflyTags } from './derivation'
+import {
+  getFireflyRowDate,
+  getFireflyRowSentNotes,
+  getFireflySplitGroupSizes,
+  isFireflyRowUploadable,
+  splitFireflyTags,
+  type FireflySplitGroupSizes,
+} from './derivation'
 import { resolveFireflyRowLegs, type FireflyResolvedLeg, type FireflyRowResolutionOptions } from './rowResolution'
 
 interface BuildFireflyPreviewRowsOptions extends FireflyRowResolutionOptions {
@@ -20,19 +27,20 @@ interface BuildFireflyPreviewRowsOptions extends FireflyRowResolutionOptions {
 export function buildFireflyPreviewRows(options: BuildFireflyPreviewRowsOptions): PreviewTransactionRow[] {
   const previewRows: PreviewTransactionRow[] = []
   const timestamp = new Date().toISOString()
+  const groupSizes = getFireflySplitGroupSizes(options.rows)
 
   // Rows are walked in export order and the loop stops at the cap because the
   // preview only renders a small sample
   for (const row of options.rows) {
     if (previewRows.length >= options.limit) break
-    if (!isFireflyRowUploadable(row)) continue
+    if (!isFireflyRowUploadable(row, groupSizes)) continue
 
     const resolution = resolveFireflyRowLegs(row, options)
     if (resolution.skipReason !== null) continue
 
     for (const [legIndex, leg] of resolution.legs.entries()) {
       if (previewRows.length >= options.limit) break
-      previewRows.push(buildFireflyPreviewRow(row, leg, legIndex, timestamp))
+      previewRows.push(buildFireflyPreviewRow(row, leg, legIndex, timestamp, groupSizes))
     }
   }
 
@@ -58,14 +66,15 @@ function buildFireflyPreviewRow(
   leg: FireflyResolvedLeg,
   legIndex: number,
   timestamp: string,
+  groupSizes: FireflySplitGroupSizes,
 ): PreviewTransactionRow {
   const id = `firefly-preview-${row.journal_id.trim()}-${legIndex}`
   const dt = getFireflyRowDate(row.date ?? '')
   const tagNames = splitFireflyTags(row.tags ?? '')
   const tagIds = tagNames.map((tag, tagIndex) => `${id}-tag-${tagIndex}-${tag}`)
 
-  // The commit joins the journal description and notes into the leg notes
-  const notes = [row.description, row.notes]
+  // The commit joins the journal description and the notes the row is sent with into the leg notes
+  const notes = [row.description, getFireflyRowSentNotes(row, groupSizes)]
     .map((part) => part?.trim() ?? '')
     .filter(Boolean)
     .join('\n')

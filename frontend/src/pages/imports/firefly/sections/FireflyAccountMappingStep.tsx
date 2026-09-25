@@ -18,6 +18,7 @@ type InstitutionModalTarget = { kind: 'batch' } | { kind: 'account'; source: str
 
 type FireflyAccountMappingStepProps = Pick<
   FireflyImportWorkflow,
+  | 'transactionsFile'
   | 'trackedAccounts'
   | 'accountMappings'
   | 'autoFilledAccountSources'
@@ -51,6 +52,7 @@ type FireflyAccountMappingStepProps = Pick<
  * modal used to create an institution from a row or from the batch bar
  */
 export function FireflyAccountMappingStep({
+  transactionsFile,
   trackedAccounts,
   accountMappings,
   autoFilledAccountSources,
@@ -162,8 +164,10 @@ export function FireflyAccountMappingStep({
         />
       ) : trackedAccounts.length === 0 ? (
         <EmptyState
-          title="No account names detected"
-          description="Upload the transactions CSV first."
+          title={transactionsFile ? 'No accounts to import into' : 'No account names detected'}
+          description={transactionsFile
+            ? 'No row in this export can be imported into an asset or liability account. The preview lists why each row is skipped.'
+            : 'Upload the transactions CSV first.'}
         />
       ) : (
         <>

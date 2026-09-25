@@ -8,6 +8,7 @@ import type { FireflyImportWorkflow } from '@/pages/imports/firefly/hooks'
 
 type FireflyCategoryMatchingStepProps = Pick<
   FireflyImportWorkflow,
+  | 'transactionsFile'
   | 'importedCategories'
   | 'resolvedCategoryMappings'
   | 'autoFilledCategories'
@@ -22,10 +23,11 @@ type FireflyCategoryMatchingStepProps = Pick<
 >
 
 /**
- * Category matching step of the Firefly III import flow, showing every category found in the export
- * matched to an existing category or queued to be created with a chosen kind
+ * Category matching step of the Firefly III import flow, showing every category the imported rows
+ * are written with, matched to an existing category or queued to be created with a chosen kind
  */
 export function FireflyCategoryMatchingStep({
+  transactionsFile,
   importedCategories,
   resolvedCategoryMappings,
   autoFilledCategories,
@@ -52,8 +54,10 @@ export function FireflyCategoryMatchingStep({
         />
       ) : importedCategories.length === 0 ? (
         <EmptyState
-          title="No imported categories detected"
-          description="Upload the transactions CSV first."
+          title={transactionsFile ? 'No categories to match' : 'No imported categories detected'}
+          description={transactionsFile
+            ? 'No imported row keeps a category of its own. Transfers are filed under Transfer and balance rows under Balance Adjustment.'
+            : 'Upload the transactions CSV first.'}
         />
       ) : (
         <ImportValueMatchTable

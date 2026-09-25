@@ -37,7 +37,8 @@ import { findReusedImportCategory, getCategoryNameKey } from '@/pages/imports/ut
 import {
   countCharacters,
   getFireflyRowDate,
-  isFireflyPayeeRow,
+  getFireflySplitGroupSizes,
+  isFireflyCategoryUseRow,
   isFireflyRowUploadable,
 } from './derivation'
 import { resolveFireflyRowLegs, type FireflyRowResolutionOptions } from './rowResolution'
@@ -132,20 +133,23 @@ export function buildFireflyBudgetDrafts({
   }
 
   const usageByName = new Map<string, FireflyBudgetUsage>()
+  const groupSizes = getFireflySplitGroupSizes(transactionRows)
   for (const row of transactionRows) {
     const budgetName = row.budget?.trim()
     if (!budgetName) continue
 
     // Rows dropped before upload never register category sources in the
     // commit response, so they cannot vote on a budget's tracked categories
-    if (!isFireflyRowUploadable(row)) continue
+    if (!isFireflyRowUploadable(row, groupSizes)) continue
 
     const rowDate = getFireflyRowDate(row.date ?? '')
     const usage = usageByName.get(budgetName) ?? { earliestDate: '', categoryNames: new Set<string>() }
     if (rowDate && (!usage.earliestDate || rowDate < usage.earliestDate)) usage.earliestDate = rowDate
 
+    // Only a row written with its category is counted in that category, so a transfer or balance
+    // row carrying the budget adds none, and a budget with only those tracks nothing
     const category = row.category?.trim()
-    if (category) usage.categoryNames.add(category)
+    if (category && isFireflyCategoryUseRow(row, groupSizes)) usage.categoryNames.add(category)
     usageByName.set(budgetName, usage)
   }
 
@@ -167,9 +171,9 @@ export function buildFireflyBudgetDrafts({
  * Turns budget drafts into the commit payload by resolving each draft's export
  * category names through the category IDs the transactions commit reported
  *
- * Every distinct row category is an import source, so the response carries all
- * of them, and a name that is somehow absent is dropped rather than failing the
- * budget it belongs to
+ * A draft's categories come from the same rows the category sources do, so the
+ * response carries all of them, and a name that is somehow absent is dropped
+ * rather than failing the budget it belongs to
  */
 export function buildFireflyBudgetImportBudgets(
   drafts: FireflyBudgetDraft[],
@@ -274,10 +278,11 @@ export function buildFireflyBudgetCountingNotes({
 
   const uncategorizedTarget = getFireflyCategoryTarget(FIREFLY_NO_CATEGORY_SOURCE, options)
   const uncategorizedByBudget = new Map<string, Map<string, number>>()
+  const groupSizes = getFireflySplitGroupSizes(rows)
   for (const row of rows) {
     const budgetName = row.budget?.trim() ?? ''
     const targets = targetsByBudget.get(budgetName)
-    if (!targets || row.category?.trim() || !isFireflyRowUploadable(row) || !isFireflyPayeeRow(row)) continue
+    if (!targets || row.category?.trim() || !isFireflyCategoryUseRow(row, groupSizes)) continue
     if (row.type?.trim().toLowerCase() !== FIREFLY_TYPE_WITHDRAWAL) continue
 
     // Rows with no category matched to a category the budget tracks are counted after all

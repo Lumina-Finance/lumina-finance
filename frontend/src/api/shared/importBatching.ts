@@ -27,12 +27,13 @@ export interface ImportBatchPayload<TRow> {
  * Domain-specific behaviour the batching engine needs from a caller
  *
  * `getRowAccountSources` returns every account mapping source one row touches. A row can
- * reference zero, one, or more accounts depending on the domain, so the engine treats the
- * result as a list rather than assuming a single account per row
+ * reference one or more accounts depending on the domain, so the engine treats the result as a
+ * list rather than assuming a single account per row. `getRowCategorySource` returns null for a
+ * row written without a category of its own, which then carries no category mapping
  */
 export interface ImportBatchEngine<TRow, TResponse extends TransactionImportResponse> {
   getRowAccountSources: (row: TRow) => string[];
-  getRowCategorySource: (row: TRow) => string;
+  getRowCategorySource: (row: TRow) => string | null;
   postBatch: (batchPayload: ImportBatchPayload<TRow>) => Promise<TResponse>;
   createEmptyResponse: () => TResponse;
   mergeResponse: (target: TResponse, source: TResponse) => void;
@@ -96,15 +97,16 @@ async function buildNextImportBatch<TRow, TResponse extends TransactionImportRes
   while (rowIndex < sourceRows.length) {
     const row = sourceRows[rowIndex];
     const rowAccountSources = engine.getRowAccountSources(row);
-    const rowCategorySource = engine.getRowCategorySource(row);
-    let nextEstimatedBytes = estimatedBytes
-      + getNextArrayItemByteSize(rows.length, row)
-      + getNextCategoryMappingByteSize(
-        rowCategorySource,
+    const rowCategorySources = getRowCategorySources(engine, row);
+    let nextEstimatedBytes = estimatedBytes + getNextArrayItemByteSize(rows.length, row);
+    for (const source of rowCategorySources) {
+      nextEstimatedBytes += getNextCategoryMappingByteSize(
+        source,
         categorySources,
         categoryMappingsBySource,
         categorySourceIds,
       );
+    }
     for (const source of rowAccountSources) {
       nextEstimatedBytes += getNextAccountMappingByteSize(
         source,
@@ -117,7 +119,7 @@ async function buildNextImportBatch<TRow, TResponse extends TransactionImportRes
     // Mappings are small enough that a file with many distinct values fills the count long before
     // it fills the byte budget, so both are what closes a batch
     const nextAccountSources = countWithNewSources(accountSources, rowAccountSources);
-    const nextCategorySources = countWithNewSources(categorySources, [rowCategorySource]);
+    const nextCategorySources = countWithNewSources(categorySources, rowCategorySources);
     const isBatchFull = nextEstimatedBytes > TARGET_IMPORT_BATCH_BYTES
       || rows.length >= MAX_IMPORT_BATCH_ROWS
       || nextAccountSources > MAX_IMPORT_BATCH_MAPPINGS
@@ -130,7 +132,7 @@ async function buildNextImportBatch<TRow, TResponse extends TransactionImportRes
 
     rows.push(row);
     for (const source of rowAccountSources) accountSources.add(source);
-    categorySources.add(rowCategorySource);
+    for (const source of rowCategorySources) categorySources.add(source);
     estimatedBytes = nextEstimatedBytes;
     rowIndex += 1;
 
@@ -141,12 +143,9 @@ async function buildNextImportBatch<TRow, TResponse extends TransactionImportRes
 
   if (rows.length === 0) throw new Error('No import rows are available to upload.');
 
-  // The endpoint requires at least one account mapping per request. A row can carry zero
-  // account sources (for example a Firefly row with no tracked source or destination
-  // account), so a batch built entirely from such rows borrows one known mapping
-  if (accountSources.size === 0 && payload.accounts.length > 0) {
-    accountSources.add(getBorrowedAccountSource(payload.accounts, accountSourceIds));
-  }
+  // The endpoint requires at least one account mapping per request, and every row a caller uploads
+  // writes to an account, so a batch without one means a row that should have been dropped
+  if (accountSources.size === 0) throw new Error('An import batch writes to no account.');
 
   return {
     payload: buildImportBatchPayload(
@@ -230,23 +229,14 @@ function countWithNewSources(sources: Set<string>, candidates: string[]) {
 }
 
 /**
- * Picks the mapping a batch with no account sources of its own carries
- *
- * A source an earlier batch already created, or one that states an account that exists, costs
- * nothing to carry. A create mapping would have the backend create an account no row in the batch
- * references, so it is the last resort rather than the first choice
+ * Lists the category mapping source one row is written with, empty when it takes none
  */
-function getBorrowedAccountSource(
-  accounts: TransactionImportAccountMapping[],
-  accountSourceIds: Record<string, string>,
+function getRowCategorySources<TRow, TResponse extends TransactionImportResponse>(
+  engine: ImportBatchEngine<TRow, TResponse>,
+  row: TRow,
 ) {
-  const alreadyCreated = accounts.find((mapping) => accountSourceIds[mapping.source]);
-  if (alreadyCreated) return alreadyCreated.source;
-
-  const existingAccount = accounts.find((mapping) => mapping.account_id);
-  if (existingAccount) return existingAccount.source;
-
-  return accounts[0].source;
+  const source = engine.getRowCategorySource(row);
+  return source === null ? [] : [source];
 }
 
 /**

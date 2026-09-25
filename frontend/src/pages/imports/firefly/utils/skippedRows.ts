@@ -7,6 +7,8 @@ import {
   getFireflyMissingRequiredFields,
   getFireflyOverlongTag,
   getFireflyRowOverLimitReason,
+  getFireflyRowShapeSkipReason,
+  getFireflySplitGroupSizes,
 } from './derivation'
 import {
   getFireflyCategoryUsedByResolution,
@@ -157,6 +159,7 @@ export function forecastFireflyImport(
   const rowWarnings: ImportRowProblem[] = []
   let rowCount = 0
   let transactionEstimate = 0
+  const groupSizes = getFireflySplitGroupSizes(rows)
 
   for (const [index, row] of rows.entries()) {
     rowCount += 1
@@ -172,6 +175,14 @@ export function forecastFireflyImport(
         `${FIREFLY_MISSING_REQUIRED_VALUES_REASON}: ${missingFields.join(', ')}`,
         { droppedBeforeUpload: true },
       ))
+      continue
+    }
+
+    // A row whose endpoints leave it nothing to write is skipped whatever the mappings, and
+    // uploading it would still create the accounts it names, so it is dropped before upload
+    const shapeSkipReason = getFireflyRowShapeSkipReason(row)
+    if (shapeSkipReason !== null) {
+      skippedRows.push(buildFireflySkippedRowDetail(row, index, shapeSkipReason, { droppedBeforeUpload: true }))
       continue
     }
 
@@ -191,7 +202,7 @@ export function forecastFireflyImport(
     // A value past what the import endpoint takes would fail the whole upload
     // batch, and the batches already sent stay in the ledger, so the row is
     // dropped before upload with the value named
-    const overLimitReason = getFireflyRowOverLimitReason(row)
+    const overLimitReason = getFireflyRowOverLimitReason(row, groupSizes)
     if (overLimitReason !== null) {
       skippedRows.push(buildFireflySkippedRowDetail(row, index, overLimitReason, { droppedBeforeUpload: true }))
       continue

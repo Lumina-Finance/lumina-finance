@@ -93,6 +93,10 @@ function createTransactionRow(overrides: Partial<CsvRow> = {}): CsvRow {
     date: '2024-02-15T00:00:00-05:00',
     amount: '-25.000000000000',
     currency_code: 'CAD',
+    source_name: 'Chequing',
+    source_type: 'Asset account',
+    destination_name: 'Market',
+    destination_type: 'Expense account',
     budget: 'Groceries',
     category: 'Food',
     ...overrides,
@@ -403,6 +407,38 @@ describe('buildFireflyBudgetDrafts', () => {
     const [draft] = buildDrafts({
       budgetsFile,
       transactionRows: [createTransactionRow({ category: '' })],
+    })
+
+    expect(draft.categoryNames).toEqual([])
+    expect(draft.disabledReason).toBe(FIREFLY_BUDGET_NO_CATEGORIES_REASON)
+  })
+
+  // A transfer takes Transfer and a balance row Balance Adjustment, so the category Firefly III
+  // gave either is never created and a budget tracking it would reach the commit with none
+  it('disables a budget whose categorised rows are all transfers or balance rows', () => {
+    const budgetsFile = createBudgetsFile([createLimitRow()])
+
+    const [draft] = buildDrafts({
+      budgetsFile,
+      transactionRows: [
+        createTransactionRow({
+          type: 'Transfer',
+          amount: '500.000000000000',
+          category: 'Savings plan',
+          destination_name: 'Savings',
+          destination_type: 'Asset account',
+        }),
+        createTransactionRow({
+          journal_id: '2',
+          type: 'Opening balance',
+          amount: '1000.000000000000',
+          category: 'Starting funds',
+          source_name: 'Initial balance for "Chequing"',
+          source_type: 'Initial balance account',
+          destination_name: 'Chequing',
+          destination_type: 'Asset account',
+        }),
+      ],
     })
 
     expect(draft.categoryNames).toEqual([])

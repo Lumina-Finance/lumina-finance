@@ -63,8 +63,9 @@ class FireflyTransactionRow(BaseModel):
 class FireflyTransactionImportRequest(BaseModel):
     """Batch import frontend-compiled Firefly III export rows
 
-    Account mappings must cover every account source the rows name. Category mappings must cover every category name plus
-    the no-category placeholder when rows without a category are present
+    Account mappings must cover every account source the rows name. Category mappings must cover the category of every
+    withdrawal or deposit between an imported account and one outside the import, with the no-category placeholder
+    standing in when such a row has none. Transfers and balance rows read no category
     """
 
     accounts: list[TransactionImportAccountMapping] = Field(min_length=1, max_length=MAX_IMPORT_MAPPINGS)

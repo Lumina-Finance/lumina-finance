@@ -57,7 +57,6 @@ import {
   getFireflyAccountSources,
   findFireflyBudgetNamedInError,
   inferFireflyCategoryMappings,
-  isFireflyRowUploadable,
   readFireflyCsvFile,
   resolveFireflyAccountMappings,
   type FireflyAccountCreateDetails,
@@ -258,18 +257,17 @@ export function useFireflyImportWorkflow() {
     [accountCreateCurrencies, accountCreateInstitutions, accountCreateTypes, accountPrefills, trackedAccounts],
   )
 
-  // Only rows that reach the backend register category sources, so a category only dropped rows
-  // carry is never mapped and cannot block the upload with a clash the backend never sees
-  const uploadableRows = useMemo(() => fireflyRows.filter(isFireflyRowUploadable), [fireflyRows])
-
+  // Only rows the import writes with their category register category sources, so a category only
+  // dropped rows, transfers or balance rows carry is never mapped and cannot block the upload with a
+  // clash the backend never sees
   const importedCategories = useMemo(
-    () => getFireflyImportedCategories(uploadableRows),
-    [uploadableRows],
+    () => getFireflyImportedCategories(fireflyRows),
+    [fireflyRows],
   )
 
   const inferredCategoryKinds = useMemo(
-    () => buildFireflyCategoryKinds(uploadableRows),
-    [uploadableRows],
+    () => buildFireflyCategoryKinds(fireflyRows),
+    [fireflyRows],
   )
 
   // Same reason as the accounts above: a match pointing at a deleted category would reach the commit

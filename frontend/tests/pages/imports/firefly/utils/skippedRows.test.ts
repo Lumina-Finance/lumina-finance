@@ -563,8 +563,15 @@ describe('forecastFireflyImport', () => {
     expect(forecastFireflyImport([row], createOptions()).skippedRows).toEqual([])
   })
 
-  it('reports an unsupported journal type with the raw type text', () => {
-    const row = createFireflyRow({ type: ' Liability credit ' })
+  // Firefly III writes a liability's own balance increase as a Liability credit into the liability
+  it('drops an unsupported journal type before upload, naming the raw type text', () => {
+    const row = createFireflyRow({
+      type: ' Liability credit ',
+      source_name: 'Car Loan initial balance',
+      source_type: 'Liability credit account',
+      destination_name: 'Car Loan',
+      destination_type: 'Loan',
+    })
     const { skippedRows: skipped } = forecastFireflyImport([row], createOptions())
 
     expect(skipped).toEqual([{
@@ -572,7 +579,7 @@ describe('forecastFireflyImport', () => {
       rowNumber: 2,
       cells: row,
       reason: 'Journal type "Liability credit" is not supported, the importer handles withdrawals, deposits, transfers, opening balances, and reconciliations',
-      droppedBeforeUpload: false,
+      droppedBeforeUpload: true,
     }])
   })
 
@@ -712,8 +719,8 @@ describe('forecastFireflyImport', () => {
       createOptions(),
     )
 
-    expect(skipped).toHaveLength(1)
-    expect(skipped[0].reason).toBe('Withdrawal source is not an imported account')
+    // Whether it imports never depends on a mapping, so it is dropped before upload
+    expect(skipped).toEqual([expect.objectContaining({ reason: 'Withdrawal source is not an imported account', droppedBeforeUpload: true })])
   })
 
   it('reports a deposit without an imported destination account', () => {
@@ -728,8 +735,8 @@ describe('forecastFireflyImport', () => {
       createOptions(),
     )
 
-    expect(skipped).toHaveLength(1)
-    expect(skipped[0].reason).toBe('Deposit destination is not an imported account')
+    // Whether it imports never depends on a mapping, so it is dropped before upload
+    expect(skipped).toEqual([expect.objectContaining({ reason: 'Deposit destination is not an imported account', droppedBeforeUpload: true })])
   })
 
   it('reports a transfer without two imported endpoints', () => {
@@ -742,8 +749,8 @@ describe('forecastFireflyImport', () => {
       createOptions(),
     )
 
-    expect(skipped).toHaveLength(1)
-    expect(skipped[0].reason).toBe('Transfer endpoint is not an imported account')
+    // Whether it imports never depends on a mapping, so it is dropped before upload
+    expect(skipped).toEqual([expect.objectContaining({ reason: 'Transfer endpoint is not an imported account', droppedBeforeUpload: true })])
   })
 
   it('reports a balance row without an imported account side', () => {
@@ -758,8 +765,8 @@ describe('forecastFireflyImport', () => {
       createOptions(),
     )
 
-    expect(skipped).toHaveLength(1)
-    expect(skipped[0].reason).toBe('Opening balance or reconciliation row is not attached to an imported account')
+    // Whether it imports never depends on a mapping, so it is dropped before upload
+    expect(skipped).toEqual([expect.objectContaining({ reason: 'Opening balance or reconciliation row is not attached to an imported account', droppedBeforeUpload: true })])
   })
 
   it('reports rows the payload builder drops before upload', () => {
@@ -805,13 +812,16 @@ describe('forecastFireflyImport', () => {
       [
         createFireflyRow({ journal_id: '1', amount: '' }),
         createFireflyRow({ journal_id: '2', type: 'Liability credit' }),
+        createFireflyRow({ journal_id: '3', currency_code: 'USD' }),
       ],
       createOptions(),
     )
 
+    // Only the currency is a skip the server decides, since it depends on the account chosen
     expect(skipped.map((row) => [row.journalId, row.droppedBeforeUpload])).toEqual([
       ['1', true],
-      ['2', false],
+      ['2', true],
+      ['3', false],
     ])
   })
 
@@ -1048,7 +1058,8 @@ describe('Firefly rows past what the import endpoint takes', () => {
   // longer value
   const cases: [string, string, number, (length: number) => Partial<CsvRow>][] = [
     ['journal id', 'journal id', 64, (length) => ({ journal_id: '1'.repeat(length) })],
-    ['type', 'type', 64, (length) => ({ type: 'W'.repeat(length) })],
+    // A type the importer does not know is skipped unless both ends are imported accounts
+    ['type', 'type', 64, (length) => ({ type: 'W'.repeat(length), destination_name: 'Savings', destination_type: 'Asset account' })],
     ['amount', 'amount', 64, (length) => ({ amount: `-${'1'.repeat(length - 4)}.00` })],
     ['foreign amount', 'foreign amount', 64, (length) => ({ foreign_amount: `-${'1'.repeat(length - 4)}.00`, foreign_currency_code: 'USD' })],
 
@@ -1072,11 +1083,23 @@ describe('Firefly rows past what the import endpoint takes', () => {
 
     const { skippedRows: skipped } = forecastFireflyImport([atLimit, pastLimit], createOptions())
 
-    expect(isFireflyRowUploadable(atLimit)).toBe(true)
+    expect(isFireflyRowUploadable(atLimit, new Map())).toBe(true)
     expect(skipped.filter((row) => row.droppedBeforeUpload)).toEqual([expect.objectContaining({
       journalId: pastLimit.journal_id,
       reason: `The ${field} is ${(maxLength + 1).toLocaleString()} characters, and the importer takes up to ${maxLength.toLocaleString()}.`,
     })])
+  })
+
+  // Only a payee row is sent with its category, so a transfer's long category costs nothing
+  it('uploads a transfer whose category is past the limit', () => {
+    const transfer = createFireflyRow({
+      type: 'Transfer',
+      category: 'c'.repeat(257),
+      destination_name: 'Savings',
+      destination_type: 'Asset account',
+    })
+
+    expect(forecastFireflyImport([transfer], createOptions()).skippedRows.filter((row) => row.droppedBeforeUpload)).toEqual([])
   })
 
   it('names a blank type among the missing values', () => {

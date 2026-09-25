@@ -9,12 +9,17 @@ import { MAX_IMPORT_MINOR_UNITS, toImportMinorUnits } from '@/pages/imports/util
 import { findReusedImportCategory } from '@/pages/imports/utils/categoryMatching'
 import { findCurrencyExponent } from '@/utils/moneyInput'
 import {
+  FIREFLY_BALANCE_ROW_UNATTACHED_REASON,
+  FIREFLY_DEPOSIT_DESTINATION_UNTRACKED_REASON,
   FIREFLY_GENERIC_SKIP_REASON,
+  FIREFLY_TRANSFER_ENDPOINT_UNTRACKED_REASON,
   FIREFLY_TYPE_DEPOSIT,
   FIREFLY_TYPE_OPENING_BALANCE,
   FIREFLY_TYPE_RECONCILIATION,
   FIREFLY_TYPE_TRANSFER,
   FIREFLY_TYPE_WITHDRAWAL,
+  FIREFLY_WITHDRAWAL_SOURCE_UNTRACKED_REASON,
+  getFireflyUnsupportedTypeReason,
 } from '@/pages/imports/firefly/constants'
 import type { FireflyAccountSource, FireflyAccountSources } from '@/pages/imports/firefly/types'
 import { getFireflyRowAmounts } from './derivation'
@@ -137,7 +142,7 @@ function buildFireflyRowLegs(row: CsvRow, options: FireflyRowResolutionOptions):
   // into it is positive
   if (journalType === FIREFLY_TYPE_OPENING_BALANCE || journalType === FIREFLY_TYPE_RECONCILIATION) {
     const account = destination ?? source
-    if (!account) throw new FireflyRowSkipError('Opening balance or reconciliation row is not attached to an imported account')
+    if (!account) throw new FireflyRowSkipError(FIREFLY_BALANCE_ROW_UNATTACHED_REASON)
 
     const amount = getFireflyAmountInAccountCurrency(row, account.currency, options.currencies)
     return [{
@@ -182,7 +187,7 @@ function buildFireflyRowLegs(row: CsvRow, options: FireflyRowResolutionOptions):
   }
 
   if (journalType === FIREFLY_TYPE_WITHDRAWAL) {
-    if (!source) throw new FireflyRowSkipError('Withdrawal source is not an imported account')
+    if (!source) throw new FireflyRowSkipError(FIREFLY_WITHDRAWAL_SOURCE_UNTRACKED_REASON)
 
     return [{
       account: source,
@@ -194,7 +199,7 @@ function buildFireflyRowLegs(row: CsvRow, options: FireflyRowResolutionOptions):
   }
 
   if (journalType === FIREFLY_TYPE_DEPOSIT) {
-    if (!destination) throw new FireflyRowSkipError('Deposit destination is not an imported account')
+    if (!destination) throw new FireflyRowSkipError(FIREFLY_DEPOSIT_DESTINATION_UNTRACKED_REASON)
 
     return [{
       account: destination,
@@ -206,13 +211,10 @@ function buildFireflyRowLegs(row: CsvRow, options: FireflyRowResolutionOptions):
   }
 
   if (journalType === FIREFLY_TYPE_TRANSFER) {
-    throw new FireflyRowSkipError('Transfer endpoint is not an imported account')
+    throw new FireflyRowSkipError(FIREFLY_TRANSFER_ENDPOINT_UNTRACKED_REASON)
   }
 
-  throw new FireflyRowSkipError(
-    `Journal type "${row.type?.trim() ?? ''}" is not supported, the importer handles`
-    + ' withdrawals, deposits, transfers, opening balances, and reconciliations',
-  )
+  throw new FireflyRowSkipError(getFireflyUnsupportedTypeReason(row.type?.trim() ?? ''))
 }
 
 /**

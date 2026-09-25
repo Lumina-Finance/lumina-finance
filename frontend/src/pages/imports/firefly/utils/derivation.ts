@@ -9,14 +9,22 @@ import {
 } from '@/pages/imports/constants'
 import type { CsvRow, ImportCategoryKind } from '@/pages/imports/types'
 import {
+  FIREFLY_BALANCE_ROW_UNATTACHED_REASON,
+  FIREFLY_DEPOSIT_DESTINATION_UNTRACKED_REASON,
   FIREFLY_FALLBACK_ACCOUNT_TYPE,
   FIREFLY_LIABILITY_ACCOUNT_TYPES,
   FIREFLY_MISCELLANEOUS_CATEGORY_NAME,
   FIREFLY_ROW_FIELD_MAX_LENGTHS,
   FIREFLY_TAG_NAME_MAX_LENGTH,
+  FIREFLY_TRANSFER_ENDPOINT_UNTRACKED_REASON,
   FIREFLY_TYPE_DEPOSIT,
+  FIREFLY_TYPE_OPENING_BALANCE,
+  FIREFLY_TYPE_RECONCILIATION,
   FIREFLY_TYPE_TRANSFER,
   FIREFLY_TYPE_WITHDRAWAL,
+  FIREFLY_WITHDRAWAL_SOURCE_UNTRACKED_REASON,
+  getFireflySplitTitleLine,
+  getFireflyUnsupportedTypeReason,
 } from '@/pages/imports/firefly/constants'
 import type { FireflyAccountPrefill, FireflyAccountSource, FireflyAccountSources } from '@/pages/imports/firefly/types'
 import { parseYmd } from '@/utils/date'
@@ -119,6 +127,74 @@ export function isFireflyPayeeRow(row: CsvRow) {
 }
 
 /**
+ * Returns why the backend will skip a row whatever the mappings, or null when it may import
+ *
+ * Only the endpoint types decide it, walked in the backend's branch order and worded as the
+ * backend words it. Uploading such a row would still create the accounts it names, so the browser
+ * drops it before upload instead, which leaves every uploaded row with an account it writes to
+ */
+export function getFireflyRowShapeSkipReason(row: CsvRow): string | null {
+  const journalType = row.type?.trim().toLowerCase() ?? ''
+  const isSourceTracked = isFireflyTrackedEndpoint(row.source_name, row.source_type)
+  const isDestinationTracked = isFireflyTrackedEndpoint(row.destination_name, row.destination_type)
+
+  if (journalType === FIREFLY_TYPE_OPENING_BALANCE || journalType === FIREFLY_TYPE_RECONCILIATION) {
+    return isSourceTracked || isDestinationTracked ? null : FIREFLY_BALANCE_ROW_UNATTACHED_REASON
+  }
+  if (isSourceTracked && isDestinationTracked) return null
+
+  if (journalType === FIREFLY_TYPE_WITHDRAWAL) return isSourceTracked ? null : FIREFLY_WITHDRAWAL_SOURCE_UNTRACKED_REASON
+  if (journalType === FIREFLY_TYPE_DEPOSIT) return isDestinationTracked ? null : FIREFLY_DEPOSIT_DESTINATION_UNTRACKED_REASON
+  if (journalType === FIREFLY_TYPE_TRANSFER) return FIREFLY_TRANSFER_ENDPOINT_UNTRACKED_REASON
+  return getFireflyUnsupportedTypeReason(row.type?.trim() ?? '')
+}
+
+/**
+ * Whether the import writes a row with the category it carries, which only an uploaded payee row
+ * is. Only these rows need their category matched, and only their categories are created
+ */
+export function isFireflyCategoryUseRow(row: CsvRow, groupSizes: FireflySplitGroupSizes) {
+  return isFireflyPayeeRow(row) && isFireflyRowUploadable(row, groupSizes)
+}
+
+/** Rows each Firefly III transaction group holds in the export, keyed by group id */
+export type FireflySplitGroupSizes = ReadonlyMap<string, number>
+
+/**
+ * Counts the rows of every transaction group across the whole export
+ *
+ * A group of more than one row is a split transaction, while a single journal keeps a group of its
+ * own. A row with no group id is left out, so blank cells are never read as one large group
+ */
+export function getFireflySplitGroupSizes(rows: CsvRow[]): FireflySplitGroupSizes {
+  const sizes = new Map<string, number>()
+  for (const row of rows) {
+    const groupId = row.group_id?.trim()
+    if (groupId) sizes.set(groupId, (sizes.get(groupId) ?? 0) + 1)
+  }
+  return sizes
+}
+
+/**
+ * Returns the notes a row is sent with, where a split starts with the title of its transaction
+ *
+ * Firefly III keeps a split's shared title on the group, not on the split, so without it every
+ * split would import with only its own description. A title that would take the notes past what
+ * the endpoint takes is left off rather than dropping the split over it
+ */
+export function getFireflyRowSentNotes(row: CsvRow, groupSizes: FireflySplitGroupSizes): string | null {
+  const notes = row.notes?.trim() ?? ''
+  const groupId = row.group_id?.trim() ?? ''
+  const groupTitle = row.group_title?.trim() ?? ''
+
+  if (groupId && groupTitle && (groupSizes.get(groupId) ?? 0) > 1) {
+    const titledNotes = [getFireflySplitTitleLine(groupTitle), notes].filter(Boolean).join('\n')
+    if (countCharacters(titledNotes) <= MAX_IMPORT_NOTES_LENGTH) return titledNotes
+  }
+  return notes || null
+}
+
+/**
  * Returns the name a payee row's merchant is filed under, blank when the export gives none, and
  * null for any other row, which is written with no merchant of its own
  */
@@ -155,11 +231,11 @@ export function countCharacters(value: string): number {
  * leave the batches before it in the ledger with no way to retry the rest.
  * Dropping the row before upload is what the overlong tag above already does
  */
-export function getFireflyRowOverLimitReason(row: CsvRow): string | null {
+export function getFireflyRowOverLimitReason(row: CsvRow, groupSizes: FireflySplitGroupSizes): string | null {
   const tagCount = splitFireflyTags(row.tags ?? '').length
   if (tagCount > MAX_IMPORT_TAGS_PER_ROW) return getRowTooManyTagsReason(tagCount)
 
-  const notesLength = countCharacters(row.notes?.trim() ?? '')
+  const notesLength = countCharacters(getFireflyRowSentNotes(row, groupSizes) ?? '')
   if (notesLength > MAX_IMPORT_NOTES_LENGTH) return getRowNotesTooLongReason(notesLength)
 
   // Only the amounts the row is sent with are checked, since an amount in a code Lumina cannot
@@ -172,9 +248,10 @@ export function getFireflyRowOverLimitReason(row: CsvRow): string | null {
     ['amount', main?.amount, limits.amount],
     ['foreign amount', foreign?.amount, limits.amount],
     ['description', row.description, limits.description],
-    ['category', row.category, limits.category],
 
-    // Only the payee that becomes the merchant is sent, so a long name anywhere else costs nothing
+    // Only a payee row is sent with its category and the payee that becomes the merchant, so a long
+    // value on any other row costs nothing
+    ['category', isFireflyPayeeRow(row) ? row.category : null, limits.category],
     ['payee name', getFireflyRowPayeeName(row), limits.payee],
   ]
   for (const [field, value, maxLength] of fields) {
@@ -197,11 +274,22 @@ function getFireflyFieldTooLongReason(field: string, length: number, maxLength: 
  * Anything deriving import sources, such as the budget category inference,
  * must gate on this, because a row dropped before upload can never register
  * an account or category source in the commit response
+ *
+ * @param groupSizes - Group sizes across the whole export, which decide the notes a split is sent with
  */
-export function isFireflyRowUploadable(row: CsvRow): boolean {
+export function isFireflyRowUploadable(row: CsvRow, groupSizes: FireflySplitGroupSizes): boolean {
   return isFireflyRowImportable(row)
+    && getFireflyRowShapeSkipReason(row) === null
     && getFireflyOverlongTag(row) === null
-    && getFireflyRowOverLimitReason(row) === null
+    && getFireflyRowOverLimitReason(row, groupSizes) === null
+}
+
+/**
+ * Keeps the rows the upload sends, the only ones that can create an account or a category
+ */
+function getFireflyUploadableRows(rows: CsvRow[]) {
+  const groupSizes = getFireflySplitGroupSizes(rows)
+  return rows.filter((row) => isFireflyRowUploadable(row, groupSizes))
 }
 
 /**
@@ -216,11 +304,16 @@ export function splitFireflyTags(value: string) {
 }
 
 /**
- * Gets the accounts the export's rows are written to, each told apart by its Firefly III type as
- * well as its name, since Firefly III lets an asset account and a liability share a name
+ * Gets the accounts the export's uploaded rows are written to, each told apart by its Firefly III
+ * type as well as its name, since Firefly III lets an asset account and a liability share a name
+ *
+ * An account named only by rows dropped before upload is left out, since the import never writes to
+ * it and creating it would leave an empty account behind
  *
  * Every mapping, create-new choice and payload row names an account by its id, so the ids only
  * need to hold for one export, and replacing the export starts the mappings over
+ *
+ * @param rows - Every row of the export
  */
 export function getFireflyAccountSources(rows: CsvRow[]): FireflyAccountSources {
   const endpoints = new Map<string, { name: string; type: string }>()
@@ -233,7 +326,7 @@ export function getFireflyAccountSources(rows: CsvRow[]): FireflyAccountSources 
     if (!endpoints.has(key)) endpoints.set(key, { name: trimmedName, type: type.trim() })
   }
 
-  for (const row of rows) {
+  for (const row of getFireflyUploadableRows(rows)) {
     addEndpoint(row.source_name, row.source_type)
     addEndpoint(row.destination_name, row.destination_type)
   }
@@ -275,6 +368,9 @@ function getFireflyAccountKey(name: string, type: string) {
 /**
  * Builds create-new type and currency defaults for every tracked account, keyed by source id
  *
+ * Only the uploaded rows vote, the same rows the accounts themselves come from
+ *
+ * @param rows - Every row of the export
  * @param supportedCurrencyCodes - Every code the app can store an account in. A row stating
  *   anything else is not counted, since the currency control offers only these: prefilling one it
  *   does not offer leaves the box showing its placeholder while the count above the table reads the
@@ -303,7 +399,7 @@ export function buildFireflyAccountPrefills(
   // The account-side currency follows money direction, so withdrawals and
   // transfers vote with the source and deposits vote with the destination,
   // where a transfer destination prefers the foreign currency when present
-  for (const row of rows) {
+  for (const row of getFireflyUploadableRows(rows)) {
     const journalType = row.type?.trim().toLowerCase() ?? ''
     const rowCurrency = readSupportedCurrency(row.currency_code)
     if (rowCurrency) overallTally.set(rowCurrency, (overallTally.get(rowCurrency) ?? 0) + 1)
@@ -356,14 +452,19 @@ function getTopTallyValue(tally: Map<string, number> | undefined) {
 }
 
 /**
- * Gets the sorted distinct category sources, including the no-category
- * placeholder the backend requires when rows without a category exist
+ * Gets the sorted distinct category sources of the rows written with their category, including the
+ * no-category placeholder the backend requires when such a row has no category
+ *
+ * A category carried only by transfers, balance rows or rows dropped before upload is left out,
+ * since the import never writes it and every category sent is created
+ *
+ * @param rows - Every row of the export
  */
 export function getFireflyImportedCategories(rows: CsvRow[]): string[] {
   const categories = new Set<string>()
   let hasUncategorizedRows = false
 
-  for (const row of rows) {
+  for (const row of getFireflyCategoryUseRows(rows)) {
     const category = row.category?.trim()
     if (category) {
       categories.add(category)
@@ -378,15 +479,24 @@ export function getFireflyImportedCategories(rows: CsvRow[]): string[] {
 }
 
 /**
- * Infers a create kind per category source from majority journal-type usage,
- * where withdrawals vote expense, deposits vote income, and ties stay expense
+ * Keeps the rows the import writes with their own category
+ */
+function getFireflyCategoryUseRows(rows: CsvRow[]) {
+  const groupSizes = getFireflySplitGroupSizes(rows)
+  return rows.filter((row) => isFireflyCategoryUseRow(row, groupSizes))
+}
+
+/**
+ * Infers a create kind per category source from majority journal-type usage over the rows written
+ * with their category, where withdrawals vote expense, deposits vote income, and ties stay expense
+ *
+ * @param rows - Every row of the export
  */
 export function buildFireflyCategoryKinds(rows: CsvRow[]): Record<string, ImportCategoryKind> {
   const votes = new Map<string, { expense: number; income: number }>()
 
-  for (const row of rows) {
+  for (const row of getFireflyCategoryUseRows(rows)) {
     const journalType = row.type?.trim().toLowerCase() ?? ''
-    if (journalType !== FIREFLY_TYPE_WITHDRAWAL && journalType !== FIREFLY_TYPE_DEPOSIT) continue
 
     const source = row.category?.trim() || FIREFLY_NO_CATEGORY_SOURCE
     const tally = votes.get(source) ?? { expense: 0, income: 0 }

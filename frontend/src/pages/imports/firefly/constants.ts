@@ -216,6 +216,27 @@ export const FIREFLY_MISSING_REQUIRED_VALUES_REASON = 'Missing required values'
  */
 export const FIREFLY_GENERIC_SKIP_REASON = 'Row could not be converted'
 
+/**
+ * Reasons the backend gives for a row whose endpoints leave it nothing to write, word for word.
+ * The browser drops such a row before upload, since whether it imports never depends on a mapping
+ */
+export const FIREFLY_BALANCE_ROW_UNATTACHED_REASON = 'Opening balance or reconciliation row is not attached to an imported account'
+export const FIREFLY_WITHDRAWAL_SOURCE_UNTRACKED_REASON = 'Withdrawal source is not an imported account'
+export const FIREFLY_DEPOSIT_DESTINATION_UNTRACKED_REASON = 'Deposit destination is not an imported account'
+export const FIREFLY_TRANSFER_ENDPOINT_UNTRACKED_REASON = 'Transfer endpoint is not an imported account'
+
+export function getFireflyUnsupportedTypeReason(type: string) {
+  return `Journal type "${type}" is not supported, the importer handles`
+    + ' withdrawals, deposits, transfers, opening balances, and reconciliations'
+}
+
+/**
+ * Line a split's sent notes start with, naming the Firefly III transaction the split belongs to
+ */
+export function getFireflySplitTitleLine(groupTitle: string) {
+  return `Split transaction: ${groupTitle}`
+}
+
 export const FIREFLY_SAMPLE_PREVIEW_LIMIT = 5
 export const FIREFLY_CSV_PROCESSING_MIN_MS = LOADING_ANIMATION_MIN_MS
 export const FIREFLY_IMPORT_OVERLAY_MIN_MS = LOADING_ANIMATION_MIN_MS

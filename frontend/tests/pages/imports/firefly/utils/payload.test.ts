@@ -1,22 +1,27 @@
 /**
  * Tests Firefly III commit payload validation and completed summary formatting
  */
+import { readFileSync } from 'node:fs'
 import { describe, expect, it, vi } from 'vitest'
 import type { AccountsOverview } from '@/api/accounts'
 import type { Currency } from '@/api/currency'
 import type { FireflyTransactionImportPayload, FireflyTransactionImportResponse } from '@/api/firefly-imports'
 import type { Category } from '@/api/categories'
-import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
+import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, MAX_IMPORT_NOTES_LENGTH } from '@/pages/imports/constants'
 import type { CsvRow, ImportFileDraft } from '@/pages/imports/types'
 import {
   buildFireflyAccountPrefills,
   buildFireflyCategoryKinds,
   buildFireflyImportPayload,
+  buildFireflyPreviewRows,
+  forecastFireflyImport,
   formatFireflyImportSummary,
   getFireflyAccountSources,
   getFireflyImportedCategories,
   inferFireflyCategoryMappings,
+  readFireflyCsvFile,
   resolveFireflyRowLegs,
+  type FireflyRowResolutionOptions,
 } from '@/pages/imports/firefly/utils'
 import { createNameKeyedAccountSources } from './fixtures'
 
@@ -592,5 +597,160 @@ describe('the Firefly row values the payload sends', () => {
 
     expect(result.payload).toBeNull()
     expect(result.errors).toEqual(['Road Trips and ROAD TRIPS would be created as one category, so they need the same type.'])
+  })
+})
+
+// Rows from a real Firefly III 6.7.3 export: a two-way split, a transfer carrying a category, a loan
+// payment with no category, and an opening balance
+describe('a real Firefly III export with splits, transfers and balance rows', () => {
+  const CURRENCIES: Currency[] = [{ id: 'EUR', name: 'Euro', symbol: '€', minor_unit_exponent: 2 }]
+  const readExport = () => readFireflyCsvFile(
+    new File([readFileSync(new URL('../fixtures/split-and-transfers.csv', import.meta.url), 'utf8')], 'transactions.csv'),
+    'transactions',
+    new Set(['EUR']),
+  )
+
+  /**
+   * Stages the import the way the steps do when every account and category is created new
+   */
+  function stage(transactionsFile: ImportFileDraft, rows: CsvRow[]) {
+    const accountSources = getFireflyAccountSources(rows)
+    const prefills = buildFireflyAccountPrefills(rows, accountSources, new Set(['EUR']))
+    const importedCategories = getFireflyImportedCategories(rows)
+    const categoryCreateKinds = buildFireflyCategoryKinds(rows)
+    const options: FireflyRowResolutionOptions = {
+      accountSources,
+      accountById: new Map(),
+      accountMappings: Object.fromEntries(accountSources.list.map((source) => [source.id, CREATE_ACCOUNT_VALUE])),
+      accountCreateDetails: Object.fromEntries(accountSources.list.map((source) => [
+        source.id,
+        { ...prefills[source.id], institutionId: '' },
+      ])),
+      institutionById: new Map(),
+      categoryById: new Map(),
+      categoryMappings: Object.fromEntries(importedCategories.map((source) => [source, CREATE_CATEGORY_VALUE])),
+      categoryCreateKinds,
+      transferCategory: undefined,
+      balanceAdjustmentCategory: undefined,
+      currencies: CURRENCIES,
+    }
+    const { payload } = buildFireflyImportPayload({ transactionsFile, rows, importedCategories, ...options })
+    return { options, importedCategories, payload: payload! }
+  }
+
+  it('creates only the categories and accounts the import writes to', async () => {
+    const draft = await readExport()
+    const openingBalance = draft.rows.find((row) => row.type === 'Opening balance')!
+    const rows = [
+      ...draft.rows,
+
+      // A category on a balance row is never written, since the row takes Balance Adjustment
+      { ...openingBalance, group_id: '40', journal_id: '40', category: 'Starting funds' },
+
+      // A Liability credit is a type the importer skips, so its liability is never written to
+      {
+        ...openingBalance,
+        group_id: '41',
+        journal_id: '41',
+        type: 'Liability credit',
+        description: 'Liability credit for "Mortgage"',
+        source_name: 'Liability credit for "Mortgage"',
+        source_type: 'Liability credit account',
+        destination_name: 'Mortgage',
+        destination_type: 'Mortgage',
+      },
+    ]
+
+    const { options, importedCategories, payload } = stage(draft, rows)
+
+    // Savings plan is carried only by the transfer, and the loan payment is a transfer too
+    expect(importedCategories).toEqual(['Groceries', 'Household', '(no category)'])
+    expect(payload.categories.map((mapping) => mapping.source)).toEqual(importedCategories)
+    expect(options.accountSources.list.map((source) => source.name)).toEqual(['Car Loan', 'Checking', 'Savings'])
+
+    const forecast = forecastFireflyImport(rows, { fileId: draft.id, ...options })
+    expect(forecast.skippedRows.map((row) => [row.journalId, row.droppedBeforeUpload])).toEqual([['41', true]])
+    expect(payload.rows.find((row) => row.journal_id === '7')?.category).toBeNull()
+  })
+
+  it("starts each split's notes with the title of its transaction", async () => {
+    const draft = await readExport()
+    const { options, payload } = stage(draft, draft.rows)
+
+    expect(payload.rows.map((row) => [row.journal_id, row.notes])).toEqual([
+      ['16', null],
+      ['14', null],
+      ['9', 'Split transaction: Big Store run'],
+      ['8', 'Split transaction: Big Store run'],
+      ['7', null],
+      ['5', null],
+      ['1', null],
+    ])
+
+    const preview = buildFireflyPreviewRows({ ...options, rows: draft.rows, limit: 10 })
+    expect(preview.find((row) => row.id === 'firefly-preview-9-0')?.transaction.notes)
+      .toBe('Shop split: home\nSplit transaction: Big Store run')
+  })
+
+  // Firefly III keeps the title on a group edited down to one split, and a hand-made file may leave
+  // group ids blank, so only a group of more than one row is a split
+  it('adds no title to a single journal or to rows without a group id', async () => {
+    const draft = await readExport()
+    const rows = draft.rows.map((row) => {
+      if (row.journal_id === '5') return { ...row, group_title: 'Weekly shop' }
+      if (row.journal_id === '16' || row.journal_id === '14') return { ...row, group_id: '', group_title: 'Errands' }
+      return row
+    })
+
+    const sentNotes = stage(draft, rows).payload.rows
+      .filter((row) => ['5', '14', '16'].includes(row.journal_id))
+      .map((row) => row.notes)
+    expect(sentNotes).toEqual([null, null, null])
+  })
+
+  // The endpoint takes the notes a split is sent with, so a title that would take them past its
+  // limit is left off rather than failing the batch or dropping the split
+  it('leaves the title off a split whose notes would no longer fit with it', async () => {
+    const draft = await readExport()
+    const titleLength = 'Split transaction: Big Store run\n'.length
+    const withNotes = (notes: string) => draft.rows.map((row) => (row.journal_id === '9' ? { ...row, notes } : row))
+
+    const fitting = 'n'.repeat(MAX_IMPORT_NOTES_LENGTH - titleLength)
+    const tooLong = 'n'.repeat(MAX_IMPORT_NOTES_LENGTH - titleLength + 1)
+    const sentNotes = (rows: CsvRow[]) => stage(draft, rows).payload.rows.find((row) => row.journal_id === '9')?.notes
+
+    expect(sentNotes(withNotes(fitting))).toBe(`Split transaction: Big Store run\n${fitting}`)
+    expect(sentNotes(withNotes(tooLong))).toBe(tooLong)
+  })
+
+  // An upload batch holds at most 5,000 rows and 650 KB, so the transfers after the spending fill
+  // batches of their own
+  it('maps no category in a batch holding only transfers', async () => {
+    const draft = await readExport()
+    const spending = draft.rows.find((row) => row.journal_id === '5')!
+    const transfer = draft.rows.find((row) => row.journal_id === '7')!
+    const rows = [
+      ...draft.rows,
+      ...Array.from({ length: 5000 }, (_, index) => ({ ...spending, group_id: String(index + 100), journal_id: String(index + 100) })),
+      ...Array.from({ length: 3000 }, (_, index) => ({ ...transfer, group_id: String(index + 6000), journal_id: String(index + 6000) })),
+    ]
+    const { options, payload } = stage(draft, rows)
+    const [, checking, savings] = options.accountSources.list
+
+    postBatchMock.mockReset()
+    postBatchMock.mockImplementation(async (batch: FireflyTransactionImportPayload) => createImportResult({
+      account_source_ids: Object.fromEntries(batch.accounts.map((mapping) => [mapping.source, `created-${mapping.source}`])),
+      category_source_ids: Object.fromEntries(batch.categories.map((mapping) => [mapping.source, `created-${mapping.source}`])),
+    }))
+    await importFireflyTransactionsInBatches(payload)
+
+    const batches = postBatchMock.mock.calls.map(([batch]) => batch as FireflyTransactionImportPayload)
+    const lastBatch = batches[batches.length - 1]
+    expect(lastBatch.rows.every((row) => row.type === 'Transfer')).toBe(true)
+    expect(lastBatch.categories).toEqual([])
+    expect(lastBatch.accounts).toEqual([
+      { source: checking.id, account_id: `created-${checking.id}` },
+      { source: savings.id, account_id: `created-${savings.id}` },
+    ])
   })
 })
