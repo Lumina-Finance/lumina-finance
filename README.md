@@ -13,8 +13,8 @@
 </p>
 
 <p align="center">
-  <a href="https://www.reddit.com/r/LuminaFinance/"><img alt="Reddit community" src="https://img.shields.io/badge/Reddit-r%2FLuminaFinance-white?style=flat&logo=reddit&logoColor=white&labelColor=FF4500"></a>&nbsp;&nbsp;
-  <a href="https://www.buymeacoffee.com/lumina.finance"><img alt="Buy Me a Coffee" src="https://img.shields.io/badge/-Buy%20me%20a%20coffee-FFDD00?style=flat&logo=buymeacoffee&logoColor=black"></a>
+  <a href="https://docs.luminafinance.co"><img alt="Documentation" src="https://img.shields.io/badge/Docs-docs.luminafinance.co-white?style=flat&logo=docusaurus&logoColor=white&labelColor=C9A96A"></a>&nbsp;&nbsp;
+  <a href="https://www.reddit.com/r/LuminaFinance/"><img alt="Reddit community" src="https://img.shields.io/badge/Reddit-r%2FLuminaFinance-white?style=flat&logo=reddit&logoColor=white&labelColor=FF4500"></a>
 </p>
 
 <!-- markdownlint-enable MD033 -->
@@ -175,6 +175,16 @@ Setup, configuration and answers to common questions are on the docs site at [do
 - [Rotating the encryption key](https://docs.luminafinance.co/self-hosting/encryption-keys/)
 - [Signing keys and JWKS](https://docs.luminafinance.co/self-hosting/signing-keys/)
 - [FAQ](https://docs.luminafinance.co/self-hosting/faq/)
+
+## Support the project
+
+Lumina Finance is fully bootstrapped. If you would like to support its development, please consider donating to the project.
+
+<!-- markdownlint-disable MD033 -->
+<a href="https://www.buymeacoffee.com/lumina.finance"><img alt="Buy Me a Coffee" src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" height="48"></a>
+<!-- markdownlint-enable MD033 -->
+
+You can also show your support by starring the project on GitHub!
 
 ---
 
