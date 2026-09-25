@@ -32,6 +32,10 @@ class FireflyTransactionRow(BaseModel):
     Amounts are trimmed decimal text without grouping separators so the backend
     can validate precision against the account currency. Sign conventions in the export are ignored, the
     backend derives direction from the journal type
+
+    The frontend decides which endpoints are imported accounts. Each one is named by the account
+    mapping source it resolves through, since Firefly III lets an asset account and a liability
+    share a name, and every other endpoint is named as it appears in the export
     """
 
     journal_id: str = Field(min_length=1, max_length=64)
@@ -42,10 +46,10 @@ class FireflyTransactionRow(BaseModel):
     foreign_amount: str | None = Field(None, max_length=64)
     foreign_currency_code: str | None = Field(None, min_length=3, max_length=3)
     description: str | None = Field(None, max_length=1024)
+    source_account: str | None = Field(None, min_length=1, max_length=256)
     source_name: str | None = Field(None, max_length=256)
-    source_type: str | None = Field(None, max_length=64)
+    destination_account: str | None = Field(None, min_length=1, max_length=256)
     destination_name: str | None = Field(None, max_length=256)
-    destination_type: str | None = Field(None, max_length=64)
     category: str | None = Field(None, max_length=256)
     tag_names: list[ImportTagName] = Field(default=[], max_length=MAX_IMPORT_TAGS_PER_ROW)
     notes: str | None = Field(None, max_length=MAX_IMPORT_NOTES_LENGTH)
@@ -54,8 +58,7 @@ class FireflyTransactionRow(BaseModel):
 class FireflyTransactionImportRequest(BaseModel):
     """Batch import frontend-compiled Firefly III export rows
 
-    Account mappings must cover every asset and liability account name that
-    appears in the rows. Category mappings must cover every category name plus
+    Account mappings must cover every account source the rows name. Category mappings must cover every category name plus
     the no-category placeholder when rows without a category are present
     """
 

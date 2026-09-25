@@ -17,13 +17,14 @@ import {
   getImportNoRowsError,
 } from '@/pages/imports/constants'
 import type { CsvRow, ImportCategoryKind, ImportFileDraft } from '@/pages/imports/types'
-import type { FireflyImportBuildResult } from '@/pages/imports/firefly/types'
+import { FIREFLY_ACCOUNT_NAME_MAX_LENGTH } from '@/pages/imports/firefly/constants'
+import type { FireflyAccountSources, FireflyImportBuildResult } from '@/pages/imports/firefly/types'
 import { isImportAccountType } from '@/pages/imports/accountTypeGuard'
 import { isImportableAccount } from '@/pages/imports/utils/accountScope'
 import { getFireflyRowDate, isFireflyRowUploadable, splitFireflyTags } from './derivation'
 
 /**
- * Create-new selections for one tracked account name after prefills are applied
+ * Create-new selections for one tracked account after prefills are applied
  */
 export interface FireflyAccountCreateDetails {
   accountType: string
@@ -38,7 +39,7 @@ export interface FireflyAccountCreateDetails {
 export function buildFireflyImportPayload({
   transactionsFile,
   rows,
-  trackedAccountNames,
+  accountSources,
   accountMappings,
   accountById,
   accountCreateDetails,
@@ -48,7 +49,7 @@ export function buildFireflyImportPayload({
 }: {
   transactionsFile: ImportFileDraft | null
   rows: CsvRow[]
-  trackedAccountNames: string[]
+  accountSources: FireflyAccountSources
   accountMappings: Record<string, string>
   accountById: Map<string, AccountsOverview>
   accountCreateDetails: Record<string, FireflyAccountCreateDetails>
@@ -65,10 +66,10 @@ export function buildFireflyImportPayload({
   if (transactionsFile?.error) addError(`${transactionsFile.name}: ${transactionsFile.error}`)
 
   const accounts: FireflyTransactionImportPayload['accounts'] = []
-  for (const name of trackedAccountNames) {
-    const choice = accountMappings[name]
+  for (const { id: source, name, label } of accountSources.list) {
+    const choice = accountMappings[source]
     if (!choice) {
-      addError(getImportAccountMappingError(name))
+      addError(getImportAccountMappingError(label))
       continue
     }
 
@@ -78,26 +79,33 @@ export function buildFireflyImportPayload({
       // server part way through the import
       const account = accountById.get(choice)
       if (account && !isImportableAccount(account)) {
-        addError(getImportReadOnlyAccountMappingError(name, account))
+        addError(getImportReadOnlyAccountMappingError(label, account))
         continue
       }
 
-      accounts.push({ source: name, account_id: choice })
+      accounts.push({ source, account_id: choice })
       continue
     }
 
-    const details = accountCreateDetails[name]
-    if (!details?.accountType) addError(getImportAccountTypeRequiredError(name))
-    if (!details?.currency) addError(getImportAccountCurrencyRequiredError(name))
+    // Firefly III takes longer account names than Lumina does, and the name is the only thing a
+    // new account could carry over, so such an account can only be mapped to an existing one
+    if (name.length > FIREFLY_ACCOUNT_NAME_MAX_LENGTH) {
+      addError(getFireflyAccountNameTooLongError(label))
+      continue
+    }
+
+    const details = accountCreateDetails[source]
+    if (!details?.accountType) addError(getImportAccountTypeRequiredError(label))
+    if (!details?.currency) addError(getImportAccountCurrencyRequiredError(label))
     if (!details?.accountType || !details.currency) continue
 
     if (!isImportAccountType(details.accountType)) {
-      addError(getImportAccountTypeUnsupportedError(name))
+      addError(getImportAccountTypeUnsupportedError(label))
       continue
     }
 
     accounts.push({
-      source: name,
+      source,
       create: {
         name,
         account_type: details.accountType,
@@ -107,7 +115,7 @@ export function buildFireflyImportPayload({
     })
   }
 
-  if (trackedAccountNames.length === 0 && rows.length > 0) {
+  if (accountSources.list.length === 0 && rows.length > 0) {
     addError('This export has no asset or liability accounts to import into.')
   }
 
@@ -140,7 +148,7 @@ export function buildFireflyImportPayload({
     })
   }
 
-  const payloadRows = buildFireflyImportRows(rows)
+  const payloadRows = buildFireflyImportRows(rows, accountSources)
   if (payloadRows.length === 0) addError(getImportNoRowsError('export'))
 
   if (errors.length > 0) return { errors, payload: null }
@@ -150,12 +158,21 @@ export function buildFireflyImportPayload({
 /**
  * Compiles journal rows into the backend row shape, excluding rows missing the
  * identity fields the endpoint rejects at the request level
+ *
+ * An endpoint the import writes to is sent as its account source alone, and any other endpoint by
+ * its name, so the backend never works out from the Firefly III type which endpoints are accounts
  */
-function buildFireflyImportRows(rows: CsvRow[]): FireflyTransactionImportPayload['rows'] {
+function buildFireflyImportRows(
+  rows: CsvRow[],
+  accountSources: FireflyAccountSources,
+): FireflyTransactionImportPayload['rows'] {
   const payloadRows: FireflyTransactionImportPayload['rows'] = []
 
   for (const row of rows) {
     if (!isFireflyRowUploadable(row)) continue
+
+    const sourceAccount = accountSources.find(row.source_name, row.source_type)
+    const destinationAccount = accountSources.find(row.destination_name, row.destination_type)
 
     payloadRows.push({
       journal_id: row.journal_id.trim(),
@@ -166,10 +183,10 @@ function buildFireflyImportRows(rows: CsvRow[]): FireflyTransactionImportPayload
       foreign_amount: cleanOptional(row.foreign_amount),
       foreign_currency_code: cleanOptional(row.foreign_currency_code)?.toUpperCase() ?? null,
       description: cleanOptional(row.description),
-      source_name: cleanOptional(row.source_name),
-      source_type: cleanOptional(row.source_type),
-      destination_name: cleanOptional(row.destination_name),
-      destination_type: cleanOptional(row.destination_type),
+      source_account: sourceAccount?.id ?? null,
+      source_name: sourceAccount ? null : cleanOptional(row.source_name),
+      destination_account: destinationAccount?.id ?? null,
+      destination_name: destinationAccount ? null : cleanOptional(row.destination_name),
       category: cleanOptional(row.category),
       tag_names: splitFireflyTags(row.tags ?? ''),
       notes: cleanOptional(row.notes),
@@ -177,6 +194,10 @@ function buildFireflyImportRows(rows: CsvRow[]): FireflyTransactionImportPayload
   }
 
   return payloadRows
+}
+
+function getFireflyAccountNameTooLongError(label: string) {
+  return `Map to an existing account, since a new account name holds at most ${FIREFLY_ACCOUNT_NAME_MAX_LENGTH} characters: ${label}`
 }
 
 function cleanOptional(value: string | undefined) {

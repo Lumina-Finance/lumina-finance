@@ -14,6 +14,7 @@ import {
   getFireflyImportedCategories,
   inferFireflyCategoryMappings,
 } from '@/pages/imports/firefly/utils'
+import { createNameKeyedAccountSources } from './fixtures'
 
 const SUPPORTED_CURRENCIES = new Set(['CAD', 'USD'])
 
@@ -62,7 +63,7 @@ describe('the currency a Firefly account is prefilled with', () => {
   it('takes the code every row of the account states', () => {
     const rows = [createWithdrawal('Chequing', 'CAD'), createWithdrawal('Chequing', 'CAD')]
 
-    expect(buildFireflyAccountPrefills(rows, ['Chequing'], SUPPORTED_CURRENCIES).Chequing.currency).toBe('CAD')
+    expect(buildFireflyAccountPrefills(rows, createNameKeyedAccountSources(['Chequing']), SUPPORTED_CURRENCIES).Chequing.currency).toBe('CAD')
   })
 
   // Three characters is all the export is asked for, so a code the app cannot store an account in
@@ -71,7 +72,7 @@ describe('the currency a Firefly account is prefilled with', () => {
   it('leaves the box empty for a code the app does not support', () => {
     const rows = [createWithdrawal('Crypto Wallet', 'BTC'), createWithdrawal('Crypto Wallet', 'BTC')]
 
-    expect(buildFireflyAccountPrefills(rows, ['Crypto Wallet'], SUPPORTED_CURRENCIES)['Crypto Wallet'].currency).toBe('')
+    expect(buildFireflyAccountPrefills(rows, createNameKeyedAccountSources(['Crypto Wallet']), SUPPORTED_CURRENCIES)['Crypto Wallet'].currency).toBe('')
   })
 
   // The overall vote stands in for an account whose own rows say nothing, so an unsupported code
@@ -83,7 +84,7 @@ describe('the currency a Firefly account is prefilled with', () => {
       createWithdrawal('Chequing', 'CAD'),
     ]
 
-    const prefills = buildFireflyAccountPrefills(rows, ['Crypto Wallet', 'Savings'], SUPPORTED_CURRENCIES)
+    const prefills = buildFireflyAccountPrefills(rows, createNameKeyedAccountSources(['Crypto Wallet', 'Savings']), SUPPORTED_CURRENCIES)
     expect(prefills.Savings.currency).toBe('CAD')
   })
 
@@ -97,7 +98,7 @@ describe('the currency a Firefly account is prefilled with', () => {
       }),
     ]
 
-    expect(buildFireflyAccountPrefills(rows, ['Savings'], SUPPORTED_CURRENCIES).Savings.currency).toBe('CAD')
+    expect(buildFireflyAccountPrefills(rows, createNameKeyedAccountSources(['Savings']), SUPPORTED_CURRENCIES).Savings.currency).toBe('CAD')
   })
 })
 

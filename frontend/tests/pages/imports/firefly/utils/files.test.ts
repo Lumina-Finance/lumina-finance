@@ -16,6 +16,7 @@ import {
 import { readFireflyCsvFile } from '@/pages/imports/firefly/utils/files'
 import { resolveFireflyRowLegs } from '@/pages/imports/firefly/utils/rowResolution'
 import { processImportFileIntake } from '@/pages/imports/utils'
+import { createNameKeyedAccountSources } from './fixtures'
 
 const SUPPORTED_CURRENCY_CODES = new Set(['CAD', 'USD'])
 const TRANSACTIONS_CSV = `${FIREFLY_TRANSACTIONS_REQUIRED_HEADERS.join(',')}\n1,withdrawal,'-12.34,CAD,2026-04-11,Main Chequing,Asset account,Corner Grocer,Expense account\n`
@@ -86,6 +87,7 @@ describe('removing the formula escape from Firefly III cells', () => {
   }
 
   const resolutionOptions = {
+    accountSources: createNameKeyedAccountSources(),
     accountById: new Map([[chequing.id, chequing]]),
     accountMappings: { Chequing: chequing.id },
     accountCreateDetails: {},

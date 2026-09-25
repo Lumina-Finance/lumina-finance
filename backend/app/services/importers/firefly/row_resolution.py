@@ -10,7 +10,6 @@ from app.models.currency import Currency
 from app.schemas.firefly_import import FireflyTransactionRow
 from app.services.importers.firefly.constants import (
     FIREFLY_NO_CATEGORY_SOURCE,
-    FIREFLY_TRACKED_ACCOUNT_TYPES,
     FIREFLY_TYPE_DEPOSIT,
     FIREFLY_TYPE_OPENING_BALANCE,
     FIREFLY_TYPE_RECONCILIATION,
@@ -49,7 +48,7 @@ class FireflyResolutionContext:
 
     Attributes:
         user_id: Identifier for the user running the import
-        accounts_by_source: Account rows keyed by Firefly III account name
+        accounts_by_source: Account rows keyed by the account source the frontend gave each imported account
         categories_by_source: Category rows keyed by Firefly III category name
         currencies_by_code: Currency rows keyed by currency code
         transfer_category: System category applied to two-leg transfers
@@ -107,8 +106,8 @@ def resolve_firefly_row(row: FireflyTransactionRow, context: FireflyResolutionCo
         HTTPException: Raised with 422 when a tracked account or category is not mapped
     """
     journal_type = row.type.strip().lower()
-    source_account = _get_tracked_account(row.source_name, row.source_type, context)
-    destination_account = _get_tracked_account(row.destination_name, row.destination_type, context)
+    source_account = _get_tracked_account(row.source_account, context)
+    destination_account = _get_tracked_account(row.destination_account, context)
     notes = _build_leg_notes(row)
 
     if journal_type in (FIREFLY_TYPE_OPENING_BALANCE, FIREFLY_TYPE_RECONCILIATION):
@@ -251,33 +250,22 @@ def _resolve_balance_row(
     )]
 
 
-def _get_tracked_account(
-    name: str | None,
-    account_type: str | None,
-    context: FireflyResolutionContext,
-) -> Account | None:
-    """Return the mapped account for a tracked journal endpoint
+def _get_tracked_account(account_source: str | None, context: FireflyResolutionContext) -> Account | None:
+    """Return the mapped account for a journal endpoint the frontend marked as an imported account
 
     Args:
-        name: Account name on the journal endpoint
-        account_type: Firefly III account type on the journal endpoint
+        account_source: Account source naming the endpoint, or None when it is not an imported account
         context: Lookups needed to resolve the row
 
     Returns:
-        Mapped account when the endpoint is a tracked type, otherwise None
+        Mapped account, or None when the endpoint is not an imported account
 
     Raises:
-        HTTPException: Raised with 422 when a tracked account name is not mapped
+        HTTPException: Raised with 422 when the account source is not mapped
     """
-    if not name or not account_type:
+    if account_source is None:
         return None
-
-    # A whitespace-only name is no endpoint at all, so the row falls through
-    # to the normal skip reasons instead of failing the batch as unmapped
-    stripped_name = name.strip()
-    if not stripped_name or account_type.strip().lower() not in FIREFLY_TRACKED_ACCOUNT_TYPES:
-        return None
-    return get_import_row_account(context.accounts_by_source, stripped_name)
+    return get_import_row_account(context.accounts_by_source, account_source)
 
 
 def _resolve_row_category(

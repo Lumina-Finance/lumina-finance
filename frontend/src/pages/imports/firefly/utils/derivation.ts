@@ -1,4 +1,3 @@
-import type { AccountType } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import { FIREFLY_NO_CATEGORY_SOURCE, isFireflyTrackedAccountType } from '@/api/firefly-imports'
 import {
@@ -18,7 +17,7 @@ import {
   FIREFLY_TYPE_TRANSFER,
   FIREFLY_TYPE_WITHDRAWAL,
 } from '@/pages/imports/firefly/constants'
-import type { FireflyAccountPrefill } from '@/pages/imports/firefly/types'
+import type { FireflyAccountPrefill, FireflyAccountSource, FireflyAccountSources } from '@/pages/imports/firefly/types'
 import { parseYmd } from '@/utils/date'
 
 /**
@@ -103,24 +102,64 @@ export function splitFireflyTags(value: string) {
 }
 
 /**
- * Gets the sorted distinct account names that must be mapped to Lumina accounts
+ * Gets the accounts the export's rows are written to, each told apart by its Firefly III type as
+ * well as its name, since Firefly III lets an asset account and a liability share a name
+ *
+ * Every mapping, create-new choice and payload row names an account by its id, so the ids only
+ * need to hold for one export, and replacing the export starts the mappings over
  */
-export function getFireflyTrackedAccountNames(rows: CsvRow[]): string[] {
-  const names = new Set<string>()
+export function getFireflyAccountSources(rows: CsvRow[]): FireflyAccountSources {
+  const endpoints = new Map<string, { name: string; type: string }>()
 
-  for (const row of rows) {
-    const sourceName = row.source_name?.trim()
-    if (sourceName && isFireflyTrackedAccountType(row.source_type)) names.add(sourceName)
+  const addEndpoint = (name: string | undefined, type: string | undefined) => {
+    const trimmedName = name?.trim() ?? ''
+    if (!trimmedName || !type || !isFireflyTrackedAccountType(type)) return
 
-    const destinationName = row.destination_name?.trim()
-    if (destinationName && isFireflyTrackedAccountType(row.destination_type)) names.add(destinationName)
+    const key = getFireflyAccountKey(trimmedName, type)
+    if (!endpoints.has(key)) endpoints.set(key, { name: trimmedName, type: type.trim() })
   }
 
-  return [...names].sort((a, b) => a.localeCompare(b))
+  for (const row of rows) {
+    addEndpoint(row.source_name, row.source_type)
+    addEndpoint(row.destination_name, row.destination_type)
+  }
+
+  const sorted = [...endpoints].sort(([, a], [, b]) => (
+    a.name.localeCompare(b.name) || a.type.localeCompare(b.type)
+  ))
+
+  const typeCountByName = new Map<string, number>()
+  for (const [, endpoint] of sorted) {
+    typeCountByName.set(endpoint.name, (typeCountByName.get(endpoint.name) ?? 0) + 1)
+  }
+
+  const sourceByKey = new Map<string, FireflyAccountSource>()
+  const list = sorted.map(([key, endpoint], index) => {
+    const source = {
+      id: `account-${index + 1}`,
+      name: endpoint.name,
+      type: endpoint.type,
+      label: (typeCountByName.get(endpoint.name) ?? 0) > 1 ? `${endpoint.name} (${endpoint.type})` : endpoint.name,
+    }
+    sourceByKey.set(key, source)
+    return source
+  })
+
+  return {
+    list,
+    find: (name, type) => sourceByKey.get(getFireflyAccountKey(name?.trim() ?? '', type ?? '')) ?? null,
+  }
 }
 
 /**
- * Builds create-new type and currency defaults for every tracked account name
+ * Keys an endpoint by its name and its type, reading the type as Firefly III matches it
+ */
+function getFireflyAccountKey(name: string, type: string) {
+  return JSON.stringify([name, type.trim().toLowerCase()])
+}
+
+/**
+ * Builds create-new type and currency defaults for every tracked account, keyed by source id
  *
  * @param supportedCurrencyCodes - Every code the app can store an account in. A row stating
  *   anything else is not counted, since the currency control offers only these: prefilling one it
@@ -129,31 +168,22 @@ export function getFireflyTrackedAccountNames(rows: CsvRow[]): string[] {
  */
 export function buildFireflyAccountPrefills(
   rows: CsvRow[],
-  trackedAccountNames: string[],
+  accountSources: FireflyAccountSources,
   supportedCurrencyCodes: Set<string>,
 ): Record<string, FireflyAccountPrefill> {
   const currencyTallies = new Map<string, Map<string, number>>()
   const overallTally = new Map<string, number>()
-  const liabilityTypes = new Map<string, AccountType>()
 
   const readSupportedCurrency = (value: string | undefined) => {
     const code = value?.trim().toUpperCase() ?? ''
     return supportedCurrencyCodes.has(code) ? code : ''
   }
 
-  const tallyCurrency = (accountName: string | undefined, currency: string) => {
-    if (!accountName || !currency) return
-    const tally = currencyTallies.get(accountName) ?? new Map<string, number>()
+  const tallyCurrency = (source: FireflyAccountSource | null, currency: string) => {
+    if (!source || !currency) return
+    const tally = currencyTallies.get(source.id) ?? new Map<string, number>()
     tally.set(currency, (tally.get(currency) ?? 0) + 1)
-    currencyTallies.set(accountName, tally)
-  }
-
-  // Liability endpoint types name the Lumina account type directly, while
-  // asset accounts fall back to checking because rows carry no role details
-  const recordLiabilityType = (accountName: string | undefined, endpointType: string | undefined) => {
-    if (!accountName || liabilityTypes.has(accountName)) return
-    const mappedType = FIREFLY_LIABILITY_ACCOUNT_TYPES[endpointType?.trim().toLowerCase() ?? '']
-    if (mappedType) liabilityTypes.set(accountName, mappedType)
+    currencyTallies.set(source.id, tally)
   }
 
   // The account-side currency follows money direction, so withdrawals and
@@ -164,29 +194,29 @@ export function buildFireflyAccountPrefills(
     const rowCurrency = readSupportedCurrency(row.currency_code)
     if (rowCurrency) overallTally.set(rowCurrency, (overallTally.get(rowCurrency) ?? 0) + 1)
 
-    const sourceName = isFireflyTrackedAccountType(row.source_type) ? row.source_name?.trim() : ''
-    const destinationName = isFireflyTrackedAccountType(row.destination_type) ? row.destination_name?.trim() : ''
-    recordLiabilityType(sourceName, row.source_type)
-    recordLiabilityType(destinationName, row.destination_type)
+    const source = accountSources.find(row.source_name, row.source_type)
+    const destination = accountSources.find(row.destination_name, row.destination_type)
 
     if (journalType === FIREFLY_TYPE_WITHDRAWAL || journalType === FIREFLY_TYPE_TRANSFER) {
-      tallyCurrency(sourceName, rowCurrency)
+      tallyCurrency(source, rowCurrency)
     }
     if (journalType === FIREFLY_TYPE_DEPOSIT) {
-      tallyCurrency(destinationName, rowCurrency)
+      tallyCurrency(destination, rowCurrency)
     }
     if (journalType === FIREFLY_TYPE_TRANSFER) {
-      tallyCurrency(destinationName, readSupportedCurrency(row.foreign_currency_code) || rowCurrency)
+      tallyCurrency(destination, readSupportedCurrency(row.foreign_currency_code) || rowCurrency)
     }
   }
 
   const fallbackCurrency = getTopTallyValue(overallTally)
   const prefills: Record<string, FireflyAccountPrefill> = {}
 
-  for (const name of trackedAccountNames) {
-    prefills[name] = {
-      accountType: liabilityTypes.get(name) ?? FIREFLY_FALLBACK_ACCOUNT_TYPE,
-      currency: getTopTallyValue(currencyTallies.get(name)) || fallbackCurrency,
+  // Liability types name the Lumina account type directly, while asset accounts fall back to
+  // checking because rows carry no role details
+  for (const source of accountSources.list) {
+    prefills[source.id] = {
+      accountType: FIREFLY_LIABILITY_ACCOUNT_TYPES[source.type.toLowerCase()] ?? FIREFLY_FALLBACK_ACCOUNT_TYPE,
+      currency: getTopTallyValue(currencyTallies.get(source.id)) || fallbackCurrency,
     }
   }
 

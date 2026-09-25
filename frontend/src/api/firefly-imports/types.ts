@@ -9,6 +9,10 @@ import type {
  *
  * Amounts are trimmed decimal text without grouping separators so the backend can
  * validate precision against the account currency. Sign conventions are ignored server side
+ *
+ * An endpoint the import writes to is named by its account mapping source and carries no name,
+ * since Firefly III lets an asset account and a liability share one. Any other endpoint is named
+ * as the export writes it
  */
 export interface FireflyTransactionImportRow {
   journal_id: string;
@@ -23,10 +27,10 @@ export interface FireflyTransactionImportRow {
   foreign_amount: string | null;
   foreign_currency_code: string | null;
   description: string | null;
+  source_account: string | null;
   source_name: string | null;
-  source_type: string | null;
+  destination_account: string | null;
   destination_name: string | null;
-  destination_type: string | null;
   category: string | null;
   tag_names: string[];
   notes: string | null;

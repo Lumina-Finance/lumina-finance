@@ -24,13 +24,9 @@ export function isFireflyTrackedAccountType(accountType: string | null | undefin
  */
 export function getFireflyRowAccountSources(row: FireflyTransactionImportRow) {
   const sources: string[] = [];
-  if (row.source_name && isFireflyTrackedAccountType(row.source_type)) sources.push(row.source_name);
-  if (
-    row.destination_name
-    && isFireflyTrackedAccountType(row.destination_type)
-    && row.destination_name !== sources[0]
-  ) {
-    sources.push(row.destination_name);
+  if (row.source_account) sources.push(row.source_account);
+  if (row.destination_account && row.destination_account !== row.source_account) {
+    sources.push(row.destination_account);
   }
   return sources;
 }

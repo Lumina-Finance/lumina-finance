@@ -9,6 +9,7 @@ import type { Institution } from '@/api/institutions'
 import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, MAX_IMPORT_TAGS_PER_ROW } from '@/pages/imports/constants'
 import type { CsvRow } from '@/pages/imports/types'
 import { buildFireflyPreviewRows } from '@/pages/imports/firefly/utils'
+import { createNameKeyedAccountSources } from './fixtures'
 
 const institution: Institution = {
   id: 'bank',
@@ -107,6 +108,7 @@ function createOptions(overrides: Partial<Parameters<typeof buildFireflyPreviewR
   return {
     rows: [createFireflyRow()],
     limit: 5,
+    accountSources: createNameKeyedAccountSources(),
     accountById: new Map([['checking', createAccount()]]),
     accountMappings: { Chequing: 'checking' },
     accountCreateDetails: {},

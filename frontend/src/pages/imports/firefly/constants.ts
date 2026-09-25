@@ -51,6 +51,9 @@ export const FIREFLY_BUDGET_ACTIVE_VALUE = '1'
  */
 export const FIREFLY_TAG_NAME_MAX_LENGTH = 64
 
+// The longest name a Lumina account takes, which Firefly III account names can exceed
+export const FIREFLY_ACCOUNT_NAME_MAX_LENGTH = 256
+
 export const FIREFLY_TAG_TOO_LONG_REASON = 'Tag name is too long'
 
 /**

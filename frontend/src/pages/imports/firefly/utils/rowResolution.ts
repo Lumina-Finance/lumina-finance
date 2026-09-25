@@ -1,6 +1,6 @@
 import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
-import { FIREFLY_NO_CATEGORY_SOURCE, isFireflyTrackedAccountType } from '@/api/firefly-imports'
+import { FIREFLY_NO_CATEGORY_SOURCE } from '@/api/firefly-imports'
 import type { Institution } from '@/api/institutions'
 import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, DEFAULT_CATEGORY_ICON } from '@/pages/imports/constants'
 import type { Currency } from '@/api/currency'
@@ -16,12 +16,15 @@ import {
   FIREFLY_TYPE_TRANSFER,
   FIREFLY_TYPE_WITHDRAWAL,
 } from '@/pages/imports/firefly/constants'
+import type { FireflyAccountSource, FireflyAccountSources } from '@/pages/imports/firefly/types'
 import type { FireflyAccountCreateDetails } from './payload'
 
 /**
  * Mapping lookups needed to resolve journal rows the same way the commit will
  */
 export interface FireflyRowResolutionOptions {
+  /** The accounts rows are written to, which the account mappings and create details are keyed by */
+  accountSources: FireflyAccountSources
   accountById: Map<string, AccountsOverview>
   accountMappings: Record<string, string>
   accountCreateDetails: Record<string, FireflyAccountCreateDetails>
@@ -123,8 +126,10 @@ export function getFireflyCategoryUsedByResolution(
  */
 function buildFireflyRowLegs(row: CsvRow, options: FireflyRowResolutionOptions): FireflyResolvedLeg[] {
   const journalType = row.type?.trim().toLowerCase() ?? ''
-  const source = resolveFireflyMappedAccount(row.source_name, row.source_type, options)
-  const destination = resolveFireflyMappedAccount(row.destination_name, row.destination_type, options)
+  const sourceAccountSource = options.accountSources.find(row.source_name, row.source_type)
+  const destinationAccountSource = options.accountSources.find(row.destination_name, row.destination_type)
+  const source = resolveFireflyMappedAccount(sourceAccountSource, options)
+  const destination = resolveFireflyMappedAccount(destinationAccountSource, options)
 
   // Firefly III pairs balance rows with a virtual balance account, so the
   // imported side is whichever endpoint is a real account and money flowing
@@ -147,12 +152,13 @@ function buildFireflyRowLegs(row: CsvRow, options: FireflyRowResolutionOptions):
   // the Firefly III type, which covers loan payments recorded as withdrawals
   // into a liability account
   if (source && destination) {
-    // Two names in the file can be mapped onto one account, which is how a
+    // Two accounts in the file can be mapped onto one account, which is how a
     // renamed account is carried across. The pair would then be two cancelling
     // rows in that account, a shape the API refuses when entered by hand.
-    // Two different names queued for creation share the create sentinel as
-    // their id and still become two separate accounts, so the names decide it
-    if (source.id === destination.id && (source.id !== CREATE_ACCOUNT_VALUE || source.name === destination.name)) {
+    // Two different accounts queued for creation share the create sentinel as
+    // their id and still become two separate accounts, so their sources decide it
+    const isSameCreate = sourceAccountSource?.id === destinationAccountSource?.id
+    if (source.id === destination.id && (source.id !== CREATE_ACCOUNT_VALUE || isSameCreate)) {
       throw new FireflyRowSkipError('Transfer source and destination resolve to the same account')
     }
 
@@ -213,19 +219,17 @@ function buildFireflyRowLegs(row: CsvRow, options: FireflyRowResolutionOptions):
  * choices produce, or null when the endpoint is not an imported account
  */
 function resolveFireflyMappedAccount(
-  name: string | undefined,
-  accountType: string | undefined,
+  accountSource: FireflyAccountSource | null,
   options: FireflyRowResolutionOptions,
 ): FireflyResolvedAccount | null {
-  const trimmedName = name?.trim() ?? ''
-  if (!trimmedName || !isFireflyTrackedAccountType(accountType)) return null
+  if (!accountSource) return null
 
-  const choice = options.accountMappings[trimmedName]
+  const choice = options.accountMappings[accountSource.id]
   if (choice === CREATE_ACCOUNT_VALUE) {
-    const details = options.accountCreateDetails[trimmedName]
+    const details = options.accountCreateDetails[accountSource.id]
     return {
       id: CREATE_ACCOUNT_VALUE,
-      name: trimmedName,
+      name: accountSource.name,
       currency: (details?.currency ?? '').trim().toUpperCase(),
       institution: options.institutionById.get(details?.institutionId ?? '') ?? null,
     }

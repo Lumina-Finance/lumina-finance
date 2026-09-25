@@ -52,7 +52,7 @@ import {
   getFireflyFileHeaders,
   getFireflyFileRows,
   getFireflyImportedCategories,
-  getFireflyTrackedAccountNames,
+  getFireflyAccountSources,
   inferFireflyCategoryMappings,
   readFireflyCsvFile,
   resolveFireflyAccountMappings,
@@ -166,10 +166,11 @@ export function useFireflyImportWorkflow() {
     [transactionsFile],
   )
 
-  const trackedAccountNames = useMemo(
-    () => getFireflyTrackedAccountNames(fireflyRows),
+  const accountSources = useMemo(
+    () => getFireflyAccountSources(fireflyRows),
     [fireflyRows],
   )
+  const trackedAccounts = accountSources.list
 
   const supportedCurrencyCodes = useMemo(
     () => getSupportedCurrencyCodes(currencies),
@@ -177,15 +178,20 @@ export function useFireflyImportWorkflow() {
   )
 
   const accountPrefills = useMemo(
-    () => buildFireflyAccountPrefills(fireflyRows, trackedAccountNames, supportedCurrencyCodes),
-    [fireflyRows, supportedCurrencyCodes, trackedAccountNames],
+    () => buildFireflyAccountPrefills(fireflyRows, accountSources, supportedCurrencyCodes),
+    [accountSources, fireflyRows, supportedCurrencyCodes],
   )
 
   // Every Firefly source is an account the import writes rows into, so none of them can be
   // answered as money outside the tracked accounts
   const accountMappingSources = useMemo(
-    () => trackedAccountNames.map((name) => ({ id: name, label: name, matchText: name, isCounterpartyOnly: false })),
-    [trackedAccountNames],
+    () => trackedAccounts.map((source) => ({
+      id: source.id,
+      label: source.label,
+      matchText: source.name,
+      isCounterpartyOnly: false,
+    })),
+    [trackedAccounts],
   )
 
   // Names without an explicit choice use an unambiguous existing-account match. Once the account
@@ -214,15 +220,15 @@ export function useFireflyImportWorkflow() {
 
   const autoFilledAccountSources = useMemo(
     () => new Set(
-      trackedAccountNames.filter((name) => (
+      trackedAccounts.map((source) => source.id).filter((source) => (
         isAutoFilledAccountSource(
-          liveAccountMappings[name] ?? '',
-          resolvedAccountMappings[name] ?? '',
+          liveAccountMappings[source] ?? '',
+          resolvedAccountMappings[source] ?? '',
           false,
         )
       )),
     ),
-    [liveAccountMappings, resolvedAccountMappings, trackedAccountNames],
+    [liveAccountMappings, resolvedAccountMappings, trackedAccounts],
   )
 
   // Read before the name match and the create-new default are layered on, so the batch bar can tell
@@ -235,16 +241,16 @@ export function useFireflyImportWorkflow() {
   const resolvedAccountCreateDetails = useMemo(
     () => {
       const details: Record<string, FireflyAccountCreateDetails> = {}
-      for (const name of trackedAccountNames) {
-        details[name] = {
-          accountType: accountCreateTypes[name] ?? accountPrefills[name]?.accountType ?? '',
-          currency: accountCreateCurrencies[name] ?? accountPrefills[name]?.currency ?? '',
-          institutionId: accountCreateInstitutions[name] ?? '',
+      for (const { id: source } of trackedAccounts) {
+        details[source] = {
+          accountType: accountCreateTypes[source] ?? accountPrefills[source]?.accountType ?? '',
+          currency: accountCreateCurrencies[source] ?? accountPrefills[source]?.currency ?? '',
+          institutionId: accountCreateInstitutions[source] ?? '',
         }
       }
       return details
     },
-    [accountCreateCurrencies, accountCreateInstitutions, accountCreateTypes, accountPrefills, trackedAccountNames],
+    [accountCreateCurrencies, accountCreateInstitutions, accountCreateTypes, accountPrefills, trackedAccounts],
   )
 
   const importedCategories = useMemo(
@@ -296,6 +302,7 @@ export function useFireflyImportWorkflow() {
     () => buildFireflyPreviewRows({
       rows: fireflyRows,
       limit: FIREFLY_SAMPLE_PREVIEW_LIMIT,
+      accountSources,
       accountById,
       accountMappings: resolvedAccountMappings,
       accountCreateDetails: resolvedAccountCreateDetails,
@@ -309,6 +316,7 @@ export function useFireflyImportWorkflow() {
     }),
     [
       accountById,
+      accountSources,
       balanceAdjustmentCategory,
       categoryById,
       currencies,
@@ -333,6 +341,7 @@ export function useFireflyImportWorkflow() {
   const importForecast = useMemo(
     () => forecastFireflyImport(fireflyRows, {
       fileId: transactionsFile?.id ?? null,
+      accountSources,
       accountById,
       accountMappings: resolvedAccountMappings,
       accountCreateDetails: resolvedAccountCreateDetails,
@@ -346,6 +355,7 @@ export function useFireflyImportWorkflow() {
     }),
     [
       accountById,
+      accountSources,
       balanceAdjustmentCategory,
       categoryById,
       currencies,
@@ -364,8 +374,8 @@ export function useFireflyImportWorkflow() {
   const predictedRowWarnings = importForecast.rowWarnings
 
   const newAccountCount = useMemo(
-    () => trackedAccountNames.filter((name) => resolvedAccountMappings[name] === CREATE_ACCOUNT_VALUE).length,
-    [resolvedAccountMappings, trackedAccountNames],
+    () => trackedAccounts.filter((source) => resolvedAccountMappings[source.id] === CREATE_ACCOUNT_VALUE).length,
+    [resolvedAccountMappings, trackedAccounts],
   )
 
   const newCategoryCount = useMemo(
@@ -377,7 +387,7 @@ export function useFireflyImportWorkflow() {
     () => buildFireflyImportPayload({
       transactionsFile,
       rows: fireflyRows,
-      trackedAccountNames,
+      accountSources,
       accountMappings: resolvedAccountMappings,
       accountById,
       accountCreateDetails: resolvedAccountCreateDetails,
@@ -387,13 +397,13 @@ export function useFireflyImportWorkflow() {
     }),
     [
       accountById,
+      accountSources,
       fireflyRows,
       importedCategories,
       resolvedAccountCreateDetails,
       resolvedAccountMappings,
       resolvedCategoryKinds,
       resolvedCategoryMappings,
-      trackedAccountNames,
       transactionsFile,
     ],
   )
@@ -711,7 +721,7 @@ export function useFireflyImportWorkflow() {
     fileIntakeErrors,
     fireflyRows,
     fireflyHeaders,
-    trackedAccountNames,
+    trackedAccounts,
     accountPrefills,
     accountMappings: resolvedAccountMappings,
     autoFilledAccountSources,

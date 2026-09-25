@@ -4,7 +4,32 @@ import type { FireflyBudgetImportLimit, FireflyTransactionImportPayload } from '
 export type FireflyFileKind = 'transactions' | 'budgets'
 
 /**
- * Create-new defaults for one tracked Firefly III account name
+ * One account the export's rows are written to, which the user maps to a Lumina account
+ */
+export interface FireflyAccountSource {
+  /** Mapping source the mappings and the commit name this account by */
+  id: string
+  name: string
+
+  /** Firefly III account type as the export writes it */
+  type: string
+
+  /** Name the mapping step shows, with the type added when another account shares the name */
+  label: string
+}
+
+/**
+ * Every account the export's rows are written to, with the lookup rows resolve their endpoints by
+ */
+export interface FireflyAccountSources {
+  list: FireflyAccountSource[]
+
+  /** Finds the account one row endpoint names, or null when the endpoint is not one the import writes to */
+  find: (name: string | undefined, type: string | undefined) => FireflyAccountSource | null
+}
+
+/**
+ * Create-new defaults for one tracked Firefly III account
  */
 export interface FireflyAccountPrefill {
   accountType: AccountType

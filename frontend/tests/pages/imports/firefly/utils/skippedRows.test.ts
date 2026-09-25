@@ -26,6 +26,7 @@ import {
   FIREFLY_MISSING_REQUIRED_VALUES_REASON,
   FIREFLY_SAMPLE_PREVIEW_LIMIT,
 } from '@/pages/imports/firefly/constants'
+import { createNameKeyedAccountSources } from './fixtures'
 
 const EXPECTED_DEBT_PAYMENT_NOTE =
   'Make sure this payment is really an expense. Repayments of a credit card, line of credit or HELOC belong in Credit Card Payment. Debt Payment can remain selected for a loan or mortgage payment.'
@@ -110,6 +111,7 @@ function createOptions(
 ): FireflyRowResolutionOptions & { fileId: string } {
   const groceries = createCategory()
   return {
+    accountSources: createNameKeyedAccountSources(),
     accountById: new Map([['checking', createAccount()]]),
     accountMappings: { Chequing: 'checking' },
     accountCreateDetails: {},

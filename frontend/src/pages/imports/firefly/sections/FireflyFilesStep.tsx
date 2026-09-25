@@ -20,7 +20,7 @@ type FireflyFilesStepProps = Pick<
   | 'processingFileKind'
   | 'fileIntakeErrors'
   | 'fireflyRows'
-  | 'trackedAccountNames'
+  | 'trackedAccounts'
   | 'importedCategories'
   | 'handleFireflyFileChange'
   | 'removeFireflyFile'
@@ -46,7 +46,7 @@ export function FireflyFilesStep({
   processingFileKind,
   fileIntakeErrors,
   fireflyRows,
-  trackedAccountNames,
+  trackedAccounts,
   importedCategories,
   handleFireflyFileChange,
   removeFireflyFile,
@@ -93,7 +93,7 @@ export function FireflyFilesStep({
 
       <div className="mt-auto flex flex-wrap gap-3 pt-3">
         <ImportStat label="Rows" value={fireflyRows.length.toString()} />
-        <ImportStat label="Accounts" value={trackedAccountNames.length.toString()} />
+        <ImportStat label="Accounts" value={trackedAccounts.length.toString()} />
         <ImportStat label="Categories" value={importedCategories.length.toString()} />
       </div>
     </ImportStep>
