@@ -245,7 +245,7 @@ export default function ImportsPage() {
               <aside className="flex flex-col gap-8 xl:h-full xl:w-[340px] xl:shrink-0">
                 {/* An import started from an account has one source, so the choice is not offered */}
                 {!isScopedToAccount && <ImportSourceStep value={dataSource} onChange={handleDataSourceChange} />}
-                <div className="min-h-0 xl:flex-1">
+                <div className="min-h-0 xl:flex-1 xl:overflow-y-auto xl:pr-1">
                   {isFirefly ? <FireflyFilesStep {...fireflyWorkflow} /> : <ImportFilesStep {...workflow} />}
                 </div>
               </aside>

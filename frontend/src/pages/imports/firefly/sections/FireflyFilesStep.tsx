@@ -36,6 +36,29 @@ const FILE_SLOTS: Array<{ kind: FireflyFileKind; label: string; hint: string; re
   { kind: 'budgets', label: 'Budgets CSV', hint: 'The budgets and limit periods to create with the import.', required: false },
 ]
 
+// A command is one unbroken string, so it wraps anywhere rather than widening the column
+const COMMAND_CLASS_NAME = 'font-mono text-[0.8125rem] wrap-anywhere'
+
+// Worded against Firefly III 6.7.3's own screens, whose labels these repeat so they can be found
+const FILE_SLOT_NOTES: Record<FireflyFileKind, ReactNode> = {
+  transactions: (
+    <ImportInfoCard title="Which export to use">
+      In Firefly III, open Export data under Others and choose Export all transactions. The file holds every transaction up to the end of the day you export it, so anything dated after that day isn't in it.
+    </ImportInfoCard>
+  ),
+  budgets: (
+    <ImportInfoCard title="Where the budgets file comes from">
+      Firefly III&apos;s Export data page doesn&apos;t make this file. On your Firefly III server, run{' '}
+      <code className={COMMAND_CLASS_NAME}>php artisan firefly-iii:export-data --export-budgets --token=&lt;token&gt;</code>
+      {' '}with the command line token from your Firefly III profile, adding{' '}
+      <code className={COMMAND_CLASS_NAME}>--user=&lt;id&gt;</code>
+      {' '}if you aren&apos;t its first user. The command saves the file in the folder it runs in, or in the one given with{' '}
+      <code className={COMMAND_CLASS_NAME}>--export_directory=&lt;folder&gt;</code>
+      . If you skip this file, budgets can be created by hand after the import with a past start date, and their spending is rebuilt from the imported transactions.
+    </ImportInfoCard>
+  ),
+}
+
 /**
  * Files step of the Firefly III import flow, with a required slot for the transactions export and an
  * optional one for the budgets export, plus row, account, and category counts once files are staged
@@ -62,7 +85,7 @@ export function FireflyFilesStep({
       index="01"
       title="Files"
       description="Upload the CSV files exported from Firefly III."
-      className="xl:h-full"
+      className="xl:min-h-full"
       contentClassName="flex min-h-0 flex-col gap-3"
     >
       {FILE_SLOTS.map((slot, slotIndex) => (
@@ -83,15 +106,17 @@ export function FireflyFilesStep({
           isBlocked={uploadBlockReason !== null}
           onFileChange={handleFireflyFileChange}
           onRemove={removeFireflyFile}
-          note={slot.kind === 'budgets' ? (
-            <ImportInfoCard title="No budgets export?">
-              Budgets can be backdated and their historical spending is rebuilt automatically from the imported transactions. If you skip this export, it is easy to create budgets by hand after the import with a past start date.
-            </ImportInfoCard>
-          ) : undefined}
+          note={FILE_SLOT_NOTES[slot.kind]}
         />
       ))}
 
-      <div className="mt-auto flex flex-wrap gap-3 pt-3">
+      {/* Kept in view once files are staged, unlike the slot notes, since it matters most at the
+          moment the import is about to run */}
+      <p className="mt-auto pt-3 text-sm leading-5" style={{ color: 'var(--app-text-muted)' }}>
+        Import from Firefly III once. Importing again, even from a newer export, adds every transaction and budget a second time, and creates any account set to Create New Account again.
+      </p>
+
+      <div className="flex flex-wrap gap-3">
         <ImportStat label="Rows" value={fireflyRows.length.toString()} />
         <ImportStat label="Accounts" value={trackedAccounts.length.toString()} />
         <ImportStat label="Categories" value={importedCategories.length.toString()} />
