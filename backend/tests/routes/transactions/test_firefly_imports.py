@@ -247,21 +247,6 @@ async def test_firefly_import_records_a_one_sided_transfer_row_as_leaving_the_ac
     assert transaction["counterparty_account_scope"] == "outside"
 
 
-async def test_firefly_import_rejects_an_account_source_marked_outside(client):
-    """Every Firefly source is an account rows are written to, so the outside answer has no meaning."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    resp = await _import_firefly(client, headers, {
-        "accounts": [_chequing_mapping(), {"source": "Brokerage elsewhere", "outside": True}],
-        "categories": [{"source": "Groceries", "create": {"name": "Groceries", "kind": "expense"}}],
-        "rows": [_firefly_row()],
-    })
-
-    assert resp.status_code == 422
-    assert resp.json()["detail"] == "Account source cannot be outside the tracked accounts: Brokerage elsewhere"
-
-
 async def test_firefly_imported_internal_transfer_is_left_out_of_the_limit_totals(client):
     """The point of recording the counterparty account: an imported internal move stops counting."""
     signup_resp = await _create_user(client)

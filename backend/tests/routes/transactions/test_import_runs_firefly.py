@@ -279,6 +279,29 @@ async def test_another_users_firefly_run_is_out_of_reach(client):
     assert [(resp.status_code, resp.json()["detail"]) for resp in responses] == [(404, "Import run not found")] * 4
 
 
+async def test_a_firefly_run_refuses_an_outside_account_when_staged_and_takes_the_corrected_answer(client):
+    """An outside answer is refused before it is kept, so the same run commits once the answer is fixed."""
+    headers = _get_auth_header(await _create_user(client))
+    run_id = await _open_run(client, headers, 1)
+    brokerage_row = _firefly_row(source_account="Brokerage elsewhere")
+
+    refused = await client.post(f"/transactions/import/runs/{run_id}/firefly/rows", json={
+        "accounts": [{"source": "Brokerage elsewhere", "outside": True}],
+        "categories": [_GROCERIES],
+        "rows": [brokerage_row],
+        "start_row_index": 0,
+    }, headers=headers)
+    assert (refused.status_code, refused.json()["detail"]) == (
+        422, "Account source cannot be outside the tracked accounts: Brokerage elsewhere",
+    )
+
+    brokerage = {"source": "Brokerage elsewhere", "create": {"name": "Brokerage", "account_type": "checking", "currency": "CAD"}}
+    await _stage(client, headers, run_id, 0, [brokerage_row], accounts=[brokerage])
+    committed = await client.post(f"/transactions/import/runs/{run_id}/firefly/commit", headers=headers)
+    assert committed.status_code == 201, committed.text
+    assert committed.json()["transactions_created"] == 1
+
+
 @pytest.mark.parametrize(("part", "body"), [
     ("budgets", {"categories": [_GROCERIES], "budgets": [{**_budget(), "name": " Food"}]}),
     ("budgets", {"categories": [_GROCERIES], "budgets": [{**_budget(), "currency": "cad"}]}),

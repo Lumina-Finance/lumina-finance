@@ -82,22 +82,15 @@ async def write_firefly_transactions(
         What the rows created
 
     Raises:
-        HTTPException: Raised with 422 for an account source marked outside, and for the first row
-            that cannot be converted, naming the row's journal
+        HTTPException: Raised with 422 for the first row that cannot be converted, naming the row's
+            journal
     """
     stats = ImportStats()
+
     # Both legs of a Firefly transfer get a row written, so every source here is an account the
-    # import writes to and none of them takes the weaker counterparty rule
+    # import writes to and none of them takes the weaker counterparty rule. Staging refuses an
+    # outside answer for a Firefly run, so every source resolves to an account
     account_sources = await resolve_import_account_sources(db, user, accounts, stats, set())
-
-    # Every Firefly source is an endpoint rows are written to, and the export states both sides of a
-    # transfer itself, so there is nothing here an outside answer could describe
-    if account_sources.outside_sources:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=f"Account source cannot be outside the tracked accounts: {sorted(account_sources.outside_sources)[0]}",
-        )
-
     accounts_by_source = account_sources.accounts_by_source
     categories_by_source = await get_or_create_import_categories_by_source(db, user, categories, stats)
 

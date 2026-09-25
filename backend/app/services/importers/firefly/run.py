@@ -69,6 +69,14 @@ async def stage_firefly_batch(
 
     references = await load_staging_references(db, user, data.accounts, data.categories)
     for account_mapping in data.accounts:
+        # Every Firefly source is an endpoint rows are written to, and the export states both sides
+        # of a transfer itself, so there is nothing here an outside answer could describe. Refusing
+        # it here rather than at the commit keeps the run open for the corrected answer
+        if account_mapping.outside:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=f"Account source cannot be outside the tracked accounts: {account_mapping.source}",
+            )
         await validate_account_mapping(db, user, account_mapping, references)
     for category_mapping in data.categories:
         await validate_category_mapping(db, user, category_mapping, references)
