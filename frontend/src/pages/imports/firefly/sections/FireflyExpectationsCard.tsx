@@ -85,6 +85,7 @@ const LEFT_BEHIND: { group: string; items: string[] }[] = [
     items: [
       'With more decimal places than their currency allows',
       'With a tag too long for this app',
+      "Of the Liability credit type, which repeats a liability's opening balance",
     ],
   },
   {
