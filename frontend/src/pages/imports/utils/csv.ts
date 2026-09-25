@@ -130,6 +130,10 @@ interface ParsedCsv {
  * @param unescapeCell - Undoes the exporting tool's own escaping of a cell. It runs on every cell,
  * headings included, before the cell is trimmed and before the reader weighs delimiters, detects
  * headings or checks anything else, and it sees line endings already rewritten as newlines
+ * @param readRecords - Splits the text into records for a tool whose quoting is known and differs
+ * from the doubled quotes the general parser expects, receiving the text with line endings already
+ * rewritten as newlines. It returns null for text the tool did not write as it stands, such as its
+ * export saved again by a spreadsheet, which the general parser then reads with its delimiter guessing
  */
 export async function readCsvFile(
   file: File,
@@ -137,7 +141,12 @@ export async function readCsvFile(
   {
     requireDataRows,
     unescapeCell = (value) => value,
-  }: { requireDataRows: boolean; unescapeCell?: (value: string) => string },
+    readRecords,
+  }: {
+    requireDataRows: boolean
+    unescapeCell?: (value: string) => string
+    readRecords?: (text: string) => string[][] | null
+  },
 ): Promise<ImportFileDraft> {
   const staged = { id: createFileId(file), name: file.name, size: file.size }
   const refuse = (error: string): ImportFileDraft => ({
@@ -161,7 +170,8 @@ export async function readCsvFile(
     // a null, rather than to the replacement character, so the count alone would let it through
     if (replacementCount > replacementLimit || text.includes(NULL_CHARACTER)) return refuse(UNREADABLE_TEXT_ERROR)
 
-    const parsed = await parseCsvText(text, supportedCurrencyCodes, requireDataRows, unescapeCell)
+    const parsed = parseKnownCsvText(text, supportedCurrencyCodes, requireDataRows, unescapeCell, readRecords)
+      ?? await parseCsvText(text, supportedCurrencyCodes, requireDataRows, unescapeCell)
     if (parsed.error) return refuse(parsed.error)
 
     const draft: ImportFileDraft = {
@@ -238,6 +248,30 @@ async function parseCsvText(
   const records: string[][] = []
   for (const row of result.data) {
     const record = normalizeRecord(row)
+    if (record.some(Boolean)) records.push(record)
+  }
+
+  return buildParsedCsv(records, supportedCurrencyCodes, requireDataRows)
+}
+
+/**
+ * Reads the decoded file with a tool-specific record reader and hands the records on to be shaped
+ * into headings and rows, the way the general parser's records are, or returns null when there is no
+ * such reader or the text is not in its tool's quoting
+ */
+function parseKnownCsvText(
+  text: string,
+  supportedCurrencyCodes: Set<string>,
+  requireDataRows: boolean,
+  unescapeCell: (value: string) => string,
+  readRecords: ((text: string) => string[][] | null) | undefined,
+): ParsedCsv | null {
+  const read = readRecords?.(normalizeLineEndings(text))
+  if (!read) return null
+
+  const records: string[][] = []
+  for (const row of read) {
+    const record = row.map((value) => unescapeCell(value).trim())
     if (record.some(Boolean)) records.push(record)
   }
 

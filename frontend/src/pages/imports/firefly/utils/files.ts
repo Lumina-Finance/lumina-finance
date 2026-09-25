@@ -5,6 +5,7 @@ import {
   FIREFLY_TRANSACTIONS_REQUIRED_HEADERS,
 } from '@/pages/imports/firefly/constants'
 import type { FireflyFileKind } from '@/pages/imports/firefly/types'
+import { readFireflyCsvRecords } from './csvRecords'
 
 const REQUIRED_HEADERS_BY_KIND: Record<FireflyFileKind, string[]> = {
   transactions: FIREFLY_TRANSACTIONS_REQUIRED_HEADERS,
@@ -20,8 +21,8 @@ const FORMULA_ESCAPE = "'"
 const FORMULA_TRIGGERS = new Set(['=', '-', '+', '@', '\t', '\n'])
 
 /**
- * Reads one Firefly III export file, flags missing required columns and removes the formula escape
- * Firefly III puts in front of its cells
+ * Reads one Firefly III export file with the quoting Firefly III writes, flags missing required
+ * columns and removes the formula escape Firefly III puts in front of its cells
  *
  * @param file - The uploaded file
  * @param kind - Which Firefly III export this file is meant to be
@@ -37,6 +38,7 @@ export async function readFireflyCsvFile(
   const draft = await readCsvFile(file, supportedCurrencyCodes, {
     requireDataRows: kind === 'transactions',
     unescapeCell: unescapeFireflyCell,
+    readRecords: readFireflyCsvRecords,
   })
   if (draft.error) return draft
 

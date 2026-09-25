@@ -5,6 +5,7 @@
  * Fixtures write cells the way Firefly III does, with an apostrophe in front of any value starting
  * with one of the characters league/csv escapes, which is every withdrawal amount
  */
+import { readFileSync } from 'node:fs'
 import { describe, expect, it, vi } from 'vitest'
 import type { AccountsOverview } from '@/api/accounts'
 import type { Currency } from '@/api/currency'
@@ -169,6 +170,78 @@ describe('removing the formula escape from Firefly III cells', () => {
 
     expect(draft.error).toBeNull()
     expect(draft.rows[0]).toMatchObject({ name: '@Home', amount: '300.00' })
+  })
+})
+
+describe('reading the quoting Firefly III writes', () => {
+  // Real Firefly III 6.7.3 exports of descriptions, notes and tags holding backslashes next to quotes,
+  // which PHP writes without doubling the quote
+  const readExport = (fixture: string) => readFireflyCsvFile(
+    new File([readFileSync(new URL(`../fixtures/${fixture}`, import.meta.url), 'utf8')], 'transactions.csv'),
+    'transactions',
+    new Set(['EUR']),
+  )
+
+  const expectColumnsInPlace = (rows: Record<string, string>[]) => {
+    for (const row of rows) {
+      expect([row.date.slice(0, 10), row.source_name, row.destination_name, row.category]).toEqual([
+        expect.stringMatching(/^2026-09-\d\d$/),
+        'Checking',
+        'Quote Probe Shop',
+        'Probe',
+      ])
+    }
+  }
+
+  it('keeps every value in its own column', async () => {
+    const draft = await readExport('backslash-quotes.csv')
+
+    expect(draft.error).toBeNull()
+    expect(draft.rows.map((row) => [row.journal_id, row.amount, row.description, row.tags, row.notes])).toEqual([
+      ['25', '-13.13', 'Next row after quote test', '', ''],
+      ['24', '-12.12', 'Ends with backslash \\', '', ''],
+      ['23', '-11.11', 'Paid \\"Joe\\" back', '', ''],
+      ['27', '-15.15', 'Row after the escaped quote', '', ''],
+      ['26', '-14.14', 'Joe said \\"hi\\"', '', ''],
+      ['29', '-17.17', 'Two slashes \\\\\\\\"quoted\\\\\\\\" here', '', 'Line one\nline two ends \\\\'],
+      ['28', '-16.16', 'He said \\"hi\\", then left', '', ''],
+      ['31', '-19.19', 'Said \\"hi\\", then \\"bye\\", twice', '', ''],
+      ['30', '-18.18', 'Tagged work', 'Work \\', 'Said \\"hi\\", ok'],
+      ['32', '-20.20', 'Oldest row', '', 'Joe wrote \\"hi\\",'],
+    ])
+    expectColumnsInPlace(draft.rows)
+  })
+
+  it('keeps a note holding many escaped quotes before commas in one value', async () => {
+    // Written as PHP's fputcsv writes it, with each quote in the note after a backslash left undoubled
+    const ids = Array.from({ length: 1500 }, (_, index) => `\\"t${index}\\"`)
+    const note = `{\\"ids\\":[${ids.join(',')}]}`
+    const headers = [...FIREFLY_TRANSACTIONS_REQUIRED_HEADERS, 'notes'].join(',')
+    const row = `40,withdrawal,'-5.00,CAD,2026-09-22T00:00:00-04:00,Checking,"Asset account","Quote Probe Shop","Expense account","${note}"`
+
+    const draft = await readFile(`${headers}\n${row}\n`, 'transactions')
+
+    expect(draft.error).toBeNull()
+    expect(draft.rows).toHaveLength(1)
+    expect(draft.rows[0].notes).toBe(note)
+  })
+
+  it('reads a file PHP did not write with the general parser, which still refuses an unclosed quote', async () => {
+    const headers = FIREFLY_TRANSACTIONS_REQUIRED_HEADERS.join(',')
+    const row = `1,withdrawal,'-12.34,CAD,2026-04-11,"Main Chequing,Asset account,Corner Grocer,Expense account`
+
+    const draft = await readFile(`${headers}\n${row}\n`, 'transactions')
+
+    expect(draft.error).toBe('A quoted value on line 2 is never closed, so the rest of the file cannot be read.')
+  })
+
+  it('reads a budgets export a spreadsheet saved again with semicolons', async () => {
+    const csv = `${FIREFLY_BUDGETS_REQUIRED_HEADERS.join(';')}\nGroceries;1;2026-06-01;2026-06-30;CAD;300.00\n`
+
+    const draft = await readFile(csv, 'budgets')
+
+    expect(draft.error).toBeNull()
+    expect(draft.rows[0]).toMatchObject({ name: 'Groceries', amount: '300.00' })
   })
 })
 
