@@ -554,7 +554,11 @@ export function useFireflyImportWorkflow() {
     : importError
   const importOverlayOpen = importOverlayPhase !== 'idle'
   const isImportInFlight = importFirefly.isPending || commitStagedFirefly.isPending
+
+  // A file still being read has not reached the payload yet, and an import started meanwhile would
+  // run without it, which for a budgets file leaves its budgets out for good
   const canCommitImport = Boolean(importBuild.payload)
+    && processingFileKind === null
     && !budgetSelectionError
     && !importOverlayOpen
     && !isImportInFlight
@@ -711,7 +715,7 @@ export function useFireflyImportWorkflow() {
 
   const handleCommitImport = async () => {
     const payload = importBuild.payload
-    if (!payload || budgetSelectionError || importOverlayOpen || isImportInFlight) return
+    if (!payload || !canCommitImport) return
 
     // The import creates the budgets selected when it started, so they are captured here
     const request = { payload, budgets: runBudgetsBuild.budgets }
