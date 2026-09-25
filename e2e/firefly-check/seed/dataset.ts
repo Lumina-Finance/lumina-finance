@@ -16,6 +16,9 @@ export const CURRENCY_EXPONENTS: Record<string, number> = { EUR: 2, USD: 2, JPY:
 
 export interface SeedAccount {
   name: string
+
+  /** How the dataset's rows name the account when another account shares its name */
+  ref?: string
   body: Record<string, unknown>
 
   /** Deactivated once its rows are in, since Firefly III takes no rows on an inactive account */
@@ -28,7 +31,7 @@ export interface SeedSplit {
   amount: string
   description: string
 
-  /** An imported account, named as it was created */
+  /** An imported account, named by its ref or else as it was created */
   source?: string
   destination?: string
 
@@ -100,6 +103,27 @@ export const ACCOUNTS: SeedAccount[] = [
       opening_balance: '400.00',
       opening_balance_date: '2024-02-01',
       interest: '0',
+      interest_period: 'monthly',
+    },
+  },
+
+  // An asset account and a liability sharing a name, which Firefly III allows and the import keeps apart
+  {
+    name: 'Boat',
+    ref: 'Boat (asset)',
+    body: { type: 'asset', currency_code: 'EUR', account_role: 'defaultAsset', opening_balance: '6000.00', opening_balance_date: '2024-04-01' },
+  },
+  {
+    name: 'Boat',
+    ref: 'Boat (loan)',
+    body: {
+      type: 'liabilities',
+      currency_code: 'EUR',
+      liability_type: 'loan',
+      liability_direction: 'debit',
+      opening_balance: '-6000.00',
+      opening_balance_date: '2024-04-01',
+      interest: '4',
       interest_period: 'monthly',
     },
   },
@@ -209,6 +233,11 @@ export function buildGroups(): SeedGroup[] {
   // Sam pays back part of what they owe, and a dealer refund lowers the car loan
   add({ type: 'deposit', date: '2024-06-15', amount: '150.00', description: 'Sam paid back', source: 'Owed by Sam', destination: 'Checking' })
   add({ type: 'deposit', date: '2024-09-03', amount: '80.00', description: 'Dealer refund', sourceName: 'Car Dealer', destination: 'Car Loan', category: 'Refunds' })
+
+  // Money between the two accounts named Boat, and on each of them with the rest of the ledger
+  add({ type: 'withdrawal', date: '2024-07-15', amount: '900.00', description: 'Sold the trailer toward the boat loan', source: 'Boat (asset)', destination: 'Boat (loan)' })
+  add({ type: 'withdrawal', date: '2024-08-02', amount: '120.00', description: 'Mooring fee', source: 'Boat (asset)', destinationName: 'Marina', category: 'Hobbies' })
+  add({ type: 'withdrawal', date: '2024-09-10', amount: '300.00', description: 'Boat loan repayment', source: 'Checking', destination: 'Boat (loan)', category: 'Loan payments' })
 
   // Rows on the account that is deactivated afterwards
   add({ type: 'withdrawal', date: '2024-02-09', amount: '20.00', description: 'Old habit', source: 'Old Account', destinationName: 'Kiosk', category: 'Hobbies', budget: 'Retired' })

@@ -30,8 +30,8 @@ interface Endpoint {
 }
 
 interface Manifest {
-  accounts: { name: string; balance: string; currency: string }[]
-  accountMonths: { account: string; month: string; count: number; total: string }[]
+  accounts: { name: string; type: string; balance: string; currency: string }[]
+  accountMonths: { account: string; accountType: string; month: string; count: number; total: string }[]
   categoryMonths: { category: string; month: string; currency: string; total: string }[]
   rows: { date: string; type: string; source: Endpoint; destination: Endpoint; category: string; budget: string }[]
   budgets: { name: string; active: boolean; limits: { start: string; end: string; amount: string; currency: string }[] }[]
@@ -67,6 +67,11 @@ function formatMinorUnits(minorUnits: number, currency: string) {
   return exponent === 0 ? `${sign}${digits}` : `${sign}${digits.slice(0, -exponent)}.${digits.slice(-exponent)}`
 }
 
+/** Tells an account apart from another of the same name, as the manifest does */
+function getAccountKey(name: string, type: string) {
+  return JSON.stringify([name, type])
+}
+
 /** A withdrawal from, or deposit into, an imported account whose other side is outside */
 function isPayeeRow(row: Manifest['rows'][number]) {
   return (row.type === 'withdrawal' && row.source.imported && !row.destination.imported)
@@ -87,14 +92,23 @@ describe(`a real Firefly III ${fireflyVersion} export`, () => {
       const { legs, skipReason } = resolveFireflyRowLegs(row, options)
       expect(skipReason).toBeNull()
 
-      for (const leg of legs!) {
-        const { name, currency } = leg.account
+      // A row between two imported accounts gives two legs, source first, and any other row one
+      // leg on its one imported side, so each leg is told apart from a namesake by its side
+      const sides = [
+        options.accountSources.find(row.source_name, row.source_type),
+        options.accountSources.find(row.destination_name, row.destination_type),
+      ].filter((side) => side !== null)
+      expect(sides).toHaveLength(legs!.length)
+
+      for (const [index, leg] of legs!.entries()) {
+        const account = getAccountKey(sides[index].name, sides[index].type)
+        const { currency } = leg.account
         const month = row.date!.slice(0, 7)
-        balances.set(name, (balances.get(name) ?? 0) + leg.amount)
-        const accountMonth = accountMonths.get(`${name} ${month}`) ?? { count: 0, total: 0 }
+        balances.set(account, (balances.get(account) ?? 0) + leg.amount)
+        const accountMonth = accountMonths.get(JSON.stringify([account, month])) ?? { count: 0, total: 0 }
         accountMonth.count += 1
         accountMonth.total += leg.amount
-        accountMonths.set(`${name} ${month}`, accountMonth)
+        accountMonths.set(JSON.stringify([account, month]), accountMonth)
 
         // Only a payee leg is written with the row's category. Transfer and balance legs take a
         // system category, which this staging leaves unset
@@ -104,14 +118,14 @@ describe(`a real Firefly III ${fireflyVersion} export`, () => {
       }
     }
 
-    const currencyByAccount = new Map(manifest.accounts.map((account) => [account.name, account.currency]))
-    expect(Object.fromEntries([...balances].map(([name, total]) => [name, formatMinorUnits(total, currencyByAccount.get(name)!)])))
-      .toEqual(Object.fromEntries(manifest.accounts.map((account) => [account.name, account.balance])))
-    expect(Object.fromEntries([...accountMonths].map(([key, { count, total }]) => [
-      key,
-      `${count} ${formatMinorUnits(total, currencyByAccount.get(key.slice(0, -8))!)}`,
-    ]))).toEqual(Object.fromEntries(manifest.accountMonths.map((month) => [
-      `${month.account} ${month.month}`,
+    const currencyByAccount = new Map(manifest.accounts.map((account) => [getAccountKey(account.name, account.type), account.currency]))
+    expect(Object.fromEntries([...balances].map(([account, total]) => [account, formatMinorUnits(total, currencyByAccount.get(account)!)])))
+      .toEqual(Object.fromEntries(manifest.accounts.map((account) => [getAccountKey(account.name, account.type), account.balance])))
+    expect(Object.fromEntries([...accountMonths].map(([key, { count, total }]) => {
+      const [account] = JSON.parse(key) as [string, string]
+      return [key, `${count} ${formatMinorUnits(total, currencyByAccount.get(account)!)}`]
+    }))).toEqual(Object.fromEntries(manifest.accountMonths.map((month) => [
+      JSON.stringify([getAccountKey(month.account, month.accountType), month.month]),
       `${month.count} ${month.total}`,
     ])))
     expect(Object.fromEntries([...categoryMonths].map(([key, total]) => [key, formatMinorUnits(total, key.slice(-3))])))

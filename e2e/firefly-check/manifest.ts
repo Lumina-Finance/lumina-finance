@@ -29,6 +29,13 @@ export interface FireflyRunInfo {
 export interface ManifestAccount {
   name: string
 
+  /**
+   * Firefly III's account type as its rows and accounts export write it, such as "Asset account"
+   * or "Loan". Firefly III lets an asset account and a liability share a name, so an account is
+   * the pair of its name and type
+   */
+  type: string
+
   /** Firefly III's account role for an asset, or its liability type */
   role: string
   liabilityDirection: string | null
@@ -44,6 +51,7 @@ export interface ManifestAccount {
 
 export interface ManifestAccountMonth {
   account: string
+  accountType: string
   month: string
   count: number
   total: string
@@ -105,4 +113,9 @@ export interface ManifestBudgetLimit {
   end: string
   amount: string
   currency: string
+}
+
+/** Tells an account apart from another of the same name, by the type Firefly III gives it */
+export function getAccountKey(name: string, type: string) {
+  return JSON.stringify([name, type])
 }

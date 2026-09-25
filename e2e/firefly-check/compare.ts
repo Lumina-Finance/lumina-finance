@@ -4,7 +4,7 @@
  * Pure, so the contract tests can feed it changed values without a browser. Every difference is
  * reported once per kind, subject and Lumina value, with a count where several records share one
  */
-import type { FireflyManifest, FireflyRunInfo, ManifestEndpoint, ManifestRow } from './manifest.ts'
+import { getAccountKey, type FireflyManifest, type FireflyRunInfo, type ManifestAccount, type ManifestEndpoint, type ManifestRow } from './manifest.ts'
 import { formatMinorUnits as formatBigMinorUnits, toMinorUnits as toBigMinorUnits } from './seed/record.ts'
 
 export interface LuminaAccount {
@@ -57,6 +57,15 @@ export interface LuminaSnapshot {
   budgetPeriods: LuminaBudgetPeriod[]
 }
 
+/** Lumina's accounts paired with the Firefly III accounts they were imported from */
+interface AccountPairing {
+  /** Lumina's account for each Firefly III account key, left out where none pairs */
+  byKey: Map<string, LuminaAccount>
+
+  /** How differences name each Lumina account, as its Firefly III account where it pairs */
+  labelById: Map<string, string>
+}
+
 /** One asset or liability row of Firefly III's accounts export */
 export interface FireflyAccountFileEntry {
   name: string
@@ -99,6 +108,15 @@ const LUMINA_TYPE_BY_FIREFLY: Record<string, string> = {
   mortgage: 'mortgage',
 }
 
+// The Firefly III liability types, each imported as one Lumina account type. Every other Lumina
+// type, a credit card included, holds what Firefly III keeps as an asset account
+const LUMINA_TYPE_BY_LIABILITY: Record<string, string> = {
+  Loan: LUMINA_TYPE_BY_FIREFLY.loan,
+  Debt: LUMINA_TYPE_BY_FIREFLY.debt,
+  Mortgage: LUMINA_TYPE_BY_FIREFLY.mortgage,
+}
+const LUMINA_LIABILITY_TYPES = new Set(Object.values(LUMINA_TYPE_BY_LIABILITY))
+
 export function compareImport(
   manifest: FireflyManifest,
   runInfo: FireflyRunInfo,
@@ -115,10 +133,10 @@ export function compareImport(
   // Rows dated after the manifest's day count toward no balance or total, though they still import
   const counted = { ...lumina, transactions: lumina.transactions.filter((transaction) => transaction.dt <= manifest.asOf) }
 
-  const accountByName = compareAccounts(manifest, accountsFile, lumina, differences)
-  compareAccountMonths(manifest, counted, accountById, differences)
+  const accounts = compareAccounts(manifest, accountsFile, lumina, differences)
+  compareAccountMonths(manifest, counted, accounts, differences)
   compareCategoryMonths(manifest, counted, accountById, categoryNameById, differences)
-  compareRows(exportedRows, lumina, accountByName, accountById, categoryNameById, differences)
+  compareRows(exportedRows, lumina, accounts, categoryNameById, differences)
   compareBudgets(manifest, exportedRows, lumina, categoryNameById, differences)
   return differences.list()
 }
@@ -137,80 +155,132 @@ export function checkExpected(differences: Difference[], expected: ExpectedDiffe
   }
 }
 
-/** Compares the accounts both ways, and returns Lumina's accounts by name for the other checks */
+/**
+ * Pairs Lumina's accounts with Firefly III's and compares them both ways
+ *
+ * An account pairs with Lumina's account of the same name. Where either side has more than one
+ * account of that name, a Firefly III liability pairs only with the Lumina type it imports as, and
+ * an asset account only with a type no liability imports as. An account that cannot be told apart
+ * that way is reported rather than guessed at
+ */
 function compareAccounts(
   manifest: FireflyManifest,
   accountsFile: FireflyAccountFileEntry[],
   lumina: LuminaSnapshot,
   differences: DifferenceList,
-) {
-  const accountByName = new Map<string, LuminaAccount>()
-  for (const account of lumina.accounts) {
-    if (accountByName.has(account.name)) differences.add('account-duplicate', account.name, 'one account', 'more than one')
-    accountByName.set(account.name, account)
-  }
+): AccountPairing {
+  const labelByKey = getAccountLabels(manifest.accounts)
+  const pairing: AccountPairing = { byKey: new Map(), labelById: new Map() }
 
-  const manifestNames = new Set(manifest.accounts.map((account) => account.name))
+  const unpaired = new Set(lumina.accounts)
   for (const account of manifest.accounts) {
-    const found = accountByName.get(account.name)
-    if (!found) {
-      differences.add('account-missing', account.name, 'present', 'absent')
+    const key = getAccountKey(account.name, account.type)
+    const label = requireLabel(labelByKey, key)
+    const namesakes = [...unpaired].filter((entry) => entry.name === account.name)
+    const isShared = namesakes.length > 1 || manifest.accounts.filter((entry) => entry.name === account.name).length > 1
+    const liabilityType = LUMINA_TYPE_BY_LIABILITY[account.type]
+    const candidates = isShared
+      ? namesakes.filter((entry) => (liabilityType ? entry.account_type === liabilityType : !LUMINA_LIABILITY_TYPES.has(entry.account_type)))
+      : namesakes
+    if (candidates.length > 1) {
+      differences.add('account-ambiguous', label, 'one account', `${candidates.length} accounts`)
       continue
     }
+
+    const [found] = candidates
+    if (!found) {
+      differences.add('account-missing', label, 'present', 'absent')
+      continue
+    }
+    unpaired.delete(found)
+    pairing.byKey.set(key, found)
+    pairing.labelById.set(found.id, label)
+
     const balance = formatMinorUnits(found.current_balance, found.currency)
-    if (balance !== account.balance) differences.add('balance', account.name, account.balance, balance)
+    if (balance !== account.balance) differences.add('balance', label, account.balance, balance)
   }
-  for (const account of lumina.accounts.filter((entry) => !manifestNames.has(entry.name))) {
+
+  // Labelled apart from any paired account of the same name, so their rows never count as its rows
+  for (const account of unpaired) {
+    pairing.labelById.set(account.id, `${account.name} (unpaired ${account.account_type})`)
     differences.add('account-extra', account.name, 'absent', account.account_type)
   }
 
   // Read from the accounts export rather than the API, so a change to that file's format shows up
   // here instead of quietly leaving an account unchecked
-  const fileNames = new Set(accountsFile.map((entry) => entry.name))
-  for (const name of manifestNames) {
-    if (!fileNames.has(name)) differences.add('accounts-file', name, 'in the accounts export', 'not read from it')
+  const fileKeys = new Set(accountsFile.map((entry) => getAccountKey(entry.name, entry.type)))
+  for (const [key, label] of labelByKey) {
+    if (!fileKeys.has(key)) differences.add('accounts-file', label, 'in the accounts export', 'not read from it')
   }
   for (const entry of accountsFile) {
-    if (!manifestNames.has(entry.name)) differences.add('accounts-file', entry.name, 'not an account', 'read from the accounts export')
-    const found = accountByName.get(entry.name)
+    const key = getAccountKey(entry.name, entry.type)
+    const label = labelByKey.get(key)
+    if (!label) {
+      const isNamesake = manifest.accounts.some((account) => account.name === entry.name)
+      differences.add('accounts-file', isNamesake ? `${entry.name} (${entry.type})` : entry.name, 'not an account', 'read from the accounts export')
+      continue
+    }
+    const found = pairing.byKey.get(key)
     if (!found) continue
 
     const expectedType = LUMINA_TYPE_BY_FIREFLY[entry.role || entry.type.toLowerCase()] ?? `unknown (${entry.role || entry.type})`
-    if (found.account_type !== expectedType) differences.add('account-type', entry.name, expectedType, found.account_type)
-    if (found.currency !== entry.currency) differences.add('account-currency', entry.name, entry.currency, found.currency)
+    if (found.account_type !== expectedType) differences.add('account-type', label, expectedType, found.account_type)
+    if (found.currency !== entry.currency) differences.add('account-currency', label, entry.currency, found.currency)
     if (found.is_archived === entry.active) {
-      differences.add('account-archived', entry.name, entry.active ? 'active' : 'inactive', found.is_archived ? 'archived' : 'active')
+      differences.add('account-archived', label, entry.active ? 'active' : 'inactive', found.is_archived ? 'archived' : 'active')
     }
   }
-  return accountByName
+  return pairing
+}
+
+/**
+ * Names each Firefly III account by its name, adding its type where another account shares the
+ * name, as the import screen does
+ */
+function getAccountLabels(accounts: ManifestAccount[]) {
+  const countByName = new Map<string, number>()
+  for (const account of accounts) countByName.set(account.name, (countByName.get(account.name) ?? 0) + 1)
+  return new Map(accounts.map((account) => [
+    getAccountKey(account.name, account.type),
+    (countByName.get(account.name) ?? 0) > 1 ? `${account.name} (${account.type})` : account.name,
+  ]))
+}
+
+function requireLabel(labelByKey: Map<string, string>, key: string) {
+  const label = labelByKey.get(key)
+  if (!label) throw new Error(`The manifest records no account ${key}`)
+  return label
 }
 
 function compareAccountMonths(
   manifest: FireflyManifest,
   lumina: LuminaSnapshot,
-  accountById: Map<string, LuminaAccount>,
+  accounts: AccountPairing,
   differences: DifferenceList,
 ) {
+  const labelByKey = getAccountLabels(manifest.accounts)
   const luminaMonths = new Map<string, { count: number; total: number }>()
   for (const transaction of lumina.transactions) {
-    const account = accountById.get(transaction.account_id)
-    if (!account) continue
-    const key = JSON.stringify([account.name, transaction.dt.slice(0, 7)])
+    const label = accounts.labelById.get(transaction.account_id)
+    if (!label) continue
+    const key = JSON.stringify([label, transaction.dt.slice(0, 7)])
     const entry = luminaMonths.get(key) ?? { count: 0, total: 0 }
     entry.count += 1
     entry.total += transaction.amount
     luminaMonths.set(key, entry)
   }
 
-  const currencyByAccount = new Map(manifest.accounts.map((account) => [account.name, account.currency]))
+  const currencyByAccount = new Map(manifest.accounts.map((account) => [getAccountKey(account.name, account.type), account.currency]))
   const seen = new Set<string>()
   for (const month of manifest.accountMonths) {
-    const key = JSON.stringify([month.account, month.month])
+    const accountKey = getAccountKey(month.account, month.accountType)
+    const label = requireLabel(labelByKey, accountKey)
+    const key = JSON.stringify([label, month.month])
     seen.add(key)
     const found = luminaMonths.get(key) ?? { count: 0, total: 0 }
-    const total = formatMinorUnits(found.total, currencyByAccount.get(month.account) ?? '')
+    const total = formatMinorUnits(found.total, currencyByAccount.get(accountKey) ?? '')
     if (found.count !== month.count || total !== month.total) {
-      differences.add('account-month', `${month.account} ${month.month}`, `${month.count} rows, ${month.total}`, `${found.count} rows, ${total}`)
+      differences.add('account-month', `${label} ${month.month}`, `${month.count} rows, ${month.total}`, `${found.count} rows, ${total}`)
     }
   }
   for (const [key, found] of luminaMonths) {
@@ -261,14 +331,14 @@ function compareCategoryMonths(
 function compareRows(
   rows: ManifestRow[],
   lumina: LuminaSnapshot,
-  accountByName: Map<string, LuminaAccount>,
-  accountById: Map<string, LuminaAccount>,
+  accounts: AccountPairing,
   categoryNameById: Map<string, string>,
   differences: DifferenceList,
 ) {
+  const findAccount = (endpoint: ManifestEndpoint) => accounts.byKey.get(getAccountKey(endpoint.name, endpoint.type)) ?? null
   const unmatched = new Set(lumina.transactions)
   const take = (endpoint: ManifestEndpoint, date: string, counterparty: LuminaAccount | null, prefer?: (transaction: LuminaTransaction) => boolean) => {
-    const account = accountByName.get(endpoint.name)
+    const account = findAccount(endpoint)
     if (!account || endpoint.amount === null) return null
     const amount = toMinorUnits(endpoint.amount, account.currency)
     const candidates = [...unmatched].filter((transaction) => (
@@ -298,8 +368,8 @@ function compareRows(
     const subject = `${row.date} ${row.description}`
 
     if (row.source.imported && row.destination.imported && !isBalanceRow(row)) {
-      const source = accountByName.get(row.source.name) ?? null
-      const destination = accountByName.get(row.destination.name) ?? null
+      const source = findAccount(row.source)
+      const destination = findAccount(row.destination)
       const legs = [take(row.source, row.date, destination), take(row.destination, row.date, source)]
       if (legs.some((leg) => !leg)) differences.add('transfer-missing', subject, `${row.source.name} → ${row.destination.name}`, 'absent')
       for (const leg of legs) {
@@ -344,10 +414,9 @@ function compareRows(
   }
 
   for (const transaction of unmatched) {
-    const account = accountById.get(transaction.account_id)
     differences.add(
       'row-extra',
-      `${transaction.dt.slice(0, 10)} ${account?.name ?? transaction.account_id} ${transaction.amount}`,
+      `${transaction.dt.slice(0, 10)} ${accounts.labelById.get(transaction.account_id) ?? transaction.account_id} ${transaction.amount}`,
       'absent',
       transaction.merchant_name ?? '',
     )

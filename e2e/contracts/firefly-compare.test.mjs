@@ -14,12 +14,12 @@ const MANIFEST = {
   asOf: '2025-12-31',
   exportStart: '2025-01-01',
   accounts: [
-    { name: 'Checking', role: 'defaultAsset', liabilityDirection: null, currency: 'EUR', active: true, balance: '-40.50', rowTotal: '-40.50' },
-    { name: 'Savings', role: 'savingAsset', liabilityDirection: null, currency: 'EUR', active: true, balance: '10.00', rowTotal: '10.00' },
+    { name: 'Checking', type: 'Asset account', role: 'defaultAsset', liabilityDirection: null, currency: 'EUR', active: true, balance: '-40.50', rowTotal: '-40.50' },
+    { name: 'Savings', type: 'Asset account', role: 'savingAsset', liabilityDirection: null, currency: 'EUR', active: true, balance: '10.00', rowTotal: '10.00' },
   ],
   accountMonths: [
-    { account: 'Checking', month: '2025-03', count: 3, total: '-40.50' },
-    { account: 'Savings', month: '2025-03', count: 1, total: '10.00' },
+    { account: 'Checking', accountType: 'Asset account', month: '2025-03', count: 3, total: '-40.50' },
+    { account: 'Savings', accountType: 'Asset account', month: '2025-03', count: 1, total: '10.00' },
   ],
   categoryMonths: [
     { category: 'Books', month: '2025-03', currency: 'EUR', total: '-18.00' },
@@ -52,7 +52,9 @@ const ACCOUNTS_FILE = [
 ]
 
 function buildLumina() {
-  const account = (id, name, type, balance) => ({ id, name, account_type: type, currency: 'EUR', current_balance: balance, is_archived: false })
+  const account = (id, name, type, balance) => ({
+    id, name, account_type: type, currency: 'EUR', current_balance: balance, is_archived: false,
+  })
   const transaction = (fields) => ({
     merchant_name: null, category_id: 'transfer', notes: null, tags: [], counterparty_account_id: null, currency: 'EUR',
     ...fields,
@@ -78,7 +80,7 @@ function buildLumina() {
   }
 }
 
-const describeAll = (lumina) => compareImport(MANIFEST, RUN_INFO, ACCOUNTS_FILE, lumina)
+const describeAll = (lumina, manifest = MANIFEST, accountsFile = ACCOUNTS_FILE) => compareImport(manifest, RUN_INFO, accountsFile, lumina)
   .map((difference) => `${difference.kind}: ${difference.subject} = ${difference.lumina}`)
   .sort()
 
@@ -115,6 +117,86 @@ test('a transfer that lost a leg is reported, and its other leg is not counted a
     'account-month: Savings 2025-03 = 0 rows, 0.00',
     'transfer-category-dropped: Savings plan = Transfer',
     'transfer-missing: 2025-03-05 To savings = absent',
+  ])
+})
+
+// An asset account and a loan both named Boat, as Firefly III allows, with a payment between them
+const BOAT_ASSET = { name: 'Boat', type: 'Asset account', role: 'defaultAsset', liabilityDirection: null, currency: 'EUR', active: true }
+const BOAT_LOAN = { name: 'Boat', type: 'Loan', role: 'loan', liabilityDirection: 'debit', currency: 'EUR', active: true }
+const BOAT_FILE = [
+  { name: 'Boat', type: 'Asset account', role: 'defaultAsset', currency: 'EUR', active: true },
+  { name: 'Boat', type: 'Loan', role: '', currency: 'EUR', active: true },
+]
+const boatAccount = (id, type, balance) => ({
+  id, name: 'Boat', account_type: type, currency: 'EUR', current_balance: balance, is_archived: false,
+})
+
+test('accounts sharing a name are each compared with their own Lumina account', () => {
+  const manifest = {
+    ...MANIFEST,
+    accounts: [...MANIFEST.accounts, { ...BOAT_ASSET, balance: '-900.00', rowTotal: '-900.00' }, { ...BOAT_LOAN, balance: '900.00', rowTotal: '900.00' }],
+    accountMonths: [
+      ...MANIFEST.accountMonths,
+      { account: 'Boat', accountType: 'Asset account', month: '2025-03', count: 1, total: '-900.00' },
+      { account: 'Boat', accountType: 'Loan', month: '2025-03', count: 1, total: '900.00' },
+    ],
+    rows: [...MANIFEST.rows, row({
+      date: '2025-03-07', type: 'withdrawal', description: 'Toward the boat loan',
+      source: endpoint('Boat', '-900.00'), destination: { name: 'Boat', type: 'Loan', imported: true, amount: '900.00' },
+    })],
+  }
+
+  // Lumina lists the loan first, so pairing by name alone would take it for the asset account
+  const lumina = buildLumina()
+  lumina.accounts.push(boatAccount('bl', 'loan', 90000), boatAccount('ba', 'checking', -90000))
+  lumina.transactions.push(
+    { ...lumina.transactions[1], account_id: 'ba', dt: '2025-03-07', amount: -90000, original_amount: -90000, counterparty_account_id: 'bl', notes: 'Toward the boat loan' },
+    { ...lumina.transactions[1], account_id: 'bl', dt: '2025-03-07', amount: 90000, original_amount: 90000, counterparty_account_id: 'ba', notes: 'Toward the boat loan' },
+  )
+
+  const differences = compareImport(manifest, RUN_INFO, [...ACCOUNTS_FILE, ...BOAT_FILE], lumina)
+  assert.deepEqual(differences.map(({ kind, subject }) => `${kind}: ${subject}`), ['transfer-category-dropped: Savings plan'])
+})
+
+test('an account missing from Lumina is reported even when an account of the same name was imported', () => {
+  const manifest = {
+    ...MANIFEST,
+    accounts: [...MANIFEST.accounts, { ...BOAT_ASSET, balance: '0.00', rowTotal: '0.00' }, { ...BOAT_LOAN, balance: '0.00', rowTotal: '0.00' }],
+  }
+  const lumina = buildLumina()
+  lumina.accounts.push(boatAccount('bl', 'loan', 0))
+
+  assert.deepEqual(describeAll(lumina, manifest, [...ACCOUNTS_FILE, ...BOAT_FILE]), [
+    'account-missing: Boat (Asset account) = absent',
+    'transfer-category-dropped: Savings plan = Transfer',
+  ])
+})
+
+test('a credit card Firefly III keeps as an asset account pairs with it, apart from a same-named loan', () => {
+  const manifest = {
+    ...MANIFEST,
+    accounts: [...MANIFEST.accounts, { ...BOAT_ASSET, role: 'ccAsset', balance: '0.00', rowTotal: '0.00' }, { ...BOAT_LOAN, balance: '0.00', rowTotal: '0.00' }],
+  }
+  const lumina = buildLumina()
+  lumina.accounts.push(boatAccount('bl', 'loan', 0), boatAccount('bc', 'credit_card', 0))
+
+  assert.deepEqual(describeAll(lumina, manifest, [...ACCOUNTS_FILE, { ...BOAT_FILE[0], role: 'ccAsset' }, BOAT_FILE[1]]), [
+    'transfer-category-dropped: Savings plan = Transfer',
+  ])
+})
+
+test('rows on an extra account are not counted as rows of the account it shares a name with', () => {
+  const lumina = buildLumina()
+  lumina.accounts.push({ ...lumina.accounts[0], id: 'x', account_type: 'loan', current_balance: 0 })
+  lumina.transactions[3].account_id = 'x'
+
+  assert.deepEqual(describeAll(lumina), [
+    'account-extra: Checking = loan',
+    'account-month: Checking (unpaired loan) 2025-03 = 1 rows',
+    'account-month: Checking 2025-03 = 2 rows, -22.50',
+    'row-extra: 2025-03-06 Checking (unpaired loan) -1800 = Bookshop',
+    'row-missing: 2025-03-06 Book from the US = absent',
+    'transfer-category-dropped: Savings plan = Transfer',
   ])
 })
 

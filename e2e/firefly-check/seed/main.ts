@@ -20,7 +20,7 @@ for (const code of ['EUR', 'USD', 'JPY']) {
 const accountIds = new Map<string, string>()
 for (const account of ACCOUNTS) {
   const created = await firefly.call<{ data: FireflyResource<unknown> }>('POST', '/accounts', { name: account.name, ...account.body })
-  accountIds.set(account.name, created.data.id)
+  accountIds.set(account.ref ?? account.name, created.data.id)
 }
 
 const budgetIds = new Map<string, string>()
@@ -49,7 +49,7 @@ for (const group of buildGroups()) {
 
 // Firefly III takes no new rows on an inactive account, so these close only once their rows are in
 for (const account of ACCOUNTS.filter((entry) => entry.deactivate)) {
-  await firefly.call('PUT', `/accounts/${accountIds.get(account.name)}`, { name: account.name, active: false })
+  await firefly.call('PUT', `/accounts/${requireAccount(account.ref ?? account.name)}`, { name: account.name, active: false })
 }
 for (const budget of BUDGETS.filter((entry) => entry.deactivate)) {
   await firefly.call('PUT', `/budgets/${budgetIds.get(budget.name)}`, { name: budget.name, active: false })

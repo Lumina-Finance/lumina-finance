@@ -4,6 +4,7 @@
   "accounts": [
     {
       "name": "@Home Fund",
+      "type": "Asset account",
       "role": "savingAsset",
       "liabilityDirection": null,
       "currency": "EUR",
@@ -12,7 +13,28 @@
       "rowTotal": "300.00"
     },
     {
+      "name": "Boat",
+      "type": "Asset account",
+      "role": "defaultAsset",
+      "liabilityDirection": null,
+      "currency": "EUR",
+      "active": true,
+      "balance": "4980.00",
+      "rowTotal": "4980.00"
+    },
+    {
+      "name": "Boat",
+      "type": "Loan",
+      "role": "loan",
+      "liabilityDirection": "debit",
+      "currency": "EUR",
+      "active": true,
+      "balance": "-4800.00",
+      "rowTotal": "-4800.00"
+    },
+    {
       "name": "Car Loan",
+      "type": "Loan",
       "role": "loan",
       "liabilityDirection": "debit",
       "currency": "EUR",
@@ -22,15 +44,17 @@
     },
     {
       "name": "Checking",
+      "type": "Asset account",
       "role": "defaultAsset",
       "liabilityDirection": null,
       "currency": "EUR",
       "active": true,
-      "balance": "19465.95",
-      "rowTotal": "19465.95"
+      "balance": "19165.95",
+      "rowTotal": "19165.95"
     },
     {
       "name": "Old Account",
+      "type": "Asset account",
       "role": "defaultAsset",
       "liabilityDirection": null,
       "currency": "EUR",
@@ -40,6 +64,7 @@
     },
     {
       "name": "Owed by Sam",
+      "type": "Debt",
       "role": "debt",
       "liabilityDirection": "credit",
       "currency": "EUR",
@@ -49,6 +74,7 @@
     },
     {
       "name": "Savings",
+      "type": "Asset account",
       "role": "savingAsset",
       "liabilityDirection": null,
       "currency": "EUR",
@@ -58,6 +84,7 @@
     },
     {
       "name": "US Card",
+      "type": "Asset account",
       "role": "ccAsset",
       "liabilityDirection": null,
       "currency": "USD",
@@ -67,6 +94,7 @@
     },
     {
       "name": "Yen Wallet",
+      "type": "Asset account",
       "role": "cashWalletAsset",
       "liabilityDirection": null,
       "currency": "JPY",
@@ -78,774 +106,945 @@
   "accountMonths": [
     {
       "account": "@Home Fund",
+      "accountType": "Asset account",
       "month": "2024-06",
       "count": 1,
       "total": "75.00"
     },
     {
       "account": "@Home Fund",
+      "accountType": "Asset account",
       "month": "2024-12",
       "count": 1,
       "total": "75.00"
     },
     {
       "account": "@Home Fund",
+      "accountType": "Asset account",
       "month": "2025-06",
       "count": 1,
       "total": "75.00"
     },
     {
       "account": "@Home Fund",
+      "accountType": "Asset account",
       "month": "2025-12",
       "count": 1,
       "total": "75.00"
     },
     {
+      "account": "Boat",
+      "accountType": "Asset account",
+      "month": "2024-04",
+      "count": 1,
+      "total": "6000.00"
+    },
+    {
+      "account": "Boat",
+      "accountType": "Asset account",
+      "month": "2024-07",
+      "count": 1,
+      "total": "-900.00"
+    },
+    {
+      "account": "Boat",
+      "accountType": "Asset account",
+      "month": "2024-08",
+      "count": 1,
+      "total": "-120.00"
+    },
+    {
+      "account": "Boat",
+      "accountType": "Loan",
+      "month": "2024-04",
+      "count": 1,
+      "total": "-6000.00"
+    },
+    {
+      "account": "Boat",
+      "accountType": "Loan",
+      "month": "2024-07",
+      "count": 1,
+      "total": "900.00"
+    },
+    {
+      "account": "Boat",
+      "accountType": "Loan",
+      "month": "2024-09",
+      "count": 1,
+      "total": "300.00"
+    },
+    {
       "account": "Car Loan",
+      "accountType": "Loan",
       "month": "2024-01",
       "count": 2,
       "total": "-11650.00"
     },
     {
       "account": "Car Loan",
+      "accountType": "Loan",
       "month": "2024-02",
       "count": 1,
       "total": "350.00"
     },
     {
       "account": "Car Loan",
+      "accountType": "Loan",
       "month": "2024-03",
       "count": 1,
       "total": "350.00"
     },
     {
       "account": "Car Loan",
+      "accountType": "Loan",
       "month": "2024-04",
       "count": 1,
       "total": "350.00"
     },
     {
       "account": "Car Loan",
+      "accountType": "Loan",
       "month": "2024-05",
       "count": 1,
       "total": "350.00"
     },
     {
       "account": "Car Loan",
+      "accountType": "Loan",
       "month": "2024-06",
       "count": 1,
       "total": "350.00"
     },
     {
       "account": "Car Loan",
+      "accountType": "Loan",
       "month": "2024-07",
       "count": 1,
       "total": "350.00"
     },
     {
       "account": "Car Loan",
+      "accountType": "Loan",
       "month": "2024-08",
       "count": 1,
       "total": "350.00"
     },
     {
       "account": "Car Loan",
+      "accountType": "Loan",
       "month": "2024-09",
       "count": 2,
       "total": "430.00"
     },
     {
       "account": "Car Loan",
+      "accountType": "Loan",
       "month": "2024-10",
       "count": 1,
       "total": "350.00"
     },
     {
       "account": "Car Loan",
+      "accountType": "Loan",
       "month": "2024-11",
       "count": 1,
       "total": "350.00"
     },
     {
       "account": "Car Loan",
+      "accountType": "Loan",
       "month": "2024-12",
       "count": 1,
       "total": "350.00"
     },
     {
       "account": "Car Loan",
+      "accountType": "Loan",
       "month": "2025-01",
       "count": 1,
       "total": "350.00"
     },
     {
       "account": "Car Loan",
+      "accountType": "Loan",
       "month": "2025-02",
       "count": 1,
       "total": "350.00"
     },
     {
       "account": "Car Loan",
+      "accountType": "Loan",
       "month": "2025-03",
       "count": 1,
       "total": "350.00"
     },
     {
       "account": "Car Loan",
+      "accountType": "Loan",
       "month": "2025-04",
       "count": 1,
       "total": "350.00"
     },
     {
       "account": "Car Loan",
+      "accountType": "Loan",
       "month": "2025-05",
       "count": 1,
       "total": "350.00"
     },
     {
       "account": "Car Loan",
+      "accountType": "Loan",
       "month": "2025-06",
       "count": 1,
       "total": "350.00"
     },
     {
       "account": "Car Loan",
+      "accountType": "Loan",
       "month": "2025-07",
       "count": 1,
       "total": "350.00"
     },
     {
       "account": "Car Loan",
+      "accountType": "Loan",
       "month": "2025-08",
       "count": 1,
       "total": "350.00"
     },
     {
       "account": "Car Loan",
+      "accountType": "Loan",
       "month": "2025-09",
       "count": 1,
       "total": "350.00"
     },
     {
       "account": "Car Loan",
+      "accountType": "Loan",
       "month": "2025-10",
       "count": 1,
       "total": "350.00"
     },
     {
       "account": "Car Loan",
+      "accountType": "Loan",
       "month": "2025-11",
       "count": 1,
       "total": "350.00"
     },
     {
       "account": "Car Loan",
+      "accountType": "Loan",
       "month": "2025-12",
       "count": 1,
       "total": "350.00"
     },
     {
       "account": "Checking",
+      "accountType": "Asset account",
       "month": "2024-01",
       "count": 14,
       "total": "3077.71"
     },
     {
       "account": "Checking",
+      "accountType": "Asset account",
       "month": "2024-02",
       "count": 10,
       "total": "788.80"
     },
     {
       "account": "Checking",
+      "accountType": "Asset account",
       "month": "2024-03",
       "count": 11,
       "total": "730.54"
     },
     {
       "account": "Checking",
+      "accountType": "Asset account",
       "month": "2024-04",
       "count": 12,
       "total": "745.16"
     },
     {
       "account": "Checking",
+      "accountType": "Asset account",
       "month": "2024-05",
       "count": 10,
       "total": "787.58"
     },
     {
       "account": "Checking",
+      "accountType": "Asset account",
       "month": "2024-06",
       "count": 13,
       "total": "798.72"
     },
     {
       "account": "Checking",
+      "accountType": "Asset account",
       "month": "2024-07",
       "count": 13,
       "total": "448.25"
     },
     {
       "account": "Checking",
+      "accountType": "Asset account",
       "month": "2024-08",
       "count": 9,
       "total": "862.21"
     },
     {
       "account": "Checking",
+      "accountType": "Asset account",
       "month": "2024-09",
-      "count": 10,
-      "total": "876.01"
+      "count": 11,
+      "total": "576.01"
     },
     {
       "account": "Checking",
+      "accountType": "Asset account",
       "month": "2024-10",
       "count": 13,
       "total": "592.81"
     },
     {
       "account": "Checking",
+      "accountType": "Asset account",
       "month": "2024-11",
       "count": 10,
       "total": "756.01"
     },
     {
       "account": "Checking",
+      "accountType": "Asset account",
       "month": "2024-12",
       "count": 11,
       "total": "516.98"
     },
     {
       "account": "Checking",
+      "accountType": "Asset account",
       "month": "2025-01",
       "count": 13,
       "total": "743.36"
     },
     {
       "account": "Checking",
+      "accountType": "Asset account",
       "month": "2025-02",
       "count": 10,
       "total": "821.68"
     },
     {
       "account": "Checking",
+      "accountType": "Asset account",
       "month": "2025-03",
       "count": 13,
       "total": "777.54"
     },
     {
       "account": "Checking",
+      "accountType": "Asset account",
       "month": "2025-04",
       "count": 12,
       "total": "589.25"
     },
     {
       "account": "Checking",
+      "accountType": "Asset account",
       "month": "2025-05",
       "count": 10,
       "total": "738.28"
     },
     {
       "account": "Checking",
+      "accountType": "Asset account",
       "month": "2025-06",
       "count": 21,
       "total": "634.93"
     },
     {
       "account": "Checking",
+      "accountType": "Asset account",
       "month": "2025-07",
       "count": 13,
       "total": "631.10"
     },
     {
       "account": "Checking",
+      "accountType": "Asset account",
       "month": "2025-08",
       "count": 9,
       "total": "816.51"
     },
     {
       "account": "Checking",
+      "accountType": "Asset account",
       "month": "2025-09",
       "count": 10,
       "total": "708.21"
     },
     {
       "account": "Checking",
+      "accountType": "Asset account",
       "month": "2025-10",
       "count": 13,
       "total": "675.01"
     },
     {
       "account": "Checking",
+      "accountType": "Asset account",
       "month": "2025-11",
       "count": 10,
       "total": "828.40"
     },
     {
       "account": "Checking",
+      "accountType": "Asset account",
       "month": "2025-12",
       "count": 11,
       "total": "520.90"
     },
     {
       "account": "Old Account",
+      "accountType": "Asset account",
       "month": "2024-01",
       "count": 1,
       "total": "50.00"
     },
     {
       "account": "Old Account",
+      "accountType": "Asset account",
       "month": "2024-02",
       "count": 1,
       "total": "-20.00"
     },
     {
       "account": "Old Account",
+      "accountType": "Asset account",
       "month": "2024-03",
       "count": 1,
       "total": "-30.00"
     },
     {
       "account": "Owed by Sam",
+      "accountType": "Debt",
       "month": "2024-02",
       "count": 1,
       "total": "400.00"
     },
     {
       "account": "Owed by Sam",
+      "accountType": "Debt",
       "month": "2024-06",
       "count": 1,
       "total": "-150.00"
     },
     {
       "account": "Savings",
+      "accountType": "Asset account",
       "month": "2024-01",
       "count": 1,
       "total": "200.00"
     },
     {
       "account": "Savings",
+      "accountType": "Asset account",
       "month": "2024-02",
       "count": 1,
       "total": "200.00"
     },
     {
       "account": "Savings",
+      "accountType": "Asset account",
       "month": "2024-03",
       "count": 1,
       "total": "200.00"
     },
     {
       "account": "Savings",
+      "accountType": "Asset account",
       "month": "2024-04",
       "count": 1,
       "total": "200.00"
     },
     {
       "account": "Savings",
+      "accountType": "Asset account",
       "month": "2024-05",
       "count": 1,
       "total": "200.00"
     },
     {
       "account": "Savings",
+      "accountType": "Asset account",
       "month": "2024-06",
       "count": 1,
       "total": "200.00"
     },
     {
       "account": "Savings",
+      "accountType": "Asset account",
       "month": "2024-07",
       "count": 1,
       "total": "200.00"
     },
     {
       "account": "Savings",
+      "accountType": "Asset account",
       "month": "2024-08",
       "count": 1,
       "total": "200.00"
     },
     {
       "account": "Savings",
+      "accountType": "Asset account",
       "month": "2024-09",
       "count": 1,
       "total": "200.00"
     },
     {
       "account": "Savings",
+      "accountType": "Asset account",
       "month": "2024-10",
       "count": 1,
       "total": "200.00"
     },
     {
       "account": "Savings",
+      "accountType": "Asset account",
       "month": "2024-11",
       "count": 1,
       "total": "200.00"
     },
     {
       "account": "Savings",
+      "accountType": "Asset account",
       "month": "2024-12",
       "count": 1,
       "total": "200.00"
     },
     {
       "account": "Savings",
+      "accountType": "Asset account",
       "month": "2025-01",
       "count": 1,
       "total": "200.00"
     },
     {
       "account": "Savings",
+      "accountType": "Asset account",
       "month": "2025-02",
       "count": 1,
       "total": "200.00"
     },
     {
       "account": "Savings",
+      "accountType": "Asset account",
       "month": "2025-03",
       "count": 1,
       "total": "200.00"
     },
     {
       "account": "Savings",
+      "accountType": "Asset account",
       "month": "2025-04",
       "count": 1,
       "total": "200.00"
     },
     {
       "account": "Savings",
+      "accountType": "Asset account",
       "month": "2025-05",
       "count": 1,
       "total": "200.00"
     },
     {
       "account": "Savings",
+      "accountType": "Asset account",
       "month": "2025-06",
       "count": 1,
       "total": "200.00"
     },
     {
       "account": "Savings",
+      "accountType": "Asset account",
       "month": "2025-07",
       "count": 1,
       "total": "200.00"
     },
     {
       "account": "Savings",
+      "accountType": "Asset account",
       "month": "2025-08",
       "count": 1,
       "total": "200.00"
     },
     {
       "account": "Savings",
+      "accountType": "Asset account",
       "month": "2025-09",
       "count": 1,
       "total": "200.00"
     },
     {
       "account": "Savings",
+      "accountType": "Asset account",
       "month": "2025-10",
       "count": 1,
       "total": "200.00"
     },
     {
       "account": "Savings",
+      "accountType": "Asset account",
       "month": "2025-11",
       "count": 1,
       "total": "200.00"
     },
     {
       "account": "Savings",
+      "accountType": "Asset account",
       "month": "2025-12",
       "count": 1,
       "total": "200.00"
     },
     {
       "account": "US Card",
+      "accountType": "Asset account",
       "month": "2024-01",
       "count": 2,
       "total": "0.00"
     },
     {
       "account": "US Card",
+      "accountType": "Asset account",
       "month": "2024-02",
       "count": 2,
       "total": "0.00"
     },
     {
       "account": "US Card",
+      "accountType": "Asset account",
       "month": "2024-03",
       "count": 2,
       "total": "0.00"
     },
     {
       "account": "US Card",
+      "accountType": "Asset account",
       "month": "2024-04",
       "count": 2,
       "total": "0.00"
     },
     {
       "account": "US Card",
+      "accountType": "Asset account",
       "month": "2024-05",
       "count": 2,
       "total": "0.00"
     },
     {
       "account": "US Card",
+      "accountType": "Asset account",
       "month": "2024-06",
       "count": 2,
       "total": "0.00"
     },
     {
       "account": "US Card",
+      "accountType": "Asset account",
       "month": "2024-07",
       "count": 2,
       "total": "0.00"
     },
     {
       "account": "US Card",
+      "accountType": "Asset account",
       "month": "2024-08",
       "count": 2,
       "total": "0.00"
     },
     {
       "account": "US Card",
+      "accountType": "Asset account",
       "month": "2024-09",
       "count": 2,
       "total": "0.00"
     },
     {
       "account": "US Card",
+      "accountType": "Asset account",
       "month": "2024-10",
       "count": 2,
       "total": "0.00"
     },
     {
       "account": "US Card",
+      "accountType": "Asset account",
       "month": "2024-11",
       "count": 2,
       "total": "0.00"
     },
     {
       "account": "US Card",
+      "accountType": "Asset account",
       "month": "2024-12",
       "count": 2,
       "total": "0.00"
     },
     {
       "account": "US Card",
+      "accountType": "Asset account",
       "month": "2025-01",
       "count": 2,
       "total": "0.00"
     },
     {
       "account": "US Card",
+      "accountType": "Asset account",
       "month": "2025-02",
       "count": 2,
       "total": "0.00"
     },
     {
       "account": "US Card",
+      "accountType": "Asset account",
       "month": "2025-03",
       "count": 2,
       "total": "0.00"
     },
     {
       "account": "US Card",
+      "accountType": "Asset account",
       "month": "2025-04",
       "count": 2,
       "total": "0.00"
     },
     {
       "account": "US Card",
+      "accountType": "Asset account",
       "month": "2025-05",
       "count": 2,
       "total": "0.00"
     },
     {
       "account": "US Card",
+      "accountType": "Asset account",
       "month": "2025-06",
       "count": 2,
       "total": "0.00"
     },
     {
       "account": "US Card",
+      "accountType": "Asset account",
       "month": "2025-07",
       "count": 2,
       "total": "0.00"
     },
     {
       "account": "US Card",
+      "accountType": "Asset account",
       "month": "2025-08",
       "count": 2,
       "total": "0.00"
     },
     {
       "account": "US Card",
+      "accountType": "Asset account",
       "month": "2025-09",
       "count": 2,
       "total": "0.00"
     },
     {
       "account": "US Card",
+      "accountType": "Asset account",
       "month": "2025-10",
       "count": 2,
       "total": "0.00"
     },
     {
       "account": "US Card",
+      "accountType": "Asset account",
       "month": "2025-11",
       "count": 2,
       "total": "0.00"
     },
     {
       "account": "US Card",
+      "accountType": "Asset account",
       "month": "2025-12",
       "count": 2,
       "total": "0.00"
     },
     {
       "account": "Yen Wallet",
+      "accountType": "Asset account",
       "month": "2024-01",
       "count": 2,
       "total": "38800"
     },
     {
       "account": "Yen Wallet",
+      "accountType": "Asset account",
       "month": "2024-02",
       "count": 1,
       "total": "-1200"
     },
     {
       "account": "Yen Wallet",
+      "accountType": "Asset account",
       "month": "2024-03",
       "count": 1,
       "total": "-1200"
     },
     {
       "account": "Yen Wallet",
+      "accountType": "Asset account",
       "month": "2024-04",
       "count": 1,
       "total": "-1200"
     },
     {
       "account": "Yen Wallet",
+      "accountType": "Asset account",
       "month": "2024-05",
       "count": 1,
       "total": "-1200"
     },
     {
       "account": "Yen Wallet",
+      "accountType": "Asset account",
       "month": "2024-06",
       "count": 1,
       "total": "-1200"
     },
     {
       "account": "Yen Wallet",
+      "accountType": "Asset account",
       "month": "2024-07",
       "count": 1,
       "total": "-1200"
     },
     {
       "account": "Yen Wallet",
+      "accountType": "Asset account",
       "month": "2024-08",
       "count": 1,
       "total": "-1200"
     },
     {
       "account": "Yen Wallet",
+      "accountType": "Asset account",
       "month": "2024-09",
       "count": 1,
       "total": "-1200"
     },
     {
       "account": "Yen Wallet",
+      "accountType": "Asset account",
       "month": "2024-10",
       "count": 1,
       "total": "-1200"
     },
     {
       "account": "Yen Wallet",
+      "accountType": "Asset account",
       "month": "2024-11",
       "count": 1,
       "total": "-1200"
     },
     {
       "account": "Yen Wallet",
+      "accountType": "Asset account",
       "month": "2024-12",
       "count": 1,
       "total": "-1200"
     },
     {
       "account": "Yen Wallet",
+      "accountType": "Asset account",
       "month": "2025-01",
       "count": 1,
       "total": "-1200"
     },
     {
       "account": "Yen Wallet",
+      "accountType": "Asset account",
       "month": "2025-02",
       "count": 1,
       "total": "-1200"
     },
     {
       "account": "Yen Wallet",
+      "accountType": "Asset account",
       "month": "2025-03",
       "count": 1,
       "total": "-1200"
     },
     {
       "account": "Yen Wallet",
+      "accountType": "Asset account",
       "month": "2025-04",
       "count": 1,
       "total": "-1200"
     },
     {
       "account": "Yen Wallet",
+      "accountType": "Asset account",
       "month": "2025-05",
       "count": 1,
       "total": "-1200"
     },
     {
       "account": "Yen Wallet",
+      "accountType": "Asset account",
       "month": "2025-06",
       "count": 1,
       "total": "-1200"
     },
     {
       "account": "Yen Wallet",
+      "accountType": "Asset account",
       "month": "2025-07",
       "count": 1,
       "total": "-1200"
     },
     {
       "account": "Yen Wallet",
+      "accountType": "Asset account",
       "month": "2025-08",
       "count": 1,
       "total": "-1200"
     },
     {
       "account": "Yen Wallet",
+      "accountType": "Asset account",
       "month": "2025-09",
       "count": 1,
       "total": "-1200"
     },
     {
       "account": "Yen Wallet",
+      "accountType": "Asset account",
       "month": "2025-10",
       "count": 1,
       "total": "-1200"
     },
     {
       "account": "Yen Wallet",
+      "accountType": "Asset account",
       "month": "2025-11",
       "count": 1,
       "total": "-1200"
     },
     {
       "account": "Yen Wallet",
+      "accountType": "Asset account",
       "month": "2025-12",
       "count": 1,
       "total": "-1200"
@@ -1295,6 +1494,12 @@
       "month": "2024-02",
       "currency": "EUR",
       "total": "-20.00"
+    },
+    {
+      "category": "Hobbies",
+      "month": "2024-08",
+      "currency": "EUR",
+      "total": "-120.00"
     },
     {
       "category": "Household",
@@ -2899,6 +3104,54 @@
     },
     {
       "date": "2024-04-01",
+      "type": "opening balance",
+      "description": "Initial balance for \"Boat\"",
+      "groupTitle": "",
+      "source": {
+        "name": "Boat",
+        "type": "Loan",
+        "imported": true,
+        "amount": "-6000.00"
+      },
+      "destination": {
+        "name": "Initial balance account of Boat",
+        "type": "Initial balance account",
+        "imported": false,
+        "amount": null
+      },
+      "category": "",
+      "budget": "",
+      "tags": [],
+      "notes": "",
+      "foreign": null,
+      "afterAsOf": false
+    },
+    {
+      "date": "2024-04-01",
+      "type": "opening balance",
+      "description": "Initial balance for \"Boat\"",
+      "groupTitle": "",
+      "source": {
+        "name": "Initial balance for \"Boat\"",
+        "type": "Initial balance account",
+        "imported": false,
+        "amount": null
+      },
+      "destination": {
+        "name": "Boat",
+        "type": "Asset account",
+        "imported": true,
+        "amount": "6000.00"
+      },
+      "category": "",
+      "budget": "",
+      "tags": [],
+      "notes": "",
+      "foreign": null,
+      "afterAsOf": false
+    },
+    {
+      "date": "2024-04-01",
       "type": "withdrawal",
       "description": "Rent",
       "groupTitle": "",
@@ -4077,6 +4330,30 @@
       "afterAsOf": false
     },
     {
+      "date": "2024-07-15",
+      "type": "withdrawal",
+      "description": "Sold the trailer toward the boat loan",
+      "groupTitle": "",
+      "source": {
+        "name": "Boat",
+        "type": "Asset account",
+        "imported": true,
+        "amount": "-900.00"
+      },
+      "destination": {
+        "name": "Boat",
+        "type": "Loan",
+        "imported": true,
+        "amount": "900.00"
+      },
+      "category": "",
+      "budget": "",
+      "tags": [],
+      "notes": "",
+      "foreign": null,
+      "afterAsOf": false
+    },
+    {
       "date": "2024-07-16",
       "type": "withdrawal",
       "description": "Book from the US",
@@ -4265,6 +4542,30 @@
         "amount": null
       },
       "category": "Rent",
+      "budget": "",
+      "tags": [],
+      "notes": "",
+      "foreign": null,
+      "afterAsOf": false
+    },
+    {
+      "date": "2024-08-02",
+      "type": "withdrawal",
+      "description": "Mooring fee",
+      "groupTitle": "",
+      "source": {
+        "name": "Boat",
+        "type": "Asset account",
+        "imported": true,
+        "amount": "-120.00"
+      },
+      "destination": {
+        "name": "Marina",
+        "type": "Expense account",
+        "imported": false,
+        "amount": null
+      },
+      "category": "Hobbies",
       "budget": "",
       "tags": [],
       "notes": "",
@@ -4625,6 +4926,30 @@
         "amount": null
       },
       "category": "",
+      "budget": "",
+      "tags": [],
+      "notes": "",
+      "foreign": null,
+      "afterAsOf": false
+    },
+    {
+      "date": "2024-09-10",
+      "type": "withdrawal",
+      "description": "Boat loan repayment",
+      "groupTitle": "",
+      "source": {
+        "name": "Checking",
+        "type": "Asset account",
+        "imported": true,
+        "amount": "-300.00"
+      },
+      "destination": {
+        "name": "Boat",
+        "type": "Loan",
+        "imported": true,
+        "amount": "300.00"
+      },
+      "category": "Loan payments",
       "budget": "",
       "tags": [],
       "notes": "",

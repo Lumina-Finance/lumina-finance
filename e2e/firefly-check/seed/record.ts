@@ -1,14 +1,15 @@
 /**
  * Writes the manifest from Firefly III's own API, never from its export files
  */
-import type {
-  FireflyManifest,
-  ManifestAccount,
-  ManifestAccountMonth,
-  ManifestBudget,
-  ManifestCategoryMonth,
-  ManifestEndpoint,
-  ManifestRow,
+import {
+  getAccountKey,
+  type FireflyManifest,
+  type ManifestAccount,
+  type ManifestAccountMonth,
+  type ManifestBudget,
+  type ManifestCategoryMonth,
+  type ManifestEndpoint,
+  type ManifestRow,
 } from '../manifest.ts'
 import { AS_OF, CURRENCY_EXPONENTS, DATASET_START } from './dataset.ts'
 import type {
@@ -24,6 +25,15 @@ import type {
 /** Firefly III's names for the account types Lumina imports */
 const IMPORTED_ACCOUNT_TYPES = new Set(['asset account', 'loan', 'debt', 'mortgage'])
 
+// The type Firefly III's rows and accounts export give an asset account and each liability type,
+// which the API reports apart as the account's type and its liability type
+const ROW_TYPE_BY_ACCOUNT_TYPE: Record<string, string> = {
+  asset: 'Asset account',
+  loan: 'Loan',
+  debt: 'Debt',
+  mortgage: 'Mortgage',
+}
+
 // Far enough ahead to take in the future-dated row, which the manifest lists but counts nowhere
 const LIST_END = '2099-12-31'
 
@@ -32,7 +42,10 @@ export async function recordManifest(firefly: FireflyClient): Promise<FireflyMan
     ...await firefly.list<FireflyResource<FireflyAccountAttributes>>(`/accounts?type=asset&date=${AS_OF}`),
     ...await firefly.list<FireflyResource<FireflyAccountAttributes>>(`/accounts?type=liabilities&date=${AS_OF}`),
   ]
-  const currencyByAccount = new Map(accountResources.map(({ attributes }) => [attributes.name, attributes.currency_code]))
+  const currencyByAccount = new Map(accountResources.map(({ attributes }) => [
+    getAccountKey(attributes.name, getRowType(attributes)),
+    attributes.currency_code,
+  ]))
 
   const groups = await firefly.list<FireflyResource<FireflyTransactionGroupAttributes>>(
     `/transactions?type=all&start=${DATASET_START}&end=${LIST_END}`,
@@ -87,7 +100,7 @@ function buildEndpoint(
   const imported = IMPORTED_ACCOUNT_TYPES.has(type.toLowerCase())
   if (!imported) return { name, type, imported, amount: null }
 
-  const currency = currencyByAccount.get(name) ?? ''
+  const currency = getCurrency(currencyByAccount, getAccountKey(name, type))
   const amount = split.currency_code === currency
     ? split.amount
     : split.foreign_currency_code === currency ? split.foreign_amount : null
@@ -102,7 +115,10 @@ function buildEndpoint(
  * is the price paid abroad on a row from an account in another currency
  */
 function getForeignAmount(split: FireflySplit, currencyByAccount: Map<string, string>) {
-  const kept = new Set([split.source_name, split.destination_name].map((name) => currencyByAccount.get(name)).filter(Boolean))
+  const kept = new Set([
+    currencyByAccount.get(getAccountKey(split.source_name, split.source_type)),
+    currencyByAccount.get(getAccountKey(split.destination_name, split.destination_type)),
+  ].filter(Boolean))
   const stated: [string | null, string | null][] = [[split.amount, split.currency_code], [split.foreign_amount, split.foreign_currency_code]]
   for (const [amount, currency] of stated) {
     if (!amount || !currency || kept.has(currency)) continue
@@ -116,12 +132,14 @@ function buildAccounts(resources: FireflyResource<FireflyAccountAttributes>[], r
   return resources
     .map(({ attributes }) => {
       const currency = attributes.currency_code
+      const type = getRowType(attributes)
       let rowTotal = 0n
       for (const { endpoint } of importedEndpoints(rows)) {
-        if (endpoint.name === attributes.name) rowTotal += toMinorUnits(endpoint.amount ?? '0', currency)
+        if (endpoint.name === attributes.name && endpoint.type === type) rowTotal += toMinorUnits(endpoint.amount ?? '0', currency)
       }
       return {
         name: attributes.name,
+        type,
         role: attributes.type === 'liabilities' ? attributes.liability_type ?? '' : attributes.account_role ?? '',
         liabilityDirection: attributes.liability_direction,
         currency,
@@ -130,27 +148,28 @@ function buildAccounts(resources: FireflyResource<FireflyAccountAttributes>[], r
         rowTotal: formatMinorUnits(rowTotal, currency),
       }
     })
-    .sort((a, b) => compareText(a.name, b.name))
+    .sort((a, b) => compareText(a.name, b.name) || compareText(a.type, b.type))
 }
 
 function buildAccountMonths(rows: ManifestRow[], currencyByAccount: Map<string, string>): ManifestAccountMonth[] {
-  const totals = new Map<string, { account: string; month: string; count: number; minorUnits: bigint }>()
+  const totals = new Map<string, { account: string; accountType: string; month: string; count: number; minorUnits: bigint }>()
   for (const { row, endpoint } of importedEndpoints(rows)) {
     const month = row.date.slice(0, 7)
-    const key = JSON.stringify([endpoint.name, month])
-    const entry = totals.get(key) ?? { account: endpoint.name, month, count: 0, minorUnits: 0n }
+    const key = JSON.stringify([endpoint.name, endpoint.type, month])
+    const entry = totals.get(key) ?? { account: endpoint.name, accountType: endpoint.type, month, count: 0, minorUnits: 0n }
     entry.count += 1
-    entry.minorUnits += toMinorUnits(endpoint.amount ?? '0', getCurrency(currencyByAccount, endpoint.name))
+    entry.minorUnits += toMinorUnits(endpoint.amount ?? '0', getCurrency(currencyByAccount, getAccountKey(endpoint.name, endpoint.type)))
     totals.set(key, entry)
   }
   return [...totals.values()]
-    .map(({ account, month, count, minorUnits }) => ({
+    .map(({ account, accountType, month, count, minorUnits }) => ({
       account,
+      accountType,
       month,
       count,
-      total: formatMinorUnits(minorUnits, getCurrency(currencyByAccount, account)),
+      total: formatMinorUnits(minorUnits, getCurrency(currencyByAccount, getAccountKey(account, accountType))),
     }))
-    .sort((a, b) => compareText(a.account, b.account) || compareText(a.month, b.month))
+    .sort((a, b) => compareText(a.account, b.account) || compareText(a.accountType, b.accountType) || compareText(a.month, b.month))
 }
 
 /**
@@ -163,7 +182,7 @@ function buildCategoryMonths(rows: ManifestRow[], currencyByAccount: Map<string,
     const payeeSide = getPayeeSide(row)
     if (!payeeSide) continue
 
-    const currency = getCurrency(currencyByAccount, payeeSide.name)
+    const currency = getCurrency(currencyByAccount, getAccountKey(payeeSide.name, payeeSide.type))
     const month = row.date.slice(0, 7)
     const key = JSON.stringify([row.category, month, currency])
     const entry = totals.get(key) ?? { category: row.category, month, currency, total: '', minorUnits: 0n }
@@ -213,10 +232,17 @@ function* importedEndpoints(rows: ManifestRow[]) {
   }
 }
 
-function getCurrency(currencyByAccount: Map<string, string>, account: string) {
-  const currency = currencyByAccount.get(account)
-  if (!currency) throw new Error(`No currency recorded for ${account}`)
+function getCurrency(currencyByAccount: Map<string, string>, accountKey: string) {
+  const currency = currencyByAccount.get(accountKey)
+  if (!currency) throw new Error(`No currency recorded for ${accountKey}`)
   return currency
+}
+
+function getRowType(attributes: FireflyAccountAttributes) {
+  const accountType = attributes.type === 'liabilities' ? attributes.liability_type ?? '' : attributes.type
+  const type = ROW_TYPE_BY_ACCOUNT_TYPE[accountType]
+  if (!type) throw new Error(`No row type recorded for the Firefly III account type "${accountType}" of ${attributes.name}`)
+  return type
 }
 
 /** Reads Firefly III decimal text into whole minor units of a currency, refusing lost precision */

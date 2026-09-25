@@ -27,6 +27,11 @@ CURRENCY_EXPONENTS = {"EUR": 2, "USD": 2, "JPY": 0}
 # What rows with no Firefly III category are filed under, standing for the manifest's empty category
 NO_CATEGORY_SOURCE = "(no category)"
 
+# The Lumina account type each Firefly III liability type imports as, which tells an account apart
+# from a same-named one. Any other Lumina type holds what Firefly III keeps as an asset account
+LUMINA_TYPE_BY_FIREFLY_LIABILITY = {"Loan": "loan", "Debt": "line_of_credit", "Mortgage": "mortgage"}
+FIREFLY_ASSET_TYPE = "Asset account"
+
 
 async def _seed_currencies():
     """Insert the currencies the fixture's accounts and budgets use"""
@@ -113,9 +118,19 @@ async def test_a_real_firefly_export_imports_to_the_balances_and_totals_firefly_
 
     expected = FIXTURE["expected"]
     accounts = (await client.get("/accounts", headers=headers)).json()
-    assert {account["name"]: _format_minor_units(account["current_balance"], account["currency"]) for account in accounts} == {
-        account["name"]: account["balance"] for account in expected["accounts"]
-    }
+    liability_types = set(LUMINA_TYPE_BY_FIREFLY_LIABILITY.values())
+    assert {account["type"] for account in expected["accounts"]} <= {FIREFLY_ASSET_TYPE, *LUMINA_TYPE_BY_FIREFLY_LIABILITY}
+    assert sorted(
+        (
+            account["name"],
+            account["account_type"] if account["account_type"] in liability_types else "asset",
+            _format_minor_units(account["current_balance"], account["currency"]),
+        )
+        for account in accounts
+    ) == sorted(
+        (account["name"], LUMINA_TYPE_BY_FIREFLY_LIABILITY.get(account["type"], "asset"), account["balance"])
+        for account in expected["accounts"]
+    )
 
     # Only rows with a payee of their own carry the category Firefly III gave them. Transfer legs
     # and balance rows take a system category

@@ -77,7 +77,7 @@ export function buildUploadFixture(
 
     // What Firefly III reported, for the test to hold the replayed import to
     expected: {
-      accounts: manifest.accounts.map(({ name, currency, balance }) => ({ name, currency, balance })),
+      accounts: manifest.accounts.map(({ name, type, currency, balance }) => ({ name, type, currency, balance })),
       categoryMonths: manifest.categoryMonths,
       budgets: manifest.budgets.map(({ name, active, limits }) => ({
         name,
