@@ -54,6 +54,22 @@ export const FIREFLY_TAG_NAME_MAX_LENGTH = 64
 // The longest name a Lumina account takes, which Firefly III account names can exceed
 export const FIREFLY_ACCOUNT_NAME_MAX_LENGTH = 256
 
+/**
+ * Longest value the import endpoint takes in each row field, mirroring the backend schema
+ *
+ * An export can still hold a longer value, from Firefly III's longer text fields or a hand-edited
+ * file, and one such row would fail its whole upload batch, so it is dropped before upload with
+ * the field named instead
+ */
+export const FIREFLY_ROW_FIELD_MAX_LENGTHS = {
+  journalId: 64,
+  type: 64,
+  amount: 64,
+  description: 1024,
+  category: 256,
+  payee: 256,
+} as const
+
 export const FIREFLY_TAG_TOO_LONG_REASON = 'Tag name is too long'
 
 /**

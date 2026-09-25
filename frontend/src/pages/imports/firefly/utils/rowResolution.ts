@@ -17,6 +17,7 @@ import {
   FIREFLY_TYPE_WITHDRAWAL,
 } from '@/pages/imports/firefly/constants'
 import type { FireflyAccountSource, FireflyAccountSources } from '@/pages/imports/firefly/types'
+import { getFireflyRowAmounts } from './derivation'
 import type { FireflyAccountCreateDetails } from './payload'
 
 /**
@@ -248,16 +249,15 @@ function resolveFireflyMappedAccount(
 function getFireflyAmountInAccountCurrency(row: CsvRow, accountCurrency: string, currencies: Currency[]): number {
   // Firefly III writes the journal amount in the transaction currency and
   // carries a foreign amount when a second currency is involved, so the
-  // account-side value is whichever of the two matches the account currency
-  const rowCurrency = row.currency_code?.trim().toUpperCase() ?? ''
-  const foreignCurrency = row.foreign_currency_code?.trim().toUpperCase() ?? ''
-  const foreignAmount = row.foreign_amount?.trim() ?? ''
+  // account-side value is whichever of the two matches the account currency.
+  // Both are read as the payload sends them
+  const { main, foreign } = getFireflyRowAmounts(row)
 
   let rawAmount: string
-  if (accountCurrency && rowCurrency === accountCurrency) {
-    rawAmount = row.amount?.trim() ?? ''
-  } else if (foreignCurrency && foreignAmount && foreignCurrency === accountCurrency) {
-    rawAmount = foreignAmount
+  if (accountCurrency && main?.currencyCode === accountCurrency) {
+    rawAmount = main.amount
+  } else if (foreign && foreign.currencyCode === accountCurrency) {
+    rawAmount = foreign.amount
   } else {
     throw new FireflyRowSkipError(`Neither the amount nor the foreign amount is in the account's currency (${accountCurrency})`)
   }

@@ -12,6 +12,7 @@ import {
   FIREFLY_FALLBACK_ACCOUNT_TYPE,
   FIREFLY_LIABILITY_ACCOUNT_TYPES,
   FIREFLY_MISCELLANEOUS_CATEGORY_NAME,
+  FIREFLY_ROW_FIELD_MAX_LENGTHS,
   FIREFLY_TAG_NAME_MAX_LENGTH,
   FIREFLY_TYPE_DEPOSIT,
   FIREFLY_TYPE_TRANSFER,
@@ -47,23 +48,109 @@ export function isFireflyRowImportable(row: CsvRow) {
 export function getFireflyMissingRequiredFields(row: CsvRow) {
   const missingFields: string[] = []
   if (!row.journal_id?.trim()) missingFields.push('journal id')
+  if (!row.type?.trim()) missingFields.push('type')
   if (!getFireflyRowDate(row.date ?? '')) missingFields.push('date')
-  if (!row.amount?.trim()) missingFields.push('amount')
-  if ((row.currency_code?.trim().length ?? 0) !== 3) missingFields.push('currency')
+
+  // The foreign amount stands in when the main one cannot be read, so the row lacks an amount only
+  // when neither can
+  if (!getFireflyRowAmounts(row).main) {
+    if (!row.amount?.trim()) missingFields.push('amount')
+    if (!readFireflyCurrencyCode(row.currency_code)) missingFields.push('currency')
+  }
   return missingFields
+}
+
+/** One amount a row states, with the currency it is in */
+export interface FireflyCurrencyAmount {
+  amount: string
+  currencyCode: string
+}
+
+/**
+ * Reads a row's amount and foreign amount, each kept only with an amount and a three-letter code
+ *
+ * Firefly III takes custom currency codes of other lengths, such as USDT, which no Lumina account
+ * is kept in, so an amount in one can never be the one a row is written with. When the main amount
+ * is one of those and the foreign amount is not, the foreign amount takes its place
+ *
+ * @returns The amount the row is sent with, and the foreign amount beside it, each null when absent
+ */
+export function getFireflyRowAmounts(row: CsvRow): {
+  main: FireflyCurrencyAmount | null
+  foreign: FireflyCurrencyAmount | null
+} {
+  const main = readFireflyCurrencyAmount(row.amount, row.currency_code)
+  const foreign = readFireflyCurrencyAmount(row.foreign_amount, row.foreign_currency_code)
+  return main ? { main, foreign } : { main: foreign, foreign: null }
+}
+
+function readFireflyCurrencyAmount(amount: string | undefined, currencyCode: string | undefined) {
+  const trimmedAmount = amount?.trim() ?? ''
+  const code = readFireflyCurrencyCode(currencyCode)
+  return trimmedAmount && code ? { amount: trimmedAmount, currencyCode: code } : null
+}
+
+function readFireflyCurrencyCode(value: string | undefined) {
+  const code = value?.trim().toUpperCase() ?? ''
+  return /^[A-Z]{3}$/.test(code) ? code : ''
+}
+
+/**
+ * Whether an endpoint is an account the import writes to, which takes a name and a tracked type
+ */
+function isFireflyTrackedEndpoint(name: string | undefined, type: string | undefined) {
+  return Boolean(name?.trim()) && isFireflyTrackedAccountType(type)
+}
+
+/**
+ * Whether a row is a withdrawal or deposit between an imported account and one outside the import
+ *
+ * Only such a row is written with a merchant and its own category. A row between two imported
+ * accounts is a transfer, and a balance row takes Balance Adjustment
+ */
+export function isFireflyPayeeRow(row: CsvRow) {
+  const journalType = row.type?.trim().toLowerCase() ?? ''
+  const isSourceTracked = isFireflyTrackedEndpoint(row.source_name, row.source_type)
+  const isDestinationTracked = isFireflyTrackedEndpoint(row.destination_name, row.destination_type)
+
+  if (journalType === FIREFLY_TYPE_WITHDRAWAL) return isSourceTracked && !isDestinationTracked
+  if (journalType === FIREFLY_TYPE_DEPOSIT) return isDestinationTracked && !isSourceTracked
+  return false
+}
+
+/**
+ * Returns the name a payee row's merchant is filed under, blank when the export gives none, and
+ * null for any other row, which is written with no merchant of its own
+ */
+export function getFireflyRowPayeeName(row: CsvRow): string | null {
+  if (!isFireflyPayeeRow(row)) return null
+
+  const journalType = row.type?.trim().toLowerCase() ?? ''
+  const name = journalType === FIREFLY_TYPE_WITHDRAWAL ? row.destination_name : row.source_name
+  return name?.trim() ?? ''
 }
 
 /**
  * Returns the first tag on a row that is too long for a Lumina tag, or null
  */
 export function getFireflyOverlongTag(row: CsvRow): string | null {
-  return splitFireflyTags(row.tags ?? '').find((tag) => tag.length > FIREFLY_TAG_NAME_MAX_LENGTH) ?? null
+  return splitFireflyTags(row.tags ?? '').find((tag) => countCharacters(tag) > FIREFLY_TAG_NAME_MAX_LENGTH) ?? null
 }
 
 /**
- * Returns why a row carries more than one transaction may hold, or null
+ * Counts a value's characters the way the import endpoint measures its length limits
  *
- * The API refuses the whole request for either, and a Firefly import commits
+ * The endpoint counts code points, while a JavaScript string length counts UTF-16 units, which
+ * would put an emoji at two characters and drop rows the endpoint takes
+ */
+export function countCharacters(value: string): number {
+  return [...value].length
+}
+
+/**
+ * Returns why a row holds a value past what the import endpoint takes, or null
+ *
+ * The API refuses the whole request for any of them, and a Firefly import commits
  * each batch as it goes, so one such row part-way through an export would
  * leave the batches before it in the ledger with no way to retry the rest.
  * Dropping the row before upload is what the overlong tag above already does
@@ -72,9 +159,36 @@ export function getFireflyRowOverLimitReason(row: CsvRow): string | null {
   const tagCount = splitFireflyTags(row.tags ?? '').length
   if (tagCount > MAX_IMPORT_TAGS_PER_ROW) return getRowTooManyTagsReason(tagCount)
 
-  const notesLength = row.notes?.trim().length ?? 0
+  const notesLength = countCharacters(row.notes?.trim() ?? '')
   if (notesLength > MAX_IMPORT_NOTES_LENGTH) return getRowNotesTooLongReason(notesLength)
+
+  // Only the amounts the row is sent with are checked, since an amount in a code Lumina cannot
+  // hold is left out of the upload
+  const { main, foreign } = getFireflyRowAmounts(row)
+  const limits = FIREFLY_ROW_FIELD_MAX_LENGTHS
+  const fields: [string, string | null | undefined, number][] = [
+    ['journal id', row.journal_id, limits.journalId],
+    ['type', row.type, limits.type],
+    ['amount', main?.amount, limits.amount],
+    ['foreign amount', foreign?.amount, limits.amount],
+    ['description', row.description, limits.description],
+    ['category', row.category, limits.category],
+
+    // Only the payee that becomes the merchant is sent, so a long name anywhere else costs nothing
+    ['payee name', getFireflyRowPayeeName(row), limits.payee],
+  ]
+  for (const [field, value, maxLength] of fields) {
+    const length = countCharacters(value?.trim() ?? '')
+    if (length > maxLength) return getFireflyFieldTooLongReason(field, length, maxLength)
+  }
   return null
+}
+
+/**
+ * Says a row field is longer than the import endpoint takes
+ */
+function getFireflyFieldTooLongReason(field: string, length: number, maxLength: number) {
+  return `The ${field} is ${length.toLocaleString()} characters, and the importer takes up to ${maxLength.toLocaleString()}.`
 }
 
 /**

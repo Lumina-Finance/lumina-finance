@@ -18,6 +18,8 @@ import type { CsvRow, ImportRowProblem } from '@/pages/imports/types'
 import {
   forecastFireflyImport,
   getFireflySkippedRowsDisplay,
+  isFireflyRowUploadable,
+  resolveFireflyRowLegs,
   type FireflySkippedRowDetail,
   type FireflyRowResolutionOptions,
 } from '@/pages/imports/firefly/utils'
@@ -1038,5 +1040,73 @@ describe('forecastFireflyImport', () => {
         },
       ],
     })
+  })
+})
+
+describe('Firefly rows past what the import endpoint takes', () => {
+  // Each field at its limit and one past it, since the endpoint refuses the whole batch for a
+  // longer value
+  const cases: [string, string, number, (length: number) => Partial<CsvRow>][] = [
+    ['journal id', 'journal id', 64, (length) => ({ journal_id: '1'.repeat(length) })],
+    ['type', 'type', 64, (length) => ({ type: 'W'.repeat(length) })],
+    ['amount', 'amount', 64, (length) => ({ amount: `-${'1'.repeat(length - 4)}.00` })],
+    ['foreign amount', 'foreign amount', 64, (length) => ({ foreign_amount: `-${'1'.repeat(length - 4)}.00`, foreign_currency_code: 'USD' })],
+
+    // The endpoint counts code points, so an emoji is one character to it, not two
+    ['description', 'description', 1024, (length) => ({ description: '🛒'.repeat(length) })],
+    ['category', 'category', 256, (length) => ({ category: 'c'.repeat(length) })],
+    ['withdrawal payee', 'payee name', 256, (length) => ({ destination_name: 'p'.repeat(length) })],
+    ['deposit payee', 'payee name', 256, (length) => ({
+      type: 'Deposit',
+      amount: '2500.00',
+      source_name: 'p'.repeat(length),
+      source_type: 'Revenue account',
+      destination_name: 'Chequing',
+      destination_type: 'Asset account',
+    })],
+  ]
+
+  it.each(cases)('drops a row whose %s is past its limit and uploads one at the limit', (_, field, maxLength, build) => {
+    const atLimit = createFireflyRow(build(maxLength))
+    const pastLimit = createFireflyRow({ journal_id: '2', ...build(maxLength + 1) })
+
+    const { skippedRows: skipped } = forecastFireflyImport([atLimit, pastLimit], createOptions())
+
+    expect(isFireflyRowUploadable(atLimit)).toBe(true)
+    expect(skipped.filter((row) => row.droppedBeforeUpload)).toEqual([expect.objectContaining({
+      journalId: pastLimit.journal_id,
+      reason: `The ${field} is ${(maxLength + 1).toLocaleString()} characters, and the importer takes up to ${maxLength.toLocaleString()}.`,
+    })])
+  })
+
+  it('names a blank type among the missing values', () => {
+    const { skippedRows: skipped } = forecastFireflyImport([createFireflyRow({ type: '  ' })], createOptions())
+
+    expect(skipped).toEqual([expect.objectContaining({
+      reason: 'Missing required values: type',
+      droppedBeforeUpload: true,
+    })])
+  })
+
+  // Firefly III takes custom currency codes such as USDT, which no Lumina account is kept in, and
+  // the amount in one is left out of the upload, however long it is
+  it.each([
+    ['in a code Lumina cannot hold', { amount: `-${'1'.repeat(70)}.00`, currency_code: 'USDT' }],
+    ['without a currency', { currency_code: '' }],
+  ])('imports the foreign amount when the main one is %s', (_, main) => {
+    const row = createFireflyRow({ ...main, foreign_amount: '-16.80', foreign_currency_code: 'CAD' })
+
+    const { skippedRows: skipped } = forecastFireflyImport([row], createOptions())
+
+    expect(skipped).toEqual([])
+    expect(resolveFireflyRowLegs(row, createOptions()).legs?.map((leg) => leg.amount)).toEqual([-1680])
+  })
+
+  it('names the currency as missing when neither amount is in a three-letter code', () => {
+    const row = createFireflyRow({ currency_code: 'USDT', foreign_amount: '-1.00', foreign_currency_code: 'XBTC' })
+
+    const { skippedRows: skipped } = forecastFireflyImport([row], createOptions())
+
+    expect(skipped).toEqual([expect.objectContaining({ reason: 'Missing required values: currency', droppedBeforeUpload: true })])
   })
 })

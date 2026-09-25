@@ -2,6 +2,8 @@
 
 from datetime import UTC, datetime
 
+import pytest
+
 from app.services.merchants.defaults import SELF_MERCHANT_NAME
 from tests.routes.support import _create_user, _get_auth_header, _get_system_merchant_id
 from tests.routes.transactions._helpers import _create_account, _seed_usd_currency
@@ -768,3 +770,81 @@ async def test_firefly_import_creates_one_merchant_for_payees_the_database_lower
     # The first spelling in the file names the merchant
     merchants = (await client.get("/merchants", headers=headers)).json()
     assert "İstanbul Kebap" in [merchant["name"] for merchant in merchants]
+
+
+@pytest.mark.parametrize(("field", "value"), [
+    ("journal_id", "1" * 65),
+    ("type", ""),
+    ("type", "W" * 65),
+    ("amount", "1" * 65),
+    ("foreign_amount", "1" * 65),
+    ("currency_code", "USDT"),
+    ("foreign_currency_code", "USDT"),
+    ("description", "d" * 1025),
+    ("source_name", "p" * 257),
+    ("destination_name", "p" * 257),
+    ("category", "c" * 257),
+])
+async def test_firefly_import_refuses_a_row_past_a_field_limit(client, field, value):
+    """The browser drops or normalises these rows first, and the endpoint still refuses one that arrives."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await client.post("/transactions/import/firefly", json={
+        "accounts": [_chequing_mapping()],
+        "categories": [{"source": "Groceries", "create": {"name": "Groceries", "kind": "expense"}}],
+        "rows": [_firefly_row(**{field: value})],
+    }, headers=headers)
+
+    assert resp.status_code == 422
+    assert any(error["loc"] == ["body", "rows", 0, field] for error in resp.json()["detail"])
+    assert (await client.get("/transactions", headers=headers)).json() == []
+
+
+async def test_firefly_import_takes_a_row_at_its_field_limits(client):
+    """A value exactly at the limit the browser checks against is one the endpoint takes."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await client.post("/transactions/import/firefly", json={
+        "accounts": [_chequing_mapping()],
+        "categories": [{"source": "Groceries", "create": {"name": "Groceries", "kind": "expense"}}],
+        "rows": [_firefly_row(journal_id="1" * 64, description="d" * 1024, destination_name="p" * 256)],
+    }, headers=headers)
+
+    assert resp.status_code == 201
+    transactions = (await client.get("/transactions", headers=headers)).json()
+    assert [transaction["notes"] for transaction in transactions] == ["d" * 1024]
+
+
+async def test_firefly_import_refuses_two_new_categories_differing_only_in_capitals_and_type(client):
+    """The browser blocks this pair before upload, and the endpoint refuses it without writing."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await client.post("/transactions/import/firefly", json={
+        "accounts": [_chequing_mapping()],
+        "categories": [
+            {"source": "Road Trips", "create": {"name": "Road Trips", "kind": "expense"}},
+            {"source": "ROAD TRIPS", "create": {"name": "ROAD TRIPS", "kind": "income"}},
+        ],
+        "rows": [
+            _firefly_row(category="Road Trips"),
+            _firefly_row(
+                journal_id="2",
+                type="Deposit",
+                amount="80.00",
+                source_account=None,
+                source_name="Airline",
+                destination_account="Everyday Chequing",
+                destination_name=None,
+                category="ROAD TRIPS",
+            ),
+        ],
+    }, headers=headers)
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"].startswith("A category named Road Trips already records expense")
+    assert (await client.get("/transactions", headers=headers)).json() == []
+    categories = (await client.get("/categories", headers=headers)).json()
+    assert "road trips" not in [category["name"].lower() for category in categories]

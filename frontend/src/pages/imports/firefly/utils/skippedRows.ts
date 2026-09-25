@@ -188,9 +188,9 @@ export function forecastFireflyImport(
       continue
     }
 
-    // Notes or a tag count past what one transaction holds would fail the
-    // whole upload batch, and the batches already sent stay in the ledger, so
-    // the row is dropped before upload with the count named
+    // A value past what the import endpoint takes would fail the whole upload
+    // batch, and the batches already sent stay in the ledger, so the row is
+    // dropped before upload with the value named
     const overLimitReason = getFireflyRowOverLimitReason(row)
     if (overLimitReason !== null) {
       skippedRows.push(buildFireflySkippedRowDetail(row, index, overLimitReason, { droppedBeforeUpload: true }))

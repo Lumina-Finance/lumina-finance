@@ -1,4 +1,5 @@
 import type { AccountsOverview } from '@/api/accounts'
+import type { Category } from '@/api/categories'
 import type {
   FireflyTransactionImportPayload,
   FireflyTransactionImportResponse,
@@ -7,6 +8,7 @@ import {
   CREATE_ACCOUNT_VALUE,
   CREATE_CATEGORY_VALUE,
   DEFAULT_CATEGORY_ICON,
+  getCategoryDirectionClashError,
   getImportAccountCurrencyRequiredError,
   getImportAccountMappingError,
   getImportAccountTypeRequiredError,
@@ -17,11 +19,19 @@ import {
   getImportNoRowsError,
 } from '@/pages/imports/constants'
 import type { CsvRow, ImportCategoryKind, ImportFileDraft } from '@/pages/imports/types'
-import { FIREFLY_ACCOUNT_NAME_MAX_LENGTH } from '@/pages/imports/firefly/constants'
+import { FIREFLY_ACCOUNT_NAME_MAX_LENGTH, FIREFLY_TYPE_DEPOSIT } from '@/pages/imports/firefly/constants'
 import type { FireflyAccountSources, FireflyImportBuildResult } from '@/pages/imports/firefly/types'
 import { isImportAccountType } from '@/pages/imports/accountTypeGuard'
 import { isImportableAccount } from '@/pages/imports/utils/accountScope'
-import { getFireflyRowDate, isFireflyRowUploadable, splitFireflyTags } from './derivation'
+import { findReusedImportCategory, getCategoryNameKey } from '@/pages/imports/utils/categoryMatching'
+import {
+  countCharacters,
+  getFireflyRowAmounts,
+  getFireflyRowDate,
+  getFireflyRowPayeeName,
+  isFireflyRowUploadable,
+  splitFireflyTags,
+} from './derivation'
 
 /**
  * Create-new selections for one tracked account after prefills are applied
@@ -46,6 +56,7 @@ export function buildFireflyImportPayload({
   importedCategories,
   categoryMappings,
   categoryCreateKinds,
+  categoryById,
 }: {
   transactionsFile: ImportFileDraft | null
   rows: CsvRow[]
@@ -56,6 +67,9 @@ export function buildFireflyImportPayload({
   importedCategories: string[]
   categoryMappings: Record<string, string>
   categoryCreateKinds: Record<string, ImportCategoryKind>
+
+  /** The user's categories, which a new category of the same name is created as */
+  categoryById: Map<string, Category>
 }): FireflyImportBuildResult {
   const errors: string[] = []
   const addError = (message: string) => {
@@ -89,7 +103,7 @@ export function buildFireflyImportPayload({
 
     // Firefly III takes longer account names than Lumina does, and the name is the only thing a
     // new account could carry over, so such an account can only be mapped to an existing one
-    if (name.length > FIREFLY_ACCOUNT_NAME_MAX_LENGTH) {
+    if (countCharacters(name) > FIREFLY_ACCOUNT_NAME_MAX_LENGTH) {
       addError(getFireflyAccountNameTooLongError(label))
       continue
     }
@@ -120,6 +134,7 @@ export function buildFireflyImportPayload({
   }
 
   const categories: FireflyTransactionImportPayload['categories'] = []
+  const createdCategoryByKey = new Map<string, { source: string; kind: ImportCategoryKind }>()
   for (const source of importedCategories) {
     const choice = categoryMappings[source]
     if (!choice) {
@@ -137,6 +152,23 @@ export function buildFireflyImportPayload({
       addError(getImportCategoryTypeRequiredError(source))
       continue
     }
+
+    // A new category reuses one of the same name, capitals folded, and one name records one
+    // direction, so either clash is what the commit would refuse. Caught here, where the step can
+    // say which category to answer differently
+    const reused = findReusedImportCategory(source, categoryById.values())
+    if (reused && reused.kind !== kind) {
+      addError(getCategoryDirectionClashError(source, reused.name, reused.kind))
+      continue
+    }
+
+    const key = getCategoryNameKey(source)
+    const earlierCreate = createdCategoryByKey.get(key)
+    if (earlierCreate && earlierCreate.kind !== kind) {
+      addError(getFireflyCategoryCreateClashError(earlierCreate.source, source))
+      continue
+    }
+    createdCategoryByKey.set(key, { source, kind })
 
     categories.push({
       source,
@@ -156,11 +188,11 @@ export function buildFireflyImportPayload({
 }
 
 /**
- * Compiles journal rows into the backend row shape, excluding rows missing the
- * identity fields the endpoint rejects at the request level
+ * Compiles journal rows into the backend row shape, excluding the rows dropped before upload
  *
- * An endpoint the import writes to is sent as its account source alone, and any other endpoint by
- * its name, so the backend never works out from the Firefly III type which endpoints are accounts
+ * An endpoint the import writes to is sent as its account source alone, so the backend never works
+ * out from the Firefly III type which endpoints are accounts. Another endpoint's name is sent only
+ * where it becomes the merchant, so a long name the import never writes cannot fail the batch
  */
 function buildFireflyImportRows(
   rows: CsvRow[],
@@ -173,20 +205,26 @@ function buildFireflyImportRows(
 
     const sourceAccount = accountSources.find(row.source_name, row.source_type)
     const destinationAccount = accountSources.find(row.destination_name, row.destination_type)
+    const { main, foreign } = getFireflyRowAmounts(row)
+    if (!main) continue
+
+    // Only the payee a withdrawal pays or a deposit comes from is written, as the merchant
+    const payeeName = getFireflyRowPayeeName(row) || null
+    const isDeposit = row.type.trim().toLowerCase() === FIREFLY_TYPE_DEPOSIT
 
     payloadRows.push({
       journal_id: row.journal_id.trim(),
-      type: row.type?.trim() ?? '',
+      type: row.type.trim(),
       dt: getFireflyRowDate(row.date ?? ''),
-      amount: row.amount.trim(),
-      currency_code: row.currency_code.trim().toUpperCase(),
-      foreign_amount: cleanOptional(row.foreign_amount),
-      foreign_currency_code: cleanOptional(row.foreign_currency_code)?.toUpperCase() ?? null,
+      amount: main.amount,
+      currency_code: main.currencyCode,
+      foreign_amount: foreign?.amount ?? null,
+      foreign_currency_code: foreign?.currencyCode ?? null,
       description: cleanOptional(row.description),
       source_account: sourceAccount?.id ?? null,
-      source_name: sourceAccount ? null : cleanOptional(row.source_name),
+      source_name: isDeposit ? payeeName : null,
       destination_account: destinationAccount?.id ?? null,
-      destination_name: destinationAccount ? null : cleanOptional(row.destination_name),
+      destination_name: isDeposit ? null : payeeName,
       category: cleanOptional(row.category),
       tag_names: splitFireflyTags(row.tags ?? ''),
       notes: cleanOptional(row.notes),
@@ -194,6 +232,10 @@ function buildFireflyImportRows(
   }
 
   return payloadRows
+}
+
+function getFireflyCategoryCreateClashError(firstSource: string, secondSource: string) {
+  return `${firstSource} and ${secondSource} would be created as one category, so they need the same type.`
 }
 
 function getFireflyAccountNameTooLongError(label: string) {
