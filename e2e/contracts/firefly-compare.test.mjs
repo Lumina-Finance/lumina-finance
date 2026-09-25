@@ -46,10 +46,6 @@ const MANIFEST = {
 
 const RUN_INFO = { fireflyVersion: '6.7.3', exportEnd: '2026-09-25' }
 
-const ACCOUNTS_FILE = [
-  { name: 'Checking', type: 'Asset account', role: 'defaultAsset', currency: 'EUR', active: true },
-  { name: 'Savings', type: 'Asset account', role: 'savingAsset', currency: 'EUR', active: true },
-]
 
 function buildLumina() {
   const account = (id, name, type, balance) => ({
@@ -80,7 +76,7 @@ function buildLumina() {
   }
 }
 
-const describeAll = (lumina, manifest = MANIFEST, accountsFile = ACCOUNTS_FILE) => compareImport(manifest, RUN_INFO, accountsFile, lumina)
+const describeAll = (lumina, manifest = MANIFEST) => compareImport(manifest, RUN_INFO, lumina)
   .map((difference) => `${difference.kind}: ${difference.subject} = ${difference.lumina}`)
   .sort()
 
@@ -123,10 +119,6 @@ test('a transfer that lost a leg is reported, and its other leg is not counted a
 // An asset account and a loan both named Boat, as Firefly III allows, with a payment between them
 const BOAT_ASSET = { name: 'Boat', type: 'Asset account', role: 'defaultAsset', liabilityDirection: null, currency: 'EUR', active: true }
 const BOAT_LOAN = { name: 'Boat', type: 'Loan', role: 'loan', liabilityDirection: 'debit', currency: 'EUR', active: true }
-const BOAT_FILE = [
-  { name: 'Boat', type: 'Asset account', role: 'defaultAsset', currency: 'EUR', active: true },
-  { name: 'Boat', type: 'Loan', role: '', currency: 'EUR', active: true },
-]
 const boatAccount = (id, type, balance) => ({
   id, name: 'Boat', account_type: type, currency: 'EUR', current_balance: balance, is_archived: false,
 })
@@ -154,7 +146,7 @@ test('accounts sharing a name are each compared with their own Lumina account', 
     { ...lumina.transactions[1], account_id: 'bl', dt: '2025-03-07', amount: 90000, original_amount: 90000, counterparty_account_id: 'ba', notes: 'Toward the boat loan' },
   )
 
-  const differences = compareImport(manifest, RUN_INFO, [...ACCOUNTS_FILE, ...BOAT_FILE], lumina)
+  const differences = compareImport(manifest, RUN_INFO, lumina)
   assert.deepEqual(differences.map(({ kind, subject }) => `${kind}: ${subject}`), ['transfer-category-dropped: Savings plan'])
 })
 
@@ -166,7 +158,7 @@ test('an account missing from Lumina is reported even when an account of the sam
   const lumina = buildLumina()
   lumina.accounts.push(boatAccount('bl', 'loan', 0))
 
-  assert.deepEqual(describeAll(lumina, manifest, [...ACCOUNTS_FILE, ...BOAT_FILE]), [
+  assert.deepEqual(describeAll(lumina, manifest), [
     'account-missing: Boat (Asset account) = absent',
     'transfer-category-dropped: Savings plan = Transfer',
   ])
@@ -180,7 +172,7 @@ test('a credit card Firefly III keeps as an asset account pairs with it, apart f
   const lumina = buildLumina()
   lumina.accounts.push(boatAccount('bl', 'loan', 0), boatAccount('bc', 'credit_card', 0))
 
-  assert.deepEqual(describeAll(lumina, manifest, [...ACCOUNTS_FILE, { ...BOAT_FILE[0], role: 'ccAsset' }, BOAT_FILE[1]]), [
+  assert.deepEqual(describeAll(lumina, manifest), [
     'transfer-category-dropped: Savings plan = Transfer',
   ])
 })

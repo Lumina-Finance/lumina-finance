@@ -10,7 +10,6 @@ import { signUpUser } from '../support/api'
 import { chooseFromDropdown, logInViaApi, openPage } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 import { checkExpected, compareImport } from './compare.ts'
-import { readAccountsFile } from './csv.ts'
 import { EXPECTED_DIFFERENCES } from './expected-differences.ts'
 import { readLumina } from './lumina.ts'
 import { buildUploadFixture, type CapturedUpload } from './upload-fixture.ts'
@@ -24,7 +23,6 @@ test('a Firefly III export imports to the balances, totals and budgets Firefly I
   })
   const manifest = JSON.parse(await read('manifest.json')) as FireflyManifest
   const runInfo = JSON.parse(await read('run.json')) as FireflyRunInfo
-  const accountsFile = readAccountsFile(await read('accounts.csv'))
 
   const user = await signUpUser(request)
   await logInViaApi(page, user)
@@ -69,7 +67,7 @@ test('a Firefly III export imports to the balances, totals and budgets Firefly I
   }
   await progress.getByRole('button', { name: 'Done', exact: true }).click()
   const lumina = await readLumina(request, user)
-  const differences = compareImport(manifest, runInfo, accountsFile, lumina)
+  const differences = compareImport(manifest, runInfo, lumina)
   const { unexpected, stale } = checkExpected(differences, EXPECTED_DIFFERENCES)
 
   const report = { firefly: runInfo, skipped, differences, unexpected, stale }

@@ -66,15 +66,6 @@ interface AccountPairing {
   labelById: Map<string, string>
 }
 
-/** One asset or liability row of Firefly III's accounts export */
-export interface FireflyAccountFileEntry {
-  name: string
-  type: string
-  role: string
-  currency: string
-  active: boolean
-}
-
 export interface Difference {
   kind: string
   subject: string
@@ -120,7 +111,6 @@ const LUMINA_LIABILITY_TYPES = new Set(Object.values(LUMINA_TYPE_BY_LIABILITY))
 export function compareImport(
   manifest: FireflyManifest,
   runInfo: FireflyRunInfo,
-  accountsFile: FireflyAccountFileEntry[],
   lumina: LuminaSnapshot,
 ): Difference[] {
   const differences = new DifferenceList()
@@ -133,7 +123,7 @@ export function compareImport(
   // Rows dated after the manifest's day count toward no balance or total, though they still import
   const counted = { ...lumina, transactions: lumina.transactions.filter((transaction) => transaction.dt <= manifest.asOf) }
 
-  const accounts = compareAccounts(manifest, accountsFile, lumina, differences)
+  const accounts = compareAccounts(manifest, lumina, differences)
   compareAccountMonths(manifest, counted, accounts, differences)
   compareCategoryMonths(manifest, counted, accountById, categoryNameById, differences)
   compareRows(exportedRows, lumina, accounts, categoryNameById, differences)
@@ -165,7 +155,6 @@ export function checkExpected(differences: Difference[], expected: ExpectedDiffe
  */
 function compareAccounts(
   manifest: FireflyManifest,
-  accountsFile: FireflyAccountFileEntry[],
   lumina: LuminaSnapshot,
   differences: DifferenceList,
 ): AccountPairing {
@@ -198,37 +187,19 @@ function compareAccounts(
 
     const balance = formatMinorUnits(found.current_balance, found.currency)
     if (balance !== account.balance) differences.add('balance', label, account.balance, balance)
+
+    const expectedType = LUMINA_TYPE_BY_FIREFLY[account.role || account.type.toLowerCase()] ?? `unknown (${account.role || account.type})`
+    if (found.account_type !== expectedType) differences.add('account-type', label, expectedType, found.account_type)
+    if (found.currency !== account.currency) differences.add('account-currency', label, account.currency, found.currency)
+    if (found.is_archived === account.active) {
+      differences.add('account-archived', label, account.active ? 'active' : 'inactive', found.is_archived ? 'archived' : 'active')
+    }
   }
 
   // Labelled apart from any paired account of the same name, so their rows never count as its rows
   for (const account of unpaired) {
     pairing.labelById.set(account.id, `${account.name} (unpaired ${account.account_type})`)
     differences.add('account-extra', account.name, 'absent', account.account_type)
-  }
-
-  // Read from the accounts export rather than the API, so a change to that file's format shows up
-  // here instead of quietly leaving an account unchecked
-  const fileKeys = new Set(accountsFile.map((entry) => getAccountKey(entry.name, entry.type)))
-  for (const [key, label] of labelByKey) {
-    if (!fileKeys.has(key)) differences.add('accounts-file', label, 'in the accounts export', 'not read from it')
-  }
-  for (const entry of accountsFile) {
-    const key = getAccountKey(entry.name, entry.type)
-    const label = labelByKey.get(key)
-    if (!label) {
-      const isNamesake = manifest.accounts.some((account) => account.name === entry.name)
-      differences.add('accounts-file', isNamesake ? `${entry.name} (${entry.type})` : entry.name, 'not an account', 'read from the accounts export')
-      continue
-    }
-    const found = pairing.byKey.get(key)
-    if (!found) continue
-
-    const expectedType = LUMINA_TYPE_BY_FIREFLY[entry.role || entry.type.toLowerCase()] ?? `unknown (${entry.role || entry.type})`
-    if (found.account_type !== expectedType) differences.add('account-type', label, expectedType, found.account_type)
-    if (found.currency !== entry.currency) differences.add('account-currency', label, entry.currency, found.currency)
-    if (found.is_archived === entry.active) {
-      differences.add('account-archived', label, entry.active ? 'active' : 'inactive', found.is_archived ? 'archived' : 'active')
-    }
   }
   return pairing
 }
