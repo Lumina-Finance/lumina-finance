@@ -7,6 +7,8 @@ import {
 import { joinClassNames } from '@/utils/classNames'
 
 interface TransactionModalPillSelectorProps<T extends string> {
+  id?: string
+
   // An empty value renders the unselected state with no highlighted option
   value: T | ''
   options: readonly { value: T; label: string }[]
@@ -21,6 +23,7 @@ interface TransactionModalPillSelectorProps<T extends string> {
  * Renders the animated segmented selector used by transaction kind and direction controls
  */
 export default function TransactionModalPillSelector<T extends string>({
+  id,
   value,
   options,
   ariaLabel,
@@ -34,6 +37,7 @@ export default function TransactionModalPillSelector<T extends string>({
 
   return (
     <div
+      id={id}
       className={joinClassNames('app-segmented-control app-create-transaction-pill-selector relative isolate w-full overflow-hidden', disabled && 'cursor-not-allowed')}
       role="tablist"
       aria-label={ariaLabel}

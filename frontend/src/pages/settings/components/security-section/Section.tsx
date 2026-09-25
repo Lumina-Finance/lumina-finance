@@ -57,15 +57,16 @@ export default function SecuritySection({
               </p>
             </div>
 
-            <SettingsField label="Email" hint="Planned, currently not supported to change">
-              <input className="app-input" type="email" value={email} disabled style={DISABLED_INPUT_STYLE} />
+            <SettingsField label="Email" htmlFor="security-email" hint="Planned, currently not supported to change">
+              <input id="security-email" className="app-input" type="email" value={email} disabled style={DISABLED_INPUT_STYLE} />
             </SettingsField>
 
             {hasPassword ? (
               <>
                 <div className="space-y-4">
-                  <SettingsField label="Current password">
+                  <SettingsField label="Current password" htmlFor="security-current-password">
                     <input
+                      id="security-current-password"
                       className="app-input"
                       type="password"
                       autoComplete="current-password"
@@ -74,8 +75,9 @@ export default function SecuritySection({
                     />
                   </SettingsField>
 
-                  <SettingsField label="New password">
+                  <SettingsField label="New password" htmlFor="security-new-password">
                     <input
+                      id="security-new-password"
                       className="app-input"
                       type="password"
                       autoComplete="new-password"
@@ -86,8 +88,9 @@ export default function SecuritySection({
                     <PasswordRequirements password={form.newPassword} visible={showRules} />
                   </SettingsField>
 
-                  <SettingsField label="Confirm new password">
+                  <SettingsField label="Confirm new password" htmlFor="security-confirm-password">
                     <input
+                      id="security-confirm-password"
                       className="app-input"
                       type="password"
                       autoComplete="new-password"

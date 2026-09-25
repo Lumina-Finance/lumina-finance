@@ -3,6 +3,7 @@ import DateField from '@/components/date-field/DateField'
 import BudgetEditorFieldLabelRow from '@/pages/budgets/components/shared/EditorFieldLabelRow'
 import { RECURRENCE_OPTIONS } from '@/pages/budgets/constants'
 import { cadenceSummary } from '@/pages/budgets/utils/budgetPeriods'
+import { focusChosenOption, getFieldLabelId } from '@/utils/fieldLabel'
 
 interface BudgetEditorModalCadenceSectionProps {
   state: BudgetEditorModalViewState
@@ -51,13 +52,25 @@ export default function BudgetEditorModalCadenceSection({
 
         <div className="grid gap-2.5 md:grid-cols-[10rem_minmax(0,1fr)] md:items-end">
           <div>
-            <span className="app-label mb-1.5 block text-[0.9375rem] leading-5">Type</span>
-            <div className={`app-segmented-control w-full ${fieldsLocked ? 'opacity-60' : ''}`}>
+            <label
+              id={getFieldLabelId(ids.recurrenceType)}
+              className="app-label mb-1.5 block text-[0.9375rem] leading-5"
+              onClick={() => focusChosenOption(ids.recurrenceType)}
+            >
+              Type
+            </label>
+            <div
+              id={ids.recurrenceType}
+              className={`app-segmented-control w-full ${fieldsLocked ? 'opacity-60' : ''}`}
+              role="group"
+              aria-labelledby={getFieldLabelId(ids.recurrenceType)}
+            >
               <button
                 type="button"
                 className={`app-segmented-option flex-1 text-sm ${fieldsLocked ? 'cursor-not-allowed' : ''} ${form.recurs ? 'app-segmented-option-active' : ''}`}
                 onClick={() => onRecursChange(true)}
                 disabled={fieldsLocked}
+                aria-pressed={form.recurs}
               >
                 Recurring
               </button>
@@ -66,6 +79,7 @@ export default function BudgetEditorModalCadenceSection({
                 className={`app-segmented-option flex-1 text-sm ${fieldsLocked ? 'cursor-not-allowed' : ''} ${!form.recurs ? 'app-segmented-option-active' : ''}`}
                 onClick={() => onRecursChange(false)}
                 disabled={fieldsLocked}
+                aria-pressed={!form.recurs}
               >
                 Once
               </button>
@@ -73,11 +87,22 @@ export default function BudgetEditorModalCadenceSection({
           </div>
 
           <div>
-            <span className="app-label mb-1.5 block text-[0.9375rem] leading-5">Frequency</span>
+            <label
+              id={getFieldLabelId(ids.frequency)}
+              className="app-label mb-1.5 block text-[0.9375rem] leading-5"
+              onClick={() => focusChosenOption(ids.frequency)}
+            >
+              Frequency
+            </label>
             {/*
               Edit locks recurrence cadence because changing it requires creating future periods differently
             */}
-            <div className={`app-segmented-control w-full ${recurrenceControlsLocked ? 'opacity-60' : ''}`}>
+            <div
+              id={ids.frequency}
+              className={`app-segmented-control w-full ${recurrenceControlsLocked ? 'opacity-60' : ''}`}
+              role="group"
+              aria-labelledby={getFieldLabelId(ids.frequency)}
+            >
               {RECURRENCE_OPTIONS.map((option) => (
                 <button
                   key={option.value}
@@ -85,6 +110,7 @@ export default function BudgetEditorModalCadenceSection({
                   className={`app-segmented-option flex-1 text-sm ${recurrenceControlsLocked ? 'cursor-not-allowed' : ''} ${form.recurrenceFreq === option.value ? 'app-segmented-option-active' : ''}`}
                   onClick={() => setField('recurrenceFreq', option.value)}
                   disabled={recurrenceControlsLocked}
+                  aria-pressed={form.recurrenceFreq === option.value}
                 >
                   {option.label}
                 </button>

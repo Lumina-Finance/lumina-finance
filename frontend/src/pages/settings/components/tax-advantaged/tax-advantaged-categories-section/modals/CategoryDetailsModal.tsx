@@ -14,6 +14,9 @@ import TaxAdvantagedOpeningUsageLabel from '@/pages/settings/components/tax-adva
 
 const COUNTS_INTERNAL_TRANSFERS_FIELD_ID = 'tac-details-counts-internal-transfers'
 const TAX_TREATMENT_FIELD_ID = 'tac-details-tax-treatment'
+const NAME_FIELD_ID = 'tac-details-name'
+const LIFETIME_LIMIT_FIELD_ID = 'tac-details-lifetime-limit'
+const OPENING_USAGE_FIELD_ID = 'tac-details-opening-usage'
 
 interface TaxAdvantagedCategoryDetailsModalProps {
   currencies: Currency[]
@@ -94,13 +97,14 @@ export default function TaxAdvantagedCategoryDetailsModal({
               </div>
             </div>
             <div className="min-w-0">
-              <span className="app-label mb-0.5 block text-xs">Name</span>
+              <label htmlFor={NAME_FIELD_ID} className="app-label mb-0.5 block text-xs">Name</label>
               <div
                 className="group flex h-8 w-full items-center gap-1.5 rounded-md border border-transparent px-2 transition-colors duration-150 hover:border-[var(--app-border)] focus-within:border-[var(--app-accent-border)]"
                 style={{ background: 'color-mix(in srgb, var(--app-input-bg) 55%, var(--app-bg))' }}
               >
                 <input
                   aria-label="TAC name"
+                  id={NAME_FIELD_ID}
                   className="block h-7 min-w-0 flex-1 bg-transparent text-[0.9375rem] font-medium leading-7 outline-none"
                   maxLength={256}
                   onChange={(event) => onPlanFieldChange('name', event.target.value)}
@@ -133,9 +137,10 @@ export default function TaxAdvantagedCategoryDetailsModal({
             </div>
             <div className="grid min-w-0 grid-cols-1 gap-3 min-[620px]:grid-cols-2">
               <div className="min-w-0">
-                <span className="app-label mb-1 block text-xs">Lifetime limit</span>
+                <label htmlFor={LIFETIME_LIMIT_FIELD_ID} className="app-label mb-1 block text-xs">Lifetime limit</label>
                 <CompactCurrencyInput
                   ariaLabel="Lifetime limit"
+                  id={LIFETIME_LIMIT_FIELD_ID}
                   currencies={currencies}
                   currency={plan.currency}
                   value={planForm.lifetime_contribution_limit}
@@ -144,11 +149,12 @@ export default function TaxAdvantagedCategoryDetailsModal({
                 />
               </div>
               <div className="min-w-0">
-                <span className="app-label mb-1 block text-xs">
+                <label htmlFor={OPENING_USAGE_FIELD_ID} className="app-label mb-1 block text-xs">
                   <TaxAdvantagedOpeningUsageLabel />
-                </span>
+                </label>
                 <CompactCurrencyInput
                   ariaLabel="Opening usage"
+                  id={OPENING_USAGE_FIELD_ID}
                   currencies={currencies}
                   currency={plan.currency}
                   value={planForm.accrued_contributions}

@@ -10,6 +10,7 @@ import { useMinimumVisibleFlag } from '@/hooks/useMinimumVisibleFlag'
 import { useAuth } from '@/hooks/useAuth'
 import { useCacheValidation } from '@/hooks/useCacheValidation'
 import { useTheme } from '@/hooks/useTheme'
+import { useLabelFocus } from '@/hooks/useLabelFocus'
 import Navigation from '@/components/navigation/Navigation'
 import ErrorBoundary from '@/components/errors/Boundary'
 import Fallback from '@/components/errors/Fallback'
@@ -409,6 +410,7 @@ function AnimatedRoutes() {
 
 function AppShell() {
   useTheme();
+  useLabelFocus();
   return (
     <NavCollapseProvider>
       <AnimatedRoutes />

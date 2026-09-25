@@ -23,6 +23,8 @@ const CREATE_FIELD_IDS: BudgetEditorModalFieldIds = {
   currency: 'budget-currency',
   limit: 'budget-limit',
   interval: 'budget-interval',
+  recurrenceType: 'budget-recurrence-type',
+  frequency: 'budget-frequency',
   periodStart: 'budget-period-start',
   categorySearch: 'budget-category-search',
   categoryError: 'categoryIds-error',

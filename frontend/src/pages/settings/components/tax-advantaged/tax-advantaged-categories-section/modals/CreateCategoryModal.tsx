@@ -75,7 +75,7 @@ export default function CreateTaxAdvantagedCategoryModal({
             <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Identity</p>
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <span className="app-label mb-1.5 block text-[0.9375rem] leading-5">Category name</span>
+                <label htmlFor={CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.name} className="app-label mb-1.5 block text-[0.9375rem] leading-5">Category name</label>
                 <input
                   id={CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.name}
                   className="app-input"
@@ -130,7 +130,7 @@ export default function CreateTaxAdvantagedCategoryModal({
                 />
               </div>
               <div>
-                <span className="app-label mb-1.5 block text-[0.9375rem] leading-5">Lifetime Contribution Limit</span>
+                <label htmlFor={CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.lifetimeContributionLimit} className="app-label mb-1.5 block text-[0.9375rem] leading-5">Lifetime Contribution Limit</label>
                 <CurrencyInput
                   id={CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.lifetimeContributionLimit}
                   currencies={currencies}
@@ -141,7 +141,7 @@ export default function CreateTaxAdvantagedCategoryModal({
                 />
               </div>
               <div>
-                <span className="app-label mb-1.5 block text-[0.9375rem] leading-5">Accrued Contributions</span>
+                <label htmlFor={CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.accruedContributions} className="app-label mb-1.5 block text-[0.9375rem] leading-5">Accrued Contributions</label>
                 <CurrencyInput
                   id={CREATE_TAX_ADVANTAGED_CATEGORY_FIELD_IDS.accruedContributions}
                   currencies={currencies}

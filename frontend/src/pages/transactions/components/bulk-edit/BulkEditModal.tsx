@@ -447,7 +447,7 @@ export function BulkEditModal({
             </div>
 
             <div className="sm:col-span-2">
-              <CreateModalFieldLabelRow label="Direction" />
+              <CreateModalFieldLabelRow label="Direction" optionGroupId="bulk-direction" />
               <div className="relative rounded-lg">
                 <AnimatePresence initial={false}>
                   {directionHighlightKey > 0 && (
@@ -463,6 +463,7 @@ export function BulkEditModal({
                   )}
                 </AnimatePresence>
                 <TransactionModalPillSelector
+                  id="bulk-direction"
                   value={effectiveDirection ?? 'unchanged'}
                   options={BULK_DIRECTION_OPTIONS}
                   ariaLabel="Transaction direction"

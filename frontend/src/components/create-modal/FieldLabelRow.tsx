@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { joinClassNames } from '@/utils/classNames'
-import { getFieldLabelId } from '@/utils/fieldLabel'
+import { focusChosenOption, getFieldLabelId } from '@/utils/fieldLabel'
 
 const ACTION_SLOT_EASE = [0.25, 0.1, 0.25, 1] as const
 
@@ -14,6 +14,10 @@ interface CreateModalFieldLabelRowProps {
   error?: string | false
   htmlFor?: string
   label: ReactNode
+
+  // Id of a segmented control the label stands over in place of htmlFor, whose chosen option a click
+  // on the label brings into focus
+  optionGroupId?: string
 }
 
 /**
@@ -26,6 +30,7 @@ export default function CreateModalFieldLabelRow({
   error,
   htmlFor,
   label,
+  optionGroupId,
 }: CreateModalFieldLabelRowProps) {
   const hasActionSlot = action !== undefined
 
@@ -41,6 +46,7 @@ export default function CreateModalFieldLabelRow({
           id={htmlFor && getFieldLabelId(htmlFor)}
           htmlFor={htmlFor}
           className="app-label block shrink-0 text-[0.9375rem] leading-5"
+          onClick={optionGroupId ? () => focusChosenOption(optionGroupId) : undefined}
         >
           {label}
         </label>

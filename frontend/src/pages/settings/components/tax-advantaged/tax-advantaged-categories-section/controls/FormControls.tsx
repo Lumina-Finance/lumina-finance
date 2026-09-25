@@ -97,6 +97,7 @@ export function CompactCurrencyInput({
   ariaLabel,
   currencies,
   currency,
+  id,
   onBlur,
   onChange,
   placeholder,
@@ -105,6 +106,7 @@ export function CompactCurrencyInput({
   ariaLabel: string
   currencies: Currency[]
   currency: string
+  id?: string
   onBlur?: () => void
   onChange: (value: string) => void
 
@@ -134,6 +136,7 @@ export function CompactCurrencyInput({
       )}
       <input
         aria-label={ariaLabel}
+        id={id}
         className="block h-8 min-w-0 flex-1 bg-transparent text-[0.9375rem] font-medium leading-8 outline-none"
         style={{ color: 'var(--app-text)' }}
         placeholder={placeholder ?? getMoneyPlaceholder(exponent)}
