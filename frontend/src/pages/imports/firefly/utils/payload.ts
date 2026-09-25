@@ -211,7 +211,7 @@ export function buildFireflyImportPayload({
  * An endpoint the import writes to is sent as its account source alone, so the backend never works
  * out from the Firefly III type which endpoints are accounts. Another endpoint's name is sent only
  * where it becomes the merchant, and a category only where the row is written with it, so a long
- * value the import never writes cannot fail the batch and a batch of transfers maps no category
+ * value the import never writes cannot fail the import and an export of only transfers maps no category
  */
 function buildFireflyImportRows(
   rows: CsvRow[],

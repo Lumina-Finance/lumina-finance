@@ -19,11 +19,11 @@ from app.schemas.transaction import TransactionImportAccountMapping, Transaction
 from app.services.accounts.snapshots import recompute_account_snapshots
 from app.services.cache_state import mark_cache_changed_for_scope, mark_user_cache_changed
 from app.services.categories.transfer_rules import does_category_record_counterparty_account
-from app.services.importers.firefly.constants import FIREFLY_GENERIC_SKIP_REASON
+from app.services.importers.firefly.constants import FIREFLY_GENERIC_REFUSAL_REASON
 from app.services.importers.firefly.row_resolution import (
     FireflyLeg,
     FireflyResolutionContext,
-    FireflyRowSkipError,
+    FireflyRowRefusedError,
     resolve_firefly_row,
 )
 from app.services.importers.firefly.system_categories import get_firefly_system_categories
@@ -174,8 +174,8 @@ def _resolve_rows(
         try:
             legs_by_row.append(resolve_firefly_row(row, context))
             continue
-        except FireflyRowSkipError as skip:
-            status_code, reason = status.HTTP_422_UNPROCESSABLE_CONTENT, skip.reason
+        except FireflyRowRefusedError as refusal:
+            status_code, reason = status.HTTP_422_UNPROCESSABLE_CONTENT, refusal.reason
         except HTTPException as exc:
 
             # The frontend must supply a mapping for every source a row names, so one it cannot use
@@ -183,10 +183,10 @@ def _resolve_rows(
             status_code, reason = exc.status_code, exc.detail
         except Exception:
 
-            # A row failing in a way no skip rule anticipated is refused with a generic reason, and
+            # A row failing in a way no refusal rule anticipated is refused with a generic reason, and
             # the specifics are kept in the server log
             logger.exception("Firefly III journal %s could not be converted", row.journal_id)
-            status_code, reason = status.HTTP_422_UNPROCESSABLE_CONTENT, FIREFLY_GENERIC_SKIP_REASON
+            status_code, reason = status.HTTP_422_UNPROCESSABLE_CONTENT, FIREFLY_GENERIC_REFUSAL_REASON
 
         raise HTTPException(
             status_code=status_code,

@@ -34,7 +34,7 @@ import { parseYmd } from '@/utils/date'
  *
  * A well-shaped value that is not a real date, like the 31st of February, is
  * unparseable too, so such rows fail here instead of failing the whole
- * upload batch on the backend
+ * import on the backend
  */
 export function getFireflyRowDate(value: string) {
   const match = value.trim().match(/^(\d{4}-\d{2}-\d{2})/)
@@ -226,10 +226,8 @@ export function countCharacters(value: string): number {
 /**
  * Returns why a row holds a value past what the import endpoint takes, or null
  *
- * The API refuses the whole request for any of them, and a Firefly import commits
- * each batch as it goes, so one such row part-way through an export would
- * leave the batches before it in the ledger with no way to retry the rest.
- * Dropping the row before upload is what the overlong tag above already does
+ * The server refuses the whole import for any of them, so the row is dropped
+ * before upload, as the overlong tag above already is
  */
 export function getFireflyRowOverLimitReason(row: CsvRow, groupSizes: FireflySplitGroupSizes): string | null {
   const tagCount = splitFireflyTags(row.tags ?? '').length

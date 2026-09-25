@@ -582,7 +582,7 @@ async def test_firefly_import_refuses_an_unconvertible_row_naming_it(client, ove
 
 
 async def test_firefly_import_refuses_unexpected_row_failures_generically(client, monkeypatch):
-    """A row failing outside the known skip rules refuses the import with a generic reason."""
+    """A row failing outside the known refusal rules refuses the import with a generic reason."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 

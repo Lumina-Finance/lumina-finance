@@ -12,8 +12,8 @@ FIREFLY_TYPE_RECONCILIATION = "reconciliation"
 FIREFLY_NO_CATEGORY_SOURCE = "(no category)"
 
 # Client-facing reason for rows that fail conversion in a way no specific
-# skip rule anticipated, the specifics go to the server log instead
-FIREFLY_GENERIC_SKIP_REASON = "Row could not be converted"
+# refusal rule anticipated, the specifics go to the server log instead
+FIREFLY_GENERIC_REFUSAL_REASON = "Row could not be converted"
 
 # System category names used for rows that move money between two imported
 # accounts instead of categorized spending or income

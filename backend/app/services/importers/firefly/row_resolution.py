@@ -29,11 +29,11 @@ from app.utils.money import (
 )
 
 
-class FireflyRowSkipError(Exception):
+class FireflyRowRefusedError(Exception):
     """Raised when a Firefly III row cannot be converted into Lumina legs"""
 
     def __init__(self, reason: str) -> None:
-        """Store the client-facing skip reason
+        """Store the client-facing refusal reason
 
         Args:
             reason: Why the row cannot be converted
@@ -102,7 +102,7 @@ def resolve_firefly_row(row: FireflyTransactionRow, context: FireflyResolutionCo
         Transaction legs the row produces
 
     Raises:
-        FireflyRowSkipError: Raised when the row cannot be converted
+        FireflyRowRefusedError: Raised when the row cannot be converted
         HTTPException: Raised with 422 when a tracked account or category is not mapped
     """
     journal_type = row.type.strip().lower()
@@ -121,7 +121,7 @@ def resolve_firefly_row(row: FireflyTransactionRow, context: FireflyResolutionCo
 
     if journal_type == FIREFLY_TYPE_WITHDRAWAL:
         if source_account is None:
-            raise FireflyRowSkipError("Withdrawal source is not an imported account")
+            raise FireflyRowRefusedError("Withdrawal source is not an imported account")
         category = _resolve_row_category(row, source_account, context)
         return [FireflyLeg(
             account=source_account,
@@ -135,7 +135,7 @@ def resolve_firefly_row(row: FireflyTransactionRow, context: FireflyResolutionCo
 
     if journal_type == FIREFLY_TYPE_DEPOSIT:
         if destination_account is None:
-            raise FireflyRowSkipError("Deposit destination is not an imported account")
+            raise FireflyRowRefusedError("Deposit destination is not an imported account")
         category = _resolve_row_category(row, destination_account, context)
         return [FireflyLeg(
             account=destination_account,
@@ -148,9 +148,9 @@ def resolve_firefly_row(row: FireflyTransactionRow, context: FireflyResolutionCo
         )]
 
     if journal_type == FIREFLY_TYPE_TRANSFER:
-        raise FireflyRowSkipError("Transfer endpoint is not an imported account")
+        raise FireflyRowRefusedError("Transfer endpoint is not an imported account")
 
-    raise FireflyRowSkipError(
+    raise FireflyRowRefusedError(
         f'Journal type "{row.type.strip()}" is not supported, the importer handles'
         " withdrawals, deposits, transfers, opening balances, and reconciliations",
     )
@@ -176,13 +176,13 @@ def _resolve_transfer_pair(
         Outgoing and incoming transfer legs, each recording the other endpoint
 
     Raises:
-        FireflyRowSkipError: Raised when both endpoints resolve to one account
+        FireflyRowRefusedError: Raised when both endpoints resolve to one account
     """
     # Two names in the file can be mapped onto one account, which is how a renamed account is
     # carried across. The pair would then be two cancelling rows in that account, a shape the API
     # refuses when a person enters it by hand
     if source_account.id == destination_account.id:
-        raise FireflyRowSkipError("Transfer source and destination resolve to the same account")
+        raise FireflyRowRefusedError("Transfer source and destination resolve to the same account")
 
     return [
         FireflyLeg(
@@ -232,11 +232,11 @@ def _resolve_balance_row(
         Single balance adjustment leg
 
     Raises:
-        FireflyRowSkipError: Raised when neither endpoint is an imported account
+        FireflyRowRefusedError: Raised when neither endpoint is an imported account
     """
     account = destination_account or source_account
     if account is None:
-        raise FireflyRowSkipError("Opening balance or reconciliation row is not attached to an imported account")
+        raise FireflyRowRefusedError("Opening balance or reconciliation row is not attached to an imported account")
 
     amount = _get_amount_in_account_currency(row, account, context)
     return [FireflyLeg(
@@ -312,7 +312,7 @@ def _get_amount_in_account_currency(
         Absolute amount in account-currency minor units
 
     Raises:
-        FireflyRowSkipError: Raised when no amount is available in the account currency,
+        FireflyRowRefusedError: Raised when no amount is available in the account currency,
             when the raw amount cannot be parsed or has too many decimal places, or when
             its magnitude cannot be stored
     """
@@ -321,7 +321,7 @@ def _get_amount_in_account_currency(
     elif row.foreign_currency_code and row.foreign_amount and row.foreign_currency_code.upper() == account.currency:
         raw_amount = row.foreign_amount
     else:
-        raise FireflyRowSkipError(
+        raise FireflyRowRefusedError(
             f"Neither the amount nor the foreign amount is in the account's currency ({account.currency})",
         )
 
@@ -333,19 +333,19 @@ def _get_amount_in_account_currency(
             minor_unit_exponent=currency.minor_unit_exponent,
         )
     except DecimalAmountPrecisionError as exc:
-        raise FireflyRowSkipError(
+        raise FireflyRowRefusedError(
             f"The amount has more decimal places than {currency.id} has. "
             "A period is read as a decimal point, never as a separator between thousands.",
         ) from exc
     except DecimalAmountParseError as exc:
-        raise FireflyRowSkipError(f'Invalid amount "{raw_amount}"') from exc
+        raise FireflyRowRefusedError(f'Invalid amount "{raw_amount}"') from exc
 
     # This path stores the magnitude rather than the parsed value, and the signed range
     # holds one more value below zero than above it, so negating the smallest amount the
     # parser accepts produces one the column cannot take
     absolute_amount = abs(amount)
     if absolute_amount > MAX_MINOR_UNITS:
-        raise FireflyRowSkipError(f'Amount is too large: "{raw_amount}"')
+        raise FireflyRowRefusedError(f'Amount is too large: "{raw_amount}"')
     return absolute_amount
 
 

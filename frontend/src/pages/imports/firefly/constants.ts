@@ -46,7 +46,7 @@ export const FIREFLY_BUDGET_ACTIVE_VALUE = '1'
  * Longest tag name a Lumina tag can hold, mirroring the backend cap
  *
  * Firefly III allows longer tags, and a row carrying one would fail the
- * whole upload batch on the backend, so such rows are dropped before upload
+ * whole import on the backend, so such rows are dropped before upload
  * with the tag named instead
  */
 export const FIREFLY_TAG_NAME_MAX_LENGTH = 64
@@ -58,7 +58,7 @@ export const FIREFLY_ACCOUNT_NAME_MAX_LENGTH = 256
  * Longest value the import endpoint takes in each row field, mirroring the backend schema
  *
  * An export can still hold a longer value, from Firefly III's longer text fields or a hand-edited
- * file, and one such row would fail its whole upload batch, so it is dropped before upload with
+ * file, and one such row would fail the whole import, so it is dropped before upload with
  * the field named instead
  */
 export const FIREFLY_ROW_FIELD_MAX_LENGTHS = {
@@ -91,7 +91,7 @@ export const FIREFLY_BUDGET_NO_LIMITS_REASON = 'The export has no limit periods 
 /**
  * Why a budget whose export rows carry dates that name no real day is never
  * imported, since a corrupted file should be refused before upload rather
- * than failing the whole budget batch on the backend
+ * than failing the whole import on the backend
  */
 export const FIREFLY_BUDGET_UNREADABLE_DATES_REASON = 'A limit period date in the export is not a real calendar date'
 
