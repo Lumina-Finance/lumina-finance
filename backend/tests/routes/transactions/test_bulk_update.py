@@ -2244,9 +2244,9 @@ async def test_concurrent_firefly_import_waits_for_bulk_rebuild_and_preserves_to
             "categories": [{"source": "Groceries", "category_id": category_id}],
             "rows": [{
                 "journal_id": "bulk-concurrency",
-                "type": "Withdrawal",
+                "type": "withdrawal",
                 "dt": "2026-08-01",
-                "amount": "-20.00",
+                "amount": "20.00",
                 "currency_code": "CAD",
                 "description": "Weekly groceries",
                 "source_account": "Main Chequing",

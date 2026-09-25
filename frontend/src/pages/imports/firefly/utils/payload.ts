@@ -37,6 +37,7 @@ import {
   isFireflyPayeeRow,
   isFireflyRowUploadable,
   splitFireflyTags,
+  toFireflyUnsignedAmount,
 } from './derivation'
 
 /**
@@ -208,6 +209,10 @@ export function buildFireflyImportPayload({
 /**
  * Compiles journal rows into the backend row shape, leaving out the rows predicted to be skipped
  *
+ * Every value goes in the one form the endpoint takes, which refuses any other rather than
+ * cleaning it up: a lowercased type, amounts without their sign, and trimmed text, with a
+ * missing value sent as null
+ *
  * An endpoint the import writes to is sent as its account source alone, so the backend never works
  * out from the Firefly III type which endpoints are accounts. Another endpoint's name is sent only
  * where it becomes the merchant, and a category only where the row is written with it, so a long
@@ -245,11 +250,11 @@ function buildFireflyImportRows(
 
     payloadRows.push({
       journal_id: row.journal_id.trim(),
-      type: row.type.trim(),
+      type: row.type.trim().toLowerCase(),
       dt: getFireflyRowDate(row.date ?? ''),
-      amount: main.amount,
+      amount: toFireflyUnsignedAmount(main.amount),
       currency_code: main.currencyCode,
-      foreign_amount: foreign?.amount ?? null,
+      foreign_amount: foreign ? toFireflyUnsignedAmount(foreign.amount) : null,
       foreign_currency_code: foreign?.currencyCode ?? null,
       description: cleanOptional(row.description),
       source_account: sourceAccount?.id ?? null,

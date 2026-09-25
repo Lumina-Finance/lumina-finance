@@ -6,8 +6,11 @@ from app.schemas.firefly_import import (
     MAX_BUDGET_LIMIT_PERIODS,
     MAX_FIREFLY_BUDGET_CATEGORIES,
     MAX_FIREFLY_BUDGETS,
+    CurrencyCode,
     FireflyBudgetLimit,
     FireflyBudgetRecurrence,
+    TrimmedImportText,
+    UniqueTrimmedImportTexts,
 )
 from app.schemas.transaction import MAX_IMPORT_MAPPINGS, TransactionImportCategoryMapping
 
@@ -19,9 +22,9 @@ class ImportBudgetDraft(BaseModel):
     source, since a category the same import creates has no id until the commit
     """
 
-    name: str = Field(min_length=1, max_length=256)
-    currency: str = Field(min_length=3, max_length=3)
-    category_sources: list[str] = Field(min_length=1, max_length=MAX_FIREFLY_BUDGET_CATEGORIES)
+    name: TrimmedImportText = Field(max_length=256)
+    currency: CurrencyCode
+    category_sources: list[TrimmedImportText] = Field(min_length=1, max_length=MAX_FIREFLY_BUDGET_CATEGORIES)
     limits: list[FireflyBudgetLimit] = Field(min_length=1, max_length=MAX_BUDGET_LIMIT_PERIODS)
     recurrence: FireflyBudgetRecurrence | None
     is_archived: bool = False
@@ -41,7 +44,7 @@ class ImportRunBudgetsRequest(BaseModel):
 class ImportRunArchiveRequest(BaseModel):
     """Every account a run archives once everything else is written, replacing what it held
 
-    Each is named by the account mapping source it resolves through
+    Each is named once, by the account mapping source it resolves through
     """
 
-    account_sources: list[str] = Field(default=[], max_length=MAX_IMPORT_MAPPINGS)
+    account_sources: UniqueTrimmedImportTexts = Field(default=[], max_length=MAX_IMPORT_MAPPINGS)

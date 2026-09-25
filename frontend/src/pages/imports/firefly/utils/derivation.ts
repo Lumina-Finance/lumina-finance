@@ -94,6 +94,14 @@ export function getFireflyRowAmounts(row: CsvRow): {
   return main ? { main, foreign } : { main: foreign, foreign: null }
 }
 
+/**
+ * Drops the sign from an amount the export writes, since the import endpoint takes magnitudes and
+ * reads the direction from the journal type and the imported side
+ */
+export function toFireflyUnsignedAmount(amount: string) {
+  return amount.replace(/^[+-]/, '')
+}
+
 function readFireflyCurrencyAmount(amount: string | undefined, currencyCode: string | undefined) {
   const trimmedAmount = amount?.trim() ?? ''
   const code = readFireflyCurrencyCode(currencyCode)

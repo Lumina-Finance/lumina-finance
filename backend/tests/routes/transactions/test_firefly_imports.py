@@ -22,9 +22,9 @@ def _firefly_row(**overrides):
     """
     row = {
         "journal_id": "1",
-        "type": "Withdrawal",
+        "type": "withdrawal",
         "dt": "2026-04-10",
-        "amount": "-45.67",
+        "amount": "45.67",
         "currency_code": "CAD",
         "description": "Weekly groceries",
         "source_account": "Everyday Chequing",
@@ -78,7 +78,7 @@ async def test_firefly_import_creates_expense_and_income_rows(client):
             _firefly_row(notes="Bought extra snacks", tag_names=["food"]),
             _firefly_row(
                 journal_id="2",
-                type="Deposit",
+                type="deposit",
                 amount="2410.66",
                 description="Biweekly salary",
                 source_account=None,
@@ -124,7 +124,7 @@ async def test_firefly_import_converts_transfers_into_two_legs(client):
         ],
         "categories": [],
         "rows": [_firefly_row(
-            type="Transfer",
+            type="transfer",
             amount="500.00",
             description="Automatic savings contribution",
             destination_account="High Interest Savings",
@@ -175,7 +175,7 @@ async def test_firefly_import_records_accounts_it_creates_as_each_other_s_other_
         ],
         "categories": [],
         "rows": [_firefly_row(
-            type="Transfer",
+            type="transfer",
             amount="500.00",
             description="Automatic savings contribution",
             destination_account="High Interest Savings",
@@ -212,7 +212,7 @@ async def test_firefly_transfer_legs_are_stamped_with_the_self_merchant(client):
         ],
         "categories": [],
         "rows": [_firefly_row(
-            type="Transfer",
+            type="transfer",
             amount="500.00",
             destination_account="High Interest Savings",
             destination_name=None,
@@ -289,7 +289,7 @@ async def test_firefly_imported_internal_transfer_is_left_out_of_the_limit_total
         ],
         "categories": [],
         "rows": [_firefly_row(
-            type="Transfer",
+            type="transfer",
             dt=f"{current_year}-04-10",
             amount="5000.00",
             description="Moved into investments",
@@ -324,7 +324,7 @@ async def test_firefly_import_refuses_a_transfer_between_two_names_for_one_accou
         ],
         "categories": [],
         "rows": [_firefly_row(
-            type="Transfer",
+            type="transfer",
             amount="500.00",
             description="Carried across from the renamed account",
             source_account="Chequing (old)",
@@ -357,7 +357,7 @@ async def test_firefly_import_uses_foreign_amount_for_cross_currency_transfers(c
         ],
         "categories": [],
         "rows": [_firefly_row(
-            type="Transfer",
+            type="transfer",
             amount="243.95",
             foreign_currency_code="USD",
             foreign_amount="176.07",
@@ -394,7 +394,7 @@ async def test_firefly_import_converts_liability_withdrawals_to_transfers(client
         ],
         "categories": [],
         "rows": [_firefly_row(
-            amount="-385",
+            amount="385",
             description="Car loan payment",
             destination_account="Car Loan",
             destination_name=None,
@@ -433,7 +433,7 @@ async def test_firefly_import_keeps_same_named_asset_and_loan_apart(client):
         "categories": [],
         "rows": [
             _firefly_row(
-                type="Opening balance",
+                type="opening balance",
                 amount="1000.00",
                 source_account=None,
                 source_name='Initial balance for "Car"',
@@ -443,7 +443,7 @@ async def test_firefly_import_keeps_same_named_asset_and_loan_apart(client):
             ),
             _firefly_row(
                 journal_id="2",
-                type="Opening balance",
+                type="opening balance",
                 amount="5000.00",
                 source_account="account-2",
                 destination_name='Initial balance for "Car"',
@@ -451,7 +451,7 @@ async def test_firefly_import_keeps_same_named_asset_and_loan_apart(client):
             ),
             _firefly_row(
                 journal_id="3",
-                amount="-385.00",
+                amount="385.00",
                 source_account="account-1",
                 destination_account="account-2",
                 destination_name=None,
@@ -494,7 +494,7 @@ async def test_firefly_import_applies_opening_balance_direction(client):
         "categories": [],
         "rows": [
             _firefly_row(
-                type="Opening balance",
+                type="opening balance",
                 dt="2023-12-31",
                 amount="4250.00",
                 description='Initial balance for "Everyday Chequing"',
@@ -506,7 +506,7 @@ async def test_firefly_import_applies_opening_balance_direction(client):
             ),
             _firefly_row(
                 journal_id="2",
-                type="Opening balance",
+                type="opening balance",
                 dt="2023-12-31",
                 amount="18500.00",
                 description='Initial balance for "Car Loan"',
@@ -543,27 +543,13 @@ async def test_firefly_import_applies_opening_balance_direction(client):
 
 
 @pytest.mark.parametrize(("overrides", "reason"), [
-    ({"type": "Liability credit"}, (
-        'Journal type "Liability credit" is not supported, the importer handles'
-        " withdrawals, deposits, transfers, opening balances, and reconciliations"
-    )),
     ({"currency_code": "EUR"}, "Neither the amount nor the foreign amount is in the account's currency (CAD)"),
     ({"amount": "12.345"}, (
         "The amount has more decimal places than CAD has. "
         "A period is read as a decimal point, never as a separator between thousands."
     )),
-    ({"amount": "١٢.٣٤"}, 'Invalid amount "١٢.٣٤"'),
-    ({"amount": "12.34\u001c"}, 'Invalid amount "12.34\u001c"'),
-    ({"amount": "10.00", "currency_code": "USD", "foreign_amount": "١٢.٣٤", "foreign_currency_code": "CAD"}, 'Invalid amount "١٢.٣٤"'),
-    ({"amount": "twelve"}, 'Invalid amount "twelve"'),
-    ({"amount": " 12.34 "}, 'Invalid amount " 12.34 "'),
-    ({"amount": "1,234.56"}, 'Invalid amount "1,234.56"'),
-    ({"amount": "10.00", "currency_code": "USD", "foreign_amount": "1,234.56", "foreign_currency_code": "CAD"}, 'Invalid amount "1,234.56"'),
     # Past the signed 64-bit range, which would otherwise crash at flush
     ({"amount": "99999999999999999999.00"}, 'Invalid amount "99999999999999999999.00"'),
-    # The one amount that parses but cannot be stored once negated, since this path writes the
-    # magnitude and the signed range holds one more value below zero than above it
-    ({"amount": "-92233720368547758.08"}, 'Amount is too large: "-92233720368547758.08"'),
 ])
 async def test_firefly_import_refuses_an_unconvertible_row_naming_it(client, overrides, reason):
     """The browser leaves out rows it can tell will not convert, so one that arrives fails the whole import."""
@@ -578,6 +564,40 @@ async def test_firefly_import_refuses_an_unconvertible_row_naming_it(client, ove
 
     assert resp.status_code == 422
     assert resp.json()["detail"] == f"Firefly III journal 2: {reason}"
+    assert (await client.get("/transactions", headers=headers)).json() == []
+
+
+@pytest.mark.parametrize("overrides", [
+    {"type": "Withdrawal"},
+    {"type": "liability credit"},
+    {"amount": "-45.67"},
+    {"amount": "+45.67"},
+    {"amount": " 45.67 "},
+    {"amount": "١٢.٣٤"},
+    {"amount": "1,234.56"},
+    {"amount": "12.34\u001c"},
+    {"currency_code": "cad"},
+    {"foreign_amount": "10.00"},
+    {"foreign_currency_code": "USD"},
+    {"description": " Weekly groceries"},
+    {"destination_name": "Neighbourhood Grocer\u00a0"},
+    {"category": ""},
+    {"tag_names": [" food"]},
+    {"tag_names": ["food", "food"]},
+])
+async def test_firefly_import_refuses_a_row_the_import_screen_would_have_cleaned(client, overrides):
+    """The import screen sends every value in its one canonical form, so any other form is refused."""
+    headers = _get_auth_header(await _create_user(client))
+
+    resp = await _import_firefly(client, headers, {
+        "accounts": [_chequing_mapping()],
+        "categories": [{"source": "Groceries", "create": {"name": "Groceries", "kind": "expense"}}],
+        "rows": [_firefly_row(**overrides)],
+    })
+
+    # Request validation answers with a list of field errors, where a refusal later on names a reason
+    assert resp.status_code == 422
+    assert isinstance(resp.json()["detail"], list)
     assert (await client.get("/transactions", headers=headers)).json() == []
 
 
@@ -752,7 +772,7 @@ async def test_firefly_import_refuses_two_new_categories_differing_only_in_capit
             _firefly_row(category="Road Trips"),
             _firefly_row(
                 journal_id="2",
-                type="Deposit",
+                type="deposit",
                 amount="80.00",
                 source_account=None,
                 source_name="Airline",

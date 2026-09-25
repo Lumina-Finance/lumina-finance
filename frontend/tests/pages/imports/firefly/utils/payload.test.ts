@@ -131,7 +131,8 @@ describe('a Firefly account the user can only read', () => {
 
 
 describe('Firefly amount payloads', () => {
-  it('trims primary and foreign decimal text without changing their digits', () => {
+  // The endpoint takes the one canonical form of each value and reads direction from the type
+  it('sends a lowercased type and unsigned amounts, trimmed without changing their digits', () => {
     const result = buildWithMapping(CHEQUING.id, [CHEQUING], {
       ...ROW,
       amount: ' \t-1234.5600\n',
@@ -141,8 +142,9 @@ describe('Firefly amount payloads', () => {
 
     expect(result.errors).toEqual([])
     expect(result.payload?.rows[0]).toMatchObject({
-      amount: '-1234.5600',
-      foreign_amount: '-100.99',
+      type: 'withdrawal',
+      amount: '1234.5600',
+      foreign_amount: '100.99',
     })
   })
 })
@@ -519,7 +521,7 @@ describe('the Firefly row values the payload sends', () => {
     const row = { ...ROW, currency_code: 'USDT', foreign_amount: '-16.80', foreign_currency_code: 'cad' }
 
     expect(build(row).payload?.rows[0]).toMatchObject({
-      amount: '-16.80',
+      amount: '16.80',
       currency_code: 'CAD',
       foreign_amount: null,
       foreign_currency_code: null,
@@ -530,7 +532,7 @@ describe('the Firefly row values the payload sends', () => {
     const row = { ...ROW, foreign_amount: '-9.10', foreign_currency_code: 'USDT' }
 
     expect(build(row).payload?.rows[0]).toMatchObject({
-      amount: '-12.34',
+      amount: '12.34',
       currency_code: 'CAD',
       foreign_amount: null,
       foreign_currency_code: null,
@@ -717,7 +719,7 @@ describe('a real Firefly III export with splits, transfers and balance rows', ()
 
     const batches = await buildFireflyStageBatches(payload)
     const lastBatch = batches[batches.length - 1]
-    expect(lastBatch.rows.every((row) => row.type === 'Transfer')).toBe(true)
+    expect(lastBatch.rows.every((row) => row.type === 'transfer')).toBe(true)
     expect(lastBatch.categories).toEqual([])
     expect(lastBatch.accounts.map((mapping) => mapping.source)).toEqual([checking.id, savings.id])
   })

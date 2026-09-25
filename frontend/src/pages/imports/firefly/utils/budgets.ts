@@ -40,6 +40,7 @@ import {
   getFireflySplitGroupSizes,
   isFireflyCategoryUseRow,
   isFireflyRowUploadable,
+  toFireflyUnsignedAmount,
 } from './derivation'
 import { resolveFireflyRowLegs, type FireflyRowResolutionOptions } from './rowResolution'
 
@@ -194,7 +195,8 @@ export function buildFireflyRunBudgets(
       name: draft.name,
       currency: draft.currencyCode,
       category_sources: categorySources,
-      limits: draft.limits,
+      // Only a limit above zero is importable, so this drops no more than a plus sign
+      limits: draft.limits.map((limit) => ({ ...limit, amount: toFireflyUnsignedAmount(limit.amount) })),
       recurrence: draft.recurrence,
       is_archived: draft.isArchived,
     }

@@ -145,18 +145,11 @@ def _resolve_budget_categories(
         The budget as the budget import takes it
 
     Raises:
-        HTTPException: Raised with 422 naming the budget when a category source is blank or has no
-            mapping in the run
+        HTTPException: Raised with 422 naming the budget when a category source has no mapping in
+            the run
     """
     category_ids = []
-    for category_source in draft.category_sources:
-        # Trimmed as the category mappings are, so a source here names the same mapping
-        source = category_source.strip()
-        if not source:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=f"{draft.name}: a category source is blank",
-            )
+    for source in draft.category_sources:
         category = categories_by_source.get(source)
         if category is None:
             raise HTTPException(

@@ -203,10 +203,7 @@ async def stage_import_archive(db: AsyncSession, run_id: uuid.UUID, data: Import
     if run.source == ImportRunSource.GENERIC:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="A CSV import archives no accounts")
 
-    # Trimmed as the account mappings are, so a source here names the same mapping, and each kept
-    # once since archiving an account twice is archiving it once
-    sources = [strip_import_text_or_raise(source, "Account source") for source in data.account_sources]
-    run.archive_account_sources = list(dict.fromkeys(sources))
+    run.archive_account_sources = data.account_sources
     await db.commit()
 
 

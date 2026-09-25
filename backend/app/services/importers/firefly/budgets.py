@@ -97,17 +97,17 @@ async def write_firefly_budgets(
     if not budgets:
         return []
 
-    currency_codes = {budget.currency.upper() for budget in budgets}
+    currency_codes = {budget.currency for budget in budgets}
     currency_rows = await db.execute(select(Currency).where(Currency.id.in_(currency_codes)))
     currencies_by_code = {currency.id: currency for currency in currency_rows.scalars().all()}
 
     # Currencies are checked for every budget before any other check, and each error names its
     # budget so the frontend can show it on the one it concerns
     for budget in budgets:
-        if budget.currency.upper() not in currencies_by_code:
+        if budget.currency not in currencies_by_code:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=f"{budget.name}: currency {budget.currency.upper()} is not supported",
+                detail=f"{budget.name}: currency {budget.currency} is not supported",
             )
 
     requested_category_ids = {
@@ -207,13 +207,13 @@ def _prepare_imported_budget(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"{budget.name}: a tracked category was not found",
         )
-    limit_periods = _parse_limit_periods(budget, currencies_by_code[budget.currency.upper()])
+    limit_periods = _parse_limit_periods(budget, currencies_by_code[budget.currency])
 
     base_budget = BaseBudget(
         owner_id=user.id,
         group_id=None,
-        name=budget.name.strip(),
-        currency=budget.currency.upper(),
+        name=budget.name,
+        currency=budget.currency,
         is_archived=budget.is_archived,
         **_cadence_fields(budget, limit_periods),
     )

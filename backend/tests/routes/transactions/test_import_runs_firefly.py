@@ -79,7 +79,7 @@ async def test_a_firefly_run_commits_rows_budgets_and_archiving_from_every_batch
         _firefly_row(),
         _firefly_row(
             journal_id="2",
-            type="Opening balance",
+            type="opening balance",
             dt="2023-12-31",
             amount="4250.00",
             description='Initial balance for "Everyday Chequing"',
@@ -94,7 +94,7 @@ async def test_a_firefly_run_commits_rows_budgets_and_archiving_from_every_batch
     # The savings account is declared only here, and this batch reads no category
     await _stage(client, headers, run_id, 2, [_firefly_row(
         journal_id="3",
-        type="Transfer",
+        type="transfer",
         dt="2026-04-12",
         amount="243.95",
         foreign_currency_code="USD",
@@ -109,10 +109,10 @@ async def test_a_firefly_run_commits_rows_budgets_and_archiving_from_every_batch
     await _put(client, headers, run_id, "budgets", {"budgets": [_budget(name="Dropped")]})
     await _put(client, headers, run_id, "archive", {"account_sources": ["Everyday Chequing"]})
 
-    # Books is used by no row, so only the budgets declare it, and a source is matched trimmed
+    # Books is used by no row, so only the budgets declare it
     await _put(client, headers, run_id, "budgets", {
         "categories": [_GROCERIES, {"source": "Books", "create": {"name": "Books", "kind": "expense"}}],
-        "budgets": [_budget(category_sources=("Groceries", " Books "))],
+        "budgets": [_budget(category_sources=("Groceries", "Books"))],
     })
     await _put(client, headers, run_id, "archive", {"account_sources": ["US Dollar Savings"]})
 
@@ -277,3 +277,25 @@ async def test_another_users_firefly_run_is_out_of_reach(client):
     ]
 
     assert [(resp.status_code, resp.json()["detail"]) for resp in responses] == [(404, "Import run not found")] * 4
+
+
+@pytest.mark.parametrize(("part", "body"), [
+    ("budgets", {"categories": [_GROCERIES], "budgets": [{**_budget(), "name": " Food"}]}),
+    ("budgets", {"categories": [_GROCERIES], "budgets": [{**_budget(), "currency": "cad"}]}),
+    ("budgets", {"categories": [_GROCERIES], "budgets": [_budget(category_sources=("Groceries ",))]}),
+    *[("budgets", {"categories": [_GROCERIES], "budgets": [{
+        **_budget(),
+        "limits": [{"start": "2026-04-01", "end": "2026-04-30", "amount": amount}],
+    }]}) for amount in ("+300.00", "-1.00", "not-a-number", " 300.00", "1,300.00")],
+    ("archive", {"account_sources": ["Everyday Chequing "]}),
+    ("archive", {"account_sources": ["Everyday Chequing", "Everyday Chequing"]}),
+])
+async def test_a_firefly_run_refuses_budgets_or_archiving_the_import_screen_would_have_cleaned(client, part, body):
+    """Budgets and accounts to archive arrive in their one canonical form, so any other form is refused."""
+    headers = _get_auth_header(await _create_user(client))
+    run_id = await _open_run(client, headers, 1)
+
+    # Request validation answers with a list of field errors, where a refusal later on names a reason
+    resp = await client.put(f"/transactions/import/runs/{run_id}/{part}", json=body, headers=headers)
+    assert resp.status_code == 422
+    assert isinstance(resp.json()["detail"], list)
