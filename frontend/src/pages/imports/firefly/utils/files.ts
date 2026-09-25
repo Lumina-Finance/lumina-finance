@@ -11,8 +11,17 @@ const REQUIRED_HEADERS_BY_KIND: Record<FireflyFileKind, string[]> = {
   budgets: FIREFLY_BUDGETS_REQUIRED_HEADERS,
 }
 
+// Firefly III writes its exports through league/csv's formula escaping, which puts this character
+// in front of any cell starting with one of the characters below. Every withdrawal amount is one
+const FORMULA_ESCAPE = "'"
+
+// The characters league/csv escapes by default. A newline stands in for the carriage return it also
+// escapes, because the reader rewrites every carriage return as a newline before parsing
+const FORMULA_TRIGGERS = new Set(['=', '-', '+', '@', '\t', '\n'])
+
 /**
- * Reads one Firefly III export file and flags missing required columns
+ * Reads one Firefly III export file, flags missing required columns and removes the formula escape
+ * Firefly III puts in front of its cells
  *
  * @param file - The uploaded file
  * @param kind - Which Firefly III export this file is meant to be
@@ -25,7 +34,10 @@ export async function readFireflyCsvFile(
 ): Promise<ImportFileDraft> {
   // A budgets export listing no budgets is an ordinary thing to have, and the flow takes the file as
   // optional, so headings with nothing under them are only refused for the transactions export
-  const draft = await readCsvFile(file, supportedCurrencyCodes, { requireDataRows: kind === 'transactions' })
+  const draft = await readCsvFile(file, supportedCurrencyCodes, {
+    requireDataRows: kind === 'transactions',
+    unescapeCell: unescapeFireflyCell,
+  })
   if (draft.error) return draft
 
   const headers = new Set(draft.headers)
@@ -35,6 +47,15 @@ export async function readFireflyCsvFile(
   }
 
   return draft
+}
+
+/**
+ * Removes league/csv's formula escape the way its own unescaping does, only where the escape is
+ * followed by a character it escapes, so a value that merely starts with an apostrophe keeps it
+ */
+function unescapeFireflyCell(value: string) {
+  if (value[0] !== FORMULA_ESCAPE || !FORMULA_TRIGGERS.has(value[1])) return value
+  return value.slice(1)
 }
 
 /**
