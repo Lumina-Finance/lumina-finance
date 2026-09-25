@@ -261,6 +261,7 @@ export function toMinorUnits(amount: string, currency: string): bigint {
 
 export function formatMinorUnits(minorUnits: bigint, currency: string): string {
   const exponent = CURRENCY_EXPONENTS[currency]
+  if (exponent === undefined) throw new Error(`No decimal places recorded for ${currency}`)
   const sign = minorUnits < 0n ? '-' : ''
   const digits = (minorUnits < 0n ? -minorUnits : minorUnits).toString().padStart(exponent + 1, '0')
   return exponent === 0 ? `${sign}${digits}` : `${sign}${digits.slice(0, -exponent)}.${digits.slice(-exponent)}`

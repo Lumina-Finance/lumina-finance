@@ -106,6 +106,16 @@ test('each way an import can go wrong is reported under its own kind', () => {
   ])
 })
 
+test('an account imported in another currency is reported rather than stopping the comparison', () => {
+  const lumina = buildLumina()
+  lumina.accounts[0].currency = 'JPY'
+  lumina.accounts.push({ id: 'z', name: 'Rand Wallet', account_type: 'checking', currency: 'ZAR', current_balance: 150, is_archived: false })
+
+  const differences = describeAll(lumina)
+  assert.ok(differences.includes('account-currency: Checking = JPY'))
+  assert.ok(differences.includes('account-extra: Rand Wallet = checking'))
+})
+
 test('a transfer that lost a leg is reported, and its other leg is not counted as extra', () => {
   const lumina = buildLumina()
   lumina.transactions.splice(2, 1)

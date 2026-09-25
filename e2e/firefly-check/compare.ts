@@ -5,6 +5,7 @@
  * reported once per kind, subject and Lumina value, with a count where several records share one
  */
 import { getAccountKey, type FireflyManifest, type FireflyRunInfo, type ManifestAccount, type ManifestEndpoint, type ManifestRow } from './manifest.ts'
+import { CURRENCY_EXPONENTS } from './seed/dataset.ts'
 import { formatMinorUnits as formatBigMinorUnits, toMinorUnits as toBigMinorUnits } from './seed/record.ts'
 
 export interface LuminaAccount {
@@ -126,7 +127,7 @@ export function compareImport(
   const accounts = compareAccounts(manifest, lumina, differences)
   compareAccountMonths(manifest, counted, accounts, differences)
   compareCategoryMonths(manifest, counted, accountById, categoryNameById, differences)
-  compareRows(exportedRows, lumina, accounts, categoryNameById, differences)
+  compareRows(exportedRows, manifest.accounts, lumina, accounts, categoryNameById, differences)
   compareBudgets(manifest, exportedRows, lumina, categoryNameById, differences)
   return differences.list()
 }
@@ -241,7 +242,6 @@ function compareAccountMonths(
     luminaMonths.set(key, entry)
   }
 
-  const currencyByAccount = new Map(manifest.accounts.map((account) => [getAccountKey(account.name, account.type), account.currency]))
   const seen = new Set<string>()
   for (const month of manifest.accountMonths) {
     const accountKey = getAccountKey(month.account, month.accountType)
@@ -249,7 +249,7 @@ function compareAccountMonths(
     const key = JSON.stringify([label, month.month])
     seen.add(key)
     const found = luminaMonths.get(key) ?? { count: 0, total: 0 }
-    const total = formatMinorUnits(found.total, currencyByAccount.get(accountKey) ?? '')
+    const total = formatMinorUnits(found.total, requireFireflyCurrency(manifest.accounts, accountKey))
     if (found.count !== month.count || total !== month.total) {
       differences.add('account-month', `${label} ${month.month}`, `${month.count} rows, ${month.total}`, `${found.count} rows, ${total}`)
     }
@@ -301,6 +301,7 @@ function compareCategoryMonths(
  */
 function compareRows(
   rows: ManifestRow[],
+  manifestAccounts: ManifestAccount[],
   lumina: LuminaSnapshot,
   accounts: AccountPairing,
   categoryNameById: Map<string, string>,
@@ -311,7 +312,10 @@ function compareRows(
   const take = (endpoint: ManifestEndpoint, date: string, counterparty: LuminaAccount | null, prefer?: (transaction: LuminaTransaction) => boolean) => {
     const account = findAccount(endpoint)
     if (!account || endpoint.amount === null) return null
-    const amount = toMinorUnits(endpoint.amount, account.currency)
+
+    // Read in the currency Firefly III states it in, so an account imported in another currency
+    // leaves the row unmatched rather than failing to read the amount
+    const amount = toMinorUnits(endpoint.amount, requireFireflyCurrency(manifestAccounts, getAccountKey(endpoint.name, endpoint.type)))
     const candidates = [...unmatched].filter((transaction) => (
       transaction.account_id === account.id
       && transaction.dt.slice(0, 10) === date
@@ -466,11 +470,20 @@ function describeText(text: string) {
   return text.length > 80 ? `${text.slice(0, 60)}… (${text.length} characters)` : text
 }
 
+function requireFireflyCurrency(accounts: ManifestAccount[], key: string) {
+  const account = accounts.find((entry) => getAccountKey(entry.name, entry.type) === key)
+  if (!account) throw new Error(`The manifest records no account ${key}`)
+  return account.currency
+}
+
 function toMinorUnits(amount: string, currency: string) {
   return Number(toBigMinorUnits(amount, currency))
 }
 
+// Lumina can hold an amount in a currency the dataset never uses, which is itself a difference, so
+// it is shown as it is stored rather than stopping the comparison
 function formatMinorUnits(minorUnits: number, currency: string) {
+  if (!(currency in CURRENCY_EXPONENTS)) return `${minorUnits} minor units of ${currency}`
   return formatBigMinorUnits(BigInt(minorUnits), currency)
 }
 
