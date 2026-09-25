@@ -14,8 +14,9 @@ from app.models.budget import BaseBudget, Budget, BudgetTrackedCategory
 from app.models.currency import Currency
 from app.models.user import User
 from app.schemas.firefly_import import (
-    FireflyBudgetImport,
     FireflyBudgetImportResult,
+    FireflyBudgetLimit,
+    FireflyBudgetRecurrence,
 )
 from app.services.budgets.periods import compute_period_end, validate_period_start
 from app.services.budgets.tracked_categories import get_allowed_tracked_category_ids
@@ -36,6 +37,28 @@ CATEGORY_QUERY_CHUNK_SIZE = 1000
 
 # Bound pending period and tracked-category objects across the whole request
 CHILD_WRITE_BUFFER_SIZE = 1000
+
+
+@dataclass(frozen=True)
+class FireflyBudgetImport:
+    """One staged budget with its tracked categories resolved to the categories the commit wrote
+
+    Every limit period becomes one budget period with its exported dates and
+    amount, so the history arrives as it was lived rather than reshaped onto
+    a single cadence. An archived budget arrives with its history frozen and
+    stays out of the active list. A null recurrence means the latest period
+    fits no cadence and the budget imports not recurring
+
+    The staged draft was validated against the budget bounds when the run took it, so these values
+    are not validated again
+    """
+
+    name: str
+    currency: str
+    category_ids: list[uuid.UUID]
+    limits: list[FireflyBudgetLimit]
+    recurrence: FireflyBudgetRecurrence | None
+    is_archived: bool
 
 
 @dataclass

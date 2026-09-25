@@ -109,27 +109,6 @@ class FireflyBudgetRecurrence(BaseModel):
         return self
 
 
-class FireflyBudgetImport(BaseModel):
-    """One budget to create from a Firefly III export
-
-    Every limit period becomes one budget period with its exported dates and
-    amount, so the history arrives as it was lived rather than reshaped onto
-    a single cadence. An archived budget arrives with its history frozen and
-    stays out of the active list
-
-    The recurrence must always be sent, null meaning the latest period fits no cadence and the
-    budget imports not recurring, so a request that leaves it out is refused rather than read as
-    not recurring
-    """
-
-    name: str = Field(min_length=1, max_length=256)
-    currency: str = Field(min_length=3, max_length=3)
-    category_ids: list[uuid.UUID] = Field(min_length=1, max_length=MAX_FIREFLY_BUDGET_CATEGORIES)
-    limits: list[FireflyBudgetLimit] = Field(min_length=1, max_length=MAX_BUDGET_LIMIT_PERIODS)
-    recurrence: FireflyBudgetRecurrence | None
-    is_archived: bool = False
-
-
 class FireflyBudgetImportResult(BaseModel):
     """One created budget with the periods materialized for it"""
 

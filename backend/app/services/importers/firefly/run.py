@@ -13,7 +13,6 @@ from app.models.import_run import ImportRun, ImportRunSource
 from app.models.user import User
 from app.permissions import check_account_access
 from app.schemas.firefly_import import (
-    FireflyBudgetImport,
     FireflyBudgetImportResult,
     FireflyImportRunResponse,
     FireflyImportStageRequest,
@@ -26,7 +25,7 @@ from app.services.accounts.balance_adjustments import (
     zero_account_balance_for_archive,
 )
 from app.services.cache_state import mark_cache_changed_for_scope
-from app.services.importers.firefly.budgets import write_firefly_budgets
+from app.services.importers.firefly.budgets import FireflyBudgetImport, write_firefly_budgets
 from app.services.importers.firefly.service import FireflyWriteResult, write_firefly_transactions
 from app.services.importers.shared.run_commit import finish_run_commit, get_every_staged_row, lock_run_for_commit
 from app.services.importers.shared.run_staging import (
