@@ -32,9 +32,6 @@ from app.utils.money import (
 # keeps its exported dates regardless of the cadence
 FALLBACK_RECURRENCE_DOM = 1
 
-# Bound expanded IN parameters when one request contains many distinct categories
-CATEGORY_QUERY_CHUNK_SIZE = 1000
-
 # Bound pending period and tracked-category objects across the whole request
 CHILD_WRITE_BUFFER_SIZE = 1000
 
@@ -115,15 +112,10 @@ async def write_firefly_budgets(
         for budget in budgets
         for category_id in budget.category_ids
     }
-    allowed_category_ids: set[uuid.UUID] = set()
-    category_id_list = sorted(requested_category_ids, key=lambda category_id: category_id.int)
-    for offset in range(0, len(category_id_list), CATEGORY_QUERY_CHUNK_SIZE):
-        allowed_category_ids.update(await get_allowed_tracked_category_ids(
-            db,
-            category_id_list[offset:offset + CATEGORY_QUERY_CHUNK_SIZE],
-            user.id,
-            None,
-        ))
+
+    # Every category comes from the run's category mappings, which staging caps at
+    # MAX_IMPORT_MAPPINGS, so one query stays within the database's parameter limit
+    allowed_category_ids = await get_allowed_tracked_category_ids(db, list(requested_category_ids), user.id, None)
 
     prepared_budgets: list[_PreparedBudget] = []
     for budget in budgets:
