@@ -1,0 +1,274 @@
+{
+  "asOf": "2026-09-26",
+  "budgetType": "tracking",
+  "currencyFeature": true,
+  "currency": "JPY",
+  "amountScales": {
+    "transactions": 2,
+    "budgets": 0
+  },
+  "accounts": [
+    {
+      "name": "Tokyo Checking",
+      "offBudget": false,
+      "closed": false,
+      "balance": "683297.00",
+      "rowTotal": "683297.00"
+    },
+    {
+      "name": "Suica Card",
+      "offBudget": false,
+      "closed": false,
+      "balance": "6760.00",
+      "rowTotal": "6760.00"
+    }
+  ],
+  "accountMonths": [
+    {
+      "account": "Suica Card",
+      "month": "2026-07",
+      "count": 3,
+      "total": "6760.00"
+    },
+    {
+      "account": "Tokyo Checking",
+      "month": "2026-07",
+      "count": 5,
+      "total": "465420.00"
+    },
+    {
+      "account": "Tokyo Checking",
+      "month": "2026-08",
+      "count": 3,
+      "total": "217877.00"
+    }
+  ],
+  "categoryMonths": [
+    {
+      "category": "",
+      "month": "2026-07",
+      "total": "0.00"
+    },
+    {
+      "category": "Bills",
+      "month": "2026-07",
+      "total": "-95000.00"
+    },
+    {
+      "category": "Bills",
+      "month": "2026-08",
+      "total": "-95000.00"
+    },
+    {
+      "category": "Food",
+      "month": "2026-07",
+      "total": "-4580.00"
+    },
+    {
+      "category": "Food",
+      "month": "2026-08",
+      "total": "-7123.00"
+    },
+    {
+      "category": "General",
+      "month": "2026-07",
+      "total": "-1240.00"
+    },
+    {
+      "category": "Income",
+      "month": "2026-07",
+      "total": "320000.00"
+    },
+    {
+      "category": "Income",
+      "month": "2026-08",
+      "total": "320000.00"
+    },
+    {
+      "category": "Starting Balances",
+      "month": "2026-07",
+      "total": "253000.00"
+    }
+  ],
+  "budgets": [
+    {
+      "category": "Bills",
+      "isIncome": false,
+      "month": "2026-07",
+      "budgeted": "95000",
+      "carryover": false
+    },
+    {
+      "category": "Food",
+      "isIncome": false,
+      "month": "2026-07",
+      "budgeted": "30000",
+      "carryover": false
+    },
+    {
+      "category": "Bills",
+      "isIncome": false,
+      "month": "2026-08",
+      "budgeted": "95000",
+      "carryover": false
+    },
+    {
+      "category": "Food",
+      "isIncome": false,
+      "month": "2026-08",
+      "budgeted": "30000",
+      "carryover": false
+    },
+    {
+      "category": "Income",
+      "isIncome": true,
+      "month": "2026-08",
+      "budgeted": "320000",
+      "carryover": false
+    }
+  ],
+  "transfers": [
+    {
+      "date": "2026-07-15",
+      "from": "Tokyo Checking",
+      "to": "Suica Card",
+      "amount": "5000.00",
+      "category": null
+    }
+  ],
+  "afterAsOf": [],
+  "rows": [
+    {
+      "account": "Tokyo Checking",
+      "offBudget": false,
+      "date": "2026-08-12",
+      "amount": "-7123.00",
+      "payee": "Lawson",
+      "category": "Food",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": "Weekly shop #groceries"
+    },
+    {
+      "account": "Tokyo Checking",
+      "offBudget": false,
+      "date": "2026-08-05",
+      "amount": "-95000.00",
+      "payee": "Tokyo Landlord",
+      "category": "Bills",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Tokyo Checking",
+      "offBudget": false,
+      "date": "2026-08-01",
+      "amount": "320000.00",
+      "payee": "東京商事",
+      "category": "Income",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Tokyo Checking",
+      "offBudget": false,
+      "date": "2026-07-15",
+      "amount": "-5000.00",
+      "payee": "Suica Card",
+      "category": null,
+      "transferTo": "Suica Card",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Tokyo Checking",
+      "offBudget": false,
+      "date": "2026-07-10",
+      "amount": "-4580.00",
+      "payee": "Lawson",
+      "category": "Food",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Tokyo Checking",
+      "offBudget": false,
+      "date": "2026-07-05",
+      "amount": "-95000.00",
+      "payee": "Tokyo Landlord",
+      "category": "Bills",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Tokyo Checking",
+      "offBudget": false,
+      "date": "2026-07-01",
+      "amount": "320000.00",
+      "payee": "東京商事",
+      "category": "Income",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Tokyo Checking",
+      "offBudget": false,
+      "date": "2026-07-01",
+      "amount": "250000.00",
+      "payee": "Starting Balance",
+      "category": "Starting Balances",
+      "transferTo": null,
+      "isStartingBalance": true,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Suica Card",
+      "offBudget": false,
+      "date": "2026-07-20",
+      "amount": "-1240.00",
+      "payee": "JR East",
+      "category": "General",
+      "transferTo": null,
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Suica Card",
+      "offBudget": false,
+      "date": "2026-07-15",
+      "amount": "5000.00",
+      "payee": "Tokyo Checking",
+      "category": null,
+      "transferTo": "Tokyo Checking",
+      "isStartingBalance": false,
+      "isSplitChild": false,
+      "notes": null
+    },
+    {
+      "account": "Suica Card",
+      "offBudget": false,
+      "date": "2026-07-01",
+      "amount": "3000.00",
+      "payee": "Starting Balance",
+      "category": "Starting Balances",
+      "transferTo": null,
+      "isStartingBalance": true,
+      "isSplitChild": false,
+      "notes": null
+    }
+  ]
+}
