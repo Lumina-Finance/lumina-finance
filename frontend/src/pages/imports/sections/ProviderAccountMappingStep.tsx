@@ -35,6 +35,9 @@ export interface ProviderAccountMappingStepProps {
 
   /** Said beside the new-accounts notice while any account is created */
   createNotice?: ReactNode
+
+  /** Replaces the new-accounts notice's wording, for an export whose accounts bring their own starting balances */
+  createdAccountNotice?: { explanation: string; items: string[] }
   emptyState: { title: string; description: string }
   sources: Array<{ id: string; label: string }>
   accountMappings: Record<string, string>
@@ -74,6 +77,7 @@ export function ProviderAccountMappingStep({
   description,
   notice,
   createNotice,
+  createdAccountNotice = { explanation: CREATED_ACCOUNT_EXPLANATION, items: [CREATED_ACCOUNT_BALANCE_NOTE, CREATED_ACCOUNT_CREDIT_LIMIT_NOTE] },
   emptyState,
   sources,
   accountMappings,
@@ -183,9 +187,9 @@ export function ProviderAccountMappingStep({
           {isCreatingAccount && (
             <ImportNotice
               title={CREATED_ACCOUNT_TITLE}
-              items={[CREATED_ACCOUNT_BALANCE_NOTE, CREATED_ACCOUNT_CREDIT_LIMIT_NOTE]}
+              items={createdAccountNotice.items}
             >
-              {CREATED_ACCOUNT_EXPLANATION}
+              {createdAccountNotice.explanation}
             </ImportNotice>
           )}
           {createNotice}

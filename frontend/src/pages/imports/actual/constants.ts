@@ -173,3 +173,7 @@ export function getActualUnsupportedCurrencyError(currencyCode: string) {
 // The seeded categories Lumina files transfer legs, one-sided transfers and rows without a category under
 export const ACTUAL_TRANSFER_CATEGORY_NAME = 'Transfer'
 export const ACTUAL_MISCELLANEOUS_CATEGORY_NAME = 'Miscellaneous'
+
+// An account created from Actual opens with the starting balance Actual recorded for it, written as
+// a balance adjustment, so the shared note about adding one does not apply
+export const ACTUAL_CREATED_ACCOUNT_EXPLANATION = 'These will be created as new accounts, each opening with the starting balance Actual recorded and no credit limit:'

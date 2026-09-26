@@ -1,5 +1,7 @@
+import { CREATED_ACCOUNT_CREDIT_LIMIT_NOTE } from '@/pages/imports/constants'
 import { ImportNotice } from '@/pages/imports/components'
 import { ProviderAccountMappingStep } from '@/pages/imports/sections/ProviderAccountMappingStep'
+import { ACTUAL_CREATED_ACCOUNT_EXPLANATION } from '@/pages/imports/actual/constants'
 import type { ActualImportWorkflow } from '@/pages/imports/actual/hooks'
 import { formatHundredths } from '@/pages/imports/actual/utils/normalise'
 
@@ -61,6 +63,7 @@ export function ActualAccountMappingStep({
       index="02"
       description="Every account in the budget, on it or off it, must map to an existing account or a new one."
       notice={currencyNotice}
+      createdAccountNotice={{ explanation: ACTUAL_CREATED_ACCOUNT_EXPLANATION, items: [CREATED_ACCOUNT_CREDIT_LIMIT_NOTE] }}
       createNotice={closedAccountsWithBalance.length > 0 && (
         <ImportNotice
           title="Closed accounts with money left"
