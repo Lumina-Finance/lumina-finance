@@ -215,6 +215,17 @@ describe('reading Actual Budget files', () => {
     expect(await readRefusal(new File([database], 'db.sqlite'))).toMatch(/^This budget has 2 transactions whose date or amount isn't stored/)
   })
 
+  it('refuses a budget with a date no calendar has', async () => {
+    for (const date of [20261399, 20260231, 101]) {
+      const database = await editDatabase(
+        unzipActualDatabase(readActualFixture('envelope', 'export.zip')),
+        `UPDATE transactions SET date = ${date} WHERE id = (SELECT id FROM v_transactions WHERE account IS NOT NULL ORDER BY id LIMIT 1)`,
+      )
+
+      expect(await readRefusal(new File([database], 'db.sqlite')), String(date)).toMatch(/^This budget has 1 transaction whose date or amount/)
+    }
+  })
+
   it('refuses a yen budget from a newer Actual than the one checked', async () => {
     const database = await editDatabase(
       readActualFixture('yen', 'db.sqlite'),

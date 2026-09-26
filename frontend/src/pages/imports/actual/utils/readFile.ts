@@ -339,10 +339,17 @@ function readBudgetFigures(database: Database, budgetType: ActualBudgetType): Ac
   }))
 }
 
-/** Actual stores dates as YYYYMMDD integers. Anything else reads as an empty date, which the reader refuses */
+/**
+ * Actual stores dates as YYYYMMDD integers. Anything else, or a day no calendar has, reads as an
+ * empty date, which the reader refuses
+ */
 function formatActualDate(value: SqlValue) {
   const digits = String(value ?? '')
-  return /^\d{8}$/.test(digits) ? `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6)}` : ''
+  if (!/^\d{8}$/.test(digits)) return ''
+  const [year, month, day] = [digits.slice(0, 4), digits.slice(4, 6), digits.slice(6)].map(Number)
+  const date = new Date(Date.UTC(year, month - 1, day))
+  const isRealDay = year >= 1 && date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
+  return isRealDay ? `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6)}` : ''
 }
 
 function formatActualMonth(value: SqlValue) {
