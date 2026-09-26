@@ -8,6 +8,7 @@ import {
   ACTUAL_OFF_BUDGET_CATEGORY_SOURCE_PREFIX,
   ACTUAL_PAYEE_NAME_MAX_LENGTH,
   ACTUAL_TAG_NAME_MAX_LENGTH,
+  ACTUAL_TRANSACTION_DECIMALS,
   ACTUAL_TRANSFER_CATEGORY_NAME,
   ACTUAL_TRANSFER_SIDE_LEFT_OUT_REASON,
   ACTUAL_TRANSFER_CATEGORY_SOURCE_PREFIX,
@@ -27,6 +28,7 @@ import type {
   ActualSkippedRow,
   ActualTransaction,
 } from '@/pages/imports/actual/types'
+import { formatScaledAmount } from './amounts'
 
 // Actual reads a tag as a # followed by anything up to whitespace or the next #, and a doubled ##
 // as an escaped # that starts no tag
@@ -87,7 +89,8 @@ export function normaliseActualBudget(budget: ActualBudgetFile, today: string): 
     if (!parent) continue
     const partsTotal = children.reduce((total, child) => total + child.amount, 0)
     if (partsTotal === parent.amount) continue
-    skippedRows.push(describe(parent, getActualUnbalancedSplitReason(formatHundredths(partsTotal), formatHundredths(parent.amount))))
+    const format = (amount: number) => formatHundredths(amount, budget.budgetDecimals)
+    skippedRows.push(describe(parent, getActualUnbalancedSplitReason(format(partsTotal), format(parent.amount))))
     for (const child of children) leftOut.add(child.id)
   }
 
@@ -285,11 +288,15 @@ export function readActualTags(notes: string | null): string[] {
   return [...tags.values()]
 }
 
-/** Writes signed hundredths as decimal text for a reason the user reads */
-export function formatHundredths(amount: number) {
+/**
+ * Writes signed hundredths as decimal text for the user to read, in the decimal places of the
+ * budget's currency, such as none for yen. An amount that has cents all the same keeps them
+ */
+export function formatHundredths(amount: number, decimals = ACTUAL_TRANSACTION_DECIMALS) {
   const sign = amount < 0 ? '-' : ''
-  const digits = String(Math.abs(amount)).padStart(3, '0')
-  return `${sign}${digits.slice(0, -2)}.${digits.slice(-2)}`
+  const text = formatScaledAmount(amount, ACTUAL_TRANSACTION_DECIMALS, decimals)
+    ?? formatScaledAmount(amount, ACTUAL_TRANSACTION_DECIMALS, ACTUAL_TRANSACTION_DECIMALS)
+  return `${sign}${text}`
 }
 
 function buildAccountSources(accounts: ActualAccount[], entries: ActualJournalEntry[]): ActualAccountSource[] {

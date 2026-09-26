@@ -76,7 +76,7 @@ export function ActualAccountMappingStep({
       createNotice={closedAccountsWithBalance.length > 0 && (
         <ImportNotice
           title="Closed accounts with money left"
-          items={closedAccountsWithBalance.map((account) => `${account.label}: ${formatHundredths(account.balance)}`)}
+          items={closedAccountsWithBalance.map((account) => `${account.label}: ${formatHundredths(account.balance, budget?.budgetDecimals)}`)}
         >
           These are closed in Actual, so they are created archived, with a balance adjustment bringing each to zero on the day you import:
         </ImportNotice>

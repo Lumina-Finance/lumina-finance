@@ -11,6 +11,7 @@ import {
   ACTUAL_TRANSFER_SIDE_LEFT_OUT_REASON,
   getActualPayeeTooLongReason,
   getActualTagTooLongReason,
+  getActualUnbalancedSplitReason,
 } from '@/pages/imports/actual/constants'
 import { MAX_IMPORT_NOTES_LENGTH, MAX_IMPORT_TAGS_PER_ROW, getRowNotesTooLongReason, getRowTooManyTagsReason } from '@/pages/imports/constants'
 import type { ActualJournal } from '@/pages/imports/actual/types'
@@ -274,5 +275,17 @@ describe('Actual Budget categories used only on payments to off-budget accounts'
     ], { categories: [{ id: 'transfer', name: 'transfer', groupName: 'Bills', isIncome: false, hidden: false }] })
 
     expect(normaliseActualBudget(budget, '2026-09-26').categories.map((source) => source.createName)).toEqual(['transfer Payments'])
+  })
+
+  it('writes amounts in the decimal places of a yen budget, keeping cents only where an amount has them', () => {
+    expect(formatHundredths(-458000, 0)).toBe('-4580')
+    expect(formatHundredths(-6420, 0)).toBe('-64.20')
+    expect(formatHundredths(5, 2)).toBe('0.05')
+
+    const budget = buildActualBudget([
+      { id: 'split', accountId: 'checking', date: '2026-09-01', amount: -900000, isParent: true },
+      { id: 'part', accountId: 'checking', date: '2026-09-01', amount: -950000, parentId: 'split' },
+    ], { currencyCode: 'JPY', budgetDecimals: 0 })
+    expect(normaliseActualBudget(budget, '2026-09-26').skippedRows[0].reason).toBe(getActualUnbalancedSplitReason('-9500', '-9000'))
   })
 })

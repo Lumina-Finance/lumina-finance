@@ -1,6 +1,6 @@
 import { EmptyState, ImportPreviewList, ImportStat, ImportStep } from '@/pages/imports/components'
 import { ActualSkippedRowsTable } from '@/pages/imports/actual/components'
-import { ACTUAL_SAMPLE_PREVIEW_LIMIT } from '@/pages/imports/actual/constants'
+import { ACTUAL_SAMPLE_PREVIEW_LIMIT, ACTUAL_TRANSACTION_DECIMALS } from '@/pages/imports/actual/constants'
 import type { ActualImportWorkflow } from '@/pages/imports/actual/hooks'
 
 type ActualPreviewStepProps = Pick<
@@ -61,7 +61,7 @@ export function ActualPreviewStep({
         <ImportStat label="New Categories" value={newCategoryCount.toString()} />
       </div>
 
-      {skippedCount > 0 && <ActualSkippedRowsTable title={skippedTitle} rows={skippedRows} />}
+      {skippedCount > 0 && <ActualSkippedRowsTable title={skippedTitle} rows={skippedRows} decimals={budget?.budgetDecimals ?? ACTUAL_TRANSACTION_DECIMALS} />}
 
       {previewRows.length === 0 ? (
         <EmptyState title="No preview rows" description="Transactions compiled from the export will appear here." />
