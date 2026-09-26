@@ -241,10 +241,6 @@ function buildCategoryMappings(
       addError(getActualTransferCategoryError(source.label))
       continue
     }
-    if (source.role === 'transfer' && !canFileActualTransferSource(source, { kind, name: source.createName })) {
-      addError(getActualBuiltInTransferError(source.label))
-      continue
-    }
 
     // A new category reuses one of the same name, capitals folded, and one name records one
     // direction, so either clash is what the commit would refuse
