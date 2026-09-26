@@ -1,16 +1,74 @@
-import type { FireflyImportRunResponse } from '@/api/firefly-imports'
-import type { FireflyFileKind, FireflyImportStage, FireflyImportStageState } from '@/pages/imports/firefly/types'
+import type { JournalImportRunResponse } from '@/api/provider-imports'
+import { STEP_DOT_WAVE_MS } from '@/pages/imports/components/ProgressOverlay'
 import type { ImportOverlayPhase } from '@/pages/imports/types'
 import { getImportCommitFailure } from '@/pages/imports/utils/commitFailure'
-import {
-  FIREFLY_IMPORT_OVERLAY_MIN_MS,
-  FIREFLY_IMPORT_STAGE_CROSS_OFF_MS,
-  FIREFLY_IMPORT_STAGE_MIN_MS,
-} from '@/pages/imports/firefly/constants'
-import type { FireflyCompletedImportContext, FireflySkippedRowDetail } from './skippedRows'
+import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
+
+/**
+ * Stage of a provider import currently holding the overlay: uploading the export, which saves
+ * nothing, then writing all of it at once
+ */
+export type ProviderImportStage = 'uploading' | 'saving'
+
+/**
+ * Stage holding the overlay and whether its work has landed
+ *
+ * The finished stage keeps the overlay for a beat so it can be struck off
+ * before the next stage starts, which the two fields have to express together
+ */
+export interface ProviderImportStageState {
+  stage: ProviderImportStage
+  isFinished: boolean
+}
+
+/**
+ * Stages of the import in the order they run, as the overlay lists them
+ */
+export const PROVIDER_IMPORT_STAGES: { id: ProviderImportStage; label: string }[] = [
+  { id: 'uploading', label: 'Uploading the export' },
+  { id: 'saving', label: 'Saving the import' },
+]
+
+const PROVIDER_IMPORT_OVERLAY_MIN_MS = LOADING_ANIMATION_MIN_MS
+
+/**
+ * How long the upload stage holds the overlay before saving takes over
+ *
+ * A small export uploads faster than the transition between the stages reads, so without a floor
+ * the upload stage would flash past unseen. The floor is pinned to one full dot wave so a stage is
+ * never struck off mid-cycle
+ */
+const PROVIDER_IMPORT_STAGE_MIN_MS = STEP_DOT_WAVE_MS
+
+/**
+ * How long a finished stage stays on the overlay struck off before the next
+ * stage takes its place
+ *
+ * The strike is what tells the user the stage landed, so this has to outlast
+ * the line being drawn and leave a beat to read it afterwards
+ */
+export const PROVIDER_IMPORT_STAGE_CROSS_OFF_MS = 750
+
+/**
+ * Largest budgets request an import sends, kept under the server's 10 MiB request limit with room
+ * for the rest of the request, so a selection too large to send is refused before anything uploads
+ */
+export const PROVIDER_MAX_BUDGETS_REQUEST_BYTES = 9 * 1024 * 1024
+
+// Added after the reason a provider import failed. An import the server refused, or one that failed
+// while uploading, wrote nothing. A save that failed for another reason may or may not have landed,
+// and saving it again answers either way
+const PROVIDER_IMPORT_NOTHING_SAVED_NOTE = 'Nothing was added to your ledger.'
+const PROVIDER_IMPORT_SAVE_AGAIN_NOTE = 'Your upload is kept, so you can try saving it again.'
+
+/** What one completed import wrote, with the rows it left out, captured when it started */
+export interface CompletedProviderImport<TSkipped> {
+  result: JournalImportRunResponse
+  skippedRowsAtCommit: TSkipped[]
+}
 
 /** Why the last attempt failed, with the answers it was started with */
-export interface FireflyImportFailure {
+export interface ProviderImportFailure {
   message: string
   answers: object
 }
@@ -18,9 +76,9 @@ export interface FireflyImportFailure {
 /**
  * Where the import run stands, as the overlay and the import button read it
  */
-export interface FireflyImportRunState {
+export interface ProviderImportRunState<TSkipped = unknown> {
   overlayPhase: ImportOverlayPhase
-  stageState: FireflyImportStageState | null
+  stageState: ProviderImportStageState | null
 
   // Stopping is offered only while the upload runs. Once saving starts, the save either lands
   // whole or not at all, and stopping would only stop waiting for it
@@ -29,11 +87,11 @@ export interface FireflyImportRunState {
   // An import whose save stopped for a reason saving again could clear leaves its upload staged,
   // and this is what the second attempt runs against
   stagedRunId: string | null
-  failure: FireflyImportFailure | null
-  completedImport: FireflyCompletedImportContext | null
+  failure: ProviderImportFailure | null
+  completedImport: CompletedProviderImport<TSkipped> | null
 }
 
-export const FIREFLY_IMPORT_RUN_IDLE: FireflyImportRunState = {
+export const PROVIDER_IMPORT_RUN_IDLE: ProviderImportRunState<never> = {
   overlayPhase: 'idle',
   stageState: null,
   canStop: false,
@@ -42,21 +100,25 @@ export const FIREFLY_IMPORT_RUN_IDLE: FireflyImportRunState = {
   completedImport: null,
 }
 
-interface FireflyImportRunDependencies {
-  onChange: (state: FireflyImportRunState) => void
+interface ProviderImportRunDependencies<TSkipped> {
+  onChange: (state: ProviderImportRunState<TSkipped>) => void
   discardStagedRun: (runId: string) => void
   wait: (milliseconds: number) => Promise<void>
 }
 
 /**
- * Runs Firefly III import attempts and holds where the latest one stands
+ * Runs provider import attempts and holds where the latest one stands
  *
  * The state lives here rather than in the screen's render, since the overlay keeps its buttons on
  * screen while it fades and each one carries the handler from the render before it closed. Every
  * action therefore reads the run as it really is
  */
-export function createFireflyImportRunController({ onChange, discardStagedRun, wait }: FireflyImportRunDependencies) {
-  let state = FIREFLY_IMPORT_RUN_IDLE
+export function createProviderImportRunController<TSkipped>({
+  onChange,
+  discardStagedRun,
+  wait,
+}: ProviderImportRunDependencies<TSkipped>) {
+  let state: ProviderImportRunState<TSkipped> = PROVIDER_IMPORT_RUN_IDLE
 
   // Tells a finished attempt whether it is still the latest one, so a reset or a newer attempt in
   // between drops its result instead of writing into what replaced it
@@ -65,9 +127,9 @@ export function createFireflyImportRunController({ onChange, discardStagedRun, w
 
   // What the kept upload left out, captured when it was staged, so saving it again reports the
   // rows it really left out even if the mappings have moved since
-  let stagedSkippedRows: FireflySkippedRowDetail[] = []
+  let stagedSkippedRows: TSkipped[] = []
 
-  const update = (patch: Partial<FireflyImportRunState>) => {
+  const update = (patch: Partial<ProviderImportRunState<TSkipped>>) => {
     state = { ...state, ...patch }
     onChange(state)
   }
@@ -75,9 +137,9 @@ export function createFireflyImportRunController({ onChange, discardStagedRun, w
   /**
    * Shows one stage of the import on the overlay, holding a finished one struck off for a beat
    */
-  const showStage = async (stage: FireflyImportStage, isFinished: boolean) => {
+  const showStage = async (stage: ProviderImportStage, isFinished: boolean) => {
     update({ stageState: { stage, isFinished } })
-    if (isFinished) await wait(FIREFLY_IMPORT_STAGE_CROSS_OFF_MS)
+    if (isFinished) await wait(PROVIDER_IMPORT_STAGE_CROSS_OFF_MS)
   }
 
   /**
@@ -85,10 +147,10 @@ export function createFireflyImportRunController({ onChange, discardStagedRun, w
    * an attempt that failed, and records how it ended
    */
   const runAttempt = async (
-    firstStage: FireflyImportStage,
-    skippedRowsAtCommit: FireflySkippedRowDetail[],
+    firstStage: ProviderImportStage,
+    skippedRowsAtCommit: TSkipped[],
     answers: object,
-    attempt: (signal: AbortSignal) => Promise<FireflyImportRunResponse>,
+    attempt: (signal: AbortSignal) => Promise<JournalImportRunResponse>,
   ) => {
     const currentAttemptId = attemptId + 1
     attemptId = currentAttemptId
@@ -103,7 +165,7 @@ export function createFireflyImportRunController({ onChange, discardStagedRun, w
       stageState: { stage: firstStage, isFinished: false },
       overlayPhase: 'importing',
     })
-    const minimumOverlay = wait(FIREFLY_IMPORT_OVERLAY_MIN_MS)
+    const minimumOverlay = wait(PROVIDER_IMPORT_OVERLAY_MIN_MS)
 
     try {
       const result = await attempt(controller.signal)
@@ -148,11 +210,11 @@ export function createFireflyImportRunController({ onChange, discardStagedRun, w
      * @param upload - Sends the import, calling its second argument once everything is staged
      */
     start: (
-      skippedRowsAtCommit: FireflySkippedRowDetail[],
+      skippedRowsAtCommit: TSkipped[],
       answers: object,
-      upload: (signal: AbortSignal, onStaged: () => Promise<void>) => Promise<FireflyImportRunResponse>,
+      upload: (signal: AbortSignal, onStaged: () => Promise<void>) => Promise<JournalImportRunResponse>,
     ) => {
-      const uploadMinimum = wait(FIREFLY_IMPORT_STAGE_MIN_MS)
+      const uploadMinimum = wait(PROVIDER_IMPORT_STAGE_MIN_MS)
       return runAttempt('uploading', skippedRowsAtCommit, answers, (signal) => upload(signal, async () => {
         // Nothing is saved until the upload has finished, so the stage list hands over to saving
         // before the save starts, and stopping is no longer offered from there
@@ -169,7 +231,7 @@ export function createFireflyImportRunController({ onChange, discardStagedRun, w
      */
     retry: async (
       answers: object,
-      commit: (runId: string, signal: AbortSignal) => Promise<FireflyImportRunResponse>,
+      commit: (runId: string, signal: AbortSignal) => Promise<JournalImportRunResponse>,
     ) => {
       const runId = state.stagedRunId
       if (!runId) return
@@ -200,17 +262,17 @@ export function createFireflyImportRunController({ onChange, discardStagedRun, w
       attemptId += 1
       abortController?.abort()
       if (state.stagedRunId) discardStagedRun(state.stagedRunId)
-      update(FIREFLY_IMPORT_RUN_IDLE)
+      update(PROVIDER_IMPORT_RUN_IDLE)
     },
   }
 }
 
-export type FireflyImportRunController = ReturnType<typeof createFireflyImportRunController>
+export type ProviderImportRunController<TSkipped> = ReturnType<typeof createProviderImportRunController<TSkipped>>
 
 /**
  * Returns the last failure's reason while the answers it was about are still the ones on screen
  */
-export function getFireflyImportError(failure: FireflyImportFailure | null, answers: object) {
+export function getProviderImportError(failure: ProviderImportFailure | null, answers: object) {
   return failure?.answers === answers ? failure.message : null
 }
 
@@ -218,35 +280,43 @@ export function getFireflyImportError(failure: FireflyImportFailure | null, answ
  * Whether Commit import can start an import now
  *
  * A file still being read has not reached the payload yet, and an import started meanwhile would
- * run without it, which for a budgets file leaves its budgets out for good
+ * run without it, which could leave part of what it holds out for good
  */
-export function canStartFireflyImport({
+export function canStartProviderImport({
   hasPayload,
-  processingFileKind,
+  isProcessingFile,
   budgetSelectionError,
   overlayOpen,
   inFlight,
   hasResult,
 }: {
   hasPayload: boolean
-  processingFileKind: FireflyFileKind | null
+  isProcessingFile: boolean
   budgetSelectionError: string | null
   overlayOpen: boolean
   inFlight: boolean
   hasResult: boolean
 }) {
-  return hasPayload && processingFileKind === null && !budgetSelectionError && !overlayOpen && !inFlight && !hasResult
+  return hasPayload && !isProcessingFile && !budgetSelectionError && !overlayOpen && !inFlight && !hasResult
 }
 
 /**
  * Counts the sources answered create-new that the import sends, since the commit creates nothing
  * for a source it leaves out
  */
-export function countFireflyCreatedSources(
+export function countCreatedImportSources(
   sources: string[],
   mappings: Record<string, string>,
   createValue: string,
   writtenSources: ReadonlySet<string>,
 ) {
   return sources.filter((source) => mappings[source] === createValue && writtenSources.has(source)).length
+}
+
+/**
+ * Says why an import failed and what that left behind: nothing, or an upload that can be saved again
+ */
+export function describeProviderImportFailure(reason: string, canSaveAgain: boolean) {
+  const sentence = /[.!?]$/.test(reason) ? reason : `${reason}.`
+  return `${sentence} ${canSaveAgain ? PROVIDER_IMPORT_SAVE_AGAIN_NOTE : PROVIDER_IMPORT_NOTHING_SAVED_NOTE}`
 }

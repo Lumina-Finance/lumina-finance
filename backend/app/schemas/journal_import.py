@@ -1,4 +1,4 @@
-"""Firefly III import request and response schemas"""
+"""Journal import request and response schemas, shared by the Firefly III and Actual Budget imports"""
 
 import uuid
 from datetime import date
@@ -25,8 +25,8 @@ MAX_BUDGET_LIMIT_PERIODS = 1200
 # Budgets one request may carry, and categories one budget may track. These
 # bound validation and batched writes for one request while remaining far
 # above any real export
-MAX_FIREFLY_BUDGETS = 1000
-MAX_FIREFLY_BUDGET_CATEGORIES = 1000
+MAX_JOURNAL_BUDGETS = 1000
+MAX_JOURNAL_BUDGET_CATEGORIES = 1000
 
 # Longest cadence a base budget stores, the largest value its small-integer column holds
 MAX_BUDGET_INSTANCE_LENGTH = 32767
@@ -82,15 +82,15 @@ def _require_unique(values: list[str]) -> list[str]:
 TrimmedImportText = Annotated[str, AfterValidator(_require_trimmed)]
 UnsignedDecimalAmount = Annotated[str, Field(min_length=1, max_length=64, pattern=_UNSIGNED_DECIMAL_PATTERN)]
 CurrencyCode = Annotated[str, Field(pattern=_CURRENCY_CODE_PATTERN)]
-FireflyTagName = Annotated[ImportTagName, AfterValidator(_require_trimmed)]
+JournalTagName = Annotated[ImportTagName, AfterValidator(_require_trimmed)]
 UniqueTrimmedImportTexts = Annotated[list[TrimmedImportText], AfterValidator(_require_unique)]
 
 # Journal types the importer handles, lowercased as the import screen sends them
-FireflyJournalType = Literal["withdrawal", "deposit", "transfer", "opening balance", "reconciliation"]
+JournalRowType = Literal["withdrawal", "deposit", "transfer", "opening balance", "reconciliation"]
 
 
-class FireflyTransactionRow(BaseModel):
-    """One Firefly III export journal row as the import screen compiles it
+class JournalTransactionRow(BaseModel):
+    """One journal row as the import screen compiles it from a Firefly III or Actual Budget export
 
     The screen reads the raw export and sends every value in its one canonical form, and a row in
     any other form is refused rather than cleaned up here. Types are lowercased, amounts are
@@ -99,13 +99,13 @@ class FireflyTransactionRow(BaseModel):
     A foreign amount comes with its currency code or not at all
 
     The frontend decides which endpoints are imported accounts. Each one is named by the account
-    mapping source it resolves through, since Firefly III lets an asset account and a liability
-    share a name, and every other endpoint is named as it appears in the export. A payee row with
+    mapping source it resolves through, since an export can give an asset account and a liability
+    the same name, and every other endpoint is named as it appears in the export. A payee row with
     no category is sent with a null category, which files it under the no-category mapping source
     """
 
     journal_id: TrimmedImportText = Field(max_length=64)
-    type: FireflyJournalType
+    type: JournalRowType
     dt: date
     amount: UnsignedDecimalAmount
     currency_code: CurrencyCode
@@ -117,11 +117,19 @@ class FireflyTransactionRow(BaseModel):
     destination_account: TrimmedImportText | None = Field(None, max_length=256)
     destination_name: TrimmedImportText | None = Field(None, max_length=256)
     category: TrimmedImportText | None = Field(None, max_length=256)
-    tag_names: Annotated[list[FireflyTagName], AfterValidator(_require_unique)] = Field(
+    tag_names: Annotated[list[JournalTagName], AfterValidator(_require_unique)] = Field(
         default=[],
         max_length=MAX_IMPORT_TAGS_PER_ROW,
     )
     notes: TrimmedImportText | None = Field(None, max_length=MAX_IMPORT_NOTES_LENGTH)
+
+    # The one leg of a transfer between two imported accounts that takes the row's mapped category,
+    # which must record a counterparty account, while the other leg keeps the system Transfer
+    # category. Budgets add up signed amounts per tracked category across every account, so a
+    # category on both legs would cancel out. Actual Budget uses this for a transfer from an
+    # on-budget account to an off-budget one, such as a loan payment filed under a budget category.
+    # Null files both legs under Transfer and ignores the row's category
+    category_leg: Literal["source", "destination"] | None = None
 
     @model_validator(mode="after")
     def _require_whole_foreign_amount(self):
@@ -130,9 +138,20 @@ class FireflyTransactionRow(BaseModel):
             raise ValueError("foreign_amount and foreign_currency_code must be sent together")
         return self
 
+    @model_validator(mode="after")
+    def _require_categorized_transfer_for_category_leg(self):
+        """Refuse a category leg on anything but a transfer that carries a category"""
+        if self.category_leg is None:
+            return self
+        if self.type != "transfer":
+            raise ValueError("category_leg is only allowed on a transfer")
+        if self.category is None:
+            raise ValueError("category_leg requires a category")
+        return self
 
-class FireflyImportStageRequest(BaseModel):
-    """One batch of a staged Firefly III export: the mappings its rows reference, and the rows
+
+class JournalImportStageRequest(BaseModel):
+    """One batch of a staged journal export: the mappings its rows reference, and the rows
 
     A batch declares the mappings its own rows need, and the first batch also declares any account
     the import creates without rows. Category mappings may be empty, since a batch of transfers and
@@ -141,15 +160,15 @@ class FireflyImportStageRequest(BaseModel):
 
     accounts: list[TransactionImportAccountMapping] = Field(min_length=1, max_length=MAX_IMPORT_MAPPINGS)
     categories: list[TransactionImportCategoryMapping] = Field(default=[], max_length=MAX_IMPORT_MAPPINGS)
-    rows: list[FireflyTransactionRow] = Field(min_length=1, max_length=MAX_IMPORT_BATCH_ROWS)
+    rows: list[JournalTransactionRow] = Field(min_length=1, max_length=MAX_IMPORT_BATCH_ROWS)
 
     # Where this batch starts in the export, so a batch sent twice stages the same positions and
     # the second copy is absorbed
     start_row_index: int = Field(ge=0)
 
 
-class FireflyBudgetLimit(BaseModel):
-    """One limit period from the Firefly III budgets export
+class JournalBudgetLimit(BaseModel):
+    """One limit period from an exported budget
 
     Both dates are inclusive, matching how the export expresses a period. The amount is a
     magnitude in plain decimal text so the backend can validate precision against the budget
@@ -161,7 +180,7 @@ class FireflyBudgetLimit(BaseModel):
     amount: UnsignedDecimalAmount
 
 
-class FireflyBudgetRecurrence(BaseModel):
+class JournalBudgetRecurrence(BaseModel):
     """The cadence an imported budget continues on, read off its latest limit period by the frontend
 
     The anchor fields follow the budget create rules, and the backend checks that the latest
@@ -181,7 +200,7 @@ class FireflyBudgetRecurrence(BaseModel):
         return self
 
 
-class FireflyBudgetImportResult(BaseModel):
+class JournalBudgetImportResult(BaseModel):
     """One created budget with the periods materialized for it"""
 
     name: str
@@ -189,8 +208,8 @@ class FireflyBudgetImportResult(BaseModel):
     instance_count: int
 
 
-class FireflyImportRunResponse(BaseModel):
-    """Summary of everything a Firefly III import run wrote in its one commit
+class JournalImportRunResponse(BaseModel):
+    """Summary of everything a journal import run wrote in its one commit
 
     A run never skips a row, since a row it cannot write fails the whole commit. Transfers between
     two imported accounts produce two Lumina transactions from one journal row, so
@@ -209,7 +228,7 @@ class FireflyImportRunResponse(BaseModel):
     tags_created: int
     tags_reused: int
     budgets_created: int
-    budgets: list[FireflyBudgetImportResult]
+    budgets: list[JournalBudgetImportResult]
     accounts_archived: int
     archive_adjustments_created: int
     affected_account_ids: list[uuid.UUID]

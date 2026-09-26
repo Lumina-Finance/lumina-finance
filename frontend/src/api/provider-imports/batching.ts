@@ -1,12 +1,12 @@
 import {
-  getFireflyRowAccountSources,
-  getFireflyRowCategorySource,
-} from '@/api/firefly-imports/rowSources';
+  getJournalRowAccountSources,
+  getJournalRowCategorySource,
+} from '@/api/provider-imports/rowSources';
 import type {
-  FireflyImportStageBatch,
-  FireflyTransactionImportPayload,
-  FireflyTransactionImportRow,
-} from '@/api/firefly-imports/types';
+  JournalImportStageBatch,
+  JournalImportPayload,
+  JournalImportRow,
+} from '@/api/provider-imports/types';
 import {
   IMPORT_BATCH_YIELD_INTERVAL,
   MAX_IMPORT_BATCH_BYTES,
@@ -19,23 +19,23 @@ import {
 } from '@/api/shared/importBatchSize';
 
 /**
- * Splits a prepared Firefly III import into batches that each fit the request-size budget
+ * Splits a prepared provider import into batches that each fit the request-size budget
  *
  * Nothing is created while an export is staged, so a batch carries the mappings its own rows
  * reference exactly as they were prepared, and no batch depends on what an earlier one returned.
  * An account no row names, which the import creates empty, rides with the first batch, since the
  * server only takes a batch that holds rows
  */
-export async function buildFireflyStageBatches(
-  payload: FireflyTransactionImportPayload,
-): Promise<FireflyImportStageBatch[]> {
+export async function buildJournalStageBatches(
+  payload: JournalImportPayload,
+): Promise<JournalImportStageBatch[]> {
   const accountMappingsBySource = new Map(payload.accounts.map((mapping) => [mapping.source, mapping]));
   const categoryMappingsBySource = new Map(payload.categories.map((mapping) => [mapping.source, mapping]));
-  const rowAccountSources = new Set(payload.rows.flatMap((row) => getFireflyRowAccountSources(row)));
+  const rowAccountSources = new Set(payload.rows.flatMap((row) => getJournalRowAccountSources(row)));
   const rowlessAccountSources = payload.accounts
     .map((mapping) => mapping.source)
     .filter((source) => !rowAccountSources.has(source));
-  const batches: FireflyImportStageBatch[] = [];
+  const batches: JournalImportStageBatch[] = [];
   let rowIndex = 0;
 
   while (rowIndex < payload.rows.length) {
@@ -57,13 +57,13 @@ export async function buildFireflyStageBatches(
  * Builds the next batch without exceeding the request-size budget
  */
 async function buildNextStageBatch(
-  sourceRows: FireflyTransactionImportRow[],
+  sourceRows: JournalImportRow[],
   startIndex: number,
   rowlessAccountSources: string[],
-  accountMappingsBySource: Map<string, FireflyTransactionImportPayload['accounts'][number]>,
-  categoryMappingsBySource: Map<string, FireflyTransactionImportPayload['categories'][number]>,
+  accountMappingsBySource: Map<string, JournalImportPayload['accounts'][number]>,
+  categoryMappingsBySource: Map<string, JournalImportPayload['categories'][number]>,
 ) {
-  const rows: FireflyTransactionImportRow[] = [];
+  const rows: JournalImportRow[] = [];
   const accountSources = new Set<string>();
   const categorySources = new Set<string>();
   let estimatedBytes = getEmptyImportPayloadByteSize();
@@ -77,8 +77,8 @@ async function buildNextStageBatch(
   // Each row may introduce account and category mappings, so the batch budget tracks both
   while (rowIndex < sourceRows.length) {
     const row = sourceRows[rowIndex];
-    const rowAccountSources = getFireflyRowAccountSources(row);
-    const categorySource = getFireflyRowCategorySource(row);
+    const rowAccountSources = getJournalRowAccountSources(row);
+    const categorySource = getJournalRowCategorySource(row);
     const rowCategorySources = categorySource === null ? [] : [categorySource];
 
     let nextEstimatedBytes = estimatedBytes + getNextArrayItemByteSize(rows.length, row);

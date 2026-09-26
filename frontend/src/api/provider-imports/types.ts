@@ -5,18 +5,28 @@ import type {
   TransactionImportResponse,
 } from '@/api/transaction-imports/types';
 
+/** The apps whose exports are staged as journal rows */
+export type JournalImportSource = 'firefly' | 'actual_budget';
+
 /**
- * One Firefly III export journal row compiled by the frontend
+ * Which leg of a transfer between two imported accounts carries the row's category, the other
+ * keeping Transfer. Set when the transfer is spending the user budgets for, such as a loan payment
+ * from a budgeted account, since both legs carrying one category would cancel in its budget
+ */
+export type JournalCategoryLeg = 'source' | 'destination';
+
+/**
+ * One export journal row compiled by the frontend
  *
  * Every value is in the one form the endpoint takes, which refuses any other: a lowercased type,
  * amounts as magnitudes in plain decimal text so the backend can validate precision against the
  * account currency, upper-case currency codes, and trimmed text with a missing value sent as null
  *
  * An endpoint the import writes to is named by its account mapping source and carries no name,
- * since Firefly III lets an asset account and a liability share one. Any other endpoint is named
- * as the export writes it
+ * since an export can give two accounts one name. Any other endpoint is named as the export
+ * writes it
  */
-export interface FireflyTransactionImportRow {
+export interface JournalImportRow {
   journal_id: string;
   type: string;
 
@@ -34,21 +44,24 @@ export interface FireflyTransactionImportRow {
   destination_account: string | null;
   destination_name: string | null;
   category: string | null;
+
+  /** Only on a transfer, and only with a category. Absent keeps both legs on Transfer */
+  category_leg?: JournalCategoryLeg | null;
   tag_names: string[];
   notes: string | null;
 }
 
-export interface FireflyTransactionImportPayload {
+export interface JournalImportPayload {
   accounts: TransactionImportAccountMapping[];
   categories: TransactionImportCategoryMapping[];
-  rows: FireflyTransactionImportRow[];
+  rows: JournalImportRow[];
 }
 
 /**
  * One batch of a staged export: the mappings its own rows reference, the rows, and where the
  * batch starts in the export. The first batch also carries any account the import creates empty
  */
-export interface FireflyImportStageBatch extends FireflyTransactionImportPayload {
+export interface JournalImportStageBatch extends JournalImportPayload {
   start_row_index: number;
 }
 
@@ -59,7 +72,7 @@ export interface FireflyImportStageBatch extends FireflyTransactionImportPayload
  * is a magnitude in plain decimal text so the backend can validate
  * precision against the budget currency
  */
-export interface FireflyBudgetImportLimit {
+export interface ImportBudgetLimit {
   /**
    * ISO dates in YYYY-MM-DD form
    */
@@ -74,7 +87,7 @@ export interface FireflyBudgetImportLimit {
  * The anchor fields follow the budget create rules: a weekday for weekly, a day of month for
  * monthly, and a day of month with a month for yearly, the others null
  */
-export interface FireflyBudgetImportRecurrence {
+export interface ImportBudgetRecurrence {
   freq: RecurrenceFreq;
   instance_length: number;
   weekday: number | null;
@@ -88,16 +101,16 @@ export interface FireflyBudgetImportRecurrence {
  * Its tracked categories are named by category mapping source, since a category the same import
  * creates has no id until the commit
  */
-export interface FireflyBudgetImportBudget {
+export interface ImportBudgetDraft {
   name: string;
   currency: string;
   category_sources: string[];
-  limits: FireflyBudgetImportLimit[];
+  limits: ImportBudgetLimit[];
 
   /**
    * Null when the latest limit period fits no cadence, which imports the budget not recurring
    */
-  recurrence: FireflyBudgetImportRecurrence | null;
+  recurrence: ImportBudgetRecurrence | null;
 
   /**
    * An archived budget arrives with its history frozen and stays out of the active budget list
@@ -109,28 +122,28 @@ export interface FireflyBudgetImportBudget {
  * Every budget a run creates, with the category mappings they name, since a budget can track a
  * category no staged row uses
  */
-export interface FireflyImportRunBudgets {
+export interface ImportRunBudgets {
   categories: TransactionImportCategoryMapping[];
-  budgets: FireflyBudgetImportBudget[];
+  budgets: ImportBudgetDraft[];
 }
 
-export interface FireflyBudgetImportResult {
+export interface ImportBudgetResult {
   name: string;
   base_budget_id: string;
   instance_count: number;
 }
 
 /**
- * Everything a Firefly III import wrote in its one commit
+ * Everything a provider import wrote in its one commit
  *
  * A row the server cannot write fails the whole commit, so nothing is ever skipped here. Transfers
  * between two mapped accounts produce two Lumina transactions from one journal row, so
  * transactions_created can exceed rows_imported
  */
-export interface FireflyImportRunResponse extends TransactionImportResponse {
+export interface JournalImportRunResponse extends TransactionImportResponse {
   rows_imported: number;
   budgets_created: number;
-  budgets: FireflyBudgetImportResult[];
+  budgets: ImportBudgetResult[];
   accounts_archived: number;
   archive_adjustments_created: number;
 }

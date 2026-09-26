@@ -41,7 +41,7 @@ const STEP_TRAVEL_DURATION = 0.28
 /**
  * How long the strike takes to draw across a finished stage
  *
- * FIREFLY_IMPORT_STAGE_CROSS_OFF_MS is how long the stage is held struck off,
+ * PROVIDER_IMPORT_STAGE_CROSS_OFF_MS is how long the stage is held struck off,
  * so it has to stay clear of this or the line would leave part drawn
  */
 const STEP_STRIKE_DURATION = 0.42

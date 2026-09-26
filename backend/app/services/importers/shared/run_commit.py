@@ -1,6 +1,7 @@
 """Commit steps every import run shares, whichever importer opened it"""
 
 import uuid
+from collections.abc import Collection
 from datetime import UTC, datetime
 
 from fastapi import HTTPException, status
@@ -13,7 +14,7 @@ from app.services.importers.shared.run_locking import load_locked_run
 from app.services.importers.shared.run_staging import require_run_source
 
 
-async def lock_run_for_commit(db: AsyncSession, run_id: uuid.UUID, source: ImportRunSource) -> ImportRun:
+async def lock_run_for_commit(db: AsyncSession, run_id: uuid.UUID, sources: Collection[ImportRunSource]) -> ImportRun:
     """Return the caller's run, held until this transaction ends
 
     The row-level security policy is what scopes this to the caller, so another user's run is
@@ -22,19 +23,19 @@ async def lock_run_for_commit(db: AsyncSession, run_id: uuid.UUID, source: Impor
     Args:
         db: Active database session
         run_id: Run to load
-        source: Importer whose commit is asking, which must be the one that opened the run
+        sources: Importers whose runs the asking commit writes, one of which must have opened the run
 
     Returns:
         The run, held for the rest of the transaction
 
     Raises:
         HTTPException: Raised with 404 when there is no such run of the caller's, 409 when
-            another request already holds it, and 422 when another importer opened it
+            another request already holds it, and 422 when an importer outside the sources opened it
     """
     run = await load_locked_run(db, run_id)
     if run is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Import run not found")
-    require_run_source(run, source)
+    require_run_source(run, sources)
     return run
 
 

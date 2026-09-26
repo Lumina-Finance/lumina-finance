@@ -1,4 +1,4 @@
-"""Firefly III transaction import orchestration service"""
+"""Journal transaction import orchestration service, shared by the Firefly III and Actual Budget imports"""
 
 import logging
 import uuid
@@ -11,22 +11,23 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.account import Account
 from app.models.base import TransferCounterpartyScope
 from app.models.category import Category
+from app.models.import_run import ImportRunSource
 from app.models.tag import TransactionTag
 from app.models.transaction import Transaction
 from app.models.user import User
-from app.schemas.firefly_import import FireflyTransactionRow
+from app.schemas.journal_import import JournalTransactionRow
 from app.schemas.transaction import TransactionImportAccountMapping, TransactionImportCategoryMapping
 from app.services.accounts.snapshots import recompute_account_snapshots
 from app.services.cache_state import mark_cache_changed_for_scope, mark_user_cache_changed
 from app.services.categories.transfer_rules import does_category_record_counterparty_account
-from app.services.importers.firefly.constants import FIREFLY_GENERIC_REFUSAL_REASON
-from app.services.importers.firefly.row_resolution import (
-    FireflyLeg,
-    FireflyResolutionContext,
-    FireflyRowRefusedError,
-    resolve_firefly_row,
+from app.services.importers.journal.constants import JOURNAL_GENERIC_REFUSAL_REASON, JOURNAL_ROW_LABELS
+from app.services.importers.journal.row_resolution import (
+    JournalLeg,
+    JournalResolutionContext,
+    JournalRowRefusedError,
+    resolve_journal_row,
 )
-from app.services.importers.firefly.system_categories import get_firefly_system_categories
+from app.services.importers.journal.system_categories import get_journal_system_categories
 from app.services.importers.shared.accounts import resolve_import_account_sources
 from app.services.importers.shared.categories import get_or_create_import_categories_by_source
 from app.services.importers.shared.currencies import get_import_currencies_by_code
@@ -52,8 +53,8 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class FireflyWriteResult:
-    """What writing a Firefly III export's rows created, before anything is committed"""
+class JournalWriteResult:
+    """What writing a journal export's rows created, before anything is committed"""
 
     stats: ImportStats
     legs_created: int
@@ -62,18 +63,20 @@ class FireflyWriteResult:
     first_import_date_by_account_id: dict[uuid.UUID, date]
 
 
-async def write_firefly_transactions(
+async def write_journal_transactions(
     db: AsyncSession,
     user: User,
+    source: ImportRunSource,
     accounts: list[TransactionImportAccountMapping],
     categories: list[TransactionImportCategoryMapping],
-    rows: list[FireflyTransactionRow],
-) -> FireflyWriteResult:
-    """Write a Firefly III export's rows and everything they reference, without committing
+    rows: list[JournalTransactionRow],
+) -> JournalWriteResult:
+    """Write a journal export's rows and everything they reference, without committing
 
     Args:
         db: Active database session
         user: Authenticated user running the import
+        source: Importer that opened the run, which decides how a refusal names a row
         accounts: Account mappings covering every account source the rows name
         categories: Category mappings covering every category the rows read
         rows: Journal rows in export order
@@ -82,14 +85,14 @@ async def write_firefly_transactions(
         What the rows created
 
     Raises:
-        HTTPException: Raised with 422 for the first row that cannot be converted, naming the row's
-            journal
+        HTTPException: Raised with 422 for the first row that cannot be converted, naming the row
+            as the export does
     """
     stats = ImportStats()
 
-    # Both legs of a Firefly transfer get a row written, so every source here is an account the
+    # Both legs of a journal transfer get a row written, so every source here is an account the
     # import writes to and none of them takes the weaker counterparty rule. Staging refuses an
-    # outside answer for a Firefly run, so every source resolves to an account
+    # outside answer for a journal run, so every source resolves to an account
     account_sources = await resolve_import_account_sources(db, user, accounts, stats, set())
     accounts_by_source = account_sources.accounts_by_source
     categories_by_source = await get_or_create_import_categories_by_source(db, user, categories, stats)
@@ -99,9 +102,9 @@ async def write_firefly_transactions(
     currencies_by_code = await get_import_currencies_by_code(db, account_currency_codes)
     merchants = await load_import_merchants(db, user.id)
     tags_by_name = await get_personal_import_tags_by_name(db, user.id)
-    transfer_category, balance_adjustment_category = await get_firefly_system_categories(db)
+    transfer_category, balance_adjustment_category = await get_journal_system_categories(db)
 
-    context = FireflyResolutionContext(
+    context = JournalResolutionContext(
         user_id=user.id,
         accounts_by_source=accounts_by_source,
         categories_by_source=categories_by_source,
@@ -109,7 +112,7 @@ async def write_firefly_transactions(
         transfer_category=transfer_category,
         balance_adjustment_category=balance_adjustment_category,
     )
-    legs_by_row = _resolve_rows(rows, context)
+    legs_by_row = _resolve_rows(rows, context, JOURNAL_ROW_LABELS[source])
     legs = [leg for row_legs in legs_by_row for leg in row_legs]
 
     first_import_date_by_account_id = await _write_legs(
@@ -131,7 +134,7 @@ async def write_firefly_transactions(
         accounts_by_source,
         first_import_date_by_account_id,
     )
-    return FireflyWriteResult(
+    return JournalWriteResult(
         stats=stats,
         legs_created=len(legs),
         accounts_by_source=accounts_by_source,
@@ -141,33 +144,35 @@ async def write_firefly_transactions(
 
 
 def _resolve_rows(
-    rows: list[FireflyTransactionRow],
-    context: FireflyResolutionContext,
-) -> list[list[FireflyLeg]]:
+    rows: list[JournalTransactionRow],
+    context: JournalResolutionContext,
+    row_label: str,
+) -> list[list[JournalLeg]]:
     """Resolve payload rows into transaction legs, refusing the first row that cannot convert
 
     The browser leaves out every row it can tell will not convert, so a row refused here fails the
     whole import rather than being dropped from it
 
     Args:
-        rows: Firefly III journal rows in export order
+        rows: Journal rows in export order
         context: Lookups needed to resolve rows
+        row_label: What the export calls a row, which a refusal names it by
 
     Returns:
         Legs per row
 
     Raises:
-        HTTPException: Raised naming the row's journal, which the browser can find in the file
+        HTTPException: Raised naming the row by its journal id, which the browser can find in the file
             whichever rows it left out, with the status of a mapping the row cannot use, or 422 for
             a row that cannot convert
     """
-    legs_by_row: list[list[FireflyLeg]] = []
+    legs_by_row: list[list[JournalLeg]] = []
 
     for row in rows:
         try:
-            legs_by_row.append(resolve_firefly_row(row, context))
+            legs_by_row.append(resolve_journal_row(row, context))
             continue
-        except FireflyRowRefusedError as refusal:
+        except JournalRowRefusedError as refusal:
             status_code, reason = status.HTTP_422_UNPROCESSABLE_CONTENT, refusal.reason
         except HTTPException as exc:
 
@@ -178,12 +183,12 @@ def _resolve_rows(
 
             # A row failing in a way no refusal rule anticipated is refused with a generic reason, and
             # the specifics are kept in the server log
-            logger.exception("Firefly III journal %s could not be converted", row.journal_id)
-            status_code, reason = status.HTTP_422_UNPROCESSABLE_CONTENT, FIREFLY_GENERIC_REFUSAL_REASON
+            logger.exception("%s %s could not be converted", row_label, row.journal_id)
+            status_code, reason = status.HTTP_422_UNPROCESSABLE_CONTENT, JOURNAL_GENERIC_REFUSAL_REASON
 
         raise HTTPException(
             status_code=status_code,
-            detail=f"Firefly III journal {row.journal_id}: {reason}",
+            detail=f"{row_label} {row.journal_id}: {reason}",
         )
     return legs_by_row
 
@@ -192,7 +197,7 @@ async def _write_legs(
     db: AsyncSession,
     *,
     user_id: uuid.UUID,
-    legs: list[FireflyLeg],
+    legs: list[JournalLeg],
     merchants: ImportMerchants,
     tags_by_name: dict,
     stats: ImportStats,
@@ -215,7 +220,7 @@ async def _write_legs(
 
     # Every merchant and tag the export introduces is created before the legs are walked, so each
     # costs one insert for the whole export rather than one per leg that first mentions it
-    # The Firefly flow has no step asking about a payee, so every value keeps what the importer
+    # The journal flow has no step asking about a payee, so every value keeps what the importer
     # does unasked: matching an existing merchant by name, and creating one where nothing matches
     await create_missing_import_merchants(db, user_id, (leg.merchant_name for leg in legs), [], merchants, stats)
     await create_missing_import_tags(
@@ -269,7 +274,7 @@ async def _write_legs(
     return first_import_date_by_account_id
 
 
-def _get_leg_counterparty_scope(leg: FireflyLeg) -> TransferCounterpartyScope | None:
+def _get_leg_counterparty_scope(leg: JournalLeg) -> TransferCounterpartyScope | None:
     """Return what a leg records about where its money went
 
     A pair states both ends, so each leg points at the other. Every other leg of a category that

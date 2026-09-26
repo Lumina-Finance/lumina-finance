@@ -1,18 +1,20 @@
 import { authenticatedFetch } from '@/api/client';
 import type {
-  FireflyImportRunBudgets,
-  FireflyImportRunResponse,
-  FireflyImportStageBatch,
-} from '@/api/firefly-imports/types';
+  ImportRunBudgets,
+  JournalImportRunResponse,
+  JournalImportSource,
+  JournalImportStageBatch,
+} from '@/api/provider-imports/types';
 import type { TransactionImportRun } from '@/api/transaction-imports/types';
 
 /**
- * Opens a run for a Firefly III export about to be staged, stating how many journal rows it holds
+ * Opens a run for a provider export about to be staged, stating which app it came from and how many
+ * journal rows it holds
  */
-export function openFireflyImportRun(journalRowCount: number, signal?: AbortSignal) {
+export function openJournalImportRun(source: JournalImportSource, journalRowCount: number, signal?: AbortSignal) {
   return authenticatedFetch<TransactionImportRun>('/transactions/import/runs', {
     method: 'POST',
-    body: JSON.stringify({ expected_transaction_count: journalRowCount, source: 'firefly' }),
+    body: JSON.stringify({ expected_transaction_count: journalRowCount, source }),
     signal,
   });
 }
@@ -20,8 +22,8 @@ export function openFireflyImportRun(journalRowCount: number, signal?: AbortSign
 /**
  * Parks one batch of an export against its run, creating nothing
  */
-export function stageFireflyImportRows(runId: string, batch: FireflyImportStageBatch, signal?: AbortSignal) {
-  return authenticatedFetch<void>(`/transactions/import/runs/${runId}/firefly/rows`, {
+export function stageJournalImportRows(runId: string, batch: JournalImportStageBatch, signal?: AbortSignal) {
+  return authenticatedFetch<void>(`/transactions/import/runs/${runId}/journal/rows`, {
     method: 'POST',
     body: JSON.stringify(batch),
     signal,
@@ -33,7 +35,7 @@ export function stageFireflyImportRows(runId: string, batch: FireflyImportStageB
  *
  * Replacing rather than adding is what makes this safe to send again when a response goes missing
  */
-export function putFireflyImportRunBudgets(runId: string, budgets: FireflyImportRunBudgets, signal?: AbortSignal) {
+export function putImportRunBudgets(runId: string, budgets: ImportRunBudgets, signal?: AbortSignal) {
   return authenticatedFetch<void>(`/transactions/import/runs/${runId}/budgets`, {
     method: 'PUT',
     body: JSON.stringify(budgets),
@@ -47,7 +49,7 @@ export function putFireflyImportRunBudgets(runId: string, budgets: FireflyImport
  *
  * Replacing rather than adding is what makes this safe to send again when a response goes missing
  */
-export function putFireflyImportRunArchive(runId: string, accountSources: string[], signal?: AbortSignal) {
+export function putImportRunArchive(runId: string, accountSources: string[], signal?: AbortSignal) {
   return authenticatedFetch<void>(`/transactions/import/runs/${runId}/archive`, {
     method: 'PUT',
     body: JSON.stringify({ account_sources: accountSources }),
@@ -61,8 +63,8 @@ export function putFireflyImportRunArchive(runId: string, accountSources: string
  * Answering a second time with the summary of the first is what makes this safe to send again
  * when a response goes missing
  */
-export function commitFireflyImportRun(runId: string, signal?: AbortSignal) {
-  return authenticatedFetch<FireflyImportRunResponse>(`/transactions/import/runs/${runId}/firefly/commit`, {
+export function commitJournalImportRun(runId: string, signal?: AbortSignal) {
+  return authenticatedFetch<JournalImportRunResponse>(`/transactions/import/runs/${runId}/journal/commit`, {
     method: 'POST',
     signal,
   });

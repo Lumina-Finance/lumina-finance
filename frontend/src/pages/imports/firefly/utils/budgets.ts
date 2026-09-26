@@ -1,10 +1,10 @@
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import type {
-  FireflyBudgetImportLimit,
-  FireflyBudgetImportRecurrence,
-  FireflyImportRunBudgets,
-} from '@/api/firefly-imports'
+  ImportBudgetLimit,
+  ImportBudgetRecurrence,
+  ImportRunBudgets,
+} from '@/api/provider-imports'
 import type { TransactionImportCategoryMapping } from '@/api/transaction-imports'
 import type { CsvRow, ImportFileDraft } from '@/pages/imports/types'
 import {
@@ -32,7 +32,7 @@ import type { FireflyBudgetDraft } from '@/pages/imports/firefly/types'
 import { toImportMinorUnits } from '@/pages/imports/utils/valueParsers'
 import { parseYmd } from '@/utils/date'
 import { formatCurrency } from '@/utils/formatCurrency'
-import { FIREFLY_NO_CATEGORY_SOURCE } from '@/api/firefly-imports'
+import { JOURNAL_NO_CATEGORY_SOURCE } from '@/api/provider-imports'
 import { CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
 import { findReusedImportCategory, getCategoryNameKey } from '@/pages/imports/utils/categoryMatching'
 import {
@@ -179,7 +179,7 @@ export function buildFireflyBudgetDrafts({
 export function buildFireflyRunBudgets(
   drafts: FireflyBudgetDraft[],
   categoryMappings: TransactionImportCategoryMapping[],
-): FireflyImportRunBudgets {
+): ImportRunBudgets {
   const mappingsBySource = new Map(categoryMappings.map((mapping) => [mapping.source, mapping]))
   const usedMappings = new Map<string, TransactionImportCategoryMapping>()
 
@@ -266,7 +266,7 @@ export function buildFireflyBudgetCountingNotes({
     for (const key of targets.keys()) budgetNamesByTarget.set(key, [...budgetNamesByTarget.get(key) ?? [], budgetName])
   }
 
-  const uncategorizedTarget = getFireflyCategoryTarget(FIREFLY_NO_CATEGORY_SOURCE, options)
+  const uncategorizedTarget = getFireflyCategoryTarget(JOURNAL_NO_CATEGORY_SOURCE, options)
   const uncategorizedByBudget = new Map<string, Map<string, number>>()
   const groupSizes = getFireflySplitGroupSizes(rows)
   for (const row of rows) {
@@ -330,7 +330,7 @@ function formatBudgetAmount(amount: string, currencyCode: string, currencies: Cu
  * schedule can be ordered without comparing the strings
  */
 interface FireflyLimitEntry {
-  limit: FireflyBudgetImportLimit
+  limit: ImportBudgetLimit
   currencyCode: string
   startTime: number
   endTime: number
@@ -348,7 +348,7 @@ interface FireflyLimitEntry {
  * find it would order rows this pass has already refused
  */
 function buildLimitSchedule(limitRows: FireflyLimitRow[]): {
-  limits: FireflyBudgetImportLimit[]
+  limits: ImportBudgetLimit[]
   currencyCodes: string[]
   latestCurrencyCode: string
   hasUnreadableDates: boolean
@@ -521,7 +521,7 @@ function getLimitAmountProblem(amount: string, exponent: number): string | null 
  * no rhythm to lose, and a regular history ending on one odd partial period
  * imports not recurring with every period intact, so neither trips this
  */
-function repeatsOnUnsupportedCadence(limits: FireflyBudgetImportLimit[]): boolean {
+function repeatsOnUnsupportedCadence(limits: ImportBudgetLimit[]): boolean {
   if (limits.length < 2) return false
   const latest = limits[limits.length - 1]
   if (getFireflyBudgetRecurrence(latest) !== null) return false
@@ -540,7 +540,7 @@ function repeatsOnUnsupportedCadence(limits: FireflyBudgetImportLimit[]): boolea
  * yearly when it spans whole years, and a period of whole weeks continues weekly on its start
  * weekday. Months are tried first, so a 28-day February reads as one month rather than four weeks
  */
-export function getFireflyBudgetRecurrence(limit: FireflyBudgetImportLimit): FireflyBudgetImportRecurrence | null {
+export function getFireflyBudgetRecurrence(limit: ImportBudgetLimit): ImportBudgetRecurrence | null {
   const start = parseIsoDateUtc(limit.start)
   const monthCadence = monthCadenceOf(limit)
   if (start !== null && monthCadence !== null) {
@@ -577,8 +577,8 @@ export function getFireflyBudgetRecurrence(limit: FireflyBudgetImportLimit): Fir
  * repeating on an unsupported length keeps that length, so the skip reads against it
  */
 function describeCadence(
-  latest: FireflyBudgetImportLimit,
-  recurrence: FireflyBudgetImportRecurrence | null,
+  latest: ImportBudgetLimit,
+  recurrence: ImportBudgetRecurrence | null,
   repeatsUnsupported: boolean,
 ): string {
   if (repeatsUnsupported) return `Every ${inclusiveDayLength(latest)} days`
@@ -599,7 +599,7 @@ function describeCadence(
  * larger anchor, so those anchors are tried too, and the smallest that fits
  * wins
  */
-function monthCadenceOf(limit: FireflyBudgetImportLimit): { months: number; dom: number } | null {
+function monthCadenceOf(limit: ImportBudgetLimit): { months: number; dom: number } | null {
   const start = parseIsoDateUtc(limit.start)
   const followingStart = parseIsoDateUtc(addDays(limit.end, 1))
   if (start === null || followingStart === null) return null
@@ -627,7 +627,7 @@ function monthCadenceOf(limit: FireflyBudgetImportLimit): { months: number; dom:
 /**
  * Returns how many days a limit period covers, both ends included
  */
-function inclusiveDayLength(limit: FireflyBudgetImportLimit): number {
+function inclusiveDayLength(limit: ImportBudgetLimit): number {
   const start = parseIsoDateUtc(limit.start)
   const end = parseIsoDateUtc(limit.end)
   if (start === null || end === null) return 0

@@ -1,7 +1,7 @@
-import type { FireflyImportRunResponse } from '@/api/firefly-imports'
 import type { CsvRow, ImportRowProblem } from '@/pages/imports/types'
 import { FIREFLY_MISSING_REQUIRED_VALUES_REASON, FIREFLY_TAG_TOO_LONG_REASON } from '@/pages/imports/firefly/constants'
 import { getImportRowId } from '@/pages/imports/utils/common'
+import type { CompletedProviderImport } from '@/pages/imports/utils/providerImportRun'
 import { getDebtPaymentImportNote } from '@/pages/imports/utils/categoryMatching'
 import {
   getFireflyMissingRequiredFields,
@@ -54,12 +54,6 @@ export interface FireflyImportForecastOptions extends FireflyRowResolutionOption
   fileId: string | null
 }
 
-/** What one completed import wrote, with what it left out, captured when it started */
-export interface FireflyCompletedImportContext {
-  result: FireflyImportRunResponse
-  skippedRowsAtCommit: FireflySkippedRowDetail[]
-}
-
 /**
  * Selects the skipped rows the preview table shows before or after commit
  */
@@ -68,7 +62,7 @@ export function getFireflySkippedRowsDisplay({
   completedImport,
 }: {
   liveForecastRows: FireflySkippedRowDetail[]
-  completedImport: FireflyCompletedImportContext | null
+  completedImport: CompletedProviderImport<FireflySkippedRowDetail> | null
 }) {
   const rows = completedImport?.skippedRowsAtCommit ?? liveForecastRows
   const totalCount = rows.length

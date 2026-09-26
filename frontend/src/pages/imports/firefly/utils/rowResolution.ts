@@ -1,6 +1,6 @@
 import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
-import { FIREFLY_NO_CATEGORY_SOURCE } from '@/api/firefly-imports'
+import { JOURNAL_NO_CATEGORY_SOURCE } from '@/api/provider-imports'
 import type { Institution } from '@/api/institutions'
 import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, DEFAULT_CATEGORY_ICON } from '@/pages/imports/constants'
 import type { Currency } from '@/api/currency'
@@ -128,7 +128,7 @@ export function getFireflyCategoryUsedByResolution(
   const mappedCategory = getFireflyMappedCategory(row, options)
   if (!mappedCategory || !legs.some((leg) => leg.category?.id === mappedCategory.id)) return undefined
 
-  const source = row.category?.trim() || FIREFLY_NO_CATEGORY_SOURCE
+  const source = row.category?.trim() || JOURNAL_NO_CATEGORY_SOURCE
   if (options.categoryMappings[source] !== CREATE_CATEGORY_VALUE) return mappedCategory
 
   const reused = findReusedImportCategory(source, options.categoryById.values())
@@ -311,7 +311,7 @@ function getFireflyMappedCategory(
   row: CsvRow,
   options: FireflyRowResolutionOptions,
 ): Category | undefined {
-  const source = row.category?.trim() || FIREFLY_NO_CATEGORY_SOURCE
+  const source = row.category?.trim() || JOURNAL_NO_CATEGORY_SOURCE
   const choice = options.categoryMappings[source]
 
   if (choice === CREATE_CATEGORY_VALUE) {

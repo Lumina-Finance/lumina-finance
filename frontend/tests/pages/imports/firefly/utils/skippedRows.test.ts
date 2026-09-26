@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
-import type { FireflyImportRunResponse } from '@/api/firefly-imports'
+import type { JournalImportRunResponse } from '@/api/provider-imports'
 import {
   CREATE_ACCOUNT_VALUE,
   CREATE_CATEGORY_VALUE,
@@ -155,7 +155,7 @@ function createSkippedDetail(
 }
 
 /** Creates a complete committed result with empty counters and mappings unless overridden */
-function createImportResult(overrides: Partial<FireflyImportRunResponse> = {}): FireflyImportRunResponse {
+function createImportResult(overrides: Partial<JournalImportRunResponse> = {}): JournalImportRunResponse {
   return {
     transactions_created: 0,
     accounts_created: 0,

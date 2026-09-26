@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import type { AccountsOverview } from '@/api/accounts'
 import type { Currency } from '@/api/currency'
-import { buildFireflyStageBatches, type FireflyImportRunResponse } from '@/api/firefly-imports'
+import { buildJournalStageBatches, type JournalImportRunResponse } from '@/api/provider-imports'
 import type { Category } from '@/api/categories'
 import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, MAX_IMPORT_NOTES_LENGTH } from '@/pages/imports/constants'
 import type { CsvRow, ImportFileDraft } from '@/pages/imports/types'
@@ -58,7 +58,7 @@ const TRANSACTIONS_FILE = {
 } as ImportFileDraft
 
 /** Creates a complete Firefly result with empty counters and mappings unless overridden */
-function createImportResult(overrides: Partial<FireflyImportRunResponse> = {}): FireflyImportRunResponse {
+function createImportResult(overrides: Partial<JournalImportRunResponse> = {}): JournalImportRunResponse {
   return {
     transactions_created: 0,
     accounts_created: 0,
@@ -443,7 +443,7 @@ describe('a Firefly asset account and loan sharing a name', () => {
     expect(result.errors).toEqual([])
 
     // Nothing is created until the commit, so every batch carries the create mappings its rows need
-    const batches = await buildFireflyStageBatches(result.payload!)
+    const batches = await buildJournalStageBatches(result.payload!)
     const lastBatch = batches[batches.length - 1]
     expect(batches.length).toBeGreaterThan(1)
     expect(batches.map((batch) => batch.start_row_index)).toEqual(
@@ -718,7 +718,7 @@ describe('a real Firefly III export with splits, transfers and balance rows', ()
     const { options, payload } = stage(draft, rows)
     const [, checking, savings] = options.accountSources.list
 
-    const batches = await buildFireflyStageBatches(payload)
+    const batches = await buildJournalStageBatches(payload)
     const lastBatch = batches[batches.length - 1]
     expect(lastBatch.rows.every((row) => row.type === 'transfer')).toBe(true)
     expect(lastBatch.categories).toEqual([])
@@ -788,7 +788,7 @@ describe('importing with the Firefly III accounts export', () => {
     expect([...result.writtenSources.accounts].sort()).toEqual([...sent].sort())
     expect(result.archiveAccountSources.sort()).toEqual([ids.Chequing, ids['Rainy Day']].sort())
 
-    const [firstBatch] = await buildFireflyStageBatches(result.payload!)
+    const [firstBatch] = await buildJournalStageBatches(result.payload!)
     expect(firstBatch.accounts.map((mapping) => mapping.source).sort()).toEqual([...sent].sort())
   })
 

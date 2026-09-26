@@ -40,7 +40,7 @@ async def commit_import_run(db: AsyncSession, user: User, run_id: uuid.UUID) -> 
             declared, when a staged row cannot be written as it stands, or when a mapping the run
             recorded no longer resolves
     """
-    run = await lock_run_for_commit(db, run_id, ImportRunSource.GENERIC)
+    run = await lock_run_for_commit(db, run_id, {ImportRunSource.GENERIC})
     if run.committed_at is not None:
         return TransactionImportResponse.model_validate(run.summary)
 

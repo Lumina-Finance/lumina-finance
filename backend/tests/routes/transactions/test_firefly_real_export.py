@@ -99,7 +99,7 @@ async def test_a_real_firefly_export_imports_to_the_balances_and_totals_firefly_
 
     for batch in FIXTURE["transactions"]:
         resp = await client.post(
-            f"{run_path}/firefly/rows",
+            f"{run_path}/journal/rows",
             json={**batch, "categories": resolve_categories(batch["categories"])},
             headers=headers,
         )
@@ -114,7 +114,7 @@ async def test_a_real_firefly_export_imports_to_the_balances_and_totals_firefly_
         resp = await client.put(f"{run_path}/archive", json={"account_sources": FIXTURE["archive"]}, headers=headers)
         assert resp.status_code == 204, resp.text
 
-    resp = await client.post(f"{run_path}/firefly/commit", headers=headers)
+    resp = await client.post(f"{run_path}/journal/commit", headers=headers)
     assert resp.status_code == 201, resp.text
 
     # The commit may have created categories the budgets and totals below are read by

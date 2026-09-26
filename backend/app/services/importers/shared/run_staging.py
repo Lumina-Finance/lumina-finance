@@ -1,7 +1,7 @@
 """Staging steps every import run shares, whichever importer opened it"""
 
 import uuid
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Collection, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -207,7 +207,9 @@ async def stage_import_archive(db: AsyncSession, run_id: uuid.UUID, data: Import
     await db.commit()
 
 
-async def load_uncommitted_run(db: AsyncSession, run_id: uuid.UUID, source: ImportRunSource | None = None) -> ImportRun:
+async def load_uncommitted_run(
+    db: AsyncSession, run_id: uuid.UUID, sources: Collection[ImportRunSource] | None = None,
+) -> ImportRun:
     """Return the caller's run, held for the rest of the transaction, when it is still open
 
     The row-level security policy is what scopes this to the caller, so another user's run is
@@ -216,40 +218,40 @@ async def load_uncommitted_run(db: AsyncSession, run_id: uuid.UUID, source: Impo
     Args:
         db: Active database session
         run_id: Run to load
-        source: Importer the request belongs to, or None for a request any run takes
+        sources: Importers whose runs the request takes, or None for a request any run takes
 
     Returns:
         The open run
 
     Raises:
         HTTPException: Raised with 404 when there is no such run of the caller's, 409 when it has
-            already been committed or another request is working on it, and 422 when another
-            importer opened it
+            already been committed or another request is working on it, and 422 when an importer
+            outside the sources opened it
     """
     run = await load_locked_run(db, run_id)
     if run is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Import run not found")
     if run.committed_at is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="This import has already been committed")
-    if source is not None:
-        require_run_source(run, source)
+    if sources is not None:
+        require_run_source(run, sources)
     return run
 
 
-def require_run_source(run: ImportRun, source: ImportRunSource) -> None:
-    """Refuse a request sent to a run another importer opened
+def require_run_source(run: ImportRun, sources: Collection[ImportRunSource]) -> None:
+    """Refuse a request sent to a run an importer outside the request's sources opened
 
-    Each importer's rows are read by its own commit, so a row staged under the wrong one would be
-    read as something it is not
+    Each kind of row is read by its own commit, so a row staged under the wrong one would be read
+    as something it is not
 
     Args:
         run: Run the request names
-        source: Importer the request belongs to
+        sources: Importers whose runs the request takes
 
     Raises:
-        HTTPException: Raised with 422 when the run belongs to a different importer
+        HTTPException: Raised with 422 when the run belongs to an importer outside the sources
     """
-    if run.source != source:
+    if run.source not in sources:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"This import run is {_RUN_SOURCE_LABELS[run.source]}",

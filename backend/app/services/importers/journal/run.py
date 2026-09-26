@@ -1,4 +1,4 @@
-"""Staging a Firefly III export as an import run, and committing it in one transaction"""
+"""Staging a Firefly III or Actual Budget journal as an import run, and committing it in one transaction"""
 
 import uuid
 from datetime import datetime
@@ -12,21 +12,22 @@ from app.models.category import Category
 from app.models.import_run import ImportRun, ImportRunSource
 from app.models.user import User
 from app.permissions import check_account_access
-from app.schemas.firefly_import import (
-    FireflyBudgetImportResult,
-    FireflyImportRunResponse,
-    FireflyImportStageRequest,
-    FireflyTransactionRow,
-)
 from app.schemas.import_run import ImportBudgetDraft
+from app.schemas.journal_import import (
+    JournalBudgetImportResult,
+    JournalImportRunResponse,
+    JournalImportStageRequest,
+    JournalTransactionRow,
+)
 from app.schemas.transaction import TransactionImportAccountMapping, TransactionImportCategoryMapping
 from app.services.accounts.balance_adjustments import (
     validate_no_transactions_after_archive_date,
     zero_account_balance_for_archive,
 )
 from app.services.cache_state import mark_cache_changed_for_scope
-from app.services.importers.firefly.budgets import FireflyBudgetImport, write_firefly_budgets
-from app.services.importers.firefly.service import FireflyWriteResult, write_firefly_transactions
+from app.services.importers.journal.budgets import JournalBudgetImport, write_journal_budgets
+from app.services.importers.journal.constants import JOURNAL_RUN_SOURCES
+from app.services.importers.journal.service import JournalWriteResult, write_journal_transactions
 from app.services.importers.shared.run_commit import finish_run_commit, get_every_staged_row, lock_run_for_commit
 from app.services.importers.shared.run_staging import (
     insert_staged_rows,
@@ -40,13 +41,13 @@ from app.services.importers.shared.run_staging import (
 from app.utils.dates import resolve_timezone
 
 
-async def stage_firefly_batch(
+async def stage_journal_batch(
     db: AsyncSession,
     user: User,
     run_id: uuid.UUID,
-    data: FireflyImportStageRequest,
+    data: JournalImportStageRequest,
 ) -> None:
-    """Park one batch of a Firefly III export against its run, after checking its mappings
+    """Park one batch of a journal export against its run, after checking its mappings
 
     Args:
         db: Active database session
@@ -60,18 +61,20 @@ async def stage_firefly_batch(
     Raises:
         HTTPException: Raised with 404 for a run that is not the caller's or a mapped account they
             cannot reach, 409 for a run already committed or one another request is working on, and
-            422 for a run another importer opened, a batch reaching past the export's row count,
+            422 for a run a non-journal importer opened, a batch reaching past the export's row count,
             re-declaring a source differently, or declaring a mapping staging can already tell is
             unusable
     """
-    run = await load_uncommitted_run(db, run_id, ImportRunSource.FIREFLY)
+    run = await load_uncommitted_run(db, run_id, JOURNAL_RUN_SOURCES)
     require_batch_within_run(run, data.start_row_index, len(data.rows))
 
     references = await load_staging_references(db, user, data.accounts, data.categories)
     for account_mapping in data.accounts:
-        # Every Firefly source is an endpoint rows are written to, and the export states both sides
-        # of a transfer itself, so there is nothing here an outside answer could describe. Refusing
-        # it here rather than at the commit keeps the run open for the corrected answer
+        # Every journal account source is an endpoint rows are written to, and the journal states
+        # both sides of a transfer itself, so there is nothing here an outside answer could describe.
+        # Money leaving the tracked accounts is a withdrawal or deposit to a payee under a transfer
+        # category instead, which records the outside counterparty. Refusing it here rather than at
+        # the commit keeps the run open for the corrected answer
         if account_mapping.outside:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -90,8 +93,8 @@ async def stage_firefly_batch(
     await db.commit()
 
 
-async def commit_firefly_run(db: AsyncSession, user: User, run_id: uuid.UUID) -> FireflyImportRunResponse:
-    """Write a staged Firefly III export in one transaction: its rows, then budgets, then archiving
+async def commit_journal_run(db: AsyncSession, user: User, run_id: uuid.UUID) -> JournalImportRunResponse:
+    """Write a staged journal export in one transaction: its rows, then budgets, then archiving
 
     Accounts, categories, merchants and tags are created as the rows need them, budgets then look
     up categories the same commit created, and archiving comes last so it sees every row. Nothing
@@ -109,29 +112,30 @@ async def commit_firefly_run(db: AsyncSession, user: User, run_id: uuid.UUID) ->
 
     Raises:
         HTTPException: Raised with 404 for a run that is absent or not the caller's, or a mapped
-            account they cannot reach, 409 when another request holds the run, and 422 when another
-            importer opened the run, when the staged rows do not add up to the export the run
-            declared, when a row cannot be written (naming the row's journal), when a budget names a category
+            account they cannot reach, 409 when another request holds the run, and 422 when a
+            non-journal importer opened the run, when the staged rows do not add up to the export the
+            run declared, when a row cannot be written (naming the row as the export does), when a budget names a category
             source with no mapping or cannot be created, or when an account cannot be archived
     """
-    run = await lock_run_for_commit(db, run_id, ImportRunSource.FIREFLY)
+    run = await lock_run_for_commit(db, run_id, JOURNAL_RUN_SOURCES)
     if run.committed_at is not None:
-        return FireflyImportRunResponse.model_validate(run.summary)
+        return JournalImportRunResponse.model_validate(run.summary)
 
     staged_rows = await get_every_staged_row(db, run)
-    written = await write_firefly_transactions(
+    written = await write_journal_transactions(
         db,
         user,
+        ImportRunSource(run.source),
         [TransactionImportAccountMapping.model_validate(mapping) for mapping in run.account_mappings.values()],
         [TransactionImportCategoryMapping.model_validate(mapping) for mapping in run.category_mappings.values()],
-        [FireflyTransactionRow.model_validate(row.payload) for row in staged_rows],
+        [JournalTransactionRow.model_validate(row.payload) for row in staged_rows],
     )
 
     budgets = [
         _resolve_budget_categories(ImportBudgetDraft.model_validate(draft), written.categories_by_source)
         for draft in run.budget_drafts
     ]
-    budget_results = await write_firefly_budgets(db, user, budgets)
+    budget_results = await write_journal_budgets(db, user, budgets)
     archived_count, adjustment_count = await _archive_accounts(db, user, run, written)
 
     response = _build_response(written, len(staged_rows), budget_results, archived_count, adjustment_count)
@@ -142,7 +146,7 @@ async def commit_firefly_run(db: AsyncSession, user: User, run_id: uuid.UUID) ->
 def _resolve_budget_categories(
     draft: ImportBudgetDraft,
     categories_by_source: dict[str, Category],
-) -> FireflyBudgetImport:
+) -> JournalBudgetImport:
     """Turn a budget draft's category sources into the categories the commit resolved them to
 
     Args:
@@ -166,7 +170,7 @@ def _resolve_budget_categories(
             )
         category_ids.append(category.id)
 
-    return FireflyBudgetImport(
+    return JournalBudgetImport(
         name=draft.name,
         currency=draft.currency,
         category_ids=category_ids,
@@ -180,7 +184,7 @@ async def _archive_accounts(
     db: AsyncSession,
     user: User,
     run: ImportRun,
-    written: FireflyWriteResult,
+    written: JournalWriteResult,
 ) -> tuple[int, int]:
     """Archive the accounts the run lists, through the same rules as archiving one by hand
 
@@ -236,12 +240,12 @@ async def _archive_accounts(
 
 
 def _build_response(
-    written: FireflyWriteResult,
+    written: JournalWriteResult,
     rows_imported: int,
-    budget_results: list[FireflyBudgetImportResult],
+    budget_results: list[JournalBudgetImportResult],
     archived_count: int,
     adjustment_count: int,
-) -> FireflyImportRunResponse:
+) -> JournalImportRunResponse:
     """Build the commit's summary
 
     Args:
@@ -255,7 +259,7 @@ def _build_response(
         The commit's summary
     """
     stats = written.stats
-    return FireflyImportRunResponse(
+    return JournalImportRunResponse(
         rows_imported=rows_imported,
         transactions_created=written.legs_created,
         accounts_created=stats.accounts_created,

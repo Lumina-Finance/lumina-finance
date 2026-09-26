@@ -5,7 +5,7 @@ import json
 from fastapi import HTTPException
 
 # 10 MB. The frontend batches a transaction import into 750 KB requests, and the one
-# request it cannot split, a Firefly III budget import, is a few MB at its largest
+# request it cannot split, a journal import's budgets, is a few MB at its largest
 MAX_REQUEST_BODY_BYTES = 10 * 1024 * 1024
 
 _TOO_LARGE_DETAIL = "Request body is too large"

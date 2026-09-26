@@ -1,16 +1,16 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { FireflyImportRunResponse } from '@/api/firefly-imports'
+import type { JournalImportRunResponse } from '@/api/provider-imports'
 import { TransactionImportRunError } from '@/api/transaction-imports'
+import type { FireflySkippedRowDetail } from '@/pages/imports/firefly/utils'
 import {
-  canStartFireflyImport,
-  countFireflyCreatedSources,
-  createFireflyImportRunController,
-  getFireflyImportError,
-  type FireflyImportRunState,
-  type FireflySkippedRowDetail,
-} from '@/pages/imports/firefly/utils'
+  canStartProviderImport,
+  countCreatedImportSources,
+  createProviderImportRunController,
+  getProviderImportError,
+  type ProviderImportRunState,
+} from '@/pages/imports/utils'
 
-const RESULT = { rows_imported: 3 } as FireflyImportRunResponse
+const RESULT = { rows_imported: 3 } as JournalImportRunResponse
 const SKIPPED_AT_START: FireflySkippedRowDetail[] = [{ journalId: '7', rowNumber: 8, cells: {}, reason: 'Left out' }]
 
 function deferred<T>() {
@@ -25,9 +25,9 @@ function deferred<T>() {
 
 /** A controller whose minimum waits end at once, recording every state it reports */
 function createHarness() {
-  const states: FireflyImportRunState[] = []
+  const states: ProviderImportRunState<FireflySkippedRowDetail>[] = []
   const discardStagedRun = vi.fn()
-  const controller = createFireflyImportRunController({
+  const controller = createProviderImportRunController<FireflySkippedRowDetail>({
     onChange: (state) => states.push(state),
     discardStagedRun,
     wait: () => Promise.resolve(),
@@ -43,11 +43,11 @@ async function failWhileSaving(controller: ReturnType<typeof createHarness>['con
   })
 }
 
-describe('Firefly III import run', () => {
+describe('provider import run', () => {
   it('offers stopping only until the upload hands over to saving, then lands with the rows left out at the start', async () => {
     const { controller, states } = createHarness()
     const staged = deferred<void>()
-    const saved = deferred<FireflyImportRunResponse>()
+    const saved = deferred<JournalImportRunResponse>()
 
     const running = controller.start(SKIPPED_AT_START, {}, async (_signal, onStaged) => {
       await staged.promise
@@ -103,7 +103,7 @@ describe('Firefly III import run', () => {
 
   it('drops the kept upload when a failed import is closed, and ignores closing while it runs', async () => {
     const { controller, discardStagedRun } = createHarness()
-    const upload = deferred<FireflyImportRunResponse>()
+    const upload = deferred<JournalImportRunResponse>()
 
     const running = controller.start(SKIPPED_AT_START, {}, () => upload.promise)
     controller.close()
@@ -119,7 +119,7 @@ describe('Firefly III import run', () => {
 
   it('drops the result of an attempt a reset replaced, and stops it', async () => {
     const { controller } = createHarness()
-    const upload = deferred<FireflyImportRunResponse>()
+    const upload = deferred<JournalImportRunResponse>()
     let uploadSignal: AbortSignal | undefined
 
     const running = controller.start(SKIPPED_AT_START, {}, (signal) => {
@@ -150,15 +150,15 @@ describe('Firefly III import run', () => {
     await failWhileSaving(controller, answers)
     const failure = controller.getState().failure
 
-    expect(getFireflyImportError(failure, answers)).toBe('The server went away')
-    expect(getFireflyImportError(failure, { accountMappings: { Checking: 'create' } })).toBeNull()
+    expect(getProviderImportError(failure, answers)).toBe('The server went away')
+    expect(getProviderImportError(failure, { accountMappings: { Checking: 'create' } })).toBeNull()
   })
 })
 
-describe('starting a Firefly III import', () => {
+describe('starting a provider import', () => {
   const ready = {
     hasPayload: true,
-    processingFileKind: null,
+    isProcessingFile: false,
     budgetSelectionError: null,
     overlayOpen: false,
     inFlight: false,
@@ -166,8 +166,8 @@ describe('starting a Firefly III import', () => {
   }
 
   it('waits for a file still being read, which the payload does not hold yet', () => {
-    expect(canStartFireflyImport(ready)).toBe(true)
-    expect(canStartFireflyImport({ ...ready, processingFileKind: 'budgets' })).toBe(false)
+    expect(canStartProviderImport(ready)).toBe(true)
+    expect(canStartProviderImport({ ...ready, isProcessingFile: true })).toBe(false)
   })
 })
 
@@ -175,6 +175,6 @@ describe('counting the sources an import creates', () => {
   it('leaves out a source answered create whose rows are all left out of the upload', () => {
     const mappings = { Checking: 'create', Savings: 'create', Wallet: 'account-1' }
 
-    expect(countFireflyCreatedSources(['Checking', 'Savings', 'Wallet'], mappings, 'create', new Set(['Checking', 'Wallet']))).toBe(1)
+    expect(countCreatedImportSources(['Checking', 'Savings', 'Wallet'], mappings, 'create', new Set(['Checking', 'Wallet']))).toBe(1)
   })
 })

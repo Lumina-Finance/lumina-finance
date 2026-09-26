@@ -1,4 +1,4 @@
-"""Firefly III journal row to Lumina transaction leg resolution"""
+"""Journal row to Lumina transaction leg resolution"""
 
 import uuid
 from dataclasses import dataclass
@@ -7,13 +7,14 @@ from datetime import date
 from app.models.account import Account
 from app.models.category import Category
 from app.models.currency import Currency
-from app.schemas.firefly_import import FireflyTransactionRow
-from app.services.importers.firefly.constants import (
-    FIREFLY_NO_CATEGORY_SOURCE,
-    FIREFLY_TYPE_DEPOSIT,
-    FIREFLY_TYPE_OPENING_BALANCE,
-    FIREFLY_TYPE_RECONCILIATION,
-    FIREFLY_TYPE_WITHDRAWAL,
+from app.schemas.journal_import import JournalTransactionRow
+from app.services.categories.transfer_rules import does_category_record_counterparty_account
+from app.services.importers.journal.constants import (
+    JOURNAL_NO_CATEGORY_SOURCE,
+    JOURNAL_TYPE_DEPOSIT,
+    JOURNAL_TYPE_OPENING_BALANCE,
+    JOURNAL_TYPE_RECONCILIATION,
+    JOURNAL_TYPE_WITHDRAWAL,
 )
 from app.services.importers.shared.row_mappings import (
     get_import_row_account,
@@ -27,8 +28,8 @@ from app.utils.money import (
 )
 
 
-class FireflyRowRefusedError(Exception):
-    """Raised when a Firefly III row cannot be converted into Lumina legs"""
+class JournalRowRefusedError(Exception):
+    """Raised when a journal row cannot be converted into Lumina legs"""
 
     def __init__(self, reason: str) -> None:
         """Store the client-facing refusal reason
@@ -41,15 +42,15 @@ class FireflyRowRefusedError(Exception):
 
 
 @dataclass
-class FireflyResolutionContext:
-    """Store lookups needed to resolve Firefly III rows into transaction legs
+class JournalResolutionContext:
+    """Store lookups needed to resolve journal rows into transaction legs
 
     Attributes:
         user_id: Identifier for the user running the import
         accounts_by_source: Account rows keyed by the account source the frontend gave each imported account
-        categories_by_source: Category rows keyed by Firefly III category name
+        categories_by_source: Category rows keyed by the export's category name
         currencies_by_code: Currency rows keyed by currency code
-        transfer_category: System category applied to two-leg transfers
+        transfer_category: System category applied to two-leg transfers, on the legs no row category claims
         balance_adjustment_category: System category applied to opening balances
     """
 
@@ -62,8 +63,8 @@ class FireflyResolutionContext:
 
 
 @dataclass
-class FireflyLeg:
-    """One Lumina transaction produced from a Firefly III journal row
+class JournalLeg:
+    """One Lumina transaction produced from a journal row
 
     Attributes:
         account: Account the transaction is written to
@@ -89,38 +90,38 @@ class FireflyLeg:
     counterparty_account: Account | None = None
 
 
-def resolve_firefly_row(row: FireflyTransactionRow, context: FireflyResolutionContext) -> list[FireflyLeg]:
-    """Resolve one Firefly III journal row into Lumina transaction legs
+def resolve_journal_row(row: JournalTransactionRow, context: JournalResolutionContext) -> list[JournalLeg]:
+    """Resolve one journal row into Lumina transaction legs
 
     Args:
-        row: Firefly III journal row from the import payload
+        row: Journal row from the import payload
         context: Lookups needed to resolve the row
 
     Returns:
         Transaction legs the row produces
 
     Raises:
-        FireflyRowRefusedError: Raised when the row cannot be converted
+        JournalRowRefusedError: Raised when the row cannot be converted
         HTTPException: Raised with 422 when a tracked account or category is not mapped
     """
     source_account = _get_tracked_account(row.source_account, context)
     destination_account = _get_tracked_account(row.destination_account, context)
     notes = _build_leg_notes(row)
 
-    if row.type in (FIREFLY_TYPE_OPENING_BALANCE, FIREFLY_TYPE_RECONCILIATION):
+    if row.type in (JOURNAL_TYPE_OPENING_BALANCE, JOURNAL_TYPE_RECONCILIATION):
         return _resolve_balance_row(row, source_account, destination_account, notes, context)
 
     # A journal between two imported accounts is a transfer in Lumina no
-    # matter the Firefly type, which covers loan payments recorded as
+    # matter its type, which covers Firefly III loan payments recorded as
     # withdrawals into a liability account
     if source_account is not None and destination_account is not None:
         return _resolve_transfer_pair(row, source_account, destination_account, notes, context)
 
-    if row.type == FIREFLY_TYPE_WITHDRAWAL:
+    if row.type == JOURNAL_TYPE_WITHDRAWAL:
         if source_account is None:
-            raise FireflyRowRefusedError("Withdrawal source is not an imported account")
+            raise JournalRowRefusedError("Withdrawal source is not an imported account")
         category = _resolve_row_category(row, source_account, context)
-        return [FireflyLeg(
+        return [JournalLeg(
             account=source_account,
             dt=row.dt,
             amount=-_get_amount_in_account_currency(row, source_account, context),
@@ -130,11 +131,11 @@ def resolve_firefly_row(row: FireflyTransactionRow, context: FireflyResolutionCo
             tag_names=row.tag_names,
         )]
 
-    if row.type == FIREFLY_TYPE_DEPOSIT:
+    if row.type == JOURNAL_TYPE_DEPOSIT:
         if destination_account is None:
-            raise FireflyRowRefusedError("Deposit destination is not an imported account")
+            raise JournalRowRefusedError("Deposit destination is not an imported account")
         category = _resolve_row_category(row, destination_account, context)
-        return [FireflyLeg(
+        return [JournalLeg(
             account=destination_account,
             dt=row.dt,
             amount=_get_amount_in_account_currency(row, destination_account, context),
@@ -145,20 +146,20 @@ def resolve_firefly_row(row: FireflyTransactionRow, context: FireflyResolutionCo
         )]
 
     # The type is one of the five the row schema takes, so only a transfer is left
-    raise FireflyRowRefusedError("Transfer endpoint is not an imported account")
+    raise JournalRowRefusedError("Transfer endpoint is not an imported account")
 
 
 def _resolve_transfer_pair(
-    row: FireflyTransactionRow,
+    row: JournalTransactionRow,
     source_account: Account,
     destination_account: Account,
     notes: str | None,
-    context: FireflyResolutionContext,
-) -> list[FireflyLeg]:
+    context: JournalResolutionContext,
+) -> list[JournalLeg]:
     """Resolve a row between two imported accounts into transfer legs
 
     Args:
-        row: Firefly III journal row from the import payload
+        row: Journal row from the import payload
         source_account: Imported account money leaves
         destination_account: Imported account money enters
         notes: Combined description and notes text
@@ -168,30 +169,38 @@ def _resolve_transfer_pair(
         Outgoing and incoming transfer legs, each recording the other endpoint
 
     Raises:
-        FireflyRowRefusedError: Raised when both endpoints resolve to one account
+        JournalRowRefusedError: Raised when both endpoints resolve to one account, or when the
+            category a row gives one leg does not record a counterparty account
+        HTTPException: Raised with 422 when that category is not mapped or not usable
     """
     # Two names in the file can be mapped onto one account, which is how a renamed account is
     # carried across. The pair would then be two cancelling rows in that account, a shape the API
     # refuses when a person enters it by hand
     if source_account.id == destination_account.id:
-        raise FireflyRowRefusedError("Transfer source and destination resolve to the same account")
+        raise JournalRowRefusedError("Transfer source and destination resolve to the same account")
+
+    source_category = destination_category = context.transfer_category
+    if row.category_leg == "source":
+        source_category = _resolve_transfer_leg_category(row, source_account, context)
+    elif row.category_leg == "destination":
+        destination_category = _resolve_transfer_leg_category(row, destination_account, context)
 
     return [
-        FireflyLeg(
+        JournalLeg(
             account=source_account,
             dt=row.dt,
             amount=-_get_amount_in_account_currency(row, source_account, context),
-            category=context.transfer_category,
+            category=source_category,
             merchant_name=None,
             notes=notes,
             tag_names=row.tag_names,
             counterparty_account=destination_account,
         ),
-        FireflyLeg(
+        JournalLeg(
             account=destination_account,
             dt=row.dt,
             amount=_get_amount_in_account_currency(row, destination_account, context),
-            category=context.transfer_category,
+            category=destination_category,
             merchant_name=None,
             notes=notes,
             tag_names=row.tag_names,
@@ -200,21 +209,47 @@ def _resolve_transfer_pair(
     ]
 
 
+def _resolve_transfer_leg_category(row: JournalTransactionRow, account: Account, context: JournalResolutionContext) -> Category:
+    """Return the category a transfer row gives the leg it names
+
+    The leg keeps its counterparty account, so the category has to be one that records it
+
+    Args:
+        row: Journal row naming a category leg
+        account: Account the named leg is written to
+        context: Lookups needed to resolve the row
+
+    Returns:
+        Category mapped to the row's category name
+
+    Raises:
+        JournalRowRefusedError: Raised when the mapped category does not record a counterparty account
+        HTTPException: Raised with 422 when the category is not mapped or not usable
+    """
+    category = _resolve_row_category(row, account, context)
+    if not does_category_record_counterparty_account(category):
+        raise JournalRowRefusedError(
+            f"The {row.category_leg} leg of a transfer needs a transfer category that records the other "
+            f"account, and category source {row.category} maps to {category.name}",
+        )
+    return category
+
+
 def _resolve_balance_row(
-    row: FireflyTransactionRow,
+    row: JournalTransactionRow,
     source_account: Account | None,
     destination_account: Account | None,
     notes: str | None,
-    context: FireflyResolutionContext,
-) -> list[FireflyLeg]:
+    context: JournalResolutionContext,
+) -> list[JournalLeg]:
     """Resolve an opening balance or reconciliation row into one adjustment leg
 
-    Firefly III pairs these rows with a virtual initial balance or
+    An export pairs these rows with a virtual initial balance or
     reconciliation account, so the imported side is whichever endpoint is a
     real account. Money flowing into the imported side is positive
 
     Args:
-        row: Firefly III journal row from the import payload
+        row: Journal row from the import payload
         source_account: Imported account on the source side when present
         destination_account: Imported account on the destination side when present
         notes: Combined description and notes text
@@ -224,14 +259,14 @@ def _resolve_balance_row(
         Single balance adjustment leg
 
     Raises:
-        FireflyRowRefusedError: Raised when neither endpoint is an imported account
+        JournalRowRefusedError: Raised when neither endpoint is an imported account
     """
     account = destination_account or source_account
     if account is None:
-        raise FireflyRowRefusedError("Opening balance or reconciliation row is not attached to an imported account")
+        raise JournalRowRefusedError("Opening balance or reconciliation row is not attached to an imported account")
 
     amount = _get_amount_in_account_currency(row, account, context)
-    return [FireflyLeg(
+    return [JournalLeg(
         account=account,
         dt=row.dt,
         amount=amount if destination_account is not None else -amount,
@@ -242,7 +277,7 @@ def _resolve_balance_row(
     )]
 
 
-def _get_tracked_account(account_source: str | None, context: FireflyResolutionContext) -> Account | None:
+def _get_tracked_account(account_source: str | None, context: JournalResolutionContext) -> Account | None:
     """Return the mapped account for a journal endpoint the frontend marked as an imported account
 
     Args:
@@ -261,14 +296,14 @@ def _get_tracked_account(account_source: str | None, context: FireflyResolutionC
 
 
 def _resolve_row_category(
-    row: FireflyTransactionRow,
+    row: JournalTransactionRow,
     account: Account,
-    context: FireflyResolutionContext,
+    context: JournalResolutionContext,
 ) -> Category:
     """Return the mapped category for a categorized row
 
     Args:
-        row: Firefly III journal row from the import payload
+        row: Journal row from the import payload
         account: Account the resulting transaction is written to
         context: Lookups needed to resolve the row
 
@@ -278,25 +313,25 @@ def _resolve_row_category(
     Raises:
         HTTPException: Raised with 422 when the category is not mapped or not usable
     """
-    category_name = row.category if row.category is not None else FIREFLY_NO_CATEGORY_SOURCE
+    category_name = row.category if row.category is not None else JOURNAL_NO_CATEGORY_SOURCE
     category = get_import_row_category(context.categories_by_source, category_name)
     validate_import_category_can_be_used_for_account(category, account, context.user_id)
     return category
 
 
 def _get_amount_in_account_currency(
-    row: FireflyTransactionRow,
+    row: JournalTransactionRow,
     account: Account,
-    context: FireflyResolutionContext,
+    context: JournalResolutionContext,
 ) -> int:
     """Return the row's amount in the account's currency minor units
 
-    Firefly III writes journal amounts in the transaction currency and carries
-    a foreign amount when a second currency is involved, so the account-side
-    value is whichever of the two matches the account currency
+    A journal amount is in the transaction currency, with a foreign amount
+    when a second currency is involved, so the account-side value is
+    whichever of the two matches the account currency
 
     Args:
-        row: Firefly III journal row from the import payload
+        row: Journal row from the import payload
         account: Imported account one leg is written to
         context: Lookups needed to resolve the row
 
@@ -304,7 +339,7 @@ def _get_amount_in_account_currency(
         Amount in account-currency minor units, never below zero since the row sends magnitudes
 
     Raises:
-        FireflyRowRefusedError: Raised when no amount is available in the account currency, or
+        JournalRowRefusedError: Raised when no amount is available in the account currency, or
             when the amount has too many decimal places or is too large to store
     """
     if row.currency_code == account.currency:
@@ -312,7 +347,7 @@ def _get_amount_in_account_currency(
     elif row.foreign_amount is not None and row.foreign_currency_code == account.currency:
         raw_amount = row.foreign_amount
     else:
-        raise FireflyRowRefusedError(
+        raise JournalRowRefusedError(
             f"Neither the amount nor the foreign amount is in the account's currency ({account.currency})",
         )
 
@@ -324,20 +359,20 @@ def _get_amount_in_account_currency(
             minor_unit_exponent=currency.minor_unit_exponent,
         )
     except DecimalAmountPrecisionError as exc:
-        raise FireflyRowRefusedError(
+        raise JournalRowRefusedError(
             f"The amount has more decimal places than {currency.id} has. "
             "A period is read as a decimal point, never as a separator between thousands.",
         ) from exc
     except DecimalAmountParseError as exc:
-        raise FireflyRowRefusedError(f'Invalid amount "{raw_amount}"') from exc
+        raise JournalRowRefusedError(f'Invalid amount "{raw_amount}"') from exc
     return amount
 
 
-def _build_leg_notes(row: FireflyTransactionRow) -> str | None:
+def _build_leg_notes(row: JournalTransactionRow) -> str | None:
     """Return combined description and notes text for a row's legs
 
     Args:
-        row: Firefly III journal row from the import payload
+        row: Journal row from the import payload
 
     Returns:
         Description and notes joined on separate lines, or None when both are null

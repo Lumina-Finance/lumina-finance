@@ -1,10 +1,10 @@
 import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import {
-  FIREFLY_NO_CATEGORY_SOURCE,
-  type FireflyImportRunResponse,
-  type FireflyTransactionImportPayload,
-} from '@/api/firefly-imports'
+  JOURNAL_NO_CATEGORY_SOURCE,
+  type JournalImportRunResponse,
+  type JournalImportPayload,
+} from '@/api/provider-imports'
 import {
   CREATE_ACCOUNT_VALUE,
   CREATE_CATEGORY_VALUE,
@@ -110,7 +110,7 @@ export function buildFireflyImportPayload({
 
   // Only accounts the rows use are sent, plus those from the accounts export the import creates
   // empty. A source only skipped rows use is still answered, but the commit creates nothing for it
-  const accounts: FireflyTransactionImportPayload['accounts'] = []
+  const accounts: JournalImportPayload['accounts'] = []
   const sentAccountSources = new Set<string>()
   const archiveAccountSources: string[] = []
   for (const { id: source, name, label, details } of accountSources.list) {
@@ -175,7 +175,7 @@ export function buildFireflyImportPayload({
     })
   }
 
-  const categories: FireflyTransactionImportPayload['categories'] = []
+  const categories: JournalImportPayload['categories'] = []
   const createdCategoryByKey = new Map<string, { source: string; kind: ImportCategoryKind }>()
   for (const source of importedCategories) {
     const choice = categoryMappings[source]
@@ -246,11 +246,11 @@ function buildFireflyImportRows(
   skippedRows: ReadonlySet<CsvRow>,
   accountSources: FireflyAccountSources,
 ): {
-  rows: FireflyTransactionImportPayload['rows']
+  rows: JournalImportPayload['rows']
   rowAccountSources: Set<string>
   writtenCategorySources: Set<string>
 } {
-  const payloadRows: FireflyTransactionImportPayload['rows'] = []
+  const payloadRows: JournalImportPayload['rows'] = []
   const rowAccountSources = new Set<string>()
   const writtenCategorySources = new Set<string>()
 
@@ -274,7 +274,7 @@ function buildFireflyImportRows(
     if (destinationAccount) rowAccountSources.add(destinationAccount.id)
 
     // The commit files a payee row without a category under the no-category source
-    if (isFireflyPayeeRow(row)) writtenCategorySources.add(category ?? FIREFLY_NO_CATEGORY_SOURCE)
+    if (isFireflyPayeeRow(row)) writtenCategorySources.add(category ?? JOURNAL_NO_CATEGORY_SOURCE)
 
     payloadRows.push({
       journal_id: row.journal_id.trim(),
@@ -320,7 +320,7 @@ function cleanOptional(value: string | undefined) {
  * @param result - What the commit wrote
  * @param skippedCount - Rows the browser left out because they cannot be written
  */
-export function formatFireflyImportSummary(result: FireflyImportRunResponse, skippedCount: number) {
+export function formatFireflyImportSummary(result: JournalImportRunResponse, skippedCount: number) {
   const parts = [
     `${result.rows_imported} row${result.rows_imported === 1 ? '' : 's'} imported`,
     `${result.transactions_created} transaction${result.transactions_created === 1 ? '' : 's'} created`,

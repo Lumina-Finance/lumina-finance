@@ -1,4 +1,4 @@
-"""Firefly III budget import service"""
+"""Journal budget import service, shared by the Firefly III and Actual Budget imports"""
 
 import uuid
 from dataclasses import dataclass
@@ -13,10 +13,10 @@ from app.models.base import RecurrenceFreq
 from app.models.budget import BaseBudget, Budget, BudgetTrackedCategory
 from app.models.currency import Currency
 from app.models.user import User
-from app.schemas.firefly_import import (
-    FireflyBudgetImportResult,
-    FireflyBudgetLimit,
-    FireflyBudgetRecurrence,
+from app.schemas.journal_import import (
+    JournalBudgetImportResult,
+    JournalBudgetLimit,
+    JournalBudgetRecurrence,
 )
 from app.services.budgets.periods import compute_period_end, validate_period_start
 from app.services.budgets.tracked_categories import get_allowed_tracked_category_ids
@@ -37,7 +37,7 @@ CHILD_WRITE_BUFFER_SIZE = 1000
 
 
 @dataclass(frozen=True)
-class FireflyBudgetImport:
+class JournalBudgetImport:
     """One staged budget with its tracked categories resolved to the categories the commit wrote
 
     Every limit period becomes one budget period with its exported dates and
@@ -53,8 +53,8 @@ class FireflyBudgetImport:
     name: str
     currency: str
     category_ids: list[uuid.UUID]
-    limits: list[FireflyBudgetLimit]
-    recurrence: FireflyBudgetRecurrence | None
+    limits: list[JournalBudgetLimit]
+    recurrence: JournalBudgetRecurrence | None
     is_archived: bool
 
 
@@ -67,12 +67,12 @@ class _PreparedBudget:
     limit_periods: list[tuple[date, date, int]]
 
 
-async def write_firefly_budgets(
+async def write_journal_budgets(
     db: AsyncSession,
     user: User,
-    budgets: list[FireflyBudgetImport],
-) -> list[FireflyBudgetImportResult]:
-    """Create budgets from a Firefly III export with their limit history, without committing
+    budgets: list[JournalBudgetImport],
+) -> list[JournalBudgetImportResult]:
+    """Create budgets from a journal export with their limit history, without committing
 
     Each limit period becomes one budget period carrying its exported dates
     and amount. The frontend reads the base budget's cadence off the latest
@@ -163,7 +163,7 @@ async def write_firefly_budgets(
     await db.flush()
 
     return [
-        FireflyBudgetImportResult(
+        JournalBudgetImportResult(
             name=prepared.base_budget.name,
             base_budget_id=prepared.base_budget.id,
             instance_count=len(prepared.limit_periods),
@@ -174,7 +174,7 @@ async def write_firefly_budgets(
 
 def _prepare_imported_budget(
     user: User,
-    budget: FireflyBudgetImport,
+    budget: JournalBudgetImport,
     currencies_by_code: dict[str, Currency],
     allowed_category_ids: set[uuid.UUID],
 ) -> _PreparedBudget:
@@ -217,7 +217,7 @@ def _prepare_imported_budget(
 
 
 def _parse_limit_periods(
-    budget: FireflyBudgetImport,
+    budget: JournalBudgetImport,
     currency: Currency,
 ) -> list[tuple[date, date, int]]:
     """Parse a budget's limit history into dated minor-unit periods
@@ -268,7 +268,7 @@ def _parse_limit_periods(
     return periods
 
 
-def _cadence_fields(budget: FireflyBudgetImport, limit_periods: list[tuple[date, date, int]]) -> dict:
+def _cadence_fields(budget: JournalBudgetImport, limit_periods: list[tuple[date, date, int]]) -> dict:
     """Return the base budget cadence fields for the cadence the frontend sent
 
     A sent cadence is stored only when the latest limit period is exactly one period of it, so

@@ -1,17 +1,17 @@
-"""System category lookups for the Firefly III importer"""
+"""System category lookups for the journal importer"""
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.category import Category
-from app.services.importers.firefly.constants import (
+from app.services.importers.journal.constants import (
     SYSTEM_BALANCE_ADJUSTMENT_CATEGORY_NAME,
     SYSTEM_TRANSFER_CATEGORY_NAME,
 )
 
 
-async def get_firefly_system_categories(db: AsyncSession) -> tuple[Category, Category]:
+async def get_journal_system_categories(db: AsyncSession) -> tuple[Category, Category]:
     """Return the transfer and balance adjustment system categories
 
     Args:

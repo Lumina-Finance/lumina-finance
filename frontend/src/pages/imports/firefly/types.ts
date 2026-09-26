@@ -1,9 +1,9 @@
 import type { AccountType } from '@/api/accounts'
 import type {
-  FireflyBudgetImportLimit,
-  FireflyBudgetImportRecurrence,
-  FireflyTransactionImportPayload,
-} from '@/api/firefly-imports'
+  ImportBudgetLimit,
+  ImportBudgetRecurrence,
+  JournalImportPayload,
+} from '@/api/provider-imports'
 
 export type FireflyFileKind = 'transactions' | 'budgets' | 'accounts'
 
@@ -70,7 +70,7 @@ export interface FireflyImportEstimate {
 
 export interface FireflyImportBuildResult {
   errors: string[]
-  payload: FireflyTransactionImportPayload | null
+  payload: JournalImportPayload | null
 
   /**
    * Account and category sources the import sends, kept even when errors block the payload: the
@@ -112,14 +112,14 @@ export interface FireflyBudgetDraft {
    * Full limit period schedule sorted by start date, sent to the backend so
    * every period keeps its exported dates and amount
    */
-  limits: FireflyBudgetImportLimit[]
+  limits: ImportBudgetLimit[]
   firstPeriodStart: string | null
   lastPeriodEnd: string | null
 
   /**
    * Cadence the budget continues on, null when its latest limit period fits none
    */
-  recurrence: FireflyBudgetImportRecurrence | null
+  recurrence: ImportBudgetRecurrence | null
 
   /**
    * How the budget repeats, in words the drafts table can show
@@ -132,21 +132,4 @@ export interface FireflyBudgetDraft {
    */
   categoryNames: string[]
   disabledReason: string | null
-}
-
-/**
- * Stage of the import currently holding the overlay: uploading the export, which saves nothing,
- * then writing all of it at once
- */
-export type FireflyImportStage = 'uploading' | 'saving'
-
-/**
- * Stage holding the overlay and whether its work has landed
- *
- * The finished stage keeps the overlay for a beat so it can be struck off
- * before the next stage starts, which the two fields have to express together
- */
-export interface FireflyImportStageState {
-  stage: FireflyImportStage
-  isFinished: boolean
 }

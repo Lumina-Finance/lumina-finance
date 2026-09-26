@@ -46,7 +46,7 @@ async def stage_import_batch(
             re-declaring a source differently, or declaring a mapping staging can already tell is
             unusable
     """
-    run = await load_uncommitted_run(db, run_id, ImportRunSource.GENERIC)
+    run = await load_uncommitted_run(db, run_id, {ImportRunSource.GENERIC})
     require_batch_within_run(run, data.start_row_index, len(data.rows))
 
     references = await load_staging_references(db, user, data.accounts, data.categories, data.merchants)

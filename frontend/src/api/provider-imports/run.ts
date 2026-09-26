@@ -1,35 +1,37 @@
-import { buildFireflyStageBatches } from '@/api/firefly-imports/batching';
+import { buildJournalStageBatches } from '@/api/provider-imports/batching';
 import {
-  commitFireflyImportRun,
-  openFireflyImportRun,
-  putFireflyImportRunArchive,
-  putFireflyImportRunBudgets,
-  stageFireflyImportRows,
-} from '@/api/firefly-imports/requests';
+  commitJournalImportRun,
+  openJournalImportRun,
+  putImportRunArchive,
+  putImportRunBudgets,
+  stageJournalImportRows,
+} from '@/api/provider-imports/requests';
 import type {
-  FireflyImportRunBudgets,
-  FireflyImportRunResponse,
-  FireflyTransactionImportPayload,
-} from '@/api/firefly-imports/types';
+  ImportRunBudgets,
+  JournalImportRunResponse,
+  JournalImportPayload,
+  JournalImportSource,
+} from '@/api/provider-imports/types';
 import { TransactionImportRunError, discardStagedRun } from '@/api/transaction-imports/run';
 import { getImportFailureMessage } from '@/utils/importFailure';
 
 /**
- * A prepared Firefly III import: the export's rows, the budgets created alongside them, and the
- * accounts it creates that are then archived
+ * A prepared provider import: the app it came from, the export's rows, the budgets created
+ * alongside them, and the accounts it creates that are then archived
  */
-export interface FireflyImportRequest {
-  payload: FireflyTransactionImportPayload;
+export interface JournalImportRequest {
+  source: JournalImportSource;
+  payload: JournalImportPayload;
 
   /** Absent when no budget is imported */
-  budgets: FireflyImportRunBudgets | null;
+  budgets: ImportRunBudgets | null;
 
-  /** Account sources answered create-new that Firefly III marks inactive */
+  /** Account sources answered create-new that the export marks inactive or closed */
   archiveAccountSources: string[];
 }
 
 /**
- * Uploads a prepared Firefly III import and writes all of it in one transaction
+ * Uploads a prepared provider import and writes all of it in one transaction
  *
  * The export, its budgets and the accounts to archive are staged over as many requests as their
  * size needs, and nothing reaches the ledger until the commit writes the whole run at once. So an
@@ -41,18 +43,18 @@ export interface FireflyImportRequest {
  * @param onStaged - Runs once everything is staged, before the commit starts, so the screen can
  *   show the upload finishing. Stopping while it runs still counts as stopping during staging
  */
-export async function runFireflyImport(
-  { payload, budgets, archiveAccountSources }: FireflyImportRequest,
+export async function runJournalImport(
+  { source, payload, budgets, archiveAccountSources }: JournalImportRequest,
   signal?: AbortSignal,
   onStaged?: () => Promise<void>,
-): Promise<FireflyImportRunResponse> {
-  const batches = await buildFireflyStageBatches(payload);
-  const run = await openFireflyImportRun(payload.rows.length, signal);
+): Promise<JournalImportRunResponse> {
+  const batches = await buildJournalStageBatches(payload);
+  const run = await openJournalImportRun(source, payload.rows.length, signal);
 
   try {
-    for (const batch of batches) await stageFireflyImportRows(run.id, batch, signal);
-    if (budgets && budgets.budgets.length > 0) await putFireflyImportRunBudgets(run.id, budgets, signal);
-    if (archiveAccountSources.length > 0) await putFireflyImportRunArchive(run.id, archiveAccountSources, signal);
+    for (const batch of batches) await stageJournalImportRows(run.id, batch, signal);
+    if (budgets && budgets.budgets.length > 0) await putImportRunBudgets(run.id, budgets, signal);
+    if (archiveAccountSources.length > 0) await putImportRunArchive(run.id, archiveAccountSources, signal);
     await onStaged?.();
     signal?.throwIfAborted();
   } catch (error) {
@@ -60,11 +62,11 @@ export async function runFireflyImport(
     throw new TransactionImportRunError(getImportFailureMessage(error), 'staging', null, { cause: error });
   }
 
-  return commitStagedFireflyRun(run.id, signal);
+  return commitStagedJournalRun(run.id, signal);
 }
 
 /**
- * Writes an already staged Firefly III run
+ * Writes an already staged provider run
  *
  * Separate from the upload so a commit that failed for a reason committing again could clear,
  * such as a dropped connection, can be run again without re-uploading the export
@@ -72,9 +74,9 @@ export async function runFireflyImport(
  * @param runId - The staged run to commit
  * @param signal - Stops waiting for the commit. It does not stop the commit itself
  */
-export async function commitStagedFireflyRun(runId: string, signal?: AbortSignal): Promise<FireflyImportRunResponse> {
+export async function commitStagedJournalRun(runId: string, signal?: AbortSignal): Promise<JournalImportRunResponse> {
   try {
-    return await commitFireflyImportRun(runId, signal);
+    return await commitJournalImportRun(runId, signal);
   } catch (error) {
     throw new TransactionImportRunError(getImportFailureMessage(error), 'commit', runId, { cause: error });
   }
