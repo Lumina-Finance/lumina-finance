@@ -1,12 +1,14 @@
 import { JOURNAL_NO_CATEGORY_SOURCE } from '@/api/provider-imports'
 import { MAX_IMPORT_NOTES_LENGTH, MAX_IMPORT_TAGS_PER_ROW, getRowNotesTooLongReason, getRowTooManyTagsReason } from '@/pages/imports/constants'
 import type { AccountType } from '@/api/accounts'
+import { BALANCE_ADJUSTMENT_CATEGORY_NAME } from '@/utils/transfers'
 import {
   ACTUAL_ACCOUNT_TYPES,
   ACTUAL_FUTURE_ROW_REASON,
   ACTUAL_OFF_BUDGET_CATEGORY_SOURCE_PREFIX,
   ACTUAL_PAYEE_NAME_MAX_LENGTH,
   ACTUAL_TAG_NAME_MAX_LENGTH,
+  ACTUAL_TRANSFER_CATEGORY_NAME,
   ACTUAL_TRANSFER_SIDE_LEFT_OUT_REASON,
   ACTUAL_TRANSFER_CATEGORY_SOURCE_PREFIX,
   getActualPayeeTooLongReason,
@@ -29,6 +31,10 @@ import type {
 // Actual reads a tag as a # followed by anything up to whitespace or the next #, and a doubled ##
 // as an escaped # that starts no tag
 const ACTUAL_TAG_PATTERN = /(^|[^#])#([^#\s]+)/g
+
+// Built-in categories a new payment category can't share a name with, since it would reuse one that
+// cancels the payment out of its budget or can't carry it
+const ACTUAL_RESERVED_PAYMENT_NAMES = [ACTUAL_TRANSFER_CATEGORY_NAME, BALANCE_ADJUSTMENT_CATEGORY_NAME].map((name) => name.toLowerCase())
 
 /**
  * Turns a read Actual budget into the rows the import uploads, and the ones it leaves out
@@ -350,14 +356,12 @@ class CategoryUses {
 
   toSources(categories: ActualCategory[], accountById: Map<string, ActualAccount>): ActualCategorySource[] {
     const categoryById = new Map(categories.map((category) => [category.id, category]))
-    const nameCounts = countBy(categories.map((category) => category.name.toLowerCase()))
     const spendingIds = new Set([...this.uses.values()].filter((use) => use.role === 'spending').map((use) => use.categoryId))
 
     const sources = [...this.uses].map(([id, use]): ActualCategorySource => {
       const category = use.categoryId ? categoryById.get(use.categoryId) : undefined
       const accountName = use.accountId ? accountById.get(use.accountId)?.name ?? '' : ''
-      const isShared = category ? (nameCounts.get(category.name.toLowerCase()) ?? 0) > 1 : false
-      const name = category ? (isShared && category.groupName ? `${category.name} (${category.groupName})` : category.name) : ''
+      const name = category ? getActualCategoryName(category, categories) : ''
       const labels = getSourceLabels(use.role, name, accountName, category ? spendingIds.has(category.id) : false)
       return {
         id,
@@ -375,6 +379,13 @@ class CategoryUses {
   }
 }
 
+/** Names a category, with its group when another category shares its name, capitals folded */
+export function getActualCategoryName(category: ActualCategory, categories: ActualCategory[]) {
+  const key = category.name.toLowerCase()
+  const isShared = categories.filter((candidate) => candidate.name.toLowerCase() === key).length > 1
+  return isShared && category.groupName ? `${category.name} (${category.groupName})` : category.name
+}
+
 function getCategorySourceId(role: ActualCategoryRole, categoryId: string | null, accountId: string | null) {
   if (role === 'spending') return categoryId ?? JOURNAL_NO_CATEGORY_SOURCE
   if (role === 'transfer') return `${ACTUAL_TRANSFER_CATEGORY_SOURCE_PREFIX}${categoryId ?? ''}`
@@ -385,13 +396,16 @@ function getCategorySourceId(role: ActualCategoryRole, categoryId: string | null
 /**
  * Names a source for the categories step and for the category it creates. A transfer source
  * sharing its category with spending needs a name of its own, since one Lumina category can't be
- * both
+ * both, and so does one named after a built-in category that can't carry a payment
  */
 function getSourceLabels(role: ActualCategoryRole, name: string, accountName: string, alsoSpending: boolean) {
   if (role === 'transfer') {
-    return name
-      ? { label: `${name} · transfers to and from off-budget accounts`, createName: alsoSpending ? `${name} Transfers` : name }
-      : { label: 'Transfers whose other side is missing', createName: 'Transfer' }
+    if (!name) return { label: 'Transfers whose other side is missing', createName: 'Transfer' }
+    const isReserved = ACTUAL_RESERVED_PAYMENT_NAMES.includes(name.toLowerCase())
+    return {
+      label: `${name} · transfers to and from off-budget accounts`,
+      createName: alsoSpending ? `${name} Transfers` : isReserved ? `${name} Payments` : name,
+    }
   }
   if (role === 'offBudgetUncategorized') return { label: `No category · ${accountName}`, createName: accountName }
   if (role === 'uncategorized') return { label: 'No category', createName: 'Miscellaneous' }

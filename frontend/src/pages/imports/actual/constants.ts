@@ -40,9 +40,9 @@ export const ACTUAL_ZERO_DECIMAL_CURRENCIES = new Set(['IRR', 'JPY', 'KRW'])
 export const ACTUAL_NEWEST_CHECKED_MIGRATION = 1787013118115
 
 /**
- * Tables, views and columns the reader queries, checked before any are read. Transactions,
- * payees and categories are read through Actual's own views, so merges and deletions resolve the
- * way Actual's screens show them
+ * Tables, views and columns the reader queries, and category_mapping, which Actual's transactions
+ * view reads merges from, checked before any are read. Transactions, payees and categories are
+ * read through Actual's own views, so merges and deletions resolve the way Actual's screens show them
  */
 export const ACTUAL_REQUIRED_COLUMNS: Record<string, string[]> = {
   accounts: ['id', 'name', 'offbudget', 'closed', 'tombstone', 'type', 'sort_order'],

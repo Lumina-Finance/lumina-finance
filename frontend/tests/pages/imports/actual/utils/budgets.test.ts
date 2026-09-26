@@ -123,4 +123,29 @@ describe('Actual Budget budgets', () => {
 
     expect(drafts.map((draft) => [draft.name, draft.recurs])).toEqual([['Car', true], ['Gym', false]])
   })
+
+  it('names budgets for payment categories sharing a name by their groups', () => {
+    const payment = (id: string, account: string, payee: string, categoryId: string) => [
+      { id: `${id}-out`, accountId: 'checking', date: '2026-09-01', amount: -1000, payeeId: payee, transferredId: `${id}-in`, categoryId },
+      { id: `${id}-in`, accountId: account, date: '2026-09-01', amount: 1000, payeeId: 'to-checking', transferredId: `${id}-out` },
+    ]
+    const budget = buildActualBudget([...payment('car', 'loan', 'to-loan', 'car-loan'), ...payment('boat', 'boat', 'to-boat', 'boat-loan')], {
+      categories: [
+        { id: 'car-loan', name: 'Loan', groupName: 'Car', isIncome: false, hidden: false },
+        { id: 'boat-loan', name: 'Loan', groupName: 'Boat', isIncome: false, hidden: false },
+      ],
+      budgetFigures: [
+        { month: CURRENT_MONTH, categoryId: 'car-loan', amount: 1000, carryover: false },
+        { month: CURRENT_MONTH, categoryId: 'boat-loan', amount: 1000, carryover: false },
+      ],
+    })
+    budget.accounts.push({ id: 'boat', name: 'Boat Loan', offBudget: true, closed: false, type: null })
+    budget.payees.push({ id: 'to-boat', name: '', transferAccountId: 'boat' })
+    const drafts = buildActualBudgetDrafts(budget, normaliseActualBudget(budget, `${CURRENT_MONTH}-26`), CURRENT_MONTH)
+
+    expect(drafts.map((draft) => [draft.name, draft.categorySourceIds])).toEqual([
+      ['Loan (Boat)', ['transfer:boat-loan']],
+      ['Loan (Car)', ['transfer:car-loan']],
+    ])
+  })
 })

@@ -266,4 +266,13 @@ describe('Actual Budget categories used only on payments to off-budget accounts'
 
     expect(journal.categories.map((source) => [source.id, source.role, source.createName])).toEqual([['transfer:car', 'transfer', 'Car']])
   })
+
+  it('names a payment category apart from a built-in one it would otherwise reuse', () => {
+    const budget = buildActualBudget([
+      { id: 'pay', accountId: 'checking', date: '2026-09-01', amount: -30000, payeeId: 'to-loan', transferredId: 'paid', categoryId: 'transfer' },
+      { id: 'paid', accountId: 'loan', date: '2026-09-01', amount: 30000, payeeId: 'to-checking', transferredId: 'pay' },
+    ], { categories: [{ id: 'transfer', name: 'transfer', groupName: 'Bills', isIncome: false, hidden: false }] })
+
+    expect(normaliseActualBudget(budget, '2026-09-26').categories.map((source) => source.createName)).toEqual(['transfer Payments'])
+  })
 })

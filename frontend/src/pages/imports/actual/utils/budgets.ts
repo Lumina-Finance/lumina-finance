@@ -9,6 +9,7 @@ import {
 import { CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
 import type { ActualBudgetFile, ActualJournal } from '@/pages/imports/actual/types'
 import { formatScaledAmount } from './amounts'
+import { getActualCategoryName } from './normalise'
 
 // Actual budgets by calendar month, so every imported budget repeats on the first of each month
 const ACTUAL_BUDGET_RECURRENCE: ImportBudgetRecurrence = {
@@ -69,7 +70,7 @@ export function buildActualBudgetDrafts(budget: ActualBudgetFile, journal: Actua
     months.sort((a, b) => a.month.localeCompare(b.month))
     drafts.push({
       categoryId,
-      name: spending?.label ?? category.name,
+      name: spending?.label ?? getActualCategoryName(category, budget.categories),
       categorySourceIds: sources.map((source) => source.id),
       months,
       recurs: months[months.length - 1].month >= currentMonth,
