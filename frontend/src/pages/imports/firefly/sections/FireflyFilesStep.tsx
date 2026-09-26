@@ -1,8 +1,7 @@
-import { useRef, type ReactNode } from 'react'
+import { useRef } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import {
   EmptyState,
-  ImportInfoCard,
   ImportStagedFileList,
   ImportStat,
   ImportStep,
@@ -32,44 +31,15 @@ type FireflyFilesStepProps = Pick<
 const SLOT_SWAP_EASE = [0.25, 0.1, 0.25, 1] as const
 const SLOT_SWAP_DURATION = 0.24
 
+// Firefly III's own guide, linked rather than repeated so the steps stay current as its screens change
+const FIREFLY_EXPORT_DOCS_URL = 'https://docs.firefly-iii.org/tutorials/firefly-iii/exporting-data/'
+
+// Each optional slot's hint says what skipping it costs
 const FILE_SLOTS: Array<{ kind: FireflyFileKind; label: string; hint: string; required: boolean }> = [
   { kind: 'transactions', label: 'Transactions CSV', hint: 'The journal rows to import.', required: true },
-  { kind: 'budgets', label: 'Budgets CSV', hint: 'The budgets and limit periods to create with the import.', required: false },
-  { kind: 'accounts', label: 'Accounts CSV', hint: 'Each account\'s type, and which accounts are inactive.', required: false },
+  { kind: 'budgets', label: 'Budgets CSV', hint: 'Without it, create budgets by hand after the import.', required: false },
+  { kind: 'accounts', label: 'Accounts CSV', hint: 'Without it, every account comes across as active checking.', required: false },
 ]
-
-// A command is one unbroken string, so it wraps anywhere rather than widening the column
-const COMMAND_CLASS_NAME = 'font-mono text-[0.8125rem] wrap-anywhere'
-
-// One command writes both optional files, so both notes give it whole
-const EXPORT_COMMAND = 'php artisan firefly-iii:export-data --export-budgets --export-accounts --token=<token>'
-
-// Worded against Firefly III 6.7.3's own screens, whose labels these repeat so they can be found
-const FILE_SLOT_NOTES: Record<FireflyFileKind, ReactNode> = {
-  transactions: (
-    <ImportInfoCard title="Which export to use">
-      In Firefly III, open Export data under Others and choose Export all transactions. The file holds every transaction up to the end of the day you export it, so anything dated after that day isn't in it.
-    </ImportInfoCard>
-  ),
-  budgets: (
-    <ImportInfoCard title="Where the budgets file comes from">
-      Firefly III&apos;s Export data page doesn&apos;t make this file. On your Firefly III server, run{' '}
-      <code className={COMMAND_CLASS_NAME}>{EXPORT_COMMAND}</code>
-      {' '}with the command line token from your Firefly III profile, adding{' '}
-      <code className={COMMAND_CLASS_NAME}>--user=&lt;id&gt;</code>
-      {' '}if you aren&apos;t its first user. The command saves the budgets and accounts files in the folder it runs in, or in the one given with{' '}
-      <code className={COMMAND_CLASS_NAME}>--export_directory=&lt;folder&gt;</code>
-      . If you skip this file, budgets can be created by hand after the import with a past start date, and their spending is rebuilt from the imported transactions.
-    </ImportInfoCard>
-  ),
-  accounts: (
-    <ImportInfoCard title="Where the accounts file comes from">
-      It comes from the same command as the budgets file, which writes both:{' '}
-      <code className={COMMAND_CLASS_NAME}>{EXPORT_COMMAND}</code>
-      . With it, each account is proposed as its Firefly III kind, such as savings or credit card, accounts without transactions come across too, and an account you made inactive is archived when the import creates it. Without it, every asset account is proposed as checking and comes across active.
-    </ImportInfoCard>
-  ),
-}
 
 /**
  * Files step of the Firefly III import flow, with a required slot for the transactions export and
@@ -99,7 +69,21 @@ export function FireflyFilesStep({
     <ImportStep
       index="01"
       title="Files"
-      description="Upload the CSV files exported from Firefly III."
+      description={(
+        <>
+          Upload the CSV files exported from Firefly III, following its{' '}
+          <a
+            href={FIREFLY_EXPORT_DOCS_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="font-medium underline underline-offset-2"
+            style={{ color: 'var(--app-accent)' }}
+          >
+            guide to exporting data
+          </a>
+          .
+        </>
+      )}
       className="xl:min-h-full"
       contentClassName="flex min-h-0 flex-col gap-3"
     >
@@ -121,11 +105,10 @@ export function FireflyFilesStep({
           isBlocked={uploadBlockReason !== null}
           onFileChange={handleFireflyFileChange}
           onRemove={removeFireflyFile}
-          note={FILE_SLOT_NOTES[slot.kind]}
         />
       ))}
 
-      {/* Kept in view once files are staged, unlike the slot notes, since it matters most at the
+      {/* Kept in view once files are staged, unlike the upload cards, since it matters most at the
           moment the import is about to run */}
       <p className="mt-auto pt-3 text-sm leading-5" style={{ color: 'var(--app-text-muted)' }}>
         Import from Firefly III once. Importing again, even from a newer export, adds every transaction and budget a second time, and creates any account set to Create New Account again.
@@ -157,7 +140,6 @@ function FireflyFileSlot({
   isBlocked,
   onFileChange,
   onRemove,
-  note,
 }: {
   kind: FireflyFileKind
   label: string
@@ -173,7 +155,6 @@ function FireflyFileSlot({
   isBlocked: boolean
   onFileChange: (kind: FireflyFileKind, files: ImportFileAcquisition) => Promise<void>
   onRemove: (kind: FireflyFileKind) => void
-  note?: ReactNode
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -207,7 +188,7 @@ function FireflyFileSlot({
         disabled={isUploadBlocked}
       />
 
-      {/* Each slot takes exactly one file, so the upload card and its note
+      {/* Each slot takes exactly one file, so the upload card
           animate away once a file lands and grow back when it is removed */}
       <AnimatePresence initial={false} mode="wait">
         {stagedFile ? (
@@ -229,7 +210,6 @@ function FireflyFileSlot({
             exit={{ opacity: 0, height: 0, overflow: 'hidden' }}
             transition={{ duration: SLOT_SWAP_DURATION, ease: SLOT_SWAP_EASE }}
           >
-            {note}
             <ImportUploadCard
               title={`Upload ${label.toLowerCase()}`}
               hint={hint}
