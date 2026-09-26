@@ -2,6 +2,7 @@
  * Tests the shared import file selection and reader orchestration boundary
  */
 import { describe, expect, it, vi } from 'vitest'
+import { ACTUAL_FILE_GUIDANCE, ACTUAL_IMPORT_FILE_TYPE } from '@/pages/imports/actual/constants'
 import {
   MAX_IMPORT_FILE_BYTES,
   processImportFileIntake,
@@ -280,5 +281,21 @@ describe('acquiring a dropped import item', () => {
 
     expect(result).toMatchObject(expected)
     if (result.status === 'accepted') expect(result.file).toBe(file)
+  })
+})
+
+describe('an upload that takes a file other than CSV', () => {
+  it('accepts an Actual Budget export and refuses a CSV with guidance', async () => {
+    const zip = new File(['PK'], 'My-Finances.zip', { type: 'application/zip' })
+    const csv = new File([VALID_CSV], 'statement.csv', { type: 'text/csv' })
+    const readFile = vi.fn(async (file: File) => file.name)
+
+    expect(await processImportFileIntake({ files: [zip], processing: false, unavailableReason: null, readFile, fileType: ACTUAL_IMPORT_FILE_TYPE }))
+      .toEqual({ status: 'accepted', result: 'My-Finances.zip' })
+    expect(await processImportFileIntake({ files: [csv], processing: false, unavailableReason: null, readFile, fileType: ACTUAL_IMPORT_FILE_TYPE }))
+      .toEqual({ status: 'refused', reason: ACTUAL_FILE_GUIDANCE })
+    expect(selectDroppedImportFiles([{ kind: 'string', getAsFile: () => null }], [], ACTUAL_IMPORT_FILE_TYPE))
+      .toEqual({ status: 'refused', reason: 'Drop an Actual Budget export, not text or other page content.' })
+    expect(readFile).toHaveBeenCalledOnce()
   })
 })

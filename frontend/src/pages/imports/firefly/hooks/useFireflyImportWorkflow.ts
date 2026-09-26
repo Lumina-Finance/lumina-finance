@@ -28,6 +28,7 @@ import {
   countCreatedImportSources,
   createProviderImportRunController,
   describeProviderImportFailure,
+  formatProviderImportSummary,
   getProviderImportError,
   PROVIDER_IMPORT_RUN_IDLE,
   PROVIDER_IMPORT_STAGES,
@@ -50,7 +51,6 @@ import {
   buildFireflyPreviewRows,
   buildFireflyRunBudgets,
   forecastFireflyImport,
-  formatFireflyImportSummary,
   getFireflyFileHeaders,
   getFireflyFileRows,
   getFireflyImportedCategories,
@@ -570,7 +570,7 @@ export function useFireflyImportWorkflow() {
   )
 
   const completedSkippedCount = completedImport?.skippedRowsAtCommit.length ?? 0
-  const importSummary = importResult ? formatFireflyImportSummary(importResult, completedSkippedCount) : ''
+  const importSummary = importResult ? formatProviderImportSummary(importResult, completedSkippedCount) : ''
 
   const importedBudgetNames = useMemo(
     () => new Set(importResult?.budgets.map((budget) => budget.name) ?? []),

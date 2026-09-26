@@ -320,3 +320,28 @@ export function describeProviderImportFailure(reason: string, canSaveAgain: bool
   const sentence = /[.!?]$/.test(reason) ? reason : `${reason}.`
   return `${sentence} ${canSaveAgain ? PROVIDER_IMPORT_SAVE_AGAIN_NOTE : PROVIDER_IMPORT_NOTHING_SAVED_NOTE}`
 }
+
+/**
+ * Formats the import result into the overlay summary line
+ *
+ * Budgets and archived accounts only join the line when the commit wrote some, so an import
+ * without them reads as a transactions import alone
+ *
+ * @param result - What the commit wrote
+ * @param skippedCount - Rows the browser left out because they cannot be written
+ */
+export function formatProviderImportSummary(result: JournalImportRunResponse, skippedCount: number) {
+  const parts = [
+    `${result.rows_imported} row${result.rows_imported === 1 ? '' : 's'} imported`,
+    `${result.transactions_created} transaction${result.transactions_created === 1 ? '' : 's'} created`,
+    `${skippedCount} skipped`,
+  ]
+  if (result.budgets_created > 0) {
+    parts.push(`${result.budgets_created} budget${result.budgets_created === 1 ? '' : 's'} imported`)
+  }
+  if (result.accounts_archived > 0) {
+    parts.push(`${result.accounts_archived} account${result.accounts_archived === 1 ? '' : 's'} archived`)
+  }
+
+  return parts.join(' · ')
+}

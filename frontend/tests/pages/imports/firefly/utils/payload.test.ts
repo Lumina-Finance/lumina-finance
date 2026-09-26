@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import type { AccountsOverview } from '@/api/accounts'
 import type { Currency } from '@/api/currency'
-import { buildJournalStageBatches, type JournalImportRunResponse } from '@/api/provider-imports'
+import { buildJournalStageBatches } from '@/api/provider-imports'
 import type { Category } from '@/api/categories'
 import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, MAX_IMPORT_NOTES_LENGTH } from '@/pages/imports/constants'
 import type { CsvRow, ImportFileDraft } from '@/pages/imports/types'
@@ -15,7 +15,6 @@ import {
   buildFireflyImportPayload,
   buildFireflyPreviewRows,
   forecastFireflyImport,
-  formatFireflyImportSummary,
   getFireflyAccountSources,
   getFireflyImportedCategories,
   inferFireflyCategoryMappings,
@@ -56,34 +55,6 @@ const TRANSACTIONS_FILE = {
   rows: [ROW],
   hasHeaderRow: true,
 } as ImportFileDraft
-
-/** Creates a complete Firefly result with empty counters and mappings unless overridden */
-function createImportResult(overrides: Partial<JournalImportRunResponse> = {}): JournalImportRunResponse {
-  return {
-    transactions_created: 0,
-    accounts_created: 0,
-    accounts_reused: 0,
-    categories_created: 0,
-    categories_reused: 0,
-    merchants_created: 0,
-    merchants_reused: 0,
-    tags_created: 0,
-    tags_reused: 0,
-    affected_account_ids: [],
-    account_source_ids: {},
-    category_source_ids: {},
-    created_account_ids: [],
-    created_category_ids: [],
-    created_merchant_ids: [],
-    created_tag_ids: [],
-    rows_imported: 0,
-    budgets_created: 0,
-    budgets: [],
-    accounts_archived: 0,
-    archive_adjustments_created: 0,
-    ...overrides,
-  }
-}
 
 /**
  * Builds the payload for one tracked account mapped to the given account id
@@ -246,20 +217,6 @@ describe('Firefly account mapping completeness', () => {
       { source: 'Everyday Chequing Card One', account_id: CHEQUING.id },
     ])
     expect(result.payload?.rows).toHaveLength(2)
-  })
-})
-
-describe('the completed Firefly import summary', () => {
-  it('counts the rows the browser left out as skipped', () => {
-    const result = createImportResult({ rows_imported: 1, transactions_created: 1 })
-
-    expect(formatFireflyImportSummary(result, 2)).toBe('1 row imported · 1 transaction created · 2 skipped')
-  })
-
-  it('preserves plural row, transaction and budget segments in their current order', () => {
-    const result = createImportResult({ rows_imported: 2, transactions_created: 2, budgets_created: 2 })
-
-    expect(formatFireflyImportSummary(result, 1)).toBe('2 rows imported · 2 transactions created · 1 skipped · 2 budgets imported')
   })
 })
 

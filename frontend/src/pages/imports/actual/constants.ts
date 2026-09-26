@@ -1,4 +1,5 @@
 import type { AccountType } from '@/api/accounts'
+import type { ImportFileType } from '@/pages/imports/utils/fileIntake'
 
 const MIB = 1024 * 1024
 
@@ -145,3 +146,30 @@ export function getActualAccountNameTooLongError(label: string) {
 export function getActualCategoryCreateClashError(firstLabel: string, secondLabel: string) {
   return `${firstLabel} and ${secondLabel} would be created as one category, so they need the same type.`
 }
+
+// How many transactions the preview shows before the import
+export const ACTUAL_SAMPLE_PREVIEW_LIMIT = 5
+
+// The budget import takes a bounded number of budgets at once
+export const ACTUAL_MAX_BUDGETS = 1000
+
+// The page Actual keeps on exporting a budget, linked rather than repeated so the steps stay current
+export const ACTUAL_EXPORT_DOCS_URL = 'https://actualbudget.org/docs/backup-restore/backup/'
+
+// Actual exports a budget as a zip, and keeps it as db.sqlite in its data folder. The reader tells
+// the two apart by their contents, so the name only screens out files that are neither
+export const ACTUAL_IMPORT_FILE_TYPE: ImportFileType = {
+  matches: (file) => /\.(zip|sqlite)$/i.test(file.name),
+  multipleFilesReason: 'Choose one Actual Budget export at a time.',
+  wrongTypeReason: ACTUAL_FILE_GUIDANCE,
+  nonFileDropReason: 'Drop an Actual Budget export, not text or other page content.',
+  directoryDropReason: `Folders cannot be uploaded. ${ACTUAL_FILE_GUIDANCE}`,
+}
+
+export function getActualUnsupportedCurrencyError(currencyCode: string) {
+  return `This budget is in ${currencyCode}, which Lumina Finance does not support yet.`
+}
+
+// The seeded categories Lumina files transfer legs, one-sided transfers and rows without a category under
+export const ACTUAL_TRANSFER_CATEGORY_NAME = 'Transfer'
+export const ACTUAL_MISCELLANEOUS_CATEGORY_NAME = 'Miscellaneous'

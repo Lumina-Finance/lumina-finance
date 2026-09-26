@@ -40,6 +40,9 @@ export function ImportValueMatchTable({
     onDetailKindChange?: (kind: ImportCategoryKind) => void
     value: string
     onChange: (value: string) => void
+
+    /** Targets for this row alone, where it can only take some of the shared ones */
+    options?: DropdownOption[]
   }>
   options: DropdownOption[]
   disabled: boolean
@@ -111,7 +114,7 @@ export function ImportValueMatchTable({
                 <td className="px-4 py-2 align-middle">
                   <Dropdown
                     labelledBy={`${targetHeadingId} ${sourceLabelId}`}
-                    options={options}
+                    options={row.options ?? options}
                     value={row.value}
                     onChange={row.onChange}
                     searchable

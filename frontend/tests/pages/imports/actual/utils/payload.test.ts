@@ -49,6 +49,7 @@ function createAnswers(journal: ActualJournal, currency = 'CAD'): ActualImportAn
     categoryCreateKinds: Object.fromEntries(journal.categories.map((source) => [source.id, kindOf(source.role, source.isIncome)])),
     categoryById: new Map([[GROCERIES.id, GROCERIES]]),
     currencies: CURRENCIES,
+    budgetCategorySources: new Set(),
   }
 }
 
@@ -177,5 +178,18 @@ describe('Actual Budget import payload', () => {
     answers.categoryMappings[carTransfers.id] = CREATE_CATEGORY_VALUE
     answers.categoryCreateKinds[carTransfers.id] = 'expense'
     expect(buildActualImportPayload(journal, answers).errors).toContain(getActualTransferCategoryError(carTransfers.label))
+  })
+
+  it('answers the categories a budget tracks even where no row uses them', async () => {
+    const { journal } = await normaliseActualFixture('edges')
+    const car = journal.categories.find((source) => source.label === 'Car')!
+    const unused = { ...car, id: 'unused', label: 'Unused', createName: 'Unused', categoryId: 'unused', rowCount: 0 }
+    const withUnused = { ...journal, categories: [...journal.categories, unused] }
+    const answers = { ...createAnswers(withUnused), budgetCategorySources: new Set([car.id, `transfer:${car.categoryId}`, 'unused']) }
+
+    const build = buildActualImportPayload(withUnused, answers)
+    expect(build.errors).toEqual([])
+    expect(build.payload?.categories.some((mapping) => mapping.source === 'unused')).toBe(false)
+    expect(build.budgetCategoryMappings.map((mapping) => mapping.source)).toEqual([car.id, `transfer:${car.categoryId}`, 'unused'])
   })
 })

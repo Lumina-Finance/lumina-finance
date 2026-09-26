@@ -1,0 +1,86 @@
+import type { ImportExpectations } from '@/pages/imports/types'
+
+/**
+ * What an Actual Budget import changes, keeps and leaves behind, shown before anything is staged
+ *
+ * The transaction entries in the left-behind group are skipped and listed before the import, and
+ * the feature entries never arrive
+ */
+export const ACTUAL_EXPECTATIONS: ImportExpectations = {
+  intro: 'Actual Budget gives money to categories month by month and keeps some accounts off the budget. Lumina '
+    + 'Finance records one entry per account and tracks spending against budgets by category, so some of your data '
+    + 'changes shape on the way in.',
+  deviation: 'Only the amount you budgeted each month comes across. Money Actual rolled over from one month to the '
+    + 'next and what it showed as To Budget are not imported, so what a budget has left can read differently from '
+    + 'the balance Actual shows.',
+  changes: [
+    {
+      source: 'One transfer',
+      lumina: 'Two entries, one per account, so your transaction count ends up higher than your row count',
+    },
+    {
+      source: 'A payment with a category to an off-budget account, like a loan payment',
+      lumina: 'A transfer that keeps a transfer category of the same name on the budget side, so its budget still counts it',
+    },
+    {
+      source: 'A split transaction',
+      lumina: 'Separate entries that are no longer linked, each keeping the payee and notes',
+    },
+    {
+      source: 'Payees',
+      lumina: 'Merchants',
+    },
+    {
+      source: 'A #hashtag in the notes',
+      lumina: 'A tag, with the notes kept as written',
+    },
+    {
+      source: 'A transfer to an account you have since deleted',
+      lumina: 'A payment with no payee, as Actual now shows it',
+    },
+    {
+      source: 'Off-budget accounts',
+      lumina: 'Ordinary accounts, since every account here counts toward your balances',
+    },
+    {
+      source: 'Each month you budgeted a category',
+      lumina: 'One budget period for that month, repeating monthly only when you budgeted for this month or later',
+    },
+    {
+      source: 'A hidden category or category group',
+      lumina: 'An archived budget',
+    },
+    {
+      source: 'A closed account the import creates',
+      lumina: 'An archived account, with any money left in it brought to zero on the day you import',
+    },
+  ],
+  leftBehind: [
+    {
+      group: 'Budgets',
+      items: [
+        'For income, which a tracking budget can hold',
+        'For months budgeted at zero',
+        'Templates and goals',
+      ],
+    },
+    {
+      group: 'Transactions',
+      items: [
+        'Dated after today',
+        'Split into parts that no longer add up to the total',
+        'With more decimal places than their currency allows',
+        'With a tag or payee too long for this app',
+      ],
+    },
+    {
+      group: 'Features',
+      items: [
+        'Schedules and rules',
+        'Reconciliation and cleared flags',
+        'Bank sync links',
+        'Reports and dashboards',
+      ],
+    },
+  ],
+}

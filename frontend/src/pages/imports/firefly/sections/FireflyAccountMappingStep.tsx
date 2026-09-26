@@ -1,20 +1,6 @@
-import { useState } from 'react'
-import InstitutionModal from '@/components/reference-modals/InstitutionModal'
-import { useInstitutionModal } from '@/hooks/useInstitutionModal'
-import {
-  ACCOUNTS_LOAD_FAILURE_EXPLANATION,
-  ACCOUNTS_LOAD_FAILURE_TITLE,
-  ACCOUNT_TYPE_OPTIONS,
-  CREATED_ACCOUNT_BALANCE_NOTE,
-  CREATED_ACCOUNT_CREDIT_LIMIT_NOTE,
-  CREATED_ACCOUNT_EXPLANATION,
-  CREATED_ACCOUNT_TITLE,
-} from '@/pages/imports/constants'
-import { isCreatingImportAccount, isImportableAccount } from '@/pages/imports/utils'
-import { ImportAccountMappingTable, EmptyState, ImportLoadFailure, ImportNotice, ImportStep } from '@/pages/imports/components'
+import { ImportNotice } from '@/pages/imports/components'
 import type { FireflyImportWorkflow } from '@/pages/imports/firefly/hooks'
-
-type InstitutionModalTarget = { kind: 'batch' } | { kind: 'account'; source: string }
+import { ProviderAccountMappingStep } from '@/pages/imports/sections/ProviderAccountMappingStep'
 
 type FireflyAccountMappingStepProps = Pick<
   FireflyImportWorkflow,
@@ -48,167 +34,33 @@ type FireflyAccountMappingStepProps = Pick<
 >
 
 /**
- * Account mapping step of the Firefly III import flow, wrapping the shared mapping table with the
- * modal used to create an institution from a row or from the batch bar
+ * Account mapping step of the Firefly III import flow, where the asset and liability accounts of the
+ * export map to an existing account or a new one
  */
 export function FireflyAccountMappingStep({
   transactionsFile,
   trackedAccounts,
-  accountMappings,
-  autoFilledAccountSources,
-  handAnsweredAccountSources,
-  accountById,
-  accountCreateDetails,
   updateFireflyAccountMapping,
-  setAccountCreateTypes,
-  setAccountCreateCurrencies,
-  setAccountCreateInstitutions,
-  accountOptions,
-  currencyOptions,
-  institutionOptions,
-  accountsLoading,
-  accountsFailed,
-  refetchAccounts,
-  currenciesLoading,
-  institutionsLoading,
-  selectedAccountRows,
-  batchAccountType,
-  batchAccountCurrency,
-  batchAccountInstitution,
-  setBatchAccountType,
-  setBatchAccountCurrency,
-  setBatchAccountInstitution,
-  setSelectedAccountRows,
+  ...props
 }: FireflyAccountMappingStepProps) {
-  const institutionModal = useInstitutionModal()
-
-  // Which field asked for a new institution, so the one it creates comes back to that field
-  const [institutionModalTarget, setInstitutionModalTarget] = useState<InstitutionModalTarget | null>(null)
-
-  /** Opens institution creation for the batch controls or one account row */
-  const openInstitutionModal = (query: string, target: InstitutionModalTarget) => {
-    setInstitutionModalTarget(target)
-    institutionModal.openForCreate(query)
-  }
-
-  /** Clears the requesting field when institution creation closes */
-  const closeInstitutionModal = () => {
-    setInstitutionModalTarget(null)
-    institutionModal.close()
-  }
-
-  /** Assigns the created institution only to the field that opened the modal */
-  const handleInstitutionSaved = (institution: { id: string }) => {
-    if (institutionModalTarget?.kind === 'batch') {
-      setBatchAccountInstitution(institution.id)
-    } else if (institutionModalTarget) {
-      setAccountCreateInstitutions((current) => ({ ...current, [institutionModalTarget.source]: institution.id }))
-    }
-    closeInstitutionModal()
-  }
-
-  const accountRows = trackedAccounts.map(({ id: sourceAccount, label }) => {
-    const value = accountMappings[sourceAccount] ?? ''
-    const account = accountById.get(value)
-    const createDetails = accountCreateDetails[sourceAccount]
-
-    return {
-      id: sourceAccount,
-      source: label,
-      value,
-
-      // Keeps an account the dropdown has stopped offering, which here means one archived or made
-      // read-only since it was chosen, visible on its row rather than reading as unanswered
-      selectedOption: account ? { value, label: account.name } : undefined,
-
-      autoFilled: autoFilledAccountSources.has(sourceAccount),
-
-      // Both sides of a Firefly transfer take rows, so no source here is counterparty-only
-      isCounterpartyOnly: false,
-
-      isReadOnlyAccount: account ? !isImportableAccount(account) : false,
-      isHandAnswered: handAnsweredAccountSources.has(sourceAccount),
-      accountType: account?.account_type ?? '',
-      accountCurrency: account?.currency ?? '',
-      accountInstitution: account?.institution?.id ?? '',
-      createType: createDetails?.accountType ?? '',
-      createCurrency: createDetails?.currency ?? '',
-      createInstitution: createDetails?.institutionId ?? '',
-      onChange: (nextValue: string) => updateFireflyAccountMapping(sourceAccount, nextValue),
-      onCreateTypeChange: (nextValue: string) => setAccountCreateTypes((current) => ({ ...current, [sourceAccount]: nextValue })),
-      onCreateCurrencyChange: (nextValue: string) => setAccountCreateCurrencies((current) => ({ ...current, [sourceAccount]: nextValue })),
-      onCreateInstitutionChange: (nextValue: string) => setAccountCreateInstitutions((current) => ({ ...current, [sourceAccount]: nextValue })),
-    }
-  })
-
-  // Held back until the account list has landed, since every tracked name resolves to create until
-  // it does, which would show the notice and then drop it once the names match
-  const isCreatingAccount = !accountsLoading && isCreatingImportAccount(accountRows)
-
   return (
-    <ImportStep
+    <ProviderAccountMappingStep
+      {...props}
       index="02"
-      title="Account Mapping"
       description="Asset and liability accounts from the export must map to an existing account or a new one."
-    >
-      {!accountsFailed && (
+      notice={(
         <ImportNotice title="How currencies are read">
           Amounts are written in each mapped account&apos;s currency. Rows without an amount in that currency are skipped and reported after the import.
         </ImportNotice>
       )}
-      {accountsFailed ? (
-        <ImportLoadFailure
-          title={ACCOUNTS_LOAD_FAILURE_TITLE}
-          description={ACCOUNTS_LOAD_FAILURE_EXPLANATION}
-          onRetry={refetchAccounts}
-        />
-      ) : trackedAccounts.length === 0 ? (
-        <EmptyState
-          title={transactionsFile ? 'No accounts to import into' : 'No account names detected'}
-          description={transactionsFile
-            ? 'No row in this export can be imported into an asset or liability account. The preview lists why each row is skipped.'
-            : 'Upload the transactions CSV first.'}
-        />
-      ) : (
-        <>
-          {isCreatingAccount && (
-            <ImportNotice
-              title={CREATED_ACCOUNT_TITLE}
-              items={[CREATED_ACCOUNT_BALANCE_NOTE, CREATED_ACCOUNT_CREDIT_LIMIT_NOTE]}
-            >
-              {CREATED_ACCOUNT_EXPLANATION}
-            </ImportNotice>
-          )}
-          <ImportAccountMappingTable
-            rows={accountRows}
-            options={accountOptions}
-            accountTypeOptions={ACCOUNT_TYPE_OPTIONS}
-            currencyOptions={currencyOptions}
-            institutionOptions={institutionOptions}
-            disabled={accountsLoading}
-            currenciesDisabled={currenciesLoading}
-            institutionsDisabled={institutionsLoading}
-            selectedRowIds={selectedAccountRows}
-            batchAccountType={batchAccountType}
-            batchAccountCurrency={batchAccountCurrency}
-            batchAccountInstitution={batchAccountInstitution}
-            onBatchAccountTypeChange={setBatchAccountType}
-            onBatchAccountCurrencyChange={setBatchAccountCurrency}
-            onBatchAccountInstitutionChange={setBatchAccountInstitution}
-            onSelectedRowsChange={setSelectedAccountRows}
-            onCreateInstitution={(query, rowId) => openInstitutionModal(query, { kind: 'account', source: rowId })}
-            onBatchCreateInstitution={(query) => openInstitutionModal(query, { kind: 'batch' })}
-          />
-        </>
-      )}
-      <InstitutionModal
-        key={institutionModal.key}
-        open={institutionModal.open}
-        initialName={institutionModal.name}
-        institution={institutionModal.institution}
-        onClose={closeInstitutionModal}
-        onSaved={handleInstitutionSaved}
-      />
-    </ImportStep>
+      emptyState={transactionsFile
+        ? {
+          title: 'No accounts to import into',
+          description: 'No row in this export can be imported into an asset or liability account. The preview lists why each row is skipped.',
+        }
+        : { title: 'No account names detected', description: 'Upload the transactions CSV first.' }}
+      sources={trackedAccounts}
+      onAccountMappingChange={updateFireflyAccountMapping}
+    />
   )
 }

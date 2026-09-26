@@ -2,6 +2,7 @@ import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import type { JournalImportPayload, JournalImportRow } from '@/api/provider-imports'
+import type { TransactionImportCategoryMapping } from '@/api/transaction-imports'
 import {
   ACTUAL_ACCOUNT_NAME_MAX_LENGTH,
   ACTUAL_TRANSACTION_DECIMALS,
@@ -34,8 +35,8 @@ import type { ImportCategoryKind } from '@/pages/imports/types'
 import { isImportableAccount } from '@/pages/imports/utils/accountScope'
 import { findReusedImportCategory, getCategoryNameKey } from '@/pages/imports/utils/categoryMatching'
 import { findCurrencyExponent } from '@/utils/moneyInput'
-import { BALANCE_ADJUSTMENT_CATEGORY_NAME, doesTransferRecordCounterpartyAccount } from '@/utils/transfers'
 import { formatScaledAmount } from './amounts'
+import { canCarryActualTransfer } from './categories'
 import { formatHundredths } from './normalise'
 
 /** Create-new answers for one Actual account after the proposals are applied */
@@ -53,6 +54,9 @@ export interface ActualImportAnswers {
   categoryCreateKinds: Record<string, ImportCategoryKind>
   categoryById: Map<string, Category>
   currencies: Currency[]
+
+  /** Category sources the selected budgets track, which the budgets request declares */
+  budgetCategorySources: ReadonlySet<string>
 }
 
 export interface ActualImportBuild {
@@ -70,6 +74,9 @@ export interface ActualImportBuild {
 
   /** Accounts the import creates for accounts Actual has closed, archived once written */
   archiveAccountSources: string[]
+
+  /** Mappings for the category sources the selected budgets track, some of which no row uses */
+  budgetCategoryMappings: TransactionImportCategoryMapping[]
 }
 
 /**
@@ -95,8 +102,13 @@ export function buildActualImportPayload(journal: ActualJournal, answers: Actual
   const currency = currencySet.length === 1 ? currencySet[0] : null
 
   const { rows, skippedRows, writtenCategorySources } = buildRows(journal, accountCurrencies, answers.currencies)
-  const usedCategories = journal.categories.filter((source) => writtenCategorySources.has(source.id))
-  const categories = buildCategoryMappings(usedCategories, answers, addError)
+  // A budget can track a category no row uses, which still needs an answer the commit can take
+  const mappedCategories = journal.categories.filter((source) => (
+    writtenCategorySources.has(source.id) || answers.budgetCategorySources.has(source.id)
+  ))
+  const mappings = buildCategoryMappings(mappedCategories, answers, addError)
+  const categories = mappings.filter((mapping) => writtenCategorySources.has(mapping.source))
+  const budgetCategoryMappings = mappings.filter((mapping) => answers.budgetCategorySources.has(mapping.source))
 
   if (rows.length === 0) addError(getImportNoRowsError('export'))
 
@@ -105,7 +117,7 @@ export function buildActualImportPayload(journal: ActualJournal, answers: Actual
     categories: writtenCategorySources,
   }
   const payload = errors.length === 0 ? { accounts, categories, rows } : null
-  return { errors, payload, currency, skippedRows, writtenSources, archiveAccountSources }
+  return { errors, payload, currency, skippedRows, writtenSources, archiveAccountSources, budgetCategoryMappings }
 }
 
 function buildAccountMappings(
@@ -193,7 +205,7 @@ function buildCategoryMappings(
 
     if (choice !== CREATE_CATEGORY_VALUE) {
       const category = categoryById.get(choice)
-      if (source.role === 'transfer' && category && !recordsCounterparty(category.kind, category.name)) {
+      if (source.role === 'transfer' && category && !canCarryActualTransfer(category)) {
         addError(getActualTransferCategoryError(source.label))
         continue
       }
@@ -206,7 +218,7 @@ function buildCategoryMappings(
       addError(getImportCategoryTypeRequiredError(source.label))
       continue
     }
-    if (source.role === 'transfer' && !recordsCounterparty(kind, source.createName)) {
+    if (source.role === 'transfer' && !canCarryActualTransfer({ kind, name: source.createName })) {
       addError(getActualTransferCategoryError(source.label))
       continue
     }
@@ -230,10 +242,6 @@ function buildCategoryMappings(
   }
 
   return categories
-}
-
-function recordsCounterparty(kind: ImportCategoryKind, name: string) {
-  return doesTransferRecordCounterpartyAccount(kind, name === BALANCE_ADJUSTMENT_CATEGORY_NAME)
 }
 
 /**

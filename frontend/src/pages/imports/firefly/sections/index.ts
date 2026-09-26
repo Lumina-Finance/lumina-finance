@@ -1,6 +1,5 @@
 export * from './FireflyAccountMappingStep'
 export * from './FireflyBudgetImportStep'
-export * from './FireflyExpectationsCard'
 export * from './FireflyCategoryMatchingStep'
 export * from './FireflyFilesStep'
 export * from './FireflyPreviewStep'

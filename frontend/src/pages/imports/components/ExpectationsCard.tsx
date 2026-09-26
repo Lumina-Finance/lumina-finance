@@ -1,120 +1,17 @@
 import { useState } from 'react'
 import { ArrowRight, ChevronDown, Info } from 'lucide-react'
 import { IMPORT_INSET_STYLE } from '@/pages/imports/constants'
+import type { ImportExpectations } from '@/pages/imports/types'
 
 /**
- * One concept that arrives intact but in a new shape, phrased as the user knows
- * it in Firefly III and what it becomes in Lumina
- */
-interface ConceptMapping {
-  firefly: string
-  lumina: string
-}
-
-const CONVERTED_MAPPINGS: ConceptMapping[] = [
-  {
-    firefly: 'One transfer',
-    lumina: 'Two entries, one per account, so your transaction count ends up higher than your row count',
-  },
-  {
-    firefly: 'Expense and revenue accounts, like shops and employers',
-    lumina: 'Merchants',
-  },
-  {
-    firefly: 'A loan payment recorded as a withdrawal',
-    lumina: 'A transfer between your account and the loan',
-  },
-  {
-    firefly: 'A category on a transfer or loan payment between two imported accounts',
-    lumina: 'The Transfer category, so the one you chose is dropped',
-  },
-  {
-    firefly: 'A tag with a comma in its name',
-    lumina: 'Separate tags split at each comma, since the export does not mark where a tag ends',
-  },
-  {
-    firefly: 'A transaction paid in another currency',
-    lumina: "Its amount in the account's currency only, since every transaction here is in its account's currency",
-  },
-  {
-    firefly: 'A split transaction group',
-    lumina: 'Separate entries that are no longer linked',
-  },
-  {
-    firefly: 'Journal description, always required',
-    lumina: 'Notes, which are optional here',
-  },
-  {
-    firefly: 'Budget limit periods, whatever their length',
-    lumina: 'One budget period each, with the original dates and amounts, continuing on the cadence of the latest period, or not recurring when no cadence fits',
-  },
-  {
-    firefly: 'A budget you archived',
-    lumina: 'An archived budget here too, keeping every limit period it ever ran',
-  },
-  {
-    firefly: 'An account you made inactive that the import creates, when you add the accounts file',
-    lumina: 'An archived account, with any money left in it brought to zero on the day you import',
-  },
-]
-
-/**
- * The one difference whose figures will not tie back to Firefly III, which is
- * worth finding before the numbers are compared rather than after
- */
-const DEVIATION_TEXT = "Firefly III sets a budget on each transaction. This app's budgets track whole "
-  + 'categories, so anything you left out of a budget there still counts against it here, and the amount '
-  + 'left can read lower than Firefly III shows.'
-
-/**
- * Everything the import leaves behind, grouped by what it applies to and
- * listed without saying which might arrive later, since nothing here is
- * committed to and a hint otherwise would be read as a promise
- *
- * The budget and transaction entries only catch the rare shapes they name,
- * which are skipped and reported, except future-dated transactions, which the
- * export never holds. The feature entries never arrive
- */
-const LEFT_BEHIND: { group: string; items: string[] }[] = [
-  {
-    group: 'Budgets that are',
-    items: [
-      'Repeating on period lengths Lumina Finance has no cadence for',
-      'Mixing more than one currency across their limit periods',
-      'In a currency Lumina Finance does not support',
-      'Set with limit periods that overlap',
-    ],
-  },
-  {
-    group: 'Transactions',
-    items: [
-      'With more decimal places than their currency allows',
-      'With a tag too long for this app',
-      "Of the Liability credit type, which repeats a liability's opening balance",
-      'Dated after the day you export, which the export leaves out',
-    ],
-  },
-  {
-    group: 'Features',
-    items: [
-      'Bills and recurring transactions',
-      'Piggy banks and reconciliation flags',
-      'Account interest and card details',
-      'Rules and attachments',
-    ],
-  },
-]
-
-/**
- * Static concept mapping shown at the top of the Firefly III flow so users
- * know which of their data changes shape on the way in, since the two apps
- * model transactions differently
+ * Concept mapping shown at the top of a provider import flow so users know which of their data
+ * changes shape on the way in, since the source app models transactions differently
  *
  * The three groups are ordered by what it costs to not know: the one thing
  * whose totals will not match leads, then data that arrives in a new shape,
  * then what stays behind
  */
-export function FireflyExpectationsCard() {
+export function ImportExpectationsCard({ expectations }: { expectations: ImportExpectations }) {
   return (
     <div className="rounded-lg px-4 py-3" style={IMPORT_INSET_STYLE}>
       <div className="flex items-start gap-3">
@@ -130,8 +27,7 @@ export function FireflyExpectationsCard() {
             What To Expect
           </p>
           <p className="mt-1 text-sm leading-5" style={{ color: 'var(--app-text-muted)' }}>
-            Firefly III records every journal against two accounts. Lumina Finance records one entry per account, so
-            some of your data changes shape on the way in.
+            {expectations.intro}
           </p>
 
           {/* The rails share the text column beside the icon so they line up
@@ -143,15 +39,15 @@ export function FireflyExpectationsCard() {
             tinted
           >
             <p className="text-sm leading-5" style={{ color: 'var(--app-text)' }}>
-              {DEVIATION_TEXT}
+              {expectations.deviation}
             </p>
           </ConceptGroup>
 
           <CollapsedConceptGroup title="Changes shape" toggleLabel="changes shape" railColour="var(--app-accent)">
             <ul className="mt-1.5 flex flex-col gap-1.5 text-sm leading-5" style={{ color: 'var(--app-text)' }}>
-              {CONVERTED_MAPPINGS.map((mapping) => (
-                <li key={mapping.firefly}>
-                  {mapping.firefly}
+              {expectations.changes.map((mapping) => (
+                <li key={mapping.source}>
+                  {mapping.source}
                   <span className="sr-only"> becomes </span>
                   <ArrowRight
                     size={13}
@@ -170,7 +66,7 @@ export function FireflyExpectationsCard() {
               className="flex list-disc flex-col gap-1.5 pl-4 text-sm leading-5"
               style={{ color: 'var(--app-text-subtle)' }}
             >
-              {LEFT_BEHIND.map(({ group, items }) => (
+              {expectations.leftBehind.map(({ group, items }) => (
                 <li key={group}>
                   {group}
                   <ul className="mt-1 flex list-[circle] flex-col gap-1 pl-4">

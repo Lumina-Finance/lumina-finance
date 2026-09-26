@@ -1,3 +1,4 @@
+export * from './ExpectationsCard'
 export * from './FileUpload'
 export * from './FormatControls'
 export * from './PreviewList'

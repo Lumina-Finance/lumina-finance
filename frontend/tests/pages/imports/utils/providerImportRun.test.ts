@@ -6,12 +6,41 @@ import {
   canStartProviderImport,
   countCreatedImportSources,
   createProviderImportRunController,
+  formatProviderImportSummary,
   getProviderImportError,
   type ProviderImportRunState,
 } from '@/pages/imports/utils'
 
 const RESULT = { rows_imported: 3 } as JournalImportRunResponse
 const SKIPPED_AT_START: FireflySkippedRowDetail[] = [{ journalId: '7', rowNumber: 8, cells: {}, reason: 'Left out' }]
+
+/** Creates a complete import result with empty counters and mappings unless overridden */
+function createImportResult(overrides: Partial<JournalImportRunResponse> = {}): JournalImportRunResponse {
+  return {
+    transactions_created: 0,
+    accounts_created: 0,
+    accounts_reused: 0,
+    categories_created: 0,
+    categories_reused: 0,
+    merchants_created: 0,
+    merchants_reused: 0,
+    tags_created: 0,
+    tags_reused: 0,
+    affected_account_ids: [],
+    account_source_ids: {},
+    category_source_ids: {},
+    created_account_ids: [],
+    created_category_ids: [],
+    created_merchant_ids: [],
+    created_tag_ids: [],
+    rows_imported: 0,
+    budgets_created: 0,
+    budgets: [],
+    accounts_archived: 0,
+    archive_adjustments_created: 0,
+    ...overrides,
+  }
+}
 
 function deferred<T>() {
   let resolve!: (value: T) => void
@@ -176,5 +205,19 @@ describe('counting the sources an import creates', () => {
     const mappings = { Checking: 'create', Savings: 'create', Wallet: 'account-1' }
 
     expect(countCreatedImportSources(['Checking', 'Savings', 'Wallet'], mappings, 'create', new Set(['Checking', 'Wallet']))).toBe(1)
+  })
+})
+
+describe('the completed provider import summary', () => {
+  it('counts the rows the browser left out as skipped', () => {
+    const result = createImportResult({ rows_imported: 1, transactions_created: 1 })
+
+    expect(formatProviderImportSummary(result, 2)).toBe('1 row imported · 1 transaction created · 2 skipped')
+  })
+
+  it('preserves plural row, transaction and budget segments in their current order', () => {
+    const result = createImportResult({ rows_imported: 2, transactions_created: 2, budgets_created: 2 })
+
+    expect(formatProviderImportSummary(result, 1)).toBe('2 rows imported · 2 transactions created · 1 skipped · 2 budgets imported')
   })
 })
