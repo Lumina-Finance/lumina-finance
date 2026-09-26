@@ -284,7 +284,7 @@ export const CURRENCIES_LOADING_UPLOAD_BLOCK = 'Loading currencies...'
 export const CURRENCIES_FAILED_UPLOAD_BLOCK = 'Currencies could not be loaded, and a file cannot be read without them. Reload the page to try again.'
 
 // How many entries the skipped table lists before summarizing the remainder, shared by every table
-// built on it: refused rows in both import flows, and the Firefly budgets it cannot bring in
+// built on it: refused rows in every import flow, and the Firefly III and Actual Budget budgets it cannot bring in
 export const SKIPPED_TABLE_VISIBLE_LIMIT = 20
 
 // How many compiled transactions the preview shows. Read by the builder that stops at it and by the

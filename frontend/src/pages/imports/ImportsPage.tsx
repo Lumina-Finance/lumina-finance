@@ -123,7 +123,7 @@ export default function ImportsPage() {
   // import at a category or account that has since been renamed or deleted elsewhere. Categories in
   // particular never revalidate on their own, since their query never goes stale and the cache is
   // kept in local storage for months. Invalidating here rather than inside the reference-data hook,
-  // which both workflows mount: two refetches issued in the same commit cancel one another
+  // which every workflow mounts: two refetches issued in the same commit cancel one another
   // Exact, since the account list's key is the prefix of every per-account key: without it, opening
   // this page marks each account's snapshots, cash flow and spending breakdown stale as well, and
   // the account pages refetch all of them instead of painting from the cache
