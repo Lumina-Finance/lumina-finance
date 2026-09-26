@@ -17,6 +17,10 @@
  */
 import { readFileSync } from 'node:fs'
 import { unzipSync } from 'fflate'
+import initSqlJs from 'sql.js'
+import type { ActualBudgetFile } from '@/pages/imports/actual/types'
+import { normaliseActualBudget } from '@/pages/imports/actual/utils/normalise'
+import { readActualBudgetFile } from '@/pages/imports/actual/utils/readFile'
 
 export type ActualFixtureBudget = 'envelope' | 'yen' | 'edges'
 
@@ -69,4 +73,17 @@ export function readActualManifest(budget: ActualFixtureBudget): ActualManifest 
 
 export function unzipActualDatabase(zip: Uint8Array): Uint8Array<ArrayBuffer> {
   return new Uint8Array(unzipSync(zip)['db.sqlite'])
+}
+
+export async function readActualFixtureBudget(name: ActualFixtureBudget): Promise<ActualBudgetFile> {
+  const read = await readActualBudgetFile(new File([readActualFixture(name, 'export.zip')], 'export.zip'), () => initSqlJs())
+  if (read.status !== 'read') throw new Error(read.reason)
+  return read.budget
+}
+
+/** Reads and normalises one export as of the date its manifest was taken */
+export async function normaliseActualFixture(name: ActualFixtureBudget) {
+  const manifest = readActualManifest(name)
+  const budget = await readActualFixtureBudget(name)
+  return { budget, manifest, journal: normaliseActualBudget(budget, manifest.asOf) }
 }

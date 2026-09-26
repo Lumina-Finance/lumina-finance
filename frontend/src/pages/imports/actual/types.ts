@@ -1,3 +1,5 @@
+import type { AccountType } from '@/api/accounts'
+
 /** Which of Actual's two budget kinds a file has switched on */
 export type ActualBudgetType = 'envelope' | 'tracking'
 
@@ -90,3 +92,116 @@ export interface ActualBudgetFile {
 export type ActualFileRead =
   | { status: 'read'; budget: ActualBudgetFile }
   | { status: 'refused'; reason: string }
+
+/** What an Actual category source files rows under, which decides its label and default */
+export type ActualCategoryRole =
+  /** Ordinary rows carrying the category */
+  | 'spending'
+
+  /** The budget-side leg of transfers to or from off-budget accounts that carry the category */
+  | 'transfer'
+
+  /** Budget-side rows with no category */
+  | 'uncategorized'
+
+  /** Rows with no category in one off-budget account, where Actual never asks for one */
+  | 'offBudgetUncategorized'
+
+/**
+ * One Actual account the import writes to, which the user links to a Lumina account or creates
+ *
+ * `id` is Actual's own account id, which the mappings and the upload name the account by, since
+ * Actual lets two accounts share a name
+ */
+export interface ActualAccountSource {
+  id: string
+  name: string
+
+  /** The name, with a note added when another account shares it */
+  label: string
+  offBudget: boolean
+  closed: boolean
+
+  /** Hundredths left in the account once the imported rows are written */
+  balance: number
+  rowCount: number
+
+  /** What a new Lumina account is proposed as, read from Actual's own type and the balance */
+  proposedType: AccountType
+}
+
+/**
+ * One category mapping source, which the categories step matches to a Lumina category or creates
+ *
+ * `id` is what the upload names it by: Actual's category id for spending, prefixed for the other
+ * roles, so two Actual categories sharing a name stay apart
+ */
+export interface ActualCategorySource {
+  id: string
+  role: ActualCategoryRole
+
+  /** What the categories step shows */
+  label: string
+
+  /** The name a new Lumina category is created under */
+  createName: string
+
+  /** Actual's category, null for the uncategorized roles */
+  categoryId: string | null
+
+  /** The off-budget account an uncategorized source belongs to */
+  accountId: string | null
+  isIncome: boolean
+  rowCount: number
+}
+
+export type ActualJournalType = 'withdrawal' | 'deposit' | 'transfer' | 'opening balance'
+
+/**
+ * One row the import uploads, still in Actual's terms: accounts are Actual account ids, and the
+ * amount is the magnitude in hundredths, which becomes decimal text once each account's currency
+ * is known
+ */
+export interface ActualJournalEntry {
+  transactionId: string
+  date: string
+  type: ActualJournalType
+  amount: number
+
+  /** The account money leaves, null when it leaves from outside the import */
+  sourceAccountId: string | null
+
+  /** The account money enters, null when it goes outside the import */
+  destinationAccountId: string | null
+
+  /** The payee, which becomes the merchant on a withdrawal or deposit */
+  payeeName: string | null
+  categorySourceId: string | null
+
+  /** Set on a categorized transfer, naming the leg on the budget side */
+  categoryLeg: 'source' | 'destination' | null
+  notes: string | null
+  tags: string[]
+}
+
+/** One Actual row the import leaves out, with enough of it for the user to find it in Actual */
+export interface ActualSkippedRow {
+  transactionId: string
+  date: string
+  accountName: string
+
+  /** Signed hundredths, as Actual shows the row */
+  amount: number
+  payeeName: string | null
+  categoryName: string | null
+  notes: string | null
+  reason: string
+}
+
+/** Everything the import takes from an Actual budget, before any account or category is answered */
+export interface ActualJournal {
+  accounts: ActualAccountSource[]
+  categories: ActualCategorySource[]
+  entries: ActualJournalEntry[]
+  skippedRows: ActualSkippedRow[]
+}

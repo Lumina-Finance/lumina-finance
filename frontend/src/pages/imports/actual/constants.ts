@@ -1,3 +1,5 @@
+import type { AccountType } from '@/api/accounts'
+
 const MIB = 1024 * 1024
 
 /** Largest export zip the import opens, checked before anything is unpacked */
@@ -68,3 +70,78 @@ export const ACTUAL_REQUIRED_COLUMNS: Record<string, string[]> = {
 
 /** Where to get a file the import reads, repeated in each refusal that means the wrong file came */
 export const ACTUAL_FILE_GUIDANCE = "Choose the .zip from Actual's Settings under Export data, or the db.sqlite in Actual's data folder."
+
+/**
+ * Longest tag and payee the import endpoint takes, mirroring the backend schema. Actual takes
+ * longer ones, and one such row would fail the whole import, so it is left out with the value named
+ */
+export const ACTUAL_TAG_NAME_MAX_LENGTH = 64
+export const ACTUAL_PAYEE_NAME_MAX_LENGTH = 256
+
+/** Prefixes that keep each category role's mapping sources apart from Actual's category ids */
+export const ACTUAL_TRANSFER_CATEGORY_SOURCE_PREFIX = 'transfer:'
+export const ACTUAL_OFF_BUDGET_CATEGORY_SOURCE_PREFIX = 'off-budget:'
+
+export const ACTUAL_FUTURE_ROW_REASON = "Dated after today, so it hasn't happened yet"
+
+export function getActualUnbalancedSplitReason(partsTotal: string, total: string) {
+  return `Its split parts add up to ${partsTotal}, not the ${total} the transaction is for, so Actual flags it as unbalanced`
+}
+
+export function getActualTagTooLongReason(tag: string) {
+  return `The tag #${tag.slice(0, 28)} is longer than the ${ACTUAL_TAG_NAME_MAX_LENGTH} characters a tag can have`
+}
+
+export function getActualPayeeTooLongReason(length: number) {
+  return `The payee is ${length.toLocaleString()} characters, and the importer takes up to ${ACTUAL_PAYEE_NAME_MAX_LENGTH}`
+}
+
+export const ACTUAL_INCOME_BUDGET_REASON = 'Lumina Finance budgets track spending, so a budget for income is not imported'
+
+export function getActualBudgetAmountReason(amount: string, currencyCode: string) {
+  return `Its budgeted amount ${amount} has more decimal places than ${currencyCode} holds`
+}
+
+export function getActualBudgetGroupCategoryReason(categoryName: string) {
+  return `Its category ${categoryName} is matched to a group category, and an imported budget can only track your own or built-in categories`
+}
+
+/**
+ * Lumina account types for the types older Actual releases asked for when an account was made.
+ * Newer releases leave the type empty, and the balance decides instead
+ */
+export const ACTUAL_ACCOUNT_TYPES: Record<string, AccountType> = {
+  checking: 'checking',
+  savings: 'savings',
+  credit: 'credit_card',
+  investment: 'investment',
+  mortgage: 'mortgage',
+  debt: 'loan',
+}
+
+// The longest name a Lumina account takes, which an Actual account name can exceed
+export const ACTUAL_ACCOUNT_NAME_MAX_LENGTH = 256
+
+export function getActualAmountPrecisionReason(amount: string, currencyCode: string) {
+  return `The amount ${amount} has more decimal places than ${currencyCode} holds`
+}
+
+export function getActualSharedAccountError(labels: string[], accountName: string) {
+  return `${labels.join(' and ')} are linked to the same account, ${accountName}. Link each Actual account to an account of its own.`
+}
+
+export function getActualMixedCurrencyError(currencies: string[]) {
+  return `An Actual budget has one currency, but its accounts are set to ${currencies.join(', ')}. Choose one currency for every account.`
+}
+
+export function getActualTransferCategoryError(label: string) {
+  return `Match ${label} to a transfer category, since its rows stay transfers between your accounts.`
+}
+
+export function getActualAccountNameTooLongError(label: string) {
+  return `Link to an existing account, since a new account name holds at most ${ACTUAL_ACCOUNT_NAME_MAX_LENGTH} characters: ${label}`
+}
+
+export function getActualCategoryCreateClashError(firstLabel: string, secondLabel: string) {
+  return `${firstLabel} and ${secondLabel} would be created as one category, so they need the same type.`
+}
