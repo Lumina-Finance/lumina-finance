@@ -6,6 +6,7 @@ import { getCategoryNameKey } from '@/pages/imports/utils/categoryMatching'
 import { BALANCE_ADJUSTMENT_CATEGORY_NAME, doesTransferRecordCounterpartyAccount } from '@/utils/transfers'
 import { ACTUAL_MISCELLANEOUS_CATEGORY_NAME, ACTUAL_TRANSFER_CATEGORY_NAME } from '@/pages/imports/actual/constants'
 import type { ActualCategorySource } from '@/pages/imports/actual/types'
+import { isGroupResource } from './scope'
 
 /**
  * Says what kind of category a source is created as: transfer sources can only be transfers, since
@@ -68,7 +69,7 @@ export function inferActualCategoryMappings(
     const kind = getActualCategoryKind(source)
     const key = getCategoryNameKey(source.createName)
     const match = categories.find((category) => (
-      !category.group_id
+      !isGroupResource(category)
       && getCategoryNameKey(category.name) === key
       && category.kind === kind
       && (source.role !== 'transfer' || canFileActualTransferSource(source, category))
@@ -76,11 +77,6 @@ export function inferActualCategoryMappings(
     mappings[source.id] = match?.id ?? CREATE_CATEGORY_VALUE
   }
   return mappings
-}
-
-/** Leaves group categories out of the choices, since an import only uses the user's own and built-in ones */
-export function getActualCategoryOptions(options: DropdownOption[], categoryById: Map<string, Category>) {
-  return options.filter((option) => !categoryById.get(option.value)?.group_id)
 }
 
 /**

@@ -22,7 +22,6 @@ import {
   getProviderImportError,
   getSupportedCurrencyCodes,
   groupPreviewRowsByDate,
-  inferAccountMappingsWithCollisions,
   isAutoFilledAccountSource,
   processImportFileIntake,
   PROVIDER_IMPORT_RUN_IDLE,
@@ -41,11 +40,12 @@ import {
 } from '@/pages/imports/actual/constants'
 import type { ActualBudgetFile, ActualJournal, ActualSkippedRow } from '@/pages/imports/actual/types'
 import { buildActualBudgetDrafts, buildActualRunBudgets, getActualBudgetRefusal } from '@/pages/imports/actual/utils/budgets'
-import { getActualCategoryKind, getActualCategoryOptions, inferActualCategoryMappings } from '@/pages/imports/actual/utils/categories'
+import { getActualCategoryKind, inferActualCategoryMappings } from '@/pages/imports/actual/utils/categories'
 import { normaliseActualBudget } from '@/pages/imports/actual/utils/normalise'
 import { buildActualImportPayload, type ActualAccountCreateDetails, type ActualImportBuild } from '@/pages/imports/actual/utils/payload'
 import { buildActualPreviewRows } from '@/pages/imports/actual/utils/preview'
 import { readActualBudgetFile } from '@/pages/imports/actual/utils/readFile'
+import { getPersonalAccounts, getPersonalCategoryOptions, resolveActualAccountMappings } from '@/pages/imports/actual/utils/scope'
 
 /** The export the flow has read, as the files step lists it */
 export interface ActualStagedFile {
@@ -175,12 +175,9 @@ export function useActualImportWorkflow() {
     institutionById,
   } = useImportReferenceData()
 
-  // Grouped accounts and categories aren't imported into, so only the user's own and built-in ones
-  // are offered or matched
-  const personalAccounts = useMemo(() => selectableAccounts.filter((account) => !account.group_id), [selectableAccounts])
-  const accountOptions = useMemo(() => buildImportAccountOptions(personalAccounts), [personalAccounts])
+  const accountOptions = useMemo(() => buildImportAccountOptions(getPersonalAccounts(selectableAccounts)), [selectableAccounts])
   const categoryMatchOptions = useMemo(
-    () => getActualCategoryOptions(allCategoryMatchOptions, categoryById),
+    () => getPersonalCategoryOptions(allCategoryMatchOptions, categoryById),
     [allCategoryMatchOptions, categoryById],
   )
 
@@ -219,23 +216,9 @@ export function useActualImportWorkflow() {
     [accountById, accountMappings, accountsResolved],
   )
 
-  // Names match an existing account where only one fits. Once the account list is current, the rest
-  // default to create-new, apart from names sharing one match, which need an explicit answer
   const resolvedAccountMappings = useMemo(
-    () => {
-      const inferred = inferAccountMappingsWithCollisions(accountMappingSources, liveAccountMappings, {
-        rowAccounts: personalAccounts,
-        counterpartyAccounts: personalAccounts,
-      })
-      if (!accountsCurrent) return inferred.mappings
-      for (const source of accountMappingSources) {
-        if (!inferred.mappings[source.id] && !inferred.collidingSourceIds.has(source.id)) {
-          inferred.mappings[source.id] = CREATE_ACCOUNT_VALUE
-        }
-      }
-      return inferred.mappings
-    },
-    [accountMappingSources, accountsCurrent, liveAccountMappings, personalAccounts],
+    () => resolveActualAccountMappings(accountMappingSources, liveAccountMappings, selectableAccounts, accountsCurrent),
+    [accountMappingSources, accountsCurrent, liveAccountMappings, selectableAccounts],
   )
 
   const autoFilledAccountSources = useMemo(

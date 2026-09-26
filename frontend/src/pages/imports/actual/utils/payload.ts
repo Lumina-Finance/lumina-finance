@@ -42,6 +42,7 @@ import { isImportableAccount } from '@/pages/imports/utils/accountScope'
 import { findReusedImportCategory, getCategoryNameKey } from '@/pages/imports/utils/categoryMatching'
 import { findCurrencyExponent } from '@/utils/moneyInput'
 import { formatScaledAmount } from './amounts'
+import { isGroupResource } from './scope'
 import { canCarryActualTransfer, canFileActualTransferSource } from './categories'
 import { formatHundredths } from './normalise'
 
@@ -164,7 +165,7 @@ function buildAccountMappings(
         addError(getImportReadOnlyAccountMappingError(source.label, account))
         continue
       }
-      if (account?.group_id) {
+      if (account && isGroupResource(account)) {
         addError(getActualGroupAccountError(source.label))
         continue
       }
@@ -228,7 +229,7 @@ function buildCategoryMappings(
 
     if (choice !== CREATE_CATEGORY_VALUE) {
       const category = categoryById.get(choice)
-      if (category?.group_id) {
+      if (category && isGroupResource(category)) {
         addError(getActualGroupCategoryError(source.label))
         continue
       }

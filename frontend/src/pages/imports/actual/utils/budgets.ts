@@ -11,6 +11,7 @@ import {
 import { CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
 import type { ActualBudgetFile, ActualJournal } from '@/pages/imports/actual/types'
 import { formatScaledAmount } from './amounts'
+import { isGroupResource } from './scope'
 import { getActualCategoryName } from './normalise'
 
 // Actual budgets by calendar month, so every imported budget repeats on the first of each month
@@ -113,7 +114,7 @@ export function getActualBudgetRefusal(
   for (const source of draft.categorySourceIds) {
     const choice = categoryMappings[source]
     const category = choice && choice !== CREATE_CATEGORY_VALUE ? categoryById.get(choice) : undefined
-    if (category?.group_id) return getActualBudgetGroupCategoryReason(category.name)
+    if (category && isGroupResource(category)) return getActualBudgetGroupCategoryReason(category.name)
   }
 
   if (currency && currencyExponent !== null) {
