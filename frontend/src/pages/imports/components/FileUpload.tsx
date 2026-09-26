@@ -3,10 +3,7 @@ import { FileText, LoaderCircle, TriangleAlert, Upload, X } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { IMPORT_INSET_STYLE } from '@/pages/imports/constants'
 import type { ImportFileDraft, ImportUploadBlock } from '@/pages/imports/types'
-import { formatBytes, selectDroppedImportFiles, type ImportFileSelection, type ImportFileType } from '@/pages/imports/utils'
-
-// Shown on the card and read out by the live region beside it, so both say the same thing
-const PROCESSING_STATUS = 'Processing CSV'
+import { CSV_IMPORT_FILE_TYPE, formatBytes, selectDroppedImportFiles, type ImportFileSelection, type ImportFileType } from '@/pages/imports/utils'
 
 /**
  * Upload affordance shared by the import flows that animates between its idle
@@ -32,7 +29,7 @@ export function ImportUploadCard({
   disabled,
   rejection,
   blockReason,
-  fileType,
+  fileType = CSV_IMPORT_FILE_TYPE,
   onClick,
   onDropFile,
 }: {
@@ -43,7 +40,7 @@ export function ImportUploadCard({
   rejection?: string | null
   blockReason?: ImportUploadBlock | null
 
-  /** The kind of file a drop must be, a CSV file unless the flow takes something else */
+  /** The kind of file the card takes and says it is reading, a CSV file unless the flow takes something else */
   fileType?: ImportFileType
   onClick: () => void
   onDropFile: (selection: ImportFileSelection) => void
@@ -138,7 +135,7 @@ export function ImportUploadCard({
                   <LoaderCircle size={21} strokeWidth={2.4} className="animate-spin motion-reduce:animate-none" aria-hidden />
                 </span>
                 <span className="block text-sm font-semibold" style={{ color: 'var(--app-text)' }}>
-                  {PROCESSING_STATUS}
+                  {fileType.processingStatus}
                 </span>
                 <span className="mt-2 flex items-center gap-1" aria-hidden>
                   <span className="h-1.5 w-6 animate-pulse" style={{ background: 'var(--app-accent)' }} />
@@ -226,7 +223,7 @@ export function ImportUploadCard({
           the text arrives. The refusal and waiting messages carry their own regions inside the
           card, and only the processing state was left without one */}
       <span className="sr-only" role="status">
-        {processing ? PROCESSING_STATUS : ''}
+        {processing ? fileType.processingStatus : ''}
       </span>
     </>
   )

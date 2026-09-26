@@ -25,6 +25,9 @@ export interface ImportDropItem {
 /** The kind of file an upload takes, with how each way of offering the wrong thing is refused */
 export interface ImportFileType {
   matches: (file: File) => boolean
+
+  /** Shown on the upload card and read out while the file is being read */
+  processingStatus: string
   multipleFilesReason: string
   wrongTypeReason: string
   nonFileDropReason: string
@@ -39,6 +42,7 @@ export const DIRECTORY_DROP_REASON = 'Folders cannot be uploaded. Choose one CSV
 /** A CSV file, told by its name or declared type */
 export const CSV_IMPORT_FILE_TYPE: ImportFileType = {
   matches: (file) => file.name.toLowerCase().endsWith('.csv') || file.type.trim().toLowerCase() === 'text/csv',
+  processingStatus: 'Processing CSV',
   multipleFilesReason: MULTIPLE_FILES_REASON,
   wrongTypeReason: NON_CSV_REASON,
   nonFileDropReason: NON_FILE_DROP_REASON,
