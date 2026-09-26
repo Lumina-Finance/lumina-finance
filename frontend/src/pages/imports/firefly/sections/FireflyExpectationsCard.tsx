@@ -72,7 +72,8 @@ const DEVIATION_TEXT = "Firefly III sets a budget on each transaction. This app'
  * committed to and a hint otherwise would be read as a promise
  *
  * The budget and transaction entries only catch the rare shapes they name,
- * which are skipped and reported, while the feature entries never arrive
+ * which are skipped and reported, except future-dated transactions, which the
+ * export never holds. The feature entries never arrive
  */
 const LEFT_BEHIND: { group: string; items: string[] }[] = [
   {
@@ -90,6 +91,7 @@ const LEFT_BEHIND: { group: string; items: string[] }[] = [
       'With more decimal places than their currency allows',
       'With a tag too long for this app',
       "Of the Liability credit type, which repeats a liability's opening balance",
+      'Dated after the day you export, which the export leaves out',
     ],
   },
   {
