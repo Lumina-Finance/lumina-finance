@@ -85,6 +85,8 @@ export const ACTUAL_OFF_BUDGET_CATEGORY_SOURCE_PREFIX = 'off-budget:'
 
 export const ACTUAL_FUTURE_ROW_REASON = "Dated after today, so it hasn't happened yet"
 
+export const ACTUAL_TRANSFER_SIDE_LEFT_OUT_REASON = "The other side of this transfer is left out, so this side is left out with it"
+
 export function getActualUnbalancedSplitReason(partsTotal: string, total: string) {
   return `Its split parts add up to ${partsTotal}, not the ${total} the transaction is for, so Actual flags it as unbalanced`
 }
@@ -133,6 +135,14 @@ export function getActualSharedAccountError(labels: string[], accountName: strin
 
 export function getActualMixedCurrencyError(currencies: string[]) {
   return `An Actual budget has one currency, but its accounts are set to ${currencies.join(', ')}. Choose one currency for every account.`
+}
+
+export function getActualFileCurrencyError(fileCurrency: string, labels: string[]) {
+  return `This budget is in ${fileCurrency}, so every account must be in ${fileCurrency} too. Change the currency of ${labels.join(', ')}.`
+}
+
+export function getActualBuiltInTransferError(label: string) {
+  return `Match ${label} to a transfer category other than Transfer, which would cancel these payments out of their budget.`
 }
 
 export function getActualTransferCategoryError(label: string) {

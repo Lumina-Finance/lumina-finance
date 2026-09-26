@@ -7,7 +7,9 @@ import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import {
   getActualAmountPrecisionReason,
+  getActualBuiltInTransferError,
   getActualCategoryCreateClashError,
+  getActualFileCurrencyError,
   getActualMixedCurrencyError,
   getActualSharedAccountError,
   getActualTransferCategoryError,
@@ -34,6 +36,7 @@ const CHEQUING = { id: 'chequing', name: 'Chequing', currency: 'CAD', can_write:
 const ARCHIVED = { id: 'old-savings', name: 'Old Savings', currency: 'CAD', can_write: true, is_archived: true } as AccountsOverview
 const GROCERIES = { id: 'groceries', name: 'Groceries', kind: 'expense', group_id: null } as Category
 const CAR_INCOME = { id: 'car-income', name: 'Car', kind: 'income', group_id: null } as Category
+const TRANSFER = { id: 'transfer', name: 'Transfer', kind: 'transfer', group_id: null, is_system: true } as Category
 
 /** Creates every account in one currency and every category with the kind its role suggests */
 function createAnswers(journal: ActualJournal, currency = 'CAD'): ActualImportAnswers {
@@ -49,6 +52,7 @@ function createAnswers(journal: ActualJournal, currency = 'CAD'): ActualImportAn
     categoryCreateKinds: Object.fromEntries(journal.categories.map((source) => [source.id, kindOf(source.role, source.isIncome)])),
     categoryById: new Map([[GROCERIES.id, GROCERIES]]),
     currencies: CURRENCIES,
+    fileCurrency: null,
     budgetCategorySources: new Set(),
   }
 }
@@ -85,7 +89,7 @@ describe('Actual Budget import payload', () => {
 
   it('writes yen rows in whole yen', async () => {
     const { journal } = await normaliseActualFixture('yen')
-    const build = buildActualImportPayload(journal, createAnswers(journal, 'JPY'))
+    const build = buildActualImportPayload(journal, { ...createAnswers(journal, 'JPY'), fileCurrency: 'JPY' })
 
     expect(build.errors).toEqual([])
     expect(build.payload?.rows.find((row) => row.dt === '2026-07-10')).toMatchObject({ amount: '4580', currency_code: 'JPY', destination_name: 'Lawson' })
@@ -191,5 +195,40 @@ describe('Actual Budget import payload', () => {
     expect(build.errors).toEqual([])
     expect(build.payload?.categories.some((mapping) => mapping.source === 'unused')).toBe(false)
     expect(build.budgetCategoryMappings.map((mapping) => mapping.source)).toEqual([car.id, `transfer:${car.categoryId}`, 'unused'])
+  })
+
+  it('keeps every account in the currency the file records', async () => {
+    const { journal } = await normaliseActualFixture('yen')
+    const answers = { ...createAnswers(journal, 'CAD'), fileCurrency: 'JPY' }
+
+    expect(buildActualImportPayload(journal, answers).errors)
+      .toEqual([getActualFileCurrencyError('JPY', journal.accounts.map((account) => account.label))])
+
+    // An existing account counts by its own currency
+    const linked = { ...createAnswers(journal, 'JPY'), fileCurrency: 'JPY' }
+    linked.accountMappings[journal.accounts[0].id] = CHEQUING.id
+    expect(buildActualImportPayload(journal, linked).errors).toContain(getActualFileCurrencyError('JPY', [journal.accounts[0].label]))
+  })
+
+  it('keeps a categorised payment off the built-in Transfer category', async () => {
+    const { journal } = await normaliseActualFixture('edges')
+    const answers = createAnswers(journal)
+    const carTransfers = journal.categories.find((source) => source.role === 'transfer')!
+    answers.categoryById.set(TRANSFER.id, TRANSFER)
+    answers.categoryMappings[carTransfers.id] = TRANSFER.id
+
+    expect(buildActualImportPayload(journal, answers).errors).toEqual([getActualBuiltInTransferError(carTransfers.label)])
+  })
+
+  it('writes a closed account linked to an existing one into it, leaving that account open', async () => {
+    const { journal } = await normaliseActualFixture('edges')
+    const answers = createAnswers(journal)
+    const wallet = findAccountId(journal, 'Wallet')
+    answers.accountMappings[wallet] = CHEQUING.id
+
+    const build = buildActualImportPayload(journal, answers)
+    expect(build.errors).toEqual([])
+    expect(build.payload?.accounts).toContainEqual({ source: wallet, account_id: CHEQUING.id })
+    expect(build.archiveAccountSources).toEqual([])
   })
 })

@@ -25,6 +25,15 @@ async function readRefusal(file: File) {
   return read.reason
 }
 
+/** Counts what a query over a database selects */
+async function countRows(bytes: Uint8Array, query: string) {
+  const engine = await loadNodeSqlEngine()
+  const database = new engine.Database(bytes)
+  const [result] = database.exec(query)
+  database.close()
+  return Number(result.values[0][0])
+}
+
 /** Rewrites a database with a change, so a refusal comes from a real Actual file that differs in one way */
 async function editDatabase(bytes: Uint8Array, statement: string) {
   const engine = await loadNodeSqlEngine()
@@ -213,5 +222,36 @@ describe('reading Actual Budget files', () => {
 
     const budget = await readBudget(new File([database], 'db.sqlite'))
     expect(budget.databaseVersion).toBe(ACTUAL_NEWEST_CHECKED_MIGRATION + 1)
+  })
+
+  it('refuses a yen budget whose Actual version cannot be read', async () => {
+    const database = await editDatabase(readActualFixture('yen', 'db.sqlite'), 'DELETE FROM __migrations__')
+
+    expect(await readRefusal(new File([database], 'db.sqlite'))).toMatch(/in JPY, and it comes from a newer version/)
+  })
+
+  it('hides a category that is visible itself but sits in a hidden group', async () => {
+    const database = await editDatabase(
+      unzipActualDatabase(readActualFixture('edges', 'export.zip')),
+      "UPDATE categories SET hidden = 0 WHERE name = 'Gym'",
+    )
+
+    const budget = await readBudget(new File([database], 'db.sqlite'))
+    expect(budget.categories.find((category) => category.name === 'Gym')).toMatchObject({ groupName: 'Retired', hidden: true })
+  })
+
+  it('reads budget figures under their own category, since a merge already added them to the one it kept', async () => {
+    const bytes = unzipActualDatabase(readActualFixture('envelope', 'export.zip'))
+    const merged = await editDatabase(bytes, `
+      INSERT INTO zero_budgets (id, month, category, amount, carryover)
+      SELECT '202607-' || cm.id, 202607, cm.id, 12345, 0
+      FROM category_mapping cm JOIN categories c ON c.id = cm.id JOIN categories kept ON kept.id = cm.transferId AND kept.tombstone = 0
+      WHERE c.tombstone = 1 AND cm.transferId <> cm.id
+    `)
+
+    const original = await readBudget(new File([bytes], 'db.sqlite'))
+    const edited = await readBudget(new File([merged], 'db.sqlite'))
+    expect(await countRows(merged, "SELECT COUNT(*) FROM zero_budgets WHERE id LIKE '202607-%'")).toBeGreaterThan(0)
+    expect(edited.budgetFigures).toEqual(original.budgetFigures)
   })
 })

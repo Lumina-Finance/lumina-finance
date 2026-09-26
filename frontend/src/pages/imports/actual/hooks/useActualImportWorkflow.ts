@@ -319,6 +319,7 @@ export function useActualImportWorkflow() {
         categoryCreateKinds: resolvedCategoryKinds,
         categoryById,
         currencies,
+        fileCurrency: budget.currencyCode,
         budgetCategorySources,
       })
       : EMPTY_BUILD),
@@ -460,6 +461,12 @@ export function useActualImportWorkflow() {
   const closedAccountsWithBalance = accountSources.filter((source) => (
     source.closed && source.balance !== 0 && resolvedAccountMappings[source.id] === CREATE_ACCOUNT_VALUE
   ))
+
+  // Closed accounts linked to one the user has write their rows there and leave it as it is
+  const closedAccountsLinked = accountSources.filter((source) => {
+    const choice = resolvedAccountMappings[source.id]
+    return source.closed && source.rowCount > 0 && Boolean(choice) && choice !== CREATE_ACCOUNT_VALUE
+  })
 
   const importOverlaySteps = useMemo<ImportProgressStep[] | undefined>(
     () => {
@@ -615,6 +622,7 @@ export function useActualImportWorkflow() {
     handAnsweredAccountSources,
     accountCreateDetails: resolvedAccountCreateDetails,
     closedAccountsWithBalance,
+    closedAccountsLinked,
     accountsFailed,
     categoriesFailed,
     refetchAccounts,

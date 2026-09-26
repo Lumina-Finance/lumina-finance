@@ -309,14 +309,17 @@ function readTransactions(database: Database): ActualTransaction[] {
 /**
  * Reads the figures of the budget type the file has on, for live categories. A file keeps both
  * tables, and the one switched off holds whatever was typed before the last switch
+ *
+ * Each figure is read under its own category, unlike rows. Merging a category into another adds
+ * its figures to the other's own and leaves them behind under the deleted one, so following the
+ * merge would count them twice
  */
 function readBudgetFigures(database: Database, budgetType: ActualBudgetType): ActualBudgetFigure[] {
   const table = budgetType === 'tracking' ? 'reflect_budgets' : 'zero_budgets'
   return selectRows(database, `
     SELECT b.month, c.id AS category, b.amount, b.carryover
     FROM ${table} b
-    LEFT JOIN category_mapping cm ON cm.id = b.category
-    JOIN v_categories c ON c.id = COALESCE(cm.transferId, b.category) AND c.tombstone = 0
+    JOIN v_categories c ON c.id = b.category AND c.tombstone = 0
     ORDER BY b.month
   `).map((row) => ({
     month: formatActualMonth(row.month),

@@ -46,11 +46,20 @@ describe('Actual Budget category defaults', () => {
     expect(inferActualCategoryMappings(journal.categories, { [groceries.id]: MISCELLANEOUS.id }, CATEGORIES)[groceries.id]).toBe(MISCELLANEOUS.id)
   })
 
-  it('offers a transfer row only categories that record the other account', () => {
+  it('offers a transfer row only categories that record the other account, and a categorised payment no Transfer', () => {
     const options = buildImportCategoryMatchOptions(CATEGORIES)
     const categoryById = new Map(CATEGORIES.map((entry) => [entry.id, entry]))
 
-    expect(getActualTransferCategoryOptions(options, categoryById).map((option) => option.value))
+    expect(getActualTransferCategoryOptions(options, categoryById, { categoryId: null }).map((option) => option.value))
       .toEqual([CREATE_CATEGORY_VALUE, CAR_TRANSFERS.id, TRANSFER.id])
+    expect(getActualTransferCategoryOptions(options, categoryById, { categoryId: 'car' }).map((option) => option.value))
+      .toEqual([CREATE_CATEGORY_VALUE, CAR_TRANSFERS.id])
+  })
+
+  it('files a transfer whose other side is missing under Transfer, and never matches a payment to it', () => {
+    const missing = { id: 'transfer:', role: 'transfer', label: 'Transfers whose other side is missing', createName: 'Transfer', categoryId: null, accountId: null, isIncome: false, rowCount: 1 } as const
+    const payment = { ...missing, id: 'transfer:t', label: 'Transfer · transfers to and from off-budget accounts', categoryId: 't' }
+
+    expect(inferActualCategoryMappings([missing, payment], {}, CATEGORIES)).toEqual({ [missing.id]: TRANSFER.id, [payment.id]: CREATE_CATEGORY_VALUE })
   })
 })

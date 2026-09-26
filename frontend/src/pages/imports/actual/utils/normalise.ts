@@ -7,6 +7,7 @@ import {
   ACTUAL_OFF_BUDGET_CATEGORY_SOURCE_PREFIX,
   ACTUAL_PAYEE_NAME_MAX_LENGTH,
   ACTUAL_TAG_NAME_MAX_LENGTH,
+  ACTUAL_TRANSFER_SIDE_LEFT_OUT_REASON,
   ACTUAL_TRANSFER_CATEGORY_SOURCE_PREFIX,
   getActualPayeeTooLongReason,
   getActualTagTooLongReason,
@@ -66,7 +67,14 @@ export function normaliseActualBudget(budget: ActualBudgetFile, today: string): 
     reason,
   })
 
-  // Rows whose split was left out, and pairs already uploaded from their other side
+  const getLimitReason = (row: ActualTransaction) => {
+    const rowParent = row.parentId ? transactionById.get(row.parentId) : undefined
+    const notes = joinNotes(rowParent?.notes ?? null, row.notes)
+    const payee = payeeById.get(row.payeeId ?? rowParent?.payeeId ?? '') ?? null
+    return getRowLimitReason(notes, readActualTags(notes), payee?.transferAccountId ? null : payee?.name ?? null)
+  }
+
+  // Rows whose split was left out
   const leftOut = new Set<string>()
   for (const [parentId, children] of childrenByParent) {
     const parent = transactionById.get(parentId)
@@ -88,10 +96,19 @@ export function normaliseActualBudget(budget: ActualBudgetFile, today: string): 
       continue
     }
 
+    const payee = payeeById.get(transaction.payeeId ?? parent?.payeeId ?? '') ?? null
+    const counterpartAccount = payee?.transferAccountId ? accountById.get(payee.transferAccountId) : undefined
+    const counterpart = counterpartAccount ? findTransferCounterpart(transaction, counterpartAccount, transactionById, leftOut) : null
+
+    // A pair is uploaded from one side with that side's notes, so the pair stands or falls with it
+    if (counterpart && !isUploadedSide(transaction, counterpart)) {
+      if (getLimitReason(counterpart)) skippedRows.push(describe(transaction, ACTUAL_TRANSFER_SIDE_LEFT_OUT_REASON, parent))
+      continue
+    }
+
     const notes = joinNotes(parent?.notes ?? null, transaction.notes)
     const tags = readActualTags(notes)
-    const payee = payeeById.get(transaction.payeeId ?? parent?.payeeId ?? '') ?? null
-    const limitReason = getRowLimitReason(notes, tags, payee?.transferAccountId ? null : payee?.name ?? null)
+    const limitReason = getLimitReason(transaction)
     if (limitReason) {
       skippedRows.push(describe(transaction, limitReason, parent))
       continue
@@ -111,11 +128,8 @@ export function normaliseActualBudget(budget: ActualBudgetFile, today: string): 
       continue
     }
 
-    const counterpartAccount = payee?.transferAccountId ? accountById.get(payee.transferAccountId) : undefined
     if (counterpartAccount) {
-      const counterpart = findTransferCounterpart(transaction, counterpartAccount, transactionById, leftOut)
       if (counterpart) {
-        if (!isUploadedSide(transaction, counterpart)) continue
         entries.push(buildTransferPair(base, transaction, account, counterpart, counterpartAccount, categoryById, categoryUses))
         continue
       }
@@ -144,10 +158,13 @@ export function normaliseActualBudget(budget: ActualBudgetFile, today: string): 
   }
 
   // A category budgeted in Actual is offered even without rows, so its budget can still track it.
-  // Income budgets aren't imported, so an income category needs rows to be offered
+  // One used only on payments to off-budget accounts already is, as a transfer category. Income
+  // budgets aren't imported, so an income category needs rows to be offered
   for (const figure of budget.budgetFigures) {
     const category = categoryById.get(figure.categoryId)
-    if (category && !category.isIncome && figure.amount > 0) categoryUses.add('spending', category, null, 0)
+    if (category && !category.isIncome && figure.amount > 0 && !categoryUses.hasCategory(category.id)) {
+      categoryUses.add('spending', category, null, 0)
+    }
   }
 
   return {
@@ -325,6 +342,10 @@ class CategoryUses {
     use.count += count
     this.uses.set(id, use)
     return id
+  }
+
+  hasCategory(categoryId: string) {
+    return [...this.uses.values()].some((use) => use.categoryId === categoryId)
   }
 
   toSources(categories: ActualCategory[], accountById: Map<string, ActualAccount>): ActualCategorySource[] {

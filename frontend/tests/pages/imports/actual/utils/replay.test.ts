@@ -47,6 +47,7 @@ async function buildReplay(): Promise<Replay> {
     categoryCreateKinds: Object.fromEntries(journal.categories.map((source) => [source.id, getActualCategoryKind(source)])),
     categoryById: new Map(),
     currencies: CURRENCIES,
+    fileCurrency: null,
     budgetCategorySources: new Set(drafts.flatMap((draft) => draft.categorySourceIds)),
   })
   expect(build.errors).toEqual([])

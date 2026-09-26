@@ -10,6 +10,7 @@ type ActualAccountMappingStepProps = Pick<
   | 'budget'
   | 'accountSources'
   | 'closedAccountsWithBalance'
+  | 'closedAccountsLinked'
   | 'accountMappings'
   | 'autoFilledAccountSources'
   | 'handAnsweredAccountSources'
@@ -45,6 +46,7 @@ export function ActualAccountMappingStep({
   budget,
   accountSources,
   closedAccountsWithBalance,
+  closedAccountsLinked,
   updateActualAccountMapping,
   ...props
 }: ActualAccountMappingStepProps) {
@@ -57,12 +59,19 @@ export function ActualAccountMappingStep({
     </ImportNotice>
   )
 
+  // Only an account the import creates is archived, so one linked to yours stays as it is
+  const linkedNotice = closedAccountsLinked.length > 0 && (
+    <ImportNotice title="Closed accounts linked to yours" items={closedAccountsLinked.map((account) => account.label)}>
+      These are closed in Actual. Their rows go to the accounts you linked them to, which stay open:
+    </ImportNotice>
+  )
+
   return (
     <ProviderAccountMappingStep
       {...props}
       index="02"
       description="Every account in the budget, on it or off it, must map to an existing account or a new one."
-      notice={currencyNotice}
+      notice={<>{currencyNotice}{linkedNotice}</>}
       createdAccountNotice={{ explanation: ACTUAL_CREATED_ACCOUNT_EXPLANATION, items: [CREATED_ACCOUNT_CREDIT_LIMIT_NOTE] }}
       createNotice={closedAccountsWithBalance.length > 0 && (
         <ImportNotice

@@ -20,7 +20,7 @@ export const ACTUAL_EXPECTATIONS: ImportExpectations = {
     },
     {
       source: 'A payment with a category to an off-budget account, like a loan payment',
-      lumina: 'A transfer that keeps a transfer category of the same name on the budget side, so its budget still counts it',
+      lumina: 'A transfer that keeps a transfer category named after it on the budget side, so its budget still counts it',
     },
     {
       source: 'A split transaction',
@@ -70,7 +70,7 @@ export const ACTUAL_EXPECTATIONS: ImportExpectations = {
         'Dated after today',
         'Split into parts that no longer add up to the total',
         'With more decimal places than their currency allows',
-        'With a tag or payee too long for this app',
+        'With notes, tags or a payee over the limits this app takes',
       ],
     },
     {

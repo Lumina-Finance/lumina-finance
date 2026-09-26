@@ -8,7 +8,9 @@ import {
   ACTUAL_TRANSACTION_DECIMALS,
   getActualAccountNameTooLongError,
   getActualAmountPrecisionReason,
+  getActualBuiltInTransferError,
   getActualCategoryCreateClashError,
+  getActualFileCurrencyError,
   getActualMixedCurrencyError,
   getActualSharedAccountError,
   getActualTransferCategoryError,
@@ -36,7 +38,7 @@ import { isImportableAccount } from '@/pages/imports/utils/accountScope'
 import { findReusedImportCategory, getCategoryNameKey } from '@/pages/imports/utils/categoryMatching'
 import { findCurrencyExponent } from '@/utils/moneyInput'
 import { formatScaledAmount } from './amounts'
-import { canCarryActualTransfer } from './categories'
+import { canCarryActualTransfer, canFileActualTransferSource } from './categories'
 import { formatHundredths } from './normalise'
 
 /** Create-new answers for one Actual account after the proposals are applied */
@@ -54,6 +56,9 @@ export interface ActualImportAnswers {
   categoryCreateKinds: Record<string, ImportCategoryKind>
   categoryById: Map<string, Category>
   currencies: Currency[]
+
+  /** The currency the file records for the budget, which every account must then be in */
+  fileCurrency: string | null
 
   /** Category sources the selected budgets track, which the budgets request declares */
   budgetCategorySources: ReadonlySet<string>
@@ -100,6 +105,16 @@ export function buildActualImportPayload(journal: ActualJournal, answers: Actual
   const currencySet = [...new Set(accountCurrencies.values())].sort()
   if (currencySet.length > 1) addError(getActualMixedCurrencyError(currencySet))
   const currency = currencySet.length === 1 ? currencySet[0] : null
+
+  // Amounts are read in the file's own currency, so an account in any other would take them at the
+  // wrong value
+  if (answers.fileCurrency) {
+    const mismatched = journal.accounts.filter((source) => {
+      const accountCurrency = accountCurrencies.get(source.id)
+      return accountCurrency && accountCurrency !== answers.fileCurrency
+    })
+    if (mismatched.length > 0) addError(getActualFileCurrencyError(answers.fileCurrency, mismatched.map((source) => source.label)))
+  }
 
   const { rows, skippedRows, writtenCategorySources } = buildRows(journal, accountCurrencies, answers.currencies)
   // A budget can track a category no row uses, which still needs an answer the commit can take
@@ -209,6 +224,10 @@ function buildCategoryMappings(
         addError(getActualTransferCategoryError(source.label))
         continue
       }
+      if (source.role === 'transfer' && category && !canFileActualTransferSource(source, category)) {
+        addError(getActualBuiltInTransferError(source.label))
+        continue
+      }
       categories.push({ source: source.id, category_id: choice })
       continue
     }
@@ -220,6 +239,10 @@ function buildCategoryMappings(
     }
     if (source.role === 'transfer' && !canCarryActualTransfer({ kind, name: source.createName })) {
       addError(getActualTransferCategoryError(source.label))
+      continue
+    }
+    if (source.role === 'transfer' && !canFileActualTransferSource(source, { kind, name: source.createName })) {
+      addError(getActualBuiltInTransferError(source.label))
       continue
     }
 

@@ -298,4 +298,14 @@ describe('an upload that takes a file other than CSV', () => {
       .toEqual({ status: 'refused', reason: 'Drop an Actual Budget export, not text or other page content.' })
     expect(readFile).toHaveBeenCalledOnce()
   })
+
+  it('accepts a bare Actual Budget database and refuses two files at once', async () => {
+    const database = new File(['SQLite format 3'], 'db.sqlite')
+    const readFile = vi.fn(async (file: File) => file.name)
+
+    expect(await processImportFileIntake({ files: [database], processing: false, unavailableReason: null, readFile, fileType: ACTUAL_IMPORT_FILE_TYPE }))
+      .toEqual({ status: 'accepted', result: 'db.sqlite' })
+    expect(await processImportFileIntake({ files: [database, database], processing: false, unavailableReason: null, readFile, fileType: ACTUAL_IMPORT_FILE_TYPE }))
+      .toEqual({ status: 'refused', reason: ACTUAL_IMPORT_FILE_TYPE.multipleFilesReason })
+  })
 })

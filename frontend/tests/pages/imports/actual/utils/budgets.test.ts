@@ -9,7 +9,8 @@ import { ACTUAL_INCOME_BUDGET_REASON, getActualBudgetAmountReason, getActualBudg
 import { formatScaledAmount } from '@/pages/imports/actual/utils/amounts'
 import { buildActualBudgetDrafts, buildActualRunBudgets, getActualBudgetRefusal, type ActualBudgetDraft } from '@/pages/imports/actual/utils/budgets'
 import { CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
-import { normaliseActualFixture } from './fixtures'
+import { normaliseActualBudget } from '@/pages/imports/actual/utils/normalise'
+import { buildActualBudget, normaliseActualFixture } from './fixtures'
 
 const CURRENT_MONTH = '2026-09'
 
@@ -104,5 +105,22 @@ describe('Actual Budget budgets', () => {
     expect(getActualBudgetRefusal(draft, { ...context, currencyExponent: null })).toBeNull()
     expect(getActualBudgetRefusal(draft, { ...context, categoryMappings: { dining: 'family-food' } }))
       .toBe(getActualBudgetGroupCategoryReason('Family food'))
+  })
+
+  it('repeats a budget last budgeted this month, and not one last budgeted the month before', () => {
+    const budget = buildActualBudget([], {
+      categories: [
+        { id: 'car', name: 'Car', groupName: 'Bills', isIncome: false, hidden: false },
+        { id: 'gym', name: 'Gym', groupName: 'Bills', isIncome: false, hidden: false },
+      ],
+      budgetFigures: [
+        { month: '2026-08', categoryId: 'car', amount: 10000, carryover: false },
+        { month: CURRENT_MONTH, categoryId: 'car', amount: 10000, carryover: false },
+        { month: '2026-08', categoryId: 'gym', amount: 3500, carryover: false },
+      ],
+    })
+    const drafts = buildActualBudgetDrafts(budget, normaliseActualBudget(budget, `${CURRENT_MONTH}-26`), CURRENT_MONTH)
+
+    expect(drafts.map((draft) => [draft.name, draft.recurs])).toEqual([['Car', true], ['Gym', false]])
   })
 })

@@ -4,10 +4,18 @@
  */
 import { describe, expect, it } from 'vitest'
 import { JOURNAL_NO_CATEGORY_SOURCE } from '@/api/provider-imports'
-import { ACTUAL_FUTURE_ROW_REASON } from '@/pages/imports/actual/constants'
+import {
+  ACTUAL_FUTURE_ROW_REASON,
+  ACTUAL_PAYEE_NAME_MAX_LENGTH,
+  ACTUAL_TAG_NAME_MAX_LENGTH,
+  ACTUAL_TRANSFER_SIDE_LEFT_OUT_REASON,
+  getActualPayeeTooLongReason,
+  getActualTagTooLongReason,
+} from '@/pages/imports/actual/constants'
+import { MAX_IMPORT_NOTES_LENGTH, MAX_IMPORT_TAGS_PER_ROW, getRowNotesTooLongReason, getRowTooManyTagsReason } from '@/pages/imports/constants'
 import type { ActualJournal } from '@/pages/imports/actual/types'
 import { formatHundredths, normaliseActualBudget, readActualTags } from '@/pages/imports/actual/utils/normalise'
-import { normaliseActualFixture as normalise, readActualFixtureBudget as readBudget } from './fixtures'
+import { buildActualBudget, normaliseActualFixture as normalise, readActualFixtureBudget as readBudget } from './fixtures'
 
 /** Sums what the uploaded rows move in and out of each account, keyed by account name */
 function getBalances(journal: ActualJournal) {
@@ -130,5 +138,132 @@ describe('normalising Actual Budget exports', () => {
     expect(journal.skippedRows.every((row) => row.date > '2026-08-04')).toBe(true)
     expect(journal.entries.every((entry) => entry.date <= '2026-08-04')).toBe(true)
     expect(journal.skippedRows.length).toBeGreaterThan(0)
+  })
+
+  it('keeps a row dated today and leaves out one dated tomorrow', () => {
+    const budget = buildActualBudget([
+      { id: 'today', accountId: 'checking', date: '2026-09-26', amount: -1000, payeeId: 'shop' },
+      { id: 'tomorrow', accountId: 'checking', date: '2026-09-27', amount: -1000, payeeId: 'shop' },
+    ])
+    const journal = normaliseActualBudget(budget, '2026-09-26')
+
+    expect(journal.entries.map((entry) => entry.transactionId)).toEqual(['today'])
+    expect(journal.skippedRows.map((row) => [row.transactionId, row.reason])).toEqual([['tomorrow', ACTUAL_FUTURE_ROW_REASON]])
+  })
+})
+
+describe('pairing Actual Budget transfers', () => {
+  const TODAY = '2026-09-26'
+
+  it('pairs two sides that link to each other on one day for opposite amounts', () => {
+    const journal = normaliseActualBudget(buildActualBudget([
+      { id: 'out', accountId: 'checking', date: '2026-09-01', amount: -5000, payeeId: 'to-savings', transferredId: 'in' },
+      { id: 'in', accountId: 'savings', date: '2026-09-01', amount: 5000, payeeId: 'to-checking', transferredId: 'out' },
+    ]), TODAY)
+
+    expect(journal.entries).toMatchObject([
+      { transactionId: 'out', type: 'transfer', sourceAccountId: 'checking', destinationAccountId: 'savings', amount: 5000, categoryLeg: null },
+    ])
+  })
+
+  it('imports each side on its own when the two do not match, as money to or from outside', () => {
+    const journal = normaliseActualBudget(buildActualBudget([
+      // Linked one way only
+      { id: 'one-way-out', accountId: 'checking', date: '2026-09-01', amount: -1000, payeeId: 'to-savings', transferredId: 'one-way-in' },
+      { id: 'one-way-in', accountId: 'savings', date: '2026-09-01', amount: 1000, payeeId: 'to-checking' },
+      // A day apart
+      { id: 'late-out', accountId: 'checking', date: '2026-09-02', amount: -2000, payeeId: 'to-savings', transferredId: 'late-in' },
+      { id: 'late-in', accountId: 'savings', date: '2026-09-03', amount: 2000, payeeId: 'to-checking', transferredId: 'late-out' },
+      // Amounts that differ
+      { id: 'short-out', accountId: 'checking', date: '2026-09-04', amount: -3000, payeeId: 'to-savings', transferredId: 'short-in' },
+      { id: 'short-in', accountId: 'savings', date: '2026-09-04', amount: 2900, payeeId: 'to-checking', transferredId: 'short-out' },
+      // The other side sits in a split that doesn't add up, which is left out
+      { id: 'split', accountId: 'savings', date: '2026-09-05', amount: 10000, isParent: true },
+      { id: 'split-transfer', accountId: 'savings', date: '2026-09-05', amount: 6000, parentId: 'split', payeeId: 'to-checking', transferredId: 'split-out' },
+      { id: 'split-rest', accountId: 'savings', date: '2026-09-05', amount: 3000, parentId: 'split', categoryId: 'car' },
+      { id: 'split-out', accountId: 'checking', date: '2026-09-05', amount: -6000, payeeId: 'to-savings', transferredId: 'split-transfer' },
+    ]), TODAY)
+
+    expect(journal.entries.map((entry) => [entry.transactionId, entry.type, entry.categorySourceId])).toEqual([
+      ['one-way-out', 'withdrawal', 'transfer:'],
+      ['one-way-in', 'deposit', 'transfer:'],
+      ['late-out', 'withdrawal', 'transfer:'],
+      ['late-in', 'deposit', 'transfer:'],
+      ['short-out', 'withdrawal', 'transfer:'],
+      ['short-in', 'deposit', 'transfer:'],
+      ['split-out', 'withdrawal', 'transfer:'],
+    ])
+    expect(journal.skippedRows.map((row) => row.transactionId)).toEqual(['split'])
+    expect(journal.categories.map((source) => [source.id, source.role, source.label, source.createName])).toEqual([
+      ['transfer:', 'transfer', 'Transfers whose other side is missing', 'Transfer'],
+    ])
+  })
+
+  it('puts the category on the destination leg when money comes into the budget from an off-budget account', () => {
+    const journal = normaliseActualBudget(buildActualBudget([
+      { id: 'from-loan', accountId: 'loan', date: '2026-09-01', amount: -50000, payeeId: 'to-checking', transferredId: 'into-checking' },
+      { id: 'into-checking', accountId: 'checking', date: '2026-09-01', amount: 50000, payeeId: 'to-loan', transferredId: 'from-loan', categoryId: 'car' },
+    ]), TODAY)
+
+    expect(journal.entries).toMatchObject([{
+      transactionId: 'from-loan',
+      type: 'transfer',
+      sourceAccountId: 'loan',
+      destinationAccountId: 'checking',
+      categorySourceId: 'transfer:car',
+      categoryLeg: 'destination',
+    }])
+  })
+})
+
+describe('Actual Budget rows over the import limits', () => {
+  it('leaves out and lists rows whose notes, tags or payee the import cannot take', () => {
+    const longPayee = 'P'.repeat(ACTUAL_PAYEE_NAME_MAX_LENGTH + 1)
+    const longTag = 't'.repeat(ACTUAL_TAG_NAME_MAX_LENGTH + 1)
+    const manyTags = Array.from({ length: MAX_IMPORT_TAGS_PER_ROW + 1 }, (_, index) => `#tag${index}`).join(' ')
+    const budget = buildActualBudget([
+      { id: 'notes', accountId: 'checking', date: '2026-09-01', amount: -100, notes: 'n'.repeat(MAX_IMPORT_NOTES_LENGTH + 1) },
+      { id: 'tags', accountId: 'checking', date: '2026-09-01', amount: -100, notes: manyTags },
+      { id: 'tag', accountId: 'checking', date: '2026-09-01', amount: -100, notes: `#${longTag}` },
+      { id: 'payee', accountId: 'checking', date: '2026-09-01', amount: -100, payeeId: 'long' },
+      { id: 'fine', accountId: 'checking', date: '2026-09-01', amount: -100, payeeId: 'shop' },
+    ])
+    budget.payees.push({ id: 'long', name: longPayee, transferAccountId: null })
+    const journal = normaliseActualBudget(budget, '2026-09-26')
+
+    expect(journal.entries.map((entry) => entry.transactionId)).toEqual(['fine'])
+    expect(journal.skippedRows.map((row) => [row.transactionId, row.reason])).toEqual([
+      ['notes', getRowNotesTooLongReason(MAX_IMPORT_NOTES_LENGTH + 1)],
+      ['tags', getRowTooManyTagsReason(MAX_IMPORT_TAGS_PER_ROW + 1)],
+      ['tag', getActualTagTooLongReason(longTag)],
+      ['payee', getActualPayeeTooLongReason(ACTUAL_PAYEE_NAME_MAX_LENGTH + 1)],
+    ])
+  })
+
+  it('leaves out both sides of a transfer whose uploaded side is over a limit, and neither when only the other side is', () => {
+    const manyTags = Array.from({ length: MAX_IMPORT_TAGS_PER_ROW + 1 }, (_, index) => `#tag${index}`).join(' ')
+    const pair = (prefix: string, outNotes: string | null, inNotes: string | null) => [
+      { id: `${prefix}-in`, accountId: 'savings', date: '2026-09-01', amount: 5000, payeeId: 'to-checking', transferredId: `${prefix}-out`, notes: inNotes },
+      { id: `${prefix}-out`, accountId: 'checking', date: '2026-09-01', amount: -5000, payeeId: 'to-savings', transferredId: `${prefix}-in`, notes: outNotes },
+    ]
+    const journal = normaliseActualBudget(buildActualBudget([...pair('busy-out', manyTags, null), ...pair('busy-in', null, manyTags)]), '2026-09-26')
+
+    expect(journal.entries.map((entry) => [entry.transactionId, entry.type])).toEqual([['busy-in-out', 'transfer']])
+    expect(journal.skippedRows.map((row) => [row.transactionId, row.reason])).toEqual([
+      ['busy-out-in', ACTUAL_TRANSFER_SIDE_LEFT_OUT_REASON],
+      ['busy-out-out', getRowTooManyTagsReason(MAX_IMPORT_TAGS_PER_ROW + 1)],
+    ])
+  })
+})
+
+describe('Actual Budget categories used only on payments to off-budget accounts', () => {
+  it('offers a budgeted one as a single transfer category named after it', () => {
+    const budget = buildActualBudget([
+      { id: 'pay', accountId: 'checking', date: '2026-09-01', amount: -30000, payeeId: 'to-loan', transferredId: 'paid', categoryId: 'car' },
+      { id: 'paid', accountId: 'loan', date: '2026-09-01', amount: 30000, payeeId: 'to-checking', transferredId: 'pay' },
+    ], { budgetFigures: [{ month: '2026-09', categoryId: 'car', amount: 30000, carryover: false }] })
+    const journal = normaliseActualBudget(budget, '2026-09-26')
+
+    expect(journal.categories.map((source) => [source.id, source.role, source.createName])).toEqual([['transfer:car', 'transfer', 'Car']])
   })
 })

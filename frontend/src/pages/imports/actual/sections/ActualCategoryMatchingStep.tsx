@@ -44,7 +44,6 @@ export function ActualCategoryMatchingStep({
   categoriesFailed,
   refetchCategories,
 }: ActualCategoryMatchingStepProps) {
-  const transferOptions = getActualTransferCategoryOptions(categoryMatchOptions, categoryById)
   const hasCategorisedTransfers = categorySources.some((source) => source.role === 'transfer' && source.categoryId)
 
   return (
@@ -92,7 +91,7 @@ export function ActualCategoryMatchingStep({
               onDetailKindChange: (kind) => setCategoryCreateKinds((current) => ({ ...current, [source.id]: kind })),
               value,
               onChange: (nextValue) => setCategoryMappings((current) => ({ ...current, [source.id]: nextValue })),
-              options: isTransfer ? transferOptions : undefined,
+              options: isTransfer ? getActualTransferCategoryOptions(categoryMatchOptions, categoryById, source) : undefined,
             }
           })}
           options={categoryMatchOptions}

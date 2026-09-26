@@ -18,7 +18,7 @@
 import { readFileSync } from 'node:fs'
 import { unzipSync } from 'fflate'
 import initSqlJs from 'sql.js'
-import type { ActualBudgetFile } from '@/pages/imports/actual/types'
+import type { ActualBudgetFile, ActualTransaction } from '@/pages/imports/actual/types'
 import { normaliseActualBudget } from '@/pages/imports/actual/utils/normalise'
 import { readActualBudgetFile } from '@/pages/imports/actual/utils/readFile'
 
@@ -86,4 +86,42 @@ export async function normaliseActualFixture(name: ActualFixtureBudget) {
   const manifest = readActualManifest(name)
   const budget = await readActualFixtureBudget(name)
   return { budget, manifest, journal: normaliseActualBudget(budget, manifest.asOf) }
+}
+
+/**
+ * A budget written by hand for shapes none of the exports hold: a checking and a savings account
+ * on the budget, a loan off it, a transfer payee for each and a Car category
+ */
+export function buildActualBudget(transactions: Array<Partial<ActualTransaction> & Pick<ActualTransaction, 'id' | 'accountId' | 'date' | 'amount'>>, overrides: Partial<ActualBudgetFile> = {}): ActualBudgetFile {
+  return {
+    budgetName: 'Hand written',
+    databaseVersion: null,
+    budgetType: 'envelope',
+    currencyCode: null,
+    budgetDecimals: 2,
+    accounts: [
+      { id: 'checking', name: 'Checking', offBudget: false, closed: false, type: null },
+      { id: 'savings', name: 'Savings', offBudget: false, closed: false, type: null },
+      { id: 'loan', name: 'Loan', offBudget: true, closed: false, type: null },
+    ],
+    payees: [
+      { id: 'to-checking', name: '', transferAccountId: 'checking' },
+      { id: 'to-savings', name: '', transferAccountId: 'savings' },
+      { id: 'to-loan', name: '', transferAccountId: 'loan' },
+      { id: 'shop', name: 'Corner Shop', transferAccountId: null },
+    ],
+    categories: [{ id: 'car', name: 'Car', groupName: 'Bills', isIncome: false, hidden: false }],
+    transactions: transactions.map((transaction) => ({
+      payeeId: null,
+      categoryId: null,
+      notes: null,
+      isParent: false,
+      parentId: null,
+      transferredId: null,
+      isStartingBalance: false,
+      ...transaction,
+    })),
+    budgetFigures: [],
+    ...overrides,
+  }
 }

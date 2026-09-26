@@ -94,7 +94,7 @@
     {
      "source": "transfer:71b038da-df04-4d5f-8e10-e12a049da38a",
      "create": {
-      "name": "Car Payment Transfers",
+      "name": "Car Payment",
       "kind": "transfer",
       "icon": "🏷️"
      }
@@ -126,7 +126,7 @@
     {
      "source": "transfer:11d04137-1334-4f6f-ba73-8e49a2f6144b",
      "create": {
-      "name": "Investing Transfers",
+      "name": "Investing",
       "kind": "transfer",
       "icon": "🏷️"
      }
@@ -5260,17 +5260,9 @@
  "budgets": {
   "categories": [
    {
-    "source": "71b038da-df04-4d5f-8e10-e12a049da38a",
-    "create": {
-     "name": "Car Payment",
-     "kind": "expense",
-     "icon": "🏷️"
-    }
-   },
-   {
     "source": "transfer:71b038da-df04-4d5f-8e10-e12a049da38a",
     "create": {
-     "name": "Car Payment Transfers",
+     "name": "Car Payment",
      "kind": "transfer",
      "icon": "🏷️"
     }
@@ -5300,17 +5292,9 @@
     }
    },
    {
-    "source": "11d04137-1334-4f6f-ba73-8e49a2f6144b",
-    "create": {
-     "name": "Investing",
-     "kind": "expense",
-     "icon": "🏷️"
-    }
-   },
-   {
     "source": "transfer:11d04137-1334-4f6f-ba73-8e49a2f6144b",
     "create": {
-     "name": "Investing Transfers",
+     "name": "Investing",
      "kind": "transfer",
      "icon": "🏷️"
     }
@@ -5353,7 +5337,6 @@
     "name": "Car Payment",
     "currency": "CAD",
     "category_sources": [
-     "71b038da-df04-4d5f-8e10-e12a049da38a",
      "transfer:71b038da-df04-4d5f-8e10-e12a049da38a"
     ],
     "limits": [
@@ -5778,7 +5761,6 @@
     "name": "Investing",
     "currency": "CAD",
     "category_sources": [
-     "11d04137-1334-4f6f-ba73-8e49a2f6144b",
      "transfer:11d04137-1334-4f6f-ba73-8e49a2f6144b"
     ],
     "limits": [
@@ -6245,7 +6227,6 @@
    },
    {
     "sources": [
-     "71b038da-df04-4d5f-8e10-e12a049da38a",
      "transfer:71b038da-df04-4d5f-8e10-e12a049da38a"
     ],
     "month": "2025-01",
@@ -6253,7 +6234,6 @@
    },
    {
     "sources": [
-     "71b038da-df04-4d5f-8e10-e12a049da38a",
      "transfer:71b038da-df04-4d5f-8e10-e12a049da38a"
     ],
     "month": "2025-02",
@@ -6261,7 +6241,6 @@
    },
    {
     "sources": [
-     "71b038da-df04-4d5f-8e10-e12a049da38a",
      "transfer:71b038da-df04-4d5f-8e10-e12a049da38a"
     ],
     "month": "2025-03",
@@ -6269,7 +6248,6 @@
    },
    {
     "sources": [
-     "71b038da-df04-4d5f-8e10-e12a049da38a",
      "transfer:71b038da-df04-4d5f-8e10-e12a049da38a"
     ],
     "month": "2025-04",
@@ -6277,7 +6255,6 @@
    },
    {
     "sources": [
-     "71b038da-df04-4d5f-8e10-e12a049da38a",
      "transfer:71b038da-df04-4d5f-8e10-e12a049da38a"
     ],
     "month": "2025-05",
@@ -6285,7 +6262,6 @@
    },
    {
     "sources": [
-     "71b038da-df04-4d5f-8e10-e12a049da38a",
      "transfer:71b038da-df04-4d5f-8e10-e12a049da38a"
     ],
     "month": "2025-06",
@@ -6293,7 +6269,6 @@
    },
    {
     "sources": [
-     "71b038da-df04-4d5f-8e10-e12a049da38a",
      "transfer:71b038da-df04-4d5f-8e10-e12a049da38a"
     ],
     "month": "2025-07",
@@ -6301,7 +6276,6 @@
    },
    {
     "sources": [
-     "71b038da-df04-4d5f-8e10-e12a049da38a",
      "transfer:71b038da-df04-4d5f-8e10-e12a049da38a"
     ],
     "month": "2025-08",
@@ -6309,7 +6283,6 @@
    },
    {
     "sources": [
-     "71b038da-df04-4d5f-8e10-e12a049da38a",
      "transfer:71b038da-df04-4d5f-8e10-e12a049da38a"
     ],
     "month": "2025-09",
@@ -6317,7 +6290,6 @@
    },
    {
     "sources": [
-     "71b038da-df04-4d5f-8e10-e12a049da38a",
      "transfer:71b038da-df04-4d5f-8e10-e12a049da38a"
     ],
     "month": "2025-10",
@@ -6325,7 +6297,6 @@
    },
    {
     "sources": [
-     "71b038da-df04-4d5f-8e10-e12a049da38a",
      "transfer:71b038da-df04-4d5f-8e10-e12a049da38a"
     ],
     "month": "2025-11",
@@ -6333,7 +6304,6 @@
    },
    {
     "sources": [
-     "71b038da-df04-4d5f-8e10-e12a049da38a",
      "transfer:71b038da-df04-4d5f-8e10-e12a049da38a"
     ],
     "month": "2025-12",
@@ -6341,7 +6311,6 @@
    },
    {
     "sources": [
-     "71b038da-df04-4d5f-8e10-e12a049da38a",
      "transfer:71b038da-df04-4d5f-8e10-e12a049da38a"
     ],
     "month": "2026-01",
@@ -6349,7 +6318,6 @@
    },
    {
     "sources": [
-     "71b038da-df04-4d5f-8e10-e12a049da38a",
      "transfer:71b038da-df04-4d5f-8e10-e12a049da38a"
     ],
     "month": "2026-02",
@@ -6357,7 +6325,6 @@
    },
    {
     "sources": [
-     "71b038da-df04-4d5f-8e10-e12a049da38a",
      "transfer:71b038da-df04-4d5f-8e10-e12a049da38a"
     ],
     "month": "2026-03",
@@ -6365,7 +6332,6 @@
    },
    {
     "sources": [
-     "71b038da-df04-4d5f-8e10-e12a049da38a",
      "transfer:71b038da-df04-4d5f-8e10-e12a049da38a"
     ],
     "month": "2026-04",
@@ -6373,7 +6339,6 @@
    },
    {
     "sources": [
-     "71b038da-df04-4d5f-8e10-e12a049da38a",
      "transfer:71b038da-df04-4d5f-8e10-e12a049da38a"
     ],
     "month": "2026-05",
@@ -6381,7 +6346,6 @@
    },
    {
     "sources": [
-     "71b038da-df04-4d5f-8e10-e12a049da38a",
      "transfer:71b038da-df04-4d5f-8e10-e12a049da38a"
     ],
     "month": "2026-06",
@@ -6389,7 +6353,6 @@
    },
    {
     "sources": [
-     "71b038da-df04-4d5f-8e10-e12a049da38a",
      "transfer:71b038da-df04-4d5f-8e10-e12a049da38a"
     ],
     "month": "2026-07",
@@ -6397,7 +6360,6 @@
    },
    {
     "sources": [
-     "71b038da-df04-4d5f-8e10-e12a049da38a",
      "transfer:71b038da-df04-4d5f-8e10-e12a049da38a"
     ],
     "month": "2026-08",
@@ -6874,7 +6836,6 @@
    },
    {
     "sources": [
-     "11d04137-1334-4f6f-ba73-8e49a2f6144b",
      "transfer:11d04137-1334-4f6f-ba73-8e49a2f6144b"
     ],
     "month": "2025-01",
@@ -6882,7 +6843,6 @@
    },
    {
     "sources": [
-     "11d04137-1334-4f6f-ba73-8e49a2f6144b",
      "transfer:11d04137-1334-4f6f-ba73-8e49a2f6144b"
     ],
     "month": "2025-03",
@@ -6890,7 +6850,6 @@
    },
    {
     "sources": [
-     "11d04137-1334-4f6f-ba73-8e49a2f6144b",
      "transfer:11d04137-1334-4f6f-ba73-8e49a2f6144b"
     ],
     "month": "2025-05",
@@ -6898,7 +6857,6 @@
    },
    {
     "sources": [
-     "11d04137-1334-4f6f-ba73-8e49a2f6144b",
      "transfer:11d04137-1334-4f6f-ba73-8e49a2f6144b"
     ],
     "month": "2025-07",
@@ -6906,7 +6864,6 @@
    },
    {
     "sources": [
-     "11d04137-1334-4f6f-ba73-8e49a2f6144b",
      "transfer:11d04137-1334-4f6f-ba73-8e49a2f6144b"
     ],
     "month": "2025-09",
@@ -6914,7 +6871,6 @@
    },
    {
     "sources": [
-     "11d04137-1334-4f6f-ba73-8e49a2f6144b",
      "transfer:11d04137-1334-4f6f-ba73-8e49a2f6144b"
     ],
     "month": "2025-11",
@@ -6922,7 +6878,6 @@
    },
    {
     "sources": [
-     "11d04137-1334-4f6f-ba73-8e49a2f6144b",
      "transfer:11d04137-1334-4f6f-ba73-8e49a2f6144b"
     ],
     "month": "2026-01",
@@ -6930,7 +6885,6 @@
    },
    {
     "sources": [
-     "11d04137-1334-4f6f-ba73-8e49a2f6144b",
      "transfer:11d04137-1334-4f6f-ba73-8e49a2f6144b"
     ],
     "month": "2026-03",
@@ -6938,7 +6892,6 @@
    },
    {
     "sources": [
-     "11d04137-1334-4f6f-ba73-8e49a2f6144b",
      "transfer:11d04137-1334-4f6f-ba73-8e49a2f6144b"
     ],
     "month": "2026-05",
@@ -6946,7 +6899,6 @@
    },
    {
     "sources": [
-     "11d04137-1334-4f6f-ba73-8e49a2f6144b",
      "transfer:11d04137-1334-4f6f-ba73-8e49a2f6144b"
     ],
     "month": "2026-07",

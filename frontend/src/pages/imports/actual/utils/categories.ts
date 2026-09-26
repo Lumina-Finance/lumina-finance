@@ -22,6 +22,18 @@ export function canCarryActualTransfer(category: Pick<Category, 'kind' | 'name'>
 }
 
 /**
+ * Whether a category can take a transfer source's rows. Transfer suits a transfer with no category,
+ * but a payment Actual gave a category would carry it on both legs and cancel out of its budget
+ */
+export function canFileActualTransferSource(
+  source: Pick<ActualCategorySource, 'categoryId'>,
+  category: Pick<Category, 'kind' | 'name'>,
+) {
+  if (source.categoryId && getCategoryNameKey(category.name) === getCategoryNameKey(ACTUAL_TRANSFER_CATEGORY_NAME)) return false
+  return canCarryActualTransfer(category)
+}
+
+/**
  * Fills in the category answers the user has not given
  *
  * Rows without a category go to Miscellaneous, as they do for Firefly III, and transfers whose other
@@ -58,7 +70,7 @@ export function inferActualCategoryMappings(
     const match = categories.find((category) => (
       getCategoryNameKey(category.name) === key
       && category.kind === kind
-      && (source.role !== 'transfer' || canCarryActualTransfer(category))
+      && (source.role !== 'transfer' || canFileActualTransferSource(source, category))
     ))
     mappings[source.id] = match?.id ?? CREATE_CATEGORY_VALUE
   }
@@ -67,12 +79,16 @@ export function inferActualCategoryMappings(
 
 /**
  * Narrows the category choices for a transfer source to creating one and the categories that can
- * carry a transfer, so a loan payment can't be filed as spending that the transfer then cancels
+ * take its rows, so a loan payment can't be filed as spending that the transfer then cancels
  */
-export function getActualTransferCategoryOptions(options: DropdownOption[], categoryById: Map<string, Category>) {
+export function getActualTransferCategoryOptions(
+  options: DropdownOption[],
+  categoryById: Map<string, Category>,
+  source: Pick<ActualCategorySource, 'categoryId'>,
+) {
   return options.filter((option) => {
     if (option.value === CREATE_CATEGORY_VALUE) return true
     const category = categoryById.get(option.value)
-    return category ? canCarryActualTransfer(category) : false
+    return category ? canFileActualTransferSource(source, category) : false
   })
 }
