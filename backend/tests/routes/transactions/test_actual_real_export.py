@@ -64,21 +64,18 @@ async def test_a_real_actual_export_imports_to_the_balances_totals_and_budgets_a
         (account["name"], _format_cents(account["current_balance"]), account["is_archived"]) for account in accounts
     ) == sorted((account["name"], account["balance"], account["closed"]) for account in expected["accounts"])
 
-    # Actual counts a category's rows in the accounts on its budget only, which is where a loan
-    # payment's category stays. What each category source became is read off the created names
+    # Actual counts a category's rows in the accounts on its budget only, while a Lumina budget counts
+    # its category in every account, so each category's total across all accounts has to match.
+    # What each category source became is read off the created names
     categories = {category["id"]: category["name"] for category in (await client.get("/categories", headers=headers)).json()}
     created_name_by_source = {
         mapping["source"]: mapping["create"]["name"]
         for batch in FIXTURE["transactions"]
         for mapping in batch["categories"]
     }
-    on_budget = {account["id"] for account in accounts if not next(
-        entry["offBudget"] for entry in expected["accounts"] if entry["name"] == account["name"]
-    )}
     totals = defaultdict(int)
     for transaction in await _list_transactions(client, headers):
-        if transaction["account_id"] in on_budget:
-            totals[(categories[transaction["category_id"]], transaction["dt"][:7])] += transaction["amount"]
+        totals[(categories[transaction["category_id"]], transaction["dt"][:7])] += transaction["amount"]
 
     for month in expected["categoryMonths"]:
         names = {created_name_by_source[source] for source in month["sources"] if source in created_name_by_source}

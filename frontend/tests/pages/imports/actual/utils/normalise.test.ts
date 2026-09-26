@@ -55,12 +55,15 @@ describe('normalising Actual Budget exports', () => {
     const account = new Map(journal.accounts.map((source) => [source.id, source]))
     const categoryName = new Map(journal.categories.map((source) => [source.id, source.categoryId ? source.label.split(' · ')[0] : '']))
 
-    // Budget-side rows only, signed from the budget account's side, as Actual's category totals are
+    // Lumina's budgets count a category in every account, so each categorised leg has to sit in an
+    // account on Actual's budget for the totals to agree. Signed from that account's side
+    const categorised = new Set(journal.categories.filter((source) => source.categoryId).map((source) => source.id))
     const totals = new Map<string, number>()
     for (const entry of journal.entries) {
-      if (entry.type === 'opening balance' || !entry.categorySourceId) continue
+      if (entry.type === 'opening balance' || !entry.categorySourceId || !categorised.has(entry.categorySourceId)) continue
       const budgetAccountId = entry.categoryLeg === 'destination' ? entry.destinationAccountId : entry.sourceAccountId ?? entry.destinationAccountId
-      if (!budgetAccountId || account.get(budgetAccountId)?.offBudget) continue
+      expect(budgetAccountId && account.get(budgetAccountId)?.offBudget, entry.transactionId).toBe(false)
+      if (!budgetAccountId) continue
       const signed = budgetAccountId === entry.sourceAccountId ? -entry.amount : entry.amount
       const key = `${categoryName.get(entry.categorySourceId)}|${entry.date.slice(0, 7)}`
       totals.set(key, (totals.get(key) ?? 0) + signed)
@@ -318,5 +321,52 @@ describe('Actual Budget accounts sharing a name', () => {
       'Cash (off budget, closed)',
       'Visa',
     ])
+  })
+})
+
+describe('Actual Budget categories counted the way Actual counts them', () => {
+  const TODAY = '2026-09-26'
+  const shape = (journal: ActualJournal) => journal.entries.map((entry) => (
+    [entry.transactionId, entry.type, entry.categorySourceId, entry.categoryLeg]
+  ))
+
+  it('counts a category only on rows in an account on the budget', () => {
+    const journal = normaliseActualBudget(buildActualBudget([
+      // Categorised before the loan left the budget, so Actual no longer counts it
+      { id: 'off', accountId: 'loan', date: '2026-09-01', amount: -2500, categoryId: 'car' },
+      // A payment whose sides don't pair, each still carrying the category
+      { id: 'late-out', accountId: 'checking', date: '2026-09-02', amount: -5000, payeeId: 'to-loan', transferredId: 'late-in', categoryId: 'car' },
+      { id: 'late-in', accountId: 'loan', date: '2026-09-03', amount: 5000, payeeId: 'to-checking', transferredId: 'late-out', categoryId: 'car' },
+    ]), TODAY)
+
+    expect(shape(journal)).toEqual([
+      ['off', 'withdrawal', 'off-budget:loan', null],
+      ['late-out', 'withdrawal', 'transfer:car', null],
+      ['late-in', 'deposit', 'transfer:', null],
+    ])
+  })
+
+  it('keeps the category of a transfer between two accounts on the budget, and splits a pair where both sides count one', () => {
+    const journal = normaliseActualBudget(buildActualBudget([
+      { id: 'one-in', accountId: 'savings', date: '2026-09-01', amount: 5000, payeeId: 'to-checking', transferredId: 'one-out', categoryId: 'car' },
+      { id: 'one-out', accountId: 'checking', date: '2026-09-01', amount: -5000, payeeId: 'to-savings', transferredId: 'one-in' },
+      { id: 'both-out', accountId: 'checking', date: '2026-09-02', amount: -3000, payeeId: 'to-savings', transferredId: 'both-in', categoryId: 'car' },
+      { id: 'both-in', accountId: 'savings', date: '2026-09-02', amount: 3000, payeeId: 'to-checking', transferredId: 'both-out', categoryId: 'car' },
+    ]), TODAY)
+
+    expect(shape(journal)).toEqual([
+      ['one-out', 'transfer', 'transfer:car', 'destination'],
+      ['both-out', 'withdrawal', 'transfer:car', null],
+      ['both-in', 'deposit', 'transfer:car', null],
+    ])
+  })
+
+  it('imports a split parent left with no parts as an ordinary row', () => {
+    const journal = normaliseActualBudget(buildActualBudget([
+      { id: 'emptied', accountId: 'checking', date: '2026-09-01', amount: -1200, isParent: true, payeeId: 'shop', categoryId: 'car' },
+    ]), TODAY)
+
+    expect(shape(journal)).toEqual([['emptied', 'withdrawal', 'car', null]])
+    expect(journal.skippedRows).toEqual([])
   })
 })

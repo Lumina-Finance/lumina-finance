@@ -95,8 +95,15 @@ export function normaliseActualBudget(budget: ActualBudgetFile, today: string): 
     for (const child of children) leftOut.add(child.id)
   }
 
+  // Actual counts a row's category only while the row's own account is on the budget, which is how
+  // rows categorised before their account left the budget read
+  const countedCategory = (row: ActualTransaction, rowAccount: ActualAccount) => (
+    rowAccount.offBudget ? null : categoryById.get(row.categoryId ?? '') ?? null
+  )
+
   for (const transaction of budget.transactions) {
-    if (transaction.isParent || leftOut.has(transaction.id)) continue
+    // A split's parts are imported in its place, but a parent left with none is an ordinary row
+    if ((transaction.isParent && childrenByParent.has(transaction.id)) || leftOut.has(transaction.id)) continue
     const account = accountById.get(transaction.accountId)
     if (!account) continue
     const parent = transaction.parentId ? transactionById.get(transaction.parentId) : undefined
@@ -108,7 +115,13 @@ export function normaliseActualBudget(budget: ActualBudgetFile, today: string): 
 
     const payee = payeeById.get(transaction.payeeId ?? parent?.payeeId ?? '') ?? null
     const counterpartAccount = payee?.transferAccountId ? accountById.get(payee.transferAccountId) : undefined
-    const counterpart = counterpartAccount ? findTransferCounterpart(transaction, counterpartAccount, transactionById, payeeById, leftOut) : null
+    const linked = counterpartAccount ? findTransferCounterpart(transaction, counterpartAccount, transactionById, payeeById, leftOut) : null
+
+    // A transfer carries one category, so two sides that each count one come in as a row apiece
+    const counterpart = linked && counterpartAccount
+      && !(countedCategory(transaction, account) && countedCategory(linked, counterpartAccount))
+      ? linked
+      : null
 
     // A pair is uploaded from one side with that side's notes, so the pair stands or falls with it
     if (counterpart && !isUploadedSide(transaction, counterpart)) {
@@ -140,12 +153,19 @@ export function normaliseActualBudget(budget: ActualBudgetFile, today: string): 
 
     if (counterpartAccount) {
       if (counterpart) {
-        entries.push(buildTransferPair(base, transaction, account, counterpart, counterpartAccount, categoryById, categoryUses))
+        entries.push(buildTransferPair(
+          base,
+          account,
+          counterpartAccount,
+          countedCategory(transaction, account),
+          countedCategory(counterpart, counterpartAccount),
+          categoryUses,
+        ))
         continue
       }
 
       // The other side is missing or doesn't match, so only this side's money is certain
-      const category = categoryById.get(transaction.categoryId ?? '')
+      const category = countedCategory(transaction, account)
       entries.push({
         ...base,
         ...getOneSidedAccounts(transaction, account),
@@ -156,7 +176,7 @@ export function normaliseActualBudget(budget: ActualBudgetFile, today: string): 
       continue
     }
 
-    const category = categoryById.get(transaction.categoryId ?? '') ?? null
+    const category = countedCategory(transaction, account)
     const role: ActualCategoryRole = category ? 'spending' : account.offBudget ? 'offBudgetUncategorized' : 'uncategorized'
     entries.push({
       ...base,
@@ -227,20 +247,16 @@ function isUploadedSide(transaction: ActualTransaction, counterpart: ActualTrans
 
 function buildTransferPair(
   base: Pick<ActualJournalEntry, 'transactionId' | 'date' | 'amount' | 'notes' | 'tags'>,
-  transaction: ActualTransaction,
   account: ActualAccount,
-  counterpart: ActualTransaction,
   counterpartAccount: ActualAccount,
-  categoryById: Map<string, ActualCategory>,
+  sourceCategory: ActualCategory | null,
+  destinationCategory: ActualCategory | null,
   categoryUses: CategoryUses,
 ): ActualJournalEntry {
-  // Actual asks for a category only where money crosses between the budget and an off-budget
-  // account, and stores it on the budget side
-  const budgetSide = account.offBudget === counterpartAccount.offBudget
-    ? null
-    : account.offBudget ? counterpart : transaction
-  const category = budgetSide ? categoryById.get(budgetSide.categoryId ?? '') ?? null : null
-  const categoryLeg = !category ? null : budgetSide === transaction ? 'source' : 'destination'
+  // At most one side counts a category, since a pair where both do is imported as two rows. The
+  // uploaded side is the one money leaves, so it is the source leg
+  const category = sourceCategory ?? destinationCategory
+  const categoryLeg = sourceCategory ? 'source' : destinationCategory ? 'destination' : null
 
   return {
     ...base,
