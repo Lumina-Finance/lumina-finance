@@ -14,11 +14,12 @@ import { isCreatingImportAccount, isImportableAccount } from '@/pages/imports/ut
 import { ImportAccountMappingTable, EmptyState, ImportLoadFailure, ImportNotice, ImportStep } from '@/pages/imports/components'
 import type { FireflyImportWorkflow } from '@/pages/imports/firefly/hooks'
 
-type InstitutionModalTarget = { kind: 'batch' } | { kind: 'account'; name: string }
+type InstitutionModalTarget = { kind: 'batch' } | { kind: 'account'; source: string }
 
 type FireflyAccountMappingStepProps = Pick<
   FireflyImportWorkflow,
-  | 'trackedAccountNames'
+  | 'transactionsFile'
+  | 'trackedAccounts'
   | 'accountMappings'
   | 'autoFilledAccountSources'
   | 'handAnsweredAccountSources'
@@ -51,7 +52,8 @@ type FireflyAccountMappingStepProps = Pick<
  * modal used to create an institution from a row or from the batch bar
  */
 export function FireflyAccountMappingStep({
-  trackedAccountNames,
+  transactionsFile,
+  trackedAccounts,
   accountMappings,
   autoFilledAccountSources,
   handAnsweredAccountSources,
@@ -100,19 +102,19 @@ export function FireflyAccountMappingStep({
     if (institutionModalTarget?.kind === 'batch') {
       setBatchAccountInstitution(institution.id)
     } else if (institutionModalTarget) {
-      setAccountCreateInstitutions((current) => ({ ...current, [institutionModalTarget.name]: institution.id }))
+      setAccountCreateInstitutions((current) => ({ ...current, [institutionModalTarget.source]: institution.id }))
     }
     closeInstitutionModal()
   }
 
-  const accountRows = trackedAccountNames.map((sourceAccount) => {
+  const accountRows = trackedAccounts.map(({ id: sourceAccount, label }) => {
     const value = accountMappings[sourceAccount] ?? ''
     const account = accountById.get(value)
     const createDetails = accountCreateDetails[sourceAccount]
 
     return {
       id: sourceAccount,
-      source: sourceAccount,
+      source: label,
       value,
 
       // Keeps an account the dropdown has stopped offering, which here means one archived or made
@@ -160,10 +162,12 @@ export function FireflyAccountMappingStep({
           description={ACCOUNTS_LOAD_FAILURE_EXPLANATION}
           onRetry={refetchAccounts}
         />
-      ) : trackedAccountNames.length === 0 ? (
+      ) : trackedAccounts.length === 0 ? (
         <EmptyState
-          title="No account names detected"
-          description="Upload the transactions CSV first."
+          title={transactionsFile ? 'No accounts to import into' : 'No account names detected'}
+          description={transactionsFile
+            ? 'No row in this export can be imported into an asset or liability account. The preview lists why each row is skipped.'
+            : 'Upload the transactions CSV first.'}
         />
       ) : (
         <>
@@ -192,7 +196,7 @@ export function FireflyAccountMappingStep({
             onBatchAccountCurrencyChange={setBatchAccountCurrency}
             onBatchAccountInstitutionChange={setBatchAccountInstitution}
             onSelectedRowsChange={setSelectedAccountRows}
-            onCreateInstitution={(query, rowId) => openInstitutionModal(query, { kind: 'account', name: rowId })}
+            onCreateInstitution={(query, rowId) => openInstitutionModal(query, { kind: 'account', source: rowId })}
             onBatchCreateInstitution={(query) => openInstitutionModal(query, { kind: 'batch' })}
           />
         </>

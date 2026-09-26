@@ -34,7 +34,7 @@ export function ImportStep({
   index: string
   title: string
   titleId?: string
-  description?: string
+  description?: ReactNode
   action?: ReactNode
   className?: string
   contentClassName?: string

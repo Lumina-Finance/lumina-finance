@@ -1,8 +1,7 @@
-import { useRef, type ReactNode } from 'react'
+import { useRef } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import {
   EmptyState,
-  ImportInfoCard,
   ImportStagedFileList,
   ImportStat,
   ImportStep,
@@ -17,10 +16,11 @@ type FireflyFilesStepProps = Pick<
   FireflyImportWorkflow,
   | 'transactionsFile'
   | 'budgetsFile'
+  | 'accountsFile'
   | 'processingFileKind'
   | 'fileIntakeErrors'
   | 'fireflyRows'
-  | 'trackedAccountNames'
+  | 'trackedAccounts'
   | 'importedCategories'
   | 'handleFireflyFileChange'
   | 'removeFireflyFile'
@@ -31,22 +31,29 @@ type FireflyFilesStepProps = Pick<
 const SLOT_SWAP_EASE = [0.25, 0.1, 0.25, 1] as const
 const SLOT_SWAP_DURATION = 0.24
 
+// Firefly III's own guide, linked rather than repeated so the steps stay current as its screens change
+const FIREFLY_EXPORT_DOCS_URL = 'https://docs.firefly-iii.org/tutorials/firefly-iii/exporting-data/'
+
+// Each optional slot's hint says what skipping it costs
 const FILE_SLOTS: Array<{ kind: FireflyFileKind; label: string; hint: string; required: boolean }> = [
   { kind: 'transactions', label: 'Transactions CSV', hint: 'The journal rows to import.', required: true },
-  { kind: 'budgets', label: 'Budgets CSV', hint: 'Enables budget import after the transactions commit.', required: false },
+  { kind: 'budgets', label: 'Budgets CSV', hint: 'Without it, create budgets by hand after the import.', required: false },
+  { kind: 'accounts', label: 'Accounts CSV', hint: 'Without it, every account comes across as active checking.', required: false },
 ]
 
 /**
- * Files step of the Firefly III import flow, with a required slot for the transactions export and an
- * optional one for the budgets export, plus row, account, and category counts once files are staged
+ * Files step of the Firefly III import flow, with a required slot for the transactions export and
+ * optional ones for the budgets and accounts exports, plus row, account, and category counts once
+ * files are staged
  */
 export function FireflyFilesStep({
   transactionsFile,
   budgetsFile,
+  accountsFile,
   processingFileKind,
   fileIntakeErrors,
   fireflyRows,
-  trackedAccountNames,
+  trackedAccounts,
   importedCategories,
   handleFireflyFileChange,
   removeFireflyFile,
@@ -55,14 +62,29 @@ export function FireflyFilesStep({
   const filesByKind: Record<FireflyFileKind, ImportFileDraft | null> = {
     transactions: transactionsFile,
     budgets: budgetsFile,
+    accounts: accountsFile,
   }
 
   return (
     <ImportStep
       index="01"
       title="Files"
-      description="Upload the CSV files exported from Firefly III."
-      className="xl:h-full"
+      description={(
+        <>
+          Upload the CSV files exported from Firefly III, following its{' '}
+          <a
+            href={FIREFLY_EXPORT_DOCS_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="font-medium underline underline-offset-2"
+            style={{ color: 'var(--app-accent)' }}
+          >
+            guide to exporting data
+          </a>
+          .
+        </>
+      )}
+      className="xl:min-h-full"
       contentClassName="flex min-h-0 flex-col gap-3"
     >
       {FILE_SLOTS.map((slot, slotIndex) => (
@@ -77,23 +99,18 @@ export function FireflyFilesStep({
           intakeRejection={fileIntakeErrors[slot.kind]}
           disabled={processingFileKind !== null}
           // A block is about the step rather than any one slot, so it is stated on the slot the
-          // user reaches first and the other is only disabled. Repeating it would read as two
+          // user reaches first and the others are only disabled. Repeating it would read as
           // separate problems, and each slot's message is a live region a screen reader announces
           blockReason={slotIndex === 0 ? uploadBlockReason : null}
           isBlocked={uploadBlockReason !== null}
           onFileChange={handleFireflyFileChange}
           onRemove={removeFireflyFile}
-          note={slot.kind === 'budgets' ? (
-            <ImportInfoCard title="No budgets export?">
-              Budgets can be backdated and their historical spending is rebuilt automatically from the imported transactions. If you skip this export, it is easy to create budgets by hand after the import with a past start date.
-            </ImportInfoCard>
-          ) : undefined}
         />
       ))}
 
       <div className="mt-auto flex flex-wrap gap-3 pt-3">
         <ImportStat label="Rows" value={fireflyRows.length.toString()} />
-        <ImportStat label="Accounts" value={trackedAccountNames.length.toString()} />
+        <ImportStat label="Accounts" value={trackedAccounts.length.toString()} />
         <ImportStat label="Categories" value={importedCategories.length.toString()} />
       </div>
     </ImportStep>
@@ -117,7 +134,6 @@ function FireflyFileSlot({
   isBlocked,
   onFileChange,
   onRemove,
-  note,
 }: {
   kind: FireflyFileKind
   label: string
@@ -133,7 +149,6 @@ function FireflyFileSlot({
   isBlocked: boolean
   onFileChange: (kind: FireflyFileKind, files: ImportFileAcquisition) => Promise<void>
   onRemove: (kind: FireflyFileKind) => void
-  note?: ReactNode
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -167,7 +182,7 @@ function FireflyFileSlot({
         disabled={isUploadBlocked}
       />
 
-      {/* Each slot takes exactly one file, so the upload card and its note
+      {/* Each slot takes exactly one file, so the upload card
           animate away once a file lands and grow back when it is removed */}
       <AnimatePresence initial={false} mode="wait">
         {stagedFile ? (
@@ -189,7 +204,6 @@ function FireflyFileSlot({
             exit={{ opacity: 0, height: 0, overflow: 'hidden' }}
             transition={{ duration: SLOT_SWAP_DURATION, ease: SLOT_SWAP_EASE }}
           >
-            {note}
             <ImportUploadCard
               title={`Upload ${label.toLowerCase()}`}
               hint={hint}

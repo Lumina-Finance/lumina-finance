@@ -2,11 +2,13 @@
 
 from datetime import UTC, datetime
 
+import pytest
+
 from app.services.merchants.defaults import SELF_MERCHANT_NAME
 from tests.routes.support import _create_user, _get_auth_header, _get_system_merchant_id
-from tests.routes.transactions._helpers import _create_account, _seed_usd_currency
+from tests.routes.transactions._helpers import _create_account, _import_firefly, _seed_usd_currency
 
-# --- POST /transactions/import/firefly ---
+# --- Firefly III import runs ---
 
 
 def _firefly_row(**overrides):
@@ -20,15 +22,13 @@ def _firefly_row(**overrides):
     """
     row = {
         "journal_id": "1",
-        "type": "Withdrawal",
+        "type": "withdrawal",
         "dt": "2026-04-10",
-        "amount": "-45.67",
+        "amount": "45.67",
         "currency_code": "CAD",
         "description": "Weekly groceries",
-        "source_name": "Everyday Chequing",
-        "source_type": "Asset account",
+        "source_account": "Everyday Chequing",
         "destination_name": "Neighbourhood Grocer",
-        "destination_type": "Expense account",
         "category": "Groceries",
         "tag_names": [],
     }
@@ -68,7 +68,7 @@ async def test_firefly_import_creates_expense_and_income_rows(client):
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    resp = await client.post("/transactions/import/firefly", json={
+    resp = await _import_firefly(client, headers, {
         "accounts": [_chequing_mapping()],
         "categories": [
             {"source": "Groceries", "create": {"name": "Groceries", "kind": "expense"}},
@@ -78,22 +78,21 @@ async def test_firefly_import_creates_expense_and_income_rows(client):
             _firefly_row(notes="Bought extra snacks", tag_names=["food"]),
             _firefly_row(
                 journal_id="2",
-                type="Deposit",
+                type="deposit",
                 amount="2410.66",
                 description="Biweekly salary",
+                source_account=None,
                 source_name="Employer Payroll",
-                source_type="Revenue account",
-                destination_name="Everyday Chequing",
-                destination_type="Asset account",
+                destination_account="Everyday Chequing",
+                destination_name=None,
                 category="Salary",
             ),
         ],
-    }, headers=headers)
+    })
 
     assert resp.status_code == 201
     data = resp.json()
     assert data["rows_imported"] == 2
-    assert data["rows_skipped"] == 0
     assert data["transactions_created"] == 2
     assert data["accounts_created"] == 1
     assert data["merchants_created"] == 2
@@ -115,7 +114,7 @@ async def test_firefly_import_converts_transfers_into_two_legs(client):
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    resp = await client.post("/transactions/import/firefly", json={
+    resp = await _import_firefly(client, headers, {
         "accounts": [
             _chequing_mapping(),
             {
@@ -125,14 +124,14 @@ async def test_firefly_import_converts_transfers_into_two_legs(client):
         ],
         "categories": [],
         "rows": [_firefly_row(
-            type="Transfer",
+            type="transfer",
             amount="500.00",
             description="Automatic savings contribution",
-            destination_name="High Interest Savings",
-            destination_type="Asset account",
+            destination_account="High Interest Savings",
+            destination_name=None,
             category=None,
         )],
-    }, headers=headers)
+    })
 
     assert resp.status_code == 201
     data = resp.json()
@@ -166,7 +165,7 @@ async def test_firefly_import_records_accounts_it_creates_as_each_other_s_other_
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    resp = await client.post("/transactions/import/firefly", json={
+    resp = await _import_firefly(client, headers, {
         "accounts": [
             _chequing_mapping(),
             {
@@ -176,14 +175,14 @@ async def test_firefly_import_records_accounts_it_creates_as_each_other_s_other_
         ],
         "categories": [],
         "rows": [_firefly_row(
-            type="Transfer",
+            type="transfer",
             amount="500.00",
             description="Automatic savings contribution",
-            destination_name="High Interest Savings",
-            destination_type="Asset account",
+            destination_account="High Interest Savings",
+            destination_name=None,
             category=None,
         )],
-    }, headers=headers)
+    })
 
     assert resp.status_code == 201
     data = resp.json()
@@ -203,7 +202,7 @@ async def test_firefly_transfer_legs_are_stamped_with_the_self_merchant(client):
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    resp = await client.post("/transactions/import/firefly", json={
+    resp = await _import_firefly(client, headers, {
         "accounts": [
             _chequing_mapping(),
             {
@@ -213,13 +212,13 @@ async def test_firefly_transfer_legs_are_stamped_with_the_self_merchant(client):
         ],
         "categories": [],
         "rows": [_firefly_row(
-            type="Transfer",
+            type="transfer",
             amount="500.00",
-            destination_name="High Interest Savings",
-            destination_type="Asset account",
+            destination_account="High Interest Savings",
+            destination_name=None,
             category=None,
         )],
-    }, headers=headers)
+    })
 
     assert resp.status_code == 201
     self_merchant_id = await _get_system_merchant_id(client, headers, SELF_MERCHANT_NAME)
@@ -234,11 +233,11 @@ async def test_firefly_import_records_a_one_sided_transfer_row_as_leaving_the_ac
     headers = _get_auth_header(signup_resp)
     transfer_category_id = await _get_system_category_id(client, headers, "Transfer")
 
-    resp = await client.post("/transactions/import/firefly", json={
+    resp = await _import_firefly(client, headers, {
         "accounts": [_chequing_mapping()],
         "categories": [{"source": "Moving money out", "category_id": transfer_category_id}],
         "rows": [_firefly_row(category="Moving money out")],
-    }, headers=headers)
+    })
 
     assert resp.status_code == 201
     assert resp.json()["transactions_created"] == 1
@@ -246,21 +245,6 @@ async def test_firefly_import_records_a_one_sided_transfer_row_as_leaving_the_ac
     transaction = (await client.get("/transactions", headers=headers)).json()[0]
     assert transaction["counterparty_account_id"] is None
     assert transaction["counterparty_account_scope"] == "outside"
-
-
-async def test_firefly_import_rejects_an_account_source_marked_outside(client):
-    """Every Firefly source is an account rows are written to, so the outside answer has no meaning."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    resp = await client.post("/transactions/import/firefly", json={
-        "accounts": [_chequing_mapping(), {"source": "Brokerage elsewhere", "outside": True}],
-        "categories": [{"source": "Groceries", "create": {"name": "Groceries", "kind": "expense"}}],
-        "rows": [_firefly_row()],
-    }, headers=headers)
-
-    assert resp.status_code == 422
-    assert resp.json()["detail"] == "Account source cannot be outside the tracked accounts: Brokerage elsewhere"
 
 
 async def test_firefly_imported_internal_transfer_is_left_out_of_the_limit_totals(client):
@@ -283,23 +267,23 @@ async def test_firefly_imported_internal_transfer_is_left_out_of_the_limit_total
     )
     current_year = datetime.now(UTC).year
 
-    resp = await client.post("/transactions/import/firefly", json={
+    resp = await _import_firefly(client, headers, {
         "accounts": [
             {"source": "TFSA Cash", "account_id": cash_resp.json()["id"]},
             {"source": "TFSA Investing", "account_id": investing_resp.json()["id"]},
         ],
         "categories": [],
         "rows": [_firefly_row(
-            type="Transfer",
+            type="transfer",
             dt=f"{current_year}-04-10",
             amount="5000.00",
             description="Moved into investments",
-            source_name="TFSA Cash",
-            destination_name="TFSA Investing",
-            destination_type="Asset account",
+            source_account="TFSA Cash",
+            destination_account="TFSA Investing",
+            destination_name=None,
             category=None,
         )],
-    }, headers=headers)
+    })
 
     assert resp.status_code == 201
     assert resp.json()["transactions_created"] == 2
@@ -311,38 +295,32 @@ async def test_firefly_imported_internal_transfer_is_left_out_of_the_limit_total
     assert totals_resp.json()["ytd_withdrawals"] == 0
 
 
-async def test_firefly_import_skips_a_transfer_between_two_names_for_one_account(client):
-    """Two source names mapped onto one account skip the row instead of writing two cancelling legs."""
+async def test_firefly_import_refuses_a_transfer_between_two_names_for_one_account(client):
+    """Two source names mapped onto one account refuse the import instead of writing two cancelling legs."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     account_resp = await _create_account(client, headers, name="Everyday Chequing")
     account_id = account_resp.json()["id"]
 
-    resp = await client.post("/transactions/import/firefly", json={
+    resp = await _import_firefly(client, headers, {
         "accounts": [
             {"source": "Everyday Chequing", "account_id": account_id},
             {"source": "Chequing (old)", "account_id": account_id},
         ],
         "categories": [],
         "rows": [_firefly_row(
-            type="Transfer",
+            type="transfer",
             amount="500.00",
             description="Carried across from the renamed account",
-            source_name="Chequing (old)",
-            destination_name="Everyday Chequing",
-            destination_type="Asset account",
+            source_account="Chequing (old)",
+            destination_account="Everyday Chequing",
+            destination_name=None,
             category=None,
         )],
-    }, headers=headers)
+    })
 
-    assert resp.status_code == 201
-    data = resp.json()
-    assert data["rows_imported"] == 0
-    assert data["transactions_created"] == 0
-    assert data["rows_skipped"] == 1
-    assert data["skipped"] == [
-        {"journal_id": "1", "reason": "Transfer source and destination resolve to the same account"},
-    ]
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "Firefly III journal 1: Transfer source and destination resolve to the same account"
 
     transactions_resp = await client.get("/transactions", headers=headers)
     assert transactions_resp.json() == []
@@ -354,7 +332,7 @@ async def test_firefly_import_uses_foreign_amount_for_cross_currency_transfers(c
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    resp = await client.post("/transactions/import/firefly", json={
+    resp = await _import_firefly(client, headers, {
         "accounts": [
             _chequing_mapping(),
             {
@@ -364,16 +342,16 @@ async def test_firefly_import_uses_foreign_amount_for_cross_currency_transfers(c
         ],
         "categories": [],
         "rows": [_firefly_row(
-            type="Transfer",
+            type="transfer",
             amount="243.95",
             foreign_currency_code="USD",
             foreign_amount="176.07",
             description="Move funds to US dollar savings",
-            destination_name="US Dollar Savings",
-            destination_type="Asset account",
+            destination_account="US Dollar Savings",
+            destination_name=None,
             category=None,
         )],
-    }, headers=headers)
+    })
 
     assert resp.status_code == 201
     data = resp.json()
@@ -394,20 +372,20 @@ async def test_firefly_import_converts_liability_withdrawals_to_transfers(client
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    resp = await client.post("/transactions/import/firefly", json={
+    resp = await _import_firefly(client, headers, {
         "accounts": [
             _chequing_mapping(),
             {"source": "Car Loan", "create": {"name": "Car Loan", "account_type": "loan", "currency": "CAD"}},
         ],
         "categories": [],
         "rows": [_firefly_row(
-            amount="-385",
+            amount="385",
             description="Car loan payment",
-            destination_name="Car Loan",
-            destination_type="Loan",
+            destination_account="Car Loan",
+            destination_name=None,
             category=None,
         )],
-    }, headers=headers)
+    })
 
     assert resp.status_code == 201
     data = resp.json()
@@ -427,12 +405,73 @@ async def test_firefly_import_converts_liability_withdrawals_to_transfers(client
     )
 
 
+async def test_firefly_import_keeps_same_named_asset_and_loan_apart(client):
+    """An asset account and a loan sharing a name become two accounts with the payment between them."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _import_firefly(client, headers, {
+        "accounts": [
+            {"source": "account-1", "create": {"name": "Car", "account_type": "checking", "currency": "CAD"}},
+            {"source": "account-2", "create": {"name": "Car", "account_type": "loan", "currency": "CAD"}},
+        ],
+        "categories": [],
+        "rows": [
+            _firefly_row(
+                type="opening balance",
+                amount="1000.00",
+                source_account=None,
+                source_name='Initial balance for "Car"',
+                destination_account="account-1",
+                destination_name=None,
+                category=None,
+            ),
+            _firefly_row(
+                journal_id="2",
+                type="opening balance",
+                amount="5000.00",
+                source_account="account-2",
+                destination_name='Initial balance for "Car"',
+                category=None,
+            ),
+            _firefly_row(
+                journal_id="3",
+                amount="385.00",
+                source_account="account-1",
+                destination_account="account-2",
+                destination_name=None,
+                category=None,
+            ),
+        ],
+    })
+
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["rows_imported"] == 3
+    assert data["accounts_created"] == 2
+
+    asset_id = data["account_source_ids"]["account-1"]
+    loan_id = data["account_source_ids"]["account-2"]
+    asset = (await client.get(f"/accounts/{asset_id}", headers=headers)).json()
+    loan = (await client.get(f"/accounts/{loan_id}", headers=headers)).json()
+    assert (asset["name"], asset["account_type"], asset["current_balance"]) == ("Car", "checking", 61500)
+    assert (loan["name"], loan["account_type"], loan["current_balance"]) == ("Car", "loan", -461500)
+
+    transactions = (await client.get("/transactions", headers=headers)).json()
+    payment_legs = {
+        transaction["account_id"]: transaction["counterparty_account_id"]
+        for transaction in transactions
+        if abs(transaction["amount"]) == 38500
+    }
+    assert payment_legs == {asset_id: loan_id, loan_id: asset_id}
+
+
 async def test_firefly_import_applies_opening_balance_direction(client):
     """Opening balances credit assets and debit liabilities through balance adjustments."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    resp = await client.post("/transactions/import/firefly", json={
+    resp = await _import_firefly(client, headers, {
         "accounts": [
             _chequing_mapping(),
             {"source": "Car Loan", "create": {"name": "Car Loan", "account_type": "loan", "currency": "CAD"}},
@@ -440,30 +479,28 @@ async def test_firefly_import_applies_opening_balance_direction(client):
         "categories": [],
         "rows": [
             _firefly_row(
-                type="Opening balance",
+                type="opening balance",
                 dt="2023-12-31",
                 amount="4250.00",
                 description='Initial balance for "Everyday Chequing"',
+                source_account=None,
                 source_name='Initial balance for "Everyday Chequing"',
-                source_type="Initial balance account",
-                destination_name="Everyday Chequing",
-                destination_type="Asset account",
+                destination_account="Everyday Chequing",
+                destination_name=None,
                 category=None,
             ),
             _firefly_row(
                 journal_id="2",
-                type="Opening balance",
+                type="opening balance",
                 dt="2023-12-31",
                 amount="18500.00",
                 description='Initial balance for "Car Loan"',
-                source_name="Car Loan",
-                source_type="Loan",
+                source_account="Car Loan",
                 destination_name='Initial balance for "Car Loan"',
-                destination_type="Initial balance account",
                 category=None,
             ),
         ],
-    }, headers=headers)
+    })
 
     assert resp.status_code == 201
     data = resp.json()
@@ -490,70 +527,67 @@ async def test_firefly_import_applies_opening_balance_direction(client):
     )
 
 
-async def test_firefly_import_skips_unconvertible_rows(client):
-    """Invalid rows report their exact reason while a valid sibling is imported"""
+@pytest.mark.parametrize(("overrides", "reason"), [
+    ({"currency_code": "EUR"}, "Neither the amount nor the foreign amount is in the account's currency (CAD)"),
+    ({"amount": "12.345"}, (
+        "The amount has more decimal places than CAD has. "
+        "A period is read as a decimal point, never as a separator between thousands."
+    )),
+    # Past the signed 64-bit range, which would otherwise crash at flush
+    ({"amount": "99999999999999999999.00"}, 'Invalid amount "99999999999999999999.00"'),
+])
+async def test_firefly_import_refuses_an_unconvertible_row_naming_it(client, overrides, reason):
+    """The browser leaves out rows it can tell will not convert, so one that arrives fails the whole import."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    resp = await client.post("/transactions/import/firefly", json={
+    resp = await _import_firefly(client, headers, {
         "accounts": [_chequing_mapping()],
         "categories": [{"source": "Groceries", "create": {"name": "Groceries", "kind": "expense"}}],
-        "rows": [
-            _firefly_row(),
-            _firefly_row(journal_id="2", type="Liability credit"),
-            _firefly_row(journal_id="3", currency_code="EUR"),
-            _firefly_row(journal_id="4", amount="12.345"),
-            _firefly_row(journal_id="5", amount="١٢.٣٤"),
-            _firefly_row(journal_id="6", amount="12.34\u001c"),
-            _firefly_row(
-                journal_id="7",
-                amount="10.00",
-                currency_code="USD",
-                foreign_amount="١٢.٣٤",
-                foreign_currency_code="CAD",
-            ),
-            _firefly_row(journal_id="11", amount="twelve"),
-            _firefly_row(journal_id="8", amount=" 12.34 "),
-            _firefly_row(journal_id="9", amount="1,234.56"),
-            _firefly_row(
-                journal_id="10", amount="10.00", currency_code="USD",
-                foreign_amount="1,234.56", foreign_currency_code="CAD",
-            ),
-        ],
-    }, headers=headers)
+        "rows": [_firefly_row(), _firefly_row(journal_id="2", **overrides)],
+    })
 
-    assert resp.status_code == 201
-    data = resp.json()
-    assert data["rows_imported"] == 1
-    assert data["rows_skipped"] == 10
-    assert data["transactions_created"] == 1
-    assert {entry["journal_id"] for entry in data["skipped"]} == {
-        "2", "3", "4", "5", "6", "7", "8", "9", "10", "11",
-    }
-    reasons_by_journal = {entry["journal_id"]: entry["reason"] for entry in data["skipped"]}
-    assert reasons_by_journal["2"] == (
-        'Journal type "Liability credit" is not supported, the importer handles'
-        " withdrawals, deposits, transfers, opening balances, and reconciliations"
-    )
-    assert reasons_by_journal["3"] == "Neither the amount nor the foreign amount is in the account's currency (CAD)"
-    assert reasons_by_journal["4"] == (
-        "The amount has more decimal places than CAD has. "
-        "A period is read as a decimal point, never as a separator between thousands."
-    )
-    assert reasons_by_journal["5"] == 'Invalid amount "١٢.٣٤"'
-    assert reasons_by_journal["6"] == 'Invalid amount "12.34\u001c"'
-    assert reasons_by_journal["7"] == 'Invalid amount "١٢.٣٤"'
-    assert reasons_by_journal["11"] == 'Invalid amount "twelve"'
-    assert reasons_by_journal["8"] == 'Invalid amount " 12.34 "'
-    assert reasons_by_journal["9"] == 'Invalid amount "1,234.56"'
-    assert reasons_by_journal["10"] == 'Invalid amount "1,234.56"'
-
-    transactions_resp = await client.get("/transactions", headers=headers)
-    assert len(transactions_resp.json()) == 1
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == f"Firefly III journal 2: {reason}"
+    assert (await client.get("/transactions", headers=headers)).json() == []
 
 
-async def test_firefly_import_reports_unexpected_row_failures_generically(client, monkeypatch):
-    """A row failing outside the known skip rules is skipped with a generic reason."""
+@pytest.mark.parametrize("overrides", [
+    {"type": "Withdrawal"},
+    {"type": "liability credit"},
+    {"amount": "-45.67"},
+    {"amount": "+45.67"},
+    {"amount": " 45.67 "},
+    {"amount": "١٢.٣٤"},
+    {"amount": "1,234.56"},
+    {"amount": "12.34\u001c"},
+    {"currency_code": "cad"},
+    {"foreign_amount": "10.00"},
+    {"foreign_currency_code": "USD"},
+    {"description": " Weekly groceries"},
+    {"destination_name": "Neighbourhood Grocer\u00a0"},
+    {"category": ""},
+    {"tag_names": [" food"]},
+    {"tag_names": ["food", "food"]},
+])
+async def test_firefly_import_refuses_a_row_the_import_screen_would_have_cleaned(client, overrides):
+    """The import screen sends every value in its one canonical form, so any other form is refused."""
+    headers = _get_auth_header(await _create_user(client))
+
+    resp = await _import_firefly(client, headers, {
+        "accounts": [_chequing_mapping()],
+        "categories": [{"source": "Groceries", "create": {"name": "Groceries", "kind": "expense"}}],
+        "rows": [_firefly_row(**overrides)],
+    })
+
+    # Request validation answers with a list of field errors, where a refusal later on names a reason
+    assert resp.status_code == 422
+    assert isinstance(resp.json()["detail"], list)
+    assert (await client.get("/transactions", headers=headers)).json() == []
+
+
+async def test_firefly_import_refuses_unexpected_row_failures_generically(client, monkeypatch):
+    """A row failing outside the known refusal rules refuses the import with a generic reason."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
@@ -562,18 +596,14 @@ async def test_firefly_import_reports_unexpected_row_failures_generically(client
 
     monkeypatch.setattr("app.services.importers.firefly.service.resolve_firefly_row", _boom)
 
-    resp = await client.post("/transactions/import/firefly", json={
+    resp = await _import_firefly(client, headers, {
         "accounts": [_chequing_mapping()],
         "categories": [{"source": "Groceries", "create": {"name": "Groceries", "kind": "expense"}}],
         "rows": [_firefly_row()],
-    }, headers=headers)
+    })
 
-    assert resp.status_code == 201
-    data = resp.json()
-    assert data["rows_imported"] == 0
-    assert data["rows_skipped"] == 1
-    assert data["transactions_created"] == 0
-    assert data["skipped"] == [{"journal_id": "1", "reason": "Row could not be converted"}]
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "Firefly III journal 1: Row could not be converted"
 
 
 async def test_firefly_import_requires_mapping_for_tracked_accounts(client):
@@ -581,14 +611,14 @@ async def test_firefly_import_requires_mapping_for_tracked_accounts(client):
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    resp = await client.post("/transactions/import/firefly", json={
+    resp = await _import_firefly(client, headers, {
         "accounts": [_chequing_mapping()],
         "categories": [{"source": "Groceries", "create": {"name": "Groceries", "kind": "expense"}}],
-        "rows": [_firefly_row(source_name="Missing Account")],
-    }, headers=headers)
+        "rows": [_firefly_row(source_account="Missing Account")],
+    })
 
     assert resp.status_code == 422
-    assert resp.json()["detail"] == "Account source is not mapped: Missing Account"
+    assert resp.json()["detail"] == "Firefly III journal 1: Account source is not mapped: Missing Account"
 
 
 async def test_firefly_import_maps_uncategorized_rows_via_placeholder(client):
@@ -601,14 +631,14 @@ async def test_firefly_import_maps_uncategorized_rows_via_placeholder(client):
         "categories": [],
         "rows": [_firefly_row(category=None)],
     }
-    resp = await client.post("/transactions/import/firefly", json=payload, headers=headers)
+    resp = await _import_firefly(client, headers, payload)
     assert resp.status_code == 422
-    assert resp.json()["detail"] == "Category source is not mapped: (no category)"
+    assert resp.json()["detail"] == "Firefly III journal 1: Category source is not mapped: (no category)"
 
     payload["categories"] = [
         {"source": "(no category)", "create": {"name": "Imported Uncategorized", "kind": "expense"}},
     ]
-    resp = await client.post("/transactions/import/firefly", json=payload, headers=headers)
+    resp = await _import_firefly(client, headers, payload)
     assert resp.status_code == 201
     data = resp.json()
     assert data["transactions_created"] == 1
@@ -618,69 +648,129 @@ async def test_firefly_import_maps_uncategorized_rows_via_placeholder(client):
     assert transactions_resp.json()[0]["category_id"] == data["category_source_ids"]["(no category)"]
 
 
-async def test_firefly_import_skips_whitespace_only_account_names(client):
-    """A tracked-typed endpoint with a blank name skips the row instead of failing the batch."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
+async def test_firefly_import_files_a_payee_under_a_merchant_the_database_lowercases_alike(client):
+    """A payee is matched by PostgreSQL's lowercase, which the unique index is built on
 
-    resp = await client.post("/transactions/import/firefly", json={
-        "accounts": [_chequing_mapping()],
-        "categories": [{"source": "Groceries", "create": {"name": "Groceries", "kind": "expense"}}],
-        "rows": [
-            _firefly_row(),
-            _firefly_row(journal_id="2", source_name="   "),
-        ],
-    }, headers=headers)
-
-    assert resp.status_code == 201
-    data = resp.json()
-    assert data["rows_imported"] == 1
-    assert data["rows_skipped"] == 1
-    assert data["skipped"][0]["journal_id"] == "2"
-    assert data["skipped"][0]["reason"] == "Withdrawal source is not an imported account"
-
-
-async def test_firefly_import_skips_amounts_past_the_storable_range(client):
-    """An amount past the signed 64-bit range skips the row instead of crashing at flush."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    resp = await client.post("/transactions/import/firefly", json={
-        "accounts": [_chequing_mapping()],
-        "categories": [{"source": "Groceries", "create": {"name": "Groceries", "kind": "expense"}}],
-        "rows": [
-            _firefly_row(),
-            _firefly_row(journal_id="2", amount="99999999999999999999.00"),
-        ],
-    }, headers=headers)
-
-    assert resp.status_code == 201
-    data = resp.json()
-    assert data["rows_imported"] == 1
-    assert data["rows_skipped"] == 1
-    assert data["skipped"][0]["reason"] == 'Invalid amount "99999999999999999999.00"'
-
-
-async def test_firefly_import_skips_the_amount_whose_magnitude_cannot_be_stored(client):
-    """The one amount that parses but cannot be stored once negated skips the row
-
-    This path writes the magnitude rather than the parsed value, and the signed range holds
-    one more value below zero than above it, so this amount parses and its magnitude does not
+    Python lowercases "İ" to "i" and a combining dot, while PostgreSQL gives a plain "i"
     """
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
+    existing = await client.post("/merchants", json={"name": "ISTANBUL KEBAP"}, headers=headers)
+    assert existing.status_code == 201
 
-    resp = await client.post("/transactions/import/firefly", json={
+    resp = await _import_firefly(client, headers, {
         "accounts": [_chequing_mapping()],
         "categories": [{"source": "Groceries", "create": {"name": "Groceries", "kind": "expense"}}],
         "rows": [
-            _firefly_row(),
-            _firefly_row(journal_id="2", amount="-92233720368547758.08"),
+            _firefly_row(destination_name="İstanbul Kebap"),
+            _firefly_row(journal_id="2", destination_name="İSTANBUL KEBAP"),
         ],
-    }, headers=headers)
+    })
 
     assert resp.status_code == 201
-    data = resp.json()
-    assert data["rows_imported"] == 1
-    assert data["rows_skipped"] == 1
-    assert data["skipped"][0]["reason"] == 'Amount is too large: "-92233720368547758.08"'
+    assert resp.json()["merchants_created"] == 0
+    transactions = (await client.get("/transactions", headers=headers)).json()
+    assert [transaction["merchant_id"] for transaction in transactions] == [existing.json()["id"]] * 2
+
+
+async def test_firefly_import_creates_one_merchant_for_payees_the_database_lowercases_alike(client):
+    """Two spellings PostgreSQL folds to one name make one merchant, as its unique index requires"""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _import_firefly(client, headers, {
+        "accounts": [_chequing_mapping()],
+        "categories": [{"source": "Groceries", "create": {"name": "Groceries", "kind": "expense"}}],
+        "rows": [
+            _firefly_row(destination_name="İstanbul Kebap"),
+            _firefly_row(journal_id="2", destination_name="Istanbul Kebap"),
+        ],
+    })
+
+    assert resp.status_code == 201
+    assert resp.json()["merchants_created"] == 1
+    transactions = (await client.get("/transactions", headers=headers)).json()
+    assert len({transaction["merchant_id"] for transaction in transactions}) == 1
+
+    # The first spelling in the file names the merchant
+    merchants = (await client.get("/merchants", headers=headers)).json()
+    assert "İstanbul Kebap" in [merchant["name"] for merchant in merchants]
+
+
+@pytest.mark.parametrize(("field", "value"), [
+    ("journal_id", "1" * 65),
+    ("type", ""),
+    ("type", "W" * 65),
+    ("amount", "1" * 65),
+    ("foreign_amount", "1" * 65),
+    ("currency_code", "USDT"),
+    ("foreign_currency_code", "USDT"),
+    ("description", "d" * 1025),
+    ("source_name", "p" * 257),
+    ("destination_name", "p" * 257),
+    ("category", "c" * 257),
+])
+async def test_firefly_import_refuses_a_row_past_a_field_limit(client, field, value):
+    """The browser drops or normalises these rows first, and the endpoint still refuses one that arrives."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _import_firefly(client, headers, {
+        "accounts": [_chequing_mapping()],
+        "categories": [{"source": "Groceries", "create": {"name": "Groceries", "kind": "expense"}}],
+        "rows": [_firefly_row(**{field: value})],
+    })
+
+    assert resp.status_code == 422
+    assert any(error["loc"] == ["body", "rows", 0, field] for error in resp.json()["detail"])
+    assert (await client.get("/transactions", headers=headers)).json() == []
+
+
+async def test_firefly_import_takes_a_row_at_its_field_limits(client):
+    """A value exactly at the limit the browser checks against is one the endpoint takes."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _import_firefly(client, headers, {
+        "accounts": [_chequing_mapping()],
+        "categories": [{"source": "Groceries", "create": {"name": "Groceries", "kind": "expense"}}],
+        "rows": [_firefly_row(journal_id="1" * 64, description="d" * 1024, destination_name="p" * 256)],
+    })
+
+    assert resp.status_code == 201
+    transactions = (await client.get("/transactions", headers=headers)).json()
+    assert [transaction["notes"] for transaction in transactions] == ["d" * 1024]
+
+
+async def test_firefly_import_refuses_two_new_categories_differing_only_in_capitals_and_type(client):
+    """The browser blocks this pair before upload, and the endpoint refuses it without writing."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _import_firefly(client, headers, {
+        "accounts": [_chequing_mapping()],
+        "categories": [
+            {"source": "Road Trips", "create": {"name": "Road Trips", "kind": "expense"}},
+            {"source": "ROAD TRIPS", "create": {"name": "ROAD TRIPS", "kind": "income"}},
+        ],
+        "rows": [
+            _firefly_row(category="Road Trips"),
+            _firefly_row(
+                journal_id="2",
+                type="deposit",
+                amount="80.00",
+                source_account=None,
+                source_name="Airline",
+                destination_account="Everyday Chequing",
+                destination_name=None,
+                category="ROAD TRIPS",
+            ),
+        ],
+    })
+
+    assert resp.status_code == 422
+    # The run keeps its mappings keyed by source, so the commit meets ROAD TRIPS first
+    assert resp.json()["detail"].startswith("A category named ROAD TRIPS already records income, so this import cannot create Road Trips")
+    assert (await client.get("/transactions", headers=headers)).json() == []
+    categories = (await client.get("/categories", headers=headers)).json()
+    assert "road trips" not in [category["name"].lower() for category in categories]

@@ -1,0 +1,60 @@
+# A fresh Firefly III for the import check, seeded through its API and thrown away afterwards
+name: lumina-firefly-check
+
+services:
+  firefly-db:
+    image: mariadb:11.8
+    environment:
+      MARIADB_DATABASE: firefly
+      MARIADB_USER: firefly
+      MARIADB_PASSWORD: firefly-check-only
+      MARIADB_ROOT_PASSWORD: firefly-check-root-only
+    volumes:
+      - firefly-db:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      retries: 30
+
+  firefly:
+    image: fireflyiii/core:${FIREFLY_VERSION:-version-6.7.3}
+    depends_on:
+      firefly-db:
+        condition: service_healthy
+    environment:
+      APP_KEY: FireflyCheckOnlyKeyNotASecret32c
+      APP_URL: http://127.0.0.1:${FIREFLY_PORT:-18090}
+      TRUSTED_PROXIES: "**"
+      DB_CONNECTION: mysql
+      DB_HOST: firefly-db
+      DB_PORT: "3306"
+      DB_DATABASE: firefly
+      DB_USERNAME: firefly
+      DB_PASSWORD: firefly-check-only
+      TZ: UTC
+      DEFAULT_LANGUAGE: en_US
+    ports:
+      - "127.0.0.1:${FIREFLY_PORT:-18090}:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health || exit 1"]
+      interval: 5s
+      retries: 60
+
+  # Runs the seed inside the compose network, writing the exports and manifest to output/
+  seed:
+    image: node:26-slim
+    profiles: [seed]
+    depends_on:
+      firefly:
+        condition: service_healthy
+    user: ${SEED_USER:-1000:1000}
+    working_dir: /check
+    volumes:
+      - .:/check
+    environment:
+      FIREFLY_URL: http://firefly:8080
+      FIREFLY_TOKEN:
+    command: ["node", "seed/main.ts"]
+
+volumes:
+  firefly-db:

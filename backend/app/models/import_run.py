@@ -1,14 +1,30 @@
 """Staged transaction import models"""
 
+import enum
 import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import DateTime, ForeignKey, Integer, UniqueConstraint, func
+from sqlalchemy import VARCHAR, CheckConstraint, DateTime, ForeignKey, Integer, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
+
+
+class ImportRunSource(enum.StrEnum):
+    """The importer a run came from
+
+    Actual Budget is held for its own importer, which has no rows of its own yet, so the API opens
+    only the first two
+    """
+
+    GENERIC = "generic"
+    FIREFLY = "firefly"
+    ACTUAL_BUDGET = "actual_budget"
+
+
+_SOURCE_CHECK_VALUES = ", ".join(f"'{source}'" for source in ImportRunSource)
 
 
 class ImportRun(Base):
@@ -21,12 +37,23 @@ class ImportRun(Base):
     """
 
     __tablename__ = "import_runs"
+    __table_args__ = (
+        CheckConstraint(f"source IN ({_SOURCE_CHECK_VALUES})", name="ck_import_runs_source"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     owner_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
 
+    # Which importer opened the run, which decides what its staged rows hold and which commit
+    # writes them. Defaulted in the database as well, so a run staged before this column existed
+    # reads as the generic CSV import it was
+    source: Mapped[str] = mapped_column(
+        VARCHAR(32), nullable=False, default=ImportRunSource.GENERIC, server_default=ImportRunSource.GENERIC.value,
+    )
+
     # What the file will write, checked against the staged rows before a commit runs, so a run
-    # missing a batch is refused rather than importing part of a file
+    # missing a batch is refused rather than importing part of a file. For a Firefly III run this
+    # counts journal rows, which a transfer between two imported accounts writes twice
     expected_transaction_count: Mapped[int] = mapped_column(Integer, nullable=False)
 
     # Each batch carries the mappings its own rows reference, merged in here by source, so the
@@ -39,6 +66,16 @@ class ImportRun(Base):
     # before this column existed reads as one that answered nothing
     merchant_mappings: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, default=dict, server_default="{}",
+    )
+
+    # What a provider import writes after its transactions: budgets whose tracked categories are
+    # named by category mapping source, since a category the import creates has no id until the
+    # commit, and the account mapping sources to archive once everything else is written
+    budget_drafts: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]",
+    )
+    archive_account_sources: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]",
     )
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())

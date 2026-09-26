@@ -31,5 +31,7 @@ test('names the import file-picker entry without opening a picker', async ({ pag
   await expect(transactions).toBeVisible()
   await expect(transactions).toHaveAccessibleName('Upload transactions csv The journal rows to import.')
   await expect(budgets).toBeVisible()
-  await expect(budgets).toHaveAccessibleName('Upload budgets csv Enables budget import after the transactions commit.')
+  await expect(budgets).toHaveAccessibleName('Upload budgets csv Without it, create budgets by hand after the import.')
+  const accounts = page.getByRole('button', { name: /^Upload accounts csv/ })
+  await expect(accounts).toHaveAccessibleName('Upload accounts csv Without it, every account comes across as active checking.')
 })

@@ -36,20 +36,54 @@ export const FIREFLY_BUDGETS_REQUIRED_HEADERS = [
 ]
 
 /**
- * Value the budgets export carries for a budget that is not archived, with
- * anything else read as archived so a value we do not recognise imports the
- * budget archived rather than active, the safer of the two directions
+ * Columns the optional accounts export must contain to set account types and
+ * archive inactive accounts
  */
-export const FIREFLY_BUDGET_ACTIVE_VALUE = '1'
+export const FIREFLY_ACCOUNTS_REQUIRED_HEADERS = [
+  'type',
+  'name',
+  'active',
+  'currency_code',
+  'role',
+]
+
+/**
+ * Value the budgets and accounts exports carry for a record that is active,
+ * where Firefly III writes an inactive one as an empty cell
+ *
+ * A budget with any other value is read as archived, the safer direction for a
+ * budget. An account is refused instead, since archiving one brings its
+ * balance to zero
+ */
+export const FIREFLY_ACTIVE_VALUE = '1'
+export const FIREFLY_INACTIVE_VALUE = ''
 
 /**
  * Longest tag name a Lumina tag can hold, mirroring the backend cap
  *
  * Firefly III allows longer tags, and a row carrying one would fail the
- * whole upload batch on the backend, so such rows are dropped before upload
+ * whole import on the backend, so such rows are dropped before upload
  * with the tag named instead
  */
 export const FIREFLY_TAG_NAME_MAX_LENGTH = 64
+
+// The longest name a Lumina account takes, which Firefly III account names can exceed
+export const FIREFLY_ACCOUNT_NAME_MAX_LENGTH = 256
+
+/**
+ * Longest value the import endpoint takes in each row field, mirroring the backend schema
+ *
+ * An export can still hold a longer value, from Firefly III's longer text fields or a hand-edited
+ * file, and one such row would fail the whole import, so it is dropped before upload with
+ * the field named instead
+ */
+export const FIREFLY_ROW_FIELD_MAX_LENGTHS = {
+  journalId: 64,
+  amount: 64,
+  description: 1024,
+  category: 256,
+  payee: 256,
+} as const
 
 export const FIREFLY_TAG_TOO_LONG_REASON = 'Tag name is too long'
 
@@ -72,7 +106,7 @@ export const FIREFLY_BUDGET_NO_LIMITS_REASON = 'The export has no limit periods 
 /**
  * Why a budget whose export rows carry dates that name no real day is never
  * imported, since a corrupted file should be refused before upload rather
- * than failing the whole budget batch on the backend
+ * than failing the whole import on the backend
  */
 export const FIREFLY_BUDGET_UNREADABLE_DATES_REASON = 'A limit period date in the export is not a real calendar date'
 
@@ -81,6 +115,68 @@ export const FIREFLY_BUDGET_UNREADABLE_DATES_REASON = 'A limit period date in th
  * Lumina Finance budget holds exactly one currency
  */
 export const FIREFLY_BUDGET_MIXED_CURRENCIES_REASON = 'Its limit periods mix more than one currency'
+
+/**
+ * Why a budget with a limit period ending before it starts is never imported
+ */
+export const FIREFLY_BUDGET_PERIOD_ENDS_BEFORE_START_REASON = 'A limit period ends before it starts'
+
+/**
+ * Why a budget whose limit periods share days is never imported, since a Lumina Finance budget
+ * holds one limit for each day
+ *
+ * Firefly III refuses only a second limit over the identical range and currency, so a monthly
+ * limit and a custom-range limit over the same days can both be exported
+ */
+export const FIREFLY_BUDGET_OVERLAPPING_PERIODS_REASON = 'Two of its limit periods overlap'
+
+/**
+ * Longest budget name, most limit periods and most tracked categories the budget import takes,
+ * mirroring the backend schema
+ */
+export const FIREFLY_BUDGET_NAME_MAX_LENGTH = 256
+export const FIREFLY_BUDGET_MAX_LIMIT_PERIODS = 1200
+export const FIREFLY_BUDGET_MAX_CATEGORIES = 1000
+
+/**
+ * Most budgets one import takes, mirroring the backend schema
+ */
+export const FIREFLY_MAX_BUDGETS = 1000
+
+/**
+ * Longest cadence the budget import stores, the largest value its small-integer column holds
+ */
+export const FIREFLY_BUDGET_MAX_INSTANCE_LENGTH = 32767
+
+/**
+ * Why a budget in a currency Lumina Finance does not have is never imported, such as a custom
+ * currency Firefly III lets its users add
+ */
+export function getFireflyBudgetUnsupportedCurrencyReason(currencyCode: string) {
+  return `Its currency, ${currencyCode}, is not one Lumina Finance supports`
+}
+
+/**
+ * Why a budget with a limit amount its currency cannot hold is never imported
+ */
+export function getFireflyBudgetAmountReason(amount: string, currencyCode: string, problem: string) {
+  return `Its limit amount ${amount} ${currencyCode} ${problem}`
+}
+
+/**
+ * Why a budget matched to a group's category is never imported, since an imported budget is the
+ * user's own and can track only their own categories and the built-in ones
+ */
+export function getFireflyBudgetGroupCategoryReason(categoryName: string) {
+  return `Its category ${categoryName} is matched to a group category, and an imported budget can only track your own or built-in categories`
+}
+
+/**
+ * Why a budget past one of the budget import's limits is never imported
+ */
+export function getFireflyBudgetOverLimitReason(what: string, count: number, maxCount: number) {
+  return `Its ${what} is ${count.toLocaleString()}, and the importer takes up to ${maxCount.toLocaleString()}`
+}
 
 /**
  * Why a budget repeating on a period length no Lumina Finance cadence can
@@ -101,7 +197,27 @@ export const FIREFLY_LIABILITY_ACCOUNT_TYPES: Record<string, AccountType> = {
   mortgage: 'mortgage',
 }
 
+/**
+ * Lumina account types keyed by the Firefly III asset account role the accounts
+ * export states. A shared asset account is one the user owns and shares, so it
+ * comes across as an ordinary checking account
+ */
+export const FIREFLY_ROLE_ACCOUNT_TYPES: Record<string, AccountType> = {
+  defaultAsset: 'checking',
+  sharedAsset: 'checking',
+  savingAsset: 'savings',
+  ccAsset: 'credit_card',
+  cashWalletAsset: 'cash',
+}
+
 export const FIREFLY_FALLBACK_ACCOUNT_TYPE: AccountType = 'checking'
+
+/**
+ * Starts the id of an account only the accounts export lists, numbered apart
+ * from the accounts the rows name so adding or removing that file never
+ * renumbers those
+ */
+export const FIREFLY_LISTED_ACCOUNT_ID_PREFIX = 'listed-account-'
 
 /**
  * Journal types as they appear in the Firefly III transactions export
@@ -111,6 +227,24 @@ export const FIREFLY_TYPE_DEPOSIT = 'deposit'
 export const FIREFLY_TYPE_TRANSFER = 'transfer'
 export const FIREFLY_TYPE_OPENING_BALANCE = 'opening balance'
 export const FIREFLY_TYPE_RECONCILIATION = 'reconciliation'
+
+const FIREFLY_JOURNAL_TYPES = [
+  FIREFLY_TYPE_WITHDRAWAL,
+  FIREFLY_TYPE_DEPOSIT,
+  FIREFLY_TYPE_TRANSFER,
+  FIREFLY_TYPE_OPENING_BALANCE,
+  FIREFLY_TYPE_RECONCILIATION,
+] as const
+
+/** A journal type the importer handles, lowercased as the import endpoint takes it */
+export type FireflyJournalType = typeof FIREFLY_JOURNAL_TYPES[number]
+
+/**
+ * Whether a lowercased journal type is one the importer handles
+ */
+export function isFireflyJournalType(type: string): type is FireflyJournalType {
+  return (FIREFLY_JOURNAL_TYPES as readonly string[]).includes(type)
+}
 
 /**
  * Seeded system category the no-category placeholder matches to, since
@@ -135,32 +269,65 @@ export const FIREFLY_MISSING_REQUIRED_VALUES_REASON = 'Missing required values'
  */
 export const FIREFLY_GENERIC_SKIP_REASON = 'Row could not be converted'
 
+/**
+ * Reasons the backend gives for a row whose endpoints leave it nothing to write, word for word.
+ * The browser drops such a row before upload, since whether it imports never depends on a mapping
+ */
+export const FIREFLY_BALANCE_ROW_UNATTACHED_REASON = 'Opening balance or reconciliation row is not attached to an imported account'
+export const FIREFLY_WITHDRAWAL_SOURCE_UNTRACKED_REASON = 'Withdrawal source is not an imported account'
+export const FIREFLY_DEPOSIT_DESTINATION_UNTRACKED_REASON = 'Deposit destination is not an imported account'
+export const FIREFLY_TRANSFER_ENDPOINT_UNTRACKED_REASON = 'Transfer endpoint is not an imported account'
+
+export function getFireflyUnsupportedTypeReason(type: string) {
+  return `Journal type "${type}" is not supported, the importer handles`
+    + ' withdrawals, deposits, transfers, opening balances, and reconciliations'
+}
+
+/**
+ * Line a split's sent notes start with, naming the Firefly III transaction the split belongs to
+ */
+export function getFireflySplitTitleLine(groupTitle: string) {
+  return `Split transaction: ${groupTitle}`
+}
+
 export const FIREFLY_SAMPLE_PREVIEW_LIMIT = 5
 export const FIREFLY_CSV_PROCESSING_MIN_MS = LOADING_ANIMATION_MIN_MS
 export const FIREFLY_IMPORT_OVERLAY_MIN_MS = LOADING_ANIMATION_MIN_MS
 
 /**
- * Stages of the commit in the order they run, as the overlay lists them
+ * Stages of the import in the order they run, as the overlay lists them
  */
 export const FIREFLY_IMPORT_STAGES: { id: FireflyImportStage; label: string }[] = [
-  { id: 'transactions', label: 'Importing transactions' },
-  { id: 'budgets', label: 'Importing budgets' },
+  { id: 'uploading', label: 'Uploading the export' },
+  { id: 'saving', label: 'Saving the import' },
 ]
 
 /**
- * How long one commit stage holds the overlay before the next one takes over
+ * How long the upload stage holds the overlay before saving takes over
  *
- * Both stages can finish faster than the transition between them reads, so
- * without a floor the budget stage would flash past unseen. The floor is
- * pinned to one full dot wave so a stage is never struck off mid-cycle
+ * A small export uploads faster than the transition between the stages reads, so without a floor
+ * the upload stage would flash past unseen. The floor is pinned to one full dot wave so a stage is
+ * never struck off mid-cycle
  */
 export const FIREFLY_IMPORT_STAGE_MIN_MS = STEP_DOT_WAVE_MS
 
 /**
- * How long a finished commit stage stays on the overlay struck off before the
- * next stage takes its place
+ * How long a finished stage stays on the overlay struck off before the next
+ * stage takes its place
  *
  * The strike is what tells the user the stage landed, so this has to outlast
  * the line being drawn and leave a beat to read it afterwards
  */
 export const FIREFLY_IMPORT_STAGE_CROSS_OFF_MS = 750
+
+/**
+ * Largest budgets request the import sends, kept under the server's 10 MiB request limit with room
+ * for the rest of the request, so a selection too large to send is refused before anything uploads
+ */
+export const FIREFLY_MAX_BUDGETS_REQUEST_BYTES = 9 * 1024 * 1024
+
+// Added after the reason a Firefly III import failed. An import the server refused, or one that failed
+// while uploading, wrote nothing. A save that failed for another reason may or may not have landed,
+// and saving it again answers either way
+export const FIREFLY_IMPORT_NOTHING_SAVED_NOTE = 'Nothing was added to your ledger.'
+export const FIREFLY_IMPORT_SAVE_AGAIN_NOTE = 'Your upload is kept, so you can try saving it again.'

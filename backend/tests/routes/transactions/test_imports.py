@@ -11,8 +11,8 @@ from app.schemas.transaction import (
     MAX_IMPORT_TAG_NAME_LENGTH,
     MAX_IMPORT_TAGS_PER_ROW,
 )
-from app.services.importers.generic import run_locking
-from app.services.importers.generic.run_locking import load_locked_run
+from app.services.importers.shared import run_locking
+from app.services.importers.shared.run_locking import load_locked_run
 from app.services.merchants.defaults import (
     SELF_MERCHANT_NAME,
     UNKNOWN_MERCHANT_NAME,
@@ -983,7 +983,9 @@ async def test_a_payee_answered_with_a_merchant_the_user_cannot_see_is_refused(c
     assert (await client.get("/transactions", headers=headers)).json() == []
 
 
-async def test_answering_one_payee_under_two_spellings_in_one_batch_is_refused(client):
+# The second pair lowercases alike only in PostgreSQL, whose lower() the unique index is built on
+@pytest.mark.parametrize(("spelling", "other_spelling"), [("Bakery", "BAKERY"), ("İstanbul Kebap", "ISTANBUL KEBAP")])
+async def test_answering_one_payee_under_two_spellings_in_one_batch_is_refused(client, spelling, other_spelling):
     """Both spellings resolve to one merchant, so two answers leave nothing to say which one wins."""
     headers, account_id, category_id = await _setup_user_with_deps(client)
 
@@ -992,10 +994,10 @@ async def test_answering_one_payee_under_two_spellings_in_one_batch_is_refused(c
         headers,
         account_id,
         category_id,
-        [{"merchant_name": "Bakery"}],
+        [{"merchant_name": spelling}],
         merchants=[
-            {"source": "Bakery", "create": {"name": "Bakery"}},
-            {"source": "BAKERY", "skip": True},
+            {"source": spelling, "create": {"name": spelling}},
+            {"source": other_spelling, "skip": True},
         ],
     )
 

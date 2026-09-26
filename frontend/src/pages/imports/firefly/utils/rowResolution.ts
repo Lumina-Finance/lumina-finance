@@ -1,6 +1,6 @@
 import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
-import { FIREFLY_NO_CATEGORY_SOURCE, isFireflyTrackedAccountType } from '@/api/firefly-imports'
+import { FIREFLY_NO_CATEGORY_SOURCE } from '@/api/firefly-imports'
 import type { Institution } from '@/api/institutions'
 import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE, DEFAULT_CATEGORY_ICON } from '@/pages/imports/constants'
 import type { Currency } from '@/api/currency'
@@ -9,19 +9,28 @@ import { MAX_IMPORT_MINOR_UNITS, toImportMinorUnits } from '@/pages/imports/util
 import { findReusedImportCategory } from '@/pages/imports/utils/categoryMatching'
 import { findCurrencyExponent } from '@/utils/moneyInput'
 import {
+  FIREFLY_BALANCE_ROW_UNATTACHED_REASON,
+  FIREFLY_DEPOSIT_DESTINATION_UNTRACKED_REASON,
   FIREFLY_GENERIC_SKIP_REASON,
+  FIREFLY_TRANSFER_ENDPOINT_UNTRACKED_REASON,
   FIREFLY_TYPE_DEPOSIT,
   FIREFLY_TYPE_OPENING_BALANCE,
   FIREFLY_TYPE_RECONCILIATION,
-  FIREFLY_TYPE_TRANSFER,
   FIREFLY_TYPE_WITHDRAWAL,
+  FIREFLY_WITHDRAWAL_SOURCE_UNTRACKED_REASON,
+  getFireflyUnsupportedTypeReason,
+  isFireflyJournalType,
 } from '@/pages/imports/firefly/constants'
+import type { FireflyAccountSource, FireflyAccountSources } from '@/pages/imports/firefly/types'
+import { getFireflyRowAmounts } from './derivation'
 import type { FireflyAccountCreateDetails } from './payload'
 
 /**
  * Mapping lookups needed to resolve journal rows the same way the commit will
  */
 export interface FireflyRowResolutionOptions {
+  /** The accounts the import can write to, which the account mappings and create details are keyed by */
+  accountSources: FireflyAccountSources
   accountById: Map<string, AccountsOverview>
   accountMappings: Record<string, string>
   accountCreateDetails: Record<string, FireflyAccountCreateDetails>
@@ -61,12 +70,13 @@ export interface FireflyResolvedLeg {
 }
 
 /**
- * Outcome of resolving one journal row, either the ledger legs the import
- * will create or the reason the import will skip the row
+ * Outcome of resolving one journal row: the ledger legs the import will create, the reason the
+ * import will skip the row, or neither while an account the row writes to has no answer yet
  */
 export type FireflyRowResolution =
   | { legs: FireflyResolvedLeg[]; skipReason: null }
   | { legs: null; skipReason: string }
+  | { legs: null; skipReason: null }
 
 /**
  * Internal signal that a row cannot be converted, mirroring the backend's
@@ -82,6 +92,11 @@ class FireflyRowSkipError extends Error {
 }
 
 /**
+ * Internal signal that a row writes to an imported account the user has not answered yet
+ */
+class FireflyAccountUnansweredError extends Error {}
+
+/**
  * Resolves one journal row into the ledger legs the import will create, or
  * the backend-worded reason the import will skip the row
  */
@@ -90,6 +105,9 @@ export function resolveFireflyRowLegs(row: CsvRow, options: FireflyRowResolution
     return { legs: buildFireflyRowLegs(row, options), skipReason: null }
   } catch (error) {
     if (error instanceof FireflyRowSkipError) return { legs: null, skipReason: error.reason }
+
+    // The import stays blocked until the account is answered, and the answer decides the outcome
+    if (error instanceof FireflyAccountUnansweredError) return { legs: null, skipReason: null }
 
     // A row failing in a way no skip rule anticipated must not break the
     // preview, so it is predicted as skipped with the same generic reason
@@ -123,15 +141,24 @@ export function getFireflyCategoryUsedByResolution(
  */
 function buildFireflyRowLegs(row: CsvRow, options: FireflyRowResolutionOptions): FireflyResolvedLeg[] {
   const journalType = row.type?.trim().toLowerCase() ?? ''
-  const source = resolveFireflyMappedAccount(row.source_name, row.source_type, options)
-  const destination = resolveFireflyMappedAccount(row.destination_name, row.destination_type, options)
+
+  // A type the importer does not know is refused before any account is resolved, since the
+  // transfer rule below would otherwise write it as a transfer between two imported accounts
+  if (!isFireflyJournalType(journalType)) {
+    throw new FireflyRowSkipError(getFireflyUnsupportedTypeReason(row.type?.trim() ?? ''))
+  }
+
+  const sourceAccountSource = options.accountSources.find(row.source_name, row.source_type)
+  const destinationAccountSource = options.accountSources.find(row.destination_name, row.destination_type)
+  const source = resolveFireflyMappedAccount(sourceAccountSource, options)
+  const destination = resolveFireflyMappedAccount(destinationAccountSource, options)
 
   // Firefly III pairs balance rows with a virtual balance account, so the
   // imported side is whichever endpoint is a real account and money flowing
   // into it is positive
   if (journalType === FIREFLY_TYPE_OPENING_BALANCE || journalType === FIREFLY_TYPE_RECONCILIATION) {
     const account = destination ?? source
-    if (!account) throw new FireflyRowSkipError('Opening balance or reconciliation row is not attached to an imported account')
+    if (!account) throw new FireflyRowSkipError(FIREFLY_BALANCE_ROW_UNATTACHED_REASON)
 
     const amount = getFireflyAmountInAccountCurrency(row, account.currency, options.currencies)
     return [{
@@ -147,12 +174,13 @@ function buildFireflyRowLegs(row: CsvRow, options: FireflyRowResolutionOptions):
   // the Firefly III type, which covers loan payments recorded as withdrawals
   // into a liability account
   if (source && destination) {
-    // Two names in the file can be mapped onto one account, which is how a
+    // Two accounts in the file can be mapped onto one account, which is how a
     // renamed account is carried across. The pair would then be two cancelling
     // rows in that account, a shape the API refuses when entered by hand.
-    // Two different names queued for creation share the create sentinel as
-    // their id and still become two separate accounts, so the names decide it
-    if (source.id === destination.id && (source.id !== CREATE_ACCOUNT_VALUE || source.name === destination.name)) {
+    // Two different accounts queued for creation share the create sentinel as
+    // their id and still become two separate accounts, so their sources decide it
+    const isSameCreate = sourceAccountSource?.id === destinationAccountSource?.id
+    if (source.id === destination.id && (source.id !== CREATE_ACCOUNT_VALUE || isSameCreate)) {
       throw new FireflyRowSkipError('Transfer source and destination resolve to the same account')
     }
 
@@ -175,7 +203,7 @@ function buildFireflyRowLegs(row: CsvRow, options: FireflyRowResolutionOptions):
   }
 
   if (journalType === FIREFLY_TYPE_WITHDRAWAL) {
-    if (!source) throw new FireflyRowSkipError('Withdrawal source is not an imported account')
+    if (!source) throw new FireflyRowSkipError(FIREFLY_WITHDRAWAL_SOURCE_UNTRACKED_REASON)
 
     return [{
       account: source,
@@ -187,7 +215,7 @@ function buildFireflyRowLegs(row: CsvRow, options: FireflyRowResolutionOptions):
   }
 
   if (journalType === FIREFLY_TYPE_DEPOSIT) {
-    if (!destination) throw new FireflyRowSkipError('Deposit destination is not an imported account')
+    if (!destination) throw new FireflyRowSkipError(FIREFLY_DEPOSIT_DESTINATION_UNTRACKED_REASON)
 
     return [{
       account: destination,
@@ -198,40 +226,33 @@ function buildFireflyRowLegs(row: CsvRow, options: FireflyRowResolutionOptions):
     }]
   }
 
-  if (journalType === FIREFLY_TYPE_TRANSFER) {
-    throw new FireflyRowSkipError('Transfer endpoint is not an imported account')
-  }
-
-  throw new FireflyRowSkipError(
-    `Journal type "${row.type?.trim() ?? ''}" is not supported, the importer handles`
-    + ' withdrawals, deposits, transfers, opening balances, and reconciliations',
-  )
+  throw new FireflyRowSkipError(FIREFLY_TRANSFER_ENDPOINT_UNTRACKED_REASON)
 }
 
 /**
  * Resolves a tracked journal endpoint to the ledger account the mapping
- * choices produce, or null when the endpoint is not an imported account
+ * choices produce, or null when the endpoint is not an imported account.
+ * Throws while the endpoint is an imported account with no answer yet
  */
 function resolveFireflyMappedAccount(
-  name: string | undefined,
-  accountType: string | undefined,
+  accountSource: FireflyAccountSource | null,
   options: FireflyRowResolutionOptions,
 ): FireflyResolvedAccount | null {
-  const trimmedName = name?.trim() ?? ''
-  if (!trimmedName || !isFireflyTrackedAccountType(accountType)) return null
+  if (!accountSource) return null
 
-  const choice = options.accountMappings[trimmedName]
+  const choice = options.accountMappings[accountSource.id]
+  if (!choice) throw new FireflyAccountUnansweredError()
   if (choice === CREATE_ACCOUNT_VALUE) {
-    const details = options.accountCreateDetails[trimmedName]
+    const details = options.accountCreateDetails[accountSource.id]
     return {
       id: CREATE_ACCOUNT_VALUE,
-      name: trimmedName,
+      name: accountSource.name,
       currency: (details?.currency ?? '').trim().toUpperCase(),
       institution: options.institutionById.get(details?.institutionId ?? '') ?? null,
     }
   }
 
-  const account = choice ? options.accountById.get(choice) : undefined
+  const account = options.accountById.get(choice)
   if (!account) return null
   return { id: account.id, name: account.name, currency: account.currency, institution: account.institution }
 }
@@ -244,16 +265,15 @@ function resolveFireflyMappedAccount(
 function getFireflyAmountInAccountCurrency(row: CsvRow, accountCurrency: string, currencies: Currency[]): number {
   // Firefly III writes the journal amount in the transaction currency and
   // carries a foreign amount when a second currency is involved, so the
-  // account-side value is whichever of the two matches the account currency
-  const rowCurrency = row.currency_code?.trim().toUpperCase() ?? ''
-  const foreignCurrency = row.foreign_currency_code?.trim().toUpperCase() ?? ''
-  const foreignAmount = row.foreign_amount?.trim() ?? ''
+  // account-side value is whichever of the two matches the account currency.
+  // Both are read as the payload sends them
+  const { main, foreign } = getFireflyRowAmounts(row)
 
   let rawAmount: string
-  if (accountCurrency && rowCurrency === accountCurrency) {
-    rawAmount = row.amount?.trim() ?? ''
-  } else if (foreignCurrency && foreignAmount && foreignCurrency === accountCurrency) {
-    rawAmount = foreignAmount
+  if (accountCurrency && main?.currencyCode === accountCurrency) {
+    rawAmount = main.amount
+  } else if (foreign && foreign.currencyCode === accountCurrency) {
+    rawAmount = foreign.amount
   } else {
     throw new FireflyRowSkipError(`Neither the amount nor the foreign amount is in the account's currency (${accountCurrency})`)
   }
@@ -276,7 +296,8 @@ function getFireflyAmountInAccountCurrency(row: CsvRow, accountCurrency: string,
 
   // The import writes the magnitude rather than the parsed value, and the signed range holds one
   // more value below zero than above it, so the smallest amount the parser accepts negates into
-  // one the column cannot take. The backend bounds its own result the same way
+  // one the column cannot take. Such a row is left out, since its unsigned amount would be past
+  // what the endpoint stores
   const absoluteMinorUnits = minorUnits < 0n ? -minorUnits : minorUnits
   if (absoluteMinorUnits > MAX_IMPORT_MINOR_UNITS) throw new FireflyRowSkipError(`Amount is too large: "${rawAmount}"`)
 

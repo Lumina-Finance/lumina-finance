@@ -25,6 +25,7 @@ from tests.routes.transactions._helpers import (
     _create_tag,
     _create_transaction,
     _get_system_category_id,
+    _import_firefly,
     _import_transactions,
     _seed_usd_currency,
     _setup_user_with_deps,
@@ -2237,25 +2238,23 @@ async def test_concurrent_firefly_import_waits_for_bulk_rebuild_and_preserves_to
     )).json()["id"]
 
     async def import_other_transaction():
-        """Import the second transaction through the real Firefly route."""
-        return await client.post("/transactions/import/firefly", json={
+        """Import the second transaction through the real Firefly III run."""
+        return await _import_firefly(client, headers, {
             "accounts": [{"source": "Main Chequing", "account_id": account_id}],
             "categories": [{"source": "Groceries", "category_id": category_id}],
             "rows": [{
                 "journal_id": "bulk-concurrency",
-                "type": "Withdrawal",
+                "type": "withdrawal",
                 "dt": "2026-08-01",
-                "amount": "-20.00",
+                "amount": "20.00",
                 "currency_code": "CAD",
                 "description": "Weekly groceries",
-                "source_name": "Main Chequing",
-                "source_type": "Asset account",
+                "source_account": "Main Chequing",
                 "destination_name": "Neighbourhood Market",
-                "destination_type": "Expense account",
                 "category": "Groceries",
                 "tag_names": [],
             }],
-        }, headers=headers)
+        })
 
     bulk_response, import_response = await _run_bulk_with_blocked_writer(
         client,

@@ -24,20 +24,24 @@ export function isFireflyTrackedAccountType(accountType: string | null | undefin
  */
 export function getFireflyRowAccountSources(row: FireflyTransactionImportRow) {
   const sources: string[] = [];
-  if (row.source_name && isFireflyTrackedAccountType(row.source_type)) sources.push(row.source_name);
-  if (
-    row.destination_name
-    && isFireflyTrackedAccountType(row.destination_type)
-    && row.destination_name !== sources[0]
-  ) {
-    sources.push(row.destination_name);
+  if (row.source_account) sources.push(row.source_account);
+  if (row.destination_account && row.destination_account !== row.source_account) {
+    sources.push(row.destination_account);
   }
   return sources;
 }
 
 /**
- * Gets the category mapping source one journal row references
+ * Gets the category mapping source one journal row is written with, or null when it takes none
+ *
+ * Decided as the backend decides it: only a withdrawal from an imported account or a deposit into
+ * one, with the other endpoint outside the import, reads its category. A transfer takes Transfer
+ * and a balance row Balance Adjustment, so a batch of those maps no category
  */
-export function getFireflyRowCategorySource(row: FireflyTransactionImportRow) {
+export function getFireflyRowCategorySource(row: FireflyTransactionImportRow): string | null {
+  const journalType = row.type.trim().toLowerCase();
+  const isWithdrawalOut = journalType === 'withdrawal' && Boolean(row.source_account) && !row.destination_account;
+  const isDepositIn = journalType === 'deposit' && Boolean(row.destination_account) && !row.source_account;
+  if (!isWithdrawalOut && !isDepositIn) return null;
   return row.category?.trim() || FIREFLY_NO_CATEGORY_SOURCE;
 }

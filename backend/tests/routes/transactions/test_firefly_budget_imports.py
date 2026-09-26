@@ -3,6 +3,7 @@ from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date, timedelta
+from unittest.mock import patch
 
 import pytest
 from sqlalchemy import event, select
@@ -11,11 +12,11 @@ from sqlalchemy.orm import Session
 from sqlalchemy.sql import Select
 
 from app.database import current_user_id_ctx
-from app.models.base import CategoryKind
 from app.models.budget import BaseBudget, Budget, BudgetTrackedCategory
 from app.models.cache_state import UserCacheState
 from app.models.category import Category
 from app.models.currency import Currency
+from app.services.importers.firefly.budgets import write_firefly_budgets
 from tests.conftest import ScopedSession, TestSession, scoped_engine
 from tests.routes.base_budgets._helpers import (
     _create_base_budget,
@@ -24,6 +25,10 @@ from tests.routes.base_budgets._helpers import (
     _create_second_user,
 )
 from tests.routes.support import SIGNUP_PAYLOAD, _create_user, _get_auth_header
+from tests.routes.transactions.test_firefly_imports import _chequing_mapping, _firefly_row
+
+# The cadence of a budget whose latest limit is one calendar month
+MONTHLY_ON_THE_FIRST = {"freq": "monthly", "instance_length": 1, "weekday": None, "dom": 1, "month": None}
 
 
 @dataclass(frozen=True)
@@ -58,7 +63,7 @@ class _PersonalBudgetState:
 
 @contextmanager
 def _observe_budget_import(fail_after: str | None = None) -> Iterator[Callable[[], _BudgetImportObservations]]:
-    """Observe category reads and budget-bearing flushes for one app-role request"""
+    """Observe the budget writer's category reads, and budget-bearing flushes, for one app-role request"""
     if fail_after not in {None, "parents", "first-child-buffer"}:
         raise ValueError(f"Unsupported budget fault boundary: {fail_after}")
     category_selects = 0
@@ -68,6 +73,19 @@ def _observe_budget_import(fail_after: str | None = None) -> Iterator[Callable[[
     armed_session: Session | None = None
     fault_attempts = 0
     sync_session_class = ScopedSession.class_.sync_session_class
+
+    # The commit that writes the budgets also writes the run's rows, which read categories of their
+    # own, so only reads made while the budgets are written are counted
+    writing_budgets = False
+
+    async def observed_write_firefly_budgets(*args, **kwargs):
+        """Write the budgets as the commit does, marking the reads made meanwhile"""
+        nonlocal writing_budgets
+        writing_budgets = True
+        try:
+            return await write_firefly_budgets(*args, **kwargs)
+        finally:
+            writing_budgets = False
 
     def is_scoped_session(session: Session) -> bool:
         """Return whether a synchronous ORM event belongs to the app-role engine"""
@@ -83,6 +101,8 @@ def _observe_budget_import(fail_after: str | None = None) -> Iterator[Callable[[
     ) -> None:
         """Count compiled category SELECTs without retaining SQL or parameters"""
         nonlocal category_selects
+        if not writing_budgets:
+            return
         compiled = getattr(context, "compiled", None)
         statement = getattr(compiled, "statement", None)
         if isinstance(statement, Select) and any(
@@ -139,7 +159,8 @@ def _observe_budget_import(fail_after: str | None = None) -> Iterator[Callable[[
     event.listen(sync_session_class, "after_flush", after_flush)
     event.listen(sync_session_class, "after_commit", after_commit)
     try:
-        yield snapshot
+        with patch("app.services.importers.firefly.run.write_firefly_budgets", observed_write_firefly_budgets):
+            yield snapshot
     finally:
         event.remove(scoped_engine.sync_engine, "before_cursor_execute", before_cursor_execute)
         event.remove(sync_session_class, "before_flush", before_flush)
@@ -162,7 +183,76 @@ async def _get_category_id(client, headers, name):
     return next(category["id"] for category in resp.json() if category["name"] == name)
 
 
-async def _import_one_budget(client, headers, category_id, limits, name="Groceries", is_archived=None):
+async def _stage_budgets(client, headers, payload):
+    """Open a Firefly III run holding one opening balance, and stage the budgets against it
+
+    A budget import is part of a run, which needs a row to commit, so every run here carries a new
+    account's opening balance, which reads no category. Budgets here name existing categories by
+    id, so each id is sent with the budgets as a category source mapped to itself
+
+    Args:
+        client: The async test client
+        headers: Auth headers for the requesting user
+        payload: The budgets, each naming its categories by id
+
+    Returns:
+        The response to staging the budgets, and the run's path
+    """
+    category_ids = list(dict.fromkeys(
+        category_id for budget in payload["budgets"] for category_id in budget["category_ids"]
+    ))
+    mappings = [{"source": category_id, "category_id": category_id} for category_id in category_ids]
+    budgets = [
+        {key: value for key, value in budget.items() if key != "category_ids"} | {"category_sources": budget["category_ids"]}
+        for budget in payload["budgets"]
+    ]
+
+    resp = await client.post(
+        "/transactions/import/runs",
+        json={"expected_transaction_count": 1, "source": "firefly"},
+        headers=headers,
+    )
+    assert resp.status_code == 201, resp.text
+    run_path = f"/transactions/import/runs/{resp.json()['id']}"
+    resp = await client.post(f"{run_path}/firefly/rows", json={
+        "accounts": [_chequing_mapping()],
+        "categories": [],
+        "rows": [_firefly_row(
+            type="opening balance",
+            dt="2023-12-31",
+            amount="100.00",
+            source_account=None,
+            source_name='Initial balance for "Everyday Chequing"',
+            destination_account="Everyday Chequing",
+            destination_name=None,
+            category=None,
+        )],
+        "start_row_index": 0,
+    }, headers=headers)
+    assert resp.status_code == 204, resp.text
+
+    resp = await client.put(f"{run_path}/budgets", json={"categories": mappings, "budgets": budgets}, headers=headers)
+    return resp, run_path
+
+
+async def _import_budgets(client, headers, payload):
+    """Import budgets through a Firefly III run and return the commit's response, or the refusal to stage them
+
+    Args:
+        client: The async test client
+        headers: Auth headers for the requesting user
+        payload: The budgets, each naming its categories by id
+
+    Returns:
+        The commit response, or the response refusing the budgets
+    """
+    staged, run_path = await _stage_budgets(client, headers, payload)
+    if staged.status_code != 204:
+        return staged
+    return await client.post(f"{run_path}/firefly/commit", headers=headers)
+
+
+async def _import_one_budget(client, headers, category_id, limits, name="Groceries", is_archived=None, recurrence=None):
     """Import one budget and return the created base budget and its instances
 
     Args:
@@ -173,6 +263,7 @@ async def _import_one_budget(client, headers, category_id, limits, name="Groceri
         name: Budget name
         is_archived: Archived flag for the payload, omitted when None so the
             default is exercised
+        recurrence: Cadence the frontend would send, None for not recurring
 
     Returns:
         Base budget response paired with its instance list
@@ -181,16 +272,15 @@ async def _import_one_budget(client, headers, category_id, limits, name="Groceri
         "name": name,
         "currency": "CAD",
         "category_ids": [category_id],
+        "recurrence": recurrence,
         "limits": limits,
     }
     if is_archived is not None:
         payload["is_archived"] = is_archived
 
-    resp = await client.post("/transactions/import/firefly/budgets", json={
-        "budgets": [payload],
-    }, headers=headers)
+    resp = await _import_budgets(client, headers, {"budgets": [payload]})
     assert resp.status_code == 201
-    result = resp.json()["results"][0]
+    result = resp.json()["budgets"][0]
 
     base_resp = await client.get(f"/base-budgets/{result['base_budget_id']}", headers=headers)
     instances_resp = await client.get("/budgets", headers=headers)
@@ -321,6 +411,7 @@ async def _assert_compact_budget_import(client, record_property):
                 "name": name,
                 "currency": "CAD",
                 "category_ids": [groceries_id, dining_id],
+                "recurrence": None,
                 "limits": [
                     {
                         "start": "2025-01-01",
@@ -338,20 +429,18 @@ async def _assert_compact_budget_import(client, record_property):
         ],
     }
 
+    staged, run_path = await _stage_budgets(client, headers, payload)
+    assert staged.status_code == 204, staged.text
     with _observe_budget_import() as get_observations:
-        response = await client.post(
-            "/transactions/import/firefly/budgets",
-            json=payload,
-            headers=headers,
-        )
+        response = await client.post(f"{run_path}/firefly/commit", headers=headers)
     observations = get_observations()
 
     assert response.status_code == 201
     body = response.json()
     assert body["budgets_created"] == 8
-    assert [result["name"] for result in body["results"]] == budget_names
-    assert [result["instance_count"] for result in body["results"]] == [2] * 8
-    base_budget_ids = [uuid.UUID(result["base_budget_id"]) for result in body["results"]]
+    assert [result["name"] for result in body["budgets"]] == budget_names
+    assert [result["instance_count"] for result in body["budgets"]] == [2] * 8
+    base_budget_ids = [uuid.UUID(result["base_budget_id"]) for result in body["budgets"]]
     assert len(set(base_budget_ids)) == 8
     assert observations.category_selects > 0, observations
     assert observations.flushes, observations
@@ -448,70 +537,6 @@ async def test_firefly_budget_import_batches_budget_flushes(client, record_prope
     ), observations
 
 
-async def test_firefly_budget_import_chunks_distinct_category_union(client):
-    """More than 1,000 distinct requested categories use bounded reads and keep memberships"""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-    owner_id = uuid.UUID((await client.get("/test/me", headers=headers)).json()["id"])
-    async with TestSession() as session:
-        categories = [
-            Category(
-                owner_id=owner_id,
-                group_id=None,
-                name=f"Chunk category {index}",
-                kind=CategoryKind.EXPENSE,
-            )
-            for index in range(1001)
-        ]
-        session.add_all(categories)
-        await session.flush()
-        category_ids = sorted((category.id for category in categories), key=lambda category_id: category_id.int)
-        await session.commit()
-
-    payload = {
-        "budgets": [
-            {
-                "name": "First category chunk",
-                "currency": "CAD",
-                "category_ids": [str(category_id) for category_id in category_ids[:1000]],
-                "limits": [{"start": "2025-01-01", "end": "2025-01-31", "amount": "100.00"}],
-            },
-            {
-                "name": "Second category chunk",
-                "currency": "CAD",
-                "category_ids": [str(category_ids[-1]), str(category_ids[0]), str(category_ids[0])],
-                "limits": [{"start": "2025-02-01", "end": "2025-02-28", "amount": "200.00"}],
-            },
-        ],
-    }
-    with _observe_budget_import() as get_observations:
-        response = await client.post(
-            "/transactions/import/firefly/budgets",
-            json=payload,
-            headers=headers,
-        )
-    observations = get_observations()
-
-    assert response.status_code == 201
-    results = response.json()["results"]
-    assert [result["name"] for result in results] == ["First category chunk", "Second category chunk"]
-    assert len({result["base_budget_id"] for result in results}) == 2
-    assert observations.category_selects == 2, observations
-    base_budget_ids = [uuid.UUID(result["base_budget_id"]) for result in results]
-    _, budgets, tracked_categories = await _read_personal_budget_rows(owner_id, base_budget_ids)
-    assert len(budgets) == 2
-    links_by_budget = {
-        base_budget_id: {
-            link.category_id
-            for link in tracked_categories
-            if link.base_budget_id == base_budget_id and link.removed_at is None
-        }
-        for base_budget_id in base_budget_ids
-    }
-    assert links_by_budget[base_budget_ids[0]] == set(category_ids[:1000])
-    assert links_by_budget[base_budget_ids[1]] == {category_ids[-1], category_ids[0]}
-
-
 async def test_firefly_budget_import_accepts_system_and_own_categories_with_duplicates(client):
     """Personal imports accept system and own categories and de-duplicate each membership"""
     signup_resp = await _create_user(client)
@@ -520,7 +545,7 @@ async def test_firefly_budget_import_accepts_system_and_own_categories_with_dupl
     system_category_id = await _get_category_id(client, headers, "Groceries")
     personal_category_id = await _create_category(client, headers, name="Personal groceries")
 
-    response = await client.post("/transactions/import/firefly/budgets", json={
+    response = await _import_budgets(client, headers, {
         "budgets": [{
             "name": "Mixed category scope",
             "currency": "CAD",
@@ -530,12 +555,13 @@ async def test_firefly_budget_import_accepts_system_and_own_categories_with_dupl
                 system_category_id,
                 personal_category_id,
             ],
-            "limits": [{"start": "2025-01-01", "end": "2025-01-31", "amount": "100.00"}],
+            "recurrence": None,
+            "limits": [{"start": "2025-01-01", "end": "2025-01-31", "amount": "100.000000000000"}],
         }],
-    }, headers=headers)
+    })
 
     assert response.status_code == 201
-    base_budget_id = uuid.UUID(response.json()["results"][0]["base_budget_id"])
+    base_budget_id = uuid.UUID(response.json()["budgets"][0]["base_budget_id"])
     _, _, tracked_categories = await _read_personal_budget_rows(owner_id, [base_budget_id])
     assert len(tracked_categories) == 2
     assert {link.category_id for link in tracked_categories} == {
@@ -545,7 +571,11 @@ async def test_firefly_budget_import_accepts_system_and_own_categories_with_dupl
 
 
 async def test_firefly_budget_import_conceals_forbidden_categories_without_writes(client):
-    """Missing, other-personal and visible group categories share one refusal and create nothing"""
+    """Missing, other-personal and visible group categories are refused and create nothing
+
+    Staging refuses a category the user cannot see. A group category the user can see passes
+    staging, and the commit refuses it for a personal budget as it refuses a missing one
+    """
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     owner_id = uuid.UUID((await client.get("/test/me", headers=headers)).json()["id"])
@@ -553,23 +583,24 @@ async def test_firefly_budget_import_conceals_forbidden_categories_without_write
     other_personal_id = await _create_category(client, other_headers, name="Other personal")
     group_id = await _create_group(client, headers, name="Visible group")
     group_category_id = await _create_category(client, headers, name="Visible group category", group_id=group_id)
-    forbidden_ids = [
-        "00000000-0000-0000-0000-000000000000",
-        other_personal_id,
-        group_category_id,
+    forbidden = [
+        ("00000000-0000-0000-0000-000000000000", "Category not found"),
+        (other_personal_id, "Category not found"),
+        (group_category_id, "Forbidden category 2: a tracked category was not found"),
     ]
 
-    for index, category_id in enumerate(forbidden_ids):
-        response = await client.post("/transactions/import/firefly/budgets", json={
+    for index, (category_id, detail) in enumerate(forbidden):
+        response = await _import_budgets(client, headers, {
             "budgets": [{
                 "name": f"Forbidden category {index}",
                 "currency": "CAD",
                 "category_ids": [category_id],
-                "limits": [{"start": "2025-01-01", "end": "2025-01-31", "amount": "100.00"}],
+                "recurrence": None,
+                "limits": [{"start": "2025-01-01", "end": "2025-01-31", "amount": "100.000000000000"}],
             }],
-        }, headers=headers)
+        })
         assert response.status_code == 422
-        assert response.json()["detail"] == "Category not found"
+        assert response.json()["detail"] == detail
 
     base_budgets, budgets, tracked_categories = await _read_personal_budget_rows(owner_id)
     assert base_budgets == []
@@ -577,78 +608,39 @@ async def test_firefly_budget_import_conceals_forbidden_categories_without_write
     assert tracked_categories == []
 
 
-async def test_firefly_budget_import_preserves_budget_validation_order(client):
-    """Union discovery leaves category and amount errors in request and budget-local order"""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-    valid_category_id = await _get_category_id(client, headers, "Groceries")
-    missing_category_id = "00000000-0000-0000-0000-000000000000"
-
-    malformed_budget = {
-        "name": "Malformed first",
-        "currency": "CAD",
-        "category_ids": [valid_category_id],
-        "limits": [{"start": "2025-01-01", "end": "2025-01-31", "amount": "not-a-number"}],
-    }
-    missing_category_budget = {
-        "name": "Missing category",
-        "currency": "CAD",
-        "category_ids": [missing_category_id],
-        "limits": [{"start": "2025-01-01", "end": "2025-01-31", "amount": "100.00"}],
-    }
-
-    malformed_first = await client.post("/transactions/import/firefly/budgets", json={
-        "budgets": [malformed_budget, missing_category_budget],
-    }, headers=headers)
-    assert malformed_first.status_code == 422
-    assert malformed_first.json()["detail"] == 'Malformed first: invalid limit amount "not-a-number"'
-
-    missing_first = await client.post("/transactions/import/firefly/budgets", json={
-        "budgets": [missing_category_budget, malformed_budget],
-    }, headers=headers)
-    assert missing_first.status_code == 422
-    assert missing_first.json()["detail"] == "Category not found"
-
-    same_budget = await client.post("/transactions/import/firefly/budgets", json={
-        "budgets": [{
-            **malformed_budget,
-            "category_ids": [missing_category_id],
-        }],
-    }, headers=headers)
-    assert same_budget.status_code == 422
-    assert same_budget.json()["detail"] == "Category not found"
-
-
 async def test_firefly_budget_import_validates_currencies_before_budgets(client):
-    """Currency validation retains its upfront lexical error before budget-local failures"""
+    """Currencies are checked for every budget first, and the error names the first budget in an unsupported one"""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     valid_category_id = await _get_category_id(client, headers, "Groceries")
-    response = await client.post("/transactions/import/firefly/budgets", json={
+    response = await _import_budgets(client, headers, {
         "budgets": [
             {
-                "name": "Malformed CAD",
+                "name": "Unstorable CAD",
                 "currency": "CAD",
                 "category_ids": [valid_category_id],
-                "limits": [{"start": "2025-01-01", "end": "2025-01-31", "amount": "not-a-number"}],
+                "recurrence": None,
+                "limits": [{"start": "2025-01-01", "end": "2025-01-31", "amount": "12.345"}],
             },
             {
                 "name": "Missing ZZZ",
                 "currency": "ZZZ",
                 "category_ids": [valid_category_id],
-                "limits": [{"start": "2025-01-01", "end": "2025-01-31", "amount": "100.00"}],
+                "recurrence": None,
+                "limits": [{"start": "2025-01-01", "end": "2025-01-31", "amount": "100.000000000000"}],
             },
             {
                 "name": "Missing AAA",
                 "currency": "AAA",
                 "category_ids": [valid_category_id],
-                "limits": [{"start": "2025-01-01", "end": "2025-01-31", "amount": "100.00"}],
+                "recurrence": None,
+                "limits": [{"start": "2025-01-01", "end": "2025-01-31", "amount": "100.000000000000"}],
             },
         ],
-    }, headers=headers)
+    })
 
     assert response.status_code == 422
-    assert response.json()["detail"] == "Invalid currency code: AAA"
+    assert response.json()["detail"] == "Missing ZZZ: currency ZZZ is not supported"
 
 
 async def test_firefly_budget_import_bounds_pending_children(client):
@@ -659,19 +651,22 @@ async def test_firefly_budget_import_bounds_pending_children(client):
     category_id = await _get_category_id(client, headers, "Groceries")
     limits = _daily_budget_limits(1000)
 
+    staged, run_path = await _stage_budgets(client, headers, {
+        "budgets": [{
+            "name": "Bounded history",
+            "currency": "CAD",
+            "category_ids": [category_id],
+            "recurrence": None,
+            "limits": limits,
+        }],
+    })
+    assert staged.status_code == 204, staged.text
     with _observe_budget_import() as get_observations:
-        response = await client.post("/transactions/import/firefly/budgets", json={
-            "budgets": [{
-                "name": "Bounded history",
-                "currency": "CAD",
-                "category_ids": [category_id],
-                "limits": limits,
-            }],
-        }, headers=headers)
+        response = await client.post(f"{run_path}/firefly/commit", headers=headers)
     observations = get_observations()
 
     assert response.status_code == 201
-    result = response.json()["results"][0]
+    result = response.json()["budgets"][0]
     assert result["instance_count"] == 1000
     child_flushes = [
         flush for flush in observations.flushes
@@ -707,17 +702,18 @@ async def test_firefly_budget_import_keeps_duplicate_definitions_independent(cli
     owner_id = uuid.UUID((await client.get("/test/me", headers=headers)).json()["id"])
     category_id = await _get_category_id(client, headers, "Groceries")
     budget_payload = {
-        "name": "  Repeated budget  ",
+        "name": "Repeated budget",
         "currency": "CAD",
         "category_ids": [category_id, category_id],
-        "limits": [{"start": "2025-01-01", "end": "2025-01-31", "amount": "321.00"}],
+        "recurrence": None,
+        "limits": [{"start": "2025-01-01", "end": "2025-01-31", "amount": "321.000000000000"}],
     }
-    response = await client.post("/transactions/import/firefly/budgets", json={
+    response = await _import_budgets(client, headers, {
         "budgets": [budget_payload, budget_payload],
-    }, headers=headers)
+    })
 
     assert response.status_code == 201
-    results = response.json()["results"]
+    results = response.json()["budgets"]
     assert [result["name"] for result in results] == ["Repeated budget", "Repeated budget"]
     base_budget_ids = [uuid.UUID(result["base_budget_id"]) for result in results]
     assert len(set(base_budget_ids)) == 2
@@ -738,9 +734,9 @@ async def test_firefly_budget_import_keeps_duplicate_definitions_independent(cli
 
 
 @pytest.mark.parametrize(("currency", "amount", "expected"), [
-    ("CAD", "650.5000", 65050),
-    ("JPY", "650.000", 650),
-    ("BHD", "650.125", 650125),
+    ("CAD", "650.500000000000", 65050),
+    ("JPY", "650.000000000000", 650),
+    ("BHD", "650.125000000000", 650125),
 ])
 async def test_firefly_budget_import_preserves_currency_precision(client, currency, amount, expected):
     """Budget batching preserves accepted extra zeros and configured currency precision"""
@@ -759,17 +755,18 @@ async def test_firefly_budget_import_preserves_currency_precision(client, curren
             ))
             await session.commit()
     category_id = await _get_category_id(client, headers, "Groceries")
-    response = await client.post("/transactions/import/firefly/budgets", json={
+    response = await _import_budgets(client, headers, {
         "budgets": [{
             "name": f"{currency} precision",
             "currency": currency,
             "category_ids": [category_id],
+            "recurrence": None,
             "limits": [{"start": "2025-01-01", "end": "2025-01-31", "amount": amount}],
         }],
-    }, headers=headers)
+    })
 
     assert response.status_code == 201
-    base_budget_id = uuid.UUID(response.json()["results"][0]["base_budget_id"])
+    base_budget_id = uuid.UUID(response.json()["budgets"][0]["base_budget_id"])
     _, budgets, _ = await _read_personal_budget_rows(owner_id, [base_budget_id])
     assert len(budgets) == 1
     assert budgets[0].overall_limit == expected
@@ -777,31 +774,32 @@ async def test_firefly_budget_import_preserves_currency_precision(client, curren
 
 @pytest.mark.parametrize(("amount", "detail"), [
     ("12.345", 'Invalid amount: invalid limit amount "12.345"'),
-    ("not-a-number", 'Invalid amount: invalid limit amount "not-a-number"'),
+    ("100.555000000000", 'Invalid amount: invalid limit amount "100.555000000000"'),
+    ("0.000000000000", "Invalid amount: limit amounts must be positive"),
     ("92233720368547758.08", 'Invalid amount: invalid limit amount "92233720368547758.08"'),
     ("0.00", "Invalid amount: limit amounts must be positive"),
-    ("-1.00", "Invalid amount: limit amounts must be positive"),
 ])
 async def test_firefly_budget_import_preserves_limit_refusals(client, amount, detail):
     """Budget batching preserves precision, syntax, range and positive-limit refusals"""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     category_id = await _get_category_id(client, headers, "Groceries")
-    response = await client.post("/transactions/import/firefly/budgets", json={
+    response = await _import_budgets(client, headers, {
         "budgets": [{
             "name": "Invalid amount",
             "currency": "CAD",
             "category_ids": [category_id],
+            "recurrence": None,
             "limits": [{"start": "2025-01-01", "end": "2025-01-31", "amount": amount}],
         }],
-    }, headers=headers)
+    })
 
     assert response.status_code == 422
     assert response.json()["detail"] == detail
 
 
 @pytest.mark.parametrize(("invalid_kind", "expected_detail"), [
-    ("amount", 'Late invalid: invalid limit amount "not-a-number"'),
+    ("amount", 'Late invalid: invalid limit amount "12.345"'),
     ("category", "Category not found"),
     ("overlap", "Late invalid: two limit periods overlap"),
 ])
@@ -830,29 +828,31 @@ async def test_firefly_budget_import_rejections_preserve_existing_state(client, 
         "name": "Late invalid",
         "currency": "CAD",
         "category_ids": [category_id],
-        "limits": [{"start": "2025-02-01", "end": "2025-02-28", "amount": "100.00"}],
+        "recurrence": None,
+        "limits": [{"start": "2025-02-01", "end": "2025-02-28", "amount": "100.000000000000"}],
     }
     if invalid_kind == "amount":
-        invalid_budget["limits"][0]["amount"] = "not-a-number"
+        invalid_budget["limits"][0]["amount"] = "12.345"
     elif invalid_kind == "category":
         invalid_budget["category_ids"] = ["00000000-0000-0000-0000-000000000000"]
     else:
         invalid_budget["limits"].append({
             "start": "2025-02-15",
             "end": "2025-03-14",
-            "amount": "100.00",
+            "amount": "100.000000000000",
         })
-    response = await client.post("/transactions/import/firefly/budgets", json={
+    response = await _import_budgets(client, headers, {
         "budgets": [
             {
                 "name": "Would be valid",
                 "currency": "CAD",
                 "category_ids": [category_id],
-                "limits": [{"start": "2025-01-01", "end": "2025-01-31", "amount": "100.00"}],
+                "recurrence": None,
+                "limits": [{"start": "2025-01-01", "end": "2025-01-31", "amount": "100.000000000000"}],
             },
             invalid_budget,
         ],
-    }, headers=headers)
+    })
 
     assert response.status_code == 422
     assert response.json()["detail"] == expected_detail
@@ -881,24 +881,23 @@ async def test_firefly_budget_import_rolls_back_database_failures(client, fault_
     assert len(before.tracked_categories) == 1
     assert before.cache_state is not None
     limits = _daily_budget_limits(1000) if fault_boundary == "first-child-buffer" else [
-        {"start": "2025-01-01", "end": "2025-01-31", "amount": "100.00"},
+        {"start": "2025-01-01", "end": "2025-01-31", "amount": "100.000000000000"},
     ]
     payload = {
         "budgets": [{
             "name": f"Faulted import {fault_boundary}",
             "currency": "CAD",
             "category_ids": [category_id],
+            "recurrence": None,
             "limits": limits,
         }],
     }
 
+    staged, run_path = await _stage_budgets(client, headers, payload)
+    assert staged.status_code == 204, staged.text
     with _observe_budget_import(fail_after=fault_boundary) as get_observations:
         with pytest.raises(DBAPIError):
-            await client.post(
-                "/transactions/import/firefly/budgets",
-                json=payload,
-                headers=headers,
-            )
+            await client.post(f"{run_path}/firefly/commit", headers=headers)
     observations = get_observations()
 
     assert observations.fault_attempts == 1, observations
@@ -925,9 +924,9 @@ async def test_firefly_budget_import_mirrors_limit_periods(client):
     groceries_id = await _get_category_id(client, headers, "Groceries")
 
     base, own = await _import_one_budget(client, headers, groceries_id, [
-        {"start": "2025-01-01", "end": "2025-01-31", "amount": "600.00"},
-        {"start": "2025-03-01", "end": "2025-03-31", "amount": "650.50"},
-    ])
+        {"start": "2025-01-01", "end": "2025-01-31", "amount": "600.000000000000"},
+        {"start": "2025-03-01", "end": "2025-03-31", "amount": "650.500000000000"},
+    ], recurrence=MONTHLY_ON_THE_FIRST)
 
     assert base["currency"] == "CAD"
     assert base["recurrence_freq"] == "monthly"
@@ -955,8 +954,8 @@ async def test_firefly_budget_import_carries_archived_flag(client):
     groceries_id = await _get_category_id(client, headers, "Groceries")
 
     base, own = await _import_one_budget(client, headers, groceries_id, [
-        {"start": "2025-01-01", "end": "2025-01-31", "amount": "600.00"},
-        {"start": "2025-02-01", "end": "2025-02-28", "amount": "620.00"},
+        {"start": "2025-01-01", "end": "2025-01-31", "amount": "600.000000000000"},
+        {"start": "2025-02-01", "end": "2025-02-28", "amount": "620.000000000000"},
     ], is_archived=True)
 
     assert base["is_archived"] is True
@@ -967,113 +966,166 @@ async def test_firefly_budget_import_carries_archived_flag(client):
     }
 
 
-async def test_firefly_budget_import_reads_cadence_from_latest_period(client):
-    """A budget that moved from monthly to quarterly limits continues quarterly"""
+def _monthly_limits(*months):
+    """Return one Firefly-format limit for each calendar month of 2026 given"""
+    return [
+        {
+            "start": f"2026-{month:02d}-01",
+            "end": (date(2026, month + 1, 1) - timedelta(days=1)).isoformat(),
+            "amount": "500.000000000000",
+        }
+        for month in months
+    ]
+
+
+# The browser reads these cadences off the latest limit period, and
+# frontend/tests/pages/imports/firefly/utils/budgets.test.ts expects the same ones from the same
+# limits, so this shows the endpoint stores every cadence the preview can send
+@pytest.mark.parametrize(("limits", "recurrence"), [
+    pytest.param(
+        [
+            {"start": "2025-12-01", "end": "2025-12-31", "amount": "140.000000000000"},
+            {"start": "2026-01-01", "end": "2026-03-31", "amount": "420.000000000000"},
+        ],
+        {"freq": "monthly", "instance_length": 3, "weekday": None, "dom": 1, "month": None},
+        id="quarterly after monthly",
+    ),
+    pytest.param(
+        [
+            {"start": "2024-01-01", "end": "2024-12-31", "amount": "540.000000000000"},
+            {"start": "2025-01-01", "end": "2025-12-31", "amount": "560.000000000000"},
+        ],
+        {"freq": "yearly", "instance_length": 1, "weekday": None, "dom": 1, "month": 1},
+        id="yearly",
+    ),
+    pytest.param(
+        [
+            {"start": "2026-01-05", "end": "2026-01-11", "amount": "40.000000000000"},
+            {"start": "2026-01-12", "end": "2026-01-18", "amount": "42.000000000000"},
+        ],
+        {"freq": "weekly", "instance_length": 1, "weekday": 0, "dom": None, "month": None},
+        id="weekly from Monday",
+    ),
+    pytest.param(
+        [{"start": "2026-01-15", "end": "2026-02-14", "amount": "100.000000000000"}],
+        {"freq": "monthly", "instance_length": 1, "weekday": None, "dom": 15, "month": None},
+        id="mid-month anchor",
+    ),
+    pytest.param(
+        [{"start": "2026-02-28", "end": "2026-03-30", "amount": "100.000000000000"}],
+        {"freq": "monthly", "instance_length": 1, "weekday": None, "dom": 31, "month": None},
+        id="day-31 anchor capped in February",
+    ),
+    pytest.param(
+        [{"start": "2025-11-30", "end": "2026-02-28", "amount": "300.000000000000"}],
+        {"freq": "weekly", "instance_length": 13, "weekday": 6, "dom": None, "month": None},
+        id="quarter from November 30 is 13 weeks",
+    ),
+    pytest.param(
+        [*_monthly_limits(2, 3, 4), {"start": "2026-05-01", "end": "2026-05-20", "amount": "320.000000000000"}],
+        None,
+        id="monthly then May 1 to 20 is not recurring",
+    ),
+])
+async def test_firefly_budget_import_stores_the_cadence_the_browser_reads(client, limits, recurrence):
+    """The sent cadence is stored when the latest period is one period of it, and none stores a non-recurring budget"""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     groceries_id = await _get_category_id(client, headers, "Groceries")
 
-    base, own = await _import_one_budget(client, headers, groceries_id, [
-        {"start": "2023-12-01", "end": "2023-12-31", "amount": "140.00"},
-        {"start": "2024-01-01", "end": "2024-03-31", "amount": "420.00"},
-    ])
+    base, own = await _import_one_budget(client, headers, groceries_id, limits, recurrence=recurrence)
 
-    assert base["recurrence_freq"] == "monthly"
-    assert base["instance_length"] == 3
-    assert base["recurrence_dom"] == 1
-    assert base["recurs"] is True
-    assert len(own) == 2
+    stored = {
+        "freq": base["recurrence_freq"],
+        "instance_length": base["instance_length"],
+        "weekday": base["recurrence_weekday"],
+        "dom": base["recurrence_dom"],
+        "month": base["recurrence_month"],
+    }
+    if recurrence is None:
+        assert stored == {"freq": "monthly", "instance_length": 1, "weekday": None, "dom": 1, "month": None}
+        assert base["recurs"] is False
+    else:
+        assert stored == recurrence
+        assert base["recurs"] is True
+    assert sorted((b["period_start"], b["period_end"]) for b in own) == [
+        (limit["start"], limit["end"]) for limit in limits
+    ]
 
 
-async def test_firefly_budget_import_maps_yearly_periods(client):
-    """Twelve-month limit periods continue as a yearly budget"""
+@pytest.mark.parametrize(("limits", "recurrence"), [
+    pytest.param(
+        [{"start": "2026-01-05", "end": "2026-01-11", "amount": "40.000000000000"}],
+        {"freq": "weekly", "instance_length": 1, "weekday": 1, "dom": None, "month": None},
+        id="weekly on the wrong weekday",
+    ),
+    pytest.param(
+        [*_monthly_limits(1), {"start": "2026-02-01", "end": "2026-04-30", "amount": "300.000000000000"}],
+        MONTHLY_ON_THE_FIRST,
+        id="one month sent for a quarter",
+    ),
+    pytest.param(
+        [{"start": "2026-02-28", "end": "2026-03-30", "amount": "100.000000000000"}],
+        {"freq": "monthly", "instance_length": 1, "weekday": None, "dom": 30, "month": None},
+        id="capped anchor that starts right and ends a day early",
+    ),
+    pytest.param(
+        [*_monthly_limits(2, 3, 4), {"start": "2026-05-01", "end": "2026-05-20", "amount": "320.000000000000"}],
+        MONTHLY_ON_THE_FIRST,
+        id="monthly then May 1 to 20 sent as monthly",
+    ),
+    pytest.param(
+        [{"start": "9999-12-01", "end": "9999-12-31", "amount": "100.000000000000"}],
+        MONTHLY_ON_THE_FIRST,
+        id="next period past the last representable date",
+    ),
+])
+async def test_firefly_budget_import_refuses_a_cadence_the_latest_period_does_not_fit(client, limits, recurrence):
+    """A cadence whose next period would not follow the imported history is refused, naming the budget"""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     groceries_id = await _get_category_id(client, headers, "Groceries")
 
-    base, own = await _import_one_budget(client, headers, groceries_id, [
-        {"start": "2024-01-01", "end": "2024-12-31", "amount": "540.00"},
-        {"start": "2025-01-01", "end": "2025-12-31", "amount": "560.00"},
-    ])
+    resp = await _import_budgets(client, headers, {
+        "budgets": [{
+            "name": "Groceries",
+            "currency": "CAD",
+            "category_ids": [groceries_id],
+            "limits": limits,
+            "recurrence": recurrence,
+        }],
+    })
 
-    assert base["recurrence_freq"] == "yearly"
-    assert base["instance_length"] == 1
-    assert base["recurrence_month"] == 1
-    assert base["recurrence_dom"] == 1
-    assert base["recurs"] is True
-    assert len(own) == 2
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "Groceries: the cadence does not fit the latest limit period"
+    assert (await client.get("/base-budgets", headers=headers)).json() == []
 
 
-async def test_firefly_budget_import_maps_weekly_periods(client):
-    """Seven-day limit periods continue as a weekly budget on their weekday"""
+@pytest.mark.parametrize("recurrence", [
+    pytest.param({}, id="left out"),
+    pytest.param(
+        {"recurrence": {"freq": "monthly", "instance_length": 1, "weekday": 0, "dom": 1, "month": None}},
+        id="monthly with a weekday",
+    ),
+])
+async def test_firefly_budget_import_requires_a_well_formed_cadence(client, recurrence):
+    """A budget without a recurrence is refused rather than silently imported not recurring, as is a malformed one"""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     groceries_id = await _get_category_id(client, headers, "Groceries")
 
-    base, own = await _import_one_budget(client, headers, groceries_id, [
-        {"start": "2026-01-05", "end": "2026-01-11", "amount": "40.00"},
-        {"start": "2026-01-12", "end": "2026-01-18", "amount": "42.00"},
-    ])
+    resp = await _import_budgets(client, headers, {
+        "budgets": [{
+            "name": "Groceries",
+            "currency": "CAD",
+            "category_ids": [groceries_id],
+            "limits": _monthly_limits(1),
+            **recurrence,
+        }],
+    })
 
-    assert base["recurrence_freq"] == "weekly"
-    assert base["instance_length"] == 1
-    assert base["recurrence_weekday"] == 0
-    assert base["recurs"] is True
-    assert len(own) == 2
-
-
-async def test_firefly_budget_import_keeps_mid_month_monthly_anchor(client):
-    """A month-long period starting mid-month anchors on that day of month"""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-    groceries_id = await _get_category_id(client, headers, "Groceries")
-
-    base, own = await _import_one_budget(client, headers, groceries_id, [
-        {"start": "2026-01-15", "end": "2026-02-14", "amount": "100.00"},
-    ])
-
-    assert base["recurrence_freq"] == "monthly"
-    assert base["recurrence_dom"] == 15
-    assert base["recurs"] is True
-    assert own[0]["period_start"] == "2026-01-15"
-    assert own[0]["period_end"] == "2026-02-14"
-
-
-async def test_firefly_budget_import_recovers_capped_month_end_anchor(client):
-    """A period starting on a short month's last day recovers its real anchor"""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-    groceries_id = await _get_category_id(client, headers, "Groceries")
-
-    # February 28 is the capped form of a day-31 anchor, which only the
-    # period end can disambiguate
-    base, own = await _import_one_budget(client, headers, groceries_id, [
-        {"start": "2026-02-28", "end": "2026-03-30", "amount": "100.00"},
-    ])
-
-    assert base["recurrence_freq"] == "monthly"
-    assert base["recurrence_dom"] == 31
-    assert base["recurs"] is True
-    assert len(own) == 1
-
-
-async def test_firefly_budget_import_falls_back_for_irregular_period(client):
-    """A period fitting no cadence imports verbatim as a non-recurring budget"""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-    groceries_id = await _get_category_id(client, headers, "Groceries")
-
-    base, own = await _import_one_budget(client, headers, groceries_id, [
-        {"start": "2024-10-04", "end": "2024-10-26", "amount": "800.00"},
-    ])
-
-    assert base["recurrence_freq"] == "monthly"
-    assert base["instance_length"] == 1
-    assert base["recurrence_dom"] == 1
-    assert base["recurs"] is False
-    assert own[0]["period_start"] == "2024-10-04"
-    assert own[0]["period_end"] == "2024-10-26"
-    assert own[0]["overall_limit"] == 80000
+    assert resp.status_code == 422
+    assert any(error["loc"] == ["body", "budgets", 0, "recurrence"] for error in resp.json()["detail"])
 
 
 async def test_firefly_budget_import_rejects_overlapping_periods(client):
@@ -1082,17 +1134,18 @@ async def test_firefly_budget_import_rejects_overlapping_periods(client):
     headers = _get_auth_header(signup_resp)
     groceries_id = await _get_category_id(client, headers, "Groceries")
 
-    resp = await client.post("/transactions/import/firefly/budgets", json={
+    resp = await _import_budgets(client, headers, {
         "budgets": [{
             "name": "Groceries",
             "currency": "CAD",
             "category_ids": [groceries_id],
+            "recurrence": None,
             "limits": [
-                {"start": "2026-01-01", "end": "2026-01-31", "amount": "600.00"},
-                {"start": "2026-01-15", "end": "2026-02-14", "amount": "700.00"},
+                {"start": "2026-01-01", "end": "2026-01-31", "amount": "600.000000000000"},
+                {"start": "2026-01-15", "end": "2026-02-14", "amount": "700.000000000000"},
             ],
         }],
-    }, headers=headers)
+    })
 
     assert resp.status_code == 422
     assert resp.json()["detail"] == "Groceries: two limit periods overlap"
@@ -1104,42 +1157,45 @@ async def test_firefly_budget_import_rejects_period_end_before_start(client):
     headers = _get_auth_header(signup_resp)
     groceries_id = await _get_category_id(client, headers, "Groceries")
 
-    resp = await client.post("/transactions/import/firefly/budgets", json={
+    resp = await _import_budgets(client, headers, {
         "budgets": [{
             "name": "Groceries",
             "currency": "CAD",
             "category_ids": [groceries_id],
-            "limits": [{"start": "2026-01-31", "end": "2026-01-01", "amount": "600.00"}],
+            "recurrence": None,
+            "limits": [{"start": "2026-01-31", "end": "2026-01-01", "amount": "600.000000000000"}],
         }],
-    }, headers=headers)
+    })
 
     assert resp.status_code == 422
     assert resp.json()["detail"] == "Groceries: a limit period ends before it starts"
 
 
-@pytest.mark.parametrize("invalid_amount", ["not-a-number", "١٢.٣٤", "12.34\u001c", " 12.34 ", "1,234.56"])
+@pytest.mark.parametrize("invalid_amount", ["12.345", "92233720368547758.08"])
 async def test_firefly_budget_import_is_atomic_across_budgets(client, invalid_amount):
-    """Each malformed amount in a later budget rolls back every budget in the batch"""
+    """An amount a later budget cannot store rolls back every budget in the batch"""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
     groceries_id = await _get_category_id(client, headers, "Groceries")
 
-    resp = await client.post("/transactions/import/firefly/budgets", json={
+    resp = await _import_budgets(client, headers, {
         "budgets": [
             {
                 "name": "Groceries",
                 "currency": "CAD",
                 "category_ids": [groceries_id],
-                "limits": [{"start": "2026-01-01", "end": "2026-01-31", "amount": "600.00"}],
+                "recurrence": None,
+                "limits": [{"start": "2026-01-01", "end": "2026-01-31", "amount": "600.000000000000"}],
             },
             {
                 "name": "Broken",
                 "currency": "CAD",
                 "category_ids": [groceries_id],
+                "recurrence": None,
                 "limits": [{"start": "2026-01-01", "end": "2026-01-31", "amount": invalid_amount}],
             },
         ],
-    }, headers=headers)
+    })
 
     assert resp.status_code == 422
     assert resp.json()["detail"] == f'Broken: invalid limit amount "{invalid_amount}"'
@@ -1151,18 +1207,19 @@ async def test_firefly_budget_import_is_atomic_across_budgets(client, invalid_am
 
 
 async def test_firefly_budget_import_rejects_unknown_category(client):
-    """Tracked categories must be visible to the importing user"""
+    """Tracked categories must be visible to the importing user, which staging the budgets checks"""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    resp = await client.post("/transactions/import/firefly/budgets", json={
+    resp = await _import_budgets(client, headers, {
         "budgets": [{
             "name": "Groceries",
             "currency": "CAD",
             "category_ids": ["00000000-0000-0000-0000-000000000000"],
-            "limits": [{"start": "2026-01-01", "end": "2026-01-31", "amount": "600.00"}],
+            "recurrence": None,
+            "limits": [{"start": "2026-01-01", "end": "2026-01-31", "amount": "600.000000000000"}],
         }],
-    }, headers=headers)
+    })
 
     assert resp.status_code == 422
     assert resp.json()["detail"] == "Category not found"

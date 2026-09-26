@@ -4,7 +4,8 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 
 from fastapi import HTTPException, status
-from sqlalchemy import func, literal_column, select, text
+from sqlalchemy import String, func, literal, literal_column, select, text
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.base import CategoryKind
@@ -17,20 +18,44 @@ from app.services.importers.shared.validation_helpers import strip_import_text_o
 from app.services.merchants.defaults import SELF_MERCHANT_NAME, UNKNOWN_MERCHANT_NAME
 
 
-def get_import_merchant_key(name: str) -> str:
-    """Return what a merchant name is matched under during an import
+def select_requested_merchant_names(names: Iterable[str]):
+    """Return the given names as a table the database can compare with merchant names
+
+    Sent as one array rather than a row of parameters each, so a file with a hundred thousand
+    payees is one parameter
+
+    Args:
+        names: Names to send, repeats allowed
+
+    Returns:
+        A table with one "name" column holding each distinct name
+    """
+    return func.unnest(literal(sorted(set(names)), ARRAY(String))).table_valued("name").render_derived()
+
+
+async def load_import_merchant_keys(db: AsyncSession, names: Iterable[str]) -> dict[str, str]:
+    """Return what each merchant name is matched under during an import
 
     Trimmed and compared without regard to capitalisation, so an import reaches the verdict the
     merchants create and rename routes reach. Those refuse a name a system merchant already holds,
-    whatever the scope, and refuse "myself" beside the seeded "Myself"
+    whatever the scope, and refuse "myself" beside the seeded "Myself". The database lowercases
+    rather than Python, since the two disagree on some letters, such as "İ", and the unique indexes
+    an import must agree with are built on the database's lower(name)
 
     Args:
-        name: Merchant name from an import row, or from a merchant already stored
+        db: Active database session
+        names: Trimmed names from import rows and answers, repeats allowed
 
     Returns:
-        The key the name is matched under
+        The key each distinct name is matched under
     """
-    return name.strip().lower()
+    names = set(names)
+    if not names:
+        return {}
+
+    requested = select_requested_merchant_names(names)
+    rows = await db.execute(select(requested.c.name, func.lower(requested.c.name)))
+    return {name: key for name, key in rows.all()}
 
 
 def get_import_merchant_scope_filter(user_id: uuid.UUID):
@@ -122,12 +147,29 @@ class ImportMerchants:
             rather than by any merchant's name. This is what a row is filed through
         skipped_keys: Payee values the user answered skip, whose rows are filed under the shared
             merchant the app stamps on a row stating no payee at all
+        keys_by_name: The key the database gave each name this import has met, merchants' own names
+            and the file's payee values alike, since every key is worked out by the database
     """
 
     existing_by_name_key: dict[str, Merchant]
     system_by_key: dict[str, Merchant] = field(default_factory=dict)
     resolved_by_payee_key: dict[str, Merchant] = field(default_factory=dict)
     skipped_keys: set[str] = field(default_factory=set)
+    keys_by_name: dict[str, str] = field(default_factory=dict)
+
+    def get_key(self, name: str) -> str:
+        """Return the key a trimmed name is matched under
+
+        Args:
+            name: A name this import has already loaded the key of
+
+        Returns:
+            The key
+
+        Raises:
+            KeyError: Raised when the name's key was never loaded
+        """
+        return self.keys_by_name[name]
 
 
 async def load_import_merchants(db: AsyncSession, user_id: uuid.UUID) -> ImportMerchants:
@@ -144,7 +186,7 @@ async def load_import_merchants(db: AsyncSession, user_id: uuid.UUID) -> ImportM
     # merchants are included because their names are taken in every scope, and leaving them out is
     # what let an import create a personal Myself beside the seeded one
     result = await db.execute(
-        select(Merchant)
+        select(Merchant, func.lower(Merchant.name))
         .where(get_import_merchant_scope_filter(user_id))
         # A database written before capitalisation stopped counting can hold two merchants sharing a
         # key, so the order settles which one wins rather than leaving it to the order rows arrive
@@ -152,14 +194,13 @@ async def load_import_merchants(db: AsyncSession, user_id: uuid.UUID) -> ImportM
         .order_by(Merchant.is_system.desc(), Merchant.created_at, Merchant.id),
     )
 
-    existing_by_name_key: dict[str, Merchant] = {}
-    system_by_key: dict[str, Merchant] = {}
-    for merchant in result.scalars().all():
-        key = get_import_merchant_key(merchant.name)
-        existing_by_name_key.setdefault(key, merchant)
+    merchants = ImportMerchants(existing_by_name_key={})
+    for merchant, key in result.all():
+        merchants.keys_by_name[merchant.name] = key
+        merchants.existing_by_name_key.setdefault(key, merchant)
         if merchant.is_system:
-            system_by_key.setdefault(key, merchant)
-    return ImportMerchants(existing_by_name_key=existing_by_name_key, system_by_key=system_by_key)
+            merchants.system_by_key.setdefault(key, merchant)
+    return merchants
 
 
 async def create_missing_import_merchants(
@@ -195,7 +236,24 @@ async def create_missing_import_merchants(
             merchant the import cannot use. Raised with 500 when a name the insert skipped cannot
             then be found, which takes another request creating it and then rolling back
     """
-    answers = _index_import_merchant_answers(mappings)
+    # Read once, since the caller may pass a generator, and measured before any query so a refused
+    # request writes nothing
+    names = [name for name in (raw_name.strip() if raw_name else "" for raw_name in raw_names) if name]
+    for name in set(names):
+        _require_import_merchant_name_fits(name)
+
+    # Every key this call needs comes from one query, the answered values and the names they create
+    # included, so no key is worked out in Python
+    wanted = {*names}
+    for mapping in mappings:
+        wanted.add(mapping.source.strip())
+        if mapping.create is not None:
+            wanted.add(mapping.create.name)
+    merchants.keys_by_name.update(
+        await load_import_merchant_keys(db, wanted - merchants.keys_by_name.keys()),
+    )
+
+    answers = _index_import_merchant_answers(mappings, merchants)
     merchants.skipped_keys.update(key for key, answer in answers.items() if answer.skip)
     await _attach_chosen_import_merchants(db, user_id, answers, merchants)
 
@@ -204,13 +262,8 @@ async def create_missing_import_merchants(
     names_by_key: dict[str, str] = {}
     name_key_by_payee_key: dict[str, str] = {}
 
-    for raw_name in raw_names:
-        name = raw_name.strip() if raw_name else ""
-        if not name:
-            continue
-        _require_import_merchant_name_fits(name)
-
-        payee_key = get_import_merchant_key(name)
+    for name in names:
+        payee_key = merchants.get_key(name)
         if payee_key in name_key_by_payee_key or payee_key in merchants.resolved_by_payee_key:
             continue
 
@@ -227,7 +280,7 @@ async def create_missing_import_merchants(
         # A name already held is reused rather than written again, which is what the merchants route
         # answers 409 for. The unique index catches the user's own, but not one that ships with the
         # app, since a system merchant has no owner and so shares no index entry with a personal one
-        name_key = get_import_merchant_key(stored_name)
+        name_key = merchants.get_key(stored_name)
         existing = merchants.existing_by_name_key.get(name_key)
         if existing is not None:
             merchants.resolved_by_payee_key[payee_key] = existing
@@ -253,7 +306,7 @@ async def create_missing_import_merchants(
         index_where=text("group_id IS NULL"),
     )
 
-    written_by_key = {get_import_merchant_key(merchant.name): merchant for merchant in inserted}
+    written_by_key = {merchants.get_key(merchant.name): merchant for merchant in inserted}
     for merchant in inserted:
         stats.merchants_created += 1
         stats.created_merchant_ids.append(merchant.id)
@@ -287,11 +340,13 @@ def _require_import_merchant_name_fits(name: str) -> None:
 
 def _index_import_merchant_answers(
     mappings: list[TransactionImportMerchantMapping],
+    merchants: ImportMerchants,
 ) -> dict[str, TransactionImportMerchantMapping]:
     """Return the answered payee values keyed by what matches them
 
     Args:
         mappings: The payee values the user answered by hand
+        merchants: Merchant lookup for this import, holding the key of every answered value
 
     Returns:
         Each answer keyed by its matching key
@@ -315,7 +370,7 @@ def _index_import_merchant_answers(
 
         # Two spellings of one payee resolve to one merchant, so answering both leaves nothing to
         # say which answer the rows carrying either spelling should take
-        key = get_import_merchant_key(source)
+        key = merchants.get_key(source)
         if key in answers:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -391,7 +446,7 @@ async def _load_import_merchants_created_elsewhere(
     """
     # Ordered as the first load orders them, so which row wins does not depend on where it was found
     result = await db.execute(
-        select(Merchant)
+        select(Merchant, func.lower(Merchant.name))
         .where(
             get_import_merchant_scope_filter(user_id),
             func.lower(Merchant.name).in_(keys),
@@ -400,8 +455,8 @@ async def _load_import_merchants_created_elsewhere(
     )
 
     found: dict[str, Merchant] = {}
-    for merchant in result.scalars().all():
-        found.setdefault(get_import_merchant_key(merchant.name), merchant)
+    for merchant, key in result.all():
+        found.setdefault(key, merchant)
 
     missing = keys - found.keys()
     if missing:
@@ -435,7 +490,7 @@ def get_import_merchant(
     if not name:
         return None
 
-    key = get_import_merchant_key(name)
+    key = merchants.get_key(name)
     if key in merchants.skipped_keys:
         return None
 
@@ -489,12 +544,12 @@ def get_no_payee_merchants(merchants: ImportMerchants) -> NoPayeeMerchants:
         HTTPException: Raised with 500 when either merchant is not seeded
     """
     return NoPayeeMerchants(
-        transfer=_require_system_merchant(merchants.system_by_key, SELF_MERCHANT_NAME),
-        other=_require_system_merchant(merchants.system_by_key, UNKNOWN_MERCHANT_NAME),
+        transfer=_require_system_merchant(merchants, SELF_MERCHANT_NAME),
+        other=_require_system_merchant(merchants, UNKNOWN_MERCHANT_NAME),
     )
 
 
-def _require_system_merchant(system_by_key: dict[str, Merchant], name: str) -> Merchant:
+def _require_system_merchant(merchants: ImportMerchants, name: str) -> Merchant:
     """Return one merchant that ships with the app, refusing the import when it is absent
 
     Read from the merchants that ship with the app rather than from what the file's payee values
@@ -504,7 +559,7 @@ def _require_system_merchant(system_by_key: dict[str, Merchant], name: str) -> M
     merchant on their rows
 
     Args:
-        system_by_key: The merchants that ship with the app, keyed by what matches them
+        merchants: Merchant lookup for this import, whose loaded merchants carry their keys
         name: Name of the system merchant wanted
 
     Returns:
@@ -513,7 +568,8 @@ def _require_system_merchant(system_by_key: dict[str, Merchant], name: str) -> M
     Raises:
         HTTPException: Raised with 500 when the merchant is absent
     """
-    merchant = system_by_key.get(get_import_merchant_key(name))
+    key = merchants.keys_by_name.get(name)
+    merchant = merchants.system_by_key.get(key) if key is not None else None
     if merchant is None:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

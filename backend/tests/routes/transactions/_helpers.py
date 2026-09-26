@@ -203,3 +203,36 @@ async def _import_transactions(client, headers, payload):
         return stage_resp
 
     return await client.post(f"/transactions/import/runs/{run_id}/commit", headers=headers)
+
+
+async def _import_firefly(client, headers, payload, budgets=None):
+    """Stage a whole Firefly III payload as one batch of a Firefly III run, with any budgets, and commit it
+
+    Args:
+        client: The async test client
+        headers: Auth headers for the importing user
+        payload: Account mappings, category mappings and journal rows, as the import screen builds them
+        budgets: The budgets request, left unsent when None
+
+    Returns:
+        The commit response, or the first call that refused the import
+    """
+    run_resp = await client.post(
+        "/transactions/import/runs",
+        json={"expected_transaction_count": len(payload["rows"]), "source": "firefly"},
+        headers=headers,
+    )
+    if run_resp.status_code != 201:
+        return run_resp
+
+    run_path = f"/transactions/import/runs/{run_resp.json()['id']}"
+    stage_resp = await client.post(f"{run_path}/firefly/rows", json={**payload, "start_row_index": 0}, headers=headers)
+    if stage_resp.status_code != 204:
+        return stage_resp
+
+    if budgets is not None:
+        budgets_resp = await client.put(f"{run_path}/budgets", json=budgets, headers=headers)
+        if budgets_resp.status_code != 204:
+            return budgets_resp
+
+    return await client.post(f"{run_path}/firefly/commit", headers=headers)

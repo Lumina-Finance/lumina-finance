@@ -108,7 +108,7 @@ async def zero_account_balance_for_archive(
     account: Account,
     user: User,
     archive_date: date,
-) -> None:
+) -> bool:
     """Add an archive adjustment when an account has a nonzero balance
 
     Args:
@@ -117,12 +117,15 @@ async def zero_account_balance_for_archive(
         user: Authenticated user archiving the account
         archive_date: Date used for the archive adjustment transaction
 
+    Returns:
+        Whether an adjustment was added
+
     Raises:
         HTTPException: Balance adjustment category or the Myself merchant is not configured
     """
     current_balance = (await get_current_balances(db, [account.id], archive_date)).get(account.id, 0)
     if current_balance == 0:
-        return
+        return False
 
     db.add(Transaction(
         created_by_user_id=user.id,
@@ -137,6 +140,7 @@ async def zero_account_balance_for_archive(
     ))
     await db.flush()
     await recompute_account_snapshots(db, {account.id: archive_date})
+    return True
 
 
 async def _get_self_merchant_id(db: AsyncSession) -> uuid.UUID:

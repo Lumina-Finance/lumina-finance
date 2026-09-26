@@ -9,7 +9,11 @@ import uuid
 import pytest
 from fastapi import HTTPException
 
-from app.services.importers.shared.merchants import ImportMerchants, create_missing_import_merchants
+from app.services.importers.shared.merchants import (
+    ImportMerchants,
+    create_missing_import_merchants,
+    load_import_merchant_keys,
+)
 from app.services.importers.shared.stats import ImportStats
 from app.services.importers.shared.tags import create_missing_import_tags
 from tests.conftest import TestSession
@@ -26,6 +30,17 @@ async def test_a_merchant_name_over_the_column_limit_is_refused():
 
         assert exc_info.value.status_code == 422
         assert exc_info.value.detail == f"Merchant name is too long: {name[:28]}"
+
+
+async def test_merchant_keys_for_a_file_of_every_size_are_worked_out_by_the_database():
+    """A file's payees go to the database as one parameter, past the driver's limit on parameters."""
+    async with TestSession() as session:
+        names = [f"Payee {index}" for index in range(40_000)] + ["İstanbul Kebap"]
+
+        keys = await load_import_merchant_keys(session, names)
+
+        assert len(keys) == 40_001
+        assert keys["İstanbul Kebap"] == "istanbul kebap"
 
 
 async def test_a_tag_name_over_the_column_limit_is_refused():

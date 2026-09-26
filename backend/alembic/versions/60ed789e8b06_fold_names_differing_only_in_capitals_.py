@@ -43,8 +43,8 @@ _MERCHANT_NAME_SCOPE = """
 # would leave a name ending in a tab stored untrimmed while every comparison trims it, so no typed
 # name could ever match that row again. This covers the whitespace a file or a paste actually
 # carries, and not the rest of what Python's str.strip() removes, such as U+2000 to U+200A. A name
-# ending in one of those keeps it here, and the application folds it anyway, so the pair is left for
-# an import to resolve to whichever of the two the ordering puts first
+# ending in one of those keeps it here, and the application compares stored names untrimmed, as the
+# unique indexes do, so such a name stays apart from the same name without it
 _TRIMMED_CHARACTERS = " \t\n\r\f\v "
 
 

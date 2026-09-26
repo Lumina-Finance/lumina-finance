@@ -1,14 +1,18 @@
 import type { ImportFileDraft } from '@/pages/imports/types'
 import { readCsvFile } from '@/pages/imports/utils'
 import {
+  FIREFLY_ACCOUNTS_REQUIRED_HEADERS,
   FIREFLY_BUDGETS_REQUIRED_HEADERS,
   FIREFLY_TRANSACTIONS_REQUIRED_HEADERS,
 } from '@/pages/imports/firefly/constants'
 import type { FireflyFileKind } from '@/pages/imports/firefly/types'
+import { findFireflyUnreadableActiveAccount } from './accountsExport'
+import { readFireflyCsvRecords } from './csvRecords'
 
 const REQUIRED_HEADERS_BY_KIND: Record<FireflyFileKind, string[]> = {
   transactions: FIREFLY_TRANSACTIONS_REQUIRED_HEADERS,
   budgets: FIREFLY_BUDGETS_REQUIRED_HEADERS,
+  accounts: FIREFLY_ACCOUNTS_REQUIRED_HEADERS,
 }
 
 // Firefly III writes its exports through league/csv's formula escaping, which puts this character
@@ -20,8 +24,8 @@ const FORMULA_ESCAPE = "'"
 const FORMULA_TRIGGERS = new Set(['=', '-', '+', '@', '\t', '\n'])
 
 /**
- * Reads one Firefly III export file, flags missing required columns and removes the formula escape
- * Firefly III puts in front of its cells
+ * Reads one Firefly III export file with the quoting Firefly III writes, flags missing required
+ * columns and removes the formula escape Firefly III puts in front of its cells
  *
  * @param file - The uploaded file
  * @param kind - Which Firefly III export this file is meant to be
@@ -37,6 +41,7 @@ export async function readFireflyCsvFile(
   const draft = await readCsvFile(file, supportedCurrencyCodes, {
     requireDataRows: kind === 'transactions',
     unescapeCell: unescapeFireflyCell,
+    readRecords: readFireflyCsvRecords,
   })
   if (draft.error) return draft
 
@@ -44,6 +49,13 @@ export async function readFireflyCsvFile(
   const missing = REQUIRED_HEADERS_BY_KIND[kind].filter((header) => !headers.has(header))
   if (missing.length > 0) {
     return { ...draft, error: `Not a Firefly III ${kind} export, missing columns: ${missing.join(', ')}` }
+  }
+
+  if (kind === 'accounts') {
+    const unreadable = findFireflyUnreadableActiveAccount(draft.rows)
+    if (unreadable) {
+      return { ...draft, error: `Can't tell whether the account "${unreadable}" is active, so the file can't be used` }
+    }
   }
 
   return draft

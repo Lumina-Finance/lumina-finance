@@ -10,23 +10,42 @@ import {
 } from '@/pages/imports/constants'
 import type { CsvRow, ImportCategoryKind } from '@/pages/imports/types'
 import {
+  FIREFLY_BALANCE_ROW_UNATTACHED_REASON,
+  FIREFLY_DEPOSIT_DESTINATION_UNTRACKED_REASON,
   FIREFLY_FALLBACK_ACCOUNT_TYPE,
   FIREFLY_LIABILITY_ACCOUNT_TYPES,
+  FIREFLY_LISTED_ACCOUNT_ID_PREFIX,
   FIREFLY_MISCELLANEOUS_CATEGORY_NAME,
+  FIREFLY_ROLE_ACCOUNT_TYPES,
+  FIREFLY_ROW_FIELD_MAX_LENGTHS,
   FIREFLY_TAG_NAME_MAX_LENGTH,
+  FIREFLY_TRANSFER_ENDPOINT_UNTRACKED_REASON,
   FIREFLY_TYPE_DEPOSIT,
+  FIREFLY_TYPE_OPENING_BALANCE,
+  FIREFLY_TYPE_RECONCILIATION,
   FIREFLY_TYPE_TRANSFER,
   FIREFLY_TYPE_WITHDRAWAL,
+  FIREFLY_WITHDRAWAL_SOURCE_UNTRACKED_REASON,
+  getFireflySplitTitleLine,
+  getFireflyUnsupportedTypeReason,
+  isFireflyJournalType,
 } from '@/pages/imports/firefly/constants'
-import type { FireflyAccountPrefill } from '@/pages/imports/firefly/types'
+import type {
+  FireflyAccountDetails,
+  FireflyAccountPrefill,
+  FireflyAccountSource,
+  FireflyAccountSources,
+} from '@/pages/imports/firefly/types'
+import { toImportMinorUnits } from '@/pages/imports/utils/valueParsers'
 import { parseYmd } from '@/utils/date'
+import { getFireflyAccountKey } from './accountsExport'
 
 /**
  * Extracts the date part of a Firefly III timestamp, empty when unparseable
  *
  * A well-shaped value that is not a real date, like the 31st of February, is
  * unparseable too, so such rows fail here instead of failing the whole
- * upload batch on the backend
+ * import on the backend
  */
 export function getFireflyRowDate(value: string) {
   const match = value.trim().match(/^(\d{4}-\d{2}-\d{2})/)
@@ -48,47 +67,255 @@ export function isFireflyRowImportable(row: CsvRow) {
 export function getFireflyMissingRequiredFields(row: CsvRow) {
   const missingFields: string[] = []
   if (!row.journal_id?.trim()) missingFields.push('journal id')
+  if (!row.type?.trim()) missingFields.push('type')
   if (!getFireflyRowDate(row.date ?? '')) missingFields.push('date')
-  if (!row.amount?.trim()) missingFields.push('amount')
-  if ((row.currency_code?.trim().length ?? 0) !== 3) missingFields.push('currency')
+
+  // The foreign amount stands in when the main one cannot be read, so the row lacks an amount only
+  // when neither can
+  if (!getFireflyRowAmounts(row).main) {
+    if (!row.amount?.trim()) missingFields.push('amount')
+    if (!readFireflyCurrencyCode(row.currency_code)) missingFields.push('currency')
+  }
   return missingFields
+}
+
+/** One amount a row states, with the currency it is in */
+export interface FireflyCurrencyAmount {
+  amount: string
+  currencyCode: string
+}
+
+/**
+ * Reads a row's amount and foreign amount, each kept only with an amount and a three-letter code
+ *
+ * Firefly III takes custom currency codes of other lengths, such as USDT, which no Lumina account
+ * is kept in, so an amount in one can never be the one a row is written with. When the main amount
+ * is one of those and the foreign amount is not, the foreign amount takes its place
+ *
+ * @returns The amount the row is sent with, and the foreign amount beside it, each null when absent
+ */
+export function getFireflyRowAmounts(row: CsvRow): {
+  main: FireflyCurrencyAmount | null
+  foreign: FireflyCurrencyAmount | null
+} {
+  const main = readFireflyCurrencyAmount(row.amount, row.currency_code)
+  const foreign = readFireflyCurrencyAmount(row.foreign_amount, row.foreign_currency_code)
+  return main ? { main, foreign } : { main: foreign, foreign: null }
+}
+
+/**
+ * Drops the sign from an amount the export writes, since the import endpoint takes magnitudes and
+ * reads the direction from the journal type and the imported side
+ */
+export function toFireflyUnsignedAmount(amount: string) {
+  return amount.replace(/^[+-]/, '')
+}
+
+function readFireflyCurrencyAmount(amount: string | undefined, currencyCode: string | undefined) {
+  const trimmedAmount = amount?.trim() ?? ''
+  const code = readFireflyCurrencyCode(currencyCode)
+  return trimmedAmount && code ? { amount: trimmedAmount, currencyCode: code } : null
+}
+
+function readFireflyCurrencyCode(value: string | undefined) {
+  const code = value?.trim().toUpperCase() ?? ''
+  return /^[A-Z]{3}$/.test(code) ? code : ''
+}
+
+/**
+ * Whether an endpoint is an account the import writes to, which takes a name and a tracked type
+ */
+function isFireflyTrackedEndpoint(name: string | undefined, type: string | undefined) {
+  return Boolean(name?.trim()) && isFireflyTrackedAccountType(type)
+}
+
+/**
+ * Whether a row is a withdrawal or deposit between an imported account and one outside the import
+ *
+ * Only such a row is written with a merchant and its own category. A row between two imported
+ * accounts is a transfer, and a balance row takes Balance Adjustment
+ */
+export function isFireflyPayeeRow(row: CsvRow) {
+  const journalType = row.type?.trim().toLowerCase() ?? ''
+  const isSourceTracked = isFireflyTrackedEndpoint(row.source_name, row.source_type)
+  const isDestinationTracked = isFireflyTrackedEndpoint(row.destination_name, row.destination_type)
+
+  if (journalType === FIREFLY_TYPE_WITHDRAWAL) return isSourceTracked && !isDestinationTracked
+  if (journalType === FIREFLY_TYPE_DEPOSIT) return isDestinationTracked && !isSourceTracked
+  return false
+}
+
+/**
+ * Returns why the backend will skip a row whatever the mappings, or null when it may import
+ *
+ * Only the endpoint types decide it, walked in the backend's branch order and worded as the
+ * backend words it. Uploading such a row would still create the accounts it names, so the browser
+ * drops it before upload instead, which leaves every uploaded row with an account it writes to
+ */
+export function getFireflyRowShapeSkipReason(row: CsvRow): string | null {
+  const journalType = row.type?.trim().toLowerCase() ?? ''
+  const isSourceTracked = isFireflyTrackedEndpoint(row.source_name, row.source_type)
+  const isDestinationTracked = isFireflyTrackedEndpoint(row.destination_name, row.destination_type)
+
+  // A type the importer does not know is refused before the transfer rule below, which would
+  // otherwise write it as a transfer whenever both of its endpoints are imported accounts
+  if (!isFireflyJournalType(journalType)) return getFireflyUnsupportedTypeReason(row.type?.trim() ?? '')
+
+  if (journalType === FIREFLY_TYPE_OPENING_BALANCE || journalType === FIREFLY_TYPE_RECONCILIATION) {
+    return isSourceTracked || isDestinationTracked ? null : FIREFLY_BALANCE_ROW_UNATTACHED_REASON
+  }
+  if (isSourceTracked && isDestinationTracked) return null
+
+  if (journalType === FIREFLY_TYPE_WITHDRAWAL) return isSourceTracked ? null : FIREFLY_WITHDRAWAL_SOURCE_UNTRACKED_REASON
+  if (journalType === FIREFLY_TYPE_DEPOSIT) return isDestinationTracked ? null : FIREFLY_DEPOSIT_DESTINATION_UNTRACKED_REASON
+  return FIREFLY_TRANSFER_ENDPOINT_UNTRACKED_REASON
+}
+
+/**
+ * Whether the import writes a row with the category it carries, which only an uploaded payee row
+ * is. Only these rows need their category matched, and only their categories are created
+ */
+export function isFireflyCategoryUseRow(row: CsvRow, groupSizes: FireflySplitGroupSizes) {
+  return isFireflyPayeeRow(row) && isFireflyRowUploadable(row, groupSizes)
+}
+
+/** Rows each Firefly III transaction group holds in the export, keyed by group id */
+export type FireflySplitGroupSizes = ReadonlyMap<string, number>
+
+/**
+ * Counts the rows of every transaction group across the whole export
+ *
+ * A group of more than one row is a split transaction, while a single journal keeps a group of its
+ * own. A row with no group id is left out, so blank cells are never read as one large group
+ */
+export function getFireflySplitGroupSizes(rows: CsvRow[]): FireflySplitGroupSizes {
+  const sizes = new Map<string, number>()
+  for (const row of rows) {
+    const groupId = row.group_id?.trim()
+    if (groupId) sizes.set(groupId, (sizes.get(groupId) ?? 0) + 1)
+  }
+  return sizes
+}
+
+/**
+ * Returns the notes a row is sent with, where a split starts with the title of its transaction
+ *
+ * Firefly III keeps a split's shared title on the group, not on the split, so without it every
+ * split would import with only its own description. A title that would take the notes past what
+ * the endpoint takes is left off rather than dropping the split over it
+ */
+export function getFireflyRowSentNotes(row: CsvRow, groupSizes: FireflySplitGroupSizes): string | null {
+  const notes = row.notes?.trim() ?? ''
+  const groupId = row.group_id?.trim() ?? ''
+  const groupTitle = row.group_title?.trim() ?? ''
+
+  if (groupId && groupTitle && (groupSizes.get(groupId) ?? 0) > 1) {
+    const titledNotes = [getFireflySplitTitleLine(groupTitle), notes].filter(Boolean).join('\n')
+    if (countCharacters(titledNotes) <= MAX_IMPORT_NOTES_LENGTH) return titledNotes
+  }
+  return notes || null
+}
+
+/**
+ * Returns the name a payee row's merchant is filed under, blank when the export gives none, and
+ * null for any other row, which is written with no merchant of its own
+ */
+export function getFireflyRowPayeeName(row: CsvRow): string | null {
+  if (!isFireflyPayeeRow(row)) return null
+
+  const journalType = row.type?.trim().toLowerCase() ?? ''
+  const name = journalType === FIREFLY_TYPE_WITHDRAWAL ? row.destination_name : row.source_name
+  return name?.trim() ?? ''
 }
 
 /**
  * Returns the first tag on a row that is too long for a Lumina tag, or null
  */
 export function getFireflyOverlongTag(row: CsvRow): string | null {
-  return splitFireflyTags(row.tags ?? '').find((tag) => tag.length > FIREFLY_TAG_NAME_MAX_LENGTH) ?? null
+  return splitFireflyTags(row.tags ?? '').find((tag) => countCharacters(tag) > FIREFLY_TAG_NAME_MAX_LENGTH) ?? null
 }
 
 /**
- * Returns why a row carries more than one transaction may hold, or null
+ * Counts a value's characters the way the import endpoint measures its length limits
  *
- * The API refuses the whole request for either, and a Firefly import commits
- * each batch as it goes, so one such row part-way through an export would
- * leave the batches before it in the ledger with no way to retry the rest.
- * Dropping the row before upload is what the overlong tag above already does
+ * The endpoint counts code points, while a JavaScript string length counts UTF-16 units, which
+ * would put an emoji at two characters and drop rows the endpoint takes
  */
-export function getFireflyRowOverLimitReason(row: CsvRow): string | null {
+export function countCharacters(value: string): number {
+  return [...value].length
+}
+
+/**
+ * Returns why a row holds a value the import endpoint cannot take, or null
+ *
+ * The server refuses the whole import for any of them, so the row is dropped
+ * before upload, as the overlong tag above already is
+ */
+export function getFireflyRowOverLimitReason(row: CsvRow, groupSizes: FireflySplitGroupSizes): string | null {
   const tagCount = splitFireflyTags(row.tags ?? '').length
   if (tagCount > MAX_IMPORT_TAGS_PER_ROW) return getRowTooManyTagsReason(tagCount)
 
-  const notesLength = row.notes?.trim().length ?? 0
+  const notesLength = countCharacters(getFireflyRowSentNotes(row, groupSizes) ?? '')
   if (notesLength > MAX_IMPORT_NOTES_LENGTH) return getRowNotesTooLongReason(notesLength)
+
+  // Only the amounts the row is sent with are checked, since an amount in a code Lumina cannot
+  // hold is left out of the upload
+  const { main, foreign } = getFireflyRowAmounts(row)
+  const limits = FIREFLY_ROW_FIELD_MAX_LENGTHS
+  const fields: [string, string | null | undefined, number][] = [
+    ['journal id', row.journal_id, limits.journalId],
+    ['amount', main?.amount, limits.amount],
+    ['foreign amount', foreign?.amount, limits.amount],
+    ['description', row.description, limits.description],
+
+    // Only a payee row is sent with its category and the payee that becomes the merchant, so a long
+    // value on any other row costs nothing
+    ['category', isFireflyPayeeRow(row) ? row.category : null, limits.category],
+    ['payee name', getFireflyRowPayeeName(row), limits.payee],
+  ]
+  for (const [field, value, maxLength] of fields) {
+    const length = countCharacters(value?.trim() ?? '')
+    if (length > maxLength) return getFireflyFieldTooLongReason(field, length, maxLength)
+  }
+
+  // Both amounts are sent whichever one a leg uses, and the endpoint takes only plain decimal
+  // text, so a malformed amount the row would never use still leaves it out
+  for (const amount of [main, foreign]) {
+    if (amount && toImportMinorUnits(amount.amount, 0) === 'unreadable') return `Invalid amount "${amount.amount}"`
+  }
   return null
 }
 
 /**
- * Whether a row survives the payload build and reaches the backend
- *
- * Anything deriving import sources, such as the budget category inference,
- * must gate on this, because a row dropped before upload can never register
- * an account or category source in the commit response
+ * Says a row field is longer than the import endpoint takes
  */
-export function isFireflyRowUploadable(row: CsvRow): boolean {
+function getFireflyFieldTooLongReason(field: string, length: number, maxLength: number) {
+  return `The ${field} is ${length.toLocaleString()} characters, and the importer takes up to ${maxLength.toLocaleString()}.`
+}
+
+/**
+ * Whether a row passes the checks the browser makes whatever the mappings, so the upload can
+ * carry it. The payload build also leaves out the rows the forecast rules out for the chosen
+ * mappings
+ *
+ * Anything deriving import sources, such as the budget category inference, must gate on this,
+ * because a row left out here never needs an account or a category
+ *
+ * @param groupSizes - Group sizes across the whole export, which decide the notes a split is sent with
+ */
+export function isFireflyRowUploadable(row: CsvRow, groupSizes: FireflySplitGroupSizes): boolean {
   return isFireflyRowImportable(row)
+    && getFireflyRowShapeSkipReason(row) === null
     && getFireflyOverlongTag(row) === null
-    && getFireflyRowOverLimitReason(row) === null
+    && getFireflyRowOverLimitReason(row, groupSizes) === null
+}
+
+/**
+ * Keeps the rows the upload sends, the only ones that can create an account or a category
+ */
+function getFireflyUploadableRows(rows: CsvRow[]) {
+  const groupSizes = getFireflySplitGroupSizes(rows)
+  return rows.filter((row) => isFireflyRowUploadable(row, groupSizes))
 }
 
 /**
@@ -103,25 +330,98 @@ export function splitFireflyTags(value: string) {
 }
 
 /**
- * Gets the sorted distinct account names that must be mapped to Lumina accounts
+ * Gets the accounts the import writes to or creates, each told apart by its Firefly III type as
+ * well as its name, since Firefly III lets an asset account and a liability share a name
+ *
+ * Without the accounts export, an account named only by rows dropped before upload is left out,
+ * since the import never writes to it and creating it would leave an empty account behind. With
+ * it, every asset account and liability the file lists is included, so accounts without
+ * transactions come across too
+ *
+ * Every mapping, create-new choice and payload row names an account by its id, so the ids only
+ * need to hold for one export, and replacing the export starts the mappings over. An account the
+ * rows name keeps the id it has without the accounts export, and one only that file lists is
+ * numbered on its own, so adding or removing the file never moves a row's account to another id
+ *
+ * @param rows - Every row of the export
+ * @param accountDetails - What the accounts export lists, or null without that file
  */
-export function getFireflyTrackedAccountNames(rows: CsvRow[]): string[] {
-  const names = new Set<string>()
+export function getFireflyAccountSources(
+  rows: CsvRow[],
+  accountDetails: ReadonlyMap<string, FireflyAccountDetails> | null,
+): FireflyAccountSources {
+  const endpoints = new Map<string, FireflyAccountEndpoint>()
 
-  for (const row of rows) {
-    const sourceName = row.source_name?.trim()
-    if (sourceName && isFireflyTrackedAccountType(row.source_type)) names.add(sourceName)
+  const addEndpoint = (name: string | undefined, type: string | undefined) => {
+    const trimmedName = name?.trim() ?? ''
+    if (!trimmedName || !type || !isFireflyTrackedAccountType(type)) return
 
-    const destinationName = row.destination_name?.trim()
-    if (destinationName && isFireflyTrackedAccountType(row.destination_type)) names.add(destinationName)
+    const key = getFireflyAccountKey(trimmedName, type)
+    if (!endpoints.has(key)) endpoints.set(key, { name: trimmedName, type: type.trim() })
   }
 
-  return [...names].sort((a, b) => a.localeCompare(b))
+  for (const row of getFireflyUploadableRows(rows)) {
+    addEndpoint(row.source_name, row.source_type)
+    addEndpoint(row.destination_name, row.destination_type)
+  }
+
+  const byAccount = ([, a]: [string, FireflyAccountEndpoint], [, b]: [string, FireflyAccountEndpoint]) => (
+    compareFireflyAccounts(a, b)
+  )
+  const listedOnly = [...(accountDetails ?? [])].filter(([key]) => !endpoints.has(key))
+  const numbered = [
+    ...[...endpoints].sort(byAccount).map(([key, account], index) => ({ key, account, id: `account-${index + 1}` })),
+    ...listedOnly.sort(byAccount).map(([key, account], index) => ({
+      key,
+      account,
+      id: `${FIREFLY_LISTED_ACCOUNT_ID_PREFIX}${index + 1}`,
+    })),
+  ]
+
+  const typeCountByName = new Map<string, number>()
+  for (const { account } of numbered) {
+    typeCountByName.set(account.name, (typeCountByName.get(account.name) ?? 0) + 1)
+  }
+
+  const sourceByKey = new Map<string, FireflyAccountSource>()
+  const list = numbered.map(({ key, account, id }) => {
+    const source = {
+      id,
+      name: account.name,
+      type: account.type,
+      label: (typeCountByName.get(account.name) ?? 0) > 1 ? `${account.name} (${account.type})` : account.name,
+      details: accountDetails?.get(key) ?? null,
+    }
+    sourceByKey.set(key, source)
+    return source
+  })
+
+  return {
+    list: list.sort(compareFireflyAccounts),
+    find: (name, type) => sourceByKey.get(getFireflyAccountKey(name?.trim() ?? '', type ?? '')) ?? null,
+  }
+}
+
+interface FireflyAccountEndpoint {
+  name: string
+  type: string
 }
 
 /**
- * Builds create-new type and currency defaults for every tracked account name
+ * Orders accounts by name, then by type for accounts sharing a name
+ */
+function compareFireflyAccounts(a: FireflyAccountEndpoint, b: FireflyAccountEndpoint) {
+  return a.name.localeCompare(b.name) || a.type.localeCompare(b.type)
+}
+
+/**
+ * Builds create-new type and currency defaults for every tracked account, keyed by source id
  *
+ * The accounts export states an account's role and currency, and where it does those win. Otherwise
+ * only the uploaded rows vote, the same rows the accounts themselves come from, and an asset
+ * account falls back to checking
+ *
+ * @param rows - Every row of the export
  * @param supportedCurrencyCodes - Every code the app can store an account in. A row stating
  *   anything else is not counted, since the currency control offers only these: prefilling one it
  *   does not offer leaves the box showing its placeholder while the count above the table reads the
@@ -129,68 +429,72 @@ export function getFireflyTrackedAccountNames(rows: CsvRow[]): string[] {
  */
 export function buildFireflyAccountPrefills(
   rows: CsvRow[],
-  trackedAccountNames: string[],
+  accountSources: FireflyAccountSources,
   supportedCurrencyCodes: Set<string>,
 ): Record<string, FireflyAccountPrefill> {
   const currencyTallies = new Map<string, Map<string, number>>()
   const overallTally = new Map<string, number>()
-  const liabilityTypes = new Map<string, AccountType>()
 
   const readSupportedCurrency = (value: string | undefined) => {
     const code = value?.trim().toUpperCase() ?? ''
     return supportedCurrencyCodes.has(code) ? code : ''
   }
 
-  const tallyCurrency = (accountName: string | undefined, currency: string) => {
-    if (!accountName || !currency) return
-    const tally = currencyTallies.get(accountName) ?? new Map<string, number>()
+  const tallyCurrency = (source: FireflyAccountSource | null, currency: string) => {
+    if (!source || !currency) return
+    const tally = currencyTallies.get(source.id) ?? new Map<string, number>()
     tally.set(currency, (tally.get(currency) ?? 0) + 1)
-    currencyTallies.set(accountName, tally)
-  }
-
-  // Liability endpoint types name the Lumina account type directly, while
-  // asset accounts fall back to checking because rows carry no role details
-  const recordLiabilityType = (accountName: string | undefined, endpointType: string | undefined) => {
-    if (!accountName || liabilityTypes.has(accountName)) return
-    const mappedType = FIREFLY_LIABILITY_ACCOUNT_TYPES[endpointType?.trim().toLowerCase() ?? '']
-    if (mappedType) liabilityTypes.set(accountName, mappedType)
+    currencyTallies.set(source.id, tally)
   }
 
   // The account-side currency follows money direction, so withdrawals and
   // transfers vote with the source and deposits vote with the destination,
   // where a transfer destination prefers the foreign currency when present
-  for (const row of rows) {
+  for (const row of getFireflyUploadableRows(rows)) {
     const journalType = row.type?.trim().toLowerCase() ?? ''
     const rowCurrency = readSupportedCurrency(row.currency_code)
     if (rowCurrency) overallTally.set(rowCurrency, (overallTally.get(rowCurrency) ?? 0) + 1)
 
-    const sourceName = isFireflyTrackedAccountType(row.source_type) ? row.source_name?.trim() : ''
-    const destinationName = isFireflyTrackedAccountType(row.destination_type) ? row.destination_name?.trim() : ''
-    recordLiabilityType(sourceName, row.source_type)
-    recordLiabilityType(destinationName, row.destination_type)
+    const source = accountSources.find(row.source_name, row.source_type)
+    const destination = accountSources.find(row.destination_name, row.destination_type)
 
     if (journalType === FIREFLY_TYPE_WITHDRAWAL || journalType === FIREFLY_TYPE_TRANSFER) {
-      tallyCurrency(sourceName, rowCurrency)
+      tallyCurrency(source, rowCurrency)
     }
     if (journalType === FIREFLY_TYPE_DEPOSIT) {
-      tallyCurrency(destinationName, rowCurrency)
+      tallyCurrency(destination, rowCurrency)
     }
     if (journalType === FIREFLY_TYPE_TRANSFER) {
-      tallyCurrency(destinationName, readSupportedCurrency(row.foreign_currency_code) || rowCurrency)
+      tallyCurrency(destination, readSupportedCurrency(row.foreign_currency_code) || rowCurrency)
     }
   }
 
   const fallbackCurrency = getTopTallyValue(overallTally)
   const prefills: Record<string, FireflyAccountPrefill> = {}
 
-  for (const name of trackedAccountNames) {
-    prefills[name] = {
-      accountType: liabilityTypes.get(name) ?? FIREFLY_FALLBACK_ACCOUNT_TYPE,
-      currency: getTopTallyValue(currencyTallies.get(name)) || fallbackCurrency,
+  for (const source of accountSources.list) {
+    // A currency the export states but the app does not offer is left blank for the user to
+    // choose, rather than guessed from the other accounts
+    const statedCurrency = source.details?.currencyCode ?? ''
+    prefills[source.id] = {
+      accountType: getFireflyProposedAccountType(source),
+      currency: statedCurrency
+        ? readSupportedCurrency(statedCurrency)
+        : getTopTallyValue(currencyTallies.get(source.id)) || fallbackCurrency,
     }
   }
 
   return prefills
+}
+
+/**
+ * Proposes a Lumina account type, which a liability's type names directly and an asset account's
+ * role names when the accounts export gives one
+ */
+function getFireflyProposedAccountType(source: FireflyAccountSource): AccountType {
+  const liabilityType = FIREFLY_LIABILITY_ACCOUNT_TYPES[source.type.toLowerCase()]
+  if (liabilityType) return liabilityType
+  return FIREFLY_ROLE_ACCOUNT_TYPES[source.details?.role ?? ''] ?? FIREFLY_FALLBACK_ACCOUNT_TYPE
 }
 
 /**
@@ -212,14 +516,19 @@ function getTopTallyValue(tally: Map<string, number> | undefined) {
 }
 
 /**
- * Gets the sorted distinct category sources, including the no-category
- * placeholder the backend requires when rows without a category exist
+ * Gets the sorted distinct category sources of the rows written with their category, including the
+ * no-category placeholder the backend requires when such a row has no category
+ *
+ * A category carried only by transfers, balance rows or rows dropped before upload is left out,
+ * since the import never writes it and every category sent is created
+ *
+ * @param rows - Every row of the export
  */
 export function getFireflyImportedCategories(rows: CsvRow[]): string[] {
   const categories = new Set<string>()
   let hasUncategorizedRows = false
 
-  for (const row of rows) {
+  for (const row of getFireflyCategoryUseRows(rows)) {
     const category = row.category?.trim()
     if (category) {
       categories.add(category)
@@ -234,15 +543,24 @@ export function getFireflyImportedCategories(rows: CsvRow[]): string[] {
 }
 
 /**
- * Infers a create kind per category source from majority journal-type usage,
- * where withdrawals vote expense, deposits vote income, and ties stay expense
+ * Keeps the rows the import writes with their own category
+ */
+function getFireflyCategoryUseRows(rows: CsvRow[]) {
+  const groupSizes = getFireflySplitGroupSizes(rows)
+  return rows.filter((row) => isFireflyCategoryUseRow(row, groupSizes))
+}
+
+/**
+ * Infers a create kind per category source from majority journal-type usage over the rows written
+ * with their category, where withdrawals vote expense, deposits vote income, and ties stay expense
+ *
+ * @param rows - Every row of the export
  */
 export function buildFireflyCategoryKinds(rows: CsvRow[]): Record<string, ImportCategoryKind> {
   const votes = new Map<string, { expense: number; income: number }>()
 
-  for (const row of rows) {
+  for (const row of getFireflyCategoryUseRows(rows)) {
     const journalType = row.type?.trim().toLowerCase() ?? ''
-    if (journalType !== FIREFLY_TYPE_WITHDRAWAL && journalType !== FIREFLY_TYPE_DEPOSIT) continue
 
     const source = row.category?.trim() || FIREFLY_NO_CATEGORY_SOURCE
     const tally = votes.get(source) ?? { expense: 0, income: 0 }

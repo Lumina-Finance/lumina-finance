@@ -443,6 +443,17 @@ async def test_creating_a_merchant_differing_only_in_surrounding_spaces_returns_
     assert "already exists" in resp.json()["detail"]
 
 
+async def test_creating_a_merchant_the_database_lowercases_like_another_returns_409(client):
+    """The unique index lowercases in PostgreSQL, so the duplicate check does too rather than failing at insert."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    await _create_merchant(client, headers, name="ISTANBUL KEBAP")
+
+    resp = await _create_merchant(client, headers, name="İstanbul Kebap")
+
+    assert resp.status_code == 409
+
+
 async def test_creating_a_merchant_stores_its_name_without_surrounding_spaces(client):
     """Trimming happens on the way in, so the stored name is what every comparison reads."""
     signup_resp = await _create_user(client)
@@ -480,6 +491,18 @@ async def test_name_matches_answers_which_payee_values_already_have_a_merchant(c
 
     # The value is answered exactly as it was asked about, and one with no merchant is left out
     assert resp.json() == [{"source": "CORNER SHOP", "merchant": created}]
+
+
+async def test_name_matches_answers_a_value_the_database_lowercases_like_a_merchant(client):
+    """Matched by PostgreSQL's lowercase, as the import is, where Python's differs for "İ"."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    created = (await _create_merchant(client, headers, name="ISTANBUL KEBAP")).json()
+
+    resp = await client.post("/merchants/name-matches", json={"names": ["İstanbul Kebap"]}, headers=headers)
+
+    assert resp.status_code == 200
+    assert resp.json() == [{"source": "İstanbul Kebap", "merchant": created}]
 
 
 async def test_name_matches_answers_with_a_merchant_that_ships_with_the_app(client):
