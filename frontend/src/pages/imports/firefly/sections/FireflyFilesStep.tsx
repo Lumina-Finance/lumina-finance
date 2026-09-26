@@ -108,13 +108,7 @@ export function FireflyFilesStep({
         />
       ))}
 
-      {/* Kept in view once files are staged, unlike the upload cards, since it matters most at the
-          moment the import is about to run */}
-      <p className="mt-auto pt-3 text-sm leading-5" style={{ color: 'var(--app-text-muted)' }}>
-        Import from Firefly III once. Importing again, even from a newer export, adds every transaction and budget a second time, and creates any account set to Create New Account again.
-      </p>
-
-      <div className="flex flex-wrap gap-3">
+      <div className="mt-auto flex flex-wrap gap-3 pt-3">
         <ImportStat label="Rows" value={fireflyRows.length.toString()} />
         <ImportStat label="Accounts" value={trackedAccounts.length.toString()} />
         <ImportStat label="Categories" value={importedCategories.length.toString()} />
