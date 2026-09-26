@@ -63,7 +63,7 @@ describe('Actual Budget category defaults', () => {
     expect(inferActualCategoryMappings([missing, payment], {}, CATEGORIES)).toEqual({ [missing.id]: TRANSFER.id, [payment.id]: CREATE_CATEGORY_VALUE })
   })
 
-  it('never matches or offers a group category, which personal accounts can\'t hold', async () => {
+  it('never matches or offers a group category', async () => {
     const { journal } = await normaliseActualFixture('edges')
     const groupGroceries = { ...category('group-groceries', 'Groceries', 'expense'), group_id: 'family' }
     const groceries = journal.categories.find((source) => source.label === 'Groceries')!

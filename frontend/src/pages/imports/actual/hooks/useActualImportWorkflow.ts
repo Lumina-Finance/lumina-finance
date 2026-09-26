@@ -28,6 +28,7 @@ import {
   PROVIDER_IMPORT_RUN_IDLE,
   PROVIDER_IMPORT_STAGES,
   PROVIDER_MAX_BUDGETS_REQUEST_BYTES,
+  buildImportAccountOptions,
   type ImportFileAcquisition,
   type ProviderImportRunState,
 } from '@/pages/imports/utils'
@@ -40,7 +41,7 @@ import {
 } from '@/pages/imports/actual/constants'
 import type { ActualBudgetFile, ActualJournal, ActualSkippedRow } from '@/pages/imports/actual/types'
 import { buildActualBudgetDrafts, buildActualRunBudgets, getActualBudgetRefusal } from '@/pages/imports/actual/utils/budgets'
-import { getActualCategoryKind, inferActualCategoryMappings } from '@/pages/imports/actual/utils/categories'
+import { getActualCategoryKind, getActualCategoryOptions, inferActualCategoryMappings } from '@/pages/imports/actual/utils/categories'
 import { normaliseActualBudget } from '@/pages/imports/actual/utils/normalise'
 import { buildActualImportPayload, type ActualAccountCreateDetails, type ActualImportBuild } from '@/pages/imports/actual/utils/payload'
 import { buildActualPreviewRows } from '@/pages/imports/actual/utils/preview'
@@ -166,14 +167,22 @@ export function useActualImportWorkflow() {
     institutionsLoading,
     categoriesLoading,
     selectableAccounts,
-    accountOptions,
     currencyOptions,
     institutionOptions,
-    categoryMatchOptions,
+    categoryMatchOptions: allCategoryMatchOptions,
     accountById,
     categoryById,
     institutionById,
   } = useImportReferenceData()
+
+  // Grouped accounts and categories aren't imported into, so only the user's own and built-in ones
+  // are offered or matched
+  const personalAccounts = useMemo(() => selectableAccounts.filter((account) => !account.group_id), [selectableAccounts])
+  const accountOptions = useMemo(() => buildImportAccountOptions(personalAccounts), [personalAccounts])
+  const categoryMatchOptions = useMemo(
+    () => getActualCategoryOptions(allCategoryMatchOptions, categoryById),
+    [allCategoryMatchOptions, categoryById],
+  )
 
   // The commit files transfer legs and opening balances under these seeded categories
   const transferCategory = useMemo(
@@ -215,8 +224,8 @@ export function useActualImportWorkflow() {
   const resolvedAccountMappings = useMemo(
     () => {
       const inferred = inferAccountMappingsWithCollisions(accountMappingSources, liveAccountMappings, {
-        rowAccounts: selectableAccounts,
-        counterpartyAccounts: selectableAccounts,
+        rowAccounts: personalAccounts,
+        counterpartyAccounts: personalAccounts,
       })
       if (!accountsCurrent) return inferred.mappings
       for (const source of accountMappingSources) {
@@ -226,7 +235,7 @@ export function useActualImportWorkflow() {
       }
       return inferred.mappings
     },
-    [accountMappingSources, accountsCurrent, liveAccountMappings, selectableAccounts],
+    [accountMappingSources, accountsCurrent, liveAccountMappings, personalAccounts],
   )
 
   const autoFilledAccountSources = useMemo(

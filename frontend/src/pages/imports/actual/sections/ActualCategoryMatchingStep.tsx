@@ -5,7 +5,7 @@ import {
 } from '@/pages/imports/constants'
 import { EmptyState, ImportInfoCard, ImportLoadFailure, ImportStep, ImportValueMatchTable } from '@/pages/imports/components'
 import type { ActualImportWorkflow } from '@/pages/imports/actual/hooks'
-import { getActualCategoryOptions, getActualTransferCategoryOptions } from '@/pages/imports/actual/utils/categories'
+import { getActualTransferCategoryOptions } from '@/pages/imports/actual/utils/categories'
 
 type ActualCategoryMatchingStepProps = Pick<
   ActualImportWorkflow,
@@ -44,7 +44,6 @@ export function ActualCategoryMatchingStep({
   categoriesFailed,
   refetchCategories,
 }: ActualCategoryMatchingStepProps) {
-  const options = getActualCategoryOptions(categoryMatchOptions, categoryById)
   const hasCategorisedTransfers = categorySources.some((source) => source.role === 'transfer' && source.categoryId)
 
   return (
@@ -92,10 +91,10 @@ export function ActualCategoryMatchingStep({
               onDetailKindChange: (kind) => setCategoryCreateKinds((current) => ({ ...current, [source.id]: kind })),
               value,
               onChange: (nextValue) => setCategoryMappings((current) => ({ ...current, [source.id]: nextValue })),
-              options: isTransfer ? getActualTransferCategoryOptions(options, categoryById, source) : undefined,
+              options: isTransfer ? getActualTransferCategoryOptions(categoryMatchOptions, categoryById, source) : undefined,
             }
           })}
-          options={options}
+          options={categoryMatchOptions}
           disabled={categoriesLoading}
         />
       )}

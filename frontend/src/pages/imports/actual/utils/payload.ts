@@ -13,6 +13,7 @@ import {
   getActualCategoryCreateClashError,
   getActualCategoryNameTooLongError,
   getActualFileCurrencyError,
+  getActualGroupAccountError,
   getActualGroupCategoryError,
   getActualMixedCurrencyError,
   getActualSharedAccountError,
@@ -163,6 +164,10 @@ function buildAccountMappings(
         addError(getImportReadOnlyAccountMappingError(source.label, account))
         continue
       }
+      if (account?.group_id) {
+        addError(getActualGroupAccountError(source.label))
+        continue
+      }
       labelsByLinkedAccount.set(choice, [...(labelsByLinkedAccount.get(choice) ?? []), source.label])
       if (account) accountCurrencies.set(source.id, account.currency.toUpperCase())
       accounts.push({ source: source.id, account_id: choice })
@@ -223,8 +228,6 @@ function buildCategoryMappings(
 
     if (choice !== CREATE_CATEGORY_VALUE) {
       const category = categoryById.get(choice)
-      // An Actual budget is the user's own, and its rows can land in their personal accounts, which
-      // a group category can't hold
       if (category?.group_id) {
         addError(getActualGroupCategoryError(source.label))
         continue

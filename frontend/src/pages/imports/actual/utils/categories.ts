@@ -78,10 +78,7 @@ export function inferActualCategoryMappings(
   return mappings
 }
 
-/**
- * Leaves group categories out of the choices, since an Actual budget is the user's own and its
- * rows can land in personal accounts, which a group category can't hold
- */
+/** Leaves group categories out of the choices, since an import only uses the user's own and built-in ones */
 export function getActualCategoryOptions(options: DropdownOption[], categoryById: Map<string, Category>) {
   return options.filter((option) => !categoryById.get(option.value)?.group_id)
 }

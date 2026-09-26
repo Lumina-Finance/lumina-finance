@@ -199,6 +199,12 @@ export const ACTUAL_MISCELLANEOUS_CATEGORY_NAME = 'Miscellaneous'
 // a balance adjustment, so the shared note about adding one does not apply
 export const ACTUAL_CREATED_ACCOUNT_EXPLANATION = 'These will be created as new accounts, each opening with the starting balance Actual recorded and no credit limit:'
 
+// An import writes the user's own records, so it links to no group account or category, whatever the
+// export held
 export function getActualGroupCategoryError(label: string) {
-  return `Match ${label} to one of your own categories or a built-in one, since a group category only holds its group's rows.`
+  return `Match ${label} to one of your own categories or a built-in one. Imports don't use group categories.`
+}
+
+export function getActualGroupAccountError(label: string) {
+  return `Link ${label} to one of your own accounts or a new one. Imports don't write to group accounts.`
 }
