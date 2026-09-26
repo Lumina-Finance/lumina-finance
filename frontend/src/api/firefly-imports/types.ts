@@ -46,7 +46,7 @@ export interface FireflyTransactionImportPayload {
 
 /**
  * One batch of a staged export: the mappings its own rows reference, the rows, and where the
- * batch starts in the export
+ * batch starts in the export. The first batch also carries any account the import creates empty
  */
 export interface FireflyImportStageBatch extends FireflyTransactionImportPayload {
   start_row_index: number;

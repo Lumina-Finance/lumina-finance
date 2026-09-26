@@ -52,6 +52,10 @@ const CONVERTED_MAPPINGS: ConceptMapping[] = [
     firefly: 'A budget you archived',
     lumina: 'An archived budget here too, keeping every limit period it ever ran',
   },
+  {
+    firefly: 'An account you made inactive that the import creates, when you add the accounts file',
+    lumina: 'An archived account, with any money left in it brought to zero on the day you import',
+  },
 ]
 
 /**

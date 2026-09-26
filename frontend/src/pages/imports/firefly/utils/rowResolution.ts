@@ -29,7 +29,7 @@ import type { FireflyAccountCreateDetails } from './payload'
  * Mapping lookups needed to resolve journal rows the same way the commit will
  */
 export interface FireflyRowResolutionOptions {
-  /** The accounts rows are written to, which the account mappings and create details are keyed by */
+  /** The accounts the import can write to, which the account mappings and create details are keyed by */
   accountSources: FireflyAccountSources
   accountById: Map<string, AccountsOverview>
   accountMappings: Record<string, string>

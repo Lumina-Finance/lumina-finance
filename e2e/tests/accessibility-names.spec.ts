@@ -32,4 +32,6 @@ test('names the import file-picker entry without opening a picker', async ({ pag
   await expect(transactions).toHaveAccessibleName('Upload transactions csv The journal rows to import.')
   await expect(budgets).toBeVisible()
   await expect(budgets).toHaveAccessibleName('Upload budgets csv The budgets and limit periods to create with the import.')
+  const accounts = page.getByRole('button', { name: /^Upload accounts csv/ })
+  await expect(accounts).toHaveAccessibleName("Upload accounts csv Each account's type, and which accounts are inactive.")
 })

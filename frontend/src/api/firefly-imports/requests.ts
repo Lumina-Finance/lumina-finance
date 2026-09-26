@@ -42,6 +42,20 @@ export function putFireflyImportRunBudgets(runId: string, budgets: FireflyImport
 }
 
 /**
+ * Replaces the accounts a run archives once everything else is written, each named by its account
+ * source and each one the import creates
+ *
+ * Replacing rather than adding is what makes this safe to send again when a response goes missing
+ */
+export function putFireflyImportRunArchive(runId: string, accountSources: string[], signal?: AbortSignal) {
+  return authenticatedFetch<void>(`/transactions/import/runs/${runId}/archive`, {
+    method: 'PUT',
+    body: JSON.stringify({ account_sources: accountSources }),
+    signal,
+  });
+}
+
+/**
  * Writes a staged export, its budgets and everything they reference in one transaction
  *
  * Answering a second time with the summary of the first is what makes this safe to send again

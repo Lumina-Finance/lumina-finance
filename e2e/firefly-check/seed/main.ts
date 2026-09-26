@@ -61,6 +61,7 @@ await mkdir(outputDir, { recursive: true })
 const exports: [string, string][] = [
   ['transactions', `/data/export/transactions?type=csv&start=${DATASET_START}&end=${exportEnd}`],
   ['budgets', '/data/export/budgets?type=csv'],
+  ['accounts', '/data/export/accounts?type=csv'],
 ]
 for (const [name, path] of exports) {
   await writeFile(join(outputDir, `${name}.csv`), await firefly.download(path))

@@ -73,6 +73,16 @@
       "rowTotal": "250.00"
     },
     {
+      "name": "Rainy Day",
+      "type": "Asset account",
+      "role": "savingAsset",
+      "liabilityDirection": null,
+      "currency": "EUR",
+      "active": false,
+      "balance": "0.00",
+      "rowTotal": "0.00"
+    },
+    {
       "name": "Savings",
       "type": "Asset account",
       "role": "savingAsset",

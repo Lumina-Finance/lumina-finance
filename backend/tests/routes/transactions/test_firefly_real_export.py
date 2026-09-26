@@ -71,7 +71,7 @@ async def _list_transactions(client, headers):
 
 
 async def test_a_real_firefly_export_imports_to_the_balances_and_totals_firefly_reports(client):
-    """Every account balance, every category's monthly total and every budget's periods match Firefly III."""
+    """Every account's balance and active state, every category's monthly total and every budget's periods match Firefly III."""
     await _seed_currencies()
     headers = _get_auth_header(await _create_user(client))
     category_ids = await _get_category_ids_by_name(client, headers)
@@ -110,6 +110,10 @@ async def test_a_real_firefly_export_imports_to_the_balances_and_totals_firefly_
         resp = await client.put(f"{run_path}/budgets", json=budgets, headers=headers)
         assert resp.status_code == 204, resp.text
 
+    if FIXTURE["archive"]:
+        resp = await client.put(f"{run_path}/archive", json={"account_sources": FIXTURE["archive"]}, headers=headers)
+        assert resp.status_code == 204, resp.text
+
     resp = await client.post(f"{run_path}/firefly/commit", headers=headers)
     assert resp.status_code == 201, resp.text
 
@@ -125,10 +129,16 @@ async def test_a_real_firefly_export_imports_to_the_balances_and_totals_firefly_
             account["name"],
             account["account_type"] if account["account_type"] in liability_types else "asset",
             _format_minor_units(account["current_balance"], account["currency"]),
+            not account["is_archived"],
         )
         for account in accounts
     ) == sorted(
-        (account["name"], LUMINA_TYPE_BY_FIREFLY_LIABILITY.get(account["type"], "asset"), account["balance"])
+        (
+            account["name"],
+            LUMINA_TYPE_BY_FIREFLY_LIABILITY.get(account["type"], "asset"),
+            account["balance"],
+            account["active"],
+        )
         for account in expected["accounts"]
     )
 

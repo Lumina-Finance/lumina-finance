@@ -132,6 +132,10 @@ export const ACCOUNTS: SeedAccount[] = [
     body: { type: 'asset', currency_code: 'EUR', account_role: 'defaultAsset', opening_balance: '50.00', opening_balance_date: '2024-01-01' },
     deactivate: true,
   },
+
+  // An inactive account with no transactions, which only the accounts export shows. It has no
+  // opening balance either, since that would be a transaction
+  { name: 'Rainy Day', body: { type: 'asset', currency_code: 'EUR', account_role: 'savingAsset' }, deactivate: true },
 ]
 
 const MONTHS = Array.from({ length: 24 }, (_, index) => {

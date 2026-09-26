@@ -6,24 +6,10 @@
  */
 import type { ExpectedDifference } from './compare.ts'
 
-// The transactions export calls every asset account an "Asset account" without its role, so the
-// import proposes checking and leaves the type to the person on the Account Mapping step
-const GUESSED_TYPE = 'The transactions export names no asset account role, so the import proposes checking'
-
 // Lumina records a move between two of the person's own accounts under its Transfer category
 const TRANSFER_CATEGORY = 'A transfer between imported accounts is filed under Transfer, so its Firefly III category is dropped'
 
 export const EXPECTED_DIFFERENCES: ExpectedDifference[] = [
-  { kind: 'account-type', subject: 'Savings', lumina: 'checking', reason: GUESSED_TYPE },
-  { kind: 'account-type', subject: '@Home Fund', lumina: 'checking', reason: GUESSED_TYPE },
-  { kind: 'account-type', subject: 'US Card', lumina: 'checking', reason: GUESSED_TYPE },
-  { kind: 'account-type', subject: 'Yen Wallet', lumina: 'checking', reason: GUESSED_TYPE },
-  {
-    kind: 'account-archived',
-    subject: 'Old Account',
-    lumina: 'active',
-    reason: 'The transactions export does not say an account is inactive, so it imports as active',
-  },
   { kind: 'transfer-category-dropped', subject: 'Savings plan', lumina: 'Transfer', reason: TRANSFER_CATEGORY },
   { kind: 'transfer-category-dropped', subject: 'Loan payments', lumina: 'Transfer', reason: TRANSFER_CATEGORY },
   {

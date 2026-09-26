@@ -17,6 +17,7 @@ type FireflyFilesStepProps = Pick<
   FireflyImportWorkflow,
   | 'transactionsFile'
   | 'budgetsFile'
+  | 'accountsFile'
   | 'processingFileKind'
   | 'fileIntakeErrors'
   | 'fireflyRows'
@@ -34,10 +35,14 @@ const SLOT_SWAP_DURATION = 0.24
 const FILE_SLOTS: Array<{ kind: FireflyFileKind; label: string; hint: string; required: boolean }> = [
   { kind: 'transactions', label: 'Transactions CSV', hint: 'The journal rows to import.', required: true },
   { kind: 'budgets', label: 'Budgets CSV', hint: 'The budgets and limit periods to create with the import.', required: false },
+  { kind: 'accounts', label: 'Accounts CSV', hint: 'Each account\'s type, and which accounts are inactive.', required: false },
 ]
 
 // A command is one unbroken string, so it wraps anywhere rather than widening the column
 const COMMAND_CLASS_NAME = 'font-mono text-[0.8125rem] wrap-anywhere'
+
+// One command writes both optional files, so both notes give it whole
+const EXPORT_COMMAND = 'php artisan firefly-iii:export-data --export-budgets --export-accounts --token=<token>'
 
 // Worded against Firefly III 6.7.3's own screens, whose labels these repeat so they can be found
 const FILE_SLOT_NOTES: Record<FireflyFileKind, ReactNode> = {
@@ -49,23 +54,32 @@ const FILE_SLOT_NOTES: Record<FireflyFileKind, ReactNode> = {
   budgets: (
     <ImportInfoCard title="Where the budgets file comes from">
       Firefly III&apos;s Export data page doesn&apos;t make this file. On your Firefly III server, run{' '}
-      <code className={COMMAND_CLASS_NAME}>php artisan firefly-iii:export-data --export-budgets --token=&lt;token&gt;</code>
+      <code className={COMMAND_CLASS_NAME}>{EXPORT_COMMAND}</code>
       {' '}with the command line token from your Firefly III profile, adding{' '}
       <code className={COMMAND_CLASS_NAME}>--user=&lt;id&gt;</code>
-      {' '}if you aren&apos;t its first user. The command saves the file in the folder it runs in, or in the one given with{' '}
+      {' '}if you aren&apos;t its first user. The command saves the budgets and accounts files in the folder it runs in, or in the one given with{' '}
       <code className={COMMAND_CLASS_NAME}>--export_directory=&lt;folder&gt;</code>
       . If you skip this file, budgets can be created by hand after the import with a past start date, and their spending is rebuilt from the imported transactions.
+    </ImportInfoCard>
+  ),
+  accounts: (
+    <ImportInfoCard title="Where the accounts file comes from">
+      It comes from the same command as the budgets file, which writes both:{' '}
+      <code className={COMMAND_CLASS_NAME}>{EXPORT_COMMAND}</code>
+      . With it, each account is proposed as its Firefly III kind, such as savings or credit card, accounts without transactions come across too, and an account you made inactive is archived when the import creates it. Without it, every asset account is proposed as checking and comes across active.
     </ImportInfoCard>
   ),
 }
 
 /**
- * Files step of the Firefly III import flow, with a required slot for the transactions export and an
- * optional one for the budgets export, plus row, account, and category counts once files are staged
+ * Files step of the Firefly III import flow, with a required slot for the transactions export and
+ * optional ones for the budgets and accounts exports, plus row, account, and category counts once
+ * files are staged
  */
 export function FireflyFilesStep({
   transactionsFile,
   budgetsFile,
+  accountsFile,
   processingFileKind,
   fileIntakeErrors,
   fireflyRows,
@@ -78,6 +92,7 @@ export function FireflyFilesStep({
   const filesByKind: Record<FireflyFileKind, ImportFileDraft | null> = {
     transactions: transactionsFile,
     budgets: budgetsFile,
+    accounts: accountsFile,
   }
 
   return (
@@ -100,7 +115,7 @@ export function FireflyFilesStep({
           intakeRejection={fileIntakeErrors[slot.kind]}
           disabled={processingFileKind !== null}
           // A block is about the step rather than any one slot, so it is stated on the slot the
-          // user reaches first and the other is only disabled. Repeating it would read as two
+          // user reaches first and the others are only disabled. Repeating it would read as
           // separate problems, and each slot's message is a live region a screen reader announces
           blockReason={slotIndex === 0 ? uploadBlockReason : null}
           isBlocked={uploadBlockReason !== null}

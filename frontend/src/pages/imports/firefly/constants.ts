@@ -36,11 +36,27 @@ export const FIREFLY_BUDGETS_REQUIRED_HEADERS = [
 ]
 
 /**
- * Value the budgets export carries for a budget that is not archived, with
- * anything else read as archived so a value we do not recognise imports the
- * budget archived rather than active, the safer of the two directions
+ * Columns the optional accounts export must contain to set account types and
+ * archive inactive accounts
  */
-export const FIREFLY_BUDGET_ACTIVE_VALUE = '1'
+export const FIREFLY_ACCOUNTS_REQUIRED_HEADERS = [
+  'type',
+  'name',
+  'active',
+  'currency_code',
+  'role',
+]
+
+/**
+ * Value the budgets and accounts exports carry for a record that is active,
+ * where Firefly III writes an inactive one as an empty cell
+ *
+ * A budget with any other value is read as archived, the safer direction for a
+ * budget. An account is refused instead, since archiving one brings its
+ * balance to zero
+ */
+export const FIREFLY_ACTIVE_VALUE = '1'
+export const FIREFLY_INACTIVE_VALUE = ''
 
 /**
  * Longest tag name a Lumina tag can hold, mirroring the backend cap
@@ -181,7 +197,27 @@ export const FIREFLY_LIABILITY_ACCOUNT_TYPES: Record<string, AccountType> = {
   mortgage: 'mortgage',
 }
 
+/**
+ * Lumina account types keyed by the Firefly III asset account role the accounts
+ * export states. A shared asset account is one the user owns and shares, so it
+ * comes across as an ordinary checking account
+ */
+export const FIREFLY_ROLE_ACCOUNT_TYPES: Record<string, AccountType> = {
+  defaultAsset: 'checking',
+  sharedAsset: 'checking',
+  savingAsset: 'savings',
+  ccAsset: 'credit_card',
+  cashWalletAsset: 'cash',
+}
+
 export const FIREFLY_FALLBACK_ACCOUNT_TYPE: AccountType = 'checking'
+
+/**
+ * Starts the id of an account only the accounts export lists, numbered apart
+ * from the accounts the rows name so adding or removing that file never
+ * renumbers those
+ */
+export const FIREFLY_LISTED_ACCOUNT_ID_PREFIX = 'listed-account-'
 
 /**
  * Journal types as they appear in the Firefly III transactions export

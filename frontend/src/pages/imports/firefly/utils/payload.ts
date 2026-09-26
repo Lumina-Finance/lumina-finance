@@ -102,15 +102,37 @@ export function buildFireflyImportPayload({
     addError(getTooManyMappingsError('category', importedCategories.length))
   }
 
+  const { rows: payloadRows, rowAccountSources, writtenCategorySources } = buildFireflyImportRows(
+    rows,
+    skippedRows,
+    accountSources,
+  )
+
+  // Only accounts the rows use are sent, plus those from the accounts export the import creates
+  // empty. A source only skipped rows use is still answered, but the commit creates nothing for it
   const accounts: FireflyTransactionImportPayload['accounts'] = []
-  for (const { id: source, name, label } of accountSources.list) {
+  const sentAccountSources = new Set<string>()
+  const archiveAccountSources: string[] = []
+  for (const { id: source, name, label, details } of accountSources.list) {
     const choice = accountMappings[source]
     if (!choice) {
       addError(getImportAccountMappingError(label))
       continue
     }
 
-    if (choice !== CREATE_ACCOUNT_VALUE) {
+    const hasRows = rowAccountSources.has(source)
+    const isCreate = choice === CREATE_ACCOUNT_VALUE
+
+    // An existing account only the accounts export lists takes nothing, so its answer is kept but
+    // neither checked nor sent
+    if (!isCreate && !hasRows && details) continue
+
+    // Only an account the import creates is archived, so one the user already has is left as it is
+    const isSent = hasRows || (isCreate && details !== null)
+    if (isSent) sentAccountSources.add(source)
+    if (isCreate && details && !details.isActive) archiveAccountSources.push(source)
+
+    if (!isCreate) {
       // Every Firefly source takes rows, and an archived or read-only account takes none, so an
       // account archived or made read-only after it was chosen is refused here rather than by the
       // server part way through the import
@@ -120,7 +142,7 @@ export function buildFireflyImportPayload({
         continue
       }
 
-      accounts.push({ source, account_id: choice })
+      if (isSent) accounts.push({ source, account_id: choice })
       continue
     }
 
@@ -131,23 +153,24 @@ export function buildFireflyImportPayload({
       continue
     }
 
-    const details = accountCreateDetails[source]
-    if (!details?.accountType) addError(getImportAccountTypeRequiredError(label))
-    if (!details?.currency) addError(getImportAccountCurrencyRequiredError(label))
-    if (!details?.accountType || !details.currency) continue
+    const createDetails = accountCreateDetails[source]
+    if (!createDetails?.accountType) addError(getImportAccountTypeRequiredError(label))
+    if (!createDetails?.currency) addError(getImportAccountCurrencyRequiredError(label))
+    if (!createDetails?.accountType || !createDetails.currency) continue
 
-    if (!isImportAccountType(details.accountType)) {
+    if (!isImportAccountType(createDetails.accountType)) {
       addError(getImportAccountTypeUnsupportedError(label))
       continue
     }
 
+    if (!isSent) continue
     accounts.push({
       source,
       create: {
         name,
-        account_type: details.accountType,
-        currency: details.currency.toUpperCase(),
-        institution_id: details.institutionId || null,
+        account_type: createDetails.accountType,
+        currency: createDetails.currency.toUpperCase(),
+        institution_id: createDetails.institutionId || null,
       },
     })
   }
@@ -199,11 +222,11 @@ export function buildFireflyImportPayload({
     })
   }
 
-  const { rows: payloadRows, writtenSources } = buildFireflyImportRows(rows, skippedRows, accountSources)
   if (payloadRows.length === 0) addError(getImportNoRowsError('export'))
 
-  if (errors.length > 0) return { errors, payload: null, writtenSources }
-  return { errors: [], payload: { accounts, categories, rows: payloadRows }, writtenSources }
+  const writtenSources = { accounts: sentAccountSources, categories: writtenCategorySources }
+  if (errors.length > 0) return { errors, payload: null, writtenSources, archiveAccountSources }
+  return { errors: [], payload: { accounts, categories, rows: payloadRows }, writtenSources, archiveAccountSources }
 }
 
 /**
@@ -222,9 +245,14 @@ function buildFireflyImportRows(
   rows: CsvRow[],
   skippedRows: ReadonlySet<CsvRow>,
   accountSources: FireflyAccountSources,
-): Pick<FireflyImportBuildResult, 'writtenSources'> & { rows: FireflyTransactionImportPayload['rows'] } {
+): {
+  rows: FireflyTransactionImportPayload['rows']
+  rowAccountSources: Set<string>
+  writtenCategorySources: Set<string>
+} {
   const payloadRows: FireflyTransactionImportPayload['rows'] = []
-  const writtenSources = { accounts: new Set<string>(), categories: new Set<string>() }
+  const rowAccountSources = new Set<string>()
+  const writtenCategorySources = new Set<string>()
 
   // Read over every row, skipped ones included, since a split's notes name the whole group
   const groupSizes = getFireflySplitGroupSizes(rows)
@@ -242,11 +270,11 @@ function buildFireflyImportRows(
     const isDeposit = row.type.trim().toLowerCase() === FIREFLY_TYPE_DEPOSIT
     const category = isFireflyPayeeRow(row) ? cleanOptional(row.category) : null
 
-    if (sourceAccount) writtenSources.accounts.add(sourceAccount.id)
-    if (destinationAccount) writtenSources.accounts.add(destinationAccount.id)
+    if (sourceAccount) rowAccountSources.add(sourceAccount.id)
+    if (destinationAccount) rowAccountSources.add(destinationAccount.id)
 
     // The commit files a payee row without a category under the no-category source
-    if (isFireflyPayeeRow(row)) writtenSources.categories.add(category ?? FIREFLY_NO_CATEGORY_SOURCE)
+    if (isFireflyPayeeRow(row)) writtenCategorySources.add(category ?? FIREFLY_NO_CATEGORY_SOURCE)
 
     payloadRows.push({
       journal_id: row.journal_id.trim(),
@@ -267,7 +295,7 @@ function buildFireflyImportRows(
     })
   }
 
-  return { rows: payloadRows, writtenSources }
+  return { rows: payloadRows, rowAccountSources, writtenCategorySources }
 }
 
 function getFireflyCategoryCreateClashError(firstSource: string, secondSource: string) {
@@ -286,8 +314,8 @@ function cleanOptional(value: string | undefined) {
 /**
  * Formats the import result into the overlay summary line
  *
- * Budgets only join the line when the commit imported some, so an import without a budgets export
- * reads as a transactions import alone
+ * Budgets and archived accounts only join the line when the commit wrote some, so an import
+ * without the budgets or accounts export reads as a transactions import alone
  *
  * @param result - What the commit wrote
  * @param skippedCount - Rows the browser left out because they cannot be written
@@ -300,6 +328,9 @@ export function formatFireflyImportSummary(result: FireflyImportRunResponse, ski
   ]
   if (result.budgets_created > 0) {
     parts.push(`${result.budgets_created} budget${result.budgets_created === 1 ? '' : 's'} imported`)
+  }
+  if (result.accounts_archived > 0) {
+    parts.push(`${result.accounts_archived} account${result.accounts_archived === 1 ? '' : 's'} archived`)
   }
 
   return parts.join(' · ')

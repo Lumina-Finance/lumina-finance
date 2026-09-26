@@ -134,8 +134,9 @@ class FireflyTransactionRow(BaseModel):
 class FireflyImportStageRequest(BaseModel):
     """One batch of a staged Firefly III export: the mappings its rows reference, and the rows
 
-    A batch declares only the mappings its own rows need. Category mappings may be empty, since a
-    batch of transfers and opening balances reads no category
+    A batch declares the mappings its own rows need, and the first batch also declares any account
+    the import creates without rows. Category mappings may be empty, since a batch of transfers and
+    opening balances reads no category
     """
 
     accounts: list[TransactionImportAccountMapping] = Field(min_length=1, max_length=MAX_IMPORT_MAPPINGS)

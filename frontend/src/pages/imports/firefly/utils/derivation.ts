@@ -1,3 +1,4 @@
+import type { AccountType } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import { FIREFLY_NO_CATEGORY_SOURCE, isFireflyTrackedAccountType } from '@/api/firefly-imports'
 import {
@@ -13,7 +14,9 @@ import {
   FIREFLY_DEPOSIT_DESTINATION_UNTRACKED_REASON,
   FIREFLY_FALLBACK_ACCOUNT_TYPE,
   FIREFLY_LIABILITY_ACCOUNT_TYPES,
+  FIREFLY_LISTED_ACCOUNT_ID_PREFIX,
   FIREFLY_MISCELLANEOUS_CATEGORY_NAME,
+  FIREFLY_ROLE_ACCOUNT_TYPES,
   FIREFLY_ROW_FIELD_MAX_LENGTHS,
   FIREFLY_TAG_NAME_MAX_LENGTH,
   FIREFLY_TRANSFER_ENDPOINT_UNTRACKED_REASON,
@@ -27,9 +30,15 @@ import {
   getFireflyUnsupportedTypeReason,
   isFireflyJournalType,
 } from '@/pages/imports/firefly/constants'
-import type { FireflyAccountPrefill, FireflyAccountSource, FireflyAccountSources } from '@/pages/imports/firefly/types'
+import type {
+  FireflyAccountDetails,
+  FireflyAccountPrefill,
+  FireflyAccountSource,
+  FireflyAccountSources,
+} from '@/pages/imports/firefly/types'
 import { toImportMinorUnits } from '@/pages/imports/utils/valueParsers'
 import { parseYmd } from '@/utils/date'
+import { getFireflyAccountKey } from './accountsExport'
 
 /**
  * Extracts the date part of a Firefly III timestamp, empty when unparseable
@@ -321,19 +330,27 @@ export function splitFireflyTags(value: string) {
 }
 
 /**
- * Gets the accounts the export's uploaded rows are written to, each told apart by its Firefly III
- * type as well as its name, since Firefly III lets an asset account and a liability share a name
+ * Gets the accounts the import writes to or creates, each told apart by its Firefly III type as
+ * well as its name, since Firefly III lets an asset account and a liability share a name
  *
- * An account named only by rows dropped before upload is left out, since the import never writes to
- * it and creating it would leave an empty account behind
+ * Without the accounts export, an account named only by rows dropped before upload is left out,
+ * since the import never writes to it and creating it would leave an empty account behind. With
+ * it, every asset account and liability the file lists is included, so accounts without
+ * transactions come across too
  *
  * Every mapping, create-new choice and payload row names an account by its id, so the ids only
- * need to hold for one export, and replacing the export starts the mappings over
+ * need to hold for one export, and replacing the export starts the mappings over. An account the
+ * rows name keeps the id it has without the accounts export, and one only that file lists is
+ * numbered on its own, so adding or removing the file never moves a row's account to another id
  *
  * @param rows - Every row of the export
+ * @param accountDetails - What the accounts export lists, or null without that file
  */
-export function getFireflyAccountSources(rows: CsvRow[]): FireflyAccountSources {
-  const endpoints = new Map<string, { name: string; type: string }>()
+export function getFireflyAccountSources(
+  rows: CsvRow[],
+  accountDetails: ReadonlyMap<string, FireflyAccountDetails> | null,
+): FireflyAccountSources {
+  const endpoints = new Map<string, FireflyAccountEndpoint>()
 
   const addEndpoint = (name: string | undefined, type: string | undefined) => {
     const trimmedName = name?.trim() ?? ''
@@ -348,44 +365,61 @@ export function getFireflyAccountSources(rows: CsvRow[]): FireflyAccountSources 
     addEndpoint(row.destination_name, row.destination_type)
   }
 
-  const sorted = [...endpoints].sort(([, a], [, b]) => (
-    a.name.localeCompare(b.name) || a.type.localeCompare(b.type)
-  ))
+  const byAccount = ([, a]: [string, FireflyAccountEndpoint], [, b]: [string, FireflyAccountEndpoint]) => (
+    compareFireflyAccounts(a, b)
+  )
+  const listedOnly = [...(accountDetails ?? [])].filter(([key]) => !endpoints.has(key))
+  const numbered = [
+    ...[...endpoints].sort(byAccount).map(([key, account], index) => ({ key, account, id: `account-${index + 1}` })),
+    ...listedOnly.sort(byAccount).map(([key, account], index) => ({
+      key,
+      account,
+      id: `${FIREFLY_LISTED_ACCOUNT_ID_PREFIX}${index + 1}`,
+    })),
+  ]
 
   const typeCountByName = new Map<string, number>()
-  for (const [, endpoint] of sorted) {
-    typeCountByName.set(endpoint.name, (typeCountByName.get(endpoint.name) ?? 0) + 1)
+  for (const { account } of numbered) {
+    typeCountByName.set(account.name, (typeCountByName.get(account.name) ?? 0) + 1)
   }
 
   const sourceByKey = new Map<string, FireflyAccountSource>()
-  const list = sorted.map(([key, endpoint], index) => {
+  const list = numbered.map(({ key, account, id }) => {
     const source = {
-      id: `account-${index + 1}`,
-      name: endpoint.name,
-      type: endpoint.type,
-      label: (typeCountByName.get(endpoint.name) ?? 0) > 1 ? `${endpoint.name} (${endpoint.type})` : endpoint.name,
+      id,
+      name: account.name,
+      type: account.type,
+      label: (typeCountByName.get(account.name) ?? 0) > 1 ? `${account.name} (${account.type})` : account.name,
+      details: accountDetails?.get(key) ?? null,
     }
     sourceByKey.set(key, source)
     return source
   })
 
   return {
-    list,
+    list: list.sort(compareFireflyAccounts),
     find: (name, type) => sourceByKey.get(getFireflyAccountKey(name?.trim() ?? '', type ?? '')) ?? null,
   }
 }
 
+interface FireflyAccountEndpoint {
+  name: string
+  type: string
+}
+
 /**
- * Keys an endpoint by its name and its type, reading the type as Firefly III matches it
+ * Orders accounts by name, then by type for accounts sharing a name
  */
-function getFireflyAccountKey(name: string, type: string) {
-  return JSON.stringify([name, type.trim().toLowerCase()])
+function compareFireflyAccounts(a: FireflyAccountEndpoint, b: FireflyAccountEndpoint) {
+  return a.name.localeCompare(b.name) || a.type.localeCompare(b.type)
 }
 
 /**
  * Builds create-new type and currency defaults for every tracked account, keyed by source id
  *
- * Only the uploaded rows vote, the same rows the accounts themselves come from
+ * The accounts export states an account's role and currency, and where it does those win. Otherwise
+ * only the uploaded rows vote, the same rows the accounts themselves come from, and an asset
+ * account falls back to checking
  *
  * @param rows - Every row of the export
  * @param supportedCurrencyCodes - Every code the app can store an account in. A row stating
@@ -438,16 +472,29 @@ export function buildFireflyAccountPrefills(
   const fallbackCurrency = getTopTallyValue(overallTally)
   const prefills: Record<string, FireflyAccountPrefill> = {}
 
-  // Liability types name the Lumina account type directly, while asset accounts fall back to
-  // checking because rows carry no role details
   for (const source of accountSources.list) {
+    // A currency the export states but the app does not offer is left blank for the user to
+    // choose, rather than guessed from the other accounts
+    const statedCurrency = source.details?.currencyCode ?? ''
     prefills[source.id] = {
-      accountType: FIREFLY_LIABILITY_ACCOUNT_TYPES[source.type.toLowerCase()] ?? FIREFLY_FALLBACK_ACCOUNT_TYPE,
-      currency: getTopTallyValue(currencyTallies.get(source.id)) || fallbackCurrency,
+      accountType: getFireflyProposedAccountType(source),
+      currency: statedCurrency
+        ? readSupportedCurrency(statedCurrency)
+        : getTopTallyValue(currencyTallies.get(source.id)) || fallbackCurrency,
     }
   }
 
   return prefills
+}
+
+/**
+ * Proposes a Lumina account type, which a liability's type names directly and an asset account's
+ * role names when the accounts export gives one
+ */
+function getFireflyProposedAccountType(source: FireflyAccountSource): AccountType {
+  const liabilityType = FIREFLY_LIABILITY_ACCOUNT_TYPES[source.type.toLowerCase()]
+  if (liabilityType) return liabilityType
+  return FIREFLY_ROLE_ACCOUNT_TYPES[source.details?.role ?? ''] ?? FIREFLY_FALLBACK_ACCOUNT_TYPE
 }
 
 /**

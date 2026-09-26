@@ -4,7 +4,7 @@
  *
  * The files come from one run of the Firefly III import check. To refresh them, run
  * e2e/firefly-check/seed.sh, then `make e2e-test ARGS="-c firefly-check/playwright.config.ts"`,
- * and copy transactions.csv, budgets.csv, manifest.json and run.json from
+ * and copy transactions.csv, budgets.csv, accounts.csv, manifest.json and run.json from
  * e2e/firefly-check/output to fixtures/real-export, and the run's upload-fixture.json from
  * e2e/test-results to backend/tests/fixtures/firefly/real-export-upload.json. Both come from the
  * same run, which the payload test below checks
@@ -49,7 +49,7 @@ const readFixture = (name: string) => readFileSync(new URL(`../fixtures/real-exp
 const capturedUpload = JSON.parse(readFileSync(
   new URL('../../../../../../backend/tests/fixtures/firefly/real-export-upload.json', import.meta.url),
   'utf8',
-)) as { transactions: FireflyImportStageBatch[]; budgets: FireflyImportRunBudgets | null }
+)) as { transactions: FireflyImportStageBatch[]; budgets: FireflyImportRunBudgets | null; archive: string[] | null }
 const manifest = JSON.parse(readFixture('manifest.json')) as Manifest
 const { fireflyVersion } = JSON.parse(readFixture('run.json')) as { fireflyVersion: string }
 
@@ -85,7 +85,8 @@ describe(`a real Firefly III ${fireflyVersion} export`, () => {
 
     expect(forecastFireflyImport(draft.rows, { fileId: draft.id, ...options }).skippedRows).toEqual([])
 
-    const balances = new Map<string, number>()
+    // An account with no transactions, which only the accounts export lists, stays at zero
+    const balances = new Map(manifest.accounts.map((account) => [getAccountKey(account.name, account.type), 0]))
     const accountMonths = new Map<string, { count: number; total: number }>()
     const categoryMonths = new Map<string, number>()
     for (const row of draft.rows) {
@@ -137,13 +138,20 @@ describe(`a real Firefly III ${fireflyVersion} export`, () => {
 
   // A new user's import creates every account, so staging everything as new sends what the screen
   // sent, and a change in how rows are unescaped, signed, paired or batched shows up here
-  it('stages the batches and budgets the import screen sent for this export', async () => {
-    const [transactions, budgetsFile] = await Promise.all([
+  it('stages the batches, budgets and accounts to archive the import screen sent for this export', async () => {
+    const [transactions, budgetsFile, accounts] = await Promise.all([
       readExport('transactions.csv', 'transactions'),
       readExport('budgets.csv', 'budgets'),
+      readExport('accounts.csv', 'accounts'),
     ])
-    const { options, payload } = stageFireflyImportAsNew(transactions, transactions.rows, CURRENCIES)
+    const { options, payload, archiveAccountSources } = stageFireflyImportAsNew(
+      transactions,
+      transactions.rows,
+      CURRENCIES,
+      accounts.rows,
+    )
     const batches = await buildFireflyStageBatches(payload)
+    expect(archiveAccountSources).toEqual(capturedUpload.archive ?? [])
 
     expect(batches).toHaveLength(capturedUpload.transactions.length)
     for (const [index, batch] of batches.entries()) {

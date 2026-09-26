@@ -35,6 +35,10 @@ interface BudgetsBody {
   budgets: unknown[]
 }
 
+interface ArchiveBody {
+  account_sources: string[]
+}
+
 export function buildUploadFixture(
   uploads: CapturedUpload[],
   lumina: LuminaSnapshot,
@@ -70,14 +74,20 @@ export function buildUploadFixture(
   const budgetsBody = budgetUploads[0]?.body as BudgetsBody | undefined
   const budgets = budgetsBody ? { categories: nameCategories(budgetsBody.categories), budgets: budgetsBody.budgets } : null
 
+  // The accounts to archive are sent once, and not at all when the import archives none
+  const archiveUploads = uploads.filter((upload) => upload.method === 'PUT' && upload.path.endsWith('/archive'))
+  if (archiveUploads.length > 1) throw new Error(`The screen sent the accounts to archive ${archiveUploads.length} times`)
+  const archive = (archiveUploads[0]?.body as ArchiveBody | undefined)?.account_sources ?? null
+
   return {
     firefly: runInfo,
     transactions,
     budgets,
+    archive,
 
     // What Firefly III reported, for the test to hold the replayed import to
     expected: {
-      accounts: manifest.accounts.map(({ name, type, currency, balance }) => ({ name, type, currency, balance })),
+      accounts: manifest.accounts.map(({ name, type, currency, balance, active }) => ({ name, type, currency, balance, active })),
       categoryMonths: manifest.categoryMonths,
       budgets: manifest.budgets.map(({ name, active, limits }) => ({
         name,

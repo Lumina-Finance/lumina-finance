@@ -8,7 +8,7 @@ import type {
 import type { TransactionImportCategoryMapping } from '@/api/transaction-imports'
 import type { CsvRow, ImportFileDraft } from '@/pages/imports/types'
 import {
-  FIREFLY_BUDGET_ACTIVE_VALUE,
+  FIREFLY_ACTIVE_VALUE,
   FIREFLY_BUDGET_MAX_CATEGORIES,
   FIREFLY_BUDGET_MAX_INSTANCE_LENGTH,
   FIREFLY_BUDGET_MAX_LIMIT_PERIODS,
@@ -122,7 +122,7 @@ export function buildFireflyBudgetDrafts({
     if (!name) continue
 
     const budget = rowsByName.get(name)
-      ?? { isArchived: row.active?.trim() !== FIREFLY_BUDGET_ACTIVE_VALUE, limitRows: [] }
+      ?? { isArchived: row.active?.trim() !== FIREFLY_ACTIVE_VALUE, limitRows: [] }
     budget.limitRows.push({
       start: row.start_date?.trim() ?? '',
       end: row.end_date?.trim() ?? '',

@@ -77,26 +77,30 @@ describe('runFireflyImport', () => {
     authenticatedFetchMock.mockReset();
   });
 
-  it('stages the rows and budgets against one Firefly III run, then commits it once', async () => {
+  it('stages the rows, budgets and accounts to archive against one Firefly III run, then commits it once', async () => {
     const summary = { rows_imported: 2 };
     authenticatedFetchMock
       .mockResolvedValueOnce({ id: RUN_ID })
       .mockResolvedValueOnce(undefined)
       .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(undefined)
       .mockResolvedValueOnce(summary);
 
-    await expect(runFireflyImport({ payload: PAYLOAD, budgets: BUDGETS })).resolves.toBe(summary);
+    await expect(runFireflyImport({ payload: PAYLOAD, budgets: BUDGETS, archiveAccountSources: ['account-1'] }))
+      .resolves.toBe(summary);
 
     expect(getRequests()).toEqual([
       'POST /transactions/import/runs',
       `POST ${RUN_PATH}/firefly/rows`,
       `PUT ${RUN_PATH}/budgets`,
+      `PUT ${RUN_PATH}/archive`,
       `POST ${RUN_PATH}/firefly/commit`,
     ]);
-    const [[, open], [, stage], [, budgets]] = authenticatedFetchMock.mock.calls;
+    const [[, open], [, stage], [, budgets], [, archive]] = authenticatedFetchMock.mock.calls;
     expect(JSON.parse(open.body)).toEqual({ expected_transaction_count: 2, source: 'firefly' });
     expect(JSON.parse(stage.body)).toEqual({ ...PAYLOAD, start_row_index: 0 });
     expect(JSON.parse(budgets.body)).toEqual(BUDGETS);
+    expect(JSON.parse(archive.body)).toEqual({ account_sources: ['account-1'] });
   });
 
   it('drops the run when the budgets are refused, so nothing is left staged', async () => {
@@ -106,7 +110,7 @@ describe('runFireflyImport', () => {
       .mockRejectedValueOnce(new ApiError('Category not found', 422))
       .mockResolvedValueOnce(undefined);
 
-    const error = await runFireflyImport({ payload: PAYLOAD, budgets: BUDGETS }).catch((caught: unknown) => caught);
+    const error = await runFireflyImport({ payload: PAYLOAD, budgets: BUDGETS, archiveAccountSources: [] }).catch((caught: unknown) => caught);
 
     expect(error).toBeInstanceOf(TransactionImportRunError);
     expect(error).toMatchObject({ phase: 'staging', runId: null, message: 'Category not found' });
@@ -120,7 +124,7 @@ describe('runFireflyImport', () => {
       .mockResolvedValueOnce(undefined)
       .mockResolvedValueOnce(undefined);
 
-    const error = await runFireflyImport({ payload: PAYLOAD, budgets: null }, controller.signal, async () => {
+    const error = await runFireflyImport({ payload: PAYLOAD, budgets: null, archiveAccountSources: [] }, controller.signal, async () => {
       controller.abort();
     }).catch((caught: unknown) => caught);
 
@@ -138,7 +142,7 @@ describe('runFireflyImport', () => {
       .mockResolvedValueOnce(undefined)
       .mockRejectedValueOnce(new ApiError('Request failed (503)', 503));
 
-    const error = await runFireflyImport({ payload: PAYLOAD, budgets: null }).catch((caught: unknown) => caught);
+    const error = await runFireflyImport({ payload: PAYLOAD, budgets: null, archiveAccountSources: [] }).catch((caught: unknown) => caught);
 
     expect(error).toMatchObject({ phase: 'commit', runId: RUN_ID });
     expect(getRequests()).not.toContain(`DELETE ${RUN_PATH}`);

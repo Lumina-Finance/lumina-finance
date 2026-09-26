@@ -56,6 +56,7 @@ import {
   getFireflyAccountSources,
   getFireflyImportError,
   inferFireflyCategoryMappings,
+  readFireflyAccountDetails,
   readFireflyCsvFile,
   resolveFireflyAccountMappings,
   type FireflyAccountCreateDetails,
@@ -68,21 +69,24 @@ import {
 const getFireflyAccountSourceScope = () => 'firefly'
 
 /**
- * Drives the whole Firefly III import flow: reading the transactions and budgets exports, resolving
- * their accounts and categories against the user's existing ones, building the import, and running
- * it as one run that uploads everything and then writes all of it at once
+ * Drives the whole Firefly III import flow: reading the transactions, budgets and accounts exports,
+ * resolving their accounts and categories against the user's existing ones, building the import,
+ * and running it as one run that uploads everything and then writes all of it at once
  *
  * Uploading a new transactions export resets every derived mapping and any prior result, since a
- * different export invalidates all of it. An import that fails writes nothing, and one whose save
+ * different export invalidates all of it. A new accounts export resets the account answers, since
+ * it changes which accounts there are and what each is proposed as. An import that fails writes nothing, and one whose save
  * failed for a reason trying again could clear keeps its upload, so a retry only saves again
  */
 export function useFireflyImportWorkflow() {
   const [transactionsFile, setTransactionsFile] = useState<ImportFileDraft | null>(null)
   const [budgetsFile, setBudgetsFile] = useState<ImportFileDraft | null>(null)
+  const [accountsFile, setAccountsFile] = useState<ImportFileDraft | null>(null)
   const [processingFileKind, setProcessingFileKind] = useState<FireflyFileKind | null>(null)
   const [fileIntakeErrors, setFileIntakeErrors] = useState<Record<FireflyFileKind, string | null>>({
     transactions: null,
     budgets: null,
+    accounts: null,
   })
   const [accountMappings, setAccountMappings] = useState<Record<string, string>>({})
   const {
@@ -126,6 +130,7 @@ export function useFireflyImportWorkflow() {
   const importAnswers = useMemo(
     () => ({
       budgetsFile,
+      accountsFile,
       accountMappings,
       accountCreateTypes,
       accountCreateCurrencies,
@@ -139,6 +144,7 @@ export function useFireflyImportWorkflow() {
       accountCreateInstitutions,
       accountCreateTypes,
       accountMappings,
+      accountsFile,
       budgetsFile,
       categoryCreateKinds,
       categoryMappings,
@@ -199,9 +205,14 @@ export function useFireflyImportWorkflow() {
     [transactionsFile],
   )
 
+  const accountDetails = useMemo(
+    () => (accountsFile && !accountsFile.error ? readFireflyAccountDetails(accountsFile.rows) : null),
+    [accountsFile],
+  )
+
   const accountSources = useMemo(
-    () => getFireflyAccountSources(fireflyRows),
-    [fireflyRows],
+    () => getFireflyAccountSources(fireflyRows, accountDetails),
+    [accountDetails, fireflyRows],
   )
   const trackedAccounts = accountSources.list
 
@@ -215,8 +226,8 @@ export function useFireflyImportWorkflow() {
     [accountSources, fireflyRows, supportedCurrencyCodes],
   )
 
-  // Every Firefly source is an account the import writes rows into, so none of them can be
-  // answered as money outside the tracked accounts
+  // Every Firefly source is an account the import writes rows into or creates, so none of them
+  // can be answered as money outside the tracked accounts
   const accountMappingSources = useMemo(
     () => trackedAccounts.map((source) => ({
       id: source.id,
@@ -447,8 +458,8 @@ export function useFireflyImportWorkflow() {
     ],
   )
 
-  // A source answered create is counted only while an uploaded row uses it, since the commit
-  // creates nothing for a source whose rows are all skipped
+  // A source answered create is counted only while the import sends it, since the commit creates
+  // nothing for a source whose rows are all skipped unless the accounts export lists it
   const newAccountCount = useMemo(
     () => countFireflyCreatedSources(
       trackedAccounts.map((source) => source.id),
@@ -613,6 +624,17 @@ export function useFireflyImportWorkflow() {
       return
     }
 
+    if (kind === 'accounts') {
+      setAccountsFile(draft)
+
+      // The accounts export adds accounts and changes what each is proposed as, so the account
+      // answers start over. The category answers still hold
+      setAccountMappings({})
+      resetAccountCreateState()
+      resetCommitState()
+      return
+    }
+
     setBudgetsFile(draft)
     resetBudgetPanelState()
   }
@@ -655,7 +677,11 @@ export function useFireflyImportWorkflow() {
     if (!payload || !canCommitImport) return
 
     // The import creates the budgets selected when it started, so they are captured here
-    const request = { payload, budgets: runBudgetsBuild.budgets }
+    const request = {
+      payload,
+      budgets: runBudgetsBuild.budgets,
+      archiveAccountSources: importBuild.archiveAccountSources,
+    }
     await importRunController.start(
       predictedSkippedRows,
       importAnswers,
@@ -681,8 +707,9 @@ export function useFireflyImportWorkflow() {
   const resetFireflyWorkflow = () => {
     setTransactionsFile(null)
     setBudgetsFile(null)
+    setAccountsFile(null)
     setProcessingFileKind(null)
-    setFileIntakeErrors({ transactions: null, budgets: null })
+    setFileIntakeErrors({ transactions: null, budgets: null, accounts: null })
     resetMappingState()
     resetCommitState()
     resetBudgetPanelState()
@@ -695,6 +722,7 @@ export function useFireflyImportWorkflow() {
   return {
     transactionsFile,
     budgetsFile,
+    accountsFile,
     processingFileKind,
     fileIntakeErrors,
     fireflyRows,

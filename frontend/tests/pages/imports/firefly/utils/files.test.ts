@@ -10,6 +10,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { AccountsOverview } from '@/api/accounts'
 import type { Currency } from '@/api/currency'
 import {
+  FIREFLY_ACCOUNTS_REQUIRED_HEADERS,
   FIREFLY_BUDGETS_REQUIRED_HEADERS,
   FIREFLY_TRANSACTIONS_REQUIRED_HEADERS,
 } from '@/pages/imports/firefly/constants'
@@ -22,7 +23,7 @@ const SUPPORTED_CURRENCY_CODES = new Set(['CAD', 'USD'])
 const TRANSACTIONS_CSV = `${FIREFLY_TRANSACTIONS_REQUIRED_HEADERS.join(',')}\n1,withdrawal,'-12.34,CAD,2026-04-11,Main Chequing,Asset account,Corner Grocer,Expense account\n`
 const BUDGETS_CSV = `${FIREFLY_BUDGETS_REQUIRED_HEADERS.join(',')}\n`
 
-function readFile(csv: string, kind: 'transactions' | 'budgets') {
+function readFile(csv: string, kind: 'transactions' | 'budgets' | 'accounts') {
   return readFireflyCsvFile(new File([csv], `${kind}.csv`), kind, SUPPORTED_CURRENCY_CODES)
 }
 
@@ -172,6 +173,16 @@ describe('removing the formula escape from Firefly III cells', () => {
 
     expect(draft.error).toBeNull()
     expect(draft.rows[0]).toMatchObject({ name: '@Home', amount: '300.000000000000' })
+  })
+
+  it('refuses an accounts export when it cannot tell whether an account is active', async () => {
+    const header = FIREFLY_ACCOUNTS_REQUIRED_HEADERS.join(',')
+    const readable = `${header}\nAsset account,Chequing,1,CAD,defaultAsset\nAsset account,Old,,CAD,defaultAsset\n`
+    const unreadable = `${readable}Asset account,Savings,true,CAD,savingAsset\nExpense account,Shop,true,,\n`
+
+    expect((await readFile(readable, 'accounts')).error).toBeNull()
+    expect((await readFile(unreadable, 'accounts')).error)
+      .toBe('Can\'t tell whether the account "Savings" is active, so the file can\'t be used')
   })
 })
 

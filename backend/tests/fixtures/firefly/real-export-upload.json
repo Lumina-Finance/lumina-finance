@@ -1,11 +1,20 @@
 {
   "firefly": {
     "fireflyVersion": "6.7.3",
-    "exportEnd": "2026-09-25"
+    "exportEnd": "2026-09-26"
   },
   "transactions": [
     {
       "accounts": [
+        {
+          "source": "listed-account-1",
+          "create": {
+            "name": "Rainy Day",
+            "account_type": "savings",
+            "currency": "EUR",
+            "institution_id": null
+          }
+        },
         {
           "source": "account-5",
           "create": {
@@ -19,7 +28,7 @@
           "source": "account-9",
           "create": {
             "name": "US Card",
-            "account_type": "checking",
+            "account_type": "credit_card",
             "currency": "USD",
             "institution_id": null
           }
@@ -28,7 +37,7 @@
           "source": "account-1",
           "create": {
             "name": "@Home Fund",
-            "account_type": "checking",
+            "account_type": "savings",
             "currency": "EUR",
             "institution_id": null
           }
@@ -37,7 +46,7 @@
           "source": "account-10",
           "create": {
             "name": "Yen Wallet",
-            "account_type": "checking",
+            "account_type": "cash",
             "currency": "JPY",
             "institution_id": null
           }
@@ -55,7 +64,7 @@
           "source": "account-8",
           "create": {
             "name": "Savings",
-            "account_type": "checking",
+            "account_type": "savings",
             "currency": "EUR",
             "institution_id": null
           }
@@ -6222,67 +6231,88 @@
       }
     ]
   },
+  "archive": [
+    "account-6",
+    "listed-account-1"
+  ],
   "expected": {
     "accounts": [
       {
         "name": "@Home Fund",
         "type": "Asset account",
         "currency": "EUR",
-        "balance": "300.00"
+        "balance": "300.00",
+        "active": true
       },
       {
         "name": "Boat",
         "type": "Asset account",
         "currency": "EUR",
-        "balance": "4980.00"
+        "balance": "4980.00",
+        "active": true
       },
       {
         "name": "Boat",
         "type": "Loan",
         "currency": "EUR",
-        "balance": "-4800.00"
+        "balance": "-4800.00",
+        "active": true
       },
       {
         "name": "Car Loan",
         "type": "Loan",
         "currency": "EUR",
-        "balance": "-3520.00"
+        "balance": "-3520.00",
+        "active": true
       },
       {
         "name": "Checking",
         "type": "Asset account",
         "currency": "EUR",
-        "balance": "19165.95"
+        "balance": "19165.95",
+        "active": true
       },
       {
         "name": "Old Account",
         "type": "Asset account",
         "currency": "EUR",
-        "balance": "0.00"
+        "balance": "0.00",
+        "active": false
       },
       {
         "name": "Owed by Sam",
         "type": "Debt",
         "currency": "EUR",
-        "balance": "250.00"
+        "balance": "250.00",
+        "active": true
+      },
+      {
+        "name": "Rainy Day",
+        "type": "Asset account",
+        "currency": "EUR",
+        "balance": "0.00",
+        "active": false
       },
       {
         "name": "Savings",
         "type": "Asset account",
         "currency": "EUR",
-        "balance": "4800.00"
+        "balance": "4800.00",
+        "active": true
       },
       {
         "name": "US Card",
         "type": "Asset account",
         "currency": "USD",
-        "balance": "0.00"
+        "balance": "0.00",
+        "active": true
       },
       {
         "name": "Yen Wallet",
         "type": "Asset account",
         "currency": "JPY",
-        "balance": "11200"
+        "balance": "11200",
+        "active": true
       }
     ],
     "categoryMonths": [

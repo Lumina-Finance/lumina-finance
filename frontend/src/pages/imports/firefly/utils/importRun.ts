@@ -239,8 +239,8 @@ export function canStartFireflyImport({
 }
 
 /**
- * Counts the sources answered create-new that an uploaded row uses, since the commit creates
- * nothing for a source whose rows are all left out
+ * Counts the sources answered create-new that the import sends, since the commit creates nothing
+ * for a source it leaves out
  */
 export function countFireflyCreatedSources(
   sources: string[],

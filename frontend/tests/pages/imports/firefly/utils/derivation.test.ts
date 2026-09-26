@@ -11,8 +11,10 @@ import { FIREFLY_NO_CATEGORY_SOURCE } from '@/api/firefly-imports'
 import type { CsvRow } from '@/pages/imports/types'
 import {
   buildFireflyAccountPrefills,
+  getFireflyAccountSources,
   getFireflyImportedCategories,
   inferFireflyCategoryMappings,
+  readFireflyAccountDetails,
 } from '@/pages/imports/firefly/utils'
 import { createNameKeyedAccountSources } from './fixtures'
 
@@ -154,5 +156,53 @@ describe('inferFireflyCategoryMappings', () => {
     )
 
     expect(mappings[FIREFLY_NO_CATEGORY_SOURCE]).toBe('chosen')
+  })
+})
+
+describe('the accounts the Firefly III accounts export adds to', () => {
+  const row = (source: string, sourceType: string): CsvRow => ({
+    journal_id: '1',
+    type: 'withdrawal',
+    date: '2026-06-11',
+    amount: '-10.00',
+    currency_code: 'CAD',
+    source_name: source,
+    source_type: sourceType,
+    destination_name: 'Market',
+    destination_type: 'Expense account',
+  })
+  const ROWS = [row('Boat', 'Asset account'), row('Boat', 'Loan'), row('@Home Fund', 'Asset account')]
+
+  // Written the way the accounts export differs from the transactions export: its own type casing
+  // and spacing around a name
+  const ACCOUNT_ROWS: CsvRow[] = [
+    { type: 'Asset account', name: 'Boat', active: '1', currency_code: 'CAD', role: 'ccAsset' },
+    { type: 'Loan', name: 'Boat', active: '1', currency_code: 'CAD', role: '' },
+    { type: 'asset account', name: ' @Home Fund ', active: '', currency_code: 'usd', role: 'savingAsset' },
+    { type: 'Asset account', name: 'Rainy Day', active: '1', currency_code: 'CHF', role: 'savingAsset' },
+    { type: 'Expense account', name: 'Market', active: '1', currency_code: '', role: '' },
+  ]
+
+  it('lists each account once, keeps the ids the rows give, and numbers the accounts only it lists apart', () => {
+    const withoutFile = getFireflyAccountSources(ROWS, null)
+    const withFile = getFireflyAccountSources(ROWS, readFireflyAccountDetails(ACCOUNT_ROWS))
+
+    expect(withFile.list.map(({ id, label }) => [id, label])).toEqual([
+      ...withoutFile.list.map(({ id, label }) => [id, label]),
+      ['listed-account-1', 'Rainy Day'],
+    ])
+    expect(withFile.find('@Home Fund', 'Asset account')?.details).toMatchObject({ isActive: false, role: 'savingAsset' })
+    expect(withFile.find('Boat', 'Loan')?.details).toMatchObject({ isActive: true })
+  })
+
+  it('proposes each account as its role and in its own currency, leaving a currency the app lacks blank', () => {
+    const sources = getFireflyAccountSources(ROWS, readFireflyAccountDetails(ACCOUNT_ROWS))
+    const prefills = buildFireflyAccountPrefills(ROWS, sources, SUPPORTED_CURRENCIES)
+    const prefillOf = (name: string, type: string) => prefills[sources.find(name, type)!.id]
+
+    expect(prefillOf('Boat', 'Asset account')).toEqual({ accountType: 'credit_card', currency: 'CAD' })
+    expect(prefillOf('Boat', 'Loan')).toEqual({ accountType: 'loan', currency: 'CAD' })
+    expect(prefillOf('@Home Fund', 'Asset account')).toEqual({ accountType: 'savings', currency: 'USD' })
+    expect(prefills['listed-account-1']).toEqual({ accountType: 'savings', currency: '' })
   })
 })

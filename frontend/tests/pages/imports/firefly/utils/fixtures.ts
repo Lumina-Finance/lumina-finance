@@ -9,6 +9,7 @@ import {
   forecastFireflyImport,
   getFireflyAccountSources,
   getFireflyImportedCategories,
+  readFireflyAccountDetails,
   type FireflyRowResolutionOptions,
 } from '@/pages/imports/firefly/utils'
 import type { CsvRow, ImportFileDraft } from '@/pages/imports/types'
@@ -23,7 +24,7 @@ import type { CsvRow, ImportFileDraft } from '@/pages/imports/types'
  * reads as an asset account, so it cannot stand in for a liability's prefill either
  */
 export function createNameKeyedAccountSources(names: string[] = []): FireflyAccountSources {
-  const toSource = (name: string): FireflyAccountSource => ({ id: name, name, type: 'Asset account', label: name })
+  const toSource = (name: string): FireflyAccountSource => ({ id: name, name, type: 'Asset account', label: name, details: null })
 
   return {
     list: names.map(toSource),
@@ -37,9 +38,16 @@ export function createNameKeyedAccountSources(names: string[] = []): FireflyAcco
 /**
  * Stages the import the way the steps do for a user with nothing yet, where every account and
  * category is created new
+ *
+ * @param accountRows - The accounts export's rows, or null without that file
  */
-export function stageFireflyImportAsNew(transactionsFile: ImportFileDraft, rows: CsvRow[], currencies: Currency[]) {
-  const accountSources = getFireflyAccountSources(rows)
+export function stageFireflyImportAsNew(
+  transactionsFile: ImportFileDraft,
+  rows: CsvRow[],
+  currencies: Currency[],
+  accountRows: CsvRow[] | null = null,
+) {
+  const accountSources = getFireflyAccountSources(rows, accountRows && readFireflyAccountDetails(accountRows))
   const prefills = buildFireflyAccountPrefills(rows, accountSources, new Set(currencies.map((currency) => currency.id)))
   const importedCategories = getFireflyImportedCategories(rows)
   const categoryCreateKinds = buildFireflyCategoryKinds(rows)
@@ -61,7 +69,13 @@ export function stageFireflyImportAsNew(transactionsFile: ImportFileDraft, rows:
   }
   // The screen leaves out every row the forecast predicts the server would refuse
   const skippedRows = new Set(forecastFireflyImport(rows, { fileId: transactionsFile.id, ...options }).skippedRows.map((row) => row.cells))
-  const { payload, errors } = buildFireflyImportPayload({ transactionsFile, rows, skippedRows, importedCategories, ...options })
+  const { payload, errors, archiveAccountSources } = buildFireflyImportPayload({
+    transactionsFile,
+    rows,
+    skippedRows,
+    importedCategories,
+    ...options,
+  })
   if (!payload) throw new Error(`The staged import builds no payload: ${errors.join('; ')}`)
-  return { options, importedCategories, payload }
+  return { options, importedCategories, payload, archiveAccountSources }
 }

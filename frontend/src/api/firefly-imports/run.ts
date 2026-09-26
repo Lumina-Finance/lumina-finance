@@ -2,6 +2,7 @@ import { buildFireflyStageBatches } from '@/api/firefly-imports/batching';
 import {
   commitFireflyImportRun,
   openFireflyImportRun,
+  putFireflyImportRunArchive,
   putFireflyImportRunBudgets,
   stageFireflyImportRows,
 } from '@/api/firefly-imports/requests';
@@ -13,29 +14,35 @@ import type {
 import { TransactionImportRunError, discardStagedRun } from '@/api/transaction-imports/run';
 import { getImportFailureMessage } from '@/utils/importFailure';
 
-/** A prepared Firefly III import: the export's rows and the budgets created alongside them */
+/**
+ * A prepared Firefly III import: the export's rows, the budgets created alongside them, and the
+ * accounts it creates that are then archived
+ */
 export interface FireflyImportRequest {
   payload: FireflyTransactionImportPayload;
 
   /** Absent when no budget is imported */
   budgets: FireflyImportRunBudgets | null;
+
+  /** Account sources answered create-new that Firefly III marks inactive */
+  archiveAccountSources: string[];
 }
 
 /**
  * Uploads a prepared Firefly III import and writes all of it in one transaction
  *
- * The export and its budgets are staged over as many requests as their size needs, and nothing
- * reaches the ledger until the commit writes the whole run at once. So an upload that stops part
- * way, whether it failed or was abandoned, leaves nothing a user can see
+ * The export, its budgets and the accounts to archive are staged over as many requests as their
+ * size needs, and nothing reaches the ledger until the commit writes the whole run at once. So an
+ * upload that stops part way, whether it failed or was abandoned, leaves nothing a user can see
  *
- * @param request - The prepared rows and budgets
+ * @param request - The prepared rows, budgets and accounts to archive
  * @param signal - Abandons the upload. The run is dropped when this fires during staging, while
  *   during the commit it only stops waiting, since the commit may already have landed
  * @param onStaged - Runs once everything is staged, before the commit starts, so the screen can
  *   show the upload finishing. Stopping while it runs still counts as stopping during staging
  */
 export async function runFireflyImport(
-  { payload, budgets }: FireflyImportRequest,
+  { payload, budgets, archiveAccountSources }: FireflyImportRequest,
   signal?: AbortSignal,
   onStaged?: () => Promise<void>,
 ): Promise<FireflyImportRunResponse> {
@@ -45,6 +52,7 @@ export async function runFireflyImport(
   try {
     for (const batch of batches) await stageFireflyImportRows(run.id, batch, signal);
     if (budgets && budgets.budgets.length > 0) await putFireflyImportRunBudgets(run.id, budgets, signal);
+    if (archiveAccountSources.length > 0) await putFireflyImportRunArchive(run.id, archiveAccountSources, signal);
     await onStaged?.();
     signal?.throwIfAborted();
   } catch (error) {

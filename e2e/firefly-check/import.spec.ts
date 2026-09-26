@@ -41,7 +41,7 @@ test('a Firefly III export imports to the balances, totals and budgets Firefly I
 
   const files = page.locator('input[type="file"][accept=".csv,text/csv"]')
   // The screen reads one file at a time and refuses another meanwhile, so each lands before the next
-  for (const [index, name] of ['transactions.csv', 'budgets.csv'].entries()) {
+  for (const [index, name] of ['transactions.csv', 'budgets.csv', 'accounts.csv'].entries()) {
     await expect(files.nth(index)).toBeEnabled()
     await files.nth(index).setInputFiles(join(OUTPUT_DIR, name))
     await expect(page.getByText(name, { exact: true })).toBeVisible()

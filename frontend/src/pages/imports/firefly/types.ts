@@ -5,10 +5,27 @@ import type {
   FireflyTransactionImportPayload,
 } from '@/api/firefly-imports'
 
-export type FireflyFileKind = 'transactions' | 'budgets'
+export type FireflyFileKind = 'transactions' | 'budgets' | 'accounts'
 
 /**
- * One account the export's rows are written to, which the user maps to a Lumina account
+ * What the accounts export says about one asset account or liability
+ */
+export interface FireflyAccountDetails {
+  name: string
+
+  /** Firefly III account type as the export writes it */
+  type: string
+
+  /** Asset account role, empty for a liability */
+  role: string
+
+  /** Upper-case currency code, empty when the export states none */
+  currencyCode: string
+  isActive: boolean
+}
+
+/**
+ * One account the import writes to or creates, which the user maps to a Lumina account
  */
 export interface FireflyAccountSource {
   /** Mapping source the mappings and the commit name this account by */
@@ -20,10 +37,13 @@ export interface FireflyAccountSource {
 
   /** Name the mapping step shows, with the type added when another account shares the name */
   label: string
+
+  /** What the accounts export says about the account, null without that file or when it's not listed */
+  details: FireflyAccountDetails | null
 }
 
 /**
- * Every account the export's rows are written to, with the lookup rows resolve their endpoints by
+ * Every account the import writes to or creates, with the lookup rows resolve their endpoints by
  */
 export interface FireflyAccountSources {
   list: FireflyAccountSource[]
@@ -53,10 +73,14 @@ export interface FireflyImportBuildResult {
   payload: FireflyTransactionImportPayload | null
 
   /**
-   * Account and category sources the uploaded rows use, kept even when errors block the payload.
-   * A source only skipped rows use is sent with no row, so the commit creates nothing for it
+   * Account and category sources the import sends, kept even when errors block the payload: the
+   * ones the uploaded rows use, and the accounts from the accounts export it creates. Any other
+   * source only skipped rows use is left out, so the commit creates nothing for it
    */
   writtenSources: { accounts: ReadonlySet<string>; categories: ReadonlySet<string> }
+
+  /** Accounts the import creates that the accounts export marks inactive, archived once written */
+  archiveAccountSources: string[]
 }
 
 /**

@@ -22,18 +22,30 @@ import {
  * Splits a prepared Firefly III import into batches that each fit the request-size budget
  *
  * Nothing is created while an export is staged, so a batch carries the mappings its own rows
- * reference exactly as they were prepared, and no batch depends on what an earlier one returned
+ * reference exactly as they were prepared, and no batch depends on what an earlier one returned.
+ * An account no row names, which the import creates empty, rides with the first batch, since the
+ * server only takes a batch that holds rows
  */
 export async function buildFireflyStageBatches(
   payload: FireflyTransactionImportPayload,
 ): Promise<FireflyImportStageBatch[]> {
   const accountMappingsBySource = new Map(payload.accounts.map((mapping) => [mapping.source, mapping]));
   const categoryMappingsBySource = new Map(payload.categories.map((mapping) => [mapping.source, mapping]));
+  const rowAccountSources = new Set(payload.rows.flatMap((row) => getFireflyRowAccountSources(row)));
+  const rowlessAccountSources = payload.accounts
+    .map((mapping) => mapping.source)
+    .filter((source) => !rowAccountSources.has(source));
   const batches: FireflyImportStageBatch[] = [];
   let rowIndex = 0;
 
   while (rowIndex < payload.rows.length) {
-    const batch = await buildNextStageBatch(payload.rows, rowIndex, accountMappingsBySource, categoryMappingsBySource);
+    const batch = await buildNextStageBatch(
+      payload.rows,
+      rowIndex,
+      rowIndex === 0 ? rowlessAccountSources : [],
+      accountMappingsBySource,
+      categoryMappingsBySource,
+    );
     batches.push(batch.payload);
     rowIndex = batch.nextRowIndex;
   }
@@ -47,6 +59,7 @@ export async function buildFireflyStageBatches(
 async function buildNextStageBatch(
   sourceRows: FireflyTransactionImportRow[],
   startIndex: number,
+  rowlessAccountSources: string[],
   accountMappingsBySource: Map<string, FireflyTransactionImportPayload['accounts'][number]>,
   categoryMappingsBySource: Map<string, FireflyTransactionImportPayload['categories'][number]>,
 ) {
@@ -55,6 +68,11 @@ async function buildNextStageBatch(
   const categorySources = new Set<string>();
   let estimatedBytes = getEmptyImportPayloadByteSize();
   let rowIndex = startIndex;
+
+  for (const source of rowlessAccountSources) {
+    estimatedBytes += getNextMappingByteSize(source, accountSources, accountMappingsBySource, 'Account');
+    accountSources.add(source);
+  }
 
   // Each row may introduce account and category mappings, so the batch budget tracks both
   while (rowIndex < sourceRows.length) {

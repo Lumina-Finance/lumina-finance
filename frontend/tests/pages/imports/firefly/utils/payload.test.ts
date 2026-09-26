@@ -20,6 +20,7 @@ import {
   getFireflyImportedCategories,
   inferFireflyCategoryMappings,
   isFireflyRowUploadable,
+  readFireflyAccountDetails,
   readFireflyCsvFile,
   resolveFireflyRowLegs,
 } from '@/pages/imports/firefly/utils'
@@ -266,7 +267,7 @@ describe('a Firefly account name longer than a new account takes', () => {
   const createRows = (name: string) => [{ ...ROW, source_name: name }]
   const buildForName = (name: string, choice: string) => {
     const rows = createRows(name)
-    const accountSources = getFireflyAccountSources(rows)
+    const accountSources = getFireflyAccountSources(rows, null)
     return buildFireflyImportPayload({
       transactionsFile: TRANSACTIONS_FILE,
       skippedRows: new Set(),
@@ -363,7 +364,7 @@ describe('a Firefly asset account and loan sharing a name', () => {
     category: '',
   }
   const rows = [openingBalance, loanOpeningBalance, savingsTransfer, ...shopping, payment]
-  const accountSources = getFireflyAccountSources(rows)
+  const accountSources = getFireflyAccountSources(rows, null)
   const [asset, loan, savings] = accountSources.list
   const prefills = buildFireflyAccountPrefills(rows, accountSources, new Set(['CAD']))
   const accountCreateDetails = Object.fromEntries(accountSources.list.map((source) => [
@@ -722,5 +723,84 @@ describe('a real Firefly III export with splits, transfers and balance rows', ()
     expect(lastBatch.rows.every((row) => row.type === 'transfer')).toBe(true)
     expect(lastBatch.categories).toEqual([])
     expect(lastBatch.accounts.map((mapping) => mapping.source)).toEqual([checking.id, savings.id])
+  })
+})
+
+describe('importing with the Firefly III accounts export', () => {
+  const account = (name: string, type: string, active: string, role = '', currency = 'CAD'): CsvRow => ({
+    type,
+    name,
+    active,
+    currency_code: currency,
+    role,
+  })
+
+  // An account whose only row the preview skips is still created from the accounts export, so
+  // archiving it must never name an account the upload leaves out
+  const WALLET_ROW: CsvRow = { ...ROW, journal_id: '2', source_name: 'Wallet' }
+  const ACCOUNT_ROWS = [
+    account('Chequing', 'Asset account', '', 'defaultAsset'),
+    account('Wallet', 'Asset account', '1', 'cashWalletAsset'),
+    account('Rainy Day', 'Asset account', '', 'savingAsset'),
+    account('Old Loan', 'Loan', '1'),
+    account('Market', 'Expense account', '1'),
+  ]
+
+  function build(accountMappings: (ids: Record<string, string>) => Record<string, string>) {
+    const rows = [ROW, WALLET_ROW]
+    const accountSources = getFireflyAccountSources(rows, readFireflyAccountDetails(ACCOUNT_ROWS))
+    const ids = Object.fromEntries(accountSources.list.map((source) => [source.name, source.id]))
+    const prefills = buildFireflyAccountPrefills(rows, accountSources, new Set(['CAD']))
+    const result = buildFireflyImportPayload({
+      transactionsFile: { ...TRANSACTIONS_FILE, rows },
+      rows,
+      skippedRows: new Set([ROW]),
+      accountSources,
+      accountMappings: accountMappings(ids),
+      accountById: new Map([[ARCHIVED.id, ARCHIVED]]),
+      accountCreateDetails: Object.fromEntries(accountSources.list.map((source) => [
+        source.id,
+        { ...prefills[source.id], institutionId: '' },
+      ])),
+      importedCategories: ['Groceries'],
+      categoryMappings: { Groceries: 'groceries' },
+      categoryCreateKinds: {},
+      categoryById: new Map(),
+    })
+    return { ids, result }
+  }
+
+  it('creates the accounts no uploaded row names, sends them with the first batch, and archives the inactive ones it creates', async () => {
+    const { ids, result } = build((ids) => ({
+      [ids.Chequing]: CREATE_ACCOUNT_VALUE,
+      [ids.Wallet]: CREATE_ACCOUNT_VALUE,
+      [ids['Rainy Day']]: CREATE_ACCOUNT_VALUE,
+
+      // An account the user already has takes nothing here, so even an archived one is fine
+      [ids['Old Loan']]: ARCHIVED.id,
+    }))
+
+    expect(result.errors).toEqual([])
+    const sent = [ids.Chequing, ids.Wallet, ids['Rainy Day']]
+    expect(result.payload?.accounts.map((mapping) => mapping.source).sort()).toEqual([...sent].sort())
+    expect(result.payload?.accounts.find((mapping) => mapping.source === ids['Rainy Day']))
+      .toMatchObject({ create: { name: 'Rainy Day', account_type: 'savings', currency: 'CAD' } })
+    expect([...result.writtenSources.accounts].sort()).toEqual([...sent].sort())
+    expect(result.archiveAccountSources.sort()).toEqual([ids.Chequing, ids['Rainy Day']].sort())
+
+    const [firstBatch] = await buildFireflyStageBatches(result.payload!)
+    expect(firstBatch.accounts.map((mapping) => mapping.source).sort()).toEqual([...sent].sort())
+  })
+
+  it('leaves an inactive account the user maps to one they already have unarchived', () => {
+    const { ids, result } = build((ids) => ({
+      [ids.Chequing]: CREATE_ACCOUNT_VALUE,
+      [ids.Wallet]: CREATE_ACCOUNT_VALUE,
+      [ids['Rainy Day']]: CHEQUING.id,
+      [ids['Old Loan']]: CREATE_ACCOUNT_VALUE,
+    }))
+
+    expect(result.errors).toEqual([])
+    expect(result.archiveAccountSources).toEqual([ids.Chequing])
   })
 })
