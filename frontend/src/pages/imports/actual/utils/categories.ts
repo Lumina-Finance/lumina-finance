@@ -37,8 +37,8 @@ export function canFileActualTransferSource(
  * Fills in the category answers the user has not given
  *
  * Rows without a category go to Miscellaneous, as they do for Firefly III, and transfers whose other
- * side is gone go to Transfer. Every other source takes an existing category of the same name and
- * kind, capitals folded, and is created otherwise
+ * side is gone go to Transfer. Every other source takes an existing personal or built-in category of
+ * the same name and kind, capitals folded, and is created otherwise
  */
 export function inferActualCategoryMappings(
   sources: ActualCategorySource[],
@@ -68,13 +68,22 @@ export function inferActualCategoryMappings(
     const kind = getActualCategoryKind(source)
     const key = getCategoryNameKey(source.createName)
     const match = categories.find((category) => (
-      getCategoryNameKey(category.name) === key
+      !category.group_id
+      && getCategoryNameKey(category.name) === key
       && category.kind === kind
       && (source.role !== 'transfer' || canFileActualTransferSource(source, category))
     ))
     mappings[source.id] = match?.id ?? CREATE_CATEGORY_VALUE
   }
   return mappings
+}
+
+/**
+ * Leaves group categories out of the choices, since an Actual budget is the user's own and its
+ * rows can land in personal accounts, which a group category can't hold
+ */
+export function getActualCategoryOptions(options: DropdownOption[], categoryById: Map<string, Category>) {
+  return options.filter((option) => !categoryById.get(option.value)?.group_id)
 }
 
 /**

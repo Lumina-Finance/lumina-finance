@@ -2,6 +2,8 @@ import type { ImportBudgetRecurrence, ImportRunBudgets } from '@/api/provider-im
 import type { Category } from '@/api/categories'
 import type { TransactionImportCategoryMapping } from '@/api/transaction-imports'
 import {
+  ACTUAL_BUDGET_NAME_MAX_LENGTH,
+  ACTUAL_BUDGET_NAME_TOO_LONG_REASON,
   ACTUAL_INCOME_BUDGET_REASON,
   getActualBudgetAmountReason,
   getActualBudgetGroupCategoryReason,
@@ -68,14 +70,17 @@ export function buildActualBudgetDrafts(budget: ActualBudgetFile, journal: Actua
     const sources = journal.categories.filter((source) => source.categoryId === categoryId)
     const spending = sources.find((source) => source.role === 'spending')
     months.sort((a, b) => a.month.localeCompare(b.month))
+    const name = spending?.label ?? getActualCategoryName(category, budget.categories)
     drafts.push({
       categoryId,
-      name: spending?.label ?? getActualCategoryName(category, budget.categories),
+      name,
       categorySourceIds: sources.map((source) => source.id),
       months,
       recurs: months[months.length - 1].month >= currentMonth,
       isArchived: category.hidden,
-      disabledReason: category.isIncome ? ACTUAL_INCOME_BUDGET_REASON : null,
+      disabledReason: category.isIncome
+        ? ACTUAL_INCOME_BUDGET_REASON
+        : name.length > ACTUAL_BUDGET_NAME_MAX_LENGTH ? ACTUAL_BUDGET_NAME_TOO_LONG_REASON : null,
     })
   }
   return drafts.sort((a, b) => a.name.localeCompare(b.name))

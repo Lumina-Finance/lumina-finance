@@ -47,7 +47,7 @@ describe('normalising Actual Budget exports', () => {
     expect(categorized).toHaveLength(manifest.transfers.filter((transfer) => transfer.category).length)
     expect(new Set(categorized.map((entry) => entry.categoryLeg))).toEqual(new Set(['source']))
     expect(new Set(categorized.map((entry) => getCategoryLabel(journal, entry.categorySourceId))))
-      .toEqual(new Set(manifest.transfers.flatMap((transfer) => (transfer.category ? [`${transfer.category} · transfers to and from off-budget accounts`] : []))))
+      .toEqual(new Set(manifest.transfers.flatMap((transfer) => (transfer.category ? [`${transfer.category} · payments to and from off-budget accounts`] : []))))
   })
 
   it('files each budget category with what Actual counted against it', async () => {
@@ -80,6 +80,7 @@ describe('normalising Actual Budget exports', () => {
     const flight = journal.entries.find((entry) => entry.notes === 'Flight to Lisbon #travel #summer-2025')
     expect(flight?.tags).toEqual(['travel', 'summer-2025'])
     expect(readActualTags('Paid ##not-a-tag and #Food then #food again')).toEqual(['Food'])
+    expect(readActualTags('#one#two and x#three')).toEqual(['one', 'two', 'three'])
   })
 
   it('handles deleted accounts, splits, zero transfers and shared category names the way Actual shows them', async () => {
@@ -118,7 +119,7 @@ describe('normalising Actual Budget exports', () => {
       ['spending', 'Income', 'Income'],
       ['spending', 'Travel (Away)', 'Travel (Away)'],
       ['spending', 'Travel (Home)', 'Travel (Home)'],
-      ['transfer', 'Car · transfers to and from off-budget accounts', 'Car Transfers'],
+      ['transfer', 'Car · payments to and from off-budget accounts', 'Car Transfers'],
       ['uncategorized', 'No category', 'Miscellaneous'],
       ['offBudgetUncategorized', 'No category · Car Loan', 'Car Loan'],
     ])
@@ -183,6 +184,12 @@ describe('pairing Actual Budget transfers', () => {
       { id: 'split-transfer', accountId: 'savings', date: '2026-09-05', amount: 6000, parentId: 'split', payeeId: 'to-checking', transferredId: 'split-out' },
       { id: 'split-rest', accountId: 'savings', date: '2026-09-05', amount: 3000, parentId: 'split', categoryId: 'car' },
       { id: 'split-out', accountId: 'checking', date: '2026-09-05', amount: -6000, payeeId: 'to-savings', transferredId: 'split-transfer' },
+      // Both sides in one account
+      { id: 'self-out', accountId: 'checking', date: '2026-09-06', amount: -4000, payeeId: 'to-checking', transferredId: 'self-in' },
+      { id: 'self-in', accountId: 'checking', date: '2026-09-06', amount: 4000, payeeId: 'to-checking', transferredId: 'self-out' },
+      // The other side names a third account rather than this one
+      { id: 'astray-out', accountId: 'checking', date: '2026-09-07', amount: -7000, payeeId: 'to-savings', transferredId: 'astray-in' },
+      { id: 'astray-in', accountId: 'savings', date: '2026-09-07', amount: 7000, payeeId: 'to-loan', transferredId: 'astray-out' },
     ]), TODAY)
 
     expect(journal.entries.map((entry) => [entry.transactionId, entry.type, entry.categorySourceId])).toEqual([
@@ -193,6 +200,10 @@ describe('pairing Actual Budget transfers', () => {
       ['short-out', 'withdrawal', 'transfer:'],
       ['short-in', 'deposit', 'transfer:'],
       ['split-out', 'withdrawal', 'transfer:'],
+      ['self-out', 'withdrawal', 'transfer:'],
+      ['self-in', 'deposit', 'transfer:'],
+      ['astray-out', 'withdrawal', 'transfer:'],
+      ['astray-in', 'deposit', 'transfer:'],
     ])
     expect(journal.skippedRows.map((row) => row.transactionId)).toEqual(['split'])
     expect(journal.categories.map((source) => [source.id, source.role, source.label, source.createName])).toEqual([
@@ -287,5 +298,25 @@ describe('Actual Budget categories used only on payments to off-budget accounts'
       { id: 'part', accountId: 'checking', date: '2026-09-01', amount: -950000, parentId: 'split' },
     ], { currencyCode: 'JPY', budgetDecimals: 0 })
     expect(normaliseActualBudget(budget, '2026-09-26').skippedRows[0].reason).toBe(getActualUnbalancedSplitReason('-9500', '-9000'))
+  })
+})
+
+describe('Actual Budget accounts sharing a name', () => {
+  it('tells them apart by where each sits, numbering those that sit alike', () => {
+    const budget = buildActualBudget([], {
+      accounts: [
+        { id: 'a', name: 'Cash', offBudget: false, closed: false, type: null },
+        { id: 'b', name: 'cash', offBudget: false, closed: false, type: null },
+        { id: 'c', name: 'Cash', offBudget: true, closed: true, type: null },
+        { id: 'd', name: 'Visa', offBudget: false, closed: false, type: null },
+      ],
+    })
+
+    expect(normaliseActualBudget(budget, '2026-09-26').accounts.map((account) => account.label)).toEqual([
+      'Cash (on budget, 1)',
+      'cash (on budget, 2)',
+      'Cash (off budget, closed)',
+      'Visa',
+    ])
   })
 })

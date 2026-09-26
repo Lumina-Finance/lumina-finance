@@ -205,6 +205,16 @@ describe('reading Actual Budget files', () => {
     expect(await readRefusal(new File([database], 'db.sqlite'))).toMatch(/in JPY, and some of its amounts aren't stored/)
   })
 
+  it('refuses a budget with a date or an amount Actual would not have written', async () => {
+    const database = await editDatabase(
+      unzipActualDatabase(readActualFixture('envelope', 'export.zip')),
+      `UPDATE transactions SET date = 2026 WHERE id = (SELECT id FROM v_transactions WHERE account IS NOT NULL ORDER BY id LIMIT 1);
+       UPDATE transactions SET amount = 12.5 WHERE id = (SELECT id FROM v_transactions WHERE account IS NOT NULL ORDER BY id DESC LIMIT 1)`,
+    )
+
+    expect(await readRefusal(new File([database], 'db.sqlite'))).toMatch(/^This budget has 2 transactions whose date or amount isn't stored/)
+  })
+
   it('refuses a yen budget from a newer Actual than the one checked', async () => {
     const database = await editDatabase(
       readActualFixture('yen', 'db.sqlite'),

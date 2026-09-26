@@ -180,6 +180,16 @@ async function readActualDatabase(
 
     const transactions = readTransactions(database)
 
+    // Actual writes every date as YYYYMMDD and every amount as a whole number of hundredths, so a row
+    // that isn't was written by something else, and no reading of it can be trusted
+    const malformed = transactions.filter((transaction) => !transaction.date || !Number.isSafeInteger(transaction.amount)).length
+    if (malformed > 0) {
+      return refuse(
+        `This budget has ${malformed.toLocaleString()} ${malformed === 1 ? 'transaction' : 'transactions'} whose date or amount `
+        + "isn't stored the way Actual stores them, so it can't be imported.",
+      )
+    }
+
     // Actual writes every transaction in hundredths, so a zero-decimal budget whose amounts are not
     // all whole hundreds was written some other way, and reading it either way could be 100 times off
     const hundredths = 10 ** ACTUAL_TRANSACTION_DECIMALS
@@ -329,7 +339,7 @@ function readBudgetFigures(database: Database, budgetType: ActualBudgetType): Ac
   }))
 }
 
-/** Actual stores dates as YYYYMMDD integers. Anything else reads as an empty date, which is refused later */
+/** Actual stores dates as YYYYMMDD integers. Anything else reads as an empty date, which the reader refuses */
 function formatActualDate(value: SqlValue) {
   const digits = String(value ?? '')
   return /^\d{8}$/.test(digits) ? `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6)}` : ''

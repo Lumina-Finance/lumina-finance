@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Category } from '@/api/categories'
 import type { TransactionImportCategoryMapping } from '@/api/transaction-imports'
-import { ACTUAL_INCOME_BUDGET_REASON, getActualBudgetAmountReason, getActualBudgetGroupCategoryReason } from '@/pages/imports/actual/constants'
+import { ACTUAL_BUDGET_NAME_TOO_LONG_REASON, ACTUAL_INCOME_BUDGET_REASON, getActualBudgetAmountReason, getActualBudgetGroupCategoryReason } from '@/pages/imports/actual/constants'
 import { formatScaledAmount } from '@/pages/imports/actual/utils/amounts'
 import { buildActualBudgetDrafts, buildActualRunBudgets, getActualBudgetRefusal, type ActualBudgetDraft } from '@/pages/imports/actual/utils/budgets'
 import { CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
@@ -147,5 +147,15 @@ describe('Actual Budget budgets', () => {
       ['Loan (Boat)', ['transfer:boat-loan']],
       ['Loan (Car)', ['transfer:car-loan']],
     ])
+  })
+
+  it('leaves out a budget whose name is longer than a budget name can be', () => {
+    const budget = buildActualBudget([], {
+      categories: [{ id: 'long', name: 'L'.repeat(257), groupName: 'Bills', isIncome: false, hidden: false }],
+      budgetFigures: [{ month: CURRENT_MONTH, categoryId: 'long', amount: 1000, carryover: false }],
+    })
+    const drafts = buildActualBudgetDrafts(budget, normaliseActualBudget(budget, `${CURRENT_MONTH}-26`), CURRENT_MONTH)
+
+    expect(drafts.map((draft) => draft.disabledReason)).toEqual([ACTUAL_BUDGET_NAME_TOO_LONG_REASON])
   })
 })

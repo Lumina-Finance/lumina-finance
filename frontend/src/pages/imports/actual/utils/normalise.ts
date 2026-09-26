@@ -25,6 +25,7 @@ import type {
   ActualCategorySource,
   ActualJournal,
   ActualJournalEntry,
+  ActualPayee,
   ActualSkippedRow,
   ActualTransaction,
 } from '@/pages/imports/actual/types'
@@ -32,7 +33,7 @@ import { formatScaledAmount } from './amounts'
 
 // Actual reads a tag as a # followed by anything up to whitespace or the next #, and a doubled ##
 // as an escaped # that starts no tag
-const ACTUAL_TAG_PATTERN = /(^|[^#])#([^#\s]+)/g
+const ACTUAL_TAG_PATTERN = /(?<!#)#([^#\s]+)/g
 
 // Built-in categories a new payment category can't share a name with, since it would reuse one that
 // cancels the payment out of its budget or can't carry it
@@ -107,7 +108,7 @@ export function normaliseActualBudget(budget: ActualBudgetFile, today: string): 
 
     const payee = payeeById.get(transaction.payeeId ?? parent?.payeeId ?? '') ?? null
     const counterpartAccount = payee?.transferAccountId ? accountById.get(payee.transferAccountId) : undefined
-    const counterpart = counterpartAccount ? findTransferCounterpart(transaction, counterpartAccount, transactionById, leftOut) : null
+    const counterpart = counterpartAccount ? findTransferCounterpart(transaction, counterpartAccount, transactionById, payeeById, leftOut) : null
 
     // A pair is uploaded from one side with that side's notes, so the pair stands or falls with it
     if (counterpart && !isUploadedSide(transaction, counterpart)) {
@@ -194,18 +195,23 @@ function groupChildren(transactions: ActualTransaction[]) {
 }
 
 /**
- * Finds the other side of a transfer, trusted only when each side links to the other, both sit on
- * one day, the amounts are exactly opposite, and the other side is itself imported
+ * Finds the other side of a transfer, trusted only when each side links to the other, each names
+ * the other's account, the two accounts differ, both sit on one day, the amounts are exactly
+ * opposite, and the other side is itself imported
  */
 function findTransferCounterpart(
   transaction: ActualTransaction,
   counterpartAccount: ActualAccount,
   transactionById: Map<string, ActualTransaction>,
+  payeeById: Map<string, ActualPayee>,
   leftOut: ReadonlySet<string>,
 ) {
   const counterpart = transactionById.get(transaction.transferredId ?? '')
   if (!counterpart || counterpart.transferredId !== transaction.id || leftOut.has(counterpart.id)) return null
-  if (counterpart.accountId !== counterpartAccount.id || counterpart.date !== transaction.date) return null
+  if (counterpart.accountId !== counterpartAccount.id || counterpart.accountId === transaction.accountId) return null
+  const counterpartParent = counterpart.parentId ? transactionById.get(counterpart.parentId) : undefined
+  const counterpartPayee = payeeById.get(counterpart.payeeId ?? counterpartParent?.payeeId ?? '')
+  if (counterpartPayee?.transferAccountId !== transaction.accountId || counterpart.date !== transaction.date) return null
   if (counterpart.amount !== -transaction.amount || counterpart.isParent) return null
   return counterpart
 }
@@ -282,7 +288,7 @@ function joinNotes(parentNotes: string | null, notes: string | null) {
 export function readActualTags(notes: string | null): string[] {
   const tags = new Map<string, string>()
   for (const match of (notes ?? '').matchAll(ACTUAL_TAG_PATTERN)) {
-    const tag = match[2]
+    const tag = match[1]
     if (!tags.has(tag.toLowerCase())) tags.set(tag.toLowerCase(), tag)
   }
   return [...tags.values()]
@@ -312,13 +318,26 @@ function buildAccountSources(accounts: ActualAccount[], entries: ActualJournalEn
     add(entry.destinationAccountId, entry.amount)
   }
 
+  // A shared name is told apart by where the account sits, and numbered when that is shared too
   const nameCounts = countBy(accounts.map((account) => account.name.toLowerCase()))
+  const describeAccount = (account: ActualAccount) => (
+    `${account.offBudget ? 'off budget' : 'on budget'}${account.closed ? ', closed' : ''}`
+  )
+  const detailCounts = countBy(accounts.map((account) => `${account.name.toLowerCase()}\n${describeAccount(account)}`))
+  const detailSeen = new Map<string, number>()
+  const labelAccount = (account: ActualAccount) => {
+    if ((nameCounts.get(account.name.toLowerCase()) ?? 0) < 2) return account.name
+    const key = `${account.name.toLowerCase()}\n${describeAccount(account)}`
+    if ((detailCounts.get(key) ?? 0) < 2) return `${account.name} (${describeAccount(account)})`
+    const position = (detailSeen.get(key) ?? 0) + 1
+    detailSeen.set(key, position)
+    return `${account.name} (${describeAccount(account)}, ${position})`
+  }
+
   return accounts.map((account) => ({
     id: account.id,
     name: account.name,
-    label: (nameCounts.get(account.name.toLowerCase()) ?? 0) > 1
-      ? `${account.name} (${account.offBudget ? 'off budget' : 'on budget'}${account.closed ? ', closed' : ''})`
-      : account.name,
+    label: labelAccount(account),
     offBudget: account.offBudget,
     closed: account.closed,
     balance: balances.get(account.id) ?? 0,
@@ -410,7 +429,7 @@ function getSourceLabels(role: ActualCategoryRole, name: string, accountName: st
     if (!name) return { label: 'Transfers whose other side is missing', createName: 'Transfer' }
     const isReserved = ACTUAL_RESERVED_PAYMENT_NAMES.includes(name.toLowerCase())
     return {
-      label: `${name} · transfers to and from off-budget accounts`,
+      label: `${name} · payments to and from off-budget accounts`,
       createName: alsoSpending ? `${name} Transfers` : isReserved ? `${name} Payments` : name,
     }
   }

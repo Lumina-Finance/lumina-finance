@@ -132,7 +132,7 @@ export function ActualFilesStep({
       </div>
 
       <div className="mt-auto flex flex-wrap gap-3 pt-3">
-        <ImportStat label="Rows" value={(stagedFile?.rowCount ?? 0).toString()} />
+        <ImportStat label="Transactions" value={(stagedFile?.rowCount ?? 0).toString()} />
         <ImportStat label="Accounts" value={journal.accounts.length.toString()} />
         <ImportStat label="Categories" value={journal.categories.length.toString()} />
       </div>

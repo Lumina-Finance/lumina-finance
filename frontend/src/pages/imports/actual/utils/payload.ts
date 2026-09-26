@@ -5,12 +5,15 @@ import type { JournalImportPayload, JournalImportRow } from '@/api/provider-impo
 import type { TransactionImportCategoryMapping } from '@/api/transaction-imports'
 import {
   ACTUAL_ACCOUNT_NAME_MAX_LENGTH,
+  ACTUAL_CATEGORY_NAME_MAX_LENGTH,
   ACTUAL_TRANSACTION_DECIMALS,
   getActualAccountNameTooLongError,
   getActualAmountPrecisionReason,
   getActualBuiltInTransferError,
   getActualCategoryCreateClashError,
+  getActualCategoryNameTooLongError,
   getActualFileCurrencyError,
+  getActualGroupCategoryError,
   getActualMixedCurrencyError,
   getActualSharedAccountError,
   getActualTransferCategoryError,
@@ -220,6 +223,12 @@ function buildCategoryMappings(
 
     if (choice !== CREATE_CATEGORY_VALUE) {
       const category = categoryById.get(choice)
+      // An Actual budget is the user's own, and its rows can land in their personal accounts, which
+      // a group category can't hold
+      if (category?.group_id) {
+        addError(getActualGroupCategoryError(source.label))
+        continue
+      }
       if (source.role === 'transfer' && category && !canCarryActualTransfer(category)) {
         addError(getActualTransferCategoryError(source.label))
         continue
@@ -239,6 +248,10 @@ function buildCategoryMappings(
     }
     if (source.role === 'transfer' && !canCarryActualTransfer({ kind, name: source.createName })) {
       addError(getActualTransferCategoryError(source.label))
+      continue
+    }
+    if (source.createName.length > ACTUAL_CATEGORY_NAME_MAX_LENGTH) {
+      addError(getActualCategoryNameTooLongError(source.label))
       continue
     }
 

@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import type { Category } from '@/api/categories'
 import { CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
 import { buildImportCategoryMatchOptions } from '@/pages/imports/utils'
-import { getActualTransferCategoryOptions, inferActualCategoryMappings } from '@/pages/imports/actual/utils/categories'
+import { getActualCategoryOptions, getActualTransferCategoryOptions, inferActualCategoryMappings } from '@/pages/imports/actual/utils/categories'
 import { normaliseActualFixture } from './fixtures'
 
 function category(id: string, name: string, kind: Category['kind'], isSystem = false): Category {
@@ -33,7 +33,7 @@ describe('Actual Budget category defaults', () => {
       'Income': CREATE_CATEGORY_VALUE,
       'Travel (Away)': CREATE_CATEGORY_VALUE,
       'Travel (Home)': CREATE_CATEGORY_VALUE,
-      'Car · transfers to and from off-budget accounts': CAR_TRANSFERS.id,
+      'Car · payments to and from off-budget accounts': CAR_TRANSFERS.id,
       'No category': MISCELLANEOUS.id,
       'No category · Car Loan': MISCELLANEOUS.id,
     })
@@ -58,8 +58,21 @@ describe('Actual Budget category defaults', () => {
 
   it('files a transfer whose other side is missing under Transfer, and never matches a payment to it', () => {
     const missing = { id: 'transfer:', role: 'transfer', label: 'Transfers whose other side is missing', createName: 'Transfer', categoryId: null, accountId: null, isIncome: false, rowCount: 1 } as const
-    const payment = { ...missing, id: 'transfer:t', label: 'Transfer · transfers to and from off-budget accounts', categoryId: 't' }
+    const payment = { ...missing, id: 'transfer:t', label: 'Transfer · payments to and from off-budget accounts', categoryId: 't' }
 
     expect(inferActualCategoryMappings([missing, payment], {}, CATEGORIES)).toEqual({ [missing.id]: TRANSFER.id, [payment.id]: CREATE_CATEGORY_VALUE })
+  })
+
+  it('never matches or offers a group category, which personal accounts can\'t hold', async () => {
+    const { journal } = await normaliseActualFixture('edges')
+    const groupGroceries = { ...category('group-groceries', 'Groceries', 'expense'), group_id: 'family' }
+    const groceries = journal.categories.find((source) => source.label === 'Groceries')!
+
+    expect(inferActualCategoryMappings(journal.categories, {}, [groupGroceries, ...CATEGORIES])[groceries.id]).toBe(GROCERIES.id)
+    expect(inferActualCategoryMappings(journal.categories, {}, [groupGroceries])[groceries.id]).toBe(CREATE_CATEGORY_VALUE)
+
+    const categories = [groupGroceries, GROCERIES]
+    const options = getActualCategoryOptions(buildImportCategoryMatchOptions(categories), new Map(categories.map((entry) => [entry.id, entry])))
+    expect(options.map((option) => option.value)).toEqual([CREATE_CATEGORY_VALUE, GROCERIES.id])
   })
 })

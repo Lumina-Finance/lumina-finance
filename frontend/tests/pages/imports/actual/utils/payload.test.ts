@@ -9,7 +9,9 @@ import {
   getActualAmountPrecisionReason,
   getActualBuiltInTransferError,
   getActualCategoryCreateClashError,
+  getActualCategoryNameTooLongError,
   getActualFileCurrencyError,
+  getActualGroupCategoryError,
   getActualMixedCurrencyError,
   getActualSharedAccountError,
   getActualTransferCategoryError,
@@ -230,5 +232,24 @@ describe('Actual Budget import payload', () => {
     expect(build.errors).toEqual([])
     expect(build.payload?.accounts).toContainEqual({ source: wallet, account_id: CHEQUING.id })
     expect(build.archiveAccountSources).toEqual([])
+  })
+
+  it('keeps rows off a group category, which personal accounts can\'t hold', async () => {
+    const { journal } = await normaliseActualFixture('edges')
+    const answers = createAnswers(journal)
+    const groceries = journal.categories.find((source) => source.label === 'Groceries')!
+    const familyGroceries = { ...GROCERIES, id: 'family-groceries', group_id: 'family' } as Category
+    answers.categoryById.set(familyGroceries.id, familyGroceries)
+    answers.categoryMappings[groceries.id] = familyGroceries.id
+
+    expect(buildActualImportPayload(journal, answers).errors).toEqual([getActualGroupCategoryError(groceries.label)])
+  })
+
+  it('asks for an existing category where a new one\'s name would be too long', async () => {
+    const { journal } = await normaliseActualFixture('edges')
+    const groceries = journal.categories.find((source) => source.label === 'Groceries')!
+    const long = { ...journal, categories: journal.categories.map((source) => (source === groceries ? { ...source, createName: 'G'.repeat(257) } : source)) }
+
+    expect(buildActualImportPayload(long, createAnswers(long)).errors).toEqual([getActualCategoryNameTooLongError(groceries.label)])
   })
 })

@@ -125,6 +125,16 @@ export const ACTUAL_ACCOUNT_TYPES: Record<string, AccountType> = {
 // The longest name a Lumina account takes, which an Actual account name can exceed
 export const ACTUAL_ACCOUNT_NAME_MAX_LENGTH = 256
 
+// The longest name a Lumina category or budget takes, which an Actual category name can exceed
+export const ACTUAL_CATEGORY_NAME_MAX_LENGTH = 256
+export const ACTUAL_BUDGET_NAME_MAX_LENGTH = 256
+
+export function getActualCategoryNameTooLongError(label: string) {
+  return `Match ${label} to an existing category, since a new category name holds at most ${ACTUAL_CATEGORY_NAME_MAX_LENGTH} characters.`
+}
+
+export const ACTUAL_BUDGET_NAME_TOO_LONG_REASON = `Its name is longer than the ${ACTUAL_BUDGET_NAME_MAX_LENGTH} characters a budget name can have`
+
 export function getActualAmountPrecisionReason(amount: string, currencyCode: string) {
   return `The amount ${amount} has more decimal places than ${currencyCode} holds`
 }
@@ -188,3 +198,7 @@ export const ACTUAL_MISCELLANEOUS_CATEGORY_NAME = 'Miscellaneous'
 // An account created from Actual opens with the starting balance Actual recorded for it, written as
 // a balance adjustment, so the shared note about adding one does not apply
 export const ACTUAL_CREATED_ACCOUNT_EXPLANATION = 'These will be created as new accounts, each opening with the starting balance Actual recorded and no credit limit:'
+
+export function getActualGroupCategoryError(label: string) {
+  return `Match ${label} to one of your own categories or a built-in one, since a group category only holds its group's rows.`
+}

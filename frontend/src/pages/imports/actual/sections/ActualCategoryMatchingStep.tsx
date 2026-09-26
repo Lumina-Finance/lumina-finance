@@ -5,7 +5,7 @@ import {
 } from '@/pages/imports/constants'
 import { EmptyState, ImportInfoCard, ImportLoadFailure, ImportStep, ImportValueMatchTable } from '@/pages/imports/components'
 import type { ActualImportWorkflow } from '@/pages/imports/actual/hooks'
-import { getActualTransferCategoryOptions } from '@/pages/imports/actual/utils/categories'
+import { getActualCategoryOptions, getActualTransferCategoryOptions } from '@/pages/imports/actual/utils/categories'
 
 type ActualCategoryMatchingStepProps = Pick<
   ActualImportWorkflow,
@@ -27,8 +27,8 @@ type ActualCategoryMatchingStepProps = Pick<
  * Category matching step of the Actual Budget import flow, showing every category the imported rows
  * and budgets use, matched to an existing category or queued to be created with a chosen kind
  *
- * Payments between the budget and an off-budget account stay transfers, so their rows can only take
- * a transfer category, which is created as one
+ * Payments between the budget and an off-budget account carry the category as a transfer, so their
+ * rows can only take a transfer category, which is created as one
  */
 export function ActualCategoryMatchingStep({
   budget,
@@ -44,6 +44,7 @@ export function ActualCategoryMatchingStep({
   categoriesFailed,
   refetchCategories,
 }: ActualCategoryMatchingStepProps) {
+  const options = getActualCategoryOptions(categoryMatchOptions, categoryById)
   const hasCategorisedTransfers = categorySources.some((source) => source.role === 'transfer' && source.categoryId)
 
   return (
@@ -54,7 +55,7 @@ export function ActualCategoryMatchingStep({
     >
       {hasCategorisedTransfers && (
         <ImportInfoCard title="Payments to off-budget accounts">
-          Rows marked as transfers to and from off-budget accounts are payments that carried a category in Actual, such as a loan payment. They stay transfers between your accounts, so they take a transfer category, and a budget for that category still counts them.
+          Rows marked as payments to and from off-budget accounts carried a category in Actual, such as a loan payment. They take a transfer category, and a budget for that category still counts them. A payment whose other side is in the file stays a transfer between your accounts. One whose other side isn't comes in on its own, as a withdrawal or deposit.
         </ImportInfoCard>
       )}
 
@@ -91,10 +92,10 @@ export function ActualCategoryMatchingStep({
               onDetailKindChange: (kind) => setCategoryCreateKinds((current) => ({ ...current, [source.id]: kind })),
               value,
               onChange: (nextValue) => setCategoryMappings((current) => ({ ...current, [source.id]: nextValue })),
-              options: isTransfer ? getActualTransferCategoryOptions(categoryMatchOptions, categoryById, source) : undefined,
+              options: isTransfer ? getActualTransferCategoryOptions(options, categoryById, source) : undefined,
             }
           })}
-          options={categoryMatchOptions}
+          options={options}
           disabled={categoriesLoading}
         />
       )}
