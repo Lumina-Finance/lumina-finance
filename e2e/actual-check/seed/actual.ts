@@ -6,10 +6,9 @@
  * so a later release that renames or reshapes one stops the seed with the handler's name rather
  * than seeding something else
  */
-import { readFile, readdir } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import * as api from '@actual-app/api'
-import type { ActualMigration } from '../manifest.ts'
 
 export { api }
 
@@ -21,9 +20,6 @@ const PACKAGES_DIR = join(import.meta.dirname, 'node_modules', '@actual-app')
 // Actual's own currency table and its list of feature flags, in the core package's shipped source
 const CURRENCIES_SOURCE = join(PACKAGES_DIR, 'core', 'src', 'shared', 'currencies.ts')
 const PREFERENCES_SOURCE = join(PACKAGES_DIR, 'core', 'src', 'types', 'prefs.ts')
-
-// The migrations the API applies to every budget it opens, one file per database version
-const MIGRATIONS_DIR = join(PACKAGES_DIR, 'api', 'dist', 'migrations')
 
 export class ActualSession {
   private readonly send: Send
@@ -88,18 +84,6 @@ export class ActualSession {
 export async function readApiVersion() {
   const packageJson = JSON.parse(await readFile(join(PACKAGES_DIR, 'api', 'package.json'), 'utf8')) as { version: string }
   return packageJson.version
-}
-
-/** Every migration the installed API applies, oldest first, named by the file it comes from */
-export async function readMigrations(): Promise<ActualMigration[]> {
-  const files = await readdir(MIGRATIONS_DIR)
-  const migrations = files
-    .map((file) => ({ file, match: file.match(/^(\d+)_/) }))
-    .filter((entry): entry is { file: string; match: RegExpMatchArray } => entry.match !== null)
-    .map(({ file, match }) => ({ id: Number(match[1]), file }))
-    .sort((a, b) => a.id - b.id)
-  if (migrations.length === 0) throw new Error(`No migrations found in ${MIGRATIONS_DIR}`)
-  return migrations
 }
 
 /** Decimal places Actual's own currency table gives each currency */

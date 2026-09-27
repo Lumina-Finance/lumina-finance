@@ -6,11 +6,10 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-# The importer's own limits, which the check holds Actual's packages to
+# The importer's currencies without decimal places, which the check holds Actual's own list to
 constants=../../frontend/src/pages/imports/actual/constants.ts
-newest_checked=$(sed -nE 's/^export const ACTUAL_NEWEST_CHECKED_MIGRATION = ([0-9]+)$/\1/p' "$constants")
 zero_decimal=$(sed -nE "s/^export const ACTUAL_ZERO_DECIMAL_CURRENCIES = new Set\(\[(.*)\]\)$/\1/p" "$constants" | tr -d "' ")
-if [ -z "$newest_checked" ] || [ -z "$zero_decimal" ]; then
+if [ -z "$zero_decimal" ]; then
   echo "Could not read the importer's constants from $constants" >&2
   exit 1
 fi
@@ -38,7 +37,6 @@ fi
 # the server this script started, and is dead once that server is taken down
 rm -rf output
 ACTUAL_SESSION_TOKEN="$token" \
-  ACTUAL_NEWEST_CHECKED_MIGRATION="$newest_checked" \
   ACTUAL_ZERO_DECIMAL_CURRENCIES="$zero_decimal" \
   SEED_USER="$(id -u):$(id -g)" \
   compose run --rm seed

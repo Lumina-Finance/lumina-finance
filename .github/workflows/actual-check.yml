@@ -296,8 +296,7 @@ jobs:
         if: failure()
         run: docker compose -f docker/compose.yml logs || true
 
-      # One report per budget the check reached, with the yen budget's outcome first since a newer
-      # Actual can fail it on the importer's version guard while the others still compare
+      # One report per budget the check reached
       - name: Summarize
         if: always()
         run: |
@@ -307,10 +306,10 @@ jobs:
               echo "The check stopped before it compared anything"
               exit 0
             fi
-            yen=$(printf '%s\n' "${reports}" | xargs jq -r 'select(.budget == "yen") | .outcome')
-            echo "**Yen budget: ${yen:-not reached}**"
+            first=1
             while IFS= read -r report; do
-              echo
+              [ "${first}" = 1 ] || echo
+              first=0
               jq -r '"#### \(.budget): \(.outcome)"' "${report}"
               jq -r '"\(.differences | length) differences, \(.unexpected | length) unexpected, \(.stale | length) no longer occurring"' "${report}"
               jq -r '(.skipped // {}) | to_entries[] | select(.value != null) | "The import screen reported: \(.value)"' "${report}"

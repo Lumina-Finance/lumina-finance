@@ -20,7 +20,7 @@ export interface ActualManifest {
   /** Decimal places Actual stores this budget's figures in, from its own currency table */
   budgetDecimals: number
 
-  /** Newest database migration in the export, which the importer's version guard reads */
+  /** Newest database migration in the export, which names the Actual database version it came from */
   databaseVersion: number | null
   accounts: ManifestAccount[]
   categories: ManifestCategory[]
@@ -52,7 +52,6 @@ export interface ActualRunInfo {
 
   /** What the importer was built for, read from its constants by seed.sh */
   importer: {
-    newestCheckedMigration: number
     zeroDecimalCurrencies: string[]
   }
 
@@ -62,13 +61,7 @@ export interface ActualRunInfo {
 
     /** Whether currency is still one of Actual's feature flags, which the importer reads */
     currencyIsFeatureFlag: boolean
-    migrations: ActualMigration[]
   }
-}
-
-export interface ActualMigration {
-  id: number
-  file: string
 }
 
 /** One live Actual account, open or closed */

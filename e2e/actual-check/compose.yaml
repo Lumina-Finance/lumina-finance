@@ -37,7 +37,6 @@ services:
       ACTUAL_URL: http://actual:5006
       ACTUAL_API_VERSION: ${ACTUAL_API_VERSION:-26.9.0}
       ACTUAL_SESSION_TOKEN:
-      ACTUAL_NEWEST_CHECKED_MIGRATION:
       ACTUAL_ZERO_DECIMAL_CURRENCIES:
     # Retried, since a registry hiccup would otherwise fail the week's check. better-sqlite3's
     # install script is allowed by seed/package.json

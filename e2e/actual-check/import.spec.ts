@@ -1,7 +1,7 @@
 /**
  * Imports each seeded Actual Budget export through the real import screen as a new user, then
  * compares what Lumina holds with what Actual's own API said about the same budget and with the
- * budget figures the seed found in the export's own table
+ * budget figures the seed declared, which it confirmed the export holds
  */
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -25,19 +25,11 @@ import type { ActualManifest, ActualRunInfo } from './manifest.ts'
 
 const OUTPUT_DIR = join(import.meta.dirname, 'output')
 
-// The budgets whose amounts all have two decimal places, which import and compare in full whatever
-// becomes of the yen budget
-const TWO_DECIMAL_BUDGETS = ['envelope', 'edges', 'tracking']
+const BUDGETS = ['envelope', 'edges', 'tracking', 'yen']
 
 // Actual records no currency for a budget whose currency feature is off, so the check answers the
 // one its user signed up with
 const CHOSEN_CURRENCY = TEST_CURRENCY
-
-// The importer's version guard refusing a yen file, word for word, so it can't be mistaken for the
-// refusals of amounts stored another way or of a missing column
-const VERSION_GUARD_REFUSAL = 'This budget is in JPY, and it comes from a newer version of Actual than the import has been '
-  + 'checked against. Amounts in currencies without decimal places could be read at the wrong size, so it '
-  + "can't be imported yet."
 
 // What the table of rows left out shows in a blank cell
 const EMPTY_CELL = '–'
@@ -55,8 +47,8 @@ test.beforeAll(async () => {
   }
 })
 
-test("Actual still keeps currencies the way the importer's version guard relies on", () => {
-  // Either change would let a newer Actual's yen file past the guard with every amount 100 times off
+test('Actual still keeps currencies the way the importer reads them', () => {
+  // Either change would import a budget in such a currency with every amount 100 times off
   expect(
     runInfo.actual.zeroDecimalCurrencies,
     "Actual's currencies without decimal places, against ACTUAL_ZERO_DECIMAL_CURRENCIES in the importer",
@@ -64,65 +56,11 @@ test("Actual still keeps currencies the way the importer's version guard relies 
   expect(runInfo.actual.currencyIsFeatureFlag, 'whether currency is still one of Actual\'s feature flags, which the importer reads').toBe(true)
 })
 
-for (const budget of TWO_DECIMAL_BUDGETS) {
+for (const budget of BUDGETS) {
   test(`the ${budget} budget imports to the balances, totals and budgets Actual reports`, async ({ page, request }, testInfo) => {
     const manifest = await readManifest(budget)
-    const started = await startImport(page, request, manifest)
-    if (started.isRefused) throw new Error(`The version guard refused the ${budget} budget, which is not in a currency without decimal places`)
-    await importAndCompare(page, request, testInfo, manifest, started)
+    await importAndCompare(page, request, testInfo, manifest, await startImport(page, request, manifest))
   })
-}
-
-/*
- * Rechecking a newer Actual release for yen
- *
- * The importer refuses a budget in a currency without decimal places from an Actual release newer
- * than ACTUAL_NEWEST_CHECKED_MIGRATION in frontend/src/pages/imports/actual/constants.ts, since a
- * release that stored those amounts at another scale would otherwise import each 100 times off, and
- * nothing in the file says which scale it used. When the yen test fails on the guard, recheck the
- * release by hand and then raise the constant. Never loosen the test to let the refusal pass
- *
- * 1. Start the release's server with `docker run --rm -p 127.0.0.1:5006:5006
- *    ghcr.io/actualbudget/actual:<version>`, open http://localhost:5006 and set a password
- * 2. Create a budget. In Settings, turn on currency support among the experimental features and
- *    choose Japanese Yen as the default currency
- * 3. Add an on-budget account, type a transaction of ¥1,234 into it, and budget ¥5,000 for a
- *    category in the current month, all through Actual's own screens
- * 4. Export the budget from Settings, unzip it, and read db.sqlite. Actual 26.9 stores the
- *    transaction as 123400 in transactions.amount and the figure as 5000 in zero_budgets.amount
- * 5. If the release stores both the same way, set the constant to the newest migration the failure
- *    names. If it doesn't, the importer has to read the new scale before the constant moves
- */
-test('the yen budget imports to what Actual reports, on a release the importer was checked against', async ({ page, request }, testInfo) => {
-  const manifest = await readManifest('yen')
-  const checked = runInfo.importer.newestCheckedMigration
-  const isNewer = manifest.databaseVersion === null || manifest.databaseVersion > checked
-  const started = await startImport(page, request, manifest)
-
-  if (started.isRefused) {
-    await writeReport(testInfo, manifest, { outcome: 'refused by the version guard', skipped: null, differences: [], unexpected: [], stale: [] })
-    if (!isNewer) {
-      throw new Error(`The version guard refused the yen budget from ${describeRelease()}, whose newest migration ${manifest.databaseVersion} the importer was checked against`)
-    }
-    const added = runInfo.actual.migrations.filter((migration) => migration.id > checked)
-    throw new Error(
-      `The importer's version guard refuses the yen budget from ${describeRelease()}, whose file carries migrations `
-      + `newer than ${checked}: ${added.map((migration) => `${migration.id} (${migration.file})`).join(', ')}. Recheck how this `
-      + 'release stores yen with the procedure above the yen test in e2e/actual-check/import.spec.ts, then raise '
-      + 'ACTUAL_NEWEST_CHECKED_MIGRATION. Do not loosen this test',
-    )
-  }
-  if (isNewer) {
-    await writeReport(testInfo, manifest, { outcome: 'taken although the version guard should refuse it', skipped: null, differences: [], unexpected: [], stale: [] })
-    throw new Error(`The import screen took the yen budget from ${describeRelease()}, whose newest migration ${manifest.databaseVersion} is newer than the ${checked} the importer was checked against, so its version guard did not fire`)
-  }
-  await importAndCompare(page, request, testInfo, manifest, started)
-})
-
-// An edge server image reports the release it builds towards, so a nightly API seed is named too
-function describeRelease() {
-  const release = `Actual ${runInfo.actualVersion}`
-  return runInfo.apiVersion === runInfo.actualVersion ? release : `${release} seeded with @actual-app/api ${runInfo.apiVersion}`
 }
 
 async function readOutput(path: string) {
@@ -144,15 +82,11 @@ interface StartedImport {
    * kept in the results beside the comparison and read for the mappings it reports
    */
   uploads: CapturedUpload[]
-
-  /** Whether the importer's version guard refused the export */
-  isRefused: boolean
 }
 
 /**
- * Signs up a new user, opens the Actual import and uploads the budget's export, which the screen
- * either stages or refuses on its version guard. Any other refusal fails the test with the
- * screen's own words
+ * Signs up a new user, opens the Actual import and uploads the budget's export. A refusal fails the
+ * test with the screen's own words
  */
 async function startImport(page: Page, request: APIRequestContext, manifest: ActualManifest): Promise<StartedImport> {
   const user = await signUpUser(request)
@@ -172,15 +106,13 @@ async function startImport(page: Page, request: APIRequestContext, manifest: Act
   await expect(input).toBeEnabled()
   await input.setInputFiles(join(OUTPUT_DIR, manifest.budget, 'export.zip'))
 
-  const staged = page.getByText('export.zip', { exact: true })
-  const refused = page.getByText(VERSION_GUARD_REFUSAL, { exact: true })
   try {
-    await expect(staged.or(refused)).toBeVisible()
+    await expect(page.getByText('export.zip', { exact: true })).toBeVisible()
   } catch {
     const card = page.getByRole('button', { name: /Upload budget export/ })
-    throw new Error(`The import screen neither staged the ${manifest.budget} export nor refused it on its version: ${await card.innerText().catch(() => 'no upload card')}`)
+    throw new Error(`The import screen didn't stage the ${manifest.budget} export: ${await card.innerText().catch(() => 'no upload card')}`)
   }
-  return { user, uploads, isRefused: await refused.isVisible() }
+  return { user, uploads }
 }
 
 /**

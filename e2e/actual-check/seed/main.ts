@@ -8,7 +8,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { ActualRunInfo } from '../manifest.ts'
-import { ActualSession, api, isCurrencyFeatureFlag, readApiVersion, readCurrencyDecimals, readMigrations } from './actual.ts'
+import { ActualSession, api, isCurrencyFeatureFlag, readApiVersion, readCurrencyDecimals } from './actual.ts'
 import { DATASETS, RunDates } from './dataset.ts'
 import { crossCheckBudgetMonths, recordManifest } from './record.ts'
 
@@ -19,11 +19,7 @@ const timezone = requireEnv('TZ')
 const asOf = new Intl.DateTimeFormat('en-CA', { timeZone: timezone }).format(new Date())
 const dates = new RunDates(asOf)
 
-const newestCheckedMigration = Number(requireEnv('ACTUAL_NEWEST_CHECKED_MIGRATION'))
-if (!Number.isSafeInteger(newestCheckedMigration)) throw new Error('ACTUAL_NEWEST_CHECKED_MIGRATION must be a migration id')
-
 const currencyDecimals = await readCurrencyDecimals()
-const migrations = await readMigrations()
 
 // Actual keeps its own copy of each budget here while seeding it, which nothing reads afterwards
 const dataDir = await mkdtemp(join(tmpdir(), 'actual-seed-'))
@@ -61,13 +57,11 @@ const runInfo: ActualRunInfo = {
   timezone,
   budgets: DATASETS.map((dataset) => dataset.name),
   importer: {
-    newestCheckedMigration,
     zeroDecimalCurrencies: requireEnv('ACTUAL_ZERO_DECIMAL_CURRENCIES').split(',').sort(),
   },
   actual: {
     zeroDecimalCurrencies: [...currencyDecimals].filter(([, decimals]) => decimals === 0).map(([code]) => code).sort(),
     currencyIsFeatureFlag: await isCurrencyFeatureFlag(),
-    migrations,
   },
 }
 await writeFile(join(outputDir, 'run.json'), `${JSON.stringify(runInfo, null, 2)}\n`)
