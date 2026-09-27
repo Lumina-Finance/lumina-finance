@@ -39,8 +39,8 @@ let runInfo: ActualRunInfo
 test.beforeAll(async () => {
   runInfo = JSON.parse(await readOutput('run.json')) as ActualRunInfo
 
-  // The datasets date everything from the run date, and the import leaves out rows after today in
-  // the user's own timezone, so a seed from another day compares against the wrong rows
+  // The datasets date everything from the run date, and Lumina counts a row from its date in the
+  // user's own timezone, so a seed from another day compares against the wrong balances and totals
   const today = todayInTestTimezone()
   if (runInfo.asOf !== today || runInfo.timezone !== TEST_TIMEZONE) {
     throw new Error(`The output is stale, re-seed: it was measured on ${runInfo.asOf} in ${runInfo.timezone}, and today is ${today} in ${TEST_TIMEZONE}`)

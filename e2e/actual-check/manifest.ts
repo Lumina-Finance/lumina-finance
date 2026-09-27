@@ -10,7 +10,7 @@ export interface ActualManifest {
   /** The dataset's name, which also names its folder in output/ */
   budget: string
 
-  /** The run date. Rows after it are listed but counted nowhere */
+  /** The run date. Rows after it are imported but counted in no balance or monthly total here */
   asOf: string
   budgetType: 'envelope' | 'tracking'
 
@@ -30,7 +30,7 @@ export interface ActualManifest {
   figures: ManifestFigure[]
   transfers: ManifestTransfer[]
 
-  /** Rows dated after the as-of date, which the import leaves out and lists */
+  /** Rows dated after the as-of date, which the import brings in and Lumina counts from their date */
   afterAsOf: ManifestRow[]
 
   /** Split rows whose parts don't add up to them, which Actual flags */
@@ -124,6 +124,9 @@ export interface ManifestRow {
   amount: string
   payee: string | null
   category: string | null
+
+  /** Actual's id for the category, since two categories can share a name */
+  categoryId: string | null
   notes: string | null
 }
 

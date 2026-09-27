@@ -69,8 +69,7 @@ const BALANCE_ADJUSTMENT = 'Balance Adjustment'
 // Decimal places Lumina keeps for the currencies the check's budgets are imported in
 const CURRENCY_EXPONENTS: Record<string, number> = { CAD: 2, JPY: 0 }
 
-// The start of the reason the import screen gives for each kind of row it leaves out
-const FUTURE_ROW_REASON = 'Dated in the future'
+// The start of the reason the import screen gives for a split whose parts no longer add up
 const UNBALANCED_SPLIT_REASON = 'Its split parts add up to'
 
 export function compareImport(
@@ -82,11 +81,11 @@ export function compareImport(
   const differences = new DifferenceList()
   const categoryById = new Map(manifest.categories.map((category) => [category.id, category]))
 
-  // The import leaves out rows dated after the run date, and the only Lumina row that may be dated
-  // on it is the adjustment that brings a closed account to zero
+  // Actual's figures are as of the run date, so rows dated after it are compared on their own
   const counted = lumina.transactions.filter((transaction) => transaction.dt.slice(0, 10) <= manifest.asOf)
 
   compareAccounts(manifest, lumina, mappings, currency, differences)
+  compareLaterRows(manifest, lumina.transactions, mappings, currency, differences)
   compareTransfers(manifest, counted, mappings, currency, differences)
   compareCategoryMonths(manifest, counted, mappings, categoryById, currency, differences)
   compareBudgets(manifest, lumina, mappings, categoryById, currency, differences)
@@ -108,15 +107,12 @@ export function checkExpected(differences: Difference[], expected: ExpectedDiffe
 }
 
 /**
- * Compares the import screen's table of rows it left out, row by row, with the rows Actual has
- * dated after the run date and the splits Actual flags as unbalanced
+ * Compares the import screen's table of rows it left out, row by row, with the splits Actual flags
+ * as unbalanced
  */
 export function compareSkippedRows(manifest: ActualManifest, shown: SkippedRowCells[]): Difference[] {
   const differences = new DifferenceList()
-  const expected = [
-    ...manifest.afterAsOf.map((row) => ({ row, reason: FUTURE_ROW_REASON })),
-    ...manifest.unbalancedSplits.map((row) => ({ row, reason: UNBALANCED_SPLIT_REASON })),
-  ]
+  const expected = manifest.unbalancedSplits.map((row) => ({ row, reason: UNBALANCED_SPLIT_REASON }))
   const unmatched = new Set(shown)
   for (const { row, reason } of expected) {
     const subject = `${row.date} ${row.account} ${row.amount}`
@@ -181,12 +177,49 @@ function compareAccounts(
       if (heldAdjustment !== expectedAdjustment) differences.add('archive-adjustment', account.name, expectedAdjustment, heldAdjustment)
     }
     if (found.currency !== currency) differences.add('account-currency', account.name, currency, found.currency)
-    if (found.is_archived !== account.closed) {
-      differences.add('account-archived', account.name, account.closed ? 'closed' : 'open', found.is_archived ? 'archived' : 'active')
+    // A closed account holding rows dated after the run date can't be archived, so it comes in open
+    const expectArchived = account.closed && !manifest.afterAsOf.some((row) => row.account === account.name)
+    if (found.is_archived !== expectArchived) {
+      differences.add('account-archived', account.name, expectArchived ? 'archived' : 'active', found.is_archived ? 'archived' : 'active')
     }
   }
   for (const account of lumina.accounts.filter((entry) => !paired.has(entry.id))) {
     differences.add('account-extra', account.name, 'absent', account.account_type)
+  }
+}
+
+/**
+ * Compares each row Actual dates after the run date with the Lumina row on its account on that
+ * day for that amount, filed under what its category became, and reports any Lumina row dated
+ * after the run date that answers none. Each Lumina row answers one Actual row
+ */
+function compareLaterRows(
+  manifest: ActualManifest,
+  transactions: LuminaSnapshot['transactions'],
+  mappings: ImportMappings,
+  currency: string,
+  differences: DifferenceList,
+) {
+  const unmatched = new Set(transactions.filter((transaction) => transaction.dt.slice(0, 10) > manifest.asOf))
+  for (const row of manifest.afterAsOf) {
+    const accountId = findLuminaAccountId(manifest, mappings, row.account)
+    const amount = toCurrency(row.amount, ACTUAL_TRANSACTION_DECIMALS, currency)
+    const categoryIds = row.categoryId ? getLuminaCategoryIds(mappings, row.categoryId) : null
+    const onDay = [...unmatched].filter((transaction) => (
+      transaction.account_id === accountId
+      && transaction.dt.slice(0, 10) === row.date
+      && formatMinorUnits(transaction.amount, currency) === amount
+    ))
+    const match = onDay.find((transaction) => !categoryIds || categoryIds.has(transaction.category_id))
+    const subject = `${row.date} ${row.account} ${amount}`
+    if (match) {
+      unmatched.delete(match)
+    } else {
+      differences.add('later-row', subject, row.category ?? 'imported', onDay.length > 0 ? 'another category' : 'absent')
+    }
+  }
+  for (const transaction of unmatched) {
+    differences.add('later-row-extra', `${transaction.dt.slice(0, 10)} ${formatMinorUnits(transaction.amount, currency)}`, 'absent', 'present')
   }
 }
 
@@ -203,8 +236,7 @@ function compareTransfers(
   currency: string,
   differences: DifferenceList,
 ) {
-  const actualIdByName = new Map(manifest.accounts.map((account) => [account.name, account.id]))
-  const getLuminaAccountId = (name: string) => mappings.accounts.get(actualIdByName.get(name) ?? '')
+  const getLuminaAccountId = (name: string) => findLuminaAccountId(manifest, mappings, name)
 
   // Each leg answers one transfer, so two alike on one day need two pairs
   const unmatched = new Set(transactions)
@@ -342,6 +374,11 @@ function getLuminaCategoryIds(mappings: ImportMappings, categoryId: string) {
   return new Set([categoryId, `${TRANSFER_CATEGORY_SOURCE_PREFIX}${categoryId}`]
     .map((source) => mappings.categories.get(source))
     .filter((id): id is string => Boolean(id)))
+}
+
+// The manifest names an account rather than giving its id wherever it describes a row
+function findLuminaAccountId(manifest: ActualManifest, mappings: ImportMappings, name: string) {
+  return mappings.accounts.get(manifest.accounts.find((account) => account.name === name)?.id ?? '')
 }
 
 function requireCategory(categoryById: Map<string, ManifestCategory>, categoryId: string) {

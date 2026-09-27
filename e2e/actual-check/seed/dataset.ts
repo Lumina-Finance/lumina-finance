@@ -2,9 +2,9 @@
  * The budgets the check seeds into Actual, each covering shapes an import has to survive
  *
  * Dates are relative to the run date, with months counted back from the current one, so every run
- * holds a budget figure for this month, one that stopped last month, and a row dated tomorrow. Rows
- * written in the current month move to today when their day hasn't come yet, so the only row after
- * the run date is the one meant to be
+ * holds a budget figure for this month, one that stopped last month, and rows dated tomorrow. Rows
+ * written in the current month move to today when their day hasn't come yet, so the only rows after
+ * the run date are the ones meant to be
  */
 import { shiftMonth } from '../manifest.ts'
 import type { ActualSession, api as ActualApi } from './actual.ts'
@@ -238,7 +238,7 @@ const envelope: BudgetDataset = {
     add(account.checking, { date: dayAt(15, 19), amount: -cents(18), payee: payee.parking })
     add(account.brokerage, { date: dayAt(17, 1), amount: cents(125000), payee: payee.market, notes: 'Inheritance transferred in kind' })
 
-    // Dated after the run date, which the import leaves out and lists
+    // Dated after the run date, which the import brings in and Lumina counts from that date
     add(account.checking, { date: dates.tomorrow, amount: -cents(99), payee: payee.gym, category: category.hobbies })
 
     // The joint account runs for half a year, empties into checking and closes
@@ -298,9 +298,9 @@ const envelope: BudgetDataset = {
 /**
  * The awkward shapes the envelope budget leaves out: deleted accounts with transfers to them, a
  * split part that is a transfer, a split that no longer adds up, a zero transfer, a transfer linked
- * one way only, a closed account with money left, a category merged into one later deleted, a
- * hidden category group, two categories sharing a name, and one category used both on spending
- * and on payments to an off-budget account
+ * one way only, a closed account with money left, a closed account holding a row dated after the
+ * run date, a category merged into one later deleted, a hidden category group, two categories
+ * sharing a name, and one category used both on spending and on payments to an off-budget account
  */
 const edges: BudgetDataset = {
   name: 'edges',
@@ -329,6 +329,7 @@ const edges: BudgetDataset = {
       checking: await createAccount(api, 'Checking', false, cents(5000), openingDate),
       savings: await createAccount(api, 'Savings', false, cents(1000), openingDate),
       wallet: await createAccount(api, 'Wallet', false, cents(80), openingDate),
+      storage: await createAccount(api, 'Storage Unit', false, cents(40), openingDate),
       paypal: await createAccount(api, 'Old PayPal', false, 0, openingDate),
       carLoan: await createAccount(api, 'Car Loan', true, -cents(9000), openingDate),
       oldLoan: await createAccount(api, 'Old Loan', true, -cents(500), openingDate),
@@ -392,6 +393,11 @@ const edges: BudgetDataset = {
       { date: dates.day(-2, 28), amount: -cents(38.4), payee: garage, notes: 'Interest charged' },
     ])
 
+    // Its last payment is still to come, which keeps the import from archiving it
+    await api.addTransactions(account.storage, [
+      { date: dates.tomorrow, amount: -cents(40), payee: shop, category: category.groceries, notes: 'Final month' },
+    ])
+
     // The unbalanced split: its second part is edited after the split was saved, which Actual
     // allows and flags on the split rather than refusing
     const [unbalanced] = await api.getTransactions(account.checking, unbalancedDate, unbalancedDate)
@@ -436,6 +442,7 @@ const edges: BudgetDataset = {
 
     // Closing an account through the API skips the screen that asks where its balance goes
     await api.updateAccount(account.wallet, { closed: true })
+    await api.updateAccount(account.storage, { closed: true })
     return { figures, leftovers: [] }
   },
 }

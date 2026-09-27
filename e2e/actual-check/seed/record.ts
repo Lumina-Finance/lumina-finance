@@ -71,6 +71,7 @@ export async function recordManifest(api: Api, options: RecordOptions): Promise<
     amount: formatStored(row.amount, ACTUAL_TRANSACTION_DECIMALS),
     payee: payeeById.get(row.payee ?? '')?.name ?? null,
     category: categoryById.get(row.category ?? '')?.name ?? null,
+    categoryId: categoryById.get(row.category ?? '')?.id ?? null,
     notes: row.notes ?? null,
   })
 
