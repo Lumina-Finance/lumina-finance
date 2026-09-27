@@ -70,7 +70,7 @@ const BALANCE_ADJUSTMENT = 'Balance Adjustment'
 const CURRENCY_EXPONENTS: Record<string, number> = { CAD: 2, JPY: 0 }
 
 // The start of the reason the import screen gives for each kind of row it leaves out
-const FUTURE_ROW_REASON = "Dated after today, so it hasn't happened yet"
+const FUTURE_ROW_REASON = 'Dated in the future'
 const UNBALANCED_SPLIT_REASON = 'Its split parts add up to'
 
 export function compareImport(

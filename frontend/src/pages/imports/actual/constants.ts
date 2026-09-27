@@ -75,7 +75,7 @@ export const ACTUAL_PAYEE_NAME_MAX_LENGTH = 256
 export const ACTUAL_TRANSFER_CATEGORY_SOURCE_PREFIX = 'transfer:'
 export const ACTUAL_OFF_BUDGET_CATEGORY_SOURCE_PREFIX = 'off-budget:'
 
-export const ACTUAL_FUTURE_ROW_REASON = "Dated after today, so it hasn't happened yet"
+export const ACTUAL_FUTURE_ROW_REASON = 'Dated in the future'
 
 export const ACTUAL_TRANSFER_SIDE_LEFT_OUT_REASON = "The other side of this transfer is left out, so this side is left out with it"
 
