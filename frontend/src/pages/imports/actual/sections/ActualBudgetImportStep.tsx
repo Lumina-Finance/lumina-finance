@@ -13,6 +13,7 @@ type ActualBudgetImportStepProps = Pick<
   | 'budgetRefusals'
   | 'selectedBudgetIds'
   | 'toggleBudgetSelection'
+  | 'setBudgetsSelected'
   | 'importedBudgetNames'
   | 'budgetSelectionError'
   | 'importOverlayOpen'
@@ -33,6 +34,7 @@ export function ActualBudgetImportStep({
   budgetRefusals,
   selectedBudgetIds,
   toggleBudgetSelection,
+  setBudgetsSelected,
   importedBudgetNames,
   budgetSelectionError,
   importOverlayOpen,
@@ -49,6 +51,13 @@ export function ActualBudgetImportStep({
 
   // Selection drives what the import creates, so it locks while an import runs and once one has finished
   const selectionLocked = importOverlayOpen || Boolean(importResult)
+
+  // After an import the boxes show what was created rather than what was chosen
+  const isChecked = (draft: (typeof importableDrafts)[number]) => (
+    importedBudgetNames.has(draft.name) || (!importResult && selectedBudgetIds.has(draft.categoryId))
+  )
+  const allChecked = importableDrafts.length > 0 && importableDrafts.every(isChecked)
+  const someChecked = !allChecked && importableDrafts.some(isChecked)
 
   return (
     <ImportStep
@@ -92,7 +101,17 @@ export function ActualBudgetImportStep({
             </colgroup>
             <thead style={{ color: 'var(--app-text-subtle)', background: 'var(--app-input-bg)' }}>
               <tr>
-                <th className="w-12 px-2 py-2.5 font-medium" aria-label="Import selection" />
+                <th className="w-12 px-2 py-2.5 font-medium">
+                  <span className="flex justify-center">
+                    <Checkbox
+                      checked={allChecked}
+                      indeterminate={someChecked}
+                      disabled={selectionLocked}
+                      label={allChecked ? 'Deselect all budgets' : 'Select all budgets'}
+                      onChange={() => setBudgetsSelected(importableDrafts.map((draft) => draft.categoryId), !allChecked)}
+                    />
+                  </span>
+                </th>
                 <th className="px-4 py-2.5 font-medium">Budget</th>
                 <th className="px-4 py-2.5 font-medium">Repeats</th>
                 <th className="px-4 py-2.5 text-right font-medium">Latest Amount</th>
@@ -103,7 +122,6 @@ export function ActualBudgetImportStep({
             </thead>
             <tbody>
               {importableDrafts.map((draft) => {
-                const imported = importedBudgetNames.has(draft.name)
                 const latest = draft.months.at(-1)
 
                 return (
@@ -111,7 +129,7 @@ export function ActualBudgetImportStep({
                     <td className="px-2 py-2.5 align-middle">
                       <span className="flex justify-center">
                         <Checkbox
-                          checked={imported || (!importResult && selectedBudgetIds.has(draft.categoryId))}
+                          checked={isChecked(draft)}
                           disabled={selectionLocked}
                           label={`Import ${draft.name}`}
                           onChange={() => toggleBudgetSelection(draft.categoryId)}

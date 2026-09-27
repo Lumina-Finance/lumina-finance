@@ -592,6 +592,18 @@ export function useActualImportWorkflow() {
     setSelectedBudgetIds(next)
   }
 
+  const setBudgetsSelected = (categoryIds: string[], selected: boolean) => {
+    const next = new Set(resolvedSelectedBudgetIds)
+    for (const categoryId of categoryIds) {
+      if (selected) {
+        next.add(categoryId)
+      } else {
+        next.delete(categoryId)
+      }
+    }
+    setSelectedBudgetIds(next)
+  }
+
   const resetActualWorkflow = () => {
     removeActualFile()
     setIsProcessingFile(false)
@@ -679,6 +691,7 @@ export function useActualImportWorkflow() {
     cancelImport: importRunController.stop,
     closeImportOverlay: importRunController.close,
     toggleBudgetSelection,
+    setBudgetsSelected,
     resetActualWorkflow,
   }
 }
