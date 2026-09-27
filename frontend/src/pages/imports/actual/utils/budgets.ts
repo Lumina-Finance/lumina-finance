@@ -51,7 +51,7 @@ export interface ActualBudgetDraft {
 /**
  * Builds one budget for each category Actual budgeted above zero in any month
  *
- * A month budgeted at zero is no period at all, so the budget has a gap there, and money Actual
+ * A month budgeted at zero or below is no period at all, so the budget has a gap there, and money Actual
  * carried over between months is not a figure of its own. A budget whose last month has passed
  * keeps its months and stops, so a category the user stopped budgeting for doesn't come back
  *

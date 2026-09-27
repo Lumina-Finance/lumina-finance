@@ -6,6 +6,7 @@ import type { TransactionImportCategoryMapping } from '@/api/transaction-imports
 import {
   ACTUAL_ACCOUNT_NAME_MAX_LENGTH,
   ACTUAL_CATEGORY_NAME_MAX_LENGTH,
+  ACTUAL_JOURNAL_ID_MAX_LENGTH,
   ACTUAL_TRANSACTION_DECIMALS,
   getActualAccountNameTooLongError,
   getActualAmountPrecisionReason,
@@ -305,7 +306,8 @@ function buildRows(journal: ActualJournal, accountCurrencies: Map<string, string
     if (entry.categorySourceId) writtenCategorySources.add(entry.categorySourceId)
     const isDeposit = entry.type === 'deposit'
     rows.push({
-      journal_id: entry.transactionId,
+      // The row id only names a row in an error, and the end of a long one is the part's own id
+      journal_id: entry.transactionId.slice(-ACTUAL_JOURNAL_ID_MAX_LENGTH),
       type: entry.type,
       dt: entry.date,
       amount,

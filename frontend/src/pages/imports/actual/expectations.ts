@@ -60,7 +60,7 @@ export const ACTUAL_EXPECTATIONS: ImportExpectations = {
       group: 'Budgets',
       items: [
         'For income, which a tracking budget can hold',
-        'For months budgeted at zero',
+        'For months budgeted at zero or below',
         'Templates and goals',
       ],
     },

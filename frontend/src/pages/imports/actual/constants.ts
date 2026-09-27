@@ -200,3 +200,7 @@ export function getActualGroupCategoryError(label: string) {
 export function getActualGroupAccountError(label: string) {
   return `Link ${label} to one of your own accounts or a new one. Imports don't write to group accounts.`
 }
+
+// The longest row id an import upload takes. Actual ids are 36 characters, but a split part written
+// by an early Actual version keeps the id `<parent id>/<part id>` it was given then
+export const ACTUAL_JOURNAL_ID_MAX_LENGTH = 64

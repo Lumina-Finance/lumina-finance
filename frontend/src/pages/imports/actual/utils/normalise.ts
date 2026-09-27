@@ -217,7 +217,7 @@ function groupChildren(transactions: ActualTransaction[]) {
 /**
  * Finds the other side of a transfer, trusted only when each side links to the other, each names
  * the other's account, the two accounts differ, both sit on one day, the amounts are exactly
- * opposite, and the other side is itself imported
+ * opposite, neither is a split parent, and the other side is itself imported
  */
 function findTransferCounterpart(
   transaction: ActualTransaction,
@@ -232,7 +232,7 @@ function findTransferCounterpart(
   const counterpartParent = counterpart.parentId ? transactionById.get(counterpart.parentId) : undefined
   const counterpartPayee = payeeById.get(counterpart.payeeId ?? counterpartParent?.payeeId ?? '')
   if (counterpartPayee?.transferAccountId !== transaction.accountId || counterpart.date !== transaction.date) return null
-  if (counterpart.amount !== -transaction.amount || counterpart.isParent) return null
+  if (counterpart.amount !== -transaction.amount || counterpart.isParent || transaction.isParent) return null
   return counterpart
 }
 

@@ -193,6 +193,11 @@ describe('pairing Actual Budget transfers', () => {
       // The other side names a third account rather than this one
       { id: 'astray-out', accountId: 'checking', date: '2026-09-07', amount: -7000, payeeId: 'to-savings', transferredId: 'astray-in' },
       { id: 'astray-in', accountId: 'savings', date: '2026-09-07', amount: 7000, payeeId: 'to-loan', transferredId: 'astray-out' },
+      // A split parent whose parts are all gone, on either side
+      { id: 'emptied-out', accountId: 'checking', date: '2026-09-08', amount: -8000, isParent: true, payeeId: 'to-savings', transferredId: 'plain-in' },
+      { id: 'plain-in', accountId: 'savings', date: '2026-09-08', amount: 8000, payeeId: 'to-checking', transferredId: 'emptied-out' },
+      { id: 'plain-out', accountId: 'checking', date: '2026-09-09', amount: -9000, payeeId: 'to-savings', transferredId: 'emptied-in' },
+      { id: 'emptied-in', accountId: 'savings', date: '2026-09-09', amount: 9000, isParent: true, payeeId: 'to-checking', transferredId: 'plain-out' },
     ]), TODAY)
 
     expect(journal.entries.map((entry) => [entry.transactionId, entry.type, entry.categorySourceId])).toEqual([
@@ -207,6 +212,10 @@ describe('pairing Actual Budget transfers', () => {
       ['self-in', 'deposit', 'transfer:'],
       ['astray-out', 'withdrawal', 'transfer:'],
       ['astray-in', 'deposit', 'transfer:'],
+      ['emptied-out', 'withdrawal', 'transfer:'],
+      ['plain-in', 'deposit', 'transfer:'],
+      ['plain-out', 'withdrawal', 'transfer:'],
+      ['emptied-in', 'deposit', 'transfer:'],
     ])
     expect(journal.skippedRows.map((row) => row.transactionId)).toEqual(['split'])
     expect(journal.categories.map((source) => [source.id, source.role, source.label, source.createName])).toEqual([

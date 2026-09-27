@@ -6,6 +6,7 @@ import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import {
+  ACTUAL_JOURNAL_ID_MAX_LENGTH,
   getActualAmountPrecisionReason,
   getActualBuiltInTransferError,
   getActualCategoryCreateClashError,
@@ -252,6 +253,19 @@ describe('Actual Budget import payload', () => {
       getActualGroupAccountError(checking.label),
       getActualGroupCategoryError(groceries.label),
     ])
+  })
+
+  it('sends a split part an early Actual version gave a long id by the end of that id', async () => {
+    const { journal } = await normaliseActualFixture('edges')
+    const partId = '0c6a2f4e-9b1d-4e7a-8c3f-5d2e1b0a5e6f'
+    const legacyId = `5b0f8e2a-7c4d-4f1b-9e6a-3d2c1b0a1a11/${partId}`
+    const legacy = { ...journal, entries: journal.entries.map((entry, index) => (index === 0 ? { ...entry, transactionId: legacyId } : entry)) }
+    const build = buildActualImportPayload(legacy, createAnswers(legacy))
+
+    expect(build.errors).toEqual([])
+    const sent = build.payload!.rows[0].journal_id
+    expect(sent).toHaveLength(ACTUAL_JOURNAL_ID_MAX_LENGTH)
+    expect(sent.endsWith(partId)).toBe(true)
   })
 
   it('asks for an existing category where a new one\'s name would be too long', async () => {
