@@ -2,6 +2,7 @@ import { useRef } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import {
   EmptyState,
+  ImportInfoCard,
   ImportStagedFileTable,
   ImportStat,
   ImportStep,
@@ -130,6 +131,11 @@ export function ActualFilesStep({
           )}
         </AnimatePresence>
       </div>
+
+      {/* Shown before the upload, since it answers whether moving over costs a user their budget history */}
+      <ImportInfoCard title="Budget history stays">
+        Your transactions come across, so your past spending is kept. A budget you create later can start from an earlier date, and Lumina Finance fills in what each past period used.
+      </ImportInfoCard>
 
       <div className="mt-auto flex flex-wrap gap-3 pt-3">
         <ImportStat label="Transactions" value={(stagedFile?.rowCount ?? 0).toString()} />
