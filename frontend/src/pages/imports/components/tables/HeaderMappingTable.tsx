@@ -11,6 +11,7 @@ import {
   getColumnSamples,
   getTargetForHeader,
 } from '@/pages/imports/utils'
+import { IMPORT_EXCLUDED_ROW_BACKGROUND } from '@/pages/imports/constants'
 
 /**
  * Table mapping each column header found in the uploaded files to an app field, showing sample
@@ -87,9 +88,7 @@ export function ImportHeaderMappingTable({
                 key={header}
                 className={autoFilled ? 'import-auto-fill-row' : undefined}
                 style={{
-                  background: isIgnored
-                    ? 'color-mix(in srgb, var(--app-bg) 88%, var(--app-text) 12%)'
-                    : undefined,
+                  background: isIgnored ? IMPORT_EXCLUDED_ROW_BACKGROUND : undefined,
                 }}
               >
                 <td className="px-4 py-2.5 align-middle">

@@ -41,15 +41,17 @@ test('imports an Actual Budget export with the balances and budgets Actual showe
     await expect(page.getByRole('checkbox', { name: `Import ${name}` })).toBeChecked()
   }
 
-  // The header box clears every budget and then brings them all back
+  // The header box clears every budget, crossing each off, and then brings them all back
   await page.getByRole('checkbox', { name: 'Deselect all budgets' }).click()
   for (const name of ['Bills', 'Food']) {
     await expect(page.getByRole('checkbox', { name: `Import ${name}` })).not.toBeChecked()
   }
+  await expect(page.getByText('Not imported', { exact: true })).toHaveCount(2)
   await page.getByRole('checkbox', { name: 'Select all budgets' }).click()
   for (const name of ['Bills', 'Food']) {
     await expect(page.getByRole('checkbox', { name: `Import ${name}` })).toBeChecked()
   }
+  await expect(page.getByText('Not imported', { exact: true })).toHaveCount(0)
 
   const commit = page.getByRole('button', { name: 'Commit import', exact: true })
   await expect(commit).toBeEnabled()

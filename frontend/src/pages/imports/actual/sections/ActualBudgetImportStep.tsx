@@ -1,6 +1,7 @@
 import { EyeOff } from 'lucide-react'
 import { Checkbox } from '@/components/forms/Checkbox'
 import { EmptyState, ImportInfoCard, ImportStep } from '@/pages/imports/components'
+import { IMPORT_EXCLUDED_ROW_BACKGROUND } from '@/pages/imports/constants'
 import { ActualSkippedBudgetsTable } from '@/pages/imports/actual/components'
 import type { ActualImportWorkflow } from '@/pages/imports/actual/hooks'
 import { formatScaledAmount } from '@/pages/imports/actual/utils/amounts'
@@ -123,9 +124,14 @@ export function ActualBudgetImportStep({
             <tbody>
               {importableDrafts.map((draft) => {
                 const latest = draft.months.at(-1)
+                const excluded = !isChecked(draft)
+                const strike = excluded ? 'line-through' : ''
 
                 return (
-                  <tr key={draft.categoryId}>
+                  <tr
+                    key={draft.categoryId}
+                    style={excluded ? { background: IMPORT_EXCLUDED_ROW_BACKGROUND, color: 'var(--app-text-muted)' } : undefined}
+                  >
                     <td className="px-2 py-2.5 align-middle">
                       <span className="flex justify-center">
                         <Checkbox
@@ -138,7 +144,12 @@ export function ActualBudgetImportStep({
                     </td>
                     <td className="truncate px-4 py-2.5 align-middle font-medium">
                       <span className="inline-flex max-w-full min-w-0 items-center gap-2">
-                        <span className="truncate">{draft.name}</span>
+                        <span className={`truncate ${strike}`}>{draft.name}</span>
+                        {excluded && (
+                          <span className="shrink-0 text-[0.6875rem] font-semibold uppercase" style={{ color: 'var(--app-text-subtle)' }}>
+                            Not imported
+                          </span>
+                        )}
                         {draft.isArchived && (
                           <span
                             className="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium"
@@ -154,17 +165,17 @@ export function ActualBudgetImportStep({
                         )}
                       </span>
                     </td>
-                    <td className="px-4 py-2.5 align-middle" style={{ color: 'var(--app-text-muted)' }}>
+                    <td className={`px-4 py-2.5 align-middle ${strike}`} style={{ color: 'var(--app-text-muted)' }}>
                       {draft.recurs ? 'Monthly' : 'Not recurring'}
                     </td>
-                    <td className="px-4 py-2.5 text-right align-middle font-financial tabular-nums">
+                    <td className={`px-4 py-2.5 text-right align-middle font-financial tabular-nums ${strike}`}>
                       {latest ? formatScaledAmount(latest.amount, budgetDecimals, budgetDecimals) : ''}
                     </td>
-                    <td className="px-4 py-2.5 text-right align-middle font-financial tabular-nums">
+                    <td className={`px-4 py-2.5 text-right align-middle font-financial tabular-nums ${strike}`}>
                       {draft.months.length}
                     </td>
-                    <td className="px-4 py-2.5 align-middle font-financial tabular-nums">{draft.months[0]?.month ?? ''}</td>
-                    <td className="px-4 py-2.5 align-middle font-financial tabular-nums">{latest?.month ?? ''}</td>
+                    <td className={`px-4 py-2.5 align-middle font-financial tabular-nums ${strike}`}>{draft.months[0]?.month ?? ''}</td>
+                    <td className={`px-4 py-2.5 align-middle font-financial tabular-nums ${strike}`}>{latest?.month ?? ''}</td>
                   </tr>
                 )
               })}
