@@ -1,0 +1,339 @@
+name: Actual Budget import check
+
+# Imports freshly seeded Actual Budget exports through the real import screen each week, so an
+# Actual release that changes its database or export format shows up here before a person moving
+# over runs into it
+on:
+  schedule:
+    # Mondays at 06:00 in Toronto during standard time, 07:00 during daylight time, an hour after
+    # the Firefly III check
+    - cron: "0 11 * * 1"
+  workflow_dispatch:
+    inputs:
+      actual_version:
+        description: Actual version to check, such as 26.9.0. Empty checks the latest release
+        required: false
+        default: ""
+      image_tag:
+        description: Server image tag to run instead of the version's, such as edge
+        required: false
+        default: ""
+      api_version:
+        description: "@actual-app/api version to seed with instead of the version's, such as a nightly"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+env:
+  # Must match the Compose app image when APP_IMAGE_TAG is ci
+  IMAGE_REF: luminahq/lumina-finance:ci
+
+  # Must match the server image in e2e/actual-check/compose.yaml
+  ACTUAL_IMAGE: ghcr.io/actualbudget/actual
+
+# The image build and the Actual seed share nothing, so each runs on its own runner at the same
+# time, and the import starts once both have handed over their files
+jobs:
+  build:
+    name: Build the Lumina image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Docker build
+        uses: ./.github/actions/docker-build-setup
+        with:
+          registry-username: ${{ vars.DOCKERHUB_USERNAME }}
+          registry-token: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # One architecture is enough here: the check is about Actual's export, not the image
+      - name: Build image
+        uses: docker/build-push-action@v7
+        env:
+          # Only the image file is needed by the import job
+          DOCKER_BUILD_RECORD_UPLOAD: false
+        with:
+          context: .
+          file: ./docker/Dockerfile
+          platforms: linux/amd64
+          push: false
+          outputs: type=docker,dest=${{ runner.temp }}/lumina-image.tar
+          tags: ${{ env.IMAGE_REF }}
+          build-args: |
+            APP_VERSION=ci
+
+      - name: Share the built image with the import job
+        uses: actions/upload-artifact@v7
+        with:
+          name: actual-check-image
+          path: ${{ runner.temp }}/lumina-image.tar
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
+
+  seed:
+    name: Seed Actual and export it
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      # The seed runs on Docker Hub's Node image, so its pull counts against the account's limit
+      # rather than the runner's shared anonymous one
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # A release can be tagged before its image or API package is out, so the newest release with
+      # both is checked and the summary says when that is not the newest release
+      - name: Choose the Actual version
+        id: actual
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUESTED: ${{ inputs.actual_version }}
+          IMAGE_TAG: ${{ inputs.image_tag }}
+          API_VERSION: ${{ inputs.api_version }}
+        run: |
+          if [ -n "${IMAGE_TAG}" ] && ! [[ "${IMAGE_TAG}" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]]; then
+            echo "image_tag must be an image tag such as edge, got '${IMAGE_TAG}'"
+            exit 1
+          fi
+          if [ -n "${API_VERSION}" ] && ! [[ "${API_VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "api_version must look like 26.10.0-nightly.20260927, got '${API_VERSION}'"
+            exit 1
+          fi
+
+          if [ -n "${REQUESTED}" ]; then
+            if ! [[ "${REQUESTED}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "actual_version must look like 26.9.0, got '${REQUESTED}'"
+              exit 1
+            fi
+            candidates="${REQUESTED}"
+          else
+            candidates=$(gh api 'repos/actualbudget/actual/releases?per_page=10' \
+              --jq '.[] | select(.prerelease == false and .draft == false) | .tag_name | select(test("^v[0-9]+\\.[0-9]+\\.[0-9]+$")) | ltrimstr("v")')
+          fi
+          newest=$(printf '%s\n' "${candidates}" | head -n 1)
+          while IFS= read -r version; do
+            [ -n "${version}" ] || continue
+
+            # Only a missing tag or package means the release is not out yet. Any other failure,
+            # such as a rate limit, stops the run rather than quietly checking an older release
+            if lookup=$(docker manifest inspect "${ACTUAL_IMAGE}:${IMAGE_TAG:-${version}}" 2>&1 >/dev/null); then
+              has_image=1
+            elif grep -qiE 'no such manifest|manifest unknown|not found' <<< "${lookup}"; then
+              has_image=0
+            else
+              echo "Could not look up the Actual ${version} image: ${lookup}"
+              exit 1
+            fi
+            package=$(curl -sS -o /dev/null -w '%{http_code}' "https://registry.npmjs.org/@actual-app%2fapi/${API_VERSION:-${version}}")
+            case "${package}" in
+              200) has_package=1 ;;
+              404) has_package=0 ;;
+              *)
+                echo "Could not look up @actual-app/api ${API_VERSION:-${version}}: the registry answered ${package}"
+                exit 1
+                ;;
+            esac
+
+            if [ "${has_image}" = 1 ] && [ "${has_package}" = 1 ]; then
+              {
+                echo "version=${version}"
+                echo "newest=${newest}"
+                echo "image_tag=${IMAGE_TAG:-${version}}"
+                echo "api_version=${API_VERSION:-${version}}"
+              } >> "${GITHUB_OUTPUT}"
+              exit 0
+            fi
+            echo "No image or API package for Actual ${version} yet"
+          done <<< "${candidates}"
+          echo "No Actual release with both an image and an API package among ${candidates}"
+          exit 1
+
+      - name: Seed Actual and export it
+        working-directory: e2e/actual-check
+        env:
+          ACTUAL_IMAGE_TAG: ${{ steps.actual.outputs.image_tag }}
+          ACTUAL_API_VERSION: ${{ steps.actual.outputs.api_version }}
+        run: ./seed.sh
+
+      # The import only needs the exports and the manifests, not a running Actual. Kept even when
+      # the seed fails, since whatever it wrote shows how far it got
+      - name: Share the exports with the import job
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: actual-check-exports
+          path: e2e/actual-check/output
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Dump Actual logs
+        if: failure()
+        run: docker compose -f e2e/actual-check/compose.yaml logs || true
+
+      - name: Summarize the Actual version
+        if: always()
+        env:
+          VERSION: ${{ steps.actual.outputs.version }}
+          NEWEST: ${{ steps.actual.outputs.newest }}
+          IMAGE_TAG: ${{ steps.actual.outputs.image_tag }}
+          API_VERSION: ${{ steps.actual.outputs.api_version }}
+        run: |
+          {
+            echo "### Actual ${VERSION:-unknown}"
+            if [ -n "${NEWEST}" ] && [ "${NEWEST}" != "${VERSION}" ]; then
+              echo "Actual ${NEWEST} has no image or API package yet, so ${VERSION} was checked"
+            fi
+            if [ -n "${VERSION}" ] && { [ "${IMAGE_TAG}" != "${VERSION}" ] || [ "${API_VERSION}" != "${VERSION}" ]; }; then
+              echo "Seeded with the ${IMAGE_TAG} server image and @actual-app/api ${API_VERSION}"
+            fi
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+  check:
+    name: Import and compare
+    needs: [build, seed]
+    runs-on: ubuntu-latest
+    # Four imports of up to ten minutes each and their setup, with room to spare
+    timeout-minutes: 50
+
+    env:
+      APP_IMAGE_TAG: ci
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: lumina
+      DB_USER: lumina
+      DB_PASSWORD: lumina-smoke
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Download the Lumina image
+        uses: actions/download-artifact@v8
+        with:
+          name: actual-check-image
+          path: ${{ runner.temp }}
+
+      - name: Load the image
+        run: docker load --input "${RUNNER_TEMP}/lumina-image.tar"
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Write the operator env file
+        run: |
+          cat > docker/.env <<EOF
+          DB_HOST=${DB_HOST}
+          DB_PORT=${DB_PORT}
+          DB_NAME=${DB_NAME}
+          DB_USER=${DB_USER}
+          DB_PASSWORD=${DB_PASSWORD}
+          EOF
+
+      - name: Start the stack
+        run: docker compose -f docker/compose.yml up -d
+
+      - name: Download the Actual exports
+        uses: actions/download-artifact@v8
+        with:
+          name: actual-check-exports
+          path: e2e/actual-check/output
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "26.5"
+          cache: npm
+          cache-dependency-path: e2e/package-lock.json
+
+      - name: Install E2E dependencies
+        working-directory: e2e
+        run: npm ci --ignore-scripts
+
+      - name: Type-check E2E tests
+        working-directory: e2e
+        run: npm run typecheck
+
+      - name: Install Chromium
+        working-directory: e2e
+        run: npx playwright install --with-deps chromium
+
+      - name: Ping the health endpoint
+        run: |
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://localhost:8080/api/health | grep -qE '"status":\s*"ok"'; then
+              echo "Health check passed"
+              exit 0
+            fi
+            echo "Attempt ${attempt}: app not ready yet"
+            sleep 5
+          done
+          echo "Health check never succeeded, dumping logs"
+          docker compose -f docker/compose.yml logs
+          exit 1
+
+      - name: Import the exports and compare
+        working-directory: e2e
+        env:
+          E2E_BASE_URL: http://localhost:8080
+        run: npx playwright test -c actual-check/playwright.config.ts
+
+      - name: Dump container logs
+        if: failure()
+        run: docker compose -f docker/compose.yml logs || true
+
+      # One report per budget the check reached, with the yen budget's outcome first since a newer
+      # Actual can fail it on the importer's version guard while the others still compare
+      - name: Summarize
+        if: always()
+        run: |
+          {
+            reports=$(find e2e/test-results -name comparison.json 2>/dev/null | sort || true)
+            if [ -z "${reports}" ]; then
+              echo "The check stopped before it compared anything"
+              exit 0
+            fi
+            yen=$(printf '%s\n' "${reports}" | xargs jq -r 'select(.budget == "yen") | .outcome')
+            echo "**Yen budget: ${yen:-not reached}**"
+            while IFS= read -r report; do
+              echo
+              jq -r '"#### \(.budget): \(.outcome)"' "${report}"
+              jq -r '"\(.differences | length) differences, \(.unexpected | length) unexpected, \(.stale | length) no longer occurring"' "${report}"
+              jq -r '(.skipped // {}) | to_entries[] | select(.value != null) | "The import screen reported: \(.value)"' "${report}"
+              jq -r '.unexpected as $unexpected | .differences[] | . as $difference
+                | (if any($unexpected[]; .kind == $difference.kind and .subject == $difference.subject and .lumina == $difference.lumina)
+                  then "unexpected" else "expected" end) as $status
+                | "- \($status): \(.kind) \(.subject): Actual \(.actual), Lumina \(.lumina)"' "${report}"
+              jq -r '.stale[] | "- no longer occurring: \(.kind) \(.subject), Lumina \(.lumina): \(.reason)"' "${report}"
+            done <<< "${reports}"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Keep the exports and results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: actual-check
+          path: |
+            e2e/actual-check/output
+            e2e/test-results
+            e2e/playwright-report
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: Tear down the stack
+        if: always()
+        run: docker compose -f docker/compose.yml down -v
