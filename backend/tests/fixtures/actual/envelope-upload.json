@@ -5252,6 +5252,42 @@
      "category_leg": null,
      "tag_names": [],
      "notes": null
+    },
+    {
+     "journal_id": "2eceb816-c5f3-4004-80f6-aa1212328b39",
+     "type": "withdrawal",
+     "dt": "2026-11-01",
+     "amount": "99.00",
+     "currency_code": "CAD",
+     "foreign_amount": null,
+     "foreign_currency_code": null,
+     "description": null,
+     "source_account": "513c618c-a072-4fcc-846b-d56181134448",
+     "source_name": null,
+     "destination_account": null,
+     "destination_name": "Gym",
+     "category": "12e5cc49-ac52-4e1e-9533-96708a744259",
+     "category_leg": null,
+     "tag_names": [],
+     "notes": null
+    },
+    {
+     "journal_id": "41c761b8-6648-4a7f-94dd-a99d5f2fefeb",
+     "type": "withdrawal",
+     "dt": "2027-01-10",
+     "amount": "12.00",
+     "currency_code": "CAD",
+     "foreign_amount": null,
+     "foreign_currency_code": null,
+     "description": null,
+     "source_account": "0ba02627-c57a-4f4d-ad3f-6ed47c6c2511",
+     "source_name": null,
+     "destination_account": null,
+     "destination_name": "Gym",
+     "category": "12e5cc49-ac52-4e1e-9533-96708a744259",
+     "category_leg": null,
+     "tag_names": [],
+     "notes": null
     }
    ],
    "start_row_index": 0
@@ -6173,6 +6209,7 @@
   "8bacb520-377d-4262-9baa-55d3ebb8339e"
  ],
  "expected": {
+  "asOf": "2026-09-26",
   "accounts": [
    {
     "name": "Brokerage",
@@ -6215,6 +6252,24 @@
     "offBudget": false,
     "closed": true,
     "balance": "0.00"
+   }
+  ],
+  "afterAsOf": [
+   {
+    "account": "Everyday Checking",
+    "date": "2026-11-01",
+    "amount": "-99.00",
+    "sources": [
+     "12e5cc49-ac52-4e1e-9533-96708a744259"
+    ]
+   },
+   {
+    "account": "Visa Card",
+    "date": "2027-01-10",
+    "amount": "-12.00",
+    "sources": [
+     "12e5cc49-ac52-4e1e-9533-96708a744259"
+    ]
    }
   ],
   "categoryMonths": [

@@ -42,7 +42,7 @@ import type { ActualBudgetFile, ActualJournal, ActualSkippedRow } from '@/pages/
 import { buildActualBudgetDrafts, buildActualRunBudgets, getActualBudgetRefusal } from '@/pages/imports/actual/utils/budgets'
 import { getActualCategoryKind, inferActualCategoryMappings } from '@/pages/imports/actual/utils/categories'
 import { normaliseActualBudget } from '@/pages/imports/actual/utils/normalise'
-import { buildActualImportPayload, type ActualAccountCreateDetails, type ActualImportBuild } from '@/pages/imports/actual/utils/payload'
+import { buildActualImportPayload, isArchivedWhenCreated, type ActualAccountCreateDetails, type ActualImportBuild } from '@/pages/imports/actual/utils/payload'
 import { buildActualPreviewRows } from '@/pages/imports/actual/utils/preview'
 import { readActualBudgetFile } from '@/pages/imports/actual/utils/readFile'
 import { getPersonalAccounts, getPersonalCategoryOptions, resolveActualAccountMappings } from '@/pages/imports/actual/utils/scope'
@@ -76,9 +76,10 @@ const EMPTY_BUILD: ActualImportBuild = {
  * categories against the user's own, choosing budgets, and running it as one run that uploads
  * everything and then writes all of it at once
  *
- * Rows dated after today in the user's own timezone are left out, so today is read from their
- * profile rather than from the browser. Staging a different export resets every answer and any
- * prior result, since the answers were given for the accounts and categories of the one before
+ * Balances and the budgets' current month are as of today in the user's own timezone, matching how
+ * Lumina Finance counts rows dated later, so today is read from their profile rather than from the
+ * browser. Staging a different export resets every answer and any prior result, since the answers
+ * were given for the accounts and categories of the one before
  */
 export function useActualImportWorkflow() {
   const { user } = useAuth()
@@ -451,7 +452,12 @@ export function useActualImportWorkflow() {
 
   // Closed accounts the import creates are archived, and a balance left in one is brought to zero
   const closedAccountsWithBalance = accountSources.filter((source) => (
-    source.closed && source.balance !== 0 && resolvedAccountMappings[source.id] === CREATE_ACCOUNT_VALUE
+    isArchivedWhenCreated(source) && source.balance !== 0 && resolvedAccountMappings[source.id] === CREATE_ACCOUNT_VALUE
+  ))
+
+  // A closed account holding rows dated after today can't be archived, so the import creates it open
+  const closedAccountsKeptOpen = accountSources.filter((source) => (
+    source.closed && !isArchivedWhenCreated(source) && resolvedAccountMappings[source.id] === CREATE_ACCOUNT_VALUE
   ))
 
   // Closed accounts linked to one the user has write their rows there and leave it as it is
@@ -626,6 +632,7 @@ export function useActualImportWorkflow() {
     handAnsweredAccountSources,
     accountCreateDetails: resolvedAccountCreateDetails,
     closedAccountsWithBalance,
+    closedAccountsKeptOpen,
     closedAccountsLinked,
     accountsFailed,
     categoriesFailed,

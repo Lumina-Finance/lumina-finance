@@ -20,7 +20,7 @@ import {
   getActualSharedAccountError,
   getActualTransferCategoryError,
 } from '@/pages/imports/actual/constants'
-import type { ActualCategorySource, ActualJournal, ActualJournalEntry, ActualSkippedRow } from '@/pages/imports/actual/types'
+import type { ActualAccountSource, ActualCategorySource, ActualJournal, ActualJournalEntry, ActualSkippedRow } from '@/pages/imports/actual/types'
 import { isImportAccountType } from '@/pages/imports/accountTypeGuard'
 import {
   CREATE_ACCOUNT_VALUE,
@@ -95,8 +95,9 @@ export interface ActualImportBuild {
  * stop it
  *
  * Every Actual account is sent, so one without rows still comes across when the user creates it,
- * and one Actual has closed is archived when the import creates it. Refusals the commit would give
- * for the whole import are caught here instead, naming what to answer differently
+ * and one Actual has closed is archived when the import creates it, unless it holds a row dated
+ * after today. Refusals the commit would give for the whole import are caught here instead,
+ * naming what to answer differently
  */
 export function buildActualImportPayload(journal: ActualJournal, answers: ActualImportAnswers): ActualImportBuild {
   const errors: string[] = []
@@ -139,6 +140,14 @@ export function buildActualImportPayload(journal: ActualJournal, answers: Actual
   }
   const payload = errors.length === 0 ? { accounts, categories, rows } : null
   return { errors, payload, currency, skippedRows, writtenSources, archiveAccountSources, budgetCategoryMappings }
+}
+
+/**
+ * Whether an account the import creates is archived once written: one Actual has closed, unless a
+ * row on it is dated after today. Archiving refuses such an account, so it is created open
+ */
+export function isArchivedWhenCreated(source: ActualAccountSource) {
+  return source.closed && !source.hasFutureRows
 }
 
 function buildAccountMappings(
@@ -192,7 +201,7 @@ function buildAccountMappings(
 
     const currency = details.currency.toUpperCase()
     accountCurrencies.set(source.id, currency)
-    if (source.closed) archiveAccountSources.push(source.id)
+    if (isArchivedWhenCreated(source)) archiveAccountSources.push(source.id)
     accounts.push({
       source: source.id,
       create: {

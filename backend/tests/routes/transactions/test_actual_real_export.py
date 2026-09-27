@@ -7,10 +7,13 @@ refresh it. Every account and category in it is created, so it names no ids of i
 
 import json
 from collections import defaultdict
+from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from tests.routes.support import _create_user, _get_auth_header
+from tests.routes.support.auth_helpers import SIGNUP_PAYLOAD
 
 FIXTURE = json.loads(
     (Path(__file__).resolve().parents[2] / "fixtures" / "actual" / "envelope-upload.json").read_text(),
@@ -59,10 +62,24 @@ async def test_a_real_actual_export_imports_to_the_balances_totals_and_budgets_a
     assert resp.status_code == 201, resp.text
 
     expected = FIXTURE["expected"]
+    as_of = expected["asOf"]
+    transactions = await _list_transactions(client, headers)
     accounts = (await client.get("/accounts", headers=headers)).json()
+    account_name_by_id = {account["id"]: account["name"] for account in accounts}
+
+    # A balance counts rows up to the user's today, which moves on from the export date as time
+    # passes, so rows dated after the export date that have since come due are added to Actual's figure
+    today = datetime.now(ZoneInfo(SIGNUP_PAYLOAD["tz"])).date().isoformat()
+    come_due = defaultdict(int)
+    for transaction in transactions:
+        if as_of < transaction["dt"][:10] <= today:
+            come_due[account_name_by_id[transaction["account_id"]]] += transaction["amount"]
     assert sorted(
         (account["name"], _format_cents(account["current_balance"]), account["is_archived"]) for account in accounts
-    ) == sorted((account["name"], account["balance"], account["closed"]) for account in expected["accounts"])
+    ) == sorted(
+        (account["name"], _format_cents(Decimal(account["balance"]).scaleb(2) + come_due[account["name"]]), account["closed"])
+        for account in expected["accounts"]
+    )
 
     # Actual counts a category's rows in the accounts on its budget only, while a Lumina budget counts
     # its category in every account, so each category's total across all accounts has to match.
@@ -73,9 +90,31 @@ async def test_a_real_actual_export_imports_to_the_balances_totals_and_budgets_a
         for batch in FIXTURE["transactions"]
         for mapping in batch["categories"]
     }
+
+    # Rows dated after the export date are imported with their account and category like any other
+    later = [
+        (
+            account_name_by_id[transaction["account_id"]],
+            transaction["dt"][:10],
+            _format_cents(transaction["amount"]),
+            categories[transaction["category_id"]],
+        )
+        for transaction in transactions
+        if transaction["dt"][:10] > as_of
+    ]
+    assert len(later) == len(expected["afterAsOf"])
+    for row in expected["afterAsOf"]:
+        # A row with no category is matched on its account, date and amount alone
+        names = {created_name_by_source[source] for source in row["sources"]}
+        key = (row["account"], row["date"], row["amount"])
+        match = next((entry for entry in later if entry[:3] == key and (not names or entry[3] in names)), None)
+        assert match, row
+        later.remove(match)
+
     totals = defaultdict(int)
-    for transaction in await _list_transactions(client, headers):
-        totals[(categories[transaction["category_id"]], transaction["dt"][:7])] += transaction["amount"]
+    for transaction in transactions:
+        if transaction["dt"][:10] <= as_of:
+            totals[(categories[transaction["category_id"]], transaction["dt"][:7])] += transaction["amount"]
 
     for month in expected["categoryMonths"]:
         names = {created_name_by_source[source] for source in month["sources"] if source in created_name_by_source}

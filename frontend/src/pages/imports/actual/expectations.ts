@@ -52,7 +52,11 @@ export const ACTUAL_EXPECTATIONS: ImportExpectations = {
     },
     {
       source: 'A closed account the import creates',
-      lumina: 'An archived account, with any money left in it brought to zero on the day you import',
+      lumina: 'An archived account, with any money left in it brought to zero on the day you import, or an open one while it holds transactions dated after today',
+    },
+    {
+      source: 'A transaction dated after today',
+      lumina: 'The same transaction, which counts toward balances and budgets from its date',
     },
   ],
   leftBehind: [
@@ -67,7 +71,6 @@ export const ACTUAL_EXPECTATIONS: ImportExpectations = {
     {
       group: 'Transactions',
       items: [
-        'Dated after today',
         'Split into parts that no longer add up to the total',
         'With more decimal places than their currency allows',
         'With notes, tags or a payee over the limits this app takes',

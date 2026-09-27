@@ -5,7 +5,6 @@
 import { describe, expect, it } from 'vitest'
 import { JOURNAL_NO_CATEGORY_SOURCE } from '@/api/provider-imports'
 import {
-  ACTUAL_FUTURE_ROW_REASON,
   ACTUAL_PAYEE_NAME_MAX_LENGTH,
   ACTUAL_TAG_NAME_MAX_LENGTH,
   ACTUAL_TRANSFER_SIDE_LEFT_OUT_REASON,
@@ -16,7 +15,7 @@ import {
 import { MAX_IMPORT_NOTES_LENGTH, MAX_IMPORT_TAGS_PER_ROW, getRowNotesTooLongReason, getRowTooManyTagsReason } from '@/pages/imports/constants'
 import type { ActualJournal } from '@/pages/imports/actual/types'
 import { formatHundredths, normaliseActualBudget, readActualTags } from '@/pages/imports/actual/utils/normalise'
-import { buildActualBudget, normaliseActualFixture as normalise, readActualFixtureBudget as readBudget } from './fixtures'
+import { buildActualBudget, normaliseActualFixture as normalise } from './fixtures'
 
 /** Sums what the uploaded rows move in and out of each account, keyed by account name */
 function getBalances(journal: ActualJournal) {
@@ -28,7 +27,7 @@ function getCategoryLabel(journal: ActualJournal, sourceId: string | null) {
 }
 
 describe('normalising Actual Budget exports', () => {
-  it('uploads every envelope row up to the export date, leaving each account at the balance Actual showed', async () => {
+  it('uploads every envelope row, leaving each account at the balance Actual showed on the export date', async () => {
     const { journal, manifest } = await normalise('envelope')
 
     const balances = getBalances(journal)
@@ -36,8 +35,17 @@ describe('normalising Actual Budget exports', () => {
 
     // Transfers are uploaded once, from the side money leaves
     expect(journal.entries.filter((entry) => entry.type === 'transfer')).toHaveLength(manifest.transfers.length)
-    expect(journal.skippedRows.map((row) => [row.date, row.reason]))
-      .toEqual(manifest.afterAsOf.map((row) => [row.date, ACTUAL_FUTURE_ROW_REASON]))
+
+    // Rows dated after the export date come across too, counted toward no balance until their date
+    expect(journal.skippedRows).toEqual([])
+    const accountName = new Map(journal.accounts.map((source) => [source.id, source.name]))
+    for (const row of manifest.afterAsOf) {
+      expect(journal.entries.some((entry) => (
+        entry.date === row.date && accountName.get(entry.sourceAccountId ?? entry.destinationAccountId ?? '') === row.account
+      ))).toBe(true)
+    }
+    expect(journal.accounts.filter((source) => source.hasFutureRows).map((source) => source.name).sort())
+      .toEqual([...new Set(manifest.afterAsOf.map((row) => row.account))].sort())
   })
 
   it('keeps the category of a payment to an off-budget account on its budget-side leg alone', async () => {
@@ -136,24 +144,31 @@ describe('normalising Actual Budget exports', () => {
     expect(journal.entries.find((entry) => entry.date === '2026-07-10')).toMatchObject({ amount: 458000, payeeName: 'Lawson' })
   })
 
-  it('leaves out rows dated after today in the user timezone', async () => {
-    const budget = await readBudget('yen')
-    const journal = normaliseActualBudget(budget, '2026-08-04')
-
-    expect(journal.skippedRows.every((row) => row.date > '2026-08-04')).toBe(true)
-    expect(journal.entries.every((entry) => entry.date <= '2026-08-04')).toBe(true)
-    expect(journal.skippedRows.length).toBeGreaterThan(0)
-  })
-
-  it('keeps a row dated today and leaves out one dated tomorrow', () => {
+  it('imports a row dated after today, counting it toward no balance yet', () => {
     const budget = buildActualBudget([
       { id: 'today', accountId: 'checking', date: '2026-09-26', amount: -1000, payeeId: 'shop' },
-      { id: 'tomorrow', accountId: 'checking', date: '2026-09-27', amount: -1000, payeeId: 'shop' },
+      { id: 'tomorrow', accountId: 'checking', date: '2026-09-27', amount: -2500, payeeId: 'shop' },
     ])
     const journal = normaliseActualBudget(budget, '2026-09-26')
 
-    expect(journal.entries.map((entry) => entry.transactionId)).toEqual(['today'])
-    expect(journal.skippedRows.map((row) => [row.transactionId, row.reason])).toEqual([['tomorrow', ACTUAL_FUTURE_ROW_REASON]])
+    expect(journal.entries.map((entry) => entry.transactionId)).toEqual(['today', 'tomorrow'])
+    expect(journal.skippedRows).toEqual([])
+    expect(journal.accounts.find((source) => source.id === 'checking')).toMatchObject({ balance: -1000, rowCount: 2, hasFutureRows: true })
+  })
+
+  it('marks both accounts of a transfer dated after today as holding a future row', () => {
+    const budget = buildActualBudget([
+      { id: 'out', accountId: 'checking', date: '2026-09-30', amount: -5000, payeeId: 'to-savings', transferredId: 'in' },
+      { id: 'in', accountId: 'savings', date: '2026-09-30', amount: 5000, payeeId: 'to-checking', transferredId: 'out' },
+    ])
+    const journal = normaliseActualBudget(budget, '2026-09-26')
+
+    expect(journal.entries).toMatchObject([{ transactionId: 'out', type: 'transfer', sourceAccountId: 'checking', destinationAccountId: 'savings' }])
+    expect(journal.accounts.map((source) => [source.id, source.balance, source.hasFutureRows])).toEqual([
+      ['checking', 0, true],
+      ['savings', 0, true],
+      ['loan', 0, false],
+    ])
   })
 })
 

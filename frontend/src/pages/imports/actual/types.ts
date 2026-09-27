@@ -122,9 +122,17 @@ export interface ActualAccountSource {
   offBudget: boolean
   closed: boolean
 
-  /** Hundredths left in the account once the imported rows are written */
+  /**
+   * Hundredths in the account as of today once the imported rows are written, leaving out rows
+   * dated later, as Lumina Finance does
+   */
   balance: number
+
+  /** Every imported row on the account, whatever its date */
   rowCount: number
+
+  /** Whether a row on the account is dated after today, which keeps a closed account open */
+  hasFutureRows: boolean
 
   /** What a new Lumina account is proposed as, read from Actual's own type and the balance */
   proposedType: AccountType

@@ -19,6 +19,7 @@ import {
   getActualTransferCategoryError,
 } from '@/pages/imports/actual/constants'
 import type { ActualJournal } from '@/pages/imports/actual/types'
+import { normaliseActualBudget } from '@/pages/imports/actual/utils/normalise'
 import { buildActualImportPayload, type ActualImportAnswers } from '@/pages/imports/actual/utils/payload'
 import {
   CREATE_ACCOUNT_VALUE,
@@ -29,7 +30,7 @@ import {
   getImportReadOnlyAccountMappingError,
 } from '@/pages/imports/constants'
 import type { ImportCategoryKind } from '@/pages/imports/types'
-import { normaliseActualFixture } from './fixtures'
+import { buildActualBudget, normaliseActualFixture } from './fixtures'
 
 const CURRENCIES = [
   { id: 'CAD', name: 'Canadian dollar', symbol: '$', minor_unit_exponent: 2 },
@@ -222,6 +223,32 @@ describe('Actual Budget import payload', () => {
     answers.categoryMappings[carTransfers.id] = TRANSFER.id
 
     expect(buildActualImportPayload(journal, answers).errors).toEqual([getActualBuiltInTransferError(carTransfers.label)])
+  })
+
+  it('creates a closed account open while it holds a row dated after today, sending or receiving', () => {
+    const accounts = [
+      { id: 'checking', name: 'Checking', offBudget: false, closed: false, type: null },
+      { id: 'paid-off', name: 'Paid Off', offBudget: false, closed: true, type: null },
+      { id: 'upcoming', name: 'Upcoming', offBudget: false, closed: true, type: null },
+      { id: 'receiving', name: 'Receiving', offBudget: false, closed: true, type: null },
+    ]
+    const payees = [
+      { id: 'to-checking', name: '', transferAccountId: 'checking' },
+      { id: 'to-receiving', name: '', transferAccountId: 'receiving' },
+      { id: 'shop', name: 'Corner Shop', transferAccountId: null },
+    ]
+    const journal = normaliseActualBudget(buildActualBudget([
+      { id: 'past', accountId: 'paid-off', date: '2026-09-01', amount: -1000, payeeId: 'shop' },
+      { id: 'future', accountId: 'upcoming', date: '2026-10-01', amount: -1000, payeeId: 'shop' },
+      // Only the sending side is uploaded, so the closed account appears on its row alone
+      { id: 'out', accountId: 'checking', date: '2026-10-01', amount: -2000, payeeId: 'to-receiving', transferredId: 'in' },
+      { id: 'in', accountId: 'receiving', date: '2026-10-01', amount: 2000, payeeId: 'to-checking', transferredId: 'out' },
+    ], { accounts, payees }), '2026-09-26')
+    const build = buildActualImportPayload(journal, createAnswers(journal))
+
+    expect(build.errors).toEqual([])
+    expect(build.payload?.rows).toHaveLength(3)
+    expect(build.archiveAccountSources).toEqual(['paid-off'])
   })
 
   it('writes a closed account linked to an existing one into it, leaving that account open', async () => {

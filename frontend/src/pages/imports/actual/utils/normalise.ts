@@ -4,7 +4,6 @@ import type { AccountType } from '@/api/accounts'
 import { BALANCE_ADJUSTMENT_CATEGORY_NAME } from '@/utils/transfers'
 import {
   ACTUAL_ACCOUNT_TYPES,
-  ACTUAL_FUTURE_ROW_REASON,
   ACTUAL_OFF_BUDGET_CATEGORY_SOURCE_PREFIX,
   ACTUAL_PAYEE_NAME_MAX_LENGTH,
   ACTUAL_TAG_NAME_MAX_LENGTH,
@@ -50,7 +49,8 @@ const ACTUAL_RESERVED_PAYMENT_NAMES = [ACTUAL_TRANSFER_CATEGORY_NAME, BALANCE_AD
  *   the category on the budget side travels with the pair on that leg alone, so its budget counts
  *   the payment once. A transfer whose other side can't be found is money leaving or arriving
  *   from outside Lumina, filed under a transfer category
- * - Rows dated after `today` are left out, since they haven't happened
+ * - Rows dated after `today` are imported like any other. Lumina Finance counts them from their
+ *   date, so each account's balance here is as of `today`
  *
  * @param budget - What the reader took from the file
  * @param today - Today's date in the user's own timezone
@@ -107,11 +107,6 @@ export function normaliseActualBudget(budget: ActualBudgetFile, today: string): 
     const account = accountById.get(transaction.accountId)
     if (!account) continue
     const parent = transaction.parentId ? transactionById.get(transaction.parentId) : undefined
-
-    if (transaction.date > today) {
-      skippedRows.push(describe(transaction, ACTUAL_FUTURE_ROW_REASON, parent))
-      continue
-    }
 
     const payee = payeeById.get(transaction.payeeId ?? parent?.payeeId ?? '') ?? null
     const counterpartAccount = payee?.transferAccountId ? accountById.get(payee.transferAccountId) : undefined
@@ -198,7 +193,7 @@ export function normaliseActualBudget(budget: ActualBudgetFile, today: string): 
   }
 
   return {
-    accounts: buildAccountSources(budget.accounts, entries),
+    accounts: buildAccountSources(budget.accounts, entries, today),
     categories: categoryUses.toSources(budget.categories, accountById),
     entries,
     skippedRows,
@@ -321,17 +316,25 @@ export function formatHundredths(amount: number, decimals = ACTUAL_TRANSACTION_D
   return `${sign}${text}`
 }
 
-function buildAccountSources(accounts: ActualAccount[], entries: ActualJournalEntry[]): ActualAccountSource[] {
+function buildAccountSources(accounts: ActualAccount[], entries: ActualJournalEntry[], today: string): ActualAccountSource[] {
   const balances = new Map<string, number>()
   const rowCounts = new Map<string, number>()
-  const add = (accountId: string | null, amount: number) => {
+  const withFutureRows = new Set<string>()
+
+  // A row after today counts toward no balance until its date, as Lumina Finance counts it, and
+  // an account receiving a future transfer holds a future row as much as the one sending it
+  const add = (accountId: string | null, amount: number, date: string) => {
     if (!accountId) return
-    balances.set(accountId, (balances.get(accountId) ?? 0) + amount)
     rowCounts.set(accountId, (rowCounts.get(accountId) ?? 0) + 1)
+    if (date > today) {
+      withFutureRows.add(accountId)
+      return
+    }
+    balances.set(accountId, (balances.get(accountId) ?? 0) + amount)
   }
   for (const entry of entries) {
-    add(entry.sourceAccountId, -entry.amount)
-    add(entry.destinationAccountId, entry.amount)
+    add(entry.sourceAccountId, -entry.amount, entry.date)
+    add(entry.destinationAccountId, entry.amount, entry.date)
   }
 
   // A shared name is told apart by where the account sits, and numbered when that is shared too
@@ -358,6 +361,7 @@ function buildAccountSources(accounts: ActualAccount[], entries: ActualJournalEn
     closed: account.closed,
     balance: balances.get(account.id) ?? 0,
     rowCount: rowCounts.get(account.id) ?? 0,
+    hasFutureRows: withFutureRows.has(account.id),
     proposedType: proposeAccountType(account, balances.get(account.id) ?? 0),
   }))
 }

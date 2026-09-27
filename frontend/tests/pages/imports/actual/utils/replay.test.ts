@@ -25,7 +25,12 @@ interface Replay {
   budgets: ImportRunBudgets | null
   archive: string[]
   expected: {
+    /** The export date, which every balance and monthly total is as of */
+    asOf: string
     accounts: { name: string; offBudget: boolean; closed: boolean; balance: string }[]
+
+    /** Rows dated after the export date, with the category sources each is filed under */
+    afterAsOf: { account: string; date: string; amount: string; sources: string[] }[]
 
     /** Actual's monthly total for each category, with the category sources its rows are filed under */
     categoryMonths: { sources: string[]; month: string; total: string }[]
@@ -54,6 +59,10 @@ async function buildReplay(): Promise<Replay> {
 
   // Starting Balances is where Actual files opening balances, which Lumina records as balance adjustments
   const liveCategories = budget.categories
+  const getSources = (categoryName: string | null) => {
+    const category = liveCategories.find((candidate) => candidate.name === categoryName)
+    return journal.categories.filter((source) => source.categoryId === category?.id).map((source) => source.id)
+  }
   const expectedMonths = manifest.categoryMonths.filter((month) => month.category && month.category !== 'Starting Balances')
   const budgetMonths = new Map<string, { month: string; budgeted: string }[]>()
   for (const figure of manifest.budgets) {
@@ -66,15 +75,10 @@ async function buildReplay(): Promise<Replay> {
     budgets: buildActualRunBudgets(drafts, 'CAD', budget.budgetDecimals, 2, build.budgetCategoryMappings),
     archive: build.archiveAccountSources,
     expected: {
+      asOf: manifest.asOf,
       accounts: manifest.accounts.map(({ name, offBudget, closed, balance }) => ({ name, offBudget, closed, balance })),
-      categoryMonths: expectedMonths.map((month) => {
-        const category = liveCategories.find((candidate) => candidate.name === month.category)
-        return {
-          sources: journal.categories.filter((source) => source.categoryId === category?.id).map((source) => source.id),
-          month: month.month,
-          total: month.total,
-        }
-      }),
+      afterAsOf: manifest.afterAsOf.map((row) => ({ account: row.account, date: row.date, amount: row.amount, sources: getSources(row.category) })),
+      categoryMonths: expectedMonths.map((month) => ({ sources: getSources(month.category), month: month.month, total: month.total })),
       budgets: [...budgetMonths].map(([name, months]) => ({
         name,
         hidden: liveCategories.find((category) => category.name === name)?.hidden ?? false,

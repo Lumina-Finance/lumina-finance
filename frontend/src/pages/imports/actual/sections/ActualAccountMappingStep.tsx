@@ -10,6 +10,7 @@ type ActualAccountMappingStepProps = Pick<
   | 'budget'
   | 'accountSources'
   | 'closedAccountsWithBalance'
+  | 'closedAccountsKeptOpen'
   | 'closedAccountsLinked'
   | 'accountMappings'
   | 'autoFilledAccountSources'
@@ -46,6 +47,7 @@ export function ActualAccountMappingStep({
   budget,
   accountSources,
   closedAccountsWithBalance,
+  closedAccountsKeptOpen,
   closedAccountsLinked,
   updateActualAccountMapping,
   ...props
@@ -66,6 +68,22 @@ export function ActualAccountMappingStep({
     </ImportNotice>
   )
 
+  const balanceNotice = closedAccountsWithBalance.length > 0 && (
+    <ImportNotice
+      title="Closed accounts with money left"
+      items={closedAccountsWithBalance.map((account) => `${account.label}: ${formatHundredths(account.balance, budget?.budgetDecimals)}`)}
+    >
+      These are closed in Actual, so they are created archived, with a balance adjustment bringing each to zero on the day you import:
+    </ImportNotice>
+  )
+
+  // An account can't be archived while it holds rows dated after today
+  const keptOpenNotice = closedAccountsKeptOpen.length > 0 && (
+    <ImportNotice title="Closed accounts with upcoming transactions" items={closedAccountsKeptOpen.map((account) => account.label)}>
+      These are closed in Actual but hold transactions dated after today, so they are created open. You can archive them once those dates pass:
+    </ImportNotice>
+  )
+
   return (
     <ProviderAccountMappingStep
       {...props}
@@ -73,14 +91,7 @@ export function ActualAccountMappingStep({
       description="Every account in the budget, on it or off it, must map to an existing account or a new one."
       notice={<>{currencyNotice}{linkedNotice}</>}
       createdAccountNotice={{ explanation: ACTUAL_CREATED_ACCOUNT_EXPLANATION, items: [CREATED_ACCOUNT_CREDIT_LIMIT_NOTE] }}
-      createNotice={closedAccountsWithBalance.length > 0 && (
-        <ImportNotice
-          title="Closed accounts with money left"
-          items={closedAccountsWithBalance.map((account) => `${account.label}: ${formatHundredths(account.balance, budget?.budgetDecimals)}`)}
-        >
-          These are closed in Actual, so they are created archived, with a balance adjustment bringing each to zero on the day you import:
-        </ImportNotice>
-      )}
+      createNotice={<>{balanceNotice}{keptOpenNotice}</>}
       emptyState={budget
         ? { title: 'No accounts to import into', description: 'This budget has no open or closed accounts.' }
         : { title: 'No accounts detected', description: 'Upload the budget export first.' }}
