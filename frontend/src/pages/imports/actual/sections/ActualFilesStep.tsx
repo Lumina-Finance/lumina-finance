@@ -133,8 +133,8 @@ export function ActualFilesStep({
       </div>
 
       {/* Shown before the upload, since it answers whether moving over costs a user their budget history */}
-      <ImportInfoCard title="Budget history stays">
-        Your transactions come across, so your past spending is kept. A budget you create later can start from an earlier date, and Lumina Finance fills in what each past period used.
+      <ImportInfoCard title="You can always recreate your budgets without losing historical data">
+        Lumina Finance supports creating budgets with a past start date, which automatically repopulates your historical utilization rates, so you won't lose any historical information if your budgets didn't come across cleanly.
       </ImportInfoCard>
 
       <div className="mt-auto flex flex-wrap gap-3 pt-3">
