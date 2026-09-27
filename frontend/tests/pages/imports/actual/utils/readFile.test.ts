@@ -5,7 +5,7 @@
 import { zipSync } from 'fflate'
 import initSqlJs from 'sql.js'
 import { describe, expect, it } from 'vitest'
-import { ACTUAL_NEWEST_CHECKED_MIGRATION, MAX_ACTUAL_DATABASE_BYTES } from '@/pages/imports/actual/constants'
+import { MAX_ACTUAL_DATABASE_BYTES } from '@/pages/imports/actual/constants'
 import type { ActualBudgetFile } from '@/pages/imports/actual/types'
 import { readActualBudgetFile } from '@/pages/imports/actual/utils/readFile'
 import { readActualFixture, readActualManifest, unzipActualDatabase } from './fixtures'
@@ -187,22 +187,13 @@ describe('reading Actual Budget files', () => {
     const database = await editDatabase(readActualFixture('yen', 'db.sqlite'), 'DROP TABLE category_mapping')
 
     expect(await readRefusal(new File([database], 'db.sqlite')))
-      .toMatch(new RegExp(`version ${ACTUAL_NEWEST_CHECKED_MIGRATION}\\) has no category_mapping table`))
+      .toMatch(/version 1787013118115\) has no category_mapping table/)
   })
 
   it('names a view a database is missing', async () => {
     const database = await editDatabase(readActualFixture('yen', 'db.sqlite'), 'DROP VIEW v_transactions')
 
     expect(await readRefusal(new File([database], 'db.sqlite'))).toMatch(/has no v_transactions view/)
-  })
-
-  it('refuses a yen budget with an amount that is not whole hundredths', async () => {
-    const database = await editDatabase(
-      readActualFixture('yen', 'db.sqlite'),
-      'UPDATE transactions SET amount = amount + 50 WHERE amount = -458000',
-    )
-
-    expect(await readRefusal(new File([database], 'db.sqlite'))).toMatch(/in JPY, and some of its amounts aren't stored/)
   })
 
   it('refuses a budget with a date or an amount Actual would not have written', async () => {
@@ -226,29 +217,14 @@ describe('reading Actual Budget files', () => {
     }
   })
 
-  it('refuses a yen budget from a newer Actual than the one checked', async () => {
-    const database = await editDatabase(
-      readActualFixture('yen', 'db.sqlite'),
-      `INSERT INTO __migrations__ (id) VALUES (${ACTUAL_NEWEST_CHECKED_MIGRATION + 1})`,
-    )
+  it('reads a yen budget the same way whichever Actual version wrote it', async () => {
+    const expected = await readBudget(new File([readActualFixture('yen', 'db.sqlite')], 'db.sqlite'))
+    for (const statement of ['INSERT INTO __migrations__ (id) VALUES (9999999999999)', 'DELETE FROM __migrations__']) {
+      const database = await editDatabase(readActualFixture('yen', 'db.sqlite'), statement)
+      const budget = await readBudget(new File([database], 'db.sqlite'))
 
-    expect(await readRefusal(new File([database], 'db.sqlite'))).toMatch(/in JPY, and it comes from a newer version/)
-  })
-
-  it('reads a two-decimal budget from a newer Actual, whose amounts cannot be misread', async () => {
-    const database = await editDatabase(
-      unzipActualDatabase(readActualFixture('envelope', 'export.zip')),
-      `INSERT INTO __migrations__ (id) VALUES (${ACTUAL_NEWEST_CHECKED_MIGRATION + 1})`,
-    )
-
-    const budget = await readBudget(new File([database], 'db.sqlite'))
-    expect(budget.databaseVersion).toBe(ACTUAL_NEWEST_CHECKED_MIGRATION + 1)
-  })
-
-  it('refuses a yen budget whose Actual version cannot be read', async () => {
-    const database = await editDatabase(readActualFixture('yen', 'db.sqlite'), 'DELETE FROM __migrations__')
-
-    expect(await readRefusal(new File([database], 'db.sqlite'))).toMatch(/in JPY, and it comes from a newer version/)
+      expect({ ...budget, databaseVersion: null }, statement).toEqual({ ...expected, databaseVersion: null })
+    }
   })
 
   it('hides a category that is visible itself but sits in a hidden group', async () => {

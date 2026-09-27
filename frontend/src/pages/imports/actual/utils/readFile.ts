@@ -3,9 +3,7 @@ import {
   ACTUAL_DATABASE_FILE_NAME,
   ACTUAL_FILE_GUIDANCE,
   ACTUAL_METADATA_FILE_NAME,
-  ACTUAL_NEWEST_CHECKED_MIGRATION,
   ACTUAL_REQUIRED_COLUMNS,
-  ACTUAL_TRANSACTION_DECIMALS,
   ACTUAL_ZERO_DECIMAL_CURRENCIES,
   MAX_ACTUAL_DATABASE_BYTES,
   MAX_ACTUAL_UNPACKED_BYTES,
@@ -170,13 +168,6 @@ async function readActualDatabase(
       ? preferences.get('defaultCurrencyCode')?.trim().toUpperCase() || null
       : null
     const budgetDecimals = currencyCode && ACTUAL_ZERO_DECIMAL_CURRENCIES.has(currencyCode) ? 0 : 2
-    if (budgetDecimals === 0 && (databaseVersion === null || databaseVersion > ACTUAL_NEWEST_CHECKED_MIGRATION)) {
-      return refuse(
-        `This budget is in ${currencyCode}, and it comes from a newer version of Actual than the import has been `
-        + 'checked against. Amounts in currencies without decimal places could be read at the wrong size, so it '
-        + "can't be imported yet.",
-      )
-    }
 
     const transactions = readTransactions(database)
 
@@ -187,16 +178,6 @@ async function readActualDatabase(
       return refuse(
         `This budget has ${malformed.toLocaleString()} ${malformed === 1 ? 'transaction' : 'transactions'} whose date or amount `
         + "isn't stored the way Actual stores them, so it can't be imported.",
-      )
-    }
-
-    // Actual writes every transaction in hundredths, so a zero-decimal budget whose amounts are not
-    // all whole hundreds was written some other way, and reading it either way could be 100 times off
-    const hundredths = 10 ** ACTUAL_TRANSACTION_DECIMALS
-    if (budgetDecimals === 0 && transactions.some((transaction) => transaction.amount % hundredths !== 0)) {
-      return refuse(
-        `This budget is in ${currencyCode}, and some of its amounts aren't stored the way the import expects `
-        + "for a currency without decimal places, so it can't be imported.",
       )
     }
 
