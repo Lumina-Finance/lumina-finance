@@ -40,12 +40,6 @@ export function getExpectedDifferences(budget: string, asOf: string): ExpectedDi
         STARTING_BALANCES,
         { kind: 'balance', subject: 'Checking', lumina: '9383.30', reason: UNBALANCED_SPLIT },
         { kind: 'category-month', subject: `Travel (Away) ${monthsBack(2)}`, lumina: '0.00', reason: UNBALANCED_SPLIT },
-        {
-          kind: 'balance',
-          subject: 'Wallet',
-          lumina: '0.00',
-          reason: 'A closed account with money left is created archived, with an adjustment bringing it to zero on the day of the import',
-        },
       ]
     case 'tracking':
       return [

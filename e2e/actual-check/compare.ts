@@ -63,6 +63,9 @@ export interface SkippedRowCells {
 // an Actual category, as its id with this in front
 export const TRANSFER_CATEGORY_SOURCE_PREFIX = 'transfer:'
 
+// The system category Lumina files opening balances and the adjustment that archiving writes under
+const BALANCE_ADJUSTMENT = 'Balance Adjustment'
+
 // Decimal places Lumina keeps for the currencies the check's budgets are imported in
 const CURRENCY_EXPONENTS: Record<string, number> = { CAD: 2, JPY: 0 }
 
@@ -84,6 +87,7 @@ export function compareImport(
   const counted = lumina.transactions.filter((transaction) => transaction.dt.slice(0, 10) <= manifest.asOf)
 
   compareAccounts(manifest, lumina, mappings, currency, differences)
+  compareTransfers(manifest, counted, mappings, currency, differences)
   compareCategoryMonths(manifest, counted, mappings, categoryById, currency, differences)
   compareBudgets(manifest, lumina, mappings, categoryById, currency, differences)
   return differences.list()
@@ -146,6 +150,7 @@ function compareAccounts(
   differences: DifferenceList,
 ) {
   const accountById = new Map(lumina.accounts.map((account) => [account.id, account]))
+  const adjustmentCategoryIds = new Set(lumina.categories.filter((category) => category.name === BALANCE_ADJUSTMENT).map((category) => category.id))
   const paired = new Set<string>()
   for (const account of manifest.accounts) {
     const found = accountById.get(mappings.accounts.get(account.id) ?? '')
@@ -155,9 +160,26 @@ function compareAccounts(
     }
     paired.add(found.id)
 
+    // Archiving brings an account to zero with an adjustment dated the run date, which would hide
+    // any error in its rows, so an archived account's balance is compared without it and the
+    // adjustment is held to minus Actual's balance
+    const archiveAdjustment = found.is_archived
+      ? lumina.transactions
+        .filter((transaction) => (
+          transaction.account_id === found.id
+          && transaction.dt.slice(0, 10) === manifest.asOf
+          && adjustmentCategoryIds.has(transaction.category_id)
+        ))
+        .reduce((sum, transaction) => sum + transaction.amount, 0)
+      : 0
     const balance = toCurrency(account.balance, ACTUAL_TRANSACTION_DECIMALS, currency)
-    const luminaBalance = formatMinorUnits(found.current_balance, found.currency)
+    const luminaBalance = formatMinorUnits(found.current_balance - archiveAdjustment, found.currency)
     if (luminaBalance !== balance) differences.add('balance', account.name, balance, luminaBalance)
+    if (found.is_archived) {
+      const expectedAdjustment = toCurrency(negate(account.balance), ACTUAL_TRANSACTION_DECIMALS, currency)
+      const heldAdjustment = formatMinorUnits(archiveAdjustment, found.currency)
+      if (heldAdjustment !== expectedAdjustment) differences.add('archive-adjustment', account.name, expectedAdjustment, heldAdjustment)
+    }
     if (found.currency !== currency) differences.add('account-currency', account.name, currency, found.currency)
     if (found.is_archived !== account.closed) {
       differences.add('account-archived', account.name, account.closed ? 'closed' : 'open', found.is_archived ? 'archived' : 'active')
@@ -165,6 +187,47 @@ function compareAccounts(
   }
   for (const account of lumina.accounts.filter((entry) => !paired.has(entry.id))) {
     differences.add('account-extra', account.name, 'absent', account.account_type)
+  }
+}
+
+/**
+ * Compares each transfer whose sides Actual links both ways, the ones the import pairs, with the
+ * two legs Lumina holds for it: one on each account, naming the other, on the same day for
+ * opposite amounts. A pair imported as two one-sided rows names no other account. The manifest
+ * names a transfer's accounts rather than giving their ids, so they are found by name
+ */
+function compareTransfers(
+  manifest: ActualManifest,
+  transactions: LuminaSnapshot['transactions'],
+  mappings: ImportMappings,
+  currency: string,
+  differences: DifferenceList,
+) {
+  const actualIdByName = new Map(manifest.accounts.map((account) => [account.name, account.id]))
+  const getLuminaAccountId = (name: string) => mappings.accounts.get(actualIdByName.get(name) ?? '')
+
+  // Each leg answers one transfer, so two alike on one day need two pairs
+  const unmatched = new Set(transactions)
+  const takeLeg = (accountId: string | undefined, counterpartyId: string | undefined, date: string, amount: string) => {
+    const leg = [...unmatched].find((transaction) => (
+      transaction.account_id === accountId
+      && transaction.counterparty_account_id === counterpartyId
+      && transaction.dt.slice(0, 10) === date
+      && formatMinorUnits(transaction.amount, currency) === amount
+    ))
+    if (leg) unmatched.delete(leg)
+    return leg
+  }
+
+  for (const transfer of manifest.transfers.filter((entry) => entry.linkedBothWays)) {
+    const amount = toCurrency(transfer.amount, ACTUAL_TRANSACTION_DECIMALS, currency)
+    const source = getLuminaAccountId(transfer.account)
+    const destination = getLuminaAccountId(transfer.counterpartAccount)
+    const sourceLeg = takeLeg(source, destination, transfer.date, toCurrency(negate(transfer.amount), ACTUAL_TRANSACTION_DECIMALS, currency))
+    const destinationLeg = takeLeg(destination, source, transfer.date, amount)
+    if (sourceLeg && destinationLeg) continue
+    const held = sourceLeg ? `only the ${transfer.account} leg` : destinationLeg ? `only the ${transfer.counterpartAccount} leg` : 'absent'
+    differences.add('transfer', `${transfer.date} ${transfer.account} → ${transfer.counterpartAccount} ${amount}`, 'paired', held)
   }
 }
 
@@ -297,6 +360,10 @@ function toCurrency(amount: string, decimals: number, currency: string) {
   if (exponent >= decimals) return formatStored(units * 10n ** BigInt(exponent - decimals), exponent)
   const divisor = 10n ** BigInt(decimals - exponent)
   return units % divisor === 0n ? formatStored(units / divisor, exponent) : `${amount} (more precise than ${currency})`
+}
+
+function negate(amount: string) {
+  return formatStored(-readStored(amount, ACTUAL_TRANSACTION_DECIMALS), ACTUAL_TRANSACTION_DECIMALS)
 }
 
 // Lumina can hold an amount in a currency the dataset never uses, which is itself a difference, so
