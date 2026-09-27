@@ -1,0 +1,57 @@
+# A fresh Actual Budget server for the import check, seeded through Actual's API and thrown away
+# afterwards
+name: lumina-actual-check
+
+services:
+  actual:
+    # From GitHub's registry rather than Docker Hub, so pulling it counts against no pull limit
+    image: ${ACTUAL_IMAGE:-ghcr.io/actualbudget/actual}:${ACTUAL_IMAGE_TAG:-26.9.0}
+    volumes:
+      - actual-data:/data
+    ports:
+      - "127.0.0.1:${ACTUAL_PORT:-18091}:5006"
+    healthcheck:
+      # The image has no curl or wget, only the Node that runs the server
+      test: ["CMD", "node", "-e", "fetch('http://localhost:5006/health').then((response) => process.exit(response.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 5s
+      retries: 60
+
+  # Installs the chosen @actual-app/api beside the seed, then runs it inside the compose network,
+  # writing the exports, manifests and run details to output/
+  seed:
+    image: node:26-slim
+    profiles: [seed]
+    depends_on:
+      actual:
+        condition: service_healthy
+    user: ${SEED_USER:-1000:1000}
+    working_dir: /check
+    volumes:
+      - .:/check
+    environment:
+      # The timezone the check's user lives in, which decides the run date
+      TZ: America/Toronto
+
+      # npm needs a writable home for its cache under a user the image doesn't know
+      HOME: /tmp
+      ACTUAL_URL: http://actual:5006
+      ACTUAL_API_VERSION: ${ACTUAL_API_VERSION:-26.9.0}
+      ACTUAL_SESSION_TOKEN:
+      ACTUAL_NEWEST_CHECKED_MIGRATION:
+      ACTUAL_ZERO_DECIMAL_CURRENCIES:
+    # Retried, since a registry hiccup would otherwise fail the week's check. better-sqlite3's
+    # install script is allowed by seed/package.json
+    command:
+      - sh
+      - -c
+      - |
+        for attempt in 1 2 3; do
+          npm install --prefix seed --no-save --no-package-lock --no-audit --no-fund "@actual-app/api@$${ACTUAL_API_VERSION}" fflate@0.8.3 && break
+          if [ "$$attempt" = 3 ]; then exit 1; fi
+          echo "npm install failed, retrying"
+          sleep 15
+        done
+        exec node seed/main.ts
+
+volumes:
+  actual-data:
