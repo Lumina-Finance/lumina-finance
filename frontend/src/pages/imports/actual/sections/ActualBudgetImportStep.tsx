@@ -65,16 +65,16 @@ export function ActualBudgetImportStep({
     <ImportStep
       index="04"
       title="Budget Import"
-      description="Budgets built from what you budgeted each month in Actual, imported together with the transactions."
+      description="Your Actual budgets, month by month. They're imported along with your transactions."
     >
       {budgetsMissingPayments.length > 0 && (
-        <ImportNotice title="Payments these budgets won't count" items={budgetsMissingPayments}>
-          Their categories had payments to off-budget accounts that you're importing as transfers. Budgets count expenses only, so these will show less spent than Actual did:
+        <ImportNotice title="Some budgets won't count these payments" items={budgetsMissingPayments}>
+          These categories had payments to off-budget accounts that you're importing as transfers, so their budgets will show less spent than Actual did. To count them, switch their "transfers in Actual" rows to Expense under Category Matching:
         </ImportNotice>
       )}
 
-      <ImportInfoCard title="Months as budgeted">
-        Each month you budgeted a category above zero becomes one monthly period with that amount. A budget keeps repeating monthly only if you budgeted it for this month or later, and otherwise ends with its last month. Money Actual rolled over between months and what it showed as To Budget are not imported.
+      <ImportInfoCard title="How your budget months are imported">
+        Each month you budgeted more than zero becomes a period, with that amount as its limit. A month budgeted at zero is left as a gap in the budget's history. If you budgeted a category for this month or later, its budget keeps recurring monthly at its latest limit. Otherwise it ends after the last month you budgeted. Categories you hid in Actual are imported as archived budgets. Rollover and To Budget aren't imported, since each period in Lumina Finance starts fresh.
       </ImportInfoCard>
 
       {skippedBudgets.length > 0 && <ActualSkippedBudgetsTable budgets={skippedBudgets} budgetDecimals={budgetDecimals} />}

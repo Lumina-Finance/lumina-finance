@@ -64,7 +64,7 @@ describe('Actual Budget budgets', () => {
     ])
 
     // Car is spent on directly and paid to the off-budget loan, and its budget tracks the one category
-    // both are spending in unless the payments come in as transfers
+    // both are spending in unless the payments are imported as transfers
     const car = getDraft(drafts, 'Car')
     expect(car.categorySourceId).toBe(car.categoryId)
 

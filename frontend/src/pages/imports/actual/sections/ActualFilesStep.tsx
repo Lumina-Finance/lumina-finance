@@ -136,7 +136,7 @@ export function ActualFilesStep({
 
       {/* Shown before the upload, since it answers whether moving over costs a user their budget history */}
       <ImportInfoCard title="You can always recreate your budgets without losing historical data">
-        Lumina Finance supports creating budgets with a past start date, which automatically repopulates your historical utilization rates, so you won't lose any historical information if your budgets didn't come across cleanly.
+        Lumina Finance supports creating budgets with a past start date, which automatically repopulates your historical utilization rates, so you won't lose any historical information if your budgets weren't imported the way you wanted.
       </ImportInfoCard>
 
       <div className="mt-auto flex flex-wrap gap-3 pt-3">

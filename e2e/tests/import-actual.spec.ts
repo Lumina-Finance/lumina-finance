@@ -120,7 +120,7 @@ test('imports loan payments Actual gave a category as spending in it, which its 
 
   // Kept as transfers by default, the payments are left out of the Car budget, which the budget step
   // warns of until they're filed as spending in Car
-  const warning = page.getByText("Payments these budgets won't count", { exact: true })
+  const warning = page.getByText("Some budgets won't count these payments", { exact: true })
   await expect(warning.locator('..').getByRole('listitem')).toHaveText(['Car'])
   await paymentMode.getByRole('radio', { name: 'Expense' }).click()
   await expect(warning).toHaveCount(0)

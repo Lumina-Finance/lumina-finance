@@ -96,18 +96,18 @@ export function getActualPayeeTooLongReason(length: number) {
   return `The payee is ${length.toLocaleString()} characters, and the importer takes up to ${ACTUAL_PAYEE_NAME_MAX_LENGTH}`
 }
 
-export const ACTUAL_INCOME_BUDGET_REASON = 'Lumina Finance budgets track spending, so a budget for income is not imported'
+export const ACTUAL_INCOME_BUDGET_REASON = 'Budgets only track expenses, so income budgets aren\'t imported'
 
 export function getActualBudgetAmountReason(amount: string, currencyCode: string) {
-  return `Its budgeted amount ${amount} has more decimal places than ${currencyCode} holds`
+  return `One of its months is budgeted at ${amount}, which has more decimal places than ${currencyCode} allows`
 }
 
 export function getActualBudgetGroupCategoryReason(categoryName: string) {
-  return `Its category ${categoryName} is matched to a group category, and an imported budget can only track your own or built-in categories`
+  return `Its category, ${categoryName}, is matched to a group category, and imported budgets can only use your own or built-in categories`
 }
 
 // An imported budget tracks one expense category, as a budget made in the app does
-export const ACTUAL_BUDGET_NOT_EXPENSE_REASON = "Its category is matched to or created as a category that isn't an expense, and budgets track expenses only"
+export const ACTUAL_BUDGET_NOT_EXPENSE_REASON = "Budgets only track expenses, and its category is matched to or set up as another type. Match it to an expense category, or set its type to Expense"
 
 /**
  * Lumina account types for the types older Actual releases asked for when an account was made.
@@ -133,7 +133,7 @@ export function getActualCategoryNameTooLongError(label: string) {
   return `Match ${label} to an existing category, since a new category name holds at most ${ACTUAL_CATEGORY_NAME_MAX_LENGTH} characters.`
 }
 
-export const ACTUAL_BUDGET_NAME_TOO_LONG_REASON = `Its name is longer than the ${ACTUAL_BUDGET_NAME_MAX_LENGTH} characters a budget name can have`
+export const ACTUAL_BUDGET_NAME_TOO_LONG_REASON = `Its name is over ${ACTUAL_BUDGET_NAME_MAX_LENGTH} characters, longer than a budget name can be`
 
 export function getActualAmountPrecisionReason(amount: string, currencyCode: string) {
   return `The amount ${amount} has more decimal places than ${currencyCode} holds`
@@ -167,7 +167,7 @@ export function getActualPaymentKindClashError(label: string, existingName: stri
   const existing = existingKind === 'expense' ? 'an expense' : existingKind === 'income' ? 'an income' : 'a transfer'
   const wanted = kind === 'income' ? 'income' : 'spending'
   const match = kind === 'income' ? 'an income' : 'an expense'
-  return `${existingName} is already ${existing} category, so ${label} can't come in as ${wanted} under that name. Match it to ${match} category, or switch it to Transfer.`
+  return `${existingName} is already ${existing} category, so ${label} can't be imported as ${wanted} under that name. Match it to ${match} category, or switch it to Transfer.`
 }
 
 export function getActualAccountNameTooLongError(label: string) {

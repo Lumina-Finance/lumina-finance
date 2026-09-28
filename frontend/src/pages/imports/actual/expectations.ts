@@ -9,8 +9,8 @@ import type { ImportExpectations } from '@/pages/imports/types'
 export const ACTUAL_EXPECTATIONS: ImportExpectations = {
   intro: 'Actual Budget gives money to categories month by month and keeps some accounts off the budget. Lumina '
     + 'Finance records one entry per account and tracks spending against budgets by category, so some of your data '
-    + 'changes shape on the way in.',
-  deviation: 'Only the amount you budgeted each month comes across. Money Actual rolled over from one month to the '
+    + 'is imported in a different form.',
+  deviation: 'Only the amount you budgeted each month is imported. Money Actual rolled over from one month to the '
     + 'next and what it showed as To Budget are not imported, so what a budget has left can read differently from '
     + 'the balance Actual shows.',
   changes: [
@@ -20,7 +20,7 @@ export const ACTUAL_EXPECTATIONS: ImportExpectations = {
     },
     {
       source: 'A payment with a category to an off-budget account, like a loan payment',
-      lumina: 'By default, a transfer between the two accounts, which budgets don\'t count, or one to or from outside the app when its other side isn\'t in the file. You can file it in its category instead, so its budget counts it as Actual did, and the off-budget account\'s side stays a transfer',
+      lumina: 'By default, a transfer between the two accounts, which budgets don\'t count, or one to or from outside the app when its other side isn\'t in the file. You can import it as an expense in its category instead, so its budget counts it as Actual did, and the off-budget account still shows the payment arriving',
     },
     {
       source: 'A split transaction',

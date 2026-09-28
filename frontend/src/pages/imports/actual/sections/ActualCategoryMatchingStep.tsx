@@ -44,9 +44,9 @@ function getPaymentModeOptions(source: ActualCategorySource): Array<{ value: Act
 
 function describePayments(source: ActualCategorySource, name: string) {
   const asCategory = source.isIncome
-    ? `As Income, they're income in ${name}`
-    : `As Expense, they're spending in ${name}, which its budget counts as Actual did`
-  return `In Actual, these are payments between a budget account and an off-budget account, like a loan, that you gave the ${name} category. As Transfer, they stay transfers between your accounts, which budgets don't count. ${asCategory}, and the off-budget account's side stays a transfer.`
+    ? `As Income, they count as income in ${name}`
+    : `As Expense, they count as spending in ${name}, so its budget counts them the way Actual did`
+  return `In Actual, these are payments between a budget account and an off-budget account, like a loan, that you gave the ${name} category. As Transfer, they're imported as transfers between your accounts, which don't count toward budgets. ${asCategory}, and the off-budget account still shows them arriving.`
 }
 
 /**
@@ -99,7 +99,7 @@ export function ActualCategoryMatchingStep({
 
       {hasCategorisedTransfers && (
         <ImportInfoCard title="Payments to off-budget accounts">
-          Rows marked "transfers in Actual" are payments to and from off-budget accounts, like a loan payment, that had a category in Actual. They come in as transfers, which budgets don't count. Switch one to Expense, or Income for an income category, to count the budget account's side in that category as Actual did, while the off-budget account's side stays a transfer. A payment whose other side isn't in the file comes in on its own.
+          In Actual, money moved between your budget and an off-budget account, like a loan payment, can have a category. Those rows are marked "transfers in Actual" and are imported as transfers. Transfers don't count toward budgets, so if you'd like a budget to count these the way Actual did, switch the row to Expense. The payment then counts as spending from your budget account, and the off-budget account still shows it arriving, so its balance stays right.
         </ImportInfoCard>
       )}
 
