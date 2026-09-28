@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { EmptyState, ImportInfoCard, ImportStagedFileList, ImportStat, ImportStep, ImportUploadCard } from '@/pages/imports/components'
+import { EmptyState, ImportFilesStepLayout, ImportInfoCard, ImportStagedFileList, ImportUploadCard } from '@/pages/imports/components'
 import type { TransactionImportWorkflow } from '@/pages/imports/hooks'
 import { hasAcceptedFile } from '@/pages/imports/utils'
 
@@ -55,12 +55,14 @@ export function ImportFilesStep({
   }, [isFileAccepted])
 
   return (
-    <ImportStep
-      index="01"
+    <ImportFilesStepLayout
       title="File"
       description="Upload one CSV transaction file."
-      className="xl:h-full"
-      contentClassName="flex min-h-0 flex-col gap-3"
+      stats={[
+        { label: 'File', value: files.length },
+        { label: 'Rows', value: totalRows },
+        { label: 'Mapped', value: mappedFieldCount },
+      ]}
     >
       {!isFileAccepted && (
         <>
@@ -112,12 +114,6 @@ export function ImportFilesStep({
           <ImportStagedFileList files={files} onRemove={(file) => removeFile(file.id)} />
         </div>
       )}
-
-      <div className="mt-auto grid grid-cols-3 gap-3 pt-3">
-        <ImportStat label="File" value={files.length.toString()} />
-        <ImportStat label="Rows" value={totalRows.toString()} />
-        <ImportStat label="Mapped" value={mappedFieldCount.toString()} />
-      </div>
-    </ImportStep>
+    </ImportFilesStepLayout>
   )
 }

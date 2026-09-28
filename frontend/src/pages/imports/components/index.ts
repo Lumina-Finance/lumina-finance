@@ -1,5 +1,6 @@
 export * from './ExpectationsCard'
 export * from './FileUpload'
+export * from './FilesStep'
 export * from './FormatControls'
 export * from './PreviewList'
 export * from './tables/AccountMappingTable'
