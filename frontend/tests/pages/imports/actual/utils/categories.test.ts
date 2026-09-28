@@ -33,7 +33,7 @@ describe('Actual Budget category defaults', () => {
       'Income': CREATE_CATEGORY_VALUE,
       'Travel (Away)': CREATE_CATEGORY_VALUE,
       'Travel (Home)': CREATE_CATEGORY_VALUE,
-      'Car · payments to and from off-budget accounts': CAR_TRANSFERS.id,
+      'Car (transfers)': CAR_TRANSFERS.id,
       'No category': MISCELLANEOUS.id,
       'No category · Car Loan': MISCELLANEOUS.id,
     })
@@ -58,7 +58,7 @@ describe('Actual Budget category defaults', () => {
 
   it('files a transfer whose other side is missing under Transfer, and never matches a payment to it', () => {
     const missing = { id: 'transfer:', role: 'transfer', label: 'Transfers whose other side is missing', createName: 'Transfer', categoryId: null, accountId: null, isIncome: false, rowCount: 1 } as const
-    const payment = { ...missing, id: 'transfer:t', label: 'Transfer · payments to and from off-budget accounts', categoryId: 't' }
+    const payment = { ...missing, id: 'transfer:t', label: 'Transfer (transfers)', categoryId: 't' }
 
     expect(inferActualCategoryMappings([missing, payment], {}, CATEGORIES)).toEqual({ [missing.id]: TRANSFER.id, [payment.id]: CREATE_CATEGORY_VALUE })
   })

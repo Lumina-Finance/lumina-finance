@@ -449,7 +449,7 @@ function getSourceLabels(role: ActualCategoryRole, name: string, accountName: st
     if (!name) return { label: 'Transfers whose other side is missing', createName: 'Transfer' }
     const isReserved = ACTUAL_RESERVED_PAYMENT_NAMES.includes(name.toLowerCase())
     return {
-      label: `${name} · payments to and from off-budget accounts`,
+      label: `${name} (transfers)`,
       createName: alsoSpending ? `${name} Transfers` : isReserved ? `${name} Payments` : name,
     }
   }

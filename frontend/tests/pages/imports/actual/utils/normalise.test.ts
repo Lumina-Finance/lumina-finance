@@ -55,13 +55,13 @@ describe('normalising Actual Budget exports', () => {
     expect(categorized).toHaveLength(manifest.transfers.filter((transfer) => transfer.category).length)
     expect(new Set(categorized.map((entry) => entry.categoryLeg))).toEqual(new Set(['source']))
     expect(new Set(categorized.map((entry) => getCategoryLabel(journal, entry.categorySourceId))))
-      .toEqual(new Set(manifest.transfers.flatMap((transfer) => (transfer.category ? [`${transfer.category} · payments to and from off-budget accounts`] : []))))
+      .toEqual(new Set(manifest.transfers.flatMap((transfer) => (transfer.category ? [`${transfer.category} (transfers)`] : []))))
   })
 
   it('files each budget category with what Actual counted against it', async () => {
     const { journal, manifest } = await normalise('envelope')
     const account = new Map(journal.accounts.map((source) => [source.id, source]))
-    const categoryName = new Map(journal.categories.map((source) => [source.id, source.categoryId ? source.label.split(' · ')[0] : '']))
+    const categoryName = new Map(journal.categories.map((source) => [source.id, source.categoryId ? source.label.replace(/ \(transfers\)$/, '') : '']))
 
     // Lumina's budgets count a category in every account, so each categorised leg has to sit in an
     // account on Actual's budget for the totals to agree. Signed from that account's side
@@ -130,7 +130,7 @@ describe('normalising Actual Budget exports', () => {
       ['spending', 'Income', 'Income'],
       ['spending', 'Travel (Away)', 'Travel (Away)'],
       ['spending', 'Travel (Home)', 'Travel (Home)'],
-      ['transfer', 'Car · payments to and from off-budget accounts', 'Car Transfers'],
+      ['transfer', 'Car (transfers)', 'Car Transfers'],
       ['uncategorized', 'No category', 'Miscellaneous'],
       ['offBudgetUncategorized', 'No category · Car Loan', 'Car Loan'],
     ])

@@ -1,4 +1,6 @@
 import { useId, type ReactNode } from 'react'
+import { CircleHelp } from 'lucide-react'
+import IconTooltip from '@/components/tooltips/IconTooltip'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
 import { IMPORT_CATEGORY_KIND_OPTIONS } from '@/pages/imports/constants'
 import type { ImportCategoryKind } from '@/pages/imports/types'
@@ -31,6 +33,9 @@ export function ImportValueMatchTable({
   rows: Array<{
     id: string
     source: string
+
+    /** An explanation behind a question mark beside the source, for a row whose label needs one */
+    sourceHelp?: { label: string; content: ReactNode }
     autoFilled?: boolean
     detailAutoFilled?: boolean
     detail?: string
@@ -83,6 +88,13 @@ export function ImportValueMatchTable({
                 <td className="px-4 py-2 align-middle">
                   <div className="flex min-w-0 items-center gap-2">
                     <p id={sourceLabelId} className="truncate font-medium" title={row.source}>{row.source}</p>
+                    {row.sourceHelp && (
+                      <span className="flex shrink-0">
+                        <IconTooltip label={row.sourceHelp.label} icon={CircleHelp} widthClassName="w-64">
+                          {row.sourceHelp.content}
+                        </IconTooltip>
+                      </span>
+                    )}
                     {creating && (
                       <span className="shrink-0 text-[0.6875rem] font-semibold uppercase" style={{ color: 'var(--app-accent)' }}>
                         New
