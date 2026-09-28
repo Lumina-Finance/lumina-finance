@@ -770,7 +770,10 @@ async def test_firefly_import_refuses_two_new_categories_differing_only_in_capit
 
     assert resp.status_code == 422
     # The run keeps its mappings keyed by source, so the commit meets ROAD TRIPS first
-    assert resp.json()["detail"].startswith("A category named ROAD TRIPS already records income, so this import cannot create Road Trips")
+    assert resp.json()["detail"] == (
+        "ROAD TRIPS is already an income category, so Road Trips cannot be created with another type. "
+        "Match it to ROAD TRIPS, or set its type to Income"
+    )
     assert (await client.get("/transactions", headers=headers)).json() == []
     categories = (await client.get("/categories", headers=headers)).json()
     assert "road trips" not in [category["name"].lower() for category in categories]

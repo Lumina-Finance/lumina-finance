@@ -209,9 +209,9 @@ async def test_commit_category_collision_rereads_real_row_and_updates_later_sour
     if collision_kind == "income":
         assert committed.status_code == 422, committed.text
         assert committed.json()["detail"] == (
-            "A category named Concurrent category already records income, "
-            "so this import cannot create Concurrent category as expense. "
-            "Match this value to that category, or set its type to income."
+            "Concurrent category is already an income category, "
+            "so Concurrent category cannot be created with another type. "
+            "Match it to Concurrent category, or set its type to Income"
         )
         assert (await client.get("/transactions", headers=headers)).json() == []
     else:

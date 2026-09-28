@@ -314,12 +314,16 @@ def _reuse_import_category(existing: Category, kind: CategoryKind, name: str, st
         HTTPException: Raised with 422 when the existing category records the other direction
     """
     if existing.kind != kind:
+        # Worded as the import screens word the same check, which the server repeats for a category
+        # created elsewhere after the screen last read the user's categories
+        existing_kind = existing.kind.value
+        article = "a" if existing.kind == CategoryKind.TRANSFER else "an"
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=(
-                f"A category named {existing.name} already records {existing.kind.value}, "
-                f"so this import cannot create {name} as {kind.value}. "
-                f"Match this value to that category, or set its type to {existing.kind.value}."
+                f"{existing.name} is already {article} {existing_kind} category, "
+                f"so {name} cannot be created with another type. "
+                f"Match it to {existing.name}, or set its type to {existing_kind.capitalize()}"
             ),
         )
     stats.reused_category_ids.add(existing.id)

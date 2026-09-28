@@ -77,14 +77,18 @@ function build(categorySource: string, kind: ImportCategoryKind, categories: Cat
 }
 
 describe('queueing a new category under a name the user already has', () => {
-  it('refuses one recording the other direction, saying what to do instead', () => {
-    // The commit reuses the income Bonus rather than writing an expense one, and refuses because a
-    // name records one direction. Caught here, the step can say which value to answer differently
-    const { payload, errors } = build('Bonus', 'expense', [PERSONAL_INCOME_BONUS])
+  // The commit reuses the existing Bonus rather than writing a second one, and refuses because a
+  // name records one direction. Caught here, the step can say which value to answer differently
+  it.each([
+    { existingKind: 'expense', requestedKind: 'income', wording: 'an expense category', typeLabel: 'Expense' },
+    { existingKind: 'income', requestedKind: 'expense', wording: 'an income category', typeLabel: 'Income' },
+    { existingKind: 'transfer', requestedKind: 'expense', wording: 'a transfer category', typeLabel: 'Transfer' },
+  ] as const)('refuses one where the user has $wording, saying what to do instead', ({ existingKind, requestedKind, wording, typeLabel }) => {
+    const { payload, errors } = build('Bonus', requestedKind, [{ ...PERSONAL_INCOME_BONUS, kind: existingKind }])
 
     expect(payload).toBeNull()
     expect(errors).toEqual([
-      'Bonus is already an income category, so Bonus cannot be created with another type. Match it to Bonus, or set its type to Income.',
+      `Bonus is already ${wording}, so Bonus cannot be created with another type. Match it to Bonus, or set its type to ${typeLabel}.`,
     ])
   })
 
